@@ -1,0 +1,685 @@
+/* Global base + shared component primitives (token sheet "Component recipes"). Tokens only. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: var(--t-ui-body);
+  font-variant-numeric: lining-nums tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+::selection {
+  background: var(--selection-bg);
+  color: var(--on-accent);
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: var(--rail-w) solid var(--focus);
+  outline-offset: var(--rail-w);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border-radius: var(--r-pill);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+p {
+  margin: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ───── icons ───── */
+.icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+.icon--sm {
+  width: 13px;
+  height: 13px;
+}
+
+.icon--xs {
+  width: 12px;
+  height: 12px;
+}
+
+.icon--lg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ───── text primitives ───── */
+.eyebrow {
+  font: var(--t-eyebrow);
+  letter-spacing: var(--eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.kbd {
+  display: inline-block;
+  font: 500 11px/16px var(--f-ui);
+  border: var(--line-w) solid var(--line-strong);
+  border-radius: var(--r-3);
+  padding: 0 var(--s4);
+  color: var(--ink-2);
+  background: transparent;
+  white-space: nowrap;
+}
+
+.dotsep {
+  color: var(--muted);
+  padding: 0 var(--s2);
+}
+
+/* ───── buttons ───── */
+.btn {
+  height: var(--h-btn);
+  padding: 0 var(--s12);
+  border-radius: var(--r-4);
+  border: var(--line-w) solid var(--line-strong);
+  background: transparent;
+  color: var(--ink);
+  font: 500 13px/1 var(--f-ui);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s6);
+  white-space: nowrap;
+  transition:
+    background var(--dur-fast),
+    border-color var(--dur-fast);
+}
+
+.btn .icon {
+  color: var(--ink-2);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--ink-2);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+}
+
+.btn--sm {
+  height: var(--h-btn-sm);
+  padding: 0 var(--s10);
+  font-size: 12.5px;
+}
+
+.btn--lg {
+  height: var(--h-btn-lg);
+  padding: 0 18px;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.btn--primary {
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.btn--primary .icon {
+  color: var(--on-accent);
+}
+
+.btn--primary .kbd {
+  color: var(--on-accent);
+  border-color: var(--on-accent-line);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--accent-bright);
+  border-color: var(--accent-bright);
+}
+
+.btn--primary:disabled {
+  background: var(--surface-3);
+  border-color: var(--surface-3);
+  color: var(--muted);
+  opacity: 1;
+}
+
+.btn--primary:disabled .icon {
+  color: var(--muted);
+}
+
+.btn--ghost {
+  border-color: transparent;
+  color: var(--ink-2);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: transparent;
+  color: var(--ink);
+}
+
+.btn--success {
+  border-color: var(--success);
+  color: var(--success);
+  background: var(--success-tint);
+}
+
+.btn--success .icon {
+  color: var(--success);
+}
+
+.btn--danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn--link {
+  border: 0;
+  padding: 0;
+  height: auto;
+  background: none;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font: inherit;
+}
+
+.btn--link:hover:not(:disabled) {
+  background: none;
+  color: var(--ink);
+}
+
+.iconbtn {
+  width: var(--h-btn);
+  height: var(--h-btn);
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-4);
+  color: var(--ink-2);
+  flex: none;
+}
+
+.iconbtn:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.iconbtn--sm {
+  width: 26px;
+  height: 26px;
+}
+
+.iconbtn--xs {
+  width: 22px;
+  height: 22px;
+}
+
+/* ───── chips, tags, pills ───── */
+.chip {
+  height: var(--h-btn-sm);
+  padding: 0 var(--s12);
+  border-radius: var(--r-pill);
+  border: var(--line-w) solid var(--line-strong);
+  background: transparent;
+  font: 500 13px/1 var(--f-ui);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.chip:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.chip[aria-pressed="true"],
+.chip[aria-checked="true"] {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.chip[aria-pressed="true"] .icon,
+.chip[aria-checked="true"] .icon {
+  color: var(--accent);
+}
+
+.chip--ghost {
+  border-style: dashed;
+  color: var(--ink-2);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s4);
+  background: var(--surface-3);
+  border: 0;
+  border-radius: var(--r-pill);
+  font: 400 12.5px/22px var(--f-ui);
+  color: var(--ink-2);
+  padding: 0 var(--s10);
+  white-space: nowrap;
+}
+
+.phase {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s6);
+  font: 500 12px/22px var(--f-ui);
+  border-radius: var(--r-pill);
+  padding: 0 var(--s10) 0 var(--s8);
+  color: var(--ink-2);
+  background: var(--surface-3);
+  white-space: nowrap;
+}
+
+.phase::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.phase--plan::before {
+  background: var(--accent-fill);
+}
+
+.phase--build::before {
+  background: var(--success);
+}
+
+.phase--stale::before {
+  background: var(--warning);
+}
+
+.okpill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s4);
+  font: 600 12px/20px var(--f-ui);
+  color: var(--success);
+  background: var(--success-tint);
+  border-radius: var(--r-pill);
+  padding: 0 9px;
+  white-space: nowrap;
+}
+
+.okpill--warn {
+  color: var(--warning);
+  background: var(--warning-tint);
+}
+
+/* ───── room badges and references ───── */
+.badge {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 1.25px solid var(--accent);
+  color: var(--accent);
+  display: inline-grid;
+  place-items: center;
+  font: 600 10.5px/1 var(--f-ui);
+  flex: none;
+}
+
+.badge--solid {
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+/* inline room reference in reading text (④): a real element, so it matches the map badge on every OS */
+.nref {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.12em;
+  height: 1.12em;
+  padding: 0 0.18em;
+  margin: 0 0.06em;
+  border-radius: var(--r-pill);
+  border: var(--line-w) solid var(--accent);
+  color: var(--accent);
+  font: 600 0.66em/1 var(--f-ui);
+  vertical-align: 0.12em;
+  background: transparent;
+  cursor: pointer;
+}
+
+.nref:hover {
+  background: var(--accent-tint);
+}
+
+.ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: var(--line-w) solid var(--line-strong);
+  border-radius: var(--r-4);
+  font: 500 13px/20px var(--f-ui);
+  color: var(--ink);
+  padding: 0 7px 0 3px;
+  white-space: nowrap;
+  vertical-align: baseline;
+  background: transparent;
+}
+
+.ref__x {
+  border: 0;
+  background: none;
+  padding: 0 0 0 2px;
+  color: var(--muted);
+  display: inline-grid;
+  place-items: center;
+}
+
+.ref__x:hover {
+  color: var(--ink);
+}
+
+/* ───── form controls ───── */
+.input {
+  height: var(--h-btn);
+  border: var(--line-w) solid var(--line-strong);
+  border-radius: var(--r-4);
+  background: var(--field-bg);
+  padding: 0 var(--s8);
+  color: var(--ink);
+  font: var(--t-ui);
+  min-width: 0;
+  width: 100%;
+}
+
+.input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+  outline: none;
+}
+
+.textarea {
+  border: var(--line-w) solid var(--line-strong);
+  border-radius: var(--r-4);
+  background: var(--field-bg);
+  padding: var(--s8) var(--s10);
+  color: var(--ink);
+  font: var(--t-reading-m);
+  width: 100%;
+  resize: vertical;
+}
+
+.select {
+  height: var(--h-btn-sm);
+  border: var(--line-w) solid var(--line-strong);
+  border-radius: var(--r-4);
+  background: var(--field-bg);
+  font: var(--t-small);
+  color: var(--ink);
+  padding: 0 var(--s6);
+}
+
+.box {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--r-3);
+  background: transparent;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  color: var(--surface);
+}
+
+.box .icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.4;
+}
+
+.box--on {
+  background: var(--ink-2);
+  border-color: var(--ink-2);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s6);
+  font: var(--t-small);
+  color: var(--ink-2);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.radio {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  flex: none;
+}
+
+.radio--on {
+  border: 5px solid var(--accent-fill);
+}
+
+/* segmented control: tint + 1px inset gold ring when selected */
+.segctl {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  border: var(--line-w) solid var(--line-strong);
+  border-radius: var(--r-4);
+  overflow: hidden;
+}
+
+.segctl > button {
+  border: 0;
+  border-right: var(--line-w) solid var(--line);
+  background: transparent;
+  height: 30px;
+  font: 500 12.5px/1 var(--f-ui);
+  color: var(--ink-2);
+  padding: 0 var(--s8);
+  white-space: nowrap;
+}
+
+.segctl > button:last-child {
+  border-right: 0;
+}
+
+.segctl > button:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.segctl > button[aria-checked="true"] {
+  background: var(--accent-tint);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.segctl--sm > button {
+  height: var(--h-btn-sm);
+}
+
+/* ───── surfaces ───── */
+.card {
+  background: var(--surface-2);
+  border-radius: var(--r-6);
+  padding: var(--s12) var(--s14);
+}
+
+.popover {
+  position: absolute;
+  background: var(--surface-2);
+  border: var(--line-w) solid var(--line);
+  border-radius: var(--r-8);
+  box-shadow: var(--shadow-pop);
+  z-index: var(--z-pop);
+}
+
+.menu {
+  position: absolute;
+  min-width: 220px;
+  padding: var(--s4);
+  background: var(--surface-2);
+  border: var(--line-w) solid var(--line);
+  border-radius: var(--r-8);
+  box-shadow: var(--shadow-pop);
+  z-index: var(--z-menu);
+  display: flex;
+  flex-direction: column;
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s10);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 6px var(--s10);
+  border-radius: var(--r-4);
+  font: var(--t-ui);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.menu__item:hover:not(:disabled),
+.menu__item:focus-visible {
+  background: var(--surface-3);
+  outline: none;
+}
+
+.menu__item:disabled {
+  color: var(--muted);
+}
+
+.menu__item .kbd,
+.menu__accel {
+  margin-left: auto;
+  color: var(--muted);
+  font: var(--t-meta);
+}
+
+.menu__sep {
+  height: 1px;
+  background: var(--line);
+  margin: var(--s4) var(--s6);
+}
+
+.menu__head {
+  padding: var(--s6) var(--s10) var(--s2);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--surface-3);
+  border-top-color: var(--ink-2);
+  animation: spin 0.9s linear infinite;
+  flex: none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ───── reduced motion ───── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .spinner {
+    animation: none;
+    border-top-color: var(--ink-2);
+    border-right-color: var(--ink-2);
+  }
+}

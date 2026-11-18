@@ -1,0 +1,793 @@
+{
+  "schema": "slabyrinth/palette@1",
+  "id": "stone_dungeon",
+  "name": "Stone dungeon",
+  "description": "Dungeon Cellar kit with MegaDungeon alternates.",
+  "defaults": {
+    "floor": "flagstone",
+    "wallStyle": "wall"
+  },
+  "roles": {
+    "feature.altar": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "eba101cd-f1c1-4568-b330-b66ab33bf325",
+          "name": "Altar (Evil)",
+          "geom": {
+            "size": {
+              "x": 2.927,
+              "y": 0.887,
+              "z": 1.652
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.4436,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            3,
+            2
+          ]
+        }
+      ]
+    },
+    "feature.bones": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "863ba7a4-742b-4a35-b451-bc384621ce83",
+          "name": "Bone Pile 01",
+          "geom": {
+            "size": {
+              "x": 0.835,
+              "y": 0.156,
+              "z": 0.879
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.0781,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "737d0f69-857d-481f-949a-e8b4930b11ac",
+          "name": "Skeleton 01",
+          "geom": {
+            "size": {
+              "x": 0.46,
+              "y": 0.166,
+              "z": 1.206
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.083,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "skeleton",
+          "weight": 0.5
+        }
+      ]
+    },
+    "feature.pillar": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "ade24972-5bf6-4dc4-be27-48026fbfa097",
+          "name": "Dungeon Pillar",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "be6cf2a8-92f1-4128-8a05-e1d0437f51a3",
+          "name": "Dungeon Pillar - Ruined",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "ruined",
+          "weight": 0
+        },
+        {
+          "asset": "3e3b2d05-baf8-4140-88f1-88b13c6e35b4",
+          "name": "castle pillar",
+          "geom": {
+            "size": {
+              "x": 0.593,
+              "y": 1.998,
+              "z": 0.59
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9999,
+              "z": -0.0035
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "round",
+          "weight": 0
+        }
+      ]
+    },
+    "feature.statue": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "54f1eaf1-63f2-4665-80f5-3287bd7cf79d",
+          "name": "Knight Statue",
+          "geom": {
+            "size": {
+              "x": 0.588,
+              "y": 1.981,
+              "z": 0.583
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9906,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.web": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "0532bed7-1e3e-4c2d-ae09-192c9fb1a6f5",
+          "name": "Spiderweb03",
+          "geom": {
+            "size": {
+              "x": 1.054,
+              "y": 0.139,
+              "z": 1.055
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0218,
+              "y": 0.0695,
+              "z": -0.0402
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "fill.default": {
+      "rotation": "fixed",
+      "variants": [
+        {
+          "asset": "d5900784-9510-4cf7-b017-f369448d0d52",
+          "name": "Dungeon Floor - Small",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "stack": {
+            "unitHeight": 0.5
+          }
+        }
+      ]
+    },
+    "floor.flagstone": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "d5900784-9510-4cf7-b017-f369448d0d52",
+          "name": "Dungeon Floor - Small",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "alternates": [
+            "940d013f-c982-43e7-922a-0317cc1c74db"
+          ],
+          "alternateGeom": {
+            "940d013f-c982-43e7-922a-0317cc1c74db": {
+              "size": {
+                "x": 1,
+                "y": 0.5,
+                "z": 1
+              },
+              "originAt": "minCorner",
+              "boundsCenter": {
+                "x": 0.5,
+                "y": 0.25,
+                "z": 0.5
+              },
+              "lengthAxis": "square"
+            }
+          }
+        },
+        {
+          "asset": "bdd9483a-3d7c-4f06-bfdd-145765045c0d",
+          "name": "Dungeon Floor 02",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "alternates": [
+            "a3645a02-ba42-4711-9959-0bee2bf1bb82"
+          ],
+          "alternateGeom": {
+            "a3645a02-ba42-4711-9959-0bee2bf1bb82": {
+              "size": {
+                "x": 2,
+                "y": 0.5,
+                "z": 2
+              },
+              "originAt": "minCorner",
+              "boundsCenter": {
+                "x": 1,
+                "y": 0.25,
+                "z": 1
+              },
+              "lengthAxis": "square"
+            }
+          }
+        },
+        {
+          "asset": "4c65150a-2e46-41cf-99ef-191d31d968e0",
+          "name": "Dungeon Floor - Cracked",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "cracked",
+          "weight": 0.5
+        }
+      ]
+    },
+    "link.stairs": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "ed072f00-f245-44e7-9d25-6a1cb498cbaa",
+          "name": "Dungeon Stairs",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "facing": {
+            "ascendsToward": "W"
+          }
+        },
+        {
+          "asset": "10809742-70c4-45a9-9350-2ae81505da07",
+          "name": "Dungeon Stair Block",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "solid",
+          "weight": 0
+        }
+      ]
+    },
+    "opening.archway": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "e7a2735d-8e6f-4c48-818d-6eb4896bdf03",
+          "name": "md_wall_archway_2x1_01",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "opening.bars": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "894cf316-b8c5-4559-923d-7ea4c79280aa",
+          "name": "Prison bars v2 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "opening.door": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "3151e230-bac7-401e-8fa8-b993bbee17ea",
+          "name": "Door - Dungeon",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "facing": {
+            "handleEnd": "W"
+          }
+        },
+        {
+          "asset": "63c8488e-e0b6-4d75-9f0c-97163f77edbc",
+          "name": "Door - Prison",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "prison",
+          "weight": 0,
+          "facing": {
+            "handleEnd": "W"
+          }
+        }
+      ]
+    },
+    "opening.double_door": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "e963aa2f-ec17-4841-9887-721c9d37161d",
+          "name": "Doors - Dungeon Double",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "opening.portcullis": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "fallback": "opening.bars",
+      "variants": [
+        {
+          "asset": "fcb7a2fe-4b79-4d0a-b1fd-31e4b17ffaf5",
+          "name": "Door - Portcullis",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "wall.iron_bars": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "894cf316-b8c5-4559-923d-7ea4c79280aa",
+          "name": "Prison bars v2 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "wall.ruined": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "fallback": "wall.wall",
+      "variants": [
+        {
+          "asset": "6ac43c67-e43d-455c-826d-e013745bdfbc",
+          "name": "Dungeon Wall - Ruined",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "wall.wall": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "63270c8a-9484-4ae8-926e-22e3de9048a1",
+          "name": "Dungeon Wall 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "alternates": [
+            "56e2633d-bbce-4eea-bde7-cb7c34b636f1"
+          ],
+          "alternateGeom": {
+            "56e2633d-bbce-4eea-bde7-cb7c34b636f1": {
+              "size": {
+                "x": 1,
+                "y": 2,
+                "z": 0.5
+              },
+              "originAt": "minCorner",
+              "boundsCenter": {
+                "x": 0.5,
+                "y": 1,
+                "z": 0.25
+              },
+              "lengthAxis": "x"
+            }
+          }
+        },
+        {
+          "asset": "bd1822ab-9e93-4fa6-9435-1793168de03f",
+          "name": "Dungeon Wall 02",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "alternates": [
+            "eea7b9e2-b30c-43f3-95fb-0db4a6720d45"
+          ],
+          "alternateGeom": {
+            "eea7b9e2-b30c-43f3-95fb-0db4a6720d45": {
+              "size": {
+                "x": 2,
+                "y": 2,
+                "z": 0.5
+              },
+              "originAt": "minCorner",
+              "boundsCenter": {
+                "x": 1,
+                "y": 1,
+                "z": 0.25
+              },
+              "lengthAxis": "x"
+            }
+          }
+        }
+      ]
+    },
+    "wall_post.wall": {
+      "rotation": "fixed",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "cec14f2e-faf2-4a9a-bd96-909c16b92197",
+          "name": "Dungeon Wall Corner Filler",
+          "geom": {
+            "size": {
+              "x": 0.5,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.25,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "alternates": [
+            "bb8e7378-44da-4556-bac5-92420f766815"
+          ],
+          "alternateGeom": {
+            "bb8e7378-44da-4556-bac5-92420f766815": {
+              "size": {
+                "x": 0.5,
+                "y": 2,
+                "z": 0.5
+              },
+              "originAt": "minCorner",
+              "boundsCenter": {
+                "x": 0.25,
+                "y": 1,
+                "z": 0.25
+              },
+              "lengthAxis": "square"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "source": {
+    "generatedBy": "packages/core/scripts/import-palette-draft.ts from data/palette-draft.json"
+  },
+  "extends": "generic"
+}

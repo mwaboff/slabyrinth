@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+out-test/
+release/
+.tsbuild/
+*.tsbuildinfo
+coverage/
+
+.vite/
+.cache/
+.eslintcache
+
+# Test output
+playwright-report/
+blob-report/
+test-results/
+/apps/desktop/e2e/.tmp*/
+**/e2e-user-data*/
+**/user-data/
+**/userData/
+
+# Anything extracted or copied from a TaleSpire install: generated locally, never
+# committed (docs/decisions.md). Only the curated palettes in packages/core/data are.
+data/talespire-assets*.json
+# Research palette draft (extra catalog fields); input to packages/core/scripts/import-palette-draft.ts only.
+data/palette-draft.json
+data/talespire-*/
+data/thumbnails/
+data/catalog*/
+tools/**/out/
+tools/**/*.index
+tools/**/*.bin
+*.talespire-index
+
+# Local secrets (the app stores its key in secret.bin under the OS user-data folder)
+secret.bin
+
+# Temp files (atomic-write temps, editor and OS junk)
+*.tmp
+*.tmp-*
+*.lock
+!package-lock.json
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Internal working notes kept local
+docs/internal/
+
+# Local env
+.env
+.env.*
+*.stackdump

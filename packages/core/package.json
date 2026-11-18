@@ -1,0 +1,27 @@
+{
+  "name": "@slabyrinth/core",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Slabyrinth core: plan model, resolver, compiler, slab codec, agent tools. Pure TypeScript (node:* only in src/cli).",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contracts/*": "./src/contracts/*.ts",
+    "./agent/tools": "./src/agent/tools.ts",
+    "./*": "./src/*/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b . tsconfig.cli.json tsconfig.test.json",
+    "test": "vitest run --root ../.. --project core",
+    "cli": "tsx src/cli/index.ts"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "fast-check": "4.10.3"
+  }
+}

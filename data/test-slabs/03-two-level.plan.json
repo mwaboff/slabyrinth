@@ -1,0 +1,241 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 1,
+  "id": "5a1b0001-0000-4000-8000-000000000003",
+  "title": "Proof 03 - two levels, multi-chunk",
+  "kind": "dungeon",
+  "seed": 3,
+  "theme": "stone_dungeon",
+  "levels": [
+    {
+      "id": "lower",
+      "name": "Lower",
+      "elevation": 0,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 20
+      },
+      "base": {
+        "type": "solid"
+      },
+      "areas": [
+        {
+          "id": "west",
+          "kind": "room",
+          "name": "West hall",
+          "shape": {
+            "type": "rect",
+            "x": 2,
+            "y": 2,
+            "w": 8,
+            "h": 10
+          }
+        },
+        {
+          "id": "east",
+          "kind": "room",
+          "name": "East hall",
+          "shape": {
+            "type": "rect",
+            "x": 18,
+            "y": 2,
+            "w": 9,
+            "h": 8
+          }
+        },
+        {
+          "id": "south",
+          "kind": "room",
+          "name": "South room",
+          "shape": {
+            "type": "rect",
+            "x": 14,
+            "y": 12,
+            "w": 8,
+            "h": 6
+          }
+        },
+        {
+          "id": "hall",
+          "kind": "corridor",
+          "shape": {
+            "type": "rect",
+            "x": 10,
+            "y": 5,
+            "w": 8,
+            "h": 2
+          }
+        },
+        {
+          "id": "link_s",
+          "kind": "corridor",
+          "shape": {
+            "type": "rect",
+            "x": 17,
+            "y": 10,
+            "w": 2,
+            "h": 2
+          }
+        }
+      ],
+      "openings": [
+        {
+          "id": "o1",
+          "kind": "door",
+          "between": [
+            "west",
+            "hall"
+          ]
+        },
+        {
+          "id": "o2",
+          "kind": "double_door",
+          "between": [
+            "hall",
+            "east"
+          ],
+          "width": 2
+        },
+        {
+          "id": "o3",
+          "kind": "door",
+          "between": [
+            "east",
+            "link_s"
+          ]
+        },
+        {
+          "id": "o4",
+          "kind": "door",
+          "between": [
+            "link_s",
+            "south"
+          ]
+        }
+      ],
+      "walls": [],
+      "features": [
+        {
+          "id": "chest1",
+          "type": "chest",
+          "at": [
+            3,
+            3
+          ]
+        },
+        {
+          "id": "barrel1",
+          "type": "barrel",
+          "at": [
+            8,
+            10
+          ]
+        },
+        {
+          "id": "statue1",
+          "type": "statue",
+          "at": [
+            15,
+            13
+          ]
+        },
+        {
+          "id": "altar1",
+          "type": "altar",
+          "at": [
+            17,
+            15
+          ],
+          "size": [
+            3,
+            2
+          ]
+        }
+      ],
+      "terrain": [],
+      "labels": []
+    },
+    {
+      "id": "upper",
+      "name": "Upper",
+      "elevation": 2.5,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 20
+      },
+      "base": {
+        "type": "void"
+      },
+      "areas": [
+        {
+          "id": "gallery",
+          "kind": "room",
+          "name": "Gallery",
+          "shape": {
+            "type": "rect",
+            "x": 18,
+            "y": 2,
+            "w": 9,
+            "h": 7
+          }
+        },
+        {
+          "id": "tower",
+          "kind": "room",
+          "name": "Tower room",
+          "shape": {
+            "type": "rect",
+            "x": 20,
+            "y": 6,
+            "w": 5,
+            "h": 4
+          }
+        }
+      ],
+      "openings": [
+        {
+          "id": "o5",
+          "kind": "door",
+          "between": [
+            "gallery",
+            "tower"
+          ]
+        }
+      ],
+      "walls": [],
+      "features": [
+        {
+          "id": "chest2",
+          "type": "chest",
+          "at": [
+            19,
+            3
+          ]
+        }
+      ],
+      "terrain": [],
+      "labels": []
+    }
+  ],
+  "links": [
+    {
+      "id": "up",
+      "kind": "stairs",
+      "from": {
+        "level": "lower",
+        "at": [
+          25,
+          8
+        ]
+      },
+      "to": {
+        "level": "upper"
+      },
+      "dir": "N"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+PLAN v7 "5" town theme=town seed=1234 entry=g
+LEVEL g "g" elev=0 bounds=0,0 30x20 base=ground:grass
+  AREA square courtyard #1 rect 8,6 12x8
+  AREA inn building #2 rect 2,2 6x5 wallStyle=wood
+  AREA shop building #3 rect 20,2 5x5 wallStyle=brick
+  AREA garden zone "Herb garden" rect 20,12 8x6
+  AREA hedge courtyard rect 21,13 6x4 walls=auto floor=dirt wallStyle=hedge
+  OPEN inn_door door inn|@outside @0.5 -> edge h 4..5,2
+  OPEN shop_door door shop|@outside @0 -> edge h 20..21,2
+  OPEN gate open hedge|@outside @0.5 -> edge h 23..24,13
+  FEAT well well 13,9 · cart wagon 10,11 r90 · trap trap 16,8 · flowers flowers 22,14
+  TERR road path cobble 0,16>29,16 w2
+  TERR shore paint mud blob 4,13 r4.5 rough=0.5 layer=under
+  TERR pond paint water_deep blob 4,13 r3 rough=0.5
+  LABEL lbl "Market" 14,7 l
+ISSUES 1
+  warning bounds_exceeded shore: terrain "shore" extends beyond the level bounds; the cells outside are clipped (hint: level g bounds are 0,0 30x20)

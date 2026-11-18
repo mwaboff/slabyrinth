@@ -1,0 +1,277 @@
+{
+  "description": "path shape with a diagonal segment (original example B reeds)",
+  "base": "example-b.json",
+  "expect": [
+    {
+      "code": "shape_invalid",
+      "path": "/levels/0/terrain/8/shape/points/1",
+      "hintIncludes": "insert the corner [36,0]"
+    }
+  ],
+  "plan": {
+    "schema": "slabyrinth/plan@1",
+    "generator": 1,
+    "id": "0d8f6c3e-77a4-4b9e-8a1e-5d3b2c9e4f10",
+    "title": "Chapel in the Pines",
+    "kind": "outdoor",
+    "seed": 90210,
+    "theme": "outdoor",
+    "levels": [
+      {
+        "id": "g",
+        "name": "Old Chapel Clearing",
+        "elevation": 0,
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "w": 48,
+          "h": 40
+        },
+        "base": {
+          "type": "ground",
+          "material": "grass"
+        },
+        "areas": [
+          {
+            "id": "clearing",
+            "kind": "zone",
+            "name": "The Clearing",
+            "key": "2",
+            "shape": {
+              "type": "blob",
+              "cx": 22,
+              "cy": 17,
+              "r": 10,
+              "roughness": 0.3
+            },
+            "notes": "Bandits camp here; the fire is still warm."
+          },
+          {
+            "id": "ruin",
+            "kind": "building",
+            "name": "Ruined Chapel",
+            "key": "1",
+            "theme": "stone_dungeon",
+            "shape": {
+              "type": "rect",
+              "x": 18,
+              "y": 11,
+              "w": 8,
+              "h": 7
+            },
+            "floor": "flagstone",
+            "wallStyle": "ruined",
+            "readAloud": "Half a chapel: the east wall has fallen outward into the bracken."
+          },
+          {
+            "id": "bridge",
+            "kind": "courtyard",
+            "shape": {
+              "type": "rect",
+              "x": 32,
+              "y": 28,
+              "w": 5,
+              "h": 3
+            },
+            "floor": "bridge_wood",
+            "walls": "none"
+          }
+        ],
+        "openings": [
+          {
+            "id": "chapel_door",
+            "kind": "archway",
+            "at": {
+              "x": 21,
+              "y": 17,
+              "side": "S"
+            },
+            "width": 2
+          }
+        ],
+        "walls": [
+          {
+            "id": "breach",
+            "op": "remove",
+            "points": [
+              [26, 13],
+              [26, 16]
+            ]
+          }
+        ],
+        "features": [
+          {
+            "id": "altar",
+            "type": "altar",
+            "at": [21, 12],
+            "rot": 0
+          },
+          {
+            "id": "saint",
+            "type": "statue",
+            "at": [24, 12],
+            "variant": "broken"
+          },
+          {
+            "id": "rb1",
+            "type": "rubble",
+            "at": [25, 14]
+          },
+          {
+            "id": "rb2",
+            "type": "rubble",
+            "at": [19, 16]
+          },
+          {
+            "id": "fire",
+            "type": "campfire",
+            "at": [15, 21]
+          },
+          {
+            "id": "tent1",
+            "type": "tent",
+            "at": [11, 18],
+            "size": [2, 2],
+            "rot": 90
+          },
+          {
+            "id": "log1",
+            "type": "log",
+            "at": [28, 22],
+            "rot": 90
+          },
+          {
+            "id": "sign",
+            "type": "signpost",
+            "at": [6, 29]
+          }
+        ],
+        "terrain": [
+          {
+            "id": "patches",
+            "op": "noise",
+            "shape": {
+              "type": "rect",
+              "x": 0,
+              "y": 0,
+              "w": 48,
+              "h": 40
+            },
+            "material": "dirt",
+            "coverage": 0.2,
+            "scale": 5
+          },
+          {
+            "id": "road",
+            "op": "path",
+            "points": [
+              [0, 31],
+              [16, 29],
+              [30, 30],
+              [47, 24]
+            ],
+            "width": 2,
+            "material": "gravel",
+            "jitter": 0.25
+          },
+          {
+            "id": "stream",
+            "op": "path",
+            "points": [
+              [34, 0],
+              [36, 14],
+              [33, 26],
+              [38, 39]
+            ],
+            "width": 2,
+            "material": "water_shallow",
+            "jitter": 0.3
+          },
+          {
+            "id": "knoll",
+            "op": "height",
+            "shape": {
+              "type": "blob",
+              "cx": 9,
+              "cy": 9,
+              "r": 5
+            },
+            "delta": 0.5,
+            "smooth": 2
+          },
+          {
+            "id": "trees",
+            "op": "scatter",
+            "feature": "tree",
+            "density": 0.3,
+            "minSpacing": 2,
+            "exclude": [
+              {
+                "type": "blob",
+                "cx": 22,
+                "cy": 17,
+                "r": 10,
+                "roughness": 0.3
+              }
+            ],
+            "avoid": ["water", "paths", "areas", "features", "links"]
+          },
+          {
+            "id": "pines",
+            "op": "scatter",
+            "feature": "pine_tree",
+            "shape": {
+              "type": "rect",
+              "x": 0,
+              "y": 0,
+              "w": 14,
+              "h": 40
+            },
+            "density": 0.12,
+            "minSpacing": 2,
+            "avoid": ["water", "paths", "areas", "features"]
+          },
+          {
+            "id": "bushes",
+            "op": "scatter",
+            "feature": "bush",
+            "density": 0.05,
+            "avoid": ["water", "paths", "areas", "features"]
+          },
+          {
+            "id": "boulders",
+            "op": "scatter",
+            "feature": "boulder",
+            "density": 0.015,
+            "minSpacing": 4
+          },
+          {
+            "id": "reeds",
+            "op": "scatter",
+            "feature": "reeds",
+            "shape": {
+              "type": "path",
+              "points": [
+                [34, 0],
+                [36, 14],
+                [33, 26],
+                [38, 39]
+              ],
+              "width": 4
+            },
+            "density": 0.25,
+            "avoid": ["areas", "features"]
+          }
+        ],
+        "labels": [
+          {
+            "id": "to_town",
+            "text": "To Millbrook",
+            "at": [2, 30]
+          }
+        ]
+      }
+    ],
+    "links": []
+  }
+}

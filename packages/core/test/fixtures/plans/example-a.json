@@ -1,0 +1,201 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 1,
+  "id": "6f1c2a52-6a9e-4c55-9d64-2f0b9b7c1e01",
+  "title": "The Drowned Abbey",
+  "kind": "dungeon",
+  "seed": 41177,
+  "theme": "stone_dungeon",
+  "entryLevel": "l1",
+  "summary": "Crypts under a ruined abbey; the lower cistern level is half flooded.",
+  "levels": [
+    {
+      "id": "l1",
+      "name": "Upper Crypts",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 30, "h": 24 },
+      "base": { "type": "solid" },
+      "areas": [
+        {
+          "id": "entry",
+          "kind": "room",
+          "name": "Collapsed Stair",
+          "key": "1",
+          "shape": { "type": "rect", "x": 12, "y": 18, "w": 6, "h": 5 },
+          "readAloud": "Broken steps spill down from a hole in the vaulted ceiling. Grey daylight dies a few feet in.",
+          "notes": "Way in from the abbey ruins above. Rubble is difficult terrain."
+        },
+        {
+          "id": "hall",
+          "kind": "room",
+          "name": "Hall of Pillars",
+          "key": "2",
+          "shape": { "type": "rect", "x": 8, "y": 6, "w": 16, "h": 8 },
+          "notes": "Eight pillars carved as hooded monks. The statue's eyes follow light sources."
+        },
+        {
+          "id": "guard",
+          "kind": "room",
+          "name": "Guardroom",
+          "key": "3",
+          "shape": { "type": "rect", "x": 1, "y": 7, "w": 5, "h": 6 },
+          "encounter": "Daggerheart: 3× Skeleton Warrior (Standard)."
+        },
+        {
+          "id": "ossuary",
+          "kind": "room",
+          "name": "Ossuary",
+          "key": "4",
+          "shape": { "type": "rect", "x": 24, "y": 4, "w": 5, "h": 10 },
+          "notes": "Secret door from the hall (Instinct 14). Stairs descend to the cistern."
+        },
+        {
+          "id": "c1",
+          "kind": "corridor",
+          "shape": {
+            "type": "route",
+            "from": "entry",
+            "to": "hall",
+            "width": 2,
+            "bend": "vh",
+            "openings": "archway"
+          }
+        },
+        {
+          "id": "c2",
+          "kind": "corridor",
+          "shape": {
+            "type": "route",
+            "from": "guard",
+            "to": "hall",
+            "width": 1,
+            "bend": "hv",
+            "openings": "door"
+          }
+        }
+      ],
+      "openings": [
+        { "id": "d_secret", "kind": "secret_door", "between": ["hall", "ossuary"], "position": 0.5 }
+      ],
+      "walls": [],
+      "features": [
+        { "id": "p1", "type": "pillar", "at": [10, 8] },
+        { "id": "p2", "type": "pillar", "at": [10, 11] },
+        { "id": "p3", "type": "pillar", "at": [13, 8] },
+        { "id": "p4", "type": "pillar", "at": [13, 11] },
+        { "id": "p5", "type": "pillar", "at": [18, 8] },
+        { "id": "p6", "type": "pillar", "at": [18, 11] },
+        { "id": "p7", "type": "pillar", "at": [21, 8] },
+        { "id": "p8", "type": "pillar", "at": [21, 11] },
+        { "id": "abbot", "type": "statue", "at": [15, 6], "rot": 0, "label": "The Abbot" },
+        { "id": "torch1", "type": "torch_wall", "at": [9, 6], "wall": "N" },
+        { "id": "torch2", "type": "torch_wall", "at": [22, 6], "wall": "N" },
+        { "id": "sarc", "type": "sarcophagus", "at": [25, 5], "size": [1, 2] },
+        { "id": "bones1", "type": "bones", "at": [27, 12] },
+        { "id": "rubble1", "type": "rubble", "at": [13, 20] },
+        { "id": "rubble2", "type": "rubble", "at": [16, 21] }
+      ],
+      "terrain": [
+        { "id": "dress_guard", "op": "dress", "area": "guard", "preset": "barracks", "density": 0.6 }
+      ],
+      "labels": [{ "id": "lbl_up", "text": "Up to the abbey", "at": [14, 22], "size": "s" }]
+    },
+    {
+      "id": "l2",
+      "name": "Cistern Depths",
+      "elevation": -2.5,
+      "bounds": { "x": 0, "y": 0, "w": 30, "h": 24 },
+      "base": { "type": "solid" },
+      "theme": "cave",
+      "areas": [
+        {
+          "id": "cistern",
+          "kind": "cave",
+          "name": "Flooded Cistern",
+          "key": "5",
+          "walls": "perimeter",
+          "shape": { "type": "cave", "x": 13, "y": 3, "w": 16, "h": 17, "fill": 0.42, "seed": 7 },
+          "notes": "Waist-deep water in the middle; the deep pool hides the drowned abbot's ring."
+        },
+        {
+          "id": "landing",
+          "kind": "room",
+          "name": "Stair Landing",
+          "key": "6",
+          "walls": "perimeter",
+          "floor": "rock",
+          "shape": { "type": "rect", "x": 24, "y": 7, "w": 4, "h": 5 }
+        },
+        {
+          "id": "chapel",
+          "kind": "room",
+          "name": "Drowned Chapel",
+          "key": "7",
+          "theme": "stone_dungeon",
+          "shape": { "type": "rect", "x": 2, "y": 8, "w": 8, "h": 7 },
+          "readAloud": "Green water laps at a raised altar. Someone has lit a single candle."
+        },
+        {
+          "id": "c3",
+          "kind": "corridor",
+          "shape": {
+            "type": "route",
+            "from": "chapel",
+            "to": "cistern",
+            "width": 1,
+            "bend": "hv",
+            "openings": "archway"
+          }
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [
+        { "id": "altar2", "type": "altar", "at": [3, 11], "rot": 90 },
+        { "id": "candle", "type": "candelabra", "at": [4, 10] }
+      ],
+      "terrain": [
+        {
+          "id": "flood",
+          "op": "paint",
+          "layer": "over",
+          "shape": { "type": "circle", "cx": 20, "cy": 11.5, "r": 5 },
+          "material": "water_shallow"
+        },
+        {
+          "id": "pool",
+          "op": "paint",
+          "layer": "over",
+          "shape": { "type": "circle", "cx": 20, "cy": 13.5, "r": 2 },
+          "material": "water_deep"
+        },
+        {
+          "id": "dais",
+          "op": "height",
+          "layer": "over",
+          "shape": { "type": "rect", "x": 3, "y": 9, "w": 3, "h": 5 },
+          "set": 0.5
+        },
+        {
+          "id": "rocks",
+          "op": "scatter",
+          "feature": "rock",
+          "shape": { "type": "rect", "x": 13, "y": 3, "w": 16, "h": 17 },
+          "density": 0.06,
+          "minSpacing": 2
+        }
+      ],
+      "labels": []
+    }
+  ],
+  "links": [
+    {
+      "id": "stair_main",
+      "kind": "stairs",
+      "from": { "level": "l2", "at": [26, 11] },
+      "to": { "level": "l1" },
+      "dir": "N",
+      "label": "Down to the cistern"
+    }
+  ]
+}

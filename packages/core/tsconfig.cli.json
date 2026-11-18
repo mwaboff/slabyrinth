@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src/cli",
+    "outDir": "dist/cli",
+    "tsBuildInfoFile": "dist/cli/.tsbuildinfo",
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": ["src/cli/**/*.ts"],
+  "references": [{ "path": "./tsconfig.json" }]
+}

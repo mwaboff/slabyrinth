@@ -1,0 +1,43 @@
+{
+  "schema": "slabyrinth/orientation@1",
+  "flipZ": true,
+  "rotSense": 1,
+  "edgePlacement": {
+    "N": { "rotSteps": [0, 12], "offset": { "x": 0, "z": 0.5 } },
+    "E": { "rotSteps": [6, 18], "offset": { "x": 0.5, "z": 0 } },
+    "S": { "rotSteps": [0, 12], "offset": { "x": 0, "z": 0 } },
+    "W": { "rotSteps": [6, 18], "offset": { "x": 0, "z": 0 } }
+  },
+  "defaultFacing": {
+    "feature": { "front": "N", "mountsOn": "S" },
+    "link.stairs": { "ascendsToward": "W" },
+    "link.ramp": { "ascendsToward": "W" },
+    "opening": { "handleEnd": "W" },
+    "*": {}
+  },
+  "doorHandlePreference": { "eastWestEdge": "W", "northSouthEdge": "N" },
+  "wallFacingFeatures": ["bed", "bunk_bed", "bookshelf", "wardrobe", "shelf", "weapon_rack", "armor_stand", "throne", "altar", "counter", "bar_counter", "desk"],
+  "pasteAnchor": "unknown",
+  "verified": [
+    { "item": "flipZ: +x = East, +z = North; plan row → z = H−1−row, no mirroring", "by": "in-game calibration slab (data/calibration-slab.txt)", "date": "2026-11-18" },
+    { "item": "rotSense: increasing rot turns clockwise seen from above", "by": "in-game calibration slab", "date": "2026-11-18" },
+    { "item": "edgePlacement: 0.5-deep edge pieces stored at the min corner of the rotated footprint; rot 0/12 south half, rot 6/18 west half; +0.5 z for north, +0.5 x for east", "by": "in-game calibration slab (Dungeon Wall 01, Door - Dungeon)", "date": "2026-11-18" },
+    { "item": "Dungeon Stairs ascend W at rot 0 (N 6, E 12, S 18)", "by": "in-game calibration slab", "date": "2026-11-18" },
+    { "item": "Door - Dungeon handle at the W end at rot 0, E end at rot 12; both faces alike", "by": "in-game calibration slab", "date": "2026-11-18" },
+    { "item": "Props are stored at their centre (Leather Chest centred at every rotation)", "by": "in-game calibration slab", "date": "2026-11-18" },
+    { "item": "Pipeline round trip: walls outside the floor in the host half, corner posts close the outer corners, north-wall door handle at the W end, stairs climb N to the mezzanine", "by": "in-game proof slab 02-single-room (v1)", "date": "2026-11-18" },
+    { "item": "Bookshelf 01 front (open shelves) faces N at rot 0; Red Bed headboard at the S end, front (foot) faces N (palette variant facing)", "by": "in-game proof slab 02-single-room (v1)", "date": "2026-11-18" },
+    { "item": "chair wood 01 front (seat side) faces N (+z) at rot 0 — the earlier 'front = S' reading of the v1 screenshots was a misread; in v2/v3 the chairs faced AWAY from the table", "by": "the user in game (camera orbit), proof slab 02-single-room v3", "date": "2026-11-18" },
+    { "item": "defaultFacing.feature.front = N (+z, Unity forward) adopted as the rule: all three verified props (chair, Bookshelf 01, Red Bed) face +z at rot 0; per-asset palette facing only where an asset is verified to differ", "by": "lead ruling from the in-game checks", "date": "2026-11-18" },
+    { "item": "Two global corner markers (min corner at ground, max corner raised to the top) give every chunk an identical bounding box; three chunks and two levels aligned", "by": "in-game proof 03-two-level-multichunk", "date": "2026-11-18" },
+    { "item": "Bed headboard against the wall, bookshelf shelves into the room after auto-facing (proof 02 v2; chairs were NOT facing the table, see the chair entry); Castle Ruins Crenellation - Small REJECTED as a door lintel (renders as battlements); Dungeon Cellar doors are only slightly shorter than the walls, the small notch is accepted", "by": "in-game proof slab 02-single-room (v2)", "date": "2026-11-18" }
+  ],
+  "unverified": [
+    { "item": "front = N (the default) for props without verified palette facing, e.g. Leather Chest (latch side not identifiable) and all gap-fill props added 2026-11-18", "settleWith": "per-asset in-game check" },
+    { "item": "defaultFacing.feature.mountsOn = S and the wall torch's palette facing mountsOn = S: inferred from bounds (origin at the back face), not seen in game", "settleWith": "in-game check" },
+    { "item": "Door - Dungeon handle at the N end at rot 6 (east/west-edge doors): by the clockwise rule, not seen in game", "settleWith": "data/test-slabs/02-single-room.txt" },
+    { "item": "link.stairs ascendsToward W for Tavern Stair and Rural Stairs (verified only for Dungeon Stairs)", "settleWith": "in-game check" },
+    { "item": "opening handleEnd W for door kits other than Door - Dungeon", "settleWith": "in-game check" },
+    { "item": "pasteAnchor: which bounding-box point follows the cursor (corner markers make chunk alignment independent of it)", "settleWith": "in-game check" }
+  ]
+}

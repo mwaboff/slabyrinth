@@ -1,0 +1,19 @@
+node_modules/
+dist/
+out/
+release/
+.tsbuild/
+coverage/
+playwright-report/
+test-results/
+package-lock.json
+# Normative documents and research artefacts are not reformatted by tooling.
+docs/
+data/
+tools/
+# Verbatim contract copies must stay byte-identical to docs/contracts (apart from import paths).
+packages/core/src/contracts/
+packages/core/src/agent/tools.ts
+apps/desktop/src/shared/ipc.ts
+apps/desktop/src/shared/project.ts
+apps/desktop/src/main/agent/provider/types.ts

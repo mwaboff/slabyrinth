@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/core/tsconfig.cli.json" },
+    { "path": "./packages/core/tsconfig.test.json" },
+    { "path": "./packages/render-canvas" },
+    { "path": "./packages/render-canvas/tsconfig.test.json" },
+    { "path": "./apps/desktop/tsconfig.node.json" },
+    { "path": "./apps/desktop/tsconfig.web.json" },
+    { "path": "./apps/desktop/tsconfig.e2e.json" },
+    { "path": "./tsconfig.tooling.json" }
+  ]
+}

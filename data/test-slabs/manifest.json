@@ -1,0 +1,92 @@
+{
+  "generatedBy": "packages/core/scripts/make-test-slabs.ts",
+  "resolver": "WP2 resolvePlan (real)",
+  "slabs": {
+    "01-calibration.txt": {
+      "assets": 130,
+      "compressedBytes": 536,
+      "matchesResearchSlab": true
+    },
+    "02-single-room.txt": {
+      "assets": 64,
+      "compressedBytes": 568,
+      "diagnostics": [
+        "info footprint_mismatch: \"Bookshelf 01\" covers 1×1 cells, feature is 2×1; centred on the feature"
+      ]
+    },
+    "03-two-level-single-slab.txt": {
+      "levels": [
+        "lower",
+        "upper"
+      ],
+      "assets": 219,
+      "compressedBytes": 1083,
+      "diagnostics": []
+    },
+    "03-two-level-multichunk": {
+      "note": "forced with fill 0.02 (≈ 614-byte chunks) to exercise alignment; the default build of this plan is one slab",
+      "chunks": [
+        {
+          "file": "01-lower-01.txt",
+          "levels": [
+            "lower"
+          ],
+          "label": "West",
+          "assets": 81,
+          "compressedBytes": 577,
+          "cellRect": {
+            "x": 1,
+            "y": 1,
+            "w": 16,
+            "h": 18
+          }
+        },
+        {
+          "file": "02-lower-02.txt",
+          "levels": [
+            "lower"
+          ],
+          "label": "East",
+          "assets": 82,
+          "compressedBytes": 592,
+          "cellRect": {
+            "x": 17,
+            "y": 1,
+            "w": 11,
+            "h": 18
+          }
+        },
+        {
+          "file": "03-upper-01.txt",
+          "levels": [
+            "upper"
+          ],
+          "label": "Whole level",
+          "assets": 62,
+          "compressedBytes": 477,
+          "cellRect": {
+            "x": 17,
+            "y": 1,
+            "w": 11,
+            "h": 10
+          }
+        }
+      ],
+      "sharedBox": [
+        [
+          0,
+          3000
+        ],
+        [
+          0,
+          500
+        ],
+        [
+          0,
+          2100
+        ]
+      ],
+      "diagnostics": []
+    }
+  }
+}

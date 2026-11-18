@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild/e2e",
+    "emitDeclarationOnly": true,
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"]
+  },
+  "include": [
+    "e2e/**/*.ts",
+    "playwright.config.ts",
+    "playwright.site.config.ts",
+    "src/shared/**/*.ts",
+    "src/main/agent/provider/types.ts"
+  ],
+  "references": [{ "path": "../../packages/core" }]
+}

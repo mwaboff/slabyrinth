@@ -1,0 +1,67 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 1,
+  "id": "44444444-4444-4444-8444-444444444444",
+  "title": "Glowcap Grotto",
+  "kind": "cave",
+  "seed": 4242,
+  "theme": "cave",
+  "levels": [
+    {
+      "id": "l1",
+      "name": "Grotto",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 32, "h": 22 },
+      "base": { "type": "solid" },
+      "areas": [
+        {
+          "id": "grotto",
+          "kind": "cave",
+          "name": "Glowcap Grotto",
+          "key": "1",
+          "shape": { "type": "cave", "x": 1, "y": 1, "w": 30, "h": 20, "fill": 0.45, "steps": 4, "seed": 3 },
+          "notes": "Bioluminescent mushrooms light the pool."
+        },
+        {
+          "id": "den",
+          "kind": "cave",
+          "name": "Bear Den",
+          "key": "2",
+          "shape": { "type": "blob", "cx": 25, "cy": 15, "r": 3, "roughness": 0.4, "seed": 11 }
+        },
+        { "id": "den_tunnel", "kind": "corridor", "shape": { "type": "route", "from": "grotto", "to": "den", "openings": "open" } }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [],
+      "terrain": [
+        {
+          "id": "pool",
+          "op": "paint",
+          "layer": "over",
+          "shape": { "type": "ellipse", "cx": 12, "cy": 10, "rx": 4, "ry": 3 },
+          "material": "water_shallow"
+        },
+        {
+          "id": "mud",
+          "op": "noise",
+          "layer": "over",
+          "shape": { "type": "rect", "x": 1, "y": 1, "w": 30, "h": 20 },
+          "material": "mud",
+          "coverage": 0.15,
+          "scale": 4
+        },
+        {
+          "id": "shrooms",
+          "op": "scatter",
+          "feature": "mushroom",
+          "shape": { "type": "rect", "x": 1, "y": 1, "w": 30, "h": 20 },
+          "density": 0.08,
+          "minSpacing": 1
+        }
+      ],
+      "labels": []
+    }
+  ],
+  "links": []
+}

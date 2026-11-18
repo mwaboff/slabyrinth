@@ -1,0 +1,6 @@
+PLAN v7 "Single Room" dungeon theme=stone_dungeon seed=1 entry=l1
+LEVEL l1 "Cellar" elev=0 bounds=0,0 12x10 base=solid
+  AREA cellar room #1 "Wine Cellar" rect 2,2 8x6 | notes "Racks of empty bottles. One cask still sloshes."
+  FEAT table table 5,4 2x1 · chair chair 5,5 r180 · cask barrel 8,2 · chest chest 2,7 r90 · torch torch_wall 3,2 wall=N
+  LABEL lbl_cellar "Cellar" 6,8 m
+ISSUES none

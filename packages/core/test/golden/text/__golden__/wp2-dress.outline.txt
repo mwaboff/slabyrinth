@@ -1,0 +1,20 @@
+PLAN v7 "4" dungeon theme=stone_dungeon seed=1234 entry=l1
+LEVEL l1 "l1" elev=0 bounds=0,0 34x18 base=solid
+  AREA tavern room #1 rect 1,1 11x7 floor=wood_plank
+  AREA library room #2 rect 12,1 10x7
+  AREA crypt room #3 rect 22,1 10x7
+  AREA store room #4 rect 1,8 9x7
+  AREA throne room #5 rect 10,8 13x8 floor=carpet
+  AREA forge room #6 rect 23,8 9x7
+  OPEN d1 door tavern|library @0.5 -> edge v 12,4..5
+  OPEN d2 door library|crypt @0.5 -> edge v 22,4..5
+  OPEN d3 door tavern|store @0.5 -> edge h 5..6,8
+  OPEN d4 door library|throne @0.5 -> edge h 16..17,8
+  OPEN d5 door throne|forge @0.5 -> edge v 23,11..12
+  TERR t1 dress tavern tavern d=0.9 -> 12 features
+  TERR t2 dress library library d=0.8 -> 9 features
+  TERR t3 dress crypt crypt -> 6 features
+  TERR t4 dress store storeroom d=1 -> 11 features
+  TERR t5 dress throne throne_room d=0.6 seed=99 -> 10 features
+  TERR t6 dress forge forge d=0.7 -> 7 features
+ISSUES none

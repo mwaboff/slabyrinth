@@ -1,0 +1,28 @@
+PLAN v7 "The Drowned Abbey" dungeon theme=stone_dungeon seed=41177 entry=l1
+  summary "Crypts under a ruined abbey; the lower cistern level is half flooded."
+LEVEL l1 "Upper Crypts" elev=0 bounds=0,0 30x24 base=solid
+  AREA entry room #1 "Collapsed Stair" rect 12,18 6x5 | notes "Way in from the abbey ruins above. Rubble is difficult terr…" | readAloud "Broken steps spill down from a hole in the vaulted ceiling.…"
+  AREA hall room #2 "Hall of Pillars" rect 8,6 16x8 | notes "Eight pillars carved as hooded monks. The statue's eyes fol…"
+  AREA guard room #3 "Guardroom" rect 1,7 5x6 | encounter "Daggerheart: 3× Skeleton Warrior (Standard)."
+  AREA ossuary room #4 "Ossuary" rect 24,4 5x10 | notes "Secret door from the hall (Instinct 14). Stairs descend to…"
+  AREA c1 corridor route entry->hall w2 vh open=archway -> 8 cells x14-15 y14-17; c1~a edge h 14..16,18, c1~b edge h 14..16,14
+  AREA c2 corridor route guard->hall w1 hv open=door -> 2 cells x6-7 y9-9; c2~a edge v 6,9..10, c2~b edge v 8,9..10
+  OPEN d_secret secret_door hall|ossuary @0.5 -> edge v 24,9..10
+  FEAT p1 pillar 10,8 · p2 pillar 10,11 · p3 pillar 13,8 · p4 pillar 13,11 · p5 pillar 18,8 · p6 pillar 18,11
+  FEAT p7 pillar 21,8 · p8 pillar 21,11 · abbot statue 15,6 "The Abbot" · torch1 torch_wall 9,6 wall=N · torch2 torch_wall 22,6 wall=N · sarc sarcophagus 25,5 1x2
+  FEAT bones1 bones 27,12 · rubble1 rubble 13,20 · rubble2 rubble 16,21
+  TERR dress_guard dress guard barracks d=0.6 -> 3 features
+  LABEL lbl_up "Up to the abbey" 14,22 s
+LEVEL l2 "Cistern Depths" elev=-2.5 bounds=0,0 30x24 base=solid theme=cave
+  AREA cistern cave #5 "Flooded Cistern" cave 13,3 16x17 fill=0.42 seed=7 walls=perimeter -> 133 cells x13-27 y3-18 | notes "Waist-deep water in the middle; the deep pool hides the dro…"
+  AREA landing room #6 "Stair Landing" rect 24,7 4x5 walls=perimeter floor=rock
+  AREA chapel room #7 "Drowned Chapel" rect 2,8 8x7 theme=stone_dungeon | readAloud "Green water laps at a raised altar. Someone has lit a singl…"
+  AREA c3 corridor route chapel->cistern w1 hv open=archway -> 8 cells x10-17 y11-11; c3~a edge v 10,11..12, c3~b edge v 18,11..12
+  FEAT altar2 altar 3,11 r90 · candle candelabra 4,10
+  TERR flood paint water_shallow circle 20,11.5 r5 layer=over
+  TERR pool paint water_deep circle 20,13.5 r2 layer=over
+  TERR dais height rect 3,9 3x5 set=0.5 layer=over
+  TERR rocks scatter rock rect 13,3 16x17 d=0.06 spacing=2 -> 3 features
+LINK stair_main stairs l2 26,11 dir=N -> l1 26,8 (run 3) "Down to the cistern"
+ISSUES 1
+  info reachable_secret_only ossuary @26,8: Room 4 (Ossuary) can only be reached through a secret door. (hint: fine if intended; otherwise add a normal door into "ossuary")

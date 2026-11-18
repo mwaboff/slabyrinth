@@ -1,0 +1,16 @@
+{
+  "name": "@slabyrinth/render-canvas",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Canvas 2D drawing of a core DisplayList (live view and PNG export).",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b . tsconfig.test.json",
+    "test": "vitest run --root ../.. --project render-canvas"
+  }
+}

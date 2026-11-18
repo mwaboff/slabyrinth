@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild/web",
+    "emitDeclarationOnly": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable", "WebWorker.ImportScripts"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src/renderer/**/*.ts",
+    "src/renderer/**/*.tsx",
+    "src/shared/**/*.ts",
+    "src/main/agent/provider/types.ts"
+  ],
+  "references": [{ "path": "../../packages/core" }, { "path": "../../packages/render-canvas" }]
+}

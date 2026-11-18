@@ -1,0 +1,13 @@
+PLAN v7 "Woodcutter's Hut" outdoor theme=outdoor seed=6 entry=g
+LEVEL g "Forest Edge" elev=0 bounds=0,0 32x24 base=ground:grass
+  AREA hut building #1 "Hut" rect 10,8 5x4 floor=wood_plank wallStyle=wood
+  AREA yard zone "Woodpile Yard" rect 15,8 4x4
+  OPEN hut_door door hut|@outside @0.5 -> edge h 12..13,8
+  WALL fence add 19,8>19,12 style=fence h=1
+  FEAT fire campfire 12,14 · stump stump 16,9 · cart cart 16,10 r90 2x1
+  TERR dirt noise dirt rect 0,0 32x24 cov=0.25 scale=6
+  TERR trail path dirt 0,18>12,13>31,20 w1 jitter=0.2
+  TERR trees scatter tree whole-level d=0.25 spacing=2 exclude=[rect 8,6 13x10] -> 93 features
+  TERR rocks scatter rock whole-level d=0.03 randomRot=true seed=77 -> 3 features
+  LABEL lbl_road "Trail to the mill" 26,21 s
+ISSUES none

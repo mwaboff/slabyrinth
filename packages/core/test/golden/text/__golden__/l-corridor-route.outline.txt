@@ -1,0 +1,7 @@
+PLAN v7 "L Corridor" dungeon theme=stone_dungeon seed=3 entry=l1
+LEVEL l1 "Level 1" elev=0 bounds=0,0 20x16 base=solid
+  AREA west room #1 "West Chamber" rect 1,1 5x5
+  AREA east room #2 "East Chamber" rect 14,10 5x5
+  AREA hall corridor route west->east w1 hv open=door -> 17 cells x6-16 y3-9; hall~a edge v 6,3..4, hall~b edge h 16..17,10
+  FEAT altar altar 16,12
+ISSUES none

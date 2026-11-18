@@ -1,0 +1,52 @@
+{
+  "name": "slabyrinth",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Design TaleSpire maps by chatting with Claude, review a 2D plan, export slabs.",
+  "homepage": "https://github.com/mwaboff/slabyrinth",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mwaboff/slabyrinth.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mwaboff/slabyrinth/issues"
+  },
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @slabyrinth/desktop",
+    "build": "tsc -b && npm run build -w @slabyrinth/desktop",
+    "typecheck": "tsc -b",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:golden:update": "vitest run --project core --update",
+    "test:e2e": "npm run test:e2e -w @slabyrinth/desktop",
+    "capture:site": "npm run capture:site -w @slabyrinth/desktop",
+    "package": "npm run package -w @slabyrinth/desktop",
+    "dist": "npm run dist -w @slabyrinth/desktop",
+    "clean": "tsc -b --clean"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.6",
+    "@vitest/coverage-v8": "5.1.1",
+    "eslint": "10.15.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.14.0",
+    "prettier": "3.10.1",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.73.0",
+    "vitest": "5.1.1"
+  }
+}

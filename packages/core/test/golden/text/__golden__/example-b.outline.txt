@@ -1,0 +1,20 @@
+PLAN v7 "Chapel in the Pines" outdoor theme=outdoor seed=90210 entry=g
+LEVEL g "Old Chapel Clearing" elev=0 bounds=0,0 48x40 base=ground:grass
+  AREA clearing zone #2 "The Clearing" blob 22,17 r10 rough=0.3 -> 244 cells x11-31 y7-27 | notes "Bandits camp here; the fire is still warm."
+  AREA ruin building #1 "Ruined Chapel" rect 18,11 8x7 floor=flagstone wallStyle=ruined theme=stone_dungeon | readAloud "Half a chapel: the east wall has fallen outward into the br…"
+  AREA bridge courtyard rect 32,28 5x3 walls=none floor=bridge_wood
+  OPEN chapel_door archway at 21,17 S w2 -> edge h 21..23,18
+  WALL breach remove 26,13>26,16
+  FEAT altar altar 21,12 · saint statue 24,12 variant=broken · rb1 rubble 25,14 · rb2 rubble 19,16 · fire campfire 15,21 · tent1 tent 11,18 r90 2x2
+  FEAT log1 log 28,22 r90 · sign signpost 6,29
+  TERR patches noise dirt rect 0,0 48x40 cov=0.2 scale=5
+  TERR road path gravel 0,31>16,29>30,30>47,24 w2 jitter=0.25
+  TERR stream path water_shallow 34,0>36,14>33,26>38,39 w2 jitter=0.3
+  TERR knoll height blob 9,9 r5 delta=0.5 smooth=2
+  TERR trees scatter tree whole-level d=0.3 spacing=2 exclude=[blob 22,17 r10 rough=0.3] avoid=water,paths,areas,features,links -> 209 features
+  TERR pines scatter pine_tree rect 0,0 14x40 d=0.12 spacing=2 avoid=water,paths,areas,features -> 10 features
+  TERR bushes scatter bush whole-level d=0.05 avoid=water,paths,areas,features -> 6 features
+  TERR boulders scatter boulder whole-level d=0.015 spacing=4 -> 1 features
+  TERR reeds scatter reeds path 34,0>34,7>36,7>36,20>33,20>33,32>38,32>38,39 w4 d=0.25 avoid=areas,features -> 12 features
+  LABEL to_town "To Millbrook" 2,30
+ISSUES none

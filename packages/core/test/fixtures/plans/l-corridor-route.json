@@ -1,0 +1,52 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 1,
+  "id": "33333333-3333-4333-8333-333333333333",
+  "title": "L Corridor",
+  "kind": "dungeon",
+  "seed": 3,
+  "theme": "stone_dungeon",
+  "levels": [
+    {
+      "id": "l1",
+      "name": "Level 1",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 20, "h": 16 },
+      "base": { "type": "solid" },
+      "areas": [
+        {
+          "id": "west",
+          "kind": "room",
+          "name": "West Chamber",
+          "key": "1",
+          "shape": { "type": "rect", "x": 1, "y": 1, "w": 5, "h": 5 }
+        },
+        {
+          "id": "east",
+          "kind": "room",
+          "name": "East Chamber",
+          "key": "2",
+          "shape": { "type": "rect", "x": 14, "y": 10, "w": 5, "h": 5 }
+        },
+        {
+          "id": "hall",
+          "kind": "corridor",
+          "shape": {
+            "type": "route",
+            "from": "west",
+            "to": "east",
+            "width": 1,
+            "bend": "hv",
+            "openings": "door"
+          }
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [{ "id": "altar", "type": "altar", "at": [16, 12] }],
+      "terrain": [],
+      "labels": []
+    }
+  ],
+  "links": []
+}

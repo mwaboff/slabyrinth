@@ -1,0 +1,18 @@
+PLAN v7 "1" dungeon theme=stone_dungeon seed=1234 entry=l1
+LEVEL l1 "l1" elev=0 bounds=0,0 30x20 base=solid
+  AREA poly room #1 poly 1,1 9,1 9,4 5,8 1,8
+  AREA rotunda room #2 circle 15,5 r3.5 floor=marble
+  AREA oval cave #3 ellipse 24.5,6 r4x2.5
+  AREA mask room #4 cells 2,11 6x3 [####../######/..####] floorH=-0.5
+  AREA hall corridor path 5,6>5,14>22,14 w2
+  AREA pit room rect 22,12 6x6 walls=perimeter
+  AREA hole room rect 24,14 2x2 walls=none floor=none
+  AREA r1 corridor route poly->rotunda w1 hv open=door -> 4 cells x8-11 y4-4; r1~a edge v 8,4..5, r1~b edge v 12,4..5
+  AREA r2 corridor route rotunda->oval w1 vh open=archway -> 3 cells x18-20 y5-5; r2~a edge v 18,5..6, r2~b edge v 21,5..6
+  OPEN o1 door poly|hall @0.5 -> edge h 5..6,6
+  OPEN o2 archway hall|pit @0.5 w2 -> edge v 22,14..16
+  OPEN o3 door mask|hall @0.5 -> edge v 5,12..13
+  WALL screen add 3,3>3,6 style=iron_bars h=1
+  TERR dais height rect 14,4 3x2 set=0.5
+ISSUES 1
+  warning area_disconnected mask @7,12: area "mask" is split into separate pieces (2 of 9 cells cut off, e.g. 7,12) (hint: a later area or corridor cuts through it; reorder areas or adjust the shapes)

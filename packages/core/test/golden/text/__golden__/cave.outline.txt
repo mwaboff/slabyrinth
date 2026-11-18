@@ -1,0 +1,9 @@
+PLAN v7 "Glowcap Grotto" cave theme=cave seed=4242 entry=l1
+LEVEL l1 "Grotto" elev=0 bounds=0,0 32x22 base=solid
+  AREA grotto cave #1 "Glowcap Grotto" cave 1,1 30x20 fill=0.45 steps=4 seed=3 -> 137 cells x2-18 y2-19 | notes "Bioluminescent mushrooms light the pool."
+  AREA den cave #2 "Bear Den" blob 25,15 r3 rough=0.4 seed=11 -> 32 cells x22-27 y12-17
+  AREA den_tunnel corridor route grotto->den w1 hv open=open -> 5 cells x18-22 y12-12; den_tunnel~a edge v 18,12..13, den_tunnel~b edge v 23,12..13
+  TERR pool paint water_shallow ellipse 12,10 r4x3 layer=over
+  TERR mud noise mud rect 1,1 30x20 cov=0.15 scale=4 layer=over
+  TERR shrooms scatter mushroom rect 1,1 30x20 d=0.08 spacing=1 -> 6 features
+ISSUES none

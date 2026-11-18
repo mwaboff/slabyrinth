@@ -1,0 +1,45 @@
+# electron-builder configuration (architecture §7.4).
+# The app is fully bundled by electron-vite into out/**; every npm dependency is a devDependency,
+# so no node_modules are packaged and no native rebuild is needed.
+appId: app.slabyrinth.desktop
+productName: Slabyrinth
+copyright: Copyright (c) 2026 mwaboff
+directories:
+  output: release
+  buildResources: build
+files:
+  - "out/**"
+  - "package.json"
+# No extraResources: the curated palettes and orientation are compiled into the bundle (core
+# palette/bundled.ts); user overrides live in userData/palettes. The full asset catalog never ships.
+asar: true
+npmRebuild: false
+nodeGypRebuild: false
+fileAssociations:
+  - ext: slabyrinth
+    name: "Slabyrinth project"
+    mimeType: application/x-slabyrinth+json
+    role: Editor
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: build/icon.ico
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: "${productName}-Setup-${version}.${ext}"
+portable:
+  artifactName: "${productName}-${version}-portable.${ext}"
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: Game
+  icon: build/icons
+  executableName: slabyrinth
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+publish: null # CI uploads artifacts itself

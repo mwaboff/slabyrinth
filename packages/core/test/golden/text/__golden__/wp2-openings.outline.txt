@@ -1,0 +1,18 @@
+PLAN v7 "2" dungeon theme=stone_dungeon seed=1234 entry=l1
+LEVEL l1 "l1" elev=0 bounds=0,0 24x10 base=solid
+  AREA a room #1 rect 1,1 7x7
+  AREA b room #2 rect 8,1 7x7
+  AREA c room #3 rect 15,1 7x7
+  OPEN front double_door a|@outside @0.2 -> edge h 2..4,1
+  OPEN ab locked_door a|b @0.1 -> edge v 8,1..2
+  OPEN ab2 portcullis a|b @0.9 -> edge v 8,6..7
+  OPEN bc secret_door b|c @0.5 -> edge v 15,4..5
+  OPEN win window at 10,1 N w2 -> edge h 10..12,1
+  OPEN slit arrow_slit at 21,4 E -> edge v 22,4..5
+  OPEN gap open at 18,7 S w2 -> edge h 18..20,8
+  OPEN bars bars at 3,7 S -> edge h 3..4,8
+  OPEN clash door at 10,1 N -> NOT PLACED
+ISSUES 3
+  error opening_overlap clash: opening "clash" overlaps another opening at edge h 10,1 (hint: move it with position (0..1) or remove the other opening)
+  info reachable_secret_only c @18,4: Room 3 can only be reached through a secret door. (hint: fine if intended; otherwise add a normal door into "c")
+  warning opening_dead_end gap @18,8: The open "gap" (edge h 18,8) opens into solid rock. (hint: move "gap" onto a wall shared with another area (use between: [a, b]) or add a corridor beyond it)

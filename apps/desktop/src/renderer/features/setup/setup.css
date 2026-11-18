@@ -1,0 +1,201 @@
+.setup-scrim {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--scrim);
+  z-index: var(--z-modal);
+}
+
+.setup {
+  width: 640px;
+  min-height: 560px;
+  background: var(--surface);
+  border: var(--line-w) solid var(--line);
+  border-radius: var(--r-10);
+  box-shadow: var(--shadow-pop);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+.setup__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s10);
+  padding: 18px var(--s28);
+  border-bottom: var(--line-w) solid var(--line);
+}
+
+.setup__title {
+  font: var(--t-name);
+  letter-spacing: 0.04em;
+  flex: 1;
+}
+
+.setup__dots {
+  display: flex;
+  gap: var(--s6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup__dots li {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--surface-3);
+}
+
+.setup__dots li.is-done {
+  background: var(--ink-2);
+}
+
+.setup__dots li.is-current {
+  background: var(--accent-fill);
+}
+
+.setup__body {
+  padding: var(--s24) var(--s28) 22px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s12);
+}
+
+.setup__body h2 {
+  margin: 0;
+  font: var(--t-panel-l);
+  letter-spacing: var(--tracking-name);
+}
+
+.setup__lead {
+  font: var(--t-ui-body);
+  color: var(--ink-2);
+}
+
+.setup__trust {
+  font: var(--t-small);
+  color: var(--muted);
+}
+
+.setup__panel {
+  background: var(--surface-2);
+  border-radius: var(--r-8);
+  padding: var(--s14) var(--s16);
+  font: var(--t-ui-body);
+  color: var(--ink-2);
+}
+
+.setup__found {
+  display: grid;
+  gap: var(--s8);
+}
+
+.setup__found b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.setup__path {
+  font: var(--t-code);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.setup__locate {
+  display: flex;
+  gap: var(--s8);
+}
+
+.setup__row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s12);
+}
+
+.setup__label {
+  font: var(--t-ui-strong);
+}
+
+.setup__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--s8);
+  margin-top: auto;
+  padding-top: var(--s16);
+}
+
+.setup__sp {
+  flex: 1;
+}
+
+/* key field (Setup + Settings) */
+.keyfield-wrap {
+  display: grid;
+  gap: var(--s8);
+}
+
+.keyfield {
+  display: flex;
+  gap: var(--s8);
+  align-items: center;
+  min-width: 0;
+}
+
+.keyinput {
+  flex: 1;
+  min-width: 0;
+  height: var(--h-btn);
+  display: flex;
+  align-items: center;
+  gap: var(--s6);
+  padding: 0 var(--s4) 0 var(--s8);
+  border: var(--line-w) solid var(--line-strong);
+  border-radius: var(--r-4);
+  background: var(--field-bg);
+}
+
+.keyinput:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+.keyinput__field {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: var(--t-code);
+  color: var(--ink);
+}
+
+.keyinput__field::placeholder {
+  color: var(--muted);
+}
+
+.keystate {
+  font: var(--t-small);
+  color: var(--ink-2);
+}
+
+.keystate__row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s6);
+}
+
+.keystate--ok {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.keystate--err {
+  color: var(--danger);
+}
+
+.keystate--warn .icon {
+  color: var(--warning);
+}

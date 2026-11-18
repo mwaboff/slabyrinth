@@ -1,0 +1,7 @@
+PLAN v7 "Two Rooms" building theme=stone_dungeon seed=2 entry=l1
+LEVEL l1 "Ground Floor" elev=0 bounds=0,0 14x8 base=solid
+  AREA front room #1 "Front Room" rect 1,1 6x5 floor=wood_plank
+  AREA back room #2 "Back Room" rect 7,1 5x5 floor=wood_plank
+  OPEN door1 door front|back @0.5 -> edge v 7,3..4
+  FEAT bed bed 9,2 1x2 · rug rug 3,3 2x2
+ISSUES none

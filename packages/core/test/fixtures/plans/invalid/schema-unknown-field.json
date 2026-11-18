@@ -1,0 +1,96 @@
+{
+  "description": "misspelt optional field",
+  "base": "single-room.json",
+  "expect": [
+    {
+      "code": "schema",
+      "path": "/levels/0/areas/0",
+      "hintIncludes": "did you mean \"floorHeight\""
+    }
+  ],
+  "plan": {
+    "schema": "slabyrinth/plan@1",
+    "generator": 1,
+    "id": "11111111-1111-4111-8111-111111111111",
+    "title": "Single Room",
+    "kind": "dungeon",
+    "seed": 1,
+    "theme": "stone_dungeon",
+    "levels": [
+      {
+        "id": "l1",
+        "name": "Cellar",
+        "elevation": 0,
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 10
+        },
+        "base": {
+          "type": "solid"
+        },
+        "areas": [
+          {
+            "id": "cellar",
+            "kind": "room",
+            "name": "Wine Cellar",
+            "key": "1",
+            "shape": {
+              "type": "rect",
+              "x": 2,
+              "y": 2,
+              "w": 8,
+              "h": 6
+            },
+            "notes": "Racks of empty bottles. One cask still sloshes.",
+            "floorheight": 0.5
+          }
+        ],
+        "openings": [],
+        "walls": [],
+        "features": [
+          {
+            "id": "table",
+            "type": "table",
+            "at": [5, 4],
+            "size": [2, 1]
+          },
+          {
+            "id": "chair",
+            "type": "chair",
+            "at": [5, 5],
+            "rot": 180
+          },
+          {
+            "id": "cask",
+            "type": "barrel",
+            "at": [8, 2]
+          },
+          {
+            "id": "chest",
+            "type": "chest",
+            "at": [2, 7],
+            "rot": 90
+          },
+          {
+            "id": "torch",
+            "type": "torch_wall",
+            "at": [3, 2],
+            "wall": "N"
+          }
+        ],
+        "terrain": [],
+        "labels": [
+          {
+            "id": "lbl_cellar",
+            "text": "Cellar",
+            "at": [6, 8],
+            "size": "m"
+          }
+        ]
+      }
+    ],
+    "links": []
+  }
+}

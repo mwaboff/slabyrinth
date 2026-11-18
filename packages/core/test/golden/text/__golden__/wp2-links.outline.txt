@@ -1,0 +1,14 @@
+PLAN v7 "3" dungeon theme=stone_dungeon seed=1234 entry=low
+LEVEL low "low" elev=0 bounds=0,0 16x12 base=solid
+  AREA cellar room #1 rect 1,1 14x10
+LEVEL up "up" elev=2.5 bounds=0,0 16x12 base=void
+  AREA loft room #2 rect 1,1 14x10 floor=wood_plank
+LINK ramp1 ramp low 3,2 dir=S w2 -> up 3,5 (run 3)
+LINK spiral spiral_stairs low 8,4 dir=N -> up 8,4 (run 1)
+LINK hatch trapdoor low 12,8 dir=N -> up 12,8 (run 1)
+LINK drop pit_drop low 13,2 dir=N -> up 13,2 (run 1)
+LINK bad stairs low 1,1 dir=W -> up -2,1 (run 3)
+ISSUES 3
+  error link_blocked bad @0,1: stairs "bad" needs low cell 0,1, which is solid rock (hint: the run covers 1,1 0,1 -1,1; move from.at or change dir)
+  error link_blocked bad @-2,1: stairs "bad" arrives at up -2,1, which is not open floor (hint: make -2,1 on up part of a room, or move the link)
+  error link_run_blocked bad @1,1: The stairs "bad" run crosses a wall or doorway between 1,1 and 0,1. (hint: move from.at or change dir so the whole run lies inside one room)

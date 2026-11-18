@@ -1,0 +1,98 @@
+import * as fsp from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { nullLogger } from "../logger";
+import { settingsPatchSchema, SettingsStore } from "./settingsStore";
+
+let dir: string;
+let file: string;
+beforeEach(async () => {
+  dir = await fsp.mkdtemp(path.join(os.tmpdir(), "slab-settings-"));
+  file = path.join(dir, "settings.json");
+});
+afterEach(async () => {
+  await fsp.rm(dir, { recursive: true, force: true });
+});
+
+const make = (): SettingsStore =>
+  new SettingsStore({ file, defaultProjectsFolder: path.join(dir, "Projects"), logger: nullLogger });
+
+describe("SettingsStore", () => {
+  it("defaults follow docs/decisions.md", async () => {
+    const s = await make().load();
+    expect(s.ui.theme).toBe("dark");
+    expect(s.ui.onLaunch).toBe("home");
+    expect(s.defaultSelection).toEqual({
+      providerId: "anthropic",
+      modelId: "claude-opus-5-5",
+      effort: "medium",
+    });
+    expect(s.spending.perActionWarnUsd).toBe(1);
+    expect(s.spending.perProjectWarnUsd).toBe(10);
+    expect(s.projects.folder).toBe(path.join(dir, "Projects"));
+  });
+
+  it("merges nested patches, persists, and notifies", async () => {
+    const store = make();
+    await store.load();
+    const seen: string[] = [];
+    store.onChange((s) => seen.push(s.ui.theme));
+    await store.update(
+      settingsPatchSchema.parse({ ui: { theme: "light" }, spending: { perActionWarnUsd: 0.25 } }),
+    );
+    expect(store.get().ui.onLaunch).toBe("home");
+    expect(store.get().ui.theme).toBe("light");
+    expect(seen).toEqual(["light"]);
+    const reloaded = await make().load();
+    expect(reloaded.ui.theme).toBe("light");
+    expect(reloaded.spending.perActionWarnUsd).toBe(0.25);
+  });
+
+  it("rejects renderer writes to main-owned fields", () => {
+    expect(settingsPatchSchema.safeParse({ schema: "x" }).success).toBe(false);
+    expect(settingsPatchSchema.safeParse({ spending: { allTime: {} } }).success).toBe(false);
+    expect(settingsPatchSchema.safeParse({ talespire: { installPath: "C:/x" } }).success).toBe(false);
+    expect(settingsPatchSchema.safeParse({ projects: { recent: [] } }).success).toBe(false);
+    expect(settingsPatchSchema.safeParse({ ui: { theme: "neon" } }).success).toBe(false);
+  });
+
+  it("repairs invalid fields and survives a corrupt file", async () => {
+    await fsp.writeFile(file, JSON.stringify({ ui: { theme: "neon" }, smartEffort: false }));
+    const s = await make().load();
+    expect(s.ui.theme).toBe("dark");
+    expect(s.smartEffort).toBe(false);
+    await fsp.writeFile(file, "{not json");
+    const s2 = await make().load();
+    expect(s2.ui.theme).toBe("dark");
+    expect((await fsp.readdir(dir)).some((n) => n.endsWith(".corrupt"))).toBe(true);
+  });
+
+  it("keeps a ≤ 10 recent list, most recent first, and main-only feature flags", async () => {
+    const store = make();
+    await store.load();
+    for (let i = 0; i < 12; i++) await store.touchRecent(path.join(dir, `${String(i)}.slabyrinth`));
+    await store.touchRecent(path.join(dir, "5.slabyrinth"));
+    const recent = store.get().projects.recent;
+    expect(recent).toHaveLength(10);
+    expect(recent[0]).toBe(path.join(dir, "5.slabyrinth"));
+    expect(store.flag("fakeEngine")).toBe(false);
+    await store.setFlag("fakeEngine", true);
+    const again = make();
+    await again.load();
+    expect(again.flag("fakeEngine")).toBe(true);
+    expect(JSON.stringify(again.get())).not.toContain("x-featureFlags");
+  });
+
+  it("accumulates all-time spend", async () => {
+    const store = make();
+    await store.load();
+    await store.addSpend(
+      { inputTokens: 10, outputTokens: 5, cacheReadTokens: 1, cacheWriteTokens: 0 },
+      { currency: "USD", amount: 0.5, estimated: true },
+    );
+    await store.addSpend({ inputTokens: 10, outputTokens: 5, cacheReadTokens: 1, cacheWriteTokens: 0 }, null);
+    expect(store.get().spending.allTime.usage.inputTokens).toBe(20);
+    expect(store.get().spending.allTime.cost?.amount).toBe(0.5);
+  });
+});

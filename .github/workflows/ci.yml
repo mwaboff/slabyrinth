@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Electron >= 45 no longer downloads its binary on install; fetch it for e2e.
+      - run: node node_modules/electron/install.js
+      - run: npm run lint
+      - run: npm run typecheck
+      # Includes the crash-safety tests (fault injection + kill -9 of a writing process).
+      - run: npm test
+      - run: npm run build
+      - name: Allow Chromium's sandbox (Linux)
+        if: runner.os == 'Linux'
+        # Ubuntu 24.04 AppArmor blocks the unprivileged user namespaces Chromium's sandbox needs.
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: E2E smoke (Playwright + Electron; hidden window)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:e2e -w @slabyrinth/desktop
+      - name: E2E smoke (Windows)
+        if: runner.os == 'Windows'
+        run: npm run test:e2e -w @slabyrinth/desktop
+      - name: Package (unpacked app, main pushes only)
+        if: github.event_name == 'push'
+        run: npx electron-builder --dir --publish never
+        working-directory: apps/desktop
+      - name: Packaged smoke run (main pushes only)
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a npm run smoke:packaged -w @slabyrinth/desktop
+          else
+            npm run smoke:packaged -w @slabyrinth/desktop
+          fi
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.os }}
+          path: apps/desktop/playwright-report
+          if-no-files-found: ignore

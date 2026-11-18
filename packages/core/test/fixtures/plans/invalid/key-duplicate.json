@@ -1,0 +1,91 @@
+{
+  "description": "two rooms share key 1",
+  "base": "two-rooms-door.json",
+  "expect": [
+    {
+      "code": "key_duplicate",
+      "path": "/levels/0/areas/1/key",
+      "hintIncludes": "use \"2\""
+    }
+  ],
+  "plan": {
+    "schema": "slabyrinth/plan@1",
+    "generator": 1,
+    "id": "22222222-2222-4222-8222-222222222222",
+    "title": "Two Rooms",
+    "kind": "building",
+    "seed": 2,
+    "theme": "stone_dungeon",
+    "levels": [
+      {
+        "id": "l1",
+        "name": "Ground Floor",
+        "elevation": 0,
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "w": 14,
+          "h": 8
+        },
+        "base": {
+          "type": "solid"
+        },
+        "areas": [
+          {
+            "id": "front",
+            "kind": "room",
+            "name": "Front Room",
+            "key": "1",
+            "shape": {
+              "type": "rect",
+              "x": 1,
+              "y": 1,
+              "w": 6,
+              "h": 5
+            },
+            "floor": "wood_plank"
+          },
+          {
+            "id": "back",
+            "kind": "room",
+            "name": "Back Room",
+            "key": "1",
+            "shape": {
+              "type": "rect",
+              "x": 7,
+              "y": 1,
+              "w": 5,
+              "h": 5
+            },
+            "floor": "wood_plank"
+          }
+        ],
+        "openings": [
+          {
+            "id": "door1",
+            "kind": "door",
+            "between": ["front", "back"]
+          }
+        ],
+        "walls": [],
+        "features": [
+          {
+            "id": "bed",
+            "type": "bed",
+            "at": [9, 2],
+            "size": [1, 2]
+          },
+          {
+            "id": "rug",
+            "type": "rug",
+            "at": [3, 3],
+            "size": [2, 2]
+          }
+        ],
+        "terrain": [],
+        "labels": []
+      }
+    ],
+    "links": []
+  }
+}

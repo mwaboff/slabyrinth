@@ -1,0 +1,202 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 1,
+  "id": "5a1b0001-0000-4000-8000-000000000002",
+  "title": "Proof 02 - single room",
+  "kind": "dungeon",
+  "seed": 2,
+  "theme": "stone_dungeon",
+  "levels": [
+    {
+      "id": "room",
+      "name": "Room",
+      "elevation": 0,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 10
+      },
+      "base": {
+        "type": "solid"
+      },
+      "areas": [
+        {
+          "id": "hall",
+          "kind": "room",
+          "name": "Proof room",
+          "key": "1",
+          "shape": {
+            "type": "rect",
+            "x": 2,
+            "y": 2,
+            "w": 8,
+            "h": 6
+          }
+        },
+        {
+          "id": "n_stub",
+          "kind": "corridor",
+          "shape": {
+            "type": "rect",
+            "x": 4,
+            "y": 0,
+            "w": 1,
+            "h": 2
+          }
+        },
+        {
+          "id": "e_stub",
+          "kind": "corridor",
+          "shape": {
+            "type": "rect",
+            "x": 10,
+            "y": 7,
+            "w": 2,
+            "h": 1
+          }
+        }
+      ],
+      "openings": [
+        {
+          "id": "door_n",
+          "kind": "door",
+          "between": [
+            "hall",
+            "n_stub"
+          ]
+        },
+        {
+          "id": "door_e",
+          "kind": "door",
+          "between": [
+            "hall",
+            "e_stub"
+          ]
+        }
+      ],
+      "walls": [],
+      "features": [
+        {
+          "id": "chest",
+          "type": "chest",
+          "at": [
+            3,
+            6
+          ],
+          "rot": 0
+        },
+        {
+          "id": "bed",
+          "type": "bed",
+          "at": [
+            2,
+            2
+          ],
+          "rot": 0,
+          "size": [
+            1,
+            2
+          ]
+        },
+        {
+          "id": "shelf",
+          "type": "bookshelf",
+          "at": [
+            5,
+            2
+          ],
+          "rot": 0,
+          "size": [
+            2,
+            1
+          ]
+        },
+        {
+          "id": "table",
+          "type": "table",
+          "at": [
+            5,
+            4
+          ],
+          "rot": 0,
+          "size": [
+            2,
+            1
+          ]
+        },
+        {
+          "id": "chair_s",
+          "type": "chair",
+          "at": [
+            5,
+            5
+          ],
+          "rot": 180
+        },
+        {
+          "id": "chair_n",
+          "type": "chair",
+          "at": [
+            6,
+            3
+          ],
+          "rot": 0
+        }
+      ],
+      "terrain": [],
+      "labels": []
+    },
+    {
+      "id": "mezz",
+      "name": "Mezzanine",
+      "elevation": 2.5,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 10
+      },
+      "base": {
+        "type": "void"
+      },
+      "areas": [
+        {
+          "id": "landing",
+          "kind": "room",
+          "name": "Landing",
+          "walls": "none",
+          "shape": {
+            "type": "rect",
+            "x": 8,
+            "y": 3,
+            "w": 2,
+            "h": 4
+          }
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [],
+      "terrain": [],
+      "labels": []
+    }
+  ],
+  "links": [
+    {
+      "id": "stairs",
+      "kind": "stairs",
+      "from": {
+        "level": "room",
+        "at": [
+          9,
+          6
+        ]
+      },
+      "to": {
+        "level": "mezz"
+      },
+      "dir": "N"
+    }
+  ]
+}

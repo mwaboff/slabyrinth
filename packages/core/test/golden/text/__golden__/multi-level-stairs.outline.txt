@@ -1,0 +1,15 @@
+PLAN v7 "Wizard's Tower" tower theme=stone_dungeon seed=555 entry=ground
+LEVEL ground "Ground Floor" elev=0 bounds=0,0 10x10 base=void
+  AREA foyer room #1 "Foyer" rect 1,1 8x8
+  OPEN front_door double_door at 4,8 S w2 -> edge h 4..6,9
+  FEAT statue statue 2,7
+LEVEL study_lvl "Study" elev=2.5 bounds=0,0 10x10 base=void
+  AREA study room #2 "Study" rect 1,1 8x8 floor=wood_plank
+  FEAT desk desk 4,4 2x1 · books bookshelf 1,1
+LEVEL roof "Roof" elev=5 bounds=0,0 10x10 base=void
+  AREA deck courtyard #3 "Roof Deck" rect 1,1 8x8 wallStyle=low_wall wallH=0.5
+  FEAT scope custom 5,5 hint="brass telescope"
+LINK stairs1 stairs ground 7,6 dir=N -> study_lvl 7,3 (run 3)
+LINK ladder1 ladder study_lvl 2,7 dir=N -> roof 2,7 (run 1)
+ISSUES 1
+  info opening_dead_end front_door @4,9: The double door "front_door" (edge h 4,9) opens into empty air. (hint: if "front_door" is a way out of the map, set between: ["foyer", "@outside"])

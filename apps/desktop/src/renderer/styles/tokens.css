@@ -1,0 +1,237 @@
+/*
+ * Slabyrinth theme tokens — skin B v2 (docs/ux-theme-ohsheet-v2.md, decided 2026-11-18).
+ * This file is the ONLY place literal colours, font stacks, sizes of the type scale, spacing,
+ * radii and shadows may appear. Components use var(--…) only.
+ *
+ * Theme selection: <html data-theme="dark|light">. "Match system" is resolved in JS
+ * (app/theme.ts) to one of the two, so every rule below keys off data-theme only.
+ * Dark is the default (also when the attribute is missing).
+ *
+ * Fonts are bundled through @fontsource (no remote requests; strict CSP). Only the weights the
+ * token sheet uses are imported: Cinzel 600 · Lora 400/500/600 roman · Source Sans 3 400/500/600.
+ */
+@import "@fontsource/cinzel/latin-600.css";
+@import "@fontsource/cinzel/latin-ext-600.css";
+@import "@fontsource/lora/latin-400.css";
+@import "@fontsource/lora/latin-ext-400.css";
+@import "@fontsource/lora/latin-500.css";
+@import "@fontsource/lora/latin-ext-500.css";
+@import "@fontsource/lora/latin-600.css";
+@import "@fontsource/lora/latin-ext-600.css";
+@import "@fontsource/source-sans-3/latin-400.css";
+@import "@fontsource/source-sans-3/latin-ext-400.css";
+@import "@fontsource/source-sans-3/latin-500.css";
+@import "@fontsource/source-sans-3/latin-ext-500.css";
+@import "@fontsource/source-sans-3/latin-600.css";
+@import "@fontsource/source-sans-3/latin-ext-600.css";
+
+/* ───────────── theme-independent tokens ───────────── */
+:root {
+  /* families */
+  --f-ui: "Source Sans 3", "Segoe UI", Ubuntu, system-ui, sans-serif;
+  --f-text: "Lora", Georgia, "DejaVu Serif", serif;
+  --f-display: "Cinzel", "Trajan Pro", Georgia, serif;
+  --f-code: Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+
+  /* type roles (font shorthand) — token sheet "Type" table */
+  --t-hero: 600 32px/40px var(--f-display);
+  --t-page: 600 26px/34px var(--f-display);
+  --t-page-s: 600 24px/32px var(--f-display);
+  --t-panel: 600 18px/24px var(--f-display);
+  --t-panel-l: 600 20px/28px var(--f-display);
+  --t-name: 600 15px/22px var(--f-display);
+  --t-wordmark: 600 16px/1 var(--f-display);
+  --t-project: 500 15px/22px var(--f-text);
+  --t-reading-l: 400 15px/24px var(--f-text);
+  --t-composer: 400 15px/23px var(--f-text);
+  --t-reading-m: 400 14px/22px var(--f-text);
+  --t-subtitle: 400 16px/24px var(--f-text);
+  --t-section: 600 15px/22px var(--f-ui);
+  --t-ui-body: 400 14px/21px var(--f-ui);
+  --t-ui: 400 13px/20px var(--f-ui);
+  --t-ui-m: 500 13px/20px var(--f-ui);
+  --t-ui-strong: 600 13.5px/20px var(--f-ui);
+  --t-tab: 500 13.5px/20px var(--f-ui);
+  --t-small: 400 12.5px/18px var(--f-ui);
+  --t-small-m: 500 12.5px/18px var(--f-ui);
+  --t-small-strong: 600 12.5px/18px var(--f-ui);
+  --t-meta: 400 12px/16px var(--f-ui);
+  --t-eyebrow: 600 11px/16px var(--f-ui);
+  --t-badge: 600 11px/1 var(--f-ui);
+  --t-code: 400 12.5px/18px var(--f-code);
+  --eyebrow-tracking: 0.07em;
+  --tracking-name: 0.02em;
+
+  /* spacing scale */
+  --s2: 2px;
+  --s4: 4px;
+  --s6: 6px;
+  --s8: 8px;
+  --s10: 10px;
+  --s12: 12px;
+  --s14: 14px;
+  --s16: 16px;
+  --s20: 20px;
+  --s24: 24px;
+  --s28: 28px;
+  --s32: 32px;
+  --s40: 40px;
+  --s48: 48px;
+
+  /* radii */
+  --r-3: 3px;
+  --r-4: 4px;
+  --r-6: 6px;
+  --r-8: 8px;
+  --r-10: 10px;
+  --r-pill: 999px;
+
+  /* control heights and layout */
+  --h-btn: 32px;
+  --h-btn-sm: 28px;
+  --h-btn-lg: 40px;
+  --h-titlebar: 44px;
+  --h-stagebar: 44px;
+  --h-toolbar: 40px;
+  --h-statusbar: 48px;
+  --w-chat: 400px;
+  --w-chat-min: 360px;
+  --w-chat-max: 520px;
+  --w-chat-rail: 56px;
+  --w-key: 300px;
+  --w-key-rail: 44px;
+  --w-guide: 360px;
+  --line-w: 1px;
+  --rail-w: 2px;
+
+  /* motion */
+  --dur-fast: 150ms;
+  --dur-fade: 250ms;
+  --dur-pulse: 300ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* z layers */
+  --mask-solid: #000;
+  --z-pop: 25;
+  --z-modal: 40;
+  --z-toast: 60;
+  --z-menu: 70;
+}
+
+/* ───────────── dark (default) ───────────── */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #110d0b;
+  --surface: #1a1512;
+  --surface-2: #221c18;
+  --surface-3: #2d2520;
+  --field-bg: #130f0d;
+  --line: #2f2721;
+  --line-strong: #807060;
+  --ink: #efe4d4;
+  --ink-2: #cfc2b0;
+  --muted: #a89a87;
+  --accent: #d4a056;
+  --accent-fill: #d4a056;
+  --accent-bright: #e2b46e;
+  --accent-tint: rgba(212, 160, 86, 0.14);
+  --on-accent: #1a1412;
+  --on-accent-line: rgba(26, 20, 18, 0.4);
+  --focus: #d4a056;
+  --success: #7dcb94;
+  --success-tint: rgba(125, 203, 148, 0.12);
+  --warning: #e09a6e;
+  --warning-tint: rgba(224, 154, 110, 0.12);
+  --danger: #e59a8f;
+  --danger-fill: #e5533a;
+  --danger-tint: rgba(229, 154, 143, 0.12);
+  --info: #8db6da;
+  --toast-bg: #2d2520;
+  --toast-ink: #efe4d4;
+  --toast-line: #4a3f35;
+  --toast-icon: #7dcb94;
+  --grid-faint: rgba(239, 228, 212, 0.035);
+  --scrim: rgba(8, 6, 5, 0.68);
+  --vignette: rgba(0, 0, 0, 0.22);
+  --map-shadow: 0 0 0 1px var(--line), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --scrollbar: #3a312a;
+  --selection-bg: #d4a056;
+
+  /* map theme (skin B v2 dark) */
+  --map-paper: #120e0b;
+  --map-hatch: #2e2316;
+  --map-floor: #241c16;
+  --map-grid: #30261c;
+  --map-ink: #ead9bf;
+  --map-accent: #d4a056;
+  --map-label: #1a1412;
+  --map-sel: rgba(212, 160, 86, 0.13);
+  --map-hover: rgba(212, 160, 86, 0.08);
+  --map-water: #6aa6b3;
+  --map-forest: #8db87a;
+  --map-light: #e8893a;
+  --map-trap: #f07a5e;
+  --map-void: #060403;
+  --map-new: #7dcb94;
+  --map-removed: #e59a8f;
+}
+
+/* ───────────── light ───────────── */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eae1d0;
+  --surface: #f8f4ec;
+  --surface-2: #f1eadf;
+  --surface-3: #e7decf;
+  --field-bg: #fffdf9;
+  --line: #ddd2c0;
+  --line-strong: #8c7860;
+  --ink: #1f1a16;
+  --ink-2: #463d35;
+  --muted: #675c50;
+  --accent: #86592f;
+  --accent-fill: #d4a056;
+  --accent-bright: #ddb06a;
+  --accent-tint: rgba(212, 160, 86, 0.22);
+  --on-accent: #2a211b;
+  --on-accent-line: rgba(42, 33, 27, 0.4);
+  --focus: #86592f;
+  --success: #285e35;
+  --success-tint: rgba(47, 106, 61, 0.1);
+  --warning: #87561a;
+  --warning-tint: rgba(135, 86, 26, 0.12);
+  --danger: #7c2f2f;
+  --danger-fill: #c9452a;
+  --danger-tint: rgba(124, 47, 47, 0.08);
+  --info: #2f5f86;
+  --toast-bg: #2d241f;
+  --toast-ink: #f3e8d8;
+  --toast-line: #2d241f;
+  --toast-icon: #7dcb94;
+  --grid-faint: rgba(70, 50, 30, 0.055);
+  --scrim: rgba(45, 36, 31, 0.4);
+  --vignette: rgba(110, 80, 40, 0.07);
+  --map-shadow: 0 0 0 1px var(--line), 0 10px 28px rgba(90, 60, 30, 0.12);
+  --shadow-pop: 0 12px 32px rgba(60, 40, 20, 0.16), 0 2px 6px rgba(60, 40, 20, 0.1);
+  --scrollbar: #cfc3b0;
+  --selection-bg: #d4a056;
+
+  --map-paper: #e4d5bb;
+  --map-hatch: #c2ab86;
+  --map-floor: #fbf6ec;
+  --map-grid: #eadfcb;
+  --map-ink: #2d241f;
+  --map-accent: #86592f;
+  --map-label: #fffdf9;
+  --map-sel: rgba(212, 160, 86, 0.22);
+  --map-hover: rgba(212, 160, 86, 0.12);
+  --map-water: #2f6f80;
+  --map-forest: #4f7a3a;
+  --map-light: #b4561c;
+  --map-trap: #b03a22;
+  --map-void: #14100c;
+  --map-new: #285e35;
+  --map-removed: #7c2f2f;
+}

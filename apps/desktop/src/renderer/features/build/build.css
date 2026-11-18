@@ -1,0 +1,635 @@
+.buildview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.buildview--guide {
+  grid-template-columns: minmax(0, 1fr) var(--w-guide);
+}
+
+.buildlist {
+  min-width: 0;
+  overflow: auto;
+  padding: 18px 22px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s16);
+  min-height: 0;
+}
+
+.build__center {
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  min-height: 0;
+}
+
+.build__panel {
+  width: 480px;
+  background: var(--surface);
+  border: var(--line-w) solid var(--line);
+  border-radius: var(--r-8);
+  padding: var(--s28) var(--s32);
+  display: grid;
+  gap: var(--s12);
+  justify-items: start;
+  font: var(--t-ui-body);
+  color: var(--ink-2);
+}
+
+.build__panel h2 {
+  margin: 0;
+  font: var(--t-panel-l);
+  letter-spacing: var(--tracking-name);
+  color: var(--ink);
+}
+
+.build__sp {
+  flex: 1;
+}
+
+.bhead {
+  display: flex;
+  align-items: center;
+  gap: var(--s10);
+  flex-wrap: wrap;
+}
+
+.bhead h2 {
+  margin: 0;
+  font: var(--t-panel-l);
+  letter-spacing: var(--tracking-name);
+  color: var(--ink);
+}
+
+.bhead__m {
+  font: var(--t-small);
+  color: var(--muted);
+}
+
+.stale,
+.build__note {
+  display: flex;
+  align-items: center;
+  gap: var(--s10);
+  flex-wrap: wrap;
+  background: var(--surface-2);
+  border-radius: var(--r-6);
+  padding: var(--s10) var(--s14);
+  font: var(--t-ui);
+  color: var(--ink-2);
+}
+
+.stale > .icon,
+.build__note--warn > .icon {
+  color: var(--warning);
+}
+
+.stale span,
+.build__note span {
+  flex: 1;
+  min-width: 240px;
+}
+
+.build__note b,
+.stale b {
+  color: var(--ink);
+}
+
+/* ── single slab (the common case) ── */
+.slab1 {
+  display: grid;
+  grid-template-columns: minmax(240px, 42%) minmax(0, 1fr);
+  gap: var(--s28);
+  background: var(--surface);
+  border: var(--line-w) solid var(--line);
+  border-radius: var(--r-8);
+  padding: var(--s20);
+  align-items: start;
+}
+
+.slab1__body {
+  display: grid;
+  gap: var(--s14);
+  min-width: 0;
+}
+
+.slab1__title {
+  margin: 0;
+  font: var(--t-page-s);
+  letter-spacing: var(--tracking-name);
+  color: var(--ink);
+}
+
+.slab1 .size {
+  max-width: 420px;
+}
+
+.slab1__steps {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: var(--s6);
+  font: var(--t-ui-body);
+  color: var(--ink);
+  max-width: 62ch;
+}
+
+.slab1__steps li::marker {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.slab1__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s12);
+  border-top: var(--line-w) solid var(--line);
+  padding-top: var(--s12);
+  font: var(--t-small);
+}
+
+.slab1__nf {
+  font: var(--t-small);
+  color: var(--muted);
+}
+
+.slabprev {
+  display: grid;
+  gap: var(--s8);
+}
+
+.slabprev--wide {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.slabprev__lvl {
+  margin: 0;
+  display: grid;
+  gap: var(--s4);
+}
+
+.slabprev canvas {
+  width: 100%;
+  display: block;
+  border-radius: var(--r-4);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.slabprev figcaption {
+  font: var(--t-meta);
+  color: var(--muted);
+}
+
+/* ── chunked builds ── */
+.getin {
+  display: flex;
+  align-items: center;
+  gap: var(--s14);
+  background: var(--surface-2);
+  border-radius: var(--r-8);
+  padding: var(--s14) var(--s16);
+}
+
+.getin__txt {
+  flex: 1;
+  font: 400 13.5px/20px var(--f-ui);
+  color: var(--ink-2);
+}
+
+.getin__txt b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.order {
+  display: flex;
+  align-items: center;
+  gap: var(--s10);
+  margin: var(--s4) 0 calc(var(--s6) * -1);
+}
+
+.order::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.level {
+  background: var(--surface);
+  border: var(--line-w) solid var(--line);
+  border-radius: var(--r-8);
+  padding: var(--s6);
+}
+
+.chunks {
+  display: flex;
+  flex-direction: column;
+}
+
+.chunk {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  gap: var(--s16);
+  align-items: center;
+  padding: var(--s10);
+  border-top: var(--line-w) solid var(--line);
+}
+
+.chunk:first-child {
+  border-top: 0;
+}
+
+.chunk--cur {
+  border-color: transparent;
+  background: var(--accent-tint);
+  border-radius: var(--r-6);
+  box-shadow: inset var(--rail-w) 0 0 var(--accent);
+}
+
+.chunk--cur + .chunk {
+  border-top-color: transparent;
+}
+
+.cinfo {
+  display: grid;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.cname {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s8);
+  flex-wrap: wrap;
+  font: var(--t-ui-strong);
+  color: var(--ink);
+}
+
+.cmeta {
+  font: var(--t-meta);
+  color: var(--muted);
+}
+
+.tag--changed {
+  color: var(--warning);
+}
+
+.chunk__side {
+  display: grid;
+  gap: var(--s6);
+  justify-items: end;
+}
+
+.chunk__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s8);
+}
+
+.cbtns {
+  display: flex;
+  gap: var(--s6);
+  flex-wrap: wrap;
+}
+
+.copyopen {
+  justify-content: flex-start;
+}
+
+.cstep {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-3);
+  background: var(--surface-3);
+  color: var(--ink-2);
+  display: inline-grid;
+  place-items: center;
+  font: 600 10.5px/1 var(--f-ui);
+}
+
+.btn--success .cstep {
+  background: var(--success);
+  color: var(--surface);
+}
+
+.build__foot {
+  font: var(--t-small);
+  color: var(--muted);
+  max-width: 90ch;
+}
+
+.build__foot b {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.size {
+  display: grid;
+  gap: 3px;
+  max-width: 280px;
+}
+
+.size__bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.size__bar i {
+  display: block;
+  height: 100%;
+  background: var(--ink-2);
+}
+
+.size--near .size__bar i {
+  background: var(--warning);
+}
+
+.size--over .size__bar i {
+  background: var(--danger);
+}
+
+.size__lab {
+  display: flex;
+  justify-content: space-between;
+  font: var(--t-meta);
+  color: var(--muted);
+}
+
+.size__lab b {
+  font-weight: 600;
+  color: var(--warning);
+}
+
+.size--over .size__lab b {
+  color: var(--danger);
+}
+
+.slabmenu {
+  right: 0;
+  top: 30px;
+}
+
+.slabtext {
+  width: 640px;
+}
+
+.slabtext__ta {
+  font: var(--t-code);
+  height: 260px;
+  resize: none;
+}
+
+.prog {
+  display: flex;
+  align-items: center;
+  gap: var(--s8);
+  font: var(--t-small);
+  color: var(--ink-2);
+  width: 100%;
+}
+
+.prog__bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.prog__bar i {
+  display: block;
+  height: 100%;
+  background: var(--success);
+  transition: width var(--dur-fast);
+}
+
+/* ── paste guide ── */
+.guide {
+  border-left: var(--line-w) solid var(--line);
+  background: var(--surface);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.guide__h {
+  padding: var(--s14) 18px;
+  border-bottom: var(--line-w) solid var(--line);
+}
+
+.guide__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s8);
+}
+
+.guide__row h3 {
+  margin: 0;
+  flex: 1;
+  font: var(--t-panel);
+  letter-spacing: var(--tracking-name);
+}
+
+.guide__row .muted {
+  font: var(--t-small);
+}
+
+.pdots {
+  display: flex;
+  gap: var(--s4);
+  margin-top: var(--s12);
+}
+
+.pdots i {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+}
+
+.pdots i.d {
+  background: var(--ink-2);
+}
+
+.pdots i.c {
+  background: var(--accent-fill);
+}
+
+.guide__b {
+  overflow: auto;
+  padding: var(--s16) 18px;
+  min-height: 0;
+}
+
+.gtitle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s10);
+  margin: var(--s16) 0 var(--s4);
+}
+
+.gtitle b {
+  font: var(--t-section);
+  color: var(--ink);
+}
+
+.guide__b > .gtitle:first-child {
+  margin-top: 0;
+}
+
+.clip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: var(--t-small-strong);
+  color: var(--success);
+  white-space: nowrap;
+}
+
+.steps {
+  list-style: none;
+  margin: var(--s12) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s12);
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: var(--s10);
+  font: var(--t-ui-body);
+  color: var(--ink);
+}
+
+.steps li > span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  display: grid;
+  place-items: center;
+  font: 600 11.5px/1 var(--f-ui);
+  color: var(--ink-2);
+}
+
+.steps li b {
+  font-weight: 600;
+}
+
+.guide__p {
+  font: var(--t-ui-body);
+  color: var(--ink);
+}
+
+.guide__open {
+  margin-top: var(--s14);
+}
+
+.offset {
+  border-radius: var(--r-6);
+  background: var(--surface-2);
+  font: 400 13px/20px var(--f-ui);
+  color: var(--ink-2);
+  padding: var(--s10) var(--s12);
+  margin-top: var(--s16);
+}
+
+.offset b {
+  display: block;
+  font: 600 13px/20px var(--f-ui);
+  color: var(--ink);
+}
+
+.guide__f {
+  display: flex;
+  align-items: center;
+  gap: var(--s8);
+  padding: var(--s12) 18px;
+  border-top: var(--line-w) solid var(--line);
+}
+
+.guide__next {
+  white-space: normal;
+  text-align: left;
+  height: auto;
+  min-height: var(--h-btn);
+  padding: 6px var(--s12);
+  line-height: 17px;
+}
+
+/* Under 1500 px the paste guide replaces the checklist (UX §9.3); Exit guide or Esc returns to it. */
+@media (max-width: 1499px) {
+  .buildview--guide {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .buildview--guide .buildlist {
+    display: none;
+  }
+
+  .buildview--guide .guide {
+    border-left: 0;
+  }
+
+  .buildview--guide .guide__b {
+    max-width: 720px;
+  }
+}
+
+.cinfo {
+  min-width: 180px;
+}
+
+/* ── build check ── */
+.builderr {
+  display: grid;
+  gap: var(--s10);
+  background: var(--danger-tint);
+  border-radius: var(--r-6);
+  padding: var(--s12) var(--s14);
+  font: var(--t-ui);
+  color: var(--ink-2);
+}
+
+.builderr b {
+  color: var(--ink);
+}
+
+.builderr .card-actions {
+  margin-top: 0;
+}
+
+.buildnotes {
+  display: grid;
+  gap: var(--s10);
+  background: var(--surface);
+  border: var(--line-w) solid var(--line);
+  border-radius: var(--r-8);
+  padding: var(--s12) var(--s16);
+}
+
+.buildok {
+  display: flex;
+  align-items: center;
+  gap: var(--s6);
+  font: var(--t-small);
+  color: var(--muted);
+}
+
+.buildok .icon {
+  color: var(--success);
+}
+
+.buildnotes .buildok {
+  margin: 0;
+}

@@ -1,0 +1,358 @@
+{
+  "schema": "slabyrinth/palette@1",
+  "id": "cave",
+  "name": "Cave",
+  "description": "Cavern kit: rock floors and full-cell rock wall blocks.",
+  "defaults": {
+    "floor": "rock",
+    "wallStyle": "cave_rock",
+    "caveFloor": "rock"
+  },
+  "roles": {
+    "feature.boulder": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "451e9727-bc73-462c-8c46-512687e6e170",
+          "name": "Boulder - Large",
+          "geom": {
+            "size": {
+              "x": 1.537,
+              "y": 1.618,
+              "z": 1.81
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.8088,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    "feature.mushroom": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "c5c65fd7-190d-4b9d-8c57-b7f9a2378ee5",
+          "name": "Mushroom Patch (Forest) 01",
+          "geom": {
+            "size": {
+              "x": 0.929,
+              "y": 0.278,
+              "z": 0.953
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1389,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.pillar": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "c65c4180-a0f1-45fb-b3b5-5c005a187b34",
+          "name": "Stalagmite column 03",
+          "geom": {
+            "size": {
+              "x": 0.799,
+              "y": 1.992,
+              "z": 0.797
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0051,
+              "y": 1.0032,
+              "z": 0.021
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.rock": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "4bfa31f6-193d-4a17-9989-322b18451faa",
+          "name": "Stalagmite column stub 02",
+          "geom": {
+            "size": {
+              "x": 0.466,
+              "y": 0.992,
+              "z": 0.479
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0074,
+              "y": 0.5037,
+              "z": -0.0079
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "stalagmite",
+          "weight": 0
+        },
+        {
+          "asset": "923bc5e3-a845-403f-93dd-035dbd276279",
+          "name": "Rock - Small",
+          "geom": {
+            "size": {
+              "x": 0.398,
+              "y": 0.344,
+              "z": 0.507
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1719,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "2e255c74-6c6a-463d-a2a2-d8d97c327bfe",
+          "name": "Moss Rock 01",
+          "geom": {
+            "size": {
+              "x": 0.999,
+              "y": 0.499,
+              "z": 1.689
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2496,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "variant": "moss",
+          "weight": 0.5
+        }
+      ]
+    },
+    "feature.rubble": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "829e84f1-b425-4ff5-ac34-824ecea3d859",
+          "name": "Rubble Rocks pile",
+          "geom": {
+            "size": {
+              "x": 1.638,
+              "y": 0.266,
+              "z": 0.971
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0236,
+              "y": 0.133,
+              "z": 0.0631
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "fill.default": {
+      "rotation": "fixed",
+      "variants": [
+        {
+          "asset": "ce6a2235-664f-43e8-a744-d5743623701d",
+          "name": "Cave Floor - Rock 2",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "stack": {
+            "unitHeight": 0.5
+          }
+        }
+      ]
+    },
+    "floor.rock": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "ce6a2235-664f-43e8-a744-d5743623701d",
+          "name": "Cave Floor - Rock 2",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "b83392b1-8833-43c9-a97f-2ac3df659e66",
+          "name": "Cave Floor - Rock 01",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    "wall.cave_rock": {
+      "mount": "full-cell",
+      "rotation": "fixed",
+      "height": 2,
+      "greedyTiling": false,
+      "variants": [
+        {
+          "asset": "c06fdfb8-bf24-4234-99c7-3a72a5aacb02",
+          "name": "Cave Wall 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "39f5b1a9-6316-4d13-90d6-12a0bac9c38e",
+          "name": "Cave Wall 03",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.5
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "long",
+          "weight": 0
+        },
+        {
+          "asset": "283fe136-1ac3-4025-b9bf-90612c464c52",
+          "name": "Cave Wall Corner 01",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "corner",
+          "weight": 0
+        }
+      ]
+    }
+  },
+  "source": {
+    "generatedBy": "packages/core/scripts/import-palette-draft.ts from data/palette-draft.json"
+  },
+  "extends": "generic"
+}

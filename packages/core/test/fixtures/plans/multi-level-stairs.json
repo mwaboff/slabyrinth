@@ -1,0 +1,98 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 1,
+  "id": "55555555-5555-4555-8555-555555555555",
+  "title": "Wizard's Tower",
+  "kind": "tower",
+  "seed": 555,
+  "theme": "stone_dungeon",
+  "entryLevel": "ground",
+  "levels": [
+    {
+      "id": "ground",
+      "name": "Ground Floor",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 10, "h": 10 },
+      "base": { "type": "void" },
+      "areas": [
+        {
+          "id": "foyer",
+          "kind": "room",
+          "name": "Foyer",
+          "key": "1",
+          "shape": { "type": "rect", "x": 1, "y": 1, "w": 8, "h": 8 }
+        }
+      ],
+      "openings": [
+        { "id": "front_door", "kind": "double_door", "at": { "x": 4, "y": 8, "side": "S" }, "width": 2 }
+      ],
+      "walls": [],
+      "features": [{ "id": "statue", "type": "statue", "at": [2, 7] }],
+      "terrain": [],
+      "labels": []
+    },
+    {
+      "id": "study_lvl",
+      "name": "Study",
+      "elevation": 2.5,
+      "bounds": { "x": 0, "y": 0, "w": 10, "h": 10 },
+      "base": { "type": "void" },
+      "areas": [
+        {
+          "id": "study",
+          "kind": "room",
+          "name": "Study",
+          "key": "2",
+          "shape": { "type": "rect", "x": 1, "y": 1, "w": 8, "h": 8 },
+          "floor": "wood_plank"
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [
+        { "id": "desk", "type": "desk", "at": [4, 4], "size": [2, 1] },
+        { "id": "books", "type": "bookshelf", "at": [1, 1] }
+      ],
+      "terrain": [],
+      "labels": []
+    },
+    {
+      "id": "roof",
+      "name": "Roof",
+      "elevation": 5,
+      "bounds": { "x": 0, "y": 0, "w": 10, "h": 10 },
+      "base": { "type": "void" },
+      "areas": [
+        {
+          "id": "deck",
+          "kind": "courtyard",
+          "name": "Roof Deck",
+          "key": "3",
+          "shape": { "type": "rect", "x": 1, "y": 1, "w": 8, "h": 8 },
+          "wallStyle": "low_wall",
+          "wallHeight": 0.5
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [{ "id": "scope", "type": "custom", "hint": "brass telescope", "at": [5, 5] }],
+      "terrain": [],
+      "labels": []
+    }
+  ],
+  "links": [
+    {
+      "id": "stairs1",
+      "kind": "stairs",
+      "from": { "level": "ground", "at": [7, 6] },
+      "to": { "level": "study_lvl", "at": [7, 3] },
+      "dir": "N"
+    },
+    {
+      "id": "ladder1",
+      "kind": "ladder",
+      "from": { "level": "study_lvl", "at": [2, 7] },
+      "to": { "level": "roof" }
+    }
+  ]
+}

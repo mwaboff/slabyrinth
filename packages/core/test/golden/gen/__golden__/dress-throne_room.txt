@@ -1,0 +1,11 @@
+pillar 3,5 1x1 r180
+banner_wall 0,0 1x1 r270 wall=W
+throne 2,7 1x1 r180
+pillar 2,6 1x1 r90
+rug 7,2 2x2 r90
+rug 4,3 2x2 r0
+banner_wall 5,0 1x1 r0 wall=N
+rug 4,6 2x2 r270
+banner_wall 9,6 1x1 r90 wall=E
+pillar 1,6 1x1 r270
+brazier 0,7 1x1 r180

@@ -1,0 +1,1642 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-state="plan">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slabyrinth Mockup · Skin B v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600&family=Lora:wght@400;500;600&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   SKIN B v2 — refined. Same markup as app-mockup.html (skin A) and
+   app-mockup-ohsheet.html (skin B v1); only tokens + the override block
+   at the end differ. Token sheet and rationale: docs/ux-theme-ohsheet-v2.md
+   ===================================================================== */
+:root{
+  /* light = warm parchment */
+  --bg:#EAE1D0; --surface:#F8F4EC; --surface-2:#F1EADF; --surface-3:#E7DECF;
+  --line:#DDD2C0; --line-strong:#8C7860; --ink:#1F1A16; --ink-2:#463D35; --muted:#675C50;
+  --accent:#86592F; --accent-fill:#D4A056; --accent-bright:#DDB06A; --accent-hover:#DDB06A;
+  --accent-tint:rgba(212,160,86,.22); --accent-line:rgba(134,89,47,.55); --on-accent:#2A211B;
+  --success:#285E35; --warning:#87561A; --danger:#7C2F2F; --info:#2F5F86; --focus:#86592F;
+  --success-fill:#89D2A5; --danger-fill:#C9452A;
+  --success-tint:rgba(47,106,61,.10); --warning-tint:rgba(135,86,26,.12);
+  --glow:none; --toast-bg:#2D241F; --toast-ink:#F3E8D8; --toast-line:#2D241F;
+  --field-bg:#FFFDF9; --grid-faint:rgba(70,50,30,.055);
+  --map-paper:#E4D5BB; --map-hatch:#C2AB86; --map-floor:#FBF6EC; --map-grid:#EADFCB; --map-ink:#2D241F;
+  --map-water:#2F6F80; --map-forest:#4F7A3A; --map-light:#B4561C; --map-void:#14100C;
+  --map-accent:#86592F; --map-label:#FFFDF9; --map-sel:rgba(212,160,86,.22); --map-trap:#B03A22;
+  --shadow-pop:0 12px 32px rgba(60,40,20,.16),0 2px 6px rgba(60,40,20,.10);
+  --r-sm:3px; --r-md:4px; --r-lg:6px; --r-xl:8px;
+  --f-ui:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-text:"Lora",Georgia,"Times New Roman",serif;
+  --f-display:"Cinzel","Trajan Pro",Georgia,serif;
+  --f-mono:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-code:Consolas,"Cascadia Mono","DejaVu Sans Mono",monospace;
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  /* dark = Oh Sheet "warm tavern", re-tiered: canvas < pane < raised < hover */
+  --bg:#110D0B; --surface:#1A1512; --surface-2:#221C18; --surface-3:#2D2520;
+  --line:#2F2721; --line-strong:#807060; --ink:#EFE4D4; --ink-2:#CFC2B0; --muted:#A89A87;
+  --accent:#D4A056; --accent-fill:#D4A056; --accent-bright:#E2B46E; --accent-hover:#E2B46E;
+  --accent-tint:rgba(212,160,86,.14); --accent-line:rgba(212,160,86,.45); --on-accent:#1A1412;
+  --success:#7DCB94; --warning:#E09A6E; --danger:#E59A8F; --info:#8DB6DA; --focus:#D4A056;
+  --success-fill:#89D2A5; --danger-fill:#E5533A;
+  --success-tint:rgba(125,203,148,.12); --warning-tint:rgba(224,154,110,.12);
+  --glow:none; --toast-bg:#2D2520; --toast-ink:#EFE4D4; --toast-line:#4A3F35;
+  --field-bg:#130F0D; --grid-faint:rgba(239,228,212,.035);
+  --map-paper:#120E0B; --map-hatch:#2E2316; --map-floor:#241C16; --map-grid:#30261C; --map-ink:#EAD9BF;
+  --map-water:#6AA6B3; --map-forest:#8DB87A; --map-light:#E8893A; --map-void:#060403;
+  --map-accent:#D4A056; --map-label:#1A1412; --map-sel:rgba(212,160,86,.13); --map-trap:#F07A5E;
+  --shadow-pop:0 12px 32px rgba(0,0,0,.5),0 2px 6px rgba(0,0,0,.3);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:#2b2723;font:14px/22px var(--f-ui);color:var(--ink);min-width:1280px}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---------- mockup control strip (not part of the app) ---------- */
+.strip{height:40px;display:flex;align-items:center;gap:6px;padding:0 12px;background:#2b2723;color:#d8cfc0;font-size:12px}
+.strip b{font-weight:600;color:#fff;margin-right:8px;letter-spacing:.04em}
+.strip button{background:transparent;border:1px solid #4a433b;color:#d8cfc0;border-radius:999px;padding:3px 11px;cursor:pointer;font-size:12px}
+.strip button[aria-pressed="true"]{background:#d8cfc0;color:#2b2723;border-color:#d8cfc0}
+.strip .sp{flex:1}
+.strip .note{opacity:.6}
+
+/* ---------- app window ---------- */
+.app{height:calc(100vh - 40px);min-height:720px;display:grid;grid-template-rows:44px 1fr;background:var(--bg);position:relative;overflow:hidden}
+.titlebar{display:flex;align-items:center;gap:10px;padding-left:6px;background:var(--surface);border-bottom:1px solid var(--line);user-select:none}
+.iconbtn{width:32px;height:32px;display:inline-grid;place-items:center;border:0;background:transparent;border-radius:var(--r-md);cursor:pointer;color:var(--ink-2)}
+.iconbtn:hover{background:var(--surface-2);color:var(--ink)}
+.icon{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.icon.lg{width:20px;height:20px}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:-.01em}
+.mark{width:22px;height:22px}
+.mk-slab{fill:var(--ink)} .mk-maze{stroke:var(--surface);fill:none;stroke-width:1.6;stroke-linecap:square}
+.mk-route{stroke:var(--accent);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.crumb{color:var(--muted);font-size:15px}
+.projname{font-family:var(--f-display);font-weight:500;font-size:15px;display:flex;align-items:center;gap:4px}
+.saved{font-size:12px;color:var(--muted);margin-left:2px}
+.stepper{margin:0 auto;display:flex;align-items:center;gap:4px;font-size:13px}
+.step{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;color:var(--ink-2);border:1px solid transparent}
+.step .dot{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line-strong);display:grid;place-items:center;font-size:10px}
+.step.done .dot{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.step.current{border-color:var(--line-strong);background:var(--surface-2);color:var(--ink);font-weight:500}
+.step.current .dot{border-color:var(--accent);background:var(--accent-tint)}
+.step.disabled{color:var(--muted);opacity:.7}
+.chev{color:var(--muted);font-size:12px}
+.cost{font:12px var(--f-mono);color:var(--ink-2);padding:4px 8px;border:1px solid var(--line);border-radius:var(--r-md);background:transparent;cursor:pointer}
+.winctl{display:flex;margin-left:6px;height:44px}
+.winctl span{width:46px;display:grid;place-items:center;color:var(--ink-2)}
+.winctl span:hover{background:var(--surface-2)}
+.winctl span:last-child:hover{background:#C42B1C;color:#fff}
+
+.main{display:grid;grid-template-columns:400px minmax(0,1fr);min-height:0;min-width:0}
+
+/* ---------- chat pane ---------- */
+.chat{display:grid;grid-template-rows:auto 1fr auto;background:var(--surface);border-right:1px solid var(--line);min-height:0;position:relative}
+.brief{margin:12px 12px 0;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface)}
+.brief-h{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.caps{font-size:11px;line-height:16px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.brief-h .caps{flex:1}
+.brief-sum{padding:8px 12px 10px;font-size:13px;line-height:20px;color:var(--ink-2)}
+.brief-sum strong{color:var(--ink);font-weight:500}
+.brief-grid{display:grid;grid-template-columns:96px 1fr;gap:6px 10px;padding:10px 12px;font-size:13px;line-height:20px;align-items:center}
+.brief-grid dt{color:var(--muted);font-size:12px}
+.brief-grid dd{margin:0;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.field{border:1px solid var(--line);background:var(--surface-2);border-radius:var(--r-sm);padding:1px 8px;font-size:13px}
+.field.ai{border-bottom:2px solid var(--accent)}
+.aitag{font-size:10px;font-weight:600;color:var(--accent);letter-spacing:.04em}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:var(--r-md);overflow:hidden}
+.seg span{padding:1px 9px;font-size:12px;border-right:1px solid var(--line)}
+.seg span:last-child{border-right:0}
+.seg .on{background:var(--ink);color:var(--surface)}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:0 8px;border-radius:var(--r-sm);background:var(--surface-3)}
+.ready{display:flex;align-items:center;gap:6px;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.ready .ok{color:var(--success);font-weight:600;display:flex;gap:4px;align-items:center}
+
+.thread{overflow:auto;padding:16px 16px 8px;display:flex;flex-direction:column;gap:14px;min-height:0}
+.msg-ai{display:grid;grid-template-columns:24px 1fr;gap:10px}
+.avatar{width:24px;height:24px}
+.msg-ai p{margin:0 0 8px}
+.msg-ai p:last-child{margin-bottom:0}
+.meta{font:11px/16px var(--f-mono);color:var(--muted);margin-top:6px}
+.msg-user{align-self:flex-end;max-width:85%;background:var(--surface-2);border-radius:var(--r-lg) var(--r-lg) var(--r-sm) var(--r-lg);padding:8px 12px}
+.ref{display:inline-flex;align-items:center;gap:5px;background:var(--surface-3);border-radius:var(--r-sm);padding:0 7px 0 3px;font-size:13px;line-height:22px;white-space:nowrap;vertical-align:baseline}
+.badge{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--accent);color:var(--accent);display:inline-grid;place-items:center;font:600 10px/1 var(--f-display)}
+.sys{align-self:center;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.sys::before,.sys::after{content:"";width:28px;height:1px;background:var(--line)}
+.starters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.starter{border:1px solid var(--line);border-radius:var(--r-lg);padding:8px 10px;background:var(--surface);font-size:12px;line-height:17px;color:var(--ink-2);cursor:pointer;text-align:left}
+.starter b{display:block;font:500 13px/20px var(--f-display);color:var(--ink)}
+.starter:hover{border-color:var(--line-strong);background:var(--surface-2)}
+.card{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:12px 14px;margin-top:10px}
+.qcard .q{margin-bottom:10px}
+.qcard .qt{font-size:13px;line-height:20px;margin-bottom:6px}
+.qcard .qt span{color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--line-strong);background:transparent;font-size:13px;display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.chip:hover{background:var(--surface-2)}
+.chip.sel{background:var(--accent-tint);border-color:var(--accent);color:var(--ink)}
+.chip.sel .icon{color:var(--accent);width:13px;height:13px}
+.chip.ghost{border-style:dashed;color:var(--ink-2)}
+.card-actions{display:flex;gap:8px;margin-top:12px;align-items:center}
+.btn{height:32px;padding:0 12px;border-radius:var(--r-md);border:1px solid var(--line-strong);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.sm{height:26px;padding:0 9px;font-size:12px}
+.btn.lg{height:40px;padding:0 16px;font-size:14px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
+.btn.ghost:hover{background:var(--surface-2)}
+.btn.success{border-color:var(--success);color:var(--success);background:var(--success-tint)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.upd{border-left:3px solid var(--ink)}
+.upd-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.vbadge{font:500 11px/18px var(--f-mono);padding:0 6px;border-radius:var(--r-sm);background:var(--ink);color:var(--surface)}
+.upd-h .t{font-weight:600;font-size:13px;flex:1}
+.upd-h .m{font:11px var(--f-mono);color:var(--muted)}
+.upd ul{margin:0;padding-left:18px;font-size:13px;line-height:20px}
+.upd .count{font:11px/16px var(--f-mono);color:var(--muted);margin-top:6px}
+.buildcard{border-left:3px solid var(--success)}
+.n{font-family:var(--f-display);font-weight:600;color:var(--accent);cursor:pointer}
+
+.composer{padding:10px 12px 12px;border-top:1px solid var(--line);position:relative}
+.cbox{border:1px solid var(--line-strong);border-radius:var(--r-lg);background:var(--surface);padding:8px 10px 6px}
+.cbox:focus-within{border-color:var(--ink-2)}
+.crefs{display:flex;gap:6px;margin-bottom:6px}
+.crefs .x{color:var(--muted);margin-left:2px;cursor:pointer}
+.ctext{min-height:44px;font-size:14px;line-height:21px;color:var(--ink)}
+.ctext.ph{color:var(--muted)}
+.cfoot{display:flex;align-items:center;gap:8px;margin-top:6px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 7px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);font-size:12px;cursor:pointer;white-space:nowrap}
+.pill:hover,.pill[aria-expanded="true"]{border-color:var(--line-strong);background:var(--surface-3)}
+.pill .diamond{width:8px;height:8px;background:var(--accent);transform:rotate(45deg);border-radius:1px}
+.pill .eff{color:var(--ink-2)}
+.hint{font:11px var(--f-mono);color:var(--muted);flex:1;white-space:nowrap}
+.send{width:32px;height:32px;border-radius:var(--r-md);border:0;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;cursor:pointer}
+.send[disabled]{background:var(--surface-3);color:var(--muted)}
+
+/* model popover */
+.popover{position:absolute;left:12px;bottom:100px;width:376px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-pop);z-index:20;padding:12px 0 0}
+.popover h4{margin:0 14px 8px;font:600 11px/16px var(--f-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.mrow{display:grid;grid-template-columns:18px 1fr auto auto;gap:10px;align-items:center;padding:7px 14px;cursor:pointer}
+.mrow:hover{background:var(--surface-2)}
+.mrow.on{background:var(--accent-tint)}
+.radio{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--line-strong)}
+.mrow.on .radio{border:4px solid var(--accent)}
+.mname{font:500 15px/20px var(--f-display)}
+.mdesc{font-size:12px;line-height:16px;color:var(--ink-2)}
+.rec{font:600 10px/14px var(--f-ui);letter-spacing:.04em;color:var(--success);border:1px solid var(--success);border-radius:var(--r-sm);padding:0 4px;margin-left:6px;vertical-align:2px}
+.tiers{font:12px var(--f-mono);color:var(--ink-2);letter-spacing:.06em;text-align:right;min-width:34px}
+.tiers i{font-style:normal;opacity:.28}
+.effort{padding:10px 14px 0;border-top:1px solid var(--line);margin-top:6px}
+.effort-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.effort-h h4{margin:0}
+.effort-h span{font-size:12px;color:var(--muted)}
+.segctl{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--line-strong);border-radius:var(--r-md);overflow:hidden}
+.segctl button{border:0;border-right:1px solid var(--line);background:transparent;height:30px;font-size:12px;cursor:pointer}
+.segctl button:last-child{border-right:0}
+.segctl button:hover{background:var(--surface-2)}
+.segctl button.on{background:var(--ink);color:var(--surface);font-weight:600}
+.effscale{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:.03em}
+.effnote{font-size:12px;line-height:18px;color:var(--ink-2);margin:8px 0 0}
+.estimate{margin:12px 0 0;padding:10px 14px;background:var(--surface-2);border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:12px;border-radius:0 0 var(--r-lg) var(--r-lg)}
+.estimate b{font:500 12px var(--f-mono);color:var(--ink)}
+.estimate a{color:var(--accent);text-decoration:none}
+.smart{font-size:11px;line-height:16px;color:var(--muted);padding:8px 14px 0}
+
+/* ---------- stage ---------- */
+.stage{display:grid;grid-template-rows:44px 40px 1fr 48px;min-width:0;min-height:0}
+.stagebar{display:flex;align-items:stretch;gap:2px;padding:0 12px;background:var(--surface);border-bottom:1px solid var(--line)}
+.tab{display:flex;align-items:center;gap:6px;padding:0 12px;font-size:13px;color:var(--ink-2);border-bottom:2px solid transparent;cursor:pointer;background:none;border-top:0;border-left:0;border-right:0}
+.tab.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:500}
+.tab.disabled{color:var(--muted);opacity:.6;cursor:not-allowed}
+.tab .lv{font:500 11px var(--f-mono);color:var(--muted)}
+.tab .lname{font-family:var(--f-display);font-size:14px}
+.vsep{width:1px;background:var(--line);margin:10px 8px}
+.toolbar{display:flex;align-items:center;gap:4px;padding:0 10px;background:var(--surface);border-bottom:1px solid var(--line)}
+.tgroup{display:flex;align-items:center;gap:2px}
+.tool{height:28px;min-width:28px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center;gap:5px;border-radius:var(--r-md);border:0;background:transparent;color:var(--ink-2);font-size:12px;cursor:pointer}
+.tool:hover{background:var(--surface-2);color:var(--ink)}
+.tool.on{background:var(--surface-3);color:var(--ink)}
+.zoom{font:12px var(--f-mono);min-width:64px}
+.tsep{width:1px;height:20px;background:var(--line);margin:0 6px}
+.toolbar .sp{flex:1}
+
+.content{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:0;min-width:0}
+.canvas{position:relative;display:grid;place-items:center;overflow:hidden;background:var(--bg)}
+.mapwrap{position:relative;width:min(calc(100% - 48px), calc((100vh - 280px) * 1.3333));aspect-ratio:4/3;border-radius:var(--r-sm);box-shadow:0 0 0 1px var(--line)}
+.mapwrap svg{display:block;width:100%;height:100%}
+.selbar{position:absolute;left:27.5%;top:40%;transform:translateY(calc(-100% - 10px));display:flex;align-items:center;gap:4px;padding:4px 4px 4px 10px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r-md);box-shadow:var(--shadow-pop);white-space:nowrap;font-size:13px;z-index:5}
+.selbar .t{font-family:var(--f-display);font-weight:500;margin-right:6px;display:flex;align-items:center;gap:6px}
+.selbar .badge{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.kbd{font:11px var(--f-mono);border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:3px;padding:0 4px;color:var(--muted);background:var(--surface)}
+.compass{position:absolute;right:16px;top:14px;font:600 12px var(--f-display);color:var(--ink-2);display:flex;flex-direction:column;align-items:center;line-height:12px}
+.coords{position:absolute;left:16px;bottom:12px;font:11px var(--f-mono);color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:1px 6px}
+
+/* map svg classes */
+.m-paper{fill:var(--map-paper)} .m-hatch{stroke:var(--map-hatch);stroke-width:1.1}
+.m-floor{fill:var(--map-floor)} .m-grid{fill:none;stroke:var(--map-grid);stroke-width:1}
+.wallpass{fill:var(--map-ink);stroke:var(--map-ink);stroke-width:6.5;stroke-linejoin:miter}
+.m-water{fill:var(--map-water);opacity:.26}
+.m-deep{fill:var(--map-water);opacity:.42}
+.m-wave{fill:none;stroke:var(--map-water);stroke-width:1.1;opacity:.9}
+.m-shore{fill:none;stroke:var(--map-water);stroke-width:1.4}
+.ink{stroke:var(--map-ink);fill:none;stroke-width:1.5}
+.inkfill{fill:var(--map-ink)}
+.door{fill:var(--map-floor);stroke:var(--map-ink);stroke-width:1.5}
+.post{fill:var(--map-ink)}
+.secret{stroke:var(--map-ink);stroke-width:3.5;stroke-dasharray:5 4;fill:none}
+.secret-gap{fill:var(--map-paper)}
+.halo{paint-order:stroke;stroke:var(--map-floor);stroke-width:3px;stroke-linejoin:round}
+.halo-rock{paint-order:stroke;stroke:var(--map-paper);stroke-width:4px}
+.light{stroke:var(--map-light);fill:none;stroke-width:1.4;stroke-linecap:round}
+.trap{stroke:var(--accent);fill:var(--map-floor);stroke-width:1.5}
+.traptext{fill:var(--accent);font:700 8px var(--f-ui)}
+.feat{fill:var(--map-floor);stroke:var(--map-ink);stroke-width:1.4}
+.tread{stroke:var(--map-ink);stroke-width:1.3}
+.lbl-c{fill:var(--surface);stroke:var(--map-ink);stroke-width:1.5}
+.lbl-n{fill:var(--map-ink);font:600 12px var(--f-display);text-anchor:middle;dominant-baseline:central}
+.lbl-name{fill:var(--map-ink);font:600 8px var(--f-ui);letter-spacing:.09em;text-anchor:middle;text-transform:uppercase;opacity:.85}
+.sel-room{fill:var(--accent-tint);stroke:var(--accent);stroke-width:2.5}
+.lbl-c.on{fill:var(--accent);stroke:var(--accent)} .lbl-n.on{fill:var(--on-accent)}
+.link-tag{fill:var(--surface);stroke:var(--map-ink);stroke-width:1.2}
+.link-text{fill:var(--map-ink);font:600 9px var(--f-ui);text-anchor:middle;dominant-baseline:central}
+.chunkline{stroke:var(--accent);stroke-width:2;stroke-dasharray:6 4;fill:none}
+.chunkfill-done{fill:var(--ink);opacity:.10}
+.chunkfill-cur{fill:var(--accent-tint);stroke:var(--accent);stroke-width:3}
+.chunknum{font:600 34px var(--f-display);text-anchor:middle;dominant-baseline:central;fill:var(--ink-2)}
+
+/* room key */
+.key{background:var(--surface);border-left:1px solid var(--line);display:grid;grid-template-rows:auto auto 1fr auto;min-height:0}
+.key-h{display:flex;align-items:center;gap:8px;padding:12px 14px 8px}
+.key-h h3{margin:0;font:600 18px/24px var(--f-display);flex:1}
+.key-h h3 small{font:12px var(--f-ui);color:var(--muted);margin-left:4px}
+.search{margin:0 14px 8px;height:30px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface-2);display:flex;align-items:center;gap:6px;padding:0 8px;font-size:13px;color:var(--muted)}
+.rooms{overflow:auto;padding:0 8px 8px;min-height:0}
+.room{display:grid;grid-template-columns:22px 1fr;gap:8px;padding:8px 6px;border-radius:var(--r-md);cursor:pointer}
+.room:hover{background:var(--surface-2)}
+.room .badge{width:20px;height:20px;border-color:var(--ink);color:var(--ink);font-size:11px;margin-top:1px}
+.room .rn{font:500 15px/22px var(--f-display);display:flex;justify-content:space-between;gap:6px}
+.room .rn span{font:11px/22px var(--f-mono);color:var(--muted)}
+.room .prev{font-size:12px;line-height:17px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room.on{background:var(--accent-tint);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.room.on .badge{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.room.on .prev{white-space:normal}
+.rsec{margin-top:8px}
+.rsec .caps{display:block;margin-bottom:2px;font-size:10px}
+.rsec p{margin:0;font-size:13px;line-height:19px;color:var(--ink)}
+.rsec p.ra{font-style:italic;color:var(--ink-2);font-family:var(--f-display);font-size:13.5px}
+.room-actions{display:flex;gap:6px;margin-top:10px}
+.legend{border-top:1px solid var(--line);padding:10px 14px 12px}
+.legend-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.lg{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}
+.lg div{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-2);line-height:16px}
+.lg svg{width:30px;height:20px;flex:none;border-radius:2px}
+
+.statusbar{display:flex;align-items:center;gap:12px;padding:0 12px 0 16px;background:var(--surface);border-top:1px solid var(--line);font-size:12px;color:var(--ink-2)}
+.statusbar .mono{font-family:var(--f-mono)}
+.statusbar .sp{flex:1}
+.dotsep{color:var(--line-strong)}
+
+/* empty state */
+.empty{position:relative;width:100%;height:100%;display:grid;place-items:center;background-color:var(--bg);background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:24px 24px;background-position:-1px -1px}
+.empty::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 20%,var(--bg) 75%);pointer-events:none}
+.empty-card{position:relative;z-index:1;width:440px;text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);padding:32px 32px 24px;box-shadow:var(--shadow-pop)}
+.empty-card h2{margin:12px 0 6px;font:600 28px/34px var(--f-display)}
+.empty-card p{margin:0 0 18px;color:var(--ink-2)}
+.checklist{text-align:left;margin:20px 0 0;padding:14px 0 0;border-top:1px solid var(--line);display:grid;gap:6px;font-size:13px}
+.checklist div{display:flex;align-items:center;gap:8px}
+.checklist .ok{color:var(--success)}
+.checklist .todo{color:var(--muted)}
+.empty-est{font:11px var(--f-mono);color:var(--muted);margin-top:8px}
+
+/* build */
+.buildview{display:grid;grid-template-columns:minmax(0,1fr) 360px;min-height:0;overflow:hidden}
+.buildlist{min-width:0;overflow:auto;padding:16px 20px 24px;display:flex;flex-direction:column;gap:14px;min-height:0}
+.bhead{display:flex;align-items:center;gap:10px}
+.bhead h2{margin:0;font:600 18px/24px var(--f-display)}
+.bhead .m{font-size:12px;color:var(--muted);flex:1}
+.okpill{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--success);background:var(--success-tint);border-radius:999px;padding:1px 8px}
+.getin{display:flex;align-items:center;gap:14px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:14px 16px}
+.getin .txt{flex:1;font-size:13px;line-height:19px;color:var(--ink-2)}
+.getin .txt b{color:var(--ink);font-weight:600}
+.getin .why{font-size:12px;color:var(--muted)}
+.getin .why a{color:var(--accent)}
+.level{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);overflow:hidden}
+.level-h{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line)}
+.level-h .lv{font:500 11px var(--f-mono);color:var(--surface);background:var(--ink);border-radius:var(--r-sm);padding:0 6px}
+.level-h h3{margin:0;font:600 16px/22px var(--f-display)}
+.level-h .m{font-size:12px;color:var(--muted);flex:1}
+.prog{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2)}
+.prog .bar{width:80px;height:6px;border-radius:3px;background:var(--surface-3);overflow:hidden}
+.prog .bar i{display:block;height:100%;background:var(--success)}
+.level-b{display:grid;grid-template-columns:140px 1fr;gap:16px;padding:12px 16px 14px}
+.mini{width:140px;border-radius:var(--r-sm);box-shadow:0 0 0 1px var(--line);display:block}
+.chunks{display:flex;flex-direction:column;gap:6px}
+.chunk{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-md)}
+.cbtns{display:flex;gap:4px}
+.btn.open{width:198px;justify-content:flex-start}
+.cinfo{display:grid;gap:4px;min-width:0}
+.cinfo .cname{display:flex;gap:8px;align-items:baseline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cinfo .cname .cmeta{overflow:hidden;text-overflow:ellipsis}
+.cinfo .size{max-width:260px}
+.assetchip{display:inline-flex;align-items:center;gap:6px;font:11px var(--f-mono);color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+.assetchip i{width:6px;height:6px;border-radius:50%;background:var(--success)}
+
+.cstep{width:18px;height:18px;border-radius:50%;background:var(--ink);color:var(--surface);display:inline-grid;place-items:center;font:600 10px/1 var(--f-display);flex:none}
+.chunk .btn.success .cstep{background:var(--success);color:var(--surface)}
+.marker{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.ordn{font:600 16px var(--f-display);color:var(--ink-2)}
+.order{margin:2px 0 -6px}
+.chunk.cur{border-color:var(--accent);background:var(--accent-tint)}
+.cnum{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--ink);display:grid;place-items:center;font:600 12px var(--f-display)}
+.chunk.done .cnum{background:var(--ink);color:var(--surface)}
+.chunk.cur .cnum{border-color:var(--accent);color:var(--accent)}
+.cname{font-weight:500;font-size:13px;line-height:18px}
+.cmeta{font:11px/15px var(--f-mono);color:var(--muted)}
+.size{display:flex;flex-direction:column;gap:3px}
+.size .bar{height:6px;border-radius:3px;background:var(--surface-3);overflow:hidden}
+.size .bar i{display:block;height:100%;background:var(--ink-2)}
+.size.warn .bar i{background:var(--warning)}
+.size .lab{font:11px var(--f-mono);color:var(--muted);display:flex;justify-content:space-between}
+.size.warn .lab b{color:var(--warning);font-weight:500;font-family:var(--f-ui)}
+.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2)}
+.box{width:16px;height:16px;border:1.5px solid var(--line-strong);border-radius:3px;display:grid;place-items:center;background:var(--surface)}
+.box.on{background:var(--success);border-color:var(--success);color:#fff}
+.box.on .icon{width:12px;height:12px;stroke-width:2.4}
+.btn.copy{width:112px;justify-content:center}
+
+.guide{border-left:1px solid var(--line);background:var(--surface);display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:minmax(0,1fr);min-height:0;min-width:0}
+.guide-f .btn.primary{white-space:normal;text-align:left;height:auto;min-height:32px;padding:4px 12px;line-height:16px}
+.guide-h{padding:14px 18px 10px;border-bottom:1px solid var(--line)}
+.guide-h .row{display:flex;align-items:center;gap:8px}
+.guide-h h3{margin:0;font:600 18px/24px var(--f-display);flex:1}
+.pdots{display:flex;gap:5px;margin-top:10px}
+.pdots i{flex:1;height:4px;border-radius:2px;background:var(--surface-3)}
+.pdots i.d{background:var(--ink-2)} .pdots i.c{background:var(--accent)}
+.guide-b{overflow:auto;padding:14px 18px;min-height:0}
+.guide-b .mini{width:100%}
+.gtitle{display:flex;align-items:baseline;justify-content:space-between;margin:14px 0 4px}
+.gtitle b{font:600 16px/22px var(--f-display)}
+.clip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--success)}
+.steps{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:10px}
+.steps li{display:grid;grid-template-columns:22px 1fr;gap:10px;font-size:13px;line-height:19px}
+.steps li>span{width:22px;height:22px;border-radius:50%;background:var(--surface-3);display:grid;place-items:center;font:600 11px var(--f-display);color:var(--ink-2)}
+.offset{margin-top:14px;border:1px dashed var(--line-strong);border-radius:var(--r-md);padding:8px 10px;font-size:12px;color:var(--ink-2)}
+.offset b{font:500 13px var(--f-mono);color:var(--ink);display:block;margin-top:2px}
+.guide-f{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--line)}
+.guide-f .sp{flex:1}
+.toast{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);background:var(--ink);color:var(--surface);border-radius:var(--r-md);padding:8px 14px;font-size:13px;display:flex;gap:8px;align-items:center;box-shadow:var(--shadow-pop);z-index:6;white-space:nowrap}
+.toast .icon{color:var(--success)}
+html[data-theme="dark"] .toast .icon{color:#3E7449}
+
+/* settings modal */
+.scrim{position:absolute;inset:0;background:rgba(20,16,12,.42);z-index:30;display:grid;place-items:center}
+.modal{width:760px;height:580px;background:var(--surface);border-radius:var(--r-xl);box-shadow:var(--shadow-pop);display:grid;grid-template-columns:200px 1fr;overflow:hidden;border:1px solid var(--line-strong)}
+.snav{background:var(--surface-2);padding:16px 10px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+.snav h2{font:600 22px/28px var(--f-display);margin:0 8px 14px}
+.snav a{padding:6px 10px;border-radius:var(--r-md);font-size:13px;color:var(--ink-2);text-decoration:none}
+.snav a.on{background:var(--surface);color:var(--ink);font-weight:500;box-shadow:inset 2px 0 0 var(--accent)}
+.sbody{display:grid;grid-template-rows:1fr auto;min-height:0}
+.sscroll{overflow:auto;padding:20px 24px}
+.sscroll h3{margin:0 0 4px;font:600 18px/24px var(--f-display)}
+.sscroll .lead{margin:0 0 14px;font-size:13px;color:var(--ink-2)}
+.providers{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.prov{border:1px solid var(--line-strong);border-radius:var(--r-lg);padding:12px 14px;display:grid;grid-template-columns:18px 1fr;gap:4px 10px}
+.prov.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-tint)}
+.prov.on .radio{border:4px solid var(--accent)}
+.prov .radio{margin-top:3px}
+.prov b{font:600 15px/22px var(--f-display);display:flex;justify-content:space-between;align-items:center}
+.prov .d{grid-column:2;font-size:12px;line-height:17px;color:var(--ink-2)}
+.prov .st{grid-column:2;font-size:12px;display:flex;align-items:center;gap:5px;margin-top:4px}
+.prov .st.ok{color:var(--success)}
+.prov.later{opacity:.62;border-style:dashed}
+.later-tag{font:600 10px/14px var(--f-ui);letter-spacing:.06em;border:1px solid var(--line-strong);color:var(--muted);border-radius:var(--r-sm);padding:0 5px}
+.srow{display:grid;grid-template-columns:130px 1fr;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.srow>.caps{padding-top:5px}
+.keyfield{display:flex;gap:8px;align-items:center}
+.input{height:32px;border:1px solid var(--line-strong);border-radius:var(--r-md);background:var(--surface-2);padding:0 10px;display:flex;align-items:center;gap:8px;font:13px var(--f-mono);flex:1;color:var(--ink)}
+.input .icon{margin-left:auto;color:var(--muted)}
+.valid{font-size:12px;color:var(--success);display:flex;align-items:center;gap:5px;margin-top:6px}
+.trust{font-size:12px;line-height:17px;color:var(--muted);margin-top:4px}
+.mlist{border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+.mlist .mrow{padding:6px 12px}
+.checkrow{display:flex;gap:8px;align-items:flex-start;margin-top:10px;font-size:13px}
+.checkrow small{display:block;color:var(--muted);font-size:12px}
+.sfoot{display:flex;justify-content:space-between;align-items:center;padding:12px 24px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+
+/* export PNG popover */
+.toolbar{position:relative;z-index:4}
+.pngpop{position:absolute;right:0;top:36px;width:340px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-pop);padding:12px 14px;z-index:25;display:grid;gap:10px;font-size:12px;color:var(--ink-2)}
+.pp-h{font:600 16px/22px var(--f-display);color:var(--ink)}
+.pp-row{display:grid;grid-template-columns:64px 1fr;align-items:center;gap:8px}
+.segctl.s2{grid-template-columns:1fr 1fr}
+.segctl.s2 button{height:26px}
+.select{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r-md);background:var(--surface-2);color:var(--ink);font-size:12px}
+.mono-s{font:11px var(--f-mono);color:var(--muted)}
+.pp-checks{display:flex;gap:14px;padding-left:72px}
+.pp-checks>span{display:flex;gap:6px;align-items:center}
+.pp-prev{display:grid;gap:4px;font-size:11px;color:var(--muted)}
+.pp-prev svg{width:100%;border-radius:var(--r-sm);box-shadow:0 0 0 1px var(--line)}
+svg.print{--map-paper:#E8DFCE;--map-hatch:#BCAE94;--map-floor:#FCF8EF;--map-ink:#2A231B;--map-water:#3F7F8F;--surface:#FBF8F2}
+.pp-f{display:flex;justify-content:flex-end;gap:8px}
+.recap{border-left:3px solid var(--accent);background:var(--surface-2);margin-top:0}
+
+/* home */
+.home{overflow:auto;padding:32px 48px 48px;background:var(--bg)}
+.home-in{max-width:1180px;margin:0 auto}
+.home-top{display:flex;align-items:flex-end;gap:10px;margin-bottom:20px}
+.home-top h1{margin:0;font:600 28px/34px var(--f-display);flex:1}
+.home-top h1 small{display:block;font:14px/22px var(--f-ui);color:var(--muted)}
+.cont{display:grid;grid-template-columns:320px 1fr;gap:24px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);padding:18px;margin-bottom:32px}
+.cont svg{width:100%;border-radius:var(--r-md);box-shadow:0 0 0 1px var(--line);display:block}
+.cont h2{margin:4px 0 2px;font:600 24px/30px var(--f-display)}
+.cont .d{color:var(--ink-2);font-size:13px}
+.cont .last{margin:14px 0 18px;padding:10px 12px;border-left:3px solid var(--line-strong);background:var(--surface-2);border-radius:0 var(--r-md) var(--r-md) 0;font-size:13px;color:var(--ink-2)}
+.phase{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:.04em;padding:1px 8px;border-radius:999px;border:1px solid var(--line-strong);color:var(--ink-2)}
+.phase.built{border-color:var(--success);color:var(--success)}
+.phase.plan{border-color:var(--accent);color:var(--accent)}
+.recent-h{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.recent-h .caps{flex:1}
+.grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.pcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;cursor:pointer;position:relative}
+.pcard:hover{border-color:var(--line-strong)}
+.pcard .th{height:130px;display:block;width:100%;background:var(--map-paper)}
+.pcard .b{padding:10px 12px 12px}
+.pcard .nm{font:600 15px/22px var(--f-display)}
+.pcard .mt{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;margin-top:4px}
+.pcard .more{position:absolute;right:6px;top:6px;background:var(--surface);border-radius:var(--r-md)}
+.pcard.newc{display:grid;place-items:center;text-align:center;border-style:dashed;min-height:200px;color:var(--ink-2);background:transparent}
+
+/* =====================================================================
+   SKIN B v2 OVERRIDES
+   Type roles:  Cinzel  = names and titles only (wordmark, panel/page titles,
+                          room and project names), never below 15px, never tracked caps.
+                Lora    = reading text: chat messages, the composer, room notes,
+                          read-aloud, home recap. 14-15px, roman only.
+                Source Sans 3 = the tool: controls, labels, metadata, numbers, instructions.
+   Gold rule:   solid gold = the one primary action, the current step, the selected
+                room badge, the send button. Gold tint/ring = selected option.
+                Gold ink = room-number references (map badges, inline ④).
+                Nothing else is gold: no gold headings, labels, borders or icons.
+   Separation:  surface tone first (canvas < pane < raised < hover), hairlines only
+                between panes and inside lists; 3:1 borders only on real controls.
+   ===================================================================== */
+body{background:#0B0807;font:14px/21px var(--f-ui);font-variant-numeric:lining-nums tabular-nums}
+::selection{background:var(--accent-fill);color:var(--on-accent)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* control strip (mockup only) */
+.strip{background:#0B0807;color:#CFC2B0;border-bottom:1px solid #2A221C;font:13px var(--f-ui)}
+.strip b{font:600 13px var(--f-display);letter-spacing:.04em;color:#EFE4D4;margin-right:6px}
+.strip .skin{font:600 12px/20px var(--f-ui);color:#1A1412;background:#D4A056;border-radius:4px;padding:0 8px;white-space:nowrap}
+.strip a{color:#CFC2B0;font-size:12px;text-decoration:underline;text-decoration-color:#6A5C4E;text-underline-offset:3px;white-space:nowrap}
+.strip a:hover{color:#EFE4D4;text-decoration-color:currentColor}
+.strip .links{display:flex;gap:10px;margin:0 10px 0 4px}
+.strip button{border:1px solid #4A3F35;color:#CFC2B0;border-radius:4px;font:12.5px var(--f-ui);padding:3px 10px}
+.strip button[aria-pressed="true"]{background:#EFE4D4;color:#1A1412;border-color:#EFE4D4;font-weight:600}
+
+/* ground: flat tones, no grain, no candle wash, no glow */
+.grain{display:none}
+.app{background:var(--bg)}
+.canvas{background:radial-gradient(ellipse at 50% 45%,transparent 40%,rgba(0,0,0,.22) 100%),var(--bg)}
+html[data-theme="light"] .canvas{background:radial-gradient(ellipse at 50% 45%,transparent 45%,rgba(110,80,40,.07) 100%),var(--bg)}
+
+/* type primitives */
+.caps{font:600 11px/16px var(--f-ui);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.kbd{font:500 11px/16px var(--f-ui);border:1px solid var(--line-strong);border-bottom-width:1px;border-radius:3px;padding:0 4px;color:var(--ink-2);background:transparent}
+
+/* title bar */
+.titlebar{background:var(--surface);border-bottom:1px solid var(--line)}
+.brand{font:600 16px/1 var(--f-display);letter-spacing:.04em;color:var(--ink)}
+.mk-slab{fill:var(--surface-3);stroke:var(--accent);stroke-width:1.2}
+.mk-maze{stroke:var(--ink-2);stroke-width:1.5}
+.mk-route{stroke:var(--accent);stroke-width:1.9}
+.crumb{color:var(--muted)}
+.projname{font:500 15px var(--f-text);color:var(--ink)}
+.saved{font:12.5px var(--f-ui);color:var(--muted)}
+.stepper{gap:4px}
+.step{font:500 13px/18px var(--f-ui);color:var(--ink-2);border:0;border-radius:4px;padding:4px 8px;gap:7px}
+.step .dot{width:18px;height:18px;border-radius:50%;border:1px solid var(--line-strong);font:600 11px/1 var(--f-ui);color:var(--ink-2)}
+.step.done .dot{background:var(--surface-3);border-color:var(--surface-3);color:var(--ink)}
+.step.current{background:transparent;border:0;color:var(--ink);font-weight:600}
+.step.current .dot{background:var(--accent-fill);border-color:var(--accent-fill);color:var(--on-accent)}
+.step.disabled{color:var(--muted);opacity:1}
+.chev{color:var(--muted)}
+.cost{font:500 12.5px var(--f-ui);color:var(--ink-2);border:0;background:transparent;border-radius:4px;padding:4px 8px}
+.cost:hover{background:var(--surface-2);color:var(--ink)}
+.iconbtn{border-radius:4px;color:var(--ink-2)}
+.iconbtn:hover{background:var(--surface-2);color:var(--ink)}
+.winctl span{color:var(--muted)}
+
+/* buttons: primary = flat gold (one per view); secondary = 3:1 neutral outline; ghost = text */
+.btn{height:32px;padding:0 12px;border-radius:4px;border:1px solid var(--line-strong);background:transparent;color:var(--ink);font:500 13px/1 var(--f-ui);letter-spacing:0;gap:6px;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--surface-3);border-color:var(--ink-2)}
+.btn .icon{color:var(--ink-2)}
+.btn.sm{height:28px;padding:0 10px;font-size:12.5px}
+.btn.lg{display:inline-flex;height:40px;padding:0 18px;font-size:14.5px;font-weight:600;letter-spacing:0;text-transform:none}
+.btn.primary{background:var(--accent-fill);border-color:var(--accent-fill);color:var(--on-accent);font-weight:600;box-shadow:none}
+.btn.primary .icon{color:var(--on-accent)}
+.btn.primary .kbd{opacity:1!important;border-color:rgba(26,20,18,.4)!important;color:var(--on-accent)!important}
+.btn.primary:hover{background:var(--accent-bright);border-color:var(--accent-bright)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
+.btn.ghost:hover{background:var(--surface-3);color:var(--ink)}
+.btn.success{border-color:var(--success);color:var(--success);background:var(--success-tint)}
+.btn.success .icon{color:var(--success)}
+
+/* ---------- chat pane ---------- */
+.chat{background:var(--surface);border-right:1px solid var(--line)}
+.brief{margin:12px 12px 0;background:var(--surface-2);border:0;border-radius:6px}
+.brief-h{border-bottom:0;padding:8px 8px 0 14px;min-height:36px}
+.brief-h>span[style]{font:12.5px var(--f-ui)!important;color:var(--muted)!important}
+.brief-sum{padding:0 14px 12px;font:13px/20px var(--f-ui);color:var(--ink-2)}
+.brief-sum strong{font-weight:600;color:var(--ink)}
+.brief-grid{grid-template-columns:92px minmax(0,1fr);gap:8px 10px;padding:6px 14px 12px}
+.brief-grid dt{font:12.5px/22px var(--f-ui);color:var(--muted)}
+.field{border:0;background:var(--surface-3);border-radius:4px;padding:1px 8px;font:13px/20px var(--f-ui);color:var(--ink)}
+.field.ai{border-bottom:0;box-shadow:inset 0 -2px 0 var(--line-strong)}
+.aitag{font:600 11px var(--f-ui);letter-spacing:.04em;color:var(--muted)}
+.seg{border:1px solid var(--line-strong);border-radius:4px}
+.seg span{font:500 12.5px/22px var(--f-ui);padding:0 10px;color:var(--ink-2);border-right:1px solid var(--line)}
+.seg .on{background:var(--accent-tint);color:var(--ink);font-weight:600}
+.tag{background:var(--surface-3);border:0;border-radius:999px;font:12.5px/22px var(--f-ui);color:var(--ink-2);padding:0 10px}
+.ready{border-top:1px solid var(--line);font:12.5px var(--f-ui);color:var(--muted);padding:9px 14px}
+.ready .ok{font:600 12.5px var(--f-ui);color:var(--success);text-transform:none;letter-spacing:0}
+
+.thread{padding:18px 16px 14px;gap:20px;-webkit-mask-image:linear-gradient(transparent 0,#000 16px);mask-image:linear-gradient(transparent 0,#000 16px)}
+.msg-ai{grid-template-columns:24px minmax(0,1fr);gap:12px;font:15px/24px var(--f-text);color:var(--ink)}
+.msg-ai p{margin:0 0 10px}
+.msg-ai p strong{font-weight:600;color:var(--ink)}
+.card-actions{flex-wrap:wrap;row-gap:6px;gap:6px}
+.meta{font:12px/16px var(--f-ui);color:var(--muted);margin-top:8px}
+.msg-user{font:15px/24px var(--f-text);background:var(--surface-3);border:0;border-radius:8px 8px 3px 8px;padding:10px 14px;color:var(--ink);max-width:88%}
+.ref{background:transparent;border:1px solid var(--line-strong);border-radius:4px;font:500 13px/20px var(--f-ui);color:var(--ink);padding:0 7px 0 3px;letter-spacing:0}
+.badge{border:1.25px solid var(--accent);color:var(--accent);font:600 10.5px/1 var(--f-ui)}
+.sys{font:12px var(--f-ui);letter-spacing:0;text-transform:none;color:var(--muted);gap:10px}
+.sys::before,.sys::after{width:40px;background:var(--line)}
+.starters{gap:8px;margin-top:12px}
+.starter{background:var(--surface-2);border:0;border-radius:6px;font:12.5px/18px var(--f-ui);color:var(--ink-2);padding:10px 12px;font-style:normal}
+.starter b{font:600 13.5px/20px var(--f-ui);color:var(--ink);letter-spacing:0;margin-bottom:2px}
+.starter:hover{background:var(--surface-3)}
+.card{background:var(--surface-2);border:0;border-radius:6px;padding:12px 14px;margin-top:12px}
+.qcard{font-family:var(--f-ui)}
+.qcard .q{margin-bottom:12px}
+.qcard .qt{font:600 13.5px/20px var(--f-ui);color:var(--ink)}
+.qcard .qt span{font-weight:400;color:var(--muted);font-style:normal}
+.chip{height:28px;border-radius:999px;border:1px solid var(--line-strong);background:transparent;font:500 13px var(--f-ui);color:var(--ink);padding:0 12px}
+.chip:hover{background:var(--surface-3)}
+.chip.sel{background:var(--accent-tint);border-color:var(--accent);color:var(--ink);font:600 13px var(--f-ui);letter-spacing:0}
+.chip.sel .icon{color:var(--accent)}
+.chip.ghost{border-style:dashed;color:var(--ink-2);font-style:normal}
+.upd{border-left:0;font-family:var(--f-ui)}
+.vbadge{font:600 11px/18px var(--f-ui);letter-spacing:0;background:var(--surface-3);color:var(--ink);border-radius:3px;padding:0 6px}
+.upd-h .t{font:600 13.5px var(--f-ui);letter-spacing:0;color:var(--ink)}
+.upd-h .m{font:12px var(--f-ui);color:var(--muted)}
+.upd ul{padding-left:18px;font:13.5px/20px var(--f-ui);color:var(--ink)}
+.upd li+li{margin-top:4px}
+.upd ul li::marker{color:var(--muted)}
+.upd .count{font:12px/16px var(--f-ui);color:var(--muted);margin-top:8px}
+.buildcard{border-left:0}
+.buildcard>div[style]{font:13.5px/20px var(--f-ui)!important}
+.recap{border-left:0;background:var(--surface-2);margin-top:0}
+.recap>div[style*="font-size"]{font:14px/21px var(--f-ui)!important;color:var(--ink-2)!important}
+.recap .upd-h .icon{color:var(--ink-2)!important}
+/* circled room numbers: Lora/Source Sans have no circled digits; pin a symbol face so the fallback is not a heavy CJK glyph */
+.n,.ordn{font-family:"Segoe UI Symbol","Apple Symbols","Segoe UI",sans-serif!important;font-weight:400!important}
+.n{color:var(--accent);font-size:1.05em;line-height:1}
+
+.composer{border-top:1px solid var(--line);padding:12px}
+.cbox{background:var(--field-bg);border:1px solid var(--line-strong);border-radius:6px;padding:8px 10px 8px}
+.cbox:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-tint)}
+.ctext{font:15px/23px var(--f-text);color:var(--ink)}
+.ctext.ph{font-style:normal;color:var(--muted)}
+.cfoot{margin-top:8px}
+.pill{height:28px;padding:0 10px 0 9px;border:1px solid var(--line-strong);background:transparent;border-radius:999px;font:600 12.5px var(--f-ui);letter-spacing:0;color:var(--ink)}
+.pill .eff{font:400 12.5px var(--f-ui);color:var(--ink-2)}
+.pill:hover,.pill[aria-expanded="true"]{background:var(--surface-3);border-color:var(--ink-2)}
+.pill .diamond{background:var(--accent-fill);width:7px;height:7px}
+.hint{font:12px var(--f-ui);color:var(--muted)}
+.send{border-radius:6px;background:var(--accent-fill);color:var(--on-accent)}
+.send[disabled]{background:var(--surface-3);color:var(--muted)}
+
+/* model popover */
+.popover,.pngpop{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow-pop)}
+.popover{padding-top:14px}
+.popover h4,.effort-h h4{font:600 11px/16px var(--f-ui);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);border:0;padding:0}
+.popover h4{margin:0 14px 6px}
+.mrow{padding:8px 14px}
+.mrow:hover{background:var(--surface-3)}
+.mrow.on{background:var(--accent-tint);box-shadow:none}
+.radio{border:1.5px solid var(--line-strong)}
+.mrow.on .radio,.prov.on .radio{border:5px solid var(--accent-fill)}
+.mname{font:600 14px/20px var(--f-ui);letter-spacing:0;color:var(--ink)}
+.mdesc{font:12.5px/18px var(--f-ui);color:var(--ink-2);font-style:normal}
+.rec{display:inline-block;font:600 11.5px/16px var(--f-ui);letter-spacing:0;text-transform:lowercase;color:var(--success);background:transparent;border:0;border-radius:0;padding:0;margin-left:8px;vertical-align:0}
+.rec::first-letter{text-transform:uppercase}
+.tiers{font:12px var(--f-ui);color:var(--ink-2);letter-spacing:.02em}
+.tiers i{opacity:.35}
+.effort{border-top:1px solid var(--line);margin-top:8px;padding-top:12px}
+.effort-h span{font:12px var(--f-ui);color:var(--muted);font-style:normal}
+.segctl{border:1px solid var(--line-strong);border-radius:4px}
+.segctl button{font:500 12.5px var(--f-ui);letter-spacing:0;color:var(--ink-2);border-right:1px solid var(--line)}
+.segctl button:hover{background:var(--surface-3);color:var(--ink)}
+.segctl button.on{background:var(--accent-tint);color:var(--ink);font-weight:600;box-shadow:inset 0 0 0 1px var(--accent)}
+.effscale{font:11.5px var(--f-ui);letter-spacing:0;color:var(--muted);margin-top:5px}
+.effnote{font:13px/19px var(--f-ui);color:var(--ink-2);font-style:normal;margin-top:10px}
+.effnote b{font:600 13px var(--f-ui);color:var(--ink)}
+.smart{font:12px/17px var(--f-ui);color:var(--muted);font-style:normal;padding-top:10px}
+.smart a{color:var(--ink-2)!important;text-decoration:underline;text-underline-offset:2px}
+.estimate{background:var(--surface-3);border-top:0;border-radius:0 0 8px 8px;font:12.5px var(--f-ui);color:var(--ink-2);font-style:normal;margin-top:14px}
+.estimate b{font:600 13px var(--f-ui);color:var(--ink)}
+
+/* ---------- stage ---------- */
+.stagebar,.toolbar,.statusbar{background:var(--surface)}
+.stagebar{border-bottom:1px solid var(--line)}
+.tab{font:500 13.5px var(--f-ui);letter-spacing:0;text-transform:none;color:var(--ink-2);border-bottom:2px solid transparent}
+.tab:hover:not(.disabled){color:var(--ink)}
+.tab.on{color:var(--ink);font-weight:600;border-bottom:2px solid var(--accent)}
+.tab.disabled{color:var(--muted);opacity:1}
+.tab .lv{font:600 11px/16px var(--f-ui);letter-spacing:0;color:var(--muted);background:var(--surface-3);border:0;border-radius:3px;padding:0 5px}
+.tab.on .lv{color:var(--ink);background:var(--surface-3)}
+.tab .lname{font:inherit}
+.vsep,.tsep{background:var(--line)}
+.toolbar{border-bottom:1px solid var(--line)}
+.tool{font:500 12.5px var(--f-ui);letter-spacing:0;color:var(--ink-2);border-radius:4px}
+.tool:hover{background:var(--surface-3);color:var(--ink)}
+.tool.on{background:var(--surface-3);color:var(--ink);box-shadow:none}
+.zoom{font:500 12.5px var(--f-ui)}
+.toolbar .tgroup>span[style]{font:12.5px var(--f-ui)!important}
+.toolbar .tgroup b{font:600 12.5px var(--f-ui)!important;color:var(--ink)}
+
+.mapwrap{border-radius:4px;box-shadow:0 0 0 1px var(--line),0 12px 32px rgba(0,0,0,.35)}
+html[data-theme="light"] .mapwrap{box-shadow:0 0 0 1px var(--line),0 10px 28px rgba(90,60,30,.12)}
+.selbar{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow-pop);font:13px var(--f-ui);padding:4px 4px 4px 10px}
+.selbar .t{font:600 13.5px var(--f-ui);letter-spacing:0;color:var(--ink)}
+.selbar .badge{background:var(--accent-fill);color:var(--on-accent);border-color:var(--accent-fill)}
+/* one gold primary per view: the plan's primary is Approve, so the selection bar's action is secondary */
+.selbar .btn.primary{background:transparent;border-color:var(--line-strong);color:var(--ink);font-weight:500}
+.selbar .btn.primary .icon{color:var(--ink-2)}
+.selbar .btn.primary .kbd{color:var(--ink-2)!important;border-color:var(--line-strong)!important}
+.selbar .btn.primary:hover{background:var(--surface-3);border-color:var(--ink-2)}
+.compass{font:600 12px var(--f-ui);color:var(--ink-2)}
+.compass .icon{color:var(--ink-2)}
+.coords{font:12px var(--f-ui);color:var(--ink-2);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:1px 7px}
+
+/* ---- map: cream ink on warm near-black; gold only on numbered references + selection ---- */
+.wallpass{fill:var(--map-ink);stroke:var(--map-ink);stroke-width:6.5}
+.m-water{fill:var(--map-water);opacity:.24}
+.m-deep{fill:var(--map-water);opacity:.40}
+.m-wave{stroke:var(--map-water);stroke-width:1.1}
+.door{fill:var(--map-floor);stroke:var(--map-ink);stroke-width:1.5}
+.secret-gap{fill:var(--map-paper)}
+.halo{stroke:var(--map-floor);stroke-width:3.5px}
+.halo-rock{stroke:var(--map-paper)}
+.trap{stroke:var(--map-trap);fill:var(--map-floor);stroke-width:1.6}
+.traptext{fill:var(--map-trap);font:700 8px var(--f-ui)}
+.lbl-c{fill:var(--map-label);stroke:var(--map-accent);stroke-width:1.5}
+.lbl-n{fill:var(--map-accent);font:600 11.5px var(--f-ui)}
+.lbl-name{fill:var(--map-ink);font:600 9.5px var(--f-ui);letter-spacing:.01em;text-transform:none;opacity:.88}
+.lbl-c.on{fill:var(--accent-fill);stroke:var(--accent-fill)}
+.lbl-n.on{fill:var(--on-accent)}
+.sel-room{fill:var(--map-sel);stroke:var(--map-accent);stroke-width:2;stroke-dasharray:8 4}
+.link-tag{fill:var(--map-label);stroke:var(--map-ink);stroke-width:1;stroke-opacity:.6}
+.link-text{fill:var(--map-ink);font:600 9px var(--f-ui);letter-spacing:0}
+.chunkline{stroke:var(--accent)}
+.chunkfill-done{fill:var(--ink);opacity:.08}
+.chunkfill-cur{fill:var(--accent-tint);stroke:var(--accent)}
+.chunknum{font:600 34px var(--f-ui);fill:var(--ink-2)}
+.marker{fill:var(--danger-fill);stroke:var(--surface)}
+svg.print{--map-paper:#E4D5BB;--map-hatch:#C2AB86;--map-floor:#FBF6EC;--map-ink:#2D241F;--map-water:#2F6F80;--map-accent:#86592F;--map-label:#FFFDF9;--surface:#FFFDF9}
+
+/* room key */
+.key{background:var(--surface);border-left:1px solid var(--line)}
+.key-h{padding:14px 10px 10px 16px}
+.key-h h3{font:600 18px/24px var(--f-display);letter-spacing:.02em;text-transform:none;color:var(--ink);text-shadow:none}
+.key-h h3 small{font:12.5px var(--f-ui);color:var(--muted);margin-left:6px}
+.search{margin:0 14px 10px 16px;height:32px;background:var(--field-bg);border:1px solid var(--line-strong);border-radius:4px;color:var(--muted);font:13px var(--f-ui);box-shadow:none}
+.search .icon{color:var(--muted);opacity:1}
+.search .kbd{color:var(--ink-2);border-color:var(--line-strong)}
+.rooms{display:flex;flex-direction:column;gap:2px;padding:0 8px 12px}
+.room{background:transparent;border-radius:6px;padding:8px;grid-template-columns:22px minmax(0,1fr);gap:10px}
+.room:hover{background:var(--surface-2)}
+.room .badge{width:22px;height:22px;border:1.25px solid var(--line-strong);color:var(--ink-2);font:600 11px/1 var(--f-ui);margin-top:0}
+.room:hover .badge{border-color:var(--ink-2);color:var(--ink)}
+.room .rn{font:600 15px/22px var(--f-display);letter-spacing:.01em;color:var(--ink)}
+.room .rn span{font:12px/22px var(--f-ui);color:var(--muted)}
+.room .prev{font:13px/19px var(--f-ui);color:var(--muted);font-style:normal}
+.room.on{background:var(--surface-2);box-shadow:inset 2px 0 0 var(--accent);padding-bottom:12px}
+.room.on .badge{background:var(--accent-fill);border-color:var(--accent-fill);color:var(--on-accent)}
+.rsec{margin-top:14px;margin-left:-32px}
+.room.on .rn+.rsec{margin-top:10px}
+.rsec .caps{display:block;font-size:10.5px;letter-spacing:.08em;margin-bottom:4px;border:0;padding:0;color:var(--muted)}
+.rsec p{font:14px/22px var(--f-text);color:var(--ink)}
+.rsec p.ra{font:14px/22px var(--f-text);font-style:normal;color:var(--ink-2);border-left:2px solid var(--line-strong);padding-left:10px}
+.rsec p[style]{font:13px/20px var(--f-ui)!important;color:var(--ink-2)!important}
+.room-actions{gap:6px;margin:14px 0 0 -32px}
+.legend{border-top:1px solid var(--line);padding:12px 16px 14px}
+.legend-h{margin-bottom:8px}
+.lg{gap:5px 10px}
+.lg div{font:12.5px/18px var(--f-ui);color:var(--ink-2)}
+.lg svg{border-radius:3px;box-shadow:0 0 0 1px var(--line)}
+
+.statusbar{border-top:1px solid var(--line);font:12.5px var(--f-ui);color:var(--ink-2)}
+.statusbar .mono{font:600 12.5px var(--f-ui);letter-spacing:0;color:var(--ink)}
+.dotsep{color:var(--muted);opacity:1}
+.assetchip{font:12.5px var(--f-ui);border:0;border-radius:0;padding:0;color:var(--ink-2);gap:7px}
+.assetchip i{background:var(--success)}
+
+/* empty / brief stage */
+.empty{background-image:linear-gradient(var(--grid-faint) 1px,transparent 1px),linear-gradient(90deg,var(--grid-faint) 1px,transparent 1px)}
+.empty-card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:32px 36px 26px}
+.empty-card h2{font:600 26px/34px var(--f-display);letter-spacing:.02em;text-transform:none;color:var(--ink);text-shadow:none;margin:14px 0 8px}
+.empty-card p{font:15px/24px var(--f-text);color:var(--ink-2);font-style:normal;margin-bottom:20px}
+.empty-est{font:12.5px var(--f-ui);color:var(--muted);margin-top:10px}
+.checklist{border-top:1px solid var(--line);font:13.5px/20px var(--f-ui);gap:8px;margin-top:22px;padding-top:16px}
+
+/* build */
+.buildlist{gap:16px;padding:18px 22px 28px}
+.bhead h2{font:600 20px/26px var(--f-display);letter-spacing:.02em;text-transform:none;color:var(--ink);text-shadow:none}
+.bhead .m{font:12.5px var(--f-ui);color:var(--muted)}
+.okpill{font:600 12px/20px var(--f-ui);letter-spacing:0;text-transform:none;color:var(--success);background:var(--success-tint);border-radius:999px;padding:0 9px}
+.getin{background:var(--surface-2);border:0;border-radius:8px;padding:14px 16px}
+/* the paste guide is open on the right and owns the gold Next button, so this launcher steps down to secondary */
+.getin .btn.primary{background:transparent;border-color:var(--line-strong);color:var(--ink);font-weight:500}
+.getin .btn.primary .icon{color:var(--ink-2)}
+.getin .btn.primary:hover{background:var(--surface-3);border-color:var(--ink-2)}
+.getin .txt{font:13.5px/20px var(--f-ui);color:var(--ink-2)}
+.getin .txt b{font:600 13.5px var(--f-ui);letter-spacing:0;color:var(--ink)}
+.order.caps{display:flex;align-items:center;gap:10px;font-size:11px;margin:4px 0 -6px}
+.order.caps::after{content:"";flex:1;height:1px;background:var(--line)}
+.level{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.level-h{background:transparent;border-bottom:1px solid var(--line);padding:11px 16px}
+.level-h .lv{font:600 11px/18px var(--f-ui);letter-spacing:0;color:var(--ink-2);background:var(--surface-3);border-radius:3px}
+.level-h h3{font:600 15px/22px var(--f-ui);letter-spacing:0;color:var(--ink)}
+.level-h .m{font:12.5px var(--f-ui);color:var(--muted)}
+.prog{font:12.5px var(--f-ui);color:var(--ink-2)}
+.prog .bar,.size .bar{border-radius:2px;background:var(--surface-3);height:4px}
+.prog .bar i{background:var(--success)}
+.size .bar i{background:var(--ink-2)}
+.size.warn .bar i{background:var(--warning)}
+.size .lab{font:12px var(--f-ui);color:var(--muted)}
+.size.warn .lab b{font:600 12px var(--f-ui);letter-spacing:0;text-transform:none;color:var(--warning)}
+.ordn{font:600 16px var(--f-ui);color:var(--muted)}
+.chunks{gap:0}
+.chunk{background:transparent;border:0;border-top:1px solid var(--line);border-radius:0;padding:9px 10px}
+.chunk:first-child{border-top:0}
+.chunk.cur{border-color:transparent;background:var(--accent-tint);border-radius:6px;box-shadow:inset 2px 0 0 var(--accent)}
+.chunk.cur+.chunk{border-top-color:transparent}
+.cname{font:600 13.5px/18px var(--f-ui);letter-spacing:0;color:var(--ink)}
+.cmeta{font:12px/16px var(--f-ui);letter-spacing:0;color:var(--muted)}
+.cstep{width:18px;height:18px;border-radius:3px;background:var(--surface-3);border:0;color:var(--ink-2);font:600 10.5px/1 var(--f-ui)}
+.chunk .btn.success .cstep{background:var(--success);color:var(--surface)}
+.btn.open{width:214px;font-size:12.5px;letter-spacing:0}
+.box{border:1.5px solid var(--line-strong);border-radius:3px;background:transparent}
+.box.on{background:var(--ink-2);border-color:var(--ink-2);color:var(--surface)}
+.chk{font:12.5px var(--f-ui);letter-spacing:0;color:var(--ink-2)}
+.guide{background:var(--surface);border-left:1px solid var(--line)}
+.guide-h{border-bottom:1px solid var(--line);padding:14px 18px 14px}
+.guide-h h3{font:600 18px/24px var(--f-display);letter-spacing:.02em;text-transform:none;color:var(--ink)}
+.guide-h .row>span{font:12.5px var(--f-ui)!important;color:var(--muted)!important}
+.pdots{gap:4px;margin-top:12px}
+.pdots i{flex:1;width:auto;height:4px;border-radius:2px;background:var(--surface-3);border:0}
+.pdots i.d{background:var(--ink-2);border:0}
+.pdots i.c{background:var(--accent-fill);border:0;transform:none;box-shadow:none}
+.guide-b{padding:16px 18px}
+.gtitle{margin:16px 0 4px;gap:10px}
+.gtitle b{font:600 15px/22px var(--f-ui);letter-spacing:0;color:var(--ink)}
+.clip{font:600 12.5px var(--f-ui);letter-spacing:0;text-transform:none;color:var(--success);white-space:nowrap}
+.steps{gap:12px;margin-top:12px}
+.steps li{font:14px/21px var(--f-ui);color:var(--ink);gap:10px}
+.steps li b{font-weight:600}
+.steps li>span{border-radius:50%;background:var(--surface-3);border:0;color:var(--ink-2);font:600 11.5px var(--f-ui)}
+.offset{border:0;border-radius:6px;background:var(--surface-2);font:13px/20px var(--f-ui);color:var(--ink-2);padding:10px 12px;margin-top:16px}
+.offset b{font:600 13px/20px var(--f-ui)!important;letter-spacing:0!important;text-transform:none;color:var(--ink)}
+.guide-f{border-top:1px solid var(--line)}
+.guide-f .btn.primary{font-size:13px;line-height:17px;padding:6px 12px}
+.toast{background:var(--toast-bg);color:var(--toast-ink);border:1px solid var(--toast-line);border-radius:6px;font:13.5px var(--f-ui);padding:9px 14px}
+.toast b{font-weight:600;color:var(--toast-ink)}
+.toast .icon,html[data-theme="dark"] .toast .icon{color:#7DCB94}
+.toast .btn{color:var(--toast-ink)!important;text-decoration:underline;text-underline-offset:2px}
+
+/* settings */
+.scrim{background:rgba(8,6,5,.68)}
+html[data-theme="light"] .scrim{background:rgba(45,36,31,.40)}
+.modal{border-radius:10px;border:1px solid var(--line);background:var(--surface)}
+.snav{background:var(--surface-2);border-right:0;padding:20px 10px}
+.snav h2{font:600 20px/28px var(--f-display);letter-spacing:.02em;text-transform:none;color:var(--ink);text-shadow:none;margin:0 10px 14px}
+.snav a{font:500 13.5px/20px var(--f-ui);letter-spacing:0;text-transform:none;color:var(--ink-2);border-radius:4px;padding:6px 10px}
+.snav a:hover{color:var(--ink);background:var(--surface-3)}
+.snav a.on{background:var(--surface-3);color:var(--ink);font-weight:600;box-shadow:inset 2px 0 0 var(--accent)}
+.sscroll{padding:22px 28px}
+.sscroll h3{font:600 18px/24px var(--f-display);letter-spacing:.02em;text-transform:none;color:var(--ink);border:0;padding:0;margin:0 0 4px}
+.sscroll .lead{font:14px/21px var(--f-ui);color:var(--ink-2);font-style:normal;margin:0 0 16px}
+.prov{border:1px solid var(--line-strong);border-radius:6px;padding:12px 14px}
+.prov.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-tint)}
+.prov b{font:600 14px/22px var(--f-ui);letter-spacing:0;color:var(--ink)}
+.prov .d{font:13px/19px var(--f-ui);color:var(--ink-2);font-style:normal}
+.prov .st{font:600 12.5px var(--f-ui);letter-spacing:0;text-transform:none}
+.prov.later{opacity:1;border-style:dashed;border-color:var(--line-strong)}
+.prov.later b{color:var(--ink-2)}
+.prov.later .d{color:var(--muted)}
+.later-tag{display:inline-block;font:600 11px/18px var(--f-ui);letter-spacing:0;text-transform:lowercase;border:0;background:var(--surface-3);color:var(--ink-2);border-radius:999px;padding:0 8px}
+.later-tag::first-letter{text-transform:uppercase}
+.srow{grid-template-columns:116px minmax(0,1fr);border-top:1px solid var(--line);padding:16px 0}
+.srow>.caps{font:600 13px/20px var(--f-ui);letter-spacing:0;text-transform:none;color:var(--ink);padding-top:6px}
+.keyfield{min-width:0}
+.input{white-space:nowrap;overflow:hidden;min-width:0;flex:1 1 auto;height:32px;font:12.5px var(--f-code);letter-spacing:0;padding:0 8px;gap:6px;background:var(--field-bg);border:1px solid var(--line-strong);border-radius:4px}
+.valid{font:600 12.5px var(--f-ui);letter-spacing:0;text-transform:none;color:var(--success);margin-top:8px}
+.trust{font:12.5px/18px var(--f-ui);color:var(--muted);font-style:normal;margin-top:4px}
+.mlist{border:1px solid var(--line);border-radius:6px}
+.mlist .mrow{padding:9px 12px}
+.mlist .mrow+.mrow{border-top:1px solid var(--line)}
+.checkrow{margin-top:14px}
+.checkrow>span:last-child{font:600 13.5px/20px var(--f-ui);letter-spacing:0;color:var(--ink)}
+.checkrow small{font:400 13px/19px var(--f-ui);letter-spacing:0;color:var(--muted);font-style:normal;margin-top:2px}
+.sfoot{border-top:1px solid var(--line);font:12.5px var(--f-ui);color:var(--muted);font-style:normal;gap:16px;padding:12px 24px 12px 28px}
+.select{border:1px solid var(--line-strong);border-radius:4px;background:transparent;font:12.5px var(--f-ui);color:var(--ink);height:28px}
+.mono-s{font:12.5px var(--f-ui);color:var(--muted)}
+.pngpop{width:372px;padding:14px 16px;gap:12px}
+.pp-h{font:600 15px/22px var(--f-ui);letter-spacing:0;text-transform:none;color:var(--ink);border:0;padding:0}
+.pp-row>span:first-child{font:12.5px var(--f-ui);letter-spacing:0;text-transform:none;color:var(--muted)}
+.segctl.s2 button{height:28px}
+.pp-checks{font:12.5px var(--f-ui);color:var(--ink-2)}
+.pp-checks>span{white-space:nowrap}
+.pp-prev{font:12px var(--f-ui);color:var(--muted);font-style:normal}
+
+/* home */
+.home{padding:40px 48px 56px}
+.home-top{border-bottom:0;padding-bottom:0;margin-bottom:28px;align-items:flex-end}
+.home-top h1{font:600 32px/40px var(--f-display);letter-spacing:.02em;text-transform:none;color:var(--ink);text-shadow:none}
+.home-top h1 small{font:16px/24px var(--f-text);color:var(--ink-2);margin-top:6px}
+.cont{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;gap:28px;margin-bottom:40px}
+.cont svg{border-radius:6px;box-shadow:0 0 0 1px var(--line)}
+.cont h2{font:600 24px/32px var(--f-display);letter-spacing:.02em;color:var(--ink);margin:6px 0 4px}
+.cont .d{font:13.5px/20px var(--f-ui);color:var(--ink-2);font-style:normal}
+.cont .last{border-left:2px solid var(--line-strong);background:transparent;border-radius:0;padding:2px 0 2px 14px;margin:18px 0 22px;font:15px/24px var(--f-text);color:var(--ink-2);font-style:normal}
+.phase{display:inline-block;font:500 12px/22px var(--f-ui);letter-spacing:0;text-transform:lowercase;border:0;border-radius:999px;padding:0 10px 0 21px;color:var(--ink-2);background:radial-gradient(circle at 11px 50%,var(--dot,var(--muted)) 3px,transparent 3.6px),var(--surface-3)}
+.phase::first-letter{text-transform:uppercase}
+.phase.plan{--dot:var(--accent-fill);color:var(--ink-2);background-color:var(--surface-3)}
+.phase.built{--dot:var(--success);color:var(--ink-2);background-color:var(--surface-3)}
+.recent-h{border-bottom:0;padding-bottom:0;margin-bottom:14px}
+.recent-h .search{height:32px}
+.pcard{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.pcard:hover{background:var(--surface-2);border-color:var(--line-strong)}
+.pcard .th{border-bottom:1px solid var(--line)}
+.pcard .b{padding:12px 14px 14px}
+.pcard .nm{font:600 15px/22px var(--f-display);letter-spacing:.01em;color:var(--ink)}
+.pcard .mt{font:12.5px var(--f-ui);color:var(--muted);font-style:normal;margin-top:6px}
+.pcard .more{background:var(--surface);border:0;box-shadow:0 0 0 1px var(--line)}
+.pcard.newc{border:1px dashed var(--line-strong);color:var(--ink-2);background:transparent}
+.pcard.newc:hover{background:var(--surface-2);border-color:var(--ink-2)}
+.pcard.newc div[style*="font:600"]{font:600 14px var(--f-ui)!important;color:var(--ink)}
+
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- Shared SVG definitions: icons, map patterns, level geometry -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-menu" viewBox="0 0 16 16"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 16 16"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1"/></symbol>
+    <symbol id="i-down" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+    <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></symbol>
+    <symbol id="i-cursor" viewBox="0 0 16 16"><path d="M3.5 2.5l9 4.2-3.9 1.2-1.3 3.9z"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 16 16"><path d="M5.5 8V3.8a1 1 0 0 1 2 0V7.5M7.5 7V3a1 1 0 0 1 2 0v4M9.5 7.2V4a1 1 0 0 1 2 0v5.5c0 2.8-1.8 4.5-4.2 4.5-1.6 0-2.6-.8-3.4-2L2.5 9.6a1 1 0 0 1 1.6-1.2L5.5 10"/></symbol>
+    <symbol id="i-region" viewBox="0 0 16 16"><path d="M2.5 5V2.5H5M11 2.5h2.5V5M13.5 11v2.5H11M5 13.5H2.5V11" /><path d="M7 2.5h2M7 13.5h2M2.5 7v2M13.5 7v2" opacity=".6"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 16 16"><path d="M3.5 8h9"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 16 16"><path d="M8 2l6 3.2-6 3.2-6-3.2z"/><path d="M2 8.2l6 3.2 6-3.2M2 11l6 3.2 6-3.2" opacity=".7"/></symbol>
+    <symbol id="i-compare" viewBox="0 0 16 16"><rect x="2" y="3" width="5" height="10" rx="1"/><rect x="9" y="3" width="5" height="10" rx="1" stroke-dasharray="2 1.6"/></symbol>
+    <symbol id="i-history" viewBox="0 0 16 16"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"/><path d="M2.5 2.5v2.5H5M8 5v3.2l2 1.3"/></symbol>
+    <symbol id="i-send" viewBox="0 0 16 16"><path d="M8 13V3.5M3.8 7.5L8 3.3l4.2 4.2"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 16 16"><path d="M10.5 2.8l2.7 2.7-7.4 7.4H3.1v-2.7z"/></symbol>
+    <symbol id="i-at" viewBox="0 0 16 16"><path d="M5 11l-2.5 2.5V4a1.5 1.5 0 0 1 1.5-1.5h8A1.5 1.5 0 0 1 13.5 4v5.5A1.5 1.5 0 0 1 12 11z"/></symbol>
+    <symbol id="i-more" viewBox="0 0 16 16"><circle cx="3.5" cy="8" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="12.5" cy="8" r=".6"/></symbol>
+    <symbol id="i-play" viewBox="0 0 16 16"><path d="M5 3.5l7 4.5-7 4.5z"/></symbol>
+    <symbol id="i-ext" viewBox="0 0 16 16"><path d="M9.5 2.5h4v4M13.5 2.5L8 8M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"/></symbol>
+    <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2l3.3 3.3"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 16 16"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+    <symbol id="i-left" viewBox="0 0 16 16"><path d="M10 4L6 8l4 4"/></symbol>
+    <symbol id="i-right" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 16 16"><path d="M13.5 8A5.5 5.5 0 1 1 11.9 4.1"/><path d="M13.5 2.5V5H11"/></symbol>
+    <symbol id="i-image" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="5.8" cy="6.5" r="1.1"/><path d="M2.5 12l4-4 3 3 1.5-1.5L14 12"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/></symbol>
+    <symbol id="i-hammer" viewBox="0 0 16 16"><path d="M9 4.5l2.5 2.5M3 13l6-6M7.5 3l3-1 3.5 3.5-1 3"/></symbol>
+
+    <symbol id="mark" viewBox="0 0 24 24">
+      <rect class="mk-slab" x="1" y="1" width="22" height="22" rx="5"/>
+      <path class="mk-maze" d="M11 5H5v14h14V5h-3"/>
+      <path class="mk-maze" d="M10.5 15.5H8.5v-7h7v7h-2"/>
+      <path class="mk-route" d="M13.5 2.5V7H17v10h-5v-5"/>
+    </symbol>
+
+    <!-- map patterns -->
+    <pattern id="pHatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect class="m-paper" width="7" height="7"/><line class="m-hatch" x1="0" y1="0" x2="0" y2="7"/>
+    </pattern>
+    <pattern id="pFloor" width="20" height="20" patternUnits="userSpaceOnUse">
+      <rect class="m-floor" width="20" height="20"/><path class="m-grid" d="M20 0V20H0"/>
+    </pattern>
+    <pattern id="pWave" width="24" height="9" patternUnits="userSpaceOnUse">
+      <path class="m-wave" d="M0 4.5q3-3 6 0t6 0t6 0t6 0"/>
+    </pattern>
+    <pattern id="pWaveDense" width="16" height="6" patternUnits="userSpaceOnUse">
+      <path class="m-wave" d="M0 3q2-2 4 0t4 0t4 0t4 0"/>
+    </pattern>
+
+    <!-- Level 1 floor shapes (grid units x20) -->
+    <g id="l1rects">
+      <rect x="40" y="40" width="120" height="100"/>   <!-- R1 -->
+      <rect x="160" y="80" width="100" height="40"/>   <!-- C1 -->
+      <rect x="260" y="40" width="140" height="120"/>  <!-- R2 -->
+      <rect x="400" y="80" width="120" height="40"/>   <!-- C3 -->
+      <rect x="520" y="40" width="200" height="160"/>  <!-- R3 -->
+      <rect x="300" y="160" width="40" height="80"/>   <!-- C2 -->
+      <rect x="220" y="240" width="240" height="180"/> <!-- R4 -->
+      <rect x="460" y="300" width="100" height="40"/>  <!-- C4 -->
+      <rect x="560" y="240" width="160" height="140"/> <!-- R5 -->
+      <rect x="620" y="200" width="40" height="40"/>   <!-- C5 -->
+      <rect x="140" y="320" width="80" height="40"/>   <!-- C6 -->
+      <rect x="40" y="240" width="100" height="160"/>  <!-- R6 -->
+      <rect x="80" y="140" width="40" height="100"/>   <!-- C8 -->
+      <rect x="320" y="420" width="40" height="60"/>   <!-- C7 -->
+      <rect x="240" y="480" width="200" height="100"/> <!-- R7 -->
+    </g>
+    <g id="l2rects">
+      <rect x="60" y="60" width="180" height="140"/>
+      <rect x="240" y="110" width="120" height="40"/>
+      <rect x="360" y="40" width="280" height="220"/>
+      <rect x="480" y="260" width="40" height="80"/>
+      <rect x="400" y="340" width="200" height="140"/>
+      <rect x="120" y="200" width="40" height="160"/>
+      <rect x="60" y="360" width="160" height="140"/>
+    </g>
+
+    <!-- feature glyphs (origin-centred) -->
+    <g id="fStatue"><circle class="feat" r="11"/><polygon class="inkfill" points="0,-7 1.7,-2.35 6.66,-2.16 2.76,0.9 4.11,5.66 0,2.9 -4.11,5.66 -2.76,0.9 -6.66,-2.16 -1.7,-2.35"/></g>
+    <g id="fSarc"><path class="feat" d="M4 0h8l4 8-4 28H4L0 8z"/><path class="ink" d="M8 6v24" stroke-width="1"/></g>
+    <g id="fLight"><circle class="light" r="3.2"/><path class="light" d="M0-6.5v-2M0 6.5v2M-6.5 0h-2M6.5 0h2M-4.6-4.6l-1.4-1.4M4.6 4.6l1.4 1.4M-4.6 4.6l-1.4 1.4M4.6-4.6l1.4-1.4"/></g>
+    <g id="fChest"><rect class="feat" x="-8" y="-6" width="16" height="12" rx="1.5"/><path class="ink" d="M-8-1.5h16" stroke-width="1.1"/></g>
+    <g id="fBones"><circle class="inkfill" cx="0" cy="0" r="1.6"/><circle class="inkfill" cx="4" cy="2" r="1.1"/><circle class="inkfill" cx="-3" cy="3" r="1.2"/><circle class="inkfill" cx="2" cy="-4" r="1"/><path class="ink" d="M-6-2l4-1M3 5l5 1M-1 6l1 3" stroke-width="1.1"/></g>
+    <g id="fRubble"><path class="inkfill" d="M0 0l3-1 1 2-2 2zM6 4l2 0 0 2-3 0zM-4 6l2-1 1 2zM10-2l2 1-1 2-2-1z"/><circle class="inkfill" cx="-3" cy="-2" r="1"/><circle class="inkfill" cx="7" cy="9" r="1"/><circle class="inkfill" cx="1" cy="9" r=".9"/></g>
+  </defs>
+</svg>
+
+<div class="strip" role="toolbar" aria-label="Mockup controls (not part of the app)">
+  <b>SLABYRINTH · MOCKUP</b>
+  <span class="skin" title="Refined pass on skin B. Same states and content as skin B v1 and skin A.">Skin B v2 — refined</span>
+  <span class="links"><a href="app-mockup-ohsheet.html" title="Open skin B v1 (Oh Sheet style, before this pass)">Skin B v1</a><a href="app-mockup.html" title="Open skin A (Surveyor's desk)">Skin A</a></span>
+  <button data-go="home">0 · Home</button>
+  <button data-go="brief">1 · Brief</button>
+  <button data-go="plan">2 · Plan (resumed)</button>
+  <button data-go="model">2b · Model &amp; effort</button>
+  <button data-go="png">2c · Export PNG</button>
+  <button data-go="build">3 · Build &amp; paste</button>
+  <button data-go="settings">4 · Settings › AI</button>
+  <span class="sp"></span>
+  <span class="note">Theme</span>
+  <button data-theme-btn="light">Light</button>
+  <button data-theme-btn="dark">Dark</button>
+</div>
+
+<div class="app">
+  <div class="grain" aria-hidden="true"></div>
+  <!-- ================= TITLE BAR ================= -->
+  <header class="titlebar">
+    <button class="iconbtn" aria-label="App menu (Alt)" title="Menu (Alt)"><svg class="icon"><use href="#i-menu"/></svg></button>
+    <div class="brand"><svg class="mark"><use href="#mark"/></svg>Slabyrinth</div>
+    <span class="crumb" data-only="brief plan build">/</span>
+    <div class="projname" data-only="brief plan build">The Drowned Abbey <svg class="icon" style="width:14px;height:14px;color:var(--muted)"><use href="#i-down"/></svg></div>
+    <span class="saved" data-only="brief plan build">Saved</span>
+    <span style="margin:0 auto" data-only="home"></span>
+
+    <nav class="stepper" aria-label="Project progress" data-only="brief">
+      <span class="step current"><span class="dot">1</span>Brief</span><span class="chev">›</span>
+      <span class="step disabled"><span class="dot">2</span>Plan</span><span class="chev">›</span>
+      <span class="step disabled"><span class="dot">3</span>Build</span>
+    </nav>
+    <nav class="stepper" aria-label="Project progress" data-only="plan">
+      <span class="step done"><span class="dot"><svg class="icon" style="width:10px;height:10px;stroke-width:2.4"><use href="#i-check"/></svg></span>Brief</span><span class="chev">›</span>
+      <span class="step current"><span class="dot">2</span>Plan v7</span><span class="chev">›</span>
+      <span class="step disabled" title="Approve a plan version first"><span class="dot">3</span>Build</span>
+    </nav>
+    <nav class="stepper" aria-label="Project progress" data-only="build">
+      <span class="step done"><span class="dot"><svg class="icon" style="width:10px;height:10px;stroke-width:2.4"><use href="#i-check"/></svg></span>Brief</span><span class="chev">›</span>
+      <span class="step done"><span class="dot"><svg class="icon" style="width:10px;height:10px;stroke-width:2.4"><use href="#i-check"/></svg></span>Plan v7</span><span class="chev">›</span>
+      <span class="step current"><span class="dot">3</span>Build</span>
+    </nav>
+
+    <button class="cost" title="Spend on this project (estimate)"><span data-only="home">$4.12 this month</span><span data-only="brief">$0.01 · 2k tok</span><span data-only="plan build">$0.38 · 41k tok</span></button>
+    <button class="iconbtn" id="themeBtn" aria-label="Theme" title="Theme: Light"><svg class="icon"><use href="#i-moon"/></svg></button>
+    <button class="iconbtn" aria-label="Settings" title="Settings (Ctrl+,)"><svg class="icon"><use href="#i-gear"/></svg></button>
+    <div class="winctl" aria-hidden="true">
+      <span><svg class="icon" style="width:12px"><use href="#i-minus"/></svg></span>
+      <span><svg class="icon" style="width:11px" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10"/></svg></span>
+      <span><svg class="icon" style="width:12px"><use href="#i-x"/></svg></span>
+    </div>
+  </header>
+
+  <!-- ================= HOME ================= -->
+  <div class="home" data-only="home">
+    <div class="home-in">
+      <div class="home-top">
+        <h1>Good evening.<small>Pick up where you left off, or start a new map.</small></h1>
+        <button class="btn"><svg class="icon"><use href="#i-folder"/></svg>Open file…</button>
+        <button class="btn primary"><svg class="icon"><use href="#i-plus"/></svg>New map</button>
+      </div>
+      <section class="cont" aria-label="Continue">
+        <svg viewBox="0 0 800 600"><rect width="800" height="600" fill="url(#pHatch)"/><use href="#l1rects" class="wallpass"/><use href="#l1rects" fill="url(#pFloor)"/><rect class="m-water" x="520" y="120" width="200" height="80"/><rect x="520" y="120" width="200" height="80" fill="url(#pWave)"/>
+          <g><circle class="lbl-c" cx="122" cy="88" r="14"/><text class="lbl-n" x="122" y="88" style="font-size:16px">1</text><circle class="lbl-c" cx="330" cy="124" r="14"/><text class="lbl-n" x="330" y="124" style="font-size:16px">2</text><circle class="lbl-c" cx="672" cy="102" r="14"/><text class="lbl-n" x="672" y="102" style="font-size:16px">3</text><circle class="lbl-c" cx="300" cy="330" r="14"/><text class="lbl-n" x="300" y="330" style="font-size:16px">4</text><circle class="lbl-c" cx="626" cy="314" r="14"/><text class="lbl-n" x="626" y="314" style="font-size:16px">5</text><circle class="lbl-c" cx="90" cy="322" r="14"/><text class="lbl-n" x="90" y="322" style="font-size:16px">6</text><circle class="lbl-c" cx="330" cy="520" r="14"/><text class="lbl-n" x="330" y="520" style="font-size:16px">7</text></g></svg>
+        <div>
+          <span class="caps">Continue</span>
+          <h2>The Drowned Abbey</h2>
+          <div class="d">Dungeon · Daggerheart Tier 2 · 2 levels · 13 rooms · edited 2 days ago · $0.38 spent</div>
+          <div style="margin-top:8px"><span class="phase plan">PLAN v7 · NOT APPROVED</span></div>
+          <div class="last">Last change: enlarged ④ Hall of Pillars; added a secret door from ③ to ⑤.<br>Unsent draft: "Can the water get deeper near the east wall…"</div>
+          <button class="btn primary lg">Continue <span class="kbd" style="background:transparent;color:inherit;border-color:currentColor;opacity:.7">Enter</span></button>
+        </div>
+      </section>
+      <div class="recent-h"><span class="caps">Recent maps · 5</span><div class="search" style="margin:0;width:240px"><svg class="icon" style="width:14px"><use href="#i-search"/></svg>Search maps…</div><button class="tool">Last edited<svg class="icon" style="width:12px"><use href="#i-down"/></svg></button></div>
+      <div class="grid-cards">
+        <div class="pcard"><svg class="th" viewBox="0 0 700 540" preserveAspectRatio="xMidYMid slice"><rect width="700" height="540" fill="url(#pHatch)"/><use href="#l2rects" class="wallpass"/><use href="#l2rects" fill="url(#pFloor)"/></svg>
+          <button class="iconbtn more" aria-label="More: Open, Rename, Duplicate, Export PNG, Show in folder, Move to Recycle Bin"><svg class="icon"><use href="#i-more"/></svg></button>
+          <div class="b"><div class="nm">Saltmarsh Watchtower</div><div style="margin-top:4px"><span class="phase built">BUILT · PASTED 5/5</span></div><div class="mt"><span>Tower · 4 levels</span><span>last week</span></div></div></div>
+        <div class="pcard"><svg class="th" viewBox="0 0 400 260" preserveAspectRatio="xMidYMid slice"><rect width="400" height="260" class="m-paper"/><g fill="var(--map-forest)" opacity=".28"><circle cx="60" cy="60" r="34"/><circle cx="120" cy="40" r="28"/><circle cx="300" cy="70" r="36"/><circle cx="350" cy="200" r="30"/><circle cx="80" cy="200" r="32"/><circle cx="250" cy="210" r="26"/></g><g fill="none" stroke="var(--map-forest)" stroke-width="2"><circle cx="60" cy="60" r="34"/><circle cx="120" cy="40" r="28"/><circle cx="300" cy="70" r="36"/><circle cx="350" cy="200" r="30"/><circle cx="80" cy="200" r="32"/><circle cx="250" cy="210" r="26"/></g><path d="M0 140 C120 120 260 160 400 130" stroke="var(--map-floor)" stroke-width="28" fill="none"/><path d="M180 0 C200 80 170 180 200 260" stroke="var(--map-void)" stroke-width="14" fill="none" opacity=".8"/></svg>
+          <button class="iconbtn more" aria-label="More"><svg class="icon"><use href="#i-more"/></svg></button>
+          <div class="b"><div class="nm">Thornwood Ambush</div><div style="margin-top:4px"><span class="phase plan">PLAN v3</span></div><div class="mt"><span>Forest road · 1 level</span><span>2 weeks ago</span></div></div></div>
+        <div class="pcard"><svg class="th" viewBox="0 0 400 260"><rect width="400" height="260" class="m-paper"/><g class="ink" opacity=".25"><path d="M0 26H400M0 52H400M0 78H400M0 104H400M0 130H400M0 156H400M0 182H400M0 208H400M0 234H400M26 0V260M52 0V260M78 0V260M104 0V260M130 0V260M156 0V260M182 0V260M208 0V260M234 0V260M260 0V260M286 0V260M312 0V260M338 0V260M364 0V260M390 0V260" stroke-width="1"/></g><use href="#mark" x="180" y="110" width="40" height="40"/></svg>
+          <button class="iconbtn more" aria-label="More"><svg class="icon"><use href="#i-more"/></svg></button>
+          <div class="b"><div class="nm">Market at Lowbridge</div><div style="margin-top:4px"><span class="phase">BRIEF · NO PLAN YET</span></div><div class="mt"><span>Town</span><span>3 weeks ago</span></div></div></div>
+        <div class="pcard newc"><div><svg class="icon lg" style="margin-bottom:6px"><use href="#i-plus"/></svg><div style="font:600 15px var(--f-display)">New map</div><div style="font-size:12px;color:var(--muted)">Ctrl+N</div></div></div>
+      </div>
+    <div class="toast" role="status" style="position:fixed;bottom:24px"><svg class="icon"><use href="#i-check"/></svg><span><b>TaleSpire was updated — 42 new assets found.</b> The asset library is up to date.</span><button class="btn sm ghost" style="color:inherit">View</button></div>
+    </div>
+  </div>
+
+  <div class="main" data-only="brief plan build">
+    <!-- ================= CHAT PANE ================= -->
+    <aside class="chat" aria-label="Chat">
+      <!-- Brief card: expanded in Brief phase -->
+      <section class="brief" data-only="brief" aria-label="Brief">
+        <div class="brief-h"><span class="caps">Brief</span><span style="font-size:12px;color:var(--muted)">fills in as we talk</span><button class="iconbtn" style="width:24px;height:24px" aria-label="Collapse brief"><svg class="icon"><use href="#i-down"/></svg></button></div>
+        <dl class="brief-grid">
+          <dt>Map type</dt><dd><span class="field ai">Dungeon · crypt</span><span class="aitag">AI</span></dd>
+          <dt>Game</dt><dd><span class="seg"><span class="on">Daggerheart</span><span>D&amp;D 5e</span><span>Other</span></span></dd>
+          <dt>Party</dt><dd><span class="field">Tier 2</span><span class="field">4 PCs</span></dd>
+          <dt>Footprint</dt><dd><span class="field ai">Medium · 40×30 sq</span><span style="font:11px var(--f-mono);color:var(--muted)">200×150 ft</span></dd>
+          <dt>Levels</dt><dd><span class="field ai">2</span><span class="tag">Upper Crypts</span><span class="tag" style="color:var(--muted)">Level 2 …</span></dd>
+          <dt>Tone</dt><dd><span class="field ai">Gothic, drowned, melancholy</span></dd>
+          <dt>Must include</dt><dd><span class="tag">flooded crypt</span><span class="tag">a way down</span><span class="tag" style="background:transparent;border:1px dashed var(--line-strong);color:var(--muted)">+ add</span></dd>
+        </dl>
+        <div class="ready"><span class="ok"><svg class="icon" style="width:13px;height:13px"><use href="#i-check"/></svg>Ready to draw</span><span>· Optional: what's on level 2</span></div>
+      </section>
+      <!-- Brief card: collapsed in later phases -->
+      <section class="brief" data-only="plan build" aria-label="Brief">
+        <div class="brief-h"><span class="caps">Brief</span><button class="btn ghost sm"><svg class="icon" style="width:13px;height:13px"><use href="#i-edit"/></svg>Edit</button></div>
+        <div class="brief-sum"><strong>Dungeon · crypt</strong> · Daggerheart Tier 2 · 4 PCs<br>2 levels · 40×30 sq (200×150 ft) · Gothic, drowned, melancholy</div>
+      </section>
+
+      <div class="thread" id="thread">
+        <!-- ===== BRIEF THREAD ===== -->
+        <div class="msg-ai" data-only="brief">
+          <svg class="avatar"><use href="#mark"/></svg>
+          <div>
+            <p><strong>Let's build a map.</strong> Tell me what you're running — a dungeon, a tower, a town, a stretch of forest — and anything you already know: the game, the party, the mood. I'll sketch a plan you can poke at before anything goes into TaleSpire.</p>
+            <div class="starters">
+              <button class="starter"><b>Drowned crypt</b>Two levels under a ruined abbey, half-flooded</button>
+              <button class="starter"><b>Wizard's tower</b>Four storeys: library, lab, observatory</button>
+              <button class="starter"><b>Market town</b>Riverside square, tavern and smithy interiors</button>
+              <button class="starter"><b>Forest ambush</b>Road, ravine, fallen tree, archer cover</button>
+            </div>
+          </div>
+        </div>
+        <div class="msg-user" data-only="brief">A two-level crypt under a ruined abbey, half-flooded, for my Daggerheart group. Melancholy rather than gory — they've been hunting a drowned saint.</div>
+        <div class="msg-ai" data-only="brief">
+          <svg class="avatar"><use href="#mark"/></svg>
+          <div>
+            <p>A drowned abbey crypt — lovely. I've started the brief on the left. Three quick things, or I can choose:</p>
+            <div class="card qcard" role="group" aria-label="Clarifying questions">
+              <div class="q"><div class="qt">Party tier? <span>I'll assume Tier 2.</span></div>
+                <div class="chips"><button class="chip">Tier 1</button><button class="chip sel"><svg class="icon"><use href="#i-check"/></svg>Tier 2</button><button class="chip">Tier 3</button><button class="chip ghost">You decide</button></div></div>
+              <div class="q"><div class="qt">How big per level? <span>I'll assume medium, about 40×30 squares.</span></div>
+                <div class="chips"><button class="chip">Small</button><button class="chip sel"><svg class="icon"><use href="#i-check"/></svg>Medium</button><button class="chip">Large</button><button class="chip ghost">You decide</button></div></div>
+              <div class="q" style="margin-bottom:0"><div class="qt">What's down on level 2? <span>I'll go with a cistern.</span></div>
+                <div class="chips"><button class="chip">A drowned cistern</button><button class="chip">Catacombs</button><button class="chip">The saint's tomb</button><button class="chip ghost">You decide</button></div></div>
+              <div class="card-actions"><button class="btn primary sm">Send answers</button><button class="btn ghost sm">Skip — draw it now</button></div>
+            </div>
+            <div class="meta">Sonnet · Balanced · 6 s · $0.01</div>
+          </div>
+        </div>
+
+        <!-- ===== PLAN / BUILD THREAD ===== -->
+        <div class="sys" data-only="plan build">Plan v1 drawn · 18 min ago</div>
+        <div class="msg-user" data-only="plan build">Swap the old well for stairs down to the cistern, and put them somewhere the party has to earn.</div>
+        <div class="msg-ai" data-only="plan build">
+          <svg class="avatar"><use href="#mark"/></svg>
+          <div>
+            <p>Moved the way down into a new <span class="n">⑦</span> Sealed Vault behind <span class="n">④</span>, with a locked door the Pale Abbess statue opens.</p>
+            <div class="card upd" style="padding:10px 12px"><div class="upd-h" style="margin:0"><span class="vbadge">v6</span><span class="t">Level 1 · 4 changes</span><span class="m">$0.04</span></div></div>
+          </div>
+        </div>
+        <div class="msg-user" data-only="plan build"><span class="ref"><span class="badge">4</span>Hall of Pillars</span> is where the boss fight happens — make it bigger so the Sentinel can move between pillars. And give me a secret way from the crypt to the ossuary.</div>
+        <div class="msg-ai" data-only="plan build">
+          <svg class="avatar"><use href="#mark"/></svg>
+          <div>
+            <p>Done. The hall is now 60×45 ft with eight pillars in two rows, so there's room to kite around them. The secret door sits on the south wall of <span class="n">③</span> — anyone wading along the water's edge can spot it (Instinct, Difficulty 13).</p>
+            <div class="card upd">
+              <div class="upd-h"><span class="vbadge">v7</span><span class="t">Level 1 · Upper Crypts</span><span class="m">0:41 · $0.05</span></div>
+              <ul>
+                <li>Enlarged <span class="n">④</span> Hall of Pillars 2 squares east, 1 south</li>
+                <li>Added a secret door and short passage from <span class="n">③</span> to <span class="n">⑤</span></li>
+                <li>Rewrote GM notes for <span class="n">④</span> and <span class="n">⑤</span></li>
+              </ul>
+              <div class="count">1 added · 3 changed · 0 removed</div>
+              <div class="card-actions" style="margin-top:10px"><button class="btn sm">Show on map</button><button class="btn sm"><svg class="icon" style="width:13px;height:13px"><use href="#i-compare"/></svg>Compare with v6</button><button class="btn ghost sm" data-only="plan"><svg class="icon" style="width:13px;height:13px"><use href="#i-retry"/></svg>Undo</button></div>
+            </div>
+            <div class="meta">Sonnet · Thorough · 41 s · $0.05</div>
+          </div>
+        </div>
+        <div class="sys" data-only="plan">Today</div>
+        <div class="card recap" data-only="plan" role="note" aria-label="Where we left off">
+          <div class="upd-h"><svg class="icon" style="color:var(--accent)"><use href="#i-history"/></svg><span class="t">Where we left off · 2 days ago</span></div>
+          <div style="font-size:13px;line-height:20px;color:var(--ink-2)">Plan v7 of 2 levels, not yet approved. Last change: enlarged <span class="n">④</span> Hall of Pillars; secret door <span class="n">③</span> → <span class="n">⑤</span>. Your unsent message is still in the box below.</div>
+          <div class="card-actions" style="margin-top:10px"><button class="btn sm">Show the map</button><button class="btn sm">Approve v7</button></div>
+        </div>
+        <div class="sys" data-only="build">You approved v7</div>
+        <div class="msg-ai" data-only="build">
+          <svg class="avatar"><use href="#mark"/></svg>
+          <div>
+            <div class="card buildcard" style="margin-top:0">
+              <div class="upd-h"><span class="okpill"><svg class="icon" style="width:12px;height:12px"><use href="#i-check"/></svg>Built</span><span class="t">v7 · 2 levels · 5 chunks</span><span class="m">4 s · no API cost</span></div>
+              <div style="font-size:13px;color:var(--ink-2)">Ready for TaleSpire. The paste guide copies each chunk in order.</div>
+              <div class="card-actions" style="margin-top:10px"><button class="btn sm">Open build</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- composer -->
+      <div class="composer">
+        <!-- model & effort popover (state 2b) -->
+        <div class="popover" data-only="model" role="dialog" aria-label="Model and effort for your next message">
+          <h4>Model</h4>
+          <div class="mrow"><span class="radio"></span><div><div class="mname">Haiku</div><div class="mdesc">Quick drafts and chat</div></div><span class="tiers" title="Cost: low">$<i>$$$</i></span><span class="tiers" title="Speed: fast">⚡⚡⚡</span></div>
+          <div class="mrow on"><span class="radio"></span><div><div class="mname">Sonnet<span class="rec">RECOMMENDED</span></div><div class="mdesc">Good maps at a sensible cost</div></div><span class="tiers" title="Cost: medium">$$<i>$$</i></span><span class="tiers" title="Speed: medium">⚡⚡<i>⚡</i></span></div>
+          <div class="mrow"><span class="radio"></span><div><div class="mname">Opus</div><div class="mdesc">Best layouts and richest notes</div></div><span class="tiers" title="Cost: high">$$$$</span><span class="tiers" title="Speed: slower">⚡<i>⚡⚡</i></span></div>
+          <div class="effort">
+            <div class="effort-h"><h4>Effort</h4><span>How hard Claude thinks before answering</span></div>
+            <div class="segctl" role="radiogroup" aria-label="Effort">
+              <button title="API: low">Quick</button><button title="API: medium">Balanced</button><button class="on" title="API: high" aria-checked="true">Thorough</button><button title="API: xhigh">Extra</button><button title="API: max">Max</button>
+            </div>
+            <div class="effscale"><span>faster · cheaper</span><span>slower · more careful</span></div>
+            <p class="effnote"><b>Thorough</b> — worth it for a first plan or a big multi-level change. For small tweaks, Balanced is usually enough.</p>
+          </div>
+          <div class="smart">Smart effort is on: chat-only replies use Balanced to save cost. <a href="#" style="color:var(--accent)">Defaults in Settings</a></div>
+          <div class="estimate"><span>Next plan change on this setting</span><b>≈ $0.05 · about 40 s</b></div>
+        </div>
+
+        <div class="cbox">
+          <div class="crefs" data-only="plan"><span class="ref"><span class="badge">3</span>Flooded Crypt<span class="x">×</span></span></div>
+          <div class="ctext" data-only="plan">Can the water get deeper near the east wall, so it's swimming rather than wading?</div>
+          <div class="ctext ph" data-only="brief">Describe the map you want…</div>
+          <div class="ctext ph" data-only="build">Ask for changes (you'll re-approve and rebuild)…</div>
+          <div class="cfoot">
+            <button class="pill" title="Model and effort for your next message (Ctrl+M)" aria-haspopup="dialog" id="pill"><span class="diamond"></span><span data-only="brief">Sonnet <span class="eff">· Balanced</span></span><span data-only="plan build">Sonnet <span class="eff">· Thorough</span></span><svg class="icon" style="width:12px;height:12px;color:var(--muted)"><use href="#i-down"/></svg></button>
+            <span class="hint" data-only="brief">~$0.01 · ~10 s</span>
+            <span class="hint" data-only="plan" title="Estimate based on your recent turns">~$0.05 · ~40 s</span>
+            <span class="hint" data-only="build"></span>
+            <button class="send" aria-label="Send (Enter)" data-only="plan"><svg class="icon"><use href="#i-send"/></svg></button>
+            <button class="send" aria-label="Send (Enter)" disabled data-only="brief build"><svg class="icon"><use href="#i-send"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ================= STAGE ================= -->
+    <main class="stage">
+      <div class="stagebar" role="tablist">
+        <button class="tab on" data-only="brief plan" role="tab" aria-selected="true">Map</button>
+        <button class="tab" data-only="build" role="tab">Map</button>
+        <button class="tab disabled" data-only="brief plan" role="tab" title="Approve a plan version first">Build</button>
+        <button class="tab on" data-only="build" role="tab" aria-selected="true">Build</button>
+        <span class="vsep"></span>
+        <span class="tab disabled" data-only="brief" style="cursor:default">No levels yet</span>
+        <button class="tab on" data-only="plan build"><span class="lv">L1</span><span class="lname">Upper Crypts</span></button>
+        <button class="tab" data-only="plan build"><span class="lv">L2</span><span class="lname">Cistern Depths</span></button>
+        <button class="tab" data-only="plan" title="Add a level (asks Slabyrinth)"><svg class="icon"><use href="#i-plus"/></svg></button>
+      </div>
+
+      <div class="toolbar">
+        <div class="tgroup" data-only="plan">
+          <button class="tool on" title="Select (V)"><svg class="icon"><use href="#i-cursor"/></svg></button>
+          <button class="tool" title="Pan (hold Space)"><svg class="icon"><use href="#i-hand"/></svg></button>
+          <button class="tool" title="Region select (G) — v1.1"><svg class="icon"><use href="#i-region"/></svg></button>
+          <span class="tsep"></span>
+          <button class="tool" title="Zoom out (-)"><svg class="icon"><use href="#i-minus"/></svg></button>
+          <button class="tool zoom" title="Fit (0) / 100% (1)">Fit · 92%</button>
+          <button class="tool" title="Zoom in (+)"><svg class="icon"><use href="#i-plus"/></svg></button>
+          <button class="tool" title="Fit level (0)"><svg class="icon"><use href="#i-fit"/></svg></button>
+          <span class="tsep"></span>
+          <button class="tool"><svg class="icon"><use href="#i-layers"/></svg>Layers<svg class="icon" style="width:12px"><use href="#i-down"/></svg></button>
+          <button class="tool" title="Compare (C)"><svg class="icon"><use href="#i-compare"/></svg>Compare v6</button>
+        </div>
+        <span class="sp"></span>
+        <div class="tgroup" data-only="plan" style="position:relative">
+          <button class="tool" title="History (H)"><svg class="icon"><use href="#i-history"/></svg>History · 7</button>
+          <span class="tsep"></span>
+          <button class="tool" id="pngBtn" title="Export map as PNG (Ctrl+Shift+E)"><svg class="icon"><use href="#i-image"/></svg>Export PNG</button>
+          <div class="pngpop" data-only="png" role="dialog" aria-label="Export PNG">
+            <div class="pp-h">Export PNG</div>
+            <div class="pp-row"><span>Levels</span><div class="segctl s2"><button class="on">This level</button><button>All levels</button></div></div>
+            <div class="pp-row"><span>Version</span><div class="segctl s2"><button class="on">GM</button><button>Player-safe</button></div></div>
+            <div class="pp-row"><span>Style</span><div class="segctl s2"><button class="on">Print (light)</button><button>As on screen</button></div></div>
+            <div class="pp-row"><span>Size</span><div style="display:flex;gap:8px;align-items:center"><span class="select">70 px per square<svg class="icon" style="width:12px"><use href="#i-down"/></svg></span><span class="mono-s">2800×2100</span></div></div>
+            <div class="pp-checks"><span><span class="box on"><svg class="icon"><use href="#i-check"/></svg></span>Grid</span><span><span class="box on"><svg class="icon"><use href="#i-check"/></svg></span>Room numbers</span><span><span class="box"></span>Room names</span></div>
+            <div class="pp-prev">
+              <svg viewBox="0 0 800 600" class="print"><rect width="800" height="600" class="m-paper"/><use href="#l1rects" class="wallpass"/><use href="#l1rects" class="m-floor"/><rect class="m-water" x="520" y="120" width="200" height="80"/>
+                <g><circle class="lbl-c" cx="122" cy="88" r="14"/><circle class="lbl-c" cx="330" cy="124" r="14"/><circle class="lbl-c" cx="672" cy="102" r="14"/><circle class="lbl-c" cx="300" cy="330" r="14"/><circle class="lbl-c" cx="626" cy="314" r="14"/><circle class="lbl-c" cx="90" cy="322" r="14"/><circle class="lbl-c" cx="330" cy="520" r="14"/></g></svg>
+              <span>Preview · The Drowned Abbey – L1 Upper Crypts – GM.png</span>
+            </div>
+            <div class="pp-f"><button class="btn sm ghost">Cancel</button><button class="btn sm primary">Export…</button></div>
+          </div>
+        </div>
+        <div class="tgroup" data-only="brief"><span style="font-size:12px;color:var(--muted)">Map tools appear once there's a plan</span></div>
+        <div class="tgroup" data-only="build" style="width:100%">
+          <span style="font-size:12px;color:var(--ink-2)">Levels in TaleSpire: <b style="font-weight:500">Stacked · 2.5 tiles per storey</b></span>
+          <button class="tool" style="margin-left:4px">Change<svg class="icon" style="width:12px"><use href="#i-down"/></svg></button>
+          <span class="tsep"></span>
+          <span style="font-size:12px;color:var(--ink-2)">Corner markers: <b style="font-weight:500">in every chunk</b></span>
+          <span class="tsep"></span>
+          <span style="font-size:12px;color:var(--ink-2)">Copy as: <b style="font-weight:500">Plain</b></span>
+          <span class="sp" style="flex:1"></span>
+          <button class="tool"><svg class="icon"><use href="#i-hammer"/></svg>Rebuild</button>
+        </div>
+      </div>
+
+      <!-- ===== BRIEF: empty stage ===== -->
+      <div class="content" data-only="brief" style="grid-template-columns:1fr">
+        <div class="empty">
+          <div class="empty-card">
+            <svg style="width:44px;height:44px"><use href="#mark"/></svg>
+            <h2>No map yet</h2>
+            <p>Chat on the left to settle the brief. When you're ready, I'll draw a plan here — every room numbered, with notes for you.</p>
+            <button class="btn primary lg">Draw the first plan</button>
+            <div class="empty-est">≈ $0.06 · about 40 s · Sonnet · Thorough</div>
+            <div class="checklist">
+              <div><svg class="icon ok"><use href="#i-check"/></svg>Map type — dungeon / crypt</div>
+              <div><svg class="icon ok"><use href="#i-check"/></svg>Game and party — Daggerheart, Tier 2, 4 PCs</div>
+              <div><svg class="icon ok"><use href="#i-check"/></svg>Size — 2 levels, about 40×30 squares each</div>
+              <div><svg class="icon todo"><use href="#i-minus"/></svg><span style="color:var(--muted)">Level 2 theme — optional, I'll choose if you don't</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PLAN: map + key ===== -->
+      <div class="content" data-only="plan">
+        <div class="canvas">
+          <div class="mapwrap">
+            <svg viewBox="0 0 800 600" role="application" aria-label="Map of Level 1, Upper Crypts, 7 rooms">
+              <rect width="800" height="600" fill="url(#pHatch)"/>
+              <use href="#l1rects" class="wallpass"/>
+              <use href="#l1rects" fill="url(#pFloor)"/>
+
+              <!-- water in R3 -->
+              <rect class="m-water" x="520" y="120" width="200" height="80"/>
+              <rect class="m-deep" x="600" y="134" width="114" height="60" rx="16"/>
+              <rect x="520" y="120" width="200" height="80" fill="url(#pWave)"/>
+              <rect x="600" y="134" width="114" height="60" rx="16" fill="url(#pWaveDense)"/>
+              <path class="m-shore" d="M520 120H720"/>
+
+              <!-- selection: room 4 -->
+              <rect class="sel-room" x="221.5" y="241.5" width="237" height="177"/>
+
+              <!-- doors & openings -->
+              <rect class="door" x="156" y="88" width="8" height="24"/>
+              <rect class="door" x="256" y="88" width="8" height="24"/>
+              <rect class="door" x="396" y="88" width="8" height="24"/>
+              <g class="inkfill"><circle cx="520" cy="86" r="2.3"/><circle cx="520" cy="95" r="2.3"/><circle cx="520" cy="105" r="2.3"/><circle cx="520" cy="114" r="2.3"/></g>
+              <rect class="door" x="308" y="156" width="24" height="8"/><circle class="inkfill" cx="320" cy="160" r="2"/>
+              <rect class="post" x="297" y="237" width="6" height="6"/><rect class="post" x="337" y="237" width="6" height="6"/>
+              <rect class="door" x="456" y="308" width="8" height="24"/>
+              <rect class="door" x="556" y="308" width="8" height="24"/>
+              <rect class="secret-gap" x="618" y="197" width="44" height="6"/>
+              <path class="secret" d="M617 200H663"/>
+              <text x="678" y="205" class="lbl-n halo-rock" style="font-size:13px">S</text>
+              <rect class="post" x="617" y="237" width="6" height="6"/><rect class="post" x="657" y="237" width="6" height="6"/>
+              <rect class="door" x="216" y="328" width="8" height="24"/>
+              <rect class="door" x="136" y="328" width="8" height="24"/>
+              <rect class="post" x="77" y="137" width="6" height="6"/><rect class="post" x="117" y="137" width="6" height="6"/>
+              <rect class="door" x="88" y="236" width="24" height="8"/>
+              <rect class="door" x="328" y="416" width="24" height="8"/><circle class="inkfill" cx="340" cy="420" r="2"/>
+              <rect class="post" x="317" y="477" width="6" height="6"/><rect class="post" x="357" y="477" width="6" height="6"/>
+
+              <!-- R1 stairs up to surface -->
+              <g>
+                <path class="ink" d="M46 44V124M80 44V124"/>
+                <path class="tread" d="M46 52H80M46 60H80M46 68H80M46 76H80M46 84H80M46 92H80M46 100H80M46 108H80M46 116H80M46 124H80"/>
+                <path class="ink" d="M56 82L63 72L70 82" stroke-width="2"/>
+                <rect class="link-tag" x="88" y="46" width="62" height="16" rx="8"/><text class="link-text" x="119" y="54">▲ Surface</text>
+              </g>
+              <use href="#fRubble" x="132" y="112"/><use href="#fRubble" x="142" y="124"/>
+
+              <!-- R2 guardroom -->
+              <rect class="feat" x="290" y="66" width="56" height="28" rx="3"/>
+              <circle class="feat" cx="282" cy="80" r="5"/><circle class="feat" cx="354" cy="80" r="5"/><circle class="feat" cx="318" cy="102" r="5"/>
+              <rect class="feat" x="384" y="50" width="8" height="44"/><path class="ink" d="M384 58h8M384 66h8M384 74h8M384 82h8" stroke-width="1"/>
+              <use href="#fLight" x="378" y="140"/>
+
+              <!-- trap in C3 (GM layer) -->
+              <path class="trap" d="M460 91L469 108H451Z"/><text class="traptext" x="460" y="104" text-anchor="middle">T</text>
+
+              <!-- R3 flooded crypt -->
+              <use href="#fSarc" x="540" y="52"/><use href="#fSarc" x="578" y="52"/><use href="#fSarc" x="616" y="52"/>
+              <use href="#fSarc" x="560" y="138" transform="rotate(-12 568 156)"/>
+              <use href="#fStatue" x="694" y="66"/>
+
+              <!-- R4 hall of pillars -->
+              <g class="inkfill"><circle cx="260" cy="280" r="7"/><circle cx="313" cy="280" r="7"/><circle cx="367" cy="280" r="7"/><circle cx="420" cy="280" r="7"/><circle cx="260" cy="380" r="7"/><circle cx="313" cy="380" r="7"/><circle cx="367" cy="380" r="7"/><circle cx="420" cy="380" r="7"/></g>
+              <use href="#fStatue" x="382" y="330"/>
+              <use href="#fLight" x="236" y="256"/><use href="#fLight" x="444" y="256"/>
+
+              <!-- R5 ossuary -->
+              <g><rect class="feat" x="706" y="256" width="10" height="20"/><rect class="feat" x="706" y="286" width="10" height="20"/><rect class="feat" x="706" y="316" width="10" height="20"/><rect class="feat" x="706" y="346" width="10" height="20"/>
+                 <rect class="feat" x="590" y="364" width="20" height="10"/><rect class="feat" x="630" y="364" width="20" height="10"/><rect class="feat" x="670" y="364" width="20" height="10"/></g>
+              <use href="#fBones" x="590" y="270"/><use href="#fBones" x="676" y="300"/><use href="#fBones" x="660" y="344"/><use href="#fBones" x="586" y="330"/>
+
+              <!-- R6 lady chapel -->
+              <rect class="feat" x="66" y="254" width="48" height="22"/><rect class="ink" x="70" y="258" width="40" height="14" stroke-width="1"/>
+              <use href="#fLight" x="58" y="294"/><use href="#fLight" x="122" y="294"/>
+              <use href="#fStatue" x="90" y="374"/>
+
+              <!-- R7 sealed vault -->
+              <use href="#fChest" x="268" y="502"/><use href="#fChest" x="268" y="530"/><use href="#fChest" x="296" y="560"/>
+              <g>
+                <path class="ink" d="M398 490V570M436 490V570"/>
+                <path class="tread" d="M398 490H436M398 500H436M398 509H436M398 517H436M398 525H436M398 532H436M398 539H436M398 545H436M398 551H436M398 556H436M398 561H436M398 565H436"/>
+                <path class="ink" d="M410 520L417 530L424 520" stroke-width="2"/>
+                <rect class="link-tag" x="350" y="552" width="40" height="16" rx="8"/><text class="link-text" x="370" y="560">▼ L2</text>
+              </g>
+              <use href="#fRubble" x="352" y="500"/>
+
+              <!-- room labels -->
+              <g><circle class="lbl-c" cx="122" cy="88" r="10"/><text class="lbl-n" x="122" y="88">1</text><text class="lbl-name halo" x="118" y="111">Collapsed Stair</text></g>
+              <g><circle class="lbl-c" cx="330" cy="124" r="10"/><text class="lbl-n" x="330" y="124">2</text><text class="lbl-name halo" x="330" y="146">Guardroom</text></g>
+              <g><circle class="lbl-c" cx="672" cy="102" r="10"/><text class="lbl-n" x="672" y="102">3</text><text class="lbl-name halo" x="664" y="124">Flooded Crypt</text></g>
+              <g><circle class="lbl-c on" cx="300" cy="330" r="10"/><text class="lbl-n on" x="300" y="330">4</text><text class="lbl-name halo" x="300" y="352">Hall of Pillars</text></g>
+              <g><circle class="lbl-c" cx="626" cy="314" r="10"/><text class="lbl-n" x="626" y="314">5</text><text class="lbl-name halo" x="626" y="336">Ossuary</text></g>
+              <g><circle class="lbl-c" cx="90" cy="322" r="10"/><text class="lbl-n" x="90" y="322">6</text><text class="lbl-name halo" x="90" y="344">Lady Chapel</text></g>
+              <g><circle class="lbl-c" cx="330" cy="520" r="10"/><text class="lbl-n" x="330" y="520">7</text><text class="lbl-name halo" x="330" y="542">Sealed Vault</text></g>
+            </svg>
+            <div class="selbar" role="toolbar" aria-label="Selected room">
+              <span class="t"><span class="badge">4</span>Hall of Pillars</span>
+              <button class="btn sm primary"><svg class="icon" style="width:13px;height:13px"><use href="#i-at"/></svg>Reference in chat <span class="kbd" style="background:transparent;color:inherit;border-color:currentColor;opacity:.7">R</span></button>
+              <button class="btn sm ghost"><svg class="icon" style="width:13px;height:13px"><use href="#i-edit"/></svg>Edit notes</button>
+              <button class="iconbtn" style="width:26px;height:26px" aria-label="More"><svg class="icon"><use href="#i-more"/></svg></button>
+            </div>
+          </div>
+          <div class="compass" aria-hidden="true"><svg class="icon" style="width:14px;height:14px"><use href="#i-up"/></svg>N</div>
+          <div class="coords">H12 · 35 ft E, 55 ft S</div>
+        </div>
+
+        <aside class="key" aria-label="Room key">
+          <div class="key-h"><h3>Room key<small>L1 · 7 rooms</small></h3><button class="iconbtn" style="width:26px;height:26px" aria-label="Collapse room key (Ctrl+])"><svg class="icon"><use href="#i-right"/></svg></button></div>
+          <div class="search"><svg class="icon" style="width:14px"><use href="#i-search"/></svg>Filter rooms and notes <span class="kbd" style="margin-left:auto">Ctrl F</span></div>
+          <div class="rooms">
+            <div class="room"><span class="badge">1</span><div><div class="rn">Collapsed Stair <span>30×25 ft</span></div><div class="prev">Broken stair from the cloister above. Rubble chokes the east side.</div></div></div>
+            <div class="room"><span class="badge">2</span><div><div class="rn">Guardroom <span>35×30 ft</span></div><div class="prev">Three skeletal wardens still sit at their dice; they rise if the bell rings.</div></div></div>
+            <div class="room"><span class="badge">3</span><div><div class="rn">Flooded Crypt <span>50×40 ft</span></div><div class="prev">Waist-deep black water; the saint's sarcophagus lies tipped in the pool.</div></div></div>
+            <div class="room on"><span class="badge">4</span><div>
+              <div class="rn">Hall of Pillars <span>60×45 ft</span></div>
+              <div class="rsec"><span class="caps">Read aloud</span><p class="ra">Eight pillars carved as weeping nuns hold up the vault. Somewhere in the dark, water drips in a slow, patient rhythm.</p></div>
+              <div class="rsec"><span class="caps">GM notes</span><p>The statue is the Pale Abbess. Placing the saint's ring in her open hand unlocks the south door to <span class="n">⑦</span>. Braziers are cold until someone speaks a prayer.</p></div>
+              <div class="rsec"><span class="caps">Encounter · Daggerheart</span><p>1× Bone Sentinel (Bruiser), 3× Skeleton Warrior (Standard). Difficulty 14 to force the south door.</p></div>
+              <div class="rsec"><span class="caps">Exits</span><p style="font-size:12px;color:var(--ink-2)">N arch → ② · W door → ⑥ · E door → ⑤ · S locked door → ⑦</p></div>
+              <div class="room-actions"><button class="btn sm"><svg class="icon" style="width:13px;height:13px"><use href="#i-edit"/></svg>Edit</button><button class="btn sm ghost"><svg class="icon" style="width:13px;height:13px"><use href="#i-at"/></svg>Reference</button></div>
+            </div></div>
+            <div class="room"><span class="badge">5</span><div><div class="rn">Ossuary <span>40×35 ft</span></div><div class="prev">Walls of niched skulls. A secret passage leads north to the crypt.</div></div></div>
+            <div class="room"><span class="badge">6</span><div><div class="rn">Lady Chapel <span>25×40 ft</span></div><div class="prev">A small altar to the drowned saint; candles that never quite go out.</div></div></div>
+            <div class="room"><span class="badge">7</span><div><div class="rn">Sealed Vault <span>50×25 ft</span></div><div class="prev">The abbey's treasury and the stair down to the cistern.</div></div></div>
+          </div>
+          <div class="legend">
+            <div class="legend-h"><span class="caps">Legend · this level</span><button class="iconbtn" style="width:22px;height:22px" aria-label="Collapse legend"><svg class="icon" style="width:13px"><use href="#i-down"/></svg></button></div>
+            <div class="lg">
+              <div><svg viewBox="0 0 30 20"><rect width="30" height="20" fill="url(#pFloor)"/><rect x="11" y="0" width="8" height="20" fill="var(--map-ink)"/><rect class="door" x="11.5" y="4" width="7" height="12"/></svg>Door</div>
+              <div><svg viewBox="0 0 30 20"><rect width="30" height="20" fill="url(#pFloor)"/><rect x="11" y="0" width="8" height="20" fill="var(--map-ink)"/><rect class="door" x="11.5" y="4" width="7" height="12"/><circle class="inkfill" cx="15" cy="10" r="1.8"/></svg>Locked door</div>
+              <div><svg viewBox="0 0 30 20"><rect width="30" height="20" fill="url(#pFloor)"/><path class="secret" d="M0 10H30"/><text x="15" y="6" class="lbl-n" style="font-size:9px">S</text></svg>Secret door</div>
+              <div><svg viewBox="0 0 30 20"><rect width="30" height="20" fill="url(#pFloor)"/><g class="inkfill"><circle cx="15" cy="3" r="2"/><circle cx="15" cy="8" r="2"/><circle cx="15" cy="13" r="2"/><circle cx="15" cy="18" r="2"/></g></svg>Portcullis</div>
+              <div><svg viewBox="0 0 30 20"><rect width="30" height="20" fill="url(#pFloor)"/><path class="tread" d="M6 4H24M6 8H24M6 12H24M6 16H24"/><path class="ink" d="M11 13l4-6 4 6" stroke-width="1.6"/></svg>Stairs ▲ up</div>
+              <div><svg viewBox="0 0 30 20"><rect width="30" height="20" fill="url(#pFloor)"/><rect class="m-water" width="30" height="20"/><rect width="30" height="20" fill="url(#pWave)"/></svg>Water</div>
+              <div><svg viewBox="0 0 30 20"><rect width="30" height="20" fill="url(#pFloor)"/><circle class="inkfill" cx="9" cy="10" r="4.5"/><use href="#fStatue" transform="translate(22 10) scale(.6)"/></svg>Pillar, statue</div>
+              <div><svg viewBox="0 0 30 20"><rect width="30" height="20" fill="url(#pFloor)"/><path class="trap" d="M15 3L22 16H8Z"/><text class="traptext" x="15" y="14" text-anchor="middle" style="font-size:7px">T</text></svg>Trap (GM only)</div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- ===== BUILD: paste checklist + paste guide ===== -->
+      <div class="content buildview" data-only="build">
+        <div class="buildlist">
+          <div class="bhead"><h2>Built from v7</h2><span class="okpill"><svg class="icon" style="width:12px;height:12px"><use href="#i-check"/></svg>Up to date</span><span class="m">2 levels · 5 slabs · built 21:41 on this PC · 4,812 TaleSpire assets</span></div>
+
+          <div class="getin">
+            <div class="txt"><b>Get it into TaleSpire.</b> The guide copies each slab in order, brings TaleSpire to the front, and tells you exactly where to paste it with Ctrl+V. About 3 minutes.</div>
+            <button class="btn"><svg class="icon"><use href="#i-ext"/></svg>Open TaleSpire</button>
+            <button class="btn primary"><svg class="icon"><use href="#i-play"/></svg>Paste guide · step 6 of 8</button>
+          </div>
+
+          <div class="order caps">Paste order · bottom level first · 3 of 5 pasted</div>
+
+          <section class="level">
+            <div class="level-h"><span class="ordn">①</span><span class="lv">L2</span><h3>Cistern Depths</h3><span class="m">ground level · 32×24 sq · 2 chunks</span><div class="prog"><span class="bar"><i style="width:100%"></i></span>2/2 pasted ✓</div></div>
+            <div class="level-b">
+              <svg class="mini" viewBox="-30 -30 760 600" aria-label="Level 2 chunk layout">
+                <rect x="-30" y="-30" width="760" height="600" class="m-paper"/>
+                <rect x="-30" y="-30" width="760" height="600" fill="url(#pHatch)"/>
+                <use href="#l2rects" class="wallpass"/><use href="#l2rects" class="m-floor"/>
+                <rect class="m-water" x="360" y="40" width="280" height="220"/>
+                <rect class="chunkfill-done" x="0" y="0" width="340" height="540"/><rect class="chunkfill-done" x="340" y="0" width="360" height="540"/>
+                <path class="chunkline" d="M340 0V540"/>
+                <rect class="marker" x="-24" y="-24" width="18" height="18"/><rect class="marker" x="706" y="546" width="18" height="18"/>
+                <text class="chunknum" x="170" y="270">1</text><text class="chunknum" x="520" y="400">2</text>
+              </svg>
+              <div class="chunks">
+                <div class="chunk done"><div class="cbtns"><button class="btn sm open"><span class="cstep">1</span>Copy &amp; open TaleSpire</button><button class="btn sm ghost" title="Copy only"><svg class="icon" style="width:13px;height:13px"><use href="#i-copy"/></svg>Copy</button></div><div class="cinfo"><div class="cname">Chunk 1 · West <span class="cmeta">cols A–Q · copied 21:42</span></div><div class="size"><div class="bar"><i style="width:62%"></i></div><div class="lab"><span>18.7 / 30 KB</span><span>62%</span></div></div></div><span class="chk"><span class="box on"><svg class="icon"><use href="#i-check"/></svg></span>Pasted</span></div>
+                <div class="chunk done"><div class="cbtns"><button class="btn sm open"><span class="cstep">2</span>Copy &amp; open TaleSpire</button><button class="btn sm ghost" title="Copy only"><svg class="icon" style="width:13px;height:13px"><use href="#i-copy"/></svg>Copy</button></div><div class="cinfo"><div class="cname">Chunk 2 · East <span class="cmeta">cols R–AF · copied 21:43</span></div><div class="size"><div class="bar"><i style="width:51%"></i></div><div class="lab"><span>15.2 / 30 KB</span><span>51%</span></div></div></div><span class="chk"><span class="box on"><svg class="icon"><use href="#i-check"/></svg></span>Pasted</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="level">
+            <div class="level-h"><span class="ordn">②</span><span class="lv">L1</span><h3>Upper Crypts</h3><span class="m">+1 storey (2.5 tiles up) · 40×30 sq · 3 chunks</span><div class="prog"><span class="bar"><i style="width:33%"></i></span>1/3 pasted</div></div>
+            <div class="level-b">
+              <svg class="mini" viewBox="-30 -30 860 660" aria-label="Level 1 chunk layout">
+                <rect x="-30" y="-30" width="860" height="660" class="m-paper"/>
+                <rect x="-30" y="-30" width="860" height="660" fill="url(#pHatch)"/>
+                <use href="#l1rects" class="wallpass"/><use href="#l1rects" class="m-floor"/>
+                <rect class="chunkfill-done" x="0" y="0" width="280" height="600"/>
+                <rect class="chunkfill-cur" x="281.5" y="1.5" width="277" height="597"/>
+                <path class="chunkline" d="M280 0V600M560 0V600"/>
+                <rect class="marker" x="-24" y="-24" width="18" height="18"/><rect class="marker" x="806" y="606" width="18" height="18"/>
+                <text class="chunknum" x="140" y="300">1</text><text class="chunknum" x="420" y="300" style="fill:var(--accent)">2</text><text class="chunknum" x="680" y="300">3</text>
+              </svg>
+              <div class="chunks">
+                <div class="chunk done"><div class="cbtns"><button class="btn sm open"><span class="cstep">3</span>Copy &amp; open TaleSpire</button><button class="btn sm ghost" title="Copy only"><svg class="icon" style="width:13px;height:13px"><use href="#i-copy"/></svg>Copy</button></div><div class="cinfo"><div class="cname">Chunk 1 · West <span class="cmeta">cols A–N · copied 21:44</span></div><div class="size"><div class="bar"><i style="width:71%"></i></div><div class="lab"><span>21.4 / 30 KB</span><span>71%</span></div></div></div><span class="chk"><span class="box on"><svg class="icon"><use href="#i-check"/></svg></span>Pasted</span></div>
+                <div class="chunk cur"><div class="cbtns"><button class="btn sm open success"><span class="cstep">4</span>Copied ✓ · TaleSpire opened</button><button class="btn sm ghost" title="Copy only"><svg class="icon" style="width:13px;height:13px"><use href="#i-copy"/></svg>Copy</button></div><div class="cinfo"><div class="cname">Chunk 2 · Centre <span class="cmeta">cols O–AB · copied just now</span></div><div class="size warn"><div class="bar"><i style="width:93%"></i></div><div class="lab"><span>27.9 / 30 KB</span><b>near limit</b></div></div></div><span class="chk"><span class="box"></span>Pasted</span></div>
+                <div class="chunk "><div class="cbtns"><button class="btn sm open"><span class="cstep">5</span>Copy &amp; open TaleSpire</button><button class="btn sm ghost" title="Copy only"><svg class="icon" style="width:13px;height:13px"><use href="#i-copy"/></svg>Copy</button></div><div class="cinfo"><div class="cname">Chunk 3 · East <span class="cmeta">cols AC–AN · not copied</span></div><div class="size"><div class="bar"><i style="width:40%"></i></div><div class="lab"><span>12.0 / 30 KB</span><span>40%</span></div></div></div><span class="chk"><span class="box"></span>Pasted</span></div>
+              </div>
+            </div>
+          </section>
+          <p style="font-size:12px;color:var(--muted);margin:0">Every chunk of a level shares one bounding box: the two gravel <b style="font-weight:500">corner markers</b> (red squares above) are in every chunk, so each chunk is pasted on the same cell. Each row's ⋯ menu has Show slab text, Save as .txt, and Copy wrapped in ```.</p>
+        </div>
+
+        <aside class="guide" aria-label="Paste guide">
+          <div class="guide-h">
+            <div class="row"><h3>Paste guide</h3><span style="font-size:12px;color:var(--muted)">Step 6 of 8</span><button class="btn ghost sm">Exit guide</button></div>
+            <div class="pdots" aria-hidden="true"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="c"></i><i></i><i></i></div>
+          </div>
+          <div class="guide-b">
+            <svg class="mini" viewBox="-30 -30 860 660" aria-hidden="true">
+              <rect x="-30" y="-30" width="860" height="660" class="m-paper"/>
+              <rect x="-30" y="-30" width="860" height="660" fill="url(#pHatch)"/>
+              <use href="#l1rects" class="wallpass"/><use href="#l1rects" class="m-floor"/>
+              <rect class="chunkfill-done" x="0" y="0" width="280" height="600"/>
+              <rect class="chunkfill-cur" x="281.5" y="1.5" width="277" height="597"/>
+              <path class="chunkline" d="M280 0V600M560 0V600"/>
+              <rect class="marker" x="-24" y="-24" width="18" height="18"/><rect class="marker" x="806" y="606" width="18" height="18"/>
+              <circle cx="-15" cy="-15" r="26" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="6 4"/>
+              <text class="chunknum" x="420" y="300" style="fill:var(--accent)">2</text>
+            </svg>
+            <div class="gtitle"><b>L1 · Chunk 2 of 3 (Centre)</b><span class="clip"><svg class="icon" style="width:13px;height:13px"><use href="#i-check"/></svg>On your clipboard</span></div>
+            <ol class="steps">
+              <li><span>1</span><div>TaleSpire is in front. In build mode, press <span class="kbd">Ctrl V</span>. The slab follows your cursor.</div></li>
+              <li><span>2</span><div>Point at the <b>same corner marker</b> you used for Chunk 1. This chunk's markers should sit exactly on top of the old ones.</div></li>
+              <li><span>3</span><div><b>Press and hold</b> left-click to place it, then right-click to let go.</div></li>
+              <li><span>4</span><div>Come back and press <b>Next</b>. Next copies Chunk 3 and opens TaleSpire again.</div></li>
+            </ol>
+            <div class="offset"><b style="font:600 12px var(--f-ui);margin:0 0 2px">Keep it steady</b>Don't move the camera between chunks. Aim at the marker or empty ground, not at walls you've already placed, or the paste can lift. You're still at L1's height: one storey (2.5 tiles) above L2.</div>
+          </div>
+          <div class="guide-f">
+            <button class="btn sm"><svg class="icon" style="width:13px;height:13px"><use href="#i-left"/></svg>Back</button>
+            <button class="iconbtn" title="Copy again" aria-label="Copy again"><svg class="icon"><use href="#i-copy"/></svg></button>
+            <span class="sp"></span>
+            <button class="btn primary">Next: copy chunk 3 &amp; open TaleSpire<svg class="icon"><use href="#i-right"/></svg></button>
+          </div>
+        </aside>
+        <div class="toast" role="status"><svg class="icon"><use href="#i-check"/></svg><span><b>Slab 4 of 5 copied.</b> TaleSpire is in front — press Ctrl+V in build mode.</span></div>
+      </div>
+
+      <!-- status bars -->
+      <footer class="statusbar" data-only="brief">
+        <span>Brief · nothing drawn yet</span><span class="sp"></span>
+        <span style="color:var(--muted)">≈ $0.06 · about 40 s</span>
+        <button class="btn primary">Draw the first plan</button>
+      </footer>
+      <footer class="statusbar" data-only="plan">
+        <span class="mono">L1 · 40×30 sq (200×150 ft)</span><span class="dotsep">·</span><span>7 rooms</span><span class="dotsep">·</span><span>v7 by Slabyrinth · 2 days ago</span>
+        <span class="sp"></span>
+        <span class="assetchip" title="Asset library: read from your TaleSpire install"><i></i>Assets · 4,854 · today</span>
+        <span style="color:var(--muted)">2 levels · ~5 chunks</span>
+        <button class="btn primary">Approve plan v7<svg class="icon"><use href="#i-right"/></svg></button>
+      </footer>
+      <footer class="statusbar" data-only="build">
+        <span>Build of v7</span><span class="dotsep">·</span><span>3 of 5 slabs pasted</span><span class="dotsep">·</span><span>4 copied</span>
+        <span class="sp"></span>
+        <span class="assetchip" title="Asset library: read from your TaleSpire install"><i></i>Assets · 4,854 · today</span>
+        <button class="btn ghost">Back to plan</button>
+      </footer>
+    </main>
+  </div>
+
+  <!-- ================= SETTINGS MODAL ================= -->
+  <div class="scrim" data-only="settings">
+    <div class="modal" role="dialog" aria-label="Settings">
+      <nav class="snav">
+        <h2>Settings</h2>
+        <a href="#" class="on">AI provider</a><a href="#">Spending</a><a href="#">TaleSpire &amp; assets</a><a href="#">Projects &amp; storage</a><a href="#">Appearance</a><a href="#">About</a>
+      </nav>
+      <div class="sbody">
+        <div class="sscroll">
+          <h3>AI provider</h3>
+          <p class="lead">Who Slabyrinth talks to when it drafts and edits your maps.</p>
+          <div class="providers">
+            <div class="prov on"><span class="radio"></span><b>Anthropic (Claude)</b><span class="d">Cloud · uses your API key · pay per message</span><span class="st ok"><svg class="icon" style="width:13px;height:13px"><use href="#i-check"/></svg>Connected</span></div>
+            <div class="prov later" title="Local models via LM Studio are planned for a later update."><span class="radio"></span><b>LM Studio (local) <span class="later-tag">LATER</span></b><span class="d">Runs on this PC · no key · no API cost</span><span class="st" style="color:var(--muted)">Coming in a later update</span></div>
+          </div>
+
+          <div class="srow"><span class="caps">API key</span>
+            <div>
+              <div class="keyfield"><span class="input">sk-ant-••••••••••••••••a1B2<svg class="icon"><use href="#i-eye"/></svg></span><button class="btn sm">Replace</button><button class="btn sm ghost">Remove</button></div>
+              <div class="valid"><svg class="icon" style="width:13px;height:13px"><use href="#i-check"/></svg>Key works · checked just now</div>
+              <div class="trust">Encrypted with your system's secure storage and only ever sent to api.anthropic.com. Never written into project files.</div>
+            </div>
+          </div>
+
+          <div class="srow"><span class="caps">Default model</span>
+            <div class="mlist">
+              <div class="mrow"><span class="radio"></span><div><div class="mname">Haiku</div><div class="mdesc">Quick drafts and chat · ≈ $0.01 per plan</div></div><span class="tiers">$<i>$$$</i></span><span class="tiers">⚡⚡⚡</span></div>
+              <div class="mrow on"><span class="radio"></span><div><div class="mname">Sonnet<span class="rec">RECOMMENDED</span></div><div class="mdesc">Good maps at a sensible cost · ≈ $0.05 per plan</div></div><span class="tiers">$$<i>$$</i></span><span class="tiers">⚡⚡<i>⚡</i></span></div>
+              <div class="mrow"><span class="radio"></span><div><div class="mname">Opus</div><div class="mdesc">Best layouts and richest notes · ≈ $0.25 per plan</div></div><span class="tiers">$$$$</span><span class="tiers">⚡<i>⚡⚡</i></span></div>
+            </div>
+          </div>
+
+          <div class="srow"><span class="caps">Default effort</span>
+            <div>
+              <div class="segctl" style="max-width:420px"><button>Quick</button><button>Balanced</button><button class="on">Thorough</button><button>Extra</button><button>Max</button></div>
+              <div class="effscale" style="max-width:420px"><span>faster · cheaper</span><span>slower · more careful</span></div>
+              <label class="checkrow"><span class="box on" style="margin-top:2px"><svg class="icon"><use href="#i-check"/></svg></span><span>Smart effort<small>Use Balanced for chat-only replies, and your chosen effort when the plan changes.</small></span></label>
+            </div>
+          </div>
+        </div>
+        <div class="sfoot"><span>New projects start with these. Each project remembers its own model and effort.</span><button class="btn primary">Done</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement;
+  function apply(state){
+    var base=(state==='model'||state==='settings'||state==='png')?'plan':state;
+    root.dataset.state=state;
+    document.querySelectorAll('[data-only]').forEach(function(el){
+      var list=el.getAttribute('data-only').split(/\s+/);
+      el.hidden=!(list.indexOf(base)>=0||list.indexOf(state)>=0);
+    });
+    document.querySelectorAll('[data-go]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.go===state)});
+    document.getElementById('pill').setAttribute('aria-expanded',state==='model');
+    var t=document.getElementById('thread');t.scrollTop=(base==='brief')?0:t.scrollHeight;
+  }
+  function theme(t){
+    root.dataset.theme=t;
+    document.querySelectorAll('[data-theme-btn]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.themeBtn===t)});
+    var tb=document.getElementById('themeBtn');tb.title='Theme: '+(t==='dark'?'Dark':'Light');
+    tb.querySelector('use').setAttribute('href',t==='dark'?'#i-sun':'#i-moon');
+  }
+  document.querySelectorAll('[data-go]').forEach(function(b){b.addEventListener('click',function(){apply(b.dataset.go)})});
+  document.querySelectorAll('[data-theme-btn]').forEach(function(b){b.addEventListener('click',function(){theme(b.dataset.themeBtn)})});
+  document.getElementById('themeBtn').addEventListener('click',function(){theme(root.dataset.theme==='dark'?'light':'dark')});
+  document.getElementById('pill').addEventListener('click',function(){apply(root.dataset.state==='model'?'plan':'model')});
+  document.getElementById('pngBtn').addEventListener('click',function(){apply(root.dataset.state==='png'?'plan':'png')});
+  theme("dark");
+  apply('plan');
+})();
+</script>
+</body>
+</html>

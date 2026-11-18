@@ -1,0 +1,3658 @@
+{
+  "schema": "slabyrinth/palette@1",
+  "id": "generic",
+  "name": "Generic (base kit)",
+  "description": "Base kit and last fallback step: shared props plus a copy of every theme role (first theme wins).",
+  "defaults": {
+    "floor": "flagstone",
+    "wallStyle": "wall"
+  },
+  "roles": {
+    "feature.altar": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "eba101cd-f1c1-4568-b330-b66ab33bf325",
+          "name": "Altar (Evil)",
+          "geom": {
+            "size": {
+              "x": 2.927,
+              "y": 0.887,
+              "z": 1.652
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.4436,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            3,
+            2
+          ]
+        }
+      ]
+    },
+    "feature.anvil": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "ea2cb7d1-29c2-43c4-bdc5-ab21080bfad3",
+          "name": "Anvil",
+          "geom": {
+            "size": {
+              "x": 0.574,
+              "y": 0.695,
+              "z": 0.542
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.3476,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.armor_stand": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "b8d3839f-00fa-436b-8dc9-f67cef318bf8",
+          "name": "Armor Rack",
+          "geom": {
+            "size": {
+              "x": 0.5271,
+              "y": 1.1513,
+              "z": 0.4573
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.5757,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.banner_wall": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "8cadf11c-6b5f-4927-b5df-e4b3147e0ab2",
+          "name": "banner_01",
+          "geom": {
+            "size": {
+              "x": 1.0388,
+              "y": 1.3218,
+              "z": 0.2342
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0078,
+              "y": 0.6611,
+              "z": -0.0281
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "offset": {
+            "y": 0.6
+          }
+        },
+        {
+          "asset": "3515d69a-0262-468d-9302-3ce9a4878788",
+          "name": "banner_01a",
+          "geom": {
+            "size": {
+              "x": 1.0355,
+              "y": 1.3425,
+              "z": 0.2229
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0068,
+              "y": 0.6792,
+              "z": -0.0309
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "offset": {
+            "y": 0.6
+          }
+        },
+        {
+          "asset": "7c248b0f-6804-40f3-bcd7-bdec7c04e1ef",
+          "name": "banner_01b",
+          "geom": {
+            "size": {
+              "x": 1.0417,
+              "y": 1.3399,
+              "z": 0.2221
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.006,
+              "y": 0.6706,
+              "z": -0.0343
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "offset": {
+            "y": 0.6
+          }
+        }
+      ]
+    },
+    "feature.bar_counter": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "cab8254d-0aa0-40b4-af4a-0896c5600346",
+          "name": "Bar Counter",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.75,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.375,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.barrel": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "6b834055-c529-4c15-a3e1-eaf72d7aef4b",
+          "name": "Barrel",
+          "geom": {
+            "size": {
+              "x": 0.613,
+              "y": 0.758,
+              "z": 0.624
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.3792,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.bed": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "dcdb0995-7d04-46f8-b1bd-9e7ec5246065",
+          "name": "Red Bed",
+          "geom": {
+            "size": {
+              "x": 0.913,
+              "y": 0.924,
+              "z": 1.867
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.4621,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "facing": {
+            "front": "N"
+          }
+        },
+        {
+          "asset": "176b805c-6985-4ec3-8bb6-a5146e87b506",
+          "name": "Bed straw 01",
+          "geom": {
+            "size": {
+              "x": 0.707,
+              "y": 0.169,
+              "z": 1.38
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0021,
+              "y": 0.0846,
+              "z": 0.0258
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "straw",
+          "weight": 0
+        }
+      ]
+    },
+    "feature.bench": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "944bf548-e7a1-418f-8853-ee8cb87d4a19",
+          "name": "Bench -Shabby",
+          "geom": {
+            "size": {
+              "x": 1.327,
+              "y": 0.26,
+              "z": 0.428
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1299,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.bones": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "863ba7a4-742b-4a35-b451-bc384621ce83",
+          "name": "Bone Pile 01",
+          "geom": {
+            "size": {
+              "x": 0.835,
+              "y": 0.156,
+              "z": 0.879
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.0781,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "737d0f69-857d-481f-949a-e8b4930b11ac",
+          "name": "Skeleton 01",
+          "geom": {
+            "size": {
+              "x": 0.46,
+              "y": 0.166,
+              "z": 1.206
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.083,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "skeleton",
+          "weight": 0.5
+        }
+      ]
+    },
+    "feature.bookshelf": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "bfb517e6-99c0-4ccd-ba64-ad5e9f770f45",
+          "name": "Bookshelf 01",
+          "geom": {
+            "size": {
+              "x": 1.019,
+              "y": 1.499,
+              "z": 0.44
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.7497,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "facing": {
+            "front": "N"
+          }
+        }
+      ]
+    },
+    "feature.boulder": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "451e9727-bc73-462c-8c46-512687e6e170",
+          "name": "Boulder - Large",
+          "geom": {
+            "size": {
+              "x": 1.537,
+              "y": 1.618,
+              "z": 1.81
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.8088,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    "feature.brazier": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "3ff3d2ba-827b-4270-b288-dfd93c7031cd",
+          "name": "Floor Torch",
+          "geom": {
+            "size": {
+              "x": 0.357,
+              "y": 1.358,
+              "z": 0.352
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.688,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "torch",
+          "weight": 0
+        },
+        {
+          "asset": "5b499cb9-0ee7-4fc1-a5f2-a2f951522a62",
+          "name": "Brazier",
+          "geom": {
+            "size": {
+              "x": 0.729,
+              "y": 0.724,
+              "z": 0.726
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.3622,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "526c0664-b197-462d-9db7-64233db026c8",
+          "name": "Street Lantern",
+          "geom": {
+            "size": {
+              "x": 0.712,
+              "y": 1.701,
+              "z": 0.632
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.8513,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "street_lantern",
+          "weight": 0
+        }
+      ]
+    },
+    "feature.bunk_bed": {
+      "rotation": "facing",
+      "variants": [],
+      "fallback": "feature.bed"
+    },
+    "feature.bush": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "481673ea-29a8-43e6-a0f4-83e455506137",
+          "name": "bush_reg_01",
+          "geom": {
+            "size": {
+              "x": 1.605,
+              "y": 0.703,
+              "z": 1.4
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0275,
+              "y": 0.3428,
+              "z": 0.0018
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "01ec8a0f-2971-4ddb-9612-98ce6c2d315e",
+          "name": "bush_berry_01",
+          "geom": {
+            "size": {
+              "x": 0.704,
+              "y": 0.597,
+              "z": 0.7
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0128,
+              "y": 0.3004,
+              "z": -0.0048
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "small"
+        },
+        {
+          "asset": "c3aa7f07-217c-4f99-81c6-6137637692c7",
+          "name": "Dead Bush 01",
+          "geom": {
+            "size": {
+              "x": 0.85,
+              "y": 0.753,
+              "z": 0.877
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.3767,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "dead",
+          "weight": 0.3
+        }
+      ]
+    },
+    "feature.cage": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "0f0c96a8-edbd-4ef0-a084-0ed704ef0505",
+          "name": "Cage Torture 01",
+          "geom": {
+            "size": {
+              "x": 0.8819,
+              "y": 1.756,
+              "z": 0.8848
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.878,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "88f35556-4222-40c2-8d13-466252067df8",
+          "name": "Gallow 02 Cage",
+          "geom": {
+            "size": {
+              "x": 0.9883,
+              "y": 2.0064,
+              "z": 2.0159
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1.0032,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "variant": "gallows",
+          "weight": 0
+        }
+      ]
+    },
+    "feature.campfire": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "6e22a681-4902-4cc4-a5f2-2284fb3c53b6",
+          "name": "Campfire",
+          "geom": {
+            "size": {
+              "x": 0.7641,
+              "y": 0.6804,
+              "z": 0.7233
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.3435,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.candelabra": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "d4b9003e-f80b-4304-8af1-6c456b1ff192",
+          "name": "Candle",
+          "geom": {
+            "size": {
+              "x": 0.141,
+              "y": 0.32,
+              "z": 0.185
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1602,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "candle"
+        },
+        {
+          "asset": "2f622eea-53fe-4285-88e2-aec0c85fed7f",
+          "name": "Lantern -Small",
+          "geom": {
+            "size": {
+              "x": 0.191,
+              "y": 0.448,
+              "z": 0.183
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2253,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "lantern",
+          "weight": 0
+        }
+      ]
+    },
+    "feature.cart": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "8d13bc1e-f05b-4c03-8d57-5a897e66693e",
+          "name": "Wooden Cart",
+          "geom": {
+            "size": {
+              "x": 0.7902,
+              "y": 0.9957,
+              "z": 0.9183
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.507,
+              "z": -0.3438
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.cauldron": {
+      "rotation": "facing",
+      "variants": [],
+      "fallback": "feature.barrel"
+    },
+    "feature.chair": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "c088991c-5896-43d2-91a1-0e2268490ba4",
+          "name": "chair wood 01",
+          "geom": {
+            "size": {
+              "x": 0.329,
+              "y": 0.764,
+              "z": 0.344
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0031,
+              "y": 0.3918,
+              "z": -0.0045
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "facing": {
+            "front": "N"
+          }
+        }
+      ]
+    },
+    "feature.chest": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "6a46f937-44a4-43b1-9864-f7d1c11514ca",
+          "name": "Leather Chest",
+          "geom": {
+            "size": {
+              "x": 0.85,
+              "y": 0.418,
+              "z": 0.515
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2089,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "52ecc349-a6dd-4d78-8b3f-7b7089df788e",
+          "name": "Gold Chest",
+          "geom": {
+            "size": {
+              "x": 0.726,
+              "y": 0.536,
+              "z": 0.519
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2679,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "treasure",
+          "weight": 0
+        }
+      ]
+    },
+    "feature.coffin": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "2827c7a5-8ae7-426f-a495-29ee382243d1",
+          "name": "Basic Coffin",
+          "geom": {
+            "size": {
+              "x": 0.6019,
+              "y": 0.2916,
+              "z": 1.6021
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1458,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ]
+        },
+        {
+          "asset": "9859c2a9-8898-4f7c-a8b8-f59de7e02e19",
+          "name": "Fancy Coffin",
+          "geom": {
+            "size": {
+              "x": 0.8352,
+              "y": 0.3771,
+              "z": 1.7739
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1886,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "variant": "fancy",
+          "weight": 0.5
+        }
+      ]
+    },
+    "feature.counter": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "fc33604a-1b38-4618-969f-13216d75cdb5",
+          "name": "Workbench",
+          "geom": {
+            "size": {
+              "x": 1.445,
+              "y": 1.113,
+              "z": 0.96
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.5565,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.crate": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "d9dcd448-2c03-4b16-a67e-54d8f4b11a04",
+          "name": "Crate - Large",
+          "geom": {
+            "size": {
+              "x": 0.943,
+              "y": 0.951,
+              "z": 0.947
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.4756,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "2fa63641-2983-4e88-b393-68b52a86a359",
+          "name": "Dark Crate Small 01",
+          "geom": {
+            "size": {
+              "x": 0.523,
+              "y": 0.501,
+              "z": 0.515
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2504,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "small",
+          "weight": 0.5
+        }
+      ]
+    },
+    "feature.dead_tree": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "ecac8c32-c044-4e97-8d8f-157a83968956",
+          "name": "Dead Tree 01",
+          "geom": {
+            "size": {
+              "x": 3.086,
+              "y": 4.167,
+              "z": 3.178
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 2.0833,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            3,
+            3
+          ]
+        }
+      ]
+    },
+    "feature.debris": {
+      "rotation": "facing",
+      "variants": [],
+      "fallback": "feature.rubble"
+    },
+    "feature.desk": {
+      "rotation": "facing",
+      "variants": [],
+      "fallback": "feature.table"
+    },
+    "feature.flowers": {
+      "rotation": "inherit",
+      "variants": [],
+      "fallback": "feature.tall_grass"
+    },
+    "feature.forge": {
+      "rotation": "facing",
+      "variants": [],
+      "fallback": "feature.anvil"
+    },
+    "feature.fountain": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "08545429-752c-41c5-9758-1279d82b70eb",
+          "name": "Fountain_01",
+          "geom": {
+            "size": {
+              "x": 2.0232,
+              "y": 2.368,
+              "z": 2.0347
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1.184,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    "feature.grave": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "89e6faca-3b0c-41e6-bb2f-80c5c6eb0b03",
+          "name": "Gravestone 01",
+          "geom": {
+            "size": {
+              "x": 0.552,
+              "y": 0.925,
+              "z": 0.133
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.01,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.lever": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "a2c9f08d-8f55-46db-94a6-1105092b7449",
+          "name": "Lever floor v1",
+          "geom": {
+            "size": {
+              "x": 0.5481,
+              "y": 1.2347,
+              "z": 0.9024
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.6174,
+              "z": 0.004
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "5bb3d346-3839-42e8-9ba3-c3e39201772f",
+          "name": "Lever wall v1",
+          "geom": {
+            "size": {
+              "x": 0.3184,
+              "y": 0.4324,
+              "z": 0.3174
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": 0.001,
+              "y": 0.0009,
+              "z": 0.1568
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "wall",
+          "weight": 0,
+          "offset": {
+            "y": 1
+          }
+        }
+      ]
+    },
+    "feature.log": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "3ef32c7a-ddab-41c1-aac4-4b59abad193e",
+          "name": "log with moss",
+          "geom": {
+            "size": {
+              "x": 1.899,
+              "y": 0.51,
+              "z": 0.534
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2549,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.mushroom": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "c5c65fd7-190d-4b9d-8c57-b7f9a2378ee5",
+          "name": "Mushroom Patch (Forest) 01",
+          "geom": {
+            "size": {
+              "x": 0.929,
+              "y": 0.278,
+              "z": 0.953
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1389,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.painting_wall": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "976331cd-864c-4e33-8e51-2b6920360a22",
+          "name": "Painting of the soldier",
+          "geom": {
+            "size": {
+              "x": 0.8388,
+              "y": 1.3018,
+              "z": 0.1387
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0005,
+              "y": 0.0022,
+              "z": 0.0661
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "offset": {
+            "y": 1.3
+          }
+        },
+        {
+          "asset": "9fe3533a-43e4-4fb0-9fd6-5b19d4ed0b3e",
+          "name": "Painting of farm life",
+          "geom": {
+            "size": {
+              "x": 0.911,
+              "y": 0.7687,
+              "z": 0.1477
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0002,
+              "y": -0.0032,
+              "z": 0.0625
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "offset": {
+            "y": 1.3
+          }
+        },
+        {
+          "asset": "a7f57a29-8f5f-4f12-8dc5-7be9507b58a5",
+          "name": "Painting of sun set",
+          "geom": {
+            "size": {
+              "x": 0.7994,
+              "y": 0.5933,
+              "z": 0.1261
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0017,
+              "y": 0.0017,
+              "z": 0.0517
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "offset": {
+            "y": 1.3
+          }
+        }
+      ]
+    },
+    "feature.pillar": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "ade24972-5bf6-4dc4-be27-48026fbfa097",
+          "name": "Dungeon Pillar",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "be6cf2a8-92f1-4128-8a05-e1d0437f51a3",
+          "name": "Dungeon Pillar - Ruined",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "ruined",
+          "weight": 0
+        },
+        {
+          "asset": "3e3b2d05-baf8-4140-88f1-88b13c6e35b4",
+          "name": "castle pillar",
+          "geom": {
+            "size": {
+              "x": 0.593,
+              "y": 1.998,
+              "z": 0.59
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9999,
+              "z": -0.0035
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "round",
+          "weight": 0
+        }
+      ]
+    },
+    "feature.pine_tree": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "63b75cb6-2493-4364-8acb-9343304adaf6",
+          "name": "cypress_tree_01",
+          "geom": {
+            "size": {
+              "x": 0.761,
+              "y": 3.913,
+              "z": 0.675
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0143,
+              "y": 1.9555,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.reeds": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "a2d4ea14-e21c-43d2-a884-0037f6ac4c25",
+          "name": "swamp reed 02",
+          "geom": {
+            "size": {
+              "x": 0.67,
+              "y": 1.595,
+              "z": 0.595
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.7974,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.rock": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "4bfa31f6-193d-4a17-9989-322b18451faa",
+          "name": "Stalagmite column stub 02",
+          "geom": {
+            "size": {
+              "x": 0.466,
+              "y": 0.992,
+              "z": 0.479
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0074,
+              "y": 0.5037,
+              "z": -0.0079
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "stalagmite",
+          "weight": 0
+        },
+        {
+          "asset": "923bc5e3-a845-403f-93dd-035dbd276279",
+          "name": "Rock - Small",
+          "geom": {
+            "size": {
+              "x": 0.398,
+              "y": 0.344,
+              "z": 0.507
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1719,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "2e255c74-6c6a-463d-a2a2-d8d97c327bfe",
+          "name": "Moss Rock 01",
+          "geom": {
+            "size": {
+              "x": 0.999,
+              "y": 0.499,
+              "z": 1.689
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2496,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "variant": "moss",
+          "weight": 0.5
+        }
+      ]
+    },
+    "feature.round_table": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "efdb0a1d-2dfa-492b-9161-2a7a4c41d016",
+          "name": "table wood round 01",
+          "geom": {
+            "size": {
+              "x": 1.447,
+              "y": 0.753,
+              "z": 1.425
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0013,
+              "y": 0.3837,
+              "z": 0.0017
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.rubble": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "829e84f1-b425-4ff5-ac34-824ecea3d859",
+          "name": "Rubble Rocks pile",
+          "geom": {
+            "size": {
+              "x": 1.638,
+              "y": 0.266,
+              "z": 0.971
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0236,
+              "y": 0.133,
+              "z": 0.0631
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.rug": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "6f1cd43b-6a26-4ad2-bd25-3b1381174638",
+          "name": "rug_01",
+          "geom": {
+            "size": {
+              "x": 2.022,
+              "y": 0.167,
+              "z": 2.01
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0092,
+              "y": 0.0795,
+              "z": 0.0092
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        },
+        {
+          "asset": "c3ecbb55-438a-4e50-8b81-7734981e16b8",
+          "name": "rug_06",
+          "geom": {
+            "size": {
+              "x": 2.006,
+              "y": 0.154,
+              "z": 1.029
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0012,
+              "y": 0.0746,
+              "z": -0.0065
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "runner",
+          "weight": 0
+        }
+      ]
+    },
+    "feature.sack": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "434c1267-fb4e-482c-9a45-ac38c21161ee",
+          "name": "sack_01",
+          "geom": {
+            "size": {
+              "x": 0.339,
+              "y": 0.612,
+              "z": 0.311
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0068,
+              "y": 0.311,
+              "z": -0.0176
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.sarcophagus": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "7d4b36c7-4c2a-4e10-9ce5-cca0b4c85cbe",
+          "name": "Sarcophagus",
+          "geom": {
+            "size": {
+              "x": 0.9687,
+              "y": 0.5802,
+              "z": 1.9371
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2901,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    "feature.shelf": {
+      "rotation": "facing",
+      "variants": [],
+      "fallback": "feature.bookshelf"
+    },
+    "feature.signpost": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "84e1b0a1-8554-4b06-983d-1aabd07ed245",
+          "name": "Sign (Road) 01",
+          "geom": {
+            "size": {
+              "x": 0.7826,
+              "y": 1.7715,
+              "z": 0.199
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0429,
+              "y": 0.8858,
+              "z": 0.0209
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "6e0a04c8-298c-4aa3-8470-96a16f25773e",
+          "name": "Sign (Generic) 01",
+          "geom": {
+            "size": {
+              "x": 0.681,
+              "y": 1.2549,
+              "z": 0.1979
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0029,
+              "y": 0.6274,
+              "z": 0.0437
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "generic",
+          "weight": 0.5
+        }
+      ]
+    },
+    "feature.standing_stone": {
+      "rotation": "facing",
+      "variants": [],
+      "fallback": "feature.boulder"
+    },
+    "feature.statue": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "54f1eaf1-63f2-4665-80f5-3287bd7cf79d",
+          "name": "Knight Statue",
+          "geom": {
+            "size": {
+              "x": 0.588,
+              "y": 1.981,
+              "z": 0.583
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9906,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.stocks": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "cfaac3ab-572f-4d69-9209-975e3ffe3486",
+          "name": "Stockade_01",
+          "geom": {
+            "size": {
+              "x": 1.1304,
+              "y": 1.2607,
+              "z": 0.9117
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.6304,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.stool": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "48448b13-d38a-4a93-985b-3d4c53271889",
+          "name": "stool wood 01",
+          "geom": {
+            "size": {
+              "x": 0.522,
+              "y": 0.314,
+              "z": 0.308
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0019,
+              "y": 0.1667,
+              "z": -0.0037
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.stump": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "e5a66bdc-37cc-4317-b4c6-a1b88c3392e9",
+          "name": "Stackable Pine Stump",
+          "geom": {
+            "size": {
+              "x": 1.095,
+              "y": 1.3,
+              "z": 1.003
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.029,
+              "y": 0.6502,
+              "z": -0.0823
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.table": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "d3aa15df-8dd6-49c6-afb2-9be185262933",
+          "name": "table wood 01",
+          "geom": {
+            "size": {
+              "x": 1.684,
+              "y": 0.738,
+              "z": 0.867
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.379,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.tall_grass": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "6b9e66b5-2b8c-4ccf-a4e0-53acb0d8a273",
+          "name": "Fern 01",
+          "geom": {
+            "size": {
+              "x": 0.465,
+              "y": 0.231,
+              "z": 0.427
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0073,
+              "y": 0.1157,
+              "z": 0.0107
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "fern"
+        }
+      ]
+    },
+    "feature.tent": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "01f78346-ba56-4c2f-af9b-aa4cc1ba1b64",
+          "name": "Lean to skin 01",
+          "geom": {
+            "size": {
+              "x": 1.3312,
+              "y": 1.4146,
+              "z": 1.2994
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.7443,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "2d623191-fd9b-4814-8634-f8e44a65c458",
+          "name": "Lean to skin 02",
+          "geom": {
+            "size": {
+              "x": 2.1725,
+              "y": 1.4146,
+              "z": 1.3312
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.7443,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "large",
+          "weight": 0
+        }
+      ]
+    },
+    "feature.throne": {
+      "rotation": "facing",
+      "variants": [],
+      "fallback": "feature.chair"
+    },
+    "feature.tomb": {
+      "rotation": "facing",
+      "variants": [],
+      "fallback": "feature.sarcophagus"
+    },
+    "feature.torch_wall": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "46ceac75-5f3c-4f09-9370-30b8be5a213e",
+          "name": "Torch wall wood stone on",
+          "geom": {
+            "size": {
+              "x": 0.186,
+              "y": 0.756,
+              "z": 0.332
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0016,
+              "y": 0.1673,
+              "z": 0.1663
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "facing": {
+            "mountsOn": "S"
+          },
+          "offset": {
+            "y": 1.25
+          }
+        }
+      ]
+    },
+    "feature.trap": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "d9c0844b-f189-4060-ae29-1dd4a484bd79",
+          "name": "Prison Grid trap",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.7511,
+              "z": 1
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.3754,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.trap_plate": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "8b3a0531-ea08-4560-abeb-f7220bc99b68",
+          "name": "Pressure Plate trap 01",
+          "geom": {
+            "size": {
+              "x": 0.6377,
+              "y": 0.2495,
+              "z": 0.637
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1247,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.tree": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "28b95682-24d4-48c1-ae40-c5f02404c9b1",
+          "name": "Tree 01",
+          "geom": {
+            "size": {
+              "x": 2.572,
+              "y": 2.718,
+              "z": 2.606
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1.359,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            3,
+            3
+          ]
+        }
+      ]
+    },
+    "feature.wagon": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "99d33645-b866-4b17-a093-07b2eef7f684",
+          "name": "wagon_01",
+          "geom": {
+            "size": {
+              "x": 1.9991,
+              "y": 2.3346,
+              "z": 4.5386
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0062,
+              "y": 1.168,
+              "z": -0.072
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            5
+          ]
+        },
+        {
+          "asset": "c40e3251-efca-4f33-afdf-4554801b4eb5",
+          "name": "wagon_ruined_01",
+          "geom": {
+            "size": {
+              "x": 2.422,
+              "y": 2.2601,
+              "z": 4.4987
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1.1299,
+              "z": 0.0035
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            4
+          ],
+          "variant": "ruined",
+          "weight": 0
+        }
+      ]
+    },
+    "feature.wardrobe": {
+      "rotation": "facing",
+      "variants": [],
+      "fallback": "feature.bookshelf"
+    },
+    "feature.weapon_rack": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "f44f9e09-264c-49c5-9335-3a1d24263a81",
+          "name": "Weapon Rack",
+          "geom": {
+            "size": {
+              "x": 0.7866,
+              "y": 1.9712,
+              "z": 0.4566
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9856,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.web": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "0532bed7-1e3e-4c2d-ae09-192c9fb1a6f5",
+          "name": "Spiderweb03",
+          "geom": {
+            "size": {
+              "x": 1.054,
+              "y": 0.139,
+              "z": 1.055
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0218,
+              "y": 0.0695,
+              "z": -0.0402
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.well": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "ec5ceb75-0f02-4892-96bc-f82e55890a82",
+          "name": "Well 01",
+          "geom": {
+            "size": {
+              "x": 1.116,
+              "y": 1.839,
+              "z": 1.228
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9197,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "fill.default": {
+      "rotation": "fixed",
+      "variants": [
+        {
+          "asset": "d5900784-9510-4cf7-b017-f369448d0d52",
+          "name": "Dungeon Floor - Small",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "stack": {
+            "unitHeight": 0.5
+          }
+        }
+      ]
+    },
+    "floor.brick": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "floor.flagstone"
+    },
+    "floor.bridge_wood": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "floor.wood_plank"
+    },
+    "floor.carpet": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "floor.wood_plank"
+    },
+    "floor.cobble": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "3bc61730-aa14-4df3-b5a9-8f8e99efab86",
+          "name": "CobbleStone Floor Small",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "6d146ada-02d4-4fab-ad2a-4fbe1a672328",
+          "name": "CobbleStone Floor 01",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.25,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.125,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    "floor.dirt": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "01a05c16-e23c-4d23-9b6e-c9ac81736ca2",
+          "name": "gravel_1x1_01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "floor.flagstone": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "d5900784-9510-4cf7-b017-f369448d0d52",
+          "name": "Dungeon Floor - Small",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "alternates": [
+            "940d013f-c982-43e7-922a-0317cc1c74db"
+          ],
+          "alternateGeom": {
+            "940d013f-c982-43e7-922a-0317cc1c74db": {
+              "size": {
+                "x": 1,
+                "y": 0.5,
+                "z": 1
+              },
+              "originAt": "minCorner",
+              "boundsCenter": {
+                "x": 0.5,
+                "y": 0.25,
+                "z": 0.5
+              },
+              "lengthAxis": "square"
+            }
+          }
+        },
+        {
+          "asset": "bdd9483a-3d7c-4f06-bfdd-145765045c0d",
+          "name": "Dungeon Floor 02",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "alternates": [
+            "a3645a02-ba42-4711-9959-0bee2bf1bb82"
+          ],
+          "alternateGeom": {
+            "a3645a02-ba42-4711-9959-0bee2bf1bb82": {
+              "size": {
+                "x": 2,
+                "y": 0.5,
+                "z": 2
+              },
+              "originAt": "minCorner",
+              "boundsCenter": {
+                "x": 1,
+                "y": 0.25,
+                "z": 1
+              },
+              "lengthAxis": "square"
+            }
+          }
+        },
+        {
+          "asset": "4c65150a-2e46-41cf-99ef-191d31d968e0",
+          "name": "Dungeon Floor - Cracked",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "cracked",
+          "weight": 0.5
+        }
+      ]
+    },
+    "floor.grass": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "ad6c985c-8d8b-44f2-abd5-edc9de568d30",
+          "name": "Grass 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "01c3a210-94fb-449f-8c47-993eda3e7126",
+          "name": "Grass - Lush",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        },
+        {
+          "asset": "3911d10d-142b-4f33-9fea-5d3a10c53781",
+          "name": "Grass - Sparse",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "sparse",
+          "weight": 0.5
+        }
+      ]
+    },
+    "floor.gravel": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "01a05c16-e23c-4d23-9b6e-c9ac81736ca2",
+          "name": "gravel_1x1_01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "floor.ice": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "floor.snow"
+    },
+    "floor.lava": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "floor.rock"
+    },
+    "floor.marble": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "floor.stone_tile"
+    },
+    "floor.mud": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "floor.swamp"
+    },
+    "floor.rock": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "ce6a2235-664f-43e8-a744-d5743623701d",
+          "name": "Cave Floor - Rock 2",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "b83392b1-8833-43c9-a97f-2ac3df659e66",
+          "name": "Cave Floor - Rock 01",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    "floor.sand": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "3723541f-4c2d-46df-9ed4-5dbafff1146f",
+          "name": "Desert Ground 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "4bfbdf17-8c93-48b2-adf8-f2ab39135e0b",
+          "name": "Desert Ground 01",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    "floor.snow": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "9b13871f-e338-4525-b9be-37f8870509e8",
+          "name": "Snow Ground 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "floor.stone_tile": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "floor.flagstone"
+    },
+    "floor.swamp": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "503f0799-b652-4d81-b202-d4473caecee4",
+          "name": "Swamp floor 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "126e3c30-8188-4bd0-9288-493ea00679c3",
+          "name": "Swamp floor 2x2",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    "floor.water_deep": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "floor.water_shallow"
+    },
+    "floor.water_shallow": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "dc968e8a-1bb6-4940-8b77-403573cf6094",
+          "name": "tempWater1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "798bcc88-cb34-49e6-8a9a-ee98c5721467",
+          "name": "tempWater2x2",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    "floor.wood_plank": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "cf6063bb-5c6e-4107-b3e9-9c0c5ac75768",
+          "name": "Tavern Floor 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "e62c6746-cecf-46bf-8b20-f81738f1d220",
+          "name": "Tavern Floor 03",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        },
+        {
+          "asset": "db9902bc-cc36-4172-ae60-df9d5eaee4e7",
+          "name": "Rural Floor 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "rural",
+          "weight": 0
+        },
+        {
+          "asset": "6e8cee0f-afe4-4538-b0df-b339ab42bebb",
+          "name": "Rural Floor 04",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "rural",
+          "weight": 0
+        }
+      ]
+    },
+    "link.ladder": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "71667807-3d70-4ee9-bdff-981d39381af1",
+          "name": "Ladder wood 01",
+          "geom": {
+            "size": {
+              "x": 0.504,
+              "y": 2.002,
+              "z": 0.758
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0003,
+              "y": 1.0052,
+              "z": 0.3081
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "link.ramp": {
+      "rotation": "facing",
+      "variants": [],
+      "fallback": "link.stairs"
+    },
+    "link.spiral_stairs": {
+      "rotation": "facing",
+      "variants": [],
+      "fallback": "link.ladder"
+    },
+    "link.stairs": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "ed072f00-f245-44e7-9d25-6a1cb498cbaa",
+          "name": "Dungeon Stairs",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "facing": {
+            "ascendsToward": "W"
+          }
+        },
+        {
+          "asset": "10809742-70c4-45a9-9350-2ae81505da07",
+          "name": "Dungeon Stair Block",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "solid",
+          "weight": 0
+        }
+      ]
+    },
+    "link.trapdoor": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "db607b82-e107-412c-a899-33afe30c6368",
+          "name": "Wood Hatch - Square floor",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "6406331d-ac2d-4453-a355-66428f21bee7",
+          "name": "Metal Hatch - Square floor",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "metal",
+          "weight": 0
+        }
+      ]
+    },
+    "marker.alignment": {
+      "rotation": "fixed",
+      "variants": [
+        {
+          "asset": "ade24972-5bf6-4dc4-be27-48026fbfa097",
+          "name": "Dungeon Pillar",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "alternates": [
+            "01a05c16-e23c-4d23-9b6e-c9ac81736ca2"
+          ],
+          "alternateGeom": {
+            "01a05c16-e23c-4d23-9b6e-c9ac81736ca2": {
+              "size": {
+                "x": 1,
+                "y": 0.5,
+                "z": 1
+              },
+              "originAt": "minCorner",
+              "boundsCenter": {
+                "x": 0.5,
+                "y": 0.25,
+                "z": 0.5
+              },
+              "lengthAxis": "square"
+            }
+          }
+        }
+      ]
+    },
+    "opening.archway": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "e7a2735d-8e6f-4c48-818d-6eb4896bdf03",
+          "name": "md_wall_archway_2x1_01",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "opening.arrow_slit": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [],
+      "fallback": "opening.window"
+    },
+    "opening.bars": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "894cf316-b8c5-4559-923d-7ea4c79280aa",
+          "name": "Prison bars v2 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "opening.door": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "3151e230-bac7-401e-8fa8-b993bbee17ea",
+          "name": "Door - Dungeon",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "facing": {
+            "handleEnd": "W"
+          }
+        },
+        {
+          "asset": "63c8488e-e0b6-4d75-9f0c-97163f77edbc",
+          "name": "Door - Prison",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "prison",
+          "weight": 0,
+          "facing": {
+            "handleEnd": "W"
+          }
+        }
+      ]
+    },
+    "opening.double_door": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "e963aa2f-ec17-4841-9887-721c9d37161d",
+          "name": "Doors - Dungeon Double",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "opening.locked_door": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [],
+      "fallback": "opening.door"
+    },
+    "opening.portcullis": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "fallback": "opening.bars",
+      "variants": [
+        {
+          "asset": "fcb7a2fe-4b79-4d0a-b1fd-31e4b17ffaf5",
+          "name": "Door - Portcullis",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "opening.secret_door": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [],
+      "fallback": "wall.wall"
+    },
+    "opening.window": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "75c7d3e9-752c-46f8-aa85-d58bc5e16e36",
+          "name": "Rural Wall Window",
+          "geom": {
+            "size": {
+              "x": 0.5,
+              "y": 2,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.25,
+              "y": 1,
+              "z": 1
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "alternates": [
+            "7c5edd5b-38fa-4c1a-aa39-99b5720a9171"
+          ],
+          "alternateGeom": {
+            "7c5edd5b-38fa-4c1a-aa39-99b5720a9171": {
+              "size": {
+                "x": 0.5,
+                "y": 2,
+                "z": 2
+              },
+              "originAt": "minCorner",
+              "boundsCenter": {
+                "x": 0.25,
+                "y": 1,
+                "z": 1
+              },
+              "lengthAxis": "z"
+            }
+          }
+        }
+      ]
+    },
+    "wall.brick": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "wall.stone"
+    },
+    "wall.cave_rock": {
+      "mount": "full-cell",
+      "rotation": "fixed",
+      "height": 2,
+      "greedyTiling": false,
+      "variants": [
+        {
+          "asset": "c06fdfb8-bf24-4234-99c7-3a72a5aacb02",
+          "name": "Cave Wall 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "39f5b1a9-6316-4d13-90d6-12a0bac9c38e",
+          "name": "Cave Wall 03",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.5
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "long",
+          "weight": 0
+        },
+        {
+          "asset": "283fe136-1ac3-4025-b9bf-90612c464c52",
+          "name": "Cave Wall Corner 01",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "corner",
+          "weight": 0
+        }
+      ]
+    },
+    "wall.fence": {
+      "mount": "edge-center",
+      "rotation": "facing",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "b86102fa-7c63-461b-a1e9-6529e3495eec",
+          "name": "Wooden Fence ",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.68,
+              "z": 0.18
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.34,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "wall.hedge": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "wall.fence"
+    },
+    "wall.iron_bars": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "894cf316-b8c5-4559-923d-7ea4c79280aa",
+          "name": "Prison bars v2 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "wall.low_wall": {
+      "mount": "edge-center",
+      "rotation": "facing",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "4e8c2ded-fd67-4c63-890e-8c655d445d1d",
+          "name": "Stone Wall 01",
+          "geom": {
+            "size": {
+              "x": 1.981,
+              "y": 1.002,
+              "z": 0.431
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.5007,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "wall.palisade": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "wall.wood"
+    },
+    "wall.plaster": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "wall.stone"
+    },
+    "wall.railing": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "wall.fence"
+    },
+    "wall.ruined": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "fallback": "wall.wall",
+      "variants": [
+        {
+          "asset": "6ac43c67-e43d-455c-826d-e013745bdfbc",
+          "name": "Dungeon Wall - Ruined",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "wall.stone": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "wall.wall"
+    },
+    "wall.wall": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "63270c8a-9484-4ae8-926e-22e3de9048a1",
+          "name": "Dungeon Wall 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "alternates": [
+            "56e2633d-bbce-4eea-bde7-cb7c34b636f1"
+          ],
+          "alternateGeom": {
+            "56e2633d-bbce-4eea-bde7-cb7c34b636f1": {
+              "size": {
+                "x": 1,
+                "y": 2,
+                "z": 0.5
+              },
+              "originAt": "minCorner",
+              "boundsCenter": {
+                "x": 0.5,
+                "y": 1,
+                "z": 0.25
+              },
+              "lengthAxis": "x"
+            }
+          }
+        },
+        {
+          "asset": "bd1822ab-9e93-4fa6-9435-1793168de03f",
+          "name": "Dungeon Wall 02",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "alternates": [
+            "eea7b9e2-b30c-43f3-95fb-0db4a6720d45"
+          ],
+          "alternateGeom": {
+            "eea7b9e2-b30c-43f3-95fb-0db4a6720d45": {
+              "size": {
+                "x": 2,
+                "y": 2,
+                "z": 0.5
+              },
+              "originAt": "minCorner",
+              "boundsCenter": {
+                "x": 1,
+                "y": 1,
+                "z": 0.25
+              },
+              "lengthAxis": "x"
+            }
+          }
+        }
+      ]
+    },
+    "wall.wood": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "variants": [],
+      "fallback": "wall.wall"
+    },
+    "wall_post.wall": {
+      "rotation": "fixed",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "cec14f2e-faf2-4a9a-bd96-909c16b92197",
+          "name": "Dungeon Wall Corner Filler",
+          "geom": {
+            "size": {
+              "x": 0.5,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.25,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "alternates": [
+            "bb8e7378-44da-4556-bac5-92420f766815"
+          ],
+          "alternateGeom": {
+            "bb8e7378-44da-4556-bac5-92420f766815": {
+              "size": {
+                "x": 0.5,
+                "y": 2,
+                "z": 0.5
+              },
+              "originAt": "minCorner",
+              "boundsCenter": {
+                "x": 0.25,
+                "y": 1,
+                "z": 0.25
+              },
+              "lengthAxis": "square"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "source": {
+    "generatedBy": "packages/core/scripts/import-palette-draft.ts from data/palette-draft.json"
+  }
+}
