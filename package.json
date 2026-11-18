@@ -4,7 +4,11 @@
   "private": true,
   "license": "MIT",
   "description": "Design TaleSpire maps by chatting with Claude, review a 2D plan, export slabs.",
-  "homepage": "https://github.com/mwaboff/slabyrinth",
+  "author": {
+    "name": "Michael Aboff",
+    "email": "michael@aboff.com"
+  },
+  "homepage": "https://slabyrinth.aboff.com/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mwaboff/slabyrinth.git"

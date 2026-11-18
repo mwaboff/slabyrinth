@@ -60,3 +60,6 @@ docs/internal/
 .env
 .env.*
 *.stackdump
+
+# Full-page landing-page previews (several MB each); regenerate locally, not committed
+docs/renders/site-*.png

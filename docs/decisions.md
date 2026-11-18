@@ -46,6 +46,7 @@ what the UX spec says:
 | 9 | PNG export defaults; launch screen | Print (light) style by default with a dark option, 70 px per square. The app opens on Home with recent maps. | Decided |
 | 10 | Repository and landing page | Repository: https://github.com/mwaboff/slabyrinth (public). The landing page is static HTML/CSS in `site/`, deployed to GitHub Pages by `.github/workflows/pages.yml` on pushes to `main` that touch `site/**`; screenshots via `npm run capture:site`. | Decided |
 | 11 | macOS | macOS: not supported for now (owner decision 2026-11-18); no Mac build in CI. If revisited: needs signing/notarisation (paid Apple Developer account), Mac TaleSpire install paths, and testing. | Decided |
+| 12 | Landing page domain | Site URL `https://slabyrinth.aboff.com` (owner, 2026-11-18). DNS: CNAME record `slabyrinth` → `mwaboff.github.io`. Set in Settings → Pages → Custom domain, then "Enforce HTTPS" (an Actions-based Pages deploy ignores a `CNAME` file). Every asset path in `site/` is relative, so the page also works at `https://mwaboff.github.io/slabyrinth/`. | Decided |
 
 ## Contract rulings during the build
 

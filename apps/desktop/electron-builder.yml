@@ -3,7 +3,7 @@
 # so no node_modules are packaged and no native rebuild is needed.
 appId: app.slabyrinth.desktop
 productName: Slabyrinth
-copyright: Copyright (c) 2026 mwaboff
+copyright: Copyright (c) 2026 Michael Aboff
 directories:
   output: release
   buildResources: build

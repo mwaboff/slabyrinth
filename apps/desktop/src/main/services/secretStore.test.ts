@@ -252,7 +252,7 @@ describe("SecretStore", () => {
     };
     const store = new SecretStore({
       file,
-      safeStorage: fakeSafeStorage(),
+      safeStorage: fakeSafeStorage({ backend: "gnome_libsecret" }),
       platform: process.platform,
       logger: memoryLogger(),
       knownProviders: ["anthropic"],

@@ -5,6 +5,7 @@ You describe a map by chatting with Claude, and the app turns the conversation i
 You review and edit the plan as a 2D map with a room key.
 When it looks right, Slabyrinth compiles it into TaleSpire slabs that you paste into the game.
 It runs on Windows and Linux (Electron, React, TypeScript).
+Website and downloads: https://slabyrinth.aboff.com/
 
 Slabyrinth is an unofficial fan-made tool. It is not affiliated with, endorsed by or sponsored by
 Bouncyrock Entertainment (makers of TaleSpire) or Anthropic (makers of Claude). TaleSpire and Claude
@@ -96,5 +97,5 @@ AppImages need FUSE 2: `libfuse2` on Ubuntu 22.04, `libfuse2t64` on Ubuntu 24.04
 
 ## Licence
 
-MIT, see [`LICENSE`](LICENSE). Third-party test data and its licence are listed in
+© 2026 Michael Aboff. MIT, see [`LICENSE`](LICENSE). Third-party test data and its licence are listed in
 [`data/THIRD-PARTY.md`](data/THIRD-PARTY.md).
