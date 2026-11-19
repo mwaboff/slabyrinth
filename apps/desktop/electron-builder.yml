@@ -12,6 +12,11 @@ files:
   - "package.json"
 # No extraResources: the curated palettes and orientation are compiled into the bundle (core
 # palette/bundled.ts); user overrides live in userData/palettes. The full asset catalog never ships.
+# The licences of the bundled fonts and npm packages (scripts/third-party-notices.ts) sit next to the
+# executable, beside Electron's LICENSE.electron.txt and LICENSES.chromium.html (also in the AppImage).
+extraFiles:
+  - from: third-party/THIRD-PARTY-NOTICES.txt
+    to: THIRD-PARTY-NOTICES.txt
 asar: true
 npmRebuild: false
 nodeGypRebuild: false

@@ -25,6 +25,10 @@ TaleSpire.Slab is Copyright (c) 2021 Sven Boulanger, released under the MIT Lice
 > CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 > IN THE SOFTWARE.
 
+These vectors are used by the tests only and are not part of the app. The licences of what the app does ship
+(fonts and bundled npm packages) are in `apps/desktop/third-party/THIRD-PARTY-NOTICES.txt`, which is copied next
+to the program; the landing page serves its font licences from `site/assets/fonts/`.
+
 Slab strings from community sharing sites and from repositories without a licence are not included. All other slab
 strings in this repository (`data/test-slabs/`, `data/calibration-slab.txt`, the tests) were produced by
 Slabyrinth's own encoder. Asset ids and names refer to TaleSpire content owned by Bouncyrock Entertainment; no game

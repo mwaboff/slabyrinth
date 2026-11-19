@@ -21,6 +21,14 @@ if (!existsSync(exe)) {
   process.exit(2);
 }
 
+// Licence notices that must travel with every copy (electron-builder.yml extraFiles; Electron's own).
+const notices = ["THIRD-PARTY-NOTICES.txt", "LICENSE.electron.txt", "LICENSES.chromium.html"];
+const missingNotices = notices.filter((f) => !existsSync(path.join(path.dirname(exe), f)));
+if (missingNotices.length > 0) {
+  process.stderr.write(`SMOKE_FAIL licence files missing next to the app: ${missingNotices.join(", ")}\n`);
+  process.exit(1);
+}
+
 const TIMEOUT_MS = 90_000;
 const child = spawn(exe, [], {
   env: { ...process.env, SLABYRINTH_SMOKE: "1" },

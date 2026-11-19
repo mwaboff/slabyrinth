@@ -623,9 +623,25 @@ function AboutSection({ s }: { s: AppSettings }) {
         </span>
       </Row>
       <Row label="Fonts">Cinzel, Lora and Source Sans 3, under the SIL Open Font Licence.</Row>
+      <Row label="Licences">
+        <span className="muted">
+          Slabyrinth is released under the MIT licence. The licences of its fonts and the open-source
+          libraries it includes are in THIRD-PARTY-NOTICES.txt in the app's folder.
+        </span>
+        <button
+          className="btn btn--sm"
+          onClick={() => void call("shell:openExternal", { url: THIRD_PARTY_NOTICES_URL })}
+        >
+          Third-party notices
+        </button>
+      </Row>
     </>
   );
 }
+
+/** The notices on GitHub (allowed by shell:openExternal's repository rule); the same file ships with the app. */
+export const THIRD_PARTY_NOTICES_URL =
+  "https://github.com/mwaboff/slabyrinth/blob/main/apps/desktop/third-party/THIRD-PARTY-NOTICES.txt";
 
 export function SettingsModal() {
   const section = useApp((x) => x.settingsOpen) ?? "ai";

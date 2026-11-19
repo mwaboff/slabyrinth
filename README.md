@@ -108,7 +108,8 @@ Before contributing, read [CONTRIBUTING.md](CONTRIBUTING.md), [docs/decisions.md
 
 Copyright © 2026 Michael Aboff. Released under the [MIT licence](LICENSE).
 
-- The app's fonts, [Cinzel](https://fonts.google.com/specimen/Cinzel), [Lora](https://fonts.google.com/specimen/Lora) and [Source Sans 3](https://fonts.google.com/specimen/Source+Sans+3), are bundled through Fontsource under the SIL Open Font License 1.1.
+- The app's fonts, [Cinzel](https://fonts.google.com/specimen/Cinzel), [Lora](https://fonts.google.com/specimen/Lora) and [Source Sans 3](https://fonts.google.com/specimen/Source+Sans+3), are bundled through Fontsource under the SIL Open Font License 1.1 (licence texts in [site/assets/fonts](site/assets/fonts)).
+- The app ships the licences of its fonts and bundled open-source libraries in `THIRD-PARTY-NOTICES.txt` next to the program ([apps/desktop/third-party/THIRD-PARTY-NOTICES.txt](apps/desktop/third-party/THIRD-PARTY-NOTICES.txt)).
 - Two slab test vectors come from [TaleSpire.Slab](https://github.com/svenboulanger/TaleSpire.Slab) by Sven Boulanger (MIT). See [data/THIRD-PARTY.md](data/THIRD-PARTY.md).
 
 Slabyrinth is an unofficial fan-made tool. It is not affiliated with, endorsed by or sponsored by Bouncyrock Entertainment (makers of TaleSpire) or Anthropic (makers of Claude). TaleSpire and Claude are trademarks of their respective owners. Slabyrinth does not include or redistribute TaleSpire's models, textures or asset catalog: its built-in palettes list only the ids, names and sizes of the pieces they use, and the full asset library is read from your own TaleSpire install.

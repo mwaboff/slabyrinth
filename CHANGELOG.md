@@ -11,6 +11,10 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 - Release notes in the update notice are now formatted (headings, lists, bold) instead of shown as raw text.
 
+### Fixed
+
+- The app now includes the licence notices for its fonts and bundled libraries (THIRD-PARTY-NOTICES.txt next to the program, and Settings ▸ About ▸ Third-party notices).
+
 ## [0.1.1] - 2026-11-18
 
 ### Changed
