@@ -7,6 +7,10 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 ## [Unreleased]
 
+### Changed
+
+- Release notes in the update notice are now formatted (headings, lists, bold) instead of shown as raw text.
+
 ## [0.1.1] - 2026-11-18
 
 ### Changed

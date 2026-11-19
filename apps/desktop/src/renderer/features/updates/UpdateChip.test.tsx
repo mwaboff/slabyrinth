@@ -8,9 +8,12 @@ import { useApp } from "../../stores/app";
 import { useSettings } from "../../stores/settings";
 import { useUpdates } from "../../stores/updates";
 import { SettingsModal } from "../settings/SettingsModal";
-import { INSTALL_TEXT, NOTES_DISPLAY_MAX, UpdateChip } from "./UpdateChip";
+import { NOTES_MAX_LINES } from "../../../shared/releaseNotes";
+import { TRUNCATED_TEXT } from "./ReleaseNotes";
+import { INSTALL_TEXT, UpdateChip } from "./UpdateChip";
 
-const NOTES = "Added\n- Stamps\n\n<b>bold</b> **not markdown** <img src=x onerror=alert(1)>";
+const NOTES =
+  "### Added\n- Stamps\n\n<b>bold</b> **real bold** [link](https://evil.example) <img src=x onerror=alert(1)>";
 
 function available(over: Partial<UpdateStatus> = {}, notes = NOTES): UpdateStatus {
   return {
@@ -67,7 +70,7 @@ describe("UpdateChip", () => {
     expect(screen.getByRole("button", { name: "Update available · 0.2.0" })).toBeInTheDocument();
   });
 
-  it("opens a popover with date, plain-text notes and install advice; Download opens the release page", async () => {
+  it("opens a popover with date, formatted notes and install advice; Download opens the release page", async () => {
     useApp.setState({ platform: "win32" });
     useUpdates.setState({ status: available() });
     const calls = stubBridge((channel) => (channel === "shell:openExternal" ? { opened: true } : undefined));
@@ -78,11 +81,15 @@ describe("UpdateChip", () => {
     expect(within(pop).getByText("Slabyrinth 0.2.0")).toBeInTheDocument();
     expect(pop).toHaveTextContent(/Published .*2026/);
     expect(pop).toHaveTextContent("you have 0.1.0");
-    // Untrusted notes are text: no element is created from them, line breaks stay in the text node.
+    // Untrusted notes: the Markdown subset is formatted; HTML and links stay text.
     const notes = within(pop).getByLabelText("What's new");
-    expect(notes.textContent).toBe(NOTES);
-    expect(notes.children).toHaveLength(0);
-    expect(pop.querySelector("img")).toBeNull();
+    expect(within(notes).getByRole("heading", { name: "Added" })).toBeInTheDocument();
+    expect(within(notes).getByRole("listitem")).toHaveTextContent("Stamps");
+    expect(notes.querySelector("strong")).toHaveTextContent("real bold");
+    expect(notes).toHaveTextContent("<b>bold</b> real bold link <img src=x onerror=alert(1)>");
+    expect(pop.querySelector("img, a")).toBeNull();
+    expect(notes.querySelector("b")).toBeNull();
+    expect(notes.textContent).not.toContain("evil.example");
     expect(within(pop).getByText(INSTALL_TEXT.win32)).toBeInTheDocument();
     await userEvent.click(within(pop).getByRole("button", { name: "Download" }));
     expect(calls).toContainEqual([
@@ -93,13 +100,14 @@ describe("UpdateChip", () => {
     expect(chip).toHaveFocus();
   });
 
-  it("caps long notes with …", async () => {
-    useUpdates.setState({ status: available({}, "x".repeat(NOTES_DISPLAY_MAX + 100)) });
+  it("caps long notes with a plain-text note pointing to the release page", async () => {
+    useUpdates.setState({ status: available({}, "- item\n".repeat(NOTES_MAX_LINES + 100)) });
     render(<UpdateChip />);
     await userEvent.click(screen.getByRole("button", { name: /Update available/ }));
-    const text = screen.getByLabelText("What's new").textContent;
-    expect(text.length).toBe(NOTES_DISPLAY_MAX);
-    expect(text.endsWith("…")).toBe(true);
+    const notes = screen.getByLabelText("What's new");
+    expect(within(notes).getAllByRole("listitem").length).toBeLessThanOrEqual(NOTES_MAX_LINES);
+    expect(within(notes).getByText(TRUNCATED_TEXT)).toBeInTheDocument();
+    expect(notes.querySelector("a")).toBeNull();
   });
 
   it("Skip this version asks main and hides the chip; Later hides it for this session", async () => {

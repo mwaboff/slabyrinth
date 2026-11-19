@@ -1,8 +1,9 @@
 /**
  * Update notice in the real app, without any network: the e2e TEST BUILD reads a canned GitHub
  * "latest release" response from SLABYRINTH_E2E_UPDATE_RESPONSE (safe mode only; production bundles drop
- * that code) and runs the startup check once. The chip appears, the popover shows the notes as plain text,
- * and "Skip this version" is remembered in settings.
+ * that code) and runs the startup check once. The chip appears, the popover shows the notes as the allow-listed
+ * Markdown subset (headings, lists, bold, code) with hostile HTML and links left as text, and "Skip this version"
+ * is remembered in settings.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
@@ -12,6 +13,22 @@ import { cleanRun, invoke, launch, newRun, unwrap, type Run } from "./helpers";
 
 const renders = (name: string): string =>
   fileURLToPath(new URL(`../../../docs/renders/${name}`, import.meta.url));
+
+/** A hostile line among ordinary notes: the HTML must show as literal text, the link as its text only. */
+const HOSTILE =
+  '<img src=x onerror=alert(1)> <a href="https://evil.example">x</a> [click](javascript:alert(1))';
+const HOSTILE_SHOWN = '<img src=x onerror=alert(1)> <a href="https://evil.example">x</a> click';
+const NOTES_BODY = [
+  "### Added",
+  "",
+  "- **Stamps**: place a saved room again in one click.",
+  "- Undo a stamp with `Ctrl+Z`, like any other change.",
+  "",
+  "### Fixed",
+  "",
+  "- Stairs no longer end inside a wall.",
+  `- ${HOSTILE}`,
+].join("\r\n");
 
 let run: Run;
 test.beforeEach(() => {
@@ -37,7 +54,7 @@ test("update chip → popover → Skip this version", async () => {
       prerelease: false,
       published_at: "2026-11-30T09:00:00Z",
       html_url: "https://evil.example/not-used",
-      body: "Added\r\n- Stamps\r\n\r\n<b>not html</b>",
+      body: NOTES_BODY,
     }),
   );
   const { app, page } = await launch(run, { SLABYRINTH_E2E_UPDATE_RESPONSE: canned });
@@ -48,8 +65,20 @@ test("update chip → popover → Skip this version", async () => {
     const pop = page.getByRole("dialog", { name: "Update available" });
     await expect(pop.getByText("Slabyrinth 99.0.0")).toBeVisible();
     const notes = pop.getByLabel("What's new");
-    await expect(notes).toHaveText("Added\n- Stamps\n\n<b>not html</b>");
-    expect(await notes.locator("b").count()).toBe(0);
+    await expect(notes.getByRole("heading", { name: "Added" })).toBeVisible();
+    await expect(notes.getByRole("heading", { name: "Fixed" })).toBeVisible();
+    await expect(notes.locator("li")).toHaveCount(4);
+    await expect(notes.locator("strong")).toHaveText("Stamps");
+    await expect(notes.locator("code")).toHaveText("Ctrl+Z");
+    await expect(notes).toContainText(HOSTILE_SHOWN);
+    // Nothing from the notes became markup: no dangerous elements, no attribute other than our static classes.
+    const found = await notes.evaluate((root) => ({
+      dangerous: root.querySelectorAll("a, img, script, iframe, style, object, embed, form, svg, b").length,
+      attrs: [...root.querySelectorAll("*")].flatMap((el) =>
+        el.getAttributeNames().filter((n) => n !== "class"),
+      ),
+    }));
+    expect(found).toEqual({ dangerous: 0, attrs: [] });
 
     const status = unwrap(await invoke(page, "updates:status", undefined));
     expect(status.update?.url).toBe("https://github.com/mwaboff/slabyrinth/releases/tag/v99.0.0");

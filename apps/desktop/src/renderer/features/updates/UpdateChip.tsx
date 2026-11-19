@@ -1,7 +1,8 @@
 /**
  * "Update available" chip + popover (decisions.md "Update notice"). Passive: it never opens by itself, so it can't
  * interrupt a running turn or a dialog. "Download" opens the release page (URL built in main from the validated tag,
- * and checked again by shell:openExternal's allow-list). Release notes are untrusted and shown as plain text only.
+ * and checked again by shell:openExternal's allow-list). Release notes are untrusted: only an allow-listed Markdown
+ * subset, as React text (ReleaseNotes.tsx); never HTML, links not clickable, no images.
  */
 import { useRef, useState } from "react";
 import "./updates.css";
@@ -9,6 +10,7 @@ import { tryCall } from "../../bridge/client";
 import { useApp } from "../../stores/app";
 import { chipVersion, useUpdates } from "../../stores/updates";
 import { useDismiss } from "../../ui/dismiss";
+import { ReleaseNotes } from "./ReleaseNotes";
 
 /** What the user does with the download, matched to the real release targets (electron-builder.yml). */
 export const INSTALL_TEXT: Record<"win32" | "linux" | "darwin", string> = {
@@ -17,12 +19,6 @@ export const INSTALL_TEXT: Record<"win32" | "linux" | "darwin", string> = {
   linux: "Replace your AppImage with the new one. Your settings, key and maps are kept.",
   darwin: "Install the new version. Your settings, key and maps are kept.",
 };
-
-/** Caps the notes for display (main caps them too); line breaks are kept by CSS (pre-wrap). */
-export const NOTES_DISPLAY_MAX = 1200;
-export function displayNotes(notes: string): string {
-  return notes.length > NOTES_DISPLAY_MAX ? `${notes.slice(0, NOTES_DISPLAY_MAX - 1).trimEnd()}…` : notes;
-}
 
 export function formatDate(iso: string | null): string | null {
   if (iso === null) return null;
@@ -39,7 +35,6 @@ export function UpdateDetails({ onDone, showLater = true }: { onDone?: () => voi
   const u = status?.update;
   if (!status || !u) return null;
   const published = formatDate(u.publishedAt);
-  const notes = displayNotes(u.notes);
   return (
     <div className="upd">
       <div className="upd__head">
@@ -48,12 +43,10 @@ export function UpdateDetails({ onDone, showLater = true }: { onDone?: () => voi
           {published !== null ? `Published ${published} · ` : ""}you have {status.currentVersion}
         </span>
       </div>
-      {notes !== "" && (
+      {u.notes.trim() !== "" && (
         <>
           <span className="eyebrow">What's new</span>
-          <div className="upd__notes" tabIndex={0} aria-label="What's new">
-            {notes}
-          </div>
+          <ReleaseNotes notes={u.notes} />
         </>
       )}
       <p className="upd__install">{INSTALL_TEXT[platform]}</p>

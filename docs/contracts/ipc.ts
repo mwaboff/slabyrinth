@@ -222,7 +222,7 @@ export interface UpdateInfo {
   /** The validated release tag ("v0.2.0"). */
   tag: string;
   publishedAt: string | null;
-  /** Release notes: untrusted PLAIN TEXT, capped in main. Never rendered as HTML or markdown. */
+  /** Release notes: untrusted text, sanitized and capped in main. Shown only as an allow-listed Markdown subset of plain text (no HTML, no links, no images). */
   notes: string;
   /** https://github.com/mwaboff/slabyrinth/releases/tag/<tag>, built in main from the tag (never taken from the response). */
   url: string;

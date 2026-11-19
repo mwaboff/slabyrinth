@@ -256,11 +256,16 @@ describe("throttle, startup rules and skip", () => {
 });
 
 describe("plainNotes", () => {
-  it("normalizes line breaks, strips control and bidi characters, caps with …", () => {
-    expect(plainNotes("a\r\nb\rc\u0007‮d\n\n\n\ne")).toBe("a\nb\ncd\n\ne");
+  it("normalizes line breaks, strips control, bidi and zero-width characters, caps with a … line", () => {
+    expect(plainNotes("a\r\nb\rc\u0007‮d​\u0000\n\n\n\ne")).toBe("a\nb\ncd\n\ne");
     expect(plainNotes(null)).toBe("");
     const long = plainNotes("x".repeat(NOTES_MAX_CHARS + 50));
     expect(long.length).toBe(NOTES_MAX_CHARS);
-    expect(long.endsWith("…")).toBe(true);
+    expect(long.endsWith("\n…")).toBe(true);
+    // A cut prefers a line break, and the renderer never receives more than the cap (even from a huge body).
+    const lines = plainNotes("- item\n".repeat(10_000));
+    expect(lines.length).toBeLessThanOrEqual(NOTES_MAX_CHARS);
+    expect(lines.endsWith("- item\n…")).toBe(true);
+    expect(plainNotes("y".repeat(256 * 1024)).length).toBe(NOTES_MAX_CHARS);
   });
 });

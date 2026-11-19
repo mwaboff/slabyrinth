@@ -136,7 +136,7 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
             version: "0.2.0",
             tag: "v0.2.0",
             publishedAt: "2026-12-01T12:00:00Z",
-            notes: "Added\n- Stamps for repeated rooms\n\nFixed\n- Stairs against walls",
+            notes: "### Added\n- Stamps for repeated rooms\n\n### Fixed\n- Stairs against walls",
             url: "https://github.com/mwaboff/slabyrinth/releases/tag/v0.2.0",
           }
         : null;

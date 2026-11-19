@@ -64,9 +64,8 @@
   margin: 0;
 }
 
-/* Untrusted release notes: plain text, line breaks kept, scrolls when long. */
+/* Untrusted release notes (ReleaseNotes.tsx): an allow-listed Markdown subset as text; scrolls when long. */
 .upd__notes {
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-height: 180px;
   overflow: auto;
@@ -75,6 +74,73 @@
   border-radius: var(--r-6);
   padding: var(--s8) var(--s10);
   color: var(--ink-2);
+}
+
+.upd-md > :first-child {
+  margin-top: 0;
+}
+
+.upd-md > :last-child {
+  margin-bottom: 0;
+}
+
+/* Headings stay popover-sized: # and ## like the dialog title, ### (Keep a Changelog sections) as eyebrows. */
+.upd-md__h {
+  margin: var(--s10) 0 var(--s4);
+  color: var(--ink);
+}
+
+.upd-md__h--1,
+.upd-md__h--2 {
+  font: var(--t-ui-strong);
+}
+
+.upd-md__h--3 {
+  font: var(--t-eyebrow);
+  letter-spacing: var(--eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.upd-md__h--4 {
+  font: var(--t-small-strong);
+}
+
+.upd-md__p {
+  margin: 0 0 var(--s6);
+}
+
+.upd-md__list {
+  margin: 0 0 var(--s6);
+  padding-left: var(--s16);
+  display: grid;
+  gap: var(--s2);
+}
+
+.upd-md__list--sub {
+  margin: var(--s2) 0 0;
+}
+
+.upd-md__list li::marker {
+  color: var(--muted);
+}
+
+.upd-md strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.upd-md__code {
+  font: var(--t-code);
+  background: var(--surface-2);
+  border-radius: var(--r-3);
+  padding: 0 var(--s4);
+}
+
+.upd-md__more {
+  margin: var(--s8) 0 0;
+  font: var(--t-meta);
+  color: var(--muted);
 }
 
 .upd__actions {

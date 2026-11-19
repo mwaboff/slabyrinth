@@ -3,6 +3,7 @@ import type { UpdateInfo, UpdateStatus } from "../../shared/ipc";
 import type { AppSettings } from "../../shared/project";
 import { isAllowedExternalUrl, REPO_PATH } from "../externalUrls";
 import type { Logger } from "../logger";
+import { NOTES_MAX_CHARS, prepareNotes } from "../../shared/releaseNotes";
 import { formatVersion, isNewer, parseVersion } from "./semver";
 
 /**
@@ -15,7 +16,9 @@ import { formatVersion, isNewer, parseVersion } from "./semver";
  *  - ~8 s timeout and a 256 KB response cap; the body is zod-validated. Any failure (offline, 403, 429, bad
  *    JSON, oversized, timeout, foreign redirect) is the quiet "failed" state, never an error dialog.
  *  - The download URL is built here from the validated tag and must pass the shell:openExternal allow-list;
- *    nothing URL-like from the response is used. Release notes are passed on as capped plain text.
+ *    nothing URL-like from the response is used. Release notes are untrusted text: sanitized (control, bidi and
+ *    zero-width characters) and capped at NOTES_MAX_CHARS here, before IPC (shared/releaseNotes.ts); the renderer
+ *    shows only an allow-listed Markdown subset as React text, never HTML, and links are not clickable.
  *  - Startup checks: packaged builds only, never in safe mode (smoke/e2e), only with autoCheck on, at most
  *    once per 24 h (settings.updates.lastCheckedAt). Manual checks ignore the throttle and the setting.
  */
@@ -25,7 +28,7 @@ export const RELEASE_PAGE_BASE = `https://github.com${REPO_PATH}/releases/tag/`;
 export const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_TIMEOUT_MS = 8000;
 export const DEFAULT_MAX_BYTES = 256 * 1024;
-export const NOTES_MAX_CHARS = 4000;
+export { NOTES_MAX_CHARS };
 const MAX_REDIRECTS = 3;
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
@@ -60,17 +63,9 @@ type FetchOutcome = { ok: true; release: z.infer<typeof releaseSchema> } | { ok:
 
 class CheckFailure extends Error {}
 
-/** Untrusted release body → plain text: normalized line breaks, no control characters, capped with "…". */
+/** Untrusted release body → sanitized text capped before IPC (see shared/releaseNotes.ts prepareNotes). */
 export function plainNotes(body: string | null | undefined, max = NOTES_MAX_CHARS): string {
-  if (body === null || body === undefined) return "";
-  let text = body
-    .replace(/\r\n?/g, "\n")
-    // eslint-disable-next-line no-control-regex -- stripping control characters is the point
-    .replace(/[\u0000-\u0008\u000B-\u001F\u007F-\u009F‎‏‪-‮⁦-⁩]/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  if (text.length > max) text = `${text.slice(0, max - 1).trimEnd()}…`;
-  return text;
+  return prepareNotes(body, max);
 }
 
 /** Due when never checked, when the last check is 24 h old, or when its time is unreadable or in the future. */
