@@ -12,6 +12,7 @@
   "license": "MIT",
   "type": "module",
   "main": "./out/main/index.js",
+  "desktopName": "slabyrinth.desktop",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",

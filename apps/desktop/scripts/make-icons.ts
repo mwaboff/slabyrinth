@@ -2,7 +2,7 @@
  * Generates the app icons from the Slabyrinth logo (src/shared/brandMark.ts), with no dependencies:
  *   build/icon.png            512x512 (electron-builder fallback / Linux)
  *   build/icon.ico            16, 24, 32, 48, 64, 128, 256 (PNG-compressed ICO entries)
- *   build/icons/<n>x<n>.png   16 … 512 (Linux AppImage)
+ *   build/icons/<n>x<n>.png   16, 24, 32, 48, 64, 128, 256, 512 (Linux icon set; also the window icon)
  * The website uses the same artwork: site/assets/img/icon-256.png and favicon-32.png are copies of
  * build/icons/256x256.png and 32x32.png — copy them again whenever the icons change.
  * 16, 24 and 32 px use a pixel-snapped layout of the same mark (SNAPPED below) so they stay crisp.
@@ -186,7 +186,7 @@ const buildDir = fileURLToPath(new URL("../build/", import.meta.url));
 mkdirSync(`${buildDir}icons`, { recursive: true });
 writeFileSync(`${buildDir}icon.png`, encodePng(512));
 writeFileSync(`${buildDir}icon.ico`, encodeIco([16, 24, 32, 48, 64, 128, 256]));
-for (const s of [16, 32, 48, 64, 128, 256, 512]) {
+for (const s of [16, 24, 32, 48, 64, 128, 256, 512]) {
   writeFileSync(`${buildDir}icons/${String(s)}x${String(s)}.png`, encodePng(s));
 }
 process.stdout.write(`Icons written to ${buildDir}\n`);

@@ -1,5 +1,6 @@
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { BrowserWindow, screen } from "electron";
+import { windowIconPath } from "./appIcon";
 import { clampToDisplays, loadWindowState, saveWindowState, type WindowState } from "./windowState";
 
 export interface MainWindowOptions {
@@ -38,6 +39,8 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     // No backgroundColor: colours come only from renderer theme tokens; the window is shown on
     // ready-to-show, after the first paint.
     title: "Slabyrinth",
+    // The logo on Linux (window + taskbar) and in dev runs; packaged Windows also has it in the exe.
+    icon: windowIconPath(),
     autoHideMenuBar: true,
     webPreferences: {
       preload: fileURLToPath(new URL("../preload/index.cjs", import.meta.url)),

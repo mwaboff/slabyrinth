@@ -11,6 +11,7 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 - The settings icon is now a gear, so it no longer looks like the theme toggle's sun.
 - The app now uses the same logo as the website.
+- The app window shows the Slabyrinth icon on Linux, and the running app groups under its own launcher or pinned taskbar icon on Linux and Windows.
 
 ## [0.1.0] - 2026-11-18
 

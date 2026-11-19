@@ -2,8 +2,10 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, nativeImage } from "electron";
 import { createAppServices, type AppServices } from "./app";
+import { windowIconPath } from "./appIcon";
+import { APP_ID } from "./appIdentity";
 import { FIXTURE_PLAN } from "./engine/recordings";
 import { createFileLogger } from "./logger";
 import { makeAppPaths } from "./paths";
@@ -94,6 +96,10 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   installSecurityPolicy(isDev && devServerUrl !== undefined);
+  // Windows: match the AppUserModelID the installer gives the shortcuts, so the running window groups
+  // under the pinned/Start-menu icon (Electron's default is "electron.app.Slabyrinth"). Dev runs keep
+  // the default so they don't merge with an installed copy.
+  if (process.platform === "win32" && app.isPackaged) app.setAppUserModelId(APP_ID);
 
   app.on("second-instance", (_event, argv) => {
     const win = BrowserWindow.getAllWindows()[0];
@@ -166,6 +172,21 @@ if (!app.requestSingleInstanceLock()) {
             const n = s.palettes.list().filter((p) => p.source === "bundled").length;
             if (n === 0) throw new Error("no bundled palettes");
             return Promise.resolve(`palettes=${String(n)} user=${paths.userPalettes}`);
+          },
+          () => {
+            // The window icon resolves and decodes (from the asar in a packaged build). Windows also
+            // checks the Linux PNG, so a path problem shows up there too; nativeImage reads .ico only
+            // on Windows, so Linux checks just its own PNG.
+            const platforms: NodeJS.Platform[] =
+              process.platform === "win32" ? ["win32", "linux"] : ["linux"];
+            const sizes = platforms.map((p) => {
+              const file = windowIconPath(p);
+              const img = nativeImage.createFromPath(file);
+              if (img.isEmpty()) throw new Error(`window icon for ${p} is empty or missing: ${file}`);
+              const { width, height } = img.getSize();
+              return `${p}=${path.basename(file)}@${String(width)}x${String(height)}`;
+            });
+            return Promise.resolve(`icon ${sizes.join(" ")}`);
           },
           () => {
             // Test-only code (the scripted e2e provider) must not be in this bundle. The marker is

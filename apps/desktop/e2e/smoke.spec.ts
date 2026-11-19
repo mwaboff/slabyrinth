@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -59,6 +59,38 @@ test("app boots with the secure bridge only", async () => {
     expect(unknown).toMatchObject({ ok: false, error: { code: "unsupported" } });
     const settings = await page.evaluate(() => window.slabyrinth.invoke("settings:get", undefined));
     expect(unwrap(settings).ui.theme).toBe("dark");
+  } finally {
+    await app.close();
+  }
+});
+
+test("the window icon (the logo) ships next to the main bundle and decodes in the main process", async () => {
+  const mainDir = path.dirname(mainEntry);
+  const files = readdirSync(mainDir, { recursive: true, encoding: "utf8" }).map((f) => path.join(mainDir, f));
+  const png = files.find((f) => /512x512.*\.png$/.test(path.basename(f)));
+  const ico = files.find((f) => /^icon.*\.ico$/.test(path.basename(f)));
+  expect(png, "512x512 PNG emitted into out-test/main").toBeDefined();
+  expect(ico, "icon.ico emitted into out-test/main").toBeDefined();
+  const bundle = files
+    .filter((f) => f.endsWith(".js"))
+    .map((f) => readFileSync(f, "utf8"))
+    .join("\n");
+  for (const f of [png, ico]) expect(bundle).toContain(path.basename(f ?? ""));
+
+  const { app } = await launch(userData);
+  try {
+    const decoded = await app.evaluate(
+      ({ nativeImage }, [p, i]) => {
+        const size = (f: string): { empty: boolean; width: number } => {
+          const img = nativeImage.createFromPath(f);
+          return { empty: img.isEmpty(), width: img.getSize().width };
+        };
+        return { png: size(p), ico: process.platform === "win32" ? size(i) : null };
+      },
+      [png ?? "", ico ?? ""] as const,
+    );
+    expect(decoded.png).toEqual({ empty: false, width: 512 });
+    if (decoded.ico) expect(decoded.ico.empty).toBe(false);
   } finally {
     await app.close();
   }
