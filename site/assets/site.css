@@ -152,7 +152,7 @@ h3 { font-size: 19px; line-height: 1.3; }
 .shot { display: block; border-radius: var(--r-8); overflow: hidden; box-shadow: var(--shot-shadow); background: var(--surface); }
 .shot img { width: 100%; }
 .shot:focus-visible { outline-offset: 4px; }
-.shot--hero { margin-top: 56px; }
+.hero .fig { margin-top: 56px; }
 .only-light { display: none; }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) .only-dark { display: none; }
@@ -219,8 +219,27 @@ h3 { font-size: 19px; line-height: 1.3; }
   .top__nav a:not(:last-of-type) { display: none; }
   .hero { padding-top: 48px; }
   .cta .btn { width: 100%; }
-  .shot--hero { margin-top: 40px; }
+  .hero .fig { margin-top: 40px; }
   .how, .features, .need { padding: 64px 0; }
   .feat { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .privacy { padding: 22px 20px 24px; }
 }
+
+/* figures: one caption style for every screenshot */
+.fig { margin: 0; display: grid; gap: 12px; }
+.fig figcaption { font: 400 14px/1.5 var(--f-ui); color: var(--muted); }
+.fig figcaption small { display: block; font-size: 12.5px; opacity: 0.85; }
+
+/* in TaleSpire */
+.ingame { padding: 96px 0 24px; text-align: center; }
+.ingame__lede { margin-top: 12px; color: var(--ink-2); }
+.pair { margin-top: 48px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; text-align: left; }
+/* The game image's bottom edge meets TaleSpire's dice tray in the source shot: fade it out on purpose. */
+.shot--game { background: #1d1d1d; }
+.shot--game img { -webkit-mask-image: linear-gradient(to bottom, #000 90%, transparent); mask-image: linear-gradient(to bottom, #000 90%, transparent); }
+@media (max-width: 900px) {
+  .pair { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+}
+.how__lede { margin-top: 12px; color: var(--ink-2); }
+.fact { margin-top: 36px; font: 400 14px/1.5 var(--f-ui); color: var(--muted); text-align: center; }
+.hero figcaption { text-align: center; }
