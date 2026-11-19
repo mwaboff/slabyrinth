@@ -1,5 +1,6 @@
 /** Room key (UX §6.8): filterable list of the level's rooms; the selected room expands with read-aloud, GM notes, encounter, exits; text edits create versions. Legend footer (§6.3). */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isRoomArea } from "@slabyrinth/core";
 import type { Area, DisplayList, MapPlan, ResolvedLevel, ResolvedLink } from "@slabyrinth/core";
 import { Icon } from "../../ui/Icon";
 import { emptySel, useMap } from "../../stores/map";
@@ -196,7 +197,7 @@ export function RoomKey({
   const listRef = useRef<HTMLDivElement>(null);
   const planLevel = plan.levels.find((l) => l.id === level.id);
   const areas = (planLevel?.areas ?? [])
-    .filter((a) => a.key !== undefined)
+    .filter(isRoomArea)
     .sort((a, b) => (Number(a.key) || 0) - (Number(b.key) || 0) || (a.key ?? "").localeCompare(b.key ?? ""));
   const q = filter.trim().toLowerCase();
   const shown =
@@ -255,7 +256,7 @@ export function RoomKey({
       </label>
       <div ref={listRef} className="rooms" role="list">
         {shown.length === 0 && (
-          <p className="rooms__empty">{q === "" ? "No numbered rooms on this level." : "No rooms match."}</p>
+          <p className="rooms__empty">{q === "" ? "No rooms on this level." : "No rooms match."}</p>
         )}
         {shown.map((a) => {
           const ra = level.areas.find((x) => x.id === a.id);

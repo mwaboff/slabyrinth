@@ -304,7 +304,9 @@ export function drawList(ctx: Canvas2DLike, list: DisplayList, theme: MapTheme, 
             break;
           }
           ringsPath(rings, true);
-          ctx.fillStyle = col(st === "void" ? "void" : "paper");
+          // VOID cells are "nothing here" (open air around a building on an upper floor): plain background, no
+          // hatch. Only a real drop (NO_FLOOR, the "chasm" floor style) gets the dark fill and a legend entry.
+          ctx.fillStyle = col("paper");
           ctx.fill();
           if (st === "rock") {
             ctx.save();

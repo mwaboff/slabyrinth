@@ -1,5 +1,6 @@
 /** projectStore (architecture §6.3): mirror of the open project's snapshot plus the Home project list. */
 import { create } from "zustand";
+import { countPlanRooms } from "@slabyrinth/core";
 import type { DesignBrief, MapPlan } from "@slabyrinth/core";
 import type { IpcEvents, IpcRequests, ProjectSnapshot } from "../../shared/ipc";
 import type { ProjectFile } from "../../shared/project";
@@ -98,11 +99,48 @@ export function phaseOf(snap: ProjectSnapshot | null): "brief" | "plan" | "build
   return snap.approvedVersion !== null ? "build" : "plan";
 }
 
+/** Rooms on a level (or the plan): room-like areas, keyed or not, plus anything explicitly numbered (core isRoomArea). */
 export function roomCount(plan: MapPlan | null, levelId?: string): number {
-  if (!plan) return 0;
-  return plan.levels
-    .filter((l) => levelId === undefined || l.id === levelId)
-    .reduce((n, l) => n + l.areas.filter((a) => a.key !== undefined).length, 0);
+  return countPlanRooms(plan, levelId);
+}
+
+/**
+ * Cost attributable to each version (by number). PlanVersion.cost is stored as the running cost of the turn when
+ * the version was committed, so it is differenced here: the turn's cost since the previous version in the same
+ * turn (first version of a turn: since the turn started). Turns come from the version's assistant message in
+ * `items`; for versions whose message is no longer in the conversation (archived), an immediately preceding AI
+ * version with a running cost not above this one is taken to be the same turn. Versions without a cost are absent.
+ */
+export function versionCosts(
+  versions: ReadonlyArray<Pick<VersionRow, "number" | "author" | "messageId" | "cost">>,
+  items: ReadonlyArray<{ type: string; id: string; turnId?: string }>,
+): Map<number, number> {
+  const turnOf = new Map<string, string>();
+  for (const it of items)
+    if (it.type === "assistant" && it.turnId !== undefined) turnOf.set(it.id, it.turnId);
+  const out = new Map<number, number>();
+  const lastInTurn = new Map<string, number>();
+  let prev: { turn: string | undefined; ai: boolean; cost: number | undefined } | null = null;
+  for (const v of [...versions].sort((a, b) => a.number - b.number)) {
+    const turn = v.messageId !== undefined ? turnOf.get(v.messageId) : undefined;
+    const running = v.cost?.amount;
+    if (running !== undefined) {
+      let before = 0;
+      if (turn !== undefined) before = lastInTurn.get(turn) ?? 0;
+      else if (
+        prev?.turn === undefined &&
+        prev?.ai === true &&
+        v.author === "ai" &&
+        prev.cost !== undefined &&
+        prev.cost <= running
+      )
+        before = prev.cost;
+      out.set(v.number, Math.max(0, running - before));
+      if (turn !== undefined) lastInTurn.set(turn, running);
+    }
+    prev = { turn, ai: v.author === "ai", cost: running };
+  }
+  return out;
 }
 
 /** Entry level first, then by distance in elevation (matches core levelLabels: "L1", "L2"…). */

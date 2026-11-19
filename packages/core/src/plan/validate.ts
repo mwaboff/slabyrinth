@@ -177,6 +177,27 @@ const clampCell = (b: CellBox, c: Vec2): Vec2 => [
 /** Area kinds that receive automatic room-key numbers when added without a key. */
 export const KEYED_AREA_KINDS: ReadonlySet<string> = new Set(["room", "cave", "building", "courtyard"]);
 
+/**
+ * What the UI counts and lists as a "room": an enclosed/usable area of a room-like kind (room, cave, building,
+ * courtyard), keyed or not, plus any other area the plan explicitly numbered. Corridors and zones without a key
+ * are passages/annotations, not rooms. Plans made whole by create_plan may carry no keys at all, so the key alone
+ * is not a reliable signal.
+ */
+export function isRoomArea(a: { kind: string; key?: string | undefined }): boolean {
+  return KEYED_AREA_KINDS.has(a.kind) || a.key !== undefined;
+}
+
+/** Number of rooms (isRoomArea) on one level, or across the plan when levelId is omitted. */
+export function countPlanRooms(plan: Pick<MapPlan, "levels"> | null | undefined, levelId?: string): number {
+  if (!plan) return 0;
+  let n = 0;
+  for (const l of plan.levels) {
+    if (levelId !== undefined && l.id !== levelId) continue;
+    for (const a of l.areas) if (isRoomArea(a)) n += 1;
+  }
+  return n;
+}
+
 /** Next free integer key: max numeric key + 1. */
 export function nextFreeKey(plan: MapPlan): string {
   let max = 0;

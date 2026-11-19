@@ -19,6 +19,7 @@ import {
   undo as undoHistory,
   validatePlan,
 } from "@slabyrinth/core";
+import { countPlanRooms } from "@slabyrinth/core";
 import type { DesignBrief, MapPlan, PlanOp } from "@slabyrinth/core";
 import type {
   AppError,
@@ -389,7 +390,7 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
       updatedAt: p.updatedAt,
       exists: true,
       levels: plan?.levels.length ?? 0,
-      rooms: plan?.levels.reduce((n, l) => n + l.areas.filter((a) => a.key !== undefined).length, 0) ?? 0,
+      rooms: countPlanRooms(plan),
       phase: phaseOf(p),
     };
   };

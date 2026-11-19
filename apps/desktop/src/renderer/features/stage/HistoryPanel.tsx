@@ -1,7 +1,7 @@
 /** Version history (UX §7.1–7.2): newest first; preview, compare, restore; undo/redo move the head pointer. */
 import { Icon } from "../../ui/Icon";
 import { useMap } from "../../stores/map";
-import { useProject, type VersionRow } from "../../stores/project";
+import { useProject, versionCosts, type VersionRow } from "../../stores/project";
 import { useChat } from "../../stores/chat";
 import { money, relativeTime } from "../../lib/format";
 import { redo, restoreVersion, undo } from "../../app/actions";
@@ -62,6 +62,7 @@ export function HistoryPanel() {
   const busy = useChat((s) => s.live !== null);
   if (!snap) return null;
   const rows = historyRows(snap);
+  const costs = versionCosts(snap.versions, snap.conversation.items);
   const ptr = pointerState(snap);
   return (
     <aside className="key history" aria-label="Version history">
@@ -113,7 +114,7 @@ export function HistoryPanel() {
             </div>
             <div className="vrow__meta">
               {AUTHOR[v.author] ?? v.author} · {relativeTime(v.createdAt)}
-              {v.cost ? ` · ${money(v.cost.amount)}` : ""}
+              {costs.has(v.number) ? ` · ${money(costs.get(v.number) ?? 0)}` : ""}
             </div>
             <div className="vrow__badges">
               {current && <span className="okpill">Current</span>}

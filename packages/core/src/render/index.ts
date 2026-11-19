@@ -5,6 +5,7 @@
 export {
   buildDisplayList,
   buildPlanDisplayList,
+  contentViewBox,
   levelLabels,
   LAYER_ORDER,
   DEFAULT_DISPLAY_OPTIONS,

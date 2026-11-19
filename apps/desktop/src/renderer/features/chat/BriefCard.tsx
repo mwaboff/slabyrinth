@@ -1,6 +1,6 @@
 /** Brief card pinned at the top of chat (UX §5.1): expanded form in the brief phase, two-line summary later. */
 import { useState } from "react";
-import type { DesignBrief } from "@slabyrinth/core";
+import type { DesignBrief, MapPlan } from "@slabyrinth/core";
 import { Icon } from "../../ui/Icon";
 import { useApp } from "../../stores/app";
 import { phaseOf, useProject } from "../../stores/project";
@@ -15,7 +15,11 @@ const SYSTEMS = [
 const PRESETS = { small: [20, 20], medium: [40, 30], large: [80, 60] } as const;
 const SYS_NAME: Record<string, string> = { daggerheart: "Daggerheart", dnd5e: "D&D 5e", other: "" };
 
-export function briefSummary(b: DesignBrief): [string, string] {
+/**
+ * Two summary lines. Once a plan exists, its level count and size come from the plan (the brief only records what
+ * was intended at the start and goes stale as the map changes); before that, the brief's intended values.
+ */
+export function briefSummary(b: DesignBrief, plan?: Pick<MapPlan, "levels"> | null): [string, string] {
   const sys = b.system ? (SYS_NAME[b.system.value] ?? "") : "";
   const party = b.party?.value;
   const partyText = party
@@ -33,11 +37,22 @@ export function briefSummary(b: DesignBrief): [string, string] {
   const line1 = [b.mapType?.value, [sys, partyText.replace(/ · /, " · ")].filter(Boolean).join(" ")]
     .filter(Boolean)
     .join(" · ");
-  const fp = b.footprint?.value;
-  const lv = b.levels?.value;
+  const fromPlan = plan && plan.levels.length > 0 ? plan.levels : null;
+  let count = b.levels?.value.count;
+  let size: [number, number] | undefined = b.footprint
+    ? [b.footprint.value.widthSq, b.footprint.value.heightSq]
+    : undefined;
+  if (fromPlan) {
+    count = fromPlan.length;
+    const x0 = Math.min(...fromPlan.map((l) => l.bounds.x));
+    const y0 = Math.min(...fromPlan.map((l) => l.bounds.y));
+    const x1 = Math.max(...fromPlan.map((l) => l.bounds.x + l.bounds.w));
+    const y1 = Math.max(...fromPlan.map((l) => l.bounds.y + l.bounds.h));
+    size = [x1 - x0, y1 - y0];
+  }
   const line2 = [
-    lv ? `${lv.count} level${lv.count === 1 ? "" : "s"}` : "",
-    fp ? `${fp.widthSq}×${fp.heightSq} sq (${fp.widthSq * 5}×${fp.heightSq * 5} ft)` : "",
+    count !== undefined ? `${count} level${count === 1 ? "" : "s"}` : "",
+    size ? `${size[0]}×${size[1]} sq (${size[0] * 5}×${size[1] * 5} ft)` : "",
     b.tone?.value ?? "",
   ]
     .filter(Boolean)
@@ -171,7 +186,7 @@ export function BriefCard() {
     }
   };
 
-  const [line1, line2] = briefSummary(b);
+  const [line1, line2] = briefSummary(b, snap.plan);
   const sys = b.system?.value ?? null;
   const party = b.party?.value ?? {};
   const fp = b.footprint?.value;

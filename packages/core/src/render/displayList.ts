@@ -545,6 +545,42 @@ export function buildDisplayList(
   return { levelId: level.id, viewBox: { x: bx, y: by, w, h }, items: sorted };
 }
 
+/**
+ * Box around what is actually drawn on the level (floors, walls, openings, links, features; not the rock/void
+ * ground or the grid), padded by `pad` cells and clamped to the level's viewBox. Used to fit small previews to
+ * the content: a level whose rooms sit on one edge of a big level should not be a sliver in a sea of nothing.
+ * Falls back to the full viewBox when nothing but ground is drawn.
+ */
+export function contentViewBox(list: DisplayList, pad = 1): DisplayList["viewBox"] {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  const add = (ax: number, ay: number, bx2: number, by2: number): void => {
+    x0 = Math.min(x0, ax);
+    y0 = Math.min(y0, ay);
+    x1 = Math.max(x1, bx2);
+    y1 = Math.max(y1, by2);
+  };
+  for (const it of list.items) {
+    if (it.layer === "ground" || it.layer === "grid" || it.layer === "selection") continue;
+    if (it.geom) {
+      for (const r of it.geom.rings)
+        for (let i = 0; i + 1 < r.length; i += 2) add(r[i] as number, r[i + 1] as number, r[i] as number, r[i + 1] as number);
+    } else if (it.symbol) {
+      const s = it.symbol;
+      add(s.x, s.y, s.x + s.w, s.y + s.h);
+    }
+  }
+  const vb = list.viewBox;
+  if (!Number.isFinite(x0)) return { ...vb };
+  const nx0 = Math.max(vb.x, Math.floor(x0) - pad);
+  const ny0 = Math.max(vb.y, Math.floor(y0) - pad);
+  const nx1 = Math.min(vb.x + vb.w, Math.ceil(x1) + pad);
+  const ny1 = Math.min(vb.y + vb.h, Math.ceil(y1) + pad);
+  return { x: nx0, y: ny0, w: Math.max(1, nx1 - nx0), h: Math.max(1, ny1 - ny0) };
+}
+
 /** Convenience: display list of one level of a resolved plan, with links and level labels filled in. */
 export function buildPlanDisplayList(
   resolved: ResolvedPlan,

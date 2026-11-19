@@ -1133,6 +1133,18 @@ export function renumberLevelOrder(plan: MapPlan): Level[] {
   return [e, ...above, ...below].map((x) => x.l);
 }
 
+/**
+ * Numbers every room/cave/building/courtyard area that has no key, the same way adding one does (withAutoKey:
+ * next free integer), visiting levels in renumberLevelOrder and areas in painter order. Keys already present are
+ * kept. Used for whole plans that never went through applyOps (create_plan), so a first draft comes out numbered.
+ */
+export function autoKeyRooms(plan: MapPlan): MapPlan {
+  const out: MapPlan = { ...plan, levels: plan.levels.map((l) => ({ ...l, areas: [...l.areas] })) };
+  for (const level of renumberLevelOrder(out))
+    for (let i = 0; i < level.areas.length; i++) level.areas[i] = withAutoKey(out, level.areas[i] as Area);
+  return out;
+}
+
 /** Reassigns numeric keys 1..n in renumberLevelOrder, then painter order; non-numeric keys are kept. */
 function opRenumber(d: Draft): void {
   const levels = renumberLevelOrder(d.plan).map((l) => ({ l }));

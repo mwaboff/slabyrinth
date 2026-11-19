@@ -8,6 +8,7 @@ import {
   SYMBOLS,
   buildDisplayList,
   buildPlanDisplayList,
+  contentViewBox,
   hitTest,
   legendEntries,
   levelLabels,
@@ -271,5 +272,62 @@ describe("performance (§8.3)", () => {
     }
     // best of 5 keeps the test robust on a busy CI runner while still catching algorithmic regressions
     expect(Math.min(...times)).toBeLessThan(150);
+  });
+});
+
+describe("contentViewBox (build thumbnails)", () => {
+  // An upper floor over open air: an 80x60 level whose only building sits on the east edge (base void).
+  const plan: MapPlan = {
+    schema: "slabyrinth/plan@1",
+    generator: 1,
+    id: "6f1c2a52-6a9e-4c55-9d64-2f0b9b7c1e99",
+    title: "Edge inn",
+    kind: "dungeon",
+    seed: 1,
+    theme: "stone_dungeon",
+    levels: [
+      {
+        id: "up",
+        name: "Ground floor",
+        elevation: 0,
+        bounds: { x: 0, y: 0, w: 80, h: 60 },
+        base: { type: "void" },
+        areas: [
+          { id: "r1", kind: "room", key: "1", shape: { type: "rect", x: 62, y: 20, w: 11, h: 16 } },
+          { id: "r2", kind: "room", key: "2", shape: { type: "rect", x: 73, y: 22, w: 6, h: 8 } },
+        ],
+        openings: [],
+        walls: [],
+        features: [],
+        terrain: [],
+        labels: [],
+      },
+    ],
+    links: [],
+  } as unknown as MapPlan;
+  const list = buildPlanDisplayList(resolvePlan(plan), "up", {}) as DisplayList;
+
+  it("fits the drawn content with padding, not the whole level", () => {
+    expect(list.viewBox).toEqual({ x: 0, y: 0, w: 80, h: 60 });
+    const vb = contentViewBox(list, 1);
+    expect(vb.x).toBeGreaterThanOrEqual(60);
+    expect(vb.x).toBeLessThanOrEqual(62);
+    expect(vb.x + vb.w).toBeLessThanOrEqual(80);
+    expect(vb.y).toBeGreaterThanOrEqual(18);
+    expect(vb.y + vb.h).toBeLessThanOrEqual(38);
+  });
+
+  it("open air is plain ground, with no legend entry claiming it is a chasm", () => {
+    expect(list.items.some((it) => it.layer === "ground" && it.style === "void")).toBe(true);
+    expect(legendEntries(list).map((e) => e.id)).not.toContain("chasm");
+  });
+
+  it("falls back to the whole level when nothing is drawn", () => {
+    expect(contentViewBox({ levelId: "x", viewBox: { x: 0, y: 0, w: 9, h: 7 }, items: [] })).toEqual({
+      x: 0,
+      y: 0,
+      w: 9,
+      h: 7,
+    });
   });
 });

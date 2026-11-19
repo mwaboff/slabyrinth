@@ -95,6 +95,56 @@ describe("create_plan", () => {
     if (out.ok) expect(out.newPlan?.plan.seed).toBe(1234);
   });
 
+  it("numbers unnumbered rooms like adding them would (entry level first), keeps given numbers", async () => {
+    const lvl = (id: string, elevation: number, areas: unknown[]) => ({
+      id,
+      name: id,
+      elevation,
+      bounds: { x: 0, y: 0, w: 12, h: 8 },
+      base: { type: "solid" },
+      areas,
+    });
+    const rect = (x: number) => ({ type: "rect", x, y: 1, w: 3, h: 3 });
+    const out = await exec(ctx(null), "create_plan", {
+      replace: false,
+      summary: "Two levels",
+      plan: {
+        title: "Two levels",
+        kind: "dungeon",
+        theme: "stone_dungeon",
+        entryLevel: "up",
+        levels: [
+          lvl("down", -2.5, [{ id: "d1", kind: "cave", shape: rect(1) }]),
+          lvl("up", 0, [
+            { id: "u1", kind: "room", shape: rect(1) },
+            {
+              id: "c1",
+              kind: "corridor",
+              shape: {
+                type: "path",
+                points: [
+                  [4, 2],
+                  [5, 2],
+                ],
+                width: 1,
+              },
+            },
+            { id: "u2", kind: "room", key: "9", shape: rect(6) },
+          ]),
+        ],
+        links: [],
+      },
+    });
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    const keys = Object.fromEntries(
+      (out.newPlan?.plan.levels ?? []).flatMap((l) => l.areas.map((a) => [a.id, a.key])),
+    );
+    expect(keys).toEqual({ d1: "11", u1: "10", c1: undefined, u2: "9" });
+    // the result the model reads shows the assigned numbers
+    expect(text(out)).toContain("[10]");
+  });
+
   it("refuses to replace an existing plan without replace: true", async () => {
     const plan = loadPlan("two-rooms-door");
     const out = await exec(ctx(plan), "create_plan", {

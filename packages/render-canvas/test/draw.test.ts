@@ -189,6 +189,26 @@ describe("drawDisplayList", () => {
     expect(JSON.stringify(record(listA, theme).calls)).toBe(JSON.stringify(record(listA, theme).calls));
   });
 
+  it("draws open air (VOID cells) as plain background, not a black slab", () => {
+    const plan = {
+      ...loadFixture("example-a"),
+      levels: [{ ...loadFixture("example-a").levels[0], id: "up", base: { type: "void" }, terrain: [] }],
+      links: [],
+      entryLevel: "up",
+    } as unknown as MapPlan;
+    const list = buildPlanDisplayList(resolvePlan(plan), "up", {}) as DisplayList;
+    expect(list.items.some((it) => it.layer === "ground" && it.style === "void")).toBe(true);
+    for (const id of ["print", "ohsheet-light", "ohsheet-dark"]) {
+      const theme = getMapTheme(id);
+      const ctx = record({ ...list, items: list.items.filter((it) => it.layer === "ground") }, theme);
+      expect(ctx.fills.length).toBeGreaterThan(0);
+      expect(
+        ctx.fills.every((c) => c === theme.colors["paper"]),
+        id,
+      ).toBe(true);
+    }
+  });
+
   it("works at tiny and huge scales", () => {
     for (const s of [2, 6, 140]) expect(record(listA, getMapTheme("ohsheet-light"), s).depth).toBe(0);
   });

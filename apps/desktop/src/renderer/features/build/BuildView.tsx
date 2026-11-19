@@ -16,6 +16,7 @@ import { useApp } from "../../stores/app";
 import { call, errorMessage } from "../../bridge/client";
 import { useResolved } from "../../map/resolveClient";
 import { drawLevel, mapThemeFor } from "../../map/render";
+import { contentViewBox } from "@slabyrinth/core/render";
 import { useAppliedTheme, cssVar } from "../../app/theme";
 import { clock, kb } from "../../lib/format";
 import { approve } from "../../app/actions";
@@ -69,9 +70,13 @@ function SlabPreview({
       const list = data.lists[id];
       if (!cv || !list) return;
       const w = cv.clientWidth;
-      const vb = list.viewBox;
-      const scale = w / vb.w;
-      const h = Math.round(vb.h * scale);
+      // fit to what is drawn on the level (a building on one edge of a big level, a narrow gorge), not its bounds;
+      // very tall content is letterboxed instead of making a towering thumbnail
+      const vb = contentViewBox(list, 2);
+      const h = Math.round(Math.min((w * vb.h) / vb.w, w * 0.75));
+      const scale = Math.min(w / vb.w, h / vb.h);
+      const ox = (w - vb.w * scale) / 2 - vb.x * scale;
+      const oy = (h - vb.h * scale) / 2 - vb.y * scale;
       const dpr = window.devicePixelRatio || 1;
       cv.width = Math.round(w * dpr);
       cv.height = Math.round(h * dpr);
@@ -79,14 +84,16 @@ function SlabPreview({
       const ctx = cv.getContext("2d");
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawLevel(ctx, list, theme, { scale, ox: -vb.x * scale, oy: -vb.y * scale, w, h });
+      ctx.fillStyle = theme.colors["paper"] ?? cssVar("--bg");
+      ctx.fillRect(0, 0, w, h);
+      drawLevel(ctx, list, theme, { scale, ox, oy, w, h });
       if (slab && !(slab.region.x0 <= vb.x && slab.region.x1 >= vb.x + vb.w - 1)) {
         ctx.strokeStyle = cssVar("--accent");
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 3]);
         ctx.strokeRect(
-          (slab.region.x0 - vb.x) * scale + 1,
-          (slab.region.y0 - vb.y) * scale + 1,
+          ox + slab.region.x0 * scale + 1,
+          oy + slab.region.y0 * scale + 1,
           (slab.region.x1 - slab.region.x0 + 1) * scale - 2,
           (slab.region.y1 - slab.region.y0 + 1) * scale - 2,
         );

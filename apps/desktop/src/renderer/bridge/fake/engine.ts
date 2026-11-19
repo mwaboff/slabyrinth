@@ -4,6 +4,7 @@
  * deltas / tool calls / progress → assistant item → tool execution → tool_call_finished (+ plan:changed)
  * → tool_results item → next step … → usage → turn_finished.
  */
+import { countPlanRooms } from "@slabyrinth/core";
 import type { DesignBrief, MapPlan, MapSelection, PlanOp } from "@slabyrinth/core";
 import type { ChatEvent, AppError, OutstandingIssues } from "../../../shared/ipc";
 import type { AssistantPart, ChatItem, ModelSelection, Usage } from "../../../main/agent/provider/types";
@@ -346,7 +347,7 @@ export class FakeTurn {
     );
     this.emit({ type: "progress", step: "checking", label: "Checking the plan" });
     await this.wait(700);
-    const rooms = plan.levels.reduce((n, l) => n + l.areas.filter((a) => a.key !== undefined).length, 0);
+    const rooms = countPlanRooms(plan);
     const v = this.host.commit(
       plan,
       "create_plan",

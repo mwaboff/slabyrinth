@@ -22,7 +22,7 @@ import {
 } from "../contracts/plan";
 import type { ResolvedPlan } from "../contracts/resolved";
 import type { CompileDiagnostic, CompileEstimate } from "../contracts/compiler";
-import { applyOps } from "../ops/apply";
+import { applyOps, autoKeyRooms } from "../ops/apply";
 import { diffPlans } from "../ops/diff";
 import { listElements } from "../plan/elements";
 import { validatePlan } from "../plan/validate";
@@ -378,7 +378,8 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
         split.blocking.map((i) => fromPlanIssue(i, "/plan")),
       );
     }
-    const plan = candidate as unknown as MapPlan;
+    // unnumbered rooms get numbers the way adding them with edit_plan would; numbers the model gave are kept
+    const plan = autoKeyRooms(candidate as unknown as MapPlan);
     const version = ctx.nextVersion ?? ctx.head + 1;
     const report: PlanChangeReport = {
       status: "applied",

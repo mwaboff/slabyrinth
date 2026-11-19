@@ -8,7 +8,7 @@ import { Icon, Mark } from "../../ui/Icon";
 import { useDismiss } from "../../ui/dismiss";
 import { useChat } from "../../stores/chat";
 import { answersFor, pendingQuestions, type Question, type TurnState } from "../../stores/chatReducer";
-import { useProject, latestBuild, type VersionRow } from "../../stores/project";
+import { useProject, latestBuild, versionCosts, type VersionRow } from "../../stores/project";
 import { EFFORT_LABEL, shortModelName, useSettings } from "../../stores/settings";
 import { useMap } from "../../stores/map";
 import { useApp } from "../../stores/app";
@@ -135,6 +135,7 @@ function PlanUpdateCard({ v, meta }: { v: VersionRow; meta: ChatMessageMeta | un
   const snap = useProject((s) => s.snap);
   const diff = useDiff(v.parentNumber, v.number, snap?.projectId ?? "");
   if (!snap) return null;
+  const cost = versionCosts(snap.versions, snap.conversation.items).get(v.number);
   const latest = snap.versions.at(-1)?.number === v.number && snap.head === v.number;
   const areaIds = diff ? [...diff.areas.added, ...diff.areas.changed] : [];
   const showOnMap = (): void => {
@@ -152,7 +153,7 @@ function PlanUpdateCard({ v, meta }: { v: VersionRow; meta: ChatMessageMeta | un
         <span className="upd__t">{withRefs(v.summary, `s${v.number}`)}</span>
         <span className="upd__m">
           {meta ? duration(meta.durationMs) : ""}
-          {v.cost ? ` · ${money(v.cost.amount)}` : ""}
+          {cost !== undefined ? ` · ${money(cost)}` : ""}
         </span>
       </div>
       {v.changeSummary.length > 0 && (

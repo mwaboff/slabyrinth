@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import * as fsp from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
+import { countPlanRooms } from "@slabyrinth/core/plan";
 import { z } from "zod";
 import type { ChatItem, ModelSelection } from "../agent/provider/types";
 import type { ProjectSnapshot } from "../../shared/ipc";
@@ -265,11 +266,7 @@ export function buildSnapshot(
   };
 }
 
-/** Count of keyed rooms (room/cave/building/courtyard areas) for Home cards. */
+/** Room count for Home cards: same rule as the status bar and room key (core isRoomArea). */
 export function countRooms(p: Pick<ProjectFile, "plan">): number {
-  if (!p.plan) return 0;
-  let n = 0;
-  for (const l of p.plan.levels)
-    for (const a of l.areas) if (a.kind !== "corridor" && a.kind !== "zone") n += 1;
-  return n;
+  return countPlanRooms(p.plan);
 }
