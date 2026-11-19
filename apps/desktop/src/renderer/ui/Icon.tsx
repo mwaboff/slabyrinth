@@ -6,10 +6,11 @@ import type { ReactElement } from "react";
 
 const PATHS = {
   menu: <path d="M2.5 4h11M2.5 8h11M2.5 12h11" />,
+  // Six chunky flat-ended teeth on a solid ring plus a centre hole, so it can't read as the sun beside it.
   gear: (
     <>
-      <circle cx="8" cy="8" r="2.2" />
-      <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" />
+      <path d="M6.4 3.16L6.65 1.13L9.35 1.13L9.6 3.16A5.1 5.1 0 0 1 11.39 4.19L13.27 3.4L14.62 5.73L12.99 6.96A5.1 5.1 0 0 1 12.99 9.04L14.62 10.27L13.27 12.6L11.39 11.81A5.1 5.1 0 0 1 9.6 12.84L9.35 14.87L6.65 14.87L6.4 12.84A5.1 5.1 0 0 1 4.61 11.81L2.73 12.6L1.38 10.27L3.01 9.04A5.1 5.1 0 0 1 3.01 6.96L1.38 5.73L2.73 3.4L4.61 4.19A5.1 5.1 0 0 1 6.4 3.16z" />
+      <circle cx="8" cy="8" r="2" />
     </>
   ),
   moon: <path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z" />,
