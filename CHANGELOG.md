@@ -10,6 +10,7 @@ Release notes, which the app shows under "What's new" when it offers that update
 ### Changed
 
 - The settings icon is now a gear, so it no longer looks like the theme toggle's sun.
+- The app now uses the same logo as the website.
 
 ## [0.1.0] - 2026-11-18
 

@@ -3,6 +3,7 @@
  * No icon package: CSP + no extra dependencies. Colour comes from currentColor.
  */
 import type { ReactElement } from "react";
+import { MARK, type MarkRing } from "../../shared/brandMark";
 
 const PATHS = {
   menu: <path d="M2.5 4h11M2.5 8h11M2.5 12h11" />,
@@ -158,21 +159,44 @@ export function Icon({
   );
 }
 
-/** The Slabyrinth mark: slab, cream maze, gold route (the only always-gold ink in the chrome). */
+/** Normalised logo coordinate (-1…1) to the 0…100 tile units of the <Mark> viewBox. */
+const mu = (n: number) => Math.round((n + 1) * 5000) / 100;
+
+/** One ring of the logo as an open square path whose ends frame its gap. */
+function ringPath({ half, gap }: MarkRing): string {
+  const [a, b] = [mu(-half), mu(half)];
+  const [g1, g2] = [mu(-MARK.gapHalfLength), mu(MARK.gapHalfLength)];
+  return gap === "bottom"
+    ? `M${String(g1)} ${String(b)}H${String(a)}V${String(a)}H${String(b)}V${String(b)}H${String(g2)}`
+    : `M${String(a)} ${String(g1)}V${String(a)}H${String(b)}V${String(b)}H${String(a)}V${String(g2)}`;
+}
+
+const MARK_RINGS = MARK.rings.map(ringPath).join("");
+const MARK_STONE = { at: mu(-MARK.centreHalf), size: mu(MARK.centreHalf) - mu(-MARK.centreHalf) };
+
+/**
+ * The Slabyrinth logo, the same mark as the website and the app icon (geometry: shared/brandMark.ts):
+ * a dark tile with a gold labyrinth. Colours come from --brand-tile / --brand-ink.
+ */
 export function Mark({ size = 22, className }: { size?: number; className?: string }) {
   return (
     <svg
       className={["mark", className ?? ""].join(" ")}
       width={size}
       height={size}
-      viewBox="0 0 24 24"
+      viewBox="-4 -4 108 108"
       aria-hidden="true"
       focusable="false"
     >
-      <rect className="mark__slab" x="1" y="1" width="22" height="22" rx="5" />
-      <path className="mark__maze" d="M11 5H5v14h14V5h-3" />
-      <path className="mark__maze" d="M10.5 15.5H8.5v-7h7v7h-2" />
-      <path className="mark__route" d="M13.5 2.5V7H17v10h-5v-5" />
+      <rect className="mark__tile" width="100" height="100" rx={mu(MARK.tileRadius) - 50} />
+      <path className="mark__maze" d={MARK_RINGS} strokeWidth={MARK.ringHalfWidth * 100} />
+      <rect
+        className="mark__stone"
+        x={MARK_STONE.at}
+        y={MARK_STONE.at}
+        width={MARK_STONE.size}
+        height={MARK_STONE.size}
+      />
     </svg>
   );
 }

@@ -20,7 +20,7 @@
     "test": "vitest run --root ../.. --project desktop-main --project desktop-renderer",
     "test:e2e": "electron-vite build --mode test && playwright test",
     "smoke:packaged": "tsx scripts/packaged-smoke.ts",
-    "icons": "tsx scripts/make-placeholder-icons.ts",
+    "icons": "tsx scripts/make-icons.ts",
     "package": "electron-vite build && electron-builder --dir --publish never",
     "dist": "electron-vite build && electron-builder --publish never",
     "dist:win": "electron-vite build && electron-builder --win --publish never",

@@ -110,6 +110,11 @@
   --dur-pulse: 300ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
 
+  /* brand mark (the logo keeps its own colours in both themes, as on the website and app icon;
+     keep in step with MARK.colors in src/shared/brandMark.ts) */
+  --brand-tile: #14161a;
+  --brand-ink: #d9b56c;
+
   /* z layers */
   --mask-solid: #000;
   --z-pop: 25;

@@ -1,19 +1,27 @@
 /**
- * Generates PLACEHOLDER app icons (a simple maze-like geometric mark) with no dependencies:
+ * Generates the app icons from the Slabyrinth logo (src/shared/brandMark.ts), with no dependencies:
  *   build/icon.png            512x512 (electron-builder fallback / Linux)
  *   build/icon.ico            16, 24, 32, 48, 64, 128, 256 (PNG-compressed ICO entries)
  *   build/icons/<n>x<n>.png   16 … 512 (Linux AppImage)
- * Run: npm run icons -w @slabyrinth/desktop. Real icon design comes later (WP5/WP6).
+ * The website uses the same artwork: site/assets/img/icon-256.png and favicon-32.png are copies of
+ * build/icons/256x256.png and 32x32.png — copy them again whenever the icons change.
+ * 16, 24 and 32 px use a pixel-snapped layout of the same mark (SNAPPED below) so they stay crisp.
+ * Run: npm run icons -w @slabyrinth/desktop.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
+import { MARK } from "../src/shared/brandMark";
 
 type Rgba = readonly [number, number, number, number];
 
-// Placeholder palette for the icon only (the app UI takes colours from theme tokens).
-const BG: Rgba = [20, 22, 26, 255];
-const FG: Rgba = [217, 181, 108, 255];
+function hexRgba(hex: string): Rgba {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff, 255];
+}
+
+const BG = hexRgba(MARK.colors.tile);
+const FG = hexRgba(MARK.colors.ink);
 const CLEAR: Rgba = [0, 0, 0, 0];
 
 /** Colour of the mark at normalised coordinates (u, v) in [0, 1). */
@@ -21,33 +29,65 @@ function sample(u: number, v: number): Rgba {
   const x = u * 2 - 1;
   const y = v * 2 - 1;
   // Rounded-square tile.
-  const r = 0.22;
+  const r = MARK.tileRadius;
   const qx = Math.max(Math.abs(x) - (1 - r), 0);
   const qy = Math.max(Math.abs(y) - (1 - r), 0);
   if (qx * qx + qy * qy > r * r) return CLEAR;
-  // Three concentric square rings, each with one gap, rotating like a labyrinth.
+  // Concentric square rings, each broken by one gap.
   const d = Math.max(Math.abs(x), Math.abs(y));
-  const rings = [0.72, 0.5, 0.28];
-  const half = 0.055;
-  for (let i = 0; i < rings.length; i++) {
-    const ring = rings[i] ?? 0;
-    if (Math.abs(d - ring) < half) {
-      const gapAlongX = i % 2 === 0;
-      const gapSign = i === 1 ? -1 : 1;
-      const onGapSide = gapAlongX
-        ? Math.sign(y) === gapSign && Math.abs(y) > Math.abs(x)
-        : Math.sign(x) === gapSign && Math.abs(x) > Math.abs(y);
-      const along = gapAlongX ? x : y;
-      if (onGapSide && Math.abs(along) < 0.12) return BG;
+  for (const ring of MARK.rings) {
+    if (Math.abs(d - ring.half) < MARK.ringHalfWidth) {
+      const bottom = ring.gap === "bottom";
+      const onGapSide = bottom ? y > 0 && Math.abs(y) > Math.abs(x) : x < 0 && Math.abs(x) > Math.abs(y);
+      const along = bottom ? x : y;
+      if (onGapSide && Math.abs(along) < MARK.gapHalfLength) return BG;
       return FG;
     }
   }
-  if (d < 0.1) return FG; // centre stone
+  if (d < MARK.centreHalf) return FG; // centre stone
   return BG;
+}
+
+/**
+ * Pixel-snapped layouts for the small sizes, where the exact geometry falls between pixels and blurs
+ * into mush. Values are the pixel rows each part occupies, as the distance of a pixel centre from the
+ * tile centre (max(|dx|, |dy|)); rings are listed in MARK.rings order (outer first). Same three rings,
+ * gaps and stone, just on whole pixels: 1 px rings at 16 and 24, 2 px rings at 32.
+ */
+const SNAPPED: Partial<Record<number, { stone: number; rings: readonly (readonly number[])[] }>> = {
+  16: { stone: 0.5, rings: [[6.5], [4.5], [2.5]] },
+  24: { stone: 0.5, rings: [[9.5], [6.5], [3.5]] },
+  32: {
+    stone: 0.5,
+    rings: [
+      [11.5, 12.5],
+      [7.5, 8.5],
+      [3.5, 4.5],
+    ],
+  },
+};
+
+/** Whether pixel (px, py) of a snapped small icon is gold ink (true) or tile (false). */
+function snappedInk(px: number, py: number, size: number): boolean {
+  const spec = SNAPPED[size];
+  if (!spec) return false;
+  const c = size / 2;
+  const x = px + 0.5 - c;
+  const y = py + 0.5 - c;
+  const d = Math.max(Math.abs(x), Math.abs(y));
+  if (d <= spec.stone) return true;
+  for (const [i, ring] of MARK.rings.entries()) {
+    if (!(spec.rings[i] ?? []).includes(d)) continue;
+    const bottom = ring.gap === "bottom";
+    const onGapSide = bottom ? y > 0 && Math.abs(y) >= Math.abs(x) : x < 0 && Math.abs(x) >= Math.abs(y);
+    return !(onGapSide && Math.abs(bottom ? x : y) < MARK.gapHalfLength * c);
+  }
+  return false;
 }
 
 function renderRgba(size: number): Uint8Array {
   const ss = 4; // supersampling for anti-aliasing
+  const snapped = SNAPPED[size] !== undefined;
   const out = new Uint8Array(size * size * 4);
   for (let py = 0; py < size; py++) {
     for (let px = 0; px < size; px++) {
@@ -65,6 +105,11 @@ function renderRgba(size: number): Uint8Array {
         }
       }
       const o = (py * size + px) * 4;
+      if (snapped) {
+        // Whole-pixel ink; the tile's rounded corners stay anti-aliased.
+        const ink = snappedInk(px, py, size) ? FG : BG;
+        [r, g, b] = [ink[0] * a, ink[1] * a, ink[2] * a];
+      }
       out[o] = a > 0 ? Math.round(r / a) : 0;
       out[o + 1] = a > 0 ? Math.round(g / a) : 0;
       out[o + 2] = a > 0 ? Math.round(b / a) : 0;
@@ -144,4 +189,4 @@ writeFileSync(`${buildDir}icon.ico`, encodeIco([16, 24, 32, 48, 64, 128, 256]));
 for (const s of [16, 32, 48, 64, 128, 256, 512]) {
   writeFileSync(`${buildDir}icons/${String(s)}x${String(s)}.png`, encodePng(s));
 }
-process.stdout.write(`Placeholder icons written to ${buildDir}\n`);
+process.stdout.write(`Icons written to ${buildDir}\n`);

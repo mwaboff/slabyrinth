@@ -63,25 +63,23 @@
   background: var(--surface-2);
 }
 
-.mark__slab {
-  fill: var(--surface-3);
-  stroke: var(--accent);
-  stroke-width: 1.2;
+.mark {
+  flex: none;
+}
+
+.mark__tile {
+  fill: var(--brand-tile);
 }
 
 .mark__maze {
-  stroke: var(--ink-2);
+  stroke: var(--brand-ink);
   fill: none;
-  stroke-width: 1.5;
-  stroke-linecap: square;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
 }
 
-.mark__route {
-  stroke: var(--accent);
-  fill: none;
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.mark__stone {
+  fill: var(--brand-ink);
 }
 
 .crumb {
