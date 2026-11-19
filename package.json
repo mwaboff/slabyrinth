@@ -1,6 +1,6 @@
 {
   "name": "slabyrinth",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "MIT",
   "description": "Design TaleSpire maps by chatting with Claude, review a 2D plan, export slabs.",

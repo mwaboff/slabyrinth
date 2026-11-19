@@ -7,11 +7,17 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-18
+
 ### Changed
 
 - The settings icon is now a gear, so it no longer looks like the theme toggle's sun.
-- The app now uses the same logo as the website.
-- The app window shows the Slabyrinth icon on Linux, and the running app groups under its own launcher or pinned taskbar icon on Linux and Windows.
+- The app now uses the same logo as the website, and the icon is sharper at small sizes.
+
+### Fixed
+
+- On Linux, the app window and taskbar now show the Slabyrinth icon instead of a generic one.
+- On Windows, the running app now groups with its pinned taskbar or Start menu shortcut. If you pinned Slabyrinth while using 0.1.0, you may need to unpin it and pin it again.
 
 ## [0.1.0] - 2026-11-18
 
@@ -38,5 +44,6 @@ The first release.
   version exists, and links to its release page. You can turn the check off in Settings ▸ About.
 - Windows installer and portable build, Linux AppImage. The builds are not code-signed yet.
 
-[Unreleased]: https://github.com/mwaboff/slabyrinth/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mwaboff/slabyrinth/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/mwaboff/slabyrinth/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mwaboff/slabyrinth/releases/tag/v0.1.0
