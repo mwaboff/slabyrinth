@@ -1092,7 +1092,7 @@ The stores are derived from IPC only. The renderer never computes authoritative 
   - The SDK client is built with an explicit `apiKey` and an explicit `baseURL` of `https://api.anthropic.com`, so no environment variable (`ANTHROPIC_BASE_URL`, `ANTHROPIC_CUSTOM_HEADERS`, …) can send the key elsewhere. `ANTHROPIC_API_KEY` from the environment is honoured only in development builds, never in smoke/e2e runs, and a stored key always wins. Proxy and CA variables (`HTTPS_PROXY` with `NODE_USE_ENV_PROXY`, `NODE_EXTRA_CA_CERTS`) are outside the app's control and accepted: whoever can set them already runs code as the user.
 - **Model output** is treated as untrusted. Notes are rendered as a markdown subset with sanitization: no HTML, and links shown as text.
 - **Network.** The app talks to `api.anthropic.com` (chat, with your key) and makes one anonymous request to GitHub to check for a new version, at most once a day, which can be turned off (Settings ▸ About ▸ "Check for updates automatically"). Nothing else: no telemetry, no accounts.
-- **Updates.** A notice, not an installer (builds are unsigned). `UpdateService` in main sends one GET to `https://api.github.com/repos/mwaboff/slabyrinth/releases/latest` (drafts and prereleases excluded) with only `Accept` and `User-Agent: Slabyrinth/<version>` — no key, no identifiers, no map data. The host is pinned (https; a redirect is followed only to `api.github.com`), with an 8 s timeout, a 256 KB cap and a zod-validated body. The startup check runs in packaged builds only, never in smoke/e2e runs, at most once per 24 h (`settings.updates.lastCheckedAt`) and only with `updates.autoCheck`; "Check for updates" ignores the throttle. Failures are a quiet "couldn't check" state. A newer stable version shows a header chip; its popover shows the release notes as plain text and opens `https://github.com/mwaboff/slabyrinth/releases/tag/<tag>` (built in main from the validated tag, then checked by the `shell:openExternal` allow-list). "Skip this version" is stored as `updates.skippedVersion`. Auto-install is v1.1 at the earliest (needs signed builds).
+- **Updates.** A notice, not an installer (builds are unsigned). `UpdateService` in main sends one GET to `https://api.github.com/repos/mwaboff/slabyrinth/releases/latest` (drafts and prereleases excluded) with only `Accept` and `User-Agent: Slabyrinth/<version>` — no key, no identifiers, no map data. The host is pinned (https; a redirect is followed only to `api.github.com`), with an 8 s timeout, a 256 KB cap and a zod-validated body. The startup check runs in packaged builds only, never in smoke/e2e runs, at most once per 24 h (`settings.updates.lastCheckedAt`) and only with `updates.autoCheck`; "Check for updates" ignores the throttle. Failures are a quiet "couldn't check" state. A newer stable version shows a header chip; its popover shows the release notes as an allow-listed Markdown subset of plain text (headings, lists, bold, italic, code; never HTML, links not clickable, no images; `shared/releaseNotes.ts`) and opens `https://github.com/mwaboff/slabyrinth/releases/tag/<tag>` (built in main from the validated tag, then checked by the `shell:openExternal` allow-list). "Skip this version" is stored as `updates.skippedVersion`. Auto-install is v1.1 at the earliest (needs signed builds).
 
 ### 6.6 TaleSpire integration
 
@@ -1273,6 +1273,34 @@ Separate build and release jobs avoid two matrix jobs racing to create the same 
 - Tags are `vX.Y.Z`.
 - Schema versions (`plan@1`, `project@1`, `palette@1`, `orientation@1`, `asset-catalog@1`, `settings@1`) are independent and migrated by core.
 - `systemPromptVersion` and `toolsVersion` are recorded per conversation.
+
+### 7.6 Development and test modes
+
+- **Conversation engine.** Every build runs the real engine (`apps/desktop/src/main/agent`) with the
+  Anthropic provider, keyed from the API key stored in Settings (development builds also accept
+  `ANTHROPIC_API_KEY` from the environment; smoke and e2e runs never do). Without a key, chat answers
+  the typed `no_api_key` error and the UI asks for one. Wiring: `src/main/engineWiring.ts`.
+- **Fake engine (dev/test only).** `SLABYRINTH_FAKE_ENGINE=1` in a development or test run, or the
+  `fakeEngine` flag under `"x-featureFlags"` in `settings.json` of a development run, swaps in the
+  fake engine that replays recorded streams (`src/main/engine/recordings.ts`; send `#ask` or `#fail`
+  to see question cards and errors). Packaged builds ignore both.
+- **Smoke and e2e.** `SLABYRINTH_SMOKE=1` boots hidden, runs self-checks (including "chat answers
+  `no_api_key`" and "packaged build uses the real engine and compiler"), prints `SMOKE_OK` and exits.
+  `SLABYRINTH_E2E=1` is the Playwright mode. Both use a throwaway `userData` folder (or
+  `SLABYRINTH_USER_DATA`) and inert doubles for every outside effect: no dialogs, a memory clipboard,
+  no TaleSpire lookup, launch or focus. `e2e/conversation.spec.ts` drives the real engine through the
+  real IPC with a scripted provider (`SLABYRINTH_E2E_PROVIDER_SCRIPT`, test runs only): no network,
+  no API cost. It only exists in test builds (`npm run build:test -w @slabyrinth/desktop`, output in
+  `apps/desktop/out-test`); production bundles (`out/`, packaged) contain no test code, and the packaged
+  smoke run checks that.
+- **Packaged smoke run.** After `npm run package`, `npm run smoke:packaged -w @slabyrinth/desktop` runs
+  the unpacked app once and passes on `SMOKE_OK`.
+- **Asset catalog.** The full catalog (`data/talespire-assets.json`) is research data generated locally;
+  it is gitignored and never bundled. Only the curated palettes in `packages/core/data` ship with the app.
+- **Palette and orientation overrides.** A JSON file in `<userData>/palettes/` with `"overrides": true`
+  and a built-in palette's id replaces those roles (`null` deletes one); any other file there adds a new
+  theme. `<userData>/orientation.json` replaces the built-in orientation calibration. Invalid files are
+  ignored and listed with their issues.
 
 ---
 

@@ -1,115 +1,114 @@
 # Slabyrinth
 
-Slabyrinth is a desktop app for TaleSpire game masters.
-You describe a map by chatting with Claude, and the app turns the conversation into a map plan.
-You review and edit the plan as a 2D map with a room key.
-When it looks right, Slabyrinth compiles it into TaleSpire slabs that you paste into the game.
-It runs on Windows and Linux (Electron, React, TypeScript).
-Website and downloads: https://slabyrinth.aboff.com/
+[![CI](https://github.com/mwaboff/slabyrinth/actions/workflows/ci.yml/badge.svg)](https://github.com/mwaboff/slabyrinth/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/mwaboff/slabyrinth)](https://github.com/mwaboff/slabyrinth/releases/latest)
+[![MIT licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 
-Slabyrinth is an unofficial fan-made tool. It is not affiliated with, endorsed by or sponsored by
-Bouncyrock Entertainment (makers of TaleSpire) or Anthropic (makers of Claude). TaleSpire and Claude
-are trademarks of their respective owners. Slabyrinth does not include or redistribute TaleSpire's models,
-textures or asset catalog: its built-in palettes list only the ids, names and sizes of the pieces they
-use, and the full asset library is read from your own TaleSpire install.
+Design TaleSpire maps by chatting with Claude, review them as a 2D plan, and paste them into the game as slabs.
 
-## Prerequisites
+![Slabyrinth showing a three-level smuggler mineshaft: the chat with Claude on the left, the 2D map of the mine level in the middle, the room key and legend on the right](site/assets/img/hero.webp)
 
-- Node.js 26 (see `.nvmrc`) and npm 11
-- Git
-- To test exports in the game: TaleSpire (optional)
+Slabyrinth is a free, open-source desktop app for Windows and Linux. Website: <https://slabyrinth.aboff.com/>
 
-## Commands
+## Download and install
 
-```sh
-npm ci                # install (one lockfile for all workspaces)
-npm run dev           # start the app with hot reload
-npm run typecheck     # tsc -b across all projects
-npm run lint          # ESLint
-npm run format        # Prettier
-npm test              # Vitest, all workspaces
-npm run build         # compile packages and bundle the app
-npm run package       # unpacked app in apps/desktop/release/
-npm run dist          # installers for the current OS
-npm run test:e2e      # Playwright e2e: builds the test bundle (apps/desktop/out-test) and runs it hidden
-npm run smoke:packaged -w @slabyrinth/desktop   # run the unpacked packaged app once (SMOKE_OK)
-```
+Download the latest version from the [Releases page](https://github.com/mwaboff/slabyrinth/releases/latest).
 
-## Installing the unsigned builds
+| You want                       | Download                           |
+| ------------------------------ | ---------------------------------- |
+| Windows, installed             | `Slabyrinth-Setup-x.y.z.exe`       |
+| Windows, no install (portable) | `Slabyrinth-x.y.z-portable.exe`    |
+| Linux                          | `Slabyrinth-x.y.z-x86_64.AppImage` |
 
-Slabyrinth releases are not code-signed (v1), so your operating system warns you the first time.
+The builds are not code-signed yet, so your system warns you the first time you run one.
 
-**Windows** (installer `Slabyrinth-Setup-x.y.z.exe` or portable `Slabyrinth-x.y.z-portable.exe`).
-SmartScreen shows "Windows protected your PC" with an unknown publisher. Click **More info**, check
-that the file name matches the release you downloaded from this repository's Releases page, then
-click **Run anyway**. The warning goes away once a build has enough downloads to earn reputation,
-or once the project uses a code-signing certificate.
+**Windows:** SmartScreen says "Windows protected your PC". Click **More info**, check that the file name matches what you downloaded, then click **Run anyway**.
 
-**Linux** (`Slabyrinth-x.y.z-x86_64.AppImage`):
+**Linux:** make the AppImage executable, then run it.
 
-```sh
+```bash
 chmod +x Slabyrinth-*.AppImage
 ./Slabyrinth-*.AppImage
 ```
 
-AppImages need FUSE 2: `libfuse2` on Ubuntu 22.04, `libfuse2t64` on Ubuntu 24.04 and later
-(`sudo apt install libfuse2t64`). Without FUSE, run `./Slabyrinth-*.AppImage --appimage-extract-and-run`.
+AppImages need FUSE 2: install `libfuse2` (Ubuntu 22.04) or `libfuse2t64` (Ubuntu 24.04 and later). Without it, run `./Slabyrinth-*.AppImage --appimage-extract-and-run`.
 
-## Where Slabyrinth keeps your data
+## What you need
 
-- **Maps**: one `.slabyrinth` file per map in `Documents/Slabyrinth` (changeable in Settings). Plain
-  JSON, autosaved with crash-safe writes (temp file + rename); the previous good copy is kept as
-  `<map>.slabyrinth.bak`. Map files never contain your API key.
-- **App data** (Electron `userData`: `%APPDATA%\Slabyrinth` on Windows, `~/.config/Slabyrinth` on
-  Linux): `settings.json`, `secret.bin` (your API key, encrypted with the OS keychain through Electron
-  `safeStorage`), `catalog/` (the asset library read from your TaleSpire install), `palettes/` (your
-  palettes and overrides), `orientation.json` (optional orientation override), `logs/` (5 × 1 MB;
-  never contains keys or prompts). Help ▸ Open data folder opens it.
-- **Palettes**: the curated palettes and orientation data are built into the app. To change one, put a
-  JSON file in `<userData>/palettes/` (Help ▸ Open data folder): a file with `"overrides": true`
-  and the id of a built-in palette replaces those roles (`null` deletes one); any other palette file adds a
-  new theme. `<userData>/orientation.json` replaces the built-in orientation calibration. Invalid files are
-  ignored and listed with their issues.
-- **TaleSpire** is only ever read (its asset index files). "Copy & open TaleSpire" copies the slab,
-  then starts the game through Steam (`steam://rungameid/720620`) or brings the running game forward.
+- **An Anthropic API key.** Slabyrinth chats with Claude using your own key, and Anthropic bills you for that usage. The cost varies from map to map: it depends on the map's size, the Claude model you choose and how many revisions you ask for. The app shows an estimate before each message and a running total, and you can set spending warnings in Settings.
+- **TaleSpire**, to use what you build. Slabyrinth reads the asset library from your install. Without TaleSpire it falls back to a small built-in set of pieces: you can still design and export maps, but the newest tiles and props aren't available.
 
-## Network and privacy
+## How it works
 
-Slabyrinth talks to `api.anthropic.com` only to chat with Claude, using your own API key. It also makes
-one anonymous request to GitHub (`api.github.com`, this repository's latest release) to check for a new
-version, at most once a day, which you can turn off in Settings ▸ About ("Check for updates
-automatically"). That request carries no key, no maps and no identifiers, and nothing is downloaded or
-installed for you: a newer version shows a small "Update available" notice with a link to its release
-page. There is no telemetry and no account.
+1. **Describe** the place you want: a dungeon, a crypt, a tower. Claude asks a few questions, keeps a design brief, and draws a first plan.
+2. **Review** the plan as a 2D map with a numbered room key, on one or several stacked levels. Change it by chatting ("make room 3 bigger") or directly on the map. Every change is a version you can undo, compare or restore.
+3. **Build:** approve a version and Slabyrinth compiles it into TaleSpire slabs.
+4. **Paste** into TaleSpire. **Copy & open TaleSpire** copies the slab and starts or focuses the game.
 
-## Releasing
+Also included:
 
-See [docs/releasing.md](docs/releasing.md): bump the version, add the `CHANGELOG.md` section, push the
-tag `vX.Y.Z`.
+- Each map is checked for playability: doors you can walk through, rooms you can reach, stairs with room to climb, furniture that doesn't block the way. Remaining issues are shown on the map.
+- Choose the Claude model and effort for each conversation.
+- Export the map as a PNG (with or without the room key) and the room key as Markdown.
+- Dark and light themes, keyboard shortcuts, and autosave.
 
-## Development notes
+## Privacy and network
 
-- **Conversation engine.** Every build runs the real engine (`apps/desktop/src/main/agent`) with the
-  Anthropic provider, keyed from the API key stored in Settings (development builds also accept
-  `ANTHROPIC_API_KEY` from the environment; smoke and e2e runs never do). Without a key, chat answers
-  the typed `no_api_key` error and the UI asks for one. Wiring: `src/main/engineWiring.ts`.
-- **Fake engine (dev/test only).** `SLABYRINTH_FAKE_ENGINE=1` in a development or test run, or the
-  `fakeEngine` flag under `"x-featureFlags"` in `settings.json` of a development run, swaps in the
-  fake engine that replays recorded streams (`src/main/engine/recordings.ts`; send `#ask` or `#fail`
-  to see question cards and errors). Packaged builds ignore both.
-- **Smoke and e2e.** `SLABYRINTH_SMOKE=1` boots hidden, runs self-checks (including "chat answers
-  `no_api_key`" and "packaged build uses the real engine and compiler"), prints `SMOKE_OK` and exits.
-  `SLABYRINTH_E2E=1` is the Playwright mode. Both use a throwaway `userData` folder (or
-  `SLABYRINTH_USER_DATA`) and inert doubles for every outside effect: no dialogs, a memory clipboard,
-  no TaleSpire lookup, launch or focus. `e2e/conversation.spec.ts` drives the real engine through the
-  real IPC with a scripted provider (`SLABYRINTH_E2E_PROVIDER_SCRIPT`, test runs only): no network,
-  no API cost. It only exists in test builds (`npm run build:test -w @slabyrinth/desktop`, output in
-  `apps/desktop/out-test`); production bundles (`out/`, packaged) contain no test code, and the packaged
-  smoke run checks that.
-- The full asset catalog (`data/talespire-assets.json`) is research data generated locally; it is
-  gitignored and never bundled. Only the curated palettes in `packages/core/data` ship with the app.
+- **Network:** the app connects to `api.anthropic.com` to chat with Claude, and to GitHub for the update check. There is no telemetry and no account.
+- **Your API key** is encrypted with your system's keychain (Electron `safeStorage`) and stored in the app data folder. It is only ever sent to `api.anthropic.com`, and never written to map files or logs. On Linux without a keyring, the key is kept in memory for the session unless you choose to store it with weaker protection.
+- **Update check:** at most once a day the app sends one anonymous request to `api.github.com` for this repository's latest release. It carries no key, no map data and no identifiers. If a newer version exists, you see an "Update available" notice that links to its release page. Nothing is downloaded or installed for you. Turn the check off in **Settings ▸ About** ("Check for updates automatically").
+- **Maps** are saved as one `.slabyrinth` file per map in `Documents/Slabyrinth` (you can change the folder in Settings). They are plain JSON, autosaved with crash-safe writes, and the previous good copy is kept as `<map>.slabyrinth.bak`.
+- **App data** lives in `%APPDATA%\Slabyrinth` on Windows and `~/.config/Slabyrinth` on Linux: settings, the encrypted key, the asset library read from TaleSpire, custom palettes and logs. **Help ▸ Open data folder** opens it.
+- **TaleSpire** is only ever read, never modified. To launch it, the app uses Steam.
 
-## Licence
+## Known limitations
 
-© 2026 Michael Aboff. MIT, see [`LICENSE`](LICENSE). Third-party test data and its licence are listed in
-[`data/THIRD-PARTY.md`](data/THIRD-PARTY.md).
+- Windows and Linux (x64) only.
+- Claude is the only supported chat provider.
+- Large maps that don't fit in one slab are split into a few, which you paste one after another using the alignment markers Slabyrinth adds.
+- A few placement details are correct by calculation but not yet confirmed in game, such as door-handle sides on east and west walls and water surface height.
+- Slab-count estimates near the size limit can be one too high.
+- No automatic updates: the app tells you about a new version, and you download it yourself.
+
+Not yet: other chat providers (such as LM Studio), importing existing slabs as stamps.
+
+## Development
+
+You need Git and Node.js 26 (see [`.nvmrc`](.nvmrc)) with its bundled npm. The repository uses npm workspaces with a single lockfile.
+
+```bash
+npm ci
+node node_modules/electron/install.js   # npm ci doesn't fetch the Electron binary
+npm run dev                             # run the app with hot reload
+```
+
+| Command             | What it does                                                  |
+| ------------------- | ------------------------------------------------------------- |
+| `npm test`          | Unit tests (Vitest) for all workspaces                        |
+| `npm run test:e2e`  | Builds a test bundle and runs the Playwright end-to-end tests |
+| `npm run lint`      | ESLint                                                        |
+| `npm run typecheck` | `tsc -b` across all projects                                  |
+| `npm run format`    | Prettier                                                      |
+| `npm run build`     | Compiles the packages and bundles the app                     |
+| `npm run package`   | Unpacked app in `apps/desktop/release/`                       |
+| `npm run dist`      | Installers for the current OS in `apps/desktop/release/`      |
+
+On a Linux machine without a display, run the end-to-end tests under `xvfb-run -a`. In development, the app also accepts an API key from the `ANTHROPIC_API_KEY` environment variable.
+
+Repository layout:
+
+- `packages/core`: the map plan, validation, compiler and slab codec (pure TypeScript, no Electron).
+- `packages/render-canvas`: the 2D map renderer, shared by the map view and PNG export.
+- `apps/desktop`: the Electron app (main process, conversation engine, React UI, end-to-end tests).
+- `docs/`: design documents and contracts. `data/`: test slabs and reference data. `site/`: the website.
+
+Before contributing, read [CONTRIBUTING.md](CONTRIBUTING.md), [docs/decisions.md](docs/decisions.md) and [docs/architecture.md](docs/architecture.md). Test and development modes (the fake engine, smoke runs) and custom palette files are described in [docs/architecture.md §7.6](docs/architecture.md#76-development-and-test-modes). To publish a release, follow [docs/releasing.md](docs/releasing.md).
+
+## Licence and credits
+
+Copyright © 2026 Michael Aboff. Released under the [MIT licence](LICENSE).
+
+- The app's fonts, [Cinzel](https://fonts.google.com/specimen/Cinzel), [Lora](https://fonts.google.com/specimen/Lora) and [Source Sans 3](https://fonts.google.com/specimen/Source+Sans+3), are bundled through Fontsource under the SIL Open Font License 1.1.
+- Two slab test vectors come from [TaleSpire.Slab](https://github.com/svenboulanger/TaleSpire.Slab) by Sven Boulanger (MIT). See [data/THIRD-PARTY.md](data/THIRD-PARTY.md).
+
+Slabyrinth is an unofficial fan-made tool. It is not affiliated with, endorsed by or sponsored by Bouncyrock Entertainment (makers of TaleSpire) or Anthropic (makers of Claude). TaleSpire and Claude are trademarks of their respective owners. Slabyrinth does not include or redistribute TaleSpire's models, textures or asset catalog: its built-in palettes list only the ids, names and sizes of the pieces they use, and the full asset library is read from your own TaleSpire install.
