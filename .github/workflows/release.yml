@@ -53,7 +53,7 @@ jobs:
           name: release-${{ matrix.os }}
           if-no-files-found: error
           path: |
-            apps/desktop/release/*.exe
+            apps/desktop/release/Slabyrinth-*.exe
             apps/desktop/release/*.AppImage
             apps/desktop/release/latest*.yml
 
@@ -63,11 +63,27 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Release notes = the CHANGELOG.md section for this tag (the app shows them under "What's new");
+      # GitHub's generated notes only when that section is missing.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .nvmrc
+            CHANGELOG.md
+            apps/desktop/scripts/release-notes.ts
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Release notes from CHANGELOG.md
+        id: notes
+        run: node apps/desktop/scripts/release-notes.ts "${GITHUB_REF_NAME}" CHANGELOG.md release-notes.md >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v8
         with:
           path: artifacts
       - uses: softprops/action-gh-release@v3
         with:
           files: artifacts/**
-          generate_release_notes: true
+          body_path: ${{ steps.notes.outputs.found == 'true' && 'release-notes.md' || '' }}
+          generate_release_notes: ${{ steps.notes.outputs.found != 'true' }}
           prerelease: ${{ contains(github.ref_name, '-') }}

@@ -73,6 +73,20 @@ AppImages need FUSE 2: `libfuse2` on Ubuntu 22.04, `libfuse2t64` on Ubuntu 24.04
 - **TaleSpire** is only ever read (its asset index files). "Copy & open TaleSpire" copies the slab,
   then starts the game through Steam (`steam://rungameid/720620`) or brings the running game forward.
 
+## Network and privacy
+
+Slabyrinth talks to `api.anthropic.com` only to chat with Claude, using your own API key. It also makes
+one anonymous request to GitHub (`api.github.com`, this repository's latest release) to check for a new
+version, at most once a day, which you can turn off in Settings ▸ About ("Check for updates
+automatically"). That request carries no key, no maps and no identifiers, and nothing is downloaded or
+installed for you: a newer version shows a small "Update available" notice with a link to its release
+page. There is no telemetry and no account.
+
+## Releasing
+
+See [docs/releasing.md](docs/releasing.md): bump the version, add the `CHANGELOG.md` section, push the
+tag `vX.Y.Z`.
+
 ## Development notes
 
 - **Conversation engine.** Every build runs the real engine (`apps/desktop/src/main/agent`) with the
