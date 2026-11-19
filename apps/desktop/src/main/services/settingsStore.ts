@@ -80,6 +80,11 @@ export const settingsSchema = z.object({
   suppressAssetWarning: z.boolean(),
   defaultSystem: defaultSystemSchema.nullable(),
   setupCompleted: z.boolean(),
+  updates: z.object({
+    autoCheck: z.boolean(),
+    skippedVersion: z.string().min(1).max(64).optional(),
+    lastCheckedAt: z.string().min(1).max(64).optional(),
+  }),
 });
 
 /**
@@ -126,6 +131,8 @@ export const settingsPatchSchema = z.strictObject({
   suppressAssetWarning: z.boolean().optional(),
   defaultSystem: defaultSystemSchema.nullable().optional(),
   setupCompleted: z.boolean().optional(),
+  /** skippedVersion (updates:skip) and lastCheckedAt are main-owned. */
+  updates: z.strictObject({ autoCheck: z.boolean().optional() }).optional(),
 });
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>;
 
@@ -158,6 +165,7 @@ export function defaultSettings(projectsFolder: string): AppSettings {
     suppressAssetWarning: false,
     defaultSystem: null,
     setupCompleted: false,
+    updates: { autoCheck: true },
   };
 }
 

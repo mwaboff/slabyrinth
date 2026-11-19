@@ -7,6 +7,7 @@
  *   setup   → first run (Setup window)      nokey → no API key stored
  *   nots    → TaleSpire not found           empty → no projects yet
  *   win     → platform win32 (native window controls)
+ *   update  → a newer release is available (header chip)
  */
 import {
   applyOps,
@@ -52,6 +53,7 @@ export interface FakeScenario {
   nots?: boolean;
   empty?: boolean;
   win?: boolean;
+  update?: boolean;
 }
 
 export interface FakeOptions {
@@ -86,6 +88,7 @@ export function parseScenario(search: string): FakeScenario {
     nots: flags.has("nots"),
     empty: flags.has("empty") || flags.has("setup"),
     win: flags.has("win"),
+    update: flags.has("update"),
   };
 }
 
@@ -125,6 +128,26 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
   let lastUser: { text: string; selection?: IpcRequests["chat:send"]["req"]["selection"] } | null = null;
   let tsRunning = false;
   let hasKey = scenario.nokey !== true;
+  let lastCheckedAt: string | null = null;
+  const updateStatus = (): IpcRequests["updates:status"]["res"] => {
+    const update =
+      scenario.update === true
+        ? {
+            version: "0.2.0",
+            tag: "v0.2.0",
+            publishedAt: "2026-12-01T12:00:00Z",
+            notes: "Added\n- Stamps for repeated rooms\n\nFixed\n- Stairs against walls",
+            url: "https://github.com/mwaboff/slabyrinth/releases/tag/v0.2.0",
+          }
+        : null;
+    return {
+      state: update ? "available" : lastCheckedAt !== null ? "up_to_date" : "idle",
+      currentVersion: "0.1.0",
+      lastCheckedAt,
+      update,
+      skipped: update !== null && settings.updates.skippedVersion === update.version,
+    };
+  };
   let keyHint = "sk-ant-…a1B2";
   const uiState = new Map<
     string,
@@ -159,6 +182,7 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
     projects: { folder: "C:\\Users\\GM\\Documents\\Slabyrinth", recent },
     ui: { theme: "dark", mapThemeId: "auto", gridVisible: true, onLaunch: "home" },
     suppressAssetWarning: false,
+    updates: { autoCheck: true },
     setupCompleted: scenario.setup !== true,
     defaultSystem: scenario.setup === true ? null : { system: "daggerheart" },
   };
@@ -864,6 +888,17 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
     "palettes:reload": () => undefined,
     "palettes:openFolder": () => undefined,
     "shell:openExternal": () => ({ opened: true }),
+
+    "updates:status": () => updateStatus(),
+    "updates:check": async () => {
+      await sleep(600);
+      lastCheckedAt = new Date().toISOString();
+      return updateStatus();
+    },
+    "updates:skip": ({ version }) => {
+      settings = { ...settings, updates: { ...settings.updates, skippedVersion: version } };
+      return updateStatus();
+    },
   };
 
   // Startup warning, as main sends it after the first catalog check.

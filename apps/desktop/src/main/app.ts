@@ -30,6 +30,7 @@ import { SettingsStore } from "./services/settingsStore";
 import { CatalogService } from "./services/talespire/catalogService";
 import { nodeReadonlyFs, type LocatorEnv } from "./services/talespire/steamLocator";
 import { TaleSpireService, type ProcessProbe } from "./services/talespire/taleSpireService";
+import { UpdateService, type FetchLike } from "./services/updateService";
 import { cleanupTempFiles } from "./util/atomicWrite";
 
 /**
@@ -56,6 +57,9 @@ export interface AppServices {
   build: BuildService;
   exporter: ExportService;
   imageBridge: ImageBridge;
+  updates: UpdateService;
+  /** Starts the background update check when it may run (packaged, not safe mode, daily, autoCheck on). */
+  startUpdateCheck(packaged: boolean): void;
   engine: ConversationEngine | null;
   /** "none" only when construction failed (logged); chat then answers "internal". */
   engineKind: EngineKind | "none";
@@ -308,6 +312,31 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
   });
   const imageBridge = new ImageBridge(emit);
 
+  // ── update notice: GitHub latest release (main only). The e2e TEST BUILD may inject a canned response file
+  // (SLABYRINTH_E2E_UPDATE_RESPONSE, safe mode only); production bundles drop that branch at build time.
+  let updateFetch: FetchLike | undefined;
+  let forceUpdateCheck = false;
+  if (__SLABYRINTH_TEST_BUILD__ && safeMode) {
+    const canned = process.env["SLABYRINTH_E2E_UPDATE_RESPONSE"] ?? "";
+    if (canned !== "") {
+      updateFetch = async () =>
+        new Response(await fsp.readFile(canned, "utf8"), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      forceUpdateCheck = true;
+    }
+  }
+  const updates = new UpdateService({
+    currentVersion: ctx.appVersion,
+    settings,
+    logger: logger.child("updates"),
+    ...(updateFetch ? { fetch: updateFetch } : {}),
+    onAvailable: (status) => {
+      emit("updates:available", status);
+    },
+  });
+
   // ── engine
   const host: EngineHost = {
     getProject: () => projects.getProject(),
@@ -412,6 +441,7 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
     palettes,
     dialogs,
     openExternal,
+    updates,
     logger: logger.child("ipc"),
   });
   const dispatch = createDispatcher(handlers, requestSchemas, (url) => isTrusted(url), logger.child("ipc"));
@@ -461,6 +491,12 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
     build,
     exporter,
     imageBridge,
+    updates,
+    startUpdateCheck(packaged) {
+      void updates.startupCheck({ packaged, safeMode, force: forceUpdateCheck }).catch((err: unknown) => {
+        logger.warn("update check failed", { error: err });
+      });
+    },
     engine,
     engineKind,
     dispatch,

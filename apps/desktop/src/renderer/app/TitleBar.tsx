@@ -11,6 +11,7 @@ import { goHome, renameProject } from "./actions";
 import { AppMenu } from "./AppMenu";
 import { money, tokens, relativeTime } from "../lib/format";
 import { toggleTheme, useAppliedTheme } from "./theme";
+import { UpdateChip } from "../features/updates/UpdateChip";
 
 function ProjectName() {
   const name = useProject((s) => s.snap?.name ?? "");
@@ -277,6 +278,7 @@ export function TitleBar() {
         </>
       )}
       <div className="titlebar__center">{inWorkspace && <Stepper />}</div>
+      {route !== "setup" && <UpdateChip />}
       {route !== "setup" && <CostMeter />}
       {offline && <span className="statusdot" title="You're offline" role="img" aria-label="Offline" />}
       <button

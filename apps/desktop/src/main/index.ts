@@ -141,6 +141,15 @@ if (!app.requestSingleInstanceLock()) {
           logger.warn("catalog startup failed", { error: err });
         });
 
+      // Update notice: one background check a few seconds after startup, at most daily, packaged builds only
+      // (never in smoke/e2e runs except the e2e test build's canned response). Shows a chip; never a dialog.
+      setTimeout(
+        () => {
+          s.startUpdateCheck(app.isPackaged);
+        },
+        safeMode ? 0 : 5000,
+      );
+
       started = true;
 
       if (smoke) {

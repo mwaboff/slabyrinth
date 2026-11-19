@@ -11,6 +11,7 @@ import { useMap } from "../stores/map";
 import { useProject } from "../stores/project";
 import { useSettings } from "../stores/settings";
 import { useBuild } from "../stores/build";
+import { useUpdates } from "../stores/updates";
 import { openSnapshot } from "./actions";
 import { runMenuCommand } from "./commands";
 
@@ -96,6 +97,10 @@ export function subscribeEvents(): void {
     on("menu:command", (m) => {
       runMenuCommand(m.command);
     }),
+    // Passive: only the header chip appears; nothing opens over a running turn or a dialog.
+    on("updates:available", (st) => {
+      useUpdates.getState().set(st);
+    }),
   ];
   const online = (): void => {
     useApp.getState().setBanner({ offline: !navigator.onLine });
@@ -111,6 +116,7 @@ export async function boot(): Promise<void> {
   const info = await call("app:getInfo", undefined);
   useApp.getState().setInfo(info.platform, info.version);
   await useSettings.getState().load();
+  void useUpdates.getState().load();
   const settings = useSettings.getState().settings;
   const catalog = useSettings.getState().catalog;
   if (catalog?.state === "no_install" && settings?.suppressAssetWarning !== true)

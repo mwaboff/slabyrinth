@@ -78,6 +78,15 @@ describe("IPC router", () => {
       ["project:setUiState", { pasteGuide: { buildId: "b", currentStep: -1 } }],
       ["clipboard:writeText", { text: "x", chunk: { buildId: "b" } }],
       ["talespire:copyAndOpen", { text: "x", chunk: { buildId: "b", chunkId: "c", extra: 1 } }],
+      ["updates:status", { manual: true }],
+      ["updates:check", {}],
+      ["updates:check", { manual: "yes" }],
+      ["updates:check", { manual: true, url: "https://evil.example" }],
+      ["updates:skip", { version: "latest" }],
+      ["updates:skip", { version: "v0.2.0" }],
+      ["updates:skip", { version: "0.2.0", tag: "v0.2.0" }],
+      ["settings:update", { updates: { skippedVersion: "0.2.0" } }],
+      ["settings:update", { updates: { lastCheckedAt: "2026-01-01T00:00:00Z" } }],
     ];
     for (const [channel, payload] of bad) {
       const r = await d(channel, APP_URL, payload);
@@ -99,6 +108,11 @@ describe("IPC router", () => {
       ["project:setUiState", { pasteGuide: { buildId: "b", currentStep: 2 } }],
       ["clipboard:writeText", { text: "x", chunk: { buildId: "b", chunkId: "c" } }],
       ["talespire:copyAndOpen", { text: "x", chunk: { buildId: "b", chunkId: "c" } }],
+      ["updates:status", undefined],
+      ["updates:check", { manual: false }],
+      ["updates:skip", { version: "0.2.0" }],
+      ["updates:skip", { version: "1.0.0-rc.1" }],
+      ["settings:update", { updates: { autoCheck: false } }],
     ] as Array<[keyof IpcRequests, unknown]>) {
       expect((await d(channel, APP_URL, payload)).ok, channel).toBe(true);
     }

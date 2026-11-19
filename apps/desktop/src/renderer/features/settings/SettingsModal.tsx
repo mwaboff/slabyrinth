@@ -9,6 +9,11 @@ import { useSettings } from "../../stores/settings";
 import { useProject } from "../../stores/project";
 import { call, errorMessage } from "../../bridge/client";
 import { ApiKeyField, KeyStorageNote, UnreadableKeyNote } from "../setup/Setup";
+import { UpdateCheckRow } from "../updates/UpdateChip";
+
+/** Same wording in Settings and Setup. */
+export const UPDATE_CHECK_HELP =
+  "Once a day Slabyrinth asks GitHub whether a newer version exists. The request is anonymous: no key, no maps, no identifiers. Nothing is downloaded or installed for you.";
 import { pickProjectsFolder, pickTaleSpireFolder } from "../../app/folders";
 import { EffortControl, ModelList, capsOf, snapEffort } from "../chat/ModelControls";
 import { money, relativeTime, roundCost } from "../../lib/format";
@@ -41,7 +46,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function Check({
+export function Check({
   on,
   onChange,
   label,
@@ -587,8 +592,9 @@ function AppearanceSection({ s }: { s: AppSettings }) {
   );
 }
 
-function AboutSection() {
+function AboutSection({ s }: { s: AppSettings }) {
   const version = useApp((x) => x.version);
+  const update = useSettings((x) => x.update);
   const [dataPath, setDataPath] = useState("");
   useEffect(() => {
     void call("app:getInfo", undefined).then((i) => {
@@ -600,6 +606,15 @@ function AboutSection() {
       <h3>About Slabyrinth</h3>
       <p className="lead">Design maps with Claude. Build them in TaleSpire.</p>
       <Row label="Version">{version}</Row>
+      <Row label="Updates">
+        <UpdateCheckRow />
+        <Check
+          on={s.updates.autoCheck}
+          onChange={(v) => void update({ updates: { autoCheck: v } })}
+          label="Check for updates automatically"
+          help={UPDATE_CHECK_HELP}
+        />
+      </Row>
       <Row label="Data folder">
         <code className="setup__path">{dataPath}</code>
         <span className="muted">
@@ -663,7 +678,7 @@ export function SettingsModal() {
             {section === "talespire" && <TaleSpireSection s={s} />}
             {section === "projects" && <ProjectsSection s={s} />}
             {section === "appearance" && <AppearanceSection s={s} />}
-            {section === "about" && <AboutSection />}
+            {section === "about" && <AboutSection s={s} />}
           </div>
           <div className="sfoot">
             <span>{foot}</span>

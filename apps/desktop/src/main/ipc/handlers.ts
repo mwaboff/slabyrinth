@@ -12,6 +12,7 @@ import type { SecretStore } from "../services/secretStore";
 import type { SettingsStore } from "../services/settingsStore";
 import type { CatalogService } from "../services/talespire/catalogService";
 import type { TaleSpireService } from "../services/talespire/taleSpireService";
+import type { UpdateService } from "../services/updateService";
 import { AppFailure } from "../util/errors";
 import { checkLocalPath, pathKey } from "../util/safePath";
 import type { Handlers } from "./router";
@@ -32,6 +33,8 @@ export interface HandlerServices {
   /** Native dialogs (inert in smoke/e2e runs). */
   dialogs: Dialogs;
   openExternal: (url: string) => Promise<void>;
+  /** Update notice (status, manual check, skip). */
+  updates: Pick<UpdateService, "status" | "check" | "skip">;
   logger: Logger;
 }
 
@@ -224,5 +227,9 @@ export function createHandlers(s: HandlerServices): Handlers {
       await s.openExternal(req.url);
       return { opened: true };
     },
+
+    "updates:status": () => s.updates.status(),
+    "updates:check": (req) => s.updates.check(req),
+    "updates:skip": (req) => s.updates.skip(req.version),
   };
 }

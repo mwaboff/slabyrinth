@@ -202,4 +202,10 @@ export interface AppSettings {
    */
   defaultSystem: { system: "daggerheart" | "dnd5e" | "other"; otherName?: string } | null;
   setupCompleted: boolean;
+  /**
+   * Update notice (decisions.md "Update notice"): one anonymous request to GitHub's latest-release API at most
+   * once a day in packaged builds, when autoCheck is on (default true). skippedVersion ("0.2.0") and
+   * lastCheckedAt (ISO) are main-owned.
+   */
+  updates: { autoCheck: boolean; skippedVersion?: string; lastCheckedAt?: string };
 }

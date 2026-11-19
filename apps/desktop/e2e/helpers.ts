@@ -35,7 +35,10 @@ export function cleanRun(run: Run): void {
   rmSync(run.dir, { recursive: true, force: true });
 }
 
-export async function launch(run: Run): Promise<{ app: ElectronApplication; page: Page }> {
+export async function launch(
+  run: Run,
+  extraEnv: Record<string, string> = {},
+): Promise<{ app: ElectronApplication; page: Page }> {
   expect(
     existsSync(mainEntry),
     `${mainEntry} missing: run npm run build:test -w @slabyrinth/desktop first`,
@@ -52,6 +55,7 @@ export async function launch(run: Run): Promise<{ app: ElectronApplication; page
       SLABYRINTH_USER_DATA: run.userData,
       SLABYRINTH_E2E_PROVIDER_SCRIPT: run.script,
       SLABYRINTH_E2E_PROVIDER_LOG: run.log,
+      ...extraEnv,
     },
     timeout: 30_000,
   });

@@ -8,7 +8,7 @@ import { useApp } from "../../stores/app";
 import { useProject } from "../../stores/project";
 import { newProject } from "../../app/actions";
 import { pickTaleSpireFolder } from "../../app/folders";
-import { SystemPicker } from "../settings/SettingsModal";
+import { Check, SystemPicker, UPDATE_CHECK_HELP } from "../settings/SettingsModal";
 import type { ProviderErrorInfo } from "../../../main/agent/provider/types";
 
 export type KeyState =
@@ -406,6 +406,15 @@ export function Setup() {
                     </button>
                   ))}
                 </div>
+              </div>
+              <div className="setup__row">
+                <span className="setup__label">Updates</span>
+                <Check
+                  on={settings?.updates.autoCheck ?? true}
+                  onChange={(v) => void update({ updates: { autoCheck: v } })}
+                  label="Check for updates automatically"
+                  help={`${UPDATE_CHECK_HELP} You can change this later in Settings ▸ About.`}
+                />
               </div>
               <div className="setup__nav">
                 <button

@@ -57,6 +57,49 @@ describe("SettingsStore", () => {
     expect(settingsPatchSchema.safeParse({ ui: { theme: "neon" } }).success).toBe(false);
   });
 
+  it("migrates settings files written before the update notice existed", async () => {
+    const store = make();
+    const old = await store.load();
+    const withoutUpdates: Partial<typeof old> = { ...old };
+    delete withoutUpdates.updates;
+    await fsp.writeFile(
+      file,
+      JSON.stringify({ ...withoutUpdates, smartEffort: false, setupCompleted: true }),
+    );
+    const s = await make().load();
+    expect(s.updates).toEqual({ autoCheck: true });
+    expect(s.smartEffort).toBe(false);
+    expect(s.setupCompleted).toBe(true);
+    // An invalid updates block falls back to the default; the rest is kept.
+    await fsp.writeFile(
+      file,
+      JSON.stringify({ ...withoutUpdates, setupCompleted: true, updates: { autoCheck: "sometimes" } }),
+    );
+    const s2 = await make().load();
+    expect(s2.updates).toEqual({ autoCheck: true });
+    expect(s2.setupCompleted).toBe(true);
+    // Valid values survive a round trip; the renderer may change only autoCheck.
+    await fsp.writeFile(
+      file,
+      JSON.stringify({
+        ...withoutUpdates,
+        updates: { autoCheck: false, skippedVersion: "0.2.0", lastCheckedAt: "2026-11-30T09:00:00.000Z" },
+      }),
+    );
+    const s3 = make();
+    expect((await s3.load()).updates).toEqual({
+      autoCheck: false,
+      skippedVersion: "0.2.0",
+      lastCheckedAt: "2026-11-30T09:00:00.000Z",
+    });
+    expect((await s3.update({ updates: { autoCheck: true } })).updates).toEqual({
+      autoCheck: true,
+      skippedVersion: "0.2.0",
+      lastCheckedAt: "2026-11-30T09:00:00.000Z",
+    });
+    expect(settingsPatchSchema.safeParse({ updates: { skippedVersion: "9.9.9" } }).success).toBe(false);
+  });
+
   it("repairs invalid fields and survives a corrupt file", async () => {
     await fsp.writeFile(file, JSON.stringify({ ui: { theme: "neon" }, smartEffort: false }));
     const s = await make().load();

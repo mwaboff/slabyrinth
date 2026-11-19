@@ -206,6 +206,37 @@ export interface IpcRequests {
 
   /** Opens https URLs from an allowlist (docs, GitHub releases, console.anthropic.com) in the system browser. */
   "shell:openExternal": { req: { url: string }; res: { opened: boolean } };
+
+  /** Update notice: main asks GitHub's latest-release API; the renderer never fetches. */
+  "updates:status": { req: void; res: UpdateStatus };
+  /** manual: the "Check for updates" button (ignores the daily throttle and the autoCheck setting; allowed in dev). */
+  "updates:check": { req: { manual: boolean }; res: UpdateStatus };
+  /** "Skip this version": no chip for this version; a newer one shows again. */
+  "updates:skip": { req: { version: string }; res: UpdateStatus };
+}
+
+/** A newer release found by the update check. */
+export interface UpdateInfo {
+  /** Semver without the "v" ("0.2.0"). */
+  version: string;
+  /** The validated release tag ("v0.2.0"). */
+  tag: string;
+  publishedAt: string | null;
+  /** Release notes: untrusted PLAIN TEXT, capped in main. Never rendered as HTML or markdown. */
+  notes: string;
+  /** https://github.com/mwaboff/slabyrinth/releases/tag/<tag>, built in main from the tag (never taken from the response). */
+  url: string;
+}
+
+export interface UpdateStatus {
+  state: "idle" | "checking" | "up_to_date" | "available" | "failed";
+  currentVersion: string;
+  /** ISO time of the last completed check, or null. */
+  lastCheckedAt: string | null;
+  /** Set when state is "available". */
+  update: UpdateInfo | null;
+  /** The available version is the one the user skipped (no chip; Settings still shows it). */
+  skipped: boolean;
 }
 
 // ───────────────────────────── events (main → renderer) ─────────────────────────────
@@ -242,6 +273,8 @@ export interface IpcEvents {
   /** Main asks renderer to rasterize a level for view_map_image (renderer replies via "render:imageResult"). */
   "render:requestImage": { requestId: string; level: LevelId; region?: { x: number; y: number; w: number; h: number }; showIds: boolean; planVersion: number; maxPx: number };
   "menu:command": { command: "new" | "open" | "save" | "saveAs" | "undo" | "redo" | "export" | "settings" };
+  /** An update check (startup or manual) found a newer version that isn't skipped. Never opens anything by itself. */
+  "updates:available": UpdateStatus;
 }
 
 /** Renderer → main one-way messages (ipcRenderer.send). */

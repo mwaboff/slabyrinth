@@ -125,6 +125,45 @@ describe("ProjectService: files", () => {
     });
   });
 
+  it("refuses a map from a newer app version with a plain message and leaves the file untouched", async () => {
+    rig = await projectRig();
+    const current = await rig.projects.create({ name: "Still open" });
+    const sub = path.join(rig.dir, "from-the-future");
+    await fsp.mkdir(sub);
+    // A complete-looking file from a future format (fields this build doesn't know), plain and gzipped.
+    const future = {
+      ...(await read(current.filePath as string)),
+      formatVersion: 2,
+      name: "Future map",
+      "x-new": { stamps: [1, 2, 3] },
+    };
+    const plain = path.join(sub, "future.slabyrinth");
+    const zipped = path.join(sub, "future-gz.slabyrinth");
+    await fsp.writeFile(plain, JSON.stringify(future));
+    await fsp.writeFile(zipped, gzipSync(Buffer.from(JSON.stringify(future))));
+    const before = new Map<string, Buffer>();
+    for (const f of [plain, zipped]) before.set(f, await fsp.readFile(f));
+    const stats = new Map<string, number>();
+    for (const f of [plain, zipped]) stats.set(f, (await fsp.stat(f)).mtimeMs);
+
+    for (const f of [plain, zipped]) {
+      rig.dialogs.next.openFile = f; // picked in the native open dialog
+      await expect(rig.projects.open({})).rejects.toMatchObject({
+        code: "validation",
+        message: "This map was made with a newer version of Slabyrinth. Update to open it.",
+      });
+    }
+    await rig.projects.flush();
+    // Byte-for-byte unchanged, never rewritten, and no lock, backup or migration copy next to it.
+    for (const f of [plain, zipped]) {
+      expect((await fsp.readFile(f)).equals(before.get(f) as Buffer)).toBe(true);
+      expect((await fsp.stat(f)).mtimeMs).toBe(stats.get(f));
+    }
+    expect((await fsp.readdir(sub)).sort()).toEqual(["future-gz.slabyrinth", "future.slabyrinth"]);
+    // The map that was open stays open.
+    expect(rig.projects.snapshot().name).toBe("Still open");
+  });
+
   it("reads gzip project files and preserves unknown x-* keys", async () => {
     rig = await projectRig();
     const snap = await rig.projects.create({ name: "Zipped" });

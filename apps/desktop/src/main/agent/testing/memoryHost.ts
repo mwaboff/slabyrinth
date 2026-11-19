@@ -34,6 +34,7 @@ export function defaultSettings(): AppSettings {
     suppressAssetWarning: false,
     defaultSystem: null,
     setupCompleted: true,
+    updates: { autoCheck: true },
   };
 }
 

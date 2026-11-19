@@ -1016,6 +1016,7 @@ The full list is in `ipc.ts`. Summary:
 | palettes | `palettes:list`, `reload`, `openFolder` |
 | image bridge | event `render:requestImage` → send `render:imageResult` |
 | shell | `shell:openExternal` (https allowlist) |
+| updates | `updates:status`, `updates:check` (`manual`), `updates:skip` · event `updates:available` |
 
 **Handler rules.**
 - Every handler validates its payload with Zod.
@@ -1090,7 +1091,8 @@ The stores are derived from IPC only. The renderer never computes authoritative 
   - On Linux, `safeStorage.getSelectedStorageBackend()` returning `basic_text` triggers the UX 8.3 choice ("Store anyway" or "memory only").
   - The SDK client is built with an explicit `apiKey` and an explicit `baseURL` of `https://api.anthropic.com`, so no environment variable (`ANTHROPIC_BASE_URL`, `ANTHROPIC_CUSTOM_HEADERS`, …) can send the key elsewhere. `ANTHROPIC_API_KEY` from the environment is honoured only in development builds, never in smoke/e2e runs, and a stored key always wins. Proxy and CA variables (`HTTPS_PROXY` with `NODE_USE_ENV_PROXY`, `NODE_EXTRA_CA_CERTS`) are outside the app's control and accepted: whoever can set them already runs code as the user.
 - **Model output** is treated as untrusted. Notes are rendered as a markdown subset with sanitization: no HTML, and links shown as text.
-- **Updates.** An opt-in check of the GitHub Releases API, made from main, which only shows a link. Auto-update is v1.1.
+- **Network.** The app talks to `api.anthropic.com` (chat, with your key) and makes one anonymous request to GitHub to check for a new version, at most once a day, which can be turned off (Settings ▸ About ▸ "Check for updates automatically"). Nothing else: no telemetry, no accounts.
+- **Updates.** A notice, not an installer (builds are unsigned). `UpdateService` in main sends one GET to `https://api.github.com/repos/mwaboff/slabyrinth/releases/latest` (drafts and prereleases excluded) with only `Accept` and `User-Agent: Slabyrinth/<version>` — no key, no identifiers, no map data. The host is pinned (https; a redirect is followed only to `api.github.com`), with an 8 s timeout, a 256 KB cap and a zod-validated body. The startup check runs in packaged builds only, never in smoke/e2e runs, at most once per 24 h (`settings.updates.lastCheckedAt`) and only with `updates.autoCheck`; "Check for updates" ignores the throttle. Failures are a quiet "couldn't check" state. A newer stable version shows a header chip; its popover shows the release notes as plain text and opens `https://github.com/mwaboff/slabyrinth/releases/tag/<tag>` (built in main from the validated tag, then checked by the `shell:openExternal` allow-list). "Skip this version" is stored as `updates.skippedVersion`. Auto-install is v1.1 at the earliest (needs signed builds).
 
 ### 6.6 TaleSpire integration
 

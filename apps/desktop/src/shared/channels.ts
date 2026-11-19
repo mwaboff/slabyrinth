@@ -71,6 +71,9 @@ const requestChannels = [
   "palettes:reload",
   "palettes:openFolder",
   "shell:openExternal",
+  "updates:status",
+  "updates:check",
+  "updates:skip",
 ] as const;
 
 const eventChannels = [
@@ -83,6 +86,7 @@ const eventChannels = [
   "settings:changed",
   "render:requestImage",
   "menu:command",
+  "updates:available",
 ] as const;
 
 const sendChannels = ["render:imageResult"] as const;

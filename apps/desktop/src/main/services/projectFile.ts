@@ -170,7 +170,7 @@ export function parseProject(bytes: Uint8Array, migrate: (json: unknown) => unkn
     return {
       ok: false,
       reason: "newer",
-      message: "This project was made with a newer version of Slabyrinth. Update the app to open it.",
+      message: "This map was made with a newer version of Slabyrinth. Update to open it.",
     };
   }
   let migratedFrom: number | null = null;

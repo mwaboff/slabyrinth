@@ -270,6 +270,16 @@ export const requestSchemas: { [C in keyof IpcRequests]: z.ZodType } = {
   "palettes:openFolder": voidReq,
 
   "shell:openExternal": z.strictObject({ url: z.string().min(1).max(2048) }),
+
+  "updates:status": voidReq,
+  "updates:check": z.strictObject({ manual: z.boolean() }),
+  "updates:skip": z.strictObject({
+    version: z
+      .string()
+      .min(5)
+      .max(64)
+      .regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/),
+  }),
 };
 
 export const sendSchemas: { [C in keyof IpcSends]: z.ZodType } = {
