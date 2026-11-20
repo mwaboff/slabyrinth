@@ -621,7 +621,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       return c;
     };
     const tools = (c: Readonly<Conversation>): StepRequest["tools"] =>
-      c.toolMode === "none" ? [] : toolsForConversation(c.imageToolEnabled);
+      c.toolMode === "none" ? [] : toolsForConversation(c.imageToolEnabled, c.toolsVersion);
 
     for (;;) {
       if (steps >= MAX_STEPS_PER_TURN) {

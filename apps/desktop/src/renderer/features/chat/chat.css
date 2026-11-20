@@ -692,6 +692,108 @@
   background: var(--surface-2);
 }
 
+/* the stop button names itself: icon plus "Stop" */
+.send--stop {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s6);
+  padding: 0 var(--s10) 0 var(--s8);
+  font: var(--t-small-m);
+}
+
+/* working card: the live "what is it doing" line at the end of the thread */
+.working {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: var(--s10);
+  min-height: 56px;
+  background: var(--surface-2);
+  border: var(--line-w) solid var(--line);
+  border-radius: var(--r-6);
+  padding: var(--s10) var(--s12);
+}
+
+.working__mark {
+  flex: none;
+  animation: working-pulse 1.8s ease-in-out infinite;
+}
+
+.working__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.working__title {
+  font: var(--t-ui-strong);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.working__step {
+  font: var(--t-small);
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.working__time {
+  font: var(--t-meta);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+.working__bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent-fill), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: working-sweep 1.4s linear infinite;
+}
+
+@keyframes working-sweep {
+  from {
+    background-position: -40% 0;
+  }
+  to {
+    background-position: 140% 0;
+  }
+}
+
+@keyframes working-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* reduced motion: no movement; the card is still plainly "in progress" (solid accent line under it) */
+@media (prefers-reduced-motion: reduce) {
+  .working__mark {
+    animation: none;
+  }
+
+  .working__bar {
+    animation: none;
+    background: var(--accent-fill);
+    opacity: 0.6;
+  }
+}
+
 /* model popover */
 .modelpop {
   left: var(--s12);

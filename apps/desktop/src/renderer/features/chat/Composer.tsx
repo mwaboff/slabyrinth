@@ -351,10 +351,11 @@ export function Composer() {
             <button
               className="send send--stop"
               aria-label="Stop (Esc)"
-              title="Stop (Esc)"
+              title="Stop the reply (Esc)"
               onClick={() => void stop()}
             >
               <Icon name="stop" />
+              <span className="send__label">Stop</span>
             </button>
           ) : (
             <button

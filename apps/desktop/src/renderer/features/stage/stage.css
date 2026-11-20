@@ -341,11 +341,18 @@
 }
 
 .revising {
-  top: auto;
-  bottom: var(--s12);
+  top: var(--s12);
   left: auto;
   right: var(--s16);
   transform: none;
+}
+
+.statusbar__live {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s6);
+  color: var(--ink);
+  font-weight: 500;
 }
 
 .revisebar {
@@ -359,6 +366,14 @@
   background-size: 40% 100%;
   background-repeat: no-repeat;
   animation: sweep 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revisebar {
+    animation: none;
+    background: var(--accent-fill);
+    opacity: 0.6;
+  }
 }
 
 @keyframes sweep {

@@ -27,6 +27,8 @@ export type ScriptedStep =
       stopReason?: StopReason;
       usage?: Partial<Usage>;
       delayMs?: number;
+      /** Test only: hold this long after the tool calls have streamed, before the step completes. */
+      holdAfterToolStartMs?: number;
       streamText?: string[];
     }
   | { kind: "error"; info: ProviderErrorInfo }
@@ -117,6 +119,21 @@ export class ScriptedProvider implements ChatProvider {
         onEvent({ type: "tool_call_delta", callId: p.callId, partialJson: JSON.stringify(p.input) });
         onEvent({ type: "tool_call_end", callId: p.callId });
       }
+    }
+    if (step.holdAfterToolStartMs !== undefined && step.holdAfterToolStartMs > 0) {
+      // Test only: stay mid-turn with the plan tool streamed but not yet applied (UI captures of "revising").
+      const ms = step.holdAfterToolStartMs;
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, ms);
+        signal.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            reject(new ProviderFailure({ kind: "cancelled", retryable: false, message: "Stopped." }));
+          },
+          { once: true },
+        );
+      });
     }
     const usage: Usage = {
       inputTokens: 1000,

@@ -7,16 +7,28 @@ import { useProject, phaseOf, latestBuild } from "../stores/project";
 import { useSettings, shortModelName, EFFORT_LABEL } from "../stores/settings";
 import { useMap } from "../stores/map";
 import { useChat } from "../stores/chat";
+import { useRunPhase, verb } from "../features/chat/activity";
 import { goHome, renameProject } from "./actions";
 import { AppMenu } from "./AppMenu";
 import { money, tokens, relativeTime } from "../lib/format";
 import { toggleTheme, useAppliedTheme } from "./theme";
 import { UpdateChip } from "../features/updates/UpdateChip";
 
-function ProjectName() {
+export function ProjectName() {
   const name = useProject((s) => s.snap?.name ?? "");
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(name);
+  // Set once Enter or Escape has ended the edit, so the blur that follows cannot save a second time.
+  const ended = useRef(false);
+  // Saves a changed, non-empty name (renameProject trims and caps it) and leaves edit mode.
+  const finish = (save: boolean) => {
+    ended.current = true;
+    setEditing(false);
+    if (!save) return;
+    const clean = value.trim();
+    if (clean === "" || clean === name) return;
+    void renameProject(value);
+  };
   if (editing)
     return (
       <input
@@ -29,13 +41,11 @@ function ProjectName() {
           setValue(e.target.value);
         }}
         onBlur={() => {
-          setEditing(false);
+          if (!ended.current) finish(true);
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            void renameProject(value);
-            setEditing(false);
-          } else if (e.key === "Escape") setEditing(false);
+          if (e.key === "Enter") finish(true);
+          else if (e.key === "Escape") finish(false);
         }}
       />
     );
@@ -44,6 +54,7 @@ function ProjectName() {
       className="projname__btn"
       title="Rename project"
       onClick={() => {
+        ended.current = false;
         setValue(name);
         setEditing(true);
       }}
@@ -58,7 +69,11 @@ function Stepper() {
   const setTab = useMap((s) => s.setTab);
   const setBriefOpen = useApp((s) => s.setBriefOpen);
   const focus = useChat((s) => s.focusComposer);
+  const runPhaseNow = useRunPhase();
+  const newVersions = useChat((s) => s.live?.newVersions.length ?? 0);
   if (!snap) return null;
+  const working = runPhaseNow !== "idle";
+  const workingText = verb(runPhaseNow, snap.head, newVersions).toLowerCase();
   const phase = phaseOf(snap);
   const build = latestBuild(snap);
   const briefDone = snap.head > 0;
@@ -110,14 +125,25 @@ function Stepper() {
             </span>
           )}
           <button
-            className={`step${s.done && !s.current ? " step--done" : ""}${s.current ? " step--current" : ""}`}
+            className={`step${s.done && !s.current ? " step--done" : ""}${s.current ? " step--current" : ""}${s.current && working ? " step--busy" : ""}`}
             disabled={s.disabled}
             title={s.title}
             aria-current={s.current ? "step" : undefined}
             onClick={s.run}
           >
-            <span className="step__dot">{s.done && !s.current ? <Icon name="check" size="xs" /> : s.n}</span>
-            {s.label}
+            <span className="step__dot">
+              {s.current && working ? (
+                <span className="spinner spinner--on-accent" aria-hidden="true" />
+              ) : s.done && !s.current ? (
+                <Icon name="check" size="xs" />
+              ) : (
+                s.n
+              )}
+            </span>
+            <span>
+              {s.label}
+              {s.current && working && <span className="step__live"> · {workingText}</span>}
+            </span>
             {s.done && <span className="sr-only">(done)</span>}
           </button>
         </span>

@@ -17,6 +17,7 @@ import { duration, money, relativeTime } from "../../lib/format";
 import { approve, undo } from "../../app/actions";
 import { RichText, withRefs } from "./RichText";
 import { STARTERS } from "./starters";
+import { WorkingCard } from "./WorkingCard";
 import { selectRoom } from "../stage/selectRoom";
 import {
   IssueList,
@@ -428,49 +429,6 @@ function ErrorCard({ turn }: { turn: TurnState }) {
   );
 }
 
-const STEP_LABEL: Record<string, string> = {
-  reading_brief: "Reading the brief",
-  laying_out_level: "Laying out the level",
-  placing_openings: "Placing doors and stairs",
-  furnishing: "Furnishing",
-  writing_notes: "Writing GM notes",
-  checking: "Checking the plan",
-};
-
-function ProgressRow({ turn }: { turn: TurnState }) {
-  const [now, setNow] = useState(() => Date.now());
-  const stop = useChat((s) => s.stop);
-  useEffect(() => {
-    const t = setInterval(() => {
-      setNow(Date.now());
-    }, 1000);
-    return () => {
-      clearInterval(t);
-    };
-  }, []);
-  const planTool = turn.tools.find((t) => (t.name === "create_plan" || t.name === "edit_plan") && !t.done);
-  if (!turn.progress && !planTool) return null;
-  const s = Math.floor((now - turn.startedAt) / 1000);
-  const label = turn.progress?.label ?? STEP_LABEL[turn.progress?.step ?? ""] ?? "Drafting the plan…";
-  return (
-    <div className="progress" role="status" aria-live="off">
-      <span className="spinner" aria-hidden="true" />
-      <span className="progress__label">
-        {s >= 180
-          ? `Still working (${duration(s * 1000)}). Large plans can take a while. You can stop and ask for a smaller map.`
-          : label}
-      </span>
-      <span className="progress__time">{duration(s * 1000)}</span>
-      {s >= 60 && s < 180 && <span className="progress__hint">Large plans can take up to 2 minutes.</span>}
-      {s >= 180 && (
-        <button className="btn btn--sm" onClick={() => void stop()}>
-          Stop
-        </button>
-      )}
-    </div>
-  );
-}
-
 function RetryMenu({ itemText }: { itemText: string }) {
   const [open, setOpen] = useState(false);
   const models = useSettings((s) => s.models);
@@ -813,7 +771,6 @@ function RecapCard() {
 
 function LiveTurn({ turn }: { turn: TurnState }) {
   const showReasoning = useSettings((s) => s.settings?.showReasoning ?? false);
-  const stop = useChat((s) => s.stop);
   return (
     <div className="msg-ai" aria-busy="true">
       <Mark size={24} className="avatar" />
@@ -830,19 +787,11 @@ function LiveTurn({ turn }: { turn: TurnState }) {
             <span className="caret" aria-hidden="true" />
           </div>
         )}
-        {turn.text === "" && !turn.progress && turn.tools.length === 0 && (
-          <div className="progress">
-            <span className="spinner" aria-hidden="true" />
-            <span className="progress__label">Thinking…</span>
-            <button className="btn btn--ghost btn--sm" onClick={() => void stop()}>
-              Stop
-            </button>
-          </div>
-        )}
-        {turn.questions && (
+        {turn.questions ? (
           <QuestionCard callId={turn.questions.callId} questions={turn.questions.questions} live />
+        ) : (
+          <WorkingCard turn={turn} />
         )}
-        <ProgressRow turn={turn} />
         {turn.notices.map((n, i) => (
           <div key={i} className="notice">
             {n.text}
@@ -895,13 +844,6 @@ export function Thread() {
     const el = ref.current;
     if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   };
-  const announce =
-    last?.status === "finished"
-      ? "Slabyrinth replied."
-      : last?.status === "failed"
-        ? "The reply failed."
-        : "";
-
   const recapIndex =
     recap?.show === true
       ? entries.findIndex(
@@ -918,9 +860,6 @@ export function Thread() {
       aria-live="off"
       onScroll={onScroll}
     >
-      <span className="sr-only" aria-live="polite">
-        {announce}
-      </span>
       {entries.length === 0 && (
         <div className="msg-ai">
           <Mark size={24} className="avatar" />

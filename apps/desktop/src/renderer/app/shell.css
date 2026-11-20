@@ -190,6 +190,33 @@
   color: var(--muted);
 }
 
+/* the current step while the model is working: the number becomes a spinner, a short word follows */
+.step--busy .step__dot {
+  border-color: var(--accent-fill);
+}
+
+.step--busy .spinner--on-accent {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+  border-color: color-mix(in srgb, var(--on-accent) 35%, transparent);
+  border-top-color: var(--on-accent);
+}
+
+.step__live {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step--busy .spinner--on-accent {
+    animation: none;
+    border-color: var(--on-accent);
+    border-top-color: var(--on-accent);
+    border-style: dotted;
+  }
+}
+
 .step__chev {
   color: var(--muted);
   font: var(--t-meta);

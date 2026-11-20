@@ -21,6 +21,7 @@ import { HistoryPanel } from "./HistoryPanel";
 import { PngExport } from "./PngExport";
 import { BuildView, BuildToolbar } from "../build/BuildView";
 import { briefSummary } from "../chat/BriefCard";
+import { runPhase, useRunPhase, verb } from "../chat/activity";
 
 // ───────────── stage bar ─────────────
 
@@ -615,6 +616,7 @@ function StatusBar({ plan }: { plan: MapPlan | null }) {
   const approveOpen = useMap((s) => s.approveOpen);
   const setApprove = useMap((s) => s.setApprove);
   const live = useChat((s) => s.live);
+  const phase_ = runPhase(live);
   const building = useBuild((s) => s.building);
   const approveBtn = useRef<HTMLButtonElement>(null);
   const [estChunks, setEstChunks] = useState<number | null>(null);
@@ -636,6 +638,7 @@ function StatusBar({ plan }: { plan: MapPlan | null }) {
         <button
           className="btn btn--primary"
           disabled={!snap.brief.mapType || live !== null}
+          title={live !== null ? "Slabyrinth is working" : undefined}
           onClick={() => void sendPrepared("Draw the first plan from the brief.", "plan")}
         >
           Draw the first plan
@@ -671,14 +674,24 @@ function StatusBar({ plan }: { plan: MapPlan | null }) {
       )}
       <span className="dotsep">·</span>
       <span>{roomCount(plan, levelId ?? undefined)} rooms</span>
-      {v && (
+      {phase_ !== "idle" ? (
         <>
           <span className="dotsep">·</span>
-          <span>
-            v{v.number} by {v.author === "ai" ? "Slabyrinth" : v.author === "user" ? "you" : "restore"} ·{" "}
-            {relativeTime(v.createdAt)}
+          <span className="statusbar__live" role="status">
+            <span className="spinner" aria-hidden="true" />
+            {verb(phase_, snap.head, live?.newVersions.length ?? 0)}…
           </span>
         </>
+      ) : (
+        v && (
+          <>
+            <span className="dotsep">·</span>
+            <span>
+              v{v.number} by {v.author === "ai" ? "Slabyrinth" : v.author === "user" ? "you" : "restore"} ·{" "}
+              {relativeTime(v.createdAt)}
+            </span>
+          </>
+        )
       )}
       <span className="statusbar__sp" />
       <AssetChip />
@@ -706,7 +719,11 @@ function StatusBar({ plan }: { plan: MapPlan | null }) {
             disabled={live !== null}
             aria-haspopup="dialog"
             aria-expanded={approveOpen}
-            title="Approve current version (Ctrl+Shift+A)"
+            title={
+              live !== null
+                ? "Available when the revision finishes"
+                : "Approve current version (Ctrl+Shift+A)"
+            }
             onClick={() => {
               setApprove(!approveOpen);
             }}
@@ -789,11 +806,9 @@ export function MapContent({ plan, version }: { plan: MapPlan; version: number }
   const setPreview = useMap((s) => s.preview);
   const snap = useProject((s) => s.snap);
   // Derived booleans only: subscribing to the whole live turn would re-render (and redraw) on every token.
-  const revising = useChat(
-    (s) =>
-      s.live !== null &&
-      s.live.tools.some((t) => (t.name === "edit_plan" || t.name === "create_plan") && !t.done),
-  );
+  const runPhaseNow = useRunPhase();
+  const newVersions = useChat((s) => s.live?.newVersions.length ?? 0);
+  const revising = runPhaseNow !== "idle";
   const stop = useChat((s) => s.stop);
   const [fetched, setFetched] = useState<{ v: number; plan: MapPlan } | null>(null);
   useEffect(() => {
@@ -826,7 +841,7 @@ export function MapContent({ plan, version }: { plan: MapPlan; version: number }
   return (
     <div className={`content${keyCollapsed ? " content--keyless" : ""}`}>
       <div className="content__map">
-        {revising && <div className="revisebar" role="progressbar" aria-label="Revising the plan" />}
+        {revising && <div className="revisebar" aria-hidden="true" />}
         {preview !== null && pv && (
           <div className="oldbanner" role="status">
             <span>
@@ -847,10 +862,10 @@ export function MapContent({ plan, version }: { plan: MapPlan; version: number }
         )}
         {compare && preview === null && <CompareChips diff={compare.diff} />}
         {revising && (
-          <div className="revising" role="status">
-            <span className="spinner" />
-            Revising…
-            <button className="btn btn--sm btn--ghost" onClick={() => void stop()}>
+          <div className="revising" title="The map will update when this finishes. You can keep looking around.">
+            <span className="spinner" aria-hidden="true" />
+            {verb(runPhaseNow, snap?.head ?? 0, newVersions)}…
+            <button className="btn btn--sm btn--ghost" title="Stop (Esc)" onClick={() => void stop()}>
               Stop
             </button>
           </div>
