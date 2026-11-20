@@ -1,7 +1,7 @@
 {
   "name": "@slabyrinth/desktop",
   "productName": "Slabyrinth",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Slabyrinth desktop app: design TaleSpire maps with Claude and export slabs.",
   "author": {
