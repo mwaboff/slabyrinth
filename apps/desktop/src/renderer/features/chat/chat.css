@@ -814,6 +814,15 @@
 
 .mlist__other {
   padding: var(--s10) var(--s14) var(--s4);
+  background: none;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mlist__other:hover {
+  color: var(--ink);
 }
 
 .tiers {

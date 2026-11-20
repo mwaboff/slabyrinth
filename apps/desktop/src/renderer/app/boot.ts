@@ -4,7 +4,10 @@
  * association, so project:snapshot is asked first (WP5 note).
  */
 import type { SlabyrinthApi } from "../../shared/ipc";
-import { call, on, setBridge, tryCall } from "../bridge/client";
+import { call, on, send, setBridge, tryCall } from "../bridge/client";
+import { answerImageRequest } from "../../shared/imageRequests";
+import { mapThemeFor, renderPng } from "../map/render";
+import { resolveAsync } from "../map/resolveClient";
 import { useApp } from "../stores/app";
 import { useChat } from "../stores/chat";
 import { useMap } from "../stores/map";
@@ -100,6 +103,18 @@ export function subscribeEvents(): void {
     // Passive: only the header chip appears; nothing opens over a running turn or a dialog.
     on("updates:available", (st) => {
       useUpdates.getState().set(st);
+    }),
+    // The agent's view_map_image: main asks, the renderer draws the level and replies (render:imageResult).
+    on("render:requestImage", (req) => {
+      void answerImageRequest(req, {
+        getPlan: (version) => call("plan:getVersion", { version }),
+        resolve: (plan, version, options) => resolveAsync(plan, version, options),
+        render: (list, pxPerCell) =>
+          renderPng(list, mapThemeFor("dark"), { pxPerCell, background: "theme", legend: true }),
+        send: (result) => {
+          send("render:imageResult", result);
+        },
+      });
     }),
   ];
   const online = (): void => {

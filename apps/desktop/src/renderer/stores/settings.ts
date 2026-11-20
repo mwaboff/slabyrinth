@@ -70,9 +70,11 @@ export const useSettings = create<SettingsState>((set, get) => ({
 export function shortModelName(modelId: string, models: readonly ModelDescriptor[]): string {
   const d = models.find((m) => m.modelId === modelId);
   const name = d?.displayName ?? modelId.replace(/^claude-/, "");
+  // Models outside the curated list (no guidance) keep their version so two of one family stay distinguishable.
+  const keepVersion = d !== undefined && d.guidance === undefined;
   return name
     .replace(/^Claude\s+/i, "")
-    .replace(/\s+[\d.]+$/, "")
+    .replace(keepVersion ? /$^/ : /\s+[\d.]+$/, "")
     .replace(/^\w/, (c) => c.toUpperCase());
 }
 

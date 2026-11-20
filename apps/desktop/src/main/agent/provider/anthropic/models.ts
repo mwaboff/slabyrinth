@@ -237,6 +237,7 @@ export function mergeModelList(api: readonly ModelInfo[]): ModelDescriptor[] {
       },
       pricing: null,
       source: "api",
+      createdAt: live.created_at,
       status: live.lifecycle === "deprecated" ? "legacy" : "available",
     });
   }

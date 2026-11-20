@@ -60,7 +60,12 @@ export function createCoreCompileBackend(): CompileBackend {
   const palettesFor = (input: CompileInput): PaletteCatalog =>
     input.availability === null
       ? loadPalettes({ user: input.userPalettes })
-      : loadPalettes({ user: input.userPalettes, availability: createAvailability(input.availability) });
+      : loadPalettes({
+          user: input.userPalettes,
+          availability: createAvailability(input.availability),
+          // assets from game updates join their roles as low-weight extra variants (core palette/auto.ts)
+          catalog: input.availability,
+        });
 
   return {
     kind: "core",

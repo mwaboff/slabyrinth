@@ -3,13 +3,14 @@
  * Everything is driven by provider/model capabilities: a missing capability makes its element disappear
  * (never a disabled control) — no effort support → no Effort group; no cost → no $ tiers; no speed → no pips.
  */
-import type { KeyboardEvent } from "react";
+import { useState, type KeyboardEvent } from "react";
 import {
   EFFORT_LEVELS,
   type EffortLevel,
   type ModelDescriptor,
   type ProviderInfo,
 } from "../../../main/agent/provider/types";
+import { buildModelSections, otherModelLabel } from "./modelSections";
 import { EFFORT_LABEL, EFFORT_NOTE, shortModelName } from "../../stores/settings";
 
 export interface Capabilities {
@@ -78,9 +79,11 @@ export function ModelList({
   perPlan?: (m: ModelDescriptor) => string | null;
   ariaLabel?: string;
 }) {
-  const usable = models.filter((m) => m.status !== "unavailable");
-  const curated = usable.filter((m) => m.guidance !== undefined);
-  const other = usable.filter((m) => m.guidance === undefined);
+  const { curated, other } = buildModelSections(models);
+  const [showOther, setShowOther] = useState(false);
+  // A selected "other" model keeps its row visible even while the section is collapsed.
+  const otherOpen = showOther || other.some((m) => m.modelId === value);
+  const usable = [...curated, ...(otherOpen ? other : [])];
   const onKey = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
@@ -112,12 +115,12 @@ export function ModelList({
         <span className={`radio${on ? " radio--on" : ""}`} aria-hidden="true" />
         <span className="mrow__text">
           <span className="mrow__name">
-            {shortModelName(m.modelId, models)}
+            {m.guidance === undefined ? otherModelLabel(m) : shortModelName(m.modelId, models)}
             {m.status === "recommended" && <span className="rec">Recommended</span>}
             {m.status === "legacy" && <span className="tag">Legacy</span>}
           </span>
           <span className="mrow__desc">
-            {(m.guidance ?? "No guidance yet").replace(/^Recommended\.\s*/, "")}
+            {(m.guidance ?? m.modelId).replace(/^Recommended\.\s*/, "")}
             {extra !== null && ` · ${extra}`}
           </span>
         </span>
@@ -135,8 +138,17 @@ export function ModelList({
       {curated.map(row)}
       {other.length > 0 && (
         <>
-          <div className="mlist__other eyebrow">Other models</div>
-          {other.map(row)}
+          <button
+            type="button"
+            className="mlist__other eyebrow"
+            aria-expanded={otherOpen}
+            onClick={() => {
+              setShowOther(!otherOpen);
+            }}
+          >
+            {otherOpen ? "Hide other models" : `Show other models (${other.length})`}
+          </button>
+          {otherOpen && other.map(row)}
         </>
       )}
     </div>

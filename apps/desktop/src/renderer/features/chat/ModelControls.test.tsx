@@ -53,17 +53,37 @@ describe("ModelList", () => {
     expect(screen.queryByRole("img", { name: /Speed/ })).toBeNull();
   });
 
-  it("lists models without guidance under Other models with 'No guidance yet'", () => {
+  it("collapses models without guidance behind a toggle and shows full name plus model id", async () => {
+    const onPick = vi.fn();
     render(
       <ModelList
         models={[opus, noEffort]}
         value="claude-opus-5-5"
+        onPick={onPick}
+        caps={{ hasCost: true, hasSpeed: true }}
+      />,
+    );
+    expect(screen.queryByText("qwen2.5-32b")).toBeNull();
+    const toggle = screen.getByRole("button", { name: /Show other models/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(screen.getByText("qwen2.5-32b")).toBeInTheDocument();
+    expect(screen.getByText("local-qwen")).toBeInTheDocument();
+    expect(screen.queryByText("No guidance yet")).toBeNull();
+    await userEvent.click(screen.getByRole("radio", { name: /qwen2.5-32b/ }));
+    expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ modelId: "local-qwen" }));
+  });
+
+  it("keeps the selected other model visible while collapsed", () => {
+    render(
+      <ModelList
+        models={[opus, noEffort]}
+        value="local-qwen"
         onPick={() => undefined}
         caps={{ hasCost: true, hasSpeed: true }}
       />,
     );
-    expect(screen.getByText("Other models")).toBeInTheDocument();
-    expect(screen.getByText("No guidance yet")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /qwen2.5-32b/ })).toHaveAttribute("aria-checked", "true");
   });
 
   it("picks with the mouse and with arrow keys", async () => {
