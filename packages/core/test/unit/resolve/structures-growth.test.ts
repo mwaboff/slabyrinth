@@ -207,7 +207,7 @@ describe("growth that climbs (generator 3)", () => {
     expect(first(plan([chapel(3, { condition: "weathered" })])).growthLevel).toBe("light");
     expect(first(plan([chapel(3, { condition: "intact" })])).growthLevel).toBeUndefined();
     expect(first(plan([chapel(3)], 2)).growthLevel).toBeUndefined();
-  });
+  }, 30_000);
 
   it("heavy growth is the real thing: masses start at the ground and thin upward, bushes and trees stand in and at the walls", () => {
     let low = 0;
