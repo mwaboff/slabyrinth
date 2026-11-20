@@ -7,6 +7,31 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-20
+
+### Added
+
+- **Rock-faced cliffs in clusters.** Hills and terraces are faced with real rock. Boulders gather in clusters with bare patches between them instead of standing in even rows, each cliff keeps to one rock tone, and a ledge piece is chosen to fit the height of the step.
+- **Cave walls as solid rock.** A cave is now surrounded by a thick mass of overlapping rock instead of a single row of posts, with a few cells of solid rock between the floor and the edge of the map and an open passage where the cave meets the border.
+- **Wandering rifts and rivers.** A rift reads as one ragged crack that bends across the cave, with a short bridge across it. Rivers can step down in reaches with falls, and the build tells you the water height to set in TaleSpire.
+- **Buildings grow and fall apart better.** A building can be lightly, moderately or heavily overgrown, with vines on upper walls and rubble at the wall feet. Ruins have broken wall tops, collapse from the top down and no longer carry a roof that floats over missing walls. Weathered buildings now look different from intact ones.
+- **Trade shop fronts.** Cottages can be a baker, smith, shop, butcher, apothecary, cobbler, tailor or inn, each with a glazed front, a sign, an awning and a few props at the door.
+- **Market stalls.** Rows of stalls with different goods, such as fruit, vegetables, potions and weapons, with a clear aisle between them.
+- **Lines strung overhead.** Lanterns, strings of lights or flags hung between walls or posts, over a street or square.
+- **Floor openings between dungeon levels.** A collapsed floor, a shaft or a balcony lets you look down into the level below, with rubble on the floor beneath. The AI also keeps the levels of a dungeon further apart, so each one is easier to see.
+- **Many more design-review notes.** The AI's review now catches rocks in even rows, cliffs that bury the ground, thin or gappy cave walls, mixed rock tones, unlit landmarks, buildings with a blank wall, a map with no real depth, levels packed too close together and more, and it fixes what matters.
+- **A "revising" indicator** shows when the AI is going over its own map, so you can see it is still working.
+
+### Changed
+
+- Maps you made with earlier versions rebuild unchanged. The new rules are for new maps only.
+- A map's name is saved when you click away from the name box, not only when you press Enter.
+
+### Known limits
+
+- Rivers have no water piece in the game's library for their upper reaches or falls, so those stay dry until you raise the water or place pieces yourself.
+- The new stalls, floor openings and cave walls have been checked by the app's own tests but not yet looked at in TaleSpire.
+
 ## [0.1.2] - 2026-11-20
 
 ### Added
@@ -78,7 +103,8 @@ The first release.
   version exists, and links to its release page. You can turn the check off in Settings ▸ About.
 - Windows installer and portable build, Linux AppImage. The builds are not code-signed yet.
 
-[Unreleased]: https://github.com/mwaboff/slabyrinth/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/mwaboff/slabyrinth/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/mwaboff/slabyrinth/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/mwaboff/slabyrinth/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mwaboff/slabyrinth/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mwaboff/slabyrinth/releases/tag/v0.1.0
