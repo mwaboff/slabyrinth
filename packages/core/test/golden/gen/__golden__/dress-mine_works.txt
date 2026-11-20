@@ -1,0 +1,11 @@
+rubble 0,7 1x1 r180
+accent_light 1,7 1x1 r180
+barrel 0,6 1x1 r180
+debris 2,7 1x1 r180
+crate 9,0 1x1 r0
+crate 8,0 1x1 r0
+barrel 9,1 1x1 r0
+sack 8,1 1x1 r0
+barrel 7,0 1x1 r0
+torch_wall 9,2 1x1 r90 wall=E
+torch_wall 2,0 1x1 r0 wall=N

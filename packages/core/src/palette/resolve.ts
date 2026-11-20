@@ -32,6 +32,9 @@ export interface ResolvedVariant {
   name: string | undefined;
   weight: number;
   variant: string | undefined;
+  /** Observed tone (palette tag), when known. */
+  tone?: "dark" | "mid" | "light";
+  hue?: string;
   /** Footprint in cells at rot 0 (variant ?? role ?? derived from geometry). */
   footprint: readonly [number, number];
   /** Correction rotation (degrees). */
@@ -40,6 +43,8 @@ export interface ResolvedVariant {
   unitHeight: number;
   /** variant.facing ?? role.facing (calibration defaults are applied by the realizer). */
   facing: PaletteFacing | undefined;
+  /** Assembly pieces placed with this asset (palette `parts`). */
+  parts?: NonNullable<PaletteVariant["parts"]>;
 }
 
 export interface RoleResolution {
@@ -153,6 +158,9 @@ function usableVariants(
       offset: { x: v.offset?.x ?? 0, y: v.offset?.y ?? 0, z: v.offset?.z ?? 0 },
       unitHeight: v.stack?.unitHeight ?? def.height ?? Math.max(0.25, Math.round(geom.size.y * 4) / 4),
       facing: v.facing ?? def.facing,
+      ...(v.parts && v.parts.length > 0 ? { parts: v.parts } : {}),
+      ...(v.tone !== undefined ? { tone: v.tone } : {}),
+      ...(v.hue !== undefined ? { hue: v.hue } : {}),
     });
   }
   return out;

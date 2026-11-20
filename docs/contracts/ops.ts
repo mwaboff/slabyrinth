@@ -8,8 +8,8 @@
  * has validation errors, nothing is committed.
  */
 import type {
-  Area, Feature, Label, Level, LevelId, LevelLink, MapKind, MapPlan, Opening, PlanIssue,
-  Seed, Shape, TerrainOp, ThemeId, ElementId, WallRun,
+  Area, Feature, FeatureType, Label, Level, LevelId, LevelLink, MapKind, MapPlan, Opening, PlanIssue,
+  Seed, Shape, Structure, TerrainOp, ThemeId, ElementId, WallRun,
 } from "./plan";
 
 /** Element union addressable by id. `kind` discriminates the element type for `add`. */
@@ -20,6 +20,7 @@ export type NewElement =
   | { kind: "feature"; level: LevelId; value: Feature }
   | { kind: "terrain"; level: LevelId; value: TerrainOp; index?: number }
   | { kind: "label"; level: LevelId; value: Label }
+  | { kind: "structure"; level: LevelId; value: Structure }
   | { kind: "link"; value: LevelLink }
   | { kind: "level"; value: Omit<Level, "areas" | "openings" | "walls" | "features" | "terrain" | "labels"> & Partial<Pick<Level, "areas" | "openings" | "walls" | "features" | "terrain" | "labels">> };
 
@@ -35,7 +36,22 @@ export type PlanOp =
    */
   | { op: "update"; id: ElementId; set: Record<string, unknown> }
   /** Remove elements. Removing an area also removes openings whose `between` references it, unless keepDependents. Removing a level removes its contents and links touching it. */
-  | { op: "remove"; ids: ElementId[]; keepDependents?: boolean }
+  /**
+   * `ids` may name generated features as shown ("rocks#5"): their scatter/dress op is materialized first. `where`
+   * removes every feature that matches all its fields (`generatedBy` a scatter/dress op id, `type`, `rect`
+   * containing the anchor cell, `level`) in one op; `ids` may then be empty.
+   */
+  | {
+      op: "remove";
+      ids: ElementId[];
+      where?: {
+        generatedBy?: ElementId;
+        type?: FeatureType;
+        rect?: { x: number; y: number; w: number; h: number };
+        level?: LevelId;
+      };
+      keepDependents?: boolean;
+    }
   /**
    * Translate elements by (dx,dy) cells. For areas with withContents=true (default), features whose
    * anchor lies inside the area, openings with explicit `at` on its boundary, and labels inside move too.
@@ -131,7 +147,7 @@ export interface PlanHistory {
 
 // ───────────────────────────── diff (Compare, Plan update cards, chunk change badges) ─────────────────────────────
 
-export type DiffKind = "area" | "opening" | "wall_run" | "feature" | "terrain" | "label" | "link" | "level" | "meta";
+export type DiffKind = "area" | "opening" | "wall_run" | "feature" | "terrain" | "label" | "link" | "level" | "meta" | "structure";
 
 export interface PlanDiff {
   added: Array<{ id: ElementId; kind: DiffKind; levelId?: LevelId }>;

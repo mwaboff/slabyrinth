@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DESIGN_PRINCIPLES,
   SYSTEM_PROMPT,
   SYSTEM_PROMPT_VERSION,
   TOOL_DEFINITIONS,
@@ -9,6 +10,10 @@ import {
   validateToolInput,
 } from "../../../src/agent";
 import { h64hex } from "../../../src/util";
+import { DP_1_0_0 } from "../../../src/agent/designPrinciples.frozen";
+
+/** Hash of the published sp-1.1.0 text (frozen). */
+const SP_1_1_0_HASH = "2176e2d9b0362e06";
 
 describe("frozen tool list", () => {
   it("serializes deterministically (the bytes are the cache key)", () => {
@@ -41,11 +46,15 @@ describe("frozen tool list", () => {
 
 describe("system prompt", () => {
   it("is frozen per version", () => {
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.1.0");
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.11.0");
+    // sp-1.10.0 shipped in the owner's second snapshot with dp-1.0.0: frozen byte for byte
+    expect(h64hex(systemPromptFor("sp-1.10.0") ?? "")).toBe("74e5072df0fd89e2");
     expect(systemPromptFor(SYSTEM_PROMPT_VERSION)).toBe(SYSTEM_PROMPT);
     expect(systemPromptFor("sp-0.0.0")).toBeNull();
     // Published versions never change: conversations started on sp-1.0.0 keep byte-identical text.
     expect(h64hex(systemPromptFor("sp-1.0.0") ?? "")).toBe("79bd3a0fc09ea537");
+    // sp-1.1.0 is published too (0.1.x): its text must never change either.
+    expect(h64hex(systemPromptFor("sp-1.1.0") ?? "")).toBe(SP_1_1_0_HASH);
     expect(h64hex(SYSTEM_PROMPT)).toMatchSnapshot();
   });
   it("sp-1.1.0 makes the checking method explicit", () => {
@@ -55,6 +64,105 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toMatch(/call compile_preview, resolve its build errors/);
     expect(SYSTEM_PROMPT).toMatch(/Never tell the GM a map is checked, clean or ready unless/);
     expect(SYSTEM_PROMPT).not.toContain("cave_rock");
+  });
+  it("sp-1.7.0 teaches buildings: style first, every building its own, yards", () => {
+    const sp17 = systemPromptFor("sp-1.7.0") ?? "";
+    expect(sp17).toContain("# Buildings and yards");
+    expect(sp17).toMatch(/pick the style that fits/);
+    expect(sp17).toMatch(/Never reuse the previous building's numbers/);
+    expect(sp17).toMatch(/kind "enclosure"/);
+    expect(sp17).toMatch(/modern or sci-fi block/);
+    expect(systemPromptFor("sp-1.6.0")).not.toContain("# Buildings and yards");
+  });
+  it("sp-1.11.0: current principles, streets with junctions and green, plot sizes by kind, condition and character honoured", () => {
+    expect(SYSTEM_PROMPT).toContain(DESIGN_PRINCIPLES);
+    expect(SYSTEM_PROMPT).toMatch(/a side street is a road too, with its own sidewalk/);
+    expect(SYSTEM_PROMPT).toMatch(/a watchtower 3 to 5 cells wide/);
+    expect(SYSTEM_PROMPT).toMatch(/must be honoured/);
+    expect(SYSTEM_PROMPT).toContain("twisted (the shaft corkscrews)");
+    expect(SYSTEM_PROMPT).toMatch(/tell the GM instead of quietly building a plain version/);
+    expect(SYSTEM_PROMPT).toMatch(/look at a new map.s image once even when the review is clean/);
+  });
+  it("sp-1.10.0 carries the design principles (dp-1.0.0) and names the DESIGN REVIEW, pruning what they repeat", () => {
+    const sp110 = systemPromptFor("sp-1.10.0") ?? "";
+    expect(sp110).toContain(DP_1_0_0);
+    expect(sp110).toMatch(/ends with a DESIGN REVIEW block/);
+    // said in general by the principles now: gone or shortened
+    expect(sp110).not.toMatch(/Built places follow order, not nature/);
+    expect(sp110).not.toMatch(/Leave open ground on purpose/);
+    expect(sp110).toMatch(/Lots, courtyards and clearings get a use/);
+    const grew = sp110.length - (systemPromptFor("sp-1.9.0") ?? "").length;
+    expect(grew).toBeLessThan(DP_1_0_0.length - 300);
+  });
+  it("sp-1.9.0 gives every open space a use", () => {
+    const sp19 = systemPromptFor("sp-1.9.0") ?? "";
+    expect(sp19).toMatch(/Give every open space a use/);
+    expect(sp19).toMatch(/purposeless open ground reads as unfinished/);
+    expect(systemPromptFor("sp-1.8.0")).not.toMatch(/Give every open space a use/);
+  });
+  it("sp-1.8.0 teaches massing, silhouette, stacked roofs, roof furniture and light, principles first", () => {
+    expect(SYSTEM_PROMPT).toContain("# Buildings and yards");
+    expect(SYSTEM_PROMPT).toMatch(/Design it like an architect, in this order/);
+    expect(SYSTEM_PROMPT).toMatch(/volumes \[\{id, x, y, w, h, storeys, storeyHeight, roof, on\}\]/);
+    expect(SYSTEM_PROMPT).toMatch(/inset 1 steps a storey in/);
+    expect(SYSTEM_PROMPT).toMatch(/roof\.layers, bottom first/);
+    expect(SYSTEM_PROMPT).toMatch(/wizard_tower/);
+    expect(SYSTEM_PROMPT).toMatch(/modern_block/);
+    expect(systemPromptFor("sp-1.8.0")).toMatch(/Never reuse the previous building's numbers/);
+    expect(SYSTEM_PROMPT).toMatch(/kind "enclosure"/);
+    expect(SYSTEM_PROMPT).not.toMatch(/built flat until cone roofs land/);
+    expect(systemPromptFor("sp-1.7.0")).not.toMatch(/Design it like an architect/);
+  });
+  it("sp-1.6.0 teaches winding paths, ragged natural contours and deep water channels", () => {
+    expect(SYSTEM_PROMPT).toMatch(/wind and vary in width/);
+    expect(SYSTEM_PROMPT).toMatch(/edge "ragged"/);
+    expect(SYSTEM_PROMPT).toMatch(/at least a tile deep/);
+  });
+  it("sp-1.5.0 teaches raised decks on supports, connected kerbed paths, the water plane and outcrops", () => {
+    expect(SYSTEM_PROMPT).toMatch(/Raised platform on supports/);
+    expect(SYSTEM_PROMPT).toContain("connect: [an area, a feature or a cell");
+    expect(SYSTEM_PROMPT).toMatch(/one board-wide water plane/);
+    expect(SYSTEM_PROMPT).toMatch(/Outcrops are rock masses/);
+  });
+  it("sp-1.4.0 teaches theme-neutral set dressing: principles, slots, presets, asset discovery and a final look", () => {
+    expect(SYSTEM_PROMPT).toContain("# Set dressing, lighting and density");
+    expect(SYSTEM_PROMPT).toMatch(/Big pieces first, then medium, then garnish/);
+    expect(SYSTEM_PROMPT).toMatch(/Cluster and overlap/);
+    expect(SYSTEM_PROMPT).toMatch(/Dress every edge/);
+    expect(SYSTEM_PROMPT).toMatch(/Open space is deliberate/); // sp-1.10.0: in the design principles
+    expect(SYSTEM_PROMPT).toMatch(/One dominant material/); // sp-1.10.0: in the design principles
+    expect(SYSTEM_PROMPT).toMatch(/A forest hillside/);
+    expect(SYSTEM_PROMPT).toMatch(/A ruined temple/);
+    expect(SYSTEM_PROMPT).toMatch(/A cave:/);
+    expect(SYSTEM_PROMPT).toMatch(/custom_resolved/);
+    expect(SYSTEM_PROMPT).toMatch(/flat.*pale.*repetitive.*littered/);
+    // the interim cave-heavy wording is gone from the current prompt, kept only in sp-1.3.0
+    expect(SYSTEM_PROMPT).not.toMatch(/layer two presets on a large cave/);
+    expect(systemPromptFor("sp-1.3.0")).toMatch(/layer two presets on a large cave/);
+  });
+  it("sp-1.3.0 teaches vertical structure in every setting", () => {
+    expect(SYSTEM_PROMPT).toContain("# Height, structure and spans");
+    expect(SYSTEM_PROMPT).toMatch(/at least three distinct heights/);
+    expect(SYSTEM_PROMPT).toMatch(/platform terrain op/);
+    expect(SYSTEM_PROMPT).toMatch(/stairs terrain op/);
+    expect(SYSTEM_PROMPT).toMatch(/inclined span/);
+    expect(SYSTEM_PROMPT).toMatch(/is this one flat plane/);
+    // principles, not a cave manual: outdoor and built-interior examples sit beside the cave one
+    expect(SYSTEM_PROMPT).toMatch(/outdoors, a grass plateau/);
+    expect(SYSTEM_PROMPT).toMatch(/in a temple/);
+  });
+  it("sp-1.2.0 (unreleased predecessor) still teaches depth: chasms, bridges, daises, ASCII heights, no_effect and the request checklist", () => {
+    const SYSTEM_PROMPT = systemPromptFor("sp-1.2.0") ?? "";
+    expect(SYSTEM_PROMPT).toContain("# Depth, chasms and bridges");
+    expect(SYSTEM_PROMPT).toMatch(/use one chasm terrain op/);
+    expect(SYSTEM_PROMPT).toMatch(/Never fake a chasm with a paint or path op/);
+    expect(SYSTEM_PROMPT).toMatch(/kind "bridge"/);
+    expect(SYSTEM_PROMPT).toMatch(/height terrain op with layer "over"/);
+    expect(SYSTEM_PROMPT).toMatch(/"_" is floor below/);
+    expect(SYSTEM_PROMPT).toMatch(/no_effect/);
+    expect(SYSTEM_PROMPT).toContain("# Set dressing, lighting and density");
+    expect(SYSTEM_PROMPT).toContain("# Finishing a turn");
+    expect(SYSTEM_PROMPT).toMatch(/go through their request item by item/);
   });
   it("contains nothing volatile and follows the GM-notes and one-slab decisions", () => {
     expect(SYSTEM_PROMPT).not.toMatch(/\b20\d\d-\d\d-\d\d\b/);

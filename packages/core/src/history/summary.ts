@@ -91,8 +91,9 @@ export function describeChanges(
     const words = c.fields.map((f) => FIELD_WORDS[f] ?? f);
     phrases.push(`edited ${list(words)} for ${areaLabel(after, c.id)}`);
   }
-  for (const kind of ["feature", "opening", "link", "terrain", "label", "wall_run"] as const) {
+  for (const kind of ["structure", "feature", "opening", "link", "terrain", "label", "wall_run"] as const) {
     const word = {
+      structure: "building",
       feature: "feature",
       opening: "opening",
       link: "level link",

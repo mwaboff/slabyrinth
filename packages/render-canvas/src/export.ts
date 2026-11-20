@@ -234,6 +234,34 @@ export function drawLegendSwatch(
       ctx.lineWidth = 1.5;
       ctx.stroke();
       ctx.setLineDash([]);
+    } else if (e.id === "cliff") {
+      const y = box.y + box.h * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(box.x + 3, y);
+      ctx.lineTo(box.x + box.w - 3, y);
+      ctx.strokeStyle = col("ink");
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      for (let x = box.x + 6; x < box.x + box.w - 3; x += 6) {
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + box.h * 0.4);
+      }
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else if (e.id === "bridge") {
+      ctx.beginPath();
+      for (let x = box.x + 4; x < box.x + box.w - 2; x += 4) {
+        ctx.moveTo(x, box.y + 4);
+        ctx.lineTo(x, box.y + box.h - 4);
+      }
+      ctx.strokeStyle = col("ink");
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.rect(box.x + 2, box.y + 4, box.w - 4, box.h - 8);
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     }
   }
   ctx.restore();

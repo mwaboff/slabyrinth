@@ -1,0 +1,2361 @@
+{
+  "schema": "slabyrinth/palette@1",
+  "id": "city",
+  "name": "Modern city",
+  "description": "A modern street from the Cyberpunk and Sci-fi pack: road and pavement tiles, concrete and brick, street lamps, bins, signs, litter, street trees. It has one ordinary car, a yellow taxi (about 1.3×2.6 tiles): a vehicle feature becomes that taxi, and no bus, van or truck exists; ask for fewer, well-parked cars rather than many kinds.",
+  "defaults": {
+    "floor": "concrete",
+    "wallStyle": "wall"
+  },
+  "roles": {
+    "feature.accent_light": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "ecfc29fc-40ff-4efb-904f-c8226fce12af",
+          "name": "Light floor 01",
+          "geom": {
+            "size": {
+              "x": 0.5528,
+              "y": 0.2202,
+              "z": 0.5332
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0015,
+              "y": 0.119,
+              "z": 0.001
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "54ba63ff-b1a8-4f32-8f3a-ac15900a0335",
+          "name": "Light floor 07",
+          "geom": {
+            "size": {
+              "x": 0.5317,
+              "y": 0.2589,
+              "z": 0.5479
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0014,
+              "y": 0.1403,
+              "z": 0.0066
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        }
+      ]
+    },
+    "feature.barrel": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "953e8565-1101-4f6c-8b48-7f8dcda080a8",
+          "name": "trash barrel",
+          "geom": {
+            "size": {
+              "x": 0.5683,
+              "y": 1.006,
+              "z": 0.8634
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.503,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.cart": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "c6e68fc1-0b54-4a8a-a83b-6762de63bea5",
+          "name": "shoppingcart_01",
+          "geom": {
+            "size": {
+              "x": 0.5595,
+              "y": 0.678,
+              "z": 0.7008
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0013,
+              "y": 0.3464,
+              "z": 0.0249
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.cluster_tall": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "28b95682-24d4-48c1-ae40-c5f02404c9b1",
+          "name": "Tree 01",
+          "geom": {
+            "size": {
+              "x": 2.5721,
+              "y": 2.7179,
+              "z": 2.6064
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1.359,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            3,
+            3
+          ]
+        }
+      ]
+    },
+    "feature.crate": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "f41e9715-d55a-499b-874e-481bf4f36551",
+          "name": "cardboard box",
+          "geom": {
+            "size": {
+              "x": 0.4776,
+              "y": 0.4238,
+              "z": 0.4113
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2119,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "abf5a41b-606e-4aa9-87ba-5964dbda73f8",
+          "name": "case of supplies 01",
+          "geom": {
+            "size": {
+              "x": 0.6167,
+              "y": 0.4132,
+              "z": 0.4243
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2066,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
+        },
+        {
+          "asset": "a28a145c-9009-4f95-98e7-4dfc79bd52c9",
+          "name": "wood_pallet_01",
+          "geom": {
+            "size": {
+              "x": 1.0148,
+              "y": 0.26,
+              "z": 1.0229
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0001,
+              "y": 0.1371,
+              "z": 0.0001
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.4
+        }
+      ]
+    },
+    "feature.edge_dressing": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "993a79f7-c3e6-4893-ae16-cdfe8461469c",
+          "name": "trash barrel public",
+          "geom": {
+            "size": {
+              "x": 0.5348,
+              "y": 0.7765,
+              "z": 0.5237
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.001,
+              "y": 0.3967,
+              "z": -0.003
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "7100e101-8109-42bb-a778-6c0a5bf1aa06",
+          "name": "waste_bin_01",
+          "geom": {
+            "size": {
+              "x": 0.6027,
+              "y": 0.9826,
+              "z": 0.6008
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0029,
+              "y": 0.4894,
+              "z": -0.0019
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        },
+        {
+          "asset": "c142f5b1-2850-4ac5-bc5a-3495a42f7c44",
+          "name": "waste_bin_02",
+          "geom": {
+            "size": {
+              "x": 0.6055,
+              "y": 0.9727,
+              "z": 0.6013
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0021,
+              "y": 0.4879,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        },
+        {
+          "asset": "72e4c740-baff-44b1-9210-6eabdad50456",
+          "name": "trash bin public full",
+          "geom": {
+            "size": {
+              "x": 2.1033,
+              "y": 1.194,
+              "z": 1.3708
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.597,
+              "z": -0.0645
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "large",
+          "weight": 0
+        }
+      ]
+    },
+    "feature.formation": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "fb180b73-e971-4c30-9d56-a5e2a3617ca6",
+          "name": "concrete debris 06",
+          "geom": {
+            "size": {
+              "x": 1.0539,
+              "y": 1.9957,
+              "z": 1.1306
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0166,
+              "y": 1.0023,
+              "z": -0.0457
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "4a63d89b-04a4-4ab8-97f3-12d91b3c911c",
+          "name": "concrete debris 03",
+          "geom": {
+            "size": {
+              "x": 0.9945,
+              "y": 0.8402,
+              "z": 0.495
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0018,
+              "y": 0.4245,
+              "z": 0.0018
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        }
+      ]
+    },
+    "feature.ground_cover": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "a04eff7b-e107-450b-bc22-fb419b26d6a2",
+          "name": "newspapers01",
+          "geom": {
+            "size": {
+              "x": 0.6752,
+              "y": 0.1347,
+              "z": 0.6716
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.0673,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "f60e1db9-1cab-4717-8a39-d261f1b69bbb",
+          "name": "newspapers02",
+          "geom": {
+            "size": {
+              "x": 0.6733,
+              "y": 0.069,
+              "z": 0.3948
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.0345,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "6588b037-56e6-4a4c-b7cd-0f28f25eb66b",
+          "name": "trash mess 01",
+          "geom": {
+            "size": {
+              "x": 0.7007,
+              "y": 0.1212,
+              "z": 0.7533
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0606,
+              "y": 0.0606,
+              "z": 0.0425
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
+        },
+        {
+          "asset": "09e79717-0502-4b64-8ee7-7f3e55578b55",
+          "name": "trash pile 01",
+          "geom": {
+            "size": {
+              "x": 0.6891,
+              "y": 0.166,
+              "z": 0.4776
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0074,
+              "y": 0.083,
+              "z": -0.0085
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.4
+        },
+        {
+          "asset": "5ffacfc9-436f-4ef0-a59c-5593e7d95942",
+          "name": "trash pile 02",
+          "geom": {
+            "size": {
+              "x": 0.3388,
+              "y": 0.1641,
+              "z": 0.3442
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.002,
+              "y": 0.0821,
+              "z": -0.0165
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.4
+        }
+      ]
+    },
+    "feature.landmark": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "91c02443-a0e4-4f79-8315-5809fc3f973a",
+          "name": "horse standing chrome",
+          "geom": {
+            "size": {
+              "x": 0.6955,
+              "y": 1.9149,
+              "z": 2.3032
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": 0.0075,
+              "y": 0.9652,
+              "z": 0.2653
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    "feature.lantern": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "876f5ff3-b06a-4b33-b7a0-5ad6def1174f",
+          "name": "Cyberpunk street lamp",
+          "geom": {
+            "size": {
+              "x": 0.3259,
+              "y": 3.0062,
+              "z": 0.5099
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1.5117,
+              "z": -0.003
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.sack": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "360c119b-d709-45a0-a32b-6f6a8d25f62d",
+          "name": "trashbag",
+          "geom": {
+            "size": {
+              "x": 0.6483,
+              "y": 0.748,
+              "z": 0.5727
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.3752,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.seating": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "82be6141-d89e-447e-b488-261c72f86d9c",
+          "name": "picnic_table_01",
+          "geom": {
+            "size": {
+              "x": 1.8054,
+              "y": 0.807,
+              "z": 1.5309
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0045,
+              "y": 0.3982,
+              "z": -0.003
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    "feature.signage": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "daa65232-a511-48e4-90b2-a81dc28748b0",
+          "name": "Market Sign 02",
+          "geom": {
+            "size": {
+              "x": 1.1578,
+              "y": 0.4883,
+              "z": 0.0806
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2442,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "b04154ca-45f2-47cd-9b3c-8b5a940b1aa1",
+          "name": "Market Sign 05",
+          "geom": {
+            "size": {
+              "x": 0.971,
+              "y": 0.4784,
+              "z": 0.0671
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2392,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "58c93821-a397-4b09-bbed-1252fabd4bf1",
+          "name": "Market Sign 04",
+          "geom": {
+            "size": {
+              "x": 0.9284,
+              "y": 0.3358,
+              "z": 0.0386
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1679,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        },
+        {
+          "asset": "4390a09b-adbf-43d5-953e-1b96b997df9b",
+          "name": "Market Sign Duck",
+          "geom": {
+            "size": {
+              "x": 0.9439,
+              "y": 0.3724,
+              "z": 0.0873
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0009,
+              "y": 0.0017,
+              "z": 0.0445
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.4
+        },
+        {
+          "asset": "65be54db-32eb-4d18-95a1-f487abd29bca",
+          "name": "Area sign 01",
+          "geom": {
+            "size": {
+              "x": 0.9735,
+              "y": 0.8058,
+              "z": 0.0837
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0006,
+              "y": 0.0009,
+              "z": 0.0427
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        }
+      ]
+    },
+    "feature.signpost": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "d6f26b43-4179-4122-836e-ce6bec6613ae",
+          "name": "Sign_Stop",
+          "geom": {
+            "size": {
+              "x": 0.4318,
+              "y": 1.5886,
+              "z": 0.3775
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.7943,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "adf4fdfc-20bf-43b4-944b-688b2eefabba",
+          "name": "Sign_Yield",
+          "geom": {
+            "size": {
+              "x": 0.5277,
+              "y": 1.5234,
+              "z": 0.3775
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.7617,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        },
+        {
+          "asset": "9d09a083-1127-463f-a64b-5510bb08d42c",
+          "name": "Sign_OneWay",
+          "geom": {
+            "size": {
+              "x": 0.0001,
+              "y": 1.377,
+              "z": 0.1496
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.6885,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        },
+        {
+          "asset": "dc636db5-d67a-425b-bbfe-e48e3572d28c",
+          "name": "Traffic Light01",
+          "geom": {
+            "size": {
+              "x": 0.3847,
+              "y": 2.2955,
+              "z": 0.4239
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1.1478,
+              "z": 0.0175
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
+        }
+      ]
+    },
+    "feature.small_detail": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "fe0fac1c-ae56-42d0-8381-23cf1dff131f",
+          "name": "trash can empty",
+          "geom": {
+            "size": {
+              "x": 0.2912,
+              "y": 0.3678,
+              "z": 0.2957
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1839,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "a37a362f-6dcf-4115-96f4-d2d8a281ea2f",
+          "name": "trash can full",
+          "geom": {
+            "size": {
+              "x": 0.2993,
+              "y": 0.3709,
+              "z": 0.2967
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1855,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "f41e9715-d55a-499b-874e-481bf4f36551",
+          "name": "cardboard box",
+          "geom": {
+            "size": {
+              "x": 0.4776,
+              "y": 0.4238,
+              "z": 0.4113
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2119,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        }
+      ]
+    },
+    "feature.tall_marker": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "876f5ff3-b06a-4b33-b7a0-5ad6def1174f",
+          "name": "Cyberpunk street lamp",
+          "geom": {
+            "size": {
+              "x": 0.3259,
+              "y": 3.0062,
+              "z": 0.5099
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1.5117,
+              "z": -0.003
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.torch_wall": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "5d10a821-f1d4-4f2b-b2fb-031a5c846b82",
+          "name": "cyberpunk wall lamp 01",
+          "geom": {
+            "size": {
+              "x": 0.2152,
+              "y": 1.1272,
+              "z": 0.6972
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": 0.0018,
+              "y": -0.0182,
+              "z": 0.3515
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "3f1b59e8-fbd7-4d59-a25b-d8ebdf663453",
+          "name": "cyberpunk lamp wall 02",
+          "geom": {
+            "size": {
+              "x": 0.8451,
+              "y": 0.203,
+              "z": 0.5052
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0057,
+              "y": -0.003,
+              "z": 0.2358
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        }
+      ]
+    },
+    "feature.undergrowth": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "01ec8a0f-2971-4ddb-9612-98ce6c2d315e",
+          "name": "bush_berry_01",
+          "geom": {
+            "size": {
+              "x": 0.7044,
+              "y": 0.5973,
+              "z": 0.7004
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0128,
+              "y": 0.3004,
+              "z": -0.0048
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "6cbbf084-41fb-42be-a5a0-ba3988bbd345",
+          "name": "brush_rose_01",
+          "geom": {
+            "size": {
+              "x": 0.9394,
+              "y": 0.5326,
+              "z": 1.0144
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0016,
+              "y": 0.2273,
+              "z": -0.0008
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        }
+      ]
+    },
+    "feature.vehicle": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "a8f13f5c-138d-465d-8f0a-ea30155393c6",
+          "name": "taxi_01",
+          "geom": {
+            "size": {
+              "x": 1.3192,
+              "y": 1.0438,
+              "z": 2.5453
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0112,
+              "y": 0.5603,
+              "z": 0.0261
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            3
+          ]
+        },
+        {
+          "asset": "d5874a3f-0013-431b-91c9-0bd8ad5fee14",
+          "name": "Cyberpunk Car",
+          "geom": {
+            "size": {
+              "x": 1.879,
+              "y": 1.7967,
+              "z": 3.5856
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0045,
+              "y": 0.7,
+              "z": 0.0772
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            4
+          ],
+          "variant": "scifi",
+          "weight": 0
+        },
+        {
+          "asset": "c91ba85e-c395-4cae-860c-95ae8bed1ff2",
+          "name": "police_hauler_01",
+          "geom": {
+            "size": {
+              "x": 1.874,
+              "y": 1.5752,
+              "z": 3.0393
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0149,
+              "y": 0.8068,
+              "z": 0.0486
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            3
+          ],
+          "variant": "scifi",
+          "weight": 0
+        }
+      ]
+    },
+    "feature.wall_dressing": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "68a549c3-da1e-4f0c-b883-b4ee740681e1",
+          "name": "vent box mini",
+          "geom": {
+            "size": {
+              "x": 0.3843,
+              "y": 0.3692,
+              "z": 0.26
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0019,
+              "y": 0.1958,
+              "z": -0.0006
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "e6066da1-0bfc-42d5-b87c-2c293a433c3c",
+          "name": "satellite basic wall",
+          "geom": {
+            "size": {
+              "x": 0.3509,
+              "y": 0.5068,
+              "z": 0.3971
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": 0.0103,
+              "y": 0.2552,
+              "z": 0.1708
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
+        },
+        {
+          "asset": "daa65232-a511-48e4-90b2-a81dc28748b0",
+          "name": "Market Sign 02",
+          "geom": {
+            "size": {
+              "x": 1.1578,
+              "y": 0.4883,
+              "z": 0.0806
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2442,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
+        }
+      ]
+    },
+    "fill.asphalt": {
+      "rotation": "fixed",
+      "variants": [
+        {
+          "asset": "ce61ee2e-4133-4dc9-91ad-42ad771e1900",
+          "name": "concrete floor 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "stack": {
+            "unitHeight": 0.5
+          }
+        }
+      ]
+    },
+    "fill.concrete": {
+      "rotation": "fixed",
+      "variants": [
+        {
+          "asset": "ce61ee2e-4133-4dc9-91ad-42ad771e1900",
+          "name": "concrete floor 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "stack": {
+            "unitHeight": 0.5
+          }
+        }
+      ]
+    },
+    "fill.default": {
+      "rotation": "fixed",
+      "variants": [
+        {
+          "asset": "ce61ee2e-4133-4dc9-91ad-42ad771e1900",
+          "name": "concrete floor 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "stack": {
+            "unitHeight": 0.5
+          }
+        }
+      ]
+    },
+    "floor.asphalt": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "4811a116-d048-4ed0-a071-2d624b2fb779",
+          "name": "Road01 2x2",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.25,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.125,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        },
+        {
+          "asset": "b5e0db27-e50c-48db-a751-3938cb7d53c0",
+          "name": "Road01 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "floor.cobble": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "4811a116-d048-4ed0-a071-2d624b2fb779",
+          "name": "Road01 2x2",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.25,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.125,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        },
+        {
+          "asset": "b5e0db27-e50c-48db-a751-3938cb7d53c0",
+          "name": "Road01 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "7f7211da-6999-401c-b0e4-8ecdfcdde0f1",
+          "name": "Road_ManHole01_1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.08
+        },
+        {
+          "asset": "35678157-d99e-4506-a995-47675862476b",
+          "name": "Road_grate01_1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.08
+        }
+      ]
+    },
+    "floor.concrete": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "ce61ee2e-4133-4dc9-91ad-42ad771e1900",
+          "name": "concrete floor 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "0fef3beb-8242-4ad0-818a-b15ada2e9df0",
+          "name": "concrete floor 1x1 cracked v1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.15
+        },
+        {
+          "asset": "8be0d9f8-11bd-491a-9f43-56b6b82132d6",
+          "name": "concrete floor 1x1 cracked v2",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.15
+        },
+        {
+          "asset": "f130112b-b318-4a46-a218-253397c74a8f",
+          "name": "concrete floor 1x1 cracked v3",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.1
+        }
+      ]
+    },
+    "floor.flagstone": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "ce61ee2e-4133-4dc9-91ad-42ad771e1900",
+          "name": "concrete floor 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "4d8ee8ef-2afc-4472-a088-cc8b4158faed",
+          "name": "concrete floor 2x1",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "0fef3beb-8242-4ad0-818a-b15ada2e9df0",
+          "name": "concrete floor 1x1 cracked v1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.2
+        }
+      ]
+    },
+    "floor.stone_tile": {
+      "rotation": "random90",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "3a3ecc46-d93f-4c73-a163-fec89cf6a5d6",
+          "name": "SideWalk01_1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "4ec63679-d2cd-4242-acce-d2a240280b84",
+          "name": "SideWalk02_1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.4
+        },
+        {
+          "asset": "7d250dd7-bf71-414e-bb4b-dfecd7431abc",
+          "name": "SideWalk03_1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.25
+        }
+      ]
+    },
+    "link.stairs": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "d36187ec-a778-41fb-96fb-a2902252592c",
+          "name": "concrete floor stair",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "facing": {
+            "ascendsToward": "W"
+          }
+        }
+      ]
+    },
+    "marking.crossing": {
+      "variants": [
+        {
+          "asset": "e23df2d1-fd48-4060-96fb-09859b7e4fc5",
+          "name": "concrete floor 1x1 strip",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "marking.drain": {
+      "variants": [
+        {
+          "asset": "35678157-d99e-4506-a995-47675862476b",
+          "name": "Road_grate01_1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "7f7211da-6999-401c-b0e4-8ecdfcdde0f1",
+          "name": "Road_ManHole01_1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.15
+        }
+      ]
+    },
+    "opening.door": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "807cb643-f889-437b-9b93-08ffaa84faa6",
+          "name": "door with full lite",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "42a2e597-f916-4805-bf2f-e811863b182c",
+          "name": "door with peep hole",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        }
+      ]
+    },
+    "opening.door.wood": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "42a2e597-f916-4805-bf2f-e811863b182c",
+          "name": "door with peep hole",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "94d41683-fdb4-466f-862b-fb91d3f5125f",
+          "name": "door with narrow lite",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        }
+      ]
+    },
+    "opening.double_door": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "5c442181-6c29-4568-a6d0-6a152419941a",
+          "name": "door with full lite double",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "opening.double_door.wood": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "f07c2436-adc0-4197-b9da-eda239fe7390",
+          "name": "door with narrow lite double",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "opening.window": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "c3734e08-1b86-4f19-883a-84bad95b1e38",
+          "name": "Window generic long",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "ee218498-ece9-4b38-8b79-5cc32db5bf3a",
+          "name": "Window generic short",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.4
+        }
+      ]
+    },
+    "ruin_block.brick": {
+      "variants": [
+        {
+          "asset": "055df34b-b9bc-44dd-87ae-56e075a5e156",
+          "name": "brick pile",
+          "geom": {
+            "size": {
+              "x": 0.5207,
+              "y": 0.4416,
+              "z": 0.5643
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0006,
+              "y": 0.2289,
+              "z": -0.0564
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ruin_block.concrete": {
+      "variants": [
+        {
+          "asset": "2a3dd6a5-774c-4633-ad8a-7f0553c5cda2",
+          "name": "industrial_stairblock_01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ruin_block.default": {
+      "variants": [
+        {
+          "asset": "2a3dd6a5-774c-4633-ad8a-7f0553c5cda2",
+          "name": "industrial_stairblock_01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ruin_growth.default": {
+      "variants": [
+        {
+          "asset": "01ec8a0f-2971-4ddb-9612-98ce6c2d315e",
+          "name": "bush_berry_01",
+          "geom": {
+            "size": {
+              "x": 0.7044,
+              "y": 0.5973,
+              "z": 0.7004
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0128,
+              "y": 0.3004,
+              "z": -0.0048
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "6cbbf084-41fb-42be-a5a0-ba3988bbd345",
+          "name": "brush_rose_01",
+          "geom": {
+            "size": {
+              "x": 0.9394,
+              "y": 0.5326,
+              "z": 1.0144
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0016,
+              "y": 0.2273,
+              "z": -0.0008
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        }
+      ]
+    },
+    "ruin_prop.default": {
+      "variants": [
+        {
+          "asset": "ac910658-cee9-45bb-a128-0e1f20e32883",
+          "name": "brick pile broken bottom",
+          "geom": {
+            "size": {
+              "x": 0.8804,
+              "y": 1.0521,
+              "z": 0.5643
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0656,
+              "y": 0.5341,
+              "z": -0.0564
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "31363cf2-ee8c-42fe-aeb1-3ffdef0ee500",
+          "name": "vanding machine pop broken",
+          "geom": {
+            "size": {
+              "x": 0.9433,
+              "y": 1.6212,
+              "z": 0.8513
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0037,
+              "y": 0.8166,
+              "z": 0.0182
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
+        },
+        {
+          "asset": "c6e68fc1-0b54-4a8a-a83b-6762de63bea5",
+          "name": "shoppingcart_01",
+          "geom": {
+            "size": {
+              "x": 0.5595,
+              "y": 0.678,
+              "z": 0.7008
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0013,
+              "y": 0.3464,
+              "z": 0.0249
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
+        }
+      ]
+    },
+    "ruin_rubble.default": {
+      "variants": [
+        {
+          "asset": "055df34b-b9bc-44dd-87ae-56e075a5e156",
+          "name": "brick pile",
+          "geom": {
+            "size": {
+              "x": 0.5207,
+              "y": 0.4416,
+              "z": 0.5643
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0006,
+              "y": 0.2289,
+              "z": -0.0564
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "377c6159-b7f9-4282-9199-fc0b82ab571a",
+          "name": "concrete debris 01",
+          "geom": {
+            "size": {
+              "x": 0.8301,
+              "y": 0.5241,
+              "z": 0.7539
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0105,
+              "y": 0.2665,
+              "z": 0.1312
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.8
+        },
+        {
+          "asset": "de8b707e-589e-45d9-a393-9a75de901b2a",
+          "name": "concrete debris 02",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.3493,
+              "z": 0.495
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.001,
+              "y": 0.1791,
+              "z": 0.0018
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "weight": 0.5
+        }
+      ]
+    },
+    "wall.low_wall": {
+      "mount": "edge-center",
+      "rotation": "facing",
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "7a542b59-776e-4d5d-adc2-dc13b3567c81",
+          "name": "industrial_prop_fence_middle_01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.7522,
+              "z": 0.1128
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.3899,
+              "z": 0.0011
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "wall.wall": {
+      "mount": "half-cell",
+      "rotation": "facing",
+      "height": 2,
+      "greedyTiling": true,
+      "variants": [
+        {
+          "asset": "2c675ab5-9a46-444a-bf20-78fb9d6fee74",
+          "name": "concrete wall 1x1 plane",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "0fa27a12-4fac-415a-8a2d-b62b1f6f715e",
+          "name": "concrete wall 2x2 plane",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "wall_post.stone": {
+      "rotation": "fixed",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "a76680c2-e0b6-4599-b29f-67946c047670",
+          "name": "concrete wall filler v2",
+          "geom": {
+            "size": {
+              "x": 0.5,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.25,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "wall_post.wall": {
+      "rotation": "fixed",
+      "height": 2,
+      "variants": [
+        {
+          "asset": "d1b8f550-1fb5-49a4-a0be-76348adce158",
+          "name": "concrete wall filler",
+          "geom": {
+            "size": {
+              "x": 0.5,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.25,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    }
+  },
+  "source": {
+    "generatedBy": "packages/core/scripts/import-palette-draft.ts from data/palette-draft.json"
+  },
+  "extends": "generic"
+}

@@ -4,6 +4,8 @@
  * a non-colour cue (shape, letter, dots, treads…) so nothing relies on colour alone.
  */
 import type { Canvas2DLike, MapTheme } from "@slabyrinth/core/contracts/resolved";
+import type { FeatureType } from "@slabyrinth/core/contracts/plan";
+import { FEATURE_INFO, glyphType } from "@slabyrinth/core/gen";
 import { TAU, circlePath, hash01, line, polyPath, roundRectPath, starPoints, withAlpha } from "./prims";
 import { tokenColor } from "./themes";
 
@@ -1074,6 +1076,52 @@ export const PAINTERS: Record<string, Painter> = {
   "feat-standing_stone": standingStone,
   "feat-grave": grave,
   "feat-custom": custom,
+  // cave, ritual and light dressing (feature types added 2026-11-19): nearest existing cartographic symbol
+  "feat-stalagmite": rock(0.3),
+  "feat-stalactite": rock(0.25),
+  "feat-rock_formation": rock(0.44),
+  "feat-cave_in": dots(7, 0.07, true),
+  "feat-crystal": rock(0.25),
+  "feat-giant_mushroom": mushroom,
+  "feat-root": log,
+  "feat-root_large": log,
+  "feat-roots_wall": log,
+  "feat-vines": sprigs(6, "forest", false),
+  "feat-tree_large": tree,
+  "feat-candles": light(0.1, 6, false),
+  "feat-skull_pile": bones,
+  "feat-spawn_point": trap,
+  "feat-torch_floor": light(0.12, 6, false),
+  "feat-lantern": light(0.1, 6, false),
+  "feat-magic_fire": campfire,
+  "feat-lava_glow": light(0.14, 6, false),
+  "feat-fire_pit": campfire,
+  "feat-monolith": standingStone,
+  "feat-cave_column": pillar,
+  "feat-statue_large": statue,
+  "feat-mine_cart": cart,
+  "feat-rails": smallSquare,
+  "feat-mine_support": pillar,
+  "feat-chains": dots(5, 0.04, false),
+  // theme-neutral dressing roles (2026-11-19): a generic glyph per role, whatever asset a theme puts there
+  "feat-landmark": statue,
+  "feat-tall_marker": standingStone,
+  "feat-formation": rock(0.44),
+  "feat-cluster_tall": tree,
+  "feat-undergrowth": bush,
+  "feat-ground_cover": sprigs(6, "forest", false),
+  "feat-accent_light": light(0.12, 6, false),
+  "feat-edge_dressing": rock(0.3),
+  "feat-small_detail": dots(5, 0.045, false),
+  "feat-wall_dressing": wallHanging(false),
+  "feat-bank_dressing": sprigs(6, "forest", false),
+  "feat-jetty": bench,
+  // built places (2026-11-20): a parked vehicle, seating, a sign on a frontage
+  "feat-vehicle": cart,
+  "feat-seating": bench,
+  "feat-signage": wallHanging(true),
+  "feat-cliff_face": rock(0.46),
+  "feat-cliff_crest": rock(0.38),
   "door-door": door(1, false),
   "door-double_door": door(2, false),
   "door-locked_door": door(1, true),
@@ -1092,6 +1140,14 @@ export const PAINTERS: Record<string, Painter> = {
   "link-pit_drop": trapdoor(true),
 };
 
+/**
+ * The painter for a symbol id. A feature type without its own painter (new types, slots) is drawn with the glyph of
+ * the stand-in type the core catalog names for it, so a real feature never shows the "?" of a custom feature.
+ */
 export function painterFor(symbolId: string): Painter {
-  return PAINTERS[symbolId] ?? custom;
+  const own = PAINTERS[symbolId];
+  if (own) return own;
+  const type = symbolId.startsWith("feat-") ? symbolId.slice(5) : "";
+  if (Object.hasOwn(FEATURE_INFO, type)) return PAINTERS[`feat-${glyphType(type as FeatureType)}`] ?? custom;
+  return custom;
 }

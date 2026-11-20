@@ -7,6 +7,8 @@ import type { DressPreset, FeatureType, Rotation, Side } from "../contracts/plan
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
 import { featureInfo, rotatedSize } from "./catalog";
+import { ValueNoise } from "./noise";
+import { composeArea, isComposedPreset, type ComposedPreset } from "./setpieces";
 
 export interface PlacementGrid {
   inBounds(x: number, y: number): boolean;
@@ -20,6 +22,35 @@ export interface PlacementGrid {
   occupied(x: number, y: number): boolean;
   /** Edge kind on the given side of the cell (EDGE.*). */
   edge(x: number, y: number, side: Side): number;
+  /**
+   * Floor height of the cell in tiles above the level floor (resolver height / 4). Optional: the composed set
+   * pieces use it to put focal pieces on high ground and keep multi-cell pieces off height steps; without it they
+   * fall back to LEDGE edges.
+   */
+  height?(x: number, y: number): number;
+  /**
+   * True on cells under a landmark piece already placed (a great tree, a landmark, a great statue). Optional: the
+   * composed set pieces keep a cleared apron round it, whichever dress op placed it.
+   */
+  landmark?(x: number, y: number): boolean;
+  /**
+   * True on cells nothing generated may stand on: a road crossing and the pavement cells at its ends (the people
+   * crossing need them). Optional.
+   */
+  keepClear?(x: number, y: number): boolean;
+  /** True on cells under a vehicle already placed (by the plan or another op). Optional. */
+  vehicle?(x: number, y: number): boolean;
+  /**
+   * Size in tiles (w along its length, d across, h tall) of the asset a feature type resolves to here, from the
+   * palette; undefined where the theme has no such asset. Optional: without the hook the cliff band uses nominal
+   * sizes; with it, a theme that has neither cliff_face nor cliff_crest gets no band (its cliff keeps the built face).
+   */
+  pieceSize?(type: FeatureType): { w: number; d: number; h: number } | undefined;
+  /**
+   * True on the cells of a rock ramp (`ResolvedLevel.ramps[].cells`; they carry no path flag). Nothing generated
+   * stands on them; the cliff band lines their sides from the upper ground. Optional.
+   */
+  ramp?(x: number, y: number): boolean;
 }
 
 export interface GeneratedPlacement {
@@ -30,6 +61,11 @@ export interface GeneratedPlacement {
   rotFine: number;
   wall?: Side;
   variant?: string;
+  /**
+   * Tiles above (or, negative, below) the floor of the anchor cell: a course of a rock band stacked on the one
+   * below, or a base course sunk into the ground. The resolver adds it to the feature's base height.
+   */
+  lift?: number;
 }
 
 const EDGE_WALL = 1;
@@ -85,12 +121,53 @@ export interface ScatterParams {
   seed: number;
   /** How many more features this level may still generate (cap). */
   remaining: number;
+  /**
+   * Generator 2, natural pieces: place in drifts (value-noise patches with empty ground between, each accepted
+   * piece growing a small clump) instead of an even blue-noise spread, which at high density packs into a lattice.
+   */
+  drift?: boolean;
+  /**
+   * Generator 2: only ground that carries the whole piece. The footprint lies on one height, and no cell round it
+   * drops away (a cliff lip, a channel, a pit), so a piece wider than its cell never overhangs air and floats
+   * (owner's watchtower run, 2026-11-20: the model spent four calls deleting floating scattered rocks).
+   */
+  supported?: boolean;
 }
 
 export interface ScatterResult {
   placements: GeneratedPlacement[];
   capped: boolean;
 }
+
+/**
+ * Feature types that scatter in clumps (a seed placement plus 1–2 neighbours), so a scatter of stalagmites or
+ * crystals reads as formations rather than litter. Only types added after generator v1 was frozen are listed:
+ * adding a type here changes no existing map.
+ */
+export const CLUSTERED_TYPES: ReadonlySet<FeatureType> = new Set<FeatureType>([
+  "stalagmite",
+  "stalactite",
+  "crystal",
+  "giant_mushroom",
+  "root",
+  "skull_pile",
+  "candles",
+]);
+const CLUSTER_MEAN = 1.5;
+const SATELLITE_OFFSETS: ReadonlyArray<readonly [number, number]> = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, 1],
+  [-1, -1],
+  [1, -1],
+  [-1, 1],
+  [2, 0],
+  [0, 2],
+  [-2, 0],
+  [0, -2],
+];
 
 export function scatterFeatures(grid: PlacementGrid, p: ScatterParams): ScatterResult {
   const info = featureInfo(p.feature);
@@ -113,6 +190,10 @@ export function scatterFeatures(grid: PlacementGrid, p: ScatterParams): ScatterR
     else buckets.set(k, [[x, y]]);
   };
   let capped = false;
+  // Natural dressing added on 2026-11-19 scatters in clumps; older types keep the frozen generator-v1 stream.
+  const clustered = CLUSTERED_TYPES.has(p.feature) || p.drift === true;
+  const driftField = p.drift === true ? new ValueNoise(subSeed(p.seed, "scatter-drift")) : null;
+  const crng = createPrng(subSeed(p.seed, "scatter-cluster"));
 
   const cellOk = (x: number, y: number): boolean => {
     if (!grid.inBounds(x, y) || !grid.isFloor(x, y) || grid.occupied(x, y)) return false;
@@ -150,12 +231,34 @@ export function scatterFeatures(grid: PlacementGrid, p: ScatterParams): ScatterR
     return false;
   };
 
+  const groundCarries = (cells: ReadonlyArray<readonly [number, number]>): boolean => {
+    if (!grid.height) return true;
+    const h0 = grid.height(cells[0]?.[0] ?? 0, cells[0]?.[1] ?? 0);
+    for (const [x, y] of cells) {
+      if (grid.height(x, y) !== h0) return false;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (!grid.inBounds(nx, ny)) continue;
+          if ((grid.flags(nx, ny) & (FLAG_NO_FLOOR | FLAG_WATER)) !== 0) return false;
+          if (grid.height(nx, ny) < h0 - 0.25) return false;
+        }
+    }
+    return true;
+  };
+
   for (const [cx, cy] of order) {
     // Draw every random number for every candidate so the stream does not depend on eligibility.
     const r = rng.next();
     const rotStep = rng.int(24);
     const variantIdx = p.variants && p.variants.length > 0 ? rng.int(p.variants.length) : -1;
-    if (r >= p.density) continue;
+    if (r >= (clustered ? p.density / (1 + CLUSTER_MEAN) : p.density)) continue;
+    if (driftField) {
+      const n = driftField.sample(cx / 6, cy / 6);
+      // a third of the ground is a drift, the rest stays mostly clear
+      if (n < 0.45 || (n < 0.55 && r * 3 > p.density)) continue;
+    }
     if (out.length >= p.remaining) {
       capped = true;
       break;
@@ -166,13 +269,43 @@ export function scatterFeatures(grid: PlacementGrid, p: ScatterParams): ScatterR
     const cells = footprintCells([cx, cy], size);
     if (!cells.every(([x, y]) => cellOk(x, y))) continue;
     if (cells.some(([x, y]) => tooClose(x, y))) continue;
+    if (p.supported === true && !groundCarries(cells)) continue;
     if (footprintCrossesWall(grid, [cx, cy], size)) continue;
     for (const [x, y] of cells) accept(x, y);
     const placement: GeneratedPlacement = { type: p.feature, at: [cx, cy], size, rot, rotFine };
     if (variantIdx >= 0 && p.variants) placement.variant = p.variants[variantIdx] as string;
     out.push(placement);
+    if (clustered) addSatellites(cx, cy, size);
   }
   return { placements: out, capped };
+
+  /** Clustered types: 1–2 more of the same type within two cells of the one just accepted (own PRNG stream). */
+  function addSatellites(cx: number, cy: number, size: readonly [number, number]): void {
+    const n = 1 + crng.int(2);
+    const offs = crng.shuffle(SATELLITE_OFFSETS);
+    let added = 0;
+    for (const [dx, dy] of offs) {
+      if (added >= n) break;
+      if (out.length >= p.remaining) {
+        capped = true;
+        return;
+      }
+      const sx = cx + (dx > 0 ? dx + size[0] - 1 : dx);
+      const sy = cy + (dy > 0 ? dy + size[1] - 1 : dy);
+      const rotFine = info.organic && p.randomRotation ? crng.int(24) * 15 : 0;
+      const rot = ((Math.round(rotFine / 90) % 4) * 90) as Rotation;
+      const sz = rotatedSize(info.size, rot);
+      const cells = footprintCells([sx, sy], sz);
+      if (!cells.every(([x, y]) => cellOk(x, y) && !accepted.has(cellKey(x, y)))) continue;
+      if (footprintCrossesWall(grid, [sx, sy], sz)) continue;
+      for (const [x, y] of cells) accept(x, y);
+      const sat: GeneratedPlacement = { type: p.feature, at: [sx, sy], size: sz, rot, rotFine };
+      if (p.variants && p.variants.length > 0)
+        sat.variant = p.variants[crng.int(p.variants.length)] as string;
+      out.push(sat);
+      added++;
+    }
+  }
 }
 
 // ───────────────────────────── dress ─────────────────────────────
@@ -193,8 +326,11 @@ const C = (type: FeatureType, weight: number, size?: readonly [number, number]):
   size ? { type, weight, placement: "center", size } : { type, weight, placement: "center" };
 const K = (type: FeatureType, weight: number): DressItem => ({ type, weight, placement: "corner" });
 
-/** Preset table (generator v1; changing it changes generated maps, so treat it as frozen). */
-export const DRESS_PRESET_TABLE: Record<DressPreset, readonly DressItem[]> = {
+/**
+ * Preset table (generator v1; changing it changes generated maps, so treat it as frozen). The composed set pieces
+ * (ritual_circle, overgrown, cavern, …) are not weighted tables: see ./setpieces.ts.
+ */
+export const DRESS_PRESET_TABLE: Record<Exclude<DressPreset, ComposedPreset>, readonly DressItem[]> = {
   tavern: [
     C("table", 4),
     C("round_table", 3),
@@ -293,6 +429,7 @@ function wallFootprint(
 }
 
 export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
+  if (isComposedPreset(p.preset)) return composeArea(grid, { ...p, preset: p.preset });
   const table = DRESS_PRESET_TABLE[p.preset];
   const rng = createPrng(subSeed(p.seed, "dress"));
   const cells = p.areaCells.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0]);

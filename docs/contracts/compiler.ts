@@ -159,7 +159,17 @@ export interface PaletteFacing {
  *   opening.<OpeningKind>       door/window asset that REPLACES the wall segment(s)
  *   link.<LinkKind>             stairs/ladder/… for one width × run
  *   feature.<FeatureType>       furniture / dressing / vegetation
- *   ledge.<Material|"default">  optional edge trim where heights differ
+ *   ledge.<Material|"default">  optional edge trim where heights differ (half-cell face pieces; not placed yet)
+ *   cliff.<Material|"default">  cliff body: full-cell 1×1 block stacked in a raised cell from the lower neighbour's floor up
+ *                               to its own floor where the drop is ≥ 1 tile (replaces fill there). Natural ground (rock,
+ *                               dirt, gravel…) without its own role uses cliff.natural; otherwise fill (info note).
+ *   step.<Material|"default">  a single step piece for stair edges under 0.75 tiles (1-tile steps use link.stairs)
+ *   pier.<Material|"default">  column piece under bridge piers (else fill courses)
+ *   bed.<Material|"default">    bed of a water cell (gravel, mud, sand…): water in TaleSpire is the board's water plane,
+ *                               so a channel is floored with its bed (fallback: floor of the bank beside it)
+ *   water.<Material>            optional surface piece over a water bed, only where the catalog has one that renders
+ *   kerb.<Material|"default">   low edge piece along kerbed paths (half-cell, on the path side)
+ *   glow.<Material>             optional light prop on every 3rd cell (3×3 lattice) of that material (falls back to feature.<material>_glow)
  *   marker.alignment            alignment marker prop (§4.6)
  */
 export type RoleName = string;
@@ -201,6 +211,12 @@ export interface PaletteVariant {
    * Separate from `name`, which is the asset's display name and is for diagnostics only.
    */
   variant?: string;
+  /**
+   * How light the piece reads in game, from screenshots (never guessed): "dark", "mid" or "light", with an optional
+   * hue word ("peach", "green-grey"). Absent = unknown. The design review uses it for tone notes (review/).
+   */
+  tone?: "dark" | "mid" | "light";
+  hue?: string;
   /** Footprint in cells this asset covers at rot 0 (w east-west, h north-south). Default role.footprint. */
   footprint?: readonly [w: number, h: number];
   /** Correction rotation in degrees (multiple of 15) added before encoding, to fix model orientation. */
@@ -211,6 +227,12 @@ export interface PaletteVariant {
   stack?: { unitHeight: Height };
   /** rot-0 orientation of this asset (overrides role.facing and OrientationCalibration.defaultFacing). */
   facing?: PaletteFacing;
+  /**
+   * Assembly (2026-11-19): further pieces placed with this one as a single feature, e.g. a pine from stump +
+   * trunk + crown, a column from base + shaft + capital, a rock pile. Each piece is placed like the main asset
+   * (same anchor and rotation) and then moved by its offset (tiles; x east, y up, z north, rotated with the feature).
+   */
+  parts?: Array<{ asset: string; name?: string; geom: PaletteVariant["geom"]; offset?: { x?: number; y?: number; z?: number } }>;
 }
 
 export interface PaletteRole {
@@ -308,6 +330,12 @@ export interface Placement {
   levelId: LevelId;
   /** Plan element / cell that produced it (for diagnostics & chunk affinity). */
   source: { elementId?: ElementId | string; cell?: readonly [number, number] };
+  /**
+   * Paste layer (structures, 2026-11-20): "storey:<n>" for a building's storey n (0 = ground), "roof" for roofs,
+   * attic decks, gable fill and attachment roofs. Absent = "site" (terrain and everything else). Layered export is
+   * built on this later; today RealizeOptions.omitLayers can drop layers (e.g. a no-roof build).
+   */
+  layer?: string;
 }
 
 export interface PlacementSet {
@@ -465,6 +493,8 @@ export interface ExportBundle {
   assetSource: "install" | "builtin";
   /** Assets the palette wanted but the user's game lacks, and what was used instead (UX "substitutes were used"). */
   substitutions: Array<{ role: RoleName; wanted: { uuid: string; name?: string }; used: { uuid: string; name?: string } | null; count: number }>;
+  /** Per level with water: the water surface to set with TaleSpire's water tool, in tiles above the slab's base (its lowest point). */
+  waterLevels?: Array<{ levelId: LevelId; aboveBase: number; min: number; max: number }>;
   /** Per level paste placement (UX §16 builds[].levels[].placement). */
   levelPlacement: Array<{ levelId: LevelId; pasteOrder: number; kind: "ground" | "storeys-up" | "side-by-side"; storeys?: number; offsetSq?: number }>;
 }
@@ -474,11 +504,14 @@ export interface ExportBundle {
 export type CompileDiagnosticCode =
   | "plan_invalid"               // validation errors — compile refused
   | "role_missing"               // no palette role (after fallback chain) → placements dropped
+  | "structure_style_fallback"   // a building style's own piece (facade, window, door, roof kit) is missing in the theme; another role stood in
   | "asset_unknown"              // uuid not in catalog
   | "asset_substituted"          // alternate / fallback role used (aggregated into ExportBundle.substitutions)
   | "asset_deprecated"
   | "variant_unknown"            // requested variant not found → default used
   | "custom_unresolved"          // custom feature hint matched nothing
+  | "custom_resolved"            // custom feature hint → the asset it became (name, size, footprint), so the AI sees what it got
+  | "landmark_short"             // a landmark / great tree / great statue resolved to an asset under 3 tiles tall
   | "thick_wall_conflict"        // mount:"inner" wall with open cells on both sides
   | "footprint_mismatch"         // asset footprint differs from feature size
   | "coord_overflow"             // map exceeds codec coordinate range
@@ -511,7 +544,10 @@ export type CompileDiagnosticCode =
   | "verify_wall_gap"            // error: a wall edge is not covered by wall pieces up to its height
   | "verify_duplicate_removed"   // info (repair): identical placements at the same position/rotation dropped
   | "verify_bad_coordinate"      // error: a placement with a non-finite coordinate or an invalid rotation (dropped)
-  | "verify_pokes_into_level_above"; // warning: a placement rises through the floor of the level above
+  | "verify_pokes_into_level_above" // warning: a placement rises through the floor of the level above
+  | "verify_material_substituted"
+  | "verify_water_level"          // info: set TaleSpire's water level to this height above the pasted slab  // warning (liquids) / info: the 2D map shows a material or wall style the theme builds with another one
+  | "verify_cliff_gap";           // warning: a natural cliff edge left to the rock band has no rock in front and no face behind
 
 export interface CompileDiagnostic {
   severity: "error" | "warning" | "info";

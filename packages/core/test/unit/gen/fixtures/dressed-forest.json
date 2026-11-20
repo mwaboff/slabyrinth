@@ -1,0 +1,81 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 1,
+  "id": "3c7e9a14-52b8-4d0f-a6e1-8f4b2c9d7e05",
+  "title": "Old Stones Glade (set-dressing test)",
+  "kind": "outdoor",
+  "seed": 20261121,
+  "theme": "forest",
+  "summary": "Outdoor generality test: the same components as the cave proofs, resolved by the forest palette. A path winds through pine woods past a raised knoll to a stone circle in a glade.",
+  "levels": [
+    {
+      "id": "g",
+      "name": "Old Stones Glade",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 40, "h": 30 },
+      "base": { "type": "ground", "material": "grass" },
+      "areas": [
+        {
+          "id": "woods",
+          "kind": "zone",
+          "name": "Pine Woods",
+          "key": "1",
+          "shape": { "type": "rect", "x": 0, "y": 0, "w": 40, "h": 30 }
+        },
+        {
+          "id": "knoll",
+          "kind": "zone",
+          "name": "Rocky Knoll",
+          "key": "2",
+          "shape": { "type": "rect", "x": 26, "y": 2, "w": 11, "h": 8 }
+        },
+        {
+          "id": "glade",
+          "kind": "zone",
+          "name": "Stone Circle",
+          "key": "3",
+          "shape": { "type": "circle", "cx": 12, "cy": 19, "r": 5.5 },
+          "notes": "The old stones; the boss rises at the centre."
+        },
+        {
+          "id": "camp",
+          "kind": "zone",
+          "name": "Hunters' Camp",
+          "key": "4",
+          "shape": { "type": "rect", "x": 27, "y": 19, "w": 8, "h": 7 }
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [],
+      "terrain": [
+        {
+          "id": "path",
+          "op": "path",
+          "points": [
+            [0, 14],
+            [20, 14],
+            [20, 22],
+            [39, 22]
+          ],
+          "width": 2,
+          "material": "dirt",
+          "jitter": 0.3
+        },
+        {
+          "id": "knoll_height",
+          "op": "height",
+          "layer": "over",
+          "shape": { "type": "rect", "x": 26, "y": 2, "w": 11, "h": 8 },
+          "delta": 1
+        },
+        { "id": "glade_dress", "op": "dress", "area": "glade", "preset": "ritual_circle", "density": 0.6 },
+        { "id": "camp_dress", "op": "dress", "area": "camp", "preset": "campsite", "density": 0.7 },
+        { "id": "knoll_dress", "op": "dress", "area": "knoll", "preset": "natural_clusters", "density": 0.8 },
+        { "id": "woods_dress", "op": "dress", "area": "woods", "preset": "woodland", "density": 0.7 }
+      ],
+      "labels": []
+    }
+  ],
+  "links": []
+}

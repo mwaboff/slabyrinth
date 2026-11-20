@@ -38,6 +38,8 @@ export const variantSchema = z.looseObject({
   name: z.string().optional(),
   weight: z.number().min(0).optional(),
   variant: z.string().optional(),
+  tone: z.enum(["dark", "mid", "light"]).optional(),
+  hue: z.string().max(24).optional(),
   footprint: footprint.optional(),
   rot: z.number().multipleOf(15).optional(),
   offset: z
@@ -45,6 +47,18 @@ export const variantSchema = z.looseObject({
     .optional(),
   stack: z.looseObject({ unitHeight: quarter.refine((v) => v > 0, "must be > 0") }).optional(),
   facing: facingSchema.optional(),
+  parts: z
+    .array(
+      z.looseObject({
+        asset: guid,
+        name: z.string().optional(),
+        geom: geomSchema,
+        offset: z
+          .looseObject({ x: z.number().optional(), y: z.number().optional(), z: z.number().optional() })
+          .optional(),
+      }),
+    )
+    .optional(),
 });
 
 /**

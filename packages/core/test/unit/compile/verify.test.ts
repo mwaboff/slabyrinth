@@ -63,7 +63,7 @@ describe("verify: a clean build stays clean", () => {
     expect(verifyBuild(r, set, cat).diagnostics).toEqual([]);
   });
   it("every documented code is covered by a test below", () => {
-    expect(VERIFY_CODES).toHaveLength(26);
+    expect(VERIFY_CODES).toHaveLength(28);
   });
 });
 
@@ -286,6 +286,14 @@ describe("verify: one fixture per code", () => {
     const down = realize(r, cat);
     move(level0(down).find((p) => p.role === "feature") as Placement, 0, -0.3);
     expect(run(r, down, "verify_prop_sunk")[0]?.severity).toBe("warning");
+    // stalactites hang from the ceiling on purpose: never "floating"
+    const rs = handPlan([room({ features: [{ id: "s", type: "stalactite", at: [2, 1], blocking: false }] })]);
+    const hung = realize(rs, cat);
+    const st = level0(hung).find((p) => p.role === "feature");
+    if (st) {
+      move(st, 0, 2);
+      expect(run(rs, hung, "verify_prop_floating")).toEqual([]);
+    }
   });
 
   it("verify_prop_no_floor — a prop over a hole", () => {
@@ -347,6 +355,41 @@ describe("verify: one fixture per code", () => {
     const rc = handPlan([cave]);
     const d = run(rc, realize(rc, cat), "verify_wall_gap")[0];
     expect(d?.message).toMatch(/rock-block walls need a solid cell/);
+    // the hint never sends the model to "stone" (in the cave palette that was masonry) nor to a wall height
+    expect(d?.hint).not.toMatch(/stone|wall height/);
+    expect(d?.hint).toMatch(/unclaimed \(solid\) cell/);
+    // a missing piece on an ordinary edge: the hint names the style, not a wall height
+    expect(run(r, set, "verify_wall_gap")[0]?.hint).not.toMatch(/wall height of 2/);
+  });
+
+  it("verify_material_substituted — the 2D map shows lava, the theme builds rock (preview/slab disagreement)", () => {
+    // the palette as it was in 0.1.1: floor.lava an empty alias falling back to floor.rock
+    const old = loadPalettes({
+      user: [
+        {
+          source: "test",
+          data: {
+            schema: "slabyrinth/palette@1",
+            id: "cave",
+            overrides: true,
+            roles: { "floor.lava": { variants: [], fallback: "floor.rock" } },
+          },
+        },
+      ],
+    });
+    const lv = handLevel({ id: "c", rows: ["#####", "#...#", "#####"], theme: "cave", material: "lava" });
+    const r = handPlan([lv]);
+    const d = verifyBuild(r, realize(r, old), old).diagnostics.find(
+      (x) => x.code === "verify_material_substituted",
+    );
+    expect(d).toMatchObject({ severity: "warning", count: 3, role: "floor.lava" });
+    expect(d?.message).toMatch(/shows 3 cells of lava/);
+    expect(d?.message).toMatch(/floor.rock/);
+    // with a real lava tile the warning goes away
+    const ok = verifyBuild(r, realize(r, cat), cat).diagnostics.filter(
+      (x) => x.code === "verify_material_substituted",
+    );
+    expect(ok).toEqual([]);
   });
 
   it("verify_duplicate_removed — exact duplicates are dropped (repair)", () => {

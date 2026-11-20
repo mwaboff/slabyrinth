@@ -1,0 +1,6 @@
+fire_pit 4,3 1x1 r0
+log 3,1 2x1 r0
+log 3,5 2x1 r0
+stump 6,3 1x1 r0
+stump 2,3 1x1 r0
+sack 6,5 1x1 r0

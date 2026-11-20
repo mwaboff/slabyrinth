@@ -9,6 +9,7 @@ import {
   type ExecutorPorts,
 } from "../../../src/agent";
 import { loadPlan } from "../../fixtures";
+import { resolvePlan } from "../../../src/resolve";
 
 const exec = createToolExecutor();
 
@@ -565,5 +566,62 @@ describe("injected ports", () => {
     expect(text(out)).toContain("PLAN v4");
     const a = await e(ctx(plan, 3), "view_plan", { format: "ascii" });
     expect(text(a)).toContain("unavailable");
+  });
+});
+
+describe("design review in create/edit results", () => {
+  // an open-air meadow with nothing on it: flat, no focal point
+  const meadow = (): Record<string, unknown> => ({
+    title: "Empty meadow",
+    kind: "outdoor",
+    theme: "outdoor",
+    links: [],
+    levels: [
+      {
+        id: "g",
+        name: "Meadow",
+        elevation: 0,
+        bounds: { x: 0, y: 0, w: 30, h: 20 },
+        base: { type: "ground", material: "grass" },
+        areas: [],
+        openings: [],
+        walls: [],
+        features: [],
+        terrain: [],
+        labels: [],
+      },
+    ],
+  });
+  it("a generator-2 create result carries the DESIGN REVIEW block with notes for a bad plan", async () => {
+    const out = await exec(ctx(null, 0, { nextVersion: 1 }), "create_plan", {
+      replace: false,
+      summary: "Meadow",
+      plan: meadow(),
+    });
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.newPlan?.plan.generator).toBeGreaterThanOrEqual(2);
+    const t = text(out);
+    expect(t).toContain("DESIGN REVIEW (advice, not errors");
+    expect(t).toContain("[flat_map]");
+    expect(t).toContain("[no_focal_point]");
+    expect(t).not.toContain("DESIGN REVIEW unavailable");
+  });
+  it("a review that fails leaves a trace instead of vanishing", async () => {
+    const ports: ExecutorPorts = {
+      ...defaultExecutorPorts,
+      // a resolver whose output the review cannot read
+      resolvePlan: (p, v) => ({ ...resolvePlan(p, { planVersion: v }), levels: [{} as never] }),
+      changedViews: null,
+      ascii: null,
+    };
+    const e = createToolExecutor(ports);
+    const out = await e(ctx(null, 0, { nextVersion: 1 }), "create_plan", {
+      replace: false,
+      summary: "Meadow",
+      plan: meadow(),
+    });
+    expect(out.ok).toBe(true);
+    expect(text(out)).toContain("DESIGN REVIEW unavailable");
   });
 });

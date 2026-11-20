@@ -1,0 +1,21 @@
+tree_large 3,0 3x3 r0
+accent_light 6,1 1x1 r0
+accent_light 2,1 1x1 r0
+roots_wall 7,0 1x1 r0 wall=N
+roots_wall 1,0 1x1 r0 wall=N
+spawn_point 4,4 1x1 r0
+ground_cover 7,2 1x1 r0
+ground_cover 1,2 1x1 r0
+accent_light 7,4 1x1 r0
+accent_light 1,4 1x1 r0
+root_large 7,3 2x1 r0
+vines 8,0 1x1 r0 wall=N
+vines 0,0 1x1 r0 wall=N
+undergrowth 0,1 1x1 r0
+cluster_tall 9,2 1x1 r0
+ground_cover 0,3 1x1 r270
+ground_cover 0,4 1x1 r270
+ground_cover 0,2 1x1 r90
+ground_cover 3,7 1x1 r0
+small_detail 2,7 1x1 r90
+small_detail 4,7 1x1 r180

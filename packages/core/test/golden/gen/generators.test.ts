@@ -10,6 +10,7 @@ import {
   type PlacementGrid,
   ValueNoise,
   dressArea,
+  isComposedPreset,
   generateBlob,
   generateCave,
   jitterPolyline,
@@ -199,7 +200,9 @@ describe("dress", () => {
       )
       .join("\n");
     await expect(text + "\n").toMatchFileSnapshot(`__golden__/dress-${preset}.txt`);
-    // count = round(density × openCells / 6), minus silently dropped candidates
-    expect(res.placements.length).toBeLessThanOrEqual(Math.round((0.8 * 80) / 6));
+    // weighted presets: count = round(density × openCells / 6), minus silently dropped candidates
+    // (composed set pieces have their own budget; see test/unit/gen/setpieces.test.ts)
+    if (!isComposedPreset(preset))
+      expect(res.placements.length).toBeLessThanOrEqual(Math.round((0.8 * 80) / 6));
   });
 });

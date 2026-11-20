@@ -25,6 +25,7 @@ import { listForHint, nearest } from "../util/strings";
 import { KIND_LABEL, freeId, listElements } from "./elements";
 import type { ElementLocation } from "./elements";
 import { linkGeometry } from "./links";
+import { withWings } from "./building";
 import { MapPlanSchema } from "./schema";
 import { boxesIntersect, polylineProblems, shapeCellBox, shapeProblems } from "./shapes";
 import type { CellBox } from "./shapes";
@@ -202,7 +203,7 @@ export function countPlanRooms(plan: Pick<MapPlan, "levels"> | null | undefined,
 export function nextFreeKey(plan: MapPlan): string {
   let max = 0;
   for (const l of plan.levels)
-    for (const a of l.areas)
+    for (const a of [...l.areas, ...(l.structures ?? [])])
       if (a.key !== undefined && /^\d+$/.test(a.key)) max = Math.max(max, Number(a.key));
   return String(max + 1);
 }
@@ -286,13 +287,21 @@ function checkKeys(plan: MapPlan, sink: IssueSink): void {
   const seen = new Map<string, string>();
   let next = Number(nextFreeKey(plan));
   plan.levels.forEach((level, li) => {
-    level.areas.forEach((area, ai) => {
+    const keyed: Array<{ key?: string | undefined; id: string; path: string }> = [
+      ...level.areas.map((a, ai) => ({ key: a.key, id: a.id, path: `/levels/${li}/areas/${ai}/key` })),
+      ...(level.structures ?? []).map((st, si) => ({
+        key: st.key,
+        id: st.id,
+        path: `/levels/${li}/structures/${si}/key`,
+      })),
+    ];
+    keyed.forEach((area) => {
       if (area.key === undefined) return;
       const other = seen.get(area.key);
       if (other !== undefined) {
         sink.error(
           "key_duplicate",
-          `/levels/${li}/areas/${ai}/key`,
+          area.path,
           `room key "${area.key}" is used by "${other}" and "${area.id}"`,
           `keys are unique across the plan; use "${next}" (next free number) or omit key to auto-number`,
           { elementId: area.id, levelId: level.id },
@@ -349,6 +358,8 @@ function areaRefCheck(
   what: string,
 ): boolean {
   if (level.areas.some((a) => a.id === ref)) return true;
+  // a building or enclosure is also an area of its level (its ground storey / its yard)
+  if ((level.structures ?? []).some((s) => s.id === ref)) return true;
   const elsewhere = plan.levels.find((l) => l.areas.some((a) => a.id === ref));
   const ids = level.areas.map((a) => a.id);
   const near = nearest(ref, ids);
@@ -358,7 +369,7 @@ function areaRefCheck(
     elsewhere !== undefined
       ? `${what} "${elementId}" refers to area "${ref}", which is on level "${elsewhere.id}", not "${level.id}"`
       : `${what} "${elementId}" refers to unknown area "${ref}"`,
-    `${near !== undefined ? `did you mean "${near}"? ` : ""}areas on ${level.id}: ${ids.length > 0 ? listForHint(ids) : "(none)"}`,
+    `${near !== undefined ? `did you mean "${near}"? ` : ""}areas on ${level.id}: ${ids.length > 0 ? listForHint(ids) : "(none)"}${what === "dress op" && plan.generator >= 2 ? "; or leave area out to dress the whole level" : ""}`,
     { elementId, levelId: level.id },
   );
   return false;
@@ -367,6 +378,52 @@ function areaRefCheck(
 function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: IssueSink): void {
   const base = `/levels/${li}`;
   const lb = levelBox(level);
+
+  (level.structures ?? []).map(withWings).forEach((st, si) => {
+    const p = `${base}/structures/${si}`;
+    const extra = { elementId: st.id, levelId: level.id };
+    if (plan.generator < 2)
+      sink.error(
+        "structure_invalid",
+        p,
+        `structure "${st.id}": buildings and enclosures need generator 2`,
+        "set the plan generator to 2 (new plans have it), or draw the building as an area of kind building",
+        extra,
+      );
+    if (st.kind === "enclosure") checkShape(st.shape, `${p}/shape`, level, false, sink, st.id, true);
+    else {
+      if (st.footprint !== undefined)
+        checkShape(st.footprint, `${p}/footprint`, level, false, sink, st.id, true);
+      if (st.footprint === undefined && st.wings === undefined && (st.volumes ?? []).length === 0)
+        sink.error(
+          "structure_invalid",
+          p,
+          `building "${st.id}" has no wings, volumes or footprint`,
+          "give wings: [{x,y,w,h}] (rectangles), volumes [{id,x,y,w,h,storeys}] or a footprint shape",
+          extra,
+        );
+      (st.wings ?? []).forEach((w, wi) => {
+        if (!cellIn(lb, [w.x, w.y]) || !cellIn(lb, [w.x + w.w - 1, w.y + w.h - 1]))
+          sink.error(
+            "bounds_exceeded",
+            `${p}/wings/${wi}`,
+            `building "${st.id}": wing ${w.x},${w.y} ${w.w}x${w.h} leaves level "${level.id}" (${boundsText(level)})`,
+            "keep the building and one ring of cells around it inside the level",
+            extra,
+          );
+      });
+      (st.volumes ?? []).forEach((v, vi) => {
+        if (!cellIn(lb, [v.x, v.y]) || !cellIn(lb, [v.x + v.w - 1, v.y + v.h - 1]))
+          sink.error(
+            "bounds_exceeded",
+            `${p}/volumes/${vi}`,
+            `building "${st.id}": volume ${v.id} ${v.x},${v.y} ${v.w}x${v.h} leaves level "${level.id}" (${boundsText(level)})`,
+            "keep the building and one ring of cells around it inside the level",
+            extra,
+          );
+      });
+    }
+  });
 
   level.areas.forEach((area, ai) => {
     const p = `${base}/areas/${ai}`;
@@ -528,7 +585,15 @@ function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: Issue
         }
         break;
       case "path":
-        for (const prob of polylineProblems(t.points, false, `terrain path "${t.id}"`)) {
+        if ((t.points === undefined) === (t.connect === undefined))
+          sink.error(
+            "schema",
+            p,
+            `path "${t.id}" needs exactly one of "points" or "connect"`,
+            "connect: [areaId, featureId or [x,y], …] joins things in order; points: cell centres",
+            extra,
+          );
+        for (const prob of polylineProblems(t.points ?? [], false, `terrain path "${t.id}"`)) {
           sink.error("shape_invalid", p + prob.subPath, prob.message, prob.hint, extra);
         }
         break;
@@ -539,6 +604,18 @@ function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: Issue
         });
         break;
       case "dress":
+        // generator 2: no area (or the level's own id) dresses the whole level
+        if (t.area === undefined || t.area === level.id) {
+          if (plan.generator < 2)
+            sink.error(
+              "ref_unknown",
+              `${p}/area`,
+              `dress op "${t.id}" needs an area on generator 1`,
+              `write area: one of ${level.areas.map((a) => `"${a.id}"`).join(", ") || "(no areas: add a zone area)"}`,
+              { elementId: t.id, levelId: level.id },
+            );
+          break;
+        }
         areaRefCheck(t.area, `${p}/area`, level, plan, sink, t.id, "dress op");
         break;
     }

@@ -3,12 +3,14 @@
  * These mirror `Palette.defaults` for the bundled themes; the resolver is a pure function of the plan, so the
  * table lives here (callers may pass their own lookup, e.g. built from loaded palettes, via ResolveOptions).
  */
-import type { Material, ThemeId } from "../contracts/plan";
+import type { Material, ThemeId, WallStyle } from "../contracts/plan";
 
 export interface ThemeDefaults {
   floor: Material;
   caveFloor: Material;
   courtyardFloor: Material;
+  /** Default wall style of non-cave areas (generator 2); absent = "wall". */
+  wallStyle?: WallStyle;
 }
 
 const FALLBACK: ThemeDefaults = { floor: "flagstone", caveFloor: "rock", courtyardFloor: "cobble" };
@@ -16,10 +18,11 @@ const FALLBACK: ThemeDefaults = { floor: "flagstone", caveFloor: "rock", courtya
 export const BUILTIN_THEME_DEFAULTS: Record<string, ThemeDefaults> = {
   stone_dungeon: { floor: "flagstone", caveFloor: "rock", courtyardFloor: "flagstone" },
   dungeon: { floor: "flagstone", caveFloor: "rock", courtyardFloor: "flagstone" },
-  cave: { floor: "rock", caveFloor: "rock", courtyardFloor: "rock" },
+  cave: { floor: "rock", caveFloor: "rock", courtyardFloor: "rock", wallStyle: "cave_rock" },
   outdoor: { floor: "wood_plank", caveFloor: "rock", courtyardFloor: "cobble" },
   forest: { floor: "wood_plank", caveFloor: "rock", courtyardFloor: "dirt" },
   town: { floor: "wood_plank", caveFloor: "rock", courtyardFloor: "cobble" },
+  city: { floor: "concrete", caveFloor: "rock", courtyardFloor: "concrete" },
   tavern: { floor: "wood_plank", caveFloor: "rock", courtyardFloor: "cobble" },
   castle: { floor: "stone_tile", caveFloor: "rock", courtyardFloor: "cobble" },
   temple: { floor: "marble", caveFloor: "rock", courtyardFloor: "flagstone" },

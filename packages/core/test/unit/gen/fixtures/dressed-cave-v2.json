@@ -1,0 +1,172 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 1,
+  "id": "8b1f4c2e-3d5a-4e7b-9c10-6f2a8d4e5b03",
+  "title": "Heartroot Hollow v2 (set-dressing test)",
+  "kind": "cave",
+  "seed": 20261120,
+  "theme": "cave",
+  "summary": "Flat dressing test, round 2: composed components with tall pieces. A treant's lair split by a lava seam; a ruined shrine, a bone pit, a glowcap grove and a ritual ring on weathered stone.",
+  "levels": [
+    {
+      "id": "l1",
+      "name": "Heartroot Hollow",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 50, "h": 38 },
+      "base": { "type": "solid" },
+      "areas": [
+        {
+          "id": "hollow",
+          "kind": "cave",
+          "name": "The Hollow",
+          "key": "1",
+          "shape": {
+            "type": "polygon",
+            "points": [
+              [4, 3],
+              [20, 1],
+              [36, 3],
+              [46, 9],
+              [47, 24],
+              [41, 35],
+              [22, 37],
+              [8, 33],
+              [2, 22],
+              [2, 9]
+            ]
+          },
+          "notes": "The treant's lair: a great tree against the north-west wall, roots spilling across the floor."
+        },
+        {
+          "id": "tunnel",
+          "kind": "corridor",
+          "name": "Way in",
+          "shape": { "type": "rect", "x": 0, "y": 15, "w": 3, "h": 3 }
+        },
+        {
+          "id": "shrine",
+          "kind": "cave",
+          "name": "Ruined Shrine",
+          "key": "2",
+          "shape": { "type": "rect", "x": 30, "y": 4, "w": 12, "h": 8 },
+          "notes": "A hooded statue of the old forest god, braziers still burning."
+        },
+        {
+          "id": "grove",
+          "kind": "cave",
+          "name": "Glowcap Grove",
+          "key": "3",
+          "shape": { "type": "blob", "cx": 11, "cy": 27, "r": 5, "roughness": 0.3, "seed": 5 }
+        },
+        {
+          "id": "pit",
+          "kind": "zone",
+          "name": "Bone Pit",
+          "key": "4",
+          "shape": { "type": "circle", "cx": 37, "cy": 29, "r": 4 }
+        },
+        {
+          "id": "circle",
+          "kind": "zone",
+          "name": "Ritual Circle",
+          "key": "5",
+          "shape": { "type": "circle", "cx": 35, "cy": 19, "r": 5 },
+          "notes": "The Heartroot wakes at the centre of the ring."
+        }
+      ],
+      "openings": [{ "id": "way_in", "kind": "open", "between": ["tunnel", "hollow"], "width": 2 }],
+      "walls": [],
+      "features": [
+        {
+          "id": "minion1",
+          "type": "spawn_point",
+          "at": [26, 8],
+          "variant": "minion",
+          "label": "Root minion"
+        },
+        {
+          "id": "minion2",
+          "type": "spawn_point",
+          "at": [42, 15],
+          "variant": "minion",
+          "label": "Root minion"
+        },
+        {
+          "id": "minion3",
+          "type": "spawn_point",
+          "at": [26, 31],
+          "variant": "minion",
+          "label": "Root minion"
+        },
+        { "id": "bridge_light_w", "type": "torch_floor", "at": [17, 13] },
+        { "id": "bridge_light_e", "type": "torch_floor", "at": [23, 13] }
+      ],
+      "terrain": [
+        {
+          "id": "seam",
+          "op": "path",
+          "layer": "over",
+          "points": [
+            [19, 1],
+            [19, 12],
+            [20, 12],
+            [20, 37]
+          ],
+          "width": 2,
+          "material": "lava",
+          "jitter": 0.2
+        },
+        {
+          "id": "bridge",
+          "op": "paint",
+          "layer": "over",
+          "shape": { "type": "rect", "x": 18, "y": 13, "w": 5, "h": 2 },
+          "material": "bridge_wood"
+        },
+        {
+          "id": "circle_floor",
+          "op": "paint",
+          "layer": "over",
+          "shape": { "type": "circle", "cx": 35, "cy": 19, "r": 3.5 },
+          "material": "stone_tile"
+        },
+        {
+          "id": "seam_glow",
+          "op": "scatter",
+          "feature": "lava_glow",
+          "shape": {
+            "type": "path",
+            "points": [
+              [19, 1],
+              [19, 12],
+              [20, 12],
+              [20, 37]
+            ],
+            "width": 2
+          },
+          "density": 0.12,
+          "minSpacing": 4,
+          "avoid": ["features"]
+        },
+        { "id": "shrine_dress", "op": "dress", "area": "shrine", "preset": "shrine_ruin", "density": 0.6 },
+        { "id": "grove_dress", "op": "dress", "area": "grove", "preset": "mushroom_grove", "density": 0.7 },
+        { "id": "pit_dress", "op": "dress", "area": "pit", "preset": "bone_pit", "density": 0.6 },
+        { "id": "circle_dress", "op": "dress", "area": "circle", "preset": "ritual_circle", "density": 0.6 },
+        { "id": "lair_dress", "op": "dress", "area": "hollow", "preset": "overgrown", "density": 0.5 },
+        {
+          "id": "cave_dress",
+          "op": "dress",
+          "area": "hollow",
+          "preset": "cavern",
+          "density": 0.25,
+          "seed": 77
+        }
+      ],
+      "labels": [
+        { "id": "lbl_seam", "text": "Lava seam", "at": [21, 28], "size": "s" },
+        { "id": "lbl_bridge", "text": "Plank bridge", "at": [20, 16], "size": "s" }
+      ]
+    }
+  ],
+  "links": []
+}

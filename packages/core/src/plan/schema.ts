@@ -12,9 +12,11 @@
  */
 import { z } from "zod";
 import {
+  ATTACHMENT_TYPES,
   DRESS_PRESETS,
+  ROOF_TYPES,
   FEATURE_TYPES,
-  GENERATOR_VERSION,
+  GENERATOR_VERSIONS,
   LINK_KINDS,
   MATERIALS,
   OPENING_KINDS,
@@ -66,7 +68,7 @@ export const OpeningKindSchema = z.enum(OPENING_KINDS);
 export const LinkKindSchema = z.enum(LINK_KINDS);
 export const FeatureTypeSchema = z.enum(FEATURE_TYPES);
 export const DressPresetSchema = z.enum(DRESS_PRESETS);
-export const AreaKindSchema = z.enum(["room", "corridor", "cave", "building", "courtyard", "zone"]);
+export const AreaKindSchema = z.enum(["room", "corridor", "cave", "building", "courtyard", "zone", "bridge"]);
 export const WallModeSchema = z.enum(["auto", "perimeter", "none"]);
 export const TerrainLayerSchema = z.enum(["under", "over"]);
 
@@ -176,6 +178,7 @@ export const SHAPE_TYPES = [
 
 // ───────────────────────────── elements ─────────────────────────────
 
+export const BRIDGE_SPANS = ["arch", "flat", "plank", "natural"] as const;
 export const AreaSchema = z.strictObject({
   id: IdSchema,
   kind: AreaKindSchema,
@@ -193,6 +196,11 @@ export const AreaSchema = z.strictObject({
   readAloud: text(1500).exactOptional(),
   encounter: text(1000).exactOptional(),
   tags: z.array(z.string().min(1).max(24)).max(8).exactOptional(),
+  railing: z.union([WallStyleSchema, z.literal("none")]).exactOptional(),
+  broken: z.array(Vec2Schema).max(64).exactOptional(),
+  crumble: z.number().min(0).max(0.6).exactOptional(),
+  span: z.enum(BRIDGE_SPANS).exactOptional(),
+  arch: z.number().multipleOf(0.25).min(0).max(2).exactOptional(),
 });
 
 const areaRef = z.string().min(1).max(32); // AreaId | "@outside" (checked in validate)
@@ -251,6 +259,7 @@ export const HeightOpSchema = z.strictObject({
   set: terrainHeight.exactOptional(),
   smooth: z.int().min(0).max(UNSPECIFIED_LIMITS.smooth).exactOptional(),
   layer,
+  edge: z.enum(["ragged", "clean"]).exactOptional(),
 });
 export const NoiseOpSchema = z.strictObject({
   id: IdSchema,
@@ -265,7 +274,22 @@ export const NoiseOpSchema = z.strictObject({
 export const PathOpSchema = z.strictObject({
   id: IdSchema,
   op: z.literal("path"),
-  points: z.array(Vec2Schema).min(2).max(PLAN_LIMITS.polygonPoints),
+  points: z.array(Vec2Schema).min(2).max(PLAN_LIMITS.polygonPoints).exactOptional(),
+  connect: z
+    .array(z.union([IdSchema, Vec2Schema]))
+    .min(2)
+    .max(16)
+    .exactOptional(),
+  kerb: z.boolean().exactOptional(),
+  style: z.enum(["natural", "straight"]).exactOptional(),
+  sidewalk: z
+    .strictObject({
+      width: z.int().min(1).max(6),
+      material: MaterialSchema,
+      raise: heightSchema(0, 1).exactOptional(),
+    })
+    .exactOptional(),
+  crossings: z.array(unit).max(8).exactOptional(),
   width: z.int().min(1).max(UNSPECIFIED_LIMITS.pathWidth),
   material: MaterialSchema,
   jitter: unit.exactOptional(),
@@ -291,10 +315,68 @@ export const ScatterOpSchema = z.strictObject({
 export const DressOpSchema = z.strictObject({
   id: IdSchema,
   op: z.literal("dress"),
-  area: IdSchema,
+  area: IdSchema.exactOptional(),
   preset: DressPresetSchema,
   density: unit.exactOptional(),
   seed: SeedSchema.exactOptional(),
+});
+export const ChasmBridgeSchema = z.strictObject({
+  at: unit.exactOptional(),
+  width: z.int().min(1).max(4).exactOptional(),
+  floor: MaterialSchema.exactOptional(),
+  railing: z.union([WallStyleSchema, z.literal("none")]).exactOptional(),
+  crumble: z.number().min(0).max(0.6).exactOptional(),
+  span: z.enum(BRIDGE_SPANS).exactOptional(),
+  arch: z.number().multipleOf(0.25).min(0).max(2).exactOptional(),
+});
+export const ChasmOpSchema = z.strictObject({
+  id: IdSchema,
+  op: z.literal("chasm"),
+  points: z.array(Vec2Schema).min(2).max(PLAN_LIMITS.polygonPoints),
+  width: z.number().min(1).max(12),
+  depth: heightSchema(0.5, -PLAN_LIMITS.minHeight).exactOptional(),
+  meander: unit.exactOptional(),
+  floor: z.union([MaterialSchema, z.literal("none")]).exactOptional(),
+  bridges: z.array(ChasmBridgeSchema).max(4).exactOptional(),
+  seed: SeedSchema.exactOptional(),
+});
+export const PlatformOpSchema = z.strictObject({
+  id: IdSchema,
+  op: z.literal("platform"),
+  shape: ShapeSchema,
+  tiers: z.int().min(1).max(5).exactOptional(),
+  rise: heightSchema(-2, 2)
+    .refine((v) => v !== 0, { message: "rise must not be 0" })
+    .exactOptional(),
+  inset: z.int().min(1).max(4).exactOptional(),
+  material: MaterialSchema.exactOptional(),
+  topMaterial: MaterialSchema.exactOptional(),
+  stairs: z.array(SideSchema).max(4).exactOptional(),
+  edge: z.enum(["ragged", "clean"]).exactOptional(),
+});
+export const StairsOpSchema = z.strictObject({
+  id: IdSchema,
+  op: z.literal("stairs"),
+  from: Vec2Schema,
+  to: Vec2Schema,
+  width: z.int().min(1).max(6).exactOptional(),
+  style: z.enum(["stairs", "ramp"]).exactOptional(),
+});
+export const UnevenOpSchema = z.strictObject({
+  id: IdSchema,
+  op: z.literal("uneven"),
+  shape: ShapeSchema.exactOptional(),
+  exclude: z.array(ShapeSchema).max(8).exactOptional(),
+  amount: heightSchema(0.25, 1).exactOptional(),
+  scale: z.number().min(3).max(12).exactOptional(),
+  seed: SeedSchema.exactOptional(),
+});
+export const OutcropOpSchema = z.strictObject({
+  id: IdSchema,
+  op: z.literal("outcrop"),
+  shape: ShapeSchema,
+  height: heightSchema(0.5, 4).exactOptional(),
+  material: MaterialSchema.exactOptional(),
 });
 export const TerrainOpSchema = z.discriminatedUnion("op", [
   PaintOpSchema,
@@ -303,8 +385,25 @@ export const TerrainOpSchema = z.discriminatedUnion("op", [
   PathOpSchema,
   ScatterOpSchema,
   DressOpSchema,
+  ChasmOpSchema,
+  PlatformOpSchema,
+  StairsOpSchema,
+  UnevenOpSchema,
+  OutcropOpSchema,
 ]);
-export const TERRAIN_OP_KINDS = ["paint", "height", "noise", "path", "scatter", "dress"] as const;
+export const TERRAIN_OP_KINDS = [
+  "paint",
+  "height",
+  "noise",
+  "path",
+  "scatter",
+  "dress",
+  "chasm",
+  "platform",
+  "stairs",
+  "uneven",
+  "outcrop",
+] as const;
 
 export const LevelBaseSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("solid") }),
@@ -334,6 +433,183 @@ export const StampRefSchema = z.strictObject({
   notes: text(UNSPECIFIED_LIMITS.elementNotes).exactOptional(),
 });
 
+// ───────────────────────────── structures (generator 2) ─────────────────────────────
+
+const windowDensity = z.enum(["none", "sparse", "regular", "dense"]);
+const wallOrNone = z.union([WallStyleSchema, z.literal("none")]);
+export const StoreySchema = z.strictObject({
+  walls: wallOrNone.exactOptional(),
+  footing: wallOrNone.exactOptional(),
+  floor: MaterialSchema.exactOptional(),
+  windows: windowDensity.exactOptional(),
+  inset: z.int().min(0).max(2).exactOptional(),
+  height: z.number().multipleOf(0.25).min(1).max(8).exactOptional(),
+  seam: z.enum(["skirt", "plain", "crenellated"]).exactOptional(),
+});
+const roofStyle = z
+  .string()
+  .regex(/^[a-z][a-z0-9_]{0,31}$/)
+  .exactOptional();
+export const RoofLayerSchema = z.strictObject({
+  type: z.enum(ROOF_TYPES),
+  style: roofStyle,
+  ridge: z.enum(["ew", "ns"]).exactOptional(),
+  courses: z.int().min(1).max(6).exactOptional(),
+  low: SideSchema.exactOptional(),
+  parapet: wallOrNone.exactOptional(),
+});
+export const RoofSchema = z.strictObject({
+  type: z.enum(ROOF_TYPES),
+  layers: z.array(RoofLayerSchema).max(4).exactOptional(),
+  courses: z.int().min(1).max(6).exactOptional(),
+  low: SideSchema.exactOptional(),
+  ridge: z.enum(["ew", "ns"]).exactOptional(),
+  style: z
+    .string()
+    .regex(/^[a-z][a-z0-9_]{0,31}$/)
+    .exactOptional(),
+  deck: z.boolean().exactOptional(),
+  broken: z.number().min(0).max(0.6).exactOptional(),
+  parapet: wallOrNone.exactOptional(),
+});
+export const StructureOpeningSchema = z.strictObject({
+  kind: OpeningKindSchema,
+  side: SideSchema,
+  position: unit.exactOptional(),
+  storey: z.int().min(0).max(11).exactOptional(),
+  width: z.literal([1, 2, 3]).exactOptional(),
+});
+export const AttachmentSchema = z.strictObject({
+  type: z.enum(ATTACHMENT_TYPES),
+  side: SideSchema,
+  position: unit.exactOptional(),
+  width: z.int().min(1).max(8).exactOptional(),
+  depth: z.int().min(1).max(3).exactOptional(),
+  floor: MaterialSchema.exactOptional(),
+  roof: z.enum(["flat", "none"]).exactOptional(),
+});
+const storeysSchema = z.union([z.int().min(1).max(12), z.array(StoreySchema).min(1).max(12)]);
+export const VolumeSchema = z.strictObject({
+  id: z.string().regex(/^[a-z][a-z0-9_]{0,15}$/),
+  x: coord,
+  y: coord,
+  w: side,
+  h: side,
+  on: z
+    .string()
+    .regex(/^[a-z][a-z0-9_]{0,15}$/)
+    .exactOptional(),
+  storeys: storeysSchema.exactOptional(),
+  storeyHeight: z.number().multipleOf(0.25).min(1).max(8).exactOptional(),
+  corners: z.enum(["square", "chamfer"]).exactOptional(),
+  roof: z.union([RoofSchema, z.literal("none")]).exactOptional(),
+  ridge: z.enum(["ew", "ns"]).exactOptional(),
+});
+export const PlinthSchema = z.strictObject({
+  height: z.number().multipleOf(0.25).min(0.5).max(6),
+  margin: z.int().min(1).max(4).exactOptional(),
+  sides: z.array(SideSchema).min(1).max(4).exactOptional(),
+  face: MaterialSchema.exactOptional(),
+  rim: wallOrNone.exactOptional(),
+  approach: z.enum(["steps", "none"]).exactOptional(),
+});
+const structureText = {
+  name: text(80).exactOptional(),
+  key: z.string().min(1).max(8).exactOptional(),
+  theme: ThemeIdSchema.exactOptional(),
+  notes: text(UNSPECIFIED_LIMITS.elementNotes).exactOptional(),
+};
+export const BuildingSchema = z.strictObject({
+  id: IdSchema,
+  kind: z.literal("building").exactOptional(),
+  ...structureText,
+  style: z
+    .string()
+    .regex(/^[a-z][a-z0-9_]{0,31}$/)
+    .exactOptional(),
+  seed: SeedSchema.exactOptional(),
+  condition: z.enum(["intact", "weathered", "ruined"]).exactOptional(),
+  character: z
+    .array(z.enum(["twisted", "leaning", "crooked", "top_heavy", "squat", "slender"]))
+    .max(4)
+    .exactOptional(),
+  // shorthand for one wing
+  x: coord.exactOptional(),
+  y: coord.exactOptional(),
+  w: side.exactOptional(),
+  h: side.exactOptional(),
+  wings: z
+    .array(
+      z.strictObject({ x: coord, y: coord, w: side, h: side, ridge: z.enum(["ew", "ns"]).exactOptional() }),
+    )
+    .min(1)
+    .max(8)
+    .exactOptional(),
+  footprint: ShapeSchema.exactOptional(),
+  storeys: storeysSchema.exactOptional(),
+  storeyHeight: z.number().multipleOf(0.25).min(1).max(8).exactOptional(),
+  volumes: z.array(VolumeSchema).min(1).max(8).exactOptional(),
+  plinth: PlinthSchema.exactOptional(),
+  corners: z.enum(["square", "chamfer"]).exactOptional(),
+  roof: z.union([RoofSchema, z.literal("none")]).exactOptional(),
+  openings: z.array(StructureOpeningSchema).max(32).exactOptional(),
+  windows: windowDensity.exactOptional(),
+  chimneys: z
+    .array(z.strictObject({ side: SideSchema, position: unit.exactOptional() }))
+    .max(4)
+    .exactOptional(),
+  attachments: z.array(AttachmentSchema).max(8).exactOptional(),
+  roofFurniture: z
+    .strictObject({
+      dormers: z.boolean().exactOptional(),
+      clutter: z.number().min(0).max(0.5).exactOptional(),
+      mast: z.boolean().exactOptional(),
+      finial: z.boolean().exactOptional(),
+      hut: z.boolean().exactOptional(),
+    })
+    .exactOptional(),
+  front: SideSchema.exactOptional(),
+  use: z
+    .string()
+    .regex(/^[a-z][a-z0-9_]{0,23}$/)
+    .exactOptional(),
+  shopfront: z.boolean().exactOptional(),
+  lighting: z
+    .strictObject({
+      windows: z.enum(["none", "warm", "glow"]).exactOptional(),
+      colour: z
+        .string()
+        .regex(/^[a-z][a-z0-9_]{0,23}$/)
+        .exactOptional(),
+      doors: z.boolean().exactOptional(),
+      strips: z.boolean().exactOptional(),
+    })
+    .exactOptional(),
+  readAloud: text(1500).exactOptional(),
+  encounter: text(1000).exactOptional(),
+  tags: z.array(z.string().min(1).max(24)).max(8).exactOptional(),
+});
+export const EnclosureSchema = z.strictObject({
+  id: IdSchema,
+  kind: z.literal("enclosure"),
+  ...structureText,
+  shape: ShapeSchema,
+  wall: wallOrNone.exactOptional(),
+  gates: z
+    .array(
+      z.strictObject({
+        side: SideSchema,
+        position: unit.exactOptional(),
+        width: z.literal([1, 2, 3]).exactOptional(),
+      }),
+    )
+    .max(8)
+    .exactOptional(),
+  floor: MaterialSchema.exactOptional(),
+});
+/** A building (kind omitted or "building") or an enclosure (kind "enclosure"). */
+export const StructureSchema = z.union([EnclosureSchema, BuildingSchema]);
+
 export const BoundsSchema = z.strictObject({ x: coord, y: coord, w: side, h: side });
 
 const levelFields = {
@@ -341,10 +617,13 @@ const levelFields = {
   name: z.string().min(1).max(UNSPECIFIED_LIMITS.levelName),
   elevation: heightSchema(-UNSPECIFIED_LIMITS.elevation, UNSPECIFIED_LIMITS.elevation),
   wallHeight: heightSchema(0.25, PLAN_LIMITS.maxHeight).exactOptional(),
+  foundation: heightSchema(0, 4).exactOptional(),
+  outline: z.enum(["natural", "rect"]).exactOptional(),
   bounds: BoundsSchema,
   base: LevelBaseSchema,
   theme: ThemeIdSchema.exactOptional(),
   stamps: z.array(StampRefSchema).exactOptional(),
+  structures: z.array(StructureSchema).max(PLAN_LIMITS.structuresPerLevel).exactOptional(),
   notes: text(UNSPECIFIED_LIMITS.levelNotes).exactOptional(),
 };
 const levelLists = {
@@ -370,7 +649,7 @@ export const LevelLinkSchema = z.strictObject({
 
 export const MapPlanSchema = z.strictObject({
   schema: z.literal(PLAN_SCHEMA),
-  generator: z.literal(GENERATOR_VERSION),
+  generator: z.literal(GENERATOR_VERSIONS),
   id: z.string().min(1).max(UNSPECIFIED_LIMITS.planId),
   title: z.string().min(1).max(80),
   summary: text(1000).exactOptional(),
@@ -413,6 +692,7 @@ export const NewElementSchema = z.discriminatedUnion("kind", [
     index: index.exactOptional(),
   }),
   z.strictObject({ kind: z.literal("label"), level: IdSchema, value: LabelSchema }),
+  z.strictObject({ kind: z.literal("structure"), level: IdSchema, value: StructureSchema }),
   z.strictObject({ kind: z.literal("link"), value: LevelLinkSchema }),
   z.strictObject({ kind: z.literal("level"), value: NewLevelSchema }),
 ]);
@@ -427,7 +707,23 @@ export const PlanOpSchema = z.discriminatedUnion("op", [
     features: z.array(FeatureSchema).min(1).max(PLAN_LIMITS.featuresPerLevel),
   }),
   z.strictObject({ op: z.literal("update"), id: z.string(), set: z.record(z.string(), z.unknown()) }),
-  z.strictObject({ op: z.literal("remove"), ids: idList, keepDependents: z.boolean().exactOptional() }),
+  z
+    .strictObject({
+      op: z.literal("remove"),
+      ids: z.array(z.string()).max(PLAN_LIMITS.featuresPerLevel),
+      where: z
+        .strictObject({
+          generatedBy: IdSchema.exactOptional(),
+          type: FeatureTypeSchema.exactOptional(),
+          rect: z
+            .strictObject({ x: coord, y: coord, w: z.int().min(1).max(512), h: z.int().min(1).max(512) })
+            .exactOptional(),
+          level: IdSchema.exactOptional(),
+        })
+        .exactOptional(),
+      keepDependents: z.boolean().exactOptional(),
+    })
+    .refine((o) => o.ids.length > 0 || o.where !== undefined, { message: "give ids, or a where filter" }),
   z.strictObject({
     op: z.literal("move"),
     ids: idList,

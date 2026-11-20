@@ -1,0 +1,26 @@
+edge_dressing 0,5 1x2 r270
+sack 0,7 1x1 r270
+sack 1,7 1x1 r270
+crate 0,4 1x1 r270
+ground_cover 1,5 1x1 r270
+small_detail 1,6 1x1 r270
+edge_dressing 6,0 2x1 r0
+sack 8,0 1x1 r0
+sack 8,1 1x1 r0
+crate 5,0 1x1 r0
+ground_cover 6,1 1x1 r0
+small_detail 7,1 1x1 r0
+edge_dressing 3,7 2x1 r180
+sack 2,7 1x1 r180
+sack 2,6 1x1 r180
+crate 5,7 1x1 r180
+ground_cover 4,6 1x1 r180
+small_detail 3,6 1x1 r180
+ground_cover 8,5 1x1 r270
+ground_cover 9,4 1x1 r270
+small_detail 8,3 1x1 r270
+wall_dressing 2,0 1x1 r0 wall=N
+crate 3,0 1x1 r0
+crate 3,1 1x1 r0
+torch_wall 9,5 1x1 r90 wall=E
+torch_wall 0,1 1x1 r270 wall=W

@@ -5,6 +5,7 @@
  */
 import type {
   AssetAvailability,
+  CatalogAsset,
   OrientationCalibration,
   Palette,
   PaletteCatalog,
@@ -15,6 +16,7 @@ import { NULL_AVAILABILITY } from "../catalog/availability";
 import { BUNDLED_ORIENTATION, BUNDLED_PALETTES } from "./bundled";
 import { dict, own } from "./own";
 import { parseOrientation, parsePalette, parsePaletteOverride } from "./schema";
+import { withAutoVariants } from "./auto";
 
 export interface PaletteLoadIssue {
   severity: "error" | "warning";
@@ -124,10 +126,23 @@ export function loadPalettes(
     user?: ReadonlyArray<{ source: string; data: unknown }>;
     availability?: AssetAvailability;
     bundled?: readonly unknown[];
+    /**
+     * The scanned catalog: assets a game update added join the roles they classify into as low-weight extra
+     * variants (palette/auto.ts). Curated entries stay authoritative.
+     */
+    catalog?: readonly CatalogAsset[];
   } = {},
-): PaletteCatalog & { issues: PaletteLoadIssue[] } {
-  const { palettes, issues } = mergePalettes(opts.bundled ?? BUNDLED_PALETTES, opts.user ?? []);
-  return { palettes, availability: opts.availability ?? NULL_AVAILABILITY, issues };
+): PaletteCatalog & { issues: PaletteLoadIssue[]; autoVariants: number } {
+  const merged = mergePalettes(opts.bundled ?? BUNDLED_PALETTES, opts.user ?? []);
+  const auto = opts.catalog
+    ? withAutoVariants(merged.palettes, opts.catalog)
+    : { palettes: merged.palettes, added: 0 };
+  return {
+    palettes: auto.palettes,
+    availability: opts.availability ?? NULL_AVAILABILITY,
+    issues: merged.issues,
+    autoVariants: auto.added,
+  };
 }
 
 /** Bundled orientation, optionally replaced by a user file (userData/orientation.json). Invalid user data is ignored. */

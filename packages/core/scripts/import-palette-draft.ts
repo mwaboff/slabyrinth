@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import type { Palette, PaletteFacing, PaletteRole, PaletteVariant } from "../src/contracts/compiler";
 import { FEATURE_TYPES, LINK_KINDS, MATERIALS, OPENING_KINDS, WALL_STYLES } from "../src/contracts/plan";
 import { format, resolveConfig } from "prettier";
+import { OBSERVED_TONES } from "../src/review/tones";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, "..", "..", "..");
@@ -74,6 +75,10 @@ interface ExtraEntry {
   weight?: number;
   offset?: { x?: number; y?: number; z?: number };
   facing?: PaletteFacing;
+  parts?: PaletteVariant["parts"];
+  stack?: PaletteVariant["stack"];
+  tone?: PaletteVariant["tone"];
+  hue?: string;
 }
 
 /** Research role → semantic role. Every draft entry must appear here exactly once (or in SKIPPED). */
@@ -81,8 +86,6 @@ const MAPPING: MapEntry[] = [
   // ── generic ──
   // marker.alignment comes from palette-extra-assets.json (Dungeon Pillar, easy to aim at); gravel is its alternate.
   { from: "generic/registration_marker", to: "marker.alignment", alternateOfExtra: "marker.alignment" },
-  { from: "generic/water_1x1", to: "floor.water_shallow" },
-  { from: "generic/water_2x2", to: "floor.water_shallow" },
   // Wall torch: origin at its back face (bounds centre z +0.166) ⇒ mounts on its S side at rot 0 (INFERRED). Raised to
   // a typical sconce height on a 2-tall wall.
   { from: "generic/torch_wall", to: "feature.torch_wall", facing: { mountsOn: "S" }, offset: { y: 1.25 } },
@@ -239,6 +242,10 @@ const MAPPING: MapEntry[] = [
 
 /** Draft entries deliberately not mapped, with the reason (reported). */
 const SKIPPED: Record<string, string> = {
+  "generic/water_1x1":
+    "tempWater does not render in game; water is the board water level and channels are floored with bed.* (2026-11-19)",
+  "generic/water_2x2":
+    "tempWater does not render in game; water is the board water level and channels are floored with bed.* (2026-11-19)",
   "wood_town/roof_flat_1x1": "no roofs in v1 (decisions.md #7)",
   "wood_town/roof_slope_1x1": "no roofs in v1 (decisions.md #7)",
   "wood_town/roof_corner_1x1": "no roofs in v1 (decisions.md #7)",
@@ -266,6 +273,26 @@ const ORGANIC = [
   "bones",
   "web",
   "flowers",
+  // caves and set dressing (2026-11-19). Wall-mounted roots_wall/vines stay "facing" so they turn to their wall.
+  "stalagmite",
+  "stalactite",
+  "rock_formation",
+  "cave_in",
+  "crystal",
+  "giant_mushroom",
+  "root",
+  "root_large",
+  "tree_large",
+  "skull_pile",
+  "cave_column",
+  // theme-neutral natural slots: seeded rotation (inherit) so no two pieces line up
+  "formation",
+  "cluster_tall",
+  "undergrowth",
+  "ground_cover",
+  "edge_dressing",
+  "small_detail",
+  "bank_dressing",
 ];
 function roleSettings(role: string): Partial<PaletteRole> {
   const [prefix, name = ""] = role.split(".") as [string, string?];
@@ -277,7 +304,10 @@ function roleSettings(role: string): Partial<PaletteRole> {
     case "wall":
       if (name === "cave_rock")
         return { mount: "full-cell", rotation: "fixed", height: 2, greedyTiling: false };
-      if (name === "fence" || name === "low_wall")
+      if (name === "parapet")
+        // castle wall 1x1 half: a 1-tall, 0.5-deep stone run for bridge and platform edges
+        return { mount: "half-cell", rotation: "facing", height: 1, greedyTiling: true };
+      if (name === "fence" || name === "low_wall" || name === "railing" || name === "railing_stone")
         return { mount: "edge-center", rotation: "facing", greedyTiling: true };
       if (name === "ruined")
         return {
@@ -295,6 +325,30 @@ function roleSettings(role: string): Partial<PaletteRole> {
         return { mount: "half-cell", rotation: "facing", height: 2, fallback: "opening.bars" };
       return { mount: "half-cell", rotation: "facing", height: 2 };
     case "link":
+      return { rotation: "facing" };
+    case "ledge":
+      // Thin (0.5-deep) face pieces along an edge where the floor drops (cliff/chasm/lava edges), stacked downwards.
+      return { mount: "half-cell", rotation: "facing", height: 2, greedyTiling: true };
+    case "cliff":
+      // Full-cell rock blocks stacked for tall vertical faces (cliff.rock), or the cliff band's rocks (cliff.formation_face / cliff.formation_crest, natural-rock themes only).
+      return name === "face"
+        ? { rotation: "random90" }
+        : { mount: "full-cell", rotation: "fixed", height: 2, greedyTiling: false };
+    case "kerb":
+    case "trim":
+      // 0.25-tall kerb along a platform edge, on the floor top of the upper cell
+      return { mount: "half-cell", rotation: "facing", greedyTiling: true };
+    case "bridge":
+      return { rotation: "facing" };
+    case "pier":
+      // bridge piers: stacked from the ground under the deck up to it (terrain: pier.<material> → pier.default)
+      return { rotation: "fixed", greedyTiling: false };
+    case "step":
+      // a 0.5 rise: one course of the lower floor, laid on the lower cell
+      return { rotation: "facing" };
+    case "stairs":
+    case "stairs_block":
+    case "ramp":
       return { rotation: "facing" };
     case "lintel":
       // Placed on top of each door leaf of this kit (its doors are visually shorter than its walls).
@@ -317,6 +371,7 @@ const ALIASES: Record<string, string> = {
   "floor.mud": "floor.swamp",
   "floor.ice": "floor.snow",
   "floor.water_deep": "floor.water_shallow",
+  "floor.water_shallow": "bed.default",
   "floor.lava": "floor.rock",
   "floor.bridge_wood": "floor.wood_plank",
   "wall.stone": "wall.wall",
@@ -343,6 +398,14 @@ const ALIASES: Record<string, string> = {
   "feature.debris": "feature.rubble",
   "feature.flowers": "feature.tall_grass",
   "feature.standing_stone": "feature.boulder",
+  // no catalog asset (2026-11-19 search): nearest stand-ins so nothing the model asks for vanishes from the slab
+  "feature.chandelier": "feature.candelabra",
+  "feature.pool": "feature.fountain",
+  "feature.fence_post": "feature.signpost",
+  // cliff band pieces resolve through the theme's formation roles; a theme without them places nothing (its cliff
+  // keeps the built face)
+  "feature.cliff_face": "cliff.formation_face",
+  "feature.cliff_crest": "cliff.formation_crest",
 };
 
 const THEMES: Array<{
@@ -376,7 +439,8 @@ const THEMES: Array<{
   {
     id: "cave",
     name: "Cave",
-    description: "Cavern kit: rock floors and full-cell rock wall blocks.",
+    description:
+      "Cavern kit: varied rock floors, full-cell rock wall blocks, thin rock walls, lava, and cave dressing (stalagmites, crystals, roots, great trees).",
     extends: "generic",
     defaults: { floor: "rock", wallStyle: "cave_rock", caveFloor: "rock" },
   },
@@ -387,15 +451,32 @@ const THEMES: Array<{
     extends: "generic",
     defaults: { floor: "grass", wallStyle: "fence" },
   },
+  {
+    id: "forest",
+    name: "Forest",
+    description:
+      "Woodland on top of the outdoor kit: pines and trees in tight groups, ferns and shrubs beneath, mossy boulders.",
+    extends: "outdoor",
+    defaults: { floor: "grass", wallStyle: "hedge" },
+  },
+  {
+    id: "city",
+    name: "Modern city",
+    description:
+      "A modern street from the Cyberpunk and Sci-fi pack: road and pavement tiles, concrete and brick, street lamps, bins, signs, litter, street trees. It has one ordinary car, a yellow taxi (about 1.3×2.6 tiles): a vehicle feature becomes that taxi, and no bus, van or truck exists; ask for fewer, well-parked cars rather than many kinds.",
+    extends: "generic",
+    defaults: { floor: "concrete", wallStyle: "wall" },
+  },
 ];
 /** Order in which theme roles are copied into generic. */
-const THEME_PRIORITY = ["stone_dungeon", "wood_town", "cave", "outdoor"];
+const THEME_PRIORITY = ["stone_dungeon", "wood_town", "cave", "outdoor", "forest", "city"];
 /** Each theme's fill.default is its 1×1 floor tile stacked in 0.5 courses. */
 const FILL_FROM: Record<string, string> = {
   stone_dungeon: "stone_dungeon/floor_1x1",
   wood_town: "wood_town/floor_1x1",
   cave: "cave/floor_1x1",
   outdoor: "outdoor/grass_1x1",
+  forest: "outdoor/grass_1x1",
 };
 
 const r4 = (v: number): number => Math.round(v * 10000) / 10000;
@@ -470,6 +551,10 @@ async function main(): Promise<void> {
     if (x.weight !== undefined) v.weight = x.weight;
     if (x.offset) v.offset = x.offset;
     if (x.facing) v.facing = x.facing;
+    if (x.parts) v.parts = x.parts;
+    if (x.stack) v.stack = x.stack;
+    if (x.tone) v.tone = x.tone;
+    if (x.hue) v.hue = x.hue;
     addVariant(x.theme, x.to, v);
   }
   for (const m of MAPPING.filter((x) => !x.alternateOf && !x.alternateOfExtra)) {
@@ -492,6 +577,8 @@ async function main(): Promise<void> {
   for (const [theme, key] of Object.entries(FILL_FROM)) {
     const e = byKey.get(key);
     if (!e) throw new Error(`fill source ${key} missing`);
+    // a curated fill (palette-extra-assets.json) wins: outdoors the fill is earth, not the grass tile
+    if (roles[theme]?.["fill.default"]) continue;
     addVariant(theme, "fill.default", {
       asset: e.uuid,
       name: e.name,
@@ -505,7 +592,15 @@ async function main(): Promise<void> {
   for (const theme of THEME_PRIORITY) {
     for (const [role, def] of Object.entries(roles[theme] ?? {})) {
       // lintels are kit-specific: a stone lintel must not reach wooden doors through generic
-      if (!generic[role] && !role.startsWith("lintel.")) generic[role] = structuredClone(def);
+      // lintels are kit-specific, the cliff formation roles belong only to themes with natural rock (a city or a
+      // dungeon keeps its built face), and the crenel remnant only to themes with castles: none is copied into generic
+      if (
+        !generic[role] &&
+        !role.startsWith("lintel.") &&
+        !role.startsWith("cliff.formation_") &&
+        role !== "crenel.default"
+      )
+        generic[role] = structuredClone(def);
     }
   }
   for (const [role, target] of Object.entries(ALIASES)) {
@@ -596,6 +691,17 @@ async function main(): Promise<void> {
     ],
     coverage,
   };
+
+  // tones seen in game (review/tones.ts) on rows that carry none of their own
+  for (const p of palettes)
+    for (const def of Object.values(p.roles))
+      for (const v of def.variants) {
+        const seen = OBSERVED_TONES[v.asset.toLowerCase()];
+        if (seen && v.tone === undefined) {
+          v.tone = seen.tone;
+          if (seen.hue !== undefined && v.hue === undefined) v.hue = seen.hue;
+        }
+      }
 
   const outDir = join(coreDir, "data", "palettes");
   mkdirSync(outDir, { recursive: true });

@@ -1,0 +1,305 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 2,
+  "id": "7e2a4c19-8b6d-4f30-9c51-2d7e1a3f8b64",
+  "title": "The Watcher's Rise v5",
+  "summary": "Open hillside: a grass plateau three tiles up, a mid shelf, a lowland with a brook, and a plank walkway climbing from a watchtower to the plateau.",
+  "kind": "outdoor",
+  "theme": "forest",
+  "seed": 5150,
+  "links": [],
+  "levels": [
+    {
+      "id": "hill",
+      "name": "Hillside",
+      "elevation": 0,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 26
+      },
+      "base": {
+        "type": "ground",
+        "material": "grass"
+      },
+      "areas": [
+        {
+          "id": "plateau_wood",
+          "kind": "zone",
+          "name": "Plateau Woods",
+          "shape": {
+            "type": "rect",
+            "x": 0,
+            "y": 0,
+            "w": 32,
+            "h": 7
+          }
+        },
+        {
+          "id": "shelf_rocks",
+          "kind": "zone",
+          "name": "Rock Shelf",
+          "shape": {
+            "type": "rect",
+            "x": 0,
+            "y": 7,
+            "w": 11,
+            "h": 4
+          }
+        },
+        {
+          "id": "lowland",
+          "kind": "zone",
+          "name": "Lowland",
+          "shape": {
+            "type": "rect",
+            "x": 0,
+            "y": 11,
+            "w": 32,
+            "h": 15
+          }
+        },
+        {
+          "id": "walk",
+          "kind": "bridge",
+          "name": "Tower walkway",
+          "shape": {
+            "type": "rect",
+            "x": 23,
+            "y": 7,
+            "w": 1,
+            "h": 10
+          },
+          "floor": "bridge_wood",
+          "notes": "Plank walkway climbing from the watchtower to the plateau."
+        },
+        {
+          "id": "tower",
+          "kind": "bridge",
+          "name": "Watchtower",
+          "shape": {
+            "type": "rect",
+            "x": 22,
+            "y": 17,
+            "w": 3,
+            "h": 3
+          },
+          "floorHeight": 2,
+          "floor": "wood_plank",
+          "railing": "railing",
+          "notes": "Lookout deck on posts; the plank walkway climbs from it to the plateau."
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [
+        {
+          "id": "camp",
+          "type": "campfire",
+          "at": [4, 15]
+        },
+        {
+          "id": "sign",
+          "type": "signpost",
+          "at": [10, 16]
+        },
+        {
+          "id": "stone1",
+          "type": "standing_stone",
+          "at": [16, 2]
+        },
+        {
+          "id": "tlight",
+          "type": "torch_floor",
+          "at": [22, 18]
+        }
+      ],
+      "terrain": [
+        {
+          "id": "plateau",
+          "op": "platform",
+          "shape": {
+            "type": "rect",
+            "x": 0,
+            "y": 0,
+            "w": 32,
+            "h": 7
+          },
+          "tiers": 1,
+          "rise": 2,
+          "material": "grass",
+          "edge": "ragged"
+        },
+        {
+          "id": "plateau_top",
+          "op": "height",
+          "shape": {
+            "type": "rect",
+            "x": 0,
+            "y": 0,
+            "w": 32,
+            "h": 7
+          },
+          "delta": 1,
+          "layer": "over",
+          "edge": "ragged"
+        },
+        {
+          "id": "shelf",
+          "op": "platform",
+          "shape": {
+            "type": "rect",
+            "x": 0,
+            "y": 7,
+            "w": 11,
+            "h": 4
+          },
+          "tiers": 1,
+          "rise": 1.5,
+          "material": "grass",
+          "edge": "ragged"
+        },
+        {
+          "id": "up_plateau",
+          "op": "stairs",
+          "from": [5, 9],
+          "to": [5, 4],
+          "width": 2
+        },
+        {
+          "id": "up_shelf",
+          "op": "stairs",
+          "from": [8, 14],
+          "to": [8, 10],
+          "width": 2
+        },
+        {
+          "id": "brook",
+          "op": "chasm",
+          "points": [
+            [0, 21],
+            [12, 23],
+            [20, 21],
+            [31, 23]
+          ],
+          "width": 2,
+          "depth": 1,
+          "floor": "water_shallow",
+          "meander": 0.5,
+          "bridges": [
+            {
+              "at": 0.32,
+              "width": 1,
+              "span": "plank",
+              "floor": "bridge_wood"
+            }
+          ]
+        },
+        {
+          "id": "trail",
+          "op": "path",
+          "width": 2,
+          "material": "dirt",
+          "layer": "over",
+          "connect": [
+            [8, 15],
+            [19, 18]
+          ]
+        },
+        {
+          "id": "rough",
+          "op": "uneven",
+          "shape": {
+            "type": "rect",
+            "x": 0,
+            "y": 11,
+            "w": 32,
+            "h": 5
+          },
+          "amount": 0.5,
+          "exclude": [
+            {
+              "type": "rect",
+              "x": 6,
+              "y": 11,
+              "w": 6,
+              "h": 10
+            },
+            {
+              "type": "rect",
+              "x": 20,
+              "y": 15,
+              "w": 7,
+              "h": 7
+            },
+            {
+              "type": "rect",
+              "x": 12,
+              "y": 12,
+              "w": 8,
+              "h": 5
+            }
+          ]
+        },
+        {
+          "id": "crag1",
+          "op": "outcrop",
+          "shape": {
+            "type": "circle",
+            "cx": 14.5,
+            "cy": 7.5,
+            "r": 1.4
+          },
+          "height": 1.5
+        },
+        {
+          "id": "crag2",
+          "op": "outcrop",
+          "shape": {
+            "type": "circle",
+            "cx": 28.5,
+            "cy": 8.5,
+            "r": 1.2
+          },
+          "height": 1
+        },
+        {
+          "id": "plateau_dress",
+          "op": "dress",
+          "area": "plateau_wood",
+          "preset": "forest",
+          "density": 1
+        },
+        {
+          "id": "shelf_dress",
+          "op": "dress",
+          "area": "shelf_rocks",
+          "preset": "natural_clusters",
+          "density": 1
+        },
+        {
+          "id": "lowland_dress",
+          "op": "dress",
+          "area": "lowland",
+          "preset": "natural_clusters",
+          "density": 0.8
+        }
+      ],
+      "labels": [
+        {
+          "id": "lb_plateau",
+          "text": "Plateau (+3)",
+          "at": [26, 2],
+          "size": "s"
+        },
+        {
+          "id": "lb_brook",
+          "text": "Brook",
+          "at": [27, 24],
+          "size": "s"
+        }
+      ]
+    }
+  ]
+}

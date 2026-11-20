@@ -337,6 +337,32 @@ export function chunkAndEncode(
         d.code === "thick_wall_conflict",
     )
     .reduce((s, d) => s + (d.count ?? 1), 0);
+  // TaleSpire water is a board-wide plane the slab cannot carry: tell the GM where to set it (above the slab base)
+  const waterLevels = (rs.levelInfo ?? [])
+    .filter((l) => l.waterLevel !== undefined)
+    .map((l) => {
+      const rel = (v: number): number => Math.round((v - gmin.y) * 4) / 4;
+      const [lo, hi] = l.waterRange ?? [l.waterLevel ?? 0, l.waterLevel ?? 0];
+      return { levelId: l.levelId, aboveBase: rel(l.waterLevel ?? 0), min: rel(lo), max: rel(hi) };
+    });
+  for (const w of waterLevels)
+    diagnostics.push({
+      severity: "info",
+      code: "verify_water_level",
+      stage: "verify",
+      levelId: w.levelId,
+      message: `Level ${w.levelId} has water. TaleSpire keeps water as one board-wide water plane that a slab cannot carry: after pasting, set the water level to about ${w.aboveBase} tiles (${w.aboveBase * 5} ft) above the bottom of the pasted slab — anywhere between ${w.min} and ${w.max} fills the channels without flooding the banks: raise the water until it just covers the stream bed and stop while it is still below the banks. If you paste the slab with its bottom on the board's ground (0), that is ${w.aboveBase} tiles above the board's zero. Raising the water also surrounds the whole map with water.`,
+      hint: "Use TaleSpire's water tool. The channels are built with their bed, so they also look right without water.",
+    });
+  const waterNote = waterLevels.length
+    ? "\n\n" +
+      waterLevels
+        .map(
+          (w) =>
+            `Water (level ${w.levelId}): set TaleSpire's water level to about ${w.aboveBase} tiles (${w.aboveBase * 5} ft) above the bottom of the slab, anywhere between ${w.min} and ${w.max} (raise it until it just covers the stream bed, and stop below the banks); pasted with its bottom at the board's ground that is ${w.aboveBase} above the board's zero. The water plane covers the whole board, so the map will be surrounded by water.`,
+        )
+        .join("\n")
+    : "";
   return {
     planId: set.planId,
     planVersion: set.planVersion,
@@ -350,7 +376,8 @@ export function chunkAndEncode(
       perLevel: perLevelStats,
       droppedPlacements: dropped,
     },
-    instructions: pasteInstructions(chunks, withMarkers, layout),
+    instructions: pasteInstructions(chunks, withMarkers, layout) + waterNote,
+    ...(waterLevels.length ? { waterLevels } : {}),
     assetSource: rs.assetSource ?? "builtin",
     substitutions: (rs.substitutions ?? []).map((s) => ({
       role: s.role,

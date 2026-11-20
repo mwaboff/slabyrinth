@@ -24,6 +24,9 @@ import { createRoleResolver } from "../../palette/resolve";
 import { checkPlayability, walkReachability } from "../../resolve";
 import { placementBoxes, placementMeta, type RealizedSet } from "../realize";
 import { LevelGrid, SolidIndex, overlap1, type Solid } from "./grid";
+import { areaReferenceHeights, wallSpan } from "../wallspan";
+import { structureClaims } from "../structure";
+import { featureInfo } from "../../gen/catalog";
 
 export interface VerifyOptions {
   /** Level the party enters on (MapPlan.entryLevel); default: the level with elevation closest to 0. */
@@ -77,6 +80,8 @@ const ORGANIC = new Set<FeatureType>([
   "web",
   "debris",
 ]);
+/** Features hung from the ceiling: raised on purpose, never "floating". */
+const CEILING_MOUNTED = new Set<string>(["stalactite", "chandelier"]);
 /** Opening kinds that are not passages (no standing-room or reachability semantics). */
 const NOT_PASSAGE = new Set(["window", "arrow_slit", "bars"]);
 const DIRV: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
@@ -179,7 +184,7 @@ export function verifyBuild(
         role: p.role,
         name: meta?.name ?? p.asset,
         blocking: p.role !== "feature" || (f?.blocking ?? true),
-        organic: f !== undefined && ORGANIC.has(f.type),
+        organic: f !== undefined && (ORGANIC.has(f.type) || featureInfo(f.type).organic),
         wallMounted: f?.wall !== undefined,
         isTileFeature: p.role === "feature" && meta?.geom.originAt === "minCorner",
       };
@@ -204,6 +209,18 @@ export function verifyBuild(
     if (g.edge(x, y, "N").hostedHere) y0 += 0.5;
     if (g.edge(x, y, "S").hostedHere) y1 -= 0.5;
     if (x1 - x0 < 0.2 || y1 - y0 < 0.2) return null;
+    // an outer corner of a building diagonal to this cell (walls on both neighbours, hosted on this side) carries a
+    // corner post in this cell's corner quarter: when that quarter is all that is left free, the cell is not open floor
+    const hostedBy = (cx: number, cy: number, side: Side): boolean => g.edge(cx, cy, side).hostedHere;
+    const quarter = (qx: number, qy: number): boolean =>
+      x0 >= qx - 0.01 && x1 <= qx + 0.51 && y0 >= qy - 0.01 && y1 <= qy + 0.51;
+    if (
+      (quarter(x + 0.5, y + 0.5) && hostedBy(x + 1, y, "S") && hostedBy(x, y + 1, "E")) ||
+      (quarter(x, y + 0.5) && hostedBy(x - 1, y, "S") && hostedBy(x, y + 1, "W")) ||
+      (quarter(x + 0.5, y) && hostedBy(x + 1, y, "N") && hostedBy(x, y - 1, "E")) ||
+      (quarter(x, y) && hostedBy(x - 1, y, "N") && hostedBy(x, y - 1, "W"))
+    )
+      return null;
     return w((x0 + x1) / 2, (y0 + y1) / 2);
   };
 
@@ -243,8 +260,18 @@ export function verifyBuild(
     let missing = 0;
     let first: [number, number] | null = null;
     let gaps = 0;
-    let firstGap: { cell: [number, number]; side: Side; style: string; blockBetweenOpen: boolean } | null =
-      null;
+    let firstGap: {
+      cell: [number, number];
+      side: Side;
+      style: string;
+      blockBetweenOpen: boolean;
+      mount: string;
+    } | null = null;
+    const refHeights = areaReferenceHeights(L);
+    // a building's shell edge (compile/structure.ts) stands on the building's own floor: its storey height is
+    // measured from there, not from higher ground outside
+    const claims = structureClaims(L);
+    const shell = claims.edges;
     for (let ly = 0; ly < g.h; ly++) {
       for (let lx = 0; lx < g.w; lx++) {
         const x = L.bounds.x + lx;
@@ -256,7 +283,9 @@ export function verifyBuild(
           const has = index
             .at(p.x, p.z, top - 0.2, top - 0.05)
             .some(
-              (s) => s.levelId === L.id && (s.role === "floor" || s.role === "fill" || s.role === "link"),
+              (s) =>
+                s.levelId === L.id &&
+                (s.role === "floor" || s.role === "fill" || s.role === "link" || s.role === "ledge"),
             );
           if (!has) {
             missing++;
@@ -282,19 +311,45 @@ export function verifyBuild(
           const res = resolveRole(L.themes[themeIdx] ?? "generic", `wall.${style}`).resolution;
           if (!res) continue; // role_missing already reported by realize
           const mount = res.def.mount ?? "half-cell";
-          const tops = [here, other].filter((q) => q.floor).map((q) => L.elevation + q.height + 0.5);
-          const base = tops.length ? Math.min(...tops) : L.elevation + 0.5;
           const hgt = (grid.height[e.index] ?? 0) > 0 ? (grid.height[e.index] ?? 2) : 2;
+          // same span as realize (compile/wallspan.ts): first cell = N/W of the edge
+          const hereFirst = side === "S" || side === "E";
+          const hostFirst = hereFirst === e.hostedHere;
+          const span = wallSpan(
+            L.elevation,
+            hereFirst ? here : other,
+            hereFirst ? other : here,
+            hostFirst,
+            hgt,
+            refHeights,
+          );
+          const base = span.base;
+          const inside = e.hostedHere ? other : here; // shells host outside the footprint
+          const top = shell.has(`${e.horizontal ? "h" : "v"}${e.index}`)
+            ? // a ruin's walls only need to stand a tile above its floor (their tops are broken)
+              claims.ruined.has(`${e.horizontal ? "h" : "v"}${e.index}`)
+              ? L.elevation + inside.height + 0.5 + 1
+              : Math.min(span.top, L.elevation + inside.height + 0.5 + hgt)
+            : span.top;
+          // a rock block whose host cell is open stands in the other cell when that one is not open (realize)
+          const hostCell = e.hostedHere ? here : other;
+          const otherCell = e.hostedHere ? other : here;
+          const flipped = mount === "full-cell" && hostCell.open && !otherCell.open;
           // midpoint of the edge in plan coords, then into the host half-cell
           const mx = side === "W" ? cx : side === "E" ? cx + 1 : cx + 0.5;
           const my = side === "N" ? cy : side === "S" ? cy + 1 : cy + 0.5;
-          const hostSign = e.hostedHere ? 1 : -1; // +1 = into (cx,cy), -1 = into the neighbour
+          const hostSign = e.hostedHere !== flipped ? 1 : -1; // +1 = into (cx,cy), -1 = into the neighbour
           const inward = mount === "edge-center" ? 0 : mount === "full-cell" ? 0.5 : 0.25;
           const ix = side === "W" ? inward * hostSign : side === "E" ? -inward * hostSign : 0;
           const iy = side === "N" ? inward * hostSign : side === "S" ? -inward * hostSign : 0;
           const pt = w(mx + ix, my + iy);
+          // natural (full-cell) rock walls vary in height: at least 1.5 above the floor counts as closed
           const ys =
-            mount === "half-cell" || mount === "full-cell" ? [base + 0.1, base + hgt - 0.1] : [base + 0.1];
+            mount === "half-cell"
+              ? [base + 0.1, top - 0.1]
+              : mount === "full-cell"
+                ? [base + 0.1, Math.min(top, base + 1.5) - 0.1]
+                : [base + 0.1];
           const covered = ys.every((yy) =>
             index
               .at(pt.x, pt.z, yy - 0.01, yy + 0.01, 0.005)
@@ -307,6 +362,7 @@ export function verifyBuild(
               side,
               style,
               blockBetweenOpen: mount === "full-cell" && here.open && other.open,
+              mount,
             };
           }
         }
@@ -337,8 +393,133 @@ export function verifyBuild(
           ? `${gaps} wall edge${gaps > 1 ? "s" : ""} on level ${L.id} cannot be built: the 2D map shows a ${firstGap.style} wall between two open areas at the ${firstGap.side} side of ${fmt(firstGap.cell)}, but rock-block walls need a solid cell, so the build leaves the gap open.`
           : `${gaps} wall edge${gaps > 1 ? "s are" : " is"} not fully covered by wall pieces on level ${L.id} (first: ${firstGap.side} side of ${fmt(firstGap.cell)}, style ${firstGap.style}).`,
         hint: firstGap.blockBetweenOpen
-          ? `Keep one solid cell between the two cave areas there, or give one of them wallStyle "stone" (thin wall pieces) for that boundary.`
-          : `Use a wall height of 2 (one piece) or a wall style whose palette has pieces for every edge; "${firstGap.style}" leaves holes here.`,
+          ? `Natural rock is built as whole-cell blocks and needs a solid cell: leave one unclaimed (solid) cell between the two areas there, or merge them into one area. A thin built wall (wallStyle "wall") is the only other choice and looks like masonry, not rock.`
+          : `The theme has no "${firstGap.style}" wall piece that fits this edge (${firstGap.mount} mount), so the build leaves it open. Use a wallStyle the theme has pieces for (list_catalog wall_styles), or leave a solid cell beside the area so a whole-cell block has somewhere to stand.`,
+      });
+    }
+  }
+
+  // ── (6a) rock-band cliffs: a natural edge of 2 tiles or more whose face realize left to the band (no blocks, no
+  // fill behind it) must be covered by band rock, or the void behind it shows ──
+  for (const L of levels) {
+    const runs = L.cliffs ?? [];
+    if (resolved.generator < 2 || runs.length === 0) continue;
+    const rocks = L.features.filter((f) => f.type === "cliff_face" || f.type === "cliff_crest");
+    const placed = set.levels.find((s) => s.levelId === L.id)?.placements ?? [];
+    const blocks = new Set(
+      placed
+        .filter((p) => p.role === "ledge" && p.source.cell)
+        .map((p) => `${p.source.cell?.[0] ?? ""},${p.source.cell?.[1] ?? ""}`),
+    );
+    const step: Record<string, [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
+    let holes = 0;
+    let firstHole: [number, number] | null = null;
+    for (const run of runs)
+      for (const e of run.edges) {
+        if (e.high - e.low < 8) continue;
+        const lx = e.at[0] - L.bounds.x;
+        const ly = e.at[1] - L.bounds.y;
+        if (lx <= 0 || ly <= 0 || lx >= L.bounds.w - 1 || ly >= L.bounds.h - 1) continue;
+        const theme = L.themes[L.cells.theme[ly * L.bounds.w + lx] ?? 0] ?? "generic";
+        if (!resolveRole(theme, "cliff.formation_face").resolution) continue;
+        if (blocks.has(`${e.at[0]},${e.at[1]}`)) continue;
+        const [dx, dy] = step[e.side] ?? [0, 0];
+        const mx = e.at[0] + 0.5 + dx * 0.5;
+        const my = e.at[1] + 0.5 + dy * 0.5;
+        const covered = rocks.some(
+          (f) =>
+            mx >= f.at[0] - 0.3 &&
+            mx <= f.at[0] + f.size[0] + 0.3 &&
+            my >= f.at[1] - 0.3 &&
+            my <= f.at[1] + f.size[1] + 0.3,
+        );
+        if (covered) continue;
+        holes++;
+        firstHole ??= [e.at[0], e.at[1]];
+      }
+    if (holes > 0 && firstHole)
+      add({
+        severity: "warning",
+        code: "verify_cliff_gap",
+        levelId: L.id,
+        cell: firstHole,
+        count: holes,
+        message: `${holes} cliff edge${holes === 1 ? "" : "s"} on level ${L.id} rise 2 tiles or more with no rock in front and no face behind (first at (${firstHole[0]},${firstHole[1]})): the void under the upper ground shows.`,
+        hint: "dress the cliff with its rock band (a dress op over the level), or move what keeps the band off that edge",
+      });
+  }
+
+  // ── (6b) preview fidelity: materials and wall styles the 2D map shows but the theme builds with something else ──
+  for (const L of levels) {
+    const g = grids.get(L.id);
+    if (!g) continue;
+    const mats = new Map<string, { theme: string; material: string; n: number; first: [number, number] }>();
+    const note = (theme: string, material: string, x: number, y: number): void => {
+      const k = `${theme}|${material}`;
+      const e = mats.get(k);
+      if (e) e.n++;
+      else mats.set(k, { theme, material, n: 1, first: [x, y] });
+    };
+    for (let ly = 0; ly < g.h; ly++)
+      for (let lx = 0; lx < g.w; lx++) {
+        const i = ly * g.w + lx;
+        const c = g.cell(L.bounds.x + lx, L.bounds.y + ly);
+        if (!c.floor) continue;
+        const m = L.materials[(L.cells.material[i] ?? 1) - 1];
+        if (m) note(L.themes[L.cells.theme[i] ?? 0] ?? "generic", m, L.bounds.x + lx, L.bounds.y + ly);
+      }
+    for (const b of L.bridges ?? [])
+      b.cells.forEach((c, j) => {
+        const m = b.underMaterial[j];
+        const i = g.idx(c[0], c[1]);
+        if (m && i >= 0) note(L.themes[L.cells.theme[i] ?? 0] ?? "generic", m, c[0], c[1]);
+      });
+    for (const e of mats.values()) {
+      // water is TaleSpire's board water level over a bed (bed.*): no water tile is expected (verify_water_level)
+      if (e.material.startsWith("water")) continue;
+      const want = `floor.${e.material}`;
+      const res = resolveRole(e.theme, want).resolution;
+      if (!res || res.role === want) continue;
+      const liquid = e.material === "lava" || e.material.startsWith("water");
+      const asset = res.variants[0]?.name;
+      add({
+        severity: liquid ? "warning" : "info",
+        code: "verify_material_substituted",
+        levelId: L.id,
+        cell: e.first,
+        count: e.n,
+        role: want,
+        message: `The 2D map shows ${e.n} cell${e.n > 1 ? "s" : ""} of ${e.material} on level ${L.id}, but theme "${e.theme}" has no ${e.material} tile: ${e.n > 1 ? "they are" : "it is"} built with ${res.role}${asset ? ` ("${asset}")` : ""}${liquid ? ", so in TaleSpire it looks like ordinary floor" : ""}.`,
+        hint: liquid
+          ? `The palette needs a real ${e.material} asset for ${want}. Until it has one, say so to the GM, or describe the hazard in the notes.`
+          : `Use a material the theme has its own tiles for, or accept the look of ${res.role}.`,
+      });
+    }
+    const styles = new Map<string, { theme: string; style: string; n: number }>();
+    // building shells are built from facade.<style> roles (compile/structure.ts), not wall.<style>
+    const claimed = structureClaims(L).edges;
+    for (const grid of [L.hEdges, L.vEdges])
+      for (let e = 0; e < grid.kind.length; e++) {
+        if (grid.kind[e] !== EDGE.WALL) continue;
+        if (claimed.has(`${grid === L.hEdges ? "h" : "v"}${e}`)) continue;
+        const style = L.wallStyles[grid.ref[e] ?? 0] ?? "wall";
+        const k = `${L.themes[0] ?? "generic"}|${style}`;
+        const x = styles.get(k);
+        if (x) x.n++;
+        else styles.set(k, { theme: L.themes[0] ?? "generic", style, n: 1 });
+      }
+    for (const st of styles.values()) {
+      const want = `wall.${st.style}`;
+      const res = resolveRole(st.theme, want).resolution;
+      if (!res || res.role === want || st.style === "wall") continue;
+      add({
+        severity: "info",
+        code: "verify_material_substituted",
+        levelId: L.id,
+        count: st.n,
+        role: want,
+        message: `Wall style "${st.style}" (${st.n} edges on level ${L.id}) has no pieces of its own in theme "${st.theme}": it is built with ${res.role}${res.variants[0]?.name ? ` ("${res.variants[0].name}")` : ""}.`,
+        hint: `Pick a wall style this theme has its own pieces for (list_catalog wall_styles); "${st.style}" looks like ${res.role} here.`,
       });
     }
   }
@@ -354,7 +535,7 @@ export function verifyBuild(
         const x = L.bounds.x + lx;
         const y = L.bounds.y + ly;
         const c = g.cell(x, y);
-        if (!c.floor || (c.flags & (CELL_FLAG.FEATURE | CELL_FLAG.LINK)) !== 0) continue;
+        if (!c.floor || (c.flags & (CELL_FLAG.FEATURE | CELL_FLAG.LINK | CELL_FLAG.STEPS)) !== 0) continue;
         const pc = freeCentre(g, x, y);
         if (!pc) continue;
         const top = g.top(x, y);
@@ -725,6 +906,14 @@ export function verifyBuild(
     linkOk.set(lk.id, ok);
   }
 
+  // lowest piece of each feature: the other pieces of an assembly stand on it
+  const assemblyBase = new Map<string, number>();
+  for (const s0 of index.all) {
+    if (s0.role !== "feature") continue;
+    const k = `${s0.levelId}|${s0.p.source.elementId ?? ""}`;
+    assemblyBase.set(k, Math.min(assemblyBase.get(k) ?? Infinity, s0.p.y));
+  }
+
   // ── (5) placement of items ──
   for (const L of levels) {
     const g = grids.get(L.id);
@@ -751,7 +940,9 @@ export function verifyBuild(
         if (oy > 0.05 && ox * oz > 0.25 * Math.min(areaA, areaB) && ox * oz > 0.01) {
           seenPair.add(key);
           pairs++;
-          if (!a.organic || !b.organic) builtPairs++;
+          // natural pieces (tree canopies, rock piles) overhang what stands beside them by design: only two built
+          // pieces overlapping is a warning
+          if (!a.organic && !b.organic) builtPairs++;
           if (examples.length < 3) examples.push(`${label(a)} and ${label(b)}`);
         }
       }
@@ -889,7 +1080,11 @@ export function verifyBuild(
           (q) =>
             q !== s &&
             q.levelId === L.id &&
-            (q.role === "floor" || q.role === "fill" || q.role === "link" || q.role === "feature") &&
+            (q.role === "floor" ||
+              q.role === "fill" ||
+              q.role === "ledge" ||
+              q.role === "link" ||
+              q.role === "feature") &&
             q.box.max.y <= s.p.y + 0.06,
         );
       const support = supports.length ? Math.max(...supports.map((q) => q.box.max.y)) : null;
@@ -918,7 +1113,12 @@ export function verifyBuild(
           message: `${label(s)} has nothing under it at ${fmt([Math.floor(pc.px), Math.floor(pc.py)])}.`,
           hint: `Move feature ${s.p.source.elementId ?? ""} onto a cell with floor.`,
         });
-      } else if (s.p.y - support > 0.3) {
+      } else if (
+        s.p.y - support > 0.3 &&
+        // an upper piece of an assembly (palette parts: trunk on stump, capital on shaft) stands on its lower piece
+        !(s.p.y > (assemblyBase.get(`${L.id}|${s.p.source.elementId ?? ""}`) ?? Infinity) + 0.01) &&
+        !CEILING_MOUNTED.has(featureById.get(`${L.id}|${s.p.source.elementId ?? ""}`)?.type ?? "")
+      ) {
         add({
           severity: "warning",
           code: "verify_prop_floating",
@@ -1391,6 +1591,8 @@ export const VERIFY_CODES: readonly CompileDiagnosticCode[] = [
   "verify_duplicate_removed",
   "verify_bad_coordinate",
   "verify_pokes_into_level_above",
+  "verify_material_substituted",
+  "verify_water_level",
 ];
 
 export type { RealizedSet };

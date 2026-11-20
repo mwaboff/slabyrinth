@@ -14,6 +14,7 @@ import {
   MATERIALS,
   PLAN_SCHEMA,
   WALL_STYLES,
+  type DesignBrief,
   type ElementId,
   type LevelId,
   type MapPlan,
@@ -27,6 +28,14 @@ import { diffPlans } from "../ops/diff";
 import { listElements } from "../plan/elements";
 import { validatePlan } from "../plan/validate";
 import { resolvePlan } from "../resolve";
+import {
+  type DesignNote,
+  briefCheckLine,
+  designReviewDelta,
+  designReviewText,
+  reviewDesign,
+  substitutionNotes,
+} from "../review";
 import { asciiView, changedRegionViews, outlineView } from "../text";
 import { mergeBrief } from "./brief";
 import { checksLine, issueWhere, splitIssues, type CheckResults } from "./checks";
@@ -227,6 +236,8 @@ export function completeAuthoredPlan(
 // ───────────────────────────── executor ─────────────────────────────
 
 export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts): AgentExecuteTool {
+  /** The design review last shown for each plan (by plan id), so later results show only what changed. */
+  const lastReview = new Map<string, DesignNote[]>();
   const resolve = (plan: MapPlan, version: number): ResolvedPlan | null => {
     if (!ports.resolvePlan) return null;
     try {
@@ -313,6 +324,7 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
     before: MapPlan | null,
     after: MapPlan,
     dirtyLevels: LevelId[],
+    brief: DesignBrief = {},
   ): ToolResultContent[] => {
     const entries = checkEntries(checks);
     const full: PlanChangeReport = { ...report, errors: entries.errors, warnings: entries.warnings };
@@ -321,6 +333,25 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
     ];
     const view = changeView(before, after, report.version, dirtyLevels);
     if (view) content.push({ type: "text", text: view });
+    // design review (review/): measured advice, never an error; generator 2 plans only (issue maps stay last)
+    if (after.generator >= 2) {
+      try {
+        const r = resolve(after, report.version);
+        const notes = r ? reviewDesign(after, r, { brief }) : null;
+        // a later result for the same plan shows what changed: new notes in full, open ones short, cleared ones
+        const previous = before === null ? undefined : lastReview.get(after.id);
+        const text = notes ? designReviewDelta(notes, previous, briefCheckLine(brief, after)) : "";
+        if (notes) lastReview.set(after.id, notes);
+        if (text) content.push({ type: "text", text });
+      } catch (e) {
+        // advice only: a failing review never costs the model its result, but it leaves a trace
+        const why = e instanceof Error ? e.message : String(e);
+        content.push({
+          type: "text",
+          text: `DESIGN REVIEW unavailable (internal error: ${why.slice(0, 120)})`,
+        });
+      }
+    }
     const maps = issueMaps(after, report.version, checks);
     if (maps) content.push({ type: "text", text: maps });
     return content;
@@ -392,6 +423,7 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
       null,
       plan,
       plan.levels.map((l) => l.id),
+      ctx.brief,
     );
     const changes = v.value.changes ?? [];
     return { ok: true, content, newPlan: { plan, summary: v.value.summary, changes, cause: "create" } };
@@ -471,6 +503,7 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
       ctx.plan,
       result.plan,
       result.dirtyLevels,
+      ctx.brief,
     );
     return { ok: true, content, newPlan: { plan: result.plan, summary, changes, cause: "ops", ops: ops } };
   }
@@ -596,7 +629,9 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
         },
       ]);
     }
-    return textResult(compilePreviewText(ctx.head, est));
+    // the build's substituted and unresolved pieces as one design note (review/), with the elements named
+    const sub = plan.generator >= 2 ? designReviewText(substitutionNotes(est.diagnostics)) : "";
+    return textResult(compilePreviewText(ctx.head, est) + (sub ? `\n${sub}` : ""));
   }
 
   function runListCatalog(ctx: AgentToolContext, input: unknown): ToolOutcome {

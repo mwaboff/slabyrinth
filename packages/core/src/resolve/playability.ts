@@ -74,6 +74,8 @@ interface LevelData {
   extra: Uint8Array;
   extraReason: Map<number, string>;
   deep: number;
+  /** Material index + 1 of lava (never walkable, never swimmable); 0 = none on this level. */
+  lava: number;
   linkLower: Map<number, ResolvedLink>;
   linkUpper: Map<number, ResolvedLink>;
   blockedOpening: Map<string, { sides: Set<0 | 1>; reason?: string }>;
@@ -130,6 +132,7 @@ export class WalkGraph {
         extra,
         extraReason: new Map(),
         deep: l.materials.indexOf("water_deep") + 1,
+        lava: l.materials.indexOf("lava") + 1,
         linkLower: new Map(),
         linkUpper: new Map(),
         blockedOpening,
@@ -256,6 +259,7 @@ export class WalkGraph {
     if (f & CELL_FLAG.NO_FLOOR && !(m.ignoreStairwells === true && f & CELL_FLAG.STAIRWELL)) return false;
     if (m.ignoreFeatures !== true && ((d.featAt[i] as number) > 0 || d.extra[i] === 1)) return false;
     if (m.ignoreWater !== true && d.deep > 0 && l.cells.material[i] === d.deep) return false;
+    if (d.lava > 0 && l.cells.material[i] === d.lava) return false;
     return true;
   }
 
@@ -285,6 +289,7 @@ export class WalkGraph {
     }
     if (j < 0) return [-1, false];
     if (kind === EDGE.WALL) return [j, false];
+    if (kind === EDGE.STAIR) return [j, true]; // a flight of steps: walkable whatever the height
     if (kind === EDGE.LEDGE) return [j, height * 4 <= MAX_STEP_QUARTERS];
     if (Math.abs((l.cells.height[i] as number) - (l.cells.height[j] as number)) > MAX_STEP_QUARTERS)
       return [j, false];
@@ -456,6 +461,7 @@ export function checkPlayability(
     if (k > 0) return { what: featName(d, k), id: d.l.features[k - 1]?.id ?? "" };
     if (d.extra[i] === 1) return { what: d.extraReason.get(i) ?? "built geometry" };
     if (d.deep > 0 && l.cells.material[i] === d.deep) return { what: "deep water" };
+    if (d.lava > 0 && l.cells.material[i] === d.lava) return { what: "lava" };
     return null;
   };
 

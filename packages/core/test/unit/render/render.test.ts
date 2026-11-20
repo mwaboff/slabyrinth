@@ -100,7 +100,9 @@ describe("buildDisplayList", () => {
   });
   it("places room names clear of furniture (a bookshelf right under the hall's badge)", () => {
     const plan = structuredClone(loadPlan("example-a"));
-    plan.levels.find((l) => l.id === "l1")?.features.push({ id: "shelf_mid", type: "bookshelf", at: [15, 10] });
+    plan.levels
+      .find((l) => l.id === "l1")
+      ?.features.push({ id: "shelf_mid", type: "bookshelf", at: [15, 10] });
     const lvl = resolvePlan(plan).levels.find((l) => l.id === "l1");
     if (!lvl) throw new Error("l1");
     const shelf = lvl.features.find((f) => f.id === "shelf_mid");

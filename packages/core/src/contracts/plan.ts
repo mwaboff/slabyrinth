@@ -20,8 +20,19 @@
  */
 
 export const PLAN_SCHEMA = "slabyrinth/plan@1" as const;
-/** Version of the deterministic generators (blob, cave, noise, scatter, dress, routing). */
-export const GENERATOR_VERSION = 1 as const;
+/**
+ * Version of the deterministic generators and resolution rules (blob, cave, noise, scatter, dress, routing,
+ * terrain layering). New plans get the current version; a plan keeps the version it was created with, so saved
+ * maps resolve exactly as before (architecture §2.7).
+ *  1: the original rules.
+ *  2: a `height` terrain op with layer "under" sets the height of EVERY cell in its shape (rock included), so the
+ *     areas that later open those cells inherit it unless they set their own floorHeight. In version 1 such an op
+ *     only touched cells that were already open, which on a solid base is none of them.
+ */
+export const GENERATOR_VERSION = 2 as const;
+/** Generator versions a reader accepts. */
+export type GeneratorVersion = 1 | 2;
+export const GENERATOR_VERSIONS: readonly GeneratorVersion[] = [1, 2];
 
 // ───────────────────────────── primitives ─────────────────────────────
 
@@ -51,6 +62,7 @@ export const MATERIALS = [
   "flagstone", "stone_tile", "marble", "brick", "cobble", "wood_plank", "carpet",
   "rock", "dirt", "grass", "sand", "gravel", "mud", "snow", "ice", "swamp",
   "water_shallow", "water_deep", "lava", "bridge_wood",
+  "asphalt", "concrete",   // appended 2026-11-20 (roads and pavements; any theme maps them through its palette)
 ] as const;
 export type Material = (typeof MATERIALS)[number];
 
@@ -58,6 +70,10 @@ export const WALL_STYLES = [
   "wall",        // theme default wall
   "stone", "brick", "wood", "cave_rock", "plaster",
   "palisade", "fence", "hedge", "low_wall", "railing", "iron_bars", "ruined",
+  "railing_stone",   // stone parapet (bridges, balconies); appended 2026-11-19
+  "concrete", "metal", "panel", // modern building walls (concrete, metal sheet, white panel); appended 2026-11-20
+  "marble",      // buff dressed stone (civic, banks); appended 2026-11-20
+  "dark_stone", "timber", // dark dressed stone; half-timbered panels (wizard tower treatments); appended 2026-11-20
 ] as const;
 export type WallStyle = (typeof WALL_STYLES)[number];
 
@@ -89,6 +105,24 @@ export const FEATURE_TYPES = [
   "tree", "dead_tree", "pine_tree", "bush", "rock", "boulder", "stump", "log", "mushroom",
   "flowers", "tall_grass", "reeds", "campfire", "tent", "cart", "wagon", "fence_post",
   "signpost", "standing_stone", "grave",
+  // caves and set dressing (additive, 2026-11-19)
+  "stalagmite", "stalactite", "rock_formation", "cave_in", "crystal", "giant_mushroom",
+  "root", "root_large", "roots_wall", "vines", "tree_large",
+  // ritual, encounter and lights (additive, 2026-11-19)
+  "candles", "skull_pile", "spawn_point", "torch_floor", "lantern", "magic_fire", "lava_glow", "fire_pit",
+  // tall pieces, mining and hanging dressing (additive, 2026-11-19 round 2)
+  "monolith", "cave_column", "statue_large", "mine_cart", "rails", "mine_support", "chains",
+  // theme-neutral slots (additive, 2026-11-19): each theme's palette decides what fills them
+  "landmark", "tall_marker", "formation", "cluster_tall", "undergrowth", "ground_cover",
+  "accent_light", "edge_dressing", "small_detail", "wall_dressing",
+  // water's edge (additive, 2026-11-19 round 3)
+  "bank_dressing", "jetty",
+  // built places (additive, 2026-11-20 city street): a vehicle parked along a road edge (a cart or wagon in a
+  // medieval town, a car or taxi in a modern one), seating (a bench, a log, a picnic table), signage on a frontage
+  "vehicle", "seating", "signage",
+  // cliffs as rock bands (additive, 2026-11-20): a long low face rock and a rounded crest boulder
+  // (palette roles cliff.formation_face / cliff.formation_crest; themes without natural rock keep a built face)
+  "cliff_face", "cliff_crest",
   "custom",
 ] as const;
 export type FeatureType = (typeof FEATURE_TYPES)[number];
@@ -96,6 +130,12 @@ export type FeatureType = (typeof FEATURE_TYPES)[number];
 export const DRESS_PRESETS = [
   "tavern", "library", "barracks", "bedroom", "kitchen", "storeroom", "throne_room",
   "shrine", "crypt", "prison", "forge", "laboratory", "treasury", "ruin", "camp",
+  // composed set pieces (additive, 2026-11-19): authored groups, not weighted scatter
+  "ritual_circle", "overgrown", "cavern", "collapse", "crystal_grotto", "campsite",
+  "shrine_ruin", "bone_pit", "mine_works", "mushroom_grove", "barricade",
+  "natural_clusters", "woodland", "forest", "dense_forest",
+  // built places (additive, 2026-11-20): kerb-side rhythm on a street, a service alley, a square
+  "street", "alley", "plaza",
 ] as const;
 export type DressPreset = (typeof DRESS_PRESETS)[number];
 
@@ -105,7 +145,13 @@ export type AreaKind =
   | "cave"        // natural interior: rock floor, cave_rock walls (default walls "auto")
   | "building"    // footprint of a structure in an outdoor/town map (default walls "auto")
   | "courtyard"   // built exterior floor, no walls of its own (default walls "perimeter")
-  | "zone";       // semantic only: never changes cells' material/walls; used for key/notes/hit-test
+  | "zone"        // semantic only: never changes cells' material/walls; used for key/notes/hit-test
+  /**
+   * A walkable deck spanning a drop (chasm, river, pit): open air underneath (nothing is filled below it), the floor
+   * beneath stays where it was, railings on the edges that face the drop. Deck height = floorHeight, or the height
+   * of the highest floor it touches (its ends). Never gets area walls (default walls "none"); no automatic key.
+   */
+  | "bridge";
 
 /**
  * Wall generation on an area's boundary edges (§2.4 wall rule):
@@ -178,7 +224,26 @@ export interface Area {
   readAloud?: string;         // boxed text for players; ≤ 1500 chars
   encounter?: string;         // system-flavoured encounter line(s); ≤ 1000 chars
   tags?: string[];            // ≤ 8 tags, each ≤ 24 chars
+  /** kind "bridge" only: wall style of the railings on the edges that face a drop (default "low_wall"); "none" = no railings. */
+  railing?: WallStyle | "none";
+  /** kind "bridge" only: deck cells that have fallen away (holes; the floor below shows through). ≤ 64. */
+  broken?: Vec2[];
+  /** kind "bridge" only: 0..0.6, fraction of deck cells crumbled away, chosen deterministically so a way across always remains. */
+  crumble?: number;
+  /** kind "bridge" only: the bridge's build (see BridgeSpan). Default "arch" for stone decks, "plank" for wood. */
+  span?: BridgeSpan;
+  /** kind "bridge" only: how far the middle of the deck rises above its ends, tiles 0..2 (default by span). */
+  arch?: number;
 }
+
+/**
+ * How a bridge is built (generator 2):
+ *  - "arch":    stone; the deck rises toward the middle in 0.25 steps, stone piers under it, stone parapet.
+ *  - "flat":    a level deck, piers under long spans, parapet or railing.
+ *  - "plank":   wooden planks, rope-style railing, a slight sag in the middle, no piers.
+ *  - "natural": a natural rock span or fallen column: rough rock deck, no railing, a slight hump, no piers.
+ */
+export type BridgeSpan = "arch" | "flat" | "plank" | "natural";
 
 /** Door/window/arch on cell edges. Exactly one of `between` or `at` is required. */
 export interface Opening {
@@ -242,11 +307,33 @@ export type TerrainLayer = "under" | "over";
 /** Deterministic terrain/generation operations, applied in array order within their layer (§2.5 resolution order). */
 export type TerrainOp =
   | { id: ElementId; op: "paint"; shape: Shape; material: Material; layer?: TerrainLayer }
-  | { id: ElementId; op: "height"; shape: Shape; /** add to current height */ delta?: Height; /** or set absolute (relative to level) */ set?: Height; /** soften edges into 0.25 steps over n cells */ smooth?: number; layer?: TerrainLayer }
+  | { id: ElementId; op: "height"; shape: Shape; /** add to current height */ delta?: Height; /** or set absolute (relative to level) */ set?: Height; /** soften edges into 0.25 steps over n cells */ smooth?: number; layer?: TerrainLayer;
+      /** Generator 2: "ragged" breaks the shape's outline with noise (natural ground); default ragged on open-air levels, else clean. */
+      edge?: "ragged" | "clean" }
   /** Patchy material mix: seeded value noise; cells with noise < coverage get `material`. scale = feature size in cells (2..32). */
   | { id: ElementId; op: "noise"; shape: Shape; material: Material; coverage: number; scale?: number; seed?: Seed; layer?: TerrainLayer }
   /** Road/river/trail along a polyline of cell centers (any direction; rasterized with given width). jitter 0..1 meanders deterministically. */
-  | { id: ElementId; op: "path"; points: Vec2[]; width: number; material: Material; jitter?: number; seed?: Seed; layer?: TerrainLayer }
+  /**
+   * Give `points`, or `connect`: areas (their anchor cell), features (their cell) or cells to join in order with
+   * L-shaped legs; the path winds between them with jitter. `kerb` edges it with kerb pieces (kerb.<material>).
+   */
+  | { id: ElementId; op: "path"; points?: Vec2[]; connect?: Array<ElementId | Vec2>; width: number; material: Material; jitter?: number; seed?: Seed; layer?: TerrainLayer; kerb?: boolean;
+      /**
+       * Generator 2: "natural" winds (meandering centreline, width varying ±, ragged edges, wider at the points it
+       * connects; jitter = how much, default 0.5); "straight" keeps the legs ruler-straight (paved roads, corridors).
+       * Default: natural for natural ground materials (dirt, gravel, grass, sand, mud, snow, rock), else straight.
+       */
+      style?: "natural" | "straight";
+      /**
+       * Generator 2, road form (implies style "straight", jitter ignored): a pavement strip `width` cells wide on each
+       * side of the carriageway, of `material`, `raise` tiles above it (0..1, default 0.25: a thick pavement tile
+       * stands a kerb's height above a thin road tile). It stops at building lots and at other roads' carriageways;
+       * where roads meet, the carriageways merge. `kerb` defaults to true here: a continuous kerb line along the
+       * pavement, with gaps at crossings and junction mouths.
+       */
+      sidewalk?: { width: number; material: Material; raise?: Height };
+      /** Generator 2, road form: pedestrian crossings at these fractions (0..1) of the road's length, 2 cells wide, kept clear. */
+      crossings?: number[] }
   /** Generate features in a region. density 0..1 = probability per eligible cell before spacing; minSpacing in cells. */
   | {
       id: ElementId; op: "scatter";
@@ -261,7 +348,84 @@ export type TerrainOp =
       seed?: Seed;
     }
   /** Furnish an area from a preset table (deterministic). density 0..1 (default 0.5). */
-  | { id: ElementId; op: "dress"; area: AreaId; preset: DressPreset; density?: number; seed?: Seed };
+  /** Generator 2: `area` omitted (or the level's id) dresses the whole level: the open ground and each zone. */
+  | { id: ElementId; op: "dress"; area?: AreaId; preset: DressPreset; density?: number; seed?: Seed }
+  /**
+   * Chasm / crevasse / ravine: a meandering trench cut `depth` tiles down into the floor along a polyline of cell
+   * centres (any direction). Only cells that are already open (inside areas, or ground) are cut; its sides become
+   * cliffs (rock faces in the build). Always applied after the areas, in array order with the "over" ops.
+   * `bridges` span it at fractions of its length, square across the chasm, from rim to rim.
+   */
+  | {
+      id: ElementId; op: "chasm";
+      points: Vec2[];                      // 2..64 cell centres
+      width: number;                       // average width in cells, 1..12
+      depth?: Height;                      // tiles below the floor it cuts, 0.5..4 (default 3)
+      meander?: number;                    // 0..1 (default 0.5): how much the course and the width wander
+      floor?: Material | "none";           // bottom: lava, water_deep… (default: keep the floor material); "none" = bottomless
+      bridges?: ChasmBridge[];             // ≤ 4
+      seed?: Seed;
+    }
+  /**
+   * Tiered platform (dais, stepped pyramid, terrace, sunken pit): `tiers` rings, each `inset` cells inside the one
+   * below and `rise` tiles higher (negative = steps down into a pit). Cut into open floor only. Steps of 0.5 or
+   * less are walkable everywhere; `stairs` adds a flight of steps (stair assets) on those sides of the shape.
+   * Applied with the over layer, in array order.
+   */
+  | {
+      id: ElementId; op: "platform";
+      shape: Shape;
+      tiers?: number;                      // 1..5 (default 3)
+      rise?: Height;                       // per tier, -2..2, not 0 (default 0.5)
+      inset?: number;                      // cells per tier, 1..4 (default 1)
+      material?: Material;                 // floor of every tier (default: keep)
+      topMaterial?: Material;              // floor of the top tier (default: material)
+      stairs?: Side[];                     // sides that get a flight of steps (2 cells wide) up to the top
+      /** "ragged": organic, wandering contours (natural mounds, terraces, hills); "clean": crisp built tiers. Default ragged on open-air levels for natural materials, else clean. */
+      edge?: "ragged" | "clean";
+    }
+  /**
+   * A straight flight of stairs between two floor cells on one row or column: the cells between them step evenly from
+   * `from`'s height to `to`'s; every edge on the way is a stair (walkable, stair assets in the build). For a ledge
+   * down to a floor, a way down into a dry chasm, steps up to a terrace. Applied with the over layer, in array order.
+   */
+  | { id: ElementId; op: "stairs"; from: Vec2; to: Vec2; width?: number /* 1..3, default 1 */;
+      /**
+       * Generator 2: "ramp" = a natural rock ramp up a cliff instead of a flight of stairs: any direction (diagonal
+       * suits it), width 3..6 (default 4), climbing in half-tile steps at about 1 tile per 2.5–4 cells, rock floor.
+       * Unverified in game for minis; stairs stay the default.
+       */
+      style?: "stairs" | "ramp" }
+  /**
+   * Uneven ground: seeded gentle bumps and hollows (heights in 0.25 steps, neighbours never more than 0.5 apart, so
+   * it stays walkable) on the open, non-bridge floor in `shape` (default: the whole level) minus `exclude`.
+   * amount = largest change in tiles (0.25..1, default 0.5); scale = bump size in cells (3..12, default 6).
+   */
+  | { id: ElementId; op: "uneven"; shape?: Shape; exclude?: Shape[]; amount?: Height; scale?: number; seed?: Seed }
+  /**
+   * Outcrop: a rock mass, column or buttress rising `height` tiles (0.5..4, default 2) out of the open floor of
+   * `shape`, with natural cliff sides (any setting: a crag on a hillside, a pillar of rock in a hall or cave).
+   * Material `material` (default rock) on top. Applied with the over layer, in array order.
+   */
+  | { id: ElementId; op: "outcrop"; shape: Shape; height?: Height; material?: Material };
+
+/** A bridge across a chasm terrain op (resolved like an area of kind "bridge"). */
+export interface ChasmBridge {
+  /** Where along the chasm, 0..1 of its length (default 0.5). */
+  at?: number;
+  /** Cells wide, 1..4 (default 2). */
+  width?: number;
+  /** Deck material (default flagstone). */
+  floor?: Material;
+  /** Railing wall style (default "low_wall"); "none" = no railings. */
+  railing?: WallStyle | "none";
+  /** 0..0.6: fraction of deck cells crumbled away (a way across always remains). Default 0. */
+  crumble?: number;
+  /** How the bridge is built (default "arch"; "plank" when floor is wood). */
+  span?: BridgeSpan;
+  /** Rise of the deck's middle above its ends, tiles 0..2 (default by span). */
+  arch?: number;
+}
 
 /** What fills cells not covered by any area/terrain. */
 export type LevelBase =
@@ -274,6 +438,16 @@ export interface Level {
   name: string;
   /** Floor elevation of this level in tiles, relative to plan origin. Levels are ordered by elevation (ties forbidden). */
   elevation: Height;
+  /**
+   * Generator 2: depth of the solid foundation under the level's edge (tiles, 0..4), so raised land has thickness
+   * seen from the side. Default 2 on open-air levels (base ground), 0 otherwise; never less than the lowest floor.
+   */
+  foundation?: Height;
+  /**
+   * Generator 2, open-air natural levels: "natural" (default) gives the board a ragged, rounded outline with a strip
+   * of low ground round it; "rect" keeps the full rectangle. Built-up levels (buildings, roads) stay rectangular.
+   */
+  outline?: "natural" | "rect";
   /** Default wall height for this level (tiles). Default 2 (10 ft); used for stacking checks. */
   wallHeight?: Height;
   /** Region of the global grid this level occupies (cells). 1..160 per side. */
@@ -291,6 +465,236 @@ export interface Level {
    * v1 validation reports error "stamp_unsupported" if it is non-empty, and v1 writers omit it.
    */
   stamps?: StampRef[];
+  /** Buildings and enclosures (generator 2): see `Structure`. ≤ PLAN_LIMITS.structuresPerLevel. */
+  structures?: Structure[];
+  notes?: string;
+}
+
+// ───────────────────────────── structures (generator 2, additive 2026-11-20) ─────────────────────────────
+
+/**
+ * Roof strategies (one per roof layer). Built: "gable", "hip", "shed" (also lean-tos), "flat" (deck + parapet),
+ * "skirt" (rings of slope round the top, a mansard or a skirt below the next layer), "stepped" (rings of steps),
+ * "spire" (a tapering shell with flared bands and a finial; "cone" is its alias), "none". Accepted and reported
+ * (`structure_invalid` warning) and built as "flat" until their strategy lands: "dome", "vault".
+ */
+export const ROOF_TYPES = ["gable", "flat", "none", "hip", "shed", "cone", "dome", "skirt", "stepped", "spire", "vault"] as const;
+export type RoofType = (typeof ROOF_TYPES)[number];
+
+/** Pieces attached to a building. Built today: "porch". The others are reported and skipped until they land. */
+export const ATTACHMENT_TYPES = ["porch", "lean_to", "balcony", "outside_stairs"] as const;
+export type AttachmentType = (typeof ATTACHMENT_TYPES)[number];
+
+/**
+ * A building or an enclosure. Buildings and yards are built from a STYLE PROFILE (data: storey height, wall courses,
+ * window rhythm, roof defaults, door lights…) plus palette roles, so a cottage, a keep, a ruin, a desert house or a
+ * modern block differ by data, not code. Every field below overrides the profile.
+ */
+export type Structure = Building | Enclosure;
+
+export interface Building {
+  id: ElementId;
+  kind?: "building";
+  name?: string;              // ≤ 80, shown in the room key
+  key?: string;               // room-key label, unique plan-wide (like Area.key)
+  theme?: ThemeId;
+  /** Style profile id (e.g. "cottage", "keep", "ruin", "modern", "desert", "tower"); default "cottage". */
+  style?: string;
+  /**
+   * Variety seed: choices the plan leaves open (door face, window offset, porch or not, chimney…) are drawn from the
+   * style profile's ranges with this seed (default: from the plan seed and the id). Same seed, same building.
+   */
+  seed?: Seed;
+  /**
+   * Ground plan. Either `wings` (rectangles whose union is the footprint; each carries its own ridge) or `footprint`
+   * (any cell shape). Pitched roofs need wings (or a rect footprint); other footprints get a flat roof (warning).
+   */
+  wings?: Array<{ x: number; y: number; w: number; h: number; ridge?: "ew" | "ns" }>;
+  /**
+   * State of the building: intact, weathered (worn, a few broken pieces, overgrown in places) or ruined (broken wall
+   * tops, breaches, upper storeys partly gone, roof fallen in, rubble and growth at its foot, no lights, doorways
+   * empty). Default: the style's (ruin is ruined).
+   */
+  condition?: "intact" | "weathered" | "ruined";
+  /**
+   * Character: how the request's adjectives bend the form (any style). twisted (the shaft corkscrews storey by
+   * storey), leaning (storeys step progressively one way), crooked (small random offsets, uneven storeys), top_heavy
+   * (upper storeys wider), squat, slender. Overhangs are intended.
+   */
+  character?: Array<"twisted" | "leaning" | "crooked" | "top_heavy" | "squat" | "slender">;
+  /** Shorthand for one wing (wings: [{x, y, w, h}]); ignored when wings, volumes or a footprint is given. */
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  footprint?: Shape;
+  /** Number of storeys (1..12) or one entry per storey, ground first. Default 1. */
+  storeys?: number | Storey[];
+  /** Wall height of each storey above its floor, tiles (default from the style: 2 for a cottage, 3 for a block). */
+  storeyHeight?: number;
+  /**
+   * Massing: boxes of their own height and roof. A volume without `on` stands on the ground (its ground storey
+   * joins the building's ground storey); with `on` it stands on that volume's roof (a tower on a block, a rooftop
+   * shed, a penthouse). When given, `volumes` replaces wings/footprint/storeys/roof at the top level.
+   */
+  volumes?: Volume[];
+  /** Raised base under the building: a plinth, terrace or crag top, with a rim and steps or a ramp to each door. */
+  plinth?: Plinth;
+  /** Corner treatment of every storey: "chamfer" cuts each outer corner cell (an octagon-like plan). */
+  corners?: "square" | "chamfer";
+  roof?: Roof | "none";
+  /** Doors, windows, arches on the outside walls, by face and position. */
+  openings?: StructureOpening[];
+  /** Automatic window rhythm on walls without openings of their own (default from the style). */
+  windows?: "none" | "sparse" | "regular" | "dense";
+  /** Chimney breasts in the wall line: a face and a position along it. */
+  chimneys?: Array<{ side: Side; position?: number }>;
+  attachments?: Attachment[];
+  /** Roof furniture slots (defaults from the style): dormers, a clutter field on flat roofs, a mast, finials. */
+  roofFurniture?: { dormers?: boolean; clutter?: number; mast?: boolean; finial?: boolean; hut?: boolean };
+  /**
+   * The face toward the street, road or square: the door (when none is given), a shopfront and the entrance lights
+   * go there. Default: a face the seed picks.
+   */
+  front?: Side;
+  /**
+   * What the building is for (shop, apartments, office, warehouse, garage, townhouse, tavern, workshop, civic …): an
+   * open word the style maps to weights for massing, roof, elevation and material. Default: the style's mix.
+   */
+  use?: string;
+  /** Ground storey on the front face as a shopfront: wide glazing and a sign band (default from the style). */
+  shopfront?: boolean;
+  /** Light anchors (defaults from the style): lit windows ("warm", "glow" coloured, or "none"), door lights, entrance strips. */
+  lighting?: { windows?: "none" | "warm" | "glow"; colour?: string; doors?: boolean; strips?: boolean };
+  notes?: string;
+  readAloud?: string;
+  encounter?: string;
+  tags?: string[];
+}
+
+export interface Storey {
+  /** Wall style of this storey (default from the style profile); "none" = posts only / open. */
+  walls?: WallStyle | "none";
+  /** Ground storey only: a lower course of another style (stone footing under timber); "none" = no footing. */
+  footing?: WallStyle | "none";
+  /** Floor of this storey (default from the style profile / theme). */
+  floor?: Material;
+  windows?: "none" | "sparse" | "regular" | "dense";
+  /** Cells this storey steps in on every side from the one below (0..2; default 0). Stepping out is reserved. */
+  inset?: number;
+  /** Wall height of this storey (tiles; default the building's / volume's storeyHeight). */
+  height?: number;
+  /** What covers the ring a set-in leaves: "skirt" (a ring of roof slope), "plain" ledge, "crenellated" ledge. */
+  seam?: "skirt" | "plain" | "crenellated";
+}
+
+/** One box of a building's massing. */
+export interface Volume {
+  /** Short local id (unique within the building), e.g. "main", "tower". */
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Stand on this volume's roof (its cells must lie on that volume's top). */
+  on?: string;
+  storeys?: number | Storey[];
+  storeyHeight?: number;
+  corners?: "square" | "chamfer";
+  roof?: Roof | "none";
+  /** Ridge of a pitched roof (default along the longer side). */
+  ridge?: "ew" | "ns";
+}
+
+/** A raised base. Its top is the building's ground floor; its sides are built from the face material's cliff roles. */
+export interface Plinth {
+  /** Tiles above the ground (0.5..6). */
+  height: number;
+  /** Cells of base around the footprint (1..4, default 1). */
+  margin?: number;
+  /** Faces the base reaches out from (default all four); a stoop on a terrace reaches out on the street face only. */
+  sides?: Side[];
+  /** Floor material of the base top; its cliff/fill roles build the sides (default from the style). */
+  face?: Material;
+  /** Rim on the base edge: a wall style, or "none" (default from the style). */
+  rim?: WallStyle | "none";
+  /** Way up to each door: "steps" (default) or "none". */
+  approach?: "steps" | "none";
+}
+
+export interface Roof {
+  /** The first (or only) layer's strategy. */
+  type: RoofType;
+  /**
+   * Further layers stacked on this one, bottom to top: a skirt or stepped layer leaves a flat top the next layer
+   * stands on (e.g. [{type:"skirt"}, {type:"spire"}] for a tower). The first layer is this Roof itself.
+   */
+  layers?: RoofLayer[];
+  /** skirt / stepped: courses (rings) of the layer (default 1). spire: flared bands (default 1). */
+  courses?: number;
+  /** shed: the low side (default S). */
+  low?: Side;
+  /** Ridge direction for pitched roofs (default: along each wing's longer side). */
+  ridge?: "ew" | "ns";
+  /** Roof kit (palette roles roof.<style>.*), e.g. "slate", "thatch", "shingle"; default from the style profile. */
+  style?: string;
+  /** Attic deck on the top storey's walls (the pitched roof sits on it). Default from the style profile. */
+  deck?: boolean;
+  /** 0..0.6: fraction of roof pieces built broken (ruins). Default 0: an intact, continuous roof. */
+  broken?: number;
+  /** Flat roofs: parapet wall style (default from the style profile); "none" = no parapet. */
+  parapet?: WallStyle | "none";
+}
+
+/** One stacked roof layer (see Roof.layers). */
+export interface RoofLayer {
+  type: RoofType;
+  style?: string;
+  ridge?: "ew" | "ns";
+  courses?: number;
+  low?: Side;
+  parapet?: WallStyle | "none";
+}
+
+export interface StructureOpening {
+  kind: OpeningKind;
+  /** Outside face of the building. */
+  side: Side;
+  /** 0..1 along that face's longest straight run (default 0.5). */
+  position?: number;
+  /** 0 = ground storey (default). */
+  storey?: number;
+  width?: 1 | 2 | 3;
+}
+
+export interface Attachment {
+  type: AttachmentType;
+  side: Side;
+  /** 0..1 along that face (default 0.5). */
+  position?: number;
+  /** Cells along the face (1..8, default 3). */
+  width?: number;
+  /** Cells out from the face (1..3, default 2). */
+  depth?: number;
+  floor?: Material;
+  /** Porch roof: "flat" (default) or "none". */
+  roof?: "flat" | "none";
+}
+
+/** A yard: floor, a fence or wall around it, and gates. Dressing of other areas stays out of it. */
+export interface Enclosure {
+  id: ElementId;
+  kind: "enclosure";
+  name?: string;
+  key?: string;
+  theme?: ThemeId;
+  /** Yard cells: rect or orthogonal polygon. */
+  shape: Shape;
+  /** Fence / wall style (default "fence"); "none" = an open yard. */
+  wall?: WallStyle | "none";
+  gates?: Array<{ side: Side; position?: number; width?: 1 | 2 | 3 }>;
+  /** Yard floor (default: keep the ground). */
+  floor?: Material;
   notes?: string;
 }
 
@@ -341,7 +745,7 @@ export interface Label {
 
 export interface MapPlan {
   schema: typeof PLAN_SCHEMA;
-  generator: typeof GENERATOR_VERSION;
+  generator: GeneratorVersion;
   id: string;              // uuid v4, assigned by app on creation
   title: string;           // ≤ 80
   summary?: string;        // ≤ 1000
@@ -392,7 +796,13 @@ export type PlanIssueCode =
   | "feature_not_at_wall"     // shelf/wardrobe-type feature not touching any wall
   | "seat_detached"           // chair/stool/bench near a table but not touching it
   | "area_sealed"             // an area has no opening, passage or link at all
-  | "route_dead_end";         // a route corridor never opens into its destination
+  | "route_dead_end"          // a route corridor never opens into its destination
+  | "no_effect"               // an element changes nothing (terrain op on rock, zone floorHeight…); warning with the fix
+  | "bridge_unanchored"       // a bridge does not reach walkable floor at both ends
+  | "stairs_invalid"          // a stairs op is not on one row/column, or rises more than 1 tile per cell
+  | "water_level"             // dry floor lies below the level's water surface (TaleSpire's water plane would flood it)
+  | "structure_invalid"       // a building or enclosure that cannot be built as written (overlap, no face, door onto nothing…)
+  | "feature_moved";          // a feature was moved to where it belongs (a vehicle on a pavement or across a road → the kerb lane); info
 
 export interface PlanIssue {
   severity: Severity;
@@ -435,6 +845,7 @@ export const PLAN_LIMITS = {
   featuresPerLevel: 2000,
   terrainOpsPerLevel: 64,
   labelsPerLevel: 200,
+  structuresPerLevel: 32,
   links: 64,
   polygonPoints: 64,
   maskSide: 64,

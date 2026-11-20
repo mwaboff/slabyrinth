@@ -125,6 +125,10 @@ export function asciiLevel(
   }
 
   const deepIdx = lvl.materials.indexOf("water_deep") + 1;
+  const lavaIdx = lvl.materials.indexOf("lava") + 1;
+  const lowSeen = new Set<number>();
+  const highSeen = new Set<number>();
+  const baseSeen = new Set<string>();
   const view = (gx: number, gy: number): CellView => {
     const i = cellI(gx, gy);
     if (i < 0) return { base: "", feat: null, featId: null };
@@ -136,9 +140,18 @@ export function asciiLevel(
     else if (linkUp.has(i) || fl & CELL_FLAG.LINK) base = ">";
     else if (fl & CELL_FLAG.STAIRWELL || linkDown.has(i)) base = "<";
     else if (fl & CELL_FLAG.NO_FLOOR) base = "O";
+    else if (fl & CELL_FLAG.BRIDGE) base = "=";
     else if (fl & CELL_FLAG.WATER) base = deepIdx > 0 && lvl.cells.material[i] === deepIdx ? "W" : "~";
+    else if (lavaIdx > 0 && lvl.cells.material[i] === lavaIdx) base = "%";
     else if (fl & CELL_FLAG.PATH) base = ",";
-    else base = ".";
+    else {
+      const q = lvl.cells.height[i] as number;
+      // raised floor in half tiles as a digit (tiers read at a glance), other raised heights "^", sunken "_"
+      base = q < 0 ? "_" : q > 0 ? (q % 2 === 0 && q <= 18 ? String(q / 2) : "^") : ".";
+      if (q < 0) lowSeen.add(q);
+      if (q > 0 && base === "^") highSeen.add(q);
+    }
+    if (gx >= rx0 && gx < rx1 && gy >= ry0 && gy < ry1) baseSeen.add(base);
     const f = featAt.get(i);
     return { base, feat: f && base !== ">" && base !== "<" ? f.ch : null, featId: f ? f.id : null };
   };
@@ -157,7 +170,7 @@ export function asciiLevel(
   }
   const maxW = opts.maxDoubleWidth ?? 60;
   const usedEdgeChars = new Set<string>();
-  const seen = { ledge: false };
+  const seen = { ledge: false, stair: false };
 
   if (rw > maxW) {
     // 1 char per cell, no walls
@@ -204,6 +217,10 @@ export function asciiLevel(
     };
     const edgeChar = (e: { kind: number; ref: number }, wallCh: string, a: CellView, b: CellView): string => {
       if (e.kind === EDGE.WALL) return wallCh;
+      if (e.kind === EDGE.STAIR) {
+        seen.stair = true;
+        return "/";
+      }
       if (e.kind === EDGE.LEDGE) {
         seen.ledge = true;
         return ":";
@@ -309,7 +326,12 @@ export function asciiLevel(
               i >= 0 &&
               lvl.cells.area[i] === ai + 1 &&
               v.feat === null &&
-              (v.base === "." || v.base === "," || v.base === "~");
+              (v.base === "." ||
+                v.base === "," ||
+                v.base === "~" ||
+                v.base === "_" ||
+                v.base === "^" ||
+                /^[1-9]$/.test(v.base));
           } else {
             ok = vEdge(rx0 + col / 2, ay).kind === EDGE.NONE;
           }
@@ -334,7 +356,22 @@ export function asciiLevel(
     const parts: string[] = [];
     for (const ch of ["d", "D", "L", "s", "a", "w", "p"])
       if (usedEdgeChars.has(ch)) parts.push(`${ch} ${OPENING_NAME[ch] as string}`);
-    if (seen.ledge) parts.push(": ledge");
+    if (seen.ledge) parts.push(": ledge/cliff (height step between cells)");
+    const fmtH = (qs: Set<number>): string =>
+      [...qs]
+        .sort((a, b) => a - b)
+        .map((q) => (q > 0 ? "+" : "") + String(q / 4))
+        .join(" ");
+    if (lowSeen.size > 0 && baseSeen.has("_")) parts.push(`_ floor below the level floor (${fmtH(lowSeen)})`);
+    const digits = [...baseSeen].filter((c) => /^[1-9]$/.test(c)).sort();
+    if (digits.length > 0) parts.push(`${digits.join("")} raised floor in half tiles (1 = +0.5, 2 = +1 …)`);
+    if (highSeen.size > 0 && baseSeen.has("^")) parts.push(`^ raised floor (${fmtH(highSeen)})`);
+    if (seen.stair) parts.push("/ steps (walkable stair between heights)");
+    if (baseSeen.has("%")) parts.push("% lava");
+    if (baseSeen.has("~")) parts.push("~ shallow water");
+    if (baseSeen.has("W")) parts.push("W deep water");
+    if (baseSeen.has("=")) parts.push("= bridge deck");
+    if (baseSeen.has("O")) parts.push("O hole / no floor");
     for (const [ch, name] of legendFeat) parts.push(`${ch} ${name}`);
     if (parts.length > 0) lines.push(`legend: ${parts.join(", ")}`);
     for (const n of linkNotes) lines.push(`link ${n}`);

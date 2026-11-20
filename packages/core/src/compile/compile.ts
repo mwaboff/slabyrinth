@@ -28,6 +28,8 @@ export interface CompileOptions extends ChunkEncodeOptions {
   skipVerify?: boolean;
   /** The plan: lets verify reuse the resolver's WalkGraph and skip problems the plan-level pass already reports. */
   plan?: MapPlan;
+  /** Paste layers to leave out of the build (Placement.layer), e.g. ["roof"] for a see-inside build. */
+  omitLayers?: string[];
 }
 
 /** realize → verify, shared by compile and estimate. Verify diagnostics are appended to the set's diagnostics. */
@@ -41,9 +43,16 @@ function realizeAndVerify(
     entryLevelId?: LevelId;
     skipVerify?: boolean;
     plan?: MapPlan;
+    omitLayers?: string[];
   },
 ): RealizedSet {
-  const ropts: { levels?: LevelId[]; seed?: number; orientation?: OrientationCalibration } = {};
+  const ropts: {
+    levels?: LevelId[];
+    seed?: number;
+    orientation?: OrientationCalibration;
+    omitLayers?: string[];
+  } = {};
+  if (opts.omitLayers) ropts.omitLayers = opts.omitLayers;
   if (opts.levels) ropts.levels = opts.levels;
   if (opts.seed !== undefined) ropts.seed = opts.seed;
   if (opts.orientation) ropts.orientation = opts.orientation;

@@ -14,5 +14,6 @@ LEVEL l1 "l1" elev=0 bounds=0,0 30x20 base=solid
   OPEN o3 door mask|hall @0.5 -> edge v 5,12..13
   WALL screen add 3,3>3,6 style=iron_bars h=1
   TERR dais height rect 14,4 3x2 set=0.5
-ISSUES 1
+ISSUES 2
+  warning no_effect dais: terrain op "dais" (height, layer under) changed nothing: layer "under" runs before the areas, when every cell of this level is still rock, and this map uses generator 1, where an under height op only changes cells that are already open (hint: use layer "over" (applied after the areas) or give the area a floorHeight; for a crevasse use the chasm terrain op)
   warning area_disconnected mask @7,12: area "mask" is split into separate pieces (2 of 9 cells cut off, e.g. 7,12) (hint: a later area or corridor cuts through it; reorder areas or adjust the shapes)

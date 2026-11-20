@@ -18,3 +18,19 @@ export {
   type WalkMode,
   type LevelCell,
 } from "./playability";
+export { cliffEdges, cliffRuns, type CliffEdge } from "./cliffs";
+export {
+  structureRuinMeasures,
+  weatherMeasures,
+  WEATHER_MINIMUMS,
+  type RuinMeasures,
+  type WeatherMeasures,
+} from "./ruin";
+export {
+  designSignature,
+  structureSignature,
+  structureSilhouette,
+  structureTone,
+  type BuildingDesign,
+  type DesignSpace,
+} from "./structureVariety";

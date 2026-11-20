@@ -1,0 +1,7 @@
+signage 5,7 1x1 r180 wall=S
+crate 4,7 1x1 r180
+barrel 6,7 1x1 r180
+small_detail 3,6 1x1 r180
+signage 9,0 1x1 r90 wall=E
+crate 9,1 1x1 r90
+small_detail 8,2 1x1 r90

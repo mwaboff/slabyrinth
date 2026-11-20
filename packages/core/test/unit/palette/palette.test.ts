@@ -37,6 +37,8 @@ describe("bundled palette data", () => {
       .sort();
     expect(files).toEqual([
       "cave.json",
+      "city.json",
+      "forest.json",
       "generic.json",
       "outdoor.json",
       "stone_dungeon.json",
@@ -56,6 +58,8 @@ describe("bundled palette data", () => {
     expect(issues).toEqual([]);
     expect(Object.keys(palettes).sort()).toEqual([
       "cave",
+      "city",
+      "forest",
       "generic",
       "outdoor",
       "stone_dungeon",
@@ -63,7 +67,9 @@ describe("bundled palette data", () => {
     ]);
     let uuids = 0;
     for (const p of Object.values(palettes)) {
-      if (p.id !== "generic") expect(p.extends).toBe("generic");
+      // every theme reaches generic (forest extends outdoor, which extends generic)
+      if (p.id !== "generic")
+        expect(p.extends === "generic" || palettes[p.extends ?? ""]?.extends === "generic").toBe(true);
       for (const [role, def] of Object.entries(p.roles)) {
         if (def.variants.length === 0) expect(def.fallback, role).toBeTruthy();
         for (const v of def.variants) {
@@ -102,13 +108,16 @@ describe("role resolution and the fallback chain", () => {
     expect(themeChain(cat.palettes, "cave")).toEqual(["cave", "generic"]);
   });
 
-  it("alias roles resolve from the area's theme (floor.marble → stone_tile → flagstone)", () => {
-    const r = resolveRole(cat, "stone_dungeon", "floor.marble").resolution;
+  it("alias roles resolve from the area's theme (floor.brick → flagstone)", () => {
+    const r = resolveRole(cat, "stone_dungeon", "floor.brick").resolution;
     expect(r?.role).toBe("floor.flagstone");
     expect(r?.paletteId).toBe("stone_dungeon");
-    expect(r?.path).toEqual(["floor.marble", "floor.stone_tile", "floor.flagstone"]);
-    const w = resolveRole(cat, "wood_town", "wall.stone").resolution;
-    expect(w?.paletteId).toBe("wood_town"); // wall.stone → wall.wall in the wooden kit
+    expect(r?.path).toEqual(["floor.brick", "floor.flagstone"]);
+    // marble and stone tile have their own assets since the 2026-11-19 palette expansion
+    expect(resolveRole(cat, "stone_dungeon", "floor.marble").resolution?.role).toBe("floor.marble");
+    const w = resolveRole(cat, "wood_town", "wall.wood").resolution;
+    expect(w?.paletteId).toBe("wood_town"); // wall.wood → wall.wall in the wooden kit
+    expect(resolveRole(cat, "wood_town", "wall.stone").resolution?.role).toBe("wall.stone"); // real stone wall
   });
 
   it("roles a theme lacks come from generic", () => {
@@ -160,9 +169,12 @@ describe("role resolution and the fallback chain", () => {
     expect(o.resolution?.variants.map((v) => v.name)).toEqual(["Dungeon Wall 01"]);
   });
 
-  it("vocabulary gaps are reported as missing", () => {
-    expect(resolveRole(cat, "outdoor", "feature.pool").resolution).toBeNull();
-    expect(resolveRole(cat, "stone_dungeon", "feature.chandelier").resolution).toBeNull();
+  it("vocabulary without its own asset falls back to a stand-in; unknown roles are missing", () => {
+    expect(resolveRole(cat, "outdoor", "feature.pool").resolution?.role).toBe("feature.fountain");
+    expect(resolveRole(cat, "stone_dungeon", "feature.chandelier").resolution?.role).toBe(
+      "feature.candelabra",
+    );
+    expect(resolveRole(cat, "stone_dungeon", "feature.no_such_thing").resolution).toBeNull();
     expect(resolveRole(cat, "stone_dungeon", "link.spiral_stairs").resolution?.role).toBe("link.ladder");
   });
 });

@@ -1,0 +1,174 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 2,
+  "id": "6a1d3f58-2e4b-4c97-8b05-9e3f7a2c1d46",
+  "title": "Old Stones Glade v4 (set-dressing test)",
+  "kind": "outdoor",
+  "seed": 20261122,
+  "theme": "forest",
+  "summary": "Outdoor proof, round 3: a stone circle on a grassy mound, a rocky knoll with dressed cliffs, a brook with reeds, groves along the edges and a path through a deliberate clearing.",
+  "levels": [
+    {
+      "id": "g",
+      "name": "Old Stones Glade",
+      "elevation": 0,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 30
+      },
+      "base": {
+        "type": "ground",
+        "material": "grass"
+      },
+      "areas": [
+        {
+          "id": "woods",
+          "kind": "zone",
+          "name": "Pine Woods",
+          "key": "1",
+          "shape": {
+            "type": "rect",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 30
+          }
+        },
+        {
+          "id": "knoll",
+          "kind": "zone",
+          "name": "Rocky Knoll",
+          "key": "2",
+          "shape": {
+            "type": "rect",
+            "x": 26,
+            "y": 1,
+            "w": 12,
+            "h": 9
+          }
+        },
+        {
+          "id": "glade",
+          "kind": "zone",
+          "name": "Old Stones",
+          "key": "3",
+          "shape": {
+            "type": "circle",
+            "cx": 12,
+            "cy": 18,
+            "r": 5.5
+          },
+          "notes": "The old stones on their mound; the boss rises at the centre."
+        },
+        {
+          "id": "camp",
+          "kind": "zone",
+          "name": "Hunters' Camp",
+          "key": "4",
+          "shape": {
+            "type": "rect",
+            "x": 27,
+            "y": 15,
+            "w": 8,
+            "h": 6
+          }
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [],
+      "terrain": [
+        {
+          "id": "path",
+          "op": "path",
+          "points": [
+            [0, 12],
+            [20, 12],
+            [20, 21],
+            [39, 21]
+          ],
+          "width": 2,
+          "material": "dirt",
+          "jitter": 0.3,
+          "kerb": true
+        },
+        {
+          "id": "mound",
+          "op": "platform",
+          "shape": {
+            "type": "circle",
+            "cx": 12,
+            "cy": 18,
+            "r": 5.5
+          },
+          "tiers": 2,
+          "rise": 0.5,
+          "inset": 1,
+          "material": "grass",
+          "stairs": ["N", "E"]
+        },
+        {
+          "id": "knoll_top",
+          "op": "platform",
+          "shape": {
+            "type": "rect",
+            "x": 26,
+            "y": 1,
+            "w": 12,
+            "h": 9
+          },
+          "tiers": 1,
+          "rise": 1,
+          "material": "grass",
+          "stairs": ["S"]
+        },
+        {
+          "id": "brook",
+          "op": "chasm",
+          "points": [
+            [0, 26],
+            [14, 27],
+            [26, 25],
+            [39, 27]
+          ],
+          "width": 2,
+          "depth": 0.5,
+          "floor": "water_shallow",
+          "meander": 0.4
+        },
+        {
+          "id": "glade_dress",
+          "op": "dress",
+          "area": "glade",
+          "preset": "ritual_circle",
+          "density": 0.7
+        },
+        {
+          "id": "camp_dress",
+          "op": "dress",
+          "area": "camp",
+          "preset": "campsite",
+          "density": 0.7
+        },
+        {
+          "id": "knoll_dress",
+          "op": "dress",
+          "area": "knoll",
+          "preset": "natural_clusters",
+          "density": 0.9
+        },
+        {
+          "id": "woods_dress",
+          "op": "dress",
+          "area": "woods",
+          "preset": "forest",
+          "density": 0.9
+        }
+      ],
+      "labels": []
+    }
+  ],
+  "links": []
+}

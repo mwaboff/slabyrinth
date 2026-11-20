@@ -8,6 +8,103 @@
     "wallStyle": "wall"
   },
   "roles": {
+    "crenel.default": {
+      "variants": [
+        {
+          "asset": "d5949877-7a48-4420-b211-7fcf95ac4d89",
+          "name": "Castle Ruins Crenellation - Small",
+          "geom": {
+            "size": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.25,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.accent_light": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "5b499cb9-0ee7-4fc1-a5f2-a2f951522a62",
+          "name": "Brazier",
+          "geom": {
+            "size": {
+              "x": 0.7294,
+              "y": 0.7244,
+              "z": 0.726
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.3622,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "84eb13e3-8e8f-4d1d-8151-b8d196f0778f",
+          "name": "Candleabra Triple",
+          "geom": {
+            "size": {
+              "x": 0.3621,
+              "y": 1.1983,
+              "z": 0.2337
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.5991,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "3ff3d2ba-827b-4270-b288-dfd93c7031cd",
+          "name": "Floor Torch",
+          "geom": {
+            "size": {
+              "x": 0.3574,
+              "y": 1.3584,
+              "z": 0.3524
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.688,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
     "feature.altar": {
       "rotation": "facing",
       "variants": [
@@ -82,6 +179,320 @@
             1
           ],
           "variant": "skeleton",
+          "weight": 0.5
+        }
+      ]
+    },
+    "feature.cluster_tall": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "c538277b-6116-4ff8-a493-2525d80055bb",
+          "name": "Castle Ruins Pillar - Base",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.75,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "parts": [
+            {
+              "asset": "40a7e9b8-d7f2-4e2b-92af-b0fff3021368",
+              "name": "Castle Ruins Pillar - Mid",
+              "geom": {
+                "size": {
+                  "x": 1,
+                  "y": 0.5,
+                  "z": 1
+                },
+                "originAt": "minCorner",
+                "boundsCenter": {
+                  "x": 0.5,
+                  "y": 0.25,
+                  "z": 0.5
+                },
+                "lengthAxis": "square"
+              },
+              "offset": {
+                "y": 1.5
+              }
+            },
+            {
+              "asset": "40a7e9b8-d7f2-4e2b-92af-b0fff3021368",
+              "name": "Castle Ruins Pillar - Mid",
+              "geom": {
+                "size": {
+                  "x": 1,
+                  "y": 0.5,
+                  "z": 1
+                },
+                "originAt": "minCorner",
+                "boundsCenter": {
+                  "x": 0.5,
+                  "y": 0.25,
+                  "z": 0.5
+                },
+                "lengthAxis": "square"
+              },
+              "offset": {
+                "y": 2
+              }
+            },
+            {
+              "asset": "ed127e54-5d15-409f-b2d6-96e3d8dd67fc",
+              "name": "Castle Ruins Pillar - Top",
+              "geom": {
+                "size": {
+                  "x": 1,
+                  "y": 0.5,
+                  "z": 1
+                },
+                "originAt": "minCorner",
+                "boundsCenter": {
+                  "x": 0.5,
+                  "y": 0.25,
+                  "z": 0.5
+                },
+                "lengthAxis": "square"
+              },
+              "offset": {
+                "y": 2.5
+              }
+            }
+          ]
+        },
+        {
+          "asset": "3e3b2d05-baf8-4140-88f1-88b13c6e35b4",
+          "name": "castle pillar",
+          "geom": {
+            "size": {
+              "x": 0.5931,
+              "y": 1.9977,
+              "z": 0.5897
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9999,
+              "z": -0.0035
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.edge_dressing": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "a990c316-75dd-45dc-9cc3-cfb8bde0a9ff",
+          "name": "Castle Ruins Rockpile",
+          "geom": {
+            "size": {
+              "x": 0.8213,
+              "y": 0.4932,
+              "z": 0.8327
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2466,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "923bc5e3-a845-403f-93dd-035dbd276279",
+          "name": "Rock - Small",
+          "geom": {
+            "size": {
+              "x": 0.3981,
+              "y": 0.3439,
+              "z": 0.5074
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1719,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.formation": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "6315be67-ba91-4ecd-9fbf-6c087354c529",
+          "name": "cavein_01",
+          "geom": {
+            "size": {
+              "x": 1.9727,
+              "y": 2.0195,
+              "z": 2.0299
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.013,
+              "y": 1.0195,
+              "z": -0.0052
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        },
+        {
+          "asset": "aee149af-2101-4078-8323-1a32fb177d62",
+          "name": "Bone Pile 2x2",
+          "geom": {
+            "size": {
+              "x": 1.7829,
+              "y": 0.2628,
+              "z": 1.8443
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1314,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "weight": 0.5
+        }
+      ]
+    },
+    "feature.ground_cover": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "6ba81f8e-9a9c-4745-990f-2cb27bb29cfc",
+          "name": "Rock pebbles 01",
+          "geom": {
+            "size": {
+              "x": 0.2708,
+              "y": 0.0807,
+              "z": 0.9577
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0361,
+              "y": 0.0412,
+              "z": -0.0211
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.2
+        },
+        {
+          "asset": "737d0f69-857d-481f-949a-e8b4930b11ac",
+          "name": "Skeleton 01",
+          "geom": {
+            "size": {
+              "x": 0.4595,
+              "y": 0.1659,
+              "z": 1.206
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.083,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.4
+        }
+      ]
+    },
+    "feature.landmark": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "0a5aad94-8977-4e42-960c-a72159b10e6c",
+          "name": "statue_lg_hooded_01",
+          "geom": {
+            "size": {
+              "x": 1.6773,
+              "y": 4.0582,
+              "z": 1.2522
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0235,
+              "y": 2.0506,
+              "z": 0.112
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "c1f111c4-ff9f-4d53-b42c-315148335b57",
+          "name": "Dragon Statue reveal",
+          "geom": {
+            "size": {
+              "x": 1.1271,
+              "y": 2.9485,
+              "z": 1.0598
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0067,
+              "y": 1.486,
+              "z": -0.0702
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
           "weight": 0.5
         }
       ]
@@ -161,6 +572,78 @@
         }
       ]
     },
+    "feature.small_detail": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "963eb4bf-02ef-4890-ae0d-1b1e8328c90d",
+          "name": "Skull single v1",
+          "geom": {
+            "size": {
+              "x": 0.1461,
+              "y": 0.1483,
+              "z": 0.2057
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0018,
+              "y": 0.0846,
+              "z": 0.0018
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "d4b9003e-f80b-4304-8af1-6c456b1ff192",
+          "name": "Candle",
+          "geom": {
+            "size": {
+              "x": 0.1413,
+              "y": 0.3203,
+              "z": 0.1847
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1602,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "6ba81f8e-9a9c-4745-990f-2cb27bb29cfc",
+          "name": "Rock pebbles 01",
+          "geom": {
+            "size": {
+              "x": 0.2708,
+              "y": 0.0807,
+              "z": 0.9577
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0361,
+              "y": 0.0412,
+              "z": -0.0211
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.2
+        }
+      ]
+    },
     "feature.statue": {
       "rotation": "facing",
       "variants": [
@@ -185,6 +668,266 @@
             1,
             1
           ]
+        }
+      ]
+    },
+    "feature.tall_marker": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "c538277b-6116-4ff8-a493-2525d80055bb",
+          "name": "Castle Ruins Pillar - Base",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.75,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "parts": [
+            {
+              "asset": "40a7e9b8-d7f2-4e2b-92af-b0fff3021368",
+              "name": "Castle Ruins Pillar - Mid",
+              "geom": {
+                "size": {
+                  "x": 1,
+                  "y": 0.5,
+                  "z": 1
+                },
+                "originAt": "minCorner",
+                "boundsCenter": {
+                  "x": 0.5,
+                  "y": 0.25,
+                  "z": 0.5
+                },
+                "lengthAxis": "square"
+              },
+              "offset": {
+                "y": 1.5
+              }
+            },
+            {
+              "asset": "40a7e9b8-d7f2-4e2b-92af-b0fff3021368",
+              "name": "Castle Ruins Pillar - Mid",
+              "geom": {
+                "size": {
+                  "x": 1,
+                  "y": 0.5,
+                  "z": 1
+                },
+                "originAt": "minCorner",
+                "boundsCenter": {
+                  "x": 0.5,
+                  "y": 0.25,
+                  "z": 0.5
+                },
+                "lengthAxis": "square"
+              },
+              "offset": {
+                "y": 2
+              }
+            },
+            {
+              "asset": "ed127e54-5d15-409f-b2d6-96e3d8dd67fc",
+              "name": "Castle Ruins Pillar - Top",
+              "geom": {
+                "size": {
+                  "x": 1,
+                  "y": 0.5,
+                  "z": 1
+                },
+                "originAt": "minCorner",
+                "boundsCenter": {
+                  "x": 0.5,
+                  "y": 0.25,
+                  "z": 0.5
+                },
+                "lengthAxis": "square"
+              },
+              "offset": {
+                "y": 2.5
+              }
+            }
+          ]
+        },
+        {
+          "asset": "3e3b2d05-baf8-4140-88f1-88b13c6e35b4",
+          "name": "castle pillar",
+          "geom": {
+            "size": {
+              "x": 0.5931,
+              "y": 1.9977,
+              "z": 0.5897
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9999,
+              "z": -0.0035
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "54f1eaf1-63f2-4665-80f5-3287bd7cf79d",
+          "name": "Knight Statue",
+          "geom": {
+            "size": {
+              "x": 0.5885,
+              "y": 1.9812,
+              "z": 0.5833
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9906,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
+        }
+      ]
+    },
+    "feature.undergrowth": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "863ba7a4-742b-4a35-b451-bc384621ce83",
+          "name": "Bone Pile 01",
+          "geom": {
+            "size": {
+              "x": 0.8351,
+              "y": 0.1563,
+              "z": 0.8791
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.0781,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "3515d28e-927e-49f5-bdac-f0845e5db22b",
+          "name": "Skull Pile",
+          "geom": {
+            "size": {
+              "x": 0.483,
+              "y": 0.4733,
+              "z": 0.4696
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2366,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "a990c316-75dd-45dc-9cc3-cfb8bde0a9ff",
+          "name": "Castle Ruins Rockpile",
+          "geom": {
+            "size": {
+              "x": 0.8213,
+              "y": 0.4932,
+              "z": 0.8327
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2466,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.wall_dressing": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "8cadf11c-6b5f-4927-b5df-e4b3147e0ab2",
+          "name": "banner_01",
+          "geom": {
+            "size": {
+              "x": 1.0388,
+              "y": 1.3218,
+              "z": 0.2342
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0078,
+              "y": 0.6611,
+              "z": -0.0281
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "f3bf6600-4d7f-42d2-b689-c90082ecd874",
+          "name": "hell_chain_v2",
+          "geom": {
+            "size": {
+              "x": 0.3814,
+              "y": 2.074,
+              "z": 2.5035
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1.1289,
+              "z": 1.3197
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            3
+          ],
+          "facing": {
+            "mountsOn": "S"
+          }
         }
       ]
     },
@@ -584,6 +1327,175 @@
             2,
             1
           ]
+        }
+      ]
+    },
+    "ruin_block.default": {
+      "variants": [
+        {
+          "asset": "0252d209-c23c-4f72-aa8b-51ed0dc09f3a",
+          "name": "md_stairblock_01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ruin_block.stone": {
+      "variants": [
+        {
+          "asset": "0252d209-c23c-4f72-aa8b-51ed0dc09f3a",
+          "name": "md_stairblock_01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ruin_prop.default": {
+      "variants": [
+        {
+          "asset": "bab76375-3286-4eec-a9b1-b41558166773",
+          "name": "Statue 003",
+          "geom": {
+            "size": {
+              "x": 0.5932,
+              "y": 1.2077,
+              "z": 0.4557
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0006,
+              "y": 0.6184,
+              "z": 0.002
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "b72e8de0-72a6-41d5-b5f3-223c4223d211",
+          "name": "statue_002",
+          "geom": {
+            "size": {
+              "x": 0.4766,
+              "y": 1.7033,
+              "z": 0.6451
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0018,
+              "y": 0.8687,
+              "z": -0.0024
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        },
+        {
+          "asset": "554030ee-573a-46f4-bba0-7f176dd88818",
+          "name": "abandoned_village_roof_beam_large_01",
+          "geom": {
+            "size": {
+              "x": 2.0208,
+              "y": 0.5417,
+              "z": 0.5347
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0035,
+              "y": 0.2847,
+              "z": 0.0174
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "24313f42-23ee-412d-8469-9fd7179202a1",
+          "name": "Broken Dark Barrel 01",
+          "geom": {
+            "size": {
+              "x": 0.7335,
+              "y": 0.8797,
+              "z": 0.7618
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.4398,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
+        },
+        {
+          "asset": "3ca6cc0f-97b5-49ee-9cc8-52acf64aa330",
+          "name": "wagon_wheel_01",
+          "geom": {
+            "size": {
+              "x": 1.0544,
+              "y": 0.3129,
+              "z": 1.0652
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0011,
+              "y": 0.1261,
+              "z": 0.0022
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
         }
       ]
     },

@@ -7,10 +7,13 @@
  *   slabyrinth compile <plan.json> [--out <dir>] [--palettes <dir>] [--orientation <file>] [--catalog <catalog.json>]
  *                      [--fill <0..1>] [--alignment multi-chunk|always|none] [--layout stacked|side_by_side] [--json]
  *                      [--force] (write slabs despite verify errors) [--verbose] (also print info diagnostics)
+ *                      [--omit-layer roof] (leave a paste layer out: roof, storey:1 …; repeatable as a comma list)
  *   slabyrinth decode <slab | @file | -> [--catalog <catalog.json>] [--json]
  *   slabyrinth encode <assets.json | -> [--fenced]
  *   slabyrinth catalog [--install <dir>] [--cached <catalog.json>] [--out <catalog.json>] [--json]
  *   slabyrinth calibration [--out <file>]
+ *   slabyrinth review <plan.json> [--no-build] [--json] [--palettes <dir>]  (design review: advice, never errors;
+ *                      builds the plan so substituted pieces are summarised, unless --no-build)
  *
  * node:* imports are allowed only in src/cli. Exit codes: 0 ok, 1 errors in the input, 2 usage.
  */
@@ -39,6 +42,7 @@ import {
   degreesToRot,
 } from "../slab/index";
 import { asciiView } from "../text/index";
+import { designReviewText, reviewDesign } from "../review/index";
 import { hostSteamHints, nodeReadonlyFs } from "./nodeFs";
 
 export interface CliIo {
@@ -70,7 +74,7 @@ function parseArgs(argv: string[]): Args {
       else if (
         next !== undefined &&
         !next.startsWith("--") &&
-        !["json", "fenced", "check", "force", "verbose"].includes(k)
+        !["json", "fenced", "check", "force", "verbose", "no-build"].includes(k)
       ) {
         a.flags[k] = next;
         i++;
@@ -146,13 +150,19 @@ function cmdCompile(a: Args, io: CliIo): number {
   const oPath = flag(a, "orientation");
   const orientation = loadOrientation(oPath ? readJson(oPath, io) : undefined);
   for (const i of orientation.issues) io.err(`orientation ${i.severity}: ${i.message}`);
-  const opts: ChunkOptions & { orientation: typeof orientation.orientation } = {
+  const opts: ChunkOptions & { orientation: typeof orientation.orientation; omitLayers?: string[] } = {
     orientation: orientation.orientation,
   };
   const fill = flag(a, "fill");
   if (fill) opts.fill = Number(fill);
   const al = flag(a, "alignment");
   if (al) opts.alignment = al as NonNullable<ChunkOptions["alignment"]>;
+  const omit = flag(a, "omit-layer");
+  if (omit)
+    opts.omitLayers = omit
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
   const lay = flag(a, "layout");
   if (lay) opts.levelLayout = lay as NonNullable<ChunkOptions["levelLayout"]>;
   const resolved = resolvePlan(plan);
@@ -195,6 +205,21 @@ function cmdCompile(a: Args, io: CliIo): number {
     );
   }
   return errors.length && !force ? 1 : 0;
+}
+
+function cmdReview(a: Args, io: CliIo): number {
+  const path = a._[1];
+  if (!path) throw new UsageError("review <plan.json> [--no-build] [--json]");
+  const raw = readJson(path, io) as MapPlan | { plan: MapPlan; format: string };
+  const plan = "format" in raw && "plan" in raw ? raw.plan : raw;
+  const resolved = resolvePlan(plan);
+  const palettes = palettesFrom(a, io);
+  const diagnostics =
+    a.flags["no-build"] === true ? [] : compileResolved(resolved, palettes, slabCodec, { plan }).diagnostics;
+  const notes = reviewDesign(plan, resolved, { palettes, diagnostics });
+  if (a.flags["json"]) io.out(JSON.stringify(notes, null, 2));
+  else io.out(designReviewText(notes) || "design review: nothing to note");
+  return 0;
 }
 
 function namesFrom(a: Args, io: CliIo): (uuid: string) => string | null {
@@ -332,7 +357,7 @@ function cmdCalibration(a: Args, io: CliIo): number {
   return 0;
 }
 
-const USAGE = `usage: slabyrinth <validate|ascii|compile|decode|encode|catalog|calibration> …  (see the header of src/cli/index.ts)`;
+const USAGE = `usage: slabyrinth <validate|ascii|compile|review|decode|encode|catalog|calibration> …  (see the header of src/cli/index.ts)`;
 
 export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<number> {
   const a = parseArgs(argv);
@@ -350,6 +375,8 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
         return cmdEncode(a, io);
       case "catalog":
         return await cmdCatalog(a, io);
+      case "review":
+        return cmdReview(a, io);
       case "calibration":
         return cmdCalibration(a, io);
       default:

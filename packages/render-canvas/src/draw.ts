@@ -375,12 +375,69 @@ export function drawList(ctx: Canvas2DLike, list: DisplayList, theme: MapTheme, 
           const q = Number(st.slice(st.lastIndexOf("-") + 1)) || 1;
           ringsPath(rings, true);
           ctx.fillStyle = col(up ? "height-up" : "height-down");
-          withAlpha(ctx, Math.min(0.3, 0.05 * q + 0.03), () => {
+          // graded: every quarter tile deeper is visibly darker, up to a 4-tile drop (raised floors stay subtle)
+          withAlpha(ctx, up ? Math.min(0.3, 0.05 * q + 0.03) : Math.min(0.62, 0.035 * q + 0.06), () => {
             ctx.fill();
           });
           break;
         }
         case "ledge": {
+          if (st === "cliff") {
+            // solid ink line on the cliff top, hachures hanging toward the low side (right of each segment)
+            ringsPath(rings, false);
+            ctx.strokeStyle = col("ink");
+            ctx.lineWidth = baseLw * 2;
+            ctx.stroke();
+            ctx.beginPath();
+            const tick = Math.max(3, u * 0.3);
+            for (const r of rings) {
+              const x0 = r[0] as number;
+              const y0 = r[1] as number;
+              const x1 = r[2] as number;
+              const y1 = r[3] as number;
+              const dx = x1 - x0;
+              const dy = y1 - y0;
+              for (const f of [0.17, 0.5, 0.83]) {
+                const px = X(x0 + dx * f);
+                const py = Y(y0 + dy * f);
+                ctx.moveTo(px, py);
+                ctx.lineTo(px - dy * tick, py + dx * tick);
+              }
+            }
+            ctx.lineWidth = Math.max(1, baseLw);
+            ctx.stroke();
+            break;
+          }
+          if (st === "bridge-h" || st === "bridge-v") {
+            // planks across the deck, then a strong outline
+            ctx.save();
+            ringsPath(rings, true);
+            ctx.clip();
+            ctx.beginPath();
+            const step = 0.5;
+            if (st === "bridge-h") {
+              for (let x = Math.floor(b.x0); x <= b.x1; x += step) {
+                ctx.moveTo(X(x), Y(b.y0));
+                ctx.lineTo(X(x), Y(b.y1));
+              }
+            } else {
+              for (let y = Math.floor(b.y0); y <= b.y1; y += step) {
+                ctx.moveTo(X(b.x0), Y(y));
+                ctx.lineTo(X(b.x1), Y(y));
+              }
+            }
+            ctx.strokeStyle = col("ink");
+            ctx.lineWidth = Math.max(0.6, baseLw * 0.6);
+            withAlpha(ctx, 0.45, () => {
+              ctx.stroke();
+            });
+            ctx.restore();
+            ringsPath(rings, true);
+            ctx.strokeStyle = col("ink");
+            ctx.lineWidth = baseLw * 1.8;
+            ctx.stroke();
+            break;
+          }
           ringsPath(rings, false);
           ctx.setLineDash([Math.max(2, u * 0.12), Math.max(2, u * 0.08)]);
           ctx.strokeStyle = col("ledge");
@@ -435,9 +492,11 @@ export function drawList(ctx: Canvas2DLike, list: DisplayList, theme: MapTheme, 
         }
         case "area_outline": {
           ringsPath(rings, closed);
-          ctx.setLineDash([Math.max(4, u * 0.33), Math.max(3, u * 0.17)]);
-          ctx.strokeStyle = col("zone");
-          ctx.lineWidth = baseLw;
+          // building roof plans: the ridge solid in ink, the roof edge dashed in ink; zones dashed in the zone colour
+          const roof = st === "roof-outline" || st === "roof-ridge";
+          ctx.setLineDash(st === "roof-ridge" ? [] : [Math.max(4, u * 0.33), Math.max(3, u * 0.17)]);
+          ctx.strokeStyle = col(roof ? "ink" : "zone");
+          ctx.lineWidth = roof ? baseLw * 0.8 : baseLw;
           withAlpha(ctx, 0.75, () => {
             ctx.stroke();
           });

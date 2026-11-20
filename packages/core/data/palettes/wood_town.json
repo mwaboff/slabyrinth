@@ -8,6 +8,141 @@
     "wallStyle": "wall"
   },
   "roles": {
+    "cliff.formation_crest": {
+      "mount": "full-cell",
+      "rotation": "fixed",
+      "height": 2,
+      "greedyTiling": false,
+      "variants": [
+        {
+          "asset": "451e9727-bc73-462c-8c46-512687e6e170",
+          "name": "Boulder - Large",
+          "geom": {
+            "size": {
+              "x": 1.5371,
+              "y": 1.6176,
+              "z": 1.8095
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.8088,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    "cliff.formation_face": {
+      "mount": "full-cell",
+      "rotation": "fixed",
+      "height": 2,
+      "greedyTiling": false,
+      "variants": [
+        {
+          "asset": "a79a9a45-3bf2-4775-98c8-559ca5211532",
+          "name": "Cliff Face",
+          "geom": {
+            "size": {
+              "x": 4.5974,
+              "y": 2.3202,
+              "z": 3.0683
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1.1601,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            5,
+            3
+          ]
+        }
+      ]
+    },
+    "crenel.default": {
+      "variants": [
+        {
+          "asset": "d5949877-7a48-4420-b211-7fcf95ac4d89",
+          "name": "Castle Ruins Crenellation - Small",
+          "geom": {
+            "size": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.25,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.accent_light": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "526c0664-b197-462d-9db7-64233db026c8",
+          "name": "Street Lantern",
+          "geom": {
+            "size": {
+              "x": 0.7118,
+              "y": 1.7007,
+              "z": 0.6316
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.8513,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "2f622eea-53fe-4285-88e2-aec0c85fed7f",
+          "name": "Lantern -Small",
+          "geom": {
+            "size": {
+              "x": 0.1912,
+              "y": 0.4476,
+              "z": 0.1831
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2253,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
     "feature.anvil": {
       "rotation": "facing",
       "variants": [
@@ -203,6 +338,56 @@
         }
       ]
     },
+    "feature.cluster_tall": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "28b95682-24d4-48c1-ae40-c5f02404c9b1",
+          "name": "Tree 01",
+          "geom": {
+            "size": {
+              "x": 2.5721,
+              "y": 2.7179,
+              "z": 2.6064
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1.359,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            3,
+            3
+          ]
+        },
+        {
+          "asset": "a0c27b56-8a79-473b-a4ea-1ac05f51c7f2",
+          "name": "Wooden Pillar",
+          "geom": {
+            "size": {
+              "x": 0.9989,
+              "y": 1.9956,
+              "z": 0.3726
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9978,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
+        }
+      ]
+    },
     "feature.counter": {
       "rotation": "facing",
       "variants": [
@@ -226,6 +411,248 @@
           "footprint": [
             1,
             1
+          ]
+        }
+      ]
+    },
+    "feature.edge_dressing": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "01ec8a0f-2971-4ddb-9612-98ce6c2d315e",
+          "name": "bush_berry_01",
+          "geom": {
+            "size": {
+              "x": 0.7044,
+              "y": 0.5973,
+              "z": 0.7004
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0128,
+              "y": 0.3004,
+              "z": -0.0048
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "923bc5e3-a845-403f-93dd-035dbd276279",
+          "name": "Rock - Small",
+          "geom": {
+            "size": {
+              "x": 0.3981,
+              "y": 0.3439,
+              "z": 0.5074
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1719,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.formation": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "65e28f8c-9e8e-48fd-abbf-88dfb5d4385e",
+          "name": "Log Pile",
+          "geom": {
+            "size": {
+              "x": 0.7741,
+              "y": 0.5061,
+              "z": 0.4906
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2531,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "451e9727-bc73-462c-8c46-512687e6e170",
+          "name": "Boulder - Large",
+          "geom": {
+            "size": {
+              "x": 1.5371,
+              "y": 1.6176,
+              "z": 1.8095
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.8088,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "weight": 0.4
+        }
+      ]
+    },
+    "feature.ground_cover": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "c04bb850-c0fb-4621-9980-53cb3935f72f",
+          "name": "plumeria flower",
+          "geom": {
+            "size": {
+              "x": 1.0619,
+              "y": 0.5041,
+              "z": 1.0172
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.252,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "6b9e66b5-2b8c-4ccf-a4e0-53acb0d8a273",
+          "name": "Fern 01",
+          "geom": {
+            "size": {
+              "x": 0.4646,
+              "y": 0.2314,
+              "z": 0.4272
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0073,
+              "y": 0.1157,
+              "z": 0.0107
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.landmark": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "08545429-752c-41c5-9758-1279d82b70eb",
+          "name": "Fountain_01",
+          "geom": {
+            "size": {
+              "x": 2.0232,
+              "y": 2.368,
+              "z": 2.0347
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1.184,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        },
+        {
+          "asset": "bb56c594-f8aa-4fa5-8a0b-f059a5a45ae1",
+          "name": "Swamp tree base 02",
+          "geom": {
+            "size": {
+              "x": 2.8751,
+              "y": 4.026,
+              "z": 2.8987
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 2.013,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            3,
+            3
+          ],
+          "weight": 0.5,
+          "parts": [
+            {
+              "asset": "53e9c209-fa50-408a-8fa3-0c9bb9db0bb7",
+              "name": "Swamp tree mid 03",
+              "geom": {
+                "size": {
+                  "x": 4.5056,
+                  "y": 2.0111,
+                  "z": 4.6641
+                },
+                "originAt": "center",
+                "boundsCenter": {
+                  "x": 0,
+                  "y": 1.0055,
+                  "z": 0
+                },
+                "lengthAxis": "z"
+              },
+              "offset": {
+                "y": 3.4
+              }
+            },
+            {
+              "asset": "efa2e065-77ef-4a1c-b43b-f43f1b9eaf66",
+              "name": "Swamp tree top",
+              "geom": {
+                "size": {
+                  "x": 2.291,
+                  "y": 2.0498,
+                  "z": 2.2985
+                },
+                "originAt": "center",
+                "boundsCenter": {
+                  "x": 0,
+                  "y": 1.0249,
+                  "z": 0
+                },
+                "lengthAxis": "square"
+              },
+              "offset": {
+                "y": 4.8
+              }
+            }
           ]
         }
       ]
@@ -335,6 +762,55 @@
         }
       ]
     },
+    "feature.small_detail": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "b9786c77-942a-4011-9a39-1f9820d8e49d",
+          "name": "Pitcher",
+          "geom": {
+            "size": {
+              "x": 0.2628,
+              "y": 0.4922,
+              "z": 0.251
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.047,
+              "y": 0.2544,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "d4b9003e-f80b-4304-8af1-6c456b1ff192",
+          "name": "Candle",
+          "geom": {
+            "size": {
+              "x": 0.1413,
+              "y": 0.3203,
+              "z": 0.1847
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1602,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
     "feature.stool": {
       "rotation": "facing",
       "variants": [
@@ -384,6 +860,132 @@
           },
           "footprint": [
             2,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.tall_marker": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "3e3b2d05-baf8-4140-88f1-88b13c6e35b4",
+          "name": "castle pillar",
+          "geom": {
+            "size": {
+              "x": 0.5931,
+              "y": 1.9977,
+              "z": 0.5897
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9999,
+              "z": -0.0035
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "54f1eaf1-63f2-4665-80f5-3287bd7cf79d",
+          "name": "Knight Statue",
+          "geom": {
+            "size": {
+              "x": 0.5885,
+              "y": 1.9812,
+              "z": 0.5833
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9906,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
+        }
+      ]
+    },
+    "feature.undergrowth": {
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "01ec8a0f-2971-4ddb-9612-98ce6c2d315e",
+          "name": "bush_berry_01",
+          "geom": {
+            "size": {
+              "x": 0.7044,
+              "y": 0.5973,
+              "z": 0.7004
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0128,
+              "y": 0.3004,
+              "z": -0.0048
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "c04bb850-c0fb-4621-9980-53cb3935f72f",
+          "name": "plumeria flower",
+          "geom": {
+            "size": {
+              "x": 1.0619,
+              "y": 0.5041,
+              "z": 1.0172
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.252,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "feature.wall_dressing": {
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "8cadf11c-6b5f-4927-b5df-e4b3147e0ab2",
+          "name": "banner_01",
+          "geom": {
+            "size": {
+              "x": 1.0388,
+              "y": 1.3218,
+              "z": 0.2342
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0078,
+              "y": 0.6611,
+              "z": -0.0281
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
             1
           ]
         }
@@ -808,6 +1410,175 @@
               "lengthAxis": "z"
             }
           }
+        }
+      ]
+    },
+    "ruin_block.default": {
+      "variants": [
+        {
+          "asset": "0252d209-c23c-4f72-aa8b-51ed0dc09f3a",
+          "name": "md_stairblock_01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ruin_block.stone": {
+      "variants": [
+        {
+          "asset": "0252d209-c23c-4f72-aa8b-51ed0dc09f3a",
+          "name": "md_stairblock_01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ruin_prop.default": {
+      "variants": [
+        {
+          "asset": "bab76375-3286-4eec-a9b1-b41558166773",
+          "name": "Statue 003",
+          "geom": {
+            "size": {
+              "x": 0.5932,
+              "y": 1.2077,
+              "z": 0.4557
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0006,
+              "y": 0.6184,
+              "z": 0.002
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "b72e8de0-72a6-41d5-b5f3-223c4223d211",
+          "name": "statue_002",
+          "geom": {
+            "size": {
+              "x": 0.4766,
+              "y": 1.7033,
+              "z": 0.6451
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0018,
+              "y": 0.8687,
+              "z": -0.0024
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        },
+        {
+          "asset": "554030ee-573a-46f4-bba0-7f176dd88818",
+          "name": "abandoned_village_roof_beam_large_01",
+          "geom": {
+            "size": {
+              "x": 2.0208,
+              "y": 0.5417,
+              "z": 0.5347
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0035,
+              "y": 0.2847,
+              "z": 0.0174
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "24313f42-23ee-412d-8469-9fd7179202a1",
+          "name": "Broken Dark Barrel 01",
+          "geom": {
+            "size": {
+              "x": 0.7335,
+              "y": 0.8797,
+              "z": 0.7618
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.4398,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
+        },
+        {
+          "asset": "3ca6cc0f-97b5-49ee-9cc8-52acf64aa330",
+          "name": "wagon_wheel_01",
+          "geom": {
+            "size": {
+              "x": 1.0544,
+              "y": 0.3129,
+              "z": 1.0652
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0011,
+              "y": 0.1261,
+              "z": 0.0022
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
         }
       ]
     },

@@ -6,7 +6,7 @@
  * and path. blob uses its base circle and cave its rect (their exact cells need the generators); route areas carry
  * no contents. Painter-order overrides by later areas are ignored.
  */
-import type { Shape, TerrainOp, Vec2 } from "../contracts/plan";
+import type { Shape, Structure, TerrainOp, Vec2 } from "../contracts/plan";
 
 export const tr = (v: Vec2, dx: number, dy: number): Vec2 => [v[0] + dx, v[1] + dy];
 
@@ -38,7 +38,14 @@ export function translateTerrain(op: TerrainOp, dx: number, dy: number): Terrain
     case "height":
     case "noise":
       return { ...op, shape: translateShape(op.shape, dx, dy) };
-    case "path":
+    case "path": {
+      const out = { ...op };
+      if (op.points !== undefined) out.points = op.points.map((p) => tr(p, dx, dy));
+      if (op.connect !== undefined)
+        out.connect = op.connect.map((c) => (typeof c === "string" ? c : tr(c, dx, dy)));
+      return out;
+    }
+    case "chasm":
       return { ...op, points: op.points.map((p) => tr(p, dx, dy)) };
     case "scatter": {
       const out = { ...op };
@@ -48,6 +55,17 @@ export function translateTerrain(op: TerrainOp, dx: number, dy: number): Terrain
     }
     case "dress":
       return { ...op };
+    case "platform":
+    case "outcrop":
+      return { ...op, shape: translateShape(op.shape, dx, dy) };
+    case "stairs":
+      return { ...op, from: tr(op.from, dx, dy), to: tr(op.to, dx, dy) };
+    case "uneven": {
+      const out = { ...op };
+      if (op.shape !== undefined) out.shape = translateShape(op.shape, dx, dy);
+      if (op.exclude !== undefined) out.exclude = op.exclude.map((s) => translateShape(s, dx, dy));
+      return out;
+    }
   }
 }
 
@@ -122,4 +140,16 @@ export function across(x: number, y: number, side: "N" | "E" | "S" | "W"): Vec2 
     case "W":
       return [x - 1, y];
   }
+}
+
+/** Translated copy of a building or enclosure (faces, positions and storeys are relative, so only coordinates move). */
+export function translateStructure(s: Structure, dx: number, dy: number): Structure {
+  if (s.kind === "enclosure") return { ...s, shape: translateShape(s.shape, dx, dy) };
+  const out = { ...s };
+  if (s.wings !== undefined) out.wings = s.wings.map((w) => ({ ...w, x: w.x + dx, y: w.y + dy }));
+  if (s.footprint !== undefined) out.footprint = translateShape(s.footprint, dx, dy);
+  if (s.volumes !== undefined) out.volumes = s.volumes.map((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
+  if (s.x !== undefined) out.x = s.x + dx;
+  if (s.y !== undefined) out.y = s.y + dy;
+  return out;
 }

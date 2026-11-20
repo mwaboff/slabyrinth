@@ -12,11 +12,13 @@ import type {
   MapPlan,
   PlanIssue,
   Shape,
+  Structure,
   TerrainOp,
   Vec2,
 } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
 import { entryLevelId } from "../resolve/validate";
+import { withWings } from "../plan/building";
 
 export interface OutlineOptions {
   version?: number;
@@ -76,6 +78,9 @@ function areaLine(a: Area, lvl: ResolvedLevel | undefined, noteChars: number): s
   if (a.walls !== undefined) parts.push(`walls=${a.walls}`);
   if (a.floor !== undefined) parts.push(`floor=${a.floor}`);
   if (a.floorHeight !== undefined) parts.push(`floorH=${n(a.floorHeight)}`);
+  if (a.railing !== undefined) parts.push(`railing=${a.railing}`);
+  if (a.crumble !== undefined) parts.push(`crumble=${n(a.crumble)}`);
+  if (a.broken !== undefined) parts.push(`broken=${a.broken.map(xy).join(",")}`);
   if (a.wallStyle !== undefined) parts.push(`wallStyle=${a.wallStyle}`);
   if (a.wallHeight !== undefined) parts.push(`wallH=${n(a.wallHeight)}`);
   if (a.theme !== undefined) parts.push(`theme=${a.theme}`);
@@ -136,7 +141,7 @@ function terrainLine(t: TerrainOp, lvl: ResolvedLevel | undefined): string {
       break;
     case "path":
       p.push(
-        `${t.material} ${t.points.map(xy).join(">")} w${n(t.width)}${t.jitter !== undefined ? ` jitter=${n(t.jitter)}` : ""}${t.seed !== undefined ? ` seed=${t.seed}` : ""}${layer}`,
+        `${t.material} ${t.points ? t.points.map(xy).join(">") : `connect=${(t.connect ?? []).map((c) => (typeof c === "string" ? c : xy(c))).join(">")}`}${t.kerb ? " kerb" : ""} w${n(t.width)}${t.jitter !== undefined ? ` jitter=${n(t.jitter)}` : ""}${t.seed !== undefined ? ` seed=${t.seed}` : ""}${layer}`,
       );
       break;
     case "scatter": {
@@ -151,15 +156,97 @@ function terrainLine(t: TerrainOp, lvl: ResolvedLevel | undefined): string {
     }
     case "dress":
       p.push(
-        `${t.area} ${t.preset}${t.density !== undefined ? ` d=${n(t.density)}` : ""}${t.seed !== undefined ? ` seed=${t.seed}` : ""}`,
+        `${t.area ?? "(whole level)"} ${t.preset}${t.density !== undefined ? ` d=${n(t.density)}` : ""}${t.seed !== undefined ? ` seed=${t.seed}` : ""}`,
       );
       break;
+    case "chasm": {
+      p.push(
+        `${t.points.map(xy).join(">")} w${n(t.width)} depth=${n(t.depth ?? 3)}${t.floor !== undefined ? ` floor=${t.floor}` : ""}${t.meander !== undefined ? ` meander=${n(t.meander)}` : ""}${t.seed !== undefined ? ` seed=${t.seed}` : ""}`,
+      );
+      (t.bridges ?? []).forEach((b, k) => {
+        const rb = lvl?.bridges?.find((x) => x.id === `${t.id}~b${k + 1}`);
+        p.push(
+          `bridge ${t.id}~b${k + 1} at=${n(b.at ?? 0.5)} w${b.width ?? 2}${b.crumble ? ` crumble=${n(b.crumble)}` : ""}${rb ? ` -> ${rb.cells.length} cells, ${rb.broken.length} broken` : " -> not built"}`,
+        );
+      });
+      break;
+    }
   }
   if ((t.op === "scatter" || t.op === "dress") && lvl) {
     const count = lvl.features.filter((f) => f.generatedBy === t.id).length;
     p.push(`-> ${count} features`);
   }
   return `  ${p.join(" ")}`;
+}
+
+/** One line per building / enclosure: what was written, then what was built (resolved). */
+function structureLine(st: Structure, lvl: ResolvedLevel | undefined, noteChars: number): string {
+  const rs = lvl?.structures?.find((r) => r.id === st.id);
+  if (st.kind === "enclosure") {
+    const gates = (st.gates ?? [])
+      .map((g) => `${g.side}${g.position !== undefined ? `@${n(g.position)}` : ""}`)
+      .join(",");
+    return `  STRUCT ${st.id} enclosure${st.key ? ` #${st.key}` : ""}${st.name ? ` ${q(st.name)}` : ""} ${formatShape(st.shape)} wall=${st.wall ?? "fence"}${gates ? ` gates=${gates}` : ""}${st.floor ? ` floor=${st.floor}` : ""}${rs ? ` -> ${rs.cells.length} cells` : " -> not built"}`;
+  }
+  const wings = (withWings(st).wings ?? [])
+    .map((w) => `${w.x},${w.y} ${w.w}x${w.h}${w.ridge ? `/${w.ridge}` : ""}`)
+    .join(" + ");
+  const plan = [
+    `  STRUCT ${st.id} building${st.key ? ` #${st.key}` : ""}${st.name ? ` ${q(st.name)}` : ""} style=${st.style ?? "cottage"}${st.seed !== undefined ? ` seed=${st.seed}` : ""}`,
+    wings
+      ? `wings ${wings}`
+      : st.footprint
+        ? formatShape(st.footprint)
+        : (st.volumes ?? []).length > 0
+          ? `volumes ${(st.volumes ?? []).map((v) => `${v.id} ${v.x},${v.y} ${v.w}x${v.h}${v.on ? ` on ${v.on}` : ""}`).join(" + ")}`
+          : "",
+    st.front ? `front=${st.front}` : "",
+  ].filter(Boolean);
+  if (!rs) return `${plan.join(" ")} -> not built`;
+  const ops = (lvl?.openings ?? []).filter((o) => rs.openingIds.includes(o.id));
+  const doors = ops
+    .filter((o) => o.kind !== "window")
+    .map((o) => `${o.id.split("~")[1] ?? o.id} ${formatOpeningEdge(o)}`);
+  const windows =
+    ops.filter((o) => o.kind === "window").length +
+    rs.upperOpenings.filter((u) => u.kind === "window").length;
+  const walls = rs.storeys
+    .map((s) => `${s.footing ? `${s.footing.style}+` : ""}${s.walls ?? "open"}`)
+    .join("/");
+  const roof = rs.roof.type === rs.roof.requested ? rs.roof.type : `${rs.roof.requested}->${rs.roof.type}`;
+  // phase 2: list the volumes when the massing is more than one plain block with one roof
+  const vols = rs.volumes ?? [];
+  const plainMass =
+    vols.length <= 1 &&
+    vols.every(
+      (v) =>
+        v.roof.layers.length <= 1 &&
+        v.corners === "square" &&
+        v.storeys.every((s, _i, all) => s.rect.w === all[0]?.rect.w && s.rect.h === all[0].rect.h),
+    );
+  const massing = plainMass
+    ? []
+    : vols.map((v) => {
+        const widths = v.storeys
+          .map((s) => (s.rect.w === s.rect.h ? `${s.rect.w}` : `${s.rect.w}x${s.rect.h}`))
+          .join("/");
+        const layers = v.roof.layers
+          .map((l) => (l.type === l.requested ? l.type : `${l.requested}->${l.type}`))
+          .join("+");
+        return `volume ${v.id}${v.on ? ` on ${v.on}` : ""} ${v.storeys.length} storey${v.storeys.length > 1 ? "s" : ""} (${widths}${v.corners === "chamfer" ? " chamfered" : ""}) roof ${layers || "none"}`;
+      });
+  const built = [
+    `${rs.storeys.length} storey${rs.storeys.length > 1 ? "s" : ""} (${walls})`,
+    `roof ${roof}${rs.roof.type !== "none" ? ` ${rs.roof.style}` : ""}`,
+    ...massing,
+    rs.plinth ? `plinth ${n(rs.plinth.height)}` : "",
+    ...doors,
+    `${windows} window${windows === 1 ? "" : "s"}`,
+    rs.chimneys.length ? `chimney ${rs.chimneys.map((c) => `${c.side} ${xy(c.at)}`).join(",")}` : "",
+    rs.porches.length ? `porch ${rs.porches.map((p) => `${p.side} ${p.cells.length} cells`).join(",")}` : "",
+  ].filter(Boolean);
+  const notes = st.notes ? ` | notes ${q(truncate(st.notes, noteChars))}` : "";
+  return `${plan.join(" ")} -> ${built.join(", ")}${notes}`;
 }
 
 function levelLines(level: Level, lvl: ResolvedLevel | undefined, noteChars: number): string[] {
@@ -171,6 +258,7 @@ function levelLines(level: Level, lvl: ResolvedLevel | undefined, noteChars: num
   );
   if (level.notes) out.push(`  notes ${q(truncate(level.notes, noteChars))}`);
   for (const a of level.areas) out.push(areaLine(a, lvl, noteChars));
+  for (const st of level.structures ?? []) out.push(structureLine(st, lvl, noteChars));
   for (const o of level.openings) {
     const where = o.between
       ? `${o.between[0]}|${o.between[1]} @${n(o.position ?? 0.5)}`

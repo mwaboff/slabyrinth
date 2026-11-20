@@ -294,3 +294,87 @@ describe("PNG export layout", () => {
     }
   });
 });
+
+describe("depth: chasm, cliffs and bridges", () => {
+  const plan: MapPlan = {
+    schema: "slabyrinth/plan@1",
+    generator: 2,
+    id: "depth",
+    title: "Depth",
+    kind: "cave",
+    theme: "cave",
+    seed: 3,
+    links: [],
+    levels: [
+      {
+        id: "lv",
+        name: "L",
+        elevation: 0,
+        bounds: { x: 0, y: 0, w: 24, h: 14 },
+        base: { type: "solid" },
+        areas: [{ id: "c", kind: "cave", shape: { type: "rect", x: 1, y: 1, w: 22, h: 12 } }],
+        openings: [],
+        walls: [],
+        features: [],
+        terrain: [
+          {
+            id: "rift",
+            op: "chasm",
+            points: [
+              [12, 0],
+              [12, 13],
+            ],
+            width: 3,
+            depth: 3,
+            floor: "lava",
+            bridges: [{ width: 2, crumble: 0.25 }],
+          },
+        ],
+        labels: [],
+      },
+    ],
+  };
+  const list = buildPlanDisplayList(resolvePlan(plan), "lv") as DisplayList;
+  it.each(Object.keys(MAP_THEMES))("theme %s: cliffs and the bridge draw with theme colours only", (id) => {
+    const theme = getMapTheme(id);
+    const allowed = new Set(Object.values(theme.colors));
+    const ctx = record(list, theme);
+    expect(ctx.depth).toBe(0);
+    for (const c of [...ctx.fills, ...ctx.strokes]) expect(allowed.has(c), `${c} not from ${id}`).toBe(true);
+  });
+  it("deeper floors get a darker tint than shallow ones", () => {
+    const theme = getMapTheme("print");
+    const alphaFor = (q: number): number => {
+      const one: DisplayList = {
+        ...list,
+        items: [
+          {
+            layer: "height_shade",
+            style: `height-down-${q}`,
+            geom: { rings: [[0, 0, 1, 0, 1, 1, 0, 1]], closed: true },
+          },
+        ],
+      };
+      const ctx = new RecordingContext();
+      let seen = 1;
+      const orig = ctx.fill.bind(ctx);
+      ctx.fill = () => {
+        seen = ctx.globalAlpha;
+        orig();
+      };
+      drawDisplayList(ctx, one, theme, { scale: 24, offsetX: 0, offsetY: 0 });
+      return seen;
+    };
+    expect(alphaFor(12)).toBeGreaterThan(alphaFor(4));
+    expect(alphaFor(4)).toBeGreaterThan(alphaFor(1));
+  });
+  it("the legend has cliff and bridge swatches that draw", () => {
+    const entries = legendEntries(list);
+    expect(entries.map((e) => e.id)).toEqual(expect.arrayContaining(["cliff", "bridge"]));
+    for (const e of entries) {
+      const ctx = new RecordingContext();
+      drawLegendSwatch(ctx, e, getMapTheme("print"), { x: 0, y: 0, w: 32, h: 24 });
+      expect(ctx.depth).toBe(0);
+    }
+  });
+});

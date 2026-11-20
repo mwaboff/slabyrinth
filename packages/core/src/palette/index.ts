@@ -20,3 +20,4 @@ export {
 } from "./schema";
 export type { ParseResult } from "./schema";
 export { BUNDLED_ORIENTATION, BUNDLED_PALETTES } from "./bundled";
+export { featureRoleFits, withAutoVariants } from "./auto";

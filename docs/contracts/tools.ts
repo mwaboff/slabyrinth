@@ -197,11 +197,12 @@ const areaSchema: JsonSchema = {
   type: "object", required: ["id", "kind", "shape"], additionalProperties: false,
   properties: {
     id,
-    kind: { type: "string", enum: ["room", "corridor", "cave", "building", "courtyard", "zone"] },
+    kind: { type: "string", enum: ["room", "corridor", "cave", "building", "courtyard", "zone", "bridge"],
+      description: "zone = names cells only (never changes floor, height or walls). bridge = a walkable deck over a drop: open air under it, railings on the sides facing the drop, deck height = floorHeight or the floor at its ends; list it AFTER the areas it crosses." },
     name: str, key: { type: "string", description: "Room-key label, e.g. \"1\" or \"A3\"." },
     shape: { $ref: "#/$defs/shape" },
     floor: { type: "string", enum: [...MATERIALS, "none"] },
-    floorHeight: height,
+    floorHeight: { type: "number", description: "Tiles relative to the level, multiple of 0.25, -4..4 (dais 0.5, pit -1). Omitted = keep the height underneath (e.g. from a height op)." },
     walls: { type: "string", enum: ["auto", "perimeter", "none"] },
     wallStyle: { type: "string", enum: [...WALL_STYLES] },
     wallHeight: height,
@@ -209,6 +210,11 @@ const areaSchema: JsonSchema = {
     readAloud: { type: "string", description: "Boxed text read to players on entry." },
     encounter: { type: "string", description: "Encounter line(s) in the brief's game system." },
     tags: { type: "array", items: str },
+    railing: { type: "string", enum: [...WALL_STYLES, "none"], description: "bridge only: railing style on the edges facing the drop (default low_wall; ruined for a crumbling bridge)." },
+    broken: { type: "array", items: vec2, maxItems: 64, description: "bridge only: deck cells that have fallen away." },
+    crumble: { type: "number", description: "bridge only: 0..0.6 fraction of deck cells crumbled away; a way across always remains." },
+    span: { type: "string", enum: ["arch", "flat", "plank", "natural"], description: "bridge only: arch (stone, rises to the middle, piers, parapet), flat, plank (wood, sags, rope railing), natural (rock span or fallen column). Default by floor. A bridge whose ends touch floors at different heights becomes an inclined span with steps." },
+    arch: { type: "number", description: "bridge only: rise of the middle above the ends, tiles 0..2." },
   },
 };
 
@@ -245,18 +251,25 @@ const featureSchema: JsonSchema = {
   },
 };
 
-const layer = { type: "string", enum: ["under", "over"], description: "under (default) = before areas, which override it; over = after areas (water in a cave, a dais in a room)." } as const;
+const layer = { type: "string", enum: ["under", "over"], description: "under (default) = applied before the areas: paint/noise/path under are replaced wherever an area sets its floor (use under for outdoor ground and roads); a height op under sets the ground height that areas without floorHeight inherit. over = applied after the areas, on their floor (water or lava in a cave, a dais or pit inside a room)." } as const;
 
 const terrainSchema: JsonSchema = {
   oneOf: [
     { type: "object", required: ["id", "op", "shape", "material"], additionalProperties: false,
       properties: { id, op: { const: "paint" }, shape: { $ref: "#/$defs/shape" }, material: { type: "string", enum: [...MATERIALS] }, layer } },
     { type: "object", required: ["id", "op", "shape"], additionalProperties: false,
-      properties: { id, op: { const: "height" }, shape: { $ref: "#/$defs/shape" }, delta: height, set: height, smooth: int, layer } },
+      properties: { id, op: { const: "height" }, shape: { $ref: "#/$defs/shape" }, delta: height, set: height, smooth: int, layer, edge: { type: "string", enum: ["ragged", "clean"], description: "ragged breaks the outline (natural ground; default on open-air levels)." } } },
     { type: "object", required: ["id", "op", "shape", "material", "coverage"], additionalProperties: false,
       properties: { id, op: { const: "noise" }, shape: { $ref: "#/$defs/shape" }, material: { type: "string", enum: [...MATERIALS] }, coverage: num, scale: int, seed: int, layer } },
-    { type: "object", required: ["id", "op", "points", "width", "material"], additionalProperties: false,
-      properties: { id, op: { const: "path" }, points: { type: "array", items: vec2, minItems: 2 }, width: int, material: { type: "string", enum: [...MATERIALS] }, jitter: num, seed: int, layer } },
+    { type: "object", required: ["id", "op", "width", "material"], additionalProperties: false,
+      description: "Road, trail, track or stream bed of a material along a line: give points (cell centres), or connect (area ids, feature ids or [x,y] cells joined in order, winding with jitter). kerb edges it with kerb pieces.",
+      properties: {
+        id, op: { const: "path" }, points: { type: "array", items: vec2, minItems: 2 },
+        connect: { type: "array", items: { oneOf: [str, vec2] }, minItems: 2, maxItems: 16 },
+        width: int, material: { type: "string", enum: [...MATERIALS] }, jitter: num, seed: int, layer,
+        kerb: { type: "boolean", description: "Broken kerb stones here and there along the path's edges." },
+        style: { type: "string", enum: ["natural", "straight"], description: "natural winds and varies in width (default for dirt, gravel, grass, sand, mud, snow, rock); straight for paved roads and corridors." },
+      } },
     { type: "object", required: ["id", "op", "feature", "density"], additionalProperties: false,
       properties: {
         id, op: { const: "scatter" }, feature: { type: "string", enum: [...FEATURE_TYPES] },
@@ -267,6 +280,51 @@ const terrainSchema: JsonSchema = {
       } },
     { type: "object", required: ["id", "op", "area", "preset"], additionalProperties: false,
       properties: { id, op: { const: "dress" }, area: str, preset: { type: "string", enum: [...DRESS_PRESETS] }, density: num, seed: int } },
+    { type: "object", required: ["id", "op", "points", "width"], additionalProperties: false,
+      description: "A meandering trench cut into the floor of the areas it crosses (always applied after the areas): a chasm, crevasse, ravine or rift, and also a stream or river bed (floor water_shallow, depth 0.5..1) or a dry gully. Cliff sides, optional bridges across.",
+      properties: {
+        id, op: { const: "chasm" },
+        points: { type: "array", items: vec2, minItems: 2, maxItems: 64, description: "Course as cell centres, any direction; run it from wall to wall across the room." },
+        width: { type: "number", description: "Average width in cells, 1..12." },
+        depth: { type: "number", description: "Tiles below the floor, 0.5..4, multiple of 0.25 (default 3)." },
+        meander: { type: "number", description: "0..1 (default 0.5): how much the course and the banks wander." },
+        floor: { type: "string", enum: [...MATERIALS, "none"], description: "Bottom: lava, water_deep, water_shallow, rock… (default: keep the floor); none = bottomless." },
+        bridges: { type: "array", maxItems: 4, items: { type: "object", additionalProperties: false, properties: {
+          at: { type: "number", description: "0..1 along the chasm (default 0.5)." },
+          width: { type: "integer", description: "1..4 cells (default 2)." },
+          floor: { type: "string", enum: [...MATERIALS], description: "Deck material (default flagstone)." },
+          railing: { type: "string", enum: [...WALL_STYLES, "none"], description: "default low_wall; ruined suits an old bridge." },
+          crumble: { type: "number", description: "0..0.6 fraction of the deck crumbled away (a way across always remains)." },
+          span: { type: "string", enum: ["arch", "flat", "plank", "natural"], description: "default arch (stone) or plank (wood floor)." },
+          arch: { type: "number", description: "rise of the middle above the ends, tiles 0..2." },
+        } } },
+        seed: int,
+      } },
+    { type: "object", required: ["id", "op", "shape"], additionalProperties: false,
+      description: "Tiered platform: dais, stepped pyramid, terrace, raised walkway, plateau; negative rise = sunken pit or amphitheatre. Rings each inset cells inside the one below and rise tiles higher. Cut into open floor (after the areas). Steps of 0.5 are walkable everywhere; stairs adds a flight on those sides.",
+      properties: {
+        id, op: { const: "platform" }, shape: { $ref: "#/$defs/shape" },
+        tiers: { type: "integer", description: "1..5 (default 3)." },
+        rise: { type: "number", description: "Tiles per tier, -2..2, not 0, multiple of 0.25 (default 0.5)." },
+        inset: { type: "integer", description: "Cells each tier steps in, 1..4 (default 1)." },
+        material: { type: "string", enum: [...MATERIALS] }, topMaterial: { type: "string", enum: [...MATERIALS] },
+        stairs: { type: "array", items: side, maxItems: 4, description: "Sides that get a 2-wide flight of steps to the top." },
+        edge: { type: "string", enum: ["ragged", "clean"], description: "ragged = organic wandering contours (mounds, terraces, hills; default on open-air levels for natural materials); clean = crisp built tiers (daises)." },
+      } },
+    { type: "object", required: ["id", "op", "from", "to"], additionalProperties: false,
+      description: "A straight flight of steps between two floor cells on one row or column, at any two heights (ledge to floor, into a dry chasm, up to a terrace or plateau). The cells between step evenly; every step is walkable.",
+      properties: { id, op: { const: "stairs" }, from: vec2, to: vec2, width: { type: "integer", enum: [1, 2, 3] } } },
+    { type: "object", required: ["id", "op"], additionalProperties: false,
+      description: "Uneven ground: gentle seeded bumps and hollows that stay walkable. Leave fighting space and paths out with exclude.",
+      properties: {
+        id, op: { const: "uneven" }, shape: { $ref: "#/$defs/shape" },
+        exclude: { type: "array", items: { $ref: "#/$defs/shape" }, maxItems: 8 },
+        amount: { type: "number", description: "Largest change in tiles, 0.25..1 (default 0.5)." },
+        scale: { type: "number", description: "Bump size in cells, 3..12 (default 6)." }, seed: int,
+      } },
+    { type: "object", required: ["id", "op", "shape"], additionalProperties: false,
+      description: "Outcrop: a rock mass, column, crag or buttress rising out of the floor with cliff sides (any setting).",
+      properties: { id, op: { const: "outcrop" }, shape: { $ref: "#/$defs/shape" }, height: { type: "number", description: "Tiles, 0.5..4 (default 2)." }, material: { type: "string", enum: [...MATERIALS], description: "Top surface (default rock)." } } },
   ],
 };
 
@@ -289,6 +347,7 @@ const levelSchema: JsonSchema = {
   type: "object", required: ["id", "name", "elevation", "bounds", "base"], additionalProperties: false,
   properties: {
     id, name: str, elevation: height, wallHeight: height, bounds: rect,
+    foundation: { type: "number", description: "Depth of the solid base under the level's edge, tiles 0..4 (default 2 on open-air levels, 0 otherwise)." },
     base: {
       oneOf: [
         { type: "object", required: ["type"], additionalProperties: false, properties: { type: { const: "solid" } } },

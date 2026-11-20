@@ -19,6 +19,7 @@ import type {
 } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
+import { gableRoof, hipRoof, ringLayer, shedRoof, spireShell } from "../resolve/roof";
 import { traceRings } from "../resolve/trace";
 
 /** Contract DisplayContext (links + level labels), re-exported for existing importers. */
@@ -143,6 +144,18 @@ export function buildDisplayList(
   const fl = level.cells.flags;
   const isFloor = (i: number): boolean =>
     st[i] === CELL.OPEN && ((fl[i] as number) & CELL_FLAG.NO_FLOOR) === 0;
+  // broken bridge cells show the ground below them (lava, the chasm floor), not a black hole
+  const underBroken = new Map<number, { material: string | null; height: number }>();
+  for (const b of level.bridges ?? []) {
+    const brokenSet = new Set(b.broken.map(([x, y]) => `${x},${y}`));
+    b.cells.forEach(([x, y], j) => {
+      if (!brokenSet.has(`${x},${y}`)) return;
+      underBroken.set((y - by) * w + (x - bx), {
+        material: b.underMaterial[j] ?? null,
+        height: b.under[j] ?? 0,
+      });
+    });
+  }
 
   // ── ground: rock + void ──
   for (const [k, rings] of groupRings(level, (i) =>
@@ -168,6 +181,8 @@ export function buildDisplayList(
     if (st[i] !== CELL.OPEN) return null;
     const f = fl[i] as number;
     if (f & CELL_FLAG.STAIRWELL) return "stairwell";
+    const ub = underBroken.get(i);
+    if (ub) return ub.material === null ? "chasm" : `mat-${ub.material}`;
     if (f & CELL_FLAG.NO_FLOOR) return "chasm";
     const m = level.cells.material[i] as number;
     const name = m > 0 ? (mats[m - 1] as string) : "floor";
@@ -190,8 +205,9 @@ export function buildDisplayList(
 
   // ── height shading ──
   const heightKey = (i: number): string | null => {
-    if (!isFloor(i)) return null;
-    const q = level.cells.height[i] as number;
+    const ub = underBroken.get(i);
+    if (!isFloor(i) && !(ub && ub.material !== null)) return null;
+    const q = ub ? ub.height : (level.cells.height[i] as number);
     if (q === 0) return null;
     return q > 0 ? `height-up-${Math.min(16, q)}` : `height-down-${Math.min(16, -q)}`;
   };
@@ -219,7 +235,7 @@ export function buildDisplayList(
       const e = ly * w + lx;
       const kind = inRow ? (H.kind[e] as number) : -1;
       const g = inRow && gridOk(cellAt(lx, ly - 1), cellAt(lx, ly), kind);
-      const l = inRow && kind === EDGE.LEDGE;
+      const l = inRow && kind === EDGE.LEDGE && (H.height[e] as number) < 1;
       if (g && gStart < 0) gStart = lx;
       if (!g && gStart >= 0) {
         gridRings.push([bx + gStart, by + ly, bx + lx, by + ly]);
@@ -240,7 +256,7 @@ export function buildDisplayList(
       const e = ly * (w + 1) + lx;
       const kind = inCol ? (V.kind[e] as number) : -1;
       const g = inCol && gridOk(cellAt(lx - 1, ly), cellAt(lx, ly), kind);
-      const l = inCol && kind === EDGE.LEDGE;
+      const l = inCol && kind === EDGE.LEDGE && (V.height[e] as number) < 1;
       if (g && gStart < 0) gStart = ly;
       if (!g && gStart >= 0) {
         gridRings.push([bx + lx, by + gStart, bx + lx, by + ly]);
@@ -255,6 +271,48 @@ export function buildDisplayList(
   }
   if (ledgeRings.length > 0)
     items.push({ layer: "ledge", style: "ledge", geom: { rings: ledgeRings, closed: false } });
+  // cliffs (drops of a tile or more): one segment per edge, directed so the LOW side is on its right (screen
+  // coordinates, y down); the renderer draws the cliff line with hachures toward the low side.
+  const hq = (i: number): number => {
+    const ub = underBroken.get(i);
+    return ub ? ub.height : (level.cells.height[i] as number);
+  };
+  const cliffRings: number[][] = [];
+  for (let ly = 1; ly < h; ly++)
+    for (let lx = 0; lx < w; lx++) {
+      const e = ly * w + lx;
+      if (H.kind[e] !== EDGE.LEDGE || (H.height[e] as number) < 1) continue;
+      const northLow = hq((ly - 1) * w + lx) < hq(ly * w + lx);
+      cliffRings.push(
+        northLow ? [bx + lx + 1, by + ly, bx + lx, by + ly] : [bx + lx, by + ly, bx + lx + 1, by + ly],
+      );
+    }
+  for (let ly = 0; ly < h; ly++)
+    for (let lx = 1; lx < w; lx++) {
+      const e = ly * (w + 1) + lx;
+      if (V.kind[e] !== EDGE.LEDGE || (V.height[e] as number) < 1) continue;
+      const westLow = hq(ly * w + lx - 1) < hq(ly * w + lx);
+      cliffRings.push(
+        westLow ? [bx + lx, by + ly, bx + lx, by + ly + 1] : [bx + lx, by + ly + 1, bx + lx, by + ly],
+      );
+    }
+  if (cliffRings.length > 0)
+    items.push({ layer: "ledge", style: "cliff", geom: { rings: cliffRings, closed: false } });
+  // bridges: the deck outline with planks across it ("bridge-h" runs east–west, "bridge-v" north–south)
+  for (const b of level.bridges ?? []) {
+    const set = new Set(b.cells.map(([x, y]) => (y - by) * w + (x - bx)));
+    const rings = cellRings(level, (i) => set.has(i));
+    if (rings.length === 0) continue;
+    const xs = b.cells.map((c) => c[0]);
+    const ys = b.cells.map((c) => c[1]);
+    const ew = Math.max(...xs) - Math.min(...xs) >= Math.max(...ys) - Math.min(...ys);
+    items.push({
+      layer: "ledge",
+      style: ew ? "bridge-h" : "bridge-v",
+      geom: { rings, closed: true },
+      ref: b.id,
+    });
+  }
   if (opts.grid && gridRings.length > 0)
     items.push({ layer: "grid", style: "grid", geom: { rings: gridRings, closed: false } });
 
@@ -374,6 +432,27 @@ export function buildDisplayList(
     });
   });
 
+  // ── steps (EDGE.STAIR): a stair symbol in the lower cell, climbing toward the higher one ──
+  const stepSym = (orient: "h" | "v", e: number, lx: number, ly: number): void => {
+    const g = orient === "h" ? H : V;
+    if (g.kind[e] !== EDGE.STAIR) return;
+    const a = orient === "h" ? cellAt(lx, ly - 1) : cellAt(lx - 1, ly);
+    const b = cellAt(lx, ly);
+    if (a < 0 || b < 0) return;
+    const lowerIsA = (level.cells.height[a] as number) < (level.cells.height[b] as number);
+    const lo = lowerIsA ? a : b;
+    const dir: Side = orient === "h" ? (lowerIsA ? "S" : "N") : lowerIsA ? "E" : "W";
+    const x = bx + (lo % w);
+    const y = by + Math.floor(lo / w);
+    items.push({
+      layer: "link",
+      style: "steps",
+      symbol: { id: "link-stairs", x, y, w: 1, h: 1, rot: DIR_ROT[dir] },
+    });
+  };
+  for (let ly = 0; ly <= h; ly++) for (let lx = 0; lx < w; lx++) stepSym("h", ly * w + lx, lx, ly);
+  for (let ly = 0; ly < h; ly++) for (let lx = 0; lx <= w; lx++) stepSym("v", ly * (w + 1) + lx, lx, ly);
+
   // ── links ──
   const labels = ctx.levelLabels ?? {};
   for (const link of ctx.links ?? []) {
@@ -430,6 +509,93 @@ export function buildDisplayList(
     });
   }
 
+  // ── roof plan of buildings (structures): roof outline dashed, ridge lines solid, chimneys and porch roofs ──
+  for (const st of level.structures ?? []) {
+    if (st.kind !== "building" || st.roof.type === "none") continue;
+    const box = (x: number, y: number, w: number, h: number): number[] => [
+      x,
+      y,
+      x + w,
+      y,
+      x + w,
+      y + h,
+      x,
+      y + h,
+      x,
+      y,
+    ];
+    const rings: number[][] = [];
+    const ridges: number[][] = [];
+    const multi = (st.volumes?.length ?? 0) > 1 || (st.volumes ?? []).some((v) => v.roof.layers.length > 1);
+    if (st.volumes && (multi || st.roof.type !== "gable")) {
+      // volumes: each set-in storey's wall line, then each roof layer's plan (layers step in from the top storey)
+      for (const v of st.volumes) {
+        let prev: { x: number; y: number; w: number; h: number } | null = null;
+        for (const s of v.storeys) {
+          const r = s.rect;
+          if (!prev || r.x !== prev.x || r.y !== prev.y || r.w !== prev.w || r.h !== prev.h)
+            rings.push(box(r.x - 0.5, r.y - 0.5, r.w + 1, r.h + 1));
+          prev = r;
+        }
+        const top = v.storeys[v.storeys.length - 1];
+        if (!top) continue;
+        let rect = { ...top.rect };
+        v.roof.layers.forEach((layer, li) => {
+          if (layer.type === "gable") {
+            for (const wg of li === 0 ? v.rects : [{ ...rect, ridge: layer.ridge }]) {
+              const g = gableRoof(wg);
+              rings.push(box(g.outline.x, g.outline.y, g.outline.w, g.outline.h));
+              ridges.push([...g.ridge]);
+            }
+          } else if (layer.type === "hip" || layer.type === "shed") {
+            const g = layer.type === "hip" ? hipRoof(rect) : shedRoof(rect, layer.low);
+            rings.push(box(g.outline.x, g.outline.y, g.outline.w, g.outline.h));
+            for (const rg of g.ridges) ridges.push([...rg]);
+          } else if (layer.type === "skirt" || layer.type === "stepped") {
+            const g = ringLayer(rect, layer.courses, layer.type === "stepped" ? "step" : "slope", li === 0);
+            rings.push(box(g.outline.x, g.outline.y, g.outline.w, g.outline.h));
+            if (g.inner) {
+              rings.push(box(g.inner.x, g.inner.y, g.inner.w, g.inner.h));
+              rect = g.inner;
+            }
+          } else if (layer.type === "spire") {
+            const sh = spireShell({ x: rect.x - 0.5, y: rect.y - 0.5, w: rect.w + 1, h: rect.h + 1 });
+            for (const c of sh.courses) rings.push(box(c.x0, c.y0, c.x1 - c.x0, c.y1 - c.y0));
+            const f = sh.finial;
+            ridges.push([f.x - 0.3, f.y, f.x + 0.3, f.y], [f.x, f.y - 0.3, f.x, f.y + 0.3]);
+          } else if (layer.type === "flat")
+            rings.push(box(rect.x - 0.5, rect.y - 0.5, rect.w + 1, rect.h + 1));
+        });
+      }
+    } else if (st.roof.type === "gable" && st.wings.length > 0) {
+      for (const wg of st.wings) {
+        const g = gableRoof(wg);
+        rings.push(box(g.outline.x, g.outline.y, g.outline.w, g.outline.h));
+        ridges.push([...g.ridge]);
+      }
+    } else {
+      const a = level.areas.find((ar) => ar.id === st.id);
+      for (const r of a?.outline ?? []) rings.push(flat(r.map((p) => [p[0], p[1]])));
+    }
+    for (const p of st.porches) {
+      if (!p.roof || p.cells.length === 0) continue;
+      const xs = p.cells.map((c) => c[0]);
+      const ys = p.cells.map((c) => c[1]);
+      const x0 = Math.min(...xs);
+      const y0 = Math.min(...ys);
+      rings.push(box(x0, y0, Math.max(...xs) - x0 + 1, Math.max(...ys) - y0 + 1));
+    }
+    for (const c of st.chimneys) rings.push(box(c.at[0] + 0.2, c.at[1] + 0.2, 0.6, 0.6));
+    items.push({ layer: "area_outline", style: "roof-outline", geom: { rings, closed: true }, ref: st.id });
+    if (ridges.length > 0)
+      items.push({
+        layer: "area_outline",
+        style: "roof-ridge",
+        geom: { rings: ridges, closed: false },
+        ref: st.id,
+      });
+  }
+
   // ── zone outlines ──
   for (const a of level.areas) {
     if (a.kind !== "zone" || a.cellCount === 0) continue;
@@ -454,7 +620,8 @@ export function buildDisplayList(
     const cx = l.at[0] + 0.5;
     const half = stripHalf(l.text.length);
     for (let x = Math.floor(cx - half); x <= Math.floor(cx + half - 1e-9); x++)
-      if (x >= bx && x < bx + w && l.at[1] >= by && l.at[1] < by + h) texted.add((l.at[1] - by) * w + (x - bx));
+      if (x >= bx && x < bx + w && l.at[1] >= by && l.at[1] < by + h)
+        texted.add((l.at[1] - by) * w + (x - bx));
   }
   /** Cell is clear of features, link runs and plan labels (inside the level). */
   const clear = (x: number, y: number): boolean => {
@@ -495,9 +662,7 @@ export function buildDisplayList(
             if (Math.max(Math.abs(dx), Math.abs(dy)) === r && ok(ax + dx, ay + dy)) return [ax + dx, ay + dy];
       return null;
     };
-    return (
-      (name ? search((x, y) => free(x, y) && nameClear(x, y), 4) : null) ?? search(free, 3) ?? a.anchor
-    );
+    return (name ? search((x, y) => free(x, y) && nameClear(x, y), 4) : null) ?? search(free, 3) ?? a.anchor;
   };
   for (const [ai, a] of level.areas.entries()) {
     if (a.cellCount === 0) continue;
@@ -526,6 +691,28 @@ export function buildDisplayList(
         ref: a.id,
       });
     }
+  }
+  if (level.waterLevel !== undefined) {
+    // TaleSpire water is a board-wide plane the slab cannot carry: same wording as the paste note (above the bottom
+    // of the slab, which is the level's foundation or its lowest floor, whichever is lower)
+    let lowest = 0;
+    for (let i = 0; i < w * h; i++)
+      if (st[i] === CELL.OPEN) lowest = Math.min(lowest, (level.cells.height[i] as number) / 4);
+    for (const b of level.bridges ?? []) for (const q of b.under) lowest = Math.min(lowest, q / 4);
+    const bottom = level.elevation + Math.min(lowest, -(level.foundation ?? 0));
+    const rel = level.waterLevel - bottom;
+    items.push({
+      layer: "label",
+      style: "label",
+      text: {
+        value: `Water: set to about ${rel} tiles above the slab bottom`,
+        x: bx + 0.5,
+        y: by + 0.5,
+        size: "s",
+        anchor: "start",
+      },
+      ref: "water-level",
+    });
   }
   for (const l of level.labels) {
     items.push({
@@ -566,7 +753,8 @@ export function contentViewBox(list: DisplayList, pad = 1): DisplayList["viewBox
     if (it.layer === "ground" || it.layer === "grid" || it.layer === "selection") continue;
     if (it.geom) {
       for (const r of it.geom.rings)
-        for (let i = 0; i + 1 < r.length; i += 2) add(r[i] as number, r[i + 1] as number, r[i] as number, r[i + 1] as number);
+        for (let i = 0; i + 1 < r.length; i += 2)
+          add(r[i] as number, r[i + 1] as number, r[i] as number, r[i + 1] as number);
     } else if (it.symbol) {
       const s = it.symbol;
       add(s.x, s.y, s.x + s.w, s.y + s.h);

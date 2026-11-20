@@ -6,7 +6,7 @@ l-corridor-route d8bf19c6a822187b
 cave bf9279626549298c
 multi-level-stairs 6c60bf962599d12c
 outdoor-scatter 3e030a64fda199d2
-wp2-shapes 054358fad31801d9
+wp2-shapes 89f15ee790d5bef2
 wp2-openings 861bf78469dd6361
 wp2-links f9ff4f11b403cae5
 wp2-dress 9ca2618601a5a5ea

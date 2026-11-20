@@ -7,6 +7,7 @@
 import type {
   Area,
   AreaKind,
+  BridgeSpan,
   FeatureType,
   Level,
   MapPlan,
@@ -24,7 +25,13 @@ import type {
   WallStyle,
 } from "../contracts/plan";
 import { BUILD_CONSTANTS, MATERIALS, PLAN_LIMITS } from "../contracts/plan";
-import type { ResolvedArea, ResolvedFeature, ResolvedLevel, ResolvedOpening } from "../contracts/resolved";
+import type {
+  ResolvedArea,
+  ResolvedBridge,
+  ResolvedFeature,
+  ResolvedLevel,
+  ResolvedOpening,
+} from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo, rotatedSize } from "../gen/catalog";
 import { type CellMask, forEachMaskCell } from "../gen/mask";
@@ -44,8 +51,17 @@ import {
   rasterizeShape,
   routeCenterline,
 } from "../gen/shapes";
-import { elementSeed, subSeed } from "../util/hash";
+import { elementSeed, h32, subSeed } from "../util/hash";
+import { createPrng } from "../util/prng";
+import { chasmGeometry, chasmSampleAt } from "./chasm";
+import { breakStraightSteps, chamferCorners, organicTiers } from "./organic";
+import { cliffRuns } from "./cliffs";
+import type { PieceSizeFn } from "./pieceSizes";
+import { STILL_WATER, riverCourse } from "./water";
+import { crossingCells, kerbLinesAndCorners } from "./road";
+import { trailCells } from "./trail";
 import type { ThemeDefaults } from "./themes";
+import { type StructureWork, expandStructures } from "./structure";
 import { traceRings } from "./trace";
 
 export interface LevelContext {
@@ -53,6 +69,8 @@ export interface LevelContext {
   levelIndex: number;
   themeDefaults: (theme: ThemeId) => ThemeDefaults;
   issues: PlanIssue[];
+  /** Generator 2: real sizes of palette-shaped pieces (absent = nominal sizes). */
+  pieceSize?: PieceSizeFn;
 }
 
 interface AreaInfo {
@@ -68,8 +86,43 @@ interface AreaInfo {
   floorNone: boolean;
   isZone: boolean;
   isRoute: boolean;
+  isBridge: boolean;
   structCount: number;
 }
+
+/** A bridge deck waiting for the bridge pass (area of kind "bridge" or a chasm op's bridge). */
+interface BridgeRequest {
+  id: string;
+  elementId: string;
+  path: string;
+  cells: number[];
+  /** Deck material ordinal (materialOrdinal). */
+  floorMat: number;
+  /** Explicit deck height (quarter tiles) or null = infer from the floor it touches. */
+  deck: number | null;
+  /** Explicit railing (null = none); undefined = the span's default. */
+  railing: WallStyle | null | undefined;
+  broken: number[];
+  crumble: number;
+  seed: number;
+  span?: BridgeSpan;
+  /** Explicit rise of the middle (tiles). */
+  arch?: number;
+  /** Direction the deck runs (chasm bridges know it; areas use their longer side). */
+  axis?: "h" | "v";
+  label?: string;
+}
+
+const WOOD_DECKS = new Set<Material>(["bridge_wood", "wood_plank"]);
+const NATURAL_DECKS = new Set<Material>(["rock", "dirt", "gravel", "mud", "sand", "grass", "snow", "ice"]);
+/** Rise of the deck's middle (quarter tiles) by span; plank bridges sag. */
+const SPAN_ARCH_Q: Record<BridgeSpan, number> = { arch: 3, flat: 0, plank: -1, natural: 1 };
+const SPAN_RAILING: Record<BridgeSpan, WallStyle | null> = {
+  arch: "railing_stone",
+  flat: "railing_stone",
+  plank: "railing",
+  natural: null,
+};
 
 interface EdgeArrays {
   kind: Uint8Array;
@@ -80,6 +133,8 @@ interface EdgeArrays {
   style: Array<WallStyle | null>;
   /** edge cleared by an "open" opening (counts for overlap). */
   opened: Uint8Array;
+  /** Forced host side (0/1) for generated edges such as bridge railings; -1 = use the host rule. */
+  hostSet: Int8Array;
 }
 
 interface RouteRecord {
@@ -102,7 +157,41 @@ const DEFAULT_MODE: Record<AreaKind, WallMode> = {
   building: "auto",
   courtyard: "perimeter",
   zone: "none",
+  bridge: "none",
 };
+const LAVA_ORDINAL = MATERIALS.indexOf("lava") + 1;
+/** Ground materials whose paths wind and whose platforms get ragged contours by default (generator 2). */
+const NATURAL_PATH = new Set<Material>([
+  "dirt",
+  "gravel",
+  "grass",
+  "sand",
+  "mud",
+  "snow",
+  "rock",
+  "swamp",
+  "ice",
+]);
+/** Landmark-class pieces a spur trail leads to (the first found), then lesser focal pieces. */
+const SPUR_PRIMARY = new Set<string>([
+  "landmark",
+  "statue_large",
+  "monolith",
+  "tree_large",
+  "giant_mushroom",
+]);
+const SPUR_FOCAL = new Set<string>([
+  "statue",
+  "altar",
+  "fountain",
+  "well",
+  "standing_stone",
+  "tall_marker",
+  "campfire",
+  "fire_pit",
+]);
+/** Railing height above the deck (tiles). */
+const RAILING_HEIGHT = 1;
 
 const WATER_MATS = new Set<Material>(["water_shallow", "water_deep"]);
 /** Wall styles that TaleSpire builds as whole-cell blocks (no thin piece exists). */
@@ -140,13 +229,41 @@ export class LevelWork {
   readonly levelTheme: ThemeId;
   readonly defaultWallHeight: number;
   generated = 0;
+  /** Bridge decks (after the bridge pass), and per cell the deck index + 1 (0 = not a deck). */
+  readonly bridges: ResolvedBridge[] = [];
+  readonly bridgeOf: Int32Array;
+  private readonly bridgeReqs: BridgeRequest[] = [];
+  /** Cells whose height an area set explicitly (floorHeight), for the under-layer no-effect check. */
+  private readonly heightSet: Uint8Array;
+  private readonly underTouched: Array<{ op: TerrainOp; path: string; cells: number[] }> = [];
+  /** Stair edges requested by platform and stairs ops ("a,b" local cell pairs, a < b). */
+  private readonly stairEdges = new Set<string>();
+  readonly outcrops: NonNullable<ResolvedLevel["outcrops"]> = [];
+  private readonly kerbs: NonNullable<ResolvedLevel["kerbs"]> = [];
+  /** Rubble at the ends of crumbling bridges, committed with the generated features. */
+  private readonly bridgeRubble: Array<{ id: string; at: Vec2 }> = [];
+  private readonly bridgeCrumble = new Map<number, { crumble: number; seed: number }>();
+  private readonly deckChecks: Array<() => void> = [];
   private readonly ctx: LevelContext;
+  /** Buildings and enclosures (resolve/structure.ts); null when the level has none. */
+  private readonly structs: StructureWork | null;
 
   constructor(ctx: LevelContext) {
     this.ctx = ctx;
     this.plan = ctx.plan;
     this.li = ctx.levelIndex;
-    const level = ctx.plan.levels[ctx.levelIndex] as Level;
+    const planLevel = ctx.plan.levels[ctx.levelIndex] as Level;
+    const lb = planLevel.bounds;
+    // structures add synthetic areas / openings / wall runs after the plan's own (resolve/structure.ts)
+    const ex = expandStructures(
+      ctx.plan,
+      planLevel,
+      ctx.levelIndex,
+      ctx.issues,
+      (x, y) => x >= lb.x && y >= lb.y && x < lb.x + lb.w && y < lb.y + lb.h,
+    );
+    const level = ex.level;
+    this.structs = ex.work;
     this.level = level;
     this.bx = Math.floor(level.bounds.x);
     this.by = Math.floor(level.bounds.y);
@@ -161,6 +278,8 @@ export class LevelWork {
     this.flags = new Uint8Array(this.n);
     this.theme = new Uint16Array(this.n);
     this.occ = new Uint16Array(this.n);
+    this.bridgeOf = new Int32Array(this.n);
+    this.heightSet = new Uint8Array(this.n);
     this.hE = makeEdges(this.w * (this.h + 1));
     this.vE = makeEdges((this.w + 1) * this.h);
     this.levelTheme = level.theme ?? ctx.plan.theme;
@@ -296,6 +415,31 @@ export class LevelWork {
   }
 
   /** Level bounds plus a one-cell ring: shapes are only evaluated there (ring cells reveal clipping). */
+  /**
+   * A river's inner points are drawn off the border, but never onto higher ground than the plan put them on (a brook at
+   * the foot of a terrace stays at its foot): a moved point that would climb goes back where it was drawn.
+   */
+  private keepOffHighGround(drawn: readonly Vec2[], course: Vec2[]): Vec2[] {
+    const hAt = (p: Vec2): number => {
+      const i = this.idx(Math.round(p[0]), Math.round(p[1]));
+      return i < 0 ? 0 : (this.height[i] as number);
+    };
+    const key = (p: Vec2): string => `${p[0]},${p[1]}`;
+    const original = new Set(drawn.map(key));
+    // inner points line up with the drawn points (extensions are only added at the ends)
+    const offset = course.length > drawn.length && !original.has(key(course[0] as Vec2)) ? 1 : 0;
+    return course.map((p, k) => {
+      const d = drawn[k - offset];
+      if (!d || original.has(key(p))) return p;
+      return hAt(p) > hAt(d) ? ([d[0], d[1]] as Vec2) : p;
+    });
+  }
+
+  /** The level's cells as a box (inclusive), for courses that run to the board edge. */
+  private boardBox(): { x0: number; y0: number; x1: number; y1: number } {
+    return { x0: this.bx, y0: this.by, x1: this.bx + this.w - 1, y1: this.by + this.h - 1 };
+  }
+
   rasterClip(): ClipBox {
     return { x0: this.bx - 1, y0: this.by - 1, x1: this.bx + this.w, y1: this.by + this.h };
   }
@@ -314,10 +458,22 @@ export class LevelWork {
     this.stepBase();
     this.stepTerrain("under");
     this.stepAreas();
+    this.structs?.afterAreas(this);
+    this.checkUnderSurvivors();
     this.stepTerrain("over");
+    this.structs?.afterTerrain(this);
+    this.stepPavementFronts();
+    this.stepOutline();
+    this.stepBridges();
     this.stepEdges();
+    this.stepStairs();
+    this.stepRailings();
+    this.stepRoads();
+    this.stepKerbs();
     this.stepWallRuns();
     this.stepOpenings();
+    this.structs?.afterOpenings(this);
+    this.checkAreaFields();
   }
 
   private initAreas(): void {
@@ -333,7 +489,13 @@ export class LevelWork {
         index,
         kind: area.kind,
         mode: area.walls ?? DEFAULT_MODE[area.kind],
-        wallStyle: area.wallStyle ?? (area.kind === "cave" ? "cave_rock" : "wall"),
+        // generator 2: in a theme whose walls are natural rock (cave), every area defaults to rock walls, so a tunnel
+        // into a cave is rock, not a brick box
+        wallStyle:
+          area.wallStyle ??
+          (area.kind === "cave" || (this.plan.generator >= 2 && td.wallStyle === "cave_rock")
+            ? "cave_rock"
+            : "wall"),
         wallHeight: area.wallHeight ?? this.defaultWallHeight,
         themeIdx: this.themeIndex(theme),
         theme,
@@ -341,6 +503,7 @@ export class LevelWork {
         floorNone: floor === "none",
         isZone: area.kind === "zone",
         isRoute: area.shape.type === "route",
+        isBridge: area.kind === "bridge",
         structCount: 0,
       });
       if (!this.areaIndexById.has(area.id)) this.areaIndexById.set(area.id, index);
@@ -361,70 +524,395 @@ export class LevelWork {
   private stepTerrain(layer: "under" | "over"): void {
     this.level.terrain.forEach((op, k) => {
       if (op.op === "scatter" || op.op === "dress") return;
-      if ((op.layer ?? "under") !== layer) return;
-      this.applyTerrain(op, `/levels/${this.li}/terrain/${k}`);
+      const structural =
+        op.op === "chasm" ||
+        op.op === "platform" ||
+        op.op === "stairs" ||
+        op.op === "uneven" ||
+        op.op === "outcrop";
+      const opLayer = structural ? "over" : (op.layer ?? "under");
+      if (opLayer !== layer) return;
+      const path = `/levels/${this.li}/terrain/${k}`;
+      switch (op.op) {
+        case "chasm":
+          this.applyChasm(op, path);
+          return;
+        case "platform":
+          this.applyPlatform(op, path);
+          return;
+        case "stairs":
+          this.applyStairsOp(op, path);
+          return;
+        case "uneven":
+          this.applyUneven(op, path);
+          return;
+        case "outcrop":
+          this.applyOutcrop(op, path);
+          return;
+      }
+      const r = this.applyTerrain(op, path, layer);
+      if (layer === "under" && r.touched.length > 0) this.underTouched.push({ op, path, cells: r.touched });
+      if (r.touched.length === 0 && !r.partial)
+        this.reportTerrainNoEffect(op, path, layer, r.inShape, r.open);
     });
+    this.stepPavements(layer);
+    if (layer === "under") this.stepPathSpurs();
   }
 
-  private applyTerrain(op: Exclude<TerrainOp, { op: "scatter" } | { op: "dress" }>, path: string): void {
-    const open = (i: number): boolean => this.state[i] === CELL.OPEN;
+  /** Warning for a paint/noise/path/height op that changed no cell, with the reason and the fix. */
+  private reportTerrainNoEffect(
+    op: Exclude<
+      TerrainOp,
+      { op: "scatter" | "dress" | "chasm" | "platform" | "stairs" | "uneven" | "outcrop" }
+    >,
+    path: string,
+    layer: "under" | "over",
+    inShape: number,
+    open: number,
+  ): void {
+    let why: string;
+    let hint: string;
+    if (inShape === 0) {
+      why = "its shape has no cell inside the level";
+      hint = `move it inside the level bounds (${this.bx},${this.by} ${this.w}x${this.h})`;
+    } else if (open === 0 && layer === "under") {
+      why =
+        op.op === "height"
+          ? 'layer "under" runs before the areas, when every cell of this level is still rock, and this map uses generator 1, where an under height op only changes cells that are already open'
+          : 'layer "under" runs before the areas, when every cell of this level is still rock, and terrain ops never open rock';
+      hint =
+        op.op === "height"
+          ? 'use layer "over" (applied after the areas) or give the area a floorHeight; for a crevasse use the chasm terrain op'
+          : 'use layer "over" (applied after the areas) to change the floor of the areas';
+    } else if (open === 0) {
+      why = "none of its cells is open floor (terrain ops never open rock or void)";
+      hint = "place it inside an area (or on ground), or add an area there first";
+    } else {
+      why = `its ${open} open cells already have that height`;
+      hint = "remove it, or change set/delta";
+    }
+    this.issue(
+      "warning",
+      "no_effect",
+      `terrain op "${op.id}" (${op.op}, layer ${layer}) changed nothing: ${why}`,
+      { path, elementId: op.id, hint },
+    );
+  }
+
+  /**
+   * Under-layer ops whose every touched cell was taken over by an area that sets its own value (its floor for
+   * paint/noise/path, floorHeight for height), or that no area ever opened.
+   */
+  private checkUnderSurvivors(): void {
+    for (const { op, path, cells } of this.underTouched) {
+      const isHeight = op.op === "height";
+      let survivors = 0;
+      let opened = 0;
+      for (const i of cells) {
+        if (this.state[i] !== CELL.OPEN) continue;
+        opened++;
+        if (isHeight ? this.heightSet[i] === 0 : this.struct[i] === 0) survivors++;
+      }
+      if (survivors > 0) continue;
+      const msg =
+        opened === 0
+          ? `terrain op "${op.id}" (${op.op}, layer under) changes nothing you can see: no area opens any of its cells, so they stay solid rock`
+          : isHeight
+            ? `terrain op "${op.id}" (height, layer under) is overridden everywhere: every area covering it sets its own floorHeight`
+            : `terrain op "${op.id}" (${op.op}, layer under) is painted over everywhere: the areas covering it set their own floor`;
+      const hint =
+        opened === 0
+          ? "put an area over those cells, or move the op inside an area"
+          : isHeight
+            ? 'remove floorHeight from those areas, or use layer "over"'
+            : 'use layer "over" to paint on top of the areas, or set the area\'s floor';
+      this.issue("warning", "no_effect", msg, { path, elementId: op.id, hint });
+    }
+  }
+
+  private applyTerrain(
+    op: Exclude<
+      TerrainOp,
+      { op: "scatter" | "dress" | "chasm" | "platform" | "stairs" | "uneven" | "outcrop" }
+    >,
+    path: string,
+    layer: "under" | "over",
+  ): { touched: number[]; inShape: number; open: number; partial: boolean } {
+    // Generator 2: an under-layer height op sets the height field of every cell (rock included); the areas that open
+    // those cells later inherit it unless they set floorHeight (contracts/plan.ts GENERATOR_VERSION).
+    const field = op.op === "height" && layer === "under" && this.plan.generator >= 2;
+    const open = (i: number): boolean => field || this.state[i] === CELL.OPEN;
+    const touched: number[] = [];
+    let inShape = 0;
+    let openCount = 0;
+    // noise picks cells by coverage: hitting open cells but picking none is the model's call, not a no-op mistake
+    let partial = false;
     switch (op.op) {
       case "paint": {
-        for (const i of this.shapeCells(op.shape, "terrain", path, op.id))
-          if (open(i)) this.setMaterial(i, op.material);
-        return;
+        for (const i of this.shapeCells(op.shape, "terrain", path, op.id)) {
+          inShape++;
+          if (!open(i)) continue;
+          openCount++;
+          this.setMaterial(i, op.material);
+          touched.push(i);
+        }
+        break;
       }
       case "noise": {
         const seed = elementSeed(this.plan.seed, op.id, op.seed);
         const noise = new ValueNoise(subSeed(seed, "noise"));
         const scale = Math.max(1, op.scale ?? 8);
         for (const i of this.shapeCells(op.shape, "terrain", path, op.id)) {
+          inShape++;
           if (!open(i)) continue;
+          openCount++;
           const [x, y] = this.cellXY(i);
-          if (noise.sample(x / scale, y / scale) < op.coverage) this.setMaterial(i, op.material);
+          if (noise.sample(x / scale, y / scale) < op.coverage) {
+            this.setMaterial(i, op.material);
+            touched.push(i);
+          }
         }
-        return;
+        partial = openCount > 0;
+        break;
       }
       case "path": {
         const seed = elementSeed(this.plan.seed, op.id, op.seed);
-        const pts = jitterPolyline(op.points, op.width, op.jitter ?? 0, seed);
-        const m = rasterPolyline(pts, op.width, this.rasterClip());
-        forEachMaskCell(m, (x, y) => {
+        // generator 2 road form (resolve/road.ts): sidewalk and/or crossings; always straight
+        const road = this.plan.generator >= 2 && (op.sidewalk !== undefined || op.crossings !== undefined);
+        // generator 2: water winds like a trail unless told to run straight
+        const wetPath = WATER_MATS.has(op.material);
+        const natural0 =
+          this.plan.generator >= 2 &&
+          !road &&
+          (op.style ?? (NATURAL_PATH.has(op.material) || wetPath ? "natural" : "straight")) === "natural";
+        const drawn = op.points ?? this.connectPoints(op.connect ?? [], path, op.id, !natural0);
+        // a river or brook crosses the map: from one board edge to another, off the border in between
+        const base =
+          this.plan.generator >= 2 && wetPath && op.points !== undefined && !STILL_WATER.test(op.id)
+            ? this.keepOffHighGround(drawn, riverCourse(drawn, this.boardBox(), op.width))
+            : drawn;
+        const natural = natural0;
+        // a straight road never wobbles: jitter only for paths that do not ask for straight
+        const straightOnly = road || (this.plan.generator >= 2 && op.style === "straight");
+        const visit = (x: number, y: number): void => {
           const i = this.idx(x, y);
-          if (i < 0 || !open(i)) return;
+          if (i < 0) return;
+          inShape++;
+          if (!open(i)) return;
+          // a trail goes round buildings (their door approaches stay open floor beside them)
+          if (natural && this.areas[(this.struct[i] as number) - 1]?.kind === "building") return;
+          openCount++;
           this.setMaterial(i, op.material);
           this.flags[i] = (this.flags[i] as number) | CELL_FLAG.PATH;
-        });
-        return;
+          touched.push(i);
+        };
+        const anchors: Vec2[] = [];
+        if (natural) {
+          // a winding trail (resolve/trail.ts): smooth curve through the waypoints, slow width changes, small rounded
+          // widenings where it meets what it connects
+          const clip = this.rasterClip();
+          const junctions = op.connect ? base : [];
+          for (const c of [base[0] as Vec2, base[base.length - 1] as Vec2, ...junctions]) anchors.push(c);
+          const cells = trailCells(base, op.width, op.jitter ?? 0.7, subSeed(seed, "trail"), clip, junctions);
+          for (const [x, y] of cells) visit(x, y);
+        } else {
+          const pts = jitterPolyline(base, op.width, straightOnly ? 0 : (op.jitter ?? 0), seed);
+          forEachMaskCell(rasterPolyline(pts, op.width, this.rasterClip()), visit);
+          if (road) this.pendingRoads.push({ op, axis: pts, layer, cells: touched.slice(), pave: [] });
+        }
+        if (op.kerb === true && !road)
+          this.pendingKerbs.push({ cells: new Set(touched), material: op.material, seed, anchors, natural });
+        break;
       }
       case "height": {
-        const cells = this.shapeCells(op.shape, "terrain", path, op.id);
+        let cells = this.shapeCells(op.shape, "terrain", path, op.id);
+        if (
+          this.plan.generator >= 2 &&
+          (op.edge ?? (this.level.base.type === "ground" ? "ragged" : "clean")) === "ragged"
+        ) {
+          // natural ground: a rounded, wandering outline (resolve/organic.ts)
+          const tiers = organicTiers(
+            cells,
+            1,
+            1,
+            subSeed(elementSeed(this.plan.seed, op.id), "rim"),
+            this.organicGrid(),
+            true,
+            this.growRing(cells),
+          );
+          cells = [...tiers].filter(([, t]) => t >= 1).map(([i]) => i);
+        }
         const smooth = Math.max(0, Math.floor(op.smooth ?? 0));
         const dist = smooth > 0 ? this.innerDistance(cells) : null;
         for (const i of cells) {
+          inShape++;
           if (!open(i)) continue;
+          openCount++;
           const d = dist ? (dist.get(i) ?? 1) : smooth + 1;
           const factor = Math.min(1, d / (smooth + 1));
           const cur = this.height[i] as number;
           let next: number;
           if (op.set !== undefined) next = Math.round(cur + (Math.round(op.set * 4) - cur) * factor);
           else next = cur + Math.round((op.delta ?? 0) * 4 * factor);
-          this.height[i] = Math.max(PLAN_LIMITS.minHeight * 4, Math.min(PLAN_LIMITS.maxHeight * 4, next));
+          next = Math.max(PLAN_LIMITS.minHeight * 4, Math.min(PLAN_LIMITS.maxHeight * 4, next));
+          this.height[i] = next;
+          if (next !== cur) touched.push(i);
         }
-        return;
+        break;
       }
     }
+    return { touched, inShape, open: openCount, partial };
+  }
+
+  /**
+   * Chasm op (§2.5): cuts open floor cells `depth` tiles down along a meandering course, optionally changes the
+   * bottom's material, and queues its bridges for the bridge pass.
+   */
+  private applyChasm(op: Extract<TerrainOp, { op: "chasm" }>, path: string): void {
+    const seed = elementSeed(this.plan.seed, op.id, op.seed);
+    const clip = this.rasterClip();
+    const wet0 = op.floor === "water_shallow" || op.floor === "water_deep";
+    // a river channel crosses the map from one board edge to another (generator 2; still water keeps its course)
+    const course =
+      this.plan.generator >= 2 && wet0 && !STILL_WATER.test(op.id)
+        ? this.keepOffHighGround(op.points, riverCourse(op.points, this.boardBox(), op.width))
+        : op.points;
+    const geo = chasmGeometry(course, op.width, op.meander ?? 0.5, seed, {
+      x0: clip.x0,
+      y0: clip.y0,
+      x1: clip.x1,
+      y1: clip.y1,
+    });
+    const wet = op.floor === "water_shallow" || op.floor === "water_deep";
+    // a water channel needs room for TaleSpire's board-wide water plane (an imprecise slider): a tile deep leaves half
+    // a tile between "bed covered" and "banks flooded"
+    const depthQ = Math.round((wet ? Math.max(1, op.depth ?? 1) : (op.depth ?? 3)) * 4);
+    if (wet && op.depth !== undefined && op.depth < 1)
+      this.issue(
+        "warning",
+        "water_level",
+        `chasm "${op.id}" is a water channel only ${op.depth} deep; it is cut 1 tile deep`,
+        {
+          path,
+          elementId: op.id,
+          hint: "water in TaleSpire is a board-wide plane: a channel at least 1 tile deep keeps it in the channel and off the banks",
+        },
+      );
+    const cut = new Set<number>();
+    let outside = 0;
+    // ledges part-way down (deep chasms): rim cells where a noise field is high stop at about half depth, keeping the
+    // ground they were cut from, so the walls step down in places instead of dropping sheer everywhere
+    const geoSet = new Set(geo.cells.map(([x, y]) => `${x},${y}`));
+    const shelfNoise = new ValueNoise(subSeed(seed, "shelf"));
+    const shelfQ = depthQ >= 8 ? 2 * Math.round(depthQ / 4) : 0;
+    for (const [x, y] of geo.cells) {
+      const i = this.idx(x, y);
+      if (i < 0) {
+        outside++;
+        continue;
+      }
+      if (this.state[i] !== CELL.OPEN) continue;
+      const cur = this.height[i] as number;
+      const rim = [
+        [x + 1, y],
+        [x - 1, y],
+        [x, y + 1],
+        [x, y - 1],
+      ].some(([nx, ny]) => !geoSet.has(`${nx},${ny}`));
+      if (shelfQ > 0 && rim && shelfNoise.sample(x / 3, y / 3) > 0.62) {
+        this.height[i] = Math.max(PLAN_LIMITS.minHeight * 4, cur - shelfQ);
+        cut.add(i);
+        continue;
+      }
+      this.height[i] = Math.max(PLAN_LIMITS.minHeight * 4, cur - depthQ);
+      if (op.floor === "none") {
+        this.flags[i] =
+          ((this.flags[i] as number) | CELL_FLAG.NO_FLOOR) & ~(CELL_FLAG.WATER | CELL_FLAG.PATH);
+        this.mat[i] = 0;
+      } else if (op.floor !== undefined) {
+        this.setMaterial(i, op.floor);
+        this.flags[i] = (this.flags[i] as number) & ~(CELL_FLAG.NO_FLOOR | CELL_FLAG.PATH);
+      }
+      cut.add(i);
+    }
+    if (cut.size === 0) {
+      this.issue(
+        "warning",
+        "no_effect",
+        `chasm "${op.id}" cut nothing: its course crosses no open floor${outside > 0 ? " inside the level" : ""}`,
+        {
+          path,
+          elementId: op.id,
+          hint: "run it through an area (a chasm only cuts floor that an area or ground has opened); list it in the level's terrain, which is applied after the areas",
+        },
+      );
+      return;
+    }
+    (op.bridges ?? []).forEach((b, k) => {
+      const bid = `${op.id}~b${k + 1}`;
+      const s = chasmSampleAt(geo, b.at ?? 0.5);
+      if (!s) return;
+      // bridges run square across the chasm: N–S where the chasm runs mostly E–W, else E–W
+      const vertical = Math.abs(s.tx) >= Math.abs(s.ty);
+      const px = Math.floor(s.x);
+      const py = Math.floor(s.y);
+      const width = b.width ?? 2;
+      const [lo, hi] = bandOffsets(width);
+      const cells: number[] = [];
+      for (let o = lo; o <= hi; o++) {
+        const sx = vertical ? px + o : px;
+        const sy = vertical ? py : py + o;
+        const start = this.idx(sx, sy);
+        if (start < 0 || !cut.has(start)) continue;
+        cells.push(start);
+        for (const dir of [-1, 1]) {
+          for (let step = 1; step < 64; step++) {
+            const i = this.idx(vertical ? sx : sx + dir * step, vertical ? sy + dir * step : sy);
+            if (i < 0 || !cut.has(i)) break;
+            cells.push(i);
+          }
+        }
+      }
+      if (cells.length === 0) {
+        this.issue(
+          "warning",
+          "no_effect",
+          `bridge ${k + 1} of chasm "${op.id}" found no chasm cell to span at at=${b.at ?? 0.5}`,
+          {
+            path: `${path}/bridges/${k}`,
+            elementId: op.id,
+            hint: "move it (at 0..1 along the chasm) to where the chasm crosses open floor",
+          },
+        );
+        return;
+      }
+      this.bridgeReqs.push({
+        id: bid,
+        elementId: op.id,
+        path: `${path}/bridges/${k}`,
+        cells: [...new Set(cells)].sort((a, c) => a - c),
+        floorMat: materialOrdinal(b.floor ?? "flagstone"),
+        deck: null,
+        railing: b.railing === "none" ? null : b.railing,
+        broken: [],
+        crumble: b.crumble ?? 0,
+        seed: subSeed(seed, `bridge${k}`),
+        axis: vertical ? "v" : "h",
+        ...(b.span !== undefined ? { span: b.span } : {}),
+        ...(b.arch !== undefined ? { arch: b.arch } : {}),
+      });
+    });
   }
 
   /** 4-neighbour BFS distance from the outside of a cell set (boundary cells = 1). */
-  private innerDistance(cells: number[]): Map<number, number> {
+  private innerDistance(cells: number[], boundsInside = false): Map<number, number> {
     const set = new Set(cells);
     const dist = new Map<number, number>();
     let frontier: number[] = [];
     for (const i of cells) {
       const [x, y] = this.cellXY(i);
       const nb = [this.idx(x + 1, y), this.idx(x - 1, y), this.idx(x, y + 1), this.idx(x, y - 1)];
-      if (nb.some((k) => k < 0 || !set.has(k))) {
+      if (nb.some((k) => (k < 0 ? !boundsInside : !set.has(k)))) {
         dist.set(i, 1);
         frontier.push(i);
       }
@@ -453,6 +941,13 @@ export class LevelWork {
       this.disp[i] = ai1;
       return;
     }
+    if (info.isBridge && this.state[i] === CELL.OPEN) {
+      // A bridge keeps what lies under it (floor, height, flags); the bridge pass lays the deck on top.
+      this.struct[i] = ai1;
+      this.disp[i] = ai1;
+      this.theme[i] = info.themeIdx;
+      return;
+    }
     this.state[i] = CELL.OPEN;
     this.struct[i] = ai1;
     this.disp[i] = ai1;
@@ -466,7 +961,10 @@ export class LevelWork {
       if (WATER_MATS.has(MATERIALS[info.floorMat - 1] as Material)) f |= CELL_FLAG.WATER;
     }
     this.flags[i] = f;
-    if (info.area.floorHeight !== undefined) this.height[i] = Math.round(info.area.floorHeight * 4);
+    if (info.area.floorHeight !== undefined && !info.isBridge) {
+      this.height[i] = Math.round(info.area.floorHeight * 4);
+      this.heightSet[i] = 1;
+    }
   }
 
   private stepAreas(): void {
@@ -635,7 +1133,11 @@ export class LevelWork {
       const ra = this.region(a);
       const rb = this.region(b);
       let demand = -1; // 0 = a, 1 = b, 2 = both
-      if (ra >= 0 !== rb >= 0) {
+      // A bridge deck never gets area walls toward open cells (it has railings, added after the edges).
+      const deckEdge = ra >= 0 && rb >= 0 && (this.bridgeOf[a] !== 0 || this.bridgeOf[b] !== 0);
+      if (deckEdge) {
+        /* no wall */
+      } else if (ra >= 0 !== rb >= 0) {
         const r = ra >= 0 ? ra : rb;
         const m = this.modeOf(r);
         if (m === "auto" || m === "perimeter") demand = ra >= 0 ? 0 : 1;
@@ -678,10 +1180,1180 @@ export class LevelWork {
     for (let i = 0; i < this.vE.kind.length; i++) one("v", this.vE, i);
   }
 
+  // ── structure ops (over layer): platform, stairs, uneven, outcrop ──
+
+  /** Records a stair edge between two 4-adjacent cells (applied after the edges, when heights are final). */
+  private addStairEdge(a: number, b: number): void {
+    if (a < 0 || b < 0) return;
+    const key = a < b ? `${a},${b}` : `${b},${a}`;
+    this.stairEdges.add(key);
+  }
+
+  /** A flight from cell `start` stepping by (dx,dy) through `cells` (in order): stair edges where heights differ. */
+  private flight(cells: number[]): void {
+    for (let k = 1; k < cells.length; k++) this.addStairEdge(cells[k - 1] as number, cells[k] as number);
+  }
+
+  private applyPlatform(op: Extract<TerrainOp, { op: "platform" }>, path: string): void {
+    const cells = this.shapeCells(op.shape, "terrain", path, op.id).filter(
+      (i) => this.state[i] === CELL.OPEN && ((this.flags[i] as number) & CELL_FLAG.BRIDGE) === 0,
+    );
+    if (cells.length === 0) {
+      this.issue(
+        "warning",
+        "no_effect",
+        `platform "${op.id}" changed nothing: its shape covers no open floor`,
+        {
+          path,
+          elementId: op.id,
+          hint: "put it inside an area (a platform raises or sinks floor that an area has opened); list it after the areas",
+        },
+      );
+      return;
+    }
+    // ragged (natural) contours: the distance to the edge wanders with noise, then tiers are relaxed so neighbours
+    // never differ by more than one tier
+    const natural = op.material !== undefined && NATURAL_PATH.has(op.material);
+    const ragged =
+      this.plan.generator >= 2 &&
+      (op.edge ?? (this.level.base.type === "ground" && natural ? "ragged" : "clean")) === "ragged";
+    // natural hills default to few bold rises (two terraces 2.5 tiles apart, a few cells deep), not many small steps;
+    // a dais or built terrace keeps the small defaults
+    const bold = ragged && natural;
+    const tiers = op.tiers ?? (bold ? 2 : 3);
+    const riseQ = Math.round((op.rise ?? (bold ? 2.5 : 0.5)) * 4);
+    const inset = op.inset ?? (bold ? 3 : 1);
+    // the level bounds do not count as an edge: a plateau against the map edge stays high there
+    const dist = this.innerDistance(cells, true);
+    const tierOf = new Map<number, number>();
+    if (ragged) {
+      // organic tiers: rounded, wandering, non-parallel outlines (resolve/organic.ts)
+      const grow = this.growRing(cells);
+      const org = organicTiers(
+        cells,
+        tiers,
+        inset,
+        subSeed(elementSeed(this.plan.seed, op.id), "contour"),
+        this.organicGrid(),
+        true,
+        grow,
+      );
+      for (const i of grow) if ((org.get(i) ?? 0) >= 1) cells.push(i);
+      for (const i of cells) tierOf.set(i, org.get(i) ?? 0);
+    } else
+      for (const i of cells) {
+        const dn = dist.get(i) ?? 1;
+        tierOf.set(i, Math.max(0, Math.min(tiers, Math.floor((dn - 1) / inset) + 1)));
+      }
+    if (ragged)
+      for (let pass = 0; pass < 6; pass++)
+        for (const i of cells)
+          for (const j of this.neighbours4(i)) {
+            const tj = j >= 0 ? tierOf.get(j) : undefined;
+            if (tj !== undefined && (tierOf.get(i) as number) > tj + 1) tierOf.set(i, tj + 1);
+          }
+    for (const i of cells) {
+      const t = tierOf.get(i) as number;
+      if (t === 0) continue;
+      this.height[i] = Math.max(
+        PLAN_LIMITS.minHeight * 4,
+        Math.min(PLAN_LIMITS.maxHeight * 4, (this.height[i] as number) + t * riseQ),
+      );
+      const m = t === tiers ? (op.topMaterial ?? op.material) : op.material;
+      if (m !== undefined) this.setMaterial(i, m);
+    }
+    const top = Math.max(...tierOf.values());
+    if (top < tiers)
+      this.issue(
+        "warning",
+        "no_effect",
+        `platform "${op.id}" only has room for ${top} of its ${tiers} tiers (the shape is too small for inset ${inset})`,
+        { path, elementId: op.id, hint: "enlarge the shape, or lower tiers or inset" },
+      );
+    if (Math.abs(riseQ) > 4 && (op.stairs ?? []).length > 0)
+      this.issue(
+        "warning",
+        "stairs_invalid",
+        `platform "${op.id}" rises ${riseQ / 4} per tier: too steep for its stairs`,
+        {
+          path,
+          elementId: op.id,
+          hint: "use rise 1 or less per tier (0.5 reads as steps and is walkable everywhere)",
+        },
+      );
+    // stairs: a 2-wide flight through the middle of each requested side, from outside the platform to the top tier
+    const set = new Set(cells);
+    const xy = cells.map((i) => this.cellXY(i));
+    const x0 = Math.min(...xy.map((c) => c[0]));
+    const x1 = Math.max(...xy.map((c) => c[0]));
+    const y0 = Math.min(...xy.map((c) => c[1]));
+    const y1 = Math.max(...xy.map((c) => c[1]));
+    const cx = Math.floor((x0 + x1) / 2);
+    const cy = Math.floor((y0 + y1) / 2);
+    const [lo, hi] = bandOffsets(2);
+    for (const side of op.stairs ?? []) {
+      for (let o = lo; o <= hi; o++) {
+        const seq: number[] = [];
+        const vertical = side === "N" || side === "S";
+        const step = side === "N" || side === "W" ? 1 : -1;
+        let x = vertical ? cx + o : side === "W" ? x0 - 1 : x1 + 1;
+        let y = vertical ? (side === "N" ? y0 - 1 : y1 + 1) : cy + o;
+        for (let n = 0; n < 200; n++) {
+          const i = this.idx(x, y);
+          if (i >= 0 && (set.has(i) || seq.length === 0)) {
+            if (set.has(i) || this.state[i] === CELL.OPEN) seq.push(i);
+            if (set.has(i) && tierOf.get(i) === top) break;
+          } else if (seq.length > 0) break;
+          if (vertical) y += step;
+          else x += step;
+        }
+        this.flight(seq);
+      }
+    }
+  }
+
+  /** Rock ramps laid by stairs ops in style "ramp" (generator 2). */
+  private readonly ramps: NonNullable<ResolvedLevel["ramps"]> = [];
+
+  /**
+   * A rock ramp (generator 2): a band from `from` to `to` (any direction), `width` cells wide (3..6, default 4),
+   * rising in half-tile steps from the low end's height to the high end's, floored with rock. Walkable everywhere
+   * (no step over half a tile); a warning when it climbs faster than 1 tile per 2.5 cells.
+   */
+  private applyRamp(op: Extract<TerrainOp, { op: "stairs" }>, path: string): void {
+    const a = this.idx(op.from[0], op.from[1]);
+    const b = this.idx(op.to[0], op.to[1]);
+    if (a < 0 || b < 0 || this.state[a] !== CELL.OPEN || this.state[b] !== CELL.OPEN) {
+      this.issue("warning", "stairs_invalid", `ramp "${op.id}" needs open floor at both ends`, {
+        path,
+        elementId: op.id,
+        hint: "start it on the low ground and end it on the high ground",
+      });
+      return;
+    }
+    const h0 = this.height[a] as number;
+    const h1 = this.height[b] as number;
+    const [fx, fy] = op.from;
+    const [tx, ty] = op.to;
+    const len = Math.hypot(tx - fx, ty - fy);
+    if (len > 0 && Math.abs(h1 - h0) / 4 > len / 2.5)
+      this.issue(
+        "warning",
+        "stairs_invalid",
+        `ramp "${op.id}" climbs ${Math.abs(h1 - h0) / 4} tiles over ${Math.round(len)} cells: steeper than 1 tile per 2.5 cells`,
+        {
+          path,
+          elementId: op.id,
+          hint: `make it at least ${Math.ceil((Math.abs(h1 - h0) / 4) * 2.5)} cells long, diagonal to the cliff`,
+        },
+      );
+    const width = Math.max(3, Math.min(6, op.width ?? 4));
+    const cells: Vec2[] = [];
+    forEachMaskCell(rasterPolyline([op.from, op.to], width, this.rasterClip()), (x, y) => {
+      const i = this.idx(x, y);
+      if (i < 0 || this.state[i] !== CELL.OPEN) return;
+      if (((this.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.BRIDGE)) !== 0) return;
+      const t =
+        len > 0 ? Math.max(0, Math.min(1, ((x - fx) * (tx - fx) + (y - fy) * (ty - fy)) / (len * len))) : 0;
+      this.height[i] = h0 + 2 * Math.round(((h1 - h0) * t) / 2);
+      this.setMaterial(i, "rock");
+      cells.push([x, y]);
+    });
+    if (cells.length > 0) this.ramps.push({ id: op.id, cells, from: [fx, fy], to: [tx, ty] });
+  }
+
+  private applyStairsOp(op: Extract<TerrainOp, { op: "stairs" }>, path: string): void {
+    if (op.style === "ramp" && this.plan.generator >= 2) {
+      this.applyRamp(op, path);
+      return;
+    }
+    const [fx, fy] = op.from;
+    const [tx, ty] = op.to;
+    if (fx !== tx && fy !== ty) {
+      this.issue("warning", "stairs_invalid", `stairs "${op.id}" must run along one row or column`, {
+        path,
+        elementId: op.id,
+        hint: `use to: [${tx},${fy}] or [${fx},${ty}]`,
+      });
+      return;
+    }
+    const n = Math.abs(tx - fx) + Math.abs(ty - fy);
+    const dx = Math.sign(tx - fx);
+    const dy = Math.sign(ty - fy);
+    const [lo, hi] = bandOffsets(op.width ?? 1);
+    let placed = 0;
+    for (let o = lo; o <= hi; o++) {
+      const ox = dx === 0 ? o : 0;
+      const oy = dx === 0 ? 0 : o;
+      const a = this.idx(fx + ox, fy + oy);
+      const b = this.idx(tx + ox, ty + oy);
+      if (a < 0 || b < 0 || this.state[a] !== CELL.OPEN || this.state[b] !== CELL.OPEN || n === 0) continue;
+      const h0 = this.deckHeightOf(a) ?? (this.height[a] as number);
+      const h1 = this.deckHeightOf(b) ?? (this.height[b] as number);
+      if (Math.abs(h1 - h0) > 4 * n) {
+        this.issue(
+          "warning",
+          "stairs_invalid",
+          `stairs "${op.id}" climb ${(h1 - h0) / 4} tiles over ${n} cell${n > 1 ? "s" : ""}: steeper than 1 tile per cell`,
+          {
+            path,
+            elementId: op.id,
+            hint: `start or end it further out: it needs at least ${Math.ceil(Math.abs(h1 - h0) / 4)} cells between from and to`,
+          },
+        );
+      }
+      const seq: number[] = [a];
+      for (let k = 1; k < n; k++) {
+        const i = this.idx(fx + ox + dx * k, fy + oy + dy * k);
+        if (i < 0) break;
+        if (this.state[i] !== CELL.OPEN) {
+          this.state[i] = CELL.OPEN;
+          this.mat[i] = this.mat[a] as number;
+          this.struct[i] = this.struct[a] as number;
+          this.disp[i] = this.disp[a] as number;
+          this.theme[i] = this.theme[a] as number;
+        }
+        this.flags[i] = (this.flags[i] as number) & ~CELL_FLAG.NO_FLOOR;
+        if (this.mat[i] === 0) this.mat[i] = this.mat[a] as number;
+        this.height[i] = h0 + Math.round(((h1 - h0) * k) / n);
+        seq.push(i);
+      }
+      seq.push(b);
+      this.flight(seq);
+      placed++;
+    }
+    if (placed === 0)
+      this.issue(
+        "warning",
+        "no_effect",
+        `stairs "${op.id}" changed nothing: from and to must both be open floor`,
+        {
+          path,
+          elementId: op.id,
+          hint: "put both ends on floor cells (the cells in between may be anything)",
+        },
+      );
+  }
+
+  private applyUneven(op: Extract<TerrainOp, { op: "uneven" }>, path: string): void {
+    const region = op.shape
+      ? this.shapeCells(op.shape, "terrain", path, op.id)
+      : Array.from({ length: this.n }, (_, i) => i);
+    const excluded = new Set<number>();
+    for (const s of op.exclude ?? [])
+      forEachMaskCell(rasterizeShape(s, { planSeed: this.plan.seed, clip: this.rasterClip() }), (x, y) => {
+        const i = this.idx(x, y);
+        if (i >= 0) excluded.add(i);
+      });
+    const cells = region.filter(
+      (i) =>
+        !excluded.has(i) &&
+        this.state[i] === CELL.OPEN &&
+        ((this.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE | CELL_FLAG.WATER)) === 0,
+    );
+    if (cells.length === 0) {
+      this.issue(
+        "warning",
+        "no_effect",
+        `uneven "${op.id}" changed nothing: no open dry floor in its shape`,
+        {
+          path,
+          elementId: op.id,
+          hint: "give it a shape inside an area, or shrink exclude",
+        },
+      );
+      return;
+    }
+    const seed = elementSeed(this.plan.seed, op.id, op.seed);
+    const noise = new ValueNoise(subSeed(seed, "uneven"));
+    const scale = op.scale ?? 8;
+    const amountQ = Math.round((op.amount ?? 0.5) * 4);
+    const set = new Set(cells);
+    // taper to nothing over 3 cells at the edge of the region, so it meets the floor around it smoothly
+    const dist = this.innerDistance(cells);
+    const delta = new Map<number, number>();
+    for (const i of cells) {
+      const [x, y] = this.cellXY(i);
+      const taper = Math.min(1, ((dist.get(i) ?? 1) - 1) / 3);
+      // whole half tiles: a quarter-tile step only reads as a crack in game (round 3); generator 2 rounds the band
+      // outlines below so they read as gentle banks, not square stair-steps
+      delta.set(i, 2 * Math.round((noise.sample(x / scale, y / scale) - 0.5) * amountQ * taper));
+    }
+    // generator 2: the band edges wander like an organic outline (no straight or square stair-steps)
+    if (this.plan.generator >= 2) {
+      const tiers = new Map<number, number>();
+      for (const i of cells) tiers.set(i, Math.round((delta.get(i) as number) / 2));
+      breakStraightSteps(tiers, this.organicGrid(), subSeed(seed, "bands"));
+      chamferCorners(tiers, this.organicGrid());
+      for (const i of cells) delta.set(i, 2 * (tiers.get(i) ?? 0));
+    }
+    // walkable: neighbours in the region never differ by more than 2 quarters (relaxation, then applied)
+    for (let pass = 0; pass < 8; pass++) {
+      let changed = false;
+      for (const i of cells) {
+        let lo2 = -Infinity;
+        let hi2 = Infinity;
+        for (const j of this.neighbours4(i)) {
+          if (j < 0 || !set.has(j)) continue;
+          // an existing step (a cliff or a riser the plan built) stays as it is: smoothing across it would drag the
+          // low ground up into a ramp that ends in a straight wall at the edge of the shape
+          if (Math.abs((this.height[j] as number) - (this.height[i] as number)) > 2) continue;
+          const base = (this.height[j] as number) + (delta.get(j) as number) - (this.height[i] as number);
+          lo2 = Math.max(lo2, base - 2);
+          hi2 = Math.min(hi2, base + 2);
+        }
+        const d = delta.get(i) as number;
+        const c = Math.max(lo2, Math.min(hi2, d));
+        if (Number.isFinite(c) && c !== d) {
+          delta.set(i, Math.round(c));
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+    for (const i of cells) this.height[i] = (this.height[i] as number) + (delta.get(i) as number);
+  }
+
+  private applyOutcrop(op: Extract<TerrainOp, { op: "outcrop" }>, path: string): void {
+    let n = 0;
+    const riseQ = Math.round((op.height ?? 2) * 4);
+    const cells = this.shapeCells(op.shape, "terrain", path, op.id).filter(
+      (i) =>
+        this.state[i] === CELL.OPEN &&
+        ((this.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) === 0,
+    );
+    const dist = this.innerDistance(cells);
+    const noise = new ValueNoise(subSeed(elementSeed(this.plan.seed, op.id), "outcrop"));
+    const kept: number[] = [];
+    let peak = 0;
+    for (const i of cells) {
+      const [x, y] = this.cellXY(i);
+      const nz = noise.sample(x / 1.7, y / 1.7);
+      const d = dist.get(i) ?? 1;
+      // ragged edge: some rim cells stay floor; heights taper from the core to the rim and vary by ±0.5
+      if (d === 1 && nz < 0.35 && cells.length > 4) continue;
+      const taper = Math.min(1, (d + 0.5) / 2.5);
+      const q = Math.max(2, 2 * Math.round((riseQ * taper + (nz - 0.5) * 4) / 2));
+      this.height[i] = Math.min(PLAN_LIMITS.maxHeight * 4, (this.height[i] as number) + q);
+      this.setMaterial(i, op.material ?? "rock");
+      kept.push(i);
+      peak = Math.max(peak, q);
+      n++;
+    }
+    if (kept.length > 0)
+      this.outcrops.push({
+        id: op.id,
+        cells: kept.sort((a, b) => a - b).map((i) => this.cellXY(i)),
+        peak: peak / 4,
+      });
+    if (n === 0)
+      this.issue(
+        "warning",
+        "no_effect",
+        `outcrop "${op.id}" changed nothing: its shape covers no open floor`,
+        {
+          path,
+          elementId: op.id,
+          hint: "place it on open floor (inside an area, or on ground)",
+        },
+      );
+  }
+
+  private readonly pendingKerbs: Array<{
+    cells: Set<number>;
+    material: Material;
+    seed: number;
+    anchors: Vec2[];
+    /** Natural trails get broken kerbs (stones on the verge); straight paths a continuous line. */
+    natural: boolean;
+  }> = [];
+
+  /** Roads (path ops in road form, generator 2): carriageway cells, pavement cells laid and their heights. */
+  private readonly pendingRoads: Array<{
+    op: Extract<TerrainOp, { op: "path" }>;
+    axis: Vec2[];
+    layer: "under" | "over";
+    cells: number[];
+    pave: Array<{ i: number; h: number }>;
+  }> = [];
+  private readonly roads: NonNullable<ResolvedLevel["roads"]> = [];
+
+  /**
+   * After the building pads are flattened: the cells between a pavement and a building face (the wall ring the pad
+   * flattened, a 1-cell setback) take the pavement's height and material, so no strip at road level runs along a
+   * frontage. Footprints, porches, stair and link cells and anything higher than the pavement (a plinth) keep theirs.
+   */
+  private stepPavementFronts(): void {
+    if (this.plan.generator < 2 || !this.structs) return;
+    type Road = (typeof this.pendingRoads)[number];
+    const owner = new Map<number, Road>();
+    for (const r of this.pendingRoads) for (const p of r.pave) owner.set(p.i, r);
+    if (owner.size === 0) return;
+    const footprint = this.structs.occupied();
+    const keep = new Set<string>(footprint.keys());
+    for (const b of this.structs.buildings)
+      for (const p of b.porches) for (const c of p.cells) keep.add(`${c[0]},${c[1]}`);
+    const nearFootprint = (x: number, y: number): boolean => {
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) if (footprint.has(`${x + dx},${y + dy}`)) return true;
+      return false;
+    };
+    const carriage = new Set<number>();
+    for (const r of this.pendingRoads) for (const i of r.cells) carriage.add(i);
+    const add: Array<{ i: number; h: number; r: Road }> = [];
+    for (let i = 0; i < this.state.length; i++) {
+      if (owner.has(i) || carriage.has(i) || this.state[i] !== CELL.OPEN) continue;
+      const [x, y] = this.cellXY(i);
+      if (keep.has(`${x},${y}`) || !nearFootprint(x, y)) continue;
+      const f = this.flags[i] as number;
+      if (
+        (f & (CELL_FLAG.WATER | CELL_FLAG.BRIDGE | CELL_FLAG.NO_FLOOR | CELL_FLAG.LINK | CELL_FLAG.STEPS)) !==
+        0
+      )
+        continue;
+      // the highest pavement beside it (a pavement height is current only while the cell still holds it)
+      let best: { h: number; r: Road } | null = null;
+      for (const [dx, dy] of [
+        [0, -1],
+        [1, 0],
+        [0, 1],
+        [-1, 0],
+      ] as const) {
+        const j = this.idx(x + dx, y + dy);
+        const r = j >= 0 ? owner.get(j) : undefined;
+        if (!r || j < 0) continue;
+        const h = this.height[j] as number;
+        if (r.pave.some((p) => p.i === j && p.h === h) && (!best || h > best.h)) best = { h, r };
+      }
+      // (a building pad now stands level with the pavement: an equal-height ring cell is paved too)
+      if (!best || (this.height[i] as number) > best.h) continue;
+      add.push({ i, h: best.h, r: best.r });
+    }
+    for (const { i, h, r } of add) {
+      const sw = r.op.sidewalk;
+      if (!sw) continue;
+      this.setMaterial(i, sw.material);
+      this.height[i] = h;
+      r.pave.push({ i, h });
+    }
+  }
+
+  /** Lays the pavements of this layer's roads: beside the carriageway, never on any road's carriageway or a building. */
+  private stepPavements(layer: "under" | "over"): void {
+    if (this.plan.generator < 2) return;
+    const carriage = new Set<number>();
+    for (const r of this.pendingRoads) for (const i of r.cells) carriage.add(i);
+    const paved = new Set<number>();
+    for (const r of this.pendingRoads) for (const p of r.pave) paved.add(p.i);
+    const lots = this.structs?.occupied();
+    for (const r of this.pendingRoads) {
+      const sw = r.op.sidewalk;
+      if (r.layer !== layer || !sw) continue;
+      const raise = Math.round((sw.raise ?? 0.25) * 4);
+      // a building's lot: its footprint and the ring of cells around it (its walls and pad)
+      const inLot = (x: number, y: number): boolean => {
+        const i = this.idx(x, y);
+        return (
+          i >= 0 &&
+          (lots?.has(`${x},${y}`) === true || this.areas[(this.struct[i] as number) - 1]?.kind === "building")
+        );
+      };
+      const lot = (x: number, y: number): boolean => {
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) if (inLot(x + dx, y + dy)) return true;
+        return false;
+      };
+      const lay = (x: number, y: number): void => {
+        const i = this.idx(x, y);
+        if (i < 0 || carriage.has(i) || paved.has(i) || this.state[i] !== CELL.OPEN) return;
+        if (((this.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.BRIDGE | CELL_FLAG.NO_FLOOR)) !== 0)
+          return;
+        if (lot(x, y)) return;
+        this.setMaterial(i, sw.material);
+        const h = (this.height[i] as number) + raise;
+        this.height[i] = h;
+        paved.add(i);
+        r.pave.push({ i, h });
+      };
+      forEachMaskCell(rasterPolyline(r.axis, r.op.width + 2 * sw.width, this.rasterClip()), lay);
+      // the pavement runs on up to a building front that stands up to three cells beyond it (its wall ring included):
+      // no strip of bare ground between the pavement and the lot
+      for (const { i } of r.pave.slice()) {
+        const [x, y] = this.cellXY(i);
+        for (const [dx, dy] of [
+          [0, -1],
+          [1, 0],
+          [0, 1],
+          [-1, 0],
+        ] as const) {
+          for (let k = 1; k <= 3; k++) {
+            const j = this.idx(x + dx * k, y + dy * k);
+            if (j < 0 || carriage.has(j)) break;
+            if (lot(x + dx * k, y + dy * k)) {
+              for (let q = 1; q < k; q++) lay(x + dx * q, y + dy * q);
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /** Road records and their kerbs (after the edges): continuous kerb lines, gaps at crossings and junction mouths. */
+  private stepRoads(): void {
+    if (this.pendingRoads.length === 0) return;
+    const k = (i: number): string => {
+      const [x, y] = this.cellXY(i);
+      return `${x},${y}`;
+    };
+    const carriage = new Set<string>();
+    const claimed = new Set<number>();
+    const pavedAll = new Set<string>();
+    const crossingAll = new Set<string>();
+    const recs = this.pendingRoads.map((r) => {
+      const carriageway = r.cells.filter((i) => !claimed.has(i) && this.isFloor(i));
+      for (const i of carriageway) claimed.add(i);
+      for (const i of r.cells) carriage.add(k(i));
+      // a pavement cell a building pad (or a later op) changed is no longer pavement
+      const sw = r.op.sidewalk;
+      const pave = r.pave
+        .filter(
+          (p) =>
+            this.isFloor(p.i) &&
+            this.height[p.i] === p.h &&
+            sw &&
+            this.mat[p.i] === materialOrdinal(sw.material),
+        )
+        .map((p) => p.i);
+      for (const i of pave) pavedAll.add(k(i));
+      const cw = carriageway.map((i) => this.cellXY(i) as Vec2);
+      const crossings = crossingCells(r.axis, cw, r.op.crossings ?? []);
+      for (const c of crossings) for (const [x, y] of c.cells) crossingAll.add(`${x},${y}`);
+      return { r, carriageway, cw, pave, crossings };
+    });
+    for (const { r, carriageway, cw, pave, crossings } of recs) {
+      const sw = r.op.sidewalk;
+      const pv = pave.map((i) => this.cellXY(i) as Vec2);
+      const { kerbLines, corners } = kerbLinesAndCorners(pv, carriage, crossingAll, pavedAll);
+      this.roads.push({
+        id: r.op.id,
+        axis: r.axis.map((p) => [p[0], p[1]] as Vec2),
+        width: r.op.width,
+        carriageway: cw,
+        pavement: pv,
+        pavementMaterial: sw?.material ?? null,
+        pavementRaise: sw ? Math.round((sw.raise ?? 0.25) * 4) : 0,
+        kerbLines,
+        corners,
+        crossings,
+      });
+      // kerb pieces: on by default with a sidewalk; along every carriageway edge that meets pavement (or, without a
+      // sidewalk, any other floor), never on a crossing nor across a junction mouth
+      if (r.op.kerb === false || (r.op.kerb !== true && !sw)) continue;
+      for (const i of carriageway) {
+        const [x, y] = this.cellXY(i);
+        if (crossingAll.has(`${x},${y}`)) continue;
+        for (const side of ["N", "E", "S", "W"] as const) {
+          const [nx, ny] =
+            side === "N" ? [x, y - 1] : side === "S" ? [x, y + 1] : side === "E" ? [x + 1, y] : [x - 1, y];
+          const j = this.idx(nx, ny);
+          if (j < 0 || carriage.has(`${nx},${ny}`) || !this.isFloor(j)) continue;
+          if (sw && !pavedAll.has(`${nx},${ny}`)) continue;
+          if (Math.abs((this.height[j] as number) - (this.height[i] as number)) > 2) continue;
+          const ed = this.sideEdge(x, y, side);
+          if (!ed || (ed.e.kind[ed.i] !== EDGE.NONE && ed.e.kind[ed.i] !== EDGE.LEDGE)) continue;
+          this.kerbs.push({ at: [x, y], side, material: sw?.material ?? r.op.material });
+        }
+      }
+    }
+  }
+
+  /** Open, non-deck cells within two cells of a shape (where a ragged outline may wander out to). */
+  private growRing(cells: readonly number[]): number[] {
+    const inS = new Set(cells);
+    const out = new Set<number>();
+    for (const i of cells) {
+      const [x, y] = this.cellXY(i);
+      for (let dy = -2; dy <= 2; dy++)
+        for (let dx = -2; dx <= 2; dx++) {
+          const j = this.idx(x + dx, y + dy);
+          if (j < 0 || inS.has(j) || this.state[j] !== CELL.OPEN) continue;
+          if (((this.flags[j] as number) & (CELL_FLAG.BRIDGE | CELL_FLAG.NO_FLOOR)) !== 0) continue;
+          out.add(j);
+        }
+    }
+    return [...out].sort((a, b) => a - b);
+  }
+
+  private organicGrid(): { xy: (i: number) => [number, number]; idx: (x: number, y: number) => number } {
+    return { xy: (i) => this.cellXY(i), idx: (x, y) => this.idx(x, y) };
+  }
+
+  /** Explicit deck height (quarters) when the cell belongs to a bridge area with floorHeight (a raised deck), else null. */
+  private deckHeightOf(i: number): number | null {
+    const s = this.struct[i] as number;
+    const info = s > 0 ? this.areas[s - 1] : undefined;
+    return info?.isBridge && info.area.floorHeight !== undefined
+      ? Math.round(info.area.floorHeight * 4)
+      : null;
+  }
+
+  /** Cells of `connect` (area anchors, feature cells, explicit cells) joined by L-shaped legs. */
+  private connectPoints(
+    connect: ReadonlyArray<string | Vec2>,
+    path: string,
+    id: string,
+    manhattan = true,
+  ): Vec2[] {
+    const at: Vec2[] = [];
+    for (const c of connect) {
+      if (typeof c !== "string") {
+        at.push(c);
+        continue;
+      }
+      const ai = this.areaIndexById.get(c);
+      // an under-layer path runs before the areas claim cells: fall back to the area's own shape
+      const info = ai !== undefined ? this.areas[ai] : undefined;
+      const cell =
+        ai !== undefined && info
+          ? (this.anchorOf(this.areaCells(ai)) ??
+            (info.isRoute
+              ? null
+              : this.anchorOf(
+                  rasterCellsOf(
+                    rasterizeShape(info.area.shape, { planSeed: this.plan.seed, clip: this.rasterClip() }),
+                    (x, y) => this.idx(x, y),
+                  ),
+                )))
+          : null;
+      const feat = this.level.features.find((f) => f.id === c);
+      const p = cell ?? (feat ? feat.at : null);
+      if (p) at.push(p);
+      else
+        this.issue("warning", "ref_unknown", `path "${id}" connects to unknown "${c}"`, {
+          path: `${path}/connect`,
+          elementId: id,
+          hint: `use area ids or feature ids on ${this.level.id}, or [x,y] cells`,
+        });
+    }
+    const out: Vec2[] = [];
+    for (let k = 0; k < at.length; k++) {
+      const p = at[k] as Vec2;
+      const prev = out[out.length - 1];
+      if (manhattan && prev && prev[0] !== p[0] && prev[1] !== p[1]) out.push([p[0], prev[1]]);
+      out.push(p);
+    }
+    return out.length >= 2 ? out : out.concat(out);
+  }
+
+  /** Kerbs along kerbed paths: every edge of a path cell that meets non-path floor at (about) the same height. */
+  private stepKerbs(): void {
+    for (const k of this.pendingKerbs) {
+      const noise = new ValueNoise(subSeed(k.seed, "kerb"));
+      const nearAnchor = (x: number, y: number): boolean =>
+        k.anchors.some(([ax, ay]) => Math.max(Math.abs(ax - x), Math.abs(ay - y)) <= 2);
+      const before = this.kerbs.length;
+      for (const i of k.cells) {
+        if (!this.isFloor(i) || ((this.flags[i] as number) & CELL_FLAG.PATH) === 0) continue;
+        const [x, y] = this.cellXY(i);
+        for (const side of ["N", "E", "S", "W"] as const) {
+          const [nx, ny] =
+            side === "N" ? [x, y - 1] : side === "S" ? [x, y + 1] : side === "E" ? [x + 1, y] : [x - 1, y];
+          const j = this.idx(nx, ny);
+          if (j < 0 || k.cells.has(j) || !this.isFloor(j)) continue;
+          if (Math.abs((this.height[j] as number) - (this.height[i] as number)) > 1) continue;
+          const ed = this.sideEdge(x, y, side);
+          if (!ed || ed.e.kind[ed.i] !== EDGE.NONE) continue;
+          if (this.plan.generator >= 2 && k.natural) {
+            // broken runs (about 40% of the edge), none at junctions or where the path meets what it joins
+            if (nearAnchor(x, y)) continue;
+            const off = side === "N" ? 0.3 : side === "S" ? 0.6 : side === "E" ? 0.9 : 0.1;
+            if (noise.sample(x / 2.5 + off, y / 2.5 + off) < 0.58) continue;
+          }
+          this.kerbs.push({ at: [x, y], side, material: k.material });
+        }
+      }
+      if (this.plan.generator >= 2 && k.natural) {
+        // never both sides of the same cell (that reads as a rail); keep the one on the noisier side
+        const added = this.kerbs.splice(before);
+        const byCell = new Map<string, Array<(typeof added)[number]>>();
+        for (const kb of added) {
+          const key = `${kb.at[0]},${kb.at[1]}`;
+          byCell.set(key, [...(byCell.get(key) ?? []), kb]);
+        }
+        for (const list of byCell.values()) {
+          const ns = list.some((q) => q.side === "N") && list.some((q) => q.side === "S");
+          const ew = list.some((q) => q.side === "E") && list.some((q) => q.side === "W");
+          const drop = new Set<string>();
+          const at = list[0]?.at ?? [0, 0];
+          const h = h32(`${k.seed}:${at[0]},${at[1]}`) % 2;
+          if (ns) drop.add(h === 0 ? "N" : "S");
+          if (ew) drop.add(h === 0 ? "E" : "W");
+          for (const q of list) if (!drop.has(q.side)) this.kerbs.push(q);
+        }
+      }
+    }
+  }
+
+  /** Stair edges become EDGE.STAIR (walkable whatever the height); the lower cell holds the stair asset. */
+  private stepStairs(): void {
+    for (const key of this.stairEdges) {
+      const [a, b] = key.split(",").map(Number) as [number, number];
+      if (this.state[a] !== CELL.OPEN || this.state[b] !== CELL.OPEN) continue;
+      const ha = this.height[a] as number;
+      const hb = this.height[b] as number;
+      if (ha === hb) continue;
+      const [ax, ay] = this.cellXY(a);
+      const [bx, by] = this.cellXY(b);
+      const side: Side = bx > ax ? "E" : bx < ax ? "W" : by > ay ? "S" : "N";
+      const ed = this.sideEdge(ax, ay, side);
+      if (!ed || ed.e.kind[ed.i] === EDGE.WALL || ed.e.kind[ed.i] === EDGE.OPENING) continue;
+      ed.e.kind[ed.i] = EDGE.STAIR;
+      ed.e.height[ed.i] = Math.abs(ha - hb) / 4;
+      const lower = ha < hb ? a : b;
+      this.flags[lower] = (this.flags[lower] as number) | CELL_FLAG.STEPS;
+    }
+  }
+
+  // ── bridges (after the over-layer terrain, before the edges) ──
+
+  private neighbours4(i: number): number[] {
+    const [x, y] = this.cellXY(i);
+    return [this.idx(x, y - 1), this.idx(x + 1, y), this.idx(x, y + 1), this.idx(x - 1, y)];
+  }
+
+  /**
+   * Bridge pass: every bridge (areas of kind "bridge" in area order, then chasm bridges in op order) records what
+   * lies under its cells, then lays the deck: height = explicit floorHeight or the highest floor it touches, its own
+   * floor material, CELL_FLAG.BRIDGE, no walls toward open cells. Broken and crumbled cells become holes.
+   */
+  private stepBridges(): void {
+    const reqs: BridgeRequest[] = [];
+    for (const info of this.areas) {
+      if (!info.isBridge) continue;
+      const cells = this.areaCells(info.index);
+      if (cells.length === 0) continue;
+      const a = info.area;
+      const broken: number[] = [];
+      (a.broken ?? []).forEach((c, k) => {
+        const i = this.idx(c[0], c[1]);
+        if (i >= 0 && this.struct[i] === info.index + 1) broken.push(i);
+        else
+          this.issue(
+            "warning",
+            "no_effect",
+            `broken cell ${c[0]},${c[1]} of bridge "${a.id}" is not part of the bridge`,
+            {
+              path: `/levels/${this.li}/areas/${info.index}/broken/${k}`,
+              elementId: a.id,
+              cell: c,
+              hint: "list only cells of the bridge's own shape",
+            },
+          );
+      });
+      const req: BridgeRequest = {
+        id: a.id,
+        elementId: a.id,
+        path: `/levels/${this.li}/areas/${info.index}`,
+        cells,
+        floorMat: info.floorNone ? materialOrdinal("flagstone") : info.floorMat,
+        deck: a.floorHeight !== undefined ? Math.round(a.floorHeight * 4) : null,
+        railing: a.railing === "none" ? null : a.railing,
+        broken,
+        crumble: a.crumble ?? 0,
+        seed: subSeed(elementSeed(this.plan.seed, a.id), "crumble"),
+        ...(a.span !== undefined ? { span: a.span } : {}),
+        ...(a.arch !== undefined ? { arch: a.arch } : {}),
+      };
+      if (a.name !== undefined) req.label = a.name;
+      reqs.push(req);
+    }
+    reqs.push(...this.bridgeReqs);
+    // raised decks (explicit height) first, so spans that climb to them meet their real height
+    const ordered = [...reqs.filter((r) => r.deck !== null), ...reqs.filter((r) => r.deck === null)];
+    for (const r of ordered) this.layBridge(r);
+    for (const check of this.deckChecks) check();
+  }
+
+  private layBridge(r: BridgeRequest): void {
+    const k = this.bridges.length + 1;
+    const cells = r.cells.filter((i) => this.bridgeOf[i] === 0);
+    if (cells.length === 0) return;
+    const inThis = new Set(cells);
+    // deck height: explicit, else the highest open floor it touches (its ends)
+    let touch = -Infinity;
+    for (const i of cells) {
+      for (const j of this.neighbours4(i)) {
+        if (j < 0 || inThis.has(j) || this.state[j] !== CELL.OPEN) continue;
+        if ((this.flags[j] as number) & CELL_FLAG.NO_FLOOR) continue;
+        touch = Math.max(touch, this.height[j] as number);
+      }
+    }
+    let deck =
+      r.deck ?? (Number.isFinite(touch) ? touch : Math.max(...cells.map((i) => this.height[i] as number)));
+    deck = Math.max(PLAN_LIMITS.minHeight * 4, Math.min(PLAN_LIMITS.maxHeight * 4, deck));
+    // anchor cells: deck cells next to walkable floor within a 0.5 step of the deck (where you get on and off)
+    const anchorCells: number[] = [];
+    for (const i of cells) {
+      const ok = this.neighbours4(i).some(
+        (j) =>
+          j >= 0 &&
+          !inThis.has(j) &&
+          this.state[j] === CELL.OPEN &&
+          ((this.flags[j] as number) & CELL_FLAG.NO_FLOOR) === 0 &&
+          Math.abs((this.height[j] as number) - deck) <= 2,
+      );
+      if (ok) anchorCells.push(i);
+    }
+    // anchored at both ends = the anchors form at least two groups that are far apart (not one side of a pier)
+    const under: number[] = [];
+    const underMaterial: ResolvedBridge["underMaterial"] = [];
+    for (const i of cells) {
+      under.push(this.height[i] as number);
+      const noFloor = ((this.flags[i] as number) & CELL_FLAG.NO_FLOOR) !== 0 || this.state[i] !== CELL.OPEN;
+      const m = this.mat[i] as number;
+      underMaterial.push(noFloor || m === 0 ? null : (MATERIALS[m - 1] as Material));
+    }
+    // span: arched / sagging deck along its axis, in 0.25 steps no more than 0.5 apart (walkable)
+    const deckMat = MATERIALS[r.floorMat - 1] as Material;
+    const span: BridgeSpan =
+      r.span ?? (WOOD_DECKS.has(deckMat) ? "plank" : NATURAL_DECKS.has(deckMat) ? "natural" : "arch");
+    const cxy = cells.map((i) => this.cellXY(i));
+    const bx0 = Math.min(...cxy.map((c) => c[0]));
+    const bx1 = Math.max(...cxy.map((c) => c[0]));
+    const by0 = Math.min(...cxy.map((c) => c[1]));
+    const by1 = Math.max(...cxy.map((c) => c[1]));
+    const axis = r.axis ?? (bx1 - bx0 >= by1 - by0 ? "h" : "v");
+    const p0 = axis === "h" ? bx0 : by0;
+    const len = (axis === "h" ? bx1 - bx0 : by1 - by0) + 1;
+    const along = (i: number): number => {
+      const [x, y] = this.cellXY(i);
+      return (axis === "h" ? x : y) - p0;
+    };
+    // the floor beyond each end of the deck (along its axis): an inclined span joins two different heights
+    const endHeight = (p: number, step: -1 | 1): number | null => {
+      let best: number | null = null;
+      for (const i of cells) {
+        if (along(i) !== p) continue;
+        const [x, y] = this.cellXY(i);
+        const j = axis === "h" ? this.idx(x + step, y) : this.idx(x, y + step);
+        if (j < 0 || inThis.has(j) || !this.isFloor(j)) continue;
+        // a raised deck at the far end counts at its deck height, even before it is laid
+        best = Math.max(
+          best ?? -Infinity,
+          this.bridgeOf[j] === 0
+            ? (this.deckHeightOf(j) ?? (this.height[j] as number))
+            : (this.height[j] as number),
+        );
+      }
+      return best;
+    };
+    const h0 = endHeight(0, -1);
+    const h1 = endHeight(len - 1, 1);
+    const inclined = r.deck === null && h0 !== null && h1 !== null && h0 !== h1;
+    const prof: number[] = [];
+    if (inclined) {
+      // inclined span: the deck climbs evenly from one end's floor to the other's; steps over 0.5 become stairs
+      deck = h0;
+      for (let p = 0; p < len; p++) prof.push(Math.round(((h1 - h0) * (len > 1 ? p + 1 : 1)) / (len + 1)));
+    } else {
+      const archQ = r.arch !== undefined ? Math.round(r.arch * 4) : len >= 4 ? SPAN_ARCH_Q[span] : 0;
+      for (let p = 0; p < len; p++) {
+        const t = len > 1 ? p / (len - 1) : 0.5;
+        const u = 2 * t - 1;
+        prof.push(Math.round(archQ * (1 - u * u)));
+      }
+      for (let pass = 0; pass < len; pass++)
+        for (let p = 1; p < len; p++) {
+          const a = prof[p - 1] as number;
+          const b = prof[p] as number;
+          if (b - a > 2) prof[p] = a + 2;
+          if (a - b > 2) prof[p - 1] = b + 2;
+        }
+    }
+    for (const i of cells) {
+      this.state[i] = CELL.OPEN;
+      this.height[i] = deck + (prof[along(i)] ?? 0);
+      this.mat[i] = r.floorMat;
+      this.flags[i] =
+        ((this.flags[i] as number) & ~(CELL_FLAG.NO_FLOOR | CELL_FLAG.WATER | CELL_FLAG.PATH)) |
+        CELL_FLAG.BRIDGE;
+      this.bridgeOf[i] = k;
+    }
+    if (inclined) {
+      const stepQ = Math.abs(h1 - h0) / (len + 1);
+      if (stepQ > 4)
+        this.issue(
+          "warning",
+          "stairs_invalid",
+          `bridge "${r.id}" climbs ${stepQ / 4} tiles per cell: steeper than a stair`,
+          {
+            path: r.path,
+            elementId: r.elementId,
+            hint: "make the span longer, or meet a lower point of the higher floor",
+          },
+        );
+      // stair edges on the deck (and onto the floors at its ends) wherever a step is more than 0.5
+      for (const i of cells)
+        for (const j of this.neighbours4(i)) {
+          if (j < 0 || !this.isFloor(j)) continue;
+          const [ix, iy] = this.cellXY(i);
+          const [jx, jy] = this.cellXY(j);
+          if (axis === "h" ? jy !== iy : jx !== ix) continue; // only along the span
+          if (Math.abs((this.height[j] as number) - (this.height[i] as number)) > 2) this.addStairEdge(i, j);
+        }
+      // anchors are where the deck meets floor at its own height or one step from it
+      anchorCells.splice(0, anchorCells.length);
+      for (const i of cells) {
+        const ok = this.neighbours4(i).some(
+          (j) =>
+            j >= 0 &&
+            !inThis.has(j) &&
+            this.isFloor(j) &&
+            (Math.abs((this.height[j] as number) - (this.height[i] as number)) <= 4 ||
+              this.stairEdges.has(i < j ? `${i},${j}` : `${j},${i}`)),
+        );
+        if (ok) anchorCells.push(i);
+      }
+    }
+    // broken cells: explicit, then crumble (seeded, never cutting the way between the anchors)
+    const broken = new Set<number>(r.broken.filter((i) => inThis.has(i)));
+    const anchorSet = new Set(anchorCells);
+    const connected = (): boolean => {
+      const live = anchorCells.filter((i) => !broken.has(i));
+      if (live.length <= 1) return true;
+      const seen = new Set<number>([live[0] as number]);
+      const q = [live[0] as number];
+      while (q.length > 0) {
+        const i = q.pop() as number;
+        for (const j of this.neighbours4(i))
+          if (j >= 0 && inThis.has(j) && !broken.has(j) && !seen.has(j)) {
+            seen.add(j);
+            q.push(j);
+          }
+      }
+      return live.every((i) => seen.has(i));
+    };
+    const target = Math.round(Math.min(0.6, Math.max(0, r.crumble)) * cells.length);
+    if (target > 0) {
+      const rng = createPrng(r.seed);
+      // outer cells (next to the drop) crumble first, then the rest
+      const outer = cells.filter(
+        (i) => !anchorSet.has(i) && this.neighbours4(i).some((j) => j < 0 || !inThis.has(j)),
+      );
+      const inner = cells.filter((i) => !anchorSet.has(i) && !outer.includes(i));
+      let n = 0;
+      for (const i of [...rng.shuffle(outer), ...rng.shuffle(inner)]) {
+        if (n >= target) break;
+        if (broken.has(i)) continue;
+        broken.add(i);
+        if (connected()) n++;
+        else broken.delete(i);
+      }
+    }
+    for (const i of broken) {
+      this.flags[i] = (this.flags[i] as number) | CELL_FLAG.NO_FLOOR;
+      this.mat[i] = 0;
+    }
+    const sorted = cells.map((i, j) => ({ i, j })).sort((a, b) => a.i - b.i);
+    // piers: arch and flat spans of 5+ cells stand on stone piers at a third and two thirds of the way across
+    const piers: Vec2[] = [];
+    // a raised deck on supports (watchtower, gallows, scaffold, pier): explicit height, a tile or more above the
+    // ground beneath it: posts at its corners
+    if (r.deck !== null) {
+      const corners = new Set([
+        this.idx(bx0, by0),
+        this.idx(bx1, by0),
+        this.idx(bx0, by1),
+        this.idx(bx1, by1),
+      ]);
+      sorted.forEach(({ i, j }) => {
+        if (corners.has(i) && underMaterial[j] !== null && deck - (under[j] as number) >= 4 && !broken.has(i))
+          piers.push(this.cellXY(i));
+      });
+    } else if ((span === "arch" || span === "flat") && len >= 5) {
+      const at = new Set([Math.round((len - 1) / 3), Math.round((2 * (len - 1)) / 3)]);
+      sorted.forEach(({ i, j }) => {
+        if (at.has(along(i)) && underMaterial[j] !== null && !broken.has(i)) piers.push(this.cellXY(i));
+      });
+    }
+    // a crumbling bridge sheds rubble at its ends
+    if (r.crumble > 0) {
+      const rng = createPrng(subSeed(r.seed, "rubble"));
+      const spots: Vec2[] = [];
+      for (const i of anchorCells)
+        for (const j of this.neighbours4(i))
+          if (j >= 0 && !inThis.has(j) && this.isFloor(j) && this.bridgeOf[j] === 0)
+            spots.push(this.cellXY(j));
+      const pickN = Math.min(spots.length, 1 + Math.round(r.crumble * 4));
+      rng
+        .shuffle(spots)
+        .slice(0, pickN)
+        .forEach((at, n) => this.bridgeRubble.push({ id: `${r.id}#rubble${n}`, at }));
+    }
+    this.bridgeCrumble.set(k, { crumble: r.crumble, seed: r.seed });
+    const rec: ResolvedBridge = {
+      id: r.id,
+      cells: sorted.map(({ i }) => this.cellXY(i)),
+      broken: [...broken].sort((a, b) => a - b).map((i) => this.cellXY(i)),
+      deck,
+      under: sorted.map(({ j }) => under[j] as number),
+      underMaterial: sorted.map(({ j }) => underMaterial[j] ?? null),
+      railing: r.railing === undefined ? SPAN_RAILING[span] : r.railing,
+      span,
+    };
+    if (piers.length > 0) rec.piers = piers;
+    if (r.label !== undefined) rec.label = r.label;
+    this.bridges.push(rec);
+    // ends: a real bridge touches walkable floor on two sides that are not next to each other
+    const groups = this.groupCount(anchorCells);
+    const anchors = anchorCells.length;
+    // anchored = walkable floor beyond BOTH ends along the span (within a step of the deck there, or by stairs)
+    const endOk = (p: number, step: -1 | 1): boolean =>
+      cells.some((i) => {
+        if (along(i) !== p || broken.has(i)) return false;
+        const [x, y] = this.cellXY(i);
+        const j = axis === "h" ? this.idx(x + step, y) : this.idx(x, y + step);
+        if (j < 0 || inThis.has(j) || !this.isFloor(j)) return false;
+        return (
+          Math.abs((this.height[j] as number) - (this.height[i] as number)) <= 2 ||
+          this.stairEdges.has(i < j ? `${i},${j}` : `${j},${i}`)
+        );
+      });
+    // a raised deck (explicit height) needs one way on and off: a flight of stairs, floor beside it within a step,
+    // or another bridge that climbs to it (checked after every bridge is laid)
+    const reached = (): boolean =>
+      cells.some(
+        (i) =>
+          !broken.has(i) &&
+          this.neighbours4(i).some(
+            (j) =>
+              j >= 0 &&
+              !inThis.has(j) &&
+              this.isFloor(j) &&
+              (Math.abs((this.height[j] as number) - (this.height[i] as number)) <= 2 ||
+                this.stairEdges.has(i < j ? `${i},${j}` : `${j},${i}`)),
+          ),
+      );
+    const warn = (): void => {
+      const first = this.cellXY(cells[0] as number);
+      this.issue(
+        "warning",
+        "bridge_unanchored",
+        anchors === 0
+          ? `bridge "${r.id}" touches no walkable floor at deck height ${deck / 4}: nobody can get onto it`
+          : `bridge "${r.id}" reaches walkable floor at one end only`,
+        {
+          path: r.path,
+          elementId: r.elementId,
+          cell: first,
+          hint:
+            r.deck !== null
+              ? "add a stairs terrain op from the ground to its edge, or a bridge that climbs to it"
+              : "make it span from floor to floor (extend it over the whole drop), or set floorHeight to the height of the floor at its ends",
+        },
+      );
+    };
+    if (r.deck !== null)
+      this.deckChecks.push(() => {
+        if (!reached()) warn();
+      });
+    else if (!(endOk(0, -1) && endOk(len - 1, 1)) && (anchors === 0 || groups < 2)) warn();
+  }
+
+  /** Number of groups of anchor cells, where anchors within 2 cells (Chebyshev) of each other count as one group. */
+  private groupCount(anchors: number[]): number {
+    const xy = anchors.map((i) => this.cellXY(i));
+    const group = new Int32Array(xy.length).fill(-1);
+    let g = 0;
+    for (let s = 0; s < xy.length; s++) {
+      if (group[s] !== -1) continue;
+      group[s] = g;
+      const q = [s];
+      while (q.length > 0) {
+        const a = q.pop() as number;
+        const pa = xy[a] as [number, number];
+        for (let b = 0; b < xy.length; b++) {
+          if (group[b] !== -1) continue;
+          const pb = xy[b] as [number, number];
+          if (Math.max(Math.abs(pa[0] - pb[0]), Math.abs(pa[1] - pb[1])) <= 2) {
+            group[b] = g;
+            q.push(b);
+          }
+        }
+      }
+      g++;
+    }
+    return g;
+  }
+
+  /** Railings: a WALL (the bridge's railing style, 1 tile) on every intact deck edge that faces a drop. */
+  private stepRailings(): void {
+    this.bridges.forEach((b, bi) => {
+      if (b.railing === null) return;
+      const k = bi + 1;
+      for (const [x, y] of b.cells) {
+        const i = this.idx(x, y);
+        if (i < 0 || (this.flags[i] as number) & CELL_FLAG.NO_FLOOR) continue;
+        for (const side of ["N", "E", "S", "W"] as const) {
+          const [nx, ny] =
+            side === "N" ? [x, y - 1] : side === "S" ? [x, y + 1] : side === "E" ? [x + 1, y] : [x - 1, y];
+          const j = this.idx(nx, ny);
+          if (j < 0 || this.state[j] !== CELL.OPEN || this.bridgeOf[j] === k) continue;
+          const drop =
+            ((this.flags[j] as number) & CELL_FLAG.NO_FLOOR) !== 0 ||
+            (this.height[j] as number) < Math.min(b.deck, this.height[i] as number) - 2;
+          if (!drop) continue;
+          // a crumbling bridge has gaps in its parapet too
+          const cr = this.bridgeCrumble.get(k);
+          if (cr && cr.crumble > 0 && h32(`${cr.seed}:parapet:${x}:${y}:${side}`) / 4294967296 < cr.crumble)
+            continue;
+          const ed = this.sideEdge(x, y, side);
+          if (!ed) continue;
+          ed.e.kind[ed.i] = EDGE.WALL;
+          ed.e.style[ed.i] = b.railing;
+          ed.e.height[ed.i] = RAILING_HEIGHT;
+          // the railing stands on the deck: host on the deck cell (first = N/W cell of the edge)
+          ed.e.hostSet[ed.i] = side === "N" || side === "W" ? 1 : 0;
+        }
+      }
+    });
+  }
+
+  /** Fields that do nothing for an area of this kind (zone floor/height/walls, bridge-only fields elsewhere). */
+  private checkAreaFields(): void {
+    for (const info of this.areas) {
+      const a = info.area;
+      const path = `/levels/${this.li}/areas/${info.index}`;
+      const unused: string[] = [];
+      if (info.isZone) {
+        for (const f of ["floor", "floorHeight", "walls", "wallStyle", "wallHeight"] as const)
+          if (a[f] !== undefined) unused.push(f);
+      } else if (info.mode === "none" && !info.isBridge) {
+        for (const f of ["wallStyle", "wallHeight"] as const) if (a[f] !== undefined) unused.push(f);
+      }
+      if (!info.isBridge)
+        for (const f of ["railing", "broken", "crumble"] as const) if (a[f] !== undefined) unused.push(f);
+      if (unused.length === 0) continue;
+      const hint = info.isZone
+        ? 'a zone only names cells; for a raised dais or sunken pit use kind "room"/"cave" with floorHeight (later in the list than the area it sits in), or a height terrain op with layer "over"; for a floor use a paint op'
+        : info.mode === "none" && !info.isBridge && (a.wallStyle !== undefined || a.wallHeight !== undefined)
+          ? 'walls "none" never builds walls: use walls "auto" or "perimeter" to get them'
+          : 'railing, broken and crumble only apply to kind "bridge"';
+      this.issue(
+        "warning",
+        "no_effect",
+        `area "${a.id}" (${a.kind}) sets ${unused.join(", ")}, which ${unused.length > 1 ? "do" : "does"} nothing for it`,
+        { path, elementId: a.id, hint },
+      );
+    }
+  }
+
   private stepWallRuns(): void {
     this.level.walls.forEach((run, k) => {
       const path = `/levels/${this.li}/walls/${k}`;
       let clipped = 0;
+      let removed = 0;
       const thinRock: Array<[number, number]> = [];
       for (let s = 0; s + 1 < run.points.length; s++) {
         const p = run.points[s] as Vec2;
@@ -716,6 +2388,7 @@ export class LevelWork {
             ed.e.height[ed.i] = run.height ?? this.defaultWallHeight;
             ed.e.run[ed.i] = 1;
           } else if (ed.e.kind[ed.i] === EDGE.WALL) {
+            removed++;
             ed.e.kind[ed.i] = EDGE.NONE;
             ed.e.style[ed.i] = null;
             ed.e.height[ed.i] = 0;
@@ -723,6 +2396,17 @@ export class LevelWork {
           }
         }
       }
+      if (run.op === "remove" && removed === 0)
+        this.issue(
+          "warning",
+          "no_effect",
+          `wall run "${run.id}" (remove) removed nothing: there is no wall along it`,
+          {
+            path,
+            elementId: run.id,
+            hint: "wall runs follow grid VERTICES (cell corners): to remove the wall on the north side of cell x,y use points [[x,y],[x+1,y]]; check the walls with view_plan ascii",
+          },
+        );
       const firstThin = thinRock[0];
       if (firstThin)
         this.issue(
@@ -846,6 +2530,18 @@ export class LevelWork {
           path,
           elementId: o.id,
           hint: "use between: [areaA, areaB] to snap it onto a shared wall",
+        },
+      );
+    } else if (!explicitAt && !silentOverlap && !anyWall && o.kind !== "open") {
+      const [x, y] = this.edgeStart(orient, first);
+      this.issue(
+        "warning",
+        "opening_no_boundary",
+        `opening "${o.id}" (${o.kind}) stands where there is no wall between its two areas (edge ${orient} ${x},${y}), so it is a free-standing ${o.kind.replace("_", " ")} in the open`,
+        {
+          path,
+          elementId: o.id,
+          hint: 'use kind "open" (or remove it), or give one of the areas walls "auto" so a wall separates them (natural cave rock never stands between two open areas)',
         },
       );
     }
@@ -1071,10 +2767,38 @@ export class LevelWork {
 
   // ───────────────────────────── phase 2: steps 8–10 ─────────────────────────────
 
+  /**
+   * Floor that scatter/dress may furnish. Generator 2 also keeps generated props off lava and off bridge decks
+   * (a deck must stay walkable, and its railings are not walls to hang torches on).
+   */
+  private placeable(i: number): boolean {
+    if (!this.isFloor(i)) return false;
+    if (this.plan.generator < 2) return true;
+    if (this.structs?.reservedCell(i)) return false;
+    if ((this.flags[i] as number) & (CELL_FLAG.BRIDGE | CELL_FLAG.STEPS)) return false;
+    // keep the approach to bridges and stairs clear: no generated props on a cell beside a deck or a flight
+    if (
+      this.neighbours4(i).some(
+        (j) => j >= 0 && ((this.flags[j] as number) & (CELL_FLAG.BRIDGE | CELL_FLAG.STEPS)) !== 0,
+      )
+    )
+      return false;
+    return this.mat[i] !== LAVA_ORDINAL;
+  }
+
+  private rampSet: Set<number> | null = null;
+  private rampCells(): Set<number> {
+    if (!this.rampSet) {
+      this.rampSet = new Set<number>();
+      for (const r of this.ramps) for (const [x, y] of r.cells) this.rampSet.add(this.idx(x, y));
+    }
+    return this.rampSet;
+  }
+
   grid(): PlacementGrid {
     return {
       inBounds: (x, y) => this.idx(x, y) >= 0,
-      isFloor: (x, y) => this.isFloor(this.idx(x, y)),
+      isFloor: (x, y) => this.placeable(this.idx(x, y)),
       flags: (x, y) => {
         const i = this.idx(x, y);
         return i < 0 ? 0 : (this.flags[i] as number);
@@ -1088,11 +2812,60 @@ export class LevelWork {
         return i >= 0 && (this.occ[i] as number) > 0;
       },
       edge: (x, y, s) => this.edgeKindAt(x, y, s),
+      landmark: (x, y) => this.landmarkCells.has(this.idx(x, y)),
+      vehicle: (x, y) => this.vehicleCells.has(this.idx(x, y)),
+      keepClear: (x, y) => this.crossingClear().has(this.idx(x, y)),
+      // generator 2: rock ramp cells (no path flag) stay clear of the band and other dressing
+      ramp: (x, y) => this.plan.generator >= 2 && this.rampCells().has(this.idx(x, y)),
+      // generator 2: the band's pieces at their real size; undefined where the theme has no such piece (no band)
+      ...(this.plan.generator >= 2 && this.ctx.pieceSize
+        ? { pieceSize: (t: FeatureType) => this.ctx.pieceSize?.(this.levelTheme, t) }
+        : {}),
+      // floor height in tiles: set pieces put focal pieces on high ground and keep big pieces off height steps
+      height: (x, y) => {
+        const i = this.idx(x, y);
+        return i < 0 ? 0 : (this.height[i] as number) / 4;
+      },
     };
   }
 
+  /** Road crossings and the pavement cells at their ends: generated dressing keeps off them (built lazily). */
+  private crossingClearCache: Set<number> | null = null;
+  private crossingClear(): Set<number> {
+    if (this.crossingClearCache) return this.crossingClearCache;
+    const out = new Set<number>();
+    for (const r of this.roads)
+      for (const c of r.crossings)
+        for (const [x, y] of c.cells) {
+          out.add(this.idx(x, y));
+          // the pavement cells at each end of the crossing
+          for (const [dx, dy] of c.axis === "h"
+            ? [
+                [0, -1],
+                [0, 1],
+              ]
+            : [
+                [-1, 0],
+                [1, 0],
+              ]) {
+            const j = this.idx(x + (dx as number), y + (dy as number));
+            if (j >= 0) out.add(j);
+          }
+        }
+    this.crossingClearCache = out;
+    return out;
+  }
+
+  /** Cells under landmark pieces (great trees, landmarks, great statues): later dressing keeps an apron round them. */
+  private readonly landmarkCells = new Set<number>();
+  /** Cells under vehicles: the street preset counts them toward its parking cap and keeps its own clear of them. */
+  private readonly vehicleCells = new Set<number>();
+
   private addFeature(f: ResolvedFeature, cells: number[]): void {
+    const landmark = f.type === "tree_large" || f.type === "landmark" || f.type === "statue_large";
     for (const i of cells) {
+      if (landmark) this.landmarkCells.add(i);
+      if (f.type === "vehicle") this.vehicleCells.add(i);
       this.occ[i] = (this.occ[i] as number) + 1;
       if (f.blocking) this.flags[i] = (this.flags[i] as number) | CELL_FLAG.FEATURE;
     }
@@ -1134,6 +2907,7 @@ export class LevelWork {
       if ((this.flags[i] as number) & CELL_FLAG.NO_FLOOR) return `cell ${x},${y} has no floor`;
       if ((this.flags[i] as number) & CELL_FLAG.LINK)
         return `cell ${x},${y} is taken by stairs or a level link`;
+      if ((this.flags[i] as number) & CELL_FLAG.STEPS) return `cell ${x},${y} holds a flight of steps`;
       if (info.blocking && (this.flags[i] as number) & CELL_FLAG.FEATURE)
         return `cell ${x},${y} is taken by another feature`;
     }
@@ -1178,14 +2952,125 @@ export class LevelWork {
 
   runPhase2(): void {
     this.stepExplicitFeatures();
+    this.stepBridgeRubble();
     this.stepGeneratedFeatures();
+  }
+
+  /** Rubble at the ends of crumbling bridges (generated features "<bridgeId>#rubble<n>"). */
+  private stepBridgeRubble(): void {
+    const info = featureInfo("rubble");
+    for (const r of this.bridgeRubble) {
+      const size = rotatedSize(info.size, 0);
+      if (this.featureProblem("rubble", r.at, size, undefined) !== null) continue;
+      const anchor = this.idx(r.at[0], r.at[1]);
+      const rf: ResolvedFeature = {
+        id: r.id,
+        type: "rubble",
+        generatedBy: r.id.split("#")[0] as string,
+        at: r.at,
+        size,
+        rot: 0,
+        rotFine: (h32(r.id) % 24) * 15,
+        baseHeight: this.featureBase(anchor, 0),
+        theme: this.themes[anchor >= 0 ? (this.theme[anchor] as number) : 0] ?? this.levelTheme,
+        blocking: info.blocking,
+      };
+      const ar = anchor >= 0 ? (this.disp[anchor] as number) : 0;
+      if (ar > 0) rf.area = (this.areas[ar - 1] as AreaInfo).area.id;
+      this.addFeatureCells(rf);
+    }
+  }
+
+  private addFeatureCells(f: ResolvedFeature): void {
+    this.addFeature(f, this.footprint(f.at, f.size).cells);
+    this.generated++;
+  }
+
+  /**
+   * A vehicle the plan put on a pavement or across a carriageway (owner's model test, 2026-11-20: taxis half on the
+   * pavement, a bus across the road): park it in the nearest kerb lane, its long side along the road, one lane deep.
+   * Vehicles away from roads (a car park, a yard) keep what the plan gave. Returns the new anchor and size, or null.
+   */
+  private parkVehicle(
+    at: Vec2,
+    size: readonly [number, number],
+  ): { at: Vec2; size: [number, number] } | null {
+    if (this.plan.generator < 2 || this.roads.length === 0) return null;
+    const k = (x: number, y: number): string => `${x},${y}`;
+    const cw = new Set<string>();
+    const pave = new Set<string>();
+    const cross = new Set<string>();
+    for (const r of this.roads) {
+      for (const [x, y] of r.carriageway) cw.add(k(x, y));
+      for (const [x, y] of r.pavement) pave.add(k(x, y));
+      for (const c of r.crossings) for (const [x, y] of c.cells) cross.add(k(x, y));
+    }
+    const cells: Vec2[] = [];
+    for (let y = at[1]; y < at[1] + size[1]; y++)
+      for (let x = at[0]; x < at[0] + size[0]; x++) cells.push([x, y]);
+    const onPave = cells.some(([x, y]) => pave.has(k(x, y)));
+    const onRoad = cells.some(([x, y]) => cw.has(k(x, y)));
+    if (!onPave && !onRoad) return null;
+    // on the carriageway and already lying along its road (a stalled car mid-lane): leave it
+    if (!onPave) {
+      const road = this.roads.find((r) =>
+        cells.some(([x, y]) => r.carriageway.some((c) => c[0] === x && c[1] === y)),
+      );
+      const a = road?.axis;
+      const horizontalRoad =
+        a !== undefined &&
+        a.length > 1 &&
+        Math.abs((a[1] as Vec2)[0] - (a[0] as Vec2)[0]) >= Math.abs((a[1] as Vec2)[1] - (a[0] as Vec2)[1]);
+      if (size[0] !== size[1] && size[0] > size[1] === horizontalRoad) return null;
+    }
+    // the road it is on or beside, and whether the vehicle already lies along it in one lane against a kerb
+    const len = Math.max(size[0], size[1]);
+    let best: { at: Vec2; size: [number, number]; d: number } | null = null;
+    for (const r of this.roads)
+      for (const kl of r.kerbLines) {
+        const [dx, dy] =
+          kl.side === "N" ? [0, -1] : kl.side === "S" ? [0, 1] : kl.side === "E" ? [1, 0] : [-1, 0];
+        const horiz = kl.side === "N" || kl.side === "S";
+        const n = Math.max(Math.abs(kl.to[0] - kl.from[0]), Math.abs(kl.to[1] - kl.from[1])) + 1;
+        const sx = Math.sign(kl.to[0] - kl.from[0]);
+        const sy = Math.sign(kl.to[1] - kl.from[1]);
+        for (let t = 0; t + len <= n; t++) {
+          // lane cells: one step from the kerb into the carriageway, `len` long
+          const lane: Vec2[] = [];
+          for (let u = 0; u < len; u++)
+            lane.push([kl.from[0] + sx * (t + u) + dx, kl.from[1] + sy * (t + u) + dy]);
+          if (!lane.every(([x, y]) => cw.has(k(x, y)) && !cross.has(k(x, y)))) continue;
+          if (lane.some(([x, y]) => (this.occ[this.idx(x, y)] as number) > 0)) continue;
+          const x0 = Math.min(...lane.map((c) => c[0]));
+          const y0 = Math.min(...lane.map((c) => c[1]));
+          const d = Math.abs(x0 - at[0]) + Math.abs(y0 - at[1]);
+          if (!best || d < best.d) best = { at: [x0, y0], size: horiz ? [len, 1] : [1, len], d };
+        }
+      }
+    if (!best) return null;
+    if (best.at[0] === at[0] && best.at[1] === at[1] && best.size[0] === size[0] && best.size[1] === size[1])
+      return null;
+    return { at: best.at, size: best.size };
   }
 
   private stepExplicitFeatures(): void {
     this.level.features.forEach((f, k) => {
       const info = featureInfo(f.type);
       const rot = f.rot ?? 0;
-      const size = rotatedSize(f.size ?? info.size, rot);
+      let size = rotatedSize(f.size ?? info.size, rot);
+      if (f.type === "vehicle") {
+        const parked = this.parkVehicle(f.at, size);
+        if (parked) {
+          this.issue(
+            "info",
+            "feature_moved",
+            `vehicle "${f.id}" at ${f.at[0]},${f.at[1]} stood on the pavement or across the road: parked at ${parked.at[0]},${parked.at[1]} in the kerb lane, along the road`,
+            { path: `/levels/${this.li}/features/${k}`, elementId: f.id, cell: parked.at },
+          );
+          f = { ...f, at: parked.at };
+          size = parked.size;
+        }
+      }
       const wall = info.wallMounted ? (f.wall ?? "N") : f.wall;
       const problem = this.featureProblem(f.type, f.at, size, wall);
       if (problem) {
@@ -1233,7 +3118,11 @@ export class LevelWork {
         size: p.size,
         rot: p.rot,
         rotFine: p.rotFine,
-        baseHeight: this.featureBase(anchor, 0),
+        // generator 2: a generated piece may stand above (or sink below) the floor, e.g. a second course of rock
+        baseHeight: this.featureBase(
+          anchor,
+          this.plan.generator >= 2 ? ((p as { lift?: number }).lift ?? 0) : 0,
+        ),
         theme: this.themes[anchor >= 0 ? (this.theme[anchor] as number) : 0] ?? this.levelTheme,
         blocking: info.blocking,
       };
@@ -1245,6 +3134,176 @@ export class LevelWork {
       this.addFeature(rf, this.footprint(p.at, p.size).cells);
       this.generated++;
     });
+  }
+
+  /**
+   * Generator 2, open-air natural levels: the board gets a ragged, rounded outline (about 80–90% of its rectangle,
+   * stepping in 2-cell blocks) with a strip of low ground about 2 cells wide inside it, so a rise never meets the
+   * board edge. Cells outside become void. Paths, water, areas, structures and explicit features keep their cells,
+   * so roads and rivers still reach the true edge. Built-up levels (buildings or roads) keep their rectangle.
+   */
+  private stepOutline(): void {
+    const base = this.level.base;
+    if (this.plan.generator < 2 || base.type !== "ground" || this.level.outline === "rect") return;
+    if (!NATURAL_PATH.has(base.material)) return;
+    if (this.pendingRoads.length > 0) return;
+    if (
+      (this.level.structures ?? []).some((st) => st.kind !== "enclosure") &&
+      (this.level.structures ?? []).length >= 3
+    )
+      return;
+    if (this.w < 16 || this.h < 16) return;
+    const noise = new ValueNoise(subSeed(elementSeed(this.plan.seed, `${this.level.id}~outline`), "outline"));
+    const keep = (i: number): boolean => {
+      const f = this.flags[i] as number;
+      if ((f & (CELL_FLAG.PATH | CELL_FLAG.WATER | CELL_FLAG.BRIDGE | CELL_FLAG.LINK)) !== 0) return true;
+      if ((this.struct[i] as number) > 0) return true;
+      return this.structs?.reservedCell(i) === true;
+    };
+    for (const ft of this.level.features)
+      for (const c of this.footprint(ft.at, ft.size ?? [1, 1]).cells) this.outlineKeep.add(c);
+    // inset from each edge in 2-cell blocks: 2..6 cells, wandering with noise along the edge
+    const inside = new Uint8Array(this.n);
+    for (let i = 0; i < this.n; i++) {
+      const [x, y] = this.cellXY(i);
+      const lx = x - this.bx;
+      const ly = y - this.by;
+      const bx2 = Math.floor(lx / 2);
+      const by2 = Math.floor(ly / 2);
+      const d = Math.min(lx, ly, this.w - 1 - lx, this.h - 1 - ly);
+      const n = noise.sample(bx2 / 3.2, by2 / 3.2);
+      const inset = n > 0.62 ? 4 : n > 0.42 ? 2 : 0;
+      // corners round off: the inset grows where two edges are near
+      const corner = Math.min(lx, this.w - 1 - lx) + Math.min(ly, this.h - 1 - ly) < 5 ? 2 : 0;
+      inside[i] = d >= inset + corner ? 1 : 0;
+    }
+    // the open board: inside the outline, plus whatever must reach the edge
+    for (let i = 0; i < this.n; i++) {
+      if (this.state[i] !== CELL.OPEN) continue;
+      if (inside[i] || keep(i) || this.outlineKeep.has(i)) continue;
+      this.state[i] = CELL.VOID;
+    }
+    // (a low apron round the outline, lowering raised ground near the void, is deferred: it cut routes on plans
+    // that put a plateau against the board edge; see handoff-terrain.md)
+  }
+  private readonly outlineKeep = new Set<number>();
+
+  /**
+   * Generator 2: paths lead somewhere. When a level has natural paths, the focal piece (the first landmark-class
+   * feature) and the front of each building get a spur trail from the nearest path cell unless a path already passes
+   * within 3 cells. The spur is a 1-cell winding trail of the same material.
+   */
+  private stepPathSpurs(): void {
+    if (this.plan.generator < 2) return;
+    const trails = this.level.terrain.filter(
+      (t): t is Extract<TerrainOp, { op: "path" }> =>
+        t.op === "path" &&
+        !WATER_MATS.has(t.material) &&
+        t.sidewalk === undefined &&
+        t.crossings === undefined,
+    );
+    if (trails.length === 0) return;
+    const material = (trails[0] as Extract<TerrainOp, { op: "path" }>).material;
+    const pathCells: Array<[number, number]> = [];
+    for (let i = 0; i < this.n; i++)
+      if (((this.flags[i] as number) & CELL_FLAG.PATH) !== 0) pathCells.push(this.cellXY(i));
+    if (pathCells.length === 0) return;
+    const targets: Array<{ id: string; at: Vec2 }> = [];
+    const focal =
+      this.level.features.find((ft) => SPUR_PRIMARY.has(ft.type)) ??
+      this.level.features.find((ft) => SPUR_FOCAL.has(ft.type));
+    if (focal) targets.push({ id: focal.id, at: focal.at });
+    for (const st of this.level.structures ?? []) {
+      if (st.kind === "enclosure") continue;
+      // the building's first wing, first ground volume, or its bare rectangle
+      const bare = st as { x?: number; y?: number; w?: number; h?: number };
+      const w0 =
+        st.wings?.[0] ??
+        st.volumes?.find((v) => v.on === undefined) ??
+        (bare.x !== undefined && bare.y !== undefined && bare.w !== undefined && bare.h !== undefined
+          ? { x: bare.x, y: bare.y, w: bare.w, h: bare.h }
+          : undefined);
+      if (!w0) continue;
+      const side = st.front ?? "S";
+      const at: Vec2 =
+        side === "N"
+          ? [w0.x + Math.floor(w0.w / 2), w0.y - 2]
+          : side === "S"
+            ? [w0.x + Math.floor(w0.w / 2), w0.y + w0.h + 1]
+            : side === "W"
+              ? [w0.x - 2, w0.y + Math.floor(w0.h / 2)]
+              : [w0.x + w0.w + 1, w0.y + Math.floor(w0.h / 2)];
+      targets.push({ id: st.id, at });
+    }
+    const clip = this.rasterClip();
+    for (const t of targets) {
+      let best: [number, number] | null = null;
+      let bestD = Infinity;
+      for (const p of pathCells) {
+        const d = Math.max(Math.abs(p[0] - t.at[0]), Math.abs(p[1] - t.at[1]));
+        if (d < bestD) {
+          bestD = d;
+          best = p;
+        }
+      }
+      if (!best || bestD <= 3) continue;
+      const seed = subSeed(elementSeed(this.plan.seed, t.id), "spur");
+      for (const [x, y] of trailCells([best, t.at], 1, 0.4, seed, clip)) {
+        const i = this.idx(x, y);
+        if (i < 0 || this.state[i] !== CELL.OPEN) continue;
+        if (((this.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.PATH)) !== 0) continue;
+        if (this.areas[(this.struct[i] as number) - 1]?.kind === "building") continue;
+        this.setMaterial(i, material);
+        this.flags[i] = (this.flags[i] as number) | CELL_FLAG.PATH;
+        pathCells.push([x, y]);
+      }
+    }
+  }
+
+  /** A dress op over the whole level: the open ground (no area) and each zone area, each dressed as one region. */
+  private dressWholeLevel(
+    op: Extract<TerrainOp, { op: "dress" }>,
+    path: string,
+    grid: ReturnType<LevelWork["grid"]>,
+    cap: number,
+    capWarn: (id: string, path: string) => void,
+  ): void {
+    const regions: Array<{ index: number; cells: Array<[number, number]> }> = [];
+    const byIndex = new Map<number, Array<[number, number]>>();
+    for (let i = 0; i < this.n; i++) {
+      if (this.state[i] !== CELL.OPEN) continue;
+      const d = this.disp[i] as number;
+      const a = d > 0 ? this.areas[d - 1] : undefined;
+      if (d > 0 && a?.kind !== "zone") continue;
+      const list = byIndex.get(d) ?? [];
+      list.push(this.cellXY(i));
+      byIndex.set(d, list);
+    }
+    for (const [index, cells] of [...byIndex.entries()].sort((p, q) => p[0] - q[0]))
+      regions.push({ index, cells });
+    let placed = 0;
+    for (const r of regions) {
+      const res = dressArea(grid, {
+        preset: op.preset,
+        areaIndex: r.index,
+        areaCells: r.cells,
+        density: op.density ?? 0.5,
+        seed: subSeed(elementSeed(this.plan.seed, op.id, op.seed), `region${r.index}`),
+        remaining: cap - this.generated,
+      });
+      this.commitGenerated(op.id, res.placements);
+      placed += res.placements.length;
+      if (res.capped) {
+        capWarn(op.id, path);
+        break;
+      }
+    }
+    if (placed === 0)
+      this.issue("warning", "no_effect", `dress "${op.id}" placed nothing on level "${this.level.id}"`, {
+        path,
+        elementId: op.id,
+        hint: "the level has no free open ground; raise density or dress a named area",
+      });
   }
 
   private stepGeneratedFeatures(): void {
@@ -1266,6 +3325,11 @@ export class LevelWork {
     for (const { op, k } of ops) {
       if (op.op !== "dress") continue;
       const path = `/levels/${this.li}/terrain/${k}`;
+      if (op.area === undefined || op.area === this.level.id) {
+        // generator 2: the whole level, region by region (the open ground outside areas, then each zone)
+        if (this.plan.generator >= 2) this.dressWholeLevel(op, path, grid, cap, capWarn);
+        continue;
+      }
       const ai = this.areaIndexById.get(op.area);
       if (ai === undefined) {
         this.issue("error", "ref_unknown", `dress "${op.id}" names unknown area "${op.area}"`, {
@@ -1287,6 +3351,12 @@ export class LevelWork {
       });
       this.commitGenerated(op.id, res.placements);
       if (res.capped) capWarn(op.id, path);
+      if (res.placements.length === 0 && !res.capped)
+        this.issue("warning", "no_effect", `dress "${op.id}" placed nothing in "${op.area}"`, {
+          path,
+          elementId: op.id,
+          hint: "the area has no free floor (too small, or full of features, links and water); dress a larger area or raise density",
+        });
     }
     for (const { op, k } of ops) {
       if (op.op !== "scatter") continue;
@@ -1311,10 +3381,22 @@ export class LevelWork {
         randomRotation: op.randomRotation ?? info.organic,
         seed: elementSeed(this.plan.seed, op.id, op.seed),
         remaining: cap - this.generated,
+        // generator 2: natural pieces scatter in drifts and clumps, never an even lattice
+        drift: this.plan.generator >= 2 && info.organic,
+        supported: this.plan.generator >= 2,
       };
       const res = scatterFeatures(grid, op.variants ? { ...params, variants: op.variants } : params);
       this.commitGenerated(op.id, res.placements);
       if (res.capped) capWarn(op.id, path);
+      if (res.placements.length === 0 && !res.capped && op.density > 0)
+        this.issue("warning", "no_effect", `scatter "${op.id}" placed no ${op.feature}`, {
+          path,
+          elementId: op.id,
+          hint:
+            params.candidates.length === 0
+              ? "its shape (minus exclude) has no cell inside the level"
+              : "no candidate cell was free floor: widen the shape, shrink exclude, lower minSpacing or drop entries from avoid",
+        });
     }
   }
 
@@ -1366,7 +3448,8 @@ export class LevelWork {
         else ref[i] = 0xffff;
         if (k === EDGE.WALL || k === EDGE.OPENING) {
           const [a, b] = this.edgeCells(orient, i);
-          host[i] = this.hostOf(a, b, e.run[i] === 1);
+          const forced = e.hostSet[i] as number;
+          host[i] = forced >= 0 ? forced : this.hostOf(a, b, e.run[i] === 1);
         } else host[i] = 0;
       }
       return { kind, ref, height: hgt, host };
@@ -1472,7 +3555,68 @@ export class LevelWork {
         size: l.size ?? "m",
       })),
     };
+    if (this.bridges.length > 0) lvl.bridges = this.bridges;
+    if (this.outcrops.length > 0) lvl.outcrops = this.outcrops;
+    if (this.kerbs.length > 0) lvl.kerbs = this.kerbs;
+    if (this.roads.length > 0) lvl.roads = this.roads;
+    if (this.ramps.length > 0) lvl.ramps = this.ramps;
+    if (this.plan.generator >= 2) {
+      const cliffs = cliffRuns(lvl);
+      if (cliffs.length > 0) lvl.cliffs = cliffs;
+    }
+    if (this.plan.generator >= 2) {
+      lvl.foundation = this.level.foundation ?? (this.level.base.type === "ground" ? 2 : 0);
+      const wl = this.waterSurface();
+      if (wl !== null) lvl.waterLevel = wl;
+    }
+    if (this.structs) Object.assign(lvl, this.structs.finish(this.level.elevation));
     return lvl;
+  }
+
+  /**
+   * The level's water surface (absolute tiles), for TaleSpire's board-wide water plane: half a tile below the
+   * lowest dry floor that touches water, but at least a quarter tile above the highest water bed. Warns when other dry
+   * walkable floor (a dry pit, a lava rift, a cellar) lies below it, since the plane would flood it.
+   */
+  private waterSurface(): number | null {
+    const water: number[] = [];
+    for (let i = 0; i < this.n; i++)
+      if (this.isFloor(i) && (this.flags[i] as number) & CELL_FLAG.WATER) water.push(i);
+    if (water.length === 0) return null;
+    const top = (i: number): number => this.level.elevation + (this.height[i] as number) / 4 + 0.5;
+    let bank = Infinity;
+    let bed = -Infinity;
+    for (const i of water) {
+      bed = Math.max(bed, top(i));
+      for (const j of this.neighbours4(i))
+        if (j >= 0 && this.isFloor(j) && ((this.flags[j] as number) & CELL_FLAG.WATER) === 0)
+          bank = Math.min(bank, top(j));
+    }
+    // aim half a tile below the lowest bank (room for an imprecise setting either way), never below the beds
+    const surface = Number.isFinite(bank) ? Math.max(bed + 0.25, bank - 0.5) : bed + 0.25;
+    let low: number | null = null;
+    let lowCount = 0;
+    for (let i = 0; i < this.n; i++) {
+      if (!this.isFloor(i) || (this.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.BRIDGE)) continue;
+      if (top(i) < surface) {
+        lowCount++;
+        low ??= i;
+      }
+    }
+    if (low !== null) {
+      const [x, y] = this.cellXY(low);
+      this.issue(
+        "warning",
+        "water_level",
+        `${lowCount} dry floor cell${lowCount > 1 ? "s lie" : " lies"} below this level's water surface (${surface} tiles): TaleSpire's water plane is one height for the whole board and would flood ${lowCount > 1 ? "them" : "it"}`,
+        {
+          elementId: this.level.id,
+          cell: [x, y],
+          hint: "keep water and floor that must stay dry apart in height (raise the dry part, or lower the water's channel), or make that floor water too",
+        },
+      );
+    }
+    return surface;
   }
 
   /** Structural owner array (zones transparent) — used by geometric validation. */
@@ -1495,5 +3639,16 @@ function makeEdges(len: number): EdgeArrays {
     run: new Uint8Array(len),
     style: new Array<WallStyle | null>(len).fill(null),
     opened: new Uint8Array(len),
+    hostSet: new Int8Array(len).fill(-1),
   };
+}
+
+/** Local indices of a mask's cells that lie inside the level (`idx` < 0 = outside). */
+function rasterCellsOf(m: CellMask, idx: (x: number, y: number) => number): number[] {
+  const out: number[] = [];
+  forEachMaskCell(m, (x, y) => {
+    const i = idx(x, y);
+    if (i >= 0) out.push(i);
+  });
+  return out;
 }

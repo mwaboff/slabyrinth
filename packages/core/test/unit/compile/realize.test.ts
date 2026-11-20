@@ -429,6 +429,20 @@ describe("realize: availability, themes and diagnostics", () => {
   });
 
   it("unknown themes warn once and use generic; missing roles are aggregated with counts", () => {
+    // every feature type has a role in the bundled palettes, so take feature.pool away with a user override
+    const noPool = loadPalettes({
+      user: [
+        {
+          source: "generic.json",
+          data: {
+            schema: "slabyrinth/palette@1",
+            id: "generic",
+            overrides: true,
+            roles: { "feature.pool": null },
+          },
+        },
+      ],
+    });
     const set = realize(
       handPlan([
         room({
@@ -439,7 +453,7 @@ describe("realize: availability, themes and diagnostics", () => {
           ],
         }),
       ]),
-      cat,
+      noPool,
     );
     expect(set.diagnostics.filter((d) => d.code === "theme_fallback")).toHaveLength(1);
     expect(set.diagnostics.find((d) => d.code === "role_missing" && d.role === "feature.pool")?.count).toBe(

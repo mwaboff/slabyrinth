@@ -10,6 +10,7 @@ import { canonicalJson } from "../util/canonical";
 import { h64hex } from "../util/hash";
 import { LevelWork } from "./level";
 import { type ThemeDefaults, builtinThemeDefaults } from "./themes";
+import { type PieceSizeFn, bundledPieceSize } from "./pieceSizes";
 
 export interface ResolveOptions {
   /** Restrict the output to these levels (all levels are still resolved, because links span levels). */
@@ -18,13 +19,22 @@ export interface ResolveOptions {
   planVersion?: number;
   /** Theme defaults lookup (default: the built-in table mirroring the bundled palettes). */
   themeDefaults?: (theme: ThemeId) => ThemeDefaults;
+  /** Sizes of palette-shaped generated pieces (the rock band); default: the bundled palettes. */
+  pieceSize?: PieceSizeFn;
 }
 
 export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedPlan {
   const issues: PlanIssue[] = [];
   const themeDefaults = opts.themeDefaults ?? builtinThemeDefaults;
   const works: LevelWork[] = plan.levels.map(
-    (_, levelIndex) => new LevelWork({ plan, levelIndex, themeDefaults, issues }),
+    (_, levelIndex) =>
+      new LevelWork({
+        plan,
+        levelIndex,
+        themeDefaults,
+        issues,
+        pieceSize: opts.pieceSize ?? bundledPieceSize,
+      }),
   );
   const byId = new Map<string, LevelWork>();
   for (const w of works) if (!byId.has(w.level.id)) byId.set(w.level.id, w);

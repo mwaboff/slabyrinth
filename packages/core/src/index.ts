@@ -11,7 +11,6 @@ export * from "./contracts/ops";
 export * from "./contracts/resolved";
 export * from "./contracts/compiler";
 
-
 // WP1 exports (plan, ops, history, util).
 export * from "./plan";
 export * from "./ops";
@@ -29,5 +28,7 @@ export * from "./slab";
 export * from "./palette";
 export * from "./catalog";
 export * from "./compile";
+// Design review (advice for the model).
+export { type DesignNote, type DesignNoteCode, REVIEW, designReviewText, reviewDesign } from "./review";
 // WP4 exports (agent; includes the tools contract).
 export * from "./agent";

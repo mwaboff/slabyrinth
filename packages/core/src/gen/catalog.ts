@@ -16,6 +16,13 @@ export interface FeatureInfo {
   gmOnly: boolean;
   /** Human label (legend, tooltips, ASCII legend). */
   label: string;
+  /**
+   * Existing feature type whose 2D glyph stands in for this one until it has its own painter, so the preview
+   * never falls back to the "?" custom glyph for a real feature type. Unset: the type has its own glyph.
+   */
+  glyph?: FeatureType;
+  /** Light source (lighting pass of the composed set pieces). */
+  light?: boolean;
 }
 
 const F = (
@@ -23,6 +30,8 @@ const F = (
   category: FeatureCategory,
   opts: Partial<Omit<FeatureInfo, "label" | "category">> = {},
 ): FeatureInfo => ({
+  ...(opts.glyph ? { glyph: opts.glyph } : {}),
+  ...(opts.light ? { light: true } : {}),
   size: opts.size ?? [1, 1],
   blocking: opts.blocking ?? true,
   organic: opts.organic ?? false,
@@ -101,8 +110,75 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   signpost: F("Signpost", "outdoor"),
   standing_stone: F("Standing stone", "outdoor", { organic: true }),
   grave: F("Grave", "outdoor", { size: [1, 2] }),
+  // caves and set dressing (2026-11-19)
+  stalagmite: F("Stalagmite", "outdoor", { organic: true, glyph: "rock" }),
+  stalactite: F("Stalactite", "outdoor", { organic: true, blocking: false, glyph: "debris" }),
+  rock_formation: F("Rock formation", "outdoor", { size: [2, 2], organic: true, glyph: "boulder" }),
+  cave_in: F("Cave-in", "hazard", { size: [2, 2], organic: true, glyph: "rubble" }),
+  crystal: F("Crystals", "outdoor", { organic: true, light: true, glyph: "rock" }),
+  giant_mushroom: F("Giant mushroom", "outdoor", { organic: true, glyph: "mushroom" }),
+  root: F("Roots", "outdoor", { organic: true, blocking: false, glyph: "dead_tree" }),
+  root_large: F("Great root", "outdoor", { size: [2, 1], organic: true, glyph: "log" }),
+  roots_wall: F("Wall roots", "outdoor", { blocking: false, wallMounted: true, glyph: "dead_tree" }),
+  vines: F("Vines", "outdoor", { blocking: false, wallMounted: true, glyph: "tall_grass" }),
+  tree_large: F("Great tree", "outdoor", { size: [3, 3], organic: true, glyph: "dead_tree" }),
+  // ritual, encounter and lights
+  candles: F("Candles", "furniture", { blocking: false, light: true, glyph: "candelabra" }),
+  skull_pile: F("Skulls", "other", { blocking: false, organic: true, glyph: "bones" }),
+  spawn_point: F("Spawn point", "hazard", { blocking: false, gmOnly: true, glyph: "trap_plate" }),
+  torch_floor: F("Floor torch", "architecture", { light: true, glyph: "brazier" }),
+  lantern: F("Lantern", "architecture", { light: true, glyph: "brazier" }),
+  magic_fire: F("Magic fire", "architecture", { light: true, glyph: "campfire" }),
+  lava_glow: F("Lava glow", "hazard", { blocking: false, light: true, glyph: "brazier" }),
+  fire_pit: F("Fire pit", "outdoor", { light: true, glyph: "campfire" }),
+  // tall pieces, mining and hanging dressing (round 2)
+  monolith: F("Monolith", "architecture", { glyph: "standing_stone" }),
+  cave_column: F("Rock column", "outdoor", { organic: true, glyph: "pillar" }),
+  statue_large: F("Great statue", "architecture", { size: [2, 2], glyph: "statue" }),
+  mine_cart: F("Mine cart", "furniture", { glyph: "crate" }),
+  rails: F("Rails", "architecture", { blocking: false, glyph: "debris" }),
+  mine_support: F("Timber support", "architecture", { glyph: "pillar" }),
+  chains: F("Hanging chains", "other", { blocking: false, wallMounted: true, glyph: "banner_wall" }),
+  // theme-neutral slots: each theme's palette (feature.<slot>) decides the assets, e.g. cluster_tall is
+  // stalagmite columns in a cave, pines in a forest and stone columns in a dungeon
+  landmark: F("Landmark", "architecture", { size: [2, 2], glyph: "statue" }),
+  tall_marker: F("Tall marker", "architecture", { glyph: "standing_stone" }),
+  formation: F("Formation", "outdoor", { size: [2, 2], organic: true, glyph: "boulder" }),
+  cluster_tall: F("Tall growth", "outdoor", { organic: true, glyph: "pine_tree" }),
+  undergrowth: F("Undergrowth", "outdoor", { organic: true, blocking: false, glyph: "bush" }),
+  ground_cover: F("Ground cover", "outdoor", { organic: true, blocking: false, glyph: "tall_grass" }),
+  accent_light: F("Accent light", "architecture", { light: true, glyph: "brazier" }),
+  edge_dressing: F("Edge dressing", "outdoor", { organic: true, glyph: "rock" }),
+  small_detail: F("Small detail", "other", { organic: true, blocking: false, glyph: "debris" }),
+  wall_dressing: F("Wall dressing", "other", { blocking: false, wallMounted: true, glyph: "banner_wall" }),
+  // water's edge: reeds, lily pads, river stones, driftwood along banks; a small jetty
+  bank_dressing: F("Bank dressing", "outdoor", { organic: true, blocking: false, glyph: "reeds" }),
+  jetty: F("Jetty", "architecture", { size: [2, 1], blocking: false, glyph: "bench" }),
+  // built places: parked along a road edge (cart, wagon, car), seating, a sign on a frontage
+  vehicle: F("Vehicle", "outdoor", { size: [3, 2], glyph: "wagon" }),
+  seating: F("Seating", "furniture", { size: [2, 1], glyph: "bench" }),
+  signage: F("Signage", "architecture", { blocking: false, wallMounted: true, glyph: "banner_wall" }),
+  // cliffs as rock bands: pieces of the band along a rise (sizes here are the cell footprint; the palette's asset
+  // sets the real size)
+  cliff_face: F("Cliff rock", "outdoor", { size: [4, 2], organic: true, glyph: "boulder" }),
+  cliff_crest: F("Crest boulder", "outdoor", { size: [2, 2], organic: true, glyph: "boulder" }),
   custom: F("Custom", "other"),
 };
+
+/** Light-source feature types (the composed set pieces' lighting pass). */
+export const LIGHT_FEATURES: ReadonlySet<FeatureType> = new Set<FeatureType>([
+  "torch_wall",
+  "brazier",
+  "candelabra",
+  "chandelier",
+  "campfire",
+  ...(Object.keys(FEATURE_INFO) as FeatureType[]).filter((t) => FEATURE_INFO[t].light === true),
+]);
+
+/** The feature type whose 2D glyph draws `type`: itself, unless the catalog names a stand-in. */
+export function glyphType(type: FeatureType): FeatureType {
+  return FEATURE_INFO[type].glyph ?? type;
+}
 
 export function featureInfo(type: FeatureType): FeatureInfo {
   return FEATURE_INFO[type];

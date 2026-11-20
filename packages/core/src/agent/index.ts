@@ -13,3 +13,4 @@ export * from "./checks";
 export * from "./executor";
 export * from "./jsonProtocol";
 export * from "./progress";
+export * from "./designPrinciples";

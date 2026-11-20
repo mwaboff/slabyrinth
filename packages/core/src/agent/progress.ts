@@ -87,7 +87,7 @@ export function createProgressTracker(toolName: string, parseEveryChars = 1024):
         const el = op["element"];
         const k = el["kind"];
         if (k === "level" && isObj(el["value"])) scanLevel(out, el["value"], 0);
-        else if (k === "area")
+        else if (k === "area" || k === "structure")
           emit(
             out,
             "laying_out_level",

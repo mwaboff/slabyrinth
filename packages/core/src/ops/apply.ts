@@ -19,6 +19,7 @@ import type {
   LevelLink,
   MapPlan,
   PlanIssue,
+  Structure,
   Vec2,
 } from "../contracts/plan";
 import { BUILD_CONSTANTS } from "../contracts/plan";
@@ -38,13 +39,14 @@ import {
   OpeningSchema,
   PlanOpSchema,
   StampRefSchema,
+  StructureSchema,
   TerrainOpSchema,
   WallRunSchema,
 } from "../plan/schema";
 import { KEYED_AREA_KINDS, validatePlan } from "../plan/validate";
 import type { ValidateContext } from "../plan/validate";
 import { zodIssueToPlanIssue } from "../plan/zodIssues";
-import { across, shapeHasCell, tr, translateShape, translateTerrain } from "./geometry";
+import { across, shapeHasCell, tr, translateShape, translateStructure, translateTerrain } from "./geometry";
 
 // ───────────────────────────── materialize hook (WP2 provides the generators) ─────────────────────────────
 
@@ -103,7 +105,11 @@ class Draft {
   }
 
   find(id: ElementId): Found | undefined {
-    const loc = listElements(this.plan).find((e) => e.id === id);
+    const all = listElements(this.plan);
+    // a generated feature is shown as "rocks#5" until it is materialized as "rocks_5": either spelling finds it
+    const loc =
+      all.find((e) => e.id === id) ??
+      (id.includes("#") ? all.find((e) => e.id === id.replace(/#/g, "_")) : undefined);
     if (loc === undefined) return undefined;
     return { loc, level: loc.levelIndex >= 0 ? this.plan.levels[loc.levelIndex] : undefined };
   }
@@ -271,7 +277,7 @@ function applyOne(d: Draft, op: PlanOp): void {
       opUpdate(d, op.id, op.set);
       return;
     case "remove":
-      opRemove(d, op.ids, op.keepDependents ?? false);
+      opRemove(d, removalIds(d, op.ids, op.where), op.keepDependents ?? false);
       return;
     case "move":
       opMove(d, op);
@@ -385,6 +391,9 @@ function opAdd(d: Draft, el: NewElement): void {
     case "label":
       level.labels.push(el.value);
       break;
+    case "structure":
+      (level.structures ??= []).push(el.value);
+      break;
   }
   d.markAdded(el.value.id);
   d.dirty.add(level.id);
@@ -425,6 +434,7 @@ const LEVEL_LIST_FIELDS = new Set<string>([
   "terrain",
   "labels",
   "stamps",
+  "structures",
 ]);
 
 function schemaFor(kind: ElementKind): z.ZodType {
@@ -447,6 +457,8 @@ function schemaFor(kind: ElementKind): z.ZodType {
       return LevelLinkSchema;
     case "stamp":
       return StampRefSchema;
+    case "structure":
+      return StructureSchema;
   }
 }
 
@@ -588,6 +600,40 @@ function opReshape(d: Draft, id: ElementId, shape: Area["shape"]): void {
 }
 
 // ───────────────────────────── remove ─────────────────────────────
+
+/**
+ * The ids a remove op names: generated features as shown ("rocks#5") materialize their op first, and a `where`
+ * filter adds every matching feature (generated ones of a still-live op are materialized for it).
+ */
+function removalIds(
+  d: Draft,
+  ids: readonly ElementId[],
+  where: Extract<PlanOp, { op: "remove" }>["where"],
+): ElementId[] {
+  const live = (opId: string): boolean => {
+    const f = d.find(opId);
+    return f !== undefined && f.loc.kind === "terrain";
+  };
+  for (const id of ids) {
+    const hash = id.indexOf("#");
+    if (hash > 0 && d.find(id) === undefined && live(id.slice(0, hash)))
+      opMaterialize(d, id.slice(0, hash), false);
+  }
+  if (!where) return [...ids];
+  if (where.generatedBy !== undefined && live(where.generatedBy)) opMaterialize(d, where.generatedBy, false);
+  const out = [...ids];
+  for (const level of d.plan.levels) {
+    if (where.level !== undefined && level.id !== where.level) continue;
+    for (const f of level.features) {
+      if (where.type !== undefined && f.type !== where.type) continue;
+      if (where.generatedBy !== undefined && !f.id.startsWith(`${where.generatedBy}_`)) continue;
+      const r = where.rect;
+      if (r && (f.at[0] < r.x || f.at[1] < r.y || f.at[0] >= r.x + r.w || f.at[1] >= r.y + r.h)) continue;
+      out.push(f.id);
+    }
+  }
+  return out;
+}
 
 function opRemove(d: Draft, ids: readonly ElementId[], keepDependents: boolean): void {
   const targets: Found[] = [];
@@ -738,6 +784,7 @@ function translated(
       const a = el as unknown as Area;
       const out: Area = { ...a, shape: translateShape(a.shape, dx, dy) };
       if (a.labelAt !== undefined) out.labelAt = tr(a.labelAt, dx, dy);
+      if (a.broken !== undefined) out.broken = a.broken.map((c) => tr(c, dx, dy));
       return out as unknown as Record<string, unknown>;
     }
     case "opening": {
@@ -758,6 +805,8 @@ function translated(
       if (l.to.at !== undefined) out.to.at = tr(l.to.at, dx, dy);
       return out as unknown as Record<string, unknown>;
     }
+    case "structure":
+      return translateStructure(el as unknown as Structure, dx, dy) as unknown as Record<string, unknown>;
     case "level":
       return { ...el };
   }
@@ -928,7 +977,8 @@ function opDuplicate(d: Draft, op: Extract<PlanOp, { op: "duplicate" }>): void {
     const out: Record<string, unknown> = { ...el, id: idMap.get(el.id as string) ?? el.id };
     if (kind === "opening" && Array.isArray(el.between))
       out.between = (el.between as string[]).map((r) => idMap.get(r) ?? r);
-    if (kind === "terrain" && el.op === "dress") out.area = idMap.get(el.area as string) ?? el.area;
+    if (kind === "terrain" && el.op === "dress" && typeof el.area === "string")
+      out.area = idMap.get(el.area) ?? el.area;
     if (kind === "area") {
       const a = el as unknown as Area;
       if (a.shape.type === "route") {

@@ -20,6 +20,8 @@ const STYLE_LABELS: Array<[string, string]> = [
   ["water-shallow", "Shallow water"],
   ["water-deep", "Deep water"],
   ["ledge", "Ledge (height change)"],
+  ["cliff", "Cliff (drop of 1+ tiles)"],
+  ["bridge", "Bridge"],
   ["height-up", "Raised floor"],
   ["height-down", "Sunken floor"],
   ["zone-outline", "Zone"],
@@ -35,6 +37,7 @@ export function legendEntries(list: DisplayList): LegendEntry[] {
       if (s.startsWith("height-up")) s = "height-up";
       else if (s.startsWith("height-down")) s = "height-down";
       else if (s.startsWith("wall")) s = "wall";
+      else if (s.startsWith("bridge")) s = "bridge";
       styles.add(s);
     }
   }

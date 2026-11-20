@@ -51,6 +51,16 @@ export type {
 } from "./build";
 export { diffCatalogs, geometryChanged } from "./diff";
 export { NULL_AVAILABILITY, createAvailability, isNullAvailability } from "./availability";
+export {
+  ROLE_RULES,
+  autoVariantsFor,
+  classifyAsset,
+  footprintOf,
+  searchCatalog,
+  sizeClass,
+  variantFromCatalog,
+} from "./classify";
+export type { CatalogHit, CatalogQuery, Classification, RoleRule, SizeClass } from "./classify";
 
 import type { CatalogSource } from "../contracts/compiler";
 import { binaryIndexSource } from "./binaryIndex";

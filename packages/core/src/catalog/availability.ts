@@ -1,6 +1,7 @@
 /** AssetAvailability over a scanned catalog, and the null object used when no install was found. */
 import type { AssetAvailability, AssetCatalog, CatalogAsset } from "../contracts/compiler";
 import { geomOf } from "./derive";
+import { searchCatalog } from "./classify";
 
 /** No catalog loaded: everything counts as present; no names; no search. */
 export const NULL_AVAILABILITY: AssetAvailability = {
@@ -12,13 +13,6 @@ export const NULL_AVAILABILITY: AssetAvailability = {
 export function isNullAvailability(a: AssetAvailability): boolean {
   return a === NULL_AVAILABILITY || a.status("00000000-0000-0000-0000-000000000000") === null;
 }
-
-const STOP = new Set(["a", "an", "the", "of", "with", "and", "on", "in"]);
-const tokens = (s: string): string[] =>
-  s
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((t) => t.length > 1 && !STOP.has(t));
 
 export function createAvailability(catalog: AssetCatalog | readonly CatalogAsset[]): AssetAvailability {
   const list = Array.isArray(catalog)
@@ -36,25 +30,15 @@ export function createAvailability(catalog: AssetCatalog | readonly CatalogAsset
       return byId.get(uuid.toLowerCase())?.name ?? null;
     },
     search(hint, kind) {
-      const q = tokens(hint);
-      if (q.length === 0) return [];
-      const scored: Array<{ a: CatalogAsset; s: number }> = [];
-      for (const a of list) {
-        if (a.deprecated || (kind && a.kind !== kind)) continue;
-        const name = tokens(a.name);
-        const tags = a.tags.flatMap(tokens);
-        const folder = tokens(a.folder);
-        let s = 0;
-        for (const t of q) {
-          if (name.includes(t)) s += 3;
-          else if (name.some((n) => n.startsWith(t) || t.startsWith(n))) s += 2;
-          if (tags.includes(t)) s += 1;
-          if (folder.includes(t)) s += 1;
-        }
-        if (s > 0) scored.push({ a, s });
-      }
-      scored.sort((x, y) => y.s - x.s || (x.a.name < y.a.name ? -1 : x.a.name > y.a.name ? 1 : 0));
-      return scored.slice(0, 20).map(({ a }) => ({ uuid: a.uuid, name: a.name, geom: geomOf(a) }));
+      // Trustworthy search (catalog/classify.ts): a hit must match a hint word in its name, props rank above
+      // tiles, and weak matches are dropped so a custom feature is reported unresolved instead of silently
+      // becoming an unrelated asset ("great root" once matched a wall/floor tile).
+      // custom features are props unless the caller asks for tiles
+      const opts = { keywords: hint, kind: kind ?? ("prop" as const), limit: 20, strict: true };
+      return searchCatalog(list, opts).map((h) => {
+        const a = byId.get(h.uuid.toLowerCase()) as CatalogAsset;
+        return { uuid: a.uuid, name: a.name, geom: geomOf(a) };
+      });
     },
   };
 }

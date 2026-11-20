@@ -74,6 +74,8 @@ const DARK_MATS = {
   water_deep: "#1A2C33",
   lava: "#6A2814",
   bridge_wood: "#45331F",
+  asphalt: "#1E1E1E",
+  concrete: "#35332F",
 };
 
 const LIGHT_MATS = {
@@ -97,6 +99,8 @@ const LIGHT_MATS = {
   water_deep: "#BCD6DC",
   lava: "#EBA27A",
   bridge_wood: "#E5CBA0",
+  asphalt: "#C9C6C0",
+  concrete: "#EFEDE8",
 };
 
 /** Skin A dark — "night survey" (kept as an alternative; skin B v2 is the chosen look). */

@@ -1,0 +1,9 @@
+crate 9,7 1x1 r90
+crate 9,6 1x1 r90
+barrel 8,7 1x1 r90
+sack 8,6 1x1 r90
+barrel 9,5 1x1 r90
+log 9,0 1x2 r90
+stump 9,2 1x1 r90
+crate 8,2 1x1 r90
+torch_wall 4,0 1x1 r0 wall=N

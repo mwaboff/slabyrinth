@@ -6,7 +6,16 @@ import type { ElementId, LevelId, MapPlan } from "../contracts/plan";
 import type { DiffKind } from "../contracts/ops";
 
 export type ElementKind =
-  "level" | "area" | "opening" | "wall_run" | "feature" | "terrain" | "label" | "link" | "stamp";
+  | "level"
+  | "area"
+  | "opening"
+  | "wall_run"
+  | "feature"
+  | "terrain"
+  | "label"
+  | "link"
+  | "stamp"
+  | "structure";
 
 /** Level list field that holds each per-level element kind. */
 export const LEVEL_LIST_OF = {
@@ -17,6 +26,7 @@ export const LEVEL_LIST_OF = {
   terrain: "terrain",
   label: "labels",
   stamp: "stamps",
+  structure: "structures",
 } as const;
 export type LevelListKind = keyof typeof LEVEL_LIST_OF;
 export type LevelListField = (typeof LEVEL_LIST_OF)[LevelListKind];
@@ -29,6 +39,7 @@ export const LEVEL_LIST_KINDS: readonly LevelListKind[] = [
   "terrain",
   "label",
   "stamp",
+  "structure",
 ];
 
 export interface ElementLocation {
@@ -54,6 +65,7 @@ export const KIND_LABEL: Record<ElementKind, string> = {
   label: "label",
   link: "link",
   stamp: "stamp",
+  structure: "structure",
 };
 
 /** DiffKind for an element kind. DiffKind has no "stamp": a stamp change is reported as a change of its level. */
@@ -63,7 +75,7 @@ export function diffKindOf(kind: ElementKind): DiffKind {
 
 /**
  * Lists every element in document order. Duplicated ids appear several times (validation reports them).
- * Order: plan.levels[i] then its areas, openings, walls, features, terrain, labels, stamps; then links.
+ * Order: plan.levels[i] then its areas, openings, walls, features, terrain, labels, stamps, structures; then links.
  */
 export function listElements(plan: MapPlan): ElementLocation[] {
   const out: ElementLocation[] = [];
