@@ -34,7 +34,68 @@
           "footprint": [
             2,
             2
-          ]
+          ],
+          "tone": "mid",
+          "hue": "grey"
+        }
+      ]
+    },
+    "cliff.formation_crest_light": {
+      "minGenerator": 3,
+      "mount": "full-cell",
+      "rotation": "fixed",
+      "height": 2,
+      "greedyTiling": false,
+      "variants": [
+        {
+          "asset": "cdfc2068-f4e6-42a0-9672-cd99ff162509",
+          "name": "Desert Cliff 05",
+          "geom": {
+            "size": {
+              "x": 1.9754,
+              "y": 1.9934,
+              "z": 1.9614
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9967,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "weight": 1,
+          "tone": "light",
+          "hue": "peach"
+        },
+        {
+          "asset": "c4bb44f6-ecff-444d-a196-49eaa76f4aa7",
+          "name": "rock_large001",
+          "geom": {
+            "size": {
+              "x": 2.4018,
+              "y": 2.5985,
+              "z": 1.6247
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0025,
+              "y": 1.3305,
+              "z": -0.032
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "weight": 0.6,
+          "tone": "light",
+          "hue": "cream"
         }
       ]
     },
@@ -64,6 +125,61 @@
           "footprint": [
             5,
             3
+          ],
+          "tone": "light",
+          "hue": "cream"
+        }
+      ]
+    },
+    "cliff.rock_block": {
+      "minGenerator": 3,
+      "mount": "full-cell",
+      "rotation": "fixed",
+      "height": 2,
+      "greedyTiling": false,
+      "variants": [
+        {
+          "asset": "c06fdfb8-bf24-4234-99c7-3a72a5aacb02",
+          "name": "Cave Wall 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "8405574e-c75b-4146-b08d-ff9007ac95ac",
+          "name": "Cave Wall 02",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
           ]
         }
       ]
@@ -510,7 +626,9 @@
             2,
             2
           ],
-          "weight": 0.4
+          "weight": 0.4,
+          "tone": "mid",
+          "hue": "grey"
         }
       ]
     },
@@ -1024,6 +1142,37 @@
         {
           "asset": "cf6063bb-5c6e-4107-b3e9-9c0c5ac75768",
           "name": "Tavern Floor 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "stack": {
+            "unitHeight": 0.5
+          }
+        }
+      ]
+    },
+    "fill.rock": {
+      "minGenerator": 3,
+      "rotation": "fixed",
+      "variants": [
+        {
+          "asset": "ce6a2235-664f-43e8-a744-d5743623701d",
+          "name": "Cave Floor - Rock 2",
           "geom": {
             "size": {
               "x": 1,

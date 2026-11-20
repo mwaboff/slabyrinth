@@ -25,6 +25,7 @@ import {
   DRESS_PRESETS,
   ROOF_TYPES,
   ATTACHMENT_TYPES,
+  STALL_KINDS,
 } from "../contracts/plan";
 
 // ───────────────────────────── neutral tool types ─────────────────────────────
@@ -366,7 +367,8 @@ const openingSchema: JsonSchema = {
   type: "object",
   required: ["id", "kind"],
   additionalProperties: false,
-  description: "Give EITHER between (preferred) OR at.",
+  description:
+    "Give EITHER between (preferred) OR at. secret_door is a wall that looks solid to players and opens only for the GM (set gmOnly): use it for a hidden shrine, vault or escape, with the room behind reached some other way too if players must be able to find it.",
   properties: {
     id,
     kind: { type: "string", enum: [...OPENING_KINDS] },
@@ -708,6 +710,31 @@ const terrainSchema: JsonSchema = {
         material: { type: "string", enum: [...MATERIALS], description: "Top surface (default rock)." },
       },
     },
+    {
+      type: "object",
+      required: ["id", "op", "shape"],
+      additionalProperties: false,
+      description:
+        "Generator 3. An opening in the floor of this level so the level below shows through: a collapsed floor, a shaft, a gallery or balcony looking down into a hall. Put it inside a room of the upper level, over open floor of a room on the level below (stack the levels by elevation, one storey = 2.5). No wall is built round it (unlike an area with floor \"none\"): the edge gets a low railing or broken rim, a collapse gets a ragged outline and a heap of rubble on the floor below, and the build checks the cells beneath are open floor.",
+      properties: {
+        id,
+        op: { const: "floor_opening" },
+        shape: { $ref: "#/$defs/shape" },
+        kind: {
+          type: "string",
+          enum: ["collapse", "shaft", "balcony"],
+          description:
+            "collapse (default): ragged hole, broken edge, rubble below. shaft: clean hole with a railing. balcony: like shaft, for a gallery over a room.",
+        },
+        edge: { type: "string", enum: ["ragged", "clean"], description: "Outline (default: ragged for a collapse, clean otherwise)." },
+        rim: {
+          type: "string",
+          enum: [...WALL_STYLES, "none"],
+          description: "Edge piece (default ruined for a collapse, iron_bars otherwise); none = open edge.",
+        },
+        rubble: { type: "boolean", description: "Collapse: heap rubble on the floor below (default true)." },
+      },
+    },
   ],
 };
 
@@ -722,6 +749,8 @@ const linkSchema: JsonSchema = {
   type: "object",
   required: ["id", "kind", "from", "to"],
   additionalProperties: false,
+  description:
+    'A way between two levels. `from` is always the LOWER level (lower elevation), `to` the upper; walkers go either way. Stairs: `from.at` is the first step (the foot, on the lower level) and `dir` is the way the run climbs; it covers one cell per tile of rise in a straight line (rise 2.5 = 3 cells, a 1-wide strip, or `width` wide), the cell BEHIND the foot (opposite `dir`) must be open floor, and the cells the run climbs over must be free floor on the lower level (a corridor the run climbs along becomes the stair). The top lands on the upper level one cell past the last step, which must be open floor there; the run\'s cells on the upper level become a stair well with no floor. Example: levels hall (elevation 0) and crypt (elevation -2.5); { kind: "stairs", from: { level: "crypt", at: [10, 20] }, to: { level: "hall" }, dir: "N" } occupies crypt (10,20), (10,19), (10,18), you step on from (10,21) (open floor), and you arrive on the hall at (10,17); the hall cells (10,18..20) get no floor (a stair well). A ladder or trapdoor occupies one cell: { kind: "ladder", from: { level: "shrine", at: [15, 20] }, to: { level: "crypt" } } climbs from shrine (15,20) up through a one-cell hole in the crypt floor at (15,20); you step on from any side cell of the lower level and off beside the hole above. Keep links out of the cells you build features on.',
   properties: {
     id,
     kind: { type: "string", enum: [...LINK_KINDS] },
@@ -737,7 +766,7 @@ const linkSchema: JsonSchema = {
       additionalProperties: false,
       properties: { level: str, at: vec2 },
     },
-    dir: side,
+    dir: { ...side, description: "Stairs/ramp only: the way the run climbs from the foot (from.at)." },
     width: { type: "integer", enum: [1, 2] },
     label: str,
     notes: str,
@@ -941,10 +970,16 @@ const structureSchema: JsonSchema = {
       description:
         "State: words in the request about it must be honoured (ruined, abandoned, burnt → ruined; worn, old, overgrown → weathered). Ruined: falls away from one standing corner (low wall stubs against a tall remnant, ragged tops, holed floors, roof fallen in, a gable wall may stand), breaches, rubble mostly inside, no lights. Weathered: whole, with a patch of roof fallen in, most windows dark, growth and rubble at its foot.",
     },
+    growth: {
+      type: "string",
+      enum: ["none", "light", "medium", "heavy"],
+      description:
+        "How overgrown a weathered or ruined building is. light (the weathered default): a few vines, a bush or two at the foot. medium (the ruined default): vines on about a fifth of the wall. heavy: vines and creepers climbing from the ground on a third to half of the walls, bushes at the wall feet and inside, plants on the wall tops, a tree in a roofless part. Words overgrown, ivy-covered, reclaimed, abandoned, nature taking it back → heavy.",
+    },
     use: {
       type: "string",
       description:
-        "What the building is for (shop, apartments, office, warehouse, garage, townhouse, diner, civic, workshop; shack, farmhouse, tavern …). Leave shape and looks to the style and set a different use per building: the style draws silhouette, material, roof, windows and street level from it.",
+        "What the building is for (shop, apartments, office, warehouse, garage, townhouse, diner, civic, workshop; shack, farmhouse, tavern …). Leave shape and looks to the style and set a different use per building: the style draws silhouette, material, roof, windows and street level from it. Generator 3 cottages know trades: baker, smith, shop (store, general, grocer), butcher, apothecary (herbalist), cobbler, tailor, inn (tavern): each gets a glazed shop front with a sign, a tent-cloth awning over it and a few trade props outside the door (sacks, anvil, crates, barrels, benches). Neighbours that share a wall stand wing to wing; vary wing depth by a cell so the street front is not a ruler line.",
     },
     front: {
       ...side,
@@ -953,7 +988,8 @@ const structureSchema: JsonSchema = {
     },
     shopfront: {
       type: "boolean",
-      description: "ground storey on the front face as a shopfront (wide glazing, sign band)",
+      description:
+        "ground storey on the front face as a shopfront (wide glazing, sign band). Works on cottage and the other styles too (generator 3: corner cells keep their wall); a trade `use` sets it for you.",
     },
     lighting: {
       type: "object",
@@ -1044,7 +1080,11 @@ const levelSchema: JsonSchema = {
   properties: {
     id,
     name: str,
-    elevation: height,
+    elevation: {
+      ...height,
+      description:
+        "Base of the floor in tiles. For levels stacked over each other (a dungeon of rooms above rooms) space them 4 apart for the usual 2-tall walls (wall height + 0.5 floor + 1 of air), so a player sees clear air between the wall tops and the floor above; a level under another at 2.5 has walls touching the ceiling. A stairs link grows by a cell per tile, so 4 apart means a 4-cell run. Let the levels overlap in plan (a hall over a crypt, cells under a guard room) and join them with a floor_opening terrain op as well as stairs.",
+    },
     wallHeight: height,
     bounds: rect,
     foundation: {
@@ -1092,6 +1132,54 @@ const levelSchema: JsonSchema = {
     terrain: { type: "array", items: { $ref: "#/$defs/terrain" } },
     labels: { type: "array", items: { $ref: "#/$defs/label" } },
     structures: { type: "array", items: { $ref: "#/$defs/structure" }, maxItems: 32 },
+    stalls: {
+      type: "array",
+      maxItems: 8,
+      description:
+        "Generator 3. Rows or clusters of market stalls, laid out for you in a rectangle: the long side is the row; deep enough (aisle + 2 cells) two rows face each other across a clear aisle, else one row faces `facing`. Stalls are 2 cells wide, spaced irregularly, kinds from `goods` in shuffled order, built from the theme's real stall pieces (fruit, vegetables, spices, magic, weapons; the rest stand on a bare table with bread, dairy, fish, potions or grain on it). Cells already taken (a well, a building) are skipped. Example: {\"id\": \"market\", \"area\": {\"x\": 17, \"y\": 6, \"w\": 14, \"h\": 7}, \"goods\": [\"fruit\", \"bread\", \"potions\", \"vegetables\"]}. A single stall: a feature of type stall with variant = the kind. Do not dress the same square with the plaza preset: it plants trees and seats in the aisle (it never builds on a taken cell).",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "area"],
+        properties: {
+          id: str,
+          area: {
+            type: "object",
+            additionalProperties: false,
+            required: ["x", "y", "w", "h"],
+            properties: { x: int, y: int, w: int, h: int },
+          },
+          goods: {
+            type: "array",
+            items: { type: "string", enum: [...STALL_KINDS] },
+            description: "Kinds on offer; default fruit, vegetables, bread, dairy, potions, spices.",
+          },
+          facing: { ...side, description: "The side a lone row faces (default S)." },
+          count: { type: "integer", description: "Most stalls (default: as many as fit)." },
+          aisle: { type: "integer", description: "Clear aisle between two rows, 1 to 4 cells (default 2)." },
+          seed: int,
+        },
+      },
+    },
+    lines: {
+      type: "array",
+      maxItems: 12,
+      description:
+        "Generator 3. A line strung overhead between two cells on one row or column: lanterns (rope with lanterns hung along it), lights (a string of lights) or flags (rope with cloth flags; the data has no bunting piece). Each end is anchored on a building wall within 3 cells beyond it, else on a post the generator stands there; the line hangs `height` tiles up (2 to 3, default 2.6, clear of shop awnings). A wall shorter than the line cannot hold it: the build warns (verify_line_unanchored) and the pieces float, so end such a line on a post or pick taller buildings. Example across a street between facing buildings: {\"id\": \"across1\", \"from\": [12, 14], \"to\": [12, 22], \"kind\": \"lanterns\"}. Lines over a street are the way to light it from above; do not float lanterns with lift.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "from", "to"],
+        properties: {
+          id: str,
+          from: { type: "array", items: int, minItems: 2, maxItems: 2 },
+          to: { type: "array", items: int, minItems: 2, maxItems: 2 },
+          kind: { type: "string", enum: ["lanterns", "lights", "flags"] },
+          height: { type: "number" },
+          spacing: { type: "integer", description: "Cells between hung pieces, 2 to 6 (default 3)." },
+        },
+      },
+    },
     notes: str,
   },
 };

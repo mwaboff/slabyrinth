@@ -174,6 +174,62 @@ export function chamferCorners(tierOf: Map<number, number>, grid: OrganicGrid): 
   for (const [i, t] of next) tierOf.set(i, t);
 }
 
+/**
+ * Generator 3: small natural rises are not rectangles. Every outer corner of a band (two perpendicular neighbours
+ * lower, the other two not) drops a tier, so a block loses its corners (a corner cell for a raised band, a sunk one
+ * rises likewise); then, along straight edges, a seeded cell here and there is bitten (never two within a cell of
+ * each other), so a side varies by at least a cell where it is long enough. Walkable: tiers stay one apart.
+ */
+export function roughenLumps(tierOf: Map<number, number>, grid: OrganicGrid, seed: number): void {
+  const tierAt = (x: number, y: number): number => {
+    const i = grid.idx(x, y);
+    return i < 0 ? 0 : (tierOf.get(i) ?? 0);
+  };
+  const toward = (t: number, o: number): boolean => (t > 0 ? o < t : t < 0 ? o > t : false);
+  const step = (t: number): number => (t > 0 ? t - 1 : t + 1);
+  // 1. corners
+  const corners = new Map<number, number>();
+  for (const [i, t] of tierOf) {
+    if (t === 0) continue;
+    const [x, y] = grid.xy(i);
+    const o = N4.map(([dx, dy]) => toward(t, tierAt(x + dx, y + dy)));
+    // N4 order: +x, -x, +y, -y
+    const lowX = (o[0] as boolean) !== (o[1] as boolean);
+    const lowY = (o[2] as boolean) !== (o[3] as boolean);
+    if (o.filter(Boolean).length === 2 && lowX && lowY) corners.set(i, step(t));
+  }
+  for (const [i, t] of corners) tierOf.set(i, t);
+  // 2. bites along straight edges
+  const bitten = new Set<string>();
+  const edgeSide = (x: number, y: number, t: number): number => {
+    // the one side (index into N4) that is lower, when exactly one is and the cell is not a corner
+    const o = N4.map(([dx, dy]) => toward(t, tierAt(x + dx, y + dy)));
+    return o.filter(Boolean).length === 1 ? o.indexOf(true) : -1;
+  };
+  const cells = [...tierOf.keys()].sort((a, b) => a - b);
+  for (const i of cells) {
+    const t = tierOf.get(i) as number;
+    if (t === 0) continue;
+    const [x, y] = grid.xy(i);
+    const s = edgeSide(x, y, t);
+    if (s < 0) continue;
+    // lateral neighbours must be straight edge on the same side (so the bite sits inside a run, not at its end)
+    const [lx, ly] = s < 2 ? [0, 1] : [1, 0];
+    if (edgeSide(x + lx, y + ly, tierAt(x + lx, y + ly)) !== s || edgeSide(x - lx, y - ly, tierAt(x - lx, y - ly)) !== s)
+      continue;
+    // the bitten cell stays within one tier of all its neighbours (a walkable step)
+    const to = step(t);
+    if (N4.some(([dx, dy]) => Math.abs(tierAt(x + dx, y + dy) - to) > 1)) continue;
+    if (h32(`${seed}:bite:${x}:${y}`) % 4 !== 0) continue;
+    let near = false;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (bitten.has(`${x + dx},${y + dy}`)) near = true;
+    for (const k of [2, -2]) if (bitten.has(`${x + lx * k},${y + ly * k}`)) near = true;
+    if (near) continue;
+    bitten.add(`${x},${y}`);
+    tierOf.set(i, step(t));
+  }
+}
+
 /** Longest straight tier step an organic outline keeps (cells). */
 export const MAX_STRAIGHT = 5;
 

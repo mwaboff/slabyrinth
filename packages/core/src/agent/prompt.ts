@@ -9,11 +9,14 @@
  * Nothing volatile (dates, installed themes, the brief) goes into the prompt; those arrive as app context items.
  */
 import type { DesignBrief, MapPlan } from "../contracts/plan";
-import { DESIGN_PRINCIPLES } from "./designPrinciples";
-import { DP_1_0_0 } from "./designPrinciples.frozen";
+import { DP_1_0_0, DP_1_1_0, DP_1_2_0 } from "./designPrinciples.frozen";
 
-/** Version of the frozen tool list (tools.ts + serialization). Bump when TOOL_DEFINITIONS or its rendering changes. */
-export const TOOLS_VERSION = "tools-1.7.0";
+/**
+ * Version of the working tool list (tools.ts + serialization). Bump when TOOL_DEFINITIONS or its rendering changes.
+ * tools-1.7.0 (0.1.2) and tools-1.8.0 (0.2.0) are published and frozen in tools.frozen.ts; the working
+ * TOOL_DEFINITIONS equal tools-1.8.0 until generator 4 opens tools-1.9.0.
+ */
+export const TOOLS_VERSION = "tools-1.8.0";
 
 const SP_1_0_0 = `You are the map designer inside Slabyrinth, a desktop app for tabletop game masters (GMs). Together with the GM you design battle maps (dungeons, caves, towers, towns, wilderness) that the app later builds in TaleSpire, a 3D virtual tabletop made of tiles and props on a 5-foot grid.
 
@@ -368,10 +371,10 @@ const SP_1_10_0 = [
  * sp-1.11.0 (2026-11-20, from the owner's first model-driven runs): the current design principles (dp-1.1.0); a
  * street gets a focal point and green, side streets are roads with sidewalks, vehicles in the kerb lane, plot sizes
  * vary and fronts line up; plot sizes by kind; condition (ruined, weathered) honours the request's words; one look
- * at a new map's image even when the review is clean. sp-1.10.0 is frozen (the owner's second snapshot runs it).
+ * at a new map's image even when the review is clean. Released in 0.1.2: sp-1.10.0 and sp-1.11.0 are frozen.
  */
 const SP_1_11_0 = [
-  [DP_1_0_0, DESIGN_PRINCIPLES],
+  [DP_1_0_0, DP_1_1_0], // the text as released in 0.1.2 (frozen)
   [
     "a side street is another such path starting on the main road's centre line. Put building fronts on or just behind the pavement edge.",
     "a side street is a road too, with its own sidewalk, starting on the main road's centre line so a junction forms. A street wants a focal point (a square, a junction, a landmark) and some green. Line the building fronts up on the pavement edge.",
@@ -394,7 +397,17 @@ const SP_1_11_0 = [
   ],
 ].reduce((text, [from, to]) => revise(text, from as string, to as string), SP_1_10_0);
 
-export const SYSTEM_PROMPT_VERSION = "sp-1.11.0";
+/**
+ * sp-1.12.0 (RELEASED in 0.2.0 with generator 3, frozen): the text of sp-1.11.0 with dp-1.2.0 (the frozen copy
+ * DP_1_2_0, so later edits to designPrinciples.ts cannot change it). Never touch it or anything it is built from;
+ * the next prompt is sp-1.13.0, opened together with generator 4.
+ */
+const SP_1_12_0 = [[DP_1_1_0, DP_1_2_0]].reduce(
+  (text, [from, to]) => revise(text, from as string, to as string),
+  SP_1_11_0,
+);
+
+export const SYSTEM_PROMPT_VERSION = "sp-1.12.0";
 
 const PROMPTS: Readonly<Record<string, string>> = {
   "sp-1.0.0": SP_1_0_0,
@@ -409,6 +422,7 @@ const PROMPTS: Readonly<Record<string, string>> = {
   "sp-1.9.0": SP_1_9_0,
   "sp-1.10.0": SP_1_10_0,
   "sp-1.11.0": SP_1_11_0,
+  "sp-1.12.0": SP_1_12_0,
 };
 
 /** The system prompt text frozen under `version`, or null for an unknown version. */
@@ -417,7 +431,7 @@ export function systemPromptFor(version: string): string | null {
 }
 
 /** The current system prompt (for new conversations). */
-export const SYSTEM_PROMPT: string = SP_1_11_0;
+export const SYSTEM_PROMPT: string = SP_1_12_0;
 
 // ───────────────────────────── app context texts (§3.2 step 2, §3.6) ─────────────────────────────
 

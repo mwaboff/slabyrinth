@@ -5,6 +5,7 @@
  */
 import type { DesignBrief, MapPlan } from "../contracts/plan";
 import { CELL, CELL_FLAG, type ResolvedPlan, type ResolvedStructure } from "../contracts/resolved";
+import { GROWTH_LEVELS, growthMeasures } from "../resolve/growth";
 import type { DesignNote } from "./review";
 
 /** The brief as one line of its listed parts (empty when there is no brief and no title). */
@@ -129,12 +130,43 @@ export const BRIEF_WORDS: ReadonlyArray<{ words: readonly string[]; measure: Mea
     action: 'set condition: "ruined" on the structure (broken walls, roof and rubble follow)',
   },
   {
+    words: ["overgrown", "ivy", "reclaimed", "abandoned", "vines", "vine"],
+    measure: (_p, r) => {
+      const worn = r.levels.flatMap((L) => L.structures ?? []).filter((s) => s.condition && s.condition !== "intact");
+      if (worn.length === 0)
+        return "the brief says overgrown, ivy-covered, reclaimed or abandoned but no building is weathered or ruined, so nothing is overgrown";
+      return worn.some((s) => s.growthLevel === "heavy" && growthMeasures(s).coverage >= GROWTH_LEVELS.heavy.min)
+        ? null
+        : "the brief says overgrown, ivy-covered, reclaimed or abandoned but no building has heavy growth: vines and creepers on a third or more of its walls";
+    },
+    action:
+      'set growth: "heavy" on the weathered or ruined building (vines climbing from the ground on a third to half of the wall, bushes at the foot, plants on the wall tops)',
+  },
+  {
     words: ["twisted", "crooked", "leaning", "slender", "squat"],
     measure: (_p, r) =>
       r.levels.some((L) => (L.structures ?? []).some((s) => (s.design?.character ?? []).length > 0))
         ? null
         : "the brief gives the building a character (twisted, crooked, leaning…) but no structure carries one",
     action: 'set character on the structure (e.g. character: ["twisted"]) so its shape shows the word',
+  },
+  {
+    words: ["stall", "stalls", "market", "bazaar", "marketplace"],
+    measure: (_p, r) =>
+      r.levels.some((L) => L.features.some((f) => f.type === "stall"))
+        ? null
+        : "the brief names a market or stalls but no stall piece stands in the map",
+    action:
+      'add a stall row to the level (stalls: [{id, area: {x, y, w, h}, goods: ["fruit", "bread", ...]}]) so real stalls stand in a row with an aisle',
+  },
+  {
+    words: ["bunting", "pennants", "overhead", "strung", "garland", "garlands"],
+    measure: (_p, r) =>
+      r.levels.some((L) => (L.lines ?? []).length > 0)
+        ? null
+        : "the brief names bunting, flags or lanterns strung overhead but no line hangs anywhere in the map",
+    action:
+      'add lines: [{id, from, to, kind: "lanterns" | "flags" | "lights"}] between two building walls or posts across the street',
   },
   {
     words: ["river", "stream", "brook", "creek"],

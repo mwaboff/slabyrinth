@@ -1,0 +1,53 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 3,
+  "id": "7d2a4e90-1c3b-4a58-9f6e-2b8c5d1e7a34",
+  "title": "Three-Step Glen",
+  "summary": "A small wooded glen on a hillside: a stream runs down from the high ground in three steps, each fall ending in a wider pool, and a single plank bridge carries the trail across the lowest reach. A rock ramp on the west side climbs the terraces.",
+  "kind": "outdoor",
+  "theme": "forest",
+  "seed": 4417,
+  "links": [],
+  "levels": [
+    {
+      "id": "glen",
+      "name": "Three-Step Glen",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 36, "h": 32 },
+      "base": { "type": "ground", "material": "grass" },
+      "areas": [
+        { "id": "upper_wood", "kind": "zone", "name": "Upper Wood", "shape": { "type": "rect", "x": 0, "y": 0, "w": 36, "h": 8 } },
+        { "id": "mid_wood", "kind": "zone", "name": "Mid Wood", "shape": { "type": "rect", "x": 0, "y": 8, "w": 36, "h": 8 } },
+        { "id": "low_wood", "kind": "zone", "name": "Lower Wood", "shape": { "type": "rect", "x": 0, "y": 16, "w": 36, "h": 7 } },
+        { "id": "meadow", "kind": "zone", "name": "Stream Meadow", "shape": { "type": "rect", "x": 0, "y": 23, "w": 36, "h": 9 } }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [],
+      "terrain": [
+        { "id": "slope_a", "op": "platform", "shape": { "type": "rect", "x": 0, "y": 0, "w": 36, "h": 24 }, "tiers": 1, "rise": 2, "material": "grass", "edge": "ragged" },
+        { "id": "slope_b", "op": "platform", "shape": { "type": "rect", "x": 0, "y": 0, "w": 36, "h": 16 }, "tiers": 1, "rise": 2, "material": "grass", "edge": "ragged" },
+        { "id": "slope_c", "op": "platform", "shape": { "type": "rect", "x": 0, "y": 0, "w": 36, "h": 8 }, "tiers": 1, "rise": 2, "material": "grass", "edge": "ragged" },
+        { "id": "ramp_low", "op": "stairs", "from": [4, 28], "to": [4, 20], "width": 4, "style": "ramp" },
+        { "id": "ramp_mid", "op": "stairs", "from": [4, 18], "to": [4, 11], "width": 4, "style": "ramp" },
+        { "id": "ramp_high", "op": "stairs", "from": [4, 10], "to": [4, 3], "width": 4, "style": "ramp" },
+        {
+          "id": "brook",
+          "op": "chasm",
+          "points": [[18, 0], [20, 9], [17, 19], [19, 31]],
+          "width": 3,
+          "depth": 1,
+          "floor": "water_shallow",
+          "meander": 0.5,
+          "bridges": [{ "at": 0.86, "width": 2, "floor": "bridge_wood", "span": "plank" }]
+        },
+        { "id": "trail", "op": "path", "width": 2, "material": "dirt", "layer": "over", "connect": [[2, 27], [12, 28], [31, 27]] },
+        { "id": "dress_upper", "op": "dress", "area": "upper_wood", "preset": "forest", "density": 0.8 },
+        { "id": "dress_mid", "op": "dress", "area": "mid_wood", "preset": "forest", "density": 0.8 },
+        { "id": "dress_low", "op": "dress", "area": "low_wood", "preset": "forest", "density": 0.7 },
+        { "id": "dress_meadow", "op": "dress", "area": "meadow", "preset": "woodland", "density": 0.45 }
+      ],
+      "labels": []
+    }
+  ]
+}

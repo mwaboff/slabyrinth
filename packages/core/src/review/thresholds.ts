@@ -11,11 +11,42 @@ export const REVIEW = {
     weight: 10,
     /** Share of walkable cells on the most common height band (half-tile bands). */
     maxShare: 0.85,
+    /** Generator 3: no real depth when under 12% of the walkable cells (1 - coarseShare) lie `farQ` or more off the main level. */
+    coarseShare: 0.88,
+    /** 1.5 tiles in quarters. */
+    farQ: 6,
     /** Distinct height bands holding at least `bandShare` of the walkable cells. */
     minBands: 2,
     bandShare: 0.03,
     /** A level with this many buildings takes its depth from them and is not judged flat. */
     buildingsGiveDepth: 3,
+  },
+  /** Rifts and rivers (generator 3 records the course): deviation of the centreline from the line between its ends. */
+  channels: {
+    weight: 9,
+    /** Courses shorter than this (cells between the ends) are not judged. */
+    minChord: 8,
+    /** Largest stray of the centreline as a share of the chord (the resolver aims for 0.2; reference builds 0.15+). */
+    deviation: 0.16,
+    /** Courses this long need at least `minBends` bends (an S, not one arc). */
+    bendsFrom: 14,
+    minBends: 2,
+    /** A body of channel cells (pit, bridge deck included) smaller than this is not a pit of the crack. */
+    brokenMinCells: 10,
+    /** A bridge deck at least this long whose long side lies within acos(alongCos) of the channel's course runs along it. */
+    alongMinLength: 6,
+    alongCos: 0.82,
+  },
+  /** A river cut to one level down a slope (cells; quarter tiles). */
+  trench: {
+    weight: 9,
+    minCells: 16,
+    /** Water bodies shorter than this (cells along their course) are ponds, not rivers. */
+    minLength: 8,
+    /** The bed sits this much deeper below the banks in one place than in another: 2 tiles. */
+    minGrowQ: 8,
+    /** … and the deep place lies at least this far below its banks (3 tiles; a normal channel is 1). */
+    deepQ: 12,
   },
   straight: {
     weight: 8,
@@ -84,6 +115,11 @@ export const REVIEW = {
     /** A material covering this share of the ground is judged for its tile families (this many or more). */
     familyFieldShare: 0.3,
     families: 3,
+    /** Generator 3: the laid floor's largest family covers at least this share of a natural field. */
+    laidDominant: 0.7,
+    /** Generator 3: the second family's share of the open ground, and its share in single squares or thin strings. */
+    patchShare: 0.08,
+    patchLonely: 0.2,
   },
   blankLot: {
     weight: 6,
@@ -143,6 +179,15 @@ export const REVIEW = {
     minCover: 0.5,
     minCells: 200,
   },
+  /** Outcrops (small natural rises): a block with square corners reads as a crate, not as rock. */
+  outcrops: {
+    weight: 4,
+    /** Outcrops of at least this many cells are judged … */
+    minCells: 6,
+    /** … square when they have this many corners with straight sides of `arm` cells or more (reference: a plain 5x4 block has 4, a rounded one 0-1). */
+    squareCorners: 3,
+    arm: 2,
+  },
   terraces: {
     weight: 5,
     /** Height bands of at least this many cells inside an uneven op are judged … */
@@ -163,22 +208,63 @@ export const REVIEW = {
     /** A path this close (cells) to the focal point reaches it. */
     reach: 3,
   },
+  /** Cave wall mass (generator 3; gen/cavewall.ts): walls with under `thin` cells of rock behind them are palisades. */
+  caveWall: { weight: 6, depth: 4, thin: 3, share: 0.35, minFaces: 20 },
+  /** Rock of more than one tone family in a cliff or a cave (advisory; gen/cover.ts cliffRockKinds). */
+  rockTones: { weight: 3 },
+  /**
+   * Cave rock mass as built (review/caveMass.ts, needs the realized pieces). Reference: good community builds close the
+   * rock behind a face with about 6 overlapping neighbours per piece (docs/internal/talestavern-lessons-strata-caves.md).
+   */
+  caveMass: {
+    weight: 6,
+    /** Judge only with this many solid cells / wall cells. */
+    minSolid: 30,
+    minFaces: 20,
+    /** A solid cell counts as covered when this share of its area lies under a rock piece (seen from above). */
+    coverFill: 0.55,
+    /** Most solid cells that may show no rock from above. */
+    uncovered: 0.08,
+    /** Most wall length (neighbouring face cells) whose backing pieces neither share nor touch. */
+    gaps: 0.25,
+    /** Pieces closer than this (tiles) count as touching. */
+    touchGap: 0.12,
+    /** Most rock tone groups in one cave (a family under minFamilyShare of the pieces is a stray and ignored). */
+    families: 1,
+    minFamilyShare: 0.03,
+    /** Longest run of identical wall pieces (same asset, turn and height) seen from inside. */
+    run: 3,
+    /** A focal feature with no light source within this many cells is unlit. */
+    focalLight: 4,
+  },
   /** Cliff checks (docs/internal/cliffs-lessons-reference.md §4; reference values in the comments). */
   cliffs: {
     weight: 6,
     /** Judge only with at least this many edge units / rock pieces. */
     minUnits: 6,
     minPieces: 8,
-    /** Share of rise ≥ 2 edge units with no rock over their midpoint (reference 3%). */
+    /** Share of rise ≥ 2 edge units whose face rock does not hide (gen/cover.ts: width along the edge and height against the rise). */
     unclad: 0.1,
-    /** The same for rises of 1–2 tiles (reference 40%). */
-    uncladLow: 0.5,
+    /** The same for rises of 1–2 tiles: a bare one-tile bank still shows its face (the reference's 40% was measured by footprint). */
+    uncladLow: 0.2,
+    /** Share of the board's outer edge (ground a tile or more above the base) with no rock hiding the wall. */
+    edgeBare: 0.75,
+    /** The outer-edge note's score: below any other note, so it only fills a spare slot (the board is tiled beside others). */
+    edgeScore: 0.05,
+    /** Share of a terrace's walkable ground the rock may stand on (gen/cover.ts terraceRockShare); the band prunes to 0.3. */
+    terraceShare: 0.5,
+    /** Share of the boulders (or of the face rocks) standing in rows at an even interval (gen/rockSpacing.ts). */
+    evenSpacing: 0.25,
     /** Share of faced units with no rock reaching a cell out over the low ground (reference ~3%). */
     sheer: 0.3,
     /** Median band width across a faced unit, cells (reference 5–6). */
     bandWidth: 2,
-    /** Share of rise ≥ 2 units with no crest boulder within 1.5 cells (reference ~20%). */
-    noCrest: 0.4,
+    /**
+     * Share of rise ≥ 2 units with no crest boulder within 1.5 cells. Generator 3 sets boulders as accents in groups
+     * with stretches of bare lip where the face rock hides the drop (face to boulder about 2:1), so only a lip with
+     * almost none fails.
+     */
+    noCrest: 0.85,
     /** Share of the band's boundary in straight runs of `straightRun` cells or more (reference 12%). */
     straight: 0.25,
     straightRun: 6,
@@ -200,6 +286,22 @@ export const REVIEW = {
     contrast: 1.8,
     /** … judged only when the intact walls stood at least this many tiles. */
     minIntact: 6,
+    /** A weathered building (generator 3) showing fewer of the five signs than this reads as intact (WEATHER_MINIMUMS.signs). */
+    weatherSigns: 3,
+    /**
+     * Generator 3: a ruin is judged on its cut wall tops only (a part standing whole under its roof is the anchor, not a
+     * flat top): runs of equal-height cut columns two cells or shorter must be at least this share (the study's temple
+     * 0.67; a clean cut is one long run) …
+     */
+    runShort: 0.55,
+    /** … and a weathered or ruined building in a theme with climbing growth carries at least this many pieces per wall face. */
+    growthPerFace: 0.06,
+    /** A pitched roof makes at least this share of a cottage's or inn's visible height (the study: 55-65 %). */
+    roofShare: 0.4,
+    /** Generator 3: share of cut wall tops that are one-cell peaks or pits above which a ruin reads as battlements. */
+    teeth: 0.5,
+    /** Generator 3: share of level neighbouring cut tops above which a ruin is one level line (slopes and runs are allowed). */
+    flatTop3: 0.8,
   },
   substitutions: {
     weight: 4,
@@ -248,6 +350,23 @@ export const NATURAL_FEATURES: ReadonlySet<string> = new Set([
   "ground_cover",
   "formation",
 ]);
+
+/**
+ * Rock families by asset name, for the cave tone check (review/caveMass.ts). Names are the catalog's; each family is
+ * one material as it reads in game (observed in the owner's cave proofs: Cavern pack walls are the dark brown posts,
+ * flowstone the orange layered discs, bg_prop_stalagmite the pale grey stacks, Boulder - Large the pale lump).
+ */
+export const ROCK_FAMILIES: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^Cave (Wall|Corner|Rock|Floor)/i, "cavern"],
+  [/^bg_(combo|wall|filler)/i, "bellowgloom"],
+  [/^burrow_/i, "burrow"],
+  [/flowstone/i, "flowstone"],
+  [/stalagmite|stalactite/i, "stalagmite"],
+  [/^Boulder - Large|^rock_large|^rock_mossy|^Moss Rock|^Cliff Face|Cliff \d|Rock - Small|Rubble|Rockpile/i, "grey_rock"],
+];
+
+/** Families that read as one tone (the first is the group's name). Anything else is its own tone. */
+export const ROCK_TONE_GROUPS: ReadonlyArray<ReadonlyArray<string>> = [["cavern"]];
 
 /** Features that can be a focal point. */
 export const FOCAL_FEATURES: ReadonlySet<string> = new Set([

@@ -105,6 +105,9 @@ describe.skipIf(catalog === null)("bundled palettes against the local catalog in
         for (const v of def.variants) {
           const a = byId.get(v.asset.toLowerCase());
           if (!a || (v.weight ?? 1) === 0) continue;
+          // the cream boulders of a cream-faced cliff (generator 3; realize.ts uses them for the cliff band and rock
+          // within 3 cells of a cliff only): the one role the bar is lifted for
+          if (role === "cliff.formation_crest_light") continue;
           const tags = (a.tags ?? []).map((t) => t.toLowerCase());
           const marble = tags.includes("marble") || tags.includes("palace") || tags.includes("ceiling");
           // building roles (roofs, facades…) choose their own materials; this guards dressing and ground

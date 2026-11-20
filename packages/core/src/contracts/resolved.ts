@@ -107,6 +107,8 @@ export interface ResolvedFeature {
   rot: Rotation;
   /** Fine rotation for organic scatter (degrees, multiple of 15), compiler uses this; 2D draws with it. */
   rotFine: number;
+  /** Generator 3: sub-cell shift of the piece in tiles [east, south], each within ±0.5. Absent = on its cell. */
+  offset?: [number, number];
   wall?: Side;
   /**
    * ABSOLUTE height of the feature base in tiles: level elevation + floor thickness (0.5) + cell floor height + lift.
@@ -121,6 +123,24 @@ export interface ResolvedFeature {
   blocking: boolean;        // from feature catalog (rug=false, table=true…)
   /** GM-only (traps, hidden features): hidden in the player view and player PNG export. Absent = false. */
   gmOnly?: boolean;
+}
+
+/**
+ * An overhead line that found both anchors (generator 3). `a` and `b` are the anchor cells at its two ends (a building
+ * cell whose wall holds the line, or the cell of a post the generator stood there); the rope and what hangs from it
+ * cover the cells strictly between them. `height` is the rope's height in tiles above the ground under it.
+ */
+export interface ResolvedLine {
+  id: ElementId;
+  a: Vec2;
+  b: Vec2;
+  height: Height;
+  anchors: [ResolvedLineAnchor, ResolvedLineAnchor];
+}
+export interface ResolvedLineAnchor {
+  kind: "wall" | "post";
+  /** The wall's cell (the building cell beyond the end) or the post's cell. */
+  at: Vec2;
 }
 
 export interface ResolvedLink {
@@ -138,6 +158,45 @@ export interface ResolvedLink {
   rise: Height;             // elevation difference
   label?: string;
   theme: ThemeId;
+}
+
+/**
+ * The course of a rift, chasm or river (generator 3). `centre` is the centreline in cell-centre coordinates, one point
+ * about every cell from its start to its end; `widths` the cut width across it at each point (cells).
+ */
+export interface ResolvedChannel {
+  id: ElementId;
+  /** `river` = a water floor, `rift` = any other floor (lava, none, rock, ...). */
+  kind: "river" | "rift";
+  centre: Vec2[];
+  widths: number[];
+}
+
+/**
+ * A fall of a stepped river (generator 3): the upper reach ends at `at` and the water drops toward `side` into the
+ * next reach, which starts at its foot with a pool wider than the channel. Heights are ABSOLUTE tiles.
+ */
+export interface ResolvedFall {
+  /** `<chasm op id>~fall<n>`, n from 1 going downstream. */
+  id: ElementId;
+  river: ElementId;
+  /** Last cell of the upper reach (the lip). */
+  at: Vec2;
+  /** Direction the water falls (the way the river runs here): N, E, S or W. */
+  side: Side;
+  /** Cells across the channel at the lip. */
+  width: number;
+  /** Water surface of the upper and the lower reach, and the bed under each (tiles). */
+  top: Height;
+  bottom: Height;
+  bedTop: Height;
+  bedBottom: Height;
+  /** Fall height in tiles (top bed - bottom bed): 1 to 3. */
+  drop: Height;
+  /** Lip cells across the channel (all of them, including `at`). */
+  lip: Vec2[];
+  /** The foot pool: the cells of the lower reach within a few cells of the fall, wider than the channel. */
+  pool: Vec2[];
 }
 
 /**
@@ -244,6 +303,8 @@ export interface ResolvedLevel {
   areas: ResolvedArea[];
   openings: ResolvedOpening[];
   features: ResolvedFeature[];
+  /** Generator 3: the overhead lines that were anchored (their pieces are `overhead` features); absent when none. */
+  lines?: ResolvedLine[];
   labels: { id: ElementId; text: string; at: Vec2; size: "s" | "m" | "l" }[];
   /** Bridge decks on this level; absent when there are none. */
   bridges?: ResolvedBridge[];
@@ -252,6 +313,20 @@ export interface ResolvedLevel {
    * The compiler builds their cells as solid rock columns (no floor tile on top).
    */
   outcrops?: Array<{ id: ElementId; cells: Vec2[]; peak: Height }>;
+  /**
+   * Generator 3: floor openings (terrain op floor_opening). `cells` lose their floor; `below` is the level whose floor
+   * shows through (the next one down), `floorBelow` how many of the cells have open floor there, `hiddenEdge` how many
+   * edge cells are walled (a wall between the hole and the walkway hides it). Review notes read these.
+   */
+  floorOpenings?: Array<{
+    id: ElementId;
+    kind: "collapse" | "shaft" | "balcony";
+    cells: Vec2[];
+    below?: LevelId;
+    floorBelow: number;
+    hiddenEdge: number;
+    edgeCells: number;
+  }>;
   /** Kerb pieces: an edge of a path cell (`at`, `side`) next to non-path floor; `material` = the path's. */
   kerbs?: Array<{ at: Vec2; side: Side; material: Material }>;
   /** Roads (path ops in road form, generator 2): carriageway, pavements, kerb lines, corners and crossings. */
@@ -265,6 +340,22 @@ export interface ResolvedLevel {
    * slab does not carry. Every water cell's bed lies below it; dry walkable floor should lie above it.
    */
   waterLevel?: Height;
+  /**
+   * Generator 3: the lowest and highest sensible setting (ABSOLUTE tiles) of the board water plane. Present only when
+   * the level has falls: the upper reaches of a stepped river lie above the plane (their beds stay dry until the
+   * dressing lays water over them), so the range comes from the lowest reach and its banks.
+   */
+  waterRange?: [Height, Height];
+  /**
+   * Generator 3: the course of every rift, chasm and river cut by a chasm op longer than 8 cells, for the review
+   * (how far it strays from its chord) and for dressing along its banks. Absent when there are none.
+   */
+  channels?: ResolvedChannel[];
+  /**
+   * Generator 3: falls of stepped rivers (a river whose course drops 2 tiles or more is split into reaches at
+   * different levels). Ordered by river, then downstream. Absent when there are none.
+   */
+  falls?: ResolvedFall[];
   /** Generator 2: depth of the solid foundation under the level edge (tiles), from Level.foundation or its default. */
   foundation?: Height;
   /** Buildings and enclosures on this level (generator 2); absent when there are none. */
@@ -340,6 +431,8 @@ export interface ResolvedStructure {
     /** Wall treatment (a belonging set of base, walls and crown) and the roof kit of every pitched roof. */
     treatment?: string;
     roofKit?: string;
+    /** Generator 3: the share of the visible height the roof was drawn to make (cottages and inns). */
+    roofShare?: number;
   };
   /** State the building was built in (Building.condition, or the style's default). */
   condition?: "intact" | "weathered" | "ruined";
@@ -360,9 +453,47 @@ export interface ResolvedStructure {
     loss: number;
     /** Weathered: roof cells whose upper slope pieces are missing (a patch; the eave pieces round it stay). */
     roofHoles?: Vec2[];
+    /**
+     * Generator 3 weathering, as decided data the compiler obeys: windows left out so that wall is built plain (boarded), face keys
+     * "x,y,side" of the window's first cell; parapet cells bitten away ("x,y,side"); details lost ("chimney", "mast",
+     * "canopy", ...); the number of windows the building has.
+     */
+    weather?: { boarded: string[]; parapetBites: string[]; lost: string[]; windows: number };
+    /** Generator 3 ruins: doorway and window frames kept standing as fragments after the wall beside them fell. */
+    arches?: Array<{ at: Vec2; side: Side; width: number }>;
+    /** Generator 3 ruins: broken blocks and rubble lying on cut wall tops (on the wall's face cell at `top`). */
+    topRubble?: Array<{ at: Vec2; side: Side; top: Height; kind: "block" | "rubble" }>;
+    /** Generator 3 ruins: the volume that stands whole under its roof (the anchor); the rest decays away from it. */
+    keep?: string;
   };
+  /**
+   * Generator 3, weathered and ruined buildings: growth attached to the structure (themes without the palette roles
+   * get nothing). vine and root climb the outside of the wall of footprint cell `at` on `side` from `from` to `to`
+   * (absolute tiles); cap grows on a cut wall top at `from`; tree stands in the building's cell `at` on the ground.
+   */
+  growth?: Array<{
+    kind: "vine" | "root" | "cap" | "tree";
+    at: Vec2;
+    side?: Side;
+    from: Height;
+    to: Height;
+    /** Strands side by side on the lowest course (1-3); one fewer at each course above, never under 1. */
+    thick?: number;
+    /** The lowest course is one wide mass (a broad vine batch) spanning this face and its neighbours. */
+    wide?: boolean;
+  }>;
+  /**
+   * Generator 3, weathered and ruined buildings: how much the walls are overgrown (Building.growth, else light for
+   * weathered and medium for ruined). The review holds the building's wall coverage to what the level promises.
+   */
+  growthLevel?: "none" | "light" | "medium" | "heavy";
   /** The street face and whether its ground storey is a shopfront (sign band over wide glazing). */
   frontage?: { side: Side; shopfront: boolean };
+  /**
+   * Generator 3: roofs of the building's volumes and wings that meet are merged into valleys (the higher surface owns each
+   * cell; a partly covered run-2 slope becomes one-cell slopes), instead of one roof cutting through the other.
+   */
+  valleys?: boolean;
   /** Variety seed actually used (build-time choices hash it). */
   seed?: number;
 }

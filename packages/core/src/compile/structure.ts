@@ -29,8 +29,10 @@ import type { ResolvedVariant, RoleResolution, VariantFilter } from "../palette/
 import {
   gableRoof,
   hipRoof,
+  mergeRoofs,
   type Rect,
   ringLayer,
+  roofOwners,
   type RoofPiece,
   shedRoof,
   spireShell,
@@ -484,8 +486,12 @@ function buildBuilding(ctx: StructureRealizeCtx, st: ResolvedStructure): void {
       const prev = v.storeys[s - 1];
       if (prev && sp.seam && !ruined) buildSeam(ctx, st, theme, prev, sp, `${tag}~seam${s}`);
       if (sp.walls === null) return;
+      const keptWhole = ruined && st.ruin?.keep === v.id;
       const faces = faceCells(own).filter((f) => {
         const [dx, dy] = STEP[f.face];
+        // the kept, roofed volume of a ruin keeps its wall where a wing stood against it: the wing's own walls fell, so
+        // the cell beside it is no longer a room, and the eave must not hang over a gap (generator 3)
+        if (keptWhole && !party(sp, f.x + dx, f.y + dy)) return true;
         return !covered(v, sp, f.x + dx, f.y + dy);
       });
       buildCourses(ctx, theme, {
@@ -504,6 +510,9 @@ function buildBuilding(ctx: StructureRealizeCtx, st: ResolvedStructure): void {
         windows,
         openTop: ruined,
         ...(caps ? { caps } : {}),
+        ...(st.ruin?.arches
+          ? { arches: new Set(st.ruin.arches.map((q) => `${q.at[0]},${q.at[1]},${q.side}`)) }
+          : {}),
         ...(st.design
           ? { doorUse: USE_DOOR[st.design.use] ?? (structureStyle(st.style)?.era ? "home" : "") }
           : {}),
@@ -520,10 +529,12 @@ function buildBuilding(ctx: StructureRealizeCtx, st: ResolvedStructure): void {
   const foreign = new Set<string>();
   for (const o of all)
     if (o !== st && o.kind === "building") for (const [x, y] of o.cells) foreign.add(key(x, y));
+  // generator 3: roofs that meet are merged into valleys (the higher surface owns each cell)
+  const merge = st.valleys ? roofValleys(st, vols) : undefined;
   for (const v of vols) {
     const top = v.storeys[v.storeys.length - 1];
     if (!top) continue;
-    const res = buildRoof(ctx, st, theme, v, top, chimneyWall, tagOf(v.id), foreign);
+    const res = buildRoof(ctx, st, theme, v, top, chimneyWall, tagOf(v.id), foreign, merge);
     if (v.id === mainId) mainRoofTop = res.top;
     if (res.flat) flatTops.push(res.flat);
   }
@@ -537,6 +548,8 @@ function buildBuilding(ctx: StructureRealizeCtx, st: ResolvedStructure): void {
   buildDebris(ctx, st, theme);
   buildDetails(ctx, st, theme, vols, foreign);
   if (caps) buildRuinFragments(ctx, st, theme);
+  buildWallTopRubble(ctx, st, theme);
+  buildGrowth(ctx, st, theme);
   // a volume standing on a flat top (a tower on its podium) takes its cells and wall ring off that roof
   for (const t of flatTops)
     for (const v of vols)
@@ -554,6 +567,8 @@ interface CourseArgs {
   caps?: ReadonlyMap<string, number>;
   /** A ruin: open doorways and breaches get no filler above them. */
   openTop?: boolean;
+  /** Ruins (generator 3): openings whose frame and arch stand on ("x,y,face" of the first cell). */
+  arches?: ReadonlySet<string>;
   faces: FaceCell[];
   own: ReadonlySet<string>;
   ops: ReadonlyMap<string, Op>;
@@ -738,11 +753,13 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
         if (isWindow) a.windows.push({ x: ex, y: ey, face: f.face, floorTop, layer, walls: style });
         // (a ruin's empty doorways and breaches stay open to the top: broken wall stubs either side)
         const tc = Math.min(top, capAt(ex, ey, f.face));
-        if (tc - leafTop > 0.2 && !(a.openTop && op.kind === "open")) {
+        const standing = a.arches?.has(`${f.x},${f.y},${f.face}`) === true;
+        if (tc - leafTop > 0.2 && !(a.openTop && op.kind === "open" && !standing)) {
           const lintel = [`over_door.${style}`];
           if (footing) lintel.push(`footing.${footing.style}`);
           lintel.push(...mainRoles);
-          stackEdge(ctx, theme, lintel, "opening", ex, ey, f.face, leafTop, tc, op.id, layer, {
+          // (over an empty doorway the grid has no opening edge, so the lintel is a wall piece, not a door piece)
+          stackEdge(ctx, theme, lintel, op.kind === "open" ? "wall" : "opening", ex, ey, f.face, leafTop, tc, op.id, layer, {
             shortRoles: [`over_door.${style}`],
           });
         }
@@ -892,6 +909,14 @@ function buildSeam(
     }
 }
 
+/**
+ * The pitched roofs of a building (first layer of every volume: gable wings, hips, sheds) merged where they meet
+ * (resolve/roof.ts mergeRoofs); keyed "<volume>#<wing>". Heights match buildRoof: the wall top, plus the attic deck.
+ */
+function roofValleys(st: ResolvedStructure, vols: ResolvedVolume[]): Map<string, RoofPiece[]> {
+  return mergeRoofs(roofOwners(vols, new Set(st.chimneys.map((c) => key(c.at[0], c.at[1])))));
+}
+
 interface FlatTop {
   cells: Set<string>;
   y: number;
@@ -911,6 +936,7 @@ function buildRoof(
   chimneyWall: ReadonlySet<string>,
   tag: string,
   foreign: ReadonlySet<string> = new Set(),
+  merge?: ReadonlyMap<string, RoofPiece[]>,
 ): { top: number; flat: FlatTop | null } {
   const cells = setOf(top.cells);
   const wallTop = top.wallTop;
@@ -990,9 +1016,11 @@ function buildRoof(
         };
         roofs.forEach((r, wi) => {
           let dormerNext = 1;
-          for (const p of r.g.pieces) {
+          // generator 3 (first layer): the pieces left after the valleys; otherwise every piece, the old rule hiding some
+          const mine = first && merge ? merge.get(`${v.id}#${wi}`) : undefined;
+          for (const p of mine ?? r.g.pieces) {
             let hidden = false;
-            for (let y = p.y; y < p.y + p.h && !hidden; y++)
+            for (let y = p.y; y < p.y + p.h && !hidden && !mine; y++)
               for (let x = p.x; x < p.x + p.w && !hidden; x++)
                 for (let wj = 0; wj < roofs.length; wj++) {
                   if (wj === wi) continue;
@@ -1039,7 +1067,8 @@ function buildRoof(
       case "hip":
       case "shed": {
         const g = layer.type === "hip" ? hipRoof(rect, holes) : shedRoof(rect, layer.low, holes);
-        for (const p of g.pieces) placeRoofPiece(ctx, st, theme, kit, p, base, tag);
+        for (const p of (first && merge ? merge.get(`${v.id}#0`) : undefined) ?? g.pieces)
+          placeRoofPiece(ctx, st, theme, kit, p, base, tag);
         if (first)
           for (const f of faceCells(cells)) {
             const [dx, dy] = STEP[f.face];
@@ -1094,9 +1123,10 @@ function buildRoof(
         if (layer.parapet) {
           // one course of the parapet style along each run of the roof edge (length-2 pieces where they fit)
           const roles = [`parapet.${layer.parapet}`, `wall.${layer.parapet}`];
+          const bitten = new Set(st.ruin?.weather?.parapetBites ?? []);
           const edge = faceCells(topCells).filter((f) => {
             const [dx, dy] = STEP[f.face];
-            return !foreign.has(key(f.x + dx, f.y + dy));
+            return !foreign.has(key(f.x + dx, f.y + dy)) && !bitten.has(`${f.x},${f.y},${f.face}`);
           });
           for (const run of faceRunsOf(edge)) {
             let i = 0;
@@ -1387,8 +1417,25 @@ function buildChimneys(
     if (!v) continue;
     const m = ctx.frame.rectMin(c.at[0], c.at[1], 1, 1);
     const lo = Math.min(st.storeys[0]?.floorTop ?? 0, ctx.groundTop(c.at[0], c.at[1]));
-    const hi = roofTop + 1.5;
+    // generator 3: the stack tops out about a tile and a half above the ridge, pot included (it was two and a half), and
+    // the foot is three wide for its first two courses (a breast, not a pole)
+    const gen3 = st.valleys === true;
+    const hi = roofTop + (gen3 ? 0.5 : 1.5);
     const n = Math.max(1, Math.ceil((hi - lo) / v.unitHeight - EPS));
+    if (gen3) {
+      const [dx, dy] = STEP[c.side];
+      const lat: Array<[number, number]> = [
+        [c.at[0] + Math.abs(dy), c.at[1] + Math.abs(dx)],
+        [c.at[0] - Math.abs(dy), c.at[1] - Math.abs(dx)],
+      ];
+      for (const [lx, ly] of lat) {
+        if (st.cells.some(([x, y]) => x === lx && y === ly)) continue;
+        const ml = ctx.frame.rectMin(lx, ly, 1, 1);
+        const lowL = Math.min(st.storeys[0]?.floorTop ?? 0, ctx.groundTop(lx, ly));
+        for (let k = 0; k < Math.min(2, n); k++)
+          ctx.emit(v, "wall", ml.x, lowL + k * v.unitHeight, ml.z, v.rot, { cell: [lx, ly], elementId: `${st.id}~chimney` }, "storey:0");
+      }
+    }
     for (let k = 0; k < n; k++)
       ctx.emit(
         v,
@@ -1431,16 +1478,26 @@ function buildPorches(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: st
     const y0 = Math.min(...ys);
     const y1 = Math.max(...ys) + 1;
     const roofY = Math.max(s0.floorTop + 2, groundWallTop - 1);
-    placeFloor(
-      ctx,
-      theme,
-      [`roof.${kit}.flat`, `floor.${p.floor}`],
-      setOf(p.cells),
-      roofY,
-      `${st.id}~porchroof${pi}`,
-      "roof",
-      "wall",
-    );
+    // generator 3: an attached porch takes the building's condition: a ruin's hood has fallen (one post stands), a
+    // weathered one has lost a third of its roof cells
+    const worn = st.growthLevel !== undefined;
+    const gone = worn && st.condition === "ruined";
+    const roofCells = gone
+      ? []
+      : worn
+        ? p.cells.filter((_, i) => p.cells.length < 2 || h32(`${st.id}:porch${pi}:${i}`) % 3 !== 0)
+        : p.cells;
+    if (roofCells.length > 0)
+      placeFloor(
+        ctx,
+        theme,
+        [`roof.${kit}.flat`, `floor.${p.floor}`],
+        setOf(roofCells),
+        roofY,
+        `${st.id}~porchroof${pi}`,
+        "roof",
+        "wall",
+      );
     const style = s0.walls ?? "wood";
     const pr = ctx.lookup(
       theme,
@@ -1470,7 +1527,7 @@ function buildPorches(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: st
                 [x0 + 0.15, y0 + 0.15],
                 [x0 + 0.15, y1 - 0.15],
               ];
-    for (const [px, py] of outer) {
+    for (const [px, py] of gone ? outer.slice(0, 1) : outer) {
       const c = ctx.frame.point(px, py);
       const off =
         pv.geom.originAt === "minCorner"
@@ -2216,8 +2273,10 @@ function buildDetails(
             );
         }
       }
-    } else if (detail === "canopy") {
-      // a slab two cells deep over the street front, above the doors and shop windows
+    } else if (detail === "canopy" || detail === "awning") {
+      // a slab two cells deep over the street front, above the doors and shop windows (generator 3 cottages: an
+      // awning of tent-cloth roof pieces, one cell deep, over the whole front)
+      const awning = detail === "awning";
       const run = faces.filter((f) => f.face === front);
       const [dx, dy] = STEP[front];
       const along = (f: FaceCell): number => (front === "N" || front === "S" ? f.x : f.y);
@@ -2225,17 +2284,19 @@ function buildDetails(
       const hi = Math.max(...run.map(along));
       const slab = new Set<string>();
       for (const f of run) {
-        if (along(f) === lo || along(f) === hi) continue;
-        for (const k of [1, 2]) {
+        if (!awning && (along(f) === lo || along(f) === hi)) continue;
+        for (const k of awning ? [1] : [1, 2]) {
           const c = key(f.x + dx * k, f.y + dy * k);
           if (!cells.has(c) && !foreign.has(c)) slab.add(c);
         }
       }
-      const y = s0.floorTop + (s0.footing?.height ?? 0) + 2.25;
+      const y = s0.floorTop + (awning ? 2 : (s0.footing?.height ?? 0) + 2.25);
       placeFloor(
         ctx,
         theme,
-        [`canopy.${walls}`, "canopy.default", "roof.city.flat", "floor.stone_tile"],
+        awning
+          ? ["canopy.awning"]
+          : [`canopy.${walls}`, "canopy.default", "roof.city.flat", "floor.stone_tile"],
         slab,
         y,
         tag("canopy"),
@@ -2550,7 +2611,17 @@ function buildRooftopSets(
 function buildDebris(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: string): void {
   for (const d of st.debris ?? []) {
     // a theme without the role gets nothing: never a wrong object
-    const roles = [d.kind === "rubble" ? "ruin_rubble.default" : d.kind === "prop" ? "ruin_prop.default" : "ruin_growth.default"];
+    const timber = st.growthLevel !== undefined && (st.design?.material ?? st.storeys[0]?.walls) === "wood";
+    // (generator 3: fallen stone does not lie beside a timber building; its own material or nothing)
+    const roles = [
+      d.kind === "rubble"
+        ? timber
+          ? "ruin_rubble.wood"
+          : "ruin_rubble.default"
+        : d.kind === "prop"
+          ? "ruin_prop.default"
+          : "ruin_growth.default",
+    ];
     const r = ctx.lookup(theme, roles, undefined, true);
     const k = `${st.id}:debris:${d.at[0]},${d.at[1]}`;
     // a heap wider than a cell and a half would lean into the walls beside it: smaller pieces when the role has them
@@ -2563,10 +2634,148 @@ function buildDebris(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: str
         d.at[0] + 0.5,
         d.at[1] + 0.5,
         ctx.groundTop(d.at[0], d.at[1]),
-        (h32(k) % 4) * 90,
+        // generator 3: heaps lie at their own angles, not square to the grid
+        st.growthLevel !== undefined ? (h32(k) % 24) * 15 : (h32(k) % 4) * 90,
         `${st.id}~${d.kind}`,
         undefined,
       );
+  }
+}
+
+/**
+ * Broken blocks and small rubble lying on the cut tops of a ruin's walls (generator 3; the resolver chose the
+ * columns). A block takes the wall style's own `ruin_block.<style>`, then `ruin_block.default`, a heap
+ * `ruin_rubble.default`; a theme without the role gets nothing. Pieces no wider than a wall are preferred, set on the
+ * wall's strip at the cut height.
+ */
+function buildWallTopRubble(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: string): void {
+  const list = st.ruin?.topRubble;
+  if (!list || list.length === 0) return;
+  const style = st.design?.material ?? st.storeys[0]?.walls ?? "stone";
+  // never a neat whole block seated square on a step (the pale 1x1 stair block read as coping stones in game): wall-top
+  // material is broken stuff, rubble heaps of mixed sizes (a long pile now and then) and block pieces only when the
+  // role has small broken ones (a brick pile), each turned at its own angle along the wall
+  // timber walls (generator 3): what lies on a timber wall is timber (fallen beams, planks): the wall material's own
+  // role, and nothing when the palette has none, never grey stone blocks on brown planks
+  const timber = st.growthLevel !== undefined && style === "wood";
+  const blockRole = ctx.lookup(theme, timber ? [`ruin_block.${style}`] : [`ruin_block.${style}`, "ruin_block.default"], undefined, true);
+  const heapRole = ctx.lookup(theme, timber ? [`ruin_rubble.${style}`] : ["ruin_rubble.default"], undefined, true);
+  const longest = (x: ResolvedVariant): number => Math.max(x.geom.size.x, x.geom.size.z);
+  const smallBroken = [
+    ...(heapRole?.variants.filter((x) => longest(x) <= 1.1) ?? []),
+    ...(blockRole?.variants.filter((x) => longest(x) <= 0.8) ?? []),
+  ];
+  // a long pile only across three neighbouring rubble columns of one wall (it never reaches over an opening)
+  const longPile = heapRole?.variants.filter((x) => longest(x) > 1.1 && longest(x) <= 1.7) ?? [];
+  const listed = new Set(list.map((t) => `${t.at[0]},${t.at[1]},${t.side}`));
+  if (smallBroken.length === 0) return;
+  const gen3 = st.growthLevel !== undefined;
+  for (const t of list) {
+    const k = `${st.id}:walltop:${t.at[0]},${t.at[1]}${t.side}`;
+    const [ax, ay] = t.side === "N" || t.side === "S" ? [1, 0] : [0, 1];
+    const spans =
+      gen3 &&
+      longPile.length > 0 &&
+      listed.has(`${t.at[0] - ax},${t.at[1] - ay},${t.side}`) &&
+      listed.has(`${t.at[0] + ax},${t.at[1] + ay},${t.side}`) &&
+      h32(`${k}:long`) % 2 === 0;
+    const v = ctx.pick(spans ? longPile : smallBroken, `${ctx.L.id}:${k}`);
+    if (!v) continue;
+    const [dx, dy] = STEP[t.side];
+    const jit = (s: string): number => h32(`${ctx.seed}:${k}:${s}`) / 4294967296 - 0.5;
+    // along the wall (a long pile lies lengthwise), 15 degree steps of yaw either side, never square to the step
+    const base = (t.side === "N" || t.side === "S" ? 0 : 90) + (h32(`${k}:flip`) % 2) * 180;
+    const yaw = gen3 ? base + Math.round(jit("yaw") * 6) * 15 : (h32(k) % 4) * 90;
+    const [ux, uy] = t.side === "N" || t.side === "S" ? [1, 0] : [0, 1];
+    placeProp(
+      ctx,
+      v,
+      t.at[0] + 0.5 + dx * (0.75 + (gen3 ? jit("out") * 0.2 : 0)) + (gen3 ? ux * jit("al") * 0.3 : 0), // the wall strip lies in the ring cell outside the face (edge pieces are hosted there)
+      t.at[1] + 0.5 + dy * (0.75 + (gen3 ? jit("out") * 0.2 : 0)) + (gen3 ? uy * jit("al") * 0.3 : 0),
+      t.top,
+      ((yaw % 360) + 360) % 360,
+      `${st.id}~walltop`,
+      "roof",
+      "wall", // a piece of the broken wall itself: the prop checks (floating over floor) do not apply to masonry
+    );
+  }
+}
+
+/**
+ * Growth that climbs the structure (generator 3; the resolver chose where, `ResolvedStructure.growth`): vine strands
+ * stacked up a wall face, roots at its base, small growth on a cut wall top, a tree in a roofless middle. Palette
+ * roles ruin_climber.default / ruin_root.default / ruin_cap.default / ruin_tree.default, each falling back to the
+ * theme's feature role (feature.vines, feature.roots_wall, ruin_growth.default, feature.tree); a theme with neither
+ * gets nothing, never a wrong object. Pieces no wider than a cell and a half sit on the wall face.
+ */
+function buildGrowth(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: string): void {
+  const list = st.growth;
+  if (!list || list.length === 0) return;
+  const slim = (v: ResolvedVariant): boolean => Math.max(v.geom.size.x, v.geom.size.z) <= 1.1;
+  const climber = ctx.lookup(theme, ["ruin_climber.default", "feature.vines"], { key: "strand", test: (v) => slim(v) && v.geom.size.y <= 2.4 }, true);
+  // the largest climbing piece the palette has: a broad batch (a face and a half wide) for the foot of a heavy mass
+  const batcher = ctx.lookup(
+    theme,
+    ["ruin_climber.default", "feature.vines"],
+    { key: "vinebatch", test: (v) => v.geom.size.x >= 1.5 && v.geom.size.x <= 2.1 && v.geom.size.y <= 2.4 },
+    true,
+  );
+  const rooter = ctx.lookup(theme, ["ruin_root.default", "feature.roots_wall"], { key: "wallroot", test: slim }, true);
+  const capper = ctx.lookup(
+    theme,
+    ["ruin_cap.default", "ruin_growth.default"],
+    { key: "smallplant", test: (v) => Math.max(v.geom.size.x, v.geom.size.z) <= 1.8 && v.geom.size.y <= 1.3 },
+    true,
+  );
+  const treer = ctx.lookup(
+    theme,
+    ["ruin_tree.default", "feature.tree"],
+    { key: "smalltree", test: (v) => Math.max(v.geom.size.x, v.geom.size.z) <= 3.2 && v.geom.size.y <= 4.2 },
+    true,
+  );
+  for (const g of list) {
+    const k = `${st.id}:grow:${g.kind}:${g.at[0]},${g.at[1]}${g.side ?? ""}`;
+    const rnd = (s: string): number => h32(`${ctx.seed}:${k}:${s}`) / 4294967296;
+    if ((g.kind === "vine" || g.kind === "root") && g.side) {
+      const r = g.kind === "vine" ? climber : rooter;
+      if (!r) continue;
+      let y = g.from;
+      const thick = g.thick ?? 1;
+      for (let i = 0; i < 8 && y < g.to - 0.3; i++) {
+        // a broad batch over the lowest course of a wide mass (it spans this face and its neighbours)
+        const wideV =
+          g.wide && i === 0 && g.kind === "vine" && batcher
+            ? ctx.pick(batcher.variants, `${ctx.L.id}:${k}:wide`)
+            : undefined;
+        // strands side by side, one fewer at each course up (masses thin upward)
+        const n = wideV ? 1 : Math.max(1, thick - i);
+        let adv = 0;
+        for (let j = 0; j < n; j++) {
+          // a strand that fits the span (a little over at most)
+          const fit = r.variants.filter((v) => v.geom.size.y <= g.to - y + 0.4);
+          const v = wideV ?? ctx.pick(fit.length ? fit : r.variants, `${ctx.L.id}:${k}:${i}:${j}`);
+          if (!v) break;
+          const h = v.geom.size.y;
+          if (h > g.to - y + 0.5) break;
+          const base = Math.max(g.from, Math.min(y, g.to - h));
+          const along =
+            n === 1 ? (rnd(`a${i}`) - 0.5) * 0.5 : (j - (n - 1) / 2) * 0.34 + (rnd(`a${i}:${j}`) - 0.5) * 0.1;
+          wallProp(ctx, v, r.role, g.at[0], g.at[1], g.side, 1.15, base, `${st.id}~${g.kind === "vine" ? "vine" : "wallroot"}`, "storey:0", along);
+          adv = Math.max(adv, base + h * 0.9);
+        }
+        if (adv === 0) break;
+        y = adv;
+      }
+    } else if (g.kind === "cap" && g.side && capper) {
+      const v = ctx.pick(capper.variants, `${ctx.L.id}:${k}`);
+      if (!v) continue;
+      const [dx, dy] = STEP[g.side];
+      placeProp(ctx, v, g.at[0] + 0.5 + dx * 0.75, g.at[1] + 0.5 + dy * 0.75, g.from, (h32(k) % 4) * 90, `${st.id}~topgrowth`, "roof", "wall");
+    } else if (g.kind === "tree" && treer) {
+      const v = ctx.pick(treer.variants, `${ctx.L.id}:${k}`);
+      if (!v) continue;
+      placeProp(ctx, v, g.at[0] + 0.5, g.at[1] + 0.5, ctx.groundTop(g.at[0], g.at[1]), (h32(k) % 4) * 90, `${st.id}~tree`, undefined);
+    }
   }
 }
 

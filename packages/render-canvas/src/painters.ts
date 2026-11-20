@@ -1120,6 +1120,11 @@ export const PAINTERS: Record<string, Painter> = {
   "feat-vehicle": cart,
   "feat-seating": bench,
   "feat-signage": wallHanging(true),
+  // markets (generator 3): a stall, goods on it, the pieces of an overhead line and its post
+  "feat-stall": box(0.06, 0.02),
+  "feat-goods": dots(5, 0.045, false),
+  "feat-overhead": dots(5, 0.045, false),
+  "feat-line_post": smallSquare,
   "feat-cliff_face": rock(0.46),
   "feat-cliff_crest": rock(0.38),
   "door-door": door(1, false),

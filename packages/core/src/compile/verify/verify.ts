@@ -194,6 +194,47 @@ export function verifyBuild(
   }
   const structural = (s: Solid): boolean => s.role !== "feature" && s.role !== "marker";
   const wallish = (s: Solid): boolean => s.role === "wall" || s.role === "wall_post" || s.role === "opening";
+  /**
+   * Generator 3: an overhead line's pieces hang from its anchors, not from the floor. A piece is exempt from the floating
+   * test only when its line (ResolvedLevel.lines) holds at both ends: a wall or roof piece at the line's height beside the
+   * anchor cell, or a post piece of the line that reaches it. A line that does not hold is reported once
+   * (`verify_line_unanchored`) and its pieces still fire `verify_prop_floating`.
+   */
+  const lineHolds = new Map<string, boolean>();
+  const lineHeld = (L: (typeof levels)[number], featureId: string | undefined, y: number): boolean => {
+    const lineId = (featureId ?? "").split("#")[0] ?? "";
+    const ln = (L.lines ?? []).find((q) => q.id === lineId);
+    if (!ln) return false;
+    const key = `${L.id}|${ln.id}`;
+    const hit = lineHolds.get(key);
+    if (hit !== undefined) return hit;
+    // the rope's own height (absolute): a hung piece sits lower than the line
+    y = L.features.find((f) => f.id.startsWith(`${ln.id}#`) && f.type === "overhead")?.baseHeight ?? y;
+    const holds = ln.anchors.every((an) => {
+      // the wall stands on the cell's edge, hosted in this cell or the one beside it: look at the cell and its neighbours
+      const near = [-1, 0, 1].flatMap((dx) => [-1, 0, 1].flatMap((dy) => index.near(an.at[0] + dx + 0.5, an.at[1] + dy + 0.5)));
+      return near.some((q) => {
+        if (q.levelId !== L.id) return false;
+        if (an.kind === "post")
+          return q.role === "feature" && (q.p.source.elementId ?? "").startsWith(`${ln.id}#post`) && q.box.max.y >= y - 0.05;
+        return (
+          q.role !== "floor" && q.role !== "fill" && q.role !== "feature" && q.role !== "link" &&
+          q.box.max.y >= y - 0.05 && q.box.min.y <= y + 0.05
+        );
+      });
+    });
+    lineHolds.set(key, holds);
+    if (!holds)
+      add({
+        severity: "warning",
+        code: "verify_line_unanchored",
+        levelId: L.id,
+        elementId: ln.id,
+        message: `Overhead line "${ln.id}" is not held at both ends: no wall or post reaches its height (${round2(y)}) beside ${fmt(ln.a)} and ${fmt(ln.b)}.`,
+        hint: `Raise the posts or end the line against a taller wall, or lower the line's height.`,
+      });
+    return holds;
+  };
   const label = (s: Solid): string =>
     `"${s.name}"${s.p.source.elementId && !s.p.source.elementId.includes(".") && s.p.source.elementId !== "fill" ? ` (${s.p.source.elementId})` : ""}`;
 
@@ -355,6 +396,14 @@ export function verifyBuild(
               .at(pt.x, pt.z, yy - 0.01, yy + 0.01, 0.005)
               .some((s) => s.levelId === L.id && (wallish(s) || s.role === "fill")),
           );
+          // generator 3: slabs are tiled beside other slabs, so a cave passage that reaches the board edge is an exit:
+          // its rock-block wall edge lies outside the level bounds, nothing stands there and it is not a gap
+          const onBoardEdge =
+            cx + dx < L.bounds.x ||
+            cx + dx >= L.bounds.x + L.bounds.w ||
+            cy + dy < L.bounds.y ||
+            cy + dy >= L.bounds.y + L.bounds.h;
+          if (!covered && resolved.generator >= 3 && mount === "full-cell" && here.open && onBoardEdge) continue;
           if (!covered) {
             gaps++;
             firstGap ??= {
@@ -742,6 +791,11 @@ export function verifyBuild(
 
   // ── (4) stairs and links ──
   const linkOk = new Map<string, boolean>();
+  // why a link does not work (first reason), for the "area cannot be reached" error: names the link and the fix
+  const linkWhy = new Map<string, { why: string; fix: string }>();
+  const whyLink = (id: string, why: string, fix: string): void => {
+    if (!linkWhy.has(id)) linkWhy.set(id, { why, fix });
+  };
   for (const lk of resolved.links) {
     const lower = levelOf.get(lk.fromLevel);
     const upper = levelOf.get(lk.toLevel);
@@ -767,6 +821,13 @@ export function verifyBuild(
         );
         if (!Number.isFinite(runTop) || Math.abs(runTop - upTop) > 0.3) {
           ok = false;
+          whyLink(
+            lk.id,
+            Number.isFinite(runTop)
+              ? `its top step is at height ${round2(runTop)} but the floor it should meet on ${upper.id} is at ${round2(upTop)}`
+              : `it has no step or landing at ${fmt(c)}`,
+            `check the elevations of ${lower.id} and ${upper.id} (one storey = 2.5) and that the theme has a stairs asset`,
+          );
           add({
             severity: "error",
             code: "verify_stairs_no_arrival",
@@ -784,6 +845,11 @@ export function verifyBuild(
         const arrHits = ac.floor ? obstructed.get(`${upper.id}|${arr[0]},${arr[1]}`) : undefined;
         if (!ac.open || !ac.floor || wallBetween || arrHits) {
           ok = false;
+          whyLink(
+            lk.id,
+            `it lands at ${fmt(arr)} on ${upper.id}, which ${!ac.open ? "is solid rock or void" : !ac.floor ? "has no floor (a hole or the stair well itself)" : wallBetween ? "is behind a wall" : `is filled by ${arrHits?.[0]?.name ?? "a solid"}`}`,
+            `make ${fmt(arr)} open floor of an area on ${upper.id} (the run climbs from ${fmt(lk.lowerCells[0] ?? c)} in direction ${lk.dir} and lands one cell past its last step), or change from.at or dir`,
+          );
           add({
             severity: "error",
             code: "verify_stairs_arrival_blocked",
@@ -811,6 +877,11 @@ export function verifyBuild(
           Math.abs(gl.top(ap[0], ap[1]) - gl.top(c[0], c[1])) > STEP
         ) {
           ok = false;
+          whyLink(
+            lk.id,
+            `nobody can step onto its first step at ${fmt(c)} on ${lower.id}: the cell before it, ${fmt(ap)}, ${!a.open ? "is solid rock or void" : !a.floor ? "has no floor" : wall ? "is behind a wall" : featureThere ? "holds a feature" : hits ? `is filled by ${hits[0]?.name ?? "a solid"}` : "is at a different height"}`,
+            `the run starts at from.at ${fmt(lk.lowerCells[0] ?? c)} and climbs in direction ${lk.dir}, so the walkway must reach the foot from the opposite side (${fmt(ap)}); move from.at to the other end of the corridor and flip dir, or lengthen the area behind the foot`,
+          );
           add({
             severity: "error",
             code: "verify_stairs_approach_blocked",
@@ -849,6 +920,11 @@ export function verifyBuild(
         const upTop = gu.top(cell[0], cell[1]);
         if (top < upTop - 0.25) {
           ok = false;
+          whyLink(
+            lk.id,
+            `its ${lk.kind} reaches height ${round2(top)}, short of the floor of ${upper.id} at ${round2(upTop)}`,
+            `check the level elevations (a ladder spans one storey, 2.5) or use stairs`,
+          );
           add({
             severity: "error",
             code: "verify_link_short",
@@ -890,6 +966,11 @@ export function verifyBuild(
           .filter((s) => s.levelId === upper.id && (s.role === "floor" || s.role === "fill"));
         if (uc.floor || floorsAbove.length) {
           ok = false;
+          whyLink(
+            lk.id,
+            `the floor of ${upper.id} closes its opening at ${fmt(c)}`,
+            `leave ${fmt(c)} without floor on ${upper.id}`,
+          );
           add({
             severity: "error",
             code: "verify_stairwell_closed",
@@ -905,6 +986,43 @@ export function verifyBuild(
     }
     linkOk.set(lk.id, ok);
   }
+  /** One-line description of a link, with the ends spelled out: "stairs "a" (from l2 (9,26) climbing N to l1)". */
+  const linkWords = (lk: (typeof resolved.links)[number]): string => {
+    const f = lk.lowerCells[0];
+    const run =
+      lk.kind === "stairs" || lk.kind === "ramp"
+        ? ` climbing ${lk.dir} to ${lk.toLevel}, landing at ${fmt(lk.arrival)}`
+        : ` up to ${lk.toLevel}`;
+    return `${lk.kind.replace("_", " ")} "${lk.id}" (from ${lk.fromLevel} ${f ? fmt([f[0], f[1]]) : ""}${run})`;
+  };
+  /** The broken link a player on level `target` would have had to use: first failing link on the way from the entry. */
+  const brokenLinkFor = (target: LevelId): { text: string; fix: string } | undefined => {
+    const entry = opts.entryLevelId ?? opts.plan?.entryLevel ?? [...levels].sort((a, b) => b.elevation - a.elevation)[0]?.id;
+    if (!entry || entry === target) return undefined;
+    const prev = new Map<LevelId, { from: LevelId; link: (typeof resolved.links)[number] }>();
+    const q: LevelId[] = [entry];
+    const seen = new Set<LevelId>([entry]);
+    while (q.length) {
+      const cur = q.shift() as LevelId;
+      for (const lk of resolved.links) {
+        const nxt = lk.fromLevel === cur ? lk.toLevel : lk.toLevel === cur ? lk.fromLevel : undefined;
+        if (nxt === undefined || seen.has(nxt)) continue;
+        seen.add(nxt);
+        prev.set(nxt, { from: cur, link: lk });
+        q.push(nxt);
+      }
+    }
+    const path: Array<(typeof resolved.links)[number]> = [];
+    for (let at: LevelId | undefined = target; at !== undefined && prev.has(at); at = prev.get(at)?.from)
+      path.unshift((prev.get(at) as { link: (typeof resolved.links)[number] }).link);
+    const bad = path.find((lk) => linkOk.get(lk.id) === false) ?? resolved.links.find((lk) => linkOk.get(lk.id) === false);
+    if (!bad) return undefined;
+    const w = linkWhy.get(bad.id);
+    return {
+      text: `the way there is ${linkWords(bad)}, which does not work${w ? `: ${w.why}` : ""}`,
+      fix: w?.fix ?? `check link ${bad.id}`,
+    };
+  };
 
   // lowest piece of each feature: the other pieces of an assembly stand on it
   const assemblyBase = new Map<string, number>();
@@ -959,6 +1077,9 @@ export function verifyBuild(
     }
     for (const s of props) {
       const f = featureById.get(`${L.id}|${s.p.source.elementId ?? ""}`);
+      // generator 3: the rock band skirts the board's edge from the base plane, partly outside the level and over no floor
+      // by design (cliffband.ts checks every piece rests on something)
+      if (resolved.generator >= 3 && (f?.type === "cliff_face" || f?.type === "cliff_crest")) continue;
       const cx = (s.box.min.x + s.box.max.x) / 2;
       const cz = (s.box.min.z + s.box.max.z) / 2;
       const pc = index.toPlan(cx, cz);
@@ -1117,7 +1238,11 @@ export function verifyBuild(
         s.p.y - support > 0.3 &&
         // an upper piece of an assembly (palette parts: trunk on stump, capital on shaft) stands on its lower piece
         !(s.p.y > (assemblyBase.get(`${L.id}|${s.p.source.elementId ?? ""}`) ?? Infinity) + 0.01) &&
-        !CEILING_MOUNTED.has(featureById.get(`${L.id}|${s.p.source.elementId ?? ""}`)?.type ?? "")
+        !CEILING_MOUNTED.has(featureById.get(`${L.id}|${s.p.source.elementId ?? ""}`)?.type ?? "") &&
+        !(
+          featureById.get(`${L.id}|${s.p.source.elementId ?? ""}`)?.type === "overhead" &&
+          lineHeld(L, s.p.source.elementId, s.p.y)
+        )
       ) {
         add({
           severity: "warning",
@@ -1153,7 +1278,25 @@ export function verifyBuild(
         assets: uniq(hits.map((s) => s.name)).slice(0, 5),
         ...el(hits[0]?.p.source.elementId),
         message: `${hits.length} piece${hits.length > 1 ? "s" : ""} on level ${L.id} rise through the floor of level ${U.id} (e.g. ${label(hits[0] as Solid)}).`,
-        hint: `Raise level ${U.id} (one storey = 2.5 above ${L.id}), lower the wall height, or move ${hits[0]?.p.source.elementId ?? "the tall feature"} out from under ${U.id}'s floor.`,
+        hint: (() => {
+          const gap = U.elevation - L.elevation;
+          const top = Math.max(...hits.map((s) => s.box.max.y));
+          const poke = round2(top - U.elevation);
+          const by = new Map<string, { n: number; h: number }>();
+          for (const s of hits) {
+            const k = s.p.source.elementId?.split(".")[0]?.split("#")[0] || s.name;
+            const e = by.get(k) ?? { n: 0, h: 0 };
+            e.n++;
+            e.h = Math.max(e.h, s.box.max.y - U.elevation);
+            by.set(k, e);
+          }
+          const worst = [...by.entries()]
+            .sort((a, b) => b[1].h - a[1].h)
+            .slice(0, 3)
+            .map(([k, e]) => `${k} (${e.n} piece${e.n > 1 ? "s" : ""}, up to ${round2(e.h)} through)`)
+            .join(", ");
+          return `The tallest piece reaches ${round2(top - L.elevation)} above level ${L.id}'s base, ${poke} past the underside of ${U.id}'s floor (${U.id} is only ${round2(gap)} above ${L.id}): ${worst}. Choices: raise ${U.id} by at least ${round2(poke)} (a storey of walls needs ${round2(2 + 0.5 + 1)} or more: 2-tall walls, 0.5 floor, 1 of air), or, if it is a platform or feature (not the walls), lower that element or move it out from under ${U.id}'s floor.`;
+        })(),
       });
     }
   });
@@ -1225,6 +1368,7 @@ export function verifyBuild(
         }
         const c = culprits[0];
         const b = c?.solids[0];
+        const viaLink = b ? undefined : brokenLinkFor(L.id);
         add({
           severity: "error",
           code: "verify_area_unreachable",
@@ -1238,10 +1382,14 @@ export function verifyBuild(
           ...(c ? { cell: c.cell, assets: uniq(c.solids.map((s) => s.name)) } : {}),
           message: b
             ? `${area.name ?? area.id} on level ${L.id} cannot be reached once the build is placed: ${label(b)} blocks the way at ${fmt(c.cell)}.`
-            : `${area.name ?? area.id} on level ${L.id} cannot be reached once the build is placed, although the plan connects it (check the stairs leading there).`,
+            : viaLink
+              ? `${area.name ?? area.id} on level ${L.id} cannot be reached once the build is placed: ${viaLink.text}.`
+              : `${area.name ?? area.id} on level ${L.id} cannot be reached once the build is placed, although the plan connects it (no link on the way to it is broken: check the openings leading to it).`,
           hint: b
             ? `Move ${b.p.source.elementId ?? b.name} or the opening it blocks, or add a second opening into ${area.id}.`
-            : `Check the stairs and openings leading to ${area.id}; add another opening.`,
+            : viaLink
+              ? `${viaLink.fix.charAt(0).toUpperCase()}${viaLink.fix.slice(1)}.`
+              : `Check the openings leading to ${area.id}; add another opening.`,
         });
       }
     }

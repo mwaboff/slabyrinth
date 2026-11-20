@@ -1,0 +1,249 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 3,
+  "id": "3c8f1d52-6a47-4e0b-9b21-5f4d8e2a7c13",
+  "title": "Terraced Hill v1",
+  "summary": "A wooded hill in three levels: a lowland with a brook, a wooded terrace two tiles up and a hilltop clearing two above that; a rock ramp climbs to the terrace and a flight of steps to the hilltop.",
+  "kind": "outdoor",
+  "theme": "forest",
+  "seed": 2611,
+  "links": [],
+  "levels": [
+    {
+      "id": "hill",
+      "name": "Terraced Hill",
+      "elevation": 0,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 34
+      },
+      "base": {
+        "type": "ground",
+        "material": "grass"
+      },
+      "areas": [
+        {
+          "id": "woods_w",
+          "kind": "zone",
+          "name": "West Woods",
+          "shape": {
+            "type": "rect",
+            "x": 0,
+            "y": 0,
+            "w": 15,
+            "h": 25
+          }
+        },
+        {
+          "id": "woods_e",
+          "kind": "zone",
+          "name": "East Woods",
+          "shape": {
+            "type": "rect",
+            "x": 27,
+            "y": 0,
+            "w": 13,
+            "h": 25
+          }
+        },
+        {
+          "id": "woods_n",
+          "kind": "zone",
+          "name": "North Woods",
+          "shape": {
+            "type": "rect",
+            "x": 15,
+            "y": 0,
+            "w": 12,
+            "h": 3
+          }
+        },
+        {
+          "id": "woods_s",
+          "kind": "zone",
+          "name": "South Woods",
+          "shape": {
+            "type": "rect",
+            "x": 15,
+            "y": 15,
+            "w": 12,
+            "h": 10
+          }
+        },
+        {
+          "id": "clearing",
+          "kind": "zone",
+          "name": "Hilltop Clearing",
+          "shape": {
+            "type": "rect",
+            "x": 15,
+            "y": 3,
+            "w": 12,
+            "h": 12
+          }
+        },
+        {
+          "id": "lowland",
+          "kind": "zone",
+          "name": "Lowland",
+          "shape": {
+            "type": "rect",
+            "x": 0,
+            "y": 25,
+            "w": 40,
+            "h": 9
+          }
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [],
+      "terrain": [
+        {
+          "id": "terrace",
+          "op": "platform",
+          "shape": {
+            "type": "rect",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 25
+          },
+          "tiers": 1,
+          "rise": 2,
+          "material": "grass",
+          "edge": "ragged"
+        },
+        {
+          "id": "hilltop",
+          "op": "platform",
+          "shape": {
+            "type": "circle",
+            "cx": 21,
+            "cy": 9,
+            "r": 8
+          },
+          "tiers": 1,
+          "rise": 2,
+          "material": "grass",
+          "edge": "ragged"
+        },
+        {
+          "id": "up_ramp",
+          "op": "stairs",
+          "from": [8, 31],
+          "to": [8, 22],
+          "width": 4,
+          "style": "ramp"
+        },
+        {
+          "id": "up_steps",
+          "op": "stairs",
+          "from": [21, 20],
+          "to": [21, 14],
+          "width": 2
+        },
+        {
+          "id": "brook",
+          "op": "chasm",
+          "points": [
+            [16, 33],
+            [22, 30],
+            [30, 31],
+            [39, 29]
+          ],
+          "width": 2,
+          "depth": 1,
+          "floor": "water_shallow",
+          "meander": 0.3
+        },
+        {
+          "id": "trail_mid",
+          "op": "path",
+          "width": 2,
+          "material": "dirt",
+          "layer": "over",
+          "connect": [
+            [10, 21],
+            [20, 20]
+          ]
+        },
+        {
+          "id": "trail_top",
+          "op": "path",
+          "width": 2,
+          "material": "dirt",
+          "layer": "over",
+          "connect": [
+            [21, 13],
+            [21, 9]
+          ]
+        },
+        {
+          "id": "dress_w",
+          "op": "dress",
+          "area": "woods_w",
+          "preset": "forest",
+          "density": 0.9
+        },
+        {
+          "id": "dress_e",
+          "op": "dress",
+          "area": "woods_e",
+          "preset": "forest",
+          "density": 0.9
+        },
+        {
+          "id": "dress_n",
+          "op": "dress",
+          "area": "woods_n",
+          "preset": "forest",
+          "density": 0.9
+        },
+        {
+          "id": "dress_s",
+          "op": "dress",
+          "area": "woods_s",
+          "preset": "forest",
+          "density": 0.9
+        },
+        {
+          "id": "dress_clearing",
+          "op": "dress",
+          "area": "clearing",
+          "preset": "woodland",
+          "density": 0.15
+        },
+        {
+          "id": "dress_low",
+          "op": "dress",
+          "area": "lowland",
+          "preset": "woodland",
+          "density": 0.6
+        }
+      ],
+      "labels": [
+        {
+          "id": "lb_top",
+          "text": "Hilltop clearing (+4)",
+          "at": [21, 6],
+          "size": "s"
+        },
+        {
+          "id": "lb_terrace",
+          "text": "Terrace (+2)",
+          "at": [33, 19],
+          "size": "s"
+        },
+        {
+          "id": "lb_brook",
+          "text": "Brook",
+          "at": [34, 33],
+          "size": "s"
+        }
+      ]
+    }
+  ]
+}

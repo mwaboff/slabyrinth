@@ -20,7 +20,8 @@ import type { DressPreset, FeatureType, Rotation, Side } from "../contracts/plan
 import { subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
 import { ValueNoise } from "./noise";
-import { cliffBand } from "./cliffband";
+import { dressWater } from "./water";
+import { cliffBand, riseUnits, type BandResult } from "./cliffband";
 import { featureInfo, LIGHT_FEATURES } from "./catalog";
 import {
   footprintCrossesWall,
@@ -66,6 +67,15 @@ export interface Part {
   variant?: string;
   /** The group is only placed when this part fits too (the stones of a ring: a ring with gaps is no ring). */
   required?: boolean;
+  /**
+   * Generator 3: this small piece rests on the top of the part with this index (goods on a counter, a lantern on a
+   * chest, moss on a boulder): same cell, lifted by the support's real top height (PlacementGrid.pieceExtent), slid a
+   * little off the centre. It takes no cell of its own and is left out when the support is, or when the theme has no
+   * such support piece. Below generator 3 the part stands at its own dx, dy as before.
+   */
+  on?: number;
+  /** Generator 3 only: the part does not exist at earlier generators (their output is frozen). */
+  gen3?: boolean;
 }
 
 export interface Group {
@@ -112,6 +122,14 @@ export interface SetPieceDef {
    * the lip, rock piles and shrubs at the foot), so a long face never shows its tiles for its whole length.
    */
   cladLedges?: boolean;
+  /** Smallest rise (tiles) the rock band faces (default 1). */
+  bandMinRise?: number;
+  /**
+   * The def that lays the rock band itself (the level-wide band pass, `defaultCliffBands`) and nothing else. From
+   * generator 3 the band is laid once for the whole level before any dressing (so no zone's trees or props block a
+   * face that crosses into the next zone), and the presets above only grow what follows the rock.
+   */
+  bandOnly?: boolean;
   /** Built places: one small pocket of green (a tree, shrubs) on a pavement corner at a junction. */
   junctionGreen?: boolean;
   /**
@@ -239,7 +257,14 @@ const G = {
   boulderIsland: {
     name: "boulder cover",
     anchor: "open",
-    parts: [p("boulder", 0, 0), p("rock", 1, 0), p("stalagmite", 0, 1), p("debris", 1, 1)],
+    // generator 3: a tuft or cap on the boulder's top
+    parts: [
+      p("boulder", 0, 0),
+      p("rock", 1, 0),
+      p("stalagmite", 0, 1),
+      p("debris", 1, 1),
+      p("small_detail", 0, 0, { on: 0, gen3: true }),
+    ],
   },
   bonesNook: {
     name: "bones in a corner",
@@ -313,7 +338,14 @@ const G = {
   sleepingSpot: {
     name: "sleeping spot",
     anchor: "wall",
-    parts: [p("sack", 0, 0), p("chest", 1, 0), p("lantern", 2, 0), p("sack", 0, 1)],
+    // generator 3: the lantern stands on the chest, and a candle stub beside it
+    parts: [
+      p("sack", 0, 0),
+      p("chest", 1, 0),
+      p("lantern", 2, 0, { on: 1 }),
+      p("sack", 0, 1),
+      p("candles", 1, 0, { on: 1, gen3: true }),
+    ],
   },
   woodpile: {
     name: "woodpile",
@@ -378,6 +410,7 @@ const G = {
       p("rock", 0, 1),
       p("debris", 1, 1),
       p("debris", 2, 2),
+      p("small_detail", 1, 0, { on: 1, gen3: true }),
     ],
   },
   rootSpill: {
@@ -1419,10 +1452,53 @@ interface Planned {
   blocking: boolean;
 }
 
-export function composeArea(grid: PlacementGrid, prm: ComposeParams): ScatterResult {
-  const def = SET_PIECES[prm.preset];
+/**
+ * Generator 3, the default for natural levels: cliffs are never left bare. A band-only area: the rock band and the
+ * growth that follows it (roots at the lip, undergrowth, a tree behind), nothing else. The resolver calls
+ * `defaultCliffBands` for the natural regions no dress op with a band covers.
+ */
+const BAND_ONLY: SetPieceDef = {
+  groups: [],
+  cellsPerGroup: 12,
+  wallLight: null,
+  lightSpacing: 10,
+  openAnywhere: true,
+  cladLedges: true,
+  bandMinRise: 1,
+  bandOnly: true,
+};
+
+export interface DefaultBandParams {
+  /** Display area index + 1 of the region (0: the open ground outside any area), as for `dress`. */
+  areaIndex: number;
+  areaCells: Array<[number, number]>;
+  seed: number;
+  remaining: number;
+}
+
+/**
+ * The default rock band of a natural region at generator 3 (grid.generator >= 3; nothing at 2): a face of rock on
+ * every rise of 2 tiles or more in the region, however the model dressed it. Themes without the formation roles get
+ * nothing (grid.pieceSize says so). The caller decides which regions are natural and open-air and honours any opt-out.
+ */
+export function defaultCliffBands(grid: PlacementGrid, prm: DefaultBandParams): ScatterResult {
+  if ((grid.generator ?? 2) < 3) return { placements: [], capped: false };
+  return composeArea(
+    grid,
+    { preset: "natural_clusters", density: 0, ...prm, seed: subSeed(prm.seed, "defaultband") },
+    BAND_ONLY,
+  );
+}
+
+export function composeArea(
+  grid: PlacementGrid,
+  prm: ComposeParams,
+  defOverride?: SetPieceDef,
+): ScatterResult {
+  const def = defOverride ?? SET_PIECES[prm.preset];
   const rng = createPrng(subSeed(prm.seed, `compose:${prm.preset}`));
-  const inArea = (x: number, y: number): boolean =>
+  const isG3 = (grid.generator ?? 2) >= 3;
+  const inArea =(x: number, y: number): boolean =>
     grid.inBounds(x, y) && grid.area(x, y) === prm.areaIndex && grid.isFloor(x, y);
   const cells = prm.areaCells.filter(([x, y]) => inArea(x, y)).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
   const out: GeneratedPlacement[] = [];
@@ -1786,11 +1862,43 @@ export function composeArea(grid: PlacementGrid, prm: ComposeParams): ScatterRes
     pendingAnchorsOrg.clear();
     pendingTall.clear();
     const planned: Planned[] = [];
+    const byPart = new Map<number, Planned>();
     for (let i = 0; i < g.parts.length; i++) {
+      // generator 3 parts do not exist (and draw nothing) at earlier generators
+      if ((g.parts[i] as Part).gen3 === true && !isG3) continue;
       // optional pieces drop out at random so repeated groups never look stamped
       if (i > 0 && keepOptional < 1 && (g.parts[i] as Part).required !== true && !rng.chance(keepOptional))
         continue;
       const part = g.parts[i] as Part;
+      if (isG3 && part.on !== undefined) {
+        const sup = byPart.get(part.on);
+        const ext = sup ? grid.pieceExtent?.(sup.placement.type) : undefined;
+        if (!sup || !ext) continue;
+        const sp = sup.placement;
+        const mx = sp.at[0] + sp.size[0] / 2;
+        const my = sp.at[1] + sp.size[1] / 2;
+        const cell: [number, number] = [Math.floor(mx), Math.floor(my)];
+        const room = Math.max(0, Math.min(0.3, (Math.min(ext.w, ext.d, 1) - 0.4) / 2));
+        const top: Planned = {
+          placement: {
+            type: part.t,
+            at: cell,
+            size: [1, 1],
+            rot: 0,
+            rotFine: rng.int(24) * 15,
+            lift: ext.h,
+            offset: [
+              mx - (cell[0] + 0.5) + (rng.next() * 2 - 1) * room,
+              my - (cell[1] + 0.5) + (rng.next() * 2 - 1) * room,
+            ],
+          },
+          cells: [],
+          blocking: false,
+        };
+        planned.push(top);
+        byPart.set(i, top);
+        continue;
+      }
       const pl = planPart(f, part, pending, pendingOrg);
       if (!pl) {
         if (i === 0 || part.required === true) return null;
@@ -1803,6 +1911,7 @@ export function composeArea(grid: PlacementGrid, prm: ComposeParams): ScatterRes
         pendingAnchorsOrg.add(key(pl.placement.at[0], pl.placement.at[1]));
       }
       planned.push(pl);
+      byPart.set(i, pl);
     }
     // a group is a composition: at least two of its pieces must land, or nothing is placed (no lone logs)
     if (planned.length < Math.min(2, g.parts.length)) return null;
@@ -1853,34 +1962,46 @@ export function composeArea(grid: PlacementGrid, prm: ComposeParams): ScatterRes
   //    the lip; then growth that follows the rock: roots at the lip, shrubs on and behind the crest, a tree or a
   //    broken trunk a cell or two behind it ──
   if (def.cladLedges === true && !st.capped) {
-    const band = cliffBand(grid, {
-      areaCells: cells,
-      seed: prm.seed,
-      // routes keep their gap (cliffband.ts) and the reachability guard below keeps every entrance reachable; the
-      // band keeps off the approach to a door, link or flight of steps (the cell in front and its neighbours), not
-      // the whole two-cell door zone, which would leave a bare face beside every flight of steps
-      avoid: (x, y) =>
-        approach.has(key(x, y)) ||
-        grid.keepClear?.(x, y) === true ||
-        grid.occupied(x, y) ||
-        apron.has(key(x, y)) ||
-        (taken.has(key(x, y)) && !takenOrg.has(key(x, y))),
-      // each rock passes the reachability guard: the band never closes the only way between two entrances (it
-      // tries another way to cover that edge instead)
-      accept: (fp) => {
-        const added = [...new Set(fp.filter(([x, y]) => inArea(x, y)).map(([x, y]) => key(x, y)))].filter(
-          (k) => !blocked.has(k),
-        );
-        for (const k of added) blocked.add(k);
-        const after = reach();
-        if (after.cells < reachable.cells - added.length || after.groups > reachable.groups) {
-          for (const k of added) blocked.delete(k);
-          return false;
+    const levelBand = (grid.generator ?? 2) >= 3 && def.bandOnly !== true;
+    const band: BandResult = levelBand
+      ? {
+          placements: [],
+          units: 0,
+          clad: 0,
+          cells: [],
+          rises: riseUnits(grid, cells, def.bandMinRise ?? 1),
+          footprints: [],
+          restsOn: [],
         }
-        reachable = after;
-        return true;
-      },
-    });
+      : cliffBand(grid, {
+          areaCells: cells,
+          seed: prm.seed,
+          ...(def.bandMinRise !== undefined ? { minRise: def.bandMinRise } : {}),
+          // routes keep their gap (cliffband.ts) and the reachability guard below keeps every entrance reachable; the
+          // band keeps off the approach to a door, link or flight of steps (the cell in front and its neighbours), not
+          // the whole two-cell door zone, which would leave a bare face beside every flight of steps
+          avoid: (x, y) =>
+            approach.has(key(x, y)) ||
+            grid.keepClear?.(x, y) === true ||
+            grid.occupied(x, y) ||
+            apron.has(key(x, y)) ||
+            (taken.has(key(x, y)) && !takenOrg.has(key(x, y))),
+          // each rock passes the reachability guard: the band never closes the only way between two entrances (it
+          // tries another way to cover that edge instead)
+          accept: (fp) => {
+            const added = [...new Set(fp.filter(([x, y]) => inArea(x, y)).map(([x, y]) => key(x, y)))].filter(
+              (k) => !blocked.has(k),
+            );
+            for (const k of added) blocked.add(k);
+            const after = reach();
+            if (after.cells < reachable.cells - added.length || after.groups > reachable.groups) {
+              for (const k of added) blocked.delete(k);
+              return false;
+            }
+            reachable = after;
+            return true;
+          },
+        });
     for (const q of band.placements) {
       if (out.length >= prm.remaining) {
         st.capped = true;
@@ -1896,7 +2017,7 @@ export function composeArea(grid: PlacementGrid, prm: ComposeParams): ScatterRes
       out.push(q);
     }
     const STEPS: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
-    for (const u of band.rises) {
+    for (const u of def.bandOnly === true ? [] : band.rises) {
       if (st.capped) break;
       const [dx, dy] = STEPS[u.side];
       const lipX = u.low[0] + dx;
@@ -2202,7 +2323,7 @@ export function composeArea(grid: PlacementGrid, prm: ComposeParams): ScatterRes
   const groups = def.groups
     .filter(([g]) => (g.anchor !== "open" || big) && (g.anchor !== "ledge_low" || ledgeLow.length > 0))
     .filter(([g]) => g.anchor !== "ledge_high" || ledgeHigh.length > 0)
-    .filter(([g]) => g.anchor !== "water_edge" || waterCands.length > 0)
+    .filter(([g]) => g.anchor !== "water_edge" || (waterCands.length > 0 && !isG3))
     .filter(([g]) => g.anchor !== "path_edge" || pathCands.length > 0)
     .map(([g, w]) => ({ g, w, used: 0 }));
   // large natural areas need many stands of trees and rocks, not three
@@ -2410,6 +2531,32 @@ export function composeArea(grid: PlacementGrid, prm: ComposeParams): ScatterRes
     if (lit(x, y, def.lightSpacing)) continue;
     placeLight(x, y, s);
   }
+  // ── 3b. generator 3: a landmark is lit: a floor light a cell or two off its footprint when none stands within four
+  //    cells (the review's focal_unlit check; the lights of a lit place stand at the focal points, not only at walls) ──
+  if ((grid.generator ?? 2) >= 3) {
+    const FOCAL_LIT = new Set<FeatureType>(["landmark", "statue", "statue_large", "altar", "fountain", "well", "monolith", "standing_stone", "tall_marker", "throne"]);
+    for (const f of out.filter((q) => FOCAL_LIT.has(q.type))) {
+      if (st.capped) break;
+      const cx = f.at[0] + f.size[0] / 2;
+      const cy = f.at[1] + f.size[1] / 2;
+      if (lights.some(([lx, ly]) => Math.max(Math.abs(lx + 0.5 - cx), Math.abs(ly + 0.5 - cy)) < 4 + Math.max(f.size[0], f.size[1]) / 2)) continue;
+      // the nearest free ground ring around the footprint, off the paths
+      const ring = cells
+        .filter(([x, y]) => {
+          const dx = Math.max(f.at[0] - x, 0, x - (f.at[0] + f.size[0] - 1));
+          const dy = Math.max(f.at[1] - y, 0, y - (f.at[1] + f.size[1] - 1));
+          return Math.max(dx, dy) >= 1 && Math.max(dx, dy) <= 2 && !taken.has(key(x, y)) && !doorZone.has(key(x, y));
+        })
+        .sort((a, b) => Math.hypot(a[0] - cx, a[1] - cy) - Math.hypot(b[0] - cx, b[1] - cy) || a[0] - b[0] || a[1] - b[1]);
+      for (const [x, y] of ring.slice(0, 8)) {
+        const planned = tryGroup(frameFor(x, y, null, false), { name: "focal light", anchor: "open", parts: [p("torch_floor", 0, 0)] });
+        if (!planned) continue;
+        commit(planned, x, y);
+        lights.push([x, y]);
+        break;
+      }
+    }
+  }
   // ── 4. canopy: trees in noise patches over free ground up to the preset's cover, thinning toward paths and the
   //    clearing, with undergrowth between them ──
   if (def.canopy !== undefined && def.canopy > 0) {
@@ -2458,6 +2605,8 @@ export function composeArea(grid: PlacementGrid, prm: ComposeParams): ScatterRes
     const field = new ValueNoise(subSeed(prm.seed, "groundcover"));
     const types: FeatureType[] = ["ground_cover", "ground_cover", "small_detail"];
     const coverCells = new Set<number>();
+    const CAUSES = new Set<FeatureType>(["campfire", "fire_pit", "tent", "tree_large", "landmark", "tree", "dead_tree", "pine_tree"]);
+    const causes = out.filter((q) => CAUSES.has(q.type)).map((q) => [q.at[0], q.at[1]] as const);
     for (const [x, y] of cells) {
       if (st.capped) break;
       if (out.length >= prm.remaining) {
@@ -2473,7 +2622,8 @@ export function composeArea(grid: PlacementGrid, prm: ComposeParams): ScatterRes
           const [nx, ny] = step(x, y, sd);
           return grid.inBounds(nx, ny) && grid.isFloor(nx, ny) && (grid.flags(nx, ny) & FLAG_WATER) === 0;
         });
-        if (atBank && rng.chance(0.35)) {
+        // (generator 3 dresses the water as one body: gen/water.ts)
+        if (atBank && rng.chance(0.35) && !isG3) {
           taken.add(k);
           takenOrg.add(k);
           anchorsOrg.add(k);
@@ -2482,7 +2632,8 @@ export function composeArea(grid: PlacementGrid, prm: ComposeParams): ScatterRes
         continue;
       }
       if ((fl & (FLAG_LINK | FLAG_PATH)) !== 0) continue;
-      const patch = field.sample(x / 3.3, y / 4.7);
+      // generator 3: broader drifts (about 7 cells), so the bare ground between them is wide
+      const patch = isG3 ? field.sample(x / 6.5, y / 7.5) : field.sample(x / 3.3, y / 4.7);
       const r = rng.next();
       const t = types[rng.int(types.length)] as FeatureType;
       // beside trees, rocks and paths the ground cover thickens (tree feet, verges)
@@ -2495,7 +2646,22 @@ export function composeArea(grid: PlacementGrid, prm: ComposeParams): ScatterRes
       // clumps, not a lattice (owner's watchtower run, 2026-11-20: one piece on every other cell of a dense patch
       // read as a planted grid): a seed grows into a clump of 2–4 touching pieces, and clumps keep a clear cell
       // between them, so a patch is tufts and gaps rather than an even sprinkle
-      const pr = 0.4 * def.groundCover * (patch > 0.55 ? 2.2 : patch > 0.45 ? 0.6 : 0) * (1 + near * 0.6);
+      // generator 3: fewer, denser drifts with bare ground between them (clusters, not litter): a higher bar for a
+      // patch, a thicker sowing inside it, and nothing at its feathered edge
+      // and tied to a cause: damp ground by a rift or water, a camp, a tree; far from any, only the odd tuft
+      let tied = false;
+      if (isG3) {
+        tied = causes.some(([cx, cy]) => Math.hypot(cx - x, cy - y) <= 3.5);
+        for (let dy = -3; dy <= 3 && !tied; dy++)
+          for (let dx = -3; dx <= 3; dx++)
+            if (grid.inBounds(x + dx, y + dy) && (grid.flags(x + dx, y + dy) & (FLAG_WATER | 1)) !== 0) {
+              tied = true;
+              break;
+            }
+      }
+      const pr = isG3
+        ? 0.4 * def.groundCover * (patch > 0.64 ? 3.6 : patch > 0.58 ? 1.0 : 0) * (1 + near * 0.6) * (tied ? 1.6 : 0.15)
+        : 0.4 * def.groundCover * (patch > 0.55 ? 2.2 : patch > 0.45 ? 0.6 : 0) * (1 + near * 0.6);
       if (r >= pr) continue;
       let crowded = false;
       for (let dy = -1; dy <= 1 && !crowded; dy++)
@@ -2529,6 +2695,17 @@ export function composeArea(grid: PlacementGrid, prm: ComposeParams): ScatterRes
         out.push({ type: ct, at: [cx, cy], size: [1, 1], rot, rotFine: (rot + rng.int(6) * 15) % 360 });
       }
     }
+  }
+  // ── 6. generator 3: the water is dressed as one body (sunk boulders, shallows plants, shore rock, stepping stones) ──
+  if (isG3 && !st.capped) {
+    const wd = dressWater(grid, {
+      cells,
+      inArea,
+      taken: (x, y) => taken.has(key(x, y)) || doorZone.has(key(x, y)),
+      seed: prm.seed,
+      remaining: prm.remaining - out.length,
+    });
+    out.push(...wd.placements);
   }
   return { placements: out, capped: st.capped };
 }

@@ -1,0 +1,69 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 3,
+  "id": "5d8a2c71-3e4f-4b96-8a1d-7c0e9f2b6a43",
+  "title": "Smugglers' Sea Grotto (test fixture)",
+  "kind": "cave",
+  "seed": 4417201,
+  "theme": "cave",
+  "summary": "A sea cave: a tidal pool with a shingle landing, a raised ledge with crates and a table, a narrow passage inland.",
+  "levels": [
+    {
+      "id": "l1",
+      "name": "Sea Grotto",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 42, "h": 36 },
+      "base": { "type": "solid" },
+      "areas": [
+        {
+          "id": "grotto",
+          "kind": "cave",
+          "name": "The Grotto",
+          "key": "1",
+          "shape": {
+            "type": "polygon",
+            "points": [[5, 14], [14, 11], [26, 12], [37, 15], [39, 24], [35, 32], [22, 34], [9, 32], [3, 25]]
+          }
+        },
+        {
+          "id": "passage",
+          "kind": "cave",
+          "name": "Inland passage",
+          "key": "2",
+          "shape": { "type": "rect", "x": 17, "y": 1, "w": 3, "h": 11 }
+        },
+        {
+          "id": "ledge",
+          "kind": "zone",
+          "name": "Smugglers' Ledge",
+          "key": "3",
+          "shape": { "type": "rect", "x": 29, "y": 15, "w": 9, "h": 7 }
+        },
+        {
+          "id": "landing",
+          "kind": "zone",
+          "name": "Shingle Landing",
+          "key": "4",
+          "shape": { "type": "rect", "x": 10, "y": 28, "w": 14, "h": 5 }
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "labels": [],
+      "features": [{ "id": "lantern", "type": "lantern", "at": [30, 19], "label": "Smugglers' lantern" }],
+      "terrain": [
+        { "id": "rough", "op": "uneven", "amount": 0.5, "scale": 5, "exclude": [{ "type": "rect", "x": 29, "y": 15, "w": 9, "h": 7 }, { "type": "rect", "x": 10, "y": 28, "w": 14, "h": 5 }] },
+        { "id": "tidal_pool", "op": "chasm", "points": [[12, 21], [20, 23], [27, 22]], "width": 8, "depth": 1, "floor": "water_shallow", "meander": 0.3 },
+        { "id": "pool_deeps", "op": "chasm", "points": [[16, 22], [23, 23]], "width": 3, "depth": 2, "floor": "water_deep", "meander": 0.2 },
+        { "id": "shingle", "op": "paint", "shape": { "type": "rect", "x": 10, "y": 28, "w": 14, "h": 5 }, "material": "gravel" },
+        { "id": "ledge_up", "op": "platform", "shape": { "type": "rect", "x": 29, "y": 15, "w": 9, "h": 7 }, "tiers": 1, "rise": 1, "material": "rock", "stairs": ["W"] },
+        { "id": "landing_trail", "op": "path", "points": [[17, 28], [14, 24], [8, 22]], "width": 1, "material": "gravel", "style": "natural" },
+        { "id": "ledge_dress", "op": "dress", "area": "ledge", "preset": "storeroom", "density": 0.9 },
+        { "id": "ledge_table", "op": "dress", "area": "ledge", "preset": "tavern", "density": 0.5, "seed": 12 },
+        { "id": "grotto_dress", "op": "dress", "area": "grotto", "preset": "natural_clusters", "density": 0.7, "seed": 77 },
+        { "id": "landing_dress", "op": "dress", "area": "landing", "preset": "campsite", "density": 0.5 }
+      ]
+    }
+  ],
+  "links": []
+}

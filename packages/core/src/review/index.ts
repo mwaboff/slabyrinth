@@ -3,6 +3,7 @@ export {
   type DesignNote,
   type DesignNoteCode,
   type ReviewOptions,
+  type CliffCoverage,
   designReviewDelta,
   designReviewText,
   noteKey,

@@ -1,0 +1,11 @@
+hillside-v5 resolved=e195300f6c4ad6f6 canonical=3ba19adda31d1f65 chunks=1 slab=9993ec74ad66292a assets=960 diag=0e/0w/11i
+dressed-forest-v4 resolved=100e60c2ed39719c canonical=faad68a4ee8e6366 chunks=1 slab=cd461541fd33f506 assets=1440 diag=0e/0w/11i
+dressed-cave-v2 resolved=b6f8cd235fe2777f canonical=07e2a50c50d0dd0e chunks=1 slab=8b58d4aef365dbec assets=1538 diag=0e/1w/8i
+example-b-outdoor resolved=b9fddb8f31852331 canonical=ce857d5470b2cfa4 chunks=1 slab=a8b17c3b2e080f60 assets=1303 diag=0e/0w/8i
+outdoor-scatter resolved=22d16e9b97f7fd98 canonical=072ee3de9163c707 chunks=1 slab=c9b5453748d43561 assets=502 diag=0e/0w/4i
+wp2-dress resolved=32ee4461da1b067b canonical=2347dba4a6cc2014 chunks=1 slab=2cc90b442bb692cf assets=306 diag=0e/6w/6i
+wp2-outdoor-town resolved=fc960168874e398d canonical=26461c7bce6b3b9e chunks=1 slab=e47f798f0b7d504a assets=337 diag=0e/2w/5i
+building-wizard-tower-ruined resolved=11b2d59107489d8d canonical=70b18e47c20d9ffe chunks=1 slab=614751cd4263663f assets=1318 diag=0e/0w/0i
+building-modern-block resolved=f5a17aafa95f0a1b canonical=aa27d4f55c71626c chunks=1 slab=ee85440fcb7b327f assets=2585 diag=0e/0w/1i
+building-keep-stacked resolved=af78b0aa667ad1fd canonical=3f361a9f9c76959e chunks=1 slab=a3fa5dbf3bae8b7c assets=763 diag=0e/0w/0i
+building-cottages-yard resolved=6288e95d8b3dbb08 canonical=8d04086d1d52d850 chunks=1 slab=1d78764819f744f7 assets=1153 diag=0e/0w/1i

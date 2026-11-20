@@ -22,6 +22,7 @@ import {
   OPENING_KINDS,
   PLAN_LIMITS,
   PLAN_SCHEMA,
+  STALL_KINDS,
   WALL_STYLES,
 } from "../contracts/plan";
 
@@ -378,7 +379,17 @@ export const OutcropOpSchema = z.strictObject({
   height: heightSchema(0.5, 4).exactOptional(),
   material: MaterialSchema.exactOptional(),
 });
+export const FloorOpeningOpSchema = z.strictObject({
+  id: IdSchema,
+  op: z.literal("floor_opening"),
+  shape: ShapeSchema,
+  kind: z.enum(["collapse", "shaft", "balcony"]).exactOptional(),
+  edge: z.enum(["ragged", "clean"]).exactOptional(),
+  rim: z.union([WallStyleSchema, z.literal("none")]).exactOptional(),
+  rubble: z.boolean().exactOptional(),
+});
 export const TerrainOpSchema = z.discriminatedUnion("op", [
+  FloorOpeningOpSchema,
   PaintOpSchema,
   HeightOpSchema,
   NoiseOpSchema,
@@ -403,6 +414,7 @@ export const TERRAIN_OP_KINDS = [
   "stairs",
   "uneven",
   "outcrop",
+  "floor_opening",
 ] as const;
 
 export const LevelBaseSchema = z.discriminatedUnion("type", [
@@ -529,6 +541,7 @@ export const BuildingSchema = z.strictObject({
     .exactOptional(),
   seed: SeedSchema.exactOptional(),
   condition: z.enum(["intact", "weathered", "ruined"]).exactOptional(),
+  growth: z.enum(["none", "light", "medium", "heavy"]).exactOptional(),
   character: z
     .array(z.enum(["twisted", "leaning", "crooked", "top_heavy", "squat", "slender"]))
     .max(4)
@@ -612,6 +625,26 @@ export const StructureSchema = z.union([EnclosureSchema, BuildingSchema]);
 
 export const BoundsSchema = z.strictObject({ x: coord, y: coord, w: side, h: side });
 
+/** Generator 3: a row or cluster of market stalls. */
+export const StallRowSchema = z.strictObject({
+  id: IdSchema,
+  area: BoundsSchema,
+  goods: z.array(z.enum(STALL_KINDS)).min(1).max(11).exactOptional(),
+  facing: SideSchema.exactOptional(),
+  count: z.int().min(1).max(60).exactOptional(),
+  aisle: z.int().min(1).max(4).exactOptional(),
+  seed: SeedSchema.exactOptional(),
+});
+/** Generator 3: a line strung overhead between two walls or posts. */
+export const OverheadLineSchema = z.strictObject({
+  id: IdSchema,
+  from: Vec2Schema,
+  to: Vec2Schema,
+  kind: z.enum(["lanterns", "lights", "flags"]).exactOptional(),
+  height: z.number().min(2).max(3).exactOptional(),
+  spacing: z.int().min(2).max(6).exactOptional(),
+});
+
 const levelFields = {
   id: IdSchema,
   name: z.string().min(1).max(UNSPECIFIED_LIMITS.levelName),
@@ -619,11 +652,14 @@ const levelFields = {
   wallHeight: heightSchema(0.25, PLAN_LIMITS.maxHeight).exactOptional(),
   foundation: heightSchema(0, 4).exactOptional(),
   outline: z.enum(["natural", "rect"]).exactOptional(),
+  cliffBands: z.literal(false).exactOptional(),
   bounds: BoundsSchema,
   base: LevelBaseSchema,
   theme: ThemeIdSchema.exactOptional(),
   stamps: z.array(StampRefSchema).exactOptional(),
   structures: z.array(StructureSchema).max(PLAN_LIMITS.structuresPerLevel).exactOptional(),
+  stalls: z.array(StallRowSchema).max(8).exactOptional(),
+  lines: z.array(OverheadLineSchema).max(12).exactOptional(),
   notes: text(UNSPECIFIED_LIMITS.levelNotes).exactOptional(),
 };
 const levelLists = {

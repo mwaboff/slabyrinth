@@ -14,6 +14,7 @@ import type {
   RoleName,
 } from "../contracts/compiler";
 import type { LevelId, Side, ThemeId } from "../contracts/plan";
+import { STALL_BASE } from "../gen/market";
 import {
   CELL,
   CELL_FLAG,
@@ -35,7 +36,11 @@ import { WorldFrame, emptyBox, finiteBox, growBox, h32, placementBox, rotateDir,
 import { areaReferenceHeights, wallSpan } from "./wallspan";
 import { realizeStructures, structureClaims } from "./structure";
 import { ValueNoise } from "../gen/noise";
+import { cliffRockKinds, edgeHidden, type RockShape } from "../gen/cover";
+import { planCaveWall, type WallFace, type WallShape } from "../gen/cavewall";
 import { axisPosition } from "../resolve/road";
+import { createFamilyPicker, familiesOfVariants, type FloorFamily } from "../resolve/floorFamilies";
+import { OBSERVED_TONES } from "../review/tones";
 
 /** Rock band (generator 2, themes with cliff.formation_face): rise that gets a band, and how far it reaches. */
 const BAND = { minRiseQ: 8, out: 2, back: 2 } as const;
@@ -155,6 +160,11 @@ const RUN_MIX = new Set([
  * leaf-litter squares scattered over open grass): under trees, along paths, at the foot of a rise, round a camp.
  */
 const CAUSED_FAMILIES = new Set(["lush"]);
+/** Natural standing pieces that must never be built from wall blocks (generator 3). */
+/** Loose rock that follows the tone of a cliff beside it (generator 3). */
+const CLIFF_DRESSING = new Set(["formation", "rock_formation", "boulder", "rock"]);
+const NATURAL_STANDING =new Set(["cluster_tall", "formation", "landmark", "rock_formation", "tall_marker"]);
+
 /** Features that cause litter and worn ground round them. */
 const CAUSE_FEATURES = new Set([
   "cluster_tall",
@@ -271,7 +281,7 @@ export function realize(
   const seed = opts.seed ?? h32(resolved.planId);
   const hg = resolved.levels.reduce((m, l) => Math.max(m, l.bounds.y + l.bounds.h), 0);
   const frame = new WorldFrame(orientation, hg);
-  const resolveRole = createRoleResolver(palettes);
+  const resolveRole = createRoleResolver(palettes, resolved.generator);
   const defaultTheme = Object.keys(palettes.palettes).includes("generic")
     ? "generic"
     : (Object.keys(palettes.palettes)[0] ?? "generic");
@@ -387,12 +397,8 @@ export function realize(
    */
   const familyNoise = new ValueNoise(h32(`${seed}:floorfamilies`));
   const familyWarp = new ValueNoise(h32(`${seed}:floorfamilies:warp`));
-  const familiesOf = (vs: ResolvedVariant[]): Array<{ name: string; share: number }> => {
-    const m = new Map<string, number>();
-    for (const v of vs)
-      if (v.weight > 0) m.set(v.variant ?? "", Math.max(m.get(v.variant ?? "") ?? 0, v.weight));
-    return [...m].map(([name, share]) => ({ name, share })).sort((a, b) => (a.name < b.name ? -1 : 1));
-  };
+  const familiesOf = (vs: ResolvedVariant[]): FloorFamily[] =>
+    familiesOfVariants(vs, (uuid) => OBSERVED_TONES[uuid]?.tone);
   const familyAt = (fams: Array<{ name: string; share: number }>, x: number, y: number): string => {
     if (fams.length <= 1) return fams[0]?.name ?? "";
     const total = fams.reduce((t, q) => t + q.share, 0);
@@ -510,7 +516,10 @@ export function realize(
           }
     }
     /** The cell's floor family: caused families only near their cause, with a feathered, noisy edge. */
-    const famAt = (fams: Array<{ name: string; share: number }>, x: number, y: number): string => {
+    // generator 3: one dominant family, a tonally close second only in feathered patches with a cause
+    const pickFamily = resolved.generator >= 3 ? createFamilyPicker(L, seed) : null;
+    const famAt = (fams: FloorFamily[], x: number, y: number): string => {
+      if (pickFamily) return pickFamily(fams, x, y);
       const caused = fams.filter((q) => CAUSED_FAMILIES.has(q.name));
       if (caused.length === 0) return familyAt(fams, x, y);
       const d = causeDist.get(`${x},${y}`) ?? 9;
@@ -539,31 +548,111 @@ export function realize(
       }
       return b;
     };
+    // generator 3: one rock tone per cliff (gen/cover.ts cliffRockKinds): a kind of rock with no piece in the cliff's
+    // tone is not built (its drops get the plain block face), and the dressing rock near a cliff follows the tone
+    const kindMemo = new Map<ThemeId, ReturnType<typeof cliffRockKinds>>();
+    const cliffKinds = (theme: ThemeId): ReturnType<typeof cliffRockKinds> => {
+      if (resolved.generator < 3) return { face: true, crest: true };
+      let k = kindMemo.get(theme);
+      if (k === undefined) {
+        const vs = (role: string): readonly ResolvedVariant[] =>
+          lookup(L.id, theme, [role], undefined, true)?.variants ?? [];
+        k = cliffRockKinds(vs("cliff.formation_face"), vs("cliff.formation_crest"));
+        kindMemo.set(theme, k);
+      }
+      return k;
+    };
+    /** Boulders of a tone the theme's boulder role lacks (role cliff.formation_crest_<tone>), for cliffs and rock beside them. */
+    const toneBoulders = (theme: ThemeId, tone: string): readonly ResolvedVariant[] =>
+      (lookup(L.id, theme, [`cliff.formation_crest_${tone}`], undefined, true)?.variants ?? []).filter(
+        (u) => u.weight > 0,
+      );
+    let cliffCells: Set<string> | undefined;
+    /** Is the cell within 3 cells of a band rock (generator 3)? */
+    const nearCliff = (x: number, y: number): boolean => {
+      if (cliffCells === undefined) {
+        cliffCells = new Set();
+        for (const q of L.features) {
+          if (q.type !== "cliff_face" && q.type !== "cliff_crest") continue;
+          for (let dy = -3; dy < q.size[1] + 3; dy++)
+            for (let dx = -3; dx < q.size[0] + 3; dx++) cliffCells.add(`${q.at[0] + dx},${q.at[1] + dy}`);
+        }
+      }
+      return cliffCells.has(`${x},${y}`);
+    };
     const bandLow = new Set<string>();
     const bandBack = new Set<string>();
     /** Upper cells of a band edge the band left bare: they get a face block of one family. */
     const bandBare = new Set<string>();
+    // generator 3: the rocks as they stand (real outline, turn, slide, vertical span), to test what hides a face
+    const g3 = resolved.generator >= 3;
+    const rockShapes: RockShape[] = [];
+    if (g3) {
+      const extent = (
+        theme: ThemeId,
+        role: string,
+        tall: boolean,
+      ): { w: number; d: number; h: number } | undefined => {
+        const r = lookup(L.id, theme, [role], undefined, true);
+        const vs = (r?.variants ?? []).filter((q) => q.weight > 0 && (!tall || q.geom.size.y >= 1.2));
+        const v = [...vs].sort((a, b) => b.weight - a.weight)[0];
+        return v ? { w: v.geom.size.x, d: v.geom.size.z, h: v.geom.size.y } : undefined;
+      };
+      for (const f of L.features) {
+        if (f.type !== "cliff_face" && f.type !== "cliff_crest") continue;
+        if (!cliffKinds(f.theme)[f.type === "cliff_face" ? "face" : "crest"]) continue;
+        const ext =
+          f.type === "cliff_face"
+            ? extent(f.theme, "cliff.formation_face", false)
+            : extent(f.theme, "cliff.formation_crest", true);
+        if (!ext) continue;
+        rockShapes.push({
+          cx: f.at[0] + f.size[0] / 2 + (f.offset?.[0] ?? 0),
+          cy: f.at[1] + f.size[1] / 2 + (f.offset?.[1] ?? 0),
+          rot: f.rotFine,
+          w: ext.w,
+          d: ext.d,
+          base: f.baseHeight,
+          top: f.baseHeight + ext.h,
+        });
+      }
+    }
     if (resolved.generator >= 2)
       for (const run of L.cliffs ?? [])
         for (const e of run.edges) {
-          if (e.high - e.low < BAND.minRiseQ) continue;
+          if (e.high - e.low < (g3 ? 4 : BAND.minRiseQ)) continue;
           const c0 = V.cell(e.at[0], e.at[1]);
           if (!hasBand(c0.theme)) continue;
           const [dx, dy] =
             e.side === "N" ? [0, -1] : e.side === "S" ? [0, 1] : e.side === "E" ? [1, 0] : [-1, 0];
-          for (let k = 1; k <= BAND.out; k++) bandLow.add(`${e.at[0] + dx * k},${e.at[1] + dy * k}`);
-          for (let k = 0; k < BAND.back; k++) bandBack.add(`${e.at[0] - dx * k},${e.at[1] - dy * k}`);
+          const tallEdge = e.high - e.low >= BAND.minRiseQ;
+          if (tallEdge) {
+            for (let k = 1; k <= BAND.out; k++) bandLow.add(`${e.at[0] + dx * k},${e.at[1] + dy * k}`);
+            for (let k = 0; k < BAND.back; k++) bandBack.add(`${e.at[0] - dx * k},${e.at[1] - dy * k}`);
+          }
           // what the band actually placed: an edge with no rock over its midpoint keeps a face behind it (no hole)
           const mx = e.at[0] + 0.5 + dx * 0.5;
           const my = e.at[1] + 0.5 + dy * 0.5;
-          const covered = L.features.some(
-            (f) =>
-              (f.type === "cliff_face" || f.type === "cliff_crest") &&
-              mx >= f.at[0] - 0.3 &&
-              mx <= f.at[0] + f.size[0] + 0.3 &&
-              my >= f.at[1] - 0.3 &&
-              my <= f.at[1] + f.size[1] + 0.3,
-          );
+          const base = L.elevation + 0.5;
+          const covered = g3
+            ? edgeHidden(
+                rockShapes,
+                mx,
+                my,
+                dy !== 0 ? 1 : 0,
+                dx !== 0 ? 1 : 0,
+                base + e.low / 4,
+                base + e.high / 4,
+              )
+            : L.features.some(
+                (f) =>
+                  (f.type === "cliff_face" || f.type === "cliff_crest") &&
+                  cliffKinds(f.theme)[f.type === "cliff_face" ? "face" : "crest"] &&
+                  mx >= f.at[0] - 0.3 &&
+                  mx <= f.at[0] + f.size[0] + 0.3 &&
+                  my >= f.at[1] - 0.3 &&
+                  my <= f.at[1] + f.size[1] + 0.3,
+              );
           if (!covered) bandBare.add(`${e.at[0]},${e.at[1]}`);
         }
     /** Floor material as laid: natural low ground under a rock band is rock. */
@@ -630,6 +719,15 @@ export function realize(
           .map((s) => s.split("x").map(Number) as [number, number])
           .filter(([w, h]) => greedy || (w === 1 && h === 1))
           .sort((a, b) => b[0] * b[1] - a[0] * a[1] || b[0] - a[0]);
+        // generator 3: a 1x2 piece may lie either way (turned a quarter), the way round chosen per cell from the seed, so
+        // a field of them is not all one orientation
+        if (g3 && greedy)
+          for (const [fw0, fh0] of [...fps])
+            if (fw0 !== fh0 && !fps.some(([a, b]) => a === fh0 && b === fw0)) fps.push([fh0, fw0]);
+        if (g3 && greedy) {
+          const flip = h32(`${seed}:${L.id}:floororient:${x}:${y}`) % 2 === 1;
+          fps.sort((a, b) => b[0] * b[1] - a[0] * a[1] || (flip ? a[0] - b[0] : b[0] - a[0]));
+        }
         const k0 = keyOf(c, x, y);
         // road carriageway tiles keep one orientation along the road's axis (markings on the tiles line up)
         const roadDir = roadAxisAt.get(`${x},${y}`);
@@ -645,7 +743,16 @@ export function realize(
             }
           }
           if (!fits) continue;
-          const sized = res.variants.filter((u) => u.footprint[0] === fw && u.footprint[1] === fh);
+          // a candidate with no variant of that footprint but one of the transposed footprint lays that piece turned
+          const ownOf = (a: number, b: number): ResolvedVariant[] =>
+            res.variants.filter(
+              (u) =>
+                u.footprint[0] === a && u.footprint[1] === b && u.weight > 0 && (inFam(u) || (u.variant ?? "") === ""),
+            );
+          const turned = g3 && fw !== fh && ownOf(fw, fh).length === 0 && ownOf(fh, fw).length > 0;
+          const sized = res.variants.filter((u) =>
+            turned ? u.footprint[0] === fh && u.footprint[1] === fw : u.footprint[0] === fw && u.footprint[1] === fh,
+          );
           // the cell's family. A family without a piece of this size tries its own smaller pieces first; one with
           // nothing smaller (a meadow made only of 8×8 tiles) uses the default family's piece of this size
           const famSized = sized.filter((u) => inFam(u) && u.weight > 0);
@@ -677,7 +784,7 @@ export function realize(
                   ? rule === "random90" || rule === "random15"
                     ? (r % 4) * 6
                     : 0
-                  : (r % 2) * 12;
+                  : (r % 2) * 12 + (turned ? 6 : 0);
           emit(v, "floor", m.x, topOf(c) - v.geom.size.y, m.z, steps * 15 + v.rot, {
             cell: [x, y],
             elementId: `floor:${role}`,
@@ -869,10 +976,14 @@ export function realize(
           v.geom.size.z > 0.8 &&
           v.geom.originAt === "minCorner",
       };
+      // generator 3: natural ground shows rock where its face is bare, never earth-coloured fill (cliff.rock_block)
+      const rockFirst = resolved.generator >= 3 && material !== null && NATURAL_GROUND.has(material);
       let res = lookup(
         L.id,
         theme,
-        material ? [`cliff.${material}`, "cliff.default"] : ["cliff.default"],
+        material
+          ? [...(rockFirst ? ["cliff.rock_block"] : []), `cliff.${material}`, "cliff.default"]
+          : ["cliff.default"],
         one,
         true,
       );
@@ -982,7 +1093,12 @@ export function realize(
         ? ["fill.default"]
         : WATER.has(material)
           ? [`bed.${material}`, "bed.default", "fill.default"]
-          : [`fill.${material}`, `floor.${material}`, "fill.default"];
+          : [
+              ...(resolved.generator >= 3 && NATURAL_GROUND.has(material) ? ["fill.rock"] : []),
+              `fill.${material}`,
+              `floor.${material}`,
+              "fill.default",
+            ];
       // stacked courses use the default family (untagged 1×1 variants), not a patch family's tile
       const res = lookup(levelId, theme, roles, {
         key: "1x1plain",
@@ -1194,6 +1310,12 @@ export function realize(
             const bx = flip ? c.otherX : c.hostX;
             const by = flip ? c.otherY : c.hostY;
             const k = `${bx},${by}`;
+            // generator 3: a passage that reaches the board edge is an exit; no rock column stands outside the bounds
+            if (
+              resolved.generator >= 3 &&
+              (bx < L.bounds.x || bx >= L.bounds.x + L.bounds.w || by < L.bounds.y || by >= L.bounds.y + L.bounds.h)
+            )
+              continue;
             if (c.hostOpen && !flip) {
               if (fullCellDone.has(`x${k}`)) continue;
               fullCellDone.add(`x${k}`);
@@ -1299,6 +1421,8 @@ export function realize(
       (m, o) => (o.elevation > elev + EPS ? Math.min(m, o.elevation) : m),
       Infinity,
     );
+    const massFaces: Array<WallFace & { theme: ThemeId }> = [];
+    const columnLater = new Map<string, () => void>();
     for (const [k, c] of fullCells) {
       const r1 = lookup(L.id, c.theme, [c.roleName], {
         key: "1x1",
@@ -1317,6 +1441,8 @@ export function realize(
         const nz =
           wallNoise.sample(c.x / 4, c.y / 4) * 0.8 + (h32(`${seed}:${c.x}:${c.y}:wt`) / 4294967296) * 0.2;
         let extra = nz < 0.22 ? -1 : nz < 0.45 ? 0 : nz < 0.62 ? 1 : nz < 0.8 ? 2 : 3;
+        // generator 3: the column is the closing skin of a wall of rock mass (gen/cavewall.ts): lower, in uneven runs
+        if (g3 && c.roleName === "wall.cave_rock") extra = nz < 0.3 ? -1 : nz < 0.72 ? 0 : 1;
         if (extra < 0 && top - v.unitHeight < floorTop + 1.5) extra = 0;
         // a column that closes the mouth of a chasm or pit (its wall reaches below the floor) is never one of the
         // low stretches, and stands at least a block taller, so nothing glows over it from inside
@@ -1333,12 +1459,132 @@ export function realize(
           ? ceiling - v.unitHeight
           : y;
       };
-      for (let s = 0; s < n; s++)
-        emit(v, "wall", m.x, yAt(s), m.z, v.rot + (gen2 ? blockTurn(v, `${k}:${s}`) : 0), {
-          cell: [c.x, c.y],
-          elementId: c.roleName,
-        });
+      const buildColumn = (): void => {
+        for (let s = 0; s < n; s++)
+          emit(v, "wall", m.x, yAt(s), m.z, v.rot + (gen2 ? blockTurn(v, `${k}:${s}`) : 0), {
+            cell: [c.x, c.y],
+            elementId: c.roleName,
+          });
+      };
+      // generator 3: the column is only the fill of a wall of rock mass (gen/cavewall.ts); it is built below, where
+      // no mass piece closes the face cell
+      if (g3 && c.roleName === "wall.cave_rock") {
+        massFaces.push({ x: c.x, y: c.y, base, top: base + n * v.unitHeight, edgeBase: floorTop, theme: c.theme });
+        columnLater.set(`${c.x},${c.y}`, buildColumn);
+      } else buildColumn();
     }
+
+    // generator 3: the rock mass behind and over the wall columns (gen/cavewall.ts)
+    if (massFaces.length > 0) {
+      const edgeBlocked = new Set<string>();
+      for (const orient of ["h", "v"] as const) {
+        const g = orient === "h" ? L.hEdges : L.vEdges;
+        for (let y = L.bounds.y; y <= L.bounds.y + V.h; y++)
+          for (let x = L.bounds.x; x <= L.bounds.x + V.w; x++) {
+            const e = orient === "h" ? V.hEdge(x, y) : V.vEdge(x, y);
+            if (e < 0 || (g.kind[e] !== EDGE.OPENING && g.kind[e] !== EDGE.STAIR)) continue;
+            for (let dy = -2; dy <= 2; dy++)
+              for (let dx = -2; dx <= 2; dx++) edgeBlocked.add(`${x + dx},${y + dy}`);
+          }
+      }
+      const taken = new Set<string>();
+      for (const f of L.features)
+        for (let y = f.at[1]; y < f.at[1] + f.size[1]; y++)
+          for (let x = f.at[0]; x < f.at[0] + f.size[0]; x++)
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) taken.add(`${x + dx},${y + dy}`);
+      for (const theme of new Set(massFaces.map((f) => f.theme))) {
+        const vars: Array<{ v: ResolvedVariant; role: string }> = [];
+        const shapes: WallShape[] = [];
+        const add = (
+          roleName: string,
+          family: WallShape["family"],
+          ok: (q: ResolvedVariant) => boolean,
+          lift?: (q: ResolvedVariant) => number,
+        ) => {
+          const r = lookup(L.id, theme, [roleName], undefined, true);
+          for (const q of r?.variants ?? []) {
+            if (q.weight <= 0 || !ok(q)) continue;
+            shapes.push({
+              id: vars.length,
+              family,
+              w: q.geom.size.x,
+              d: q.geom.size.z,
+              h: q.geom.size.y,
+              weight: q.weight,
+              ...(lift === undefined ? {} : { lift: lift(q) }),
+            });
+            vars.push({ v: q, role: r?.role ?? roleName });
+          }
+        };
+        // one rock family per cave: the Cavern kit (cliff.cave_mass), the tone of the wall columns; themes without it
+        // build the mass from their own cliff band rock (crest boulders and faces)
+        add("cliff.cave_mass", "A", () => true);
+        const kit = shapes.length > 0;
+        if (!kit) {
+          add("cliff.formation_crest", "A", (q) => q.geom.size.y >= 1.2);
+          add("cliff.formation_face", "A", () => true);
+        }
+        // flat sheets close the far part of a deep band
+        if (kit) add("cliff.cave_cap", "cap", () => true);
+        // foot stones: the kit's low stone, else small rocks and rubble
+        if (kit) add("cliff.cave_mass", "toe", (q) => q.geom.size.y <= 1.05, () => 0);
+        else {
+          add("feature.rock", "toe", (q) => q.geom.size.y <= 0.8 && q.geom.size.x >= 0.9, () => 0);
+          add("feature.rubble", "toe", (q) => q.geom.size.y <= 0.8 && q.geom.size.x >= 0.8, () => 0);
+        }
+        if (!shapes.some((s) => s.family !== "toe")) continue;
+        const faces = massFaces.filter((f) => f.theme === theme);
+        const inLevelState = (x: number, y: number): number =>
+          V.inBounds(x, y) ? (L.cells.state[(y - L.bounds.y) * V.w + (x - L.bounds.x)] ?? CELL.VOID) : -1;
+        const plan = planCaveWall({
+          seed: h32(`${seed}:${L.id}:cavemass`),
+          faces,
+          bounds: { x: L.bounds.x, y: L.bounds.y, w: V.w, h: V.h },
+          rock: (x, y) => inLevelState(x, y) === CELL.SOLID,
+          open: (x, y) => V.cell(x, y).open,
+          floorTop: (x, y) => topOf(V.cell(x, y)),
+          toeOk: (x, y) => {
+            const c = V.cell(x, y);
+            return (
+              c.floor &&
+              (c.flags & (CELL_FLAG.PATH | CELL_FLAG.LINK | CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR)) === 0 &&
+              !taken.has(`${x},${y}`) &&
+              !edgeBlocked.has(`${x},${y}`)
+            );
+          },
+          shapes,
+          ceiling,
+        });
+        for (const f of faces) if (!plan.columns.has(`${f.x},${f.y}`)) columnLater.delete(`${f.x},${f.y}`);
+        for (const pc of plan.pieces) {
+          const q = vars[pc.shape];
+          if (!q) continue;
+          const deg = (((frame.planDegreesToWorld(pc.rot) + q.v.rot) % 360) + 360) % 360;
+          const c = frame.point(pc.cx, pc.cy);
+          const off = rotateXZ(q.v.geom.boundsCenter.x, q.v.geom.boundsCenter.z, deg * frame.o.rotSense);
+          emit(q.v, pc.family === "toe" ? "feature" : "wall", c.x - off.x, pc.base, c.z - off.z, deg, {
+            cell: [Math.floor(pc.cx), Math.floor(pc.cy)],
+            elementId: pc.family === "toe" ? "cave_foot" : pc.family === "cap" ? "cave_cap" : "cave_mass",
+          });
+          // a tile (corner-origin) piece turned off the quarter turns: its box is the turned outline's (the box of a
+          // corner-origin piece is only right for quarter turns)
+          const last = placements[placements.length - 1];
+          if (last && q.v.geom.originAt === "minCorner") {
+            const box = placementBox(
+              { ...q.v.geom, originAt: "other" },
+              last.x,
+              last.y,
+              last.z,
+              last.rot * orientation.rotSense,
+            );
+            placementBoxes.set(last, box);
+            growBox(levelBox, box);
+          }
+        }
+      }
+    }
+    // the wall columns left as fill (all of them where no mass was planned)
+    for (const build of columnLater.values()) build();
 
     // kerbs along kerbed paths: kerb.<material> / kerb.default, a half-cell piece on the path side of the edge
     for (const kb of L.kerbs ?? []) {
@@ -1874,8 +2120,51 @@ export function realize(
         resolvedRole = res.role;
         rule = res.def.rotation ?? "facing";
         let pool = res.variants;
-        if (f.variant !== undefined) {
-          const m = res.variants.filter((u) => u.variant === f.variant);
+        // generator 3: the band's rocks turn as the generator set them (the palette's role says "fixed", which left every
+        // rock at one turn), and a boulder is a tall one (Moss Rock 01 is knee-high and hides no face)
+        if (resolved.generator >= 3 && (f.type === "cliff_face" || f.type === "cliff_crest")) {
+          rule = "inherit";
+          if (f.type === "cliff_crest") {
+            const tallOnes = pool.filter((u) => u.geom.size.y >= 1.2);
+            if (tallOnes.length > 0) pool = tallOnes;
+          }
+          // one rock tone per cliff: the face piece decides; boulders match it (the palette's same-tone boulder role when
+          // the boulder role has none), and keep their own tone only when the palette has no piece of that tone
+          const tone = cliffKinds(theme).tone;
+          if (tone !== undefined) {
+            const same = pool.filter((u) => u.weight > 0 && u.tone === tone);
+            if (same.length > 0) pool = same;
+            else if (f.type === "cliff_crest") {
+              const alt = toneBoulders(theme, tone);
+              if (alt.length > 0) pool = [...alt];
+            }
+          }
+        }
+        // generator 3: the loose rock within 3 cells of a cliff follows the cliff's tone (untagged pieces are unknown: kept)
+        if (resolved.generator >= 3 && CLIFF_DRESSING.has(f.type) && nearCliff(f.at[0], f.at[1])) {
+          const tone = cliffKinds(theme).tone;
+          const tagged = pool.filter((u) => u.weight > 0 && u.tone !== undefined);
+          if (tone !== undefined && tagged.length > 0) {
+            if (tagged.some((u) => u.tone === tone)) pool = pool.filter((u) => u.tone === undefined || u.tone === tone);
+            else {
+              const alt = toneBoulders(theme, tone);
+              if (alt.length > 0) pool = [...pool.filter((u) => u.tone === undefined), ...alt];
+            }
+          }
+        }
+        // generator 3: a wall block (a tile, minCorner) is not a natural standing piece: a cave's stone columns are
+        // stalagmites, never a row of Cave Wall stubs that read as a brick maze
+        if (resolved.generator >= 3 && NATURAL_STANDING.has(f.type)) {
+          const notTiles = pool.filter((u) => u.geom.originAt !== "minCorner");
+          if (notTiles.length > 0) pool = notTiles;
+        }
+        // generator 3: a stall's kind is the goods it sells; kinds that stand on the bare table share its variant
+        const wantVariant =
+          resolved.generator >= 3 && f.type === "stall" && f.variant !== undefined
+            ? ((STALL_BASE as Readonly<Record<string, string | undefined>>)[f.variant] ?? f.variant)
+            : f.variant;
+        if (wantVariant !== undefined) {
+          const m = res.variants.filter((u) => u.variant === wantVariant);
           if (m.length) pool = m;
           else
             addDiag({
@@ -1888,6 +2177,26 @@ export function realize(
             });
         }
         v = pick(pool, `${L.id}:feature:${f.id}`);
+        // generator 3: a stall made of 1x1 tiles (fruit, vegetables, spices) is one tile in each of its two cells
+        if (
+          v &&
+          resolved.generator >= 3 &&
+          f.type === "stall" &&
+          v.footprint[0] * v.footprint[1] === 1 &&
+          f.size[0] * f.size[1] === 2
+        ) {
+          const fct = facingOf(v, "feature", resolvedRole);
+          const wantPlan = rotateDir("S", Math.round(f.rot / 90));
+          const degRaw = frame.stepsToFace(fct.front ?? "N", frame.worldSide(wantPlan)) * 15 + v.rot;
+          const degT = (((Math.round(degRaw / 90) % 4) + 4) % 4) * 90;
+          for (let yy = f.at[1]; yy < f.at[1] + f.size[1]; yy++)
+            for (let xx = f.at[0]; xx < f.at[0] + f.size[0]; xx++) {
+              const vt = pick(pool, `${L.id}:feature:${f.id}:${xx}:${yy}`) ?? v;
+              const m = frame.rectMin(xx, yy, 1, 1);
+              emit(vt, "feature", m.x, f.baseHeight, m.z, degT, { cell: [xx, yy], elementId: f.id });
+            }
+          return;
+        }
         if (v && RUN_MIX.has(f.type)) {
           const near = (runPicks.get(res.role) ?? []).filter(
             (q) =>
@@ -2041,12 +2350,19 @@ export function realize(
         const m = frame.rectMin(f.at[0], f.at[1], fp[0], fp[1]);
         emit(v, "feature", m.x, y, m.z, deg, src);
       } else {
-        const c = frame.point(f.at[0] + fp[0] / 2, f.at[1] + fp[1] / 2);
+        // generator 3: a sub-cell shift (ResolvedFeature.offset; centred pieces only, tiles stay on the grid)
+        const c = frame.point(
+          f.at[0] + fp[0] / 2 + (f.offset?.[0] ?? 0),
+          f.at[1] + fp[1] / 2 + (f.offset?.[1] ?? 0),
+        );
         const off = rotateXZ(v.geom.boundsCenter.x, v.geom.boundsCenter.z, deg * frame.o.rotSense);
         emit(v, "feature", c.x - off.x, y, c.z - off.z, deg, src);
       }
       // assembly pieces: same anchor and rotation, each moved by its own offset (palette `parts`)
-      const centre = frame.point(f.at[0] + fp[0] / 2, f.at[1] + fp[1] / 2);
+      const centre = frame.point(
+        f.at[0] + fp[0] / 2 + (v.geom.originAt === "minCorner" ? 0 : (f.offset?.[0] ?? 0)),
+        f.at[1] + fp[1] / 2 + (v.geom.originAt === "minCorner" ? 0 : (f.offset?.[1] ?? 0)),
+      );
       for (const part of v.parts ?? []) {
         const pv: ResolvedVariant = {
           ...v,
@@ -2121,7 +2437,7 @@ export function realize(
       elevation: elev,
       bounds: finiteBox(levelBox),
       cellBounds: { ...L.bounds },
-      ...(L.waterLevel !== undefined ? { waterLevel: L.waterLevel, waterRange: waterRangeOf(L) } : {}),
+      ...(L.waterLevel !== undefined ? { waterLevel: L.waterLevel, waterRange: L.waterRange ?? waterRangeOf(L) } : {}),
     });
   }
 

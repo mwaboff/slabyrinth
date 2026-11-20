@@ -115,6 +115,31 @@ export const WINDOW_SPACING: Record<Exclude<WindowDensity, "none">, number> = {
 
 export const DEFAULT_STRUCTURE_STYLE = "cottage";
 
+/**
+ * Generator 3, cottage style: what a trade `use` changes from the street (gen/market.ts TRADE_OF lists the words). A
+ * shop front and an awning for the trades that sell to the street; a tavern or inn is big with a gabled cross wing; a
+ * smithy a low twin-roofed workshop. Multipliers act on the near-zero weights of `bases:shopfront` and `details:awning`.
+ */
+const SHOP = { "bases:shopfront": 30000, "details:awning": 30000, "bases:stoop": 0, "sizes:small": 0.5 };
+const SMITH = { "archetypes:twin": 3, "archetypes:lean": 2, "bases:shopfront": 15000, "details:awning": 15000 };
+const TRADE_USES: Record<string, Record<string, number>> = {
+  baker: { ...SHOP, "sizes:compact": 2 },
+  bakery: { ...SHOP, "sizes:compact": 2 },
+  shop: { ...SHOP, "sizes:full": 2 },
+  general: { ...SHOP, "sizes:full": 2 },
+  store: { ...SHOP, "sizes:full": 2 },
+  grocer: { ...SHOP },
+  butcher: { ...SHOP, "sizes:compact": 2 },
+  apothecary: { ...SHOP, "sizes:compact": 2 },
+  herbalist: { ...SHOP, "sizes:small": 3 },
+  cobbler: { ...SHOP, "sizes:small": 3 },
+  tailor: { ...SHOP, "sizes:compact": 2 },
+  smith: SMITH,
+  smithy: SMITH,
+  blacksmith: SMITH,
+  inn: { "sizes:full": 3, "archetypes:ell": 2.5, "roofs:gable_cross": 2, "tops:same": 1.5, "details:awning": 15000 },
+};
+
 export const STRUCTURE_STYLES: Readonly<Record<string, StructureStyleProfile>> = {
   cottage: {
     id: "cottage",
@@ -161,6 +186,43 @@ export const STRUCTURE_STYLES: Readonly<Record<string, StructureStyleProfile>> =
         farmhouse: { "sizes:full": 4, "archetypes:ell": 2, "archetypes:lean": 1.5, "tops:attic": 2 },
         workshop: { "archetypes:twin": 3, "archetypes:lean": 2, "roofs:hip": 0.5 },
         tavern: { "sizes:full": 3, "archetypes:ell": 2, "roofs:hip": 2, "tops:same": 3 },
+      },
+      // generator 3: the roof is the larger part (55-65 % of the visible height in the study's cottages and inns): the
+      // top storey sits inside it as a knee-walled attic more often, and the walls are lowered until the drawn share is
+      // met; cross wings and lean-tos stand a tile or more below the main ridge (see balanceRoofs)
+      gen3: {
+        roofShare: [0.52, 0.66],
+        // a twin of two narrow halves has a low roof (a roof's rise is half its span), so it is drawn less often
+        archetypes: { box: 2.5, ell: 1.8, twin: 0.4, lean: 1.5, shed: 0.3 },
+        tops: { same: 0.7, attic: 3 },
+        atticHeight: 1,
+        // two buildings of one style differ in more than size: timber, stone or plaster walls, a stone ground storey
+        // under timber (the study's tavern), and a slate or tiled roof; the neighbour rule keeps a street from
+        // repeating one wall-and-roof pair (structure.ts)
+        materials: { wood: 3, stone: 2, plaster: 1.5 },
+        baseMaterials: { stone: 1 },
+        baseChance: 0.4,
+        roofKits: { slate: 3, village: 2.5 },
+        // (hip roofs read as a broken pyramid in game: not offered at generator 3 until they are clean)
+        roofs: { gable: 3, gable_cross: 2, shed: 0.3 },
+        // trades: a shop front (glazed street face, sign band) and an awning over it. The weights start near zero so a
+        // building with no trade `use` keeps its plain ground floor; a trade multiplies them up (see TRADE_USES)
+        bases: { plain: 3, stoop: 0.5, shopfront: 0.001 },
+        details: { none: 1, awning: 0.001 },
+        detailCount: [1, 1],
+        uses: {
+          ...TRADE_USES,
+          shack: {
+            "sizes:small": 5,
+            "archetypes:lean": 2,
+            "tops:attic": 0,
+            "roofs:shed": 4,
+            "windows:sparse": 4,
+          },
+          farmhouse: { "sizes:full": 4, "archetypes:ell": 2, "archetypes:lean": 1.5, "tops:attic": 2 },
+          workshop: { "archetypes:twin": 3, "archetypes:lean": 2, "roofs:hip": 0.5 },
+          tavern: { "sizes:full": 3, "archetypes:ell": 2.5, "roofs:hip": 1.5, "roofs:gable_cross": 2, "tops:same": 1.5 },
+        },
       },
     },
   },

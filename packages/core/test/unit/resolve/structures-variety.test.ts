@@ -394,9 +394,15 @@ describe("wizard tower, character and condition", () => {
       expect(set.crowns).toContain(d.crown);
       // the walls as built: the base tier, the shaft and the lantern room only from the set
       const allowed = new Set([set.base, set.material, ...set.crowns.filter((c) => c !== "same")]);
-      for (const v of st.volumes ?? []) for (const sp of v.storeys) expect(allowed.has(sp.walls ?? ""), `seed ${seed} ${v.id} ${sp.walls ?? "-"}`).toBe(true);
+      for (const v of st.volumes ?? [])
+        for (const sp of v.storeys)
+          expect(allowed.has(sp.walls ?? ""), `seed ${seed} ${v.id} ${sp.walls ?? "-"}`).toBe(true);
       // one roof kit on every pitched roof
-      const kits = new Set((st.volumes ?? []).flatMap((v) => v.roof.layers.filter((l) => l.type !== "none" && l.type !== "flat").map((l) => l.style)));
+      const kits = new Set(
+        (st.volumes ?? []).flatMap((v) =>
+          v.roof.layers.filter((l) => l.type !== "none" && l.type !== "flat").map((l) => l.style),
+        ),
+      );
       expect([...kits], `seed ${seed}`).toHaveLength(1);
       expect([...kits][0]).toBe(d.roofKit);
     }
@@ -545,7 +551,10 @@ describe("wizard tower, character and condition", () => {
         const v = st.volumes?.find((o) => o.id === h.volume);
         const n = v?.storeys[h.storey]?.cells.length ?? 0;
         const share = h.cells.length / n;
-        expect(share === 1 || (share >= 0.15 && share <= 0.35), `${tag} ${h.volume}:${h.storey} ${share}`).toBe(true);
+        expect(
+          share === 1 || (share >= 0.15 && share <= 0.35),
+          `${tag} ${h.volume}:${h.storey} ${share}`,
+        ).toBe(true);
       }
       // the standing corner is tallest: the columns nearest it stand higher than the farthest ones on average
       const cols = st.ruin?.columns ?? [];
@@ -562,11 +571,17 @@ describe("wizard tower, character and condition", () => {
       const r = resolvePlan(p);
       const set = realize(r, palettes);
       const ver = verifyBuild(r, set, palettes, { plan: p });
-      expect(ver.diagnostics.filter((x) => x.severity === "error"), tag).toEqual([]);
+      expect(
+        ver.diagnostics.filter((x) => x.severity === "error"),
+        tag,
+      ).toEqual([]);
       const top = Math.max(...cols.map((c) => c.top));
       const walls = (set.levels[0]?.placements ?? []).filter((q) => q.source.elementId === `${st.id}~wall`);
       expect(Math.max(...walls.map((q) => q.y)), tag).toBeLessThan(top);
-      expect(set.levels[0]?.placements.some((q) => /~roofd*$/.test(String(q.source.elementId))), tag).toBe(false);
+      expect(
+        set.levels[0]?.placements.some((q) => /~roofd*$/.test(String(q.source.elementId))),
+        tag,
+      ).toBe(false);
     }
   });
   it("ruined gable building keeps the gable wall at its standing end; its slopes fall in", () => {
@@ -584,11 +599,14 @@ describe("wizard tower, character and condition", () => {
     expect(pl.filter((q) => q.source.elementId === `${st.id}~gable`).length).toBeGreaterThan(0);
     expect(pl.some((q) => /~roofd*$/.test(String(q.source.elementId)))).toBe(false);
     // the gable wall's columns stand whole
-    for (const c of st.ruin?.columns ?? []) if (c.side === side && c.top < c.full) {
-      const line = side === "W" || side === "E" ? c.at[0] : c.at[1];
-      const xs = (st.ruin?.columns ?? []).filter((o) => o.side === side).map((o) => (side === "W" || side === "E" ? o.at[0] : o.at[1]));
-      expect(line).not.toBe(side === "W" || side === "N" ? Math.min(...xs) : Math.max(...xs));
-    }
+    for (const c of st.ruin?.columns ?? [])
+      if (c.side === side && c.top < c.full) {
+        const line = side === "W" || side === "E" ? c.at[0] : c.at[1];
+        const xs = (st.ruin?.columns ?? [])
+          .filter((o) => o.side === side)
+          .map((o) => (side === "W" || side === "E" ? o.at[0] : o.at[1]));
+        expect(line).not.toBe(side === "W" || side === "N" ? Math.min(...xs) : Math.max(...xs));
+      }
   });
   it("weathered: the shape stays whole; a roof patch has fallen in, most windows are dark, growth and rubble at its foot", () => {
     const b: Building = { ...one("modern_block", 5, "apartments", 8, 8), condition: "weathered" };
@@ -601,19 +619,29 @@ describe("wizard tower, character and condition", () => {
     expect((st.volumes ?? []).every((v) => v.roof.layers.length > 0)).toBe(true);
     expect(structureRuinMeasures({ ...st, condition: "intact" })).toBeNull();
     // measurably not intact: the minimums the review holds it to
-    for (const [style, seed, use] of [["modern_block", 5, "apartments"], ["cottage", 12, "farmhouse"], ["tower", 7, undefined]] as const) {
+    for (const [style, seed, use] of [
+      ["modern_block", 5, "apartments"],
+      ["cottage", 12, "farmhouse"],
+      ["tower", 7, undefined],
+    ] as const) {
       const wb: Building = { ...one(style, seed, use, 8, 7), condition: "weathered" };
-      const wp = plan([wb], 24, 24, "forest");
+      const wp = { ...plan([wb], 24, 24, "forest"), generator: 3 as const }; // the minimums are generator 3's
       const ws = structuresOf(wp)[0] as ResolvedStructure;
       const wm = weatherMeasures(ws);
       expect(wm?.roofMissing ?? 0, style).toBeGreaterThanOrEqual(WEATHER_MINIMUMS.roofMissing);
       expect(wm?.darkWindows ?? 0, style).toBeGreaterThanOrEqual(WEATHER_MINIMUMS.darkWindows);
-      const ip = plan([{ ...wb, condition: "intact" }], 24, 24, "forest");
+      const ip = { ...plan([{ ...wb, condition: "intact" }], 24, 24, "forest"), generator: 3 as const };
       const roofOf = (pp: MapPlan): number =>
-        (realize(resolvePlan(pp), palettes).levels[0]?.placements ?? []).filter((q) => q.layer === "roof").length;
+        (realize(resolvePlan(pp), palettes).levels[0]?.placements ?? []).filter((q) => q.layer === "roof")
+          .length;
       expect(roofOf(wp), style).toBeLessThan(roofOf(ip));
       const r = resolvePlan(wp);
-      expect(verifyBuild(r, realize(r, palettes), palettes, { plan: wp }).diagnostics.filter((x) => x.severity === "error"), style).toEqual([]);
+      expect(
+        verifyBuild(r, realize(r, palettes), palettes, { plan: wp }).diagnostics.filter(
+          (x) => x.severity === "error",
+        ),
+        style,
+      ).toEqual([]);
     }
   });
   it("a ruin's rubble, growth and props come only from their own roles: a theme without them gets nothing", () => {
@@ -626,14 +654,19 @@ describe("wizard tower, character and condition", () => {
       palettes: Object.fromEntries(
         Object.entries(palettes.palettes).map(([id, pal]) => [
           id,
-          { ...pal, roles: Object.fromEntries(Object.entries(pal.roles).filter(([k]) => !k.startsWith("ruin_"))) },
+          {
+            ...pal,
+            roles: Object.fromEntries(Object.entries(pal.roles).filter(([k]) => !k.startsWith("ruin_"))),
+          },
         ]),
       ),
     };
     const pl = realize(r, bare).levels[0]?.placements ?? [];
     expect(pl.filter((q) => /~(rubble|growth|prop)$/.test(String(q.source.elementId)))).toEqual([]);
     const full = realize(r, palettes).levels[0]?.placements ?? [];
-    expect(full.filter((q) => /~(rubble|growth)$/.test(String(q.source.elementId))).length).toBeGreaterThan(0);
+    expect(full.filter((q) => /~(rubble|growth)$/.test(String(q.source.elementId))).length).toBeGreaterThan(
+      0,
+    );
   });
   it("bare x, y, w, h on a building is its one wing", () => {
     const p = plan([{ id: "b", style: "cottage", x: 4, y: 4, w: 6, h: 5 }], 20, 20, "forest");

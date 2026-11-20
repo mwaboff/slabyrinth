@@ -330,6 +330,8 @@ function roleSettings(role: string): Partial<PaletteRole> {
       // Thin (0.5-deep) face pieces along an edge where the floor drops (cliff/chasm/lava edges), stacked downwards.
       return { mount: "half-cell", rotation: "facing", height: 2, greedyTiling: true };
     case "cliff":
+      if (name === "formation_slab" || name === "cave_mass") return { rotation: "inherit" };
+      if (name === "cave_cap") return { rotation: "fixed" };
       // Full-cell rock blocks stacked for tall vertical faces (cliff.rock), or the cliff band's rocks (cliff.formation_face / cliff.formation_crest, natural-rock themes only).
       return name === "face"
         ? { rotation: "random90" }
@@ -356,11 +358,39 @@ function roleSettings(role: string): Partial<PaletteRole> {
     case "marker":
       return { rotation: "fixed" };
     case "feature":
+      // goods and the pieces of an overhead line turn as the generator set them (a line runs along x or y)
+      if (name === "overhead" || name === "goods") return { rotation: "inherit" };
       return ORGANIC.includes(name) ? { rotation: "inherit" } : { rotation: "facing" };
     default:
       return {};
   }
 }
+
+/**
+ * Roles added to the bundled palettes after a release, with the first generator that may use them (`minGenerator`).
+ * Released generators are frozen (test/golden/generator2): they must resolve exactly as the released palettes did,
+ * so a role that did not exist then is hidden from them. Add every new role here (the palette release test in
+ * test/unit/palette/released.test.ts fails otherwise).
+ */
+const ROLE_MIN_GENERATOR: Record<string, number> = {
+  "cliff.rock_block": 3,
+  "fill.rock": 3,
+  // the second rock family of the cave wall mass and the stacked rock of generator 3 (gen/cavewall.ts)
+  "cliff.formation_slab": 3,
+  // cream boulders for a cliff whose face piece is cream (Cliff Face): only the cliff band and rock within 3 cells of it
+  // may use them (compile/realize.ts); the tone test in palette-catalog.test.ts exempts this role alone
+  "cliff.formation_crest_light": 3,
+  // the one-family rock mass of the cave wall (Cavern kit, the tone of the wall columns; gen/cavewall.ts)
+  "cliff.cave_mass": 3,
+  // flat sheets over the far part of a deep rock band (same kit; floor tiles read as the plateau top)
+  "cliff.cave_cap": 3,
+  // markets (gen/market.ts): stalls by kind of goods, goods on a table, the pieces of an overhead line and its post
+  "canopy.awning": 3,
+  "feature.stall": 3,
+  "feature.goods": 3,
+  "feature.overhead": 3,
+  "feature.line_post": 3,
+};
 
 /** Alias roles added to generic (only when no theme defines the role). */
 const ALIASES: Record<string, string> = {
@@ -534,9 +564,13 @@ async function main(): Promise<void> {
     t[role].variants.push(v);
   };
   // Curated assets beyond the draft (catalog-copied geometry), added first so they are each role's preferred variant.
-  const extras = (
-    JSON.parse(readFileSync(join(here, "palette-extra-assets.json"), "utf8")) as { entries: ExtraEntry[] }
-  ).entries;
+  const extras = [
+    ...(JSON.parse(readFileSync(join(here, "palette-extra-assets.json"), "utf8")) as { entries: ExtraEntry[] })
+      .entries,
+    // market and settlement pieces (generator 3): stalls by kind, goods, overhead line pieces and posts
+    ...(JSON.parse(readFileSync(join(here, "palette-market-assets.json"), "utf8")) as { entries: ExtraEntry[] })
+      .entries,
+  ];
   for (const x of extras) {
     const v: PaletteVariant = {
       asset: x.uuid,
@@ -608,7 +642,14 @@ async function main(): Promise<void> {
   }
 
   const sortRoles = (r: Record<string, PaletteRole>): Record<string, PaletteRole> =>
-    Object.fromEntries(Object.entries(r).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+    Object.fromEntries(
+      Object.entries(r)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([k, d]): [string, PaletteRole] => {
+          const minGenerator = ROLE_MIN_GENERATOR[k];
+          return [k, minGenerator === undefined ? d : { minGenerator, ...d }];
+        }),
+    );
   const palettes: Palette[] = THEMES.map((t) => {
     const p: Palette = {
       schema: "slabyrinth/palette@1",

@@ -14,7 +14,7 @@ import { slabCodec } from "../../../src/slab";
 
 const W = 40;
 const H = 30;
-function meadow(terrain: TerrainOp[], extra: Partial<Level> = {}, generator: 1 | 2 = 2): MapPlan {
+function meadow(terrain: TerrainOp[], extra: Partial<Level> = {}, generator: 1 | 2 | 3 = 2): MapPlan {
   return {
     schema: "slabyrinth/plan@1",
     generator,
@@ -160,30 +160,10 @@ describe("natural board outline", () => {
 });
 
 describe("review: cliff checks", () => {
-  // rock pieces along every edge of the 2-tile plateau, reaching out over the low ground, with crests at the lip
-  const band = (): Feature[] => {
-    const out: Feature[] = [];
-    let n = 0;
-    const face = (x: number, y: number): void => {
-      out.push({ id: `r${n++}`, type: "cliff_face", at: [x, y], size: [2, 3] });
-    };
-    for (let x = 10; x < 26; x += 2) {
-      face(x, 6);
-      face(x, 19);
-      out.push({ id: `c${n++}`, type: "cliff_crest", at: [x, 8] });
-      out.push({ id: `c${n++}`, type: "cliff_crest", at: [x, 19] });
-    }
-    for (let y = 8; y < 20; y += 2) {
-      out.push({ id: `r${n++}`, type: "cliff_face", at: [8, y], size: [3, 2] });
-      out.push({ id: `r${n++}`, type: "cliff_face", at: [25, y], size: [3, 2] });
-      out.push({ id: `c${n++}`, type: "cliff_crest", at: [10, y] });
-      out.push({ id: `c${n++}`, type: "cliff_crest", at: [25, y] });
-    }
-    return out;
-  };
   it("cliff_unclad: a bare 2-tile cliff fires; a faced one is quiet", () => {
     expect(codes(meadow([block(2)], { outline: "rect" }))).toContain("cliff_unclad");
-    expect(codes(meadow([block(2)], { outline: "rect", features: band() }))).not.toContain("cliff_unclad");
+    // faced: the generator-3 band (hand-set boxes no longer pass for rock: the review measures what hides the face)
+    expect(codes(meadow([block(2)], { outline: "rect" }, 3))).not.toContain("cliff_unclad");
   });
   it("rise_timid: a hill of one-tile steps fires; two bold terraces are quiet", () => {
     const steps = block(1, { tiers: 4, inset: 2 });
@@ -254,7 +234,7 @@ describe("review: cliff checks, the rest", () => {
 
   it("cliff_unclad_low: bare one-tile banks fire; banks with boulders are quiet", () => {
     expect(at(1, [])).toContain("cliff_unclad_low");
-    expect(at(1, band())).not.toContain("cliff_unclad_low");
+    expect(codes(meadow([block(1)], { outline: "rect" }, 3))).not.toContain("cliff_unclad_low");
   });
   it("cliff_sheer and cliff_band_thin: flush one-cell blocks fire; a band reaching out is quiet", () => {
     const bad = at(2, flush());

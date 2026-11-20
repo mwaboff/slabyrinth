@@ -51,6 +51,29 @@ export interface PlacementGrid {
    * stands on them; the cliff band lines their sides from the upper ground. Optional.
    */
   ramp?(x: number, y: number): boolean;
+  /**
+   * The plan's generator version (`plan.generator`). Optional: absent means 2. Generator 3 rules (rock that rests
+   * on something, default cliff bands) switch on at 3 (plan/generator.ts `generatorAtLeast`).
+   */
+  generator?: number;
+  /**
+   * Generator 3: the asset's real outline in tiles (w along its length at turn 0, d across, h tall; the variant a
+   * piece most likely is), where `pieceSize` gives its footprint in cells. The rock band plans with it, and the
+   * review and the realizer judge cover with it. Optional.
+   */
+  pieceExtent?(type: FeatureType): { w: number; d: number; h: number } | undefined;
+  /**
+   * Generator 3: the level's water surface in tiles above the level floor (the scale of `height`; resolve/level.ts
+   * waterSurface() minus the floor thickness). Optional: without it water dressing estimates it from the beds and banks
+   * of the area it dresses (half a tile below the lowest bank, a quarter above the highest bed).
+   */
+  waterSurface?(): number | undefined;
+  /**
+   * Generator 3: true on cells off the board: void cells (a natural outline's cut-away corners) and everything outside
+   * the level bounds. The board's edge is a cliff where the ground stands above the base: the band skirts it with rock
+   * standing on the base plane. Optional.
+   */
+  void?(x: number, y: number): boolean;
 }
 
 export interface GeneratedPlacement {
@@ -59,6 +82,8 @@ export interface GeneratedPlacement {
   size: [number, number];
   rot: Rotation;
   rotFine: number;
+  /** Generator 3: sub-cell shift in tiles [east, south], each within ±0.5 (carried to the resolved feature). */
+  offset?: [number, number];
   wall?: Side;
   variant?: string;
   /**
@@ -437,6 +462,12 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   const count = Math.round((p.density * floorCells.length) / 6);
   const totalWeight = table.reduce((a, i) => a + i.weight, 0);
   const taken = new Set<number>();
+  const g3 = (grid.generator ?? 2) >= 3;
+  const oneHeight = (at: readonly [number, number], size: readonly [number, number]): boolean => {
+    if (!grid.height) return true;
+    const h0 = grid.height(at[0], at[1]);
+    return footprintCells(at, size).every(([x, y]) => grid.height?.(x, y) === h0);
+  };
   const out: GeneratedPlacement[] = [];
   let capped = false;
 
@@ -500,7 +531,9 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
     const blocking = info.blocking && !info.wallMounted;
     fits = (c: Cand): boolean =>
       footprintCells(c.at, c.size).every(([x, y]) => free(x, y, blocking)) &&
-      !footprintCrossesWall(grid, c.at, c.size);
+      !footprintCrossesWall(grid, c.at, c.size) &&
+      // generator 3: furniture never stands half on a ledge (a counter over a one-tile step floats)
+      (!g3 || oneHeight(c.at, c.size));
     const fromWall = (e: readonly [number, number, Side]): Cand => {
       const rot = SIDE_ROT[e[2]];
       const c: Cand = {
@@ -532,5 +565,65 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
     if (c.wall) placement.wall = c.wall;
     out.push(placement);
   }
+  if (g3) addToppers(grid, out, rng, p.remaining);
   return { placements: out, capped };
+}
+
+/**
+ * Generator 3: small props rest on larger pieces (goods on a counter, candles on a table, a sack on a crate), at the
+ * support's real top height (PlacementGrid.pieceExtent: the lowest variant's height, so nothing floats), instead of
+ * standing on the floor beside it. In the studied market 95% of small props sat on furniture. Only where the theme has
+ * both pieces; the support's own cell carries the topper.
+ */
+const TOPPERS: Partial<Record<FeatureType, { chance: number; on: ReadonlyArray<readonly [FeatureType, number]> }>> = {
+  table: { chance: 0.8, on: [["candles", 3], ["sack", 1]] },
+  round_table: { chance: 0.8, on: [["candles", 1]] },
+  counter: { chance: 0.9, on: [["sack", 2], ["candles", 1]] },
+  desk: { chance: 0.7, on: [["candles", 1]] },
+  chest: { chance: 0.25, on: [["candles", 1]] },
+};
+
+function addToppers(
+  grid: PlacementGrid,
+  out: GeneratedPlacement[],
+  rng: ReturnType<typeof createPrng>,
+  remaining: number,
+): void {
+  const supports = out.slice();
+  for (const s of supports) {
+    const def = TOPPERS[s.type];
+    if (!def) continue;
+    if (out.length >= remaining || !rng.chance(def.chance)) continue;
+    const ext = grid.pieceExtent?.(s.type);
+    if (!ext) continue;
+    const total = def.on.reduce((a, [, w]) => a + w, 0);
+    let r = rng.next() * total;
+    let type = def.on[0]?.[0] as FeatureType;
+    for (const [t, w] of def.on) {
+      r -= w;
+      if (r < 0) {
+        type = t;
+        break;
+      }
+    }
+    // the real piece is centred on its footprint (a 1-wide counter on a 3×1 footprint): rest on that centre, slid a
+    // little, but inside the support's top
+    const mx = s.at[0] + s.size[0] / 2;
+    const my = s.at[1] + s.size[1] / 2;
+    const cell: [number, number] = [Math.floor(mx), Math.floor(my)];
+    const room = Math.max(0, Math.min(0.3, (Math.min(ext.w, ext.d, 1) - 0.4) / 2));
+    const offset: [number, number] = [
+      mx - (cell[0] + 0.5) + (rng.next() * 2 - 1) * room,
+      my - (cell[1] + 0.5) + (rng.next() * 2 - 1) * room,
+    ];
+    out.push({
+      type,
+      at: cell,
+      size: [1, 1],
+      rot: 0,
+      rotFine: rng.int(24) * 15,
+      lift: ext.h,
+      offset,
+    });
+  }
 }

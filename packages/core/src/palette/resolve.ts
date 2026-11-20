@@ -175,6 +175,7 @@ export function resolveRole(
   theme: ThemeId,
   role: RoleName,
   filter?: VariantFilter,
+  generator?: number,
 ): ResolveOutcome {
   const subs: Substitution[] = [];
   const themeMissing = !own(cat.palettes, theme);
@@ -187,7 +188,11 @@ export function resolveRole(
     visited.add(key);
     path.push(r);
     const chain = onlyGeneric ? [GENERIC_THEME] : themeChain(cat.palettes, startTheme);
-    const roleOf = (id: ThemeId): PaletteRole | undefined => own(own(cat.palettes, id)?.roles, r);
+    // a role added after generator `generator` shipped (minGenerator) does not exist for that generator
+    const roleOf = (id: ThemeId): PaletteRole | undefined => {
+      const d = own(own(cat.palettes, id)?.roles, r);
+      return d !== undefined && generator !== undefined && (d.minGenerator ?? 1) > generator ? undefined : d;
+    };
     const ownerId = chain.find((id) => roleOf(id) !== undefined);
     const def = ownerId !== undefined ? roleOf(ownerId) : undefined;
     if (ownerId !== undefined && def) {
@@ -222,16 +227,20 @@ export function resolveRole(
   return { resolution, substitutions: subs, themeMissing };
 }
 
-/** Memoizing wrapper used by the realizer (same inputs → same outcome object). */
+/**
+ * Memoizing wrapper used by the realizer (same inputs → same outcome object). `generator` hides roles whose
+ * `minGenerator` is higher; omitted, every role is visible.
+ */
 export function createRoleResolver(
   cat: PaletteCatalog,
+  generator?: number,
 ): (theme: ThemeId, role: RoleName, filter?: VariantFilter) => ResolveOutcome {
   const memo = new Map<string, ResolveOutcome>();
   return (theme, role, filter) => {
     const k = `${theme}\u0000${role}\u0000${filter?.key ?? ""}`;
     let r = memo.get(k);
     if (!r) {
-      r = resolveRole(cat, theme, role, filter);
+      r = resolveRole(cat, theme, role, filter, generator);
       memo.set(k, r);
     }
     return r;

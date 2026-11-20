@@ -236,6 +236,12 @@ export interface PaletteVariant {
 }
 
 export interface PaletteRole {
+  /**
+   * First generator version that may use this role. Plans of an older generator resolve as if the role did not
+   * exist (its lookups fall through to the next role, fallback or generic), so a role added to the bundled palettes
+   * after a release never changes what that release produced. Every role added after a release must set it.
+   */
+  minGenerator?: number;
   variants: PaletteVariant[];    // ≥ 1, or empty for an alias role that only sets `fallback`
   footprint?: readonly [w: number, h: number];   // default [1,1]
   rotation?: RotationRule;       // default: floors random90, walls facing, features facing
@@ -547,6 +553,7 @@ export type CompileDiagnosticCode =
   | "verify_pokes_into_level_above" // warning: a placement rises through the floor of the level above
   | "verify_material_substituted"
   | "verify_water_level"          // info: set TaleSpire's water level to this height above the pasted slab  // warning (liquids) / info: the 2D map shows a material or wall style the theme builds with another one
+  | "verify_line_unanchored"     // warning: an overhead line end has no wall or post at its height (its pieces are then judged as floating)
   | "verify_cliff_gap";           // warning: a natural cliff edge left to the rock band has no rock in front and no face behind
 
 export interface CompileDiagnostic {

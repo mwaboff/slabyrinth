@@ -10,7 +10,9 @@ import {
   validateToolInput,
 } from "../../../src/agent";
 import { h64hex } from "../../../src/util";
-import { DP_1_0_0 } from "../../../src/agent/designPrinciples.frozen";
+import { DP_1_0_0, DP_1_1_0, DP_1_2_0 } from "../../../src/agent/designPrinciples.frozen";
+import { DESIGN_PRINCIPLES_VERSION } from "../../../src/agent/designPrinciples";
+import { TOOLS_VERSION } from "../../../src/agent/prompt";
 
 /** Hash of the published sp-1.1.0 text (frozen). */
 const SP_1_1_0_HASH = "2176e2d9b0362e06";
@@ -44,9 +46,51 @@ describe("frozen tool list", () => {
   });
 });
 
+describe("released in 0.1.2: sp-1.11.0, dp-1.1.0, tools-1.7.0 (frozen; the working versions are sp-1.12.0, dp-1.2.0, tools-1.8.0)", () => {
+  it("working versions are open", () => {
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.12.0");
+    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.2.0");
+    expect(TOOLS_VERSION).toBe("tools-1.8.0");
+  });
+  it("sp-1.11.0 is byte-identical to the release", () => {
+    expect(h64hex(systemPromptFor("sp-1.11.0") ?? "")).toBe("d074cc244ed28a6b");
+  });
+  it("dp-1.1.0 is byte-identical to the release", () => {
+    expect(h64hex(DP_1_1_0)).toBe("867eda4554f73167");
+    expect(systemPromptFor("sp-1.11.0")).toContain(DP_1_1_0);
+  });
+  it("tools-1.7.0 is byte-identical to the release and served from its frozen copy", () => {
+    const frozen = serializeTools(toolsForConversation(true, "tools-1.7.0"));
+    expect(h64hex(frozen)).toBe("89b914883f0a96b1");
+    expect(toolsForConversation(true, "tools-1.7.0").map((t) => t.streamInput)).toEqual(
+      TOOL_DEFINITIONS.map((t) => t.streamInput),
+    );
+    expect(toolsForConversation(false, "tools-1.7.0").map((t) => t.name)).not.toContain("view_map_image");
+  });
+});
+
+describe("released in 0.2.0: sp-1.12.0, dp-1.2.0, tools-1.8.0 (frozen with generator 3)", () => {
+  it("sp-1.12.0 is byte-identical to the release", () => {
+    expect(h64hex(systemPromptFor("sp-1.12.0") ?? "")).toBe("6e121502f667d0e5");
+  });
+  it("dp-1.2.0 is byte-identical to the release and sp-1.12.0 carries it", () => {
+    expect(h64hex(DP_1_2_0)).toBe("bcc0e06e28bf86c5");
+    expect(systemPromptFor("sp-1.12.0")).toContain(DP_1_2_0);
+  });
+  it("tools-1.8.0 is byte-identical to the release and served from its frozen copy", () => {
+    const frozen = serializeTools(toolsForConversation(true, "tools-1.8.0"));
+    expect(h64hex(frozen)).toBe("89e7f4b8549a4d20");
+    expect(toolsForConversation(false, "tools-1.8.0").map((t) => t.name)).not.toContain("view_map_image");
+  });
+  it("the released 0.1.2 texts did not move", () => {
+    expect(h64hex(systemPromptFor("sp-1.11.0") ?? "")).toBe("d074cc244ed28a6b");
+    expect(h64hex(serializeTools(toolsForConversation(true, "tools-1.7.0")))).toBe("89b914883f0a96b1");
+  });
+});
+
 describe("system prompt", () => {
   it("is frozen per version", () => {
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.11.0");
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.12.0");
     // sp-1.10.0 shipped in the owner's second snapshot with dp-1.0.0: frozen byte for byte
     expect(h64hex(systemPromptFor("sp-1.10.0") ?? "")).toBe("74e5072df0fd89e2");
     expect(systemPromptFor(SYSTEM_PROMPT_VERSION)).toBe(SYSTEM_PROMPT);
@@ -73,6 +117,14 @@ describe("system prompt", () => {
     expect(sp17).toMatch(/kind "enclosure"/);
     expect(sp17).toMatch(/modern or sci-fi block/);
     expect(systemPromptFor("sp-1.6.0")).not.toContain("# Buildings and yards");
+  });
+  it("sp-1.12.0 is sp-1.11.0 plus the working principles (dp-1.2.0), a few sentences", () => {
+    const old = systemPromptFor("sp-1.11.0") ?? "";
+    expect(SYSTEM_PROMPT).not.toBe(old);
+    // the building sentences: things attach to the structure; the roof is the larger half of a cottage or inn
+    expect(SYSTEM_PROMPT).toContain("- Attach things. Vines climb upper walls and rubble lies at wall feet; little stands alone on open floor.");
+    expect(SYSTEM_PROMPT).toContain("On cottages and inns the roof is the larger half; the top storey can sit inside it.");
+    expect(SYSTEM_PROMPT.length - old.length).toBeLessThan(500);
   });
   it("sp-1.11.0: current principles, streets with junctions and green, plot sizes by kind, condition and character honoured", () => {
     expect(SYSTEM_PROMPT).toContain(DESIGN_PRINCIPLES);

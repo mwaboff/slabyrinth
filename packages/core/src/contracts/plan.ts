@@ -28,11 +28,14 @@ export const PLAN_SCHEMA = "slabyrinth/plan@1" as const;
  *  2: a `height` terrain op with layer "under" sets the height of EVERY cell in its shape (rock included), so the
  *     areas that later open those cells inherit it unless they set their own floorHeight. In version 1 such an op
  *     only touched cells that were already open, which on a solid base is none of them.
+ *     Released in 0.1.2 and frozen since (golden tests in test/golden/generator2 pin it).
+ *  3: unreleased, open for new work. Until behaviour is gated on it, it resolves exactly like 2.
+ *     Gate new behaviour with `generatorAtLeast(plan, 3)` (plan/generator.ts); every `>= 2` rule stays on for 3.
  */
-export const GENERATOR_VERSION = 2 as const;
+export const GENERATOR_VERSION = 3 as const;
 /** Generator versions a reader accepts. */
-export type GeneratorVersion = 1 | 2;
-export const GENERATOR_VERSIONS: readonly GeneratorVersion[] = [1, 2];
+export type GeneratorVersion = 1 | 2 | 3;
+export const GENERATOR_VERSIONS: readonly GeneratorVersion[] = [1, 2, 3];
 
 // ───────────────────────────── primitives ─────────────────────────────
 
@@ -123,6 +126,9 @@ export const FEATURE_TYPES = [
   // cliffs as rock bands (additive, 2026-11-20): a long low face rock and a rounded crest boulder
   // (palette roles cliff.formation_face / cliff.formation_crest; themes without natural rock keep a built face)
   "cliff_face", "cliff_crest",
+  // markets (additive, generator 3): a stall by kind of goods (variant), small goods standing on a stall or table,
+  // and the pieces of an overhead line (the line itself is Level.lines; these are what it resolves to)
+  "stall", "goods", "overhead", "line_post",
   "custom",
 ] as const;
 export type FeatureType = (typeof FEATURE_TYPES)[number];
@@ -407,7 +413,17 @@ export type TerrainOp =
    * `shape`, with natural cliff sides (any setting: a crag on a hillside, a pillar of rock in a hall or cave).
    * Material `material` (default rock) on top. Applied with the over layer, in array order.
    */
-  | { id: ElementId; op: "outcrop"; shape: Shape; height?: Height; material?: Material };
+  | { id: ElementId; op: "outcrop"; shape: Shape; height?: Height; material?: Material }
+  /**
+   * Generator 3: an opening in a floor so the level below shows through. The cells of `shape` that are open floor
+   * lose their floor (the area keeps them, so no wall rings the hole); the lower level is checked to have open floor
+   * under them. kind "collapse" (default): ragged outline, a low broken edge, and a heap of rubble on the floor below;
+   * "shaft": clean outline with a railing round it; "balcony": like shaft, meant for a hall or gallery looking down
+   * into a room below. `rim` overrides the edge style (default ruined for a collapse, iron_bars otherwise; "none" =
+   * an unguarded edge). `rubble` false = no rubble below a collapse. `edge` overrides the outline.
+   */
+  | { id: ElementId; op: "floor_opening"; shape: Shape; kind?: "collapse" | "shaft" | "balcony";
+      edge?: "ragged" | "clean"; rim?: WallStyle | "none"; rubble?: boolean };
 
 /** A bridge across a chasm terrain op (resolved like an area of kind "bridge"). */
 export interface ChasmBridge {
@@ -448,6 +464,8 @@ export interface Level {
    * of low ground round it; "rect" keeps the full rectangle. Built-up levels (buildings, roads) stay rectangular.
    */
   outline?: "natural" | "rect";
+  /** Generator 3: `false` turns off the default rock band on rises of 2 tiles or more in natural regions no dress op covers. */
+  cliffBands?: false;
   /** Default wall height for this level (tiles). Default 2 (10 ft); used for stacking checks. */
   wallHeight?: Height;
   /** Region of the global grid this level occupies (cells). 1..160 per side. */
@@ -467,7 +485,60 @@ export interface Level {
   stamps?: StampRef[];
   /** Buildings and enclosures (generator 2): see `Structure`. ≤ PLAN_LIMITS.structuresPerLevel. */
   structures?: Structure[];
+  /** Generator 3: rows or clusters of market stalls laid out in a rectangle. ≤ 8. */
+  stalls?: StallRow[];
+  /** Generator 3: lines strung overhead (lanterns, lights, flags) between two walls or posts. ≤ 12. */
+  lines?: OverheadLine[];
   notes?: string;
+}
+
+/**
+ * What a market stall sells. fruit, vegetables, magic and weapons are real stall pieces with the goods built in;
+ * spices is a spice-counter kit piece; empty is a bare table; bread, dairy, fish, potions and grain are a bare table
+ * with those goods standing on it (the goods are props resting on the table top).
+ */
+export const STALL_KINDS = [
+  "fruit", "vegetables", "spices", "magic", "weapons", "empty",
+  "bread", "dairy", "fish", "potions", "grain",
+] as const;
+export type StallKind = (typeof STALL_KINDS)[number];
+
+/**
+ * A row or cluster of market stalls in a rectangle (generator 3). The long side of the rectangle is the row. Deep
+ * enough (aisle + 2 cells), two rows stand back to back along the outer edges facing each other across a clear aisle;
+ * otherwise one row stands along the side away from `facing`. Spacing is irregular (gaps of 0 to 3 cells), kinds come
+ * from `goods` in shuffled order, a stall is 2 cells wide and 1 deep. Cells already taken (a well, a building) are
+ * skipped, never built over.
+ */
+export interface StallRow {
+  id: ElementId;
+  area: { x: number; y: number; w: number; h: number };
+  /** Kinds on offer, used in shuffled rotation so neighbours differ. Default: fruit, vegetables, bread, dairy, potions, spices. */
+  goods?: StallKind[];
+  /** The side a lone row faces (default S). Two rows each face the aisle. */
+  facing?: Side;
+  /** Most stalls to place (default: as many as fit). */
+  count?: number;
+  /** Clear aisle between two rows, cells (default 2, 1..4). */
+  aisle?: number;
+  seed?: Seed;
+}
+
+/**
+ * A line strung overhead between two points on one row or column of cells (generator 3): ropes with hanging lanterns,
+ * a string of lights, or flags. Each end is anchored on a building wall within 3 cells beyond the end, else on a post
+ * the generator adds on the end cell; a line that can be anchored neither way is dropped with a warning. The line
+ * hangs `height` tiles above the ground (2 to 3, default 2.3) and its pieces are spaced along it.
+ */
+export interface OverheadLine {
+  id: ElementId;
+  from: Vec2;
+  to: Vec2;
+  /** lanterns (default): rope with lanterns hung along it; lights: a string of lights; flags: rope with hanging cloth flags. */
+  kind?: "lanterns" | "lights" | "flags";
+  height?: number;
+  /** Cells between hung pieces (default 3, 2..6). */
+  spacing?: number;
 }
 
 // ───────────────────────────── structures (generator 2, additive 2026-11-20) ─────────────────────────────
@@ -516,6 +587,13 @@ export interface Building {
    * empty). Default: the style's (ruin is ruined).
    */
   condition?: "intact" | "weathered" | "ruined";
+  /**
+   * How overgrown a weathered or ruined building is (generator 3): none; light (a few vines and heaps at the foot);
+   * medium (vines on about a fifth of the wall); heavy (vines and creepers climbing from the ground on a third to
+   * half of the wall, bushes at the wall feet and inside, plants on the wall tops, trees in a roofless part). Default:
+   * light for weathered, medium for ruined. Set heavy for overgrown, ivy-covered, reclaimed or abandoned places.
+   */
+  growth?: "none" | "light" | "medium" | "heavy";
   /**
    * Character: how the request's adjectives bend the form (any style). twisted (the shaft corkscrews storey by
    * storey), leaning (storeys step progressively one way), crooked (small random offsets, uneven storeys), top_heavy
@@ -802,6 +880,8 @@ export type PlanIssueCode =
   | "stairs_invalid"          // a stairs op is not on one row/column, or rises more than 1 tile per cell
   | "water_level"             // dry floor lies below the level's water surface (TaleSpire's water plane would flood it)
   | "structure_invalid"       // a building or enclosure that cannot be built as written (overlap, no face, door onto nothing…)
+  | "line_unanchored"         // an overhead line has no wall or free post cell at one end (dropped), or is not straight
+  | "opening_no_floor_below"  // a floor_opening with solid rock, void or no floor under it on the level below (generator 3)
   | "feature_moved";          // a feature was moved to where it belongs (a vehicle on a pavement or across a road → the kerb lane); info
 
 export interface PlanIssue {

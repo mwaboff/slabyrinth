@@ -105,6 +105,268 @@
         }
       ]
     },
+    "cliff.cave_cap": {
+      "minGenerator": 3,
+      "rotation": "fixed",
+      "variants": [
+        {
+          "asset": "b83392b1-8833-43c9-a97f-2ac3df659e66",
+          "name": "Cave Floor - Rock 01",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        },
+        {
+          "asset": "0207e67f-6bba-4eb3-a343-54bf2d4d35d3",
+          "name": "Cave Floor - Rock 04",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "weight": 0.6
+        },
+        {
+          "asset": "ce6a2235-664f-43e8-a744-d5743623701d",
+          "name": "Cave Floor - Rock 2",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.6
+        }
+      ]
+    },
+    "cliff.cave_mass": {
+      "minGenerator": 3,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "283fe136-1ac3-4025-b9bf-90612c464c52",
+          "name": "Cave Wall Corner 01",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        },
+        {
+          "asset": "620e2184-6489-4411-86b9-223ac358c64b",
+          "name": "Cave Wall Corner 02",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        },
+        {
+          "asset": "f16eaf8d-7e01-486b-be6d-1fa261569cd4",
+          "name": "Cave Corner 01",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "weight": 0.8
+        },
+        {
+          "asset": "6707437b-a990-4216-a017-197744cf750c",
+          "name": "Cave Corner 02",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "weight": 0.8
+        },
+        {
+          "asset": "e972de17-0cfc-4b42-8906-879193ea96e9",
+          "name": "Cave Wall/Floor 01",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "weight": 0.5
+        },
+        {
+          "asset": "39f5b1a9-6316-4d13-90d6-12a0bac9c38e",
+          "name": "Cave Wall 03",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.5
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "weight": 0.8
+        },
+        {
+          "asset": "67731edb-9e8d-4b7b-8485-17173b6a2fc4",
+          "name": "Cave Rock 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 1
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "weight": 0.5
+        },
+        {
+          "asset": "c06fdfb8-bf24-4234-99c7-3a72a5aacb02",
+          "name": "Cave Wall 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.3
+        }
+      ]
+    },
     "cliff.formation_crest": {
       "mount": "full-cell",
       "rotation": "fixed",
@@ -131,7 +393,68 @@
           "footprint": [
             2,
             2
-          ]
+          ],
+          "tone": "mid",
+          "hue": "grey"
+        }
+      ]
+    },
+    "cliff.formation_crest_light": {
+      "minGenerator": 3,
+      "mount": "full-cell",
+      "rotation": "fixed",
+      "height": 2,
+      "greedyTiling": false,
+      "variants": [
+        {
+          "asset": "cdfc2068-f4e6-42a0-9672-cd99ff162509",
+          "name": "Desert Cliff 05",
+          "geom": {
+            "size": {
+              "x": 1.9754,
+              "y": 1.9934,
+              "z": 1.9614
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.9967,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "weight": 1,
+          "tone": "light",
+          "hue": "peach"
+        },
+        {
+          "asset": "c4bb44f6-ecff-444d-a196-49eaa76f4aa7",
+          "name": "rock_large001",
+          "geom": {
+            "size": {
+              "x": 2.4018,
+              "y": 2.5985,
+              "z": 1.6247
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0025,
+              "y": 1.3305,
+              "z": -0.032
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "weight": 0.6,
+          "tone": "light",
+          "hue": "cream"
         }
       ]
     },
@@ -161,7 +484,83 @@
           "footprint": [
             5,
             3
+          ],
+          "tone": "light",
+          "hue": "cream"
+        }
+      ]
+    },
+    "cliff.formation_slab": {
+      "minGenerator": 3,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "fca59ce9-624e-4cfa-8d17-791c15f11150",
+          "name": "Stalagmite flowstone 01",
+          "geom": {
+            "size": {
+              "x": 2.6293,
+              "y": 1.4875,
+              "z": 2.2727
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0085,
+              "y": 0.7512,
+              "z": -0.0277
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            3,
+            2
           ]
+        },
+        {
+          "asset": "2256896b-0b3f-4d6e-828d-4522d48d5e1e",
+          "name": "bg_prop_stalagmite_formation_01",
+          "geom": {
+            "size": {
+              "x": 1.3164,
+              "y": 2.9849,
+              "z": 1.7767
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0072,
+              "y": 1.5102,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "weight": 0.7
+        },
+        {
+          "asset": "ef0117fb-c8e2-4465-8571-ee7c5d761dff",
+          "name": "Stalagmite flowstone 02",
+          "geom": {
+            "size": {
+              "x": 1.0529,
+              "y": 0.736,
+              "z": 0.9471
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0446,
+              "y": 0.3755,
+              "z": -0.003
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "weight": 0.5
         }
       ]
     },
@@ -461,7 +860,9 @@
           "footprint": [
             2,
             2
-          ]
+          ],
+          "tone": "mid",
+          "hue": "grey"
         }
       ]
     },
@@ -845,7 +1246,9 @@
           "footprint": [
             1,
             2
-          ]
+          ],
+          "tone": "mid",
+          "hue": "green-brown"
         },
         {
           "asset": "a990c316-75dd-45dc-9cc3-cfb8bde0a9ff",
@@ -940,7 +1343,9 @@
                 "z": -0.6
               }
             }
-          ]
+          ],
+          "tone": "mid",
+          "hue": "grey"
         },
         {
           "asset": "451e9727-bc73-462c-8c46-512687e6e170",
@@ -963,7 +1368,9 @@
             2,
             2
           ],
-          "weight": 0.6
+          "weight": 0.6,
+          "tone": "mid",
+          "hue": "grey"
         },
         {
           "asset": "2e255c74-6c6a-463d-a2a2-d8d97c327bfe",
@@ -986,7 +1393,9 @@
             1,
             2
           ],
-          "weight": 0.6
+          "weight": 0.6,
+          "tone": "mid",
+          "hue": "green-brown"
         },
         {
           "asset": "ef0117fb-c8e2-4465-8571-ee7c5d761dff",
@@ -1589,7 +1998,9 @@
             2
           ],
           "variant": "moss",
-          "weight": 0.5
+          "weight": 0.5,
+          "tone": "mid",
+          "hue": "green-brown"
         }
       ]
     },
@@ -1664,7 +2075,9 @@
             2,
             2
           ],
-          "weight": 0.5
+          "weight": 0.5,
+          "tone": "mid",
+          "hue": "grey"
         },
         {
           "asset": "c4bb44f6-ecff-444d-a196-49eaa76f4aa7",

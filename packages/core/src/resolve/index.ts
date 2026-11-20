@@ -20,12 +20,16 @@ export {
 } from "./playability";
 export { cliffEdges, cliffRuns, type CliffEdge } from "./cliffs";
 export {
+  roofUnsupportedEdges,
   structureRuinMeasures,
   weatherMeasures,
+  weatherSigns,
   WEATHER_MINIMUMS,
   type RuinMeasures,
   type WeatherMeasures,
 } from "./ruin";
+export { GROWTH_LEVELS, growthMeasures, type GrowthLevel, type GrowthMeasures } from "./growth";
+export { mergeRoofs, roofOwners, roofProportion, type RoofProportion } from "./roof";
 export {
   designSignature,
   structureSignature,

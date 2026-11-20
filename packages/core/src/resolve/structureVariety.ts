@@ -15,6 +15,7 @@
 import type { Building, Roof, RoofType, Side, Storey, Volume, WallStyle } from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
 import { createPrng, type Prng } from "../util/prng";
+import { defaultRidge, gableRoof, hipRoof, shedRoof } from "./roof";
 import { structureStyle } from "./structureStyles";
 
 export type Weights = Readonly<Record<string, number>>;
@@ -91,6 +92,26 @@ export interface DesignSpace {
   atticHeight?: number;
   /** Use → multipliers, keyed "axis:value" (e.g. shop: { "bases:shopfront": 6 }). Unknown uses change nothing. */
   uses?: Readonly<Record<string, Readonly<Record<string, number>>>>;
+  /**
+   * Generator 3 only: the share of the visible height a pitched roof makes, drawn per building from this range (the
+   * study's cottages and inns: 55-65 %). The walls are lowered (the top storey into the roof) until the roof reaches it,
+   * and cross wings and lean-tos stand a tile or more below the main ridge.
+   */
+  roofShare?: readonly [number, number];
+  /** Generator 3 only: axes replacing the ones above (shallow merge), so a style's older output stays as it was. */
+  gen3?: Partial<Omit<DesignSpace, "gen3">>;
+}
+
+const merged = new WeakMap<DesignSpace, DesignSpace>();
+/** The design space a generator uses: generator 3 plans take the style's `gen3` overrides (one object per space). */
+export function designSpaceFor(space: DesignSpace, gen3: boolean): DesignSpace {
+  if (!gen3 || !space.gen3) return space;
+  let m = merged.get(space);
+  if (!m) {
+    m = { ...space, ...space.gen3 };
+    merged.set(space, m);
+  }
+  return m;
 }
 
 export interface BuildingDesign {
@@ -118,6 +139,8 @@ export interface BuildingDesign {
   /** The wall treatment drawn ("" when the style has none) and the roof kit of every pitched roof ("" = the style's). */
   treatment?: string;
   roofKit?: string;
+  /** Generator 3: the share of the visible height the roof is drawn to make (see DesignSpace.roofShare). */
+  roofShare?: number;
 }
 
 const pickW = (prng: Prng, w: Weights, mul: Readonly<Record<string, number>>, axis: string): string => {
@@ -189,7 +212,8 @@ export function drawDesign(
   const base = pickW(prng, space.bases, mul, "bases");
   const top = space.tops ? pickW(prng, space.tops, mul, "tops") : "same";
   // an attic top on a one-storey house is a storey and a half: the attic is the second storey
-  if (top === "attic" && storeys === 1 && archetype !== "shed") storeys = 2;
+  // (generator 3: no, the attic of a one-storey house is the roof itself, its floor on the eave line)
+  if (top === "attic" && storeys === 1 && archetype !== "shed" && !space.roofShare) storeys = 2;
   // later axes (drawn after the first ones, so adding them kept the earlier draws)
   const details: string[] = [];
   if (space.details) {
@@ -227,7 +251,12 @@ export function drawDesign(
     }
   }
   const roofKit = space.roofKits ? pickW(prng, space.roofKits, mul, "roofKits") : "";
+  // generator 3 (the last draw, so every earlier one stays as it was): the roof share this building aims for
+  const roofShare = space.roofShare
+    ? Math.round((space.roofShare[0] + (space.roofShare[1] - space.roofShare[0]) * prng.next()) * 100) / 100
+    : undefined;
   return {
+    ...(roofShare !== undefined ? { roofShare } : {}),
     treatment,
     roofKit,
     character: [...(character ?? [])],
@@ -372,6 +401,8 @@ export function expandDesign(
     atticHeight?: number;
     maxFootprint?: number;
     turret?: boolean;
+    /** Generator 3: heights the roof-share balance needs from the style (footing course, attic deck). */
+    roofBalance?: { footing: number; deck: boolean };
   } = {},
 ): Building {
   const pat = windowPattern(d.windows);
@@ -388,7 +419,8 @@ export function expandDesign(
       if (roofStorey && i === n - 1 && n > 1 && d.crown !== "same") s.walls = d.crown as WallStyle;
       if (roofStorey && i === n - 1 && n > 1 && d.top === "attic") {
         s.height = opts.atticHeight ?? Math.max(2, d.upperHeight - 1);
-        s.windows = "sparse";
+        // a knee wall under the roof (generator 3) has no room for a window
+        s.windows = s.height < 1.5 ? "none" : "sparse";
       }
       return s;
     });
@@ -543,7 +575,10 @@ export function expandDesign(
         {
           id: "lean",
           ...leanR,
-          storeys: [{ walls: d.baseMaterial, height: Math.max(1.5, d.groundHeight - 0.5) }],
+          // (generator 3: never under two tiles, a window piece needs the height)
+          storeys: [
+            { walls: d.baseMaterial, height: Math.max(opts.roofBalance ? 2 : 1.5, d.groundHeight - 0.5) },
+          ],
           roof: { type: "shed", low, ...(pitchedKit !== undefined ? { style: pitchedKit } : {}) },
         },
       ];
@@ -575,6 +610,7 @@ export function expandDesign(
     default:
       volumes = [{ id: "main", ...rect, storeys: storeyList(n, true, true), roof: top }];
   }
+  if (d.roofShare !== undefined && opts.roofBalance) balanceRoofs(volumes, d, opts.roofBalance);
   const out: Building = { ...st, volumes, front };
   if (towerBase && st.plinth === undefined)
     out.plinth = { height: 1, margin: towerBase.margin, approach: "steps", rim: "none" };
@@ -608,6 +644,87 @@ export function expandDesign(
     ...(st.roofFurniture ?? {}),
   };
   return out;
+}
+
+/**
+ * Generator 3: the roof is the larger part of a cottage or inn, and roofs on one building stand at different heights.
+ * 1. The highest pitched roof is brought to the building's drawn share of the visible height by lowering the walls:
+ *    the top storey first (a knee wall under the roof, the storey inside it, down to a tile), then the ground storey.
+ * 2. Every other pitched ground volume (a cross wing, a lean-to) has its ridge at least a tile below the main ridge: its
+ *    top storey is lowered, and when it cannot go lower the main walls rise by half a tile (at most a tile).
+ * The heights are those of the resolver (footing course, floor thickness, deck), the roof rise the roof module's own.
+ */
+function balanceRoofs(
+  volumes: Volume[],
+  d: BuildingDesign,
+  opts: { footing: number; deck: boolean },
+): void {
+  const FLOOR = 0.5;
+  const list = (v: Volume): Storey[] => (Array.isArray(v.storeys) ? v.storeys : []);
+  const wallOf = (v: Volume): number => {
+    let t = 0;
+    list(v).forEach((s, i) => {
+      const foot = i === 0 && v.on === undefined ? (s.footing === "none" ? 0 : opts.footing) : 0;
+      t += (i > 0 ? FLOOR : 0) + foot + (s.height ?? 2);
+    });
+    return t;
+  };
+  const riseOf = (v: Volume): number => {
+    const r = v.roof;
+    if (!r || r === "none") return -1;
+    const rect = { x: v.x, y: v.y, w: v.w, h: v.h };
+    if (r.type === "gable") return gableRoof({ ...rect, ridge: r.ridge ?? defaultRidge(v.w, v.h) }).ridgeTop;
+    if (r.type === "hip") return hipRoof(rect).top;
+    if (r.type === "shed") return shedRoof(rect, r.low ?? "S").top;
+    return -1;
+  };
+  const pitched = (): Array<{ v: Volume; wall: number; ridge: number }> =>
+    volumes
+      .filter((v) => v.on === undefined)
+      .map((v) => ({ v, wall: wallOf(v), rise: riseOf(v) }))
+      .filter((m) => m.rise >= 0)
+      .map((m) => ({ v: m.v, wall: m.wall, ridge: m.wall + (opts.deck ? 0.5 : 0) + m.rise }))
+      .sort((a, b) => b.ridge - a.ridge);
+  // a storey a half tile lower (a tile at the least under a roof; a ground storey of one keeps `min`)
+  const lower = (v: Volume, min: number): boolean => {
+    const ss = list(v);
+    const top = ss[ss.length - 1];
+    if (!top) return false;
+    const h = top.height ?? 2;
+    const floor = ss.length > 1 ? 0.5 : min;
+    if (h - 0.5 < floor - 1e-9) return false;
+    top.height = h - 0.5;
+    // a knee wall under the roof has no room for windows (dormers and the gable ends light the attic)
+    if (ss.length > 1 && top.height < 1.5) top.windows = "none";
+    else if (ss.length > 1 && top.height < 2) top.windows = "sparse";
+    return true;
+  };
+  // 1. the share: the highest roof's rise over its visible height
+  for (let guard = 0; guard < 12; guard++) {
+    const m = pitched()[0];
+    if (!m) return;
+    const rise = m.ridge - m.wall;
+    if (rise / m.ridge >= (d.roofShare ?? 0) - 0.02) break;
+    if (!lower(m.v, 2)) {
+      // the ground storey of a house of several storeys (never below a tile and a half)
+      const g = list(m.v)[0];
+      if (list(m.v).length > 1 && g && (g.height ?? 2) - 0.5 >= 2 - 1e-9) g.height = (g.height ?? 2) - 0.5;
+      else break;
+    }
+  }
+  // 2. cross wings and lean-tos below the main ridge
+  for (let guard = 0; guard < 24; guard++) {
+    const ms = pitched();
+    const main = ms[0];
+    if (!main) return;
+    const clash = ms.slice(1).find((o) => main.ridge - o.ridge < 1 - 1e-9);
+    if (!clash) return;
+    if (lower(clash.v, 2)) continue;
+    // cannot go lower: the main walls rise a little (once or twice), else the wing stays as it is
+    const top = list(main.v)[list(main.v).length - 1];
+    if (!top || (top.height ?? 2) >= d.upperHeight + 1.5) return;
+    top.height = (top.height ?? 2) + 0.5;
+  }
 }
 
 /** A stable bit from the design (which side a lean-to goes). */

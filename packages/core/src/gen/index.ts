@@ -10,3 +10,4 @@ export * from "./catalog";
 export * from "./place";
 export * from "./setpieces";
 export * from "./cliffband";
+export * from "./cover";

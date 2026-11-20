@@ -162,6 +162,11 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   // sets the real size)
   cliff_face: F("Cliff rock", "outdoor", { size: [4, 2], organic: true, glyph: "boulder" }),
   cliff_crest: F("Crest boulder", "outdoor", { size: [2, 2], organic: true, glyph: "boulder" }),
+  // markets (generator 3): a stall (2 wide by default), goods standing on it, the pieces of an overhead line
+  stall: F("Market stall", "furniture", { size: [2, 1], glyph: "counter" }),
+  goods: F("Goods", "other", { blocking: false, glyph: "sack" }),
+  overhead: F("Overhead line", "other", { blocking: false, glyph: "banner_wall" }),
+  line_post: F("Line post", "architecture", { glyph: "fence_post" }),
   custom: F("Custom", "other"),
 };
 

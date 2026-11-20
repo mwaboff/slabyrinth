@@ -40,13 +40,22 @@ import { BUILD_CONSTANTS } from "../contracts/plan";
 import type { BuiltRoofType, ResolvedLevel, ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { forEachMaskCell } from "../gen/mask";
+import { generatorAtLeast } from "../plan/generator";
 import { withWings } from "../plan/building";
 import { rasterizeShape } from "../gen/shapes";
 import { elementSeed, subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
 import { type RoofWing, defaultRidge } from "./roof";
-import { type RuinProfile, ruinProfile } from "./ruin";
-import { type BuildingDesign, designable, drawDesign, expandDesign, windowPattern } from "./structureVariety";
+import { climbingGrowth } from "./growth";
+import { type RuinProfile, ruinProfile, scatterTopRubble } from "./ruin";
+import {
+  type BuildingDesign,
+  designable,
+  designSpaceFor,
+  drawDesign,
+  expandDesign,
+  windowPattern,
+} from "./structureVariety";
 import {
   DEFAULT_STRUCTURE_STYLE,
   STRUCTURE_STYLES,
@@ -139,7 +148,13 @@ interface BuildingPlan {
   furniture: NonNullable<ResolvedStructure["furniture"]>;
   lighting: NonNullable<ResolvedStructure["lighting"]>;
   condition: NonNullable<ResolvedStructure["condition"]>;
+  /** Generator 3: roofs that meet are merged into valleys (ResolvedStructure.valleys). */
+  valleys: boolean;
   debris: NonNullable<ResolvedStructure["debris"]>;
+  /** Generator 3: growth attached to the walls (heights relative to the ground floor top). */
+  growth: NonNullable<ResolvedStructure["growth"]>;
+  /** Generator 3, weathered or ruined: how overgrown the building is (null otherwise). */
+  growthLevel?: NonNullable<ResolvedStructure["growthLevel"]> | null;
   /** Wall tops and fallen floors of a weathered or ruined building, relative to the ground floor top. */
   ruin: RuinProfile | null;
   frontage: NonNullable<ResolvedStructure["frontage"]>;
@@ -179,6 +194,8 @@ export class StructureWork {
   /** Ground cells of every building in the level (rects of wings / ground volumes), filled before planning, so a
    * building knows its neighbours: no windows or default door on a party wall. */
   readonly neighbours = new Map<string, string>();
+  /** Generator 3: the entrance kind each building drew, in list order (the next one differs). */
+  readonly entrances: string[] = [];
   /** Designs drawn from the style's design space (variety), and the building spec they expand into. */
   readonly designs = new Map<string, { design: BuildingDesign; building: Building }>();
   /** Plan list lengths: synthetic areas / openings / wall runs come after these indices. */
@@ -376,11 +393,30 @@ export class StructureWork {
         const i = w.idx(d.at[0], d.at[1]);
         if (i >= 0 && w.state[i] === CELL.OPEN) w.flags[i] = (w.flags[i] as number) | CELL_FLAG.FEATURE;
       }
+    // generator 3: the ring cell outside a wall that vines or roots climb (the strands stand in it, hard against the wall)
+    for (const b of this.buildings)
+      for (const g of b.growth) {
+        if ((g.kind !== "vine" && g.kind !== "root") || !g.side) continue;
+        const [dx, dy] = STEP[g.side];
+        const i = w.idx(g.at[0] + dx, g.at[1] + dy);
+        if (i >= 0 && w.state[i] === CELL.OPEN) w.flags[i] = (w.flags[i] as number) | CELL_FLAG.FEATURE;
+      }
     // chimney breasts stand in their ring cell: nothing else may stand or walk there
     for (const b of this.buildings)
       for (const c of b.chimneys) {
         const i = w.idx(c.at[0], c.at[1]);
         if (i >= 0) w.flags[i] = (w.flags[i] as number) | CELL_FLAG.FEATURE;
+        // generator 3: the stack's foot is three wide: its two side cells are taken too (when they are outside the walls)
+        if (b.valleys) {
+          const [dx, dy] = STEP[c.side];
+          for (const s of [1, -1]) {
+            const lx = c.at[0] + Math.abs(dy) * s;
+            const ly = c.at[1] + Math.abs(dx) * s;
+            const j = w.idx(lx, ly);
+            if (j >= 0 && !b.cellSet.has(key(lx, ly)) && w.state[j] === CELL.OPEN)
+              w.flags[j] = (w.flags[j] as number) | CELL_FLAG.FEATURE;
+          }
+        }
       }
     // door lights hang in the ring cell beside the door
     for (const b of this.buildings)
@@ -482,7 +518,12 @@ export class StructureWork {
         lighting: b.lighting,
         frontage: b.frontage,
         condition: b.condition,
+        ...(b.valleys ? { valleys: true } : {}),
         ...(b.debris.length > 0 ? { debris: b.debris } : {}),
+        ...(b.growth.length > 0
+          ? { growth: b.growth.map((g) => ({ ...g, from: base + g.from, to: base + g.to })) }
+          : {}),
+        ...(b.growthLevel ? { growthLevel: b.growthLevel } : {}),
         ...(b.ruin
           ? {
               ruin: {
@@ -496,6 +537,12 @@ export class StructureWork {
                 anchor: b.ruin.anchor,
                 loss: b.ruin.loss,
                 ...(b.ruin.roofHoles ? { roofHoles: b.ruin.roofHoles } : {}),
+                ...(b.ruin.weather ? { weather: b.ruin.weather } : {}),
+                ...(b.ruin.arches ? { arches: b.ruin.arches } : {}),
+                ...(b.ruin.keep !== undefined ? { keep: b.ruin.keep } : {}),
+                ...(b.ruin.topRubble
+                  ? { topRubble: b.ruin.topRubble.map((t) => ({ ...t, top: base + t.top })) }
+                  : {}),
               },
             }
           : {}),
@@ -738,7 +785,10 @@ export function expandStructures(
   ).length;
   for (const st of list) {
     if (st.kind === "enclosure") continue;
-    const space = structureStyle(st.style)?.design;
+    const style0 = structureStyle(st.style);
+    const base0 = style0?.design;
+    // generator 3: the style's gen3 overrides (roof share, attic tops) apply
+    const space = base0 ? designSpaceFor(base0, generatorAtLeast(plan, 3)) : undefined;
     const r = designable(st);
     if (!space || !r) continue;
     const near = placed.filter(
@@ -753,7 +803,21 @@ export function expandStructures(
       const tone = (x: BuildingDesign): string => space.tones?.[x.material] ?? "mid";
       const darkCap = Math.max(1, Math.floor(designedCount * (space.darkShare ?? 1 / 3)));
       const darkNow = placed.filter((p) => p.space === space && tone(p.d) === "dark").length;
+      // generator 3: a street never repeats one wall-and-roof pair (material, base and roof kit) within ten cells
+      const alike =
+        generatorAtLeast(plan, 3) && space.roofKits !== undefined
+          ? placed.some(
+              (p) =>
+                p.space === space &&
+                Math.abs(p.r.x + p.r.w / 2 - (r.x + r.w / 2)) < 10 + (p.r.w + r.w) / 2 &&
+                Math.abs(p.r.y + p.r.h / 2 - (r.y + r.h / 2)) < 10 + (p.r.h + r.h) / 2 &&
+                p.d.material === d.material &&
+                p.d.baseMaterial === d.baseMaterial &&
+                p.d.roofKit === d.roofKit,
+            )
+          : false;
       const clash =
+        alike ||
         near.some(
           (p) =>
             (p.d.archetype === d.archetype && p.d.material === d.material) ||
@@ -780,6 +844,9 @@ export function expandStructures(
           ...(space.parapetFor ? { parapetFor: space.parapetFor } : {}),
           ...(space.atticHeight !== undefined ? { atticHeight: space.atticHeight } : {}),
           ...(space.maxFootprint !== undefined ? { maxFootprint: space.maxFootprint } : {}),
+          ...(space.roofShare && style0
+            ? { roofBalance: { footing: style0.footing ? style0.footingHeight : 0, deck: style0.roof.deck } }
+            : {}),
           rearOpen: openDepth(level, r, back, st.id, work.neighbours, 3) >= 2.5,
         },
       ),
@@ -1476,6 +1543,8 @@ function planBuilding(
     opens.filter((o) => (o.storey ?? 0) === 0 && DOOR_KINDS.has(o.kind)).map((o) => o.side),
   );
   const chimneyFaces = (() => {
+    // generator 3: a hip roof has no gable wall to carry a stack, so a drawn chimney would stand apart from wall and roof
+    if (generatorAtLeast(plan, 3) && main.roof.layers[0]?.type === "hip") return [];
     const g = gableFaces().filter((f) => !doorFaces.has(f));
     return g.length > 0 ? g : SIDES.filter((f) => !doorFaces.has(f));
   })();
@@ -1579,15 +1648,22 @@ function planBuilding(
           const n = cellsRun.length;
           if (shop) {
             // a shopfront is glazed wall to wall: a window in every free cell of the street face (doors stay)
-            for (const c of cellsRun) {
+            for (const [ci, c] of cellsRun.entries()) {
               const k = `${c[0]},${c[1]},${side}`;
               if (isTaken(vk, vs, k) || innerCorner(c, side)) continue;
+              // generator 3 (cottage-like walls): a corner cell keeps its wall, a window there is walled over
+              if (generatorAtLeast(plan, 3) && (ci === 0 || ci === n - 1) && n >= 3) continue;
               take(vk, vs, k);
               ground.push({ id: nextId("window"), kind: "window", at: [c[0], c[1]], side, width: 1 });
             }
             continue;
           }
-          if (n < width + 2) continue;
+          // generator 3: no blank wall (the baseline every condition inherits): a face of three cells or more gets a
+          // window (one cell wide when two will not fit), and the gap between windows is at most three cells
+          const g3w = generatorAtLeast(plan, 3) && !shop;
+          const wd = g3w && n < width + 2 && n >= 3 ? 1 : width;
+          const gap = g3w ? Math.min(spacing, 3) : spacing;
+          if (n < wd + 2) continue;
           const keepFree = (i: number): boolean => {
             if (i < 1 || i >= n - 1) return false;
             const c = cellsRun[i] as [number, number];
@@ -1598,23 +1674,23 @@ function planBuilding(
             }
             return !isTaken(vk, vs, `${c[0]},${c[1]},${side}`);
           };
-          let p = 1 + (offset % Math.max(1, Math.min(spacing, n - width - 1)));
-          while (p + width - 1 <= n - 2) {
+          let p = 1 + (offset % Math.max(1, Math.min(gap, n - wd - 1)));
+          while (p + wd - 1 <= n - 2) {
             let ok = true;
-            for (let k = 0; k < width; k++) if (!keepFree(p + k)) ok = false;
+            for (let k = 0; k < wd; k++) if (!keepFree(p + k)) ok = false;
             if (!ok) {
               p++;
               continue;
             }
             const c = cellsRun[p] as [number, number];
-            for (let k = 0; k < width; k++) {
+            for (let k = 0; k < wd; k++) {
               const cc = cellsRun[p + k] as [number, number];
               take(vk, vs, `${cc[0]},${cc[1]},${side}`);
             }
             if (vk === groundKey)
-              ground.push({ id: nextId("window"), kind: "window", at: [c[0], c[1]], side, width });
-            else upper.push({ storey: s, kind: "window", at: [c[0], c[1]], side, width, volume: v.id });
-            p += width + spacing;
+              ground.push({ id: nextId("window"), kind: "window", at: [c[0], c[1]], side, width: wd });
+            else upper.push({ storey: s, kind: "window", at: [c[0], c[1]], side, width: wd, volume: v.id });
+            p += wd + gap;
           }
         }
       }
@@ -1630,9 +1706,10 @@ function planBuilding(
   // ── porches ──
   const porches: BuildingPlan["porches"] = [];
   const firstDoor = ground.find((g) => DOOR_KINDS.has(g.kind));
-  const attachIn: Array<Attachment & { seeded?: true }> =
+  const drawnPorch = st.attachments === undefined && firstDoor !== undefined ? prng.chance(profile.variety.porchChance) : false;
+  let attachIn: Array<Attachment & { seeded?: true }> =
     st.attachments ??
-    (firstDoor && prng.chance(profile.variety.porchChance)
+    (firstDoor && drawnPorch
       ? [
           {
             type: "porch" as const,
@@ -1643,6 +1720,35 @@ function planBuilding(
           },
         ]
       : []);
+  // generator 3: the entrance varies (none, a hood on two posts, a full-width porch, steps and a landing), drawn per
+  // building and never the same as the building drawn before it (own stream; styles with no porches keep none)
+  if (generatorAtLeast(plan, 3) && st.attachments === undefined && firstDoor && profile.variety.porchChance > 0) {
+    const ep = createPrng(subSeed(seed, "entrance3"));
+    const kinds: Array<[string, number]> = [["none", 0.2], ["hood", 0.3], ["porch", 0.25], ["landing", 0.25]];
+    const last = work.entrances[work.entrances.length - 1];
+    let kind = "hood";
+    for (let t = 0; t < 8; t++) {
+      let r = ep.next() * kinds.reduce((a, [, w]) => a + w, 0);
+      kind = (kinds.find(([, w]) => (r -= w) < 0) ?? ["hood", 0])[0];
+      if (kind !== last) break;
+    }
+    work.entrances.push(kind);
+    const frontRun = faceRuns(cellSet, firstDoor.side)[0];
+    attachIn =
+      kind === "none"
+        ? []
+        : [
+            {
+              type: "porch" as const,
+              side: firstDoor.side,
+              width:
+                kind === "porch" ? Math.min(frontRun?.cells.length ?? 5, Math.max(firstDoor.width + 4, 5)) : firstDoor.width + 2,
+              depth: kind === "landing" ? 1 : 2,
+              ...(kind === "landing" ? { roof: "none" as const } : {}),
+              seeded: true as const,
+            },
+          ];
+  }
   attachIn.forEach((at, ai) => {
     if (at.type !== "porch") {
       work.issue(
@@ -1701,20 +1807,42 @@ function planBuilding(
   // ── condition: a weathered or ruined building loses roof pieces, its doors and lights; breaches open in a
   // ruined ground storey; rubble and growth gather at its foot (the compiler also breaks the upper wall courses) ──
   const condition = st.condition ?? profile.condition ?? "intact";
+  const g3 = generatorAtLeast(plan, 3);
   const prng4 = createPrng(subSeed(seed, "condition"));
   const debris: BuildingPlan["debris"] = [];
+  const growth: BuildingPlan["growth"] = [];
+  // generator 3: how overgrown the building is (the plan's word, else light for weathered, medium for ruined)
+  const growthLevel: BuildingPlan["growthLevel"] =
+    g3 && condition !== "intact" ? (st.growth ?? (condition === "ruined" ? "medium" : "light")) : null;
+  const heavyGrowth = growthLevel === "heavy";
   let ruin: RuinProfile | null = null;
   if (condition !== "intact") {
     const ruined = condition === "ruined";
     // the wall tops and fallen floors (resolve/ruin.ts); a gable-roofed main mass keeps the gable wall nearest
     // its standing corner, its slopes fallen in
-    const gableWing = ruined && main.roof.layers[0]?.type === "gable" ? main.rects[0] : undefined;
+    // (generator 3: not on timber walls: a lone stepped gable of planks is masonry logic)
+    const timberWalls = g3 && vplans.some((v) => v.on === null && v.storeys[0]?.walls === "wood");
+    const gableWing = ruined && !timberWalls && main.roof.layers[0]?.type === "gable" ? main.rects[0] : undefined;
     ruin = ruinProfile(
       vplans,
       condition,
       subSeed(seed, "ruin"),
       gableWing,
       new Set(vplans.filter((v) => v.roof.layers.length > 0).map((v) => v.id)),
+      {
+        gen3: g3,
+        pitched: new Set(
+          vplans
+            .filter((v) => ["gable", "hip", "shed"].includes(v.roof.layers[0]?.type ?? ""))
+            .map((v) => v.id),
+        ),
+        // generator 3: a ruin of several volumes keeps one whole under its roof more often than not
+        keepRoofed:
+          g3 && ruined && vplans.filter((v) => v.on === null).length > 1
+            ? createPrng(subSeed(seed, "anchor3")).chance(0.65)
+            : false,
+        openings: ground.map((g) => ({ at: g.at, side: g.side, width: g.width })),
+      },
     );
     if (ruined) {
       const tops = new Map(ruin.columns.map((c) => [`${c.at[0]},${c.at[1]},${c.side}`, c.top]));
@@ -1742,10 +1870,109 @@ function planBuilding(
         const cy = ts.rect.y + 1 + prng4.int(ts.rect.h - 2);
         ruin.roofHoles = ts.cells.filter(([x, y]) => Math.abs(x - cx) <= 1 && Math.abs(y - cy) <= 1);
       }
+      const lost: string[] = chimneys.length > 0 ? ["chimney"] : [];
       chimneys.splice(0, chimneys.length);
+      if (g3) {
+        // generator 3: the signs must read from the game camera (own stream; generator 2 draws are untouched)
+        const wp = createPrng(subSeed(seed, "weather3"));
+        // the fallen patch is ragged and sits at an eave or a corner, not in the middle (a clean square hole reads as
+        // a skylight): a blob grown cell by cell from a corner of the top storey, preferring cells on its edge
+        if (ts && ruin.roofHoles && ts.cells.length >= 9) {
+          const rp = createPrng(subSeed(seed, "roofhole3"));
+          const own = new Set(ts.cells.map(([x, y]) => key(x, y)));
+          const onEdge = (x: number, y: number): boolean => SIDES.some((sd) => !own.has(key(x + STEP[sd][0], y + STEP[sd][1])));
+          const corners: Array<[number, number]> = [
+            [ts.rect.x, ts.rect.y],
+            [ts.rect.x + ts.rect.w - 1, ts.rect.y],
+            [ts.rect.x, ts.rect.y + ts.rect.h - 1],
+            [ts.rect.x + ts.rect.w - 1, ts.rect.y + ts.rect.h - 1],
+          ];
+          const start = corners[rp.int(4)] as [number, number];
+          const want = Math.max(5, Math.round(ts.cells.length * (0.14 + 0.08 * rp.next())));
+          const blob = new Set<string>();
+          if (own.has(key(start[0], start[1]))) blob.add(key(start[0], start[1]));
+          while (blob.size < want && blob.size > 0) {
+            const front: Array<[number, number, number]> = [];
+            for (const k of blob) {
+              const [x, y] = k.split(",").map(Number) as [number, number];
+              for (const sd of SIDES) {
+                const nx = x + STEP[sd][0];
+                const ny = y + STEP[sd][1];
+                if (own.has(key(nx, ny)) && !blob.has(key(nx, ny))) front.push([nx, ny, (onEdge(nx, ny) ? 3 : 1) * (0.4 + rp.next())]);
+              }
+            }
+            if (front.length === 0) break;
+            front.sort((a, b) => b[2] - a[2]);
+            const pick = front[0] as [number, number, number];
+            blob.add(key(pick[0], pick[1]));
+          }
+          if (blob.size >= 3) ruin.roofHoles = [...blob].map((k) => k.split(",").map(Number) as [number, number]);
+        }
+        // a second fallen patch elsewhere on the same roof
+        if (ts && ruin.roofHoles && ts.rect.w >= 5 && ts.rect.h >= 3) {
+          const taken = new Set(ruin.roofHoles.map(([x, y]) => key(x, y)));
+          for (let t = 0; t < 8; t++) {
+            const cx = ts.rect.x + 1 + wp.int(ts.rect.w - 2);
+            const cy = ts.rect.y + 1 + wp.int(ts.rect.h - 2);
+            const patch = ts.cells.filter(([x, y]) => Math.abs(x - cx) <= 1 && Math.abs(y - cy) <= 1);
+            if (patch.length < 4 || patch.some(([x, y]) => taken.has(key(x, y)))) continue;
+            // a clear cell between the patches keeps them two holes, not one
+            if (patch.some(([x, y]) => SIDES.some((sd) => taken.has(key(x + STEP[sd][0], y + STEP[sd][1])))))
+              continue;
+            ruin.roofHoles = [...ruin.roofHoles, ...patch];
+            break;
+          }
+        }
+        // a third of the windows are boarded (the opening is left out: that wall is built plain), at least one
+        const wins: Array<{ at: Vec2; side: Side }> = [
+          ...ground.filter((g) => g.kind === "window" || g.kind === "arrow_slit"),
+          ...upper.filter((g) => g.kind === "window" || g.kind === "arrow_slit"),
+        ];
+        const boardN = wins.length === 0 ? 0 : Math.max(1, Math.round(wins.length * 0.34));
+        const boarded = wp
+          .shuffle(wins.map((w) => `${w.at[0]},${w.at[1]},${w.side}`))
+          .slice(0, boardN)
+          .sort();
+        const board = new Set(boarded);
+        for (const list of [ground, upper])
+          for (let i = list.length - 1; i >= 0; i--) {
+            const g = list[i];
+            if (g && (g.kind === "window" || g.kind === "arrow_slit") && board.has(`${g.at[0]},${g.at[1]},${g.side}`))
+              list.splice(i, 1);
+          }
+        // a flat roof's parapet is bitten in places (a pitched roof hides its wall tops)
+        const bites: string[] = [];
+        for (const v of vplans) {
+          const top = v.storeys[v.storeys.length - 1];
+          if (!top || !v.roof.layers.some((l) => l.type === "flat" && l.parapet)) continue;
+          const own = new Set(top.cells.map(([x, y]) => key(x, y)));
+          for (const [x, y] of top.cells)
+            for (const sd of SIDES)
+              if (!own.has(key(x + STEP[sd][0], y + STEP[sd][1])) && wp.chance(0.28))
+                bites.push(`${x},${y},${sd}`);
+        }
+        // a detail has fallen or been taken away: the roof mast, one hung detail (canopy, balcony, fire escape)
+        const dz = work.designs.get(st.id);
+        if (dz) {
+          const hung = ["canopy", "balconies", "fire_escape"].find((d) => dz.design.details.includes(d));
+          if (hung) {
+            lost.push(hung);
+            work.designs.set(st.id, {
+              ...dz,
+              design: { ...dz.design, details: dz.design.details.filter((d) => d !== hung) },
+            });
+          }
+        }
+        ruin.weather = { boarded, parapetBites: bites.sort(), lost, windows: wins.length };
+      }
     }
     for (const v of vplans) {
-      v.roof.broken = Math.max(v.roof.broken, ruined ? 0.45 : 0.2);
+      // the anchor of a generator 3 ruin keeps its roof, a little broken at the edges
+      if (ruined && ruin.keep === v.id) {
+        v.roof.broken = Math.max(v.roof.broken, 0.12);
+        continue;
+      }
+      v.roof.broken = Math.max(v.roof.broken, ruined ? 0.45 : g3 ? 0.3 : 0.2);
       // a ruin's roofs have fallen in (the gable wall of a pitched one may stand)
       if (ruined) {
         if (v === main && ruin.gable) v.roof.gableOnly = ruin.gable;
@@ -1771,6 +1998,10 @@ function planBuilding(
         }
         return false;
       };
+      // the walls of the kept, roofed volume are not breached
+      const whole = new Set<string>();
+      if (ruin.keep !== undefined)
+        for (const c of ruin.columns) if (c.top >= c.full - 1e-6) whole.add(`${c.at[0]},${c.at[1]},${c.side}`);
       let made = 0;
       for (let attempt = 0; attempt < 12 && made < breaches; attempt++) {
         const side = SIDES[prng4.int(4)] as Side;
@@ -1785,6 +2016,9 @@ function planBuilding(
           if (!c) continue;
           // doorways and their neighbours stay; windows inside the breach go
           if (ground.some((g) => g.kind !== "window" && onFace(g, c, side))) free = false;
+          if (whole.has(`${c[0]},${c[1]},${side}`)) free = false;
+          // nor a standing arch (generator 3) and its jambs
+          if (ruin.arches?.some((q) => onFace({ id: "", kind: "window", ...q }, c, side))) free = false;
           if (k >= 0 && k < width && (!inBounds(c[0] + dx * 2, c[1] + dy * 2) || party(c[0] + dx, c[1] + dy)))
             free = false;
           if (
@@ -1801,10 +2035,27 @@ function planBuilding(
           if (g && g.kind === "window" && cells.some((c) => onFace(g, c, side))) ground.splice(i, 1);
         }
         for (const cc of cells) take(groundKey, 0, `${cc[0]},${cc[1]},${side}`);
+        // generator 3: collapse goes top-down, so no upper wall hangs over a breach (the column ends at the storey's top)
+        if (g3)
+          for (const cc of cells) {
+            const col = ruin.columns.find((q) => q.at[0] === cc[0] && q.at[1] === cc[1] && q.side === side);
+            const gt = vplans[0]?.storeys[0]?.relTop;
+            if (col && gt !== undefined && col.top > gt) col.top = gt;
+          }
         const c = cells[0] as [number, number];
         ground.push({ id: nextId("breach"), kind: "open", at: [c[0], c[1]], side, width });
         made++;
       }
+    }
+    // generator 3: broken blocks and rubble on the cut wall tops (never over a doorway, breach or window)
+    if (ruined && g3) {
+      const openKeys = new Set<string>();
+      for (const g of ground)
+        for (let k = 0; k < g.width; k++)
+          openKeys.add(
+            `${g.side === "N" || g.side === "S" ? g.at[0] + k : g.at[0]},${g.side === "N" || g.side === "S" ? g.at[1] : g.at[1] + k},${g.side}`,
+          );
+      scatterTopRubble(ruin, openKeys, subSeed(seed, "ruin"));
     }
     // rubble and growth, never in a doorway's or breach's path (three cells out, two in): a ruin's lies mostly
     // inside its walls (six in ten), in heaps scaled to how much fell, with growth among it and a few story props;
@@ -1829,10 +2080,35 @@ function planBuilding(
     const near = (x: number, y: number): boolean =>
       debris.some((d) => Math.abs(d.at[0] - x) <= 1 && Math.abs(d.at[1] - y) <= 1);
     for (const k of outside) {
-      if (!prng4.chance(ruined ? 0.06 + 0.15 * loss : 0.15)) continue;
+      if (!prng4.chance(heavyGrowth ? (ruined ? 0.12 + 0.2 * loss : 0.3) : ruined ? 0.06 + 0.15 * loss : 0.15)) continue;
       const [x, y] = k.split(",").map(Number) as [number, number];
       if (near(x, y)) continue;
-      debris.push({ at: [x, y], kind: prng4.chance(ruined ? 0.55 : 0.3) ? "rubble" : "growth" });
+      debris.push({
+        at: [x, y],
+        kind: prng4.chance(heavyGrowth ? (ruined ? 0.25 : 0.08) : ruined ? 0.55 : 0.3) ? "rubble" : "growth",
+      });
+    }
+    if (g3 && !ruined) {
+      // generator 3: growth against the foot of the walls, a heap for about every seven wall faces, never in a door's path
+      const wp2 = createPrng(subSeed(seed, "weather3b"));
+      let faceCount = 0;
+      for (const k of cellSet) {
+        const [x, y] = k.split(",").map(Number) as [number, number];
+        for (const sd of SIDES) if (!cellSet.has(key(x + STEP[sd][0], y + STEP[sd][1]))) faceCount++;
+      }
+      const foot = [...ringOf(cellSet)].sort().filter((k) => {
+        const [x, y] = k.split(",").map(Number) as [number, number];
+        return !blocked.has(k) && inBounds(x, y) && !work.neighbours.has(k);
+      });
+      const want = Math.max(2, Math.ceil(faceCount / (heavyGrowth ? 3 : 7)));
+      let made = 0;
+      for (const k of wp2.shuffle(foot)) {
+        if (made >= want) break;
+        const [x, y] = k.split(",").map(Number) as [number, number];
+        if (near(x, y)) continue;
+        debris.push({ at: [x, y], kind: "growth" });
+        made++;
+      }
     }
     if (ruined) {
       // inside: off the wall cells (a heap there would lean into the wall), never two side by side
@@ -1867,11 +2143,106 @@ function planBuilding(
               ? "rubble"
               : i <= 2 && inside.length >= 12
                 ? "prop"
-                : prng4.chance(0.8)
+                : prng4.chance(heavyGrowth ? 0.35 : 0.8)
                   ? "rubble"
                   : "growth",
         });
       });
+    }
+    // generator 3: what fell lies on the ground beside where it fell: clusters of heaps within two or three cells of
+    // each fallen stretch of wall, inside and outside, not in the ring cell the vines use (own stream)
+    if (ruined && g3) {
+      const fp = createPrng(subSeed(seed, "fallen3"));
+      const have = new Set(debris.map((d) => key(d.at[0], d.at[1])));
+      const fallenCols = ruin.columns.filter((c) => {
+        const [dx, dy] = STEP[c.side];
+        return c.full - c.top >= 1.5 && !cellSet.has(key(c.at[0] + dx, c.at[1] + dy));
+      });
+      let budget = Math.max(6, Math.round(fallenCols.length * 0.8));
+      for (const c of fp.shuffle(fallenCols)) {
+        if (budget <= 0) break;
+        const [dx, dy] = STEP[c.side];
+        const [lx, ly] = [Math.abs(dy), Math.abs(dx)];
+        const spots: Array<[number, number]> = [];
+        for (const d of [-1, 0, 2, 3]) for (const l of [-1, 0, 1]) spots.push([c.at[0] + dx * d + lx * l, c.at[1] + dy * d + ly * l]);
+        const n = Math.min(4, 1 + Math.round((c.full - c.top) / 2) + fp.int(2));
+        let made = 0;
+        for (const [x, y] of fp.shuffle(spots)) {
+          if (made >= n) break;
+          const k = key(x, y);
+          if (have.has(k) || !inBounds(x, y) || blocked.has(k) || work.neighbours.has(k)) continue;
+          have.add(k);
+          debris.push({ at: [x, y], kind: fp.chance(heavyGrowth ? 0.35 : 0.85) ? "rubble" : "growth" });
+          made++;
+          budget--;
+        }
+      }
+    }
+    // generator 3: growth that climbs the structure (vines up the faces, roots at the base, plants on cut tops, a tree
+    // in a roofless middle); own stream, so generator 2 draws are untouched
+    if (g3) {
+      const faceKeys = new Set<string>();
+      const around = (at: readonly [number, number], side: Side, from: number, to: number): void => {
+        for (let k = from; k <= to; k++)
+          faceKeys.add(
+            `${side === "N" || side === "S" ? at[0] + k : at[0]},${side === "N" || side === "S" ? at[1] : at[1] + k},${side}`,
+          );
+      };
+      // (heavy growth frames the windows: ivy runs up to a window's edge, never across it)
+      for (const g of ground)
+        if (heavyGrowth && (g.kind === "window" || g.kind === "arrow_slit")) around(g.at, g.side, 0, g.width - 1);
+        else around(g.at, g.side, -1, g.width);
+      for (const q of ruin.arches ?? []) around(q.at, q.side, -1, q.width);
+      for (const c of chimneys) around(c.wall, c.side, -1, 1);
+      const upperFaces = new Set<string>();
+      for (const g of upper) around(g.at, g.side, 0, g.width - 1);
+      const groundTop = main.storeys[0]?.relTop ?? 2;
+      const taken2 = new Set((ruin.topRubble ?? []).map((t) => `${t.at[0]},${t.at[1]},${t.side}`));
+      const heapCells = new Set(debris.map((d) => key(d.at[0], d.at[1])));
+      const open = new Set<string>();
+      // a tree stands well clear of every doorway and breach (its crown is two and a half cells wide)
+      const doorZone = new Set<string>();
+      for (const g of ground)
+        for (let k = -3; k <= g.width + 2; k++)
+          for (let dd = -4; dd <= 4; dd++) {
+            const [sx, sy] = STEP[g.side];
+            const ax = g.side === "N" || g.side === "S" ? g.at[0] + k : g.at[0];
+            const ay = g.side === "N" || g.side === "S" ? g.at[1] : g.at[1] + k;
+            doorZone.add(key(ax + sx * dd, ay + sy * dd));
+          }
+      if (ruined)
+        for (const v of vplans)
+          if (v.on === null && v.roof.layers.length === 0)
+            for (const [x, y] of v.storeys[0]?.cells ?? []) {
+              let clear = !doorZone.has(key(x, y));
+              // (a heavily overgrown ruin plants its trees among the bushes: only the tree's own cell is kept clear)
+              for (let dy = heavyGrowth ? 0 : -1; dy <= (heavyGrowth ? 0 : 1) && clear; dy++)
+                for (let dx = heavyGrowth ? 0 : -1; dx <= (heavyGrowth ? 0 : 1); dx++)
+                  if (heapCells.has(key(x + dx, y + dy))) clear = false;
+              if (clear) open.add(key(x, y));
+            }
+      growth.push(
+        ...climbingGrowth({
+          seed: subSeed(seed, "growth3"),
+          ruined,
+          level: growthLevel ?? "light",
+          columns: ruin.columns,
+          anchor: ruin.anchor,
+          cellSet,
+          blocked: faceKeys,
+          upperFaces,
+          groundTop,
+          // (a foot heap in or beside the ring cell, a door path or a neighbour takes the face: a heap is wider than its cell)
+          ringFree: (x, y) =>
+            inBounds(x, y) &&
+            !work.neighbours.has(key(x, y)) &&
+            !blocked.has(key(x, y)) &&
+            // (vines meet the heaps at the foot: only a heap in the ring cell itself takes the face)
+            !heapCells.has(key(x, y)),
+          topTaken: taken2,
+          open,
+        }),
+      );
     }
   }
 
@@ -1966,6 +2337,10 @@ function planBuilding(
       ? { hut: st.roofFurniture?.hut ?? prng3.chance(pf.hut ?? 0) }
       : {}),
   };
+  if (g3 && ruin?.weather && furniture.mast) {
+    furniture.mast = false;
+    ruin.weather.lost.push("mast");
+  }
   const pl = profile.lighting ?? {
     windows: "none" as const,
     lit: [0, 0] as const,
@@ -1989,7 +2364,7 @@ function planBuilding(
   if (condition === "ruined") {
     lighting.windows = "none";
     lighting.strips = false;
-  } else if (condition === "weathered") lighting.lit = Math.round(lighting.lit * 30) / 100; // most windows dark
+  } else if (condition === "weathered") lighting.lit = Math.round(lighting.lit * (g3 ? 15 : 30)) / 100; // most windows dark
 
   // ── reserved cells: wall ring, door approaches (two cells out), chimney, porch and a ring around the porch ──
   const reserve = new Set<string>(ringOf(cellSet));
@@ -2034,7 +2409,10 @@ function planBuilding(
     lighting,
     frontage: { side: frontSide, shopfront },
     condition,
+    valleys: g3,
     debris,
+    growth,
+    ...(growthLevel !== null ? { growthLevel } : {}),
     ruin,
   };
 }

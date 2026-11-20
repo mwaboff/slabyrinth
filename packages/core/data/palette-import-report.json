@@ -14,40 +14,40 @@
     "outdoor/road_2x2_t": "directional road tiles need path-aware tiling (not in v1)",
     "outdoor/road_2x2_cross": "directional road tiles need path-aware tiling (not in v1)"
   },
-  "vocabularyRoles": 167,
+  "vocabularyRoles": 171,
   "countsPerTheme": {
     "generic": {
-      "direct": 143,
+      "direct": 147,
       "alias": 22,
       "missing": 2
     },
     "stone_dungeon": {
-      "direct": 143,
+      "direct": 147,
       "alias": 22,
       "missing": 2
     },
     "wood_town": {
-      "direct": 143,
+      "direct": 147,
       "alias": 24,
       "missing": 0
     },
     "cave": {
-      "direct": 143,
+      "direct": 147,
       "alias": 24,
       "missing": 0
     },
     "outdoor": {
-      "direct": 143,
+      "direct": 147,
       "alias": 24,
       "missing": 0
     },
     "forest": {
-      "direct": 143,
+      "direct": 147,
       "alias": 24,
       "missing": 0
     },
     "city": {
-      "direct": 143,
+      "direct": 147,
       "alias": 22,
       "missing": 2
     }
@@ -253,7 +253,11 @@
       "feature.seating": "direct",
       "feature.signage": "direct",
       "feature.cliff_face": "missing",
-      "feature.cliff_crest": "missing"
+      "feature.cliff_crest": "missing",
+      "feature.stall": "direct",
+      "feature.goods": "direct",
+      "feature.overhead": "direct",
+      "feature.line_post": "direct"
     },
     "stone_dungeon": {
       "floor.flagstone": "direct",
@@ -422,7 +426,11 @@
       "feature.seating": "direct",
       "feature.signage": "direct",
       "feature.cliff_face": "missing",
-      "feature.cliff_crest": "missing"
+      "feature.cliff_crest": "missing",
+      "feature.stall": "direct",
+      "feature.goods": "direct",
+      "feature.overhead": "direct",
+      "feature.line_post": "direct"
     },
     "wood_town": {
       "floor.flagstone": "direct",
@@ -591,7 +599,11 @@
       "feature.seating": "direct",
       "feature.signage": "direct",
       "feature.cliff_face": "alias: feature.cliff_face → cliff.formation_face",
-      "feature.cliff_crest": "alias: feature.cliff_crest → cliff.formation_crest"
+      "feature.cliff_crest": "alias: feature.cliff_crest → cliff.formation_crest",
+      "feature.stall": "direct",
+      "feature.goods": "direct",
+      "feature.overhead": "direct",
+      "feature.line_post": "direct"
     },
     "cave": {
       "floor.flagstone": "direct",
@@ -760,7 +772,11 @@
       "feature.seating": "direct",
       "feature.signage": "direct",
       "feature.cliff_face": "alias: feature.cliff_face → cliff.formation_face",
-      "feature.cliff_crest": "alias: feature.cliff_crest → cliff.formation_crest"
+      "feature.cliff_crest": "alias: feature.cliff_crest → cliff.formation_crest",
+      "feature.stall": "direct",
+      "feature.goods": "direct",
+      "feature.overhead": "direct",
+      "feature.line_post": "direct"
     },
     "outdoor": {
       "floor.flagstone": "direct",
@@ -929,7 +945,11 @@
       "feature.seating": "direct",
       "feature.signage": "direct",
       "feature.cliff_face": "alias: feature.cliff_face → cliff.formation_face",
-      "feature.cliff_crest": "alias: feature.cliff_crest → cliff.formation_crest"
+      "feature.cliff_crest": "alias: feature.cliff_crest → cliff.formation_crest",
+      "feature.stall": "direct",
+      "feature.goods": "direct",
+      "feature.overhead": "direct",
+      "feature.line_post": "direct"
     },
     "forest": {
       "floor.flagstone": "direct",
@@ -1098,7 +1118,11 @@
       "feature.seating": "direct",
       "feature.signage": "direct",
       "feature.cliff_face": "alias: feature.cliff_face → cliff.formation_face",
-      "feature.cliff_crest": "alias: feature.cliff_crest → cliff.formation_crest"
+      "feature.cliff_crest": "alias: feature.cliff_crest → cliff.formation_crest",
+      "feature.stall": "direct",
+      "feature.goods": "direct",
+      "feature.overhead": "direct",
+      "feature.line_post": "direct"
     },
     "city": {
       "floor.flagstone": "direct",
@@ -1267,7 +1291,11 @@
       "feature.seating": "direct",
       "feature.signage": "direct",
       "feature.cliff_face": "missing",
-      "feature.cliff_crest": "missing"
+      "feature.cliff_crest": "missing",
+      "feature.stall": "direct",
+      "feature.goods": "direct",
+      "feature.overhead": "direct",
+      "feature.line_post": "direct"
     }
   }
 }

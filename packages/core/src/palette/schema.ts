@@ -67,6 +67,7 @@ export const variantSchema = z.looseObject({
  */
 export const roleSchema = z
   .looseObject({
+    minGenerator: z.number().int().min(1).optional(),
     variants: z.array(variantSchema),
     footprint: footprint.optional(),
     rotation: z.enum(["fixed", "facing", "random90", "random15", "inherit"]).optional(),

@@ -57,6 +57,7 @@ export function translateTerrain(op: TerrainOp, dx: number, dy: number): Terrain
       return { ...op };
     case "platform":
     case "outcrop":
+    case "floor_opening":
       return { ...op, shape: translateShape(op.shape, dx, dy) };
     case "stairs":
       return { ...op, from: tr(op.from, dx, dy), to: tr(op.to, dx, dy) };

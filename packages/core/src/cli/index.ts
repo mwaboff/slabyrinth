@@ -28,7 +28,7 @@ import {
 } from "../catalog/index";
 import type { AssetCatalog, ChunkOptions, PaletteCatalog, SlabAsset } from "../contracts/compiler";
 import type { MapPlan } from "../contracts/plan";
-import { calibrationAssetsFrom, calibrationSlabAssets, compileResolved } from "../compile/index";
+import { calibrationAssetsFrom, calibrationSlabAssets, compileResolved, realize } from "../compile/index";
 import { loadOrientation, loadPalettes } from "../palette/index";
 import { validatePlan } from "../plan/index";
 import { resolvePlan } from "../resolve/index";
@@ -191,6 +191,11 @@ function cmdCompile(a: Args, io: CliIo): number {
       io.out(
         `${c.id.padEnd(14)} ${String(c.assetCount).padStart(6)} assets ${String(c.compressedBytes).padStart(6)} B  ${c.label}${c.hasAlignmentMarkers ? "  [markers]" : ""}`,
       );
+    // TaleSpire's water is a board-wide plane the slab cannot carry: always say where to set it
+    for (const wl of bundle.waterLevels ?? [])
+      io.out(
+        `water (${wl.levelId}): raise TaleSpire's water to ${wl.aboveBase} tiles (${wl.aboveBase * 5} ft) above the slab's bottom, anywhere from ${wl.min} to ${wl.max}`,
+      );
     const verbose = a.flags["verbose"] === true;
     for (const d of bundle.diagnostics.filter((x) => verbose || x.severity !== "info" || x.repaired)) {
       const where = `${d.levelId ?? ""}${d.cell ? ` (${d.cell[0]},${d.cell[1]})${d.side ? ` ${d.side}` : ""}` : ""}`;
@@ -214,9 +219,11 @@ function cmdReview(a: Args, io: CliIo): number {
   const plan = "format" in raw && "plan" in raw ? raw.plan : raw;
   const resolved = resolvePlan(plan);
   const palettes = palettesFrom(a, io);
-  const diagnostics =
-    a.flags["no-build"] === true ? [] : compileResolved(resolved, palettes, slabCodec, { plan }).diagnostics;
-  const notes = reviewDesign(plan, resolved, { palettes, diagnostics });
+  const noBuild = a.flags["no-build"] === true;
+  const diagnostics = noBuild ? [] : compileResolved(resolved, palettes, slabCodec, { plan }).diagnostics;
+  // the realized pieces too (the cave rock mass is measured on them)
+  const placements = noBuild ? undefined : realize(resolved, palettes, {});
+  const notes = reviewDesign(plan, resolved, { palettes, diagnostics, ...(placements ? { placements } : {}) });
   if (a.flags["json"]) io.out(JSON.stringify(notes, null, 2));
   else io.out(designReviewText(notes) || "design review: nothing to note");
   return 0;

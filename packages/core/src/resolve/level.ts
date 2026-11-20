@@ -29,7 +29,10 @@ import type {
   ResolvedArea,
   ResolvedBridge,
   ResolvedFeature,
+  ResolvedChannel,
+  ResolvedFall,
   ResolvedLevel,
+  ResolvedLine,
   ResolvedOpening,
 } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
@@ -43,6 +46,15 @@ import {
   dressArea,
   scatterFeatures,
 } from "../gen/place";
+import { defaultCliffBands } from "../gen/setpieces";
+import {
+  STALL_BASE,
+  STALL_GOODS,
+  TRADE_PROPS,
+  layoutLine,
+  layoutStalls,
+  tradeOf,
+} from "../gen/market";
 import {
   type ClipBox,
   bandOffsets,
@@ -53,11 +65,13 @@ import {
 } from "../gen/shapes";
 import { elementSeed, h32, subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
-import { chasmGeometry, chasmSampleAt } from "./chasm";
-import { breakStraightSteps, chamferCorners, organicTiers } from "./organic";
+import { type ChasmGeometry, type ChasmSample, chasmGeometry, chasmSampleAt } from "./chasm";
+import { type ChannelCell, type ReachPlan, planReaches } from "./falls";
+import { breakStraightSteps, chamferCorners, organicTiers, roughenLumps } from "./organic";
 import { cliffRuns } from "./cliffs";
 import type { PieceSizeFn } from "./pieceSizes";
 import { STILL_WATER, riverCourse } from "./water";
+import { generatorAtLeast } from "../plan/generator";
 import { crossingCells, kerbLinesAndCorners } from "./road";
 import { trailCells } from "./trail";
 import type { ThemeDefaults } from "./themes";
@@ -172,6 +186,12 @@ const NATURAL_PATH = new Set<Material>([
   "swamp",
   "ice",
 ]);
+/** Generator 3: a long rift or river strays from the line between its ends by about this share of its length. */
+const WANDER_SHARE = 0.2;
+/** Samples (half a cell each) of the pool at the foot of a fall. */
+const POOL_LENGTH = 7;
+/** A pool is cut only into ground at most this far (a tile) above its level. */
+const POOL_MAX_BANK_Q = 4;
 /** Landmark-class pieces a spur trail leads to (the first found), then lesser focal pieces. */
 const SPUR_PRIMARY = new Set<string>([
   "landmark",
@@ -239,6 +259,21 @@ export class LevelWork {
   /** Stair edges requested by platform and stairs ops ("a,b" local cell pairs, a < b). */
   private readonly stairEdges = new Set<string>();
   readonly outcrops: NonNullable<ResolvedLevel["outcrops"]> = [];
+  /** Generator 3: floor openings (terrain op floor_opening): the cut cells and what the level below shows. */
+  private readonly floorOpenings: Array<{
+    id: string;
+    kind: "collapse" | "shaft" | "balcony";
+    rim: WallStyle | "none";
+    cells: number[];
+    rubble: boolean;
+    seed: number;
+    below?: string;
+    floorBelow: number;
+    hiddenEdge: number;
+    edgeCells: number;
+  }> = [];
+  /** Generator 3: rubble to heap on this level's floor under a collapse in the level above (global cells). */
+  private readonly rubbleUnder: Array<{ id: string; cells: Vec2[]; seed: number }> = [];
   private readonly kerbs: NonNullable<ResolvedLevel["kerbs"]> = [];
   /** Rubble at the ends of crumbling bridges, committed with the generated features. */
   private readonly bridgeRubble: Array<{ id: string; at: Vec2 }> = [];
@@ -472,6 +507,7 @@ export class LevelWork {
     this.stepKerbs();
     this.stepWallRuns();
     this.stepOpenings();
+    this.stepOpeningRims();
     this.structs?.afterOpenings(this);
     this.checkAreaFields();
   }
@@ -529,7 +565,8 @@ export class LevelWork {
         op.op === "platform" ||
         op.op === "stairs" ||
         op.op === "uneven" ||
-        op.op === "outcrop";
+        op.op === "outcrop" ||
+        op.op === "floor_opening";
       const opLayer = structural ? "over" : (op.layer ?? "under");
       if (opLayer !== layer) return;
       const path = `/levels/${this.li}/terrain/${k}`;
@@ -549,6 +586,9 @@ export class LevelWork {
         case "outcrop":
           this.applyOutcrop(op, path);
           return;
+        case "floor_opening":
+          this.applyFloorOpening(op, path);
+          return;
       }
       const r = this.applyTerrain(op, path, layer);
       if (layer === "under" && r.touched.length > 0) this.underTouched.push({ op, path, cells: r.touched });
@@ -563,7 +603,7 @@ export class LevelWork {
   private reportTerrainNoEffect(
     op: Exclude<
       TerrainOp,
-      { op: "scatter" | "dress" | "chasm" | "platform" | "stairs" | "uneven" | "outcrop" }
+      { op: "scatter" | "dress" | "chasm" | "platform" | "stairs" | "uneven" | "outcrop" | "floor_opening" }
     >,
     path: string,
     layer: "under" | "over",
@@ -633,7 +673,7 @@ export class LevelWork {
   private applyTerrain(
     op: Exclude<
       TerrainOp,
-      { op: "scatter" | "dress" | "chasm" | "platform" | "stairs" | "uneven" | "outcrop" }
+      { op: "scatter" | "dress" | "chasm" | "platform" | "stairs" | "uneven" | "outcrop" | "floor_opening" }
     >,
     path: string,
     layer: "under" | "over",
@@ -777,13 +817,31 @@ export class LevelWork {
       this.plan.generator >= 2 && wet0 && !STILL_WATER.test(op.id)
         ? this.keepOffHighGround(op.points, riverCourse(op.points, this.boardBox(), op.width))
         : op.points;
-    const geo = chasmGeometry(course, op.width, op.meander ?? 0.5, seed, {
-      x0: clip.x0,
-      y0: clip.y0,
-      x1: clip.x1,
-      y1: clip.y1,
-    });
+    const g3 = generatorAtLeast(this.plan, 3);
+    // generator 3: a long rift, chasm or river strays visibly from the line between its ends (a fifth of its length)
+    const geo = chasmGeometry(
+      course,
+      op.width,
+      op.meander ?? 0.5,
+      seed,
+      {
+        x0: clip.x0,
+        y0: clip.y0,
+        x1: clip.x1,
+        y1: clip.y1,
+      },
+      g3 && op.meander !== 0 && !STILL_WATER.test(op.id)
+        ? { wander: WANDER_SHARE, avoid: this.explicitFeatureCells() }
+        : {},
+    );
     const wet = op.floor === "water_shallow" || op.floor === "water_deep";
+    if (g3 && geo.samples.length > 16 && !STILL_WATER.test(op.id))
+      this.channels.push({
+        id: op.id,
+        kind: wet ? "river" : "rift",
+        centre: geo.samples.filter((_, k) => k % 2 === 0).map((s) => [s.x, s.y] as Vec2),
+        widths: geo.widths.filter((_, k) => k % 2 === 0).map((w) => Math.round(w * 10) / 10),
+      });
     // a water channel needs room for TaleSpire's board-wide water plane (an imprecise slider): a tile deep leaves half
     // a tile between "bed covered" and "banks flooded"
     const depthQ = Math.round((wet ? Math.max(1, op.depth ?? 1) : (op.depth ?? 3)) * 4);
@@ -805,6 +863,28 @@ export class LevelWork {
     const geoSet = new Set(geo.cells.map(([x, y]) => `${x},${y}`));
     const shelfNoise = new ValueNoise(subSeed(seed, "shelf"));
     const shelfQ = depthQ >= 8 ? 2 * Math.round(depthQ / 4) : 0;
+    // generator 3: a river runs at one level. Its bed follows the channel's low side (a lower quartile of the ground it
+    // crosses), so a bank it clips on a terrace is cut down to that bed instead of raising the board-wide water surface
+    let lowSide = Infinity;
+    // a river that drops 2 tiles or more is split into reaches at different levels with a fall between them
+    let reaches: ReachPlan | null = null;
+    if (wet && g3 && !STILL_WATER.test(op.id)) {
+      const grounds: number[] = [];
+      const chan: ChannelCell[] = [];
+      for (const [x, y] of geo.cells) {
+        const i = this.idx(x, y);
+        if (i >= 0 && this.state[i] === CELL.OPEN) {
+          grounds.push(this.height[i] as number);
+          chan.push({ i, x, y });
+        }
+      }
+      grounds.sort((m, n) => m - n);
+      if (grounds.length > 0) lowSide = grounds[Math.floor((grounds.length - 1) * 0.25)] as number;
+      reaches = planReaches(geo.samples, chan, geo.widths, (x, y) => {
+        const i = this.idx(x, y);
+        return i >= 0 && this.state[i] === CELL.OPEN ? (this.height[i] as number) : null;
+      });
+    }
     for (const [x, y] of geo.cells) {
       const i = this.idx(x, y);
       if (i < 0) {
@@ -824,7 +904,9 @@ export class LevelWork {
         cut.add(i);
         continue;
       }
-      this.height[i] = Math.max(PLAN_LIMITS.minHeight * 4, cur - depthQ);
+      const level = reaches ? (reaches.low[reaches.reachOf.get(i) ?? 0] ?? lowSide) : lowSide;
+      this.height[i] = Math.max(PLAN_LIMITS.minHeight * 4, Math.min(cur, level) - depthQ);
+      if (reaches && (reaches.reachOf.get(i) ?? 0) < reaches.low.length - 1) this.upperReach.add(i);
       if (op.floor === "none") {
         this.flags[i] =
           ((this.flags[i] as number) | CELL_FLAG.NO_FLOOR) & ~(CELL_FLAG.WATER | CELL_FLAG.PATH);
@@ -853,9 +935,26 @@ export class LevelWork {
       const s = chasmSampleAt(geo, b.at ?? 0.5);
       if (!s) return;
       // bridges run square across the chasm: N–S where the chasm runs mostly E–W, else E–W
-      const vertical = Math.abs(s.tx) >= Math.abs(s.ty);
+      let vertical = Math.abs(s.tx) >= Math.abs(s.ty);
       const px = Math.floor(s.x);
       const py = Math.floor(s.y);
+      if (g3) {
+        // generator 3: a bridge takes the shortest span across the cut, square to the channel there (a wandering rift
+        // can run either way at its sample): measure the cut cells in a line along each axis through the sample
+        const spanAlong = (vert: boolean): number => {
+          let n = 0;
+          for (const dir of [-1, 1])
+            for (let step = 0; step < 64; step++) {
+              const i = this.idx(vert ? px : px + dir * (step + 1), vert ? py + dir * (step + 1) : py);
+              if (i < 0 || !cut.has(i)) break;
+              n++;
+            }
+          return n;
+        };
+        const sv = spanAlong(true);
+        const sh = spanAlong(false);
+        if (sv !== sh) vertical = sv < sh;
+      }
       const width = b.width ?? 2;
       const [lo, hi] = bandOffsets(width);
       const cells: number[] = [];
@@ -900,6 +999,92 @@ export class LevelWork {
         axis: vertical ? "v" : "h",
         ...(b.span !== undefined ? { span: b.span } : {}),
         ...(b.arch !== undefined ? { arch: b.arch } : {}),
+      });
+    });
+    if (reaches) this.cutFalls(op, geo, reaches, geoSet, depthQ);
+  }
+
+  /** Cells under the plan's own features (with a one-cell margin): a wandering channel keeps off them when it can. */
+  private explicitFeatureCells(): Set<string> {
+    const out = new Set<string>();
+    for (const f of this.level.features) {
+      const [w, h] = rotatedSize(f.size ?? featureInfo(f.type).size, f.rot ?? 0);
+      for (let y = f.at[1] - 1; y <= f.at[1] + h; y++)
+        for (let x = f.at[0] - 1; x <= f.at[0] + w; x++) out.add(`${x},${y}`);
+    }
+    return out;
+  }
+
+  /**
+   * Falls of a stepped river (generator 3): a pool wider than the channel at the foot of each, the fall recorded on
+   * the resolved level (position, direction, width, surfaces and beds, lip and pool cells).
+   */
+  private cutFalls(
+    op: Extract<TerrainOp, { op: "chasm" }>,
+    geo: ChasmGeometry,
+    reaches: ReachPlan,
+    geoSet: Set<string>,
+    depthQ: number,
+  ): void {
+    const n = geo.samples.length;
+    const nearBridge = new Set<number>();
+    for (const req of this.bridgeReqs)
+      if (req.elementId === op.id)
+        for (const c of req.cells) {
+          nearBridge.add(c);
+          for (const j of this.neighbours4(c)) if (j >= 0) nearBridge.add(j);
+        }
+    const elev = this.level.elevation;
+    reaches.falls.forEach((fall, f) => {
+      const lowQ = reaches.low[f + 1] as number;
+      const from = fall.boundary;
+      const to = Math.min(n - 1, from + POOL_LENGTH);
+      const pool = new Set<number>();
+      for (const [i, fp] of reaches.flowOf)
+        if (reaches.reachOf.get(i) === f + 1 && fp >= from && fp <= to) pool.add(i);
+      for (let j = from; j <= to; j++) {
+        const k = reaches.flow[j] as number;
+        const s = geo.samples[k] as ChasmSample;
+        // widest in the middle of the pool, a cell and a bit wider than the channel at least
+        const mid = 1 - Math.abs(j - (from + to) / 2) / Math.max(1, (to - from) / 2);
+        const hw = (geo.widths[k] as number) / 2 + 1 + 0.8 * mid;
+        const r = Math.ceil(hw) + 1;
+        for (let y = Math.floor(s.y) - r; y <= Math.floor(s.y) + r; y++)
+          for (let x = Math.floor(s.x) - r; x <= Math.floor(s.x) + r; x++) {
+            const dx = x + 0.5 - s.x;
+            const dy = y + 0.5 - s.y;
+            if (dx * dx + dy * dy > hw * hw || geoSet.has(`${x},${y}`)) continue;
+            const i = this.idx(x, y);
+            if (i < 0 || pool.has(i) || nearBridge.has(i) || this.state[i] !== CELL.OPEN) continue;
+            const fl = this.flags[i] as number;
+            if ((fl & (CELL_FLAG.NO_FLOOR | CELL_FLAG.WATER | CELL_FLAG.PATH | CELL_FLAG.BRIDGE)) !== 0) continue;
+            if (this.areas[(this.struct[i] as number) - 1]?.kind === "building") continue;
+            const cur = this.height[i] as number;
+            // a bank much higher than the pool would leave a tall bare face, and a pool must not eat into the bank of
+            // another reach where the course doubles back: keep both
+            if (cur - lowQ > POOL_MAX_BANK_Q) continue;
+            if (this.neighbours4(i).some((j) => j >= 0 && (reaches.reachOf.get(j) ?? f + 1) !== f + 1)) continue;
+            this.height[i] = Math.max(PLAN_LIMITS.minHeight * 4, Math.min(cur, lowQ) - depthQ);
+            if (op.floor !== undefined && op.floor !== "none") this.setMaterial(i, op.floor);
+            this.flags[i] = (this.flags[i] as number) & ~(CELL_FLAG.NO_FLOOR | CELL_FLAG.PATH);
+            pool.add(i);
+          }
+      }
+      if (f + 1 < reaches.low.length - 1) for (const i of pool) this.upperReach.add(i);
+      const upper = reaches.low[f] as number;
+      this.falls.push({
+        id: `${op.id}~fall${f + 1}`,
+        river: op.id,
+        at: fall.at,
+        side: fall.side,
+        width: fall.lip.length,
+        top: elev + upper / 4,
+        bottom: elev + lowQ / 4,
+        bedTop: elev + (upper - depthQ) / 4 + 0.5,
+        bedBottom: elev + (lowQ - depthQ) / 4 + 0.5,
+        drop: (upper - lowQ) / 4,
+        lip: fall.lip.map((i) => this.cellXY(i) as Vec2),
+        pool: [...pool].sort((a, b) => a - b).map((i) => this.cellXY(i) as Vec2),
       });
     });
   }
@@ -1213,16 +1398,35 @@ export class LevelWork {
     }
     // ragged (natural) contours: the distance to the edge wanders with noise, then tiers are relaxed so neighbours
     // never differ by more than one tier
-    const natural = op.material !== undefined && NATURAL_PATH.has(op.material);
+    // generator 3: in a natural or cave level a platform is rock with a ragged outline unless the plan asks for worked
+    // stone (a built material, or an explicit clean edge)
+    const wild =
+      generatorAtLeast(this.plan, 3) && (this.level.base.type === "ground" || this.plan.kind === "cave");
+    const worked = [op.material, op.topMaterial].some((m) => m !== undefined && !NATURAL_PATH.has(m));
+    const rockDefault = wild && !worked && this.plan.kind === "cave" && op.material === undefined;
+    const material: Material | undefined = rockDefault ? "rock" : op.material;
+    const natural = material !== undefined && NATURAL_PATH.has(material);
     const ragged =
       this.plan.generator >= 2 &&
-      (op.edge ?? (this.level.base.type === "ground" && natural ? "ragged" : "clean")) === "ragged";
+      (op.edge ??
+        ((this.level.base.type === "ground" && natural) || (wild && !worked) ? "ragged" : "clean")) ===
+        "ragged";
     // natural hills default to few bold rises (two terraces 2.5 tiles apart, a few cells deep), not many small steps;
     // a dais or built terrace keeps the small defaults
     const bold = ragged && natural;
-    const tiers = op.tiers ?? (bold ? 2 : 3);
-    const riseQ = Math.round((op.rise ?? (bold ? 2.5 : 0.5)) * 4);
-    const inset = op.inset ?? (bold ? 3 : 1);
+    let tiers = op.tiers ?? (bold ? 2 : 3);
+    let riseQ = Math.round((op.rise ?? (bold ? 2.5 : 0.5)) * 4);
+    let inset = op.inset ?? (bold ? 3 : 1);
+    // generator 3: a gentle rise on natural ground reads as one rounded mound, not stacked half-tile plates with
+    // square, stair-stepped outlines: fewer, larger steps (a tile or more each), outline rounded by the organic pass
+    if (generatorAtLeast(this.plan, 3) && ragged && natural && riseQ > 0 && riseQ < 4 && tiers > 1) {
+      const total = tiers * riseQ;
+      if (total >= 4) {
+        tiers = Math.max(1, Math.floor(total / 4));
+        riseQ = Math.round(total / tiers);
+        inset = Math.max(inset, 3);
+      }
+    }
     // the level bounds do not count as an edge: a plateau against the map edge stays high there
     const dist = this.innerDistance(cells, true);
     const tierOf = new Map<number, number>();
@@ -1259,7 +1463,7 @@ export class LevelWork {
         PLAN_LIMITS.minHeight * 4,
         Math.min(PLAN_LIMITS.maxHeight * 4, (this.height[i] as number) + t * riseQ),
       );
-      const m = t === tiers ? (op.topMaterial ?? op.material) : op.material;
+      const m = t === tiers ? (op.topMaterial ?? material) : material;
       if (m !== undefined) this.setMaterial(i, m);
     }
     const top = Math.max(...tierOf.values());
@@ -1314,6 +1518,11 @@ export class LevelWork {
 
   /** Rock ramps laid by stairs ops in style "ramp" (generator 2). */
   private readonly ramps: NonNullable<ResolvedLevel["ramps"]> = [];
+  /** Generator 3: courses of long rifts and rivers, falls of stepped rivers, and the cells of their upper reaches. */
+  private readonly channels: ResolvedChannel[] = [];
+  private readonly falls: ResolvedFall[] = [];
+  private readonly upperReach = new Set<number>();
+  private waterRange: [number, number] | null = null;
 
   /**
    * A rock ramp (generator 2): a band from `from` to `to` (any direction), `width` cells wide (3..6, default 4),
@@ -1485,6 +1694,8 @@ export class LevelWork {
       for (const i of cells) tiers.set(i, Math.round((delta.get(i) as number) / 2));
       breakStraightSteps(tiers, this.organicGrid(), subSeed(seed, "bands"));
       chamferCorners(tiers, this.organicGrid());
+      // generator 3: small lumps lose their square corners and their straight sides are bitten
+      if (generatorAtLeast(this.plan, 3)) roughenLumps(tiers, this.organicGrid(), subSeed(seed, "lumps"));
       for (const i of cells) delta.set(i, 2 * (tiers.get(i) ?? 0));
     }
     // walkable: neighbours in the region never differ by more than 2 quarters (relaxation, then applied)
@@ -1517,11 +1728,21 @@ export class LevelWork {
   private applyOutcrop(op: Extract<TerrainOp, { op: "outcrop" }>, path: string): void {
     let n = 0;
     const riseQ = Math.round((op.height ?? 2) * 4);
-    const cells = this.shapeCells(op.shape, "terrain", path, op.id).filter(
+    let cells = this.shapeCells(op.shape, "terrain", path, op.id).filter(
       (i) =>
         this.state[i] === CELL.OPEN &&
         ((this.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) === 0,
     );
+    // generator 3: a small natural rise is not a rectangle: its corners are cut (twice on larger ones) and its sides
+    // bitten. Only ever removes cells, so no route is closed that the shape did not already close.
+    if (generatorAtLeast(this.plan, 3) && cells.length >= 6) {
+      const tiers = new Map<number, number>(cells.map((i) => [i, 1]));
+      const lumpSeed = subSeed(elementSeed(this.plan.seed, op.id), "outcrop-lumps");
+      roughenLumps(tiers, this.organicGrid(), lumpSeed);
+      if (cells.length >= 30) roughenLumps(tiers, this.organicGrid(), subSeed(lumpSeed, "again"));
+      const kept = cells.filter((i) => (tiers.get(i) ?? 0) > 0);
+      if (kept.length >= Math.ceil(cells.length * 0.55)) cells = kept;
+    }
     const dist = this.innerDistance(cells);
     const noise = new ValueNoise(subSeed(elementSeed(this.plan.seed, op.id), "outcrop"));
     const kept: number[] = [];
@@ -1557,6 +1778,221 @@ export class LevelWork {
           hint: "place it on open floor (inside an area, or on ground)",
         },
       );
+  }
+
+  /**
+   * Generator 3: the floor_opening op. Open floor cells of the shape lose their floor but stay part of their area, so no
+   * wall rings the hole (stepOpeningRims adds the low edge afterwards). A collapse is ragged: corners cut, sides bitten,
+   * lobes bulging out where noise says so, never into a wall's cell.
+   */
+  private applyFloorOpening(op: Extract<TerrainOp, { op: "floor_opening" }>, path: string): void {
+    if (!generatorAtLeast(this.plan, 3)) {
+      this.issue(
+        "warning",
+        "no_effect",
+        `terrain op "${op.id}" (floor_opening) needs generator 3 and was ignored`,
+        { path, elementId: op.id, hint: 'set "generator": 3 on the plan, or use an area with floor "none"' },
+      );
+      return;
+    }
+    const kind = op.kind ?? "collapse";
+    const free = (i: number): boolean =>
+      i >= 0 &&
+      this.state[i] === CELL.OPEN &&
+      ((this.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE | CELL_FLAG.LINK | CELL_FLAG.STEPS)) === 0;
+    let cells = this.shapeCells(op.shape, "terrain", path, op.id).filter(free);
+    const seed = subSeed(elementSeed(this.plan.seed, op.id), "floor-opening");
+    if ((op.edge ?? (kind === "collapse" ? "ragged" : "clean")) === "ragged" && cells.length >= 6) {
+      const tiers = new Map<number, number>(cells.map((i) => [i, 1]));
+      roughenLumps(tiers, this.organicGrid(), seed);
+      if (cells.length >= 20) roughenLumps(tiers, this.organicGrid(), subSeed(seed, "again"));
+      let kept = cells.filter((i) => (tiers.get(i) ?? 0) > 0);
+      if (kept.length >= 12) {
+        const noise = new ValueNoise(subSeed(seed, "rim"));
+        const dist = this.innerDistance(kept);
+        kept = kept.filter((i) => {
+          const [x, y] = this.cellXY(i);
+          return !((dist.get(i) ?? 2) === 1 && noise.sample(x / 1.6, y / 1.6) < 0.3);
+        });
+      }
+      if (kept.length >= Math.ceil(cells.length * 0.55)) {
+        // lobes: open floor beside the hole, with open floor on every side of it (no wall or rock next to the new edge)
+        const inSet = new Set(kept);
+        const noise = new ValueNoise(subSeed(seed, "lobes"));
+        for (const i of cells) {
+          if (!inSet.has(i)) continue;
+          const [x, y] = this.cellXY(i);
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+            const j = this.idx(x + dx, y + dy);
+            if (!free(j) || inSet.has(j) || noise.sample((x + dx) / 1.6, (y + dy) / 1.6) < 0.74) continue;
+            const [jx, jy] = this.cellXY(j);
+            const clear = (
+              [[1, 0], [-1, 0], [0, 1], [0, -1]] as const
+            ).every(([ex, ey]) => free(this.idx(jx + ex, jy + ey)) && !this.hasWallAround(jx, jy));
+            if (clear) inSet.add(j);
+          }
+        }
+        cells = [...inSet].sort((a, b) => a - b);
+      }
+    }
+    for (const i of cells) {
+      this.flags[i] = ((this.flags[i] as number) | CELL_FLAG.NO_FLOOR) & ~(CELL_FLAG.WATER | CELL_FLAG.PATH);
+      this.mat[i] = 0;
+    }
+    if (cells.length === 0) {
+      this.issue("warning", "no_effect", `floor_opening "${op.id}" changed nothing: its shape covers no open floor`, {
+        path,
+        elementId: op.id,
+        hint: "place it inside a room of this level (an opening only cuts floor that exists)",
+      });
+      return;
+    }
+    this.floorOpenings.push({
+      id: op.id,
+      kind,
+      rim: op.rim ?? (kind === "collapse" ? "ruined" : "iron_bars"),
+      cells,
+      rubble: kind === "collapse" && op.rubble !== false,
+      seed,
+      floorBelow: 0,
+      hiddenEdge: 0,
+      edgeCells: 0,
+    });
+  }
+
+  /** True when any of the four edges of a global cell already holds a wall or an opening. */
+  private hasWallAround(gx: number, gy: number): boolean {
+    return (["N", "E", "S", "W"] as const).some((s) => {
+      const ed = this.sideEdge(gx, gy, s);
+      return !ed || ed.e.kind[ed.i] === EDGE.WALL || ed.e.kind[ed.i] === EDGE.OPENING;
+    });
+  }
+
+  /**
+   * Generator 3: the low edge round every floor opening: a railing (shaft, balcony) or a broken rim with gaps (collapse)
+   * on each edge between a hole cell and the floor beside it, standing on that floor. Also counts the edge cells and the
+   * ones a full-height wall already hides (the walls of the area itself), for the review.
+   */
+  private stepOpeningRims(): void {
+    for (const fo of this.floorOpenings) {
+      const set = new Set(fo.cells);
+      for (const i of fo.cells) {
+        const [x, y] = this.cellXY(i);
+        for (const side of ["N", "E", "S", "W"] as const) {
+          const [dx, dy] = side === "N" ? [0, -1] : side === "S" ? [0, 1] : side === "E" ? [1, 0] : [-1, 0];
+          const j = this.idx(x + dx, y + dy);
+          if (j < 0 || this.state[j] !== CELL.OPEN || set.has(j)) continue;
+          if (((this.flags[j] as number) & CELL_FLAG.NO_FLOOR) !== 0) continue;
+          const ed = this.sideEdge(x, y, side);
+          if (!ed) continue;
+          const k = ed.e.kind[ed.i];
+          fo.edgeCells++;
+          if (k === EDGE.WALL) {
+            if ((ed.e.height[ed.i] as number) >= 1.5) fo.hiddenEdge++;
+            continue;
+          }
+          if (k === EDGE.OPENING || k === EDGE.STAIR || fo.rim === "none") continue;
+          // a broken rim has gaps: where people walk to the edge, and rubble spilled over it
+          if (fo.kind === "collapse" && h32(`${fo.seed}:rim:${x}:${y}:${side}`) / 4294967296 < 0.4) continue;
+          ed.e.kind[ed.i] = EDGE.WALL;
+          ed.e.style[ed.i] = fo.rim;
+          ed.e.height[ed.i] = RAILING_HEIGHT;
+          // the rim stands on the floor beside the hole: host on that cell (first = N/W cell of the edge)
+          ed.e.hostSet[ed.i] = side === "N" || side === "W" ? 0 : 1;
+        }
+      }
+    }
+  }
+
+  /** True when the cell has open floor (used by the level above to check what lies under its floor openings). */
+  hasFloorAt(gx: number, gy: number): boolean {
+    const i = this.idx(gx, gy);
+    return i >= 0 && this.state[i] === CELL.OPEN && ((this.flags[i] as number) & CELL_FLAG.NO_FLOOR) === 0;
+  }
+
+  /**
+   * Generator 3, after the links: what lies under each floor opening of this level (the next level down), a plan issue
+   * when it is not open floor, and the rubble the lower level heaps under a collapse (placed with its generated features).
+   */
+  linkOpenings(below: LevelWork | undefined): void {
+    for (const fo of this.floorOpenings) {
+      const xy = fo.cells.map((i) => this.cellXY(i) as Vec2);
+      const path = `/levels/${this.li}/terrain`;
+      if (!below) {
+        this.issue("warning", "opening_no_floor_below", `floor opening "${fo.id}" has no level below it to look into`, {
+          path,
+          elementId: fo.id,
+          hint: "add a level one storey (2.5) lower with a room under the opening, or use an area with floor none for an open pit",
+        });
+        continue;
+      }
+      fo.below = below.level.id;
+      fo.floorBelow = xy.filter(([x, y]) => below.hasFloorAt(x, y)).length;
+      if (fo.floorBelow < Math.ceil(xy.length * 0.6)) {
+        const first = xy.find(([x, y]) => !below.hasFloorAt(x, y)) ?? xy[0];
+        this.issue(
+          "warning",
+          "opening_no_floor_below",
+          `floor opening "${fo.id}" on ${this.level.id}: only ${fo.floorBelow} of its ${xy.length} cells have open floor on ${below.level.id} under them (e.g. ${first?.[0]},${first?.[1]} is solid rock, void or another hole); you would look into rock`,
+          {
+            path,
+            elementId: fo.id,
+            ...(first ? { cell: first } : {}),
+            hint: `put a room of ${below.level.id} under the opening (same x,y cells), or move the opening over the room below`,
+          },
+        );
+      }
+      if (fo.rubble) below.rubbleUnder.push({ id: fo.id, cells: xy, seed: fo.seed });
+    }
+  }
+
+  /** Generator 3: rubble heaped on the floor under a collapse of the level above: densest and biggest at the centre. */
+  private stepOpeningRubble(): void {
+    for (const r of this.rubbleUnder) {
+      const cells = r.cells.filter(([x, y]) => this.hasFloorAt(x, y));
+      if (cells.length === 0) continue;
+      const cx = cells.reduce((s, c) => s + c[0], 0) / cells.length + 0.5;
+      const cy = cells.reduce((s, c) => s + c[1], 0) / cells.length + 0.5;
+      const dist = (c: Vec2): number => Math.hypot(c[0] + 0.5 - cx, c[1] + 0.5 - cy);
+      const maxD = Math.max(1, ...cells.map(dist));
+      const order = [...cells].sort((a, b) => dist(a) - dist(b) || a[1] - b[1] || a[0] - b[0]);
+      const u = (c: Vec2, k: string): number => h32(`${r.seed}:rubble:${k}:${c[0]}:${c[1]}`) / 4294967296;
+      let n = 0;
+      const put = (type: "cave_in" | "rubble" | "debris" | "rock", c: Vec2): boolean => {
+        const info = featureInfo(type);
+        const size = rotatedSize(info.size, 0);
+        if (this.featureProblem(type, c, size, undefined) !== null) return false;
+        const anchor = this.idx(c[0], c[1]);
+        const rf: ResolvedFeature = {
+          id: `${r.id}#rubble${n++}`,
+          type,
+          generatedBy: r.id,
+          at: c,
+          size,
+          rot: 0,
+          rotFine: (h32(`${r.seed}:rot:${c[0]}:${c[1]}`) % 24) * 15,
+          baseHeight: this.featureBase(anchor, 0),
+          theme: this.themes[anchor >= 0 ? (this.theme[anchor] as number) : 0] ?? this.levelTheme,
+          blocking: info.blocking,
+        };
+        const ar = anchor >= 0 ? (this.disp[anchor] as number) : 0;
+        if (ar > 0) rf.area = (this.areas[ar - 1] as AreaInfo).area.id;
+        this.addFeatureCells(rf);
+        return true;
+      };
+      // the heap: a cave-in at the centre, rubble round it, debris and the odd rock at the skirt (thinning with distance)
+      let cave = 0;
+      for (const c of order) {
+        const d = dist(c) / maxD;
+        if (cave < 2 && d < 0.5 && put("cave_in", c)) {
+          cave++;
+          continue;
+        }
+        if (u(c, "p") > 0.92 - 0.8 * d) continue;
+        if (d < 0.6) put("rubble", c);
+        else put(u(c, "t") < 0.25 ? "rock" : "debris", c);
+      }
+    }
   }
 
   private readonly pendingKerbs: Array<{
@@ -2817,14 +3253,34 @@ export class LevelWork {
       keepClear: (x, y) => this.crossingClear().has(this.idx(x, y)),
       // generator 2: rock ramp cells (no path flag) stay clear of the band and other dressing
       ramp: (x, y) => this.plan.generator >= 2 && this.rampCells().has(this.idx(x, y)),
+      generator: this.plan.generator,
       // generator 2: the band's pieces at their real size; undefined where the theme has no such piece (no band)
       ...(this.plan.generator >= 2 && this.ctx.pieceSize
         ? { pieceSize: (t: FeatureType) => this.ctx.pieceSize?.(this.levelTheme, t) }
         : {}),
+      // generator 3: the real outline of those pieces, and the cells off the board (void or outside the bounds)
+      ...(generatorAtLeast(this.plan, 3)
+        ? {
+            ...(this.ctx.pieceSize
+              ? { pieceExtent: (t: FeatureType) => this.ctx.pieceSize?.(this.levelTheme, t, true) }
+              : {}),
+            void: (x: number, y: number) => {
+              const i = this.idx(x, y);
+              return i < 0 || this.state[i] === CELL.VOID;
+            },
+            // the board's water plane in tiles above the level floor (the scale of `height`): dressing sinks stones to it
+            waterSurface: () => {
+              const s = this.waterSurface(false);
+              return s === null ? undefined : s - this.level.elevation - 0.5;
+            },
+          }
+        : {}),
       // floor height in tiles: set pieces put focal pieces on high ground and keep big pieces off height steps
       height: (x, y) => {
         const i = this.idx(x, y);
-        return i < 0 ? 0 : (this.height[i] as number) / 4;
+        // generator 3: a void cell (cut away by the outline) keeps a stale height; the ground there is the base plane
+        if (i < 0 || (this.state[i] === CELL.VOID && generatorAtLeast(this.plan, 3))) return 0;
+        return (this.height[i] as number) / 4;
       },
     };
   }
@@ -2873,7 +3329,10 @@ export class LevelWork {
   }
 
   private featureBase(i: number, lift: number): number {
-    const h = i >= 0 ? (this.height[i] as number) / 4 : 0;
+    const h =
+      i >= 0 && !(this.state[i] === CELL.VOID && generatorAtLeast(this.plan, 3))
+        ? (this.height[i] as number) / 4
+        : 0;
     return this.level.elevation + BUILD_CONSTANTS.floorThickness + h + lift;
   }
 
@@ -2952,8 +3411,293 @@ export class LevelWork {
 
   runPhase2(): void {
     this.stepExplicitFeatures();
+    this.stepMarket();
     this.stepBridgeRubble();
+    this.stepOpeningRubble();
     this.stepGeneratedFeatures();
+  }
+
+  /** Overhead lines that found both anchors (ResolvedLevel.lines). */
+  private readonly resolvedLines: ResolvedLine[] = [];
+
+  /** A cell a market piece may stand on: open floor nothing else holds (no building, feature, link, water or crossing). */
+  private marketCellOk(x: number, y: number, reserved = true): boolean {
+    const i = this.idx(x, y);
+    if (i < 0 || this.state[i] !== CELL.OPEN) return false;
+    const f = this.flags[i] as number;
+    if (
+      f &
+      (CELL_FLAG.NO_FLOOR | CELL_FLAG.LINK | CELL_FLAG.STEPS | CELL_FLAG.FEATURE | CELL_FLAG.WATER | CELL_FLAG.BRIDGE)
+    )
+      return false;
+    const sa = this.struct[i] as number;
+    if ((this.occ[i] as number) > 0 || this.areas[sa - 1]?.kind === "building" || (reserved && this.structs?.reservedCell(i)))
+      return false;
+    return !this.crossingClear().has(i);
+  }
+
+  /** Commit a market piece as a generated feature; `occupy` false keeps its cells free for other dressing (a line). */
+  private commitMarket(
+    id: string,
+    p: {
+      type: FeatureType;
+      at: [number, number];
+      size: [number, number];
+      rot?: number;
+      rotFine?: number;
+      variant?: string;
+      lift?: number;
+      offset?: [number, number];
+    },
+    occupy: boolean,
+  ): void {
+    const anchor = this.idx(p.at[0], p.at[1]);
+    const info = featureInfo(p.type);
+    const rf: ResolvedFeature = {
+      id,
+      type: p.type,
+      generatedBy: id.split("#")[0] as string,
+      at: p.at,
+      size: p.size,
+      rot: (p.rot ?? 0) as ResolvedFeature["rot"],
+      rotFine: p.rotFine ?? p.rot ?? 0,
+      baseHeight: this.featureBase(anchor, p.lift ?? 0),
+      theme: this.themes[anchor >= 0 ? (this.theme[anchor] as number) : 0] ?? this.levelTheme,
+      blocking: occupy && info.blocking,
+    };
+    if (p.variant !== undefined) rf.variant = p.variant;
+    if (p.offset !== undefined)
+      rf.offset = [Math.max(-0.5, Math.min(0.5, p.offset[0])), Math.max(-0.5, Math.min(0.5, p.offset[1]))];
+    const ar = anchor >= 0 ? (this.disp[anchor] as number) : 0;
+    if (ar > 0) rf.area = (this.areas[ar - 1] as AreaInfo).area.id;
+    if (occupy) this.addFeature(rf, this.footprint(p.at, p.size).cells);
+    else this.features.push(rf);
+    this.generated++;
+  }
+
+  /**
+   * Generator 3, markets: rows of stalls (`Level.stalls`), goods on the bare-table stalls (also on stalls the plan
+   * placed itself), overhead lines (`Level.lines`) anchored on building walls or posts, and the props a trade puts
+   * outside its door. Everything stands only on cells nothing else holds.
+   */
+  private stepMarket(): void {
+    const stallRows = this.level.stalls ?? [];
+    const lineList = this.level.lines ?? [];
+    if (!generatorAtLeast(this.plan, 3)) {
+      if (stallRows.length + lineList.length > 0)
+        this.issue("warning", "no_effect", `stalls and lines need generator 3; this plan is generator ${this.plan.generator}`, {
+          hint: 'set "generator": 3 on the plan',
+        });
+      return;
+    }
+    const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
+    const seedOf = (id: string): number => elementSeed(this.plan.seed, `${this.level.id}~${id}`, undefined);
+    const ok = (x: number, y: number): boolean => this.marketCellOk(x, y);
+    // goods on a bare-table stall: two pieces resting on the table top (its real height; nothing floats)
+    const putGoods = (stallId: string, st: { at: [number, number]; size: [number, number] }, kind: string): void => {
+      const set = STALL_GOODS[(kind in STALL_BASE ? kind : "empty") as keyof typeof STALL_BASE];
+      if (set === undefined) return;
+      const ext = this.ctx.pieceSize?.(this.levelTheme, "stall", true, "empty");
+      if (!ext) return;
+      const rng = createPrng(subSeed(seedOf(stallId), "goods"));
+      const cells: Array<[number, number]> = [];
+      for (let y = st.at[1]; y < st.at[1] + st.size[1]; y++)
+        for (let x = st.at[0]; x < st.at[0] + st.size[0]; x++) cells.push([x, y]);
+      cells.forEach((c, n) => {
+        if (this.generated >= cap) return;
+        this.commitMarket(
+          `${stallId}#g${n}`,
+          {
+            type: "goods",
+            at: c,
+            size: [1, 1],
+            rotFine: rng.int(24) * 15,
+            variant: set,
+            lift: ext.h,
+            offset: [(rng.next() - 0.5) * 0.3, (rng.next() - 0.5) * 0.3],
+          },
+          false,
+        );
+      });
+    };
+    for (const f of [...this.features]) {
+      if (f.type === "stall" && f.generatedBy === undefined) putGoods(f.id, { at: [f.at[0], f.at[1]], size: [f.size[0], f.size[1]] }, f.variant ?? "empty");
+    }
+    stallRows.forEach((row, k) => {
+      const placed = layoutStalls(row, ok, seedOf(`stalls${k}~${row.seed ?? 0}`));
+      if (placed.length === 0)
+        this.issue("warning", "no_effect", `stall row "${row.id}" placed no stall`, {
+          elementId: row.id,
+          hint: "its rectangle is taken (buildings, features, water) or too small: a stall needs 2 free cells in a line",
+        });
+      placed.forEach((p, n) => {
+        if (this.generated >= cap) return;
+        const id = `${row.id}#${n}`;
+        this.commitMarket(id, { type: "stall", at: p.at, size: p.size, rot: p.rot, variant: p.kind }, true);
+        putGoods(id, p, p.kind);
+      });
+    });
+    lineList.forEach((line, k) => {
+      this.stepLine(line, k, cap);
+    });
+    // outside a front door the lot's reserved ring is exactly where trade props stand (the door approach stays free)
+    this.stepTradeProps(cap, (x, y) => this.marketCellOk(x, y, false));
+  }
+
+  /** One overhead line: straightness, two anchors (a building wall within 3 cells beyond the end, else a post), pieces. */
+  private stepLine(line: NonNullable<Level["lines"]>[number], k: number, cap: number): void {
+    const bad = (msg: string, hint: string): void => {
+      this.issue("warning", "line_unanchored", `line "${line.id}" ${msg}; it was dropped`, {
+        path: `/levels/${this.li}/lines/${k}`,
+        elementId: line.id,
+        hint,
+      });
+    };
+    const [x0, y0] = line.from;
+    const [x1, y1] = line.to;
+    if (x0 !== x1 && y0 !== y1) {
+      bad("is not straight", "give from and to on one row or one column of cells");
+      return;
+    }
+    const alongX = y0 === y1;
+    const lane = alongX ? y0 : x0;
+    const lo = Math.min(alongX ? x0 : y0, alongX ? x1 : y1);
+    const hi = Math.max(alongX ? x0 : y0, alongX ? x1 : y1);
+    if (hi - lo < 2) {
+      bad("is shorter than 3 cells", "a line spans at least 3 cells");
+      return;
+    }
+    const cellAt = (a: number): [number, number] => (alongX ? [a, lane] : [lane, a]);
+    const building = (a: number): boolean => {
+      const [x, y] = cellAt(a);
+      // a footprint cell (a porch or stoop beside it is not a wall)
+      return this.structs?.buildings.some((b) => b.cellSet.has(`${x},${y}`)) === true;
+    };
+    const anchor = (end: number, dir: 1 | -1): { kind: "wall" | "post"; at: number } | null => {
+      for (let d = 0; d <= 3; d++) if (building(end + dir * d)) return { kind: "wall", at: end + dir * d };
+      for (let d = 0; d <= 1; d++) {
+        const a = end - dir * d;
+        const [x, y] = cellAt(a);
+        if (this.marketCellOk(x, y) && this.featureProblem("line_post", [x, y], [1, 1], undefined) === null)
+          return { kind: "post", at: a };
+      }
+      return null;
+    };
+    const aLo = anchor(lo, -1);
+    const aHi = anchor(hi, 1);
+    if (!aLo || !aHi) {
+      bad(
+        "has no building wall within 3 cells of an end and no free cell for a post there",
+        "end it beside a building wall, or on a free cell",
+      );
+      return;
+    }
+    for (let a = aLo.at + 1; a < aHi.at; a++)
+      if (building(a)) {
+        bad("passes through a building", "end it at the building's wall");
+        return;
+      }
+    if (aHi.at - aLo.at < 3) {
+      bad("is shorter than 3 cells between its anchors", "make the span longer");
+      return;
+    }
+    // 2.6 clears the awnings of shop fronts (2 to 2.5 up); a wall must reach it, else the verifier says the line is not held
+    const height = Math.max(2, Math.min(3, line.height ?? 2.6));
+    // the posts (an anchor that is not a wall)
+    const anchors: ResolvedLine["anchors"] = [
+      { kind: aLo.kind, at: cellAt(aLo.at) },
+      { kind: aHi.kind, at: cellAt(aHi.at) },
+    ];
+    [aLo, aHi].forEach((an, n) => {
+      if (an.kind === "post") this.commitMarket(`${line.id}#post${n}`, { type: "line_post", at: cellAt(an.at), size: [1, 1] }, true);
+    });
+    const start = aLo.kind === "wall" ? aLo.at + 1 : aLo.at + 0.65;
+    const end = aHi.kind === "wall" ? aHi.at : aHi.at + 0.35;
+    const pieces = layoutLine({ alongX, lane, start, end }, line.kind ?? "lanterns", line.spacing ?? 3);
+    pieces.forEach((p, n) => {
+      if (this.generated >= cap) return;
+      this.commitMarket(
+        `${line.id}#${n}`,
+        { type: "overhead", at: p.at, size: p.size, rotFine: p.rotFine, variant: p.variant, lift: height, offset: p.offset },
+        false,
+      );
+    });
+    this.resolvedLines.push({ id: line.id, a: cellAt(aLo.at), b: cellAt(aHi.at), height, anchors });
+  }
+
+  /** Props a trade puts outside its front door (not in front of the door itself, never in the carriageway). */
+  private stepTradeProps(cap: number, ok: (x: number, y: number) => boolean): void {
+    if (!this.structs) return;
+    const carriage = new Set<number>();
+    for (const r of this.pendingRoads) for (const i of r.cells) carriage.add(i);
+    const STEP: Record<Side, [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
+    const TURN: Record<Side, number> = { S: 0, W: 90, N: 180, E: 270 };
+    for (const b of this.structs.buildings) {
+      const trade = tradeOf(b.st.use);
+      if (!trade || (b.st.style ?? "cottage") === "modern") continue;
+      const side = b.frontage.side;
+      const [dx, dy] = STEP[side];
+      const cands: Array<[number, number]> = [];
+      // a door (not a window) on the front edge of cell (cx, cy) or of a cell beside it along the frontage
+      const doorOn = (cx: number, cy: number): boolean =>
+        this.openings.some((o) => {
+          if (o.kind === "window" || o.kind === "arrow_slit" || o.kind === "bars") return false;
+          const [sx, sy] = o.start;
+          if (o.orientation === "h") {
+            const ey = side === "S" ? cy + 1 : cy;
+            return (side === "S" || side === "N") && sy === ey && cx >= sx && cx < sx + o.width;
+          }
+          const ex = side === "E" ? cx + 1 : cx;
+          return (side === "E" || side === "W") && sx === ex && cy >= sy && cy < sy + o.width;
+        });
+      const doorNear = (cx: number, cy: number): boolean =>
+        [-1, 0, 1].some((d) => (dx === 0 ? doorOn(cx + d, cy) : doorOn(cx, cy + d)));
+      for (const [cx, cy] of b.cells) {
+        const ox = cx + dx;
+        const oy = cy + dy;
+        if (b.cellSet.has(`${ox},${oy}`)) continue;
+        const i = this.idx(ox, oy);
+        if (i < 0 || carriage.has(i) || !ok(ox, oy)) continue;
+        // keep the doorway's approach clear: no prop on or beside a door's cell (windows do not count)
+        if (doorNear(cx, cy)) continue;
+        cands.push([ox, oy]);
+      }
+      const rng = createPrng(subSeed(elementSeed(this.plan.seed, `${this.level.id}~${b.st.id}`, undefined), "trade"));
+      for (let i = cands.length - 1; i > 0; i--) {
+        const j = rng.int(i + 1);
+        [cands[i], cands[j]] = [cands[j] as [number, number], cands[i] as [number, number]];
+      }
+      const want = Math.min(cands.length, 1 + rng.int(3));
+      const table = TRADE_PROPS[trade];
+      const total = table.reduce((a, [, w]) => a + w, 0);
+      const taken: Array<[number, number]> = [];
+      for (const c of cands) {
+        if (taken.length >= want || this.generated >= cap) break;
+        if (taken.some((t) => Math.abs(t[0] - c[0]) + Math.abs(t[1] - c[1]) < 2)) continue;
+        let r = rng.next() * total;
+        let type = table[0]?.[0] as FeatureType;
+        for (const [t, w] of table) {
+          r -= w;
+          if (r < 0) {
+            type = t;
+            break;
+          }
+        }
+        const sz = rotatedSize(featureInfo(type).size, TURN[side]);
+        // a wide piece lies along the frontage from its cell
+        let at: [number, number] = [c[0], c[1]];
+        if (sz[0] * sz[1] > 1) {
+          const along: [number, number] = dy === 0 ? [0, 1] : [1, 0];
+          const cells: Array<[number, number]> = [];
+          for (let a = 0; a < Math.max(sz[0], sz[1]); a++) cells.push([c[0] + along[0] * a, c[1] + along[1] * a]);
+          if (!cells.every(([x, y]) => ok(x, y) && cands.some((q) => q[0] === x && q[1] === y))) continue;
+          at = [c[0], c[1]];
+        }
+        if (this.featureProblem(type, at, sz, undefined) !== null) continue;
+        this.commitMarket(`${b.st.id}~trade#${taken.length}`, { type, at, size: sz, rot: TURN[side] }, true);
+        taken.push(c);
+      }
+    }
   }
 
   /** Rubble at the ends of crumbling bridges (generated features "<bridgeId>#rubble<n>"). */
@@ -3071,7 +3815,33 @@ export class LevelWork {
           size = parked.size;
         }
       }
-      const wall = info.wallMounted ? (f.wall ?? "N") : f.wall;
+      let wall = info.wallMounted ? (f.wall ?? "N") : f.wall;
+      // generator 3: a wall-mounted piece asked for a cell or side without a wall snaps to the nearest wall face within
+      // one cell (same side first, then the other sides), instead of failing
+      if (info.wallMounted && generatorAtLeast(this.plan, 3) && this.featureProblem(f.type, f.at, size, wall) !== null) {
+        let snapped: { at: Vec2; wall: Side } | null = null;
+        const sides: Side[] = [wall as Side, "N", "E", "S", "W"].filter((s, n, a) => a.indexOf(s) === n) as Side[];
+        const offs: Array<[number, number]> = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+        search: for (const [dx, dy] of offs) {
+          for (const s of sides) {
+            const p: Vec2 = [f.at[0] + dx, f.at[1] + dy];
+            if (this.featureProblem(f.type, p, size, s) === null) {
+              snapped = { at: p, wall: s };
+              break search;
+            }
+          }
+        }
+        if (snapped) {
+          this.issue(
+            "info",
+            "feature_moved",
+            `${f.type} "${f.id}" had no wall at ${f.at[0]},${f.at[1]} (${wall}): snapped to the ${snapped.wall} wall of ${snapped.at[0]},${snapped.at[1]}`,
+            { path: `/levels/${this.li}/features/${k}`, elementId: f.id, cell: snapped.at },
+          );
+          f = { ...f, at: snapped.at };
+          wall = snapped.wall;
+        }
+      }
       const problem = this.featureProblem(f.type, f.at, size, wall);
       if (problem) {
         const near = this.nearestFree(f.type, f.at, size, wall);
@@ -3128,6 +3898,26 @@ export class LevelWork {
       };
       if (p.wall !== undefined) rf.wall = p.wall;
       if (p.variant !== undefined) rf.variant = p.variant;
+      // generator 3: a sub-cell shift (each axis within half a tile)
+      if (p.offset !== undefined && generatorAtLeast(this.plan, 3))
+        rf.offset = [Math.max(-0.5, Math.min(0.5, p.offset[0])), Math.max(-0.5, Math.min(0.5, p.offset[1]))];
+      // generator 3: a furnishing set against a wall stands clear of it (a preset's bed, coffin or brazier is a little
+      // wider than its cell and would sink into the wall, verify_prop_in_wall): shifted 0.45 tile off each wall it touches
+      if (generatorAtLeast(this.plan, 3) && rf.offset === undefined && !info.wallMounted && !info.organic && info.blocking) {
+        const [x0, y0] = p.at;
+        const [x1, y1] = [p.at[0] + p.size[0] - 1, p.at[1] + p.size[1] - 1];
+        let ox = 0;
+        let oy = 0;
+        for (let x = x0; x <= x1; x++) {
+          if (this.edgeKindAt(x, y0, "N") === EDGE.WALL) oy = 0.45;
+          if (this.edgeKindAt(x, y1, "S") === EDGE.WALL) oy = oy === 0.45 ? 0 : -0.45;
+        }
+        for (let y = y0; y <= y1; y++) {
+          if (this.edgeKindAt(x0, y, "W") === EDGE.WALL) ox = 0.45;
+          if (this.edgeKindAt(x1, y, "E") === EDGE.WALL) ox = ox === 0.45 ? 0 : -0.45;
+        }
+        if (ox !== 0 || oy !== 0) rf.offset = [ox, oy];
+      }
       const ar = anchor >= 0 ? (this.disp[anchor] as number) : 0;
       if (ar > 0) rf.area = (this.areas[ar - 1] as AreaInfo).area.id;
       if (info.gmOnly) rf.gmOnly = true;
@@ -3208,11 +3998,16 @@ export class LevelWork {
     for (let i = 0; i < this.n; i++)
       if (((this.flags[i] as number) & CELL_FLAG.PATH) !== 0) pathCells.push(this.cellXY(i));
     if (pathCells.length === 0) return;
-    const targets: Array<{ id: string; at: Vec2 }> = [];
+    const targets: Array<{ id: string; at: Vec2; exact?: boolean }> = [];
     const focal =
       this.level.features.find((ft) => SPUR_PRIMARY.has(ft.type)) ??
       this.level.features.find((ft) => SPUR_FOCAL.has(ft.type));
-    if (focal) targets.push({ id: focal.id, at: focal.at });
+    if (focal)
+      targets.push({
+        id: focal.id,
+        at: focal.at,
+        ...(generatorAtLeast(this.plan, 3) ? { exact: true } : {}),
+      });
     for (const st of this.level.structures ?? []) {
       if (st.kind === "enclosure") continue;
       // the building's first wing, first ground volume, or its bare rectangle
@@ -3224,6 +4019,24 @@ export class LevelWork {
           ? { x: bare.x, y: bare.y, w: bare.w, h: bare.h }
           : undefined);
       if (!w0) continue;
+      // generator 3: the trail ends at the cell outside the building's door
+      const doorOpening = generatorAtLeast(this.plan, 3)
+        ? this.level.openings.find(
+            (o) =>
+              o.id.startsWith(`${st.id}~`) &&
+              (o.kind === "door" || o.kind === "double_door" || o.kind === "locked_door") &&
+              o.at !== undefined,
+          )
+        : undefined;
+      if (doorOpening?.at) {
+        const d = { N: [0, -1], S: [0, 1], W: [-1, 0], E: [1, 0] }[doorOpening.at.side];
+        targets.push({
+          id: st.id,
+          at: [doorOpening.at.x + (d[0] as number), doorOpening.at.y + (d[1] as number)],
+          exact: true,
+        });
+        continue;
+      }
       const side = st.front ?? "S";
       const at: Vec2 =
         side === "N"
@@ -3246,7 +4059,8 @@ export class LevelWork {
           best = p;
         }
       }
-      if (!best || bestD <= 3) continue;
+      // generator 3 (exact targets): a path must touch the door cell or the focal piece, not merely pass near
+      if (!best || bestD <= (t.exact ? 1 : 3)) continue;
       const seed = subSeed(elementSeed(this.plan.seed, t.id), "spur");
       for (const [x, y] of trailCells([best, t.at], 1, 0.4, seed, clip)) {
         const i = this.idx(x, y);
@@ -3256,6 +4070,19 @@ export class LevelWork {
         this.setMaterial(i, material);
         this.flags[i] = (this.flags[i] as number) | CELL_FLAG.PATH;
         pathCells.push([x, y]);
+      }
+      if (t.exact) {
+        const i = this.idx(t.at[0], t.at[1]);
+        if (
+          i >= 0 &&
+          this.state[i] === CELL.OPEN &&
+          ((this.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.PATH)) === 0 &&
+          this.areas[(this.struct[i] as number) - 1]?.kind !== "building"
+        ) {
+          this.setMaterial(i, material);
+          this.flags[i] = (this.flags[i] as number) | CELL_FLAG.PATH;
+          pathCells.push([t.at[0], t.at[1]]);
+        }
       }
     }
   }
@@ -3322,6 +4149,9 @@ export class LevelWork {
         },
       );
     };
+    // generator 3: the rock band of every natural cliff is laid first, over the whole level, so no zone's dressing
+    // blocks a face that crosses into the next zone (the presets then only grow what follows the rock)
+    this.stepDefaultCliffBands(grid, cap);
     for (const { op, k } of ops) {
       if (op.op !== "dress") continue;
       const path = `/levels/${this.li}/terrain/${k}`;
@@ -3398,6 +4228,44 @@ export class LevelWork {
               : "no candidate cell was free floor: widen the shape, shrink exclude, lower minSpacing or drop entries from avoid",
         });
     }
+  }
+
+  /**
+   * Generator 3: every natural open-air region gets its rock band, however it is dressed: every drop of a tile or more
+   * between natural ground, and the board's own edge where the ground stands above the base (gen/setpieces
+   * `defaultCliffBands`; nothing where the theme has no formation roles). `cliffBands: false` on the level turns it off.
+   */
+  private stepDefaultCliffBands(grid: PlacementGrid, cap: number): void {
+    if (!generatorAtLeast(this.plan, 3) || this.level.cliffBands === false) return;
+    const base = this.level.base;
+    if (base.type !== "ground" || !NATURAL_PATH.has(base.material)) return;
+    if ((this.level.structures ?? []).some((st) => st.kind !== "enclosure")) return;
+    const byIndex = new Map<number, Array<[number, number]>>();
+    for (let i = 0; i < this.n; i++) {
+      if (this.state[i] !== CELL.OPEN) continue;
+      const d = this.disp[i] as number;
+      const a = d > 0 ? this.areas[d - 1] : undefined;
+      if (d > 0 && a?.kind !== "zone") continue;
+      const list = byIndex.get(d) ?? [];
+      list.push(this.cellXY(i));
+      byIndex.set(d, list);
+    }
+    // every region is planned before any piece is committed: rocks of neighbouring zones overlap on purpose, and a
+    // committed piece would read as a feature in the way of the next zone's band
+    const planned: Array<{ id: string; placements: GeneratedPlacement[] }> = [];
+    let room = cap - this.generated;
+    for (const [index, cells] of [...byIndex.entries()].sort((p, q) => p[0] - q[0])) {
+      const res = defaultCliffBands(grid, {
+        areaIndex: index,
+        areaCells: cells,
+        seed: elementSeed(this.plan.seed, `${this.level.id}~cliffbands~${index}`),
+        remaining: room,
+      });
+      planned.push({ id: `${this.level.id}~bands${index}`, placements: res.placements });
+      room -= res.placements.length;
+      if (res.capped || room <= 0) break;
+    }
+    for (const r of planned) this.commitGenerated(r.id, r.placements);
   }
 
   // ───────────────────────────── step 10 + output ─────────────────────────────
@@ -3569,6 +4437,22 @@ export class LevelWork {
       const wl = this.waterSurface();
       if (wl !== null) lvl.waterLevel = wl;
     }
+    if (generatorAtLeast(this.plan, 3)) {
+      if (this.floorOpenings.length > 0)
+        lvl.floorOpenings = this.floorOpenings.map((fo) => ({
+          id: fo.id,
+          kind: fo.kind,
+          cells: fo.cells.map((i) => this.cellXY(i) as Vec2),
+          ...(fo.below !== undefined ? { below: fo.below } : {}),
+          floorBelow: fo.floorBelow,
+          hiddenEdge: fo.hiddenEdge,
+          edgeCells: fo.edgeCells,
+        }));
+      if (this.channels.length > 0) lvl.channels = this.channels;
+      if (this.falls.length > 0) lvl.falls = this.falls;
+      if (this.waterRange !== null) lvl.waterRange = this.waterRange;
+    }
+    if (this.resolvedLines.length > 0) lvl.lines = this.resolvedLines;
     if (this.structs) Object.assign(lvl, this.structs.finish(this.level.elevation));
     return lvl;
   }
@@ -3578,10 +4462,22 @@ export class LevelWork {
    * lowest dry floor that touches water, but at least a quarter tile above the highest water bed. Warns when other dry
    * walkable floor (a dry pit, a lava rift, a cellar) lies below it, since the plane would flood it.
    */
-  private waterSurface(): number | null {
+  private nearWater(i: number, r: number): boolean {
+    const [x, y] = this.cellXY(i);
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) {
+        const j = this.idx(x + dx, y + dy);
+        if (j >= 0 && ((this.flags[j] as number) & CELL_FLAG.WATER) !== 0) return true;
+      }
+    return false;
+  }
+
+  private waterSurface(report = true): number | null {
     const water: number[] = [];
+    // the upper reaches of a stepped river lie above the board plane: they do not set it
     for (let i = 0; i < this.n; i++)
-      if (this.isFloor(i) && (this.flags[i] as number) & CELL_FLAG.WATER) water.push(i);
+      if (this.isFloor(i) && (this.flags[i] as number) & CELL_FLAG.WATER && !this.upperReach.has(i))
+        water.push(i);
     if (water.length === 0) return null;
     const top = (i: number): number => this.level.elevation + (this.height[i] as number) / 4 + 0.5;
     let bank = Infinity;
@@ -3592,18 +4488,55 @@ export class LevelWork {
         if (j >= 0 && this.isFloor(j) && ((this.flags[j] as number) & CELL_FLAG.WATER) === 0)
           bank = Math.min(bank, top(j));
     }
+    if (this.falls.length > 0) {
+      const lo = bed + 0.25;
+      this.waterRange = [lo, Number.isFinite(bank) ? Math.max(lo, bank - 0.25) : lo];
+    }
     // aim half a tile below the lowest bank (room for an imprecise setting either way), never below the beds
     const surface = Number.isFinite(bank) ? Math.max(bed + 0.25, bank - 0.5) : bed + 0.25;
     let low: number | null = null;
     let lowCount = 0;
+    const g3 = generatorAtLeast(this.plan, 3);
     for (let i = 0; i < this.n; i++) {
       if (!this.isFloor(i) || (this.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.BRIDGE)) continue;
       if (top(i) < surface) {
+        // generator 3: a trail cell on a channel's bed beside water is a ford; it is meant to be wet
+        if (
+          g3 &&
+          ((this.flags[i] as number) & CELL_FLAG.PATH) !== 0 &&
+          this.nearWater(i, 2)
+        )
+          continue;
         lowCount++;
         low ??= i;
       }
     }
-    if (low !== null) {
+    // generator 3: water cells above the plane stay dry in game (the upper reaches of a stepped river): the slab cannot
+    // carry a second water level and the palettes have no piece that reads as water, so say so
+    if (g3) {
+      let dry = 0;
+      let first: number | null = null;
+      for (const i of this.upperReach) {
+        if (this.isFloor(i) && ((this.flags[i] as number) & CELL_FLAG.WATER) !== 0 && top(i) >= surface + 0.25 - 1e-6) {
+          dry++;
+          first ??= i;
+        }
+      }
+      if (report && dry > 0 && first !== null) {
+        const [x, y] = this.cellXY(first);
+        this.issue(
+          "warning",
+          "water_level",
+          `${dry} water cell${dry > 1 ? "s lie" : " lies"} above the level's water surface (${surface} tiles) and will stay dry in game: TaleSpire has one flat water plane and the palettes have no piece that reads as water, so the upper reaches of a stepped river are dry beds`,
+          {
+            elementId: this.level.id,
+            cell: [x, y],
+            hint: "keep a river on one level, on the low ground or in a cut, with terraces beside it; step it only if dry upper reaches suit the scene",
+          },
+        );
+      }
+    }
+    if (report && low !== null) {
       const [x, y] = this.cellXY(low);
       this.issue(
         "warning",
