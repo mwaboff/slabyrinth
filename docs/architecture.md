@@ -85,12 +85,12 @@ Core is pure TypeScript. It has no Electron, DOM, or `node:*` imports outside `s
 ### 2.3 Elements
 
 - **Level.** It has: `bounds`; `base` (`solid` rock for dungeons, `void` for upper tower floors, `ground{material}` for outdoors); `theme`; `wallHeight`; ordered `areas`; `openings`; `walls` (runs); `features`; `terrain`; `labels`; and the reserved `stamps`.
-- **Area.** It has: `kind` (room, corridor, cave, building, courtyard, zone); `shape`; and optional `floor`, `floorHeight`, `walls` mode, `wallStyle`, `wallHeight`, `theme`, `key`, `labelAt`, `notes`, `readAloud`, `encounter`, `tags`.
+- **Area.** It has: `kind` (room, corridor, cave, building, courtyard, zone, bridge); `shape`; and optional `floor`, `floorHeight`, `walls` mode, `wallStyle`, `wallHeight`, `theme`, `key`, `labelAt`, `notes`, `readAloud`, `encounter`, `tags`, and for bridges `railing`, `broken`, `crumble` (§2.4a).
   - `key` is unique across the plan. For room, cave, building and courtyard areas added without a key, `applyOps` assigns the next free integer. Numbering therefore continues across levels and stays stable (UX §6.2). The explicit op `renumber` compacts it.
 - **Opening.** It has `kind` and either `between [a,b|"@outside"]` (preferred) or `at {x,y,side}`, plus `width` 1–3 and `gmOnly`.
 - **WallRun.** Its `op` is add or remove, with vertex `points` (axis-aligned) and an optional style.
 - **Feature.** It has: `type` from the closed `FEATURE_TYPES`; `at`; `rot` (0 means the front faces south); `size`; `wall` side for wall-mounted dressing; `lift`; `variant`; `hint` (required for `custom`); `gmOnly`.
-- **TerrainOp.** One of: `paint`, `height`, `noise`, `path` (each with `layer` under or over), `scatter` (shape, exclude, density, minSpacing, avoid), or `dress` (area, preset).
+- **TerrainOp.** One of: `paint`, `height`, `noise`, `path` (each with `layer` under or over), `scatter` (shape, exclude, density, minSpacing, avoid), `dress` (area, preset), or `chasm` (points, width, depth, meander, floor, bridges; always applied with the over layer, §2.4a).
 - **LevelLink.** It has: `kind`; `from {level, at}` (the lower end); `to {level, at?}`; `dir` (the direction of ascent); `width`. One object spans both levels; the UX's `pairedLinkId` is unnecessary.
 - **Label.** 2D-only text.
 - **MapPlan.** It has `title`, `kind`, `seed`, `theme`, `levels` (1–8), `links`, `entryLevel`, and `notes`. The UX's `elevationIndex` is derived by sorting on elevation, with `entryLevel` as index 0.
@@ -100,7 +100,7 @@ Core is pure TypeScript. It has no Electron, DOM, or `node:*` imports outside `s
 **Resolution order per level** (core `resolveLevel`). This order is normative; golden tests pin it.
 
 1. **Base.** `solid` gives SOLID cells. `void` gives VOID. `ground` gives OPEN cells with that material at height 0.
-2. **Terrain ops with `layer: "under"`, in array order.** `paint`, `noise`, `path`, and `height` affect OPEN cells only (they never open rock). `path` sets `CELL_FLAG.PATH`; water materials set `WATER`.
+2. **Terrain ops with `layer: "under"`, in array order.** `paint`, `noise` and `path` affect OPEN cells only (they never open rock). `path` sets `CELL_FLAG.PATH`; water materials set `WATER`. `height`: generator 1 changes OPEN cells only (on a solid base: none); **generator 2 sets the height field of every cell in its shape**, rock included, and areas that later open those cells keep it unless they set `floorHeight` (claiming never resets height).
 3. **Areas in array order** (painter's algorithm, later wins). Each area:
    - rasterizes its shape (rule below);
    - claims those cells (makes them OPEN and sets area, theme, and material — `floor`, or the theme default for its kind; a `zone` keeps the underlying material);
@@ -108,7 +108,7 @@ Core is pure TypeScript. It has no Electron, DOM, or `node:*` imports outside `s
    - `floor:"none"` sets `NO_FLOOR`.
 
    A `route` area claims only cells no other area owns, and it is processed **after** all non-route areas regardless of its position in the list.
-4. **Terrain ops with `layer: "over"`, in array order.**
+4. **Terrain ops with `layer: "over"`, in array order**, including `chasm` ops; then the **bridge pass** (§2.4a).
 5. **Edges** (`hEdges`, `vEdges`). For each edge between cells A and B:
    - **Region.** A cell's region is its area, or `@ground` for OPEN cells without an area (outdoor base). Non-open cells have no region.
    - **Wall test.**
@@ -118,6 +118,7 @@ Core is pure TypeScript. It has no Electron, DOM, or `node:*` imports outside `s
    - **Zones.** A zone is transparent: an edge involving a zone cell uses the region beneath the zone. The resolver tracks the "structural owner" (the last non-zone area) separately from the "display owner".
    - **Height and style.** Wall height is `area.wallHeight ?? level.wallHeight ?? 2`. The wall style comes from the demanding side's `wallStyle`, or the theme default; `cave` defaults to `cave_rock`.
    - **Full-cell rock walls.** Natural-rock wall styles (`cave_rock`) are built as whole-cell blocks; no thin piece exists. When both sides demand a wall, a thin wall style beats a full-cell (natural rock) style regardless of area size; between two thin or two full-cell styles the host side's style wins. A wall whose demanding sides all use full-cell styles is not generated between two OPEN cells (the spaces merge): the edge stays open, so natural cave spaces that touch simply merge. Each cell still records its own area, so hit-testing, room numbers, the room key and area outlines are unchanged. An explicit wall run with a full-cell style between two open cells is kept, but validation reports `shape_invalid` (error) with the hint "leave a solid (unclaimed) cell between the two areas, or use another wall style such as stone".
+   - **Bridge decks** never get area walls toward open cells; after the edges, every intact deck edge facing an open cell more than 0.5 lower (or floorless) becomes a WALL in the bridge's railing style, height 1, hosted on the deck.
    - **Ledge.** If no wall exists and both sides are OPEN with heights differing by at least 0.25, the edge is a LEDGE whose `height` is the difference.
    - **Wall runs** are applied in order: add creates WALL (style and height from the run), remove clears WALL to NONE.
 6. **Openings.**
@@ -151,6 +152,26 @@ Core is pure TypeScript. It has no Electron, DOM, or `node:*` imports outside `s
 
       Explicit wall runs host on the second cell. The renderer draws the wall in the host half; the compiler places the strip there.
 
+**No silent no-ops (2026-11-19).** Every element that changes nothing is reported as warning `no_effect` with the cause and the fix: paint/noise/path/height ops that touch no open cell (or, for the under layer, whose every cell is later re-floored by an area, or re-heighted by an area with floorHeight), a chasm that cuts nothing, zone `floor`/`floorHeight`/`walls`/`wallStyle`/`wallHeight`, `wallStyle`/`wallHeight` with walls "none", bridge fields on other kinds, broken cells outside the bridge, wall-run removals that remove nothing, scatter/dress that place nothing. A door or arch placed by `between` on an edge with no wall is `opening_no_boundary` (warning).
+
+### 2.4a Chasms and bridges
+
+- **Chasm op** (`resolve/chasm.ts`, arithmetic and value noise only): the polyline of cell centres is resampled every 0.5 cells; the course wanders sideways by (n(s/9) − ½)·2·meander·max(2.5, 1.2·width); each bank wanders on its own (half-width·(1 + 0.8·meander·(n(s/3) − ½)·2), at least 0.5); cells within ½ along and inside both banks of a sample are cut, plus one closing pass. Only OPEN cells are cut: height −= depth (clamped at −4), `floor` paints the bottom (`none` = NO_FLOOR).
+- **Chasm bridges**: at fraction `at` of the course, square across it (N–S where the course runs mostly E–W, else E–W), `width` rows, each row extended both ways over that op's cut cells. Id `<chasmId>~b<n>`; default floor flagstone, railing low_wall.
+- **Bridge pass** (after the over layer, before the edges): areas of kind `bridge` (area order; their claim keeps what lies under them), then chasm bridges. Deck height = floorHeight, or the highest floor 4-adjacent to the deck. `ResolvedLevel.bridges` records per cell the height and material beneath (null material = bottomless). Deck cells get the deck height, the deck material and `CELL_FLAG.BRIDGE`. `broken` cells and `crumble` (seeded; outer cells first; a removal is undone if the deck cells next to walkable floor would stop connecting) become NO_FLOOR deck cells. A deck touching walkable floor at fewer than two separate places is `bridge_unanchored` (warning).
+- **Lava** is never walkable (not even for the "swimmable" reachability flood). Generator 2 keeps scatter/dress off lava and off decks.
+
+### 2.4b Structure ops (generator 2, theme-neutral)
+
+All run with the over layer in array order and change open floor only.
+- **platform**: tier t of a cell = min(tiers, ⌊(d − 1)/inset⌋ + 1), d = 4-distance from the shape's edge (the level bounds do not count as an edge, so a plateau against the map edge stays high); height += t·rise; `material`, `topMaterial` on the top tier. `stairs` sides get a 2-wide flight through the middle of that side to the top tier (stair edges). Rise over 1 per tier with stairs is `stairs_invalid`.
+- **stairs**: from/to on one row or column; the cells between take evenly stepped heights between the ends' heights (opened if they were not); each edge on the way with a height change becomes `EDGE.STAIR` (walkable at any height; `CELL_FLAG.STEPS` on the lower cell). Over 1 tile per cell is `stairs_invalid`.
+- **uneven**: seeded value noise (scale) × amount, tapered to 0 over 3 cells at the region's edge, then relaxed so region neighbours differ by at most 0.5; skips water, decks and floorless cells.
+- **outcrop**: height += height (default 2), material (default rock): a rock mass with cliff sides in any setting.
+- **Bridges**: span defaults by deck material (wood → plank, natural ground → natural, else arch). Equal ends: arch profile archQ·(1 − (2t − 1)²) (arch 0.75, natural 0.25, plank −0.25 sag, flat 0), limited to 0.5 steps; arch/flat spans of 5+ cells get piers at ⅓ and ⅔. Ends at different heights (no floorHeight): an inclined span climbing evenly between them, with stair edges where a step exceeds 0.5. Railing default by span (railing_stone, railing, none); crumble also breaks the parapet and puts rubble beyond the ends. Anchored = walkable floor beyond both ends along the span.
+
+**Round 3 (2026-11-19).** Water is TaleSpire's board-wide water plane: the resolver records one `waterLevel` per level and warns (`water_level`) when dry walkable floor lies below it; the compiler floors water cells with `bed.*` and reports the level to set above the slab's base (`ExportBundle.waterLevels`, `verify_water_level`, paste instructions, a 2D label). Outcrops: rim cells drop out where noise < 0.35, height = rise·min(1, (d + ½)/2½) ± ½ in half tiles; recorded in `ResolvedLevel.outcrops` and built as rock columns. Paths: `connect` resolves area anchors (or the area's shape before areas claim cells), feature cells and cells, joined with L legs; `kerb` records `ResolvedLevel.kerbs` (path edges meeting other floor within ¼). A bridge area with an explicit floorHeight at least 1 above the ground beneath gets corner posts (raised platform on supports).
+
 **Rasterization rule.** A cell is inside a shape if its centre `(x+0.5, y+0.5)` is inside.
 - polygon: even-odd test.
 - circle: `dx²+dy² ≤ r²`.
@@ -158,6 +179,25 @@ Core is pure TypeScript. It has no Electron, DOM, or `node:*` imports outside `s
 - path: the union of axis-aligned rectangles of `width` cells centred on the segment, with the extra cell going east or south for even widths.
 - route: an L path from anchor to anchor in `bend` order.
 - Result cells are clipped to level bounds; clipping is a warning. The mask is optionally 4-connected, as noted per shape.
+
+### 2.4c Structures (buildings and yards, generator 2)
+
+`Level.structures` holds buildings and enclosures. Resolution (`resolve/structure.ts`, hooks in `level.ts` only):
+- **Expansion** (LevelWork constructor): an enclosure becomes a yard area (courtyard with its floor, or a zone) plus fence wall runs on its outline (skipping edges a building's own wall takes) and "open" gate openings; a building becomes an area of kind building (id = building id, wall style and height from its ground storey), its door/window openings (`at` edges chosen by face and position on the face's longest run) and porch areas. Synthetic elements come after the plan's own, so plan indices never move; issue paths and ids pointing at them are remapped to `/levels/i/structures/k`.
+- **Style profiles** (`structureStyles.ts`, data): walls, upper walls, footing course, wall height, floor, roof (type, kit, deck, parapet, broken), window width, door light, and variety ranges (window densities, porch and chimney chances, door position) drawn with `elementSeed(plan.seed, id, seed)`.
+- **Pad**: after the areas and again after the over-layer terrain, the footprint, its wall ring and porches are flattened to the median ground height under the footprint.
+- **After the openings**: shell and fence edges host outside the footprint/yard; chimney and door-light cells get `CELL_FLAG.FEATURE`; `ResolvedLevel.reserved` (wall ring, door approaches, chimney, porch and its ring) is kept free by scatter and dress (`placeable`).
+- **Output**: `ResolvedLevel.structures` (`ResolvedStructure`: cells, wings with ridge, storeys with floor top and courses, roof, opening ids, upper openings, chimneys, porches, lights, fence).
+
+Build (`compile/structure.ts`, called by realize; realize leaves shell edges and structure openings to it): wall courses per edge (footing from the ground outside up to its height, then the main course; length-2 pieces along runs), doors and windows by role chain with filler above shorter doors, corner posts, upper floors, attic deck, roof (`resolve/roof.ts`: 45°, run-2 pieces at every course, opposed one-cell ridge pair, flat cap on odd spans, single-width pieces in the gable columns, chimney holes), gable fill up to each course's underside, chimney breast past the ridge, porch roof below the eave on posts, wall lights. Placements carry `layer` ("storey:<n>", "roof"); `RealizeOptions.omitLayers` drops layers. The 2D display list adds a roof plan (outline dashed, ridge solid, chimney, porch roof) in the `area_outline` layer.
+
+Phase 2 (massing and silhouette, 2026-11-20):
+- **Volumes**: `Building.volumes` (boxes with own storeys, `storeyHeight`, roof, `on` another volume); `wings`/`footprint` stay sugar for one volume "main". The ground volumes' union is the building area. Heights: wall top = floor top + footing + wall height; the next floor top = wall top + 0.5; a volume `on` X starts at X's roof top. Phase-2 draws (set-ins, seams, wall heights, plinth, furniture, lights) use a second seeded stream so phase-1 buildings resolve identically.
+- **Silhouette**: per-storey `inset` (0..2) with a `seam` (skirt roof ring, plain ledge, crenellated ledge; style weights), `corners: "chamfer"` (corner cells of each storey rect cut), `plinth` (base dilated by its margin, raised by terrain paint/height, face material, optional rim wall runs, `stairs` ops from each door out to the base edge).
+- **Roof layers** (`resolve/roof.ts`, pure, one function each): `gableRoof`, `hipRoof`, `shedRoof`, `ringLayer` (skirt or stepped rings round a flat inner top), `spireShell` (courses tapering 0.5 per 2 tiles, flared bands, finial point). `roof.layers` stack bottom first on the inner top the previous layer leaves; unbuilt types (dome, vault) warn and build flat; cone is an alias of spire.
+- **Build**: per volume and storey: walls only on faces no other volume covers over more than half a tile of the storey's height; upper storeys stack wall pieces from the floor up (short pieces or a top-aligned piece for a remainder, never into the storey below); seams; then each volume's layers (deck, gable/hip/shed with fill, skirt/stepped with a flat top, spire shell of wall strips on the wall line with bands, lid and finial, flat with a run-based parapet). Furniture: dormers (kits with `roof.<kit>.dormer`), clutter field on flat tops (edge/equipment/storage roles, one cell apart), a mast (palette `parts` assembly) on the highest flat top. Lights: lit windows (`light.window.<walls>` / `light.glow.<colour>`, seeded share), door lights, entrance strips (`light.strip`).
+- **Design spaces** (`resolve/structureVariety.ts`, data in `structureStyles.ts`): a building left to its style draws a design (`drawDesign`: archetype, storeys, materials or a wall `treatment` — a belonging set of base/trim, walls and crown — roof and `roofKit`, windows, details, character) and `expandDesign` turns it into volumes; the neighbour rule keeps adjacent buildings apart. The `shaft` archetype (wizard tower) stacks one volume per storey: a wider base tier, a lantern room at shaft width, bartizans or a stair turret, a steep spire (a shell of `roof.<kit>.shell` thin walls with flared bands, else a doubled steep hip capped by `roof.<kit>.tip`). `character` bends the shaft (twisted = covered storey offsets; leaning, crooked, top_heavy, squat, slender); overhangs get a corbel course and set-backs a skirt (`buildLips`).
+- **Condition** (`resolve/ruin.ts`): weathered and ruined buildings get a `ResolvedStructure.ruin` profile — every wall column's surviving top, upper-floor holes, the standing corner, the share lost, a weathered roof patch — that the compiler builds to (walls, posts and lintels clipped per column, crenel remnants, a ruin's roofs gone except a standing gable wall). `structureRuinMeasures` / `weatherMeasures` (with `WEATHER_MINIMUMS`) are what the review and tests read.
 
 ### 2.5 Generators (version 1)
 
@@ -178,6 +218,8 @@ All generators use **integer-lattice value noise and arithmetic only**: `+ − �
   - A preset table in core lists `(featureType, weight, placement: wall|center|corner, size, blocking)` per preset.
   - The count is `round(density × openCells / 6)`.
   - Wall-hugging items prefer cells adjacent to WALL edges and are rotated to face away from the wall.
+  - **Composed set pieces** (added 2026-11-19, `gen/setpieces.ts`): `ritual_circle`, `overgrown`, `cavern`, `collapse`, `crystal_grotto`, `campsite` are not weighted tables. Each places an optional focal group (at the centre, or against the wall farthest from the entrances), then `round(density × cells / cellsPerGroup)` vignettes (a focal piece plus supporting pieces) anchored to walls, corners or, in areas of 150+ cells, open ground; vignettes stay 5 cells apart and each kind appears at most 2–3 times. A lighting pass then puts a light beside each entrance and wall lights wherever no light is within the preset's spacing. Blocking pieces keep 2 cells clear of entrances and links; multi-cell pieces avoid cells beside a thin wall; a group is withdrawn if it would cut off floor that was reachable before it.
+  - **Clustered scatter**: the natural types added on 2026-11-19 (stalagmite, stalactite, crystal, giant_mushroom, root, skull_pile, candles) scatter as clumps (a seed placement plus 1–2 neighbours). Older types keep the frozen v1 stream.
 
 ### 2.6 Level links
 
@@ -196,7 +238,7 @@ All generators use **integer-lattice value noise and arithmetic only**: `+ − �
 - **Element seed.** `elementSeed = op.seed ?? h32(plan.seed + ":" + elementId)`. Sub-streams use `h32(elementSeed + ":" + purpose)`.
 - **PRNG.** sfc32 seeded through splitmix32. Noise lattice values are `h32(seed + ":" + ix + ":" + iy) / 2³²`.
 - **Canonical form.** Canonical JSON (sorted keys, no whitespace) is used for hashes. `ResolvedPlan.hash` is FNV-1a 64 of the canonical resolved form.
-- **Generator versioning.** `generator: 1` pins the algorithms. If they ever change, core keeps the v1 code path and new plans get `generator: 2`. The migration of old plans is a no-op, so old maps never move.
+- **Generator versioning.** `generator: 1` pins the algorithms. If they ever change, core keeps the v1 code path and new plans get `generator: 2`. The migration of old plans is a no-op, so old maps never move. **Generator 2 (2026-11-19)**: under-layer `height` ops set the height of every cell in their shape (§2.4 step 2), and scatter/dress skip lava and bridge decks. `create_plan` gives new plans 2; saved maps keep 1 and resolve to the same geometry (they may gain warnings). The chasm op and bridges are new elements and behave the same under either number. A 0.1.x app refuses a generator-2 plan (schema).
 
 ### 2.8 Validation
 
@@ -489,6 +531,14 @@ ISSUES none
 Coordinates are printed every 5 cells on both axes.
 
 **4. Images.** The model does **not** receive an image automatically. Images cost about 1–1.5K tokens each, and the ASCII view plus the validator catch most layout errors. `view_map_image` exists for the cases where layout quality matters: after a first draft, or after big generated changes. The prompt says to use it sparingly. The tool exists only if the selected model has `imageInput`, a decision frozen per conversation (`imageToolEnabled`). After a later switch to a non-image model, it returns "unavailable on this model".
+
+### 3.3a Design principles and the design review
+
+`agent/designPrinciples.ts` is the judgment the team applied to every proof, as system-prompt text (general, theme-neutral, versioned dp-x.y.z). `review/` (`reviewDesign(plan, resolved, {palettes?, diagnostics?, brief?})`) measures it on every generator-2 create/edit: flat ground, straight natural edges (shape metrics in `review/metrics.ts`), rows and even scatter (chain and Clark–Evans tests), dead space, blank lots, bare natural ground, lookalike / dark / same-roof neighbours (the building engineer's `structureSignature`, `structureSilhouette`, `structureTone`), floor patchwork (palette tile families and observed tones), focal points, single routes, paths to nowhere, repeated props, mirrored layouts, relief, street misuse, and words of the brief the map does not show (`review/brief.ts`, a word-to-measure table). The executor appends a `DESIGN REVIEW` block (deltas after the first) with a `BRIEF CHECK` line; `compile_preview` adds substituted pieces as one note. Read-only, deterministic, a few ms per level. CLI: `slabyrinth review <plan.json>`.
+
+### 3.3b Cliffs, rivers and board outline (generator 2)
+
+`resolve/cliffs.ts` `cliffRuns` chains natural rises of a tile or more into ordered runs (`ResolvedLevel.cliffs`); the dressing's rock band (`gen/cliffband.ts`) faces them with `cliff_face` / `cliff_crest` features, keeping off `ResolvedLevel.ramps` (stairs ops in style "ramp") through `PlacementGrid.ramp`. `compile/realize.ts` (`BAND`) lays rock floor under a band, leaves out face blocks and fill behind covered edges, and backs bare edges with one rock family; verify reports `verify_cliff_gap` if any edge is still open. `resolve/water.ts` `riverCourse` carries rivers from one board edge to another and keeps them off the border. `stepOutline` gives open-air natural levels a ragged outline (`Level.outline`). `stepPathSpurs` leads a trail to the plan's focal piece and building fronts.
 
 ### 3.4 Validation-error feedback
 
@@ -841,7 +891,9 @@ World mapping: `wx = x`, `wz = Hg − 1 − y`, where `Hg` = 1 + the maximum y o
    - Greedy tiling: scan rows, try the largest variant footprint first (8×8 … 2×2 … 1×1), and require that all covered cells share material, height, theme, and walkability and are unused.
    - Rotation is `random90` (seeded per cell) for square tiles.
    - Water tiles are surfaces (0.5 thick, same rule). A per-role `offset.y` in the palette can lower them once the visual calibration is done.
-2. **Fill.** For a cell with height h > the minimum height of its 4-neighbours (clamped at the level base), stack `fill.<material|default>` courses (`stack.unitHeight`, usually 0.5) from that minimum up to h. Pits get fill on the neighbours' side by the same rule. Cliffs and daises come out solid.
+2. **Fill and cliffs.** For a cell with height h > the minimum ground height of its 4-neighbours (open cells, floorless ones included, and the ground recorded under bridge decks; non-open = 0), stack `fill.<material|default>` courses (`stack.unitHeight`, usually 0.5) from that minimum up to h. Where the drop is 1 tile or more a **cliff body** is stacked instead: `cliff.<material>` / `cliff.default`, or for natural ground (rock, dirt, gravel, mud, sand, grass, snow, ice, swamp, lava) `cliff.natural` — whole-cell 1×1 blocks from the top down (placement role `ledge`), else fill with an info note. Bridge decks get no fill (open air): the deck tile, plus a 1×1 `floor.<material beneath>` tile at the recorded height. Cells of any material on a 3×3 lattice get `glow.<material>` / `feature.<material>_glow` when the palette has one (lava glows today).
+   - **Stairs**: on every `EDGE.STAIR` a `link.stairs` piece (rise 0.75–1.25) or `step.<material>`/`step.default` (smaller rises; none = the riser is fill) stands in the lower cell, climbing toward the higher one. **Piers**: `pier.<material>`/`pier.default`, else fill courses, from the ground to the deck. **Foundation** (generator 2): outside the level bounds the ground counts as the level's lowest floor, so border cells get fill or cliff sides down to it, and rock columns start there; their tops vary by 0–2 blocks (seeded value noise). Cliff blocks stop at the lower floor; the remainder is fill.
+   - **Wall span** (`compile/wallspan.ts`, shared with verify): base = the lower floor top; top = wall height above the higher of the two floor tops and the reference floor (most common height) of the open side's area, so walls beside a chasm or pit reach the area's normal wall top. Railings stand on the deck. A full-cell (rock block) wall whose host cell is open goes into the other cell when that one is rock, void or outside the level (caves touching the level bounds); one column per rock cell spans every edge it closes. Edge-centre runs shorter than the shortest piece get that piece centred over them.
 3. **Walls, openings, posts.** All of this is **confirmed in game**. Edge pieces are stored at the min corner of their *rotated* footprint, so rotation never selects which half of a cell a piece occupies:
    - rot 0 and 12 run east-west in the low-z (south) half;
    - rot 6 and 18 run north-south in the low-x (west) half;
@@ -951,6 +1003,8 @@ ResolvedLevel ──buildDisplayList(opts)──► DisplayList ──drawDispla
 ```
 
 The display list holds layered items: geometry rings in cell units, symbol references (`feat-<type>`, `door-<kind>`, `link-<kind>`), and text. Colours are semantic style tokens. Walls are drawn as filled half-cell strips in the host cell, plus a heavier stroke for exterior walls, matching UX §6.2 cues: hatch for rock, waves for water, dashed walls plus an S for secret doors.
+
+**Depth (2026-11-19).** Height shading is graded: floors below the level floor darken with every quarter tile (alpha up to 0.62 at 4 tiles), raised floors stay subtle. LEDGE edges under 1 tile are dashed lines (`ledge`); drops of 1 tile or more are `cliff` segments, one per edge, directed so the low side is on the right, drawn as a heavy ink line with hachures toward the drop. Each bridge is an outline with planks across it (`bridge-h` / `bridge-v`, layer `ledge`, ref = bridge id); broken deck cells show the ground beneath (lava, chasm floor). The legend has Cliff and Bridge entries.
 
 ### 5.2 Canvas instead of SVG
 

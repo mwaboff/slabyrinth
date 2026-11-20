@@ -174,6 +174,37 @@ Placement in one paragraph:
   - Use rot ∈ {0, 6, 12, 18} so the length runs along the edge.
 - **Props** go at their centre.
 
+### 6.1 Set-dressing expansion (2026-11-19)
+
+The bundled palettes now reference 303 distinct asset ids, alternates included (143 before), in 6 themes (a new
+`forest` theme extends `outdoor`). The new entries live in `packages/core/scripts/palette-extra-assets.json`
+(`"batch": "set-dressing"`); `import-palette-draft.ts` merges them as before.
+`packages/core/test/unit/palette/palette-catalog.test.ts` checks every referenced id and size against the local catalog
+index when one is present and is skipped on CI. Only ids, names and geometry are committed, never the catalog.
+
+- **Theme-neutral slots.** Set pieces place slot features (`landmark`, `tall_marker`, `formation`, `cluster_tall`,
+  `undergrowth`, `ground_cover`, `edge_dressing`, `accent_light`, `small_detail`, `wall_dressing`). Every theme fills each
+  slot with its own assets (cave: stalagmites, crystals, mushrooms; forest: pines, ferns, mossy boulders; stone_dungeon:
+  columns, statues, bones, braziers; wood_town: trees, lanterns, flowers). Generic is the fallback.
+- **Cave kit:** Cavern floors. The pale Rock 03/04 and BellowGloom tiles are opt-in variants only: a lone 1×2 variant
+  filled every odd column left over by the 2×2 tiling, giving straight pale strips. Caves use weathered dungeon stone for
+  `floor.stone_tile`, `floor.flagstone` and `floor.marble`. Thin rock walls (`wall.rock`, `wall_post.rock`, `ledge.rock`),
+  lava floors and walls, and natural dressing.
+- **Terrain roles:** `cliff.natural`, `cliff.grass`, `cliff.dirt` and `cliff.rock` (rock blocks, 1×1 cell, 2 tall);
+  `step.default` and `step.<material>` (one 0.5 course of the lower floor); `pier.default` and `pier.<material>`;
+  `bridge.arch`; `wall.parapet` (1 tall, 0.5 deep); `trim.stone` (0.25 kerb); `stairs.stone|wood|marble|rock`,
+  `stairs_block.rock` and `ramp.wood` (1×1, rise 1, ascending W at rot 0; only the Dungeon and Tavern stairs are
+  verified); an outdoor `link.stairs` (Rural Stairs).
+- **Tall pieces:** monolith, cave_column, statue_large (a 4-tile hooded statue), timber supports, a hanging cage and
+  chains, tall banners, large webs.
+- **Runtime enrichment** (`palette/auto.ts`, `catalog/classify.ts`): `loadPalettes({ catalog })` adds assets from the
+  scanned catalog to the roles they classify into, as low-weight variants. Role rules are data (name words, size class,
+  footprint). Only roles a theme already has receive them, and only assets that share a name word with that role's
+  curated variants (a tone guard). The `custom` feature uses the same name-first search and reports `custom_resolved`.
+- Default variants fit their feature's footprint; larger assets are opt-in variants (`huge`, `spread`, `wide`, `pale`).
+- **Unverified in game:** stalactites are raised so their top is 2.5 above the floor (tip-down orientation assumed);
+  wall roots, vines and chains mount on their S side; the facing of the rock, marble and ramp stairs; railing facing.
+
 ## 7. Verification status
 
 **Verified in game on 2026-11-18** with `data/calibration-slab.txt`; details are in the format doc §2.1–2.2.
