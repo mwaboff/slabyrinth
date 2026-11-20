@@ -63,3 +63,5 @@ docs/internal/
 
 # Full-page landing-page previews (several MB each); regenerate locally, not committed
 docs/renders/site-*.png
+# Screenshots the end-to-end tests write on every run.
+docs/renders/real-*.png
