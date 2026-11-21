@@ -103,7 +103,7 @@ describe("generator 3 rock band: nothing hangs", () => {
         expect(air / n, `seed ${String(seed)} piece ${q.at.join(",")}`).toBeLessThanOrEqual(0.35);
       }
     }
-  }, 30_000);
+  }, 30_000); // twelve full cliff bands: 3 to 4 s under a parallel run; the Windows CI runner timed out at 5 s (0.2.0)
 
   it("generator 2 is untouched: the same grid without the version gives the old pieces", () => {
     const a = terrain(2);

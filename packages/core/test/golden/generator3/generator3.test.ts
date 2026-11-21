@@ -15,6 +15,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { compileResolved } from "../../../src/compile";
+import type { CompileDiagnostic } from "../../../src/contracts/compiler";
 import type { Building, MapPlan, Structure } from "../../../src/contracts/plan";
 import { loadPalettes } from "../../../src/palette";
 import { canonicalResolved, resolvePlan } from "../../../src/resolve/index";
@@ -215,11 +216,13 @@ const PLANS: Array<[string, MapPlan]> = [
   ],
 ];
 
-function build(plan: MapPlan): string {
+/** One build of a plan: its golden line (name first) and its error diagnostics. */
+function build(name: string, plan: MapPlan): { line: string; errors: CompileDiagnostic[] } {
   const resolved = resolvePlan(plan);
   const bundle = compileResolved(resolved, palettes, slabCodec, { createdAt: "t", plan });
   const sev = (s: string): number => bundle.diagnostics.filter((d) => d.severity === s).length;
-  return [
+  const line = [
+    name,
     `resolved=${resolved.hash}`,
     `canonical=${h64hex(canonicalResolved(resolved))}`,
     `chunks=${String(bundle.chunks.length)}`,
@@ -227,17 +230,38 @@ function build(plan: MapPlan): string {
     `assets=${String(bundle.chunks.reduce((n, c) => n + c.assetCount, 0))}`,
     `diag=${String(sev("error"))}e/${String(sev("warning"))}w/${String(sev("info"))}i`,
   ].join(" ");
+  return { line, errors: bundle.diagnostics.filter((d) => d.severity === "error") };
 }
+
+/**
+ * The golden file holds one line per pinned plan, in PLANS order. It is read, never written: `vitest -u` cannot
+ * rewrite a released golden. A new plan's line is added to the file by hand (the failing test prints it).
+ */
+const GOLDEN_LINES = readFileSync(new URL("__golden__/generator3.txt", import.meta.url), "utf8")
+  .split(/\r?\n/)
+  .filter(Boolean);
+const goldenLine = (name: string): string | undefined => GOLDEN_LINES.find((l) => l.split(" ")[0] === name);
 
 describe("generator 3 is frozen", () => {
   it("every pinned plan is generator 3", () => {
     for (const [name, plan] of PLANS) expect(plan.generator, name).toBe(3);
   });
 
-  it("resolved hash, canonical form, slabs and diagnostics match the 0.2.0 release", async () => {
-    const lines = PLANS.map(([name, plan]) => `${name} ${build(plan)}`);
-    await expect(lines.join("\n") + "\n").toMatchFileSnapshot("__golden__/generator3.txt");
+  it("the golden file lists exactly the pinned plans, in order", () => {
+    expect(GOLDEN_LINES.map((l) => l.split(" ")[0])).toEqual(PLANS.map(([name]) => name));
   });
+
+  // one test per plan, so a failure names the plan and one slow build cannot time out the others
+  it.each(PLANS)(
+    "%s: resolved hash, canonical form, slabs and diagnostics match the 0.2.0 release, no errors",
+    (name, plan) => {
+      const { line, errors } = build(name, plan);
+      expect(line, `no golden line for ${name}: add this line to __golden__/generator3.txt`).toBe(
+        goldenLine(name),
+      );
+      expect(errors, name).toEqual([]);
+    },
+  );
 
   it("the pinned plans really exercise stalls, overhead lines and a floor opening", () => {
     const get = (name: string): MapPlan => {
@@ -251,15 +275,5 @@ describe("generator 3 is frozen", () => {
     const opening = resolvePlan(get("floor-opening")).levels.flatMap((l) => l.floorOpenings ?? []);
     expect(opening.length).toBe(1);
     expect(opening[0]?.floorBelow).toBeGreaterThan(0);
-  });
-
-  it("each plan builds without errors", () => {
-    for (const [name, plan] of PLANS) {
-      const bundle = compileResolved(resolvePlan(plan), palettes, slabCodec, { createdAt: "t", plan });
-      expect(
-        bundle.diagnostics.filter((d) => d.severity === "error"),
-        name,
-      ).toEqual([]);
-    }
   });
 });

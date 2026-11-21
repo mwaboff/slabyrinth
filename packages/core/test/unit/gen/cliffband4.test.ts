@@ -138,7 +138,7 @@ describe("generator 3 crest boulders are accents in groups", () => {
     // (an occasional group of five may read as a short run; a row is most of the boulders; the review's limit is 25%)
     expect(inRows / Math.max(1, total)).toBeLessThanOrEqual(0.15);
     expect(faces / Math.max(1, crests)).toBeGreaterThanOrEqual(1.5);
-  });
+  }, 30_000); // eight full cliff bands: 3 to 4 s under a parallel run, too close to the 5 s default on a slow CI runner
 });
 
 describe("generator 3 board-edge skirt", () => {

@@ -16,8 +16,6 @@ export default defineConfig({
           root: "./packages/core",
           environment: "node",
           include: ["test/**/*.test.ts", "src/**/*.test.ts"],
-          // the generator-3 golden builds 19 plans in one test (3 to 7 s alone, over 5 s under a full parallel run)
-          testTimeout: 30_000,
         },
       },
       {
