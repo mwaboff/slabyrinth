@@ -44,6 +44,12 @@ export interface WallStyleInfo {
    * family's material (`FAMILY_SURFACE`).
    */
   surface: Material | null;
+  /**
+   * Built of planks (generator 3 ruins): what falls from it is its own material (beams and planks, its
+   * `ruin_rubble.<style>` / `ruin_block.<style>` roles, never stone), and a ruined building of it keeps no lone gable
+   * wall (a stepped gable standing alone is masonry logic). Log palisades and half-timbered panels are not.
+   */
+  planks: boolean;
 }
 
 /** The material of each wall family, as a flat surface (a wall's top). "theme" is the palette's to say. */
@@ -64,6 +70,7 @@ const row = (family: WallFamily, flags: Partial<Omit<WallStyleInfo, "family">> =
   natural: false,
   low: false,
   uneven: false,
+  planks: false,
   surface: FAMILY_SURFACE[family],
   ...flags,
 });
@@ -72,7 +79,7 @@ export const WALL_STYLE_INFO: Record<WallStyle, WallStyleInfo> = {
   wall: row("theme", { uneven: true }),
   stone: row("stone", { uneven: true }),
   brick: row("brick", { uneven: true }),
-  wood: row("timber"),
+  wood: row("timber", { planks: true }),
   cave_rock: row("rock", { natural: true }),
   plaster: row("plaster"),
   palisade: row("timber"),
@@ -122,6 +129,11 @@ export function isLowWallStyle(style: string | null | undefined): boolean {
 /** May stand uneven (shortened runs, broken tops, rubble at the foot); a missing style is the theme's default wall. */
 export function isUnevenWallStyle(style: string | null | undefined): boolean {
   return wallStyleInfo(style ?? THEME_WALL_STYLE)?.uneven === true;
+}
+
+/** Built of planks (a ruin of it leaves its own beams and planks, no lone gable wall). */
+export function isPlankWallStyle(style: string | null | undefined): boolean {
+  return wallStyleInfo(style)?.planks === true;
 }
 
 /** Does a level's style table (`ResolvedLevel.wallStyles`) hold natural rock? */

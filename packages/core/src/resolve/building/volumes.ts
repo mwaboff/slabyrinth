@@ -8,19 +8,11 @@ import type { BuiltRoofType, ResolvedVolume } from "../../contracts/resolved";
 import type { rasterizeShape } from "../../gen/shapes";
 import type { Prng } from "../../util/prng";
 import { defaultRidge, type RoofWing } from "../roof";
+import { roofInfo } from "../roofTypes";
 import type { WindowDensity } from "../structureStyles";
 import type { BuildingCtx } from "./context";
 import { boundsOf, cellOf, chamfer, key, rectCells, rectText, ringOf } from "./footprint";
 import type { VolumePlan, VolumeSpec, VStorey } from "./types";
-
-/** Roof types the compiler builds. */
-const BUILT_ROOFS = new Set(["gable", "hip", "shed", "flat", "none", "skirt", "stepped", "spire"]);
-/** Layers that close a roof (nothing can stand on them). */
-const CLOSING = new Set(["gable", "hip", "shed", "spire", "flat", "none"]);
-/** Roof types a volume can stand on (its deck). */
-const DECK_ROOFS = ["flat", "none", "skirt", "stepped"];
-/** Roof types that need a rectangle (a wing) to be built. */
-const RECT_ROOFS = new Set(["gable", "hip", "shed", "spire", "skirt", "stepped"]);
 
 const ridgeFrom = (r: Roof | "none" | undefined): "ew" | "ns" | undefined =>
   r === undefined || r === "none" ? undefined : r.ridge;
@@ -261,7 +253,7 @@ function checkStandsOn(
       `building "${st.id}": volume "${spec.id}" overhangs the top of "${target.id}" at ${off.length} cell(s)`,
       `keep it inside ${target.id}'s top storey (${rectText(top?.rect)})`,
     );
-  if (!DECK_ROOFS.includes(target.roof.layers[target.roof.layers.length - 1]?.type ?? "flat"))
+  if (roofInfo(target.roof.layers[target.roof.layers.length - 1]?.type ?? "flat")?.deck !== true)
     b.issue(
       "warning",
       `building "${st.id}": volume "${spec.id}" stands on "${target.id}", whose roof is not flat; it stands on its deck`,
@@ -299,9 +291,9 @@ function resolveRoof(b: BuildingCtx, spec: VolumeSpec, prng2: Prng): VolumePlan[
   const layers: ResolvedVolume["roof"]["layers"] = [];
   const rect = spec.rects[0];
   for (const l of raw) {
-    let type: string = l.type === "cone" ? "spire" : l.type;
+    let type: string = roofInfo(l.type)?.as ?? l.type;
     const requested = l.type;
-    if (layers.length > 0 && CLOSING.has(layers[layers.length - 1]?.type ?? "")) {
+    if (layers.length > 0 && roofInfo(layers[layers.length - 1]?.type ?? "")?.closing === true) {
       b.issue(
         "warning",
         `building "${st.id}": roof layer "${requested}" of volume "${spec.id}" stands on a roof that is already closed; it is left out`,
@@ -309,7 +301,7 @@ function resolveRoof(b: BuildingCtx, spec: VolumeSpec, prng2: Prng): VolumePlan[
       );
       continue;
     }
-    if (!BUILT_ROOFS.has(type)) {
+    if (roofInfo(type)?.built !== true) {
       b.issue(
         "warning",
         `building "${st.id}": "${requested}" roofs are not built yet; it gets a flat roof`,
@@ -317,7 +309,7 @@ function resolveRoof(b: BuildingCtx, spec: VolumeSpec, prng2: Prng): VolumePlan[
       );
       type = "flat";
     }
-    if (RECT_ROOFS.has(type) && !rect) {
+    if (roofInfo(type)?.rect === true && !rect) {
       b.issue(
         "warning",
         `building "${st.id}": a ${type} roof needs a rectangular volume or wings; this footprint gets a flat roof`,

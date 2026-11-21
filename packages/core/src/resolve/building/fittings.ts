@@ -2,15 +2,22 @@
  * What a building is fitted with once its faces and condition are settled: lights beside its doors, a plinth, roof
  * furniture and window lighting (phase 2 stream `prng2`; the roof hut on `prng3`), and the cells kept free of dressing.
  */
-import type { Vec2 } from "../../contracts/plan";
+import type { Material, Vec2 } from "../../contracts/plan";
 import { SIDE_STEP as STEP } from "../../gen/gridGeometry";
+import { isPassage, isSecret } from "../../gen/openingKinds";
 import type { RuinProfile } from "../ruin";
 import type { BuildingCtx } from "./context";
 import { type BuildingFaces, GROUND_FACES } from "./faces";
-import { isPassage, isSecret } from "../../gen/openingKinds";
 import { alongFace, cellOf, faceKey, faceRuns, key, ringOf } from "./footprint";
 import type { BuildingPlan, Chimney, GroundOpening, Porch } from "./types";
 import type { GroundFootprint } from "./volumes";
+
+/**
+ * The face of a plinth when neither the plan nor the building style names one. Neither the palette nor the theme
+ * defaults (resolve/themes.ts) have a plinth face, and a theme's floor default would change released buildings, so it
+ * is a named constant; a style states its own in `plinth.face`.
+ */
+const PLINTH_FACE_DEFAULT: Material = "flagstone";
 
 /** A light beside each door (not a secret one), in the first free face cell after it, else before it. */
 export function placeDoorLights(
@@ -95,7 +102,7 @@ export function drawPlinth(b: BuildingCtx, fp: GroundFootprint): BuildingPlan["p
   return {
     height: pIn.height,
     margin,
-    face: pIn.face ?? pp?.face ?? "flagstone",
+    face: pIn.face ?? pp?.face ?? PLINTH_FACE_DEFAULT,
     rim: pIn.rim === "none" ? null : (pIn.rim ?? pp?.rim ?? null),
     approach: pIn.approach ?? "steps",
     cells: inside.sort((p, q) => p[1] - q[1] || p[0] - q[0]),

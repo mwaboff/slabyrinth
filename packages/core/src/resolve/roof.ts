@@ -11,6 +11,7 @@
  */
 import type { Side } from "../contracts/plan";
 import type { ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
+import { isPitchedRoof } from "./roofTypes";
 
 export interface RoofWing {
   /** Footprint rectangle (cells), without the wall ring. */
@@ -474,7 +475,7 @@ export function roofOwners(
     const top = v.storeys[v.storeys.length - 1];
     const layer = v.roof.layers[0];
     if (!top || !layer || v.roof.gableOnly) continue;
-    const base = top.wallTop + (v.roof.deck && ["gable", "hip", "shed"].includes(layer.type) ? 0.5 : 0);
+    const base = top.wallTop + (v.roof.deck && isPitchedRoof(layer.type) ? 0.5 : 0);
     if (layer.type === "gable") {
       v.rects.forEach((w, wi) => {
         const g = gableRoof(w, holes);
@@ -526,7 +527,7 @@ export function roofProportion(st: ResolvedStructure): RoofProportion | null {
     let top = base;
     let pitched = false;
     v.roof.layers.forEach((layer, li) => {
-      const isPitched = layer.type === "gable" || layer.type === "hip" || layer.type === "shed";
+      const isPitched = isPitchedRoof(layer.type);
       if (li === 0 && v.roof.deck && isPitched) base += 0.5;
       const rects = li === 0 ? v.rects : [{ ...last.rect, ridge: layer.ridge }];
       let rise = 0;

@@ -38,10 +38,11 @@ import {
   shedRoof,
   spireShell,
 } from "../resolve/roof";
+import { isPitchedRoof } from "../resolve/roofTypes";
 import { structureStyle } from "../resolve/structureStyles";
 import { OPPOSITE as OPP, SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
 import { hasLeaf, isWindow } from "../gen/openingKinds";
-import { THEME_WALL_STYLE } from "../gen/wallStyles";
+import { isPlankWallStyle, THEME_WALL_STYLE } from "../gen/wallStyles";
 import { THEME_WALL_ROLE, wallRole } from "../palette/roles";
 import { sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
 import type { WorldFrame } from "./geometry";
@@ -1004,7 +1005,7 @@ function buildRoof(
     const kit = layer.style;
     const first = li === 0;
     const last = li === n - 1;
-    const pitched = layer.type === "gable" || layer.type === "hip" || layer.type === "shed";
+    const pitched = isPitchedRoof(layer.type);
     if (first && v.roof.deck && pitched) {
       placeFloor(
         ctx,
@@ -2657,12 +2658,13 @@ function buildRooftopSets(
 function buildDebris(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: string): void {
   for (const d of st.debris ?? []) {
     // a theme without the role gets nothing: never a wrong object
-    const timber = legiblyWorn(ctx, st) && (st.design?.material ?? st.storeys[0]?.walls) === "wood";
+    const walls = st.design?.material ?? st.storeys[0]?.walls;
+    const timber = legiblyWorn(ctx, st) && isPlankWallStyle(walls);
     // (generator 3: fallen stone does not lie beside a timber building; its own material or nothing)
     const roles = [
       d.kind === "rubble"
         ? timber
-          ? "ruin_rubble.wood"
+          ? `ruin_rubble.${walls}`
           : "ruin_rubble.default"
         : d.kind === "prop"
           ? "ruin_prop.default"
@@ -2703,7 +2705,7 @@ function buildWallTopRubble(ctx: StructureRealizeCtx, st: ResolvedStructure, the
   // role has small broken ones (a brick pile), each turned at its own angle along the wall
   // timber walls (generator 3): what lies on a timber wall is timber (fallen beams, planks): the wall material's own
   // role, and nothing when the palette has none, never grey stone blocks on brown planks
-  const timber = legiblyWorn(ctx, st) && style === "wood";
+  const timber = legiblyWorn(ctx, st) && isPlankWallStyle(style);
   const blockRole = ctx.lookup(
     theme,
     timber ? [`ruin_block.${style}`] : [`ruin_block.${style}`, "ruin_block.default"],

@@ -13,10 +13,14 @@
 import type { Side } from "../../contracts/plan";
 import { SIDE_STEP as STEP, SIDES } from "../../gen/gridGeometry";
 import { isPassage, isWindow } from "../../gen/openingKinds";
+import { isPlankWallStyle } from "../../gen/wallStyles";
 import { subSeed } from "../../util/hash";
 import { createPrng, type Prng } from "../../util/prng";
 import { climbingGrowth } from "../growth";
+import { firstHungDetail } from "../designDetails";
+import { isPitchedRoof } from "../roofTypes";
 import { type RuinProfile, ruinProfile, scatterTopRubble } from "../ruin";
+import { FOOT_DEBRIS, ROOF_BROKEN, RUINED, WEATHERED } from "./conditionRates";
 import type { BuildingCtx } from "./context";
 import { type BuildingFaces, GROUND_FACES, party } from "./faces";
 import { alongFace, cellOf, faceKey, faceRuns, key, ringOf } from "./footprint";
@@ -49,9 +53,6 @@ interface DecayWork {
   readonly prng4: Prng;
   readonly debris: BuildingPlan["debris"];
 }
-
-/** Roof brokenness of a weathered or ruined building (share of roof pieces gone). */
-const ROOF_BROKEN = { ruined: 0.45, weatheredLegible: 0.3, weathered: 0.2, keptAnchor: 0.12 } as const;
 
 export function applyCondition(
   b: BuildingCtx,
@@ -124,7 +125,7 @@ function ruinOf(
   legible: boolean,
 ): RuinProfile {
   const { seed } = b;
-  const timberWalls = legible && vplans.some((v) => v.on === null && v.storeys[0]?.walls === "wood");
+  const timberWalls = legible && vplans.some((v) => v.on === null && isPlankWallStyle(v.storeys[0]?.walls));
   const gableWing =
     ruined && !timberWalls && main.roof.layers[0]?.type === "gable" ? main.rects[0] : undefined;
   return ruinProfile(
@@ -135,15 +136,11 @@ function ruinOf(
     new Set(vplans.filter((v) => v.roof.layers.length > 0).map((v) => v.id)),
     {
       legibleCondition: legible,
-      pitched: new Set(
-        vplans
-          .filter((v) => ["gable", "hip", "shed"].includes(v.roof.layers[0]?.type ?? ""))
-          .map((v) => v.id),
-      ),
+      pitched: new Set(vplans.filter((v) => isPitchedRoof(v.roof.layers[0]?.type)).map((v) => v.id)),
       // generator 3: a ruin of several volumes keeps one whole under its roof more often than not
       keepRoofed:
         legible && ruined && vplans.filter((v) => v.on === null).length > 1
-          ? createPrng(subSeed(seed, "anchor3")).chance(0.65)
+          ? createPrng(subSeed(seed, "anchor3")).chance(RUINED.keepRoofed)
           : false,
       openings: faces.ground.map((g) => ({ at: g.at, side: g.side, width: g.width })),
     },
@@ -220,7 +217,10 @@ function raggedRoofHole(b: BuildingCtx, ruin: RuinProfile, ts: TopStorey): void 
     [ts.rect.x + ts.rect.w - 1, ts.rect.y + ts.rect.h - 1],
   ];
   const start = corners[rp.int(4)] as [number, number];
-  const want = Math.max(5, Math.round(ts.cells.length * (0.14 + 0.08 * rp.next())));
+  const want = Math.max(
+    WEATHERED.roofHoleMin,
+    Math.round(ts.cells.length * (WEATHERED.roofHoleShare + WEATHERED.roofHoleExtra * rp.next())),
+  );
   const blob = new Set<string>();
   if (own.has(key(start[0], start[1]))) blob.add(key(start[0], start[1]));
   while (blob.size < want && blob.size > 0) {
@@ -265,7 +265,7 @@ function boardWindows(
   wins: ReadonlyArray<{ at: readonly [number, number]; side: Side }>,
   wp: Prng,
 ): string[] {
-  const boardN = wins.length === 0 ? 0 : Math.max(1, Math.round(wins.length * 0.34));
+  const boardN = wins.length === 0 ? 0 : Math.max(1, Math.round(wins.length * WEATHERED.boardedShare));
   const boarded = wp
     .shuffle(wins.map((w) => faceKey(w.at[0], w.at[1], w.side)))
     .slice(0, boardN)
@@ -288,7 +288,8 @@ function biteParapets(vplans: readonly VolumePlan[], wp: Prng): string[] {
     const own = new Set(top.cells.map(([x, y]) => key(x, y)));
     for (const [x, y] of top.cells)
       for (const sd of SIDES)
-        if (!own.has(key(x + STEP[sd][0], y + STEP[sd][1])) && wp.chance(0.28)) bites.push(faceKey(x, y, sd));
+        if (!own.has(key(x + STEP[sd][0], y + STEP[sd][1])) && wp.chance(WEATHERED.parapetBite))
+          bites.push(faceKey(x, y, sd));
   }
   return bites;
 }
@@ -297,7 +298,7 @@ function biteParapets(vplans: readonly VolumePlan[], wp: Prng): string[] {
 function loseHungDetail(b: BuildingCtx): string | undefined {
   const dz = b.work.designs.get(b.st.id);
   if (!dz) return undefined;
-  const hung = ["canopy", "balconies", "fire_escape"].find((d) => dz.design.details.includes(d));
+  const hung = firstHungDetail(dz.design.details);
   if (hung)
     b.work.designs.set(b.st.id, {
       ...dz,
@@ -353,17 +354,17 @@ function onFace(
 function breachGroundStorey(d: DecayWork): void {
   const { b, fp, vplans, faces, ruin, legible, prng4 } = d;
   const ground = faces.ground;
-  const breaches = 1 + prng4.int(2);
+  const breaches = RUINED.breachesMin + prng4.int(RUINED.breachesExtra);
   // the walls of the kept, roofed volume are not breached
   const whole = new Set<string>();
   if (ruin.keep !== undefined)
     for (const c of ruin.columns) if (c.top >= c.full - 1e-6) whole.add(faceKey(c.at[0], c.at[1], c.side));
   let made = 0;
-  for (let attempt = 0; attempt < 12 && made < breaches; attempt++) {
+  for (let attempt = 0; attempt < RUINED.breachTries && made < breaches; attempt++) {
     const side = SIDES[prng4.int(4)] as Side;
     const run = faceRuns(fp.cellSet, side).sort((p, q) => q.cells.length - p.cells.length)[0];
-    if (!run || run.cells.length < 4) continue;
-    const width = 1 + prng4.int(2);
+    if (!run || run.cells.length < RUINED.breachMinRun) continue;
+    const width = RUINED.breachWidthMin + prng4.int(RUINED.breachWidthExtra);
     const a0 = 1 + prng4.int(Math.max(1, run.cells.length - width - 1));
     const [dx, dy] = STEP[side];
     let free = true;
@@ -437,15 +438,13 @@ function scatterFootDebris(d: DecayWork, blocked: ReadonlySet<string>): void {
   const { fp, ruin, ruined, heavyGrowth, prng4 } = d;
   const ring2 = ringOf(new Set([...fp.cellSet, ...ringOf(fp.cellSet)]));
   const loss = ruin.loss;
+  const r = heavyGrowth ? FOOT_DEBRIS.ruinedHeavy : FOOT_DEBRIS.ruined;
+  const w = heavyGrowth ? FOOT_DEBRIS.weatheredHeavy : FOOT_DEBRIS.weathered;
   for (const k of freeRingCells(d, ring2, blocked)) {
-    if (!prng4.chance(heavyGrowth ? (ruined ? 0.12 + 0.2 * loss : 0.3) : ruined ? 0.06 + 0.15 * loss : 0.15))
-      continue;
+    if (!prng4.chance(ruined ? r.base + r.perLoss * loss : w.chance)) continue;
     const [x, y] = cellOf(k);
     if (nearHeap(d, x, y)) continue;
-    d.debris.push({
-      at: [x, y],
-      kind: prng4.chance(heavyGrowth ? (ruined ? 0.25 : 0.08) : ruined ? 0.55 : 0.3) ? "rubble" : "growth",
-    });
+    d.debris.push({ at: [x, y], kind: prng4.chance(ruined ? r.rubble : w.rubble) ? "rubble" : "growth" });
   }
 }
 
@@ -462,7 +461,10 @@ function footGrowth(d: DecayWork, blocked: ReadonlySet<string>): void {
     for (const sd of SIDES) if (!fp.cellSet.has(key(x + STEP[sd][0], y + STEP[sd][1]))) faceCount++;
   }
   const foot = freeRingCells(d, ringOf(fp.cellSet), blocked);
-  const want = Math.max(2, Math.ceil(faceCount / (heavyGrowth ? 3 : 7)));
+  const want = Math.max(
+    WEATHERED.footMin,
+    Math.ceil(faceCount / (heavyGrowth ? WEATHERED.footFacesHeavy : WEATHERED.footFaces)),
+  );
   let made = 0;
   for (const k of wp2.shuffle(foot)) {
     if (made >= want) break;
@@ -485,13 +487,13 @@ function insideRubble(d: DecayWork, blocked: ReadonlySet<string>): void {
     return !blocked.has(k) && SIDES.every((sd) => cellSet.has(key(x + STEP[sd][0], y + STEP[sd][1])));
   });
   const want = Math.max(
-    2,
-    Math.round(debris.filter((q) => q.kind === "rubble").length * 1.5) +
-      Math.round(inside.length * 0.1 * ruin.loss),
+    RUINED.insideMin,
+    Math.round(debris.filter((q) => q.kind === "rubble").length * RUINED.insidePerOutside) +
+      Math.round(inside.length * RUINED.insidePerCellLoss * ruin.loss),
   );
   const picked: string[] = [];
   for (const k of prng4.shuffle(inside)) {
-    if (picked.length >= Math.min(Math.round(inside.length * 0.5), want)) break;
+    if (picked.length >= Math.min(Math.round(inside.length * RUINED.insideMaxShare), want)) break;
     const [x, y] = cellOf(k);
     if (
       picked.some((p) => {
@@ -509,9 +511,9 @@ function insideRubble(d: DecayWork, blocked: ReadonlySet<string>): void {
       kind:
         i === 0
           ? "rubble"
-          : i <= 2 && inside.length >= 12
+          : i <= 2 && inside.length >= RUINED.insidePropsFrom
             ? "prop"
-            : prng4.chance(heavyGrowth ? 0.35 : 0.8)
+            : prng4.chance(heavyGrowth ? RUINED.insideRubbleHeavy : RUINED.insideRubble)
               ? "rubble"
               : "growth",
     });
@@ -528,9 +530,9 @@ function fallenHeaps(d: DecayWork, blocked: ReadonlySet<string>): void {
   const have = new Set(debris.map((q) => key(q.at[0], q.at[1])));
   const fallenCols = ruin.columns.filter((c) => {
     const [dx, dy] = STEP[c.side];
-    return c.full - c.top >= 1.5 && !fp.cellSet.has(key(c.at[0] + dx, c.at[1] + dy));
+    return c.full - c.top >= RUINED.fallenDrop && !fp.cellSet.has(key(c.at[0] + dx, c.at[1] + dy));
   });
-  let budget = Math.max(6, Math.round(fallenCols.length * 0.8));
+  let budget = Math.max(RUINED.fallenMinBudget, Math.round(fallenCols.length * RUINED.fallenPerColumn));
   for (const c of fp3.shuffle(fallenCols)) {
     if (budget <= 0) break;
     const [dx, dy] = STEP[c.side];
@@ -538,14 +540,17 @@ function fallenHeaps(d: DecayWork, blocked: ReadonlySet<string>): void {
     const spots: Array<[number, number]> = [];
     for (const dd of [-1, 0, 2, 3])
       for (const l of [-1, 0, 1]) spots.push([c.at[0] + dx * dd + lx * l, c.at[1] + dy * dd + ly * l]);
-    const n = Math.min(4, 1 + Math.round((c.full - c.top) / 2) + fp3.int(2));
+    const n = Math.min(RUINED.fallenMaxPerColumn, 1 + Math.round((c.full - c.top) / 2) + fp3.int(2));
     let made = 0;
     for (const [x, y] of fp3.shuffle(spots)) {
       if (made >= n) break;
       const k = key(x, y);
       if (have.has(k) || !b.inBounds(x, y) || blocked.has(k) || b.work.neighbours.has(k)) continue;
       have.add(k);
-      debris.push({ at: [x, y], kind: fp3.chance(heavyGrowth ? 0.35 : 0.85) ? "rubble" : "growth" });
+      debris.push({
+        at: [x, y],
+        kind: fp3.chance(heavyGrowth ? RUINED.fallenRubbleHeavy : RUINED.fallenRubble) ? "rubble" : "growth",
+      });
       made++;
       budget--;
     }
