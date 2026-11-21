@@ -34,6 +34,7 @@ export function applyOverride(base: Palette, o: PaletteOverride): Palette {
   if (o.defaults?.floor !== undefined) defaults.floor = o.defaults.floor;
   if (o.defaults?.wallStyle !== undefined) defaults.wallStyle = o.defaults.wallStyle;
   if (o.defaults?.caveFloor !== undefined) defaults.caveFloor = o.defaults.caveFloor;
+  if (o.defaults?.interior !== undefined) defaults.interior = o.defaults.interior;
   return {
     ...base,
     name: o.name ?? base.name,

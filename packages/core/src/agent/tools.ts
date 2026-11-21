@@ -322,7 +322,12 @@ const areaSchema: JsonSchema = {
     name: str,
     key: { type: "string", description: 'Room-key label, e.g. "1" or "A3".' },
     shape: { $ref: "#/$defs/shape" },
-    floor: { type: "string", enum: [...MATERIALS, "none"] },
+    floor: {
+      type: "string",
+      enum: [...MATERIALS, "none"],
+      description:
+        "Omitted = the theme default. In a built interior (base solid) a room on the default floor (omitted, or named as the default) takes the floor of its purpose (plank for quarters, tile for a hall or cell, cobble for a crypt) that differs from its neighbours, and sits a quarter tile above the corridor it opens on; name a floor only to choose one.",
+    },
     floorHeight: {
       type: "number",
       description:
@@ -557,7 +562,12 @@ const terrainSchema: JsonSchema = {
           description:
             "area: optional on generator 2 — leave it out (or give the level id) to dress the whole level: the open ground and each zone.",
         },
-        preset: { type: "string", enum: [...DRESS_PRESETS] },
+        preset: {
+          type: "string",
+          enum: [...DRESS_PRESETS],
+          description:
+            "Generator 4: the room presets (tavern, library, barracks, bedroom, kitchen, storeroom, throne_room, shrine, crypt, prison, forge, laboratory, treasury) furnish the room from its purpose: an anchor piece against a wall, furniture along the walls, small things on the furniture and a shelf, a rug, lights. A room named for its purpose gets this without a dress op; add one to choose the purpose or raise the density.",
+        },
         density: num,
         seed: int,
       },
@@ -730,7 +740,8 @@ const terrainSchema: JsonSchema = {
         rim: {
           type: "string",
           enum: [...WALL_STYLES, "none"],
-          description: "Edge piece (default ruined for a collapse, iron_bars otherwise); none = open edge.",
+          description:
+            "Edge piece. Generator 4 default: a collapse has none (broken rubble on the rim), a shaft a low_wall kerb, a balcony a railing; never ask for a 2-tall wall style, it hides the hole. Earlier generators: ruined for a collapse, iron_bars otherwise.",
         },
         rubble: { type: "boolean", description: "Collapse: heap rubble on the floor below (default true)." },
       },
@@ -1098,6 +1109,11 @@ const levelSchema: JsonSchema = {
       description:
         "The board's edge (generator 2). natural (default on open-air natural levels at least 16x16 with no roads and fewer than 3 buildings): a ragged, rounded edge with a low strip round the outside. Choose rect for built-up maps (streets, towns), a map that must tile against another, or when the GM asks for a full rectangle.",
     },
+    roomDress: {
+      const: false,
+      description:
+        "Generator 4. false turns off the default dressing of rooms (an area of kind room whose name, tags or notes name a purpose, with no dress op over it and little furniture of its own, is furnished from that purpose and lit). Leave it out.",
+    },
     base: {
       oneOf: [
         {
@@ -1136,7 +1152,7 @@ const levelSchema: JsonSchema = {
       type: "array",
       maxItems: 8,
       description:
-        "Generator 3. Rows or clusters of market stalls, laid out for you in a rectangle: the long side is the row; deep enough (aisle + 2 cells) two rows face each other across a clear aisle, else one row faces `facing`. Stalls are 2 cells wide, spaced irregularly, kinds from `goods` in shuffled order, built from the theme's real stall pieces (fruit, vegetables, spices, magic, weapons; the rest stand on a bare table with bread, dairy, fish, potions or grain on it). Cells already taken (a well, a building) are skipped. Example: {\"id\": \"market\", \"area\": {\"x\": 17, \"y\": 6, \"w\": 14, \"h\": 7}, \"goods\": [\"fruit\", \"bread\", \"potions\", \"vegetables\"]}. A single stall: a feature of type stall with variant = the kind. Do not dress the same square with the plaza preset: it plants trees and seats in the aisle (it never builds on a taken cell).",
+        "Generator 3. Rows or clusters of market stalls, laid out for you in a rectangle: the long side is the row; deep enough (aisle + 2 cells) two rows face each other across a clear aisle, else one row faces `facing`. Stalls are 2 cells wide, spaced irregularly, kinds from `goods` in shuffled order, built from the theme's real stall pieces (fruit, vegetables, spices, magic, weapons; the rest stand on a bare table with bread, dairy, fish, potions or grain on it). Cells already taken (a well, a building) are skipped. Generator 4: stalls are covered and differ: small 2x3, medium 3x3, large 4x4 (and 4x3, 3x2, 2x2), a raised base, skirted counters with a walk-in gap or goods trays, corner posts, a gable or flat cloth canopy, a stool and a lantern, an empty one when `goods` has \"empty\", a few open tables, loose gaps and the odd turned stall; a theme without canopy pieces keeps the table stall. Each row's band is as deep as the rectangle allows (up to 4): give depth >= 2*3 + aisle for two rows of full-size stalls, less and the stalls are small. Keep overhead lines along the aisle or street: a line through a covered stall is dropped. Example: {\"id\": \"market\", \"area\": {\"x\": 17, \"y\": 6, \"w\": 14, \"h\": 7}, \"goods\": [\"fruit\", \"bread\", \"potions\", \"vegetables\"]}. A single stall: a feature of type stall with variant = the kind. Do not dress the same square with the plaza preset: it plants trees and seats in the aisle (it never builds on a taken cell).",
       items: {
         type: "object",
         additionalProperties: false,

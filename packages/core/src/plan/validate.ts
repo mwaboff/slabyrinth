@@ -20,7 +20,9 @@ import type {
   Vec2,
 } from "../contracts/plan";
 import { BUILD_CONSTANTS, PLAN_LIMITS } from "../contracts/plan";
+import { own } from "../palette/own";
 import { utf8Length } from "../util/hash";
+import { VOCABULARY_SINCE } from "./generator";
 import { listForHint, nearest } from "../util/strings";
 import { KIND_LABEL, freeId, listElements } from "./elements";
 import type { ElementLocation } from "./elements";
@@ -378,6 +380,30 @@ function areaRefCheck(
 function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: IssueSink): void {
   const base = `/levels/${li}`;
   const lb = levelBox(level);
+
+  // vocabulary a later generator added: below that generator it is ignored or substituted, so say so
+  for (const [field, since] of Object.entries(VOCABULARY_SINCE.levelFields))
+    if (since > plan.generator && (level as unknown as Record<string, unknown>)[field] !== undefined)
+      sink.add(
+        "warning",
+        "no_effect",
+        `${base}/${field}`,
+        `level "${level.id}": ${field} needs generator ${since}; this plan is generator ${plan.generator}, so it changes nothing`,
+        `set the plan generator to ${since} (new plans have it), or remove ${field}`,
+        { elementId: level.id, levelId: level.id },
+      );
+  level.features.forEach((f, fi) => {
+    const since = own(VOCABULARY_SINCE.featureTypes, f.type);
+    if (since !== undefined && since > plan.generator)
+      sink.add(
+        "warning",
+        "no_effect",
+        `${base}/features/${fi}/type`,
+        `feature "${f.id}": type ${f.type} needs generator ${since}; this plan is generator ${plan.generator}, so a stand-in piece is used`,
+        `set the plan generator to ${since} (new plans have it), or use another feature type`,
+        { elementId: f.id, levelId: level.id, cell: f.at },
+      );
+  });
 
   (level.structures ?? []).map(withWings).forEach((st, si) => {
     const p = `${base}/structures/${si}`;

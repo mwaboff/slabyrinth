@@ -7,7 +7,21 @@ import type { DressPreset, FeatureType, Rotation, Side } from "../contracts/plan
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
 import { featureInfo, rotatedSize } from "./catalog";
+import {
+  EDGE_OPENING,
+  EDGE_WALL,
+  FLAG_LINK,
+  FLAG_NO_FLOOR,
+  FLAG_PATH,
+  FLAG_WATER,
+  SIDES,
+  cellKey,
+  footprintCells,
+  wallFootprint,
+} from "./gridGeometry";
 import { ValueNoise } from "./noise";
+import { ROOM_PURPOSE_INFO, presetPurpose } from "./roomPurpose";
+import { dressRoom } from "./rooms4";
 import { composeArea, isComposedPreset, type ComposedPreset } from "./setpieces";
 
 export interface PlacementGrid {
@@ -74,6 +88,28 @@ export interface PlacementGrid {
    * standing on the base plane. Optional.
    */
   void?(x: number, y: number): boolean;
+  /**
+   * Generator 4, room recipes (gen/rooms4.ts): the real size in tiles of the smallest variant of the piece a feature
+   * type (and variant name) resolves to in the level's theme; undefined where the theme has no such piece (the recipe
+   * leaves that item out). Absent: no room recipe runs.
+   */
+  piece4?(
+    type: FeatureType,
+    variant?: string,
+  ): { w: number; d: number; h: number; wMax: number; dMax: number; hMax: number; tile: boolean; mixed: boolean } | undefined;
+  /** Generator 4: does this cell host the wall strip on its `side` (a piece mounted there stands half a cell in)? */
+  wallHosted?(x: number, y: number, side: Side): boolean;
+  /** Generator 4: height in tiles of the wall on the cell's `side` (0 where there is none). */
+  wallHeight?(x: number, y: number, side: Side): number;
+  /** Generator 4: wall style of the wall on the cell's `side` (natural rock takes no shelf). */
+  wallStyle?(x: number, y: number, side: Side): string | undefined;
+  /** Generator 4: cells of the lights already on the level (wall torches, candles, braziers, lanterns), plan or generated. */
+  lightCells?(): ReadonlyArray<readonly [number, number]>;
+  /**
+   * Generator 4: what the level's rooms have been given so far, by purpose (the recipe variants used), so rooms of one
+   * purpose draw different variants. Created per level by the resolver.
+   */
+  roomMemory?: Map<string, number[]>;
 }
 
 export interface GeneratedPlacement {
@@ -91,28 +127,6 @@ export interface GeneratedPlacement {
    * below, or a base course sunk into the ground. The resolver adds it to the feature's base height.
    */
   lift?: number;
-}
-
-const EDGE_WALL = 1;
-const EDGE_OPENING = 2;
-const FLAG_NO_FLOOR = 1;
-const FLAG_WATER = 4;
-const FLAG_PATH = 8;
-const FLAG_LINK = 16;
-
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
-
-/** Integer key of a cell (coordinates are within ±8192). */
-const cellKey = (x: number, y: number): number => (x + 16384) * 32768 + (y + 16384);
-
-function footprintCells(
-  at: readonly [number, number],
-  size: readonly [number, number],
-): Array<[number, number]> {
-  const out: Array<[number, number]> = [];
-  for (let y = at[1]; y < at[1] + size[1]; y++)
-    for (let x = at[0]; x < at[0] + size[0]; x++) out.push([x, y]);
-  return out;
 }
 
 /** True when a wall (WALL edge) separates two cells of the footprint. */
@@ -428,33 +442,34 @@ export interface DressParams {
   density: number;
   seed: number;
   remaining: number;
+  /** Generator 4: the area is abandoned (ResolvedArea.abandoned, from gen/roomPurpose.ts classifyRoom). */
+  abandoned?: boolean;
 }
 
 const SIDE_ROT: Record<Side, Rotation> = { N: 0, E: 90, S: 180, W: 270 };
 /** Random candidates tried per dress item before it is dropped. */
 const SAMPLE_TRIES = 24;
 
-/** Footprint top-left for an item of unrotated size [w (along wall), h (depth)] backed onto `side` of (cx, cy). */
-function wallFootprint(
-  cx: number,
-  cy: number,
-  side: Side,
-  size: readonly [number, number],
-): [number, number] {
-  const h = size[1];
-  switch (side) {
-    case "N":
-    case "W":
-      return [cx, cy];
-    case "S":
-      return [cx, cy - h + 1];
-    case "E":
-      return [cx - h + 1, cy];
-  }
-}
-
 export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   if (isComposedPreset(p.preset)) return composeArea(grid, { ...p, preset: p.preset });
+  // generator 4: an interior preset dresses the room from its purpose's recipe (anchor, wall run, things on things,
+  // lights); a theme without the pieces, or an area without walls, keeps the weighted scatter below
+  if ((grid.generator ?? 2) >= 4 && grid.piece4 !== undefined) {
+    const purpose = presetPurpose(p.preset);
+    if (purpose !== undefined) {
+      const res = dressRoom(grid, {
+        purpose,
+        // the preset says what the room is for; the room's own words may still say nobody keeps it up
+        abandoned: ROOM_PURPOSE_INFO[purpose].abandoned || p.abandoned === true,
+        areaIndex: p.areaIndex,
+        areaCells: p.areaCells,
+        density: p.density / 0.5,
+        seed: p.seed,
+        remaining: p.remaining,
+      });
+      if (res !== null) return res;
+    }
+  }
   const table = DRESS_PRESET_TABLE[p.preset];
   const rng = createPrng(subSeed(p.seed, "dress"));
   const cells = p.areaCells.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0]);
@@ -472,8 +487,20 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   let capped = false;
 
   const wallSides = (x: number, y: number): Side[] => SIDES.filter((s) => grid.edge(x, y, s) === EDGE_WALL);
+  const atOpening = (x: number, y: number): boolean => SIDES.some((s) => grid.edge(x, y, s) === EDGE_OPENING);
+  // generator 4: a blocking piece (rubble, a crate) keeps one more cell back from a doorway too: pieces are wider than
+  // a cell, and one standing beside the cell in front of a door spills into it (verify_door_blocked)
   const nearOpening = (x: number, y: number): boolean =>
-    SIDES.some((s) => grid.edge(x, y, s) === EDGE_OPENING);
+    atOpening(x, y) ||
+    ((grid.generator ?? 2) >= 4 &&
+      (
+        [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ] as const
+      ).some(([dx, dy]) => grid.inBounds(x + dx, y + dy) && atOpening(x + dx, y + dy)));
   const free = (x: number, y: number, blocking: boolean): boolean =>
     grid.inBounds(x, y) &&
     grid.area(x, y) === p.areaIndex &&

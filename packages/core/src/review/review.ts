@@ -15,6 +15,7 @@ import {
 import type { CompileDiagnostic, PaletteCatalog, PlacementSet } from "../contracts/compiler";
 import { loadPalettes } from "../palette/load";
 import { createRoleResolver } from "../palette/resolve";
+import { coveredStallForms } from "../palette/stallParts";
 import { structureSignature, structureSilhouette, structureTone } from "../resolve/structureVariety";
 import { roofUnsupportedEdges, structureRuinMeasures, weatherMeasures, weatherSigns } from "../resolve/ruin";
 import { GROWTH_LEVELS, growthMeasures } from "../resolve/growth";
@@ -42,8 +43,13 @@ import {
 } from "../resolve/floorFamilies";
 import { h32 } from "../util/hash";
 import { briefNotes } from "./brief";
-import { caveWallChecks } from "./caveWall";
-import { caveMassNotes } from "./caveMass";
+import { caveNaturalChecks, caveWallChecks } from "./caveWall";
+import { caveMassReviewNotes } from "./caveMass";
+import { interiorNotes } from "./interiors";
+import { roofGapNotes } from "./roofGaps";
+import { reviewBuild } from "./reviewBuild";
+import { stallNotes } from "./stalls";
+import { floorAccentNotes } from "./floorTone";
 import { LIGHT_FEATURES } from "../gen/catalog";
 import {
   FORMAL_THEMES,
@@ -105,9 +111,15 @@ export type DesignNoteCode =
   | "cave_wall_thin"
   | "cave_rock_uncovered"
   | "cave_mass_gaps"
+  | "cave_mass_hollow"
+  | "cave_floor_flat"
+  | "cave_outline_straight"
   | "cave_rock_tones"
   | "cave_wall_row"
   | "focal_unlit"
+  | "floor_accent_tone"
+  | "stalls_uncovered"
+  | "stalls_grid"
   | "rock_tones_mixed"
   | "rise_timid"
   | "board_rectangular"
@@ -119,6 +131,11 @@ export type DesignNoteCode =
   | "weathered_same_as_intact"
   | "growth_bare"
   | "roof_squat"
+  | "roof_gap"
+  | "room_bare"
+  | "rooms_alike"
+  | "room_unlit"
+  | "furniture_adrift"
   | "river_trench"
   | "rift_broken"
   | "bridge_along";
@@ -145,7 +162,10 @@ export interface ReviewOptions {
   oneToneRule?: boolean;
   /** Build diagnostics, when a build ran: substituted and unresolved pieces become one note. */
   diagnostics?: readonly CompileDiagnostic[];
-  /** The realized placements, when a build ran: the cave rock mass is measured on them (review/caveMass.ts). */
+  /**
+   * The realized placements, when a build ran (the CLI): the notes measured on the placed pieces (cave rock mass,
+   * roof gaps) use them. Without them a generator 4 review builds once itself, shared by those notes (review/reviewBuild.ts).
+   */
   placements?: PlacementSet;
   /** The design brief (update_brief): words that map to a measure (review/brief.ts) are checked. */
   brief?: DesignBrief;
@@ -180,6 +200,8 @@ interface Ctx {
   pieceKinds: (theme: string, type: string) => number;
   /** Does the theme have a role (with at least one variant)? Absent in tests that build a context by hand. */
   hasRole?: (theme: string, role: string) => boolean;
+  /** Can the theme build a covered stall? The one capability check (palette/stallParts.ts) the resolver and compiler use. */
+  canCoverStall?: (theme: string) => boolean;
   /** Real outline (tiles) of the rock band's pieces in a theme: the sturdiest variant (a boulder, not a moss rock). */
   rockExtent: (
     theme: string,
@@ -271,6 +293,14 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
   };
   const hasRole = (theme: string, name: string): boolean =>
     (role(theme, name).resolution?.variants ?? []).some((v) => v.weight > 0);
+  const canCoverStall = (theme: string): boolean =>
+    coveredStallForms((roles, filter) => {
+      for (const r of roles) {
+        const found = role(theme, r, filter).resolution;
+        if (found) return found;
+      }
+      return null;
+    }).length > 0;
   const extentMemo = new Map<string, { w: number; d: number; h: number } | null>();
   const rockExtent: Ctx["rockExtent"] = (theme, type) => {
     const k = `${theme}|${type}`;
@@ -319,6 +349,7 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
       familyList,
       pieceKinds,
       hasRole,
+      canCoverStall,
       rockExtent,
       rockKinds,
       roleTones,
@@ -361,13 +392,30 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
       cliffChecks,
       rockTonesMixed,
       (c: Ctx) => caveWallChecks(plan, c.L),
+      (c: Ctx) => caveNaturalChecks(plan, c.L),
+      (c: Ctx) => floorAccentNotes(c.L.id, c.L, c.plan.generator),
       focalLights,
       ruins,
+      (c: Ctx) =>
+        stallNotes({
+          levelId: c.L.id,
+          level: c.L,
+          generator: c.plan.generator,
+          ...(c.canCoverStall ? { canCoverStall: c.canCoverStall } : {}),
+        }),
     ])
       notes.push(...fn(ctx));
   }
-  // the cave rock mass as built (generator 3): measured on the realized pieces, so only a review given a build has it
-  if (opts.placements) notes.push(...caveMassNotes(plan, resolved, opts.placements, opts.palettes ?? (bundled ??= loadPalettes())));
+  // the cave rock mass as built (generator 3): measured on the realized pieces; generator 4 builds the cave itself when
+  // the review was given no build (the in-app model review), so the mass checks run in every review
+  // one build per review run (review/reviewBuild.ts): every note measured on the placed pieces shares it
+  const palettes = opts.palettes ?? (bundled ??= loadPalettes());
+  const build = reviewBuild(resolved, palettes, opts.placements);
+  notes.push(...caveMassReviewNotes(plan, resolved, build, palettes));
+  // generator 4: an intact roof is whole (only a chimney stack stands in it); measured on the realized roof pieces
+  notes.push(...roofGapNotes(plan, resolved, build, palettes));
+  // rooms: bare, alike, unlit, furniture adrift (judged room by room, across the whole map)
+  notes.push(...interiorNotes(plan, resolved));
   notes.push(...substitutionNotes(opts.diagnostics ?? [], resolved.levels[0]?.id ?? ""));
   notes.push(...briefNotes(opts.brief, plan, resolved, REVIEW.brief.weight));
   const ranked = notes.sort(
@@ -567,7 +615,10 @@ function floorOpeningNotes(c: Ctx): DesignNote[] {
         elementIds: [fo.id],
         cell: fo.cells[0] as [number, number],
         message: `walls hide the floor opening ${fo.id}: ${fo.hiddenEdge} of its ${fo.edgeCells} edge cells have a full-height wall between the walkway and the hole`,
-        action: "keep the hole inside one room with floor all round it (no area boundary or wall on its edge), so players can stand at the rim and look down",
+        action:
+          c.plan.generator >= 4
+            ? 'keep the hole inside one room with floor all round it (no area boundary or wall on its edge), and leave "rim" unset or low (low_wall, railing, none): a 2-tall wall round a hole reads as a maze of stubs from the table'
+            : "keep the hole inside one room with floor all round it (no area boundary or wall on its edge), so players can stand at the rim and look down",
       });
   }
   return out;

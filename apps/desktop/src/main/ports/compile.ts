@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createAvailability } from "@slabyrinth/core/catalog";
 import { createCompilePlan, estimate as coreEstimate } from "@slabyrinth/core/compile";
-import { loadOrientation, loadPalettes } from "@slabyrinth/core/palette";
+import { loadOrientation, loadPalettes, paletteOptionsFor } from "@slabyrinth/core/palette";
 import { isBlocking } from "@slabyrinth/core";
 import { validatePlan } from "@slabyrinth/core/plan";
 import { resolvePlan } from "@slabyrinth/core/resolve";
@@ -89,7 +89,9 @@ export function createCoreCompileBackend(): CompileBackend {
       return bundle;
     },
     estimate(input, levels) {
-      const resolved = resolvePlan(input.plan, levels === undefined ? {} : { levels });
+      // generator 4: resolve against the palettes the build will use (covered stalls only where they can be built)
+      const palettes = palettesFor(input);
+      const resolved = resolvePlan(input.plan, { ...(levels === undefined ? {} : { levels }), ...paletteOptionsFor(input.plan, palettes) });
       // The plan lets verify skip findings the plan-level playability pass already reports.
       const opts: Parameters<typeof coreEstimate>[2] = {
         orientation: orientationFor(input),
@@ -99,7 +101,7 @@ export function createCoreCompileBackend(): CompileBackend {
       if (levels !== undefined) opts.levels = levels;
       if (input.options.grouping !== undefined) opts.grouping = input.options.grouping;
       if (input.options.fill !== undefined) opts.fill = input.options.fill;
-      return coreEstimate(resolved, palettesFor(input), opts);
+      return coreEstimate(resolved, palettes, opts);
     },
   };
 }

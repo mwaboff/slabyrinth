@@ -167,6 +167,9 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   goods: F("Goods", "other", { blocking: false, glyph: "sack" }),
   overhead: F("Overhead line", "other", { blocking: false, glyph: "banner_wall" }),
   line_post: F("Line post", "architecture", { glyph: "fence_post" }),
+  // interiors (generator 4): small things on furniture and the shelf plank they stand on
+  clutter: F("Clutter", "other", { blocking: false, glyph: "debris" }),
+  shelf_line: F("Shelf", "other", { blocking: false, wallMounted: true, glyph: "banner_wall" }),
   custom: F("Custom", "other"),
 };
 

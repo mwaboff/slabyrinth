@@ -1,0 +1,180 @@
+/**
+ * PaletteView: the questions the resolver asks of a palette, answered by ONE role resolver over ONE catalog.
+ *
+ * The resolver lays things out before any asset exists, so it needs a few facts the palette owns: how big a rock
+ * band's pieces really are (`pieceSize`), how tall the piece a room recipe stands on is (`roomPiece`), whether a theme can
+ * build a covered stall (`stallForms`), and how large a floor tile is (`floorTileArea`). They used to live in three
+ * modules with three lazily created resolvers over the bundled palettes, so the resolver could never see a user's
+ * palette and could disagree with the compiler (finding 9 and 7 of the generator-4 review).
+ *
+ * A view is built from a catalog (`createPaletteView`, memoizing its own resolutions) and handed to `resolvePlan` through
+ * `ResolveOptions.palette`. Callers that also compile pass the catalog they compile with (`paletteOptionsFor`), so both
+ * stages decide from the same palettes. The default is the bundled palettes, built once.
+ */
+import type { PaletteCatalog } from "../contracts/compiler";
+import type { FeatureType, Material, MapPlan, ThemeId } from "../contracts/plan";
+import { GENERATOR_VERSION } from "../contracts/plan";
+import type { StallForm, ThemeInterior } from "../contracts/resolved";
+import { featureRoles } from "../gen/surfaces";
+import { loadPalettes } from "./load";
+import { createRoleResolver, themeChain, type VariantFilter } from "./resolve";
+import { coveredStallForms, type RoleProbe } from "./stallParts";
+
+export type PieceSizeFn = (
+  theme: ThemeId,
+  type: FeatureType,
+  /** True: the asset's real outline in tiles, not its footprint in cells. */
+  real?: boolean,
+  /** Only the variants of this name (a market stall's bare table: `stall` + "empty"). */
+  variant?: string,
+) => { w: number; d: number; h: number } | undefined;
+
+/** Generator 4, room recipes: the smallest variant of a feature type's piece (of one variant name when given) in a theme. */
+export type RoomPieceFn = (
+  theme: ThemeId,
+  type: FeatureType,
+  variant?: string,
+) => { w: number; d: number; h: number; wMax: number; dMax: number; hMax: number; tile: boolean; mixed: boolean } | undefined;
+
+/** The canopy forms a theme can build a covered stall in (generator 4; none = the table stall of generator 3). */
+export type StallFormsFn = (theme: ThemeId) => StallForm[];
+
+export interface PaletteView {
+  /** Generator 2+: real sizes of palette-shaped generated pieces (the rock band, the pieces a small prop rests on). */
+  pieceSize: PieceSizeFn;
+  /** Generator 4: the piece a room recipe stands (small things resolve through gen/surfaces.ts SMALL_THINGS_ROLES). */
+  roomPiece: RoomPieceFn;
+  /** Generator 4: the same answer the compiler gets (palette/stallParts.ts). */
+  stallForms: StallFormsFn;
+  /** Largest piece of a floor role in a theme, in cells (a 1x1-only tile costs four times the pieces of a 2x2 one). */
+  floorTileArea: (theme: ThemeId, material: Material) => number | undefined;
+  /** The role probe the stall capability check uses, bound to a theme. */
+  probe: (theme: ThemeId) => RoleProbe;
+  /**
+   * Generator 4: the interior character a theme's palette declares (`defaults.interior`, its own or the nearest along
+   * `extends`); undefined for a theme with no palette of its own (resolve/themes.ts then has it).
+   */
+  interior: (theme: ThemeId) => ThemeInterior | undefined;
+}
+
+/** Feature types whose size comes from a palette role. */
+const ROLE_OF: Partial<Record<FeatureType, string>> = {
+  cliff_face: "cliff.formation_face",
+  cliff_crest: "cliff.formation_crest",
+};
+
+/**
+ * Generator 3: pieces a small prop may rest on (gen/place.ts topper pass, `Part.on` in gen/setpieces.ts). Their real
+ * outline is asked for with `real`; the height is the LOWEST of the role's variants, so a prop never floats over a
+ * lower variant (one sunk into a taller variant is hidden inside it).
+ */
+const SUPPORT_ROLE: Partial<Record<FeatureType, string>> = {
+  table: "feature.table",
+  round_table: "feature.round_table",
+  counter: "feature.counter",
+  desk: "feature.desk",
+  chest: "feature.chest",
+  boulder: "feature.boulder",
+  stall: "feature.stall",
+};
+
+/**
+ * A view of `catalog`. `generator` hides roles introduced after it (default: the newest generator, which hides none
+ * the resolver asks about: the older generators' answers do not depend on it).
+ */
+export function createPaletteView(catalog: PaletteCatalog, generator: number = GENERATOR_VERSION): PaletteView {
+  const resolver = createRoleResolver(catalog, generator);
+  const probe = (theme: ThemeId): RoleProbe => (roles, filter?: VariantFilter) => {
+    for (const role of roles) {
+      const r = resolver(theme, role, filter).resolution;
+      if (r) return r;
+    }
+    return null;
+  };
+  const variantsOf = (theme: ThemeId, roles: readonly string[], variant: string | undefined) => {
+    for (const role of roles) {
+      const vs = (resolver(theme, role).resolution?.variants ?? []).filter(
+        (q) => q.weight > 0 && (variant === undefined || q.variant === variant),
+      );
+      if (vs.length > 0) return vs;
+    }
+    return [];
+  };
+
+  const roomPiece: RoomPieceFn = (theme, type, variant) => {
+    const vs = variantsOf(theme, featureRoles(type), variant);
+    if (vs.length === 0) return undefined;
+    // a tile (a minCorner piece such as a bar counter block) stands exactly on its cell: a shift never moves it
+    const tiles = vs.filter((q) => q.geom.originAt === "minCorner").length;
+    return {
+      w: Math.min(...vs.map((q) => q.geom.size.x)),
+      d: Math.min(...vs.map((q) => q.geom.size.z)),
+      h: Math.min(...vs.map((q) => q.geom.size.y)),
+      wMax: Math.max(...vs.map((q) => q.geom.size.x)),
+      dMax: Math.max(...vs.map((q) => q.geom.size.z)),
+      hMax: Math.max(...vs.map((q) => q.geom.size.y)),
+      tile: tiles === vs.length,
+      mixed: tiles > 0 && tiles < vs.length,
+    };
+  };
+
+  const pieceSize: PieceSizeFn = (theme, type, real, variant) => {
+    const support = SUPPORT_ROLE[type];
+    if (support !== undefined && real === true) {
+      const vs = variantsOf(theme, [support], variant);
+      if (vs.length === 0) return undefined;
+      return {
+        w: Math.min(...vs.map((q) => q.geom.size.x)),
+        d: Math.min(...vs.map((q) => q.geom.size.z)),
+        h: Math.min(...vs.map((q) => q.geom.size.y)),
+      };
+    }
+    const role = ROLE_OF[type];
+    if (role === undefined) return undefined;
+    const res = resolver(theme, role).resolution;
+    const v = res?.variants.find((q) => q.weight > 0) ?? res?.variants[0];
+    if (!v) return undefined;
+    if (real === true) return { w: v.geom.size.x, d: v.geom.size.z, h: v.geom.size.y };
+    return { w: v.footprint[0], d: v.footprint[1], h: v.geom.size.y };
+  };
+
+  const stallForms: StallFormsFn = (theme) => coveredStallForms(probe(theme));
+
+  const areas = new Map<string, number | undefined>();
+  const floorTileArea = (theme: ThemeId, material: Material): number | undefined => {
+    const key = `${theme}|${material}`;
+    if (areas.has(key)) return areas.get(key);
+    const vs = variantsOf(theme, [`floor.${material}`], undefined);
+    const area = vs.length === 0 ? undefined : Math.max(...vs.map((v) => v.footprint[0] * v.footprint[1]));
+    areas.set(key, area);
+    return area;
+  };
+
+  const interior = (theme: ThemeId): ThemeInterior | undefined => {
+    if (!Object.hasOwn(catalog.palettes, theme)) return undefined;
+    for (const id of themeChain(catalog.palettes, theme)) {
+      const d = catalog.palettes[id]?.defaults.interior;
+      if (d !== undefined) return d;
+    }
+    return undefined;
+  };
+
+  return { pieceSize, roomPiece, stallForms, floorTileArea, probe, interior };
+}
+
+let bundled: PaletteView | null = null;
+
+/** The bundled palettes, built once. */
+export function bundledPaletteView(): PaletteView {
+  bundled ??= createPaletteView(loadPalettes());
+  return bundled;
+}
+
+/**
+ * `ResolveOptions` for resolving a plan that is then compiled with `catalog`: from generator 4 on the resolver asks the
+ * compiler's palettes (user palettes, game availability), so a covered stall is only laid out where the compiler can
+ * build it. Older generators keep the bundled view (their output is frozen).
+ */
+export function paletteOptionsFor(plan: Pick<MapPlan, "generator">, catalog: PaletteCatalog): { palette?: PaletteView } {
+  return plan.generator >= 4 ? { palette: createPaletteView(catalog) } : {};
+}

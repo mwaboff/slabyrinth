@@ -329,7 +329,7 @@ describe("vocabulary coverage", () => {
       FEATURE_TYPES.indexOf("stalagmite"),
       FEATURE_TYPES.indexOf("custom"),
     );
-    expect(added.length).toBe(47); // + vehicle, seating, signage (built places), cliff_face, cliff_crest (2026-11-20)
+    expect(added.length).toBe(49); // + vehicle, seating, signage (built places), cliff_face, cliff_crest, clutter, shelf_line (2026-11-20)
     for (const t of added) {
       expect(FEATURE_INFO[t].glyph).toBeDefined();
       expect(FEATURE_INFO[glyphType(t)].glyph).toBeUndefined(); // the stand-in has its own painter

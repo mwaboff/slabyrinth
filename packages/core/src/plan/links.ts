@@ -3,7 +3,7 @@
  * consistency (rise, computed arrival) and WP2's resolver can reuse the exact same footprints.
  */
 import { BUILD_CONSTANTS } from "../contracts/plan";
-import type { LevelLink, Side, Vec2 } from "../contracts/plan";
+import type { LevelLink, MapPlan, Side, Vec2 } from "../contracts/plan";
 
 /** Unit step per side in plan space (y grows south). */
 export const SIDE_STEP: Record<Side, Vec2> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
@@ -71,4 +71,23 @@ export function linkGeometry(link: LevelLink, fromElevation: number, toElevation
   }
   const cell: Vec2 = [fx, fy];
   return { rise, length: 1, lowerCells: [cell], upperCells: [cell], arrival: cell, arrivalCells: [cell] };
+}
+
+/**
+ * Every cell a level's links occupy on that level, from `linkGeometry`: the lower run of the links that start here, and
+ * the stairwell above it plus the arrival cells of the links that end here. A run climbs from its LOWER end, so the
+ * cells are right whichever end of the link this level holds, and the run is as long as the rise needs (not a fixed
+ * guess). Anything that must keep clear of a stair or ladder (floor shaping, ragged outlines, room steps) asks here.
+ */
+export function linkCellsOnLevel(plan: Pick<MapPlan, "levels" | "links">, levelId: string): Vec2[] {
+  const out: Vec2[] = [];
+  for (const link of plan.links) {
+    const lo = plan.levels.find((l) => l.id === link.from.level);
+    const up = plan.levels.find((l) => l.id === link.to.level);
+    if (!lo || !up) continue;
+    const geo = linkGeometry(link, lo.elevation, up.elevation);
+    if (lo.id === levelId) out.push(...geo.lowerCells);
+    if (up.id === levelId) out.push(...geo.upperCells, ...geo.arrivalCells);
+  }
+  return out;
 }

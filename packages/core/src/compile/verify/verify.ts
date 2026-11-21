@@ -21,10 +21,11 @@ import {
   type ResolvedPlan,
 } from "../../contracts/resolved";
 import { createRoleResolver } from "../../palette/resolve";
+import { stallParts } from "../../palette/stallParts";
 import { checkPlayability, walkReachability } from "../../resolve";
 import { placementBoxes, placementMeta, type RealizedSet } from "../realize";
 import { LevelGrid, SolidIndex, overlap1, type Solid } from "./grid";
-import { areaReferenceHeights, wallSpan } from "../wallspan";
+import { areaReferenceHeights, wallSpan } from "../../resolve/wallspan";
 import { structureClaims } from "../structure";
 import { featureInfo } from "../../gen/catalog";
 
@@ -353,7 +354,7 @@ export function verifyBuild(
           if (!res) continue; // role_missing already reported by realize
           const mount = res.def.mount ?? "half-cell";
           const hgt = (grid.height[e.index] ?? 0) > 0 ? (grid.height[e.index] ?? 2) : 2;
-          // same span as realize (compile/wallspan.ts): first cell = N/W of the edge
+          // same span as realize (resolve/wallspan.ts): first cell = N/W of the edge
           const hereFirst = side === "S" || side === "E";
           const hostFirst = hereFirst === e.hostedHere;
           const span = wallSpan(
@@ -497,6 +498,37 @@ export function verifyBuild(
         hint: "dress the cliff with its rock band (a dress op over the level), or move what keeps the band off that edge",
       });
   }
+
+  // ── (6a) covered stalls (generator 4) the palettes cannot build: the same question the resolver asked (palette/stallParts.ts) ──
+  if (resolved.generator >= 4)
+    for (const L of levels) {
+      for (const f of L.features) {
+        if (!f.stall) continue;
+        const lx = f.at[0] - L.bounds.x;
+        const ly = f.at[1] - L.bounds.y;
+        const theme = f.theme || (L.themes[L.cells.theme[ly * L.bounds.w + lx] ?? 0] ?? "generic");
+        const parts = stallParts(
+          (roles, filter) => {
+            for (const role of roles) {
+              const r = resolveRole(theme, role, filter).resolution;
+              if (r) return r;
+            }
+            return null;
+          },
+          f.stall.form,
+        );
+        if ("missing" in parts)
+          add({
+            severity: "warning",
+            code: "verify_stall_uncovered",
+            levelId: L.id,
+            ...el(f.id),
+            cell: [f.at[0], f.at[1]],
+            message: `Stall ${f.id} was laid out covered (${f.stall.form} canopy, ${f.stall.w}x${f.stall.d}) but theme "${theme}" has no stall ${parts.missing} piece; only its table and goods were built.`,
+            hint: "resolve the plan against the palettes it is compiled with (paletteOptionsFor), or give the theme the stall parts",
+          });
+      }
+    }
 
   // ── (6b) preview fidelity: materials and wall styles the 2D map shows but the theme builds with something else ──
   for (const L of levels) {
@@ -859,6 +891,54 @@ export function verifyBuild(
             ...(arrHits ? { assets: uniq(arrHits.map((s) => s.name)) } : {}),
             message: `Stairs ${lk.id} arrive at ${fmt(arr)} on level ${upper.id}, which ${!ac.open || !ac.floor ? "has no floor" : wallBetween ? "is behind a wall" : `is filled by ${arrHits?.[0]?.name ?? "a solid"}`}.`,
             hint: `Make ${fmt(arr)} open floor of an area on ${upper.id} with no wall toward the stairs, or turn link ${lk.id}.`,
+          });
+        }
+      }
+      // generator 4: every step of the run, not only the last: each cell's top stands above the one behind it by no
+      // more than a step (1 tile), so no gap or drop breaks the climb (a missing piece, a step of another height)
+      if (resolved.generator >= 4) {
+        const topAt = (c: readonly [number, number]): number => {
+          const pc = w(c[0] + 0.5, c[1] + 0.5);
+          return Math.max(
+            -Infinity,
+            ...parts
+              .filter((s) => s.box.min.x < pc.x && s.box.max.x > pc.x && s.box.min.z < pc.z && s.box.max.z > pc.z)
+              .map((s) => s.box.max.y),
+          );
+        };
+        const MAX_STEP = 1.05;
+        let bad: { c: readonly [number, number]; text: string } | undefined;
+        for (const c of lk.lowerCells) {
+          const run = isRun(lower.id, c[0], c[1]);
+          if (!run) continue;
+          const top = topAt(c);
+          const behindCell: [number, number] = [c[0] - dx, c[1] - dy];
+          const behindRun = isRun(lower.id, behindCell[0], behindCell[1]);
+          const behind =
+            behindRun?.linkId === lk.id ? topAt(behindCell) : run.k === 0 ? gl.top(behindCell[0], behindCell[1]) : -Infinity;
+          if (!Number.isFinite(top)) {
+            bad = { c, text: `step ${run.k + 1} of ${lk.lowerCells.length} at ${fmt(c)} has no piece, so the climb has a gap` };
+            break;
+          }
+          if (Number.isFinite(behind) && (top - behind > MAX_STEP || top - behind < 0.05)) {
+            bad = {
+              c,
+              text: `step ${run.k + 1} of ${lk.lowerCells.length} at ${fmt(c)} stands at height ${round2(top)}, ${round2(top - behind)} from the one behind it (${round2(behind)})`,
+            };
+            break;
+          }
+        }
+        if (bad) {
+          ok = false;
+          whyLink(lk.id, `its climb is broken: ${bad.text}`, `check that link ${lk.id} has a stairs asset in its theme and that the run of ${lk.lowerCells.length} cells fits the rise of ${lk.rise}`);
+          add({
+            severity: "error",
+            code: "verify_stairs_no_arrival",
+            levelId: lower.id,
+            elementId: lk.id,
+            cell: [bad.c[0], bad.c[1]],
+            message: `Stairs ${lk.id} do not climb all the way: ${bad.text}.`,
+            hint: `Check that link ${lk.id} has a stairs asset in its theme and that the run of ${lk.lowerCells.length} cells fits the rise of ${lk.rise}.`,
           });
         }
       }

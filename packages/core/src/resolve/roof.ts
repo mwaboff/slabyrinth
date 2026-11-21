@@ -272,7 +272,13 @@ export function hipRoof(wing: Rect, holes: ReadonlySet<string> = new Set()): Roo
  * Shed (lean-to) roof: one slope rising from the `low` side across the whole outline, run-2 pieces at every course
  * like the gable; the top course ends at the high side.
  */
-export function shedRoof(wing: Rect, low: Side, holes: ReadonlySet<string> = new Set()): RoofShape {
+export function shedRoof(
+  wing: Rect,
+  low: Side,
+  holes: ReadonlySet<string> = new Set(),
+  /** Generator 4: a run-2 piece over a hole becomes one-cell slopes on the cells that stay open (was: dropped whole). */
+  fill = false,
+): RoofShape {
   const o: Rect = { x: wing.x - 1, y: wing.y - 1, w: wing.w + 2, h: wing.h + 2 };
   const acrossY = low === "N" || low === "S";
   const span = acrossY ? o.h : o.w;
@@ -298,8 +304,17 @@ export function shedRoof(wing: Rect, low: Side, holes: ReadonlySet<string> = new
     const aStart = lowFirst ? k : span - 2 - k;
     for (const c of cols) {
       const rr = rect(c.b, c.along, aStart, 2);
-      if (cellsOf(rr).some((cc) => holes.has(cc))) continue;
-      pieces.push({ kind: c.along === 2 ? "slope2x2" : "slope2", ...rr, eave: low, course: k });
+      const piece: RoofPiece = { kind: c.along === 2 ? "slope2x2" : "slope2", ...rr, eave: low, course: k };
+      if (cellsOf(rr).some((cc) => holes.has(cc))) {
+        if (fill)
+          for (const cc of cellsOf(rr)) {
+            if (holes.has(cc)) continue;
+            const [x, y] = cc.split(",").map(Number) as [number, number];
+            pieces.push({ kind: "slope", x, y, w: 1, h: 1, eave: low, course: cellCourse(piece, x, y) });
+          }
+        continue;
+      }
+      pieces.push(piece);
     }
   }
   const surface = (x: number, y: number): number =>
@@ -449,7 +464,11 @@ export function mergeRoofs(roofs: readonly RoofOwner[]): Map<string, RoofPiece[]
  * The pitched roofs of a building (first layer of every volume: gable wings, hips, sheds) as owners for `mergeRoofs`,
  * keyed "<volume>#<wing>". Heights match the compiler: the top storey's wall top, plus the attic deck.
  */
-export function roofOwners(vols: readonly ResolvedVolume[], holes: ReadonlySet<string> = new Set()): RoofOwner[] {
+export function roofOwners(
+  vols: readonly ResolvedVolume[],
+  holes: ReadonlySet<string> = new Set(),
+  fill = false,
+): RoofOwner[] {
   const owners: RoofOwner[] = [];
   for (const v of vols) {
     const top = v.storeys[v.storeys.length - 1];
@@ -471,7 +490,7 @@ export function roofOwners(vols: readonly ResolvedVolume[], holes: ReadonlySet<s
         });
       });
     } else if (layer.type === "hip" || layer.type === "shed") {
-      const g = layer.type === "hip" ? hipRoof(top.rect, holes) : shedRoof(top.rect, layer.low, holes);
+      const g = layer.type === "hip" ? hipRoof(top.rect, holes) : shedRoof(top.rect, layer.low, holes, fill);
       owners.push({ id: `${v.id}#0`, base, pieces: g.pieces, surface: g.surface });
     }
   }

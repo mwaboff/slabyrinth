@@ -1,5 +1,7 @@
 /**
- * Vertical span of a wall edge (shared by realize and verify so the check measures what the build places).
+ * Vertical span of a wall edge. It lives in resolve/ (not compile/) because every stage needs the same arithmetic: the
+ * resolver settles wall heights with it (resolve/wallTops.ts, resolve/wallSettle.ts), realize places the pieces with it
+ * and verify measures them with it, so all three agree on where a wall starts and stops.
  *
  *  - Base: the lower of the two floor tops (a wall between a pit and rock reaches down to the pit floor).
  *  - Top: the wall height above the HIGHER of (the two floor tops, the reference floor of the open side's area),
@@ -18,6 +20,24 @@ export interface SpanCell {
   /** Display area index + 1 (0 = none). */
   area: number;
   flags: number;
+}
+
+/** The span view of a resolved level's cell at local (lx, ly); outside the level it is solid. */
+export function spanCellOf(L: ResolvedLevel): (lx: number, ly: number) => SpanCell {
+  const { w, h } = L.bounds;
+  return (lx, ly) => {
+    if (lx < 0 || ly < 0 || lx >= w || ly >= h) return { open: false, floor: false, height: 0, area: 0, flags: 0 };
+    const i = ly * w + lx;
+    const flags = L.cells.flags[i] ?? 0;
+    const open = L.cells.state[i] === CELL.OPEN;
+    return {
+      open,
+      floor: open && (flags & CELL_FLAG.NO_FLOOR) === 0 && (L.cells.material[i] ?? 0) > 0,
+      height: (L.cells.height[i] ?? 0) / 4,
+      area: L.cells.area[i] ?? 0,
+      flags,
+    };
+  };
 }
 
 /** Reference floor height (tiles) per display area index + 1: the most common height of its floor cells (ties: higher). */
@@ -68,4 +88,21 @@ export function wallSpan(
     if (r !== undefined) hi = Math.max(hi, elevation + r + 0.5);
   }
   return { base, top: hi + wallHeight };
+}
+
+/**
+ * How far a wall's span reaches above `base + wallHeight`: the step between the floors it divides (the higher floor
+ * top, or the reference floor of the open side, above the lower floor top). 0 on level ground. It does not depend on
+ * the wall height itself.
+ */
+export function wallRise(
+  elevation: number,
+  a: SpanCell,
+  b: SpanCell,
+  hostFirst: boolean,
+  wallHeight: number,
+  ref: ReadonlyMap<number, number>,
+): number {
+  const span = wallSpan(elevation, a, b, hostFirst, wallHeight, ref);
+  return span.top - wallHeight - span.base;
 }

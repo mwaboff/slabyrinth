@@ -914,7 +914,9 @@ function buildSeam(
  * (resolve/roof.ts mergeRoofs); keyed "<volume>#<wing>". Heights match buildRoof: the wall top, plus the attic deck.
  */
 function roofValleys(st: ResolvedStructure, vols: ResolvedVolume[]): Map<string, RoofPiece[]> {
-  return mergeRoofs(roofOwners(vols, new Set(st.chimneys.map((c) => key(c.at[0], c.at[1])))));
+  return mergeRoofs(
+    roofOwners(vols, new Set(st.chimneys.map((c) => key(c.at[0], c.at[1]))), st.roofFill === true),
+  );
 }
 
 interface FlatTop {
@@ -1066,7 +1068,7 @@ function buildRoof(
       }
       case "hip":
       case "shed": {
-        const g = layer.type === "hip" ? hipRoof(rect, holes) : shedRoof(rect, layer.low, holes);
+        const g = layer.type === "hip" ? hipRoof(rect, holes) : shedRoof(rect, layer.low, holes, st.roofFill === true);
         for (const p of (first && merge ? merge.get(`${v.id}#0`) : undefined) ?? g.pieces)
           placeRoofPiece(ctx, st, theme, kit, p, base, tag);
         if (first)
@@ -1901,7 +1903,9 @@ function placeRoofPiece(
   ): boolean => {
     const role =
       kind === "cap"
-        ? [`roof.${kit}.cap`, `roof.${kit}.flat`]
+        ? // a kit with no cap or flat piece (village) falls to the palette's default cap (an alias of the slate cap, generator
+          // 4 only: the role is hidden from earlier generators), so the ridge row is never bare
+          [`roof.${kit}.cap`, `roof.${kit}.flat`, "roof.default.cap"]
         : kind === "corner"
           ? [`roof.${kit}.corner`, `roof.${kit}.slope`]
           : kind === "step"

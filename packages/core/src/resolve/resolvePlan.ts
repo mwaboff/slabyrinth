@@ -10,7 +10,7 @@ import { canonicalJson } from "../util/canonical";
 import { h64hex } from "../util/hash";
 import { LevelWork } from "./level";
 import { type ThemeDefaults, builtinThemeDefaults } from "./themes";
-import { type PieceSizeFn, bundledPieceSize } from "./pieceSizes";
+import { type PaletteView, bundledPaletteView } from "../palette/view";
 
 export interface ResolveOptions {
   /** Restrict the output to these levels (all levels are still resolved, because links span levels). */
@@ -19,13 +19,18 @@ export interface ResolveOptions {
   planVersion?: number;
   /** Theme defaults lookup (default: the built-in table mirroring the bundled palettes). */
   themeDefaults?: (theme: ThemeId) => ThemeDefaults;
-  /** Sizes of palette-shaped generated pieces (the rock band); default: the bundled palettes. */
-  pieceSize?: PieceSizeFn;
+  /**
+   * What the resolver asks of the palette (piece sizes, room pieces, covered-stall forms, floor tile sizes); default
+   * the bundled palettes. A caller that goes on to compile passes a view of the compiler's palettes
+   * (`paletteOptionsFor`), so both stages decide from the same palettes.
+   */
+  palette?: PaletteView;
 }
 
 export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedPlan {
   const issues: PlanIssue[] = [];
   const themeDefaults = opts.themeDefaults ?? builtinThemeDefaults;
+  const palette = opts.palette ?? bundledPaletteView();
   const works: LevelWork[] = plan.levels.map(
     (_, levelIndex) =>
       new LevelWork({
@@ -33,7 +38,7 @@ export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedP
         levelIndex,
         themeDefaults,
         issues,
-        pieceSize: opts.pieceSize ?? bundledPieceSize,
+        palette,
       }),
   );
   const byId = new Map<string, LevelWork>();

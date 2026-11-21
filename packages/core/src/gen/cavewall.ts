@@ -24,6 +24,7 @@
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
 import { ValueNoise } from "./noise";
+import { massDepth, massFoot } from "./solidMass";
 
 /** One piece shape on offer (tiles). `family` A = mass, cap = flat cap sheets, toe = foot stones. */
 export interface WallShape {
@@ -65,6 +66,12 @@ export interface CaveWallInput {
   shapes: ReadonlyArray<WallShape>;
   /** Lowest ceiling over the level (Infinity when none): nothing rises through it. */
   ceiling: number;
+  /**
+   * Generator 4: solid rock. Every rock cell is filled from its foot up to its top with no see-through gap (no flat
+   * cap over empty rock, no free-standing towers): upper courses are laid as layers, each piece resting on the highest
+   * rock already under its whole outline; tops swell broadly and come down toward the level's edge.
+   */
+  solid?: boolean;
 }
 
 export interface WallPiece {
@@ -124,6 +131,14 @@ export const CAVE_WALL = {
   toeSpacing: 1.5,
   /** Open floor needed straight out from the wall (cells) before a foot stone may lean in; wide stones need more. */
   toeRun: 4,
+  /** Generator 4 (solid): broad swell of the skyline (cells across, tiles ± half), the share of the rise kept at 0, 1
+   * and 2 cells from the level's edge, the least lift (point-tiles, 16 points a cell) a layer piece must add in each
+   * pass, and how far over the target top it may stand. */
+  swellScale: 7,
+  swell: 1.6,
+  edgeRise: [0.45, 0.65, 0.85],
+  layerPasses: [16, 6],
+  overshoot: 0.6,
 } as const;
 
 const key = (x: number, y: number): number => (x + 16384) * 32768 + (y + 16384);
@@ -196,6 +211,8 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
   const rng = createPrng(subSeed(input.seed, "cavewall"));
   const noise = new ValueNoise(subSeed(input.seed, "cavewall:skyline"));
   const toeNoise = new ValueNoise(subSeed(input.seed, "cavewall:toe"));
+  const solid = input.solid === true;
+  const swellNoise = new ValueNoise(subSeed(input.seed, "cavewall:swell"));
   const mass = input.shapes.filter((s) => s.family === "A");
   const caps = input.shapes.filter((s) => s.family === "cap");
   const toes = input.shapes.filter((s) => s.family === "toe");
@@ -210,27 +227,13 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
     x >= bounds.x && y >= bounds.y && x < bounds.x + bounds.w && y < bounds.y + bounds.h;
 
   // depth from the floor (faces = 1) and the face each cell belongs to (its floor and ground)
-  const depth = new Int16Array(bounds.w * bounds.h);
-  const nearest = new Int32Array(bounds.w * bounds.h).fill(-1);
-  let frontier: Array<[number, number]> = [];
-  for (const [i, f] of input.faces.entries()) {
-    depth[idx(f.x, f.y)] = 1;
-    nearest[idx(f.x, f.y)] = i;
-    frontier.push([f.x, f.y]);
-  }
-  for (let dd = 2; frontier.length > 0; dd++) {
-    const next: Array<[number, number]> = [];
-    for (const [x, y] of frontier)
-      for (const [dx, dy] of D4) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (!inLevel(nx, ny) || !input.rock(nx, ny) || depth[idx(nx, ny)] !== 0) continue;
-        depth[idx(nx, ny)] = dd;
-        nearest[idx(nx, ny)] = nearest[idx(x, y)] as number;
-        next.push([nx, ny]);
-      }
-    frontier = next;
-  }
+  // (gen/solidMass.ts: the same depth, and below the same foot rule, the interior shell and the review use)
+  const grid = { w: bounds.w, h: bounds.h };
+  const { depth, nearest } = massDepth(
+    grid,
+    (i) => input.rock(bounds.x + (i % bounds.w), bounds.y + Math.floor(i / bounds.w)),
+    input.faces.map((f) => idx(f.x, f.y)),
+  );
   const depthOf = (x: number, y: number): number => (inLevel(x, y) ? (depth[idx(x, y)] as number) : 0);
 
   // inward direction (away from the floor) per face, and the floor beside it
@@ -275,9 +278,18 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
   // the mass stands a quarter tile under the floor beside it: the floor tiles hide its foot, and the face is closed at
   // the verifier's 1.4 above the floor with a single course (the columns reached the lowest ground of the level; the
   // solid band needs nothing that deep to read as rock from above and inside)
-  const groundAt = (x: number, y: number): number => {
+  const faceGround = (x: number, y: number): number => {
     const f = faceOfCell(x, y);
     return (f ? (floorLoOf.get(key(f.x, f.y)) ?? f.base) : 0) - 0.25;
+  };
+  // generator 4: a rock cell's foot is never above the foot of a shallower neighbour, so the mass reaches down to the
+  // lowest floor beside it wherever floors step (no gap under the rock behind a low stretch of floor)
+  let solidGround: Float64Array | null = null;
+  const groundAt = (x: number, y: number): number => {
+    if (!solid || !inLevel(x, y)) return faceGround(x, y);
+    if (!solidGround)
+      solidGround = massFoot(grid, depth, (i) => faceGround(bounds.x + (i % bounds.w), bounds.y + Math.floor(i / bounds.w)));
+    return (depth[idx(x, y)] as number) > 0 ? (solidGround[idx(x, y)] as number) : faceGround(x, y);
   };
   const wallAngle = (x: number, y: number): number => {
     const f = faceOfCell(x, y);
@@ -289,6 +301,13 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
     const d = Math.max(1, depthOf(Math.floor(x), Math.floor(y)));
     const t = CAVE_WALL.topByDepth;
     const rise = t[Math.min(d, t.length) - 1] as number;
+    if (solid) {
+      // generator 4: broad swells, not per-cell wander, and lower toward the level's edge (the mass thins out there)
+      const e = edgeDist(Math.floor(x), Math.floor(y));
+      const keep = e < CAVE_WALL.edgeRise.length ? (CAVE_WALL.edgeRise[e] as number) : 1;
+      const swell = (swellNoise.sample(x / CAVE_WALL.swellScale, y / CAVE_WALL.swellScale) - 0.5) * 2 * CAVE_WALL.swell;
+      return floorAt(Math.floor(x), Math.floor(y)) + Math.max(CAVE_WALL.minCourse0, (rise + swell) * keep);
+    }
     const wander = (noise.sample(x / 3.5, y / 3.5) - 0.5) * CAVE_WALL.skyline;
     return floorAt(Math.floor(x), Math.floor(y)) + rise + wander;
   };
@@ -317,7 +336,9 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
       }
     return n;
   };
-  const mark = (r: Rect): void => {
+  // generator 4 (solid): the top of the rock under each sample point, filled from the foot with no gap
+  const reach = new Float64Array(solid ? bounds.w * bounds.h * SUB * SUB : 0).fill(-Infinity);
+  const mark = (r: Rect, top = -Infinity): void => {
     const [ex, ey] = extent(r.rot, r.w, r.d);
     for (let y = Math.floor(r.cy - ey); y <= Math.floor(r.cy + ey); y++)
       for (let x = Math.floor(r.cx - ex); x <= Math.floor(r.cx + ex); x++) {
@@ -325,7 +346,10 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
         const cell = idx(x, y);
         for (let k = 0; k < SUB * SUB; k++) {
           const [px, py] = pointAt(cell, k);
-          if (inRect(r, px, py, -CAVE_WALL.overlap)) covered[cell * SUB * SUB + k] = 1;
+          if (inRect(r, px, py, -CAVE_WALL.overlap)) {
+            covered[cell * SUB * SUB + k] = 1;
+            if (solid) reach[cell * SUB * SUB + k] = Math.max(reach[cell * SUB * SUB + k] as number, top);
+          }
         }
       }
   };
@@ -349,7 +373,9 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
   // the far part of a deep band is closed by a flat cap, not by towers (only with cap sheets, and never at the level edge)
   const edgeDist = (x: number, y: number): number =>
     Math.min(x - bounds.x, y - bounds.y, bounds.x + bounds.w - 1 - x, bounds.y + bounds.h - 1 - y);
+  // (generator 4 builds no cap: a cap sheet over empty rock is see-through from the side)
   const capCell = (x: number, y: number): boolean =>
+    !solid &&
     caps.length > 0 &&
     depthOf(x, y) >= CAVE_WALL.capDepth &&
     edgeDist(x, y) >= CAVE_WALL.capEdge;
@@ -402,10 +428,17 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
     }
     if (!best) return false;
     const { r, shape } = best;
-    const ground = groundAt(cellX, cellY);
+    let ground = groundAt(cellX, cellY);
+    // generator 4: the piece stands on the lowest foot under it, so no gap opens under any part of it
+    if (solid) {
+      const [ex, ey] = extent(r.rot, r.w, r.d);
+      for (let y = Math.floor(r.cy - ey); y <= Math.floor(r.cy + ey); y++)
+        for (let x = Math.floor(r.cx - ex); x <= Math.floor(r.cx + ex); x++)
+          if (depthOf(x, y) > 0) ground = Math.min(ground, groundAt(x, y));
+    }
     const base = ground - rng.next() * CAVE_WALL.sink;
     if (!ceilingOk(base, shape.h)) return false;
-    mark(r);
+    mark(r, base + shape.h);
     stored.push({ ...r, shape, base, top: base + shape.h });
     out.push({
       shape: shape.id,
@@ -454,8 +487,10 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
   for (const f of input.faces)
     if (!closed(f)) placeAt(course0, f.x + 0.5, f.y + 0.5, 0, CAVE_WALL.closeTries, true);
 
+  // ── generator 4: further courses as layers over the whole band, each piece resting on the rock under it ──
+  if (solid) layers();
   // ── further courses: towers rise toward the target top, lifted on the piece below, shifted and turned ──
-  const towers = [...stored];
+  const towers = solid ? [] : [...stored];
   for (const base of towers) {
     let cur = base;
     for (let course = 1; course < CAVE_WALL.maxCourses; course++) {
@@ -593,6 +628,11 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
             clear = false;
             break;
           }
+          // generator 4: a stone never straddles a shelf step (it would hang over the lower side)
+          if (solid && Math.abs(input.floorTop(xx, yy) - input.floorTop(ox, oy)) > 0.01) {
+            clear = false;
+            break;
+          }
           ground = Math.max(ground, input.floorTop(xx, yy));
         }
       if (!clear) continue;
@@ -609,4 +649,113 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
       });
     }
   return { pieces: out, columns };
+
+  /**
+   * Generator 4: raise the band toward its target tops in layers. A piece rests on the lowest rock top under its
+   * outline (so nothing hangs over a gap), and is chosen by how much it lifts the points under it toward their target,
+   * less what it stands over the target; big lifts first, then what still fits.
+   */
+  function layers(): void {
+    const PTS = SUB * SUB;
+    const tgt = new Float64Array(bounds.w * bounds.h * PTS);
+    const pts: number[] = [];
+    for (const [cell, k] of shuffled) {
+      const [px, py] = pointAt(cell, k);
+      tgt[cell * PTS + k] = targetTop(px, py);
+      pts.push(cell * PTS + k);
+    }
+    const under = (r: Rect): Array<{ p: number; inner: boolean }> => {
+      const list: Array<{ p: number; inner: boolean }> = [];
+      const [ex, ey] = extent(r.rot, r.w, r.d);
+      for (let y = Math.floor(r.cy - ey); y <= Math.floor(r.cy + ey); y++)
+        for (let x = Math.floor(r.cx - ex); x <= Math.floor(r.cx + ex); x++) {
+          if (!inLevel(x, y) || (depth[idx(x, y)] as number) === 0) continue;
+          const cell = idx(x, y);
+          for (let k = 0; k < PTS; k++) {
+            const [px, py] = pointAt(cell, k);
+            if (!inRect(r, px, py)) continue;
+            list.push({ p: cell * PTS + k, inner: inRect(r, px, py, -CAVE_WALL.overlap) });
+          }
+        }
+      return list;
+    };
+    const layAt = (p: number, minGain: number, course: number, at?: readonly [number, number]): boolean => {
+      const cell = Math.floor(p / PTS);
+      const [px, py] = at ?? pointAt(cell, p % PTS);
+      const cellX = Math.floor(px);
+      const cellY = Math.floor(py);
+      const d = depthOf(cellX, cellY);
+      let best: { r: Rect; shape: WallShape; base: number; score: number } | undefined;
+      for (let t = 0; t < (at ? CAVE_WALL.closeTries : CAVE_WALL.tries); t++) {
+        const shape = weightedPick(mass);
+        const rot =
+          d <= 2
+            ? snap(wallAngle(cellX, cellY) + rng.range(-CAVE_WALL.turnSteps, CAVE_WALL.turnSteps) * 15)
+            : rng.range(0, 11) * 15;
+        const [hx, hy] = extent(rot, shape.w, shape.d);
+        // a piece closing a face cell may lie any way round its middle; the sweep's lie near the point's upper left
+        const r: Rect = at
+          ? { cx: px + (rng.next() - 0.5) * hx * 1.6, cy: py + (rng.next() - 0.5) * hy * 1.6, rot, w: shape.w, d: shape.d }
+          : { cx: px + hx * (0.15 + rng.next() * 0.75), cy: py + hy * (0.15 + rng.next() * 0.75), rot, w: shape.w, d: shape.d };
+        if (!inRect(r, px, py, -CAVE_WALL.overlap) || !outlineFits(input.rock, r)) continue;
+        const pts0 = under(r);
+        let base = Infinity;
+        let ok = true;
+        for (const q of pts0) {
+          const v = reach[q.p] as number;
+          // nothing under a point of its outline: it would hang over a gap
+          if (v === -Infinity) {
+            ok = false;
+            break;
+          }
+          base = Math.min(base, v);
+        }
+        if (!ok || !Number.isFinite(base)) continue;
+        base -= 0.05;
+        const top = base + shape.h;
+        if (!ceilingOk(base, shape.h)) continue;
+        let gain = 0;
+        let over = 0;
+        for (const q of pts0) {
+          if (!q.inner) continue;
+          const v = reach[q.p] as number;
+          const g = tgt[q.p] as number;
+          gain += Math.max(0, Math.min(top, g + 0.3) - v);
+          over += Math.max(0, top - g - CAVE_WALL.overshoot);
+        }
+        const score = gain - 2 * over;
+        if (score < minGain) continue;
+        if (!best || score * (0.85 + rng.next() * 0.3) > best.score) best = { r, shape, base, score };
+      }
+      if (!best) return false;
+      const { r, shape, base } = best;
+      mark(r, base + shape.h);
+      stored.push({ ...r, shape, base, top: base + shape.h });
+      out.push({
+        shape: shape.id,
+        family: "A",
+        cx: r.cx,
+        cy: r.cy,
+        rot: r.rot,
+        base,
+        layer: Math.max(1, d),
+        course,
+      });
+      return true;
+    };
+    for (let course = 1; course <= CAVE_WALL.maxCourses; course++) {
+      let placed = 0;
+      for (const minGain of CAVE_WALL.layerPasses)
+        for (const p of pts) {
+          const v = reach[p] as number;
+          if (v === -Infinity || v >= (tgt[p] as number) - 0.35) continue;
+          if (layAt(p, minGain, course)) placed++;
+        }
+      if (placed === 0) break;
+    }
+    // a face the layers left open (beside a raised shelf the course-0 piece is too low): a piece over its middle
+    for (const f of input.faces)
+      for (let k = 0; k < 2 && !closed(f); k++)
+        layAt(idx(f.x, f.y) * PTS, -Infinity, CAVE_WALL.maxCourses + 1, [f.x + 0.5, f.y + 0.5]);
+  }
 }
