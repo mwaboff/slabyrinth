@@ -13,6 +13,7 @@
 import type {
   ElementId, FeatureType, Height, LevelId, LinkKind, Material, OpeningKind, Side, ThemeId, WallStyle,
 } from "./plan";
+import type { ThemeInterior } from "./resolved";
 
 // ───────────────────────────── asset catalog (generated from the install) ─────────────────────────────
 
@@ -277,6 +278,11 @@ export interface Palette {
     floor: Material;
     wallStyle: WallStyle;
     caveFloor?: Material;
+    /**
+     * Generator 4: the theme's interior character (tidy or rough rooms, stone or timber floors). Absent = inherited
+     * along `extends`, and rough stone at the end of the chain.
+     */
+    interior?: ThemeInterior;
   };
   roles: Record<RoleName, PaletteRole>;
   source?: { generatedBy?: string; generatedAt?: string; editedByUser?: boolean };
@@ -520,6 +526,7 @@ export type CompileDiagnosticCode =
   | "landmark_short"             // a landmark / great tree / great statue resolved to an asset under 3 tiles tall
   | "thick_wall_conflict"        // mount:"inner" wall with open cells on both sides
   | "footprint_mismatch"         // asset footprint differs from feature size
+  | "secret_door_plug"           // info (generator 4): where a secret door's removable plug stands and which piece to delete to open it
   | "coord_overflow"             // map exceeds codec coordinate range
   | "chunk_oversize"             // a single cell's placements exceed the limit (cannot split)
   | "chunk_split"                // info: chunk was split adaptively
@@ -554,7 +561,8 @@ export type CompileDiagnosticCode =
   | "verify_material_substituted"
   | "verify_water_level"          // info: set TaleSpire's water level to this height above the pasted slab  // warning (liquids) / info: the 2D map shows a material or wall style the theme builds with another one
   | "verify_line_unanchored"     // warning: an overhead line end has no wall or post at its height (its pieces are then judged as floating)
-  | "verify_cliff_gap";           // warning: a natural cliff edge left to the rock band has no rock in front and no face behind
+  | "verify_cliff_gap"           // warning: a natural cliff edge left to the rock band has no rock in front and no face behind
+  | "verify_stall_uncovered";    // warning (generator 4): a covered stall the palette cannot build (a part is missing); a table stands on its footprint
 
 export interface CompileDiagnostic {
   severity: "error" | "warning" | "info";

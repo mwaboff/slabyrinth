@@ -150,6 +150,8 @@ interface BuildingPlan {
   condition: NonNullable<ResolvedStructure["condition"]>;
   /** Generator 3: roofs that meet are merged into valleys (ResolvedStructure.valleys). */
   valleys: boolean;
+  /** Generator 4: no open roof cell (ResolvedStructure.roofFill). */
+  roofFill: boolean;
   debris: NonNullable<ResolvedStructure["debris"]>;
   /** Generator 3: growth attached to the walls (heights relative to the ground floor top). */
   growth: NonNullable<ResolvedStructure["growth"]>;
@@ -519,6 +521,7 @@ export class StructureWork {
         frontage: b.frontage,
         condition: b.condition,
         ...(b.valleys ? { valleys: true } : {}),
+        ...(b.roofFill ? { roofFill: true } : {}),
         ...(b.debris.length > 0 ? { debris: b.debris } : {}),
         ...(b.growth.length > 0
           ? { growth: b.growth.map((g) => ({ ...g, from: base + g.from, to: base + g.to })) }
@@ -2410,6 +2413,7 @@ function planBuilding(
     frontage: { side: frontSide, shopfront },
     condition,
     valleys: g3,
+    roofFill: generatorAtLeast(plan, 4),
     debris,
     growth,
     ...(growthLevel !== null ? { growthLevel } : {}),

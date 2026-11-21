@@ -34,6 +34,8 @@ import type {
   ResolvedLevel,
   ResolvedLine,
   ResolvedOpening,
+  StallBuild,
+  ThemeInterior,
 } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo, rotatedSize } from "../gen/catalog";
@@ -47,12 +49,17 @@ import {
   scatterFeatures,
 } from "../gen/place";
 import { defaultCliffBands } from "../gen/setpieces";
+import { type RoomClass, classifyRoom, furnishedPurpose } from "../gen/roomPurpose";
+import { NATURAL_WALL_STYLE, isLowWallStyle, isNaturalWallStyle, isUnevenWallStyle } from "../gen/wallStyles";
+import { dressRoom, lightArea } from "../gen/rooms4";
+import { LIGHT_FEATURES } from "../gen/catalog";
 import {
-  STALL_BASE,
-  STALL_GOODS,
   TRADE_PROPS,
+  stallKindInfo,
   layoutLine,
   layoutStalls,
+  layoutStalls4,
+  stallCell,
   tradeOf,
 } from "../gen/market";
 import {
@@ -68,13 +75,19 @@ import { createPrng } from "../util/prng";
 import { type ChasmGeometry, type ChasmSample, chasmGeometry, chasmSampleAt } from "./chasm";
 import { type ChannelCell, type ReachPlan, planReaches } from "./falls";
 import { breakStraightSteps, chamferCorners, organicTiers, roughenLumps } from "./organic";
+import { raggedCaveOutline } from "./caveOutline";
+import { CAVE_RELIEF, caveShelves } from "./caveRelief";
 import { cliffRuns } from "./cliffs";
-import type { PieceSizeFn } from "./pieceSizes";
+import type { PaletteView } from "../palette/view";
 import { STILL_WATER, riverCourse } from "./water";
 import { generatorAtLeast } from "../plan/generator";
+import { linkCellsOnLevel } from "../plan/links";
+import { BUILT_FLOORS, FAMILY_ROTATION, accentTop, purposeFloor } from "./interiorFloors";
+import { roughWallTops } from "./wallTops";
+import { settleWallHeights } from "./wallSettle";
 import { crossingCells, kerbLinesAndCorners } from "./road";
 import { trailCells } from "./trail";
-import type { ThemeDefaults } from "./themes";
+import { type ThemeDefaults, themeInterior } from "./themes";
 import { type StructureWork, expandStructures } from "./structure";
 import { traceRings } from "./trace";
 
@@ -83,8 +96,11 @@ export interface LevelContext {
   levelIndex: number;
   themeDefaults: (theme: ThemeId) => ThemeDefaults;
   issues: PlanIssue[];
-  /** Generator 2: real sizes of palette-shaped pieces (absent = nominal sizes). */
-  pieceSize?: PieceSizeFn;
+  /**
+   * The palette as the resolver sees it (piece sizes, room pieces, covered-stall forms, floor tile sizes): one view,
+   * built once per resolve, the same palettes the compiler decides from (palette/view.ts).
+   */
+  palette: PaletteView;
 }
 
 interface AreaInfo {
@@ -102,6 +118,12 @@ interface AreaInfo {
   isRoute: boolean;
   isBridge: boolean;
   structCount: number;
+  /** What the area is for and whether it is abandoned: read once from its words (gen/roomPurpose.ts classifyRoom). */
+  room: RoomClass;
+  /** The theme's interior character (resolve/themes.ts themeInterior). */
+  interior: ThemeInterior;
+  /** A rough interior: the theme's finish is rough, or nobody keeps the room up (ResolvedArea.finish). */
+  rough: boolean;
 }
 
 /** A bridge deck waiting for the bridge pass (area of kind "bridge" or a chasm op's bridge). */
@@ -212,10 +234,8 @@ const SPUR_FOCAL = new Set<string>([
 ]);
 /** Railing height above the deck (tiles). */
 const RAILING_HEIGHT = 1;
-
 const WATER_MATS = new Set<Material>(["water_shallow", "water_deep"]);
-/** Wall styles that TaleSpire builds as whole-cell blocks (no thin piece exists). */
-export const FULL_CELL_STYLES: ReadonlySet<WallStyle> = new Set<WallStyle>(["cave_rock"]);
+// wall style traits (low rims, whole-cell natural rock, styles that may stand uneven): gen/wallStyles.ts
 
 export function materialOrdinal(m: Material): number {
   return MATERIALS.indexOf(m) + 1;
@@ -271,6 +291,8 @@ export class LevelWork {
     floorBelow: number;
     hiddenEdge: number;
     edgeCells: number;
+    /** Generator 4: floor cells beside the hole (the broken rim of a collapse), where low debris is dropped. */
+    rimCells: number[];
   }> = [];
   /** Generator 3: rubble to heap on this level's floor under a collapse in the level above (global cells). */
   private readonly rubbleUnder: Array<{ id: string; cells: Vec2[]; seed: number }> = [];
@@ -493,13 +515,19 @@ export class LevelWork {
     this.stepBase();
     this.stepTerrain("under");
     this.stepAreas();
+    // generator 4: natural cave chambers and corridors get ragged outlines (resolve/caveOutline.ts)
+    if (generatorAtLeast(this.plan, 4)) this.stepCaveOutlines();
     this.structs?.afterAreas(this);
     this.checkUnderSurvivors();
     this.stepTerrain("over");
     this.structs?.afterTerrain(this);
+    // generator 4: a flat cave floor gets shelves (resolve/caveRelief.ts)
+    if (generatorAtLeast(this.plan, 4)) this.stepCaveRelief();
     this.stepPavementFronts();
     this.stepOutline();
     this.stepBridges();
+    // generator 4: each room of a built interior gets a floor of its own and a step above the corridor
+    if (generatorAtLeast(this.plan, 4)) this.stepRoomFloors();
     this.stepEdges();
     this.stepStairs();
     this.stepRailings();
@@ -520,6 +548,10 @@ export class LevelWork {
       const defFloor =
         area.kind === "cave" ? td.caveFloor : area.kind === "courtyard" ? td.courtyardFloor : td.floor;
       const floor = area.floor ?? defFloor;
+      // generator 4 reads these (rooms dressed, floored, finished by purpose); they are cheap and pure, so every
+      // generator computes them, and only generator 4 writes them on the resolved area
+      const room = classifyRoom(area);
+      const interior = themeInterior(this.ctx.palette.interior(theme), td);
       this.areas.push({
         area,
         index,
@@ -529,8 +561,8 @@ export class LevelWork {
         // into a cave is rock, not a brick box
         wallStyle:
           area.wallStyle ??
-          (area.kind === "cave" || (this.plan.generator >= 2 && td.wallStyle === "cave_rock")
-            ? "cave_rock"
+          (area.kind === "cave" || (this.plan.generator >= 2 && isNaturalWallStyle(td.wallStyle))
+            ? NATURAL_WALL_STYLE
             : "wall"),
         wallHeight: area.wallHeight ?? this.defaultWallHeight,
         themeIdx: this.themeIndex(theme),
@@ -541,6 +573,9 @@ export class LevelWork {
         isRoute: area.shape.type === "route",
         isBridge: area.kind === "bridge",
         structCount: 0,
+        room,
+        interior,
+        rough: interior.finish === "rough" || room.abandoned,
       });
       if (!this.areaIndexById.has(area.id)) this.areaIndexById.set(area.id, index);
     });
@@ -555,6 +590,161 @@ export class LevelWork {
       for (let i = 0; i < this.n; i++) this.setMaterial(i, base.material);
     }
     this.theme.fill(0);
+  }
+
+  /**
+   * Generator 4, built interiors (level base solid): rooms are told apart by floor and sit a step above the corridor
+   * (resolve/interiorFloors.ts).
+   *  (a) a room whose floor is the theme default (the model writes `flagstone` on every room, which says nothing) takes
+   *      the floor its purpose asks for in the theme's floor family (gen/roomPurpose.ts, from the purpose the room was
+   *      classified with once), else the first built floor that none of the rooms or corridors beside it mostly uses;
+   *      corridor-like rooms (a landing, a passage), abandoned rooms and floors the plan chose on purpose are left alone;
+   *  (b) a room a corridor opens on (a door or an unwalled boundary, not a wall it merely touches: see
+   *      roomsOpeningOnCorridors), with no floorHeight and no height of its own (no dais, hole, steps or link)
+   *      is raised a quarter tile; the lip at its door is the step. A miniature climbs half a tile, so a quarter is
+   *      always walkable, and walls take their height from the lower floor (resolve/wallspan.ts), so tops stay put.
+   * Rooms that hold a link end (stairs, ladder) keep their floor height: the climb lands on the level's own floor top.
+   */
+  private stepRoomFloors(): void {
+    if (this.level.base.type !== "solid") return;
+    const rooms = this.areas.filter(
+      (a) => a.kind === "room" && !a.isZone && !a.isRoute && !a.isBridge && !a.floorNone && a.area.shape.type !== "route",
+    );
+    if (rooms.length === 0) return;
+    // cells that hold a link end on this level (lower run, the well above it, the landing)
+    const linkCells = new Set<number>();
+    for (const c of linkCellsOnLevel(this.plan, this.level.id)) {
+      const i = this.idx(c[0], c[1]);
+      if (i >= 0) linkCells.add(i);
+    }
+    const cellsOf = new Map<number, number[]>();
+    const nbrs = new Map<number, Set<number>>();
+    for (const a of this.areas) {
+      if (a.isZone) continue;
+      cellsOf.set(a.index, this.areaCells(a.index));
+    }
+    for (const [ai, cells] of cellsOf) {
+      const set = new Set<number>();
+      for (const i of cells) {
+        const [x, y] = this.cellXY(i);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          const j = this.idx(x + dx, y + dy);
+          if (j < 0 || this.state[j] !== CELL.OPEN) continue;
+          const o = (this.struct[j] as number) - 1;
+          if (o >= 0 && o !== ai) set.add(o);
+        }
+      }
+      nbrs.set(ai, set);
+    }
+    // the floor an area mostly has (a dais or a painted patch does not count)
+    const famOf = (ai: number): Material | undefined => {
+      const count = new Map<number, number>();
+      for (const i of cellsOf.get(ai) ?? []) {
+        const m = this.mat[i] as number;
+        if (m > 0) count.set(m, (count.get(m) ?? 0) + 1);
+      }
+      const top = [...count].sort((p, q) => q[1] - p[1] || p[0] - q[0])[0];
+      return top === undefined ? undefined : MATERIALS[top[0] - 1];
+    };
+    // (a) floors
+    for (const info of rooms) {
+      const td = this.ctx.themeDefaults(info.theme);
+      if (!BUILT_FLOORS.has(td.floor)) continue;
+      if (info.area.floor !== undefined && info.area.floor !== td.floor) continue;
+      // the floor stays inside the theme's floor family: stone and earth below ground, wood and a few domestic tiles in
+      // an inhabited timber building (the theme's interior character, resolve/themes.ts)
+      const family = info.interior.floorFamily;
+      const purpose = purposeFloor(info.room.purpose, family);
+      // a corridor in all but name keeps the corridor's floor; an abandoned room keeps the level's default floor
+      if (purpose === "keep" || info.room.abandoned) continue;
+      const ns = [...(nbrs.get(info.index) ?? [])];
+      const used = new Set<Material>(ns.map(famOf).filter((m): m is Material => m !== undefined));
+      const rotation = FAMILY_ROTATION[family];
+      const start = elementSeed(this.plan.seed, `${this.level.id}~${info.area.id}~floorfam`, undefined) % rotation.length;
+      // a timber building keeps a room's purpose floor even when its neighbours share it (wood beside wood is one building);
+      // the difference rule only picks among the rest
+      const cand: Material[] = [
+        ...(purpose !== null ? [purpose] : []),
+        ...rotation.map((_, k) => rotation[(start + k) % rotation.length] as Material),
+      ];
+      const nCells = (cellsOf.get(info.index) ?? []).length;
+      // a big room keeps to floors that come in big tiles (a 1x1-only tile would take four times the pieces)
+      const pick = cand.find(
+        (m) =>
+          (!used.has(m) || (family === "timber" && m === purpose)) &&
+          BUILT_FLOORS.has(m) &&
+          (nCells <= 36 || (this.ctx.palette.floorTileArea(info.theme, m) ?? 4) >= 4),
+      );
+      if (pick === undefined || pick === td.floor) continue;
+      const ord = materialOrdinal(pick);
+      const cells = cellsOf.get(info.index) ?? [];
+      for (const i of cells) if (this.mat[i] === info.floorMat) this.setMaterial(i, pick);
+      info.floorMat = ord;
+    }
+    // (b) a step above the corridor, for a room you enter from one
+    const joined = this.roomsOpeningOnCorridors(nbrs);
+    for (const info of rooms) {
+      if (info.area.floorHeight !== undefined) continue;
+      const cells = cellsOf.get(info.index) ?? [];
+      if (cells.length < 4) continue;
+      if (!joined.has(info.index)) continue;
+      const clean = cells.every(
+        (i) =>
+          this.height[i] === 0 &&
+          !linkCells.has(i) &&
+          ((this.flags[i] as number) &
+            (CELL_FLAG.NO_FLOOR | CELL_FLAG.LINK | CELL_FLAG.STEPS | CELL_FLAG.BRIDGE | CELL_FLAG.WATER | CELL_FLAG.STAIRWELL)) ===
+            0,
+      );
+      if (!clean) continue;
+      for (const i of cells) this.height[i] = 1;
+    }
+  }
+
+  /**
+   * Rooms (area indexes) a corridor opens on: a plan opening between the two (by `between` or by an `at` edge with a
+   * cell of each on its sides), a route corridor that ends on the room, or a shared boundary where no wall stands
+   * (neither area builds walls, as in stepEdges). A room that only touches a corridor across a solid wall is not one.
+   * Runs before the openings are placed, so it reads the plan's openings, not the edges.
+   */
+  private roomsOpeningOnCorridors(nbrs: ReadonlyMap<number, ReadonlySet<number>>): Set<number> {
+    const out = new Set<number>();
+    const kindOf = (ai: number | undefined): AreaKind | undefined =>
+      ai === undefined || ai < 0 ? undefined : this.areas[ai]?.kind;
+    const pair = (a: number | undefined, b: number | undefined): void => {
+      if (a === undefined || b === undefined) return;
+      if (kindOf(a) === "room" && kindOf(b) === "corridor") out.add(a);
+      if (kindOf(b) === "room" && kindOf(a) === "corridor") out.add(b);
+    };
+    const step: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
+    for (const o of this.level.openings) {
+      if (o.between) pair(this.areaIndexById.get(o.between[0]), this.areaIndexById.get(o.between[1]));
+      else if (o.at) {
+        const [dx, dy] = step[o.at.side];
+        const width = o.width ?? (o.kind === "double_door" ? 2 : 1);
+        // the run extends east along a horizontal edge (N/S side), south along a vertical one
+        for (let k = 0; k < width; k++) {
+          const x = o.at.x + (o.at.side === "N" || o.at.side === "S" ? k : 0);
+          const y = o.at.y + (o.at.side === "E" || o.at.side === "W" ? k : 0);
+          pair(this.owner(this.idx(x, y)) - 1, this.owner(this.idx(x + dx, y + dy)) - 1);
+        }
+      }
+    }
+    for (const info of this.areas) {
+      const s = info.area.shape;
+      if (info.kind !== "corridor" || s.type !== "route") continue;
+      for (const end of [s.from, s.to])
+        if (typeof end === "string") {
+          const ai = this.areaIndexById.get(end);
+          if (ai !== undefined && kindOf(ai) === "room") out.add(ai);
+        }
+    }
+    for (const [ai, set] of nbrs) {
+      if (kindOf(ai) !== "room") continue;
+      for (const o of set)
+        if (kindOf(o) === "corridor" && this.modeOf(ai + 1) !== "auto" && this.modeOf(o + 1) !== "auto") out.add(ai);
+    }
+    return out;
   }
 
   private stepTerrain(layer: "under" | "over"): void {
@@ -1338,14 +1528,14 @@ export class LevelWork {
         // area sizes; between two thin (or two full-cell) styles the host side wins.
         let side: number;
         if (demand === 2) {
-          const fa = FULL_CELL_STYLES.has((this.areas[ra - 1] as AreaInfo).wallStyle);
-          const fb = FULL_CELL_STYLES.has((this.areas[rb - 1] as AreaInfo).wallStyle);
+          const fa = isNaturalWallStyle((this.areas[ra - 1] as AreaInfo).wallStyle);
+          const fb = isNaturalWallStyle((this.areas[rb - 1] as AreaInfo).wallStyle);
           side = fa !== fb ? (fa ? 1 : 0) : this.hostOf(a, b, false);
         } else side = demand;
         const info = this.areas[(side === 0 ? ra : rb) - 1] as AreaInfo;
         // Natural rock walls are full-cell blocks in TaleSpire: there is no thin rock wall to stand between two
         // open cells. When every demanding side uses a full-cell style and both sides are open, the spaces merge.
-        const fullCell = FULL_CELL_STYLES.has(info.wallStyle);
+        const fullCell = isNaturalWallStyle(info.wallStyle);
         if (!(fullCell && ra >= 0 && rb >= 0)) {
           e.kind[i] = EDGE.WALL;
           e.style[i] = info.wallStyle;
@@ -1463,7 +1653,13 @@ export class LevelWork {
         PLAN_LIMITS.minHeight * 4,
         Math.min(PLAN_LIMITS.maxHeight * 4, (this.height[i] as number) + t * riseQ),
       );
-      const m = t === tiers ? (op.topMaterial ?? material) : material;
+      let m = t === tiers ? (op.topMaterial ?? material) : material;
+      // generator 4: a top much paler than the room's floor (marble over flagstone) is a stark slab: it takes the tier's
+      // own material, or the room's floor (resolve/interiorFloors.ts accentTop)
+      if (m !== undefined && t === tiers && op.topMaterial !== undefined && generatorAtLeast(this.plan, 4)) {
+        const ord = this.mat[i] as number;
+        m = accentTop(m, ord > 0 ? MATERIALS[ord - 1] : undefined, material);
+      }
       if (m !== undefined) this.setMaterial(i, m);
     }
     const top = Math.max(...tierOf.values());
@@ -1802,6 +1998,7 @@ export class LevelWork {
       ((this.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE | CELL_FLAG.LINK | CELL_FLAG.STEPS)) === 0;
     let cells = this.shapeCells(op.shape, "terrain", path, op.id).filter(free);
     const seed = subSeed(elementSeed(this.plan.seed, op.id), "floor-opening");
+    const g4 = generatorAtLeast(this.plan, 4);
     if ((op.edge ?? (kind === "collapse" ? "ragged" : "clean")) === "ragged" && cells.length >= 6) {
       const tiers = new Map<number, number>(cells.map((i) => [i, 1]));
       roughenLumps(tiers, this.organicGrid(), seed);
@@ -1812,10 +2009,11 @@ export class LevelWork {
         const dist = this.innerDistance(kept);
         kept = kept.filter((i) => {
           const [x, y] = this.cellXY(i);
-          return !((dist.get(i) ?? 2) === 1 && noise.sample(x / 1.6, y / 1.6) < 0.3);
+          // generator 4: deeper bites at a coarser grain, so the outline reads as broken rather than as a nibbled rectangle
+          return !((dist.get(i) ?? 2) === 1 && noise.sample(x / (g4 ? 2.2 : 1.6), y / (g4 ? 2.2 : 1.6)) < (g4 ? 0.36 : 0.3));
         });
       }
-      if (kept.length >= Math.ceil(cells.length * 0.55)) {
+      if (kept.length >= Math.ceil(cells.length * (g4 ? 0.45 : 0.55))) {
         // lobes: open floor beside the hole, with open floor on every side of it (no wall or rock next to the new edge)
         const inSet = new Set(kept);
         const noise = new ValueNoise(subSeed(seed, "lobes"));
@@ -1824,7 +2022,7 @@ export class LevelWork {
           const [x, y] = this.cellXY(i);
           for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
             const j = this.idx(x + dx, y + dy);
-            if (!free(j) || inSet.has(j) || noise.sample((x + dx) / 1.6, (y + dy) / 1.6) < 0.74) continue;
+            if (!free(j) || inSet.has(j) || noise.sample((x + dx) / 1.6, (y + dy) / 1.6) < (g4 ? 0.6 : 0.74)) continue;
             const [jx, jy] = this.cellXY(j);
             const clear = (
               [[1, 0], [-1, 0], [0, 1], [0, -1]] as const
@@ -1850,13 +2048,26 @@ export class LevelWork {
     this.floorOpenings.push({
       id: op.id,
       kind,
-      rim: op.rim ?? (kind === "collapse" ? "ruined" : "iron_bars"),
+      rim:
+        op.rim ??
+        (generatorAtLeast(this.plan, 4)
+          ? // generator 4: a collapse has no wall at all (stepOpeningRims drops rubble on its edge instead); a shaft has a
+            // low kerb, a balcony a railing: nothing 2 tall hides the hole
+            kind === "collapse"
+            ? "none"
+            : kind === "shaft"
+              ? "low_wall"
+              : "railing"
+          : kind === "collapse"
+            ? "ruined"
+            : "iron_bars"),
       cells,
       rubble: kind === "collapse" && op.rubble !== false,
       seed,
       floorBelow: 0,
       hiddenEdge: 0,
       edgeCells: 0,
+      rimCells: [],
     });
   }
 
@@ -1874,6 +2085,7 @@ export class LevelWork {
    * ones a full-height wall already hides (the walls of the area itself), for the review.
    */
   private stepOpeningRims(): void {
+    const g4 = generatorAtLeast(this.plan, 4);
     for (const fo of this.floorOpenings) {
       const set = new Set(fo.cells);
       for (const i of fo.cells) {
@@ -1891,12 +2103,16 @@ export class LevelWork {
             if ((ed.e.height[ed.i] as number) >= 1.5) fo.hiddenEdge++;
             continue;
           }
-          if (k === EDGE.OPENING || k === EDGE.STAIR || fo.rim === "none") continue;
+          if (k === EDGE.OPENING || k === EDGE.STAIR) continue;
+          if (g4 && fo.kind === "collapse" && !fo.rimCells.includes(j)) fo.rimCells.push(j);
+          if (fo.rim === "none") continue;
           // a broken rim has gaps: where people walk to the edge, and rubble spilled over it
           if (fo.kind === "collapse" && h32(`${fo.seed}:rim:${x}:${y}:${side}`) / 4294967296 < 0.4) continue;
           ed.e.kind[ed.i] = EDGE.WALL;
           ed.e.style[ed.i] = fo.rim;
           ed.e.height[ed.i] = RAILING_HEIGHT;
+          // generator 4: a rim piece that stands taller than a railing (a wall style a model asked for) hides the hole
+          if (g4 && !isLowWallStyle(fo.rim)) fo.hiddenEdge++;
           // the rim stands on the floor beside the hole: host on that cell (first = N/W cell of the edge)
           ed.e.hostSet[ed.i] = side === "N" || side === "W" ? 0 : 1;
         }
@@ -1943,7 +2159,185 @@ export class LevelWork {
         );
       }
       if (fo.rubble) below.rubbleUnder.push({ id: fo.id, cells: xy, seed: fo.seed });
+      if (fo.rubble && generatorAtLeast(this.plan, 4)) below.moundUnder(xy, fo.seed);
     }
+  }
+
+  /**
+   * Generator 4: the heap under a collapse is a mound, not a flat layer. Floor cells under the hole rise in half-tile
+   * steps from the skirt (level) to a crown up to a tile high (rock surface), never beside a wall, a stair or a link, and
+   * never more than half a tile between neighbours, so it can be walked. Runs before the features of the level so
+   * everything standing in the heap rides on it.
+   */
+  private moundUnder(xy: Vec2[], seed: number): void {
+    const wanted = new Set<number>();
+    for (const [x, y] of xy) {
+      const i = this.idx(x, y);
+      if (i < 0 || !this.hasFloorAt(x, y)) continue;
+      const f = this.flags[i] as number;
+      if ((f & (CELL_FLAG.LINK | CELL_FLAG.STEPS | CELL_FLAG.BRIDGE | CELL_FLAG.WATER | CELL_FLAG.STAIRWELL)) !== 0)
+        continue;
+      if (this.hasWallAround(x, y)) continue;
+      wanted.add(i);
+    }
+    if (wanted.size < 6) return;
+    const dist = this.innerDistance([...wanted]);
+    const noise = new ValueNoise(subSeed(seed, "mound"));
+    for (const i of wanted) {
+      const d = dist.get(i) ?? 1;
+      const [x, y] = this.cellXY(i);
+      const lift = d <= 1 ? 0 : d === 2 ? 2 : noise.sample(x / 1.7, y / 1.7) < 0.35 ? 2 : 4;
+      if (lift === 0) continue;
+      this.height[i] = (this.height[i] as number) + lift;
+      this.setMaterial(i, "rock");
+    }
+  }
+
+  /**
+   * Generator 4: low broken pieces dropped on the floor along the edge of a collapse: debris (nothing taller than half a
+   * tile, never blocking) on most rim cells, thinning one cell further back. The hole itself stays open.
+   */
+  private stepOpeningRimDebris(): void {
+    if (!generatorAtLeast(this.plan, 4)) return;
+    for (const fo of this.floorOpenings) {
+      if (fo.kind !== "collapse" || fo.rim !== "none" || fo.rimCells.length === 0) continue;
+      const holes = new Set(fo.cells);
+      const u = (i: number, k: string): number => h32(`${fo.seed}:rimdebris:${k}:${i}`) / 4294967296;
+      const info = featureInfo("debris");
+      const size = rotatedSize(info.size, 0);
+      let n = 0;
+      const drop = (i: number): void => {
+        const c = this.cellXY(i) as Vec2;
+        if (this.featureProblem("debris", c, size, undefined) !== null) return;
+        const rf: ResolvedFeature = {
+          id: `${fo.id}#rim${n++}`,
+          type: "debris",
+          generatedBy: fo.id,
+          at: c,
+          size,
+          rot: 0,
+          rotFine: (h32(`${fo.seed}:rimrot:${i}`) % 24) * 15,
+          baseHeight: this.featureBase(i, 0),
+          theme: this.themes[this.theme[i] as number] ?? this.levelTheme,
+          blocking: info.blocking,
+        };
+        const ar = this.disp[i] as number;
+        if (ar > 0) rf.area = (this.areas[ar - 1] as AreaInfo).area.id;
+        this.addFeatureCells(rf);
+      };
+      const rim = [...new Set(fo.rimCells)].sort((a, b) => a - b);
+      const back = new Set<number>();
+      for (const i of rim) {
+        if (u(i, "on") < 0.75) drop(i);
+        const [x, y] = this.cellXY(i);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          const j = this.idx(x + dx, y + dy);
+          if (j >= 0 && !holes.has(j) && !rim.includes(j) && this.hasFloorAt(x + dx, y + dy)) back.add(j);
+        }
+      }
+      for (const j of [...back].sort((a, b) => a - b)) if (u(j, "back") < 0.22) drop(j);
+    }
+  }
+
+  /**
+   * Generator 4, rough interiors (level base solid, dungeon wall styles): rubble at the foot of the walls and either
+   * side of about half the doorways, so the join of wall and floor is soft (about 1 pile per 10 floor tiles of a room,
+   * the reference interior has 1.1). Low debris mostly; blocking rubble only in a corner or at a jamb of a room, never
+   * in a corridor. Never on a link, steps, a doorway cell, a cell that holds a feature, or a collapse rim.
+   */
+  private stepWallFootRubble(): void {
+    if (!generatorAtLeast(this.plan, 4) || this.level.base.type !== "solid" || this.structs) return;
+    const seed = elementSeed(this.plan.seed, `${this.level.id}~footrubble`, undefined);
+    const u = (k: string, i: number): number => h32(`${seed}:${k}:${i}`) / 4294967296;
+    const roughSide = (x: number, y: number, s: Side): boolean => {
+      const se = this.sideEdge(x, y, s);
+      return se !== null && se.e.kind[se.i] === EDGE.WALL && isUnevenWallStyle(se.e.style[se.i]);
+    };
+    const sides: Side[] = ["N", "E", "S", "W"];
+    const plain = (i: number): boolean => {
+      if (i < 0 || this.state[i] !== CELL.OPEN || (this.occ[i] as number) > 0) return false;
+      const f = this.flags[i] as number;
+      if (f & (CELL_FLAG.NO_FLOOR | CELL_FLAG.LINK | CELL_FLAG.STEPS | CELL_FLAG.FEATURE | CELL_FLAG.STAIRWELL | CELL_FLAG.BRIDGE | CELL_FLAG.WATER))
+        return false;
+      // only a rough interior has rubble at the wall foot: not a kept-up timber or plaster room (unless abandoned), and
+      // not a cell outside every room (the same rule the compiler reads back, resolve/wallTops.ts roughCells)
+      const ar = this.disp[i] as number;
+      if (ar <= 0 || !(this.areas[ar - 1] as AreaInfo).rough) return false;
+      const [x, y] = this.cellXY(i);
+      for (const s of sides) {
+        const k = this.edgeKindAt(x, y, s);
+        if (k === EDGE.OPENING || k === EDGE.STAIR) return false;
+      }
+      return true;
+    };
+    const rims = new Set<number>();
+    for (const fo of this.floorOpenings) for (const c of fo.rimCells) rims.add(c);
+    const info = { debris: featureInfo("debris"), rubble: featureInfo("rubble") };
+    const placed = new Set<number>();
+    let n = 0;
+    const put = (i: number, type: "debris" | "rubble"): boolean => {
+      if (placed.has(i) || rims.has(i) || !plain(i)) return false;
+      const [x, y] = this.cellXY(i);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (placed.has(this.idx(x + dx, y + dy))) return false;
+      const size = rotatedSize(info[type].size, 0);
+      const c: Vec2 = [x, y];
+      if (this.featureProblem(type, c, size, undefined) !== null) return false;
+      const rf: ResolvedFeature = {
+        id: `walls#foot${n++}`,
+        type,
+        generatedBy: "walls",
+        at: c,
+        size,
+        rot: 0,
+        rotFine: (h32(`${seed}:rot:${i}`) % 24) * 15,
+        baseHeight: this.featureBase(i, 0),
+        theme: this.themes[this.theme[i] as number] ?? this.levelTheme,
+        blocking: info[type].blocking,
+      };
+      const ar = this.disp[i] as number;
+      if (ar > 0) rf.area = (this.areas[ar - 1] as AreaInfo).area.id;
+      this.addFeatureCells(rf);
+      placed.add(i);
+      return true;
+    };
+    const inCorridor = (i: number): boolean => {
+      const s = this.struct[i] as number;
+      return s > 0 && (this.areas[s - 1] as AreaInfo).kind === "corridor";
+    };
+    // the foot of the walls
+    for (let i = 0; i < this.n; i++) {
+      if (!plain(i)) continue;
+      const [x, y] = this.cellXY(i);
+      const walls = sides.filter((s) => roughSide(x, y, s)).length;
+      if (walls === 0) continue;
+      const p = walls >= 2 ? 0.5 : 0.28;
+      if (u("foot", i) >= p) continue;
+      const block = walls >= 2 && !inCorridor(i) && u("blk", i) < 0.35;
+      put(i, block ? "rubble" : "debris");
+    }
+    // either side of about half the doorways: the cells flanking the opening along its wall
+    this.openings.forEach((op, k) => {
+      if (op.kind === "open" || u("jamb", k + 7919) >= 0.5) return;
+      const [sx, sy] = op.start;
+      const flank: Vec2[] =
+        op.orientation === "h"
+          ? [[sx - 1, sy - 1], [sx - 1, sy], [sx + op.width, sy - 1], [sx + op.width, sy]]
+          : [[sx - 1, sy - 1], [sx, sy - 1], [sx - 1, sy + op.width], [sx, sy + op.width]];
+      const picks = flank
+        .map((c, j) => ({ c, j, r: u("jc", k * 4 + j) }))
+        .filter(({ c, j }) => {
+          // the cell must stand against the wall the opening is in: even flanks lie north (west) of the line, so the wall is on their S (E) side
+          const side: Side = op.orientation === "h" ? (j % 2 === 0 ? "S" : "N") : j % 2 === 0 ? "E" : "W";
+          return roughSide(c[0], c[1], side);
+        })
+        .sort((a, b) => a.r - b.r)
+        .slice(0, 2);
+      for (const { c, j } of picks) {
+        const i = this.idx(c[0], c[1]);
+        if (i < 0) continue;
+        put(i, !inCorridor(i) && j % 2 === 0 ? "rubble" : "debris");
+      }
+    });
   }
 
   /** Generator 3: rubble heaped on the floor under a collapse of the level above: densest and biggest at the centre. */
@@ -2816,7 +3210,7 @@ export class LevelWork {
           }
           if (run.op === "add") {
             const [ca, cb] = this.edgeCells(ed.orient, ed.i);
-            if (FULL_CELL_STYLES.has(run.style ?? "wall") && this.region(ca) >= 0 && this.region(cb) >= 0) {
+            if (isNaturalWallStyle(run.style ?? "wall") && this.region(ca) >= 0 && this.region(cb) >= 0) {
               thinRock.push(this.edgeStart(ed.orient, ed.i));
             }
             ed.e.kind[ed.i] = EDGE.WALL;
@@ -3255,15 +3649,13 @@ export class LevelWork {
       ramp: (x, y) => this.plan.generator >= 2 && this.rampCells().has(this.idx(x, y)),
       generator: this.plan.generator,
       // generator 2: the band's pieces at their real size; undefined where the theme has no such piece (no band)
-      ...(this.plan.generator >= 2 && this.ctx.pieceSize
-        ? { pieceSize: (t: FeatureType) => this.ctx.pieceSize?.(this.levelTheme, t) }
+      ...(this.plan.generator >= 2
+        ? { pieceSize: (t: FeatureType) => this.ctx.palette.pieceSize(this.levelTheme, t) }
         : {}),
       // generator 3: the real outline of those pieces, and the cells off the board (void or outside the bounds)
       ...(generatorAtLeast(this.plan, 3)
         ? {
-            ...(this.ctx.pieceSize
-              ? { pieceExtent: (t: FeatureType) => this.ctx.pieceSize?.(this.levelTheme, t, true) }
-              : {}),
+            pieceExtent: (t: FeatureType) => this.ctx.palette.pieceSize(this.levelTheme, t, true),
             void: (x: number, y: number) => {
               const i = this.idx(x, y);
               return i < 0 || this.state[i] === CELL.VOID;
@@ -3282,8 +3674,36 @@ export class LevelWork {
         if (i < 0 || (this.state[i] === CELL.VOID && generatorAtLeast(this.plan, 3))) return 0;
         return (this.height[i] as number) / 4;
       },
+      // generator 4: what the room recipes need (gen/rooms4.ts)
+      ...(generatorAtLeast(this.plan, 4)
+        ? {
+            piece4: (t: FeatureType, v?: string) => this.ctx.palette.roomPiece(this.levelTheme, t, v),
+            wallHosted: (x: number, y: number, s: Side) => {
+              const ed = this.sideEdge(x, y, s);
+              if (!ed) return false;
+              const [a, b] = this.edgeCells(ed.orient, ed.i);
+              const forced = ed.e.hostSet[ed.i] as number;
+              const host = forced >= 0 ? forced : this.hostOf(a, b, ed.e.run[ed.i] === 1);
+              return host === (s === "N" || s === "W" ? 1 : 0);
+            },
+            wallHeight: (x: number, y: number, s: Side) => {
+              const ed = this.sideEdge(x, y, s);
+              return ed && ed.e.kind[ed.i] === EDGE.WALL ? (ed.e.height[ed.i] as number) : 0;
+            },
+            wallStyle: (x: number, y: number, s: Side) => {
+              const ed = this.sideEdge(x, y, s);
+              return ed && ed.e.kind[ed.i] === EDGE.WALL ? (ed.e.style[ed.i] ?? "wall") : undefined;
+            },
+            lightCells: () =>
+              this.features.filter((f) => LIGHT_FEATURES.has(f.type)).map((f) => [f.at[0], f.at[1]] as const),
+            roomMemory: this.roomMemory,
+          }
+        : {}),
     };
   }
+
+  /** Generator 4: the recipe variants each purpose has drawn so far on this level (rooms of one purpose differ). */
+  private readonly roomMemory = new Map<string, number[]>();
 
   /** Road crossings and the pavement cells at their ends: generated dressing keeps off them (built lazily). */
   private crossingClearCache: Set<number> | null = null;
@@ -3414,7 +3834,73 @@ export class LevelWork {
     this.stepMarket();
     this.stepBridgeRubble();
     this.stepOpeningRubble();
+    this.stepOpeningRimDebris();
+    // generator 4: rooms the plan left bare are dressed from their purpose, and every room is lit. Before the loose
+    // rubble and the scatters, so those fill what the furniture leaves and never take a wall run from it.
+    if (generatorAtLeast(this.plan, 4) && this.level.roomDress !== false) this.stepRoomRecipes();
+    this.stepWallFootRubble();
     this.stepGeneratedFeatures();
+  }
+
+  /**
+   * Generator 4: the default dressing of rooms (gen/rooms4.ts). An area of kind room whose name, tags or notes name a
+   * purpose, that no dress op covers and that the plan furnished lightly (under 2 features per 10 floor tiles), gets
+   * that purpose's furniture, things on it and lights. A room with no purpose, or one the plan furnished itself, still
+   * gets its torches; a passage a few. Abandoned places (a crypt, cells, a ruin) stay sparse and keep one light at most.
+   * `roomDress: false` on the level turns it off.
+   */
+  private stepRoomRecipes(): void {
+    const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
+    const dressed = new Set<string>();
+    for (const op of this.level.terrain) if (op.op === "dress" && op.area !== undefined) dressed.add(op.area);
+    const baseGrid = this.grid();
+    if (baseGrid.piece4 === undefined) return;
+    for (const info of this.areas) {
+      if (info.kind !== "room" && info.kind !== "corridor") continue;
+      const area = info.area;
+      const cells: Array<[number, number]> = [];
+      for (let i = 0; i < this.n; i++) if (this.disp[i] === info.index + 1 && this.isFloor(i)) cells.push(this.cellXY(i));
+      if (cells.length < 6) continue;
+      const theme = info.theme;
+      const grid: PlacementGrid = {
+        ...baseGrid,
+        piece4: (t: FeatureType, v?: string) => this.ctx.palette.roomPiece(theme, t, v),
+      };
+      const seed = subSeed(elementSeed(this.plan.seed, `${this.level.id}~${area.id}~room`, undefined), "room");
+      const own = this.features.filter((f) => f.area === area.id && f.generatedBy === undefined && f.type !== "torch_wall").length;
+      const lightly = own * 10 < 2 * cells.length;
+      // a corridor is never furnished, but its name still says whether it is kept up ("Crypt passage" stays dark)
+      const { purpose, abandoned } = info.room;
+      const ruin = purpose === "ruin";
+      let res: { placements: GeneratedPlacement[]; capped: boolean } | null = null;
+      if (info.kind === "room" && furnishedPurpose(purpose) && lightly && !dressed.has(area.id)) {
+        res = dressRoom(grid, {
+          purpose,
+          abandoned,
+          areaIndex: info.index + 1,
+          areaCells: cells,
+          density: 1,
+          seed,
+          remaining: cap - this.generated,
+          have: this.features.filter((f) => f.area === area.id && f.generatedBy === undefined).map((f) => f.type),
+        });
+      }
+      // no recipe (no purpose, the plan's own furnishing, or no pieces to dress with): torches only, never in a ruin or
+      // a room a dress op already composed
+      if (res === null && !ruin && !dressed.has(area.id)) {
+        res = lightArea(grid, {
+          areaIndex: info.index + 1,
+          areaCells: cells,
+          seed,
+          remaining: cap - this.generated,
+          every: info.kind === "corridor" ? 18 : 12,
+          abandoned,
+        });
+      }
+      if (res === null) continue;
+      this.commitGenerated(`${area.id}~room`, res.placements);
+      if (res.capped) break;
+    }
   }
 
   /** Overhead lines that found both anchors (ResolvedLevel.lines). */
@@ -3448,6 +3934,7 @@ export class LevelWork {
       variant?: string;
       lift?: number;
       offset?: [number, number];
+      stall?: StallBuild;
     },
     occupy: boolean,
   ): void {
@@ -3466,6 +3953,7 @@ export class LevelWork {
       blocking: occupy && info.blocking,
     };
     if (p.variant !== undefined) rf.variant = p.variant;
+    if (p.stall !== undefined) rf.stall = p.stall;
     if (p.offset !== undefined)
       rf.offset = [Math.max(-0.5, Math.min(0.5, p.offset[0])), Math.max(-0.5, Math.min(0.5, p.offset[1]))];
     const ar = anchor >= 0 ? (this.disp[anchor] as number) : 0;
@@ -3495,9 +3983,9 @@ export class LevelWork {
     const ok = (x: number, y: number): boolean => this.marketCellOk(x, y);
     // goods on a bare-table stall: two pieces resting on the table top (its real height; nothing floats)
     const putGoods = (stallId: string, st: { at: [number, number]; size: [number, number] }, kind: string): void => {
-      const set = STALL_GOODS[(kind in STALL_BASE ? kind : "empty") as keyof typeof STALL_BASE];
+      const set = stallKindInfo(kind).tableGoods;
       if (set === undefined) return;
-      const ext = this.ctx.pieceSize?.(this.levelTheme, "stall", true, "empty");
+      const ext = this.ctx.palette.pieceSize(this.levelTheme, "stall", true, "empty");
       if (!ext) return;
       const rng = createPrng(subSeed(seedOf(stallId), "goods"));
       const cells: Array<[number, number]> = [];
@@ -3523,8 +4011,22 @@ export class LevelWork {
     for (const f of [...this.features]) {
       if (f.type === "stall" && f.generatedBy === undefined) putGoods(f.id, { at: [f.at[0], f.at[1]], size: [f.size[0], f.size[1]] }, f.variant ?? "empty");
     }
+    // generator 4: covered stalls when the theme's palette has the parts (else the table stall of generator 3)
+    const forms = generatorAtLeast(this.plan, 4) ? this.ctx.palette.stallForms(this.levelTheme) : [];
     stallRows.forEach((row, k) => {
-      const placed = layoutStalls(row, ok, seedOf(`stalls${k}~${row.seed ?? 0}`));
+      let placed;
+      if (forms.length > 0) {
+        // a stall stands on one level of ground: only the most common floor height of the rectangle takes one
+        const heights = new Map<number, number>();
+        for (let y = row.area.y; y < row.area.y + row.area.h; y++)
+          for (let x = row.area.x; x < row.area.x + row.area.w; x++) {
+            const i = this.idx(x, y);
+            if (i >= 0 && ok(x, y)) heights.set(this.height[i] as number, (heights.get(this.height[i] as number) ?? 0) + 1);
+          }
+        const level = [...heights].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0];
+        const flat = (x: number, y: number): boolean => ok(x, y) && this.height[this.idx(x, y)] === level;
+        placed = layoutStalls4(row, flat, seedOf(`stalls${k}~${row.seed ?? 0}`), forms);
+      } else placed = layoutStalls(row, ok, seedOf(`stalls${k}~${row.seed ?? 0}`));
       if (placed.length === 0)
         this.issue("warning", "no_effect", `stall row "${row.id}" placed no stall`, {
           elementId: row.id,
@@ -3533,8 +4035,17 @@ export class LevelWork {
       placed.forEach((p, n) => {
         if (this.generated >= cap) return;
         const id = `${row.id}#${n}`;
-        this.commitMarket(id, { type: "stall", at: p.at, size: p.size, rot: p.rot, variant: p.kind }, true);
-        putGoods(id, p, p.kind);
+        this.commitMarket(
+          id,
+          { type: "stall", at: p.at, size: p.size, rot: p.rot, variant: p.kind, ...(p.build ? { stall: p.build } : {}) },
+          true,
+        );
+        // a covered stall carries its own goods (the realizer puts them on its counters); a table gets them here
+        if (!p.build) putGoods(id, p, p.kind);
+      });
+      // stock beside the stalls goes in once every stall of the row stands (it takes only cells they left free)
+      placed.forEach((p, n) => {
+        if (p.build) this.stallClutter(`${row.id}#${n}`, p, p.build, cap);
       });
     });
     lineList.forEach((line, k) => {
@@ -3542,6 +4053,25 @@ export class LevelWork {
     });
     // outside a front door the lot's reserved ring is exactly where trade props stand (the door approach stays free)
     this.stepTradeProps(cap, (x, y) => this.marketCellOk(x, y, false));
+  }
+
+  /**
+   * Generator 4: loose stock behind or beside a covered stall (a crate, barrel or sack on a free cell touching it),
+   * on about half of them. Never in front: the lane stays clear.
+   */
+  private stallClutter(id: string, p: { at: [number, number]; size: [number, number]; kind: string }, b: StallBuild, cap: number): void {
+    if (this.generated >= cap) return;
+    const rng = createPrng(subSeed(elementSeed(this.plan.seed, `${this.level.id}~${id}`, undefined), "clutter"));
+    if (rng.next() > 0.5) return;
+    const cands: Array<[number, number]> = [];
+    for (let lx = 0; lx < b.w; lx++) cands.push(stallCell(b.front, p.at, p.size, lx, b.d));
+    cands.push(stallCell(b.front, p.at, p.size, -1, b.d - 1), stallCell(b.front, p.at, p.size, b.w, b.d - 1));
+    const types = stallKindInfo(p.kind).stock;
+    const type = types[rng.int(types.length)] as FeatureType;
+    const free = cands.filter(([x, y]) => this.marketCellOk(x, y) && this.featureProblem(type, [x, y], [1, 1], undefined) === null);
+    const at = free[rng.int(Math.max(1, free.length))];
+    if (!at) return;
+    this.commitMarket(`${id}#stock`, { type, at, size: [1, 1], rot: rng.int(4) * 90 }, true);
   }
 
   /** One overhead line: straightness, two anchors (a building wall within 3 cells beyond the end, else a post), pieces. */
@@ -3601,6 +4131,24 @@ export class LevelWork {
       bad("is shorter than 3 cells between its anchors", "make the span longer");
       return;
     }
+    // generator 4: a covered stall's canopy rises above a rope's height; the line runs along the aisle, not through it
+    if (generatorAtLeast(this.plan, 4))
+      for (let a = aLo.at + 1; a < aHi.at; a++) {
+        const [cx, cy] = cellAt(a);
+        if (
+          this.features.some(
+            (f) =>
+              f.stall !== undefined &&
+              cx >= f.at[0] &&
+              cx < f.at[0] + f.size[0] &&
+              cy >= f.at[1] &&
+              cy < f.at[1] + f.size[1],
+          )
+        ) {
+          bad("passes through a covered stall", "run it along the aisle or the street, clear of the stalls' footprints");
+          return;
+        }
+      }
     // 2.6 clears the awnings of shop fronts (2 to 2.5 up); a wall must reach it, else the verifier says the line is not held
     const height = Math.max(2, Math.min(3, line.height ?? 2.6));
     // the posts (an anchor that is not a wall)
@@ -3927,6 +4475,171 @@ export class LevelWork {
   }
 
   /**
+   * Generator 4: cells the natural cave passes (ragged outlines, floor shelves) must leave as the plan drew them:
+   * explicit features, openings, link ends, stairs runs and the shapes of shaping terrain ops, each with a ring of
+   * `ring` cells.
+   */
+  private caveKeep(ring: number): Set<number> {
+    const keep = new Set<number>();
+    const addRing = (gx: number, gy: number, r: number): void => {
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          const i = this.idx(gx + dx, gy + dy);
+          if (i >= 0) keep.add(i);
+        }
+    };
+    for (const ft of this.level.features)
+      for (const c of this.footprint(ft.at, ft.size ?? [1, 1]).cells) {
+        const [x, y] = this.cellXY(c);
+        addRing(x, y, ring);
+      }
+    for (const o of this.level.openings) if (o.at) addRing(o.at.x, o.at.y, ring + 1);
+    // the ends of a link, and every cell its run, stairwell and landing cover (plan/links.ts `linkGeometry`)
+    for (const l of this.plan.links)
+      for (const end of [l.from, l.to])
+        if (end.level === this.level.id && end.at) addRing(end.at[0], end.at[1], ring + 1);
+    for (const [x, y] of linkCellsOnLevel(this.plan, this.level.id)) addRing(x, y, ring);
+    const clip = this.rasterClip();
+    for (const op of this.level.terrain) {
+      if (op.op === "stairs") {
+        forEachMaskCell(rasterPolyline([op.from, op.to], 1, clip), (x, y) => {
+          addRing(x, y, ring + 1);
+        });
+        continue;
+      }
+      if (op.op !== "platform" && op.op !== "outcrop" && op.op !== "floor_opening" && op.op !== "height") continue;
+      forEachMaskCell(rasterizeShape(op.shape, { planSeed: this.plan.seed, clip }), (x, y) => {
+        addRing(x, y, ring);
+      });
+    }
+    return keep;
+  }
+
+  /**
+   * Generator 4: chambers and corridors with natural rock walls get ragged, bulging outlines (resolve/caveOutline.ts),
+   * passages at least two cells wide, every connection kept. Runs right after the areas are claimed.
+   */
+  private stepCaveOutlines(): void {
+    const keep = this.caveKeep(1);
+    const zoneAt = (i: number): boolean => {
+      const d = this.disp[i] as number;
+      return d > 0 && (this.areas[d - 1] as AreaInfo).isZone;
+    };
+    for (const info of this.areas) {
+      if (info.isZone || info.isBridge || !isNaturalWallStyle(info.wallStyle) || info.mode === "none") continue;
+      const cells = this.areaCells(info.index);
+      if (cells.length < 6) continue;
+      const ai1 = info.index + 1;
+      const r = raggedCaveOutline(
+        {
+          w: this.w,
+          h: this.h,
+          owner: (i) => this.struct[i] as number,
+          open: (i) => this.state[i] === CELL.OPEN,
+          rock: (i) => this.state[i] === CELL.SOLID && this.struct[i] === 0 && this.disp[i] === 0,
+          keep: (i) => keep.has(i) || zoneAt(i),
+        },
+        ai1,
+        cells,
+        elementSeed(this.plan.seed, `${info.area.id}~caveoutline`),
+      );
+      for (const i of r.open) this.claim(i, info);
+      for (const i of r.close) {
+        this.state[i] = CELL.SOLID;
+        this.struct[i] = 0;
+        this.disp[i] = 0;
+        this.mat[i] = 0;
+        this.flags[i] = 0;
+        this.height[i] = 0;
+        this.heightSet[i] = 0;
+      }
+    }
+    this.recountStruct();
+  }
+
+  /**
+   * Generator 4: a cave floor the plan left flat (CAVE_RELIEF.flatShare of its dry cave floor at one height) gets a
+   * few half-tile shelves (resolve/caveRelief.ts): low by the water, rising toward the back of side chambers. Never
+   * under explicit features, bridges, links, openings or the pool edge, never beside another step.
+   */
+  private stepCaveRelief(): void {
+    const cave = (i: number): boolean => {
+      const s = this.struct[i] as number;
+      if (s <= 0 || this.state[i] !== CELL.OPEN) return false;
+      const info = this.areas[s - 1] as AreaInfo;
+      return isNaturalWallStyle(info.wallStyle) && !info.isBridge;
+    };
+    const dry = (i: number): boolean =>
+      ((this.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) === 0;
+    const floor: number[] = [];
+    const count = new Map<number, number>();
+    for (let i = 0; i < this.n; i++)
+      if (cave(i) && dry(i)) {
+        floor.push(i);
+        count.set(this.height[i] as number, (count.get(this.height[i] as number) ?? 0) + 1);
+      }
+    if (floor.length < CAVE_RELIEF.minCells) return;
+    let flat = 0;
+    let most = 0;
+    for (const [hq, n] of count)
+      if (n > most) {
+        most = n;
+        flat = hq;
+      }
+    if (most / floor.length < CAVE_RELIEF.flatShare) return;
+    // what stays: plan-made cells and their rings, water and its banks, bridges, any other step and the cells by it
+    const keep = this.caveKeep(1);
+    const near = (i: number, r: number, test: (j: number) => boolean): boolean => {
+      const [x, y] = this.cellXY(i);
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          const j = this.idx(x + dx, y + dy);
+          if (j >= 0 && test(j)) return true;
+        }
+      return false;
+    };
+    const bridgeArea = (j: number): boolean => {
+      const s = this.struct[j] as number;
+      return s > 0 && (this.areas[s - 1] as AreaInfo).isBridge;
+    };
+    const cells = floor.filter(
+      (i) =>
+        this.height[i] === flat &&
+        !keep.has(i) &&
+        !near(i, 2, (j) => ((this.flags[j] as number) & (CELL_FLAG.WATER | CELL_FLAG.BRIDGE)) !== 0 || bridgeArea(j)) &&
+        !near(i, 1, (j) => this.state[j] === CELL.OPEN && this.height[j] !== flat),
+    );
+    // low ground: the water; with none, the heart of the largest cave chamber
+    let low: number[] = [];
+    for (let i = 0; i < this.n; i++)
+      if (this.state[i] === CELL.OPEN && ((this.flags[i] as number) & CELL_FLAG.WATER) !== 0) low.push(i);
+    if (low.length === 0) {
+      let best = -1;
+      let size = 0;
+      for (const info of this.areas) {
+        if (info.isZone || !isNaturalWallStyle(info.wallStyle)) continue;
+        const n = this.areaCells(info.index).length;
+        if (n > size) {
+          size = n;
+          best = info.index;
+        }
+      }
+      if (best < 0) return;
+      const d = this.innerDistance(this.areaCells(best));
+      const top = Math.max(...d.values());
+      low = [...d].filter(([, v]) => v >= top - 1).map(([i]) => i);
+    }
+    const shelves = caveShelves(
+      this.organicGrid(),
+      cells,
+      low,
+      (i) => this.state[i] === CELL.OPEN && ((this.flags[i] as number) & CELL_FLAG.NO_FLOOR) === 0,
+      elementSeed(this.plan.seed, `${this.level.id}~caverelief`),
+    );
+    for (const [i, t] of shelves) if (t > 0) this.height[i] = (this.height[i] as number) + 2 * t;
+  }
+
+  /**
    * Generator 2, open-air natural levels: the board gets a ragged, rounded outline (about 80–90% of its rectangle,
    * stepping in 2-cell blocks) with a strip of low ground about 2 cells wide inside it, so a rise never meets the
    * board edge. Cells outside become void. Paths, water, areas, structures and explicit features keep their cells,
@@ -4178,6 +4891,7 @@ export class LevelWork {
         density: op.density ?? 0.5,
         seed: elementSeed(this.plan.seed, op.id, op.seed),
         remaining: cap - this.generated,
+        abandoned: (this.areas[ai] as AreaInfo).room.abandoned,
       });
       this.commitGenerated(op.id, res.placements);
       if (res.capped) capWarn(op.id, path);
@@ -4391,6 +5105,12 @@ export class LevelWork {
       if (info.area.key !== undefined) ra.key = info.area.key;
       if (info.area.notes !== undefined) ra.notes = info.area.notes;
       if (info.area.labelAt !== undefined) ra.labelAt = [info.area.labelAt[0], info.area.labelAt[1]];
+      // generator 4: the area's one classification, for the compiler and the review (they never parse words)
+      if (generatorAtLeast(this.plan, 4)) {
+        if (info.room.purpose !== undefined) ra.purpose = info.room.purpose;
+        if (info.room.abandoned) ra.abandoned = true;
+        ra.finish = info.rough ? "rough" : "tidy";
+      }
       return ra;
     });
 
@@ -4454,6 +5174,12 @@ export class LevelWork {
     }
     if (this.resolvedLines.length > 0) lvl.lines = this.resolvedLines;
     if (this.structs) Object.assign(lvl, this.structs.finish(this.level.elevation));
+    // generator 4: the walls of a built interior vary in height (resolve/wallTops.ts)
+    if (generatorAtLeast(this.plan, 4) && this.level.base.type === "solid") {
+      if (!this.structs) roughWallTops(lvl, String(elementSeed(this.plan.seed, `${this.level.id}~walltops`, undefined)));
+      // stepRoomFloors raises rooms in every solid-based level: the walls beside them are shortened by the step
+      settleWallHeights(lvl);
+    }
     return lvl;
   }
 

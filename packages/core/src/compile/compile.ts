@@ -11,6 +11,7 @@ import type {
 } from "../contracts/compiler";
 import type { LevelId, MapPlan, ValidationResult } from "../contracts/plan";
 import type { ResolvedPlan } from "../contracts/resolved";
+import { paletteOptionsFor, type PaletteView } from "../palette/view";
 import { slabCodec } from "../slab/codec";
 import { DEFAULT_FILL, chunkAndEncode, extentDiagnostic, type ChunkEncodeOptions } from "./chunk";
 import { realize, type RealizedSet } from "./realize";
@@ -79,7 +80,8 @@ export function compileResolved(
 }
 
 export interface CompileDeps {
-  resolvePlan: (plan: MapPlan, opts?: { levels?: LevelId[] }) => ResolvedPlan;
+  /** `palette` is a view of the palettes the plan is compiled with (generator 4+), so both stages decide from the same ones. */
+  resolvePlan: (plan: MapPlan, opts?: { levels?: LevelId[]; palette?: PaletteView }) => ResolvedPlan;
   /** Optional: plans with error issues are refused with `plan_invalid`. */
   validatePlan?: (plan: MapPlan) => ValidationResult;
   orientation?: OrientationCalibration;
@@ -124,7 +126,8 @@ export function createCompilePlan(deps: CompileDeps): CompilePlan {
         };
       }
     }
-    const resolved = deps.resolvePlan(plan, opts?.levels ? { levels: opts.levels } : undefined);
+    const view = paletteOptionsFor(plan, palettes);
+    const resolved = deps.resolvePlan(plan, opts?.levels ? { levels: opts.levels, ...view } : view);
     const copts: CompileOptions = { ...(opts ?? {}) };
     if (deps.orientation) copts.orientation = deps.orientation;
     if (plan.entryLevel) copts.entryLevelId = plan.entryLevel;

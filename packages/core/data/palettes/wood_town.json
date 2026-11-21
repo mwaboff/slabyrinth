@@ -5,7 +5,11 @@
   "description": "Tavern and Rural kits: plank floors, thin wooden walls, peasant doors, furniture.",
   "defaults": {
     "floor": "wood_plank",
-    "wallStyle": "wall"
+    "wallStyle": "wall",
+    "interior": {
+      "finish": "tidy",
+      "floorFamily": "timber"
+    }
   },
   "roles": {
     "cliff.formation_crest": {

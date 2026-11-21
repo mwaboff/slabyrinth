@@ -359,7 +359,7 @@ function roleSettings(role: string): Partial<PaletteRole> {
       return { rotation: "fixed" };
     case "feature":
       // goods and the pieces of an overhead line turn as the generator set them (a line runs along x or y)
-      if (name === "overhead" || name === "goods") return { rotation: "inherit" };
+      if (name === "overhead" || name === "goods" || name === "clutter") return { rotation: "inherit" };
       return ORGANIC.includes(name) ? { rotation: "inherit" } : { rotation: "facing" };
     default:
       return {};
@@ -390,10 +390,29 @@ const ROLE_MIN_GENERATOR: Record<string, number> = {
   "feature.goods": 3,
   "feature.overhead": 3,
   "feature.line_post": 3,
+  // covered market stalls (gen/market.ts layoutStalls4, compile/stalls.ts): base, counter, posts, ridge, canopy, light, seat
+  "stall.base": 4,
+  "stall.counter": 4,
+  "stall.post": 4,
+  "stall.ridge": 4,
+  "stall.canopy": 4,
+  "stall.light": 4,
+  "stall.seat": 4,
+  // room dressing (gen/rooms4.ts): small things on furniture by family, and the wall-mounted shelf plank they stand on
+  "feature.clutter": 4,
+  "feature.shelf_line": 4,
+  // the flat cap of the solid shell round a built interior (compile/shell.ts): an alias of the earth floor, so any theme
+  // may give it a tone of its own (earth or flag for a dungeon, paving for a city) by defining the role
+  "cap.solid": 4,
+  // the ridge cap of a roof kit that has none (village): an alias of the slate cap, so the ridge row is never bare
+  // (compile/structure.ts roof pieces: roof.<kit>.cap, roof.<kit>.flat, roof.default.cap)
+  "roof.default.cap": 4,
 };
 
 /** Alias roles added to generic (only when no theme defines the role). */
 const ALIASES: Record<string, string> = {
+  "cap.solid": "floor.dirt",
+  "roof.default.cap": "roof.slate.cap",
   "floor.stone_tile": "floor.flagstone",
   "floor.marble": "floor.stone_tile",
   "floor.brick": "floor.flagstone",
@@ -450,7 +469,8 @@ const THEMES: Array<{
     name: "Generic (base kit)",
     description:
       "Base kit and last fallback step: shared props plus a copy of every theme role (first theme wins).",
-    defaults: { floor: "flagstone", wallStyle: "wall" },
+    // interior (generator 4): the character a theme inherits unless it says otherwise; old stone, rough
+    defaults: { floor: "flagstone", wallStyle: "wall", interior: { finish: "rough", floorFamily: "stone" } },
   },
   {
     id: "stone_dungeon",
@@ -464,7 +484,8 @@ const THEMES: Array<{
     name: "Wooden town",
     description: "Tavern and Rural kits: plank floors, thin wooden walls, peasant doors, furniture.",
     extends: "generic",
-    defaults: { floor: "wood_plank", wallStyle: "wall" },
+    // a kept-up timber building: clean walls, wood floors with tiled kitchens and wash rooms
+    defaults: { floor: "wood_plank", wallStyle: "wall", interior: { finish: "tidy", floorFamily: "timber" } },
   },
   {
     id: "cave",
@@ -495,7 +516,8 @@ const THEMES: Array<{
     description:
       "A modern street from the Cyberpunk and Sci-fi pack: road and pavement tiles, concrete and brick, street lamps, bins, signs, litter, street trees. It has one ordinary car, a yellow taxi (about 1.3×2.6 tiles): a vehicle feature becomes that taxi, and no bus, van or truck exists; ask for fewer, well-parked cars rather than many kinds.",
     extends: "generic",
-    defaults: { floor: "concrete", wallStyle: "wall" },
+    // kept-up plaster and brick interiors
+    defaults: { floor: "concrete", wallStyle: "wall", interior: { finish: "tidy", floorFamily: "timber" } },
   },
 ];
 /** Order in which theme roles are copied into generic. */
@@ -569,6 +591,12 @@ async function main(): Promise<void> {
       .entries,
     // market and settlement pieces (generator 3): stalls by kind, goods, overhead line pieces and posts
     ...(JSON.parse(readFileSync(join(here, "palette-market-assets.json"), "utf8")) as { entries: ExtraEntry[] })
+      .entries,
+    // covered market stall parts (generator 4)
+    ...(JSON.parse(readFileSync(join(here, "palette-stall-assets.json"), "utf8")) as { entries: ExtraEntry[] })
+      .entries,
+    // room dressing (generator 4): clutter families and the shelf plank
+    ...(JSON.parse(readFileSync(join(here, "palette-room-assets.json"), "utf8")) as { entries: ExtraEntry[] })
       .entries,
   ];
   for (const x of extras) {

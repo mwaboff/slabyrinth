@@ -653,6 +653,7 @@ const levelFields = {
   foundation: heightSchema(0, 4).exactOptional(),
   outline: z.enum(["natural", "rect"]).exactOptional(),
   cliffBands: z.literal(false).exactOptional(),
+  roomDress: z.literal(false).exactOptional(),
   bounds: BoundsSchema,
   base: LevelBaseSchema,
   theme: ThemeIdSchema.exactOptional(),

@@ -228,6 +228,19 @@ describe("symbols and themes", () => {
       }
     }
   });
+  it("a covered stall (generator 4) is drawn as its canopy: a panel, a ridge, rafters, a heavy front eave and four posts", () => {
+    const theme = getMapTheme("ohsheet-light");
+    for (const side of ["N", "E", "S", "W"]) {
+      const paint = PAINTERS[`feat-stall_cover_${side}`];
+      expect(paint, side).toBeTypeOf("function");
+      const ctx = new RecordingContext();
+      paint?.({ ctx, theme, u: 24, w: 72, h: 72, style: "feat", seed: 1, lw: 1.5, rot: 0 });
+      expect(ctx.depth).toBe(0);
+      // the canopy panel, rafters, front eave and four posts are each stroked
+      expect(ctx.strokes.length).toBeGreaterThanOrEqual(7);
+      expect(ctx.calls.filter((c) => c.op === "rect").length).toBe(4);
+    }
+  });
   it("themes define every required token", () => {
     for (const theme of Object.values(MAP_THEMES))
       for (const t of REQUIRED_TOKENS) expect(theme.colors[t], `${theme.id}.${t}`).toBeDefined();

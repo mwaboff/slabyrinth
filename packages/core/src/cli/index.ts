@@ -29,7 +29,7 @@ import {
 import type { AssetCatalog, ChunkOptions, PaletteCatalog, SlabAsset } from "../contracts/compiler";
 import type { MapPlan } from "../contracts/plan";
 import { calibrationAssetsFrom, calibrationSlabAssets, compileResolved, realize } from "../compile/index";
-import { loadOrientation, loadPalettes } from "../palette/index";
+import { loadOrientation, loadPalettes, paletteOptionsFor } from "../palette/index";
 import { validatePlan } from "../plan/index";
 import { resolvePlan } from "../resolve/index";
 import {
@@ -165,7 +165,7 @@ function cmdCompile(a: Args, io: CliIo): number {
       .filter(Boolean);
   const lay = flag(a, "layout");
   if (lay) opts.levelLayout = lay as NonNullable<ChunkOptions["levelLayout"]>;
-  const resolved = resolvePlan(plan);
+  const resolved = resolvePlan(plan, paletteOptionsFor(plan, cat));
   const bundle = compileResolved(resolved, cat, slabCodec, { ...opts, plan });
   const errors = bundle.diagnostics.filter((d) => d.severity === "error");
   const force = a.flags["force"] === true;
@@ -217,8 +217,8 @@ function cmdReview(a: Args, io: CliIo): number {
   if (!path) throw new UsageError("review <plan.json> [--no-build] [--json]");
   const raw = readJson(path, io) as MapPlan | { plan: MapPlan; format: string };
   const plan = "format" in raw && "plan" in raw ? raw.plan : raw;
-  const resolved = resolvePlan(plan);
   const palettes = palettesFrom(a, io);
+  const resolved = resolvePlan(plan, paletteOptionsFor(plan, palettes));
   const noBuild = a.flags["no-build"] === true;
   const diagnostics = noBuild ? [] : compileResolved(resolved, palettes, slabCodec, { plan }).diagnostics;
   // the realized pieces too (the cave rock mass is measured on them)

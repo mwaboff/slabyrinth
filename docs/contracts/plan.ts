@@ -29,13 +29,15 @@ export const PLAN_SCHEMA = "slabyrinth/plan@1" as const;
  *     areas that later open those cells inherit it unless they set their own floorHeight. In version 1 such an op
  *     only touched cells that were already open, which on a solid base is none of them.
  *     Released in 0.1.2 and frozen since (golden tests in test/golden/generator2 pin it).
- *  3: unreleased, open for new work. Until behaviour is gated on it, it resolves exactly like 2.
- *     Gate new behaviour with `generatorAtLeast(plan, 3)` (plan/generator.ts); every `>= 2` rule stays on for 3.
+ *  3: cliffs, cave walls, growth, floor openings, stalls and overhead lines, trades. Released in 0.2.0 and
+ *     frozen since (golden tests in test/golden/generator3 pin it).
+ *  4: unreleased, open for new work. Until behaviour is gated on it, it resolves exactly like 3.
+ *     Gate new behaviour with `generatorAtLeast(plan, 4)` (plan/generator.ts); every `>= 3` rule stays on for 4.
  */
-export const GENERATOR_VERSION = 3 as const;
+export const GENERATOR_VERSION = 4 as const;
 /** Generator versions a reader accepts. */
-export type GeneratorVersion = 1 | 2 | 3;
-export const GENERATOR_VERSIONS: readonly GeneratorVersion[] = [1, 2, 3];
+export type GeneratorVersion = 1 | 2 | 3 | 4;
+export const GENERATOR_VERSIONS: readonly GeneratorVersion[] = [1, 2, 3, 4];
 
 // ───────────────────────────── primitives ─────────────────────────────
 
@@ -129,6 +131,9 @@ export const FEATURE_TYPES = [
   // markets (additive, generator 3): a stall by kind of goods (variant), small goods standing on a stall or table,
   // and the pieces of an overhead line (the line itself is Level.lines; these are what it resolves to)
   "stall", "goods", "overhead", "line_post",
+  // interiors (additive, generator 4): small things the room recipes stand on tables, counters, desks and shelves
+  // (variant = the family: table, study, store, tools, shelf), and a wall-mounted shelf plank they stand on
+  "clutter", "shelf_line",
   "custom",
 ] as const;
 export type FeatureType = (typeof FEATURE_TYPES)[number];
@@ -218,7 +223,12 @@ export interface Area {
   /** Where the key badge is drawn (cell); default = resolved anchor. */
   labelAt?: Vec2;
   shape: Shape;
-  /** Omitted: theme default for room/corridor/cave/building/courtyard; "keep underlying" for zone. "none" = hole/chasm (open, no floor). */
+  /**
+   * Omitted: theme default for room/corridor/cave/building/courtyard; "keep underlying" for zone. "none" = hole/chasm (open, no floor).
+   * Generator 4, a room in a built interior (level base solid): a floor equal to the theme's default floor counts as
+   * "no preference", like an omitted one, and the room takes the floor of its purpose (the model writes the default on
+   * every room, which says nothing); so such a room cannot ask for exactly the default floor. Any other floor is kept.
+   */
   floor?: Material | "none";
   /** Floor offset relative to level elevation, tiles, −4..+4, multiple of 0.25 (dais +0.5, pit −1). Omitted = keep the underlying height. */
   floorHeight?: Height;
@@ -466,6 +476,11 @@ export interface Level {
   outline?: "natural" | "rect";
   /** Generator 3: `false` turns off the default rock band on rises of 2 tiles or more in natural regions no dress op covers. */
   cliffBands?: false;
+  /**
+   * Generator 4: `false` turns off the default dressing of rooms (an area of kind room whose name, tags or notes tell its
+   * purpose, no dress op over it and few features of its own gets that purpose's furniture, things on it and lights).
+   */
+  roomDress?: false;
   /** Default wall height for this level (tiles). Default 2 (10 ft); used for stacking checks. */
   wallHeight?: Height;
   /** Region of the global grid this level occupies (cells). 1..160 per side. */

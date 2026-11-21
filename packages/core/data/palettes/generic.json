@@ -5,7 +5,11 @@
   "description": "Base kit and last fallback step: shared props plus a copy of every theme role (first theme wins).",
   "defaults": {
     "floor": "flagstone",
-    "wallStyle": "wall"
+    "wallStyle": "wall",
+    "interior": {
+      "finish": "rough",
+      "floorFamily": "stone"
+    }
   },
   "roles": {
     "balcony.default": {
@@ -404,6 +408,11 @@
           ]
         }
       ]
+    },
+    "cap.solid": {
+      "minGenerator": 4,
+      "variants": [],
+      "fallback": "floor.dirt"
     },
     "chimney.default": {
       "variants": [
@@ -3194,6 +3203,955 @@
             1,
             1
           ]
+        }
+      ]
+    },
+    "feature.clutter": {
+      "minGenerator": 4,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "884cecdf-5bf0-4b66-ba80-221054569e4b",
+          "name": "Plate",
+          "geom": {
+            "size": {
+              "x": 0.329,
+              "y": 0.0258,
+              "z": 0.3208
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.0139,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "table"
+        },
+        {
+          "asset": "b9786c77-942a-4011-9a39-1f9820d8e49d",
+          "name": "Pitcher",
+          "geom": {
+            "size": {
+              "x": 0.2628,
+              "y": 0.4922,
+              "z": 0.251
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.047,
+              "y": 0.2544,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "table"
+        },
+        {
+          "asset": "f8a8bc44-b7f2-4b30-a75d-f5ad187a1e52",
+          "name": "jug 01",
+          "geom": {
+            "size": {
+              "x": 0.2495,
+              "y": 0.3705,
+              "z": 0.2689
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.002,
+              "y": 0.1904,
+              "z": -0.0032
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "table"
+        },
+        {
+          "asset": "5d3e85d0-e2e8-436a-9c16-f35a493bc854",
+          "name": "jug 03",
+          "geom": {
+            "size": {
+              "x": 0.2018,
+              "y": 0.3592,
+              "z": 0.2018
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1849,
+              "z": 0.001
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "table"
+        },
+        {
+          "asset": "06e62c7c-d434-4cf3-a2e8-e06904536be7",
+          "name": "Dessert Plate",
+          "geom": {
+            "size": {
+              "x": 0.3451,
+              "y": 0.1404,
+              "z": 0.3451
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.101,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "table"
+        },
+        {
+          "asset": "5496259a-571e-449e-b6d2-2bcec7758ad5",
+          "name": "Desert plate 02",
+          "geom": {
+            "size": {
+              "x": 0.4226,
+              "y": 0.1142,
+              "z": 0.4365
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.0574,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "table"
+        },
+        {
+          "asset": "69dcaa61-f17f-44d5-b221-9d6e56c87dcf",
+          "name": "jug brown",
+          "geom": {
+            "size": {
+              "x": 0.1121,
+              "y": 0.3071,
+              "z": 0.111
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0001,
+              "y": 0.163,
+              "z": -0.0005
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "table"
+        },
+        {
+          "asset": "fda5b054-0652-4aaa-80e3-d41bb688c2ef",
+          "name": "bowl of spice v2",
+          "geom": {
+            "size": {
+              "x": 0.2982,
+              "y": 0.1981,
+              "z": 0.2861
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.001,
+              "y": 0.1085,
+              "z": 0.0019
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "table"
+        },
+        {
+          "asset": "71ded691-2336-4302-a657-e98f7a0162be",
+          "name": "Book Pile 02",
+          "geom": {
+            "size": {
+              "x": 0.3982,
+              "y": 0.4813,
+              "z": 0.5289
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2407,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "study"
+        },
+        {
+          "asset": "4935ffc4-9f14-4d2e-a9de-721580968ae4",
+          "name": "Book Pile 03",
+          "geom": {
+            "size": {
+              "x": 0.5348,
+              "y": 0.6912,
+              "z": 0.5558
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.3456,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "study"
+        },
+        {
+          "asset": "07a525c0-b6f2-46b3-be4b-01bb7c9110a0",
+          "name": "book open",
+          "geom": {
+            "size": {
+              "x": 0.4638,
+              "y": 0.1007,
+              "z": 0.3245
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0017,
+              "y": 0.0588,
+              "z": -0.0014
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "study"
+        },
+        {
+          "asset": "c64889e5-b279-48ac-98f0-d1e2ab587940",
+          "name": "book locked",
+          "geom": {
+            "size": {
+              "x": 0.2735,
+              "y": 0.1471,
+              "z": 0.3211
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0013,
+              "y": 0.082,
+              "z": -0.0004
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "study"
+        },
+        {
+          "asset": "3bd89f21-81cc-4147-82a1-a155a4a0c443",
+          "name": "paper pile",
+          "geom": {
+            "size": {
+              "x": 0.3035,
+              "y": 0.083,
+              "z": 0.3457
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0007,
+              "y": 0.0509,
+              "z": -0.0007
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "study"
+        },
+        {
+          "asset": "2f02b24b-20f4-4874-aa45-80167ca9e1b0",
+          "name": "paper rolled",
+          "geom": {
+            "size": {
+              "x": 0.3857,
+              "y": 0.0951,
+              "z": 0.0996
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0014,
+              "y": 0.057,
+              "z": 0.0005
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "study"
+        },
+        {
+          "asset": "1800a25a-5880-4525-976a-a9e8efea1623",
+          "name": "ink cup sm with Quill pen",
+          "geom": {
+            "size": {
+              "x": 0.1159,
+              "y": 0.0815,
+              "z": 0.109
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0002,
+              "y": 0.0389,
+              "z": -0.0012
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "study"
+        },
+        {
+          "asset": "4be9249f-2ea4-4e3b-9012-9825f4a7edef",
+          "name": "Books",
+          "geom": {
+            "size": {
+              "x": 0.789,
+              "y": 0.2642,
+              "z": 0.1634
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1321,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "study"
+        },
+        {
+          "asset": "1b21c7fd-5ae4-42ae-a7db-2f6954c0334e",
+          "name": "book strapped",
+          "geom": {
+            "size": {
+              "x": 0.269,
+              "y": 0.1383,
+              "z": 0.3296
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0015,
+              "y": 0.0766,
+              "z": -0.0065
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "study"
+        },
+        {
+          "asset": "d9eafd30-c338-4fe7-ba40-bccf547538b6",
+          "name": "bucket_wood",
+          "geom": {
+            "size": {
+              "x": 0.3991,
+              "y": 0.393,
+              "z": 0.422
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0006,
+              "y": 0.1955,
+              "z": 0.0019
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "store"
+        },
+        {
+          "asset": "b585ce47-645a-4cd6-80d1-6a8b3b2ca907",
+          "name": "alchemy jug 04",
+          "geom": {
+            "size": {
+              "x": 0.1996,
+              "y": 0.3185,
+              "z": 0.1999
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0029,
+              "y": 0.1693,
+              "z": 0.0112
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "store"
+        },
+        {
+          "asset": "1be9f074-cfca-4d85-ae85-e36f6eed8226",
+          "name": "Eggs, Basket",
+          "geom": {
+            "size": {
+              "x": 0.4176,
+              "y": 0.2761,
+              "z": 0.4176
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.135,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "store"
+        },
+        {
+          "asset": "b84c0fd2-dc80-46e9-9b03-8c1859b5959b",
+          "name": "garlic basket",
+          "geom": {
+            "size": {
+              "x": 0.2594,
+              "y": 0.1501,
+              "z": 0.2453
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0005,
+              "y": 0.0845,
+              "z": -0.0014
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "store"
+        },
+        {
+          "asset": "d640c76b-a6f7-44a7-8f6f-fec8f68aa8fc",
+          "name": "Harbor Decor bucket01",
+          "geom": {
+            "size": {
+              "x": 0.3777,
+              "y": 0.3262,
+              "z": 0.3924
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1631,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "store"
+        },
+        {
+          "asset": "7cf4c83f-7ee1-434a-bc0b-24439f3e0abb",
+          "name": "prop_hammer_01",
+          "geom": {
+            "size": {
+              "x": 0.4499,
+              "y": 0.1562,
+              "z": 0.238
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.082,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "tools"
+        },
+        {
+          "asset": "b3207a10-1d25-4872-a1bb-c742975a25df",
+          "name": "prop_pickaxe_01",
+          "geom": {
+            "size": {
+              "x": 0.4854,
+              "y": 0.1394,
+              "z": 0.7998
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.0697,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "tools"
+        },
+        {
+          "asset": "bf6b58d1-9ed3-4174-9eab-d0222d8976e4",
+          "name": "Axe battle floor",
+          "geom": {
+            "size": {
+              "x": 0.2048,
+              "y": 0.0845,
+              "z": 0.4773
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0597,
+              "y": 0.051,
+              "z": 0.0906
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "tools"
+        },
+        {
+          "asset": "d12565a5-0724-4dd9-8a2d-5b66b20af4dd",
+          "name": "dagger floor",
+          "geom": {
+            "size": {
+              "x": 0.194,
+              "y": 0.0609,
+              "z": 0.3679
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0002,
+              "y": 0.0392,
+              "z": -0.0827
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "tools"
+        },
+        {
+          "asset": "43497110-74ba-49dd-8539-0d4d149577b9",
+          "name": "sword short floor",
+          "geom": {
+            "size": {
+              "x": 0.1569,
+              "y": 0.0686,
+              "z": 0.3787
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0003,
+              "y": 0.043,
+              "z": -0.0749
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "tools"
+        },
+        {
+          "asset": "09ebbf56-66a3-4c33-a6db-6441e6d30c9e",
+          "name": "sword floor",
+          "geom": {
+            "size": {
+              "x": 0.2055,
+              "y": 0.0391,
+              "z": 0.6494
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0007,
+              "y": 0.0282,
+              "z": 0.0455
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "tools"
+        },
+        {
+          "asset": "0b113871-181a-47a8-877a-fd5f8258558e",
+          "name": "Axe halberd floor",
+          "geom": {
+            "size": {
+              "x": 0.2602,
+              "y": 0.0816,
+              "z": 0.5241
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0263,
+              "y": 0.0495,
+              "z": 0.1615
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "tools"
+        },
+        {
+          "asset": "d4b9003e-f80b-4304-8af1-6c456b1ff192",
+          "name": "Candle",
+          "geom": {
+            "size": {
+              "x": 0.1413,
+              "y": 0.3203,
+              "z": 0.1847
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1602,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "shelf"
+        },
+        {
+          "asset": "69dcaa61-f17f-44d5-b221-9d6e56c87dcf",
+          "name": "jug brown",
+          "geom": {
+            "size": {
+              "x": 0.1121,
+              "y": 0.3071,
+              "z": 0.111
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0001,
+              "y": 0.163,
+              "z": -0.0005
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "shelf"
+        },
+        {
+          "asset": "e1417970-95d7-4c36-971b-e2164b008dad",
+          "name": "jug green",
+          "geom": {
+            "size": {
+              "x": 0.1345,
+              "y": 0.2671,
+              "z": 0.1229
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0004,
+              "y": 0.1429,
+              "z": -0.0028
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "shelf"
+        },
+        {
+          "asset": "90014004-ff55-4ffd-ab14-23c180882f28",
+          "name": "jug 02",
+          "geom": {
+            "size": {
+              "x": 0.1301,
+              "y": 0.2971,
+              "z": 0.0675
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0003,
+              "y": 0.1536,
+              "z": 0.0012
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "shelf"
+        },
+        {
+          "asset": "0f4b4c68-d247-473b-9cc5-a13d0004db20",
+          "name": "alchemy jug 03",
+          "geom": {
+            "size": {
+              "x": 0.2076,
+              "y": 0.1643,
+              "z": 0.1999
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0081,
+              "y": 0.0922,
+              "z": 0.0112
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "shelf"
+        },
+        {
+          "asset": "59f776dd-87ba-41be-9f39-4feb17af9004",
+          "name": "alchemy jug 05",
+          "geom": {
+            "size": {
+              "x": 0.137,
+              "y": 0.2369,
+              "z": 0.1292
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0005,
+              "y": 0.1285,
+              "z": 0.0097
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "shelf"
+        },
+        {
+          "asset": "a0e0b5f3-bcbb-45ba-ae92-1f1a923c63f9",
+          "name": "alchemy jug 06",
+          "geom": {
+            "size": {
+              "x": 0.219,
+              "y": 0.164,
+              "z": 0.2085
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0023,
+              "y": 0.092,
+              "z": 0.0109
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "shelf"
+        },
+        {
+          "asset": "ba3a176a-fda4-4766-8423-fe0fc7049769",
+          "name": "Book",
+          "geom": {
+            "size": {
+              "x": 0.1713,
+              "y": 0.252,
+              "z": 0.0852
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.126,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "shelf"
+        },
+        {
+          "asset": "aa59a22f-da9a-46d7-8b67-d60cf1bad773",
+          "name": "Book",
+          "geom": {
+            "size": {
+              "x": 0.1713,
+              "y": 0.0816,
+              "z": 0.252
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.0408,
+              "z": 0.018
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "shelf"
+        },
+        {
+          "asset": "b06f6ec0-7a03-4c4c-8bec-1740ff8f82b4",
+          "name": "sake_bottle_01",
+          "geom": {
+            "size": {
+              "x": 0.1907,
+              "y": 0.3966,
+              "z": 0.2041
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0031,
+              "y": 0.2006,
+              "z": 0.0014
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "shelf"
+        },
+        {
+          "asset": "ba61ff18-e8b8-4ba0-bfed-ac897bfe62ff",
+          "name": "ink cup",
+          "geom": {
+            "size": {
+              "x": 0.136,
+              "y": 0.097,
+              "z": 0.1338
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0008,
+              "y": 0.0476,
+              "z": -0.002
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "shelf"
+        },
+        {
+          "asset": "43d47073-c710-40da-bfe4-e2306c08b93a",
+          "name": "bowl of spice v3",
+          "geom": {
+            "size": {
+              "x": 0.2982,
+              "y": 0.1559,
+              "z": 0.2861
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.001,
+              "y": 0.0874,
+              "z": 0.0019
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "shelf"
         }
       ]
     },
@@ -6608,6 +7566,40 @@
       "rotation": "facing",
       "variants": [],
       "fallback": "feature.bookshelf"
+    },
+    "feature.shelf_line": {
+      "minGenerator": 4,
+      "rotation": "facing",
+      "variants": [
+        {
+          "asset": "6f145508-4bb0-45eb-bff9-5b625ddce745",
+          "name": "wall rack 04",
+          "geom": {
+            "size": {
+              "x": 1.3499,
+              "y": 0.1644,
+              "z": 0.1815
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0123,
+              "y": -0.0076,
+              "z": 0.0907
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "offset": {
+            "y": 1.59
+          },
+          "facing": {
+            "mountsOn": "S"
+          }
+        }
+      ]
     },
     "feature.signage": {
       "rotation": "facing",
@@ -12456,6 +13448,11 @@
         }
       ]
     },
+    "roof.default.cap": {
+      "minGenerator": 4,
+      "variants": [],
+      "fallback": "roof.slate.cap"
+    },
     "roof.default.deck": {
       "variants": [
         {
@@ -13878,6 +14875,470 @@
             1,
             1
           ]
+        }
+      ]
+    },
+    "stall.base": {
+      "minGenerator": 4,
+      "variants": [
+        {
+          "asset": "47c44c36-1778-452c-b664-e33601f24fad",
+          "name": "Stall Corner Empty",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "base"
+        }
+      ]
+    },
+    "stall.canopy": {
+      "minGenerator": 4,
+      "variants": [
+        {
+          "asset": "4d0f9cbd-9275-4c24-b0f9-ce1234186e0c",
+          "name": "Tent Roof Hanging 02",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 1,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "gable",
+          "facing": {
+            "front": "E"
+          }
+        },
+        {
+          "asset": "00c945f3-a078-45bb-b9f6-87cec7989de7",
+          "name": "Tent Roof Hanging 03",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 1,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "gable",
+          "facing": {
+            "front": "E"
+          }
+        },
+        {
+          "asset": "50174759-0db0-4795-a1bf-e75784d9231e",
+          "name": "Tent Roof Hanging 04",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 1,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "gable",
+          "facing": {
+            "front": "E"
+          }
+        },
+        {
+          "asset": "168be547-e1b1-4925-97fe-7adc70de623e",
+          "name": "Tent Overhang 02",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 2.0129
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 1.0064
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "variant": "gable",
+          "facing": {
+            "front": "E"
+          }
+        },
+        {
+          "asset": "08e6ebaa-5091-48f5-a5b4-cdc8a79861eb",
+          "name": "Tent Overhang 01",
+          "geom": {
+            "size": {
+              "x": 1.0034,
+              "y": 1,
+              "z": 0.9984
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5017,
+              "y": 0.5,
+              "z": 0.4992
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "gable",
+          "facing": {
+            "front": "E"
+          }
+        },
+        {
+          "asset": "68fd6b0a-7abf-4a1f-8450-602ea9a1863c",
+          "name": "Tent Roof A 03",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "flat"
+        },
+        {
+          "asset": "5a66f159-1421-45e6-b204-47c551ea0596",
+          "name": "Tent Roof B 03",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "flat"
+        },
+        {
+          "asset": "5d5a7513-757b-444f-9372-92720fa96ac8",
+          "name": "Tent Roof A 02",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "variant": "flat"
+        },
+        {
+          "asset": "f22551b9-9825-4050-bd9b-dcad45b4aca9",
+          "name": "Tent Roof B 02",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "variant": "flat"
+        },
+        {
+          "asset": "4cc4bacc-b7d1-43d1-b0a4-5e18217cb3dd",
+          "name": "Tent Roof A 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "flat"
+        },
+        {
+          "asset": "f5a115ff-ed4d-4dd5-aa14-3626075a1e1c",
+          "name": "Tent Roof B 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "flat"
+        }
+      ]
+    },
+    "stall.counter": {
+      "minGenerator": 4,
+      "variants": [
+        {
+          "asset": "ead12d1a-9acc-4fc6-81aa-9aef517f03b2",
+          "name": "Stall Empty 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "counter"
+        }
+      ]
+    },
+    "stall.light": {
+      "minGenerator": 4,
+      "variants": [
+        {
+          "asset": "2f622eea-53fe-4285-88e2-aec0c85fed7f",
+          "name": "Lantern -Small",
+          "geom": {
+            "size": {
+              "x": 0.1912,
+              "y": 0.4476,
+              "z": 0.1831
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2253,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "light"
+        }
+      ]
+    },
+    "stall.post": {
+      "minGenerator": 4,
+      "variants": [
+        {
+          "asset": "2a52687e-6a6b-4330-a96d-6db8a5be540b",
+          "name": "Harbor Beam 01",
+          "geom": {
+            "size": {
+              "x": 0.5,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.25,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "post"
+        },
+        {
+          "asset": "6782900b-e3e7-49b1-b247-dd97f40279e5",
+          "name": "Harbor Beam 02",
+          "geom": {
+            "size": {
+              "x": 0.5,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.25,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "post"
+        }
+      ]
+    },
+    "stall.ridge": {
+      "minGenerator": 4,
+      "variants": [
+        {
+          "asset": "09cbc9b9-6947-449f-b971-e0d4fb2fc645",
+          "name": "Harbor Beam 03",
+          "geom": {
+            "size": {
+              "x": 2.0005,
+              "y": 0.1569,
+              "z": 0.1295
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.008,
+              "y": 0.0769,
+              "z": 0.0052
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "ridge"
+        }
+      ]
+    },
+    "stall.seat": {
+      "minGenerator": 4,
+      "variants": [
+        {
+          "asset": "123c7881-2d35-4e0e-92db-bb2069242181",
+          "name": "stool wood 02",
+          "geom": {
+            "size": {
+              "x": 0.2426,
+              "y": 0.5475,
+              "z": 0.2525
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0027,
+              "y": 0.2834,
+              "z": -0.017
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "seat"
         }
       ]
     },

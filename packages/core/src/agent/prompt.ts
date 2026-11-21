@@ -10,13 +10,14 @@
  */
 import type { DesignBrief, MapPlan } from "../contracts/plan";
 import { DP_1_0_0, DP_1_1_0, DP_1_2_0 } from "./designPrinciples.frozen";
+import { DESIGN_PRINCIPLES } from "./designPrinciples";
 
 /**
  * Version of the working tool list (tools.ts + serialization). Bump when TOOL_DEFINITIONS or its rendering changes.
- * tools-1.7.0 (0.1.2) and tools-1.8.0 (0.2.0) are published and frozen in tools.frozen.ts; the working
- * TOOL_DEFINITIONS equal tools-1.8.0 until generator 4 opens tools-1.9.0.
+ * tools-1.7.0 (0.1.2, tools.frozen.ts) and tools-1.8.0 (0.2.0, tools.frozen.v1_8_0.ts) are published and frozen;
+ * the working TOOL_DEFINITIONS are tools-1.9.0, opened with generator 4 (unreleased, free to edit until release).
  */
-export const TOOLS_VERSION = "tools-1.8.0";
+export const TOOLS_VERSION = "tools-1.9.0";
 
 const SP_1_0_0 = `You are the map designer inside Slabyrinth, a desktop app for tabletop game masters (GMs). Together with the GM you design battle maps (dungeons, caves, towers, towns, wilderness) that the app later builds in TaleSpire, a 3D virtual tabletop made of tiles and props on a 5-foot grid.
 
@@ -407,7 +408,20 @@ const SP_1_12_0 = [[DP_1_1_0, DP_1_2_0]].reduce(
   SP_1_11_0,
 );
 
-export const SYSTEM_PROMPT_VERSION = "sp-1.12.0";
+/**
+ * sp-1.13.0 (WORKING, opened with generator 4; unreleased): sp-1.12.0 with the working principles (dp-1.3.0, the
+ * live DESIGN_PRINCIPLES). Edit designPrinciples.ts for the sentences; freeze a copy of both when 0.3.0 ships.
+ */
+const SP_1_13_0 = [
+  [DP_1_2_0, DESIGN_PRINCIPLES],
+  // interiors: the default room dressing and the interior presets, which the dressing guidance never named
+  [
+    "- Lights with intent: at entrances, bridge ends and focal points, warm near fire and lava, cold near crystals and water, with darker pockets between; never a grid of lights.",
+    "- Lights with intent: at entrances, bridge ends and focal points, warm near fire and lava, cold near crystals and water, with darker pockets between; never a grid of lights.\n- Rooms dress themselves. A room whose name says its purpose (Kitchen, Guard room, Library, Store room, Bedroom, Armoury, Shrine, Washroom, Tavern common room, Study) is furnished from it: one anchor piece against a wall, furniture along the walls, small things on the furniture and a shelf, a rug, and its own lights, differently in every room. A crypt, cells or a ruin stay sparse and dark. To dress a room yourself use a dress preset (tavern, library, barracks, bedroom, kitchen, storeroom, throne_room, shrine, crypt, prison, forge, laboratory, treasury) at density 0.5 to 0.8; roomDress: false on the level turns the default off.",
+  ],
+].reduce((text, [from, to]) => revise(text, from as string, to as string), SP_1_12_0);
+
+export const SYSTEM_PROMPT_VERSION = "sp-1.13.0";
 
 const PROMPTS: Readonly<Record<string, string>> = {
   "sp-1.0.0": SP_1_0_0,
@@ -423,6 +437,7 @@ const PROMPTS: Readonly<Record<string, string>> = {
   "sp-1.10.0": SP_1_10_0,
   "sp-1.11.0": SP_1_11_0,
   "sp-1.12.0": SP_1_12_0,
+  "sp-1.13.0": SP_1_13_0,
 };
 
 /** The system prompt text frozen under `version`, or null for an unknown version. */
@@ -431,7 +446,7 @@ export function systemPromptFor(version: string): string | null {
 }
 
 /** The current system prompt (for new conversations). */
-export const SYSTEM_PROMPT: string = SP_1_12_0;
+export const SYSTEM_PROMPT: string = SP_1_13_0;
 
 // ───────────────────────────── app context texts (§3.2 step 2, §3.6) ─────────────────────────────
 

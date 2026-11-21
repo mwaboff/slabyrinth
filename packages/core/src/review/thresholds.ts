@@ -236,7 +236,20 @@ export const REVIEW = {
     run: 3,
     /** A focal feature with no light source within this many cells is unlit. */
     focalLight: 4,
+    /**
+     * Generator 4: most solid cells that are hollow seen from the side (a gap of `hole` tiles or more between the foot of
+     * the rock and its top: a cap or a course standing over nothing). The grotto v2 build: 26%; v3: 0.5%.
+     */
+    hollow: 0.08,
+    hole: 0.5,
   },
+  /**
+   * Generator 4: a natural cave reads as one (review/caveWall.ts caveNaturalChecks). The floor is flat when `flatShare`
+   * of its dry floor (`minCells` or more) is at one height (grotto v2: 91%, v3 with shelves: 56%); its outline is
+   * straight-sided when over `straightShare` of the wall lies in straight runs longer than `run` cells, or one run is
+   * longer than `longest` (v2: 46% / 11, v3: 12% / 8).
+   */
+  caveNatural: { weight: 4, flatShare: 0.8, minCells: 40, run: 5, straightShare: 0.3, longest: 10, minEdges: 30 },
   /** Cliff checks (docs/internal/cliffs-lessons-reference.md §4; reference values in the comments). */
   cliffs: {
     weight: 6,
@@ -310,6 +323,28 @@ export const REVIEW = {
     weight: 5,
     /** An end within this many cells of a feature, building, opening, water, another path or the board edge arrives somewhere. */
     reach: 2,
+  },
+  /**
+   * Interiors (generator 4, review/interiors.ts). The study of a community interior the owner admired: 21 props per 10
+   * floor tiles, 92% of the furniture within a tile of a wall, a light in every room, no two rooms alike; our dungeon
+   * had 1.3, 40%, six rooms in the dark and four identical cells.
+   */
+  interiors: {
+    /** Rooms smaller than this (floor tiles) are closets, not judged. */
+    minFloor: 8,
+    /** Props (every feature: furniture, small things, lights) per 10 floor tiles below which a room reads bare. */
+    bareDensity: 3,
+    /** A map is judged for bare rooms when some room is dressed to at least this many props per 10 floor tiles. */
+    dressedDensity: 3,
+    /** Rooms of one size class, floor material and prop multiset that read as copies of each other. */
+    alike: 3,
+    /** Size classes of a room, floor tiles (upper bounds; the last is open). */
+    sizeClasses: [14, 24, 40],
+    /** Furniture (blocking pieces) of a room: at least this many are judged for adrift … */
+    adriftMin: 4,
+    /** … and under this share of them within a tile of a wall is adrift (the study: 92%). */
+    adriftShare: 0.6,
+    weights: { bare: 6, alike: 5, unlit: 6.5, adrift: 4 },
   },
 } as const;
 

@@ -21,3 +21,7 @@ export {
 export type { ParseResult } from "./schema";
 export { BUNDLED_ORIENTATION, BUNDLED_PALETTES } from "./bundled";
 export { featureRoleFits, withAutoVariants } from "./auto";
+export { bundledPaletteView, createPaletteView, paletteOptionsFor } from "./view";
+export type { PaletteView, PieceSizeFn, RoomPieceFn, StallFormsFn } from "./view";
+export { coveredStallForms, stallParts } from "./stallParts";
+export type { RoleProbe, StallParts } from "./stallParts";

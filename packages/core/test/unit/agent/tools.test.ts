@@ -48,9 +48,10 @@ describe("frozen tool list", () => {
 
 describe("released in 0.1.2: sp-1.11.0, dp-1.1.0, tools-1.7.0 (frozen; the working versions are sp-1.12.0, dp-1.2.0, tools-1.8.0)", () => {
   it("working versions are open", () => {
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.12.0");
-    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.2.0");
-    expect(TOOLS_VERSION).toBe("tools-1.8.0");
+    // generator 4 opened sp-1.13.0, dp-1.3.0, tools-1.9.0 (the 0.2.0 texts are pinned below)
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.13.0");
+    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.3.0");
+    expect(TOOLS_VERSION).toBe("tools-1.9.0");
   });
   it("sp-1.11.0 is byte-identical to the release", () => {
     expect(h64hex(systemPromptFor("sp-1.11.0") ?? "")).toBe("d074cc244ed28a6b");
@@ -90,7 +91,7 @@ describe("released in 0.2.0: sp-1.12.0, dp-1.2.0, tools-1.8.0 (frozen with gener
 
 describe("system prompt", () => {
   it("is frozen per version", () => {
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.12.0");
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.13.0");
     // sp-1.10.0 shipped in the owner's second snapshot with dp-1.0.0: frozen byte for byte
     expect(h64hex(systemPromptFor("sp-1.10.0") ?? "")).toBe("74e5072df0fd89e2");
     expect(systemPromptFor(SYSTEM_PROMPT_VERSION)).toBe(SYSTEM_PROMPT);
@@ -120,11 +121,12 @@ describe("system prompt", () => {
   });
   it("sp-1.12.0 is sp-1.11.0 plus the working principles (dp-1.2.0), a few sentences", () => {
     const old = systemPromptFor("sp-1.11.0") ?? "";
-    expect(SYSTEM_PROMPT).not.toBe(old);
+    const released = systemPromptFor("sp-1.12.0") ?? "";
+    expect(released).not.toBe(old);
     // the building sentences: things attach to the structure; the roof is the larger half of a cottage or inn
     expect(SYSTEM_PROMPT).toContain("- Attach things. Vines climb upper walls and rubble lies at wall feet; little stands alone on open floor.");
     expect(SYSTEM_PROMPT).toContain("On cottages and inns the roof is the larger half; the top storey can sit inside it.");
-    expect(SYSTEM_PROMPT.length - old.length).toBeLessThan(500);
+    expect(released.length - old.length).toBeLessThan(500);
   });
   it("sp-1.11.0: current principles, streets with junctions and green, plot sizes by kind, condition and character honoured", () => {
     expect(SYSTEM_PROMPT).toContain(DESIGN_PRINCIPLES);

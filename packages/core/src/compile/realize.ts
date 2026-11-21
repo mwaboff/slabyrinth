@@ -14,7 +14,8 @@ import type {
   RoleName,
 } from "../contracts/compiler";
 import type { LevelId, Side, ThemeId } from "../contracts/plan";
-import { STALL_BASE } from "../gen/market";
+import { stallPieceOf } from "../gen/market";
+import { featureRoles } from "../gen/surfaces";
 import {
   CELL,
   CELL_FLAG,
@@ -33,12 +34,15 @@ import {
   type VariantFilter,
 } from "../palette/resolve";
 import { WorldFrame, emptyBox, finiteBox, growBox, h32, placementBox, rotateDir, rotateXZ } from "./geometry";
-import { areaReferenceHeights, wallSpan } from "./wallspan";
+import { areaReferenceHeights, wallSpan } from "../resolve/wallspan";
 import { realizeStructures, structureClaims } from "./structure";
+import { realizeStall } from "./stalls";
+import { SHELL, planShell } from "./shell";
 import { ValueNoise } from "../gen/noise";
 import { cliffRockKinds, edgeHidden, type RockShape } from "../gen/cover";
 import { planCaveWall, type WallFace, type WallShape } from "../gen/cavewall";
 import { axisPosition } from "../resolve/road";
+import { roughCells } from "../resolve/wallTops";
 import { createFamilyPicker, familiesOfVariants, type FloorFamily } from "../resolve/floorFamilies";
 import { OBSERVED_TONES } from "../review/tones";
 
@@ -933,6 +937,17 @@ export function realize(
           continue;
         }
         if (c.height <= minN + EPS) continue;
+        // generator 4: a floor raised no more than its own slab (half a tile) over every neighbour abuts the neighbour's
+        // slab, so nothing shows under it and no fill course is needed (a room raised a quarter tile over its corridor
+        // costs no extra pieces); the board edge and open air beside it keep their fill
+        if (
+          resolved.generator >= 4 &&
+          c.height - minN <= 0.5 + EPS &&
+          c.material !== null &&
+          !NATURAL_GROUND.has(c.material) &&
+          !WATER.has(c.material)
+        )
+          continue;
         // behind a rock band: no face blocks and no hidden fill (the band covers the drop); the board's own edge keeps
         // its solid side
         if (bandBare.has(`${x},${y}`)) {
@@ -1262,6 +1277,47 @@ export function realize(
 
     // buildings build their own shell (compile/structure.ts)
     const claimed = structureClaims(L);
+    // generator 4: a built interior is carved into a solid mass: a flat cap on the solid cells round the rooms, closed
+    // on its outer edge by a skirt of the level's wall style (compile/shell.ts). The cap piece comes first: with no
+    // cap tile in any palette the shell is left out whole.
+    const g4 = resolved.generator >= 4;
+    const roughLevel = g4 && !L.structures?.length && L.cells.state.some((s) => s === CELL.SOLID);
+    // ... and only a rough interior gets broken wall tops (a kept-up timber inn keeps clean walls)
+    const roughMap = roughLevel ? roughCells(L) : null;
+    const roughCellAt = (x: number, y: number): boolean => {
+      if (!roughMap || !V.inBounds(x, y)) return false;
+      return roughMap[(y - L.bounds.y) * L.bounds.w + (x - L.bounds.x)] === 1;
+    };
+    let shell = roughLevel
+      ? planShell(resolved, L, seed, (o, e) => claimed.edges.has(`${o}${e}`), defaultTheme)
+      : null;
+    const capRes = shell ? lookup(L.id, shell.theme, ["cap.solid"], undefined, true) : null;
+    const capVariants = (capRes?.variants ?? []).filter((v) => v.weight > 0 && v.footprint[0] === v.footprint[1]);
+    if (shell && capVariants.length === 0) shell = shell.strips.length > 0 ? { ...shell, cells: new Map(), edges: [] } : null;
+    const capThick = capVariants.length > 0 ? Math.min(...capVariants.map((v) => v.geom.size.y)) : 0.5;
+    const shellEdges = new Map<string, EdgeCtx>();
+    if (shell)
+      for (const se of shell.edges) {
+        const e = se.orient === "h" ? V.hEdge(se.x, se.y) : V.vEdge(se.x, se.y);
+        if (e < 0) continue;
+        shellEdges.set(`${se.orient}${e}`, {
+          orient: se.orient,
+          x: se.x,
+          y: se.y,
+          hostFirst: se.hostFirst,
+          hostX: se.hostX,
+          hostY: se.hostY,
+          otherX: se.orient === "h" ? se.x : se.hostFirst ? se.x : se.x - 1,
+          otherY: se.orient === "h" ? (se.hostFirst ? se.y : se.y - 1) : se.y,
+          otherOpen: false,
+          planSide: se.planSide,
+          base: shell.base,
+          // the skirt stops a hair under the cap's lift: a whole 2-tall piece from the floor's underside to the cap tile
+          top: se.top - capThick - SHELL.lift,
+          theme: shell.theme,
+          hostOpen: false,
+        });
+      }
     const doRuns = (orient: "h" | "v"): void => {
       const grid = orient === "h" ? L.hEdges : L.vEdges;
       const outer = orient === "h" ? V.h + 1 : V.w + 1;
@@ -1279,13 +1335,14 @@ export function realize(
           const x = orient === "h" ? L.bounds.x + i : L.bounds.x + o;
           const y = orient === "h" ? L.bounds.y + o : L.bounds.y + i;
           const e = orient === "h" ? V.hEdge(x, y) : V.vEdge(x, y);
-          if (e < 0 || grid.kind[e] !== EDGE.WALL || claimed.edges.has(`${orient}${e}`)) {
+          const skirt = e >= 0 ? shellEdges.get(`${orient}${e}`) : undefined;
+          if (skirt === undefined && (e < 0 || grid.kind[e] !== EDGE.WALL || claimed.edges.has(`${orient}${e}`))) {
             flush();
             continue;
           }
-          const style = wallStyleOf(grid.ref[e] ?? NONE);
+          const style = skirt && shell ? shell.style : wallStyleOf(grid.ref[e] ?? NONE);
           const height = (grid.height[e] ?? 0) > 0 ? (grid.height[e] ?? 2) : 2;
-          const ctx = edgeCtx(orient, x, y, grid, e, height);
+          const ctx = skirt ?? edgeCtx(orient, x, y, grid, e, height);
           const key = [ctx.hostFirst, style, ctx.theme, ctx.base, ctx.top].join("|");
           if (key !== runKey) flush();
           runKey = key;
@@ -1367,23 +1424,44 @@ export function realize(
           }
           let done = false;
           for (const n of [...cands, 1]) {
-            const r = lookup(L.id, first.theme, [roleName], lenFilter(n), n !== 1);
-            const v = r
+            let r = lookup(L.id, first.theme, [roleName], lenFilter(n), n !== 1);
+            let v = r
               ? pick(r.variants, `${L.id}:${orient}wall:${run[i]?.x ?? 0}:${run[i]?.y ?? 0}`)
               : undefined;
             const c = run[i];
             if (!v || !c) continue;
+            // generator 4, rough interiors: about one piece in five of a run is a broken-top variant (wall.ruined)
+            if (
+              roughLevel &&
+              style === "wall" &&
+              n >= 2 &&
+              c.hostOpen &&
+              roughCellAt(c.hostX, c.hostY) &&
+              h32(`${seed}:${L.id}:brokentop:${orient}:${c.x}:${c.y}`) % 5 === 0
+            ) {
+              const rr = lookup(L.id, first.theme, ["wall.ruined"], lenFilter(n), true);
+              const rv = rr ? pick(rr.variants, `${L.id}:${orient}broken:${c.x}:${c.y}`) : undefined;
+              if (rr && rv && (rr.def.mount ?? "half-cell") === "half-cell") {
+                r = rr;
+                v = rv;
+              }
+            }
             if (mount === "edge-center")
               placeEdgeCenterPiece(v, "wall", c, n, { cell: [c.hostX, c.hostY], elementId: roleName });
             else {
               const count = Math.max(1, Math.ceil((c.top - c.base) / v.unitHeight - EPS));
+              // generator 4: a wall a quarter or half a tile short of whole pieces sinks into the floor slab so its top
+              // lands where the edge says (rough tops, resolve/wallTops.ts); the piece never lifts off the floor
+              const yBase = g4
+                ? Math.max(c.base - 0.5, Math.min(c.base, c.top - count * v.unitHeight))
+                : c.base;
               placeEdgePiece(
                 v,
                 "wall",
                 r?.role ?? roleName,
                 c,
                 n,
-                c.base,
+                yBase,
                 count,
                 { cell: [c.hostX, c.hostY], elementId: roleName },
                 false,
@@ -1411,6 +1489,63 @@ export function realize(
     };
     doRuns("h");
     doRuns("v");
+    // generator 4: the flat cap of the solid shell, flush with the wall tops, in the palette's biggest square pieces
+    if (shell && capRes) {
+      const sizes = [...new Set(capVariants.map((v) => v.footprint[0]))].sort((a, b) => b - a);
+      const capUsed = new Set<string>();
+      const cells = [...shell.cells.values()].sort((a, b) => a.y - b.y || a.x - b.x);
+      // the shell's blocks lie on the level's even lattice: big tiles go there first, then big tiles anywhere they fit
+      // (the strip against a wall that is off the lattice), then singles
+      const passes: Array<{ s: number; aligned: boolean }> = [
+        ...sizes.filter((s) => s > 1).map((s) => ({ s, aligned: true })),
+        ...sizes.filter((s) => s > 1).map((s) => ({ s, aligned: false })),
+        { s: 1, aligned: false },
+      ];
+      for (const { s, aligned } of passes) {
+        if (!sizes.includes(s)) continue;
+        for (const c of cells) {
+          if (capUsed.has(`${c.x},${c.y}`)) continue;
+          if (aligned && ((c.x - L.bounds.x) % s !== 0 || (c.y - L.bounds.y) % s !== 0)) continue;
+          let fits = true;
+          for (let dy = 0; fits && dy < s; dy++)
+            for (let dx = 0; fits && dx < s; dx++) {
+              const cc = shell.cells.get(`${c.x + dx},${c.y + dy}`);
+              if (!cc || capUsed.has(`${c.x + dx},${c.y + dy}`) || cc.theme !== c.theme || cc.top !== c.top) fits = false;
+            }
+          if (!fits) continue;
+          const v = pick(
+            capVariants.filter((q) => q.footprint[0] === s),
+            `${L.id}:cap:${c.x}:${c.y}`,
+          );
+          if (!v) continue;
+          for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) capUsed.add(`${c.x + dx},${c.y + dy}`);
+          const m = frame.rectMin(c.x, c.y, s, s);
+          const steps = (h32(`${seed}:${L.id}:caprot:${c.x}:${c.y}`) % 4) * 6;
+          emit(v, "fill", m.x, c.top - v.geom.size.y, m.z, steps * 15 + v.rot, {
+            cell: [c.x, c.y],
+            elementId: "shell",
+          });
+        }
+      }
+    }
+    // generator 4: in a tidy interior, a one-cell solid strip between two rooms is closed flush at wall-top height with a
+    // tile of the floor of the room it joins, so two rooms read as sharing one thick wall instead of a trench
+    if (shell && shell.strips.length > 0) {
+      for (const s of shell.strips) {
+        const sr = lookup(
+          L.id,
+          s.theme,
+          // the floor role of the room the strip joins; the palette's own fallback chain covers a material it lacks
+          s.material ? [`floor.${s.material}`] : ["cap.solid"],
+          { key: "strip1x1", test: (v) => v.footprint[0] === 1 && v.footprint[1] === 1 },
+          true,
+        );
+        const sv = sr ? pick(sr.variants.filter((v) => v.weight > 0), `${L.id}:strip:${s.x}:${s.y}`) : undefined;
+        if (!sv) continue;
+        const m = frame.rectMin(s.x, s.y, 1, 1);
+        emit(sv, "fill", m.x, s.top - sv.geom.size.y, m.z, sv.rot, { cell: [s.x, s.y], elementId: "shell" });
+      }
+    }
     // Generator 2: rock walls reach down to the lowest floor of the level (nothing below the room shows from outside)
     // and vary in height like a natural cave (0, 1 or 2 extra blocks from seeded value noise).
     const gen2 = resolved.generator >= 2;
@@ -1540,7 +1675,8 @@ export function realize(
           seed: h32(`${seed}:${L.id}:cavemass`),
           faces,
           bounds: { x: L.bounds.x, y: L.bounds.y, w: V.w, h: V.h },
-          rock: (x, y) => inLevelState(x, y) === CELL.SOLID,
+          // (a level of rooms and caves: the cells the shell owns are not the rock's, gen/solidMass.ts)
+          rock: (x, y) => inLevelState(x, y) === CELL.SOLID && (shell?.rockMayTake(x, y) ?? true),
           open: (x, y) => V.cell(x, y).open,
           floorTop: (x, y) => topOf(V.cell(x, y)),
           toeOk: (x, y) => {
@@ -1554,6 +1690,8 @@ export function realize(
           },
           shapes,
           ceiling,
+          // generator 4: solid rock, filled from the foot with no see-through gap
+          ...(resolved.generator >= 4 ? { solid: true } : {}),
         });
         for (const f of faces) if (!plan.columns.has(`${f.x},${f.y}`)) columnLater.delete(`${f.x},${f.y}`);
         for (const pc of plan.pieces) {
@@ -1754,6 +1892,20 @@ export function realize(
             { cell: [c.hostX, c.hostY], elementId: op.id },
             isDoor,
           );
+          // generator 4: a secret door is ONE removable plug in the wall line (the palette's `opening.secret_door` piece, else
+          // the wall style's own piece); the build report says where it stands so a GM can find and delete it
+          if (op.kind === "secret_door" && resolved.generator >= 4 && i === 0) {
+            const sideName = { N: "north", S: "south", E: "east", W: "west" }[c.planSide];
+            const [a, b] = op.sides;
+            addDiag({
+              severity: "info",
+              code: "secret_door_plug",
+              message: `Secret door ${op.id} between ${a ?? "?"} and ${b ?? "?"} on level ${L.id} at cell ${c.hostX},${c.hostY} (${sideName} wall, floor level ${c.base}): delete the ${v.name} standing in that wall to open the way.`,
+              levelId: L.id,
+              elementId: op.id,
+              role: r.role,
+            });
+          }
           // wall pieces above a door shorter than the wall
           const leafTop = c.base + v.unitHeight;
           const wallTop = Math.max(...ctxs.slice(i, i + n).map((q) => q.top));
@@ -1860,7 +2012,11 @@ export function realize(
         const m = frame.rectMin(px, py0, 0.5, 0.5);
         const base = Math.min(a.base, b.base);
         const top = Math.max(a.top, b.top);
-        const n = Math.max(1, Math.ceil((top - base) / v.unitHeight - EPS));
+        // generator 4: a post up to half a tile (a quarter for a 1-tall piece) short of whole pieces stops there; walls
+        // beside a room raised a quarter tile stand that much taller than the post's own course, which would otherwise
+        // stack a second 2-tall piece through the floor above
+        const slack = resolved.generator >= 4 ? Math.min(0.5, v.unitHeight / 4) : 0;
+        const n = Math.max(1, Math.ceil((top - base - slack) / v.unitHeight - EPS));
         const cellX = Math.floor(px);
         const cellY = Math.floor(py0);
         for (let s = 0; s < n; s++)
@@ -2065,6 +2221,33 @@ export function realize(
       const anchor = V.cell(f.at[0], f.at[1]);
       const theme = f.theme || anchor.theme;
       const roleName = `feature.${f.type}`;
+      // generator 4: a covered stall is built from parts (base, counters, posts, canopy); without them the table below
+      if (
+        resolved.generator >= 4 &&
+        f.type === "stall" &&
+        f.stall !== undefined &&
+        realizeStall(
+          {
+            frame,
+            seed,
+            lookup: (t, roles, filter, quiet) => lookup(L.id, t, roles, filter, quiet),
+            pick,
+            facingOf,
+            emit,
+            info: (code, message, role) => {
+              addDiag({
+                severity: "info",
+                code: code as CompileDiagnostic["code"],
+                message,
+                levelId: L.id,
+                ...(role ? { role } : {}),
+              });
+            },
+          },
+          f,
+        )
+      )
+        return;
       let v: ResolvedVariant | undefined;
       let rule = "facing";
       let resolvedRole: RoleName = roleName;
@@ -2115,7 +2298,14 @@ export function realize(
           facing: undefined,
         };
       } else {
-        const res = lookup(L.id, theme, [roleName]);
+        // generator 4: small things on a surface (clutter, goods) are one family table over two roles (gen/surfaces.ts):
+        // the first role that has the asked family wins, else the first role there is (the variant note below applies)
+        const roles = resolved.generator >= 4 ? featureRoles(f.type) : [roleName];
+        const wantFamily = f.variant;
+        const res =
+          (roles.length > 1 && wantFamily !== undefined
+            ? lookup(L.id, theme, [...roles], { key: `variant:${wantFamily}`, test: (u) => u.variant === wantFamily }, true)
+            : null) ?? lookup(L.id, theme, [...roles]);
         if (!res) return;
         resolvedRole = res.role;
         rule = res.def.rotation ?? "facing";
@@ -2161,7 +2351,7 @@ export function realize(
         // generator 3: a stall's kind is the goods it sells; kinds that stand on the bare table share its variant
         const wantVariant =
           resolved.generator >= 3 && f.type === "stall" && f.variant !== undefined
-            ? ((STALL_BASE as Readonly<Record<string, string | undefined>>)[f.variant] ?? f.variant)
+            ? stallPieceOf(f.variant)
             : f.variant;
         if (wantVariant !== undefined) {
           const m = res.variants.filter((u) => u.variant === wantVariant);
