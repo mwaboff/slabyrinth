@@ -154,7 +154,7 @@ describe("property: decode(encode(x)) == x (grouped and sorted)", () => {
   });
 });
 
-describe("untrusted input bounds (review finding)", () => {
+describe("untrusted input bounds", () => {
   it("rejects a gzip whose declared size (ISIZE) is huge, before allocating", () => {
     const { slab } = encode([{ uuid: "32cfd208-c363-4434-b817-8ba59faeed17", sx: 0, sy: 0, sz: 0, rot: 0 }]);
     const gz = base64Decode(slab);

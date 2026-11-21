@@ -585,7 +585,7 @@ describe("verify: fixtures, pipeline wiring, robustness, speed", () => {
   });
 });
 
-describe("vertical links: ladders, spiral stairs, trapdoors, pits (review finding)", () => {
+describe("vertical links: ladders, spiral stairs, trapdoors, pits", () => {
   const LO = ["######", "#....#", "#....#", "#....#", "######"];
   const upRows = (hole: Array<[number, number]>, floorHoles = true): string[] =>
     ["      ", " .... ", " .... ", " .... ", "      "].map((r, y) =>

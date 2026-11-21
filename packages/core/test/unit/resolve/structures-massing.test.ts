@@ -1,5 +1,5 @@
 /**
- * Structures phase 2 (2026-11-20): massing (volumes, on, storey heights), silhouette (set-in storeys and their
+ * Building massing and its finish: massing (volumes, on, storey heights), silhouette (set-in storeys and their
  * seams, chamfered corners, the plinth with steps), stacked roof layers (gable, hip, shed, skirt, stepped, spire,
  * flat), roof furniture (clutter, mast, finial), lights (lit windows, entrance strips), and the wizard_tower and
  * modern_block styles: seeded variety, 100 seeds each valid and buildable.
@@ -50,7 +50,7 @@ const block = (more: Partial<Building> = {}): Building => ({
   ...more,
 });
 
-describe("phase 2: massing", () => {
+describe("massing", () => {
   it("volumes of different heights: one ground storey area, own storeys and heights per volume", () => {
     const L = level0(plan([block()]));
     const st = L.structures?.[0];
@@ -115,7 +115,7 @@ describe("phase 2: massing", () => {
   });
 });
 
-describe("phase 2: silhouette", () => {
+describe("silhouette", () => {
   const stepped = tower({
     storeys: [
       {},
@@ -162,7 +162,7 @@ describe("phase 2: silhouette", () => {
   });
 });
 
-describe("phase 2: roofs", () => {
+describe("stacked roofs", () => {
   const one = (roof: NonNullable<Building["roof"]>, more: Partial<Building> = {}): MapPlan =>
     plan([
       {
@@ -213,7 +213,7 @@ describe("phase 2: roofs", () => {
   });
 });
 
-describe("phase 2: furniture and lights", () => {
+describe("roof furniture and lights", () => {
   it("a modern block gets roof clutter, a mast assembly and lit windows from the style; overrides switch them off", () => {
     const on = build(
       plan([
@@ -251,7 +251,7 @@ describe("phase 2: furniture and lights", () => {
   });
 });
 
-describe("phase 2: styles", () => {
+describe("wizard tower and modern block styles", () => {
   for (const [name, make] of [
     ["wizard_tower", (seed: number) => plan([tower({ seed })])],
     ["modern_block", (seed: number) => plan([block({ seed })])],

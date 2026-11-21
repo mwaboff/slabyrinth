@@ -1,5 +1,5 @@
 /**
- * Generator 4 natural caves (the owner's look at the grotto v2 proof): the rock mass is solid from its foot up (no lace
+ * Generator 4 natural caves: the rock mass is solid from its foot up (no lace
  * of columns over the water plane), the cave floor steps in half-tile shelves, and chambers and corridors drawn as
  * rectangles get ragged outlines. Generator 3 output stays as it was (test/golden/generator3 pins it); these tests
  * compare the same plans at generators 3 and 4.

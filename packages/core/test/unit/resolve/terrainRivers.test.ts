@@ -1,5 +1,5 @@
 /**
- * Generator 3 terrain, round two (2026-11-20): caves with one ground, rifts and rivers that wander, stepped rivers
+ * Generator 3 terrain: caves with one ground, rifts and rivers that wander, stepped rivers
  * with falls and pools. Fixtures are original; each review note fires on the old output and is quiet on the new.
  */
 import { describe, expect, it } from "vitest";

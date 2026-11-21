@@ -1,5 +1,5 @@
 /**
- * Generator 3 rock band, round 4: boulders come in groups with gaps (not a fence along the lip), face rock carries
+ * Generator 3 rock band spacing and tone: boulders come in groups with gaps (not a fence along the lip), face rock carries
  * the cover, the board-edge skirt is one course inside the board's bounds, and a role's pieces are narrowed to one
  * rock tone. Also the review's even-spacing measure (review/rockSpacing.ts).
  */
@@ -49,7 +49,7 @@ const centres = (
     y: q.at[1] + q.size[1] / 2 + (q.offset?.[1] ?? 0),
   }));
 
-describe("even spacing measure (the v3 fence)", () => {
+describe("even spacing measure (boulders set like a fence along the lip)", () => {
   const rule = FENCE.cliff_crest as FenceRule;
   // v3 as built: boulders along a lip at gaps of 1.8 to 3.4 tiles, one after the other (gaps taken from the proof)
   const v3Gaps = [2.5, 3.3, 2.3, 2.5, 3.1, 2.9, 3.0, 2.3, 1.8, 2.5, 1.9, 1.8];

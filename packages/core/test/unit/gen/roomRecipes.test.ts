@@ -1,5 +1,5 @@
 /**
- * Generator 4 room recipes (interior round, 2026-11-20). The owner admired a community interior and called our dungeon
+ * Generator 4 room recipes. The owner admired a community interior and called our dungeon
  * "a plain hall and identical cells": rooms are now dressed from their purpose (anchor, wall run, things on things,
  * lights), rooms of one purpose differ, abandoned rooms stay sparse and dark, and the review notices bare, alike,
  * unlit and adrift rooms. Generators 1-3 are untouched (the golden tests pin them).
@@ -184,7 +184,7 @@ describe("room purpose from words (gen/roomPurpose.ts classifyRoom, the one clas
     expect(unlit3?.elementIds).toEqual(["r0"]);
   });
 
-  it("the review only promises what the plan's generator does (finding 4: naming a room dresses and lights it at 4 only)", () => {
+  it("the review only promises what the plan's generator does (naming a room dresses and lights it at 4 only)", () => {
     const p3 = building(["Kitchen", "Library"], { generator: 3 });
     const unlit3 = interiorNotes(p3, resolvePlan(p3)).find((n) => n.code === "room_unlit");
     expect(unlit3?.action).toBeDefined();

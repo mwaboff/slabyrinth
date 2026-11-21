@@ -163,7 +163,7 @@ describe("floor variety", () => {
   });
 });
 
-describe("owner round 3b: rows, forests, board edges", () => {
+describe("rows, forests, board edges", () => {
   /** 30×20 open ground; the north part (y < 8) is a terrace 1 tile higher, with a ledge along y = 8. */
   const terrace: PlacementGrid = {
     inBounds: (x, y) => x >= 0 && y >= 0 && x < 30 && y < 20,
@@ -235,7 +235,7 @@ describe("owner round 3b: rows, forests, board edges", () => {
   });
 });
 
-describe("owner round 4: tone, beds, rings", () => {
+describe("tone, beds, rings", () => {
   const featureNames = (th: string, role: string): string[] =>
     (resolveRole(cat, th, role).resolution?.variants ?? [])
       .filter((v) => v.weight > 0)

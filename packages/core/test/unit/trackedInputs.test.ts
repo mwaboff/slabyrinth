@@ -1,7 +1,6 @@
 /**
  * Tests read only files that are in the repository. `docs/internal/` is git-ignored: a test that reads a plan from there
- * passes on the machine that has it and fails on CI and every clean clone (0.2.0 had to clean this up once, and the
- * generator-4 review found it again, finding 3). Copy the plan to `test/fixtures/plans/` instead.
+ * passes on the machine that has it and fails on CI and every clean clone. Copy the plan to `test/fixtures/plans/` instead.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";

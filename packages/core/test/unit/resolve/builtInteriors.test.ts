@@ -1,7 +1,7 @@
 /**
- * Generator 4 built interiors (interior round items 5, 6, 8; owner's reference interior, 2026-11-20): carved into a solid
- * mass with a flat cap, a floor of its own for each room with a step at the door, rough walls with uneven tops and
- * rubble at the feet. Generators 1-3 keep their output (golden); these tests pin the generator-4 rules.
+ * Generator 4 built interiors: carved into a solid mass with a flat cap, a floor of its own for each room with a step
+ * at the door, rough walls with uneven tops and rubble at the feet. Generators 1-3 keep their output (golden); these
+ * tests pin the generator-4 rules.
  */
 import { describe, expect, it } from "vitest";
 import { compileResolved, realize } from "../../../src/compile";
@@ -278,7 +278,7 @@ describe("generator 4 rough walls", () => {
     });
   });
 
-  it("only a room a corridor opens on is raised, not one that touches it across a wall (finding 17b)", () => {
+  it("only a room a corridor opens on is raised, not one that touches it across a wall", () => {
     const plan = dungeonPlan({
       generator: 4,
       id: "0b7c2d4e-1f3a-4c5b-8d6e-9f0a1b2c3d4e",
@@ -301,7 +301,7 @@ describe("generator 4 rough walls", () => {
     expect(areaHeight(L, "b")).toBe(0);
   });
 
-  describe("interior character is data on the theme, not a list of theme names (finding 1)", () => {
+  describe("interior character is data on the theme, not a list of theme names", () => {
     const finishes = (L: ResolvedLevel): Set<string | undefined> => new Set(L.areas.map((a) => a.finish));
     it("the built-in timber themes (tavern, town, wood_town, city) are tidy and floored in timber: no rubble", () => {
       for (const theme of ["tavern", "town", "wood_town", "city"]) {

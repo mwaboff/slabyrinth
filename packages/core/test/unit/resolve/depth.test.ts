@@ -662,7 +662,7 @@ describe("generality: an open-air hillside (no walls) with a plateau, a stream a
   });
 });
 
-describe("round 3: water, mouths, paths, raised decks, risers", () => {
+describe("water, mouths, paths, raised decks, risers", () => {
   const brook = (): MapPlan => ({
     ...plan({}),
     theme: "outdoor",
@@ -830,7 +830,7 @@ describe("round 3: water, mouths, paths, raised decks, risers", () => {
   });
 });
 
-describe("round 4: winding paths, intermittent kerbs, ragged ground, watchtower stairs", () => {
+describe("winding paths, intermittent kerbs, ragged ground, watchtower stairs", () => {
   const meadow = (terrain: TerrainOp[], areas: Area[] = []): MapPlan => ({
     ...plan({}),
     theme: "outdoor",
@@ -1015,7 +1015,7 @@ describe("round 4: winding paths, intermittent kerbs, ragged ground, watchtower 
   });
 });
 
-describe("round 5: winding trails, organic tiers, fitting steps, cracked rifts", () => {
+describe("winding trails, organic tiers, fitting steps, cracked rifts", () => {
   const open = (terrain: TerrainOp[], seed = 1): MapPlan => ({
     ...plan({}),
     seed,

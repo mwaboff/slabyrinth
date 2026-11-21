@@ -1,5 +1,5 @@
 /**
- * Generator 3 ground patches (owner's chapel-on-a-knoll proof, 2026-11-20): red-brown earth and litter tiles lay as
+ * Generator 3 ground patches (a chapel on a knoll): red-brown earth and litter tiles lay as
  * hard-edged single squares all over the grass, mostly along every half-tile step of the knoll. A rise under a tile is
  * not a cause; a patch is a ragged blob of several cells round a real cause; all patches stay a few percent of the
  * open ground.

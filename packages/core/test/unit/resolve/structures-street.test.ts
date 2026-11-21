@@ -1,5 +1,5 @@
 /**
- * Generator 3, buildings round four: a street of one style differs in wall and roof material, entrances vary, no hip
+ * Generator 3 streets and condition: a street of one style differs in wall and roof material, entrances vary, no hip
  * roofs or stacks apart from the walls, no blank walls; a weathered roof loses a ragged patch at an eave, an attached
  * porch takes the building's condition, a timber ruin uses timber logic.
  */
@@ -133,7 +133,7 @@ const house = (seed: number, condition: Building["condition"], extra: Partial<Bu
     ...extra,
   }) as Structure;
 
-describe("weathered and ruined buildings (generator 3, round four)", () => {
+describe("weathered and ruined buildings (generator 3)", () => {
   it("a weathered roof loses a ragged patch at an eave or a corner, not a square in the middle", () => {
     let edge = 0;
     let ragged = 0;

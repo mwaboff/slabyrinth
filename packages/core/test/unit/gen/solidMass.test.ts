@@ -1,5 +1,5 @@
 /**
- * Generator 4 shared solid mass and cave plumbing (code review group C): the mass mechanism the interior shell and the
+ * Generator 4 shared solid mass and cave plumbing: the mass mechanism the interior shell and the
  * cave rock mass share (gen/solidMass.ts), link cells from `linkGeometry`, one review build, wall heights beside raised
  * floors, and the cave outline's local connectivity test. Rules, not hashes.
  */

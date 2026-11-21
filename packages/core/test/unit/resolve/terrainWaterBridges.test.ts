@@ -1,5 +1,5 @@
 /**
- * Generator 3 terrain, round three (2026-11-20): bridges cross channels square and short, a cave passage that reaches
+ * Generator 3 terrain: bridges cross channels square and short, a cave passage that reaches
  * the board edge is an exit, the plane height and dry upper reaches are reported, floors lay 1x2 pieces both ways,
  * and the review judges a map with no real depth.
  */

@@ -1,5 +1,5 @@
 /**
- * Generator 4 floor openings (owner screenshot of keep-dungeon-v4, 2026-11-20): a collapse reads as a ragged hole, not a
+ * Generator 4 floor openings: a collapse reads as a ragged hole, not a
  * ring of 2-tall wall stubs. Collapse: no wall, low debris on the rim, a mound of rubble below. Shaft: a low kerb.
  * Balcony: a railing. Stairs climb the whole rise with no gap. Generator 3 keeps its 2-tall ruined rim.
  */
