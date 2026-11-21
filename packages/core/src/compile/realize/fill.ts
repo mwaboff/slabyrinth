@@ -7,8 +7,10 @@
 import type { PlacementRole } from "../../contracts/compiler";
 import type { Material, ThemeId } from "../../contracts/plan";
 import { CELL_FLAG } from "../../contracts/resolved";
-import type { VariantFilter } from "../../palette/resolve";
+import { ONE_CELL, ONE_CELL_PLAIN, WHOLE_CELL_BLOCK } from "../../palette/filters";
 import {
+  PIER_DEFAULT_ROLE,
+  pierRole,
   BED_DEFAULT_ROLE,
   CLIFF_DEFAULT_ROLE,
   CLIFF_NATURAL_ROLE,
@@ -112,15 +114,7 @@ function cliffFace(
   const { L, blockTurn, emit } = lv;
   const { profile, frame, lookup, pick, addDiag } = lv.ctx;
   // whole-cell blocks only: 1×1 footprint and about a tile wide both ways
-  const one: VariantFilter = {
-    key: "block1x1",
-    test: (v) =>
-      v.footprint[0] === 1 &&
-      v.footprint[1] === 1 &&
-      v.geom.size.x > 0.8 &&
-      v.geom.size.z > 0.8 &&
-      v.geom.originAt === "minCorner",
-  };
+  const one = WHOLE_CELL_BLOCK;
   // generator 3: natural ground shows rock where its face is bare, never earth-coloured fill (cliff.rock_block)
   const rockFirst = profile.rockGroundFaces && material !== null && isCliffGround(material);
   let res = lookup(
@@ -176,9 +170,8 @@ export function layPiers(lv: RealizeLevel): void {
       const ground = (b.under[j] ?? b.deck) / 4;
       if (c.height - ground < 0.5 - EPS) continue;
       // pier.<material> / pier.default when the palette has a column piece, else courses of the deck's fill
-      const one: VariantFilter = { key: "1x1", test: (q) => q.footprint[0] === 1 && q.footprint[1] === 1 };
-      const roles = c.material ? [`pier.${c.material}`, "pier.default"] : ["pier.default"];
-      const pr = lookup(L.id, c.theme, roles, one, true);
+      const roles = c.material ? [pierRole(c.material), PIER_DEFAULT_ROLE] : [PIER_DEFAULT_ROLE];
+      const pr = lookup(L.id, c.theme, roles, ONE_CELL, true);
       const pv = pr ? pick(pr.variants, `${L.id}:pier:${px}:${py}`) : undefined;
       if (pv) {
         const m = frame.rectMin(px, py, 1, 1);
@@ -224,10 +217,7 @@ export function stackFill(
           FILL_ROLE,
         ];
   // stacked courses use the default family (untagged 1×1 variants), not a patch family's tile
-  const res = lookup(levelId, theme, roles, {
-    key: "1x1plain",
-    test: (v) => v.footprint[0] === 1 && v.footprint[1] === 1 && (v.variant ?? "") === "",
-  });
+  const res = lookup(levelId, theme, roles, ONE_CELL_PLAIN);
   if (!res) return;
   const v = pick(res.variants, `${levelId}:fill:${x}:${y}`);
   if (!v) return;

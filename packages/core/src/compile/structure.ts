@@ -47,6 +47,16 @@ import { THEME_WALL_ROLE, wallRole } from "../palette/roles";
 import { sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
 import type { WorldFrame } from "./geometry";
 import { rotateXZ } from "./geometry";
+import {
+  BROKEN,
+  INTACT,
+  ONE_CELL,
+  both,
+  footprint,
+  footprintAtMost,
+  lenFilter,
+  lengthOf,
+} from "../palette/filters";
 import { h32Utf16, hashUnitUtf16 } from "../util/hash";
 
 export interface StructureRealizeCtx {
@@ -77,17 +87,8 @@ export interface StructureRealizeCtx {
 const EPS = 1e-6;
 const key = (x: number, y: number): string => `${x},${y}`;
 
-const lengthOf = (v: ResolvedVariant): number =>
-  v.geom.lengthAxis === "square" || v.geom.lengthAxis === undefined
-    ? Math.max(1, Math.round(Math.max(v.geom.size.x, v.geom.size.z)))
-    : Math.max(1, Math.round(v.geom.lengthAxis === "x" ? v.geom.size.x : v.geom.size.z));
-const lenFilter = (n: number): VariantFilter => ({ key: `len${n}`, test: (v) => lengthOf(v) === n });
-const notBroken: VariantFilter = { key: "intact", test: (v) => v.variant !== "broken" };
-const brokenOnly: VariantFilter = { key: "broken", test: (v) => v.variant === "broken" };
-const both = (a: VariantFilter, b: VariantFilter): VariantFilter => ({
-  key: `${a.key}+${b.key}`,
-  test: (v) => a.test(v) && b.test(v),
-});
+const notBroken = INTACT;
+const brokenOnly = BROKEN;
 
 /**
  * A weathered or ruined building whose condition the generator makes legible (generator 3, `legibleCondition`): its
@@ -1419,12 +1420,7 @@ function placeDormer(
   base: number,
   tag: string,
 ): boolean {
-  const r = ctx.lookup(
-    theme,
-    [`roof.${kit}.dormer`],
-    { key: "2x2", test: (v) => v.footprint[0] === 2 && v.footprint[1] === 2 },
-    true,
-  );
+  const r = ctx.lookup(theme, [`roof.${kit}.dormer`], footprint(2, 2), true);
   const v = r ? ctx.pick(r.variants, `${ctx.L.id}:${tag}:dormer:${p.x},${p.y}`) : undefined;
   if (!v || !r) return false;
   const front = ctx.facingOf(v, "roof", r.role).front ?? "N";
@@ -1452,12 +1448,7 @@ function buildChimneys(
 ): void {
   for (const c of st.chimneys) {
     const fs = st.storeys[0]?.footing?.style ?? st.storeys[0]?.walls ?? "stone";
-    const r = ctx.lookup(
-      theme,
-      [`chimney.${fs}`, "chimney.default"],
-      { key: "1x1", test: (v) => v.footprint[0] === 1 && v.footprint[1] === 1 },
-      false,
-    );
+    const r = ctx.lookup(theme, [`chimney.${fs}`, "chimney.default"], ONE_CELL, false);
     const v = r ? ctx.pick(r.variants, `${ctx.L.id}:${st.id}:chimney`) : undefined;
     if (!v) continue;
     const m = ctx.frame.rectMin(c.at[0], c.at[1], 1, 1);
@@ -1888,18 +1879,8 @@ function placeFloor(
   // the first role of the chain that has any piece supplies both sizes (a kit's own 1×1 beats another role's 2×2)
   const own = roles.find((r) => ctx.lookup(theme, [r], undefined, true) !== null);
   const chain = own ? [own] : roles;
-  const big = ctx.lookup(
-    theme,
-    chain,
-    { key: "2x2", test: (v) => v.footprint[0] === 2 && v.footprint[1] === 2 },
-    true,
-  );
-  const small = ctx.lookup(
-    theme,
-    chain,
-    { key: "1x1", test: (v) => v.footprint[0] === 1 && v.footprint[1] === 1 },
-    true,
-  );
+  const big = ctx.lookup(theme, chain, footprint(2, 2), true);
+  const small = ctx.lookup(theme, chain, ONE_CELL, true);
   for (const [x, y0] of list) {
     if (used.has(key(x, y0))) continue;
     const quad = [key(x, y0), key(x + 1, y0), key(x, y0 + 1), key(x + 1, y0 + 1)];
@@ -2607,7 +2588,8 @@ function buildRooftopSets(
     const r = ctx.lookup(theme, roles, filter, true);
     return r ? ctx.pick(r.variants, `${ctx.L.id}:${st.id}:${k}`) : undefined;
   };
-  const small: VariantFilter = { key: "1x1", test: (v) => v.footprint[0] <= 1 && v.footprint[1] <= 1 };
+  // (keyed apart from ONE_CELL: the two once shared the memo key "1x1" with different tests)
+  const small = footprintAtMost(1, 1);
   // the size of a set follows the roof: a quarter of a big roof, a few cells of a small one
   const side = Math.max(2, Math.min(5, Math.round(Math.sqrt(area) / 2)));
   sets.forEach((set, si) => {

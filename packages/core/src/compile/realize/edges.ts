@@ -5,7 +5,7 @@
  */
 import type { Placement, PlacementRole, RoleName } from "../../contracts/compiler";
 import type { Side, ThemeId } from "../../contracts/plan";
-import type { ResolvedVariant, VariantFilter } from "../../palette/resolve";
+import type { ResolvedVariant } from "../../palette/resolve";
 import type { WallFace } from "../../resolve/wallFaces";
 import { rotateXZ } from "../geometry";
 import type { RealizeLevel } from "./level";
@@ -94,12 +94,8 @@ export function faceEdgeCtx(f: WallFace): EdgeCtx {
   };
 }
 
-/** A piece's length in edges along its length axis (at least 1). */
-export const lengthOf = (v: ResolvedVariant): number =>
-  v.geom.lengthAxis === "square" || v.geom.lengthAxis === undefined
-    ? Math.max(1, Math.round(Math.max(v.geom.size.x, v.geom.size.z)))
-    : Math.max(1, Math.round(v.geom.lengthAxis === "x" ? v.geom.size.x : v.geom.size.z));
-export const lenFilter = (n: number): VariantFilter => ({ key: `len${n}`, test: (v) => lengthOf(v) === n });
+/** A piece's length in edges, and the filter of pieces of one length (palette/filters.ts owns them). */
+export { lengthOf, lenFilter } from "../../palette/filters";
 
 /** Places one half-cell edge piece covering `len` edges starting at the run's first edge ctx. */
 export function placeEdgePiece(

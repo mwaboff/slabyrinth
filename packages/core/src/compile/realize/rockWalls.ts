@@ -11,6 +11,7 @@ import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { planCaveWall, type WallFace, type WallShape } from "../../gen/cavewall";
 import { ValueNoise } from "../../gen/noise";
 import { levelCeiling } from "../../plan/levels";
+import { ONE_CELL } from "../../palette/filters";
 import type { ResolvedVariant } from "../../palette/resolve";
 import {
   CAVE_CAP_ROLE,
@@ -70,10 +71,7 @@ function planColumn(
   const k = `${c.x},${c.y}`;
   const { seed, profile, frame, lookup, pick } = lv.ctx;
   const rockSkirt = profile.rockWallSkirt;
-  const r1 = lookup(L.id, c.theme, [c.roleName], {
-    key: "1x1",
-    test: (v) => v.footprint[0] === 1 && v.footprint[1] === 1,
-  });
+  const r1 = lookup(L.id, c.theme, [c.roleName], ONE_CELL);
   const v = r1 ? pick(r1.variants, `${L.id}:wallblock:${k}`) : undefined;
   if (!v) return null;
   const m = frame.rectMin(c.x, c.y, 1, 1);

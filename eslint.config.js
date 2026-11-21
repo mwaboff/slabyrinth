@@ -288,9 +288,22 @@ const elementThemeRule = selectorRule("A resolved element's theme is read with e
   },
 ]);
 
+/**
+ * A variant filter ({ key, test }) is made in palette/filters.ts, where its memo key follows from what it tests: the
+ * role resolver memoizes answers by the key, so two hand-written filters with one key and different tests share one
+ * answer, whichever ran first.
+ */
+const variantFilterRule = selectorRule("Variant filters are made in palette/filters.ts.", [
+  {
+    selector: "ObjectExpression:has(> Property[key.name='key']):has(> Property[key.name='test'])",
+    message: "Make the filter in palette/filters.ts (its key from its parameters) and import it.",
+  },
+]);
+
 const slabyrinthPlugin = {
   rules: {
     "element-theme": elementThemeRule,
+    "variant-filters": variantFilterRule,
     "core-layers": coreLayersRule,
     "cell-theme": cellThemeRule,
     "hash-unit": hashUnitRule,
@@ -392,6 +405,12 @@ export default tseslint.config(
     files: ["packages/core/src/**/*.ts"],
     ignores: ["packages/core/src/gen/catalog.ts"],
     rules: { "slabyrinth/feature-lists": "error" },
+  },
+  {
+    files: ["packages/core/src/**/*.ts"],
+    // the owner; compile/structure.ts keeps its few dynamic filters until it moves onto realize's primitives (M2)
+    ignores: ["packages/core/src/palette/filters.ts", "packages/core/src/compile/structure.ts"],
+    rules: { "slabyrinth/variant-filters": "error" },
   },
   {
     // the stages that read a resolved plan (the resolver writes the themes)

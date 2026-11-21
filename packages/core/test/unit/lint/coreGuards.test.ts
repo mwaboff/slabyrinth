@@ -129,6 +129,21 @@ describe("core guards", () => {
     });
   });
 
+  describe("slabyrinth/variant-filters: a variant filter is made in palette/filters.ts", () => {
+    it("reports a { key, test } literal anywhere in core but the owner", async () => {
+      const code = 'const one = { key: "1x1", test: (v) => v.footprint[0] === 1 };';
+      expect(await guardHits("packages/core/src/compile/realize/floors.ts", code)).toEqual([
+        expect.stringContaining("slabyrinth/variant-filters"),
+      ]);
+      expect(await guardHits("packages/core/src/palette/filters.ts", code)).toEqual([]);
+    });
+    it("leaves other objects with a key alone", async () => {
+      const file = "packages/core/src/compile/realize/floors.ts";
+      expect(await guardHits(file, 'const k = { key: "a", value: 1 };')).toEqual([]);
+      expect(await guardHits(file, "const r = lookup(t, roles, ONE_CELL);")).toEqual([]);
+    });
+  });
+
   describe("slabyrinth/element-theme: a resolved element's theme is read with elementTheme", () => {
     it("reports `x.theme || other` in a stage that reads a resolved plan", async () => {
       expect(

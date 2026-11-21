@@ -20,7 +20,7 @@ const NOT_YET: readonly string[] = ["compile/structure.ts", "compile/calibration
 
 /** A role name in a string or the start of a template: `<family>.<name>` of a role family the palettes use. */
 const ROLE_LITERAL =
-  /["'`](?:wall|wall_post|floor|fill|bed|opening|lintel|kerb|cliff|cap|roof|feature|marker|stall|link|ledge|facade|glow|step|ruin_climber)\.(?:[a-z_]+|\$\{)/g;
+  /["'`](?:wall|wall_post|floor|fill|bed|opening|lintel|kerb|cliff|cap|roof|feature|marker|stall|link|ledge|facade|glow|step|ruin_climber|pier|marking|chimney)\.(?:[a-z_]+|\$\{)/g;
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

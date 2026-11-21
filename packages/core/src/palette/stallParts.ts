@@ -10,8 +10,11 @@
  */
 import type { ThemeId } from "../contracts/plan";
 import type { StallForm } from "../contracts/resolved";
-import type { ResolvedVariant, RoleResolution, VariantFilter } from "./resolve";
+import { ONE_CELL_TILE, variantNamed } from "./filters";
+import type { RoleResolution, VariantFilter } from "./resolve";
 import { STALL_ROLES } from "./roles";
+
+export { ONE_CELL_TILE };
 
 /** Resolves the first of `roles` the theme can supply (variants passing `filter`), or null. The theme is bound by the caller. */
 export type RoleProbe = (roles: readonly string[], filter?: VariantFilter) => RoleResolution | null;
@@ -30,12 +33,6 @@ export function roleProbe(
   };
 }
 
-/** A 1x1 tile standing on its cell (the platform and the counter blocks). */
-export const ONE_CELL_TILE: VariantFilter = {
-  key: "tile1x1",
-  test: (v) => v.footprint[0] === 1 && v.footprint[1] === 1 && v.geom.originAt === "minCorner",
-};
-
 export const STALL_FORMS: readonly StallForm[] = ["gable", "flat"];
 
 /** Where each part of a stall comes from: the roles tried in order, and the variants that qualify. */
@@ -45,7 +42,7 @@ export const STALL_PART_SPECS = {
   post: { roles: [STALL_ROLES.post], filter: undefined },
   canopy: (form: StallForm): { roles: string[]; filter: VariantFilter } => ({
     roles: [STALL_ROLES.canopy],
-    filter: { key: `form:${form}`, test: (v: ResolvedVariant) => v.variant === form },
+    filter: variantNamed(form),
   }),
 } as const;
 

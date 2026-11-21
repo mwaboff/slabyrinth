@@ -36,6 +36,11 @@ export const CLIFF_NATURAL_ROLE: RoleName = cliffRole("natural");
 /** The Cavern kit's rock mass and the flat sheets over a deep band (generator 3 cave walls). */
 export const CAVE_MASS_ROLE: RoleName = cliffRole("cave_mass");
 export const CAVE_CAP_ROLE: RoleName = cliffRole("cave_cap");
+/** A column under a bridge deck of a material: `pier.<material>`, else the default pier. */
+export const pierRole = (material: string): RoleName => `pier.${material}`;
+export const PIER_DEFAULT_ROLE: RoleName = pierRole("default");
+/** A road marking piece: `marking.<kind>` (a zebra crossing). */
+export const markingRole = (kind: string): RoleName => `marking.${kind}`;
 /** A kerb of a material: `kerb.<material>`, else the default kerb. */
 export const kerbRole = (material: string): RoleName => `kerb.${material}`;
 export const KERB_DEFAULT_ROLE: RoleName = kerbRole("default");

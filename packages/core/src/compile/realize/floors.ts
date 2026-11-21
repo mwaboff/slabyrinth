@@ -8,7 +8,8 @@
 import type { Material } from "../../contracts/plan";
 import { CELL_FLAG } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
-import type { ResolvedVariant, RoleResolution, VariantFilter } from "../../palette/resolve";
+import type { ResolvedVariant, RoleResolution } from "../../palette/resolve";
+import { ONE_CELL, ONE_CELL_PLAIN } from "../../palette/filters";
 import {
   BED_DEFAULT_ROLE,
   FILL_ROLE,
@@ -16,6 +17,7 @@ import {
   floorRole,
   glowFeatureRole,
   glowRole,
+  markingRole,
 } from "../../palette/roles";
 import { CAUSED_FAMILY_NAMES, createFamilyPicker, type FloorFamily } from "../../resolve/floorFamilies";
 import { BARE_ROCK, BED_FALLBACK_FLOOR, isCliffGround, isWater } from "../../resolve/materials";
@@ -169,13 +171,7 @@ function causeDistances(lv: RealizeLevel): Map<string, number> {
 function layCrossing(lv: RealizeLevel, c: LevelCell, x: number, y: number, axis: "h" | "v"): boolean {
   const { L, topOf, emit } = lv;
   const { frame, lookup, pick } = lv.ctx;
-  const cr = lookup(
-    L.id,
-    c.theme,
-    ["marking.crossing"],
-    { key: "1x1", test: (q) => q.footprint[0] === 1 && q.footprint[1] === 1 },
-    true,
-  );
+  const cr = lookup(L.id, c.theme, [markingRole("crossing")], ONE_CELL, true);
   const cv = cr ? pick(cr.variants, `${L.id}:crossing:${x}:${y}`) : undefined;
   if (!cv) return false;
   const m = frame.rectMin(x, y, 1, 1);
@@ -324,7 +320,7 @@ export function layRoadMarkings(lv: RealizeLevel): void {
   const { L, V, topOf, emit } = lv;
   const { seed, frame, lookup, pick } = lv.ctx;
   for (const rd of L.roads ?? []) {
-    const one: VariantFilter = { key: "1x1", test: (q) => q.footprint[0] === 1 && q.footprint[1] === 1 };
+    const one = ONE_CELL;
     const mark = (role: string, x: number, y: number, dir: "h" | "v", tag: string): boolean => {
       const c = V.cell(x, y);
       const res = lookup(L.id, c.theme, [role], one, true);
@@ -352,7 +348,7 @@ export function layRoadMarkings(lv: RealizeLevel): void {
       for (let t = D.first[0] + (h % (D.first[1] - D.first[0] + 1)); t < n - 1;) {
         const x = kl.from[0] + sx * t + dx;
         const y = kl.from[1] + sy * t + dy;
-        if (!mark("marking.drain", x, y, kl.side === "N" || kl.side === "S" ? "h" : "v", "drain")) break;
+        if (!mark(markingRole("drain"), x, y, kl.side === "N" || kl.side === "S" ? "h" : "v", "drain")) break;
         h = h32Utf16(`${h}`);
         t += D.every[0] + (h % (D.every[1] - D.every[0] + 1));
       }
@@ -367,7 +363,7 @@ export function layWaterBeds(lv: RealizeLevel, waterCells: WaterCells): void {
   const bedNoted = new Set<string>();
   for (const [x, y] of waterCells) {
     const c = V.cell(x, y);
-    const one: VariantFilter = { key: "1x1", test: (q) => q.footprint[0] === 1 && q.footprint[1] === 1 };
+    const one = ONE_CELL;
     let res = lookup(L.id, c.theme, [bedRole(c.material ?? ""), BED_DEFAULT_ROLE], one, true);
     if (!res) {
       let bank: Material | null = null;
@@ -431,10 +427,7 @@ export function layGroundUnderDecks(lv: RealizeLevel): GroundUnderDecks {
       const c = V.cell(bx, by);
       const role = floorRole(mat);
       // the default family (untagged variants): patch families are for open floors
-      const res = lookup(L.id, c.theme, [role], {
-        key: "1x1plain",
-        test: (v) => v.footprint[0] === 1 && v.footprint[1] === 1 && (v.variant ?? "") === "",
-      });
+      const res = lookup(L.id, c.theme, [role], ONE_CELL_PLAIN);
       const v = res ? pick(res.variants, `${L.id}:under:${bx}:${by}`) : undefined;
       if (!v) return;
       const m = frame.rectMin(bx, by, 1, 1);

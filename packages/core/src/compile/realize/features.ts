@@ -13,6 +13,7 @@ import { stallPieceOf } from "../../gen/market";
 import { featureRoles } from "../../gen/surfaces";
 import { footprintFromGeom, type ResolvedVariant, type RoleResolution } from "../../palette/resolve";
 import { featureRole } from "../../palette/roles";
+import { variantNamed } from "../../palette/filters";
 import { rotateDir, rotateXZ } from "../geometry";
 import { h32Utf16 } from "../../util/hash";
 import { realizeStall } from "../stalls";
@@ -168,13 +169,7 @@ function paletteAsset(pass: FeaturePass, f: ResolvedFeature, theme: ThemeId): Fe
   const wantFamily = f.variant;
   const res =
     (roles.length > 1 && wantFamily !== undefined
-      ? lookup(
-          L.id,
-          theme,
-          [...roles],
-          { key: `variant:${wantFamily}`, test: (u) => u.variant === wantFamily },
-          true,
-        )
+      ? lookup(L.id, theme, [...roles], variantNamed(wantFamily), true)
       : null) ?? lookup(L.id, theme, [...roles]);
   if (!res) return null;
   // (generator 3 turns the band's rocks as the generator set them)

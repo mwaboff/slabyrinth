@@ -35,7 +35,8 @@ import {
 } from "../gen/surfaces";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "../palette/resolve";
 import { STALL_PIECE_ROLE, STALL_ROLES, featureRole } from "../palette/roles";
-import { ONE_CELL_TILE, stallParts, type RoleProbe } from "../palette/stallParts";
+import { NOT_TILE, ONE_CELL_TILE, both, variantNamed } from "../palette/filters";
+import { stallParts, type RoleProbe } from "../palette/stallParts";
 import { h32Utf16, subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
 import type { WorldFrame } from "./geometry";
@@ -195,9 +196,7 @@ class Stall {
 
   /** Small things from the shared table (gen/surfaces.ts), by the kind's family; none for a bare or built-in-goods kind. */
   private thingsOf(family: SmallFamily | undefined): RoleResolution | null {
-    return family
-      ? this.find(SMALL_THINGS_ROLES, { key: `goods:${family}`, test: (v) => v.variant === family })
-      : null;
+    return family ? this.find(SMALL_THINGS_ROLES, variantNamed(family)) : null;
   }
 
   /** The small things of one support: a seeded count from SURFACE_LOAD, spread over the cell [cx, cy], on top at `topY`. */
@@ -232,10 +231,7 @@ class Stall {
    */
   tableStall(): boolean {
     const { b, info, y0, frontRow } = this;
-    const piece = this.find([STALL_PIECE_ROLE], {
-      key: `stall:${info.piece}`,
-      test: (v) => v.variant === info.piece,
-    });
+    const piece = this.find([STALL_PIECE_ROLE], variantNamed(info.piece));
     if (!piece) return false;
     // the kinds with a real stall piece have their goods built in; a bare table gets its goods on top
     const onTable = this.thingsOf(info.tableGoods);
@@ -294,19 +290,9 @@ class Stall {
     const { b, info, goods } = this;
     const counterH = counterRes.variants[0]?.geom.size.y ?? 0.5;
     const trays =
-      info.front === "tray"
-        ? this.find([STALL_PIECE_ROLE], {
-            key: `tray:${info.piece}`,
-            test: (v) => v.variant === info.piece && oneCell.test(v),
-          })
-        : null;
+      info.front === "tray" ? this.find([STALL_PIECE_ROLE], both(variantNamed(info.piece), oneCell)) : null;
     const wide =
-      info.front === "wide"
-        ? this.find([STALL_PIECE_ROLE], {
-            key: `wide:${info.piece}`,
-            test: (v) => v.variant === info.piece && v.geom.originAt !== "minCorner",
-          })
-        : null;
+      info.front === "wide" ? this.find([STALL_PIECE_ROLE], both(variantNamed(info.piece), NOT_TILE)) : null;
     const plain: Array<[number, number, Side]> = [];
     const frontCells = this.frontRow;
     // a two-cell stall prop (magic, weapons) takes the first free neighbouring pair of the front row
