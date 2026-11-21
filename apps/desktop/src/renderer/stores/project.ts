@@ -1,6 +1,6 @@
 /** projectStore (architecture §6.3): mirror of the open project's snapshot plus the Home project list. */
 import { create } from "zustand";
-import { countPlanRooms } from "@slabyrinth/core";
+import { countPlanRooms, levelTabOrder } from "@slabyrinth/core";
 import type { DesignBrief, MapPlan } from "@slabyrinth/core";
 import type { IpcEvents, IpcRequests, ProjectSnapshot } from "../../shared/ipc";
 import type { ProjectFile } from "../../shared/project";
@@ -143,25 +143,9 @@ export function versionCosts(
   return out;
 }
 
-/** Entry level first, then by distance in elevation (matches core levelLabels: "L1", "L2"…). */
+/** The plan's levels in tab order (core levelTabOrder, the order of the "L1", "L2"… labels). */
 export function orderedLevels(plan: MapPlan | null): MapPlan["levels"] {
-  if (!plan) return [];
-  const entry =
-    plan.levels.find((l) => l.id === plan.entryLevel) ??
-    [...plan.levels].sort((a, b) => Math.abs(a.elevation) - Math.abs(b.elevation))[0];
-  const e0 = entry?.elevation ?? 0;
-  return plan.levels
-    .map((l, i) => ({ l, i }))
-    .sort((a, b) => {
-      if (a.l === entry) return -1;
-      if (b.l === entry) return 1;
-      return (
-        Math.abs(a.l.elevation - e0) - Math.abs(b.l.elevation - e0) ||
-        b.l.elevation - a.l.elevation ||
-        a.i - b.i
-      );
-    })
-    .map((x) => x.l);
+  return plan ? levelTabOrder(plan.levels, plan.entryLevel) : [];
 }
 
 export function levelShort(plan: MapPlan | null, levelId: string): string {

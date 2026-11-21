@@ -55,17 +55,19 @@ export const DEFAULT_DISPLAY_OPTIONS: DisplayOptions = {
   legend: false,
 };
 
-/** "L1", "L2"… in tab order: entry level first, then by distance in elevation (ties: higher first). */
-export function levelLabels(
-  resolved: Pick<ResolvedPlan, "levels">,
+/**
+ * Levels in tab order: the entry level first (else the one nearest elevation 0), then by distance in elevation from
+ * it (ties: higher first, then plan order). Plan levels and resolved levels alike.
+ */
+export function levelTabOrder<L extends { id: LevelId; elevation: number }>(
+  levels: readonly L[],
   entryLevel?: LevelId,
-): Record<LevelId, string> {
-  const levels = resolved.levels;
+): L[] {
   const entry =
     levels.find((l) => l.id === entryLevel) ??
     levels.slice().sort((a, b) => Math.abs(a.elevation) - Math.abs(b.elevation))[0];
   const e0 = entry?.elevation ?? 0;
-  const ordered = levels
+  return levels
     .map((l, i) => ({ l, i }))
     .sort((a, b) => {
       if (a.l === entry) return -1;
@@ -75,9 +77,17 @@ export function levelLabels(
         b.l.elevation - a.l.elevation ||
         a.i - b.i
       );
-    });
+    })
+    .map(({ l }) => l);
+}
+
+/** "L1", "L2"… in tab order (levelTabOrder). */
+export function levelLabels(
+  resolved: Pick<ResolvedPlan, "levels">,
+  entryLevel?: LevelId,
+): Record<LevelId, string> {
   const out: Record<LevelId, string> = {};
-  ordered.forEach(({ l }, k) => (out[l.id] = `L${k + 1}`));
+  levelTabOrder(resolved.levels, entryLevel).forEach((l, k) => (out[l.id] = `L${k + 1}`));
   return out;
 }
 

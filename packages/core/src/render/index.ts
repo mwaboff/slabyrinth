@@ -7,6 +7,7 @@ export {
   buildPlanDisplayList,
   contentViewBox,
   levelLabels,
+  levelTabOrder,
   LAYER_ORDER,
   DEFAULT_DISPLAY_OPTIONS,
   type DisplayContext,
