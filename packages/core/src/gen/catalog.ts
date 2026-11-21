@@ -1,7 +1,8 @@
 /**
- * Built-in feature facts the resolver needs: default footprint, blocking, organic (random rotation), wall-mounted,
- * category (for the "Furniture" layer toggle) and GM-only defaults. Palettes may use other asset sizes; the
- * resolver's footprint is what validation and the 2D view use.
+ * Built-in feature facts: default footprint, blocking, organic (random rotation), wall-mounted, category (for the
+ * "Furniture" layer toggle), GM-only defaults, and the traits the generators read (light source, landmark, the light
+ * its top takes). One row per type: a trait is a field here, never a list of types in the code that reads it.
+ * Palettes may use other asset sizes; the resolver's footprint is what validation and the 2D view use.
  */
 import type { FeatureType } from "../contracts/plan";
 
@@ -21,8 +22,19 @@ export interface FeatureInfo {
    * never falls back to the "?" custom glyph for a real feature type. Unset: the type has its own glyph.
    */
   glyph?: FeatureType;
-  /** Light source (lighting pass of the composed set pieces). */
+  /** Light source: it lights the cells round it (LIGHT_FEATURES; the lighting passes and the review count it). */
   light?: boolean;
+  /**
+   * A statement piece that gives the map its skyline: one per dress op with a clear ring round it (gen/setpieces.ts),
+   * its cells marked so other dressing keeps an apron off it (resolve/level/features.ts), and a note when its asset
+   * stands under 3 tiles (compile/realize/features.ts).
+   */
+  landmark?: boolean;
+  /**
+   * A support whose top takes a light (gen/rooms4.ts room lights): a candle where a flame at hand height belongs (a
+   * table, a desk, an altar), a small lantern on a counter or chest. Unset: nothing is lit on it.
+   */
+  topLight?: "candle" | "lantern";
 }
 
 const F = (
@@ -32,6 +44,8 @@ const F = (
 ): FeatureInfo => ({
   ...(opts.glyph ? { glyph: opts.glyph } : {}),
   ...(opts.light ? { light: true } : {}),
+  ...(opts.landmark ? { landmark: true } : {}),
+  ...(opts.topLight ? { topLight: opts.topLight } : {}),
   size: opts.size ?? [1, 1],
   blocking: opts.blocking ?? true,
   organic: opts.organic ?? false,
@@ -42,8 +56,8 @@ const F = (
 });
 
 export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
-  table: F("Table", "furniture", { size: [2, 1] }),
-  round_table: F("Round table", "furniture"),
+  table: F("Table", "furniture", { size: [2, 1], topLight: "candle" }),
+  round_table: F("Round table", "furniture", { topLight: "candle" }),
   chair: F("Chair", "furniture"),
   bench: F("Bench", "furniture", { size: [2, 1] }),
   stool: F("Stool", "furniture"),
@@ -51,14 +65,14 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   bunk_bed: F("Bunk bed", "furniture", { size: [1, 2] }),
   wardrobe: F("Wardrobe", "furniture"),
   bookshelf: F("Bookshelf", "furniture", { size: [2, 1] }),
-  desk: F("Desk", "furniture", { size: [2, 1] }),
-  chest: F("Chest", "furniture"),
+  desk: F("Desk", "furniture", { size: [2, 1], topLight: "candle" }),
+  chest: F("Chest", "furniture", { topLight: "lantern" }),
   barrel: F("Barrel", "furniture"),
   crate: F("Crate", "furniture"),
   sack: F("Sack", "furniture"),
   shelf: F("Shelf", "furniture", { size: [2, 1] }),
-  counter: F("Counter", "furniture", { size: [2, 1] }),
-  bar_counter: F("Bar counter", "furniture", { size: [3, 1] }),
+  counter: F("Counter", "furniture", { size: [2, 1], topLight: "lantern" }),
+  bar_counter: F("Bar counter", "furniture", { size: [3, 1], topLight: "candle" }),
   throne: F("Throne", "furniture"),
   rug: F("Rug", "furniture", { size: [2, 2], blocking: false }),
   cauldron: F("Cauldron", "furniture"),
@@ -70,12 +84,12 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   stocks: F("Stocks", "furniture"),
   pillar: F("Pillar", "architecture"),
   statue: F("Statue", "architecture"),
-  altar: F("Altar", "architecture", { size: [2, 1] }),
+  altar: F("Altar", "architecture", { size: [2, 1], topLight: "candle" }),
   fountain: F("Fountain", "architecture", { size: [2, 2] }),
   well: F("Well", "architecture"),
-  brazier: F("Brazier", "architecture"),
-  torch_wall: F("Wall torch", "architecture", { blocking: false, wallMounted: true }),
-  candelabra: F("Candelabra", "furniture"),
+  brazier: F("Brazier", "architecture", { light: true }),
+  torch_wall: F("Wall torch", "architecture", { blocking: false, wallMounted: true, light: true }),
+  candelabra: F("Candelabra", "furniture", { light: true }),
   banner_wall: F("Banner", "architecture", { blocking: false, wallMounted: true }),
   painting_wall: F("Painting", "architecture", { blocking: false, wallMounted: true }),
   sarcophagus: F("Sarcophagus", "architecture", { size: [1, 2] }),
@@ -89,7 +103,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   lever: F("Lever", "hazard", { blocking: false }),
   trap: F("Trap", "hazard", { blocking: false, gmOnly: true }),
   trap_plate: F("Pressure plate", "hazard", { blocking: false, gmOnly: true }),
-  chandelier: F("Chandelier", "furniture", { blocking: false }),
+  chandelier: F("Chandelier", "furniture", { blocking: false, light: true }),
   tree: F("Tree", "outdoor", { organic: true }),
   dead_tree: F("Dead tree", "outdoor", { organic: true }),
   pine_tree: F("Pine", "outdoor", { organic: true }),
@@ -102,7 +116,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   flowers: F("Flowers", "outdoor", { blocking: false, organic: true }),
   tall_grass: F("Tall grass", "outdoor", { blocking: false, organic: true }),
   reeds: F("Reeds", "outdoor", { blocking: false, organic: true }),
-  campfire: F("Campfire", "outdoor"),
+  campfire: F("Campfire", "outdoor", { light: true }),
   tent: F("Tent", "outdoor", { size: [2, 2] }),
   cart: F("Cart", "outdoor", { size: [2, 1] }),
   wagon: F("Wagon", "outdoor", { size: [3, 2] }),
@@ -121,7 +135,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   root_large: F("Great root", "outdoor", { size: [2, 1], organic: true, glyph: "log" }),
   roots_wall: F("Wall roots", "outdoor", { blocking: false, wallMounted: true, glyph: "dead_tree" }),
   vines: F("Vines", "outdoor", { blocking: false, wallMounted: true, glyph: "tall_grass" }),
-  tree_large: F("Great tree", "outdoor", { size: [3, 3], organic: true, glyph: "dead_tree" }),
+  tree_large: F("Great tree", "outdoor", { size: [3, 3], organic: true, landmark: true, glyph: "dead_tree" }),
   // ritual, encounter and lights
   candles: F("Candles", "furniture", { blocking: false, light: true, glyph: "candelabra" }),
   skull_pile: F("Skulls", "other", { blocking: false, organic: true, glyph: "bones" }),
@@ -134,14 +148,14 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   // tall pieces, mining and hanging dressing (round 2)
   monolith: F("Monolith", "architecture", { glyph: "standing_stone" }),
   cave_column: F("Rock column", "outdoor", { organic: true, glyph: "pillar" }),
-  statue_large: F("Great statue", "architecture", { size: [2, 2], glyph: "statue" }),
+  statue_large: F("Great statue", "architecture", { size: [2, 2], landmark: true, glyph: "statue" }),
   mine_cart: F("Mine cart", "furniture", { glyph: "crate" }),
   rails: F("Rails", "architecture", { blocking: false, glyph: "debris" }),
   mine_support: F("Timber support", "architecture", { glyph: "pillar" }),
   chains: F("Hanging chains", "other", { blocking: false, wallMounted: true, glyph: "banner_wall" }),
   // theme-neutral slots: each theme's palette (feature.<slot>) decides the assets, e.g. cluster_tall is
   // stalagmite columns in a cave, pines in a forest and stone columns in a dungeon
-  landmark: F("Landmark", "architecture", { size: [2, 2], glyph: "statue" }),
+  landmark: F("Landmark", "architecture", { size: [2, 2], landmark: true, glyph: "statue" }),
   tall_marker: F("Tall marker", "architecture", { glyph: "standing_stone" }),
   formation: F("Formation", "outdoor", { size: [2, 2], organic: true, glyph: "boulder" }),
   cluster_tall: F("Tall growth", "outdoor", { organic: true, glyph: "pine_tree" }),
@@ -173,15 +187,15 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   custom: F("Custom", "other"),
 };
 
-/** Light-source feature types (the composed set pieces' lighting pass). */
-export const LIGHT_FEATURES: ReadonlySet<FeatureType> = new Set<FeatureType>([
-  "torch_wall",
-  "brazier",
-  "candelabra",
-  "chandelier",
-  "campfire",
-  ...(Object.keys(FEATURE_INFO) as FeatureType[]).filter((t) => FEATURE_INFO[t].light === true),
-]);
+/** Light-source feature types (`light` in the table). */
+export const LIGHT_FEATURES: ReadonlySet<FeatureType> = new Set<FeatureType>(
+  (Object.keys(FEATURE_INFO) as FeatureType[]).filter((t) => FEATURE_INFO[t].light === true),
+);
+
+/** Is the type a landmark (`landmark` in the table)? */
+export function isLandmark(type: FeatureType): boolean {
+  return FEATURE_INFO[type].landmark === true;
+}
 
 /** The feature type whose 2D glyph draws `type`: itself, unless the catalog names a stand-in. */
 export function glyphType(type: FeatureType): FeatureType {

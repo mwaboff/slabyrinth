@@ -22,7 +22,7 @@ import { createPrng, type Prng } from "../util/prng";
 import { ValueNoise } from "./noise";
 import { dressWater } from "./water";
 import { cliffBand, riseUnits, type BandResult } from "./cliffband";
-import { featureInfo, LIGHT_FEATURES } from "./catalog";
+import { featureInfo, isLandmark, LIGHT_FEATURES } from "./catalog";
 import {
   EDGE_LEDGE,
   EDGE_OPENING,
@@ -1413,8 +1413,6 @@ export const RUNNERS: ReadonlySet<FeatureType> = new Set<FeatureType>([
   "edge_dressing",
   "rock",
 ]);
-/** One-off statement pieces: never repeated in one dress op, clear ring round structures. */
-const STATEMENT = new Set<FeatureType>(["landmark", "tree_large", "statue_large"]);
 /** Anchors along a line (cliff lips and feet, banks, path verges): their groups are placed irregularly. */
 const LINE_ANCHORS = new Set<Group["anchor"]>(["ledge_low", "ledge_high", "water_edge", "path_edge"]);
 /** What a line piece may become instead, so a run mixes sizes and kinds (a fallen log among the rocks). */
@@ -1807,8 +1805,8 @@ export function composeArea(
             const [nx, ny] = step(xx, yy, sd);
             if (!grid.inBounds(nx, ny) && grid.edge(xx, yy, sd) !== EDGE_WALL) return null;
           }
-    // statement pieces keep a clear ring round structures and yard pieces already on the map
-    if (STATEMENT.has(part.t))
+    // landmarks (statement pieces) keep a clear ring round structures and yard pieces already on the map
+    if (isLandmark(part.t))
       for (let yy = y0 - 1; yy <= y0 + h; yy++)
         for (let xx = x0 - 1; xx <= x0 + w; xx++)
           if (grid.inBounds(xx, yy) && (grid.occupied(xx, yy) || SIDES.some((sd) => thinWallOn(xx, yy, sd))))
@@ -2121,7 +2119,7 @@ export function composeArea(
       // its own
       const apronR = def.landmarkApron ?? 2;
       for (const q of planned)
-        if (STATEMENT.has(q.placement.type))
+        if (isLandmark(q.placement.type))
           for (const [cx, cy] of q.cells)
             for (let dy = -apronR; dy <= apronR; dy++)
               for (let dx = -apronR; dx <= apronR; dx++)

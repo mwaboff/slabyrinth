@@ -8,6 +8,7 @@
 import type { CompileDiagnostic, Placement, RoleName } from "../../contracts/compiler";
 import type { Side, ThemeId } from "../../contracts/plan";
 import { EDGE, type ResolvedFeature } from "../../contracts/resolved";
+import { isLandmark } from "../../gen/catalog";
 import { stallPieceOf } from "../../gen/market";
 import { featureRoles } from "../../gen/surfaces";
 import { footprintFromGeom, type ResolvedVariant, type RoleResolution } from "../../palette/resolve";
@@ -496,7 +497,7 @@ function mountOnWall(lv: RealizeLevel, f: ResolvedFeature, asset: FeatureAsset, 
 
 /** Landmarks must give the map a skyline: an info note when the asset (with its parts) stands under 3 tiles. */
 function noteShortLandmark(lv: RealizeLevel, f: ResolvedFeature, v: ResolvedVariant): void {
-  if (f.type !== "landmark" && f.type !== "tree_large" && f.type !== "statue_large") return;
+  if (!isLandmark(f.type)) return;
   const top = Math.max(v.geom.size.y, ...(v.parts ?? []).map((q) => (q.offset?.y ?? 0) + q.geom.size.y));
   if (top < 3 - EPS)
     lv.ctx.addDiag({

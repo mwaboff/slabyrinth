@@ -23,7 +23,7 @@ import { subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
 import { featureInfo, rotatedSize } from "./catalog";
 import type { GeneratedPlacement, PlacementGrid, ScatterResult } from "./place";
-import type { FurnishedPurpose, RoomPurpose } from "./roomPurpose";
+import { ROOM_PURPOSE_INFO, type FurnishedPurpose } from "./roomPurpose";
 import {
   EDGE_OPENING,
   EDGE_STAIR,
@@ -557,26 +557,6 @@ const FILL_GAIN = 1.3;
 
 /** How many small things go on a support of each type, and its default family: the shared table (gen/surfaces.ts). */
 const TOP = SURFACE_LOAD;
-
-/** Rooms where an open fire does not belong (paper, cloth, straw and stored goods): their floor lights are candles. */
-const NO_FIRE: ReadonlySet<RoomPurpose> = new Set<RoomPurpose>([
-  "library",
-  "study",
-  "bedroom",
-  "storeroom",
-  "laboratory",
-  "treasury",
-]);
-
-/** Supports whose top takes a candle (a flame at hand height); the others take a small lantern. */
-const CANDLE_ON: ReadonlySet<FeatureType> = new Set<FeatureType>([
-  "table",
-  "round_table",
-  "desk",
-  "bar_counter",
-  "altar",
-]);
-const LANTERN_ON: ReadonlySet<FeatureType> = new Set<FeatureType>(["counter", "chest"]);
 
 // ───────────────────────────── geometry helpers ─────────────────────────────
 
@@ -1298,13 +1278,14 @@ class Room {
           .filter(
             (q) =>
               !q.light &&
-              (CANDLE_ON.has(q.type) || LANTERN_ON.has(q.type)) &&
+              featureInfo(q.type).topLight !== undefined &&
               near(q.centre[0], q.centre[1]) <= 3.4 &&
               !this.nearPost(q.centre[0], q.centre[1]),
           )
           .sort((a, b) => near(a.centre[0], a.centre[1]) - near(b.centre[0], b.centre[1]));
         for (const q of sups) {
-          const lamp: FeatureType = CANDLE_ON.has(q.type) ? "candles" : "candelabra";
+          // a candle is the candles piece, a lantern the candelabra's lantern variant
+          const lamp: FeatureType = featureInfo(q.type).topLight === "candle" ? "candles" : "candelabra";
           const variant = lamp === "candelabra" ? "lantern" : undefined;
           const ext = g.piece4?.(q.type, q.variant);
           if (!ext || ext.mixed || ext.hMax - ext.h > 0.15 || !this.has(lamp, variant)) continue;
@@ -1521,7 +1502,7 @@ export function dressRoom(grid: PlacementGrid, p: RoomDressParams): ScatterResul
     // an abandoned place keeps its dark pockets: one light, then no more
     radius: p.abandoned ? Infinity : 3.6,
     torchOnly: p.abandoned,
-    floor: floor >= 30 && !p.abandoned ? (NO_FIRE.has(p.purpose) ? "candles" : "brazier") : null,
+    floor: floor >= 30 && !p.abandoned ? (ROOM_PURPOSE_INFO[p.purpose].noFire ? "candles" : "brazier") : null,
   });
   return { placements: room.out, capped: room.capped };
 }

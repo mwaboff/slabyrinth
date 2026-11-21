@@ -38,19 +38,26 @@ export interface PurposeInfo {
   floor: Readonly<Record<FloorFamily, Material | null>> | "keep";
   /** May the notes name it (a use of the room, not its shape or state)? */
   inNotes: boolean;
+  /**
+   * An open fire does not belong here (paper, cloth, straw, stored goods): a big room's floor light is a stand of
+   * candles, not a brazier (gen/rooms4.ts dressRoom).
+   */
+  noFire: boolean;
 }
 
+/** A room someone uses: furnished from its recipe, and named by its notes as well as its name. */
 const use = (
   words: RegExp,
   stone: Material | null,
   timber: Material | null,
-  abandoned = false,
+  traits: { abandoned?: boolean; noFire?: boolean } = {},
 ): PurposeInfo => ({
   words,
-  abandoned,
+  abandoned: traits.abandoned ?? false,
   furnished: true,
   floor: { stone, timber },
   inNotes: true,
+  noFire: traits.noFire ?? false,
 });
 
 /**
@@ -65,6 +72,7 @@ export const ROOM_PURPOSE_INFO: Readonly<Record<RoomPurpose, PurposeInfo>> = {
     furnished: false,
     floor: { stone: null, timber: null },
     inNotes: false,
+    noFire: false,
   },
   passage: {
     words:
@@ -73,6 +81,7 @@ export const ROOM_PURPOSE_INFO: Readonly<Record<RoomPurpose, PurposeInfo>> = {
     furnished: false,
     floor: "keep",
     inNotes: false,
+    noFire: false,
   },
   tavern: use(
     /^(taverns?|inns?|taprooms?|tap|taphouse|pubs?|alehouses?|saloons?|bar)$/,
@@ -82,11 +91,14 @@ export const ROOM_PURPOSE_INFO: Readonly<Record<RoomPurpose, PurposeInfo>> = {
   throne_room: use(/^(throne|thrones|audience|court|courtroom)$/, "marble", "wood_plank"),
   dining: use(/^(halls?|refectory|dining|mess|banquet|feast|feasting|canteen)$/, "stone_tile", "wood_plank"),
   kitchen: use(/^(kitchens?|scullery|galley|bakery|cookhouse|cookroom)$/, "stone_tile", "stone_tile"),
-  library: use(/^(librar(y|ies)|scriptorium|archives?|bookroom|reading)$/, "stone_tile", "wood_plank"),
+  library: use(/^(librar(y|ies)|scriptorium|archives?|bookroom|reading)$/, "stone_tile", "wood_plank", {
+    noFire: true,
+  }),
   study: use(
     /^(study|studies|office|offices|sanctum|workroom|counting|scribes?|chancery|solar|parlou?r)$/,
     "stone_tile",
     "wood_plank",
+    { noFire: true },
   ),
   armoury: use(/^(armou?ry|armou?ries|arsenal|weaponry|armou?rers?)$/, "stone_tile", "wood_plank"),
   barracks: use(
@@ -98,11 +110,13 @@ export const ROOM_PURPOSE_INFO: Readonly<Record<RoomPurpose, PurposeInfo>> = {
     /^(beds?|bedrooms?|bedchambers?|dormitory|dorm|quarters|cabin|guestroom|guests?|lodgings?|suite|nursery|boudoir|sleeping)$/,
     "stone_tile",
     "wood_plank",
+    { noFire: true },
   ),
   storeroom: use(
     /^(stores?|storerooms?|storage|pantry|cellars?|larder|warehouse|stockroom|supplies|granary|stockpile)$/,
     "cobble",
     "cobble",
+    { noFire: true },
   ),
   shrine: use(
     /^(shrines?|chapels?|temples?|sanctuary|oratory|altar|church|prayer|vestry|cathedral|reliquary|chantry)$/,
@@ -113,24 +127,26 @@ export const ROOM_PURPOSE_INFO: Readonly<Record<RoomPurpose, PurposeInfo>> = {
     /^(crypts?|tombs?|ossuary|catacombs?|mausoleum|burial|sepulch(re|er)|sarcophagus)$/,
     "cobble",
     "cobble",
-    true,
+    { abandoned: true },
   ),
   prison: use(
     /^(cells?|prison|prisons|gaol|jail|oubliette|torture|cellblock|dungeons?|brig|stockade)$/,
     "stone_tile",
     "wood_plank",
-    true,
+    { abandoned: true },
   ),
   forge: use(/^(forge|smithy|smith|smithing|foundry|workshops?|carpentry)$/, "flagstone", "cobble"),
   laboratory: use(
     /^(laborator(y|ies)|lab|alchem(y|ist)|alchemists?|apothecary|infirmary|sickbay|herbarium|distillery)$/,
     null,
     null,
+    { noFire: true },
   ),
   treasury: use(
     /^(treasur(y|e|ies)|vaults?|strongroom|hoard|bank|bullion|coffers)$/,
     "stone_tile",
     "wood_plank",
+    { noFire: true },
   ),
   washroom: use(
     /^(baths?|bathhouse|bathroom|wash|washroom|latrines?|privy|privies|laundry|lavatory|washhouse|garderobe|sauna)$/,

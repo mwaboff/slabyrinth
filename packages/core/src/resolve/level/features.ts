@@ -12,7 +12,7 @@ import type { FeatureType, Side, Vec2 } from "../../contracts/plan";
 import { MATERIALS } from "../../contracts/plan";
 import type { ResolvedFeature } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
-import { LIGHT_FEATURES, featureInfo, rotatedSize } from "../../gen/catalog";
+import { LIGHT_FEATURES, featureInfo, isLandmark, rotatedSize } from "../../gen/catalog";
 import type { GeneratedPlacement, PlacementGrid } from "../../gen/place";
 import type { ChasmRecords } from "./chasms";
 import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
@@ -76,7 +76,7 @@ export class FeatureWork {
 
   /** Places a feature on its footprint (`at`, `size`). */
   add(f: ResolvedFeature): void {
-    const landmark = f.type === "tree_large" || f.type === "landmark" || f.type === "statue_large";
+    const landmark = isLandmark(f.type);
     for (const i of this.work.footprint(f.at, f.size).cells) {
       if (landmark) this.landmarkCells.add(i);
       if (f.type === "vehicle") this.vehicleCells.add(i);
