@@ -736,11 +736,6 @@ export class LevelWork {
     }
     return null;
   }
-
-  /** Structural owner array (zones transparent) — used by geometric validation. */
-  structuralOwners(): Int32Array {
-    return this.struct;
-  }
 }
 
 function makeEdges(len: number): EdgeArrays {
