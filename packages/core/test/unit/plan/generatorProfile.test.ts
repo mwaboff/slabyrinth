@@ -8,9 +8,11 @@ import { GENERATOR_VERSION, GENERATOR_VERSIONS } from "../../../src/contracts/pl
 import { loadPalettes } from "../../../src/palette";
 import {
   GENERATOR_PROFILES,
+  SWITCH_DECLARATIONS,
   VOCABULARY_SINCE,
   generatorProfile,
   type GeneratorProfile,
+  type SwitchName,
 } from "../../../src/plan/generator";
 
 const switchesOn = (p: GeneratorProfile): string[] =>
@@ -93,10 +95,33 @@ describe("generator profiles", () => {
     expect(() => generatorProfile(GENERATOR_VERSION + 1)).toThrow(/unknown generator/);
   });
 
-  it("every profile has the same switches, and a switch once on stays on in later generators", () => {
-    const keys = Object.keys(GENERATOR_PROFILES[1]).sort();
-    for (const v of GENERATOR_VERSIONS)
-      expect(Object.keys(GENERATOR_PROFILES[v]).sort(), `generator ${v}`).toEqual(keys);
+  it("every switch is declared with a description and a generator it starts in", () => {
+    const names = Object.keys(SWITCH_DECLARATIONS);
+    expect(names.length).toBeGreaterThan(0);
+    for (const [name, decl] of Object.entries(SWITCH_DECLARATIONS)) {
+      expect(GENERATOR_VERSIONS, `${name} starts in`).toContain(decl.since);
+      expect(decl.description.trim().length, `${name} description`).toBeGreaterThan(10);
+    }
+    // the table is the changelog: it runs from the oldest generator to the newest
+    const starts = Object.values(SWITCH_DECLARATIONS).map((d) => d.since);
+    expect(starts, "switches are grouped by starting generator, oldest first").toEqual(
+      [...starts].sort((a, b) => a - b),
+    );
+  });
+
+  it("every profile carries exactly the declared switches, on from the generator each starts in", () => {
+    for (const v of GENERATOR_VERSIONS) {
+      const profile = GENERATOR_PROFILES[v];
+      for (const [name, decl] of Object.entries(SWITCH_DECLARATIONS))
+        expect(profile[name as SwitchName], `${name} at generator ${v}`).toBe(decl.since <= v);
+      const booleans = Object.entries(profile)
+        .filter(([, value]) => typeof value === "boolean")
+        .map(([key]) => key);
+      expect(booleans.sort(), `generator ${v}`).toEqual(Object.keys(SWITCH_DECLARATIONS).sort());
+    }
+  });
+
+  it("a switch once on stays on in later generators", () => {
     for (const v of GENERATOR_VERSIONS.slice(1)) {
       const before = switchesOn(GENERATOR_PROFILES[(v - 1) as 1 | 2 | 3]);
       const now = new Set(switchesOn(GENERATOR_PROFILES[v]));
