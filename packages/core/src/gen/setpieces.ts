@@ -49,7 +49,7 @@ import {
   type GeneratedPlacement,
   type PlacementGrid,
   type ScatterResult,
-} from "./place";
+} from "./placementGrid";
 
 export const COMPOSED_PRESETS = [
   "ritual_circle",

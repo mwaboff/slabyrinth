@@ -4,7 +4,7 @@
  * Pure TypeScript: no electron, DOM or node:* imports here.
  */
 export { resolvePlan, resolvedHash, canonicalResolved, type ResolveOptions } from "./resolvePlan";
-export { geometryChecks, reachableCells, entryLevelId, type GeometryCheckContext } from "./validate";
+export { geometryChecks, reachableCells, type GeometryCheckContext } from "./validate";
 export { traceRings, ringArea, type Ring } from "./trace";
 export { BUILTIN_THEME_DEFAULTS, builtinThemeDefaults, type ThemeDefaults } from "./themes";
 // The rules plan validation and applyOps take as an argument (geometry check, materialize generator).

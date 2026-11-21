@@ -10,13 +10,8 @@ import { PLAN_LIMITS } from "../../contracts/plan";
 import { CELL } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
 import { forEachMaskCell } from "../../gen/mask";
-import {
-  type AvoidKind,
-  type GeneratedPlacement,
-  type PlacementGrid,
-  dressArea,
-  scatterFeatures,
-} from "../../gen/place";
+import { type AvoidKind, dressArea, scatterFeatures } from "../../gen/place";
+import type { GeneratedPlacement, PlacementGrid } from "../../gen/placementGrid";
 import { defaultCliffBands } from "../../gen/setpieces";
 import { rasterizeShape } from "../../gen/shapes";
 import { elementSeed, subSeed } from "../../util/hash";

@@ -19,7 +19,7 @@ import type {
   RoleName,
 } from "../contracts/compiler";
 import type { ThemeId } from "../contracts/plan";
-import { own } from "./own";
+import { own } from "../util/own";
 
 export const GENERIC_THEME = "generic";
 

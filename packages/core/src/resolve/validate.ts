@@ -12,6 +12,7 @@ import type { MapPlan, PlanIssue, PlanIssueCode, Vec2 } from "../contracts/plan"
 import type { ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import type { ResolvePalettes } from "../palette/resolve";
+import { entryLevelId } from "../plan/links";
 import { edgeIndex, sideEdgeIndex } from "./levelGrid";
 import { type PlayabilityOptions, checkPlayability } from "./playability";
 import { resolvePlan } from "./resolvePlan";
@@ -162,15 +163,6 @@ function keyOrder(a: string, b: string): number {
   if (!Number.isNaN(na)) return -1;
   if (!Number.isNaN(nb)) return 1;
   return a < b ? -1 : a > b ? 1 : 0;
-}
-
-/** Entry level id: plan.entryLevel, else the level with the smallest |elevation| (ties: plan order). */
-export function entryLevelId(plan: MapPlan): string | undefined {
-  if (plan.entryLevel && plan.levels.some((l) => l.id === plan.entryLevel)) return plan.entryLevel;
-  let best: { id: string; e: number } | undefined;
-  for (const l of plan.levels)
-    if (!best || Math.abs(l.elevation) < best.e) best = { id: l.id, e: Math.abs(l.elevation) };
-  return best?.id;
 }
 
 /**

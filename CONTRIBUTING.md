@@ -34,5 +34,6 @@ There is one lockfile for all workspaces. Add a dependency with `npm install <pk
 ## Rules enforced by tooling
 
 - `packages/core/src/**` must not import `electron`, `react` or Node built-ins, except in `src/cli/` (ESLint `no-restricted-imports`; core's tsconfig has no DOM or Node types).
+- Directories of `packages/core/src` import only lower layers: the order is the `CORE_LAYERS` table in `eslint.config.js` (rule `slabyrinth/core-layers`); a new directory must be placed there. No core module is imported for its side effects.
 - Renderer colours, fonts, radii and shadows come only from theme tokens in `apps/desktop/src/renderer/styles/tokens.css`.
 - Before a pull request: `npm run lint && npm run typecheck && npm test && npm run build`.

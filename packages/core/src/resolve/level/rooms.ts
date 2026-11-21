@@ -13,7 +13,7 @@ import type { ResolvedFeature, ResolvedOpening } from "../../contracts/resolved"
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { SIDE_STEP } from "../../gen/gridGeometry";
-import type { GeneratedPlacement, PlacementGrid } from "../../gen/place";
+import type { GeneratedPlacement, PlacementGrid } from "../../gen/placementGrid";
 import { furnishedPurpose } from "../../gen/roomPurpose";
 import { dressRoom, lightArea } from "../../gen/rooms4";
 import { isUnevenWallStyle } from "../../gen/wallStyles";

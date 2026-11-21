@@ -10,7 +10,7 @@
 import type { AssetAvailability } from "../contracts/compiler";
 import { canonicalJson } from "../util/canonical";
 import { h64hex } from "../util/hash";
-import { dict, own } from "./own";
+import { dict, own } from "../util/own";
 import type { ResolvePalettes } from "./resolve";
 
 type AssetStatus = ReturnType<AssetAvailability["status"]>;

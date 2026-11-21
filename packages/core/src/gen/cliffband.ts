@@ -28,7 +28,7 @@ import {
   SIDE_STEP as STEP,
   cellKey as key,
 } from "./gridGeometry";
-import { gridProfile, type GeneratedPlacement, type PlacementGrid } from "./place";
+import { gridProfile, type GeneratedPlacement, type PlacementGrid } from "./placementGrid";
 
 type Piece = "cliff_face" | "cliff_crest";
 interface Size {

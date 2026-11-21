@@ -14,7 +14,7 @@ import type {
 import type { ThemeId } from "../contracts/plan";
 import { NULL_AVAILABILITY } from "../catalog/availability";
 import { BUNDLED_ORIENTATION, BUNDLED_PALETTES } from "./bundled";
-import { dict, own } from "./own";
+import { dict, own } from "../util/own";
 import { parseOrientation, parsePalette, parsePaletteOverride } from "./schema";
 import { withAutoVariants } from "./auto";
 

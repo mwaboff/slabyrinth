@@ -5,6 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import prettier from "eslint-config-prettier";
 import globals from "globals";
 import { builtinModules } from "node:module";
+import path from "node:path";
 
 /**
  * Import boundaries (architecture §7.2): @slabyrinth/core is pure TypeScript. electron, react
@@ -31,28 +32,86 @@ const coreBoundary = {
 };
 
 /**
- * Layer direction inside @slabyrinth/core: plan and palette data, then gen, resolve, compile, review. The design
- * review reads what the build produced (it may import compile), so nothing below it may import review, and nothing
- * below compile may import compile; a cycle between them starts with such an import.
+ * The layer order of packages/core/src, lowest row first. A module may import its own directory and any directory in
+ * an earlier row; directories in one row are independent and may not import each other. Every directory is listed:
+ * a new one fails lint until it is placed here. The root `index.ts` (the public entry) sits above every row, so no
+ * layer imports it. The `core-layers` rule below checks every relative import against this table.
  */
-/** @param {string} layer */
-const layerImport = (layer) => ({
-  regex: `(^|/)${layer}(/|$)`,
-  message: `This layer must not import ${layer}/ (core layer direction: plan, palette, gen, resolve, compile, review).`,
-});
-/** @type {import("eslint").Linter.Config[]} */
-const coreLayers = [
-  { files: ["plan", "palette", "gen", "resolve"], forbidden: ["compile", "review"] },
-  { files: ["compile"], forbidden: ["review"] },
-].map(({ files, forbidden }) => ({
-  files: files.map((dir) => `packages/core/src/${dir}/**/*.ts`),
-  rules: {
-    "no-restricted-imports": [
-      "error",
-      { paths: coreBoundary.paths, patterns: [...coreBoundary.patterns, ...forbidden.map(layerImport)] },
-    ],
+const CORE_LAYERS = [
+  ["contracts"], // the normative types (verbatim copies of docs/contracts) and build constants
+  ["util", "slab"], // hashing, PRNG, canonical JSON, own-property lookups; the TaleSpire slab codec
+  ["catalog", "plan"], // the game's asset catalog (reads slab layouts); the plan model, schema and validation
+  ["gen"], // generation tables and algorithms: feature catalog, wall styles, room purpose, caves, rooms, noise
+  ["palette", "ops"], // asset palettes per theme and role (read gen's feature and wall-style tables); plan edits
+  ["history", "resolve"], // plan versions (replay ops); the resolver: plan + palettes -> resolved grid
+  ["render", "text", "compile"], // what reads a resolved plan: 2D display lists, text views, the slab compiler
+  ["review"], // the design review (reads what the build produced)
+  ["agent"], // the model's tools, prompts and checks
+  ["cli"], // the command line
+];
+const CORE_SRC = path.join(import.meta.dirname, "packages", "core", "src");
+const CORE_ENTRY = "index.ts";
+/** @type {Map<string, number>} */
+const coreRank = new Map(
+  CORE_LAYERS.flatMap((row, i) => row.map((dir) => /** @type {[string, number]} */ ([dir, i]))),
+);
+coreRank.set(CORE_ENTRY, CORE_LAYERS.length);
+
+/** The core layer of an absolute path (a directory under src, or the entry), or null outside packages/core/src. */
+function coreLayerOf(/** @type {string} */ file) {
+  const rel = path.relative(CORE_SRC, file);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
+  const parts = rel.split(path.sep);
+  if (parts.length > 1 || coreRank.has(parts[0] ?? "")) return parts[0] ?? "";
+  return parts[0] === "" || /^index(\.ts)?$/.test(parts[0] ?? "") ? CORE_ENTRY : (parts[0] ?? "");
+}
+
+/** @type {import("eslint").Rule.RuleModule} */
+const coreLayersRule = {
+  meta: {
+    type: "problem",
+    schema: [],
+    docs: { description: "Core imports follow CORE_LAYERS (eslint.config.js)." },
   },
-}));
+  create(context) {
+    const from = coreLayerOf(context.filename);
+    if (from === null) return {};
+    const fromRank = coreRank.get(from);
+    /** @param {any} node */
+    const check = (node) => {
+      const spec = node.source?.value;
+      if (typeof spec !== "string" || !spec.startsWith(".")) return;
+      const to = coreLayerOf(path.resolve(path.dirname(context.filename), spec));
+      if (to === null || to === from) return;
+      const toRank = coreRank.get(to);
+      if (fromRank === undefined || toRank === undefined) {
+        const missing = fromRank === undefined ? from : to;
+        context.report({
+          node,
+          message: `packages/core/src/${missing} is not in CORE_LAYERS (eslint.config.js): place it in the layer order.`,
+        });
+      } else if (toRank >= fromRank) {
+        const target = to === CORE_ENTRY ? "the core entry (index.ts)" : `${to}/`;
+        const why =
+          to === CORE_ENTRY
+            ? "it sits above every row"
+            : toRank === fromRank
+              ? "they are in the same row"
+              : "it is in a later row";
+        context.report({
+          node,
+          message: `Core layers: ${from}/ may not import ${target}; ${why} of CORE_LAYERS (eslint.config.js).`,
+        });
+      }
+    };
+    return {
+      ImportDeclaration: check,
+      ExportAllDeclaration: check,
+      ExportNamedDeclaration: check,
+      ImportExpression: check,
+    };
+  },
+};
 
 /**
  * Edge kinds and cell flags come from the resolved contract (EDGE, CELL_FLAG; gen/gridGeometry.ts re-exports them by
@@ -144,7 +203,11 @@ export default tseslint.config(
     ignores: ["packages/core/src/cli/**"],
     rules: { "no-restricted-imports": ["error", coreBoundary] },
   },
-  ...coreLayers,
+  {
+    files: ["packages/core/src/**/*.ts"],
+    plugins: { slabyrinth: { rules: { "core-layers": coreLayersRule } } },
+    rules: { "slabyrinth/core-layers": "error" },
+  },
   {
     files: ["packages/core/src/**/*.ts"],
     rules: { "no-restricted-syntax": ["error", numberedEdgeKinds, handEdgeIndex, sideEffectImport] },

@@ -17,7 +17,7 @@ import type {
   Vec2,
 } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
-import { entryLevelId } from "../resolve/validate";
+import { entryLevelId } from "../plan/links";
 import { withWings } from "../plan/building";
 
 export interface OutlineOptions {

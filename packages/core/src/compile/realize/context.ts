@@ -18,7 +18,7 @@ import type { LevelId, ThemeId } from "../../contracts/plan";
 import type { ResolvedPlan } from "../../contracts/resolved";
 import { ValueNoise } from "../../gen/noise";
 import { loadOrientation } from "../../palette/load";
-import { own } from "../../palette/own";
+import { own } from "../../util/own";
 import {
   createRoleResolver,
   type ResolvedVariant,

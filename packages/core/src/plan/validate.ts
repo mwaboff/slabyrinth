@@ -22,7 +22,7 @@ import type {
   Vec2,
 } from "../contracts/plan";
 import { BUILD_CONSTANTS, PLAN_LIMITS } from "../contracts/plan";
-import { own } from "../palette/own";
+import { own } from "../util/own";
 import { utf8Length } from "../util/hash";
 import { type GeneratorVocabulary, VOCABULARY_SINCE, generatorProfile } from "./generator";
 import { listForHint, nearest } from "../util/strings";

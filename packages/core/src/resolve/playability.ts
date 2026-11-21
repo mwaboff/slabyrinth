@@ -25,7 +25,7 @@ import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
 import { SIDE_STEP as DIRS } from "../gen/gridGeometry";
 import { sideEdgeIndex } from "./levelGrid";
-import { entryLevelId } from "./validate";
+import { entryLevelId } from "../plan/links";
 
 // ───────────────────────────── options and walk modes ─────────────────────────────
 

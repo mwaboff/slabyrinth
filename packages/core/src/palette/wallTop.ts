@@ -12,7 +12,7 @@
 import type { Palette, RoleName } from "../contracts/compiler";
 import type { Material, ThemeId } from "../contracts/plan";
 import { wallStyleInfo } from "../gen/wallStyles";
-import { own } from "./own";
+import { own } from "../util/own";
 import type { RoleResolution } from "./resolve";
 
 /** The material of a wall's top, or undefined when neither the wall nor its palette names one. */

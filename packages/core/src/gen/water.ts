@@ -13,7 +13,7 @@
  */
 import type { FeatureType } from "../contracts/plan";
 import { ValueNoise } from "./noise";
-import { gridProfile, type GeneratedPlacement, type PlacementGrid } from "./place";
+import { gridProfile, type GeneratedPlacement, type PlacementGrid } from "./placementGrid";
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
 

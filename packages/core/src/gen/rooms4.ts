@@ -22,7 +22,7 @@ import type { FeatureType, Rotation, Side } from "../contracts/plan";
 import { subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
 import { featureInfo, rotatedSize } from "./catalog";
-import type { GeneratedPlacement, PlacementGrid, ScatterResult } from "./place";
+import type { GeneratedPlacement, PlacementGrid, ScatterResult } from "./placementGrid";
 import { ROOM_PURPOSE_INFO, type FurnishedPurpose } from "./roomPurpose";
 import {
   EDGE_OPENING,

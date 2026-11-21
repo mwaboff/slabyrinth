@@ -13,7 +13,7 @@ import { MATERIALS } from "../../contracts/plan";
 import type { ResolvedFeature } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { LIGHT_FEATURES, featureInfo, isLandmark, rotatedSize } from "../../gen/catalog";
-import type { GeneratedPlacement, PlacementGrid } from "../../gen/place";
+import type { GeneratedPlacement, PlacementGrid } from "../../gen/placementGrid";
 import type { ChasmRecords } from "./chasms";
 import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
 import { type PathRecords, parkVehicle } from "./paths";
