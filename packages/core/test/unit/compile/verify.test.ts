@@ -18,6 +18,7 @@ import { checkPlayability, resolvePlan } from "../../../src/resolve";
 import { vEdgeIndex } from "../../../src/resolve/levelGrid";
 import { slabCodec } from "../../../src/slab";
 import { loadPlan } from "../../fixtures";
+import { oneLevelPlan } from "../../fixtures/planBuilder";
 import { handLevel, handPlan } from "./handResolved";
 import { clonePlaced, movePlaced, setPlacedBox } from "./placedSet";
 
@@ -449,6 +450,26 @@ describe("verify: one fixture per code", () => {
     expect(run(r, realize(r, cat), "verify_pokes_into_level_above")[0]).toMatchObject({
       severity: "warning",
       levelId: "lo",
+    });
+  });
+
+  it("verify_line_unanchored — an overhead line whose end posts are gone", () => {
+    const plan = oneLevelPlan({
+      generator: 3,
+      w: 24,
+      h: 12,
+      level: { lines: [{ id: "string", from: [4, 6], to: [18, 6], kind: "lanterns" }] },
+    });
+    const r = resolvePlan(plan, bundledPalettes());
+    const held = realize(r, cat);
+    expect(run(r, held, "verify_line_unanchored")).toEqual([]);
+    const set = realize(r, cat);
+    const posts = level0(set).filter((p) => (p.source.elementId ?? "").startsWith("string#post"));
+    expect(posts.length).toBeGreaterThan(0);
+    set.levels[0] = { levelId: "g", placements: level0(set).filter((p) => !posts.includes(p)) };
+    expect(run(r, set, "verify_line_unanchored")[0]).toMatchObject({
+      severity: "warning",
+      elementId: "string",
     });
   });
 });
