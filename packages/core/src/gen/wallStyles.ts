@@ -7,7 +7,7 @@
  * (`ResolvedArea.finish`: the theme's interior character, rough when gen/roomPurpose.ts finds the room abandoned); this
  * table only says whether the STYLE can carry the weathering at all.
  */
-import type { WallStyle } from "../contracts/plan";
+import type { Material, WallStyle } from "../contracts/plan";
 import { WALL_STYLES } from "../contracts/plan";
 
 /** What a wall style is made of; a consumer that needs a material (a skirt, a cap, a floor to match) reads this. */
@@ -37,13 +37,34 @@ export interface WallStyleInfo {
    * whether a given room is kept up (`ResolvedArea.finish`).
    */
   uneven: boolean;
+  /**
+   * The material a flat piece laid on top of this wall is made of (the cap that closes the gap between two tidy rooms,
+   * compile/realize/solidShell.ts): the floor role of that material, resolved through the palette like any floor.
+   * Null for the theme's own wall: the palette that supplies the wall decides (palette/wallTop.ts). Defaults to the
+   * family's material (`FAMILY_SURFACE`).
+   */
+  surface: Material | null;
 }
+
+/** The material of each wall family, as a flat surface (a wall's top). "theme" is the palette's to say. */
+const FAMILY_SURFACE: Record<WallFamily, Material | null> = {
+  theme: null,
+  stone: "flagstone",
+  brick: "brick",
+  timber: "wood_plank",
+  plaster: "stone_tile",
+  concrete: "concrete",
+  metal: "concrete",
+  rock: "rock",
+  plant: "grass",
+};
 
 const row = (family: WallFamily, flags: Partial<Omit<WallStyleInfo, "family">> = {}): WallStyleInfo => ({
   family,
   natural: false,
   low: false,
   uneven: false,
+  surface: FAMILY_SURFACE[family],
   ...flags,
 });
 
@@ -65,7 +86,7 @@ export const WALL_STYLE_INFO: Record<WallStyle, WallStyleInfo> = {
   concrete: row("concrete"),
   metal: row("metal"),
   panel: row("plaster"),
-  marble: row("stone"),
+  marble: row("stone", { surface: "marble" }),
   dark_stone: row("stone", { uneven: true }),
   timber: row("timber"),
 };

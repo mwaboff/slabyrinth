@@ -2,10 +2,12 @@
  * Realize, solid shell (generator 4, `solidShell`): a built interior is carved into a solid mass. planSolidShell runs
  * before the wall runs (its skirt edges join them); layShellCap lays the flat cap and the strips between rooms after
  * them. The shell itself is planned by compile/shell.ts.
- * Reads: the level's cells and structures, `claimed`, the palette's cap and floor roles. Writes: the `SolidShellPlan`
+ * Reads: the level's cells and structures, `claimed`, the palette's cap and wall roles and the floor role of a wall's
+ * top (palette/wallTop.ts). Writes: the `SolidShellPlan`
  * it returns (read by the wall, cap and rock wall passes); fill placements (layShellCap).
  */
 import type { ResolvedVariant, RoleResolution } from "../../palette/resolve";
+import { wallTopRoles } from "../../palette/wallTop";
 import { h32 } from "../geometry";
 import { SHELL, isCarvedLevel, planShell, type Shell } from "../shell";
 import type { EdgeCtx } from "./edges";
@@ -120,17 +122,18 @@ function layCap(lv: RealizeLevel, shell: Shell, capVariants: readonly ResolvedVa
   }
 }
 
-// in a tidy interior, a one-cell solid strip between two rooms is closed flush at wall-top height with a tile of the
-// floor of the room it joins, so two rooms read as sharing one thick wall instead of a trench
+// in a tidy interior, a one-cell solid strip between two rooms is closed flush at wall-top height with the top of the
+// wall it closes, so two rooms read as sharing one thick wall instead of a trench. The top belongs to the wall, not to
+// a room beside it: palette/wallTop.ts asks the palette what the wall, as built, is made of
 function layStrips(lv: RealizeLevel, shell: Shell): void {
   const { L, emit } = lv;
-  const { frame, lookup, pick } = lv.ctx;
+  const { frame, lookup, pick, palettes } = lv.ctx;
   for (const s of shell.strips) {
+    const wall = lookup(L.id, s.theme, [`wall.${s.style}`], undefined, true);
     const sr = lookup(
       L.id,
       s.theme,
-      // the floor role of the room the strip joins; the palette's own fallback chain covers a material it lacks
-      s.material ? [`floor.${s.material}`] : ["cap.solid"],
+      wallTopRoles(palettes.palettes, s.style, wall),
       { key: "strip1x1", test: (v) => v.footprint[0] === 1 && v.footprint[1] === 1 },
       true,
     );

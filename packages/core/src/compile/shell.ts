@@ -24,7 +24,7 @@
  * planShell is a list of steps over the level's cells (local indices): the wall faces, the cap top, the rings, the
  * blocks and the budget, the outline cleanup and the skirt, and the strips of a tidy interior.
  */
-import type { Material, Side, ThemeId } from "../contracts/plan";
+import type { Side, ThemeId } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { NEIGHBOURS4 as STEPS4, SIDES, SIDE_STEP } from "../gen/gridGeometry";
@@ -81,9 +81,12 @@ export interface Shell {
   edges: ShellEdge[];
   /**
    * Tidy interiors (timber, plaster) get no cap and no skirt, but a one-cell solid strip between two rooms (or a room and
-   * the corridor) is closed flush at wall-top height so the two rooms read as sharing one thick wall: single tiles.
+   * the corridor), at least one of them tidy, is closed flush at wall-top height so the two rooms read as sharing one
+   * thick wall: single tiles.
+   * A strip is the top of the wall it closes: `style` and `theme` are that wall's (the tallest one it backs onto), and
+   * the compiler lays the wall's top piece (palette/wallTop.ts), never a room's floor.
    */
-  strips: Array<{ x: number; y: number; theme: ThemeId; top: number; material: Material | null }>;
+  strips: Array<{ x: number; y: number; theme: ThemeId; top: number; style: string }>;
   /** Wall style of the skirt (the most common style of the walls that border the shell). */
   style: string;
   theme: ThemeId;
@@ -143,18 +146,22 @@ export function planShell(
   const g = shellGrid(L, defaultTheme);
   if (!L.cells.state.some((s, i) => i < g.w * g.h && s === CELL.SOLID)) return null;
   const faces = wallFaces(g, claimed);
-  if (faces.seeds.size === 0 && faces.tidyTop.size === 0) return null;
+  if (faces.seeds.size === 0 && faces.tidy.size === 0) return null;
   // the solid cells are shared with the cave rock mass (gen/solidMass.ts): each belongs to the dresser of the nearest
   // wall, so the cap and the rock meet with no gutter between them and no cell is dressed twice
   const owner = ownSolid(g, (i) => g.state(i) === CELL.SOLID, faces.rockFace, [
     ...faces.seeds.keys(),
-    ...faces.tidyTop.keys(),
+    ...faces.tidy.keys(),
   ]);
+  const rockOwns = (k: number): boolean => owner[k] === OWNER.rock;
+  // a one-cell gap between two rooms of a kept-up building is the top of their shared wall, not the cap's
+  const strip = stripCells(g, faces, rockOwns);
   const cap: CapPlan = {
     g,
     faces,
-    rockOwns: (k) => owner[k] === OWNER.rock,
-    ...capTop(faces),
+    rockOwns,
+    strip,
+    ...capTop(faces, strip),
     theme: new Map(),
     stacked: stackedLevels(resolved, L),
   };
@@ -176,7 +183,7 @@ export function planShell(
   if (cells.size === 0 && strips.length === 0) return null;
   return {
     cells,
-    top: faces.seeds.size > 0 ? cap.top : 0,
+    top: Number.isFinite(cap.flat) ? cap.top : 0,
     base: L.elevation + Math.min(0, faces.floorLow),
     edges,
     strips,
@@ -191,12 +198,19 @@ export function planShell(
 
 // ── wall faces ──
 
+/** The tallest thin wall a solid cell backs onto: its room's theme, its style and its top. */
+interface WallFace {
+  theme: ThemeId;
+  style: string;
+  top: number;
+}
+
 /** What the thin walls round a level's rooms say about the solid cells behind them (local indices). */
 interface WallFaces {
-  /** Solid cells against a thin wall of a rough room: the room's theme, the wall's style, the tallest wall top. */
-  seeds: Map<number, { theme: ThemeId; style: string; top: number }>;
-  /** Solid cells against a thin wall of a tidy room -> the tallest wall top. */
-  tidyTop: Map<number, number>;
+  /** Solid cells against a thin wall of a rough room. */
+  seeds: Map<number, WallFace>;
+  /** Solid cells against a thin wall of a tidy room: the tallest such wall's top, style and room theme. */
+  tidy: Map<number, WallFace>;
   /** Solid cells touching an open cell with no wall between (left uncapped). */
   bare: Set<number>;
   /** Solid cells behind a natural rock wall (the cave work owns them), once per face. */
@@ -221,13 +235,13 @@ function wallFaces(g: ShellGrid, claimed: (orient: "h" | "v", edge: number) => b
   const ref = areaReferenceHeights(L);
   const faces: WallFaces = {
     seeds: new Map(),
-    tidyTop: new Map(),
+    tidy: new Map(),
     bare: new Set(),
     rockFace: [],
     floorLow: 0,
     rough: roughCells(L),
   };
-  const { seeds, tidyTop, bare, rockFace, rough } = faces;
+  const { seeds, tidy, bare, rockFace, rough } = faces;
   for (let ly = 0; ly < h; ly++)
     for (let lx = 0; lx < w; lx++) {
       const i = ly * w + lx;
@@ -261,14 +275,11 @@ function wallFaces(g: ShellGrid, claimed: (orient: "h" | "v", edge: number) => b
         const hgt = (grid.height[e] ?? 0) > 0 ? (grid.height[e] ?? 2) : 2;
         const span = wallSpan(L.elevation, first, second, hostFirst, hgt, ref);
         const theme = L.themes[L.cells.theme[i] ?? 0] ?? defaultTheme;
-        // a tidy interior (ResolvedArea.finish, read through resolve/wallTops.ts roughCells) gets no cap and no skirt
-        if (rough[i] !== 1) {
-          tidyTop.set(j, Math.max(tidyTop.get(j) ?? -Infinity, span.top));
-          continue;
-        }
-        const prev = seeds.get(j);
-        // the cap sits flush with the tallest wall it backs onto
-        if (!prev || span.top > prev.top) seeds.set(j, { theme, style, top: span.top });
+        // the cap sits flush with the tallest wall it backs onto; a tidy interior (ResolvedArea.finish, read through
+        // resolve/wallTops.ts roughCells) gets no cap and no skirt, only the strips, which are that wall's top
+        const faced = rough[i] === 1 ? seeds : tidy;
+        const prev = faced.get(j);
+        if (!prev || span.top > prev.top) faced.set(j, { theme, style, top: span.top });
       }
     }
   return faces;
@@ -282,6 +293,8 @@ interface CapPlan {
   faces: WallFaces;
   /** The cave rock mass owns this solid cell (gen/solidMass.ts ownSolid): the shell leaves it. */
   rockOwns: (k: number) => boolean;
+  /** The tidy strips (stripCells): tops of shared walls, never capped. */
+  strip: ReadonlySet<number>;
   /** The most common wall top among the seeds (ties: the higher). */
   flat: number;
   /** The flat cap's top: `flat` plus the lift. */
@@ -293,15 +306,20 @@ interface CapPlan {
   stacked: StackedLevels;
 }
 
-/** May the cap take this solid cell (not bare, not the rock's)? */
+/** May the shell dress this solid cell (not bare, not the rock's)? */
+const dressable = (g: ShellGrid, faces: WallFaces, rockOwns: (k: number) => boolean, k: number): boolean =>
+  k >= 0 && g.state(k) === CELL.SOLID && !faces.bare.has(k) && !rockOwns(k);
+
+/** May the cap take this solid cell (dressable and not a strip)? */
 const cappable = (cap: CapPlan, k: number): boolean =>
-  k >= 0 && cap.g.state(k) === CELL.SOLID && !cap.faces.bare.has(k) && !cap.rockOwns(k);
+  dressable(cap.g, cap.faces, cap.rockOwns, k) && !cap.strip.has(k);
 
 /** The cap top: the most common wall top among the seeds (ties: the higher), so a lowered run sits below the cap. */
-function capTop(faces: WallFaces): { flat: number; top: number; style: string } {
+function capTop(faces: WallFaces, strip: ReadonlySet<number>): { flat: number; top: number; style: string } {
   const tally = new Map<number, number>();
   const styles = new Map<string, number>();
-  for (const s of faces.seeds.values()) {
+  for (const [j, s] of faces.seeds) {
+    if (strip.has(j)) continue;
     tally.set(s.top, (tally.get(s.top) ?? 0) + 1);
     styles.set(s.style, (styles.get(s.style) ?? 0) + 1);
   }
@@ -322,7 +340,7 @@ function reachRings(cap: CapPlan, seed: number): Map<number, number> {
   const noise = new ValueNoise(h32(`${seed}:${L.id}:shell`));
   const ring = new Map<number, number>();
   for (const [j, s] of faces.seeds) {
-    if (faces.bare.has(j) || cap.rockOwns(j)) continue;
+    if (faces.bare.has(j) || cap.rockOwns(j) || cap.strip.has(j)) continue;
     ring.set(j, 1);
     theme.set(j, s.theme);
   }
@@ -486,31 +504,50 @@ function stackedLevels(resolved: ResolvedPlan, L: ResolvedLevel): StackedLevels 
 
 // ── tidy strips ──
 
-/** A one-cell solid strip between two tidy rooms (or a room and the corridor), closed flush at wall-top height. */
-function tidyStrips(cap: CapPlan, cells: Shell["cells"]): Shell["strips"] {
-  const { g, faces, stacked } = cap;
-  const { L, w, h, defaultTheme } = g;
-  const { tidyTop, rough } = faces;
-  const tidyOpen = (k: number): boolean => k >= 0 && g.state(k) === CELL.OPEN && rough[k] !== 1;
+/**
+ * The one-cell solid strips of a kept-up building: a cell between two rooms (or a room and the corridor) where at least
+ * one of them is tidy, then the cells that join such strips. It is the top of the two rooms' shared wall: an abandoned
+ * (rough) room beside a tidy one does not turn the wall they share into the earth cap of a carved dungeon. Two rough
+ * rooms keep the cap between them (the rock mass of a carved level).
+ */
+function stripCells(g: ShellGrid, faces: WallFaces, rockOwns: (k: number) => boolean): Set<number> {
+  const { w, h } = g;
+  const { rough } = faces;
+  const open = (k: number): boolean => k >= 0 && g.state(k) === CELL.OPEN;
+  const tidyOpen = (k: number): boolean => open(k) && rough[k] !== 1;
   const strip = new Set<number>();
   for (let pass = 0; pass < 4; pass++) {
     for (let k = 0; k < w * h; k++) {
-      if (strip.has(k) || !cappable(cap, k)) continue;
+      if (strip.has(k) || !dressable(g, faces, rockOwns, k)) continue;
       const x = k % w;
       const y = (k - x) / w;
       const pairs: Array<[number, number]> = [
         [g.at(x - 1, y), g.at(x + 1, y)],
         [g.at(x, y - 1), g.at(x, y + 1)],
       ];
-      const ok = pairs.some(([a, b]) => {
-        const sa = a >= 0 && strip.has(a);
-        const sb = b >= 0 && strip.has(b);
-        return (tidyOpen(a) || sa) && (tidyOpen(b) || sb) && (pass === 0 ? tidyOpen(a) && tidyOpen(b) : true);
-      });
+      const ok = pairs.some(([a, b]) =>
+        pass === 0
+          ? (tidyOpen(a) && open(b)) || (open(a) && tidyOpen(b))
+          : (tidyOpen(a) || strip.has(a)) && (tidyOpen(b) || strip.has(b)),
+      );
       if (ok) strip.add(k);
     }
   }
-  const stripTopFallback = tidyTop.size > 0 ? Math.max(...tidyTop.values()) : 0;
+  return strip;
+}
+
+/** The strips closed flush at wall-top height (the ones not hidden by a level above or hiding one below). */
+function tidyStrips(cap: CapPlan, cells: Shell["cells"]): Shell["strips"] {
+  const { g, faces, stacked, strip } = cap;
+  const { L, w, defaultTheme } = g;
+  const { tidy, seeds } = faces;
+  const taller = (a: WallFace | undefined, b: WallFace | undefined): WallFace | undefined =>
+    b && (!a || b.top > a.top) ? b : a;
+  const fallback: WallFace = [...tidy.values()].reduce<WallFace | undefined>(taller, undefined) ?? {
+    theme: defaultTheme,
+    style: "wall",
+    top: 0,
+  };
   const strips: Shell["strips"] = [];
   for (const k of [...strip].sort((a, b) => a - b)) {
     const x = k % w;
@@ -518,35 +555,16 @@ function tidyStrips(cap: CapPlan, cells: Shell["cells"]): Shell["strips"] {
     const gx = L.bounds.x + x;
     const gy = L.bounds.y + y;
     if (cells.has(k) || stacked.hiddenAbove(gx, gy, cap.top) || stacked.hidesBelow(gx, gy)) continue;
-    // the tallest wall top among this cell's own walls, else its strip neighbours' (a junction of two strips)
-    let t = tidyTop.get(k) ?? -Infinity;
-    if (t === -Infinity)
+    // the strip is the top of the tallest wall among this cell's own walls, else among its strip neighbours' (a
+    // junction of two strips): its height, its style (the compiler asks the palette for that wall's top) and theme
+    let face = taller(tidy.get(k), seeds.get(k));
+    if (!face)
       for (const [dx, dy] of STEPS4) {
         const q = g.at(x + dx, y + dy);
-        if (q >= 0 && tidyTop.has(q)) t = Math.max(t, tidyTop.get(q) as number);
+        if (q >= 0) face = taller(face, tidy.get(q));
       }
-    if (t === -Infinity) t = stripTopFallback;
-    // the strip is laid with the floor of the room it joins (the compiler asks the palette for that floor's role)
-    const room = nearestOpen(g, k);
-    const mat = L.cells.material[room] ?? 0;
-    strips.push({
-      x: gx,
-      y: gy,
-      theme: L.themes[L.cells.theme[room] ?? 0] ?? defaultTheme,
-      top: t + SHELL.lift,
-      material: mat > 0 ? (L.materials[mat - 1] ?? null) : null,
-    });
+    const { theme, style, top } = face ?? fallback;
+    strips.push({ x: gx, y: gy, theme, top: top + SHELL.lift, style });
   }
   return strips;
-}
-
-/** The first open neighbour of a cell (east, west, south, north), else the cell itself. */
-function nearestOpen(g: ShellGrid, k: number): number {
-  const x = k % g.w;
-  const y = (k - x) / g.w;
-  for (const [dx, dy] of STEPS4) {
-    const q = g.at(x + dx, y + dy);
-    if (q >= 0 && g.state(q) === CELL.OPEN) return q;
-  }
-  return k;
 }

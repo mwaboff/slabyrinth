@@ -15,6 +15,7 @@ import { accentTop, purposeFloor } from "../../../src/resolve/interiorFloors";
 import { LevelGrid, sideOrient } from "../../../src/resolve/levelGrid";
 import { builtinThemeDefaults, themeInterior } from "../../../src/resolve/themes";
 import { createPaletteView } from "../../../src/palette/view";
+import { resolveRole } from "../../../src/palette/resolve";
 import { reviewDesign } from "../../../src/review";
 import { slabCodec } from "../../../src/slab";
 import { h32 } from "../../../src/util/hash";
@@ -412,6 +413,83 @@ describe("generator 4 shell: tidy buildings, outline", () => {
     // one tile per strip cell, no pale earth cap
     expect(shellPieces.length).toBeGreaterThan(10);
     expect(shellPieces.length).toBeLessThanOrEqual(shell?.strips.length ?? 0);
+  });
+  describe("a strip is the top of the wall it closes, not a floor of a room beside it", () => {
+    /** The asset uuids a theme's floor role of `material` resolves to. */
+    const floorAssets = (theme: string, material: string): Set<string> =>
+      new Set(
+        (resolveRole(palettes, theme, `floor.${material}`).resolution?.variants ?? []).map((v) => v.uuid),
+      );
+    /** Each strip's cap asset with the floor materials of the rooms on its two sides. */
+    const caps = (plan: MapPlan): Array<{ x: number; y: number; asset: string; floors: string[] }> => {
+      const R = resolvePlan(plan, palettes);
+      const L = R.levels[0] as ResolvedLevel;
+      const G = new LevelGrid(L, "generic");
+      const pieces = realize(R, palettes, {}).levels[0]?.placements ?? [];
+      const out: Array<{ x: number; y: number; asset: string; floors: string[] }> = [];
+      for (const s of planShell(R, L, h32(R.planId), () => false, "generic")?.strips ?? []) {
+        const p = pieces.find(
+          (q) => q.source.elementId === "shell" && q.source.cell?.[0] === s.x && q.source.cell[1] === s.y,
+        );
+        if (!p) continue;
+        const floors = [
+          [s.x - 1, s.y],
+          [s.x + 1, s.y],
+          [s.x, s.y - 1],
+          [s.x, s.y + 1],
+        ]
+          .map(([x, y]) => G.cell(x as number, y as number))
+          .filter((c) => c.open && c.material !== null)
+          .map((c) => c.material as string);
+        out.push({ x: s.x, y: s.y, asset: p.asset, floors });
+      }
+      return out;
+    };
+
+    it("a timber building caps the wall between a stone-floored and a wood-floored room in timber", () => {
+      const found = caps(inn());
+      const plank = floorAssets("wood_town", "wood_plank");
+      // the inn has rooms of stone tile and cobble beside rooms of plank; the strips between them are the test
+      const mixed = found.filter(
+        (c) => c.floors.includes("wood_plank") && c.floors.some((f) => f !== "wood_plank"),
+      );
+      expect(mixed.length).toBeGreaterThan(5);
+      for (const c of found) expect(plank.has(c.asset)).toBe(true);
+      for (const c of mixed)
+        for (const f of c.floors.filter((m) => m !== "wood_plank"))
+          expect(floorAssets("wood_town", f).has(c.asset), `cap on a ${f} room's floor`).toBe(false);
+    });
+
+    it("the cap follows the wall's material when the walls change, whatever the floors", () => {
+      const plan = inn();
+      for (const lv of plan.levels) for (const a of lv.areas) a.wallStyle = "stone";
+      const found = caps(plan);
+      expect(found.length).toBeGreaterThan(10);
+      const stone = floorAssets("wood_town", "flagstone");
+      for (const c of found) expect(stone.has(c.asset)).toBe(true);
+    });
+
+    it("an abandoned room beside a kept-up one shares a wall top with it, not the earth cap", () => {
+      const R = resolvePlan(loadPlan("purpose-lineup-v1"), palettes);
+      const L = R.levels[0] as ResolvedLevel;
+      const G = new LevelGrid(L, "generic");
+      const shell = planShell(R, L, h32(R.planId), () => false, "generic");
+      const finish = (x: number, y: number): string | undefined => {
+        const c = G.cell(x, y);
+        return c.open ? L.areas.find((a) => a.id === L.areaIds[c.area - 1])?.finish : undefined;
+      };
+      // the gap between the tidy kitchen and the ruined (rough) cellar
+      const between = (shell?.strips ?? []).filter((s) => {
+        const sides = [finish(s.x - 1, s.y), finish(s.x + 1, s.y)];
+        return sides.includes("tidy") && sides.includes("rough");
+      });
+      expect(between.length).toBeGreaterThan(3);
+      for (const s of between) expect(shell?.cells.has(G.index(s.x, s.y))).toBe(false);
+      const plank = floorAssets("wood_town", "wood_plank");
+      const capped = caps(loadPlan("purpose-lineup-v1"));
+      for (const s of between)
+        expect(plank.has(capped.find((c) => c.x === s.x && c.y === s.y)?.asset ?? "")).toBe(true);
+    });
   });
   it("the same plan in a stone dungeon keeps the cap and skirt", () => {
     const R = resolvePlan(inn("stone_dungeon"), bundledPalettes());
