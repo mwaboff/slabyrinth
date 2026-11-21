@@ -14,7 +14,7 @@ import { realize } from "../../../src/compile/realize";
 import { placedBox, placedName } from "../../../src/compile/placed";
 import { verifyBuild } from "../../../src/compile/verify";
 import { bundledPalettes, loadPalettes } from "../../../src/palette/load";
-import { createPaletteView, resolveView } from "../../../src/palette/view";
+import { createPaletteView, paletteView, resolveView } from "../../../src/palette/view";
 import { coveredStallForms } from "../../../src/palette/stallParts";
 import { STALL_KINDS } from "../../../src/contracts/plan";
 import { STALL_KIND_INFO, stallKindInfo, stallPieceOf } from "../../../src/gen/market";
@@ -433,7 +433,9 @@ describe("one palette view, one stall capability", () => {
   it("resolveView: the compiled palettes decide from generator 4 on, the bundled ones before (frozen output)", () => {
     const noPost = strip("stall.post");
     expect(resolveView({ generator: 4 }, noPost).stallForms("wood_town")).toEqual([]);
-    expect(resolveView({ generator: 3 }, noPost).stallForms("wood_town")).toEqual(["gable", "flat"]);
+    // generator 3 asks the bundled palettes, at its own generator: the generator-4 stall parts are not there for it
+    expect(resolveView({ generator: 3 }, noPost)).toBe(paletteView(bundledPalettes(), 3));
+    expect(resolveView({ generator: 3 }, noPost).stallForms("wood_town")).toEqual([]);
     expect(resolveView({ generator: 4 }, bundledPalettes()).stallForms("wood_town")).toEqual([
       "gable",
       "flat",

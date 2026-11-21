@@ -85,10 +85,7 @@ const ROLE_OF: Partial<Record<FeatureType, string>> = {
   cliff_crest: CLIFF_CREST_ROLE,
 };
 
-/**
- * A view of `catalog`. `generator` hides roles introduced after it (default: the newest generator, which hides none
- * the resolver asks about: the older generators' answers do not depend on it).
- */
+/** A view of `catalog` as `generator` sees it: roles introduced after it (`minGenerator`) are hidden. */
 export function createPaletteView(
   catalog: ResolvePalettes,
   generator: number = GENERATOR_VERSION,
@@ -173,23 +170,34 @@ export function createPaletteView(
   return { pieceSize, roomPiece, stallForms, floorTileArea, probe, themeDefaults };
 }
 
-const views = new WeakMap<ResolvePalettes, PaletteView>();
+const views = new WeakMap<ResolvePalettes, Map<number, PaletteView>>();
 
-/** The view of `palettes`, built once per catalog object (its answers are memoized), so every stage shares it. */
-export function paletteView(palettes: ResolvePalettes): PaletteView {
-  let view = views.get(palettes);
+/**
+ * The view of `palettes` as `generator` sees it (roles introduced after it hidden; default the newest), built once per
+ * catalog object and generator (its answers are memoized), so every stage of one build shares it and a plan of one
+ * generator never sees roles of a later one.
+ */
+export function paletteView(palettes: ResolvePalettes, generator: number = GENERATOR_VERSION): PaletteView {
+  let byGenerator = views.get(palettes);
+  if (!byGenerator) {
+    byGenerator = new Map();
+    views.set(palettes, byGenerator);
+  }
+  let view = byGenerator.get(generator);
   if (!view) {
-    view = createPaletteView(palettes);
-    views.set(palettes, view);
+    view = createPaletteView(palettes, generator);
+    byGenerator.set(generator, view);
   }
   return view;
 }
 
 /**
- * The view a plan is resolved with, given the palettes it is compiled with. From generator 4 on the resolver decides
- * from those palettes (user palettes, game availability), so a covered stall is only laid out where the build can make
- * it; the released generators decide from the bundled palettes whatever is compiled (their output is frozen).
+ * The view a plan is resolved with, given the palettes it is compiled with, at the plan's own generator. From generator
+ * 4 on the resolver decides from those palettes (user palettes, game availability), so a covered stall is only laid
+ * out where the build can make it; the released generators decide from the bundled palettes whatever is compiled
+ * (their output is frozen).
  */
 export function resolveView(plan: Pick<MapPlan, "generator">, palettes: ResolvePalettes): PaletteView {
-  return paletteView(generatorProfile(plan).resolveWithCompilePalettes ? palettes : bundledPalettes());
+  const catalog = generatorProfile(plan).resolveWithCompilePalettes ? palettes : bundledPalettes();
+  return paletteView(catalog, plan.generator);
 }
