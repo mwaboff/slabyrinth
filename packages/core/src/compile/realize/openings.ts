@@ -9,6 +9,7 @@ import type { ResolvedVariant } from "../../palette/resolve";
 import type { WallFace } from "../../resolve/wallFaces";
 import { faceEdgeCtx, lenFilter, lengthOf, placeEdgePiece, type CornerStrips, type EdgeCtx } from "./edges";
 import { OPPOSITE } from "../../gen/gridGeometry";
+import { isSecret } from "../../gen/openingKinds";
 import { EPS, type RealizeLevel } from "./level";
 
 /** Opening roles whose asset is a full-height wall piece (no lintel above them). */
@@ -60,7 +61,7 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
         source,
         isDoor,
       );
-      if (op.kind === "secret_door" && i === 0) noteSecretDoorPlug(lv, op, c, v, r.role);
+      if (isSecret(op.kind) && i === 0) noteSecretDoorPlug(lv, op, c, v, r.role);
       // wall pieces above a door shorter than the wall
       const leafTop = c.base + v.unitHeight;
       const wallTop = Math.max(...ctxs.slice(i, i + n).map((q) => q.top));

@@ -20,6 +20,7 @@ import type {
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
 import { SIDE_ROT } from "../gen/gridGeometry";
+import { isSecret, isWindow } from "../gen/openingKinds";
 import { cellIndex, hEdgeIndex, vEdgeIndex } from "../resolve/levelGrid";
 import { gableRoof, hipRoof, ringLayer, shedRoof, spireShell } from "../resolve/roof";
 import { traceRings } from "../resolve/trace";
@@ -54,8 +55,6 @@ export const DEFAULT_DISPLAY_OPTIONS: DisplayOptions = {
 
 /** Symbol rotation of a link or a flight of steps climbing toward a side (0 = climbing north, the screen's up). */
 const DIR_ROT: Record<Side, number> = { N: 0, E: 90, S: 180, W: 270 };
-/** Openings drawn as wall (with an overlay symbol) rather than as a gap. */
-const WALL_LIKE_OPENINGS = new Set(["window", "arrow_slit"]);
 
 /** "L1", "L2"… in tab order: entry level first, then by distance in elevation (ties: higher first). */
 export function levelLabels(
@@ -322,7 +321,8 @@ export function buildDisplayList(
   const openings = level.openings;
   const openingAsWall = (o: ResolvedOpening | undefined): boolean =>
     !!o &&
-    (WALL_LIKE_OPENINGS.has(o.kind) || (!opts.gmLayer && (o.gmOnly === true || o.kind === "secret_door")));
+    // a window is drawn as wall (with an overlay symbol) rather than as a gap
+    (isWindow(o.kind) || (!opts.gmLayer && (o.gmOnly === true || isSecret(o.kind))));
   const styleKeys: string[] = [""];
   const styleKey = (style: string): number => {
     const tok = style === "wall" ? "wall" : `wall-${style}`;
@@ -400,7 +400,7 @@ export function buildDisplayList(
   // ── openings ──
   openings.forEach((o) => {
     if (o.kind === "open") return;
-    if (!opts.gmLayer && (o.gmOnly === true || o.kind === "secret_door")) return;
+    if (!opts.gmLayer && (o.gmOnly === true || isSecret(o.kind))) return;
     const g = o.orientation === "h" ? H : V;
     const lx = o.start[0] - bx;
     const ly = o.start[1] - by;
@@ -428,7 +428,7 @@ export function buildDisplayList(
     }
     items.push({
       layer: "opening",
-      style: o.kind === "secret_door" ? "secret" : "door",
+      style: isSecret(o.kind) ? "secret" : "door",
       symbol: sym,
       ref: o.id,
     });

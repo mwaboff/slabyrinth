@@ -11,6 +11,7 @@ import type { LevelId, Side } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import { CELL_FLAG } from "../../contracts/resolved";
 import { OPPOSITE, SIDE_STEP } from "../../gen/gridGeometry";
+import { isPassage } from "../../gen/openingKinds";
 import type { LevelGrid } from "../../resolve/levelGrid";
 import type { VerifyCtx } from "./context";
 import { overlap1, type Solid, type SolidIndex } from "./grid";
@@ -25,9 +26,6 @@ import {
 import { fmt, planElements, solidLabel, uniq } from "./words";
 
 type Opening = ResolvedLevel["openings"][number];
-
-/** Opening kinds that are not passages (no standing-room or reachability semantics). */
-export const NOT_PASSAGE = new Set(["window", "arrow_slit", "bars"]);
 
 /** One edge of an opening: cell `a` (north or west of it) and cell `b`, on whose `sideOfB` side the edge lies. */
 export interface OpeningEdge {
@@ -100,7 +98,7 @@ export function checkOpenings(ctx: VerifyCtx, solids: SolidIndex): BlockedOpenin
       );
       const edges = openingEdges(op);
       checkDoorPieces(ctx, solids, L, g, op, edges, pieces);
-      if (!NOT_PASSAGE.has(op.kind)) checkPassage(ctx, solids, L, g, op, edges, blocked);
+      if (isPassage(op.kind)) checkPassage(ctx, solids, L, g, op, edges, blocked);
     }
   }
   return blocked;

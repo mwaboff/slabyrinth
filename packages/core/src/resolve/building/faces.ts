@@ -10,7 +10,8 @@ import { BUILD_CONSTANTS } from "../../contracts/plan";
 import { SIDE_STEP as STEP, SIDES } from "../../gen/gridGeometry";
 import { WINDOW_SPACING } from "../structureStyles";
 import type { BuildingCtx } from "./context";
-import { along, DOOR_KINDS, type FaceRun, faceKey, faceRuns, key, pickRange } from "./footprint";
+import { isPassage } from "../../gen/openingKinds";
+import { along, type FaceRun, faceKey, faceRuns, key, pickRange } from "./footprint";
 import type { Chimney, GroundOpening, UpperOpening, VolumePlan, VStorey } from "./types";
 import type { GroundFootprint } from "./volumes";
 
@@ -72,7 +73,7 @@ export function placeOpenings(
   const { st, profile, prng } = b;
   const count = main.storeys.length;
   const opens: WrittenOpening[] = [...(st.openings ?? [])];
-  if (!opens.some((o) => (o.storey ?? 0) === 0 && DOOR_KINDS.has(o.kind))) {
+  if (!opens.some((o) => (o.storey ?? 0) === 0 && isPassage(o.kind))) {
     const sides = SIDES.filter((s) => {
       const r = faceRuns(fp.cellSet, s)[0];
       if (!r) return false;
@@ -99,7 +100,7 @@ export function placeOpenings(
       continue;
     }
     const width = Math.min(o.width ?? (o.kind === "double_door" ? 2 : 1), run.cells.length);
-    const pos = o.position ?? (DOOR_KINDS.has(o.kind) ? pickRange(prng, profile.variety.doorPosition) : 0.5);
+    const pos = o.position ?? (isPassage(o.kind) ? pickRange(prng, profile.variety.doorPosition) : 0.5);
     const a = along(run, pos, width);
     const c = run.cells[a] as [number, number];
     const [vk, vs] = faces.keyOf(main, s);
@@ -130,7 +131,7 @@ export function placeChimneys(
   const { st, profile, prng } = b;
   const chimneys: Chimney[] = [];
   const doorFaces = new Set(
-    opens.filter((o) => (o.storey ?? 0) === 0 && DOOR_KINDS.has(o.kind)).map((o) => o.side),
+    opens.filter((o) => (o.storey ?? 0) === 0 && isPassage(o.kind)).map((o) => o.side),
   );
   const chimneyFaces = ((): Side[] => {
     // generator 3: a hip roof has no gable wall to carry a stack, so a drawn chimney would stand apart from wall and roof
@@ -195,7 +196,7 @@ export function placeChimneys(
 /** The street face (given, else the first door's face) and whether it is a shopfront (written, or drawn: prng3). */
 export function drawFrontage(b: BuildingCtx, faces: BuildingFaces): { side: Side; shopfront: boolean } {
   const { st, profile, prng3 } = b;
-  const side: Side = st.front ?? faces.ground.find((g) => DOOR_KINDS.has(g.kind))?.side ?? "S";
+  const side: Side = st.front ?? faces.ground.find((g) => isPassage(g.kind))?.side ?? "S";
   const shopfront = st.shopfront ?? (profile.shopfront ? prng3.chance(profile.shopfront) : false);
   return { side, shopfront };
 }

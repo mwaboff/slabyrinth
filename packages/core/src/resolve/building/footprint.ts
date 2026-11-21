@@ -2,7 +2,7 @@
  * Footprint geometry of a building or enclosure: cells as "x,y" keys (string order is part of the output: rings and
  * cell lists are walked sorted), straight runs of a face, the ring around a footprint, and rect helpers.
  */
-import type { OpeningKind, Side } from "../../contracts/plan";
+import type { Side } from "../../contracts/plan";
 import { SIDE_STEP as STEP } from "../../gen/gridGeometry";
 import type { Prng } from "../../util/prng";
 
@@ -13,17 +13,6 @@ export const cellOf = (k: string): [number, number] => k.split(",").map(Number) 
 
 /** A face cell's key with its side: "x,y,side". */
 export const faceKey = (x: number, y: number, side: Side): string => `${x},${y},${side}`;
-
-/** Opening kinds a person walks through (a building's door, which a default door is added for when it has none). */
-export const DOOR_KINDS = new Set<OpeningKind>([
-  "door",
-  "double_door",
-  "locked_door",
-  "secret_door",
-  "archway",
-  "open",
-  "portcullis",
-]);
 
 export type Rect = { x: number; y: number; w: number; h: number };
 

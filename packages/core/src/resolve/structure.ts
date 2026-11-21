@@ -50,7 +50,8 @@ import {
   placeDoorLights,
   reservedCells,
 } from "./building/fittings";
-import { DOOR_KINDS, along, faceRuns, key, ringOf } from "./building/footprint";
+import { isPassage, isSecret } from "../gen/openingKinds";
+import { along, faceRuns, key, ringOf } from "./building/footprint";
 import { placePorches } from "./building/porches";
 import type { BuildingPlan, StoreyPlan, VolumePlan } from "./building/types";
 import { groundFootprint, planVolumes, volumeSpecs } from "./building/volumes";
@@ -164,7 +165,7 @@ export class StructureWork {
       const plinthQ = Math.round((b.plinth?.height ?? 0) * 4);
       let front = -Infinity;
       for (const g of b.ground) {
-        if (!DOOR_KINDS.has(g.kind)) continue;
+        if (!isPassage(g.kind)) continue;
         const [dx, dy] = STEP[g.side];
         for (let k = 0; k < g.width; k++) {
           const ax = g.side === "N" || g.side === "S" ? g.at[0] + k : g.at[0];
@@ -219,7 +220,7 @@ export class StructureWork {
           const ox = g.at[0] + (off[0] as number) + dx;
           const oy = g.at[1] + (off[1] as number) + dy;
           const i = w.idx(ox, oy);
-          if (DOOR_KINDS.has(g.kind) && (i < 0 || w.state[i] !== CELL.OPEN)) {
+          if (isPassage(g.kind) && (i < 0 || w.state[i] !== CELL.OPEN)) {
             this.issue(
               "error",
               b.si,
@@ -846,7 +847,7 @@ function plinthElements(
   if (p.approach === "steps" && p.height > BUILD_CONSTANTS.floorThickness) {
     const n = Math.ceil(p.height);
     b.ground.forEach((g, gi) => {
-      if (!DOOR_KINDS.has(g.kind) || g.kind === "secret_door") return;
+      if (!isPassage(g.kind) || isSecret(g.kind)) return;
       const [dx, dy] = STEP[g.side];
       // the outermost plinth cell in front of the door, then n cells of steps outward
       let m = 1;

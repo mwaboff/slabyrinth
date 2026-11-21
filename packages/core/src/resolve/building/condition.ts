@@ -12,13 +12,14 @@
  */
 import type { Side } from "../../contracts/plan";
 import { SIDE_STEP as STEP, SIDES } from "../../gen/gridGeometry";
+import { isPassage, isWindow } from "../../gen/openingKinds";
 import { subSeed } from "../../util/hash";
 import { createPrng, type Prng } from "../../util/prng";
 import { climbingGrowth } from "../growth";
 import { type RuinProfile, ruinProfile, scatterTopRubble } from "../ruin";
 import type { BuildingCtx } from "./context";
 import { type BuildingFaces, GROUND_FACES, party } from "./faces";
-import { alongFace, cellOf, DOOR_KINDS, faceKey, faceRuns, key, ringOf } from "./footprint";
+import { alongFace, cellOf, faceKey, faceRuns, key, ringOf } from "./footprint";
 import type { BuildingPlan, Chimney, GroundOpening, VolumePlan } from "./types";
 
 type GrowthLevel = NonNullable<BuildingPlan["growthLevel"]>;
@@ -90,7 +91,7 @@ export function applyCondition(
   breakRoofs(d);
   if (ruined) {
     // the chimney fell with the roof (planBuilding keeps none); doorways stand empty
-    for (const g of faces.ground) if (DOOR_KINDS.has(g.kind)) g.kind = "open";
+    for (const g of faces.ground) if (isPassage(g.kind)) g.kind = "open";
     breachGroundStorey(d);
   }
   // generator 3: broken blocks and rubble on the cut wall tops (never over a doorway, breach or window)
@@ -156,7 +157,7 @@ function dropWindowsAboveWallTops({ ruin, vplans, faces }: DecayWork): void {
   const ground = faces.ground;
   for (let i = ground.length - 1; i >= 0; i--) {
     const g = ground[i];
-    if (!g || (g.kind !== "window" && g.kind !== "arrow_slit")) continue;
+    if (!g || !isWindow(g.kind)) continue;
     for (let k = 0; k < g.width; k++) {
       const [gx, gy] = alongFace(g.at, g.side, k);
       if ((tops.get(faceKey(gx, gy, g.side)) ?? Infinity) < groundTop - 1e-6) {
@@ -190,8 +191,8 @@ function weather(d: DecayWork, hadChimney: boolean): void {
     secondRoofHole(ruin, ts, wp);
   }
   const wins = [
-    ...d.faces.ground.filter((g) => g.kind === "window" || g.kind === "arrow_slit"),
-    ...d.faces.upper.filter((g) => g.kind === "window" || g.kind === "arrow_slit"),
+    ...d.faces.ground.filter((g) => isWindow(g.kind)),
+    ...d.faces.upper.filter((g) => isWindow(g.kind)),
   ];
   const boarded = boardWindows(d.faces, wins, wp);
   const bites = biteParapets(vplans, wp);
@@ -273,12 +274,7 @@ function boardWindows(
   for (const list of [faces.ground, faces.upper])
     for (let i = list.length - 1; i >= 0; i--) {
       const g = list[i];
-      if (
-        g &&
-        (g.kind === "window" || g.kind === "arrow_slit") &&
-        board.has(faceKey(g.at[0], g.at[1], g.side))
-      )
-        list.splice(i, 1);
+      if (g && isWindow(g.kind) && board.has(faceKey(g.at[0], g.at[1], g.side))) list.splice(i, 1);
     }
   return boarded;
 }
@@ -573,7 +569,7 @@ function climbing(
   };
   // (heavy growth frames the windows: ivy runs up to a window's edge, never across it)
   for (const g of ground)
-    if (heavyGrowth && (g.kind === "window" || g.kind === "arrow_slit")) around(g.at, g.side, 0, g.width - 1);
+    if (heavyGrowth && isWindow(g.kind)) around(g.at, g.side, 0, g.width - 1);
     else around(g.at, g.side, -1, g.width);
   for (const q of ruin.arches ?? []) around(q.at, q.side, -1, q.width);
   // (a weathered or ruined building has lost its chimney: none to keep clear)

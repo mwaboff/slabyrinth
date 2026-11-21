@@ -7,7 +7,8 @@ import { SIDE_STEP as STEP } from "../../gen/gridGeometry";
 import type { RuinProfile } from "../ruin";
 import type { BuildingCtx } from "./context";
 import { type BuildingFaces, GROUND_FACES } from "./faces";
-import { alongFace, cellOf, DOOR_KINDS, faceKey, faceRuns, key, ringOf } from "./footprint";
+import { isPassage, isSecret } from "../../gen/openingKinds";
+import { alongFace, cellOf, faceKey, faceRuns, key, ringOf } from "./footprint";
 import type { BuildingPlan, Chimney, GroundOpening, Porch } from "./types";
 import type { GroundFootprint } from "./volumes";
 
@@ -20,7 +21,7 @@ export function placeDoorLights(
   const lights: BuildingPlan["lights"] = [];
   if (!doorLights) return lights;
   for (const g of faces.ground) {
-    if (!DOOR_KINDS.has(g.kind) || g.kind === "secret_door") continue;
+    if (!isPassage(g.kind) || isSecret(g.kind)) continue;
     const run = faceRuns(fp.cellSet, g.side).find((r) =>
       r.cells.some((c) => c[0] === g.at[0] && c[1] === g.at[1]),
     );
@@ -173,7 +174,7 @@ export function reservedCells(
 ): Set<string> {
   const reserve = new Set<string>(ringOf(fp.cellSet));
   for (const g of ground) {
-    if (!DOOR_KINDS.has(g.kind)) continue;
+    if (!isPassage(g.kind)) continue;
     const [dx, dy] = STEP[g.side];
     const reach = 2 + (plinth ? plinth.margin + Math.ceil(plinth.height) : 0);
     for (let k = 0; k < g.width; k++) {

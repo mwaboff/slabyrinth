@@ -11,6 +11,7 @@
 import type { MapPlan, PlanIssue, PlanIssueCode, Vec2 } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
+import { isPassage } from "../gen/openingKinds";
 import type { ResolvePalettes } from "../palette/resolve";
 import { entryLevelId } from "../plan/links";
 import { edgeIndex, sideEdgeIndex } from "./levelGrid";
@@ -26,8 +27,6 @@ const fromWp1 = (i: PlanIssue): boolean =>
   (i.severity === "error" && WP1_ERROR_CODES.has(i.code)) ||
   (i.code === "shape_invalid" && i.message.includes("not axis-aligned")) ||
   (i.code === "opening_no_boundary" && i.message.includes("needs two different sides"));
-
-const BLOCKING_OPENINGS = new Set(["window", "arrow_slit", "bars"]);
 
 export interface GeometryCheckContext {
   /** Extra blocked cells / openings (e.g. from realized geometry) for the playability pass. */
@@ -268,7 +267,7 @@ export function reachableCells(plan: MapPlan, resolved: ResolvedPlan): Map<strin
       if (k === EDGE.LEDGE) return (g.height[e] as number) <= 0.5;
       if (k === EDGE.OPENING) {
         const o = l.openings[g.ref[e] as number];
-        return !o || !BLOCKING_OPENINGS.has(o.kind);
+        return !o || isPassage(o.kind);
       }
       return false;
     };

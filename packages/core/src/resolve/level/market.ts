@@ -20,6 +20,7 @@ import type {
 import { CELL, CELL_FLAG } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { FACE_ROT as TURN, SIDE_STEP as STEP } from "../../gen/gridGeometry";
+import { isPassage } from "../../gen/openingKinds";
 import {
   TRADE_PROPS,
   stallKindInfo,
@@ -433,7 +434,7 @@ function stepTradeProps(
     // a door (not a window) on the front edge of cell (cx, cy) or of a cell beside it along the frontage
     const doorOn = (cx: number, cy: number): boolean =>
       openings.some((o) => {
-        if (o.kind === "window" || o.kind === "arrow_slit" || o.kind === "bars") return false;
+        if (!isPassage(o.kind)) return false;
         const [sx, sy] = o.start;
         if (o.orientation === "h") {
           const ey = side === "S" ? cy + 1 : cy;

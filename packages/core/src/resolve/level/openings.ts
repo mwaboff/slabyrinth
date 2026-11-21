@@ -8,6 +8,7 @@
 import type { OpeningKind } from "../../contracts/plan";
 import type { ResolvedOpening } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
+import { isSecret } from "../../gen/openingKinds";
 import { edgeCol, edgeRow } from "../levelGrid";
 import type { RouteRecord } from "./areas";
 import type { AreaInfo, ResolveGrid } from "./grid";
@@ -135,7 +136,7 @@ function placeOpening(
     theme: work.themes[work.theme[b >= 0 ? b : a] ?? 0] ?? work.levelTheme,
   };
   if (o.label !== undefined) rec.label = o.label;
-  if (o.gmOnly === true || o.kind === "secret_door") rec.gmOnly = true;
+  if (o.gmOnly === true || isSecret(o.kind)) rec.gmOnly = true;
   out.push(rec);
   for (const i of idx) {
     const wasWall = e.kind[i] === EDGE.WALL;

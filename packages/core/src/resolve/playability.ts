@@ -23,6 +23,7 @@ import type {
 import type { ResolvedLevel, ResolvedLink, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
+import { isPassage, isSecret } from "../gen/openingKinds";
 import { SIDE_STEP as DIRS } from "../gen/gridGeometry";
 import { sideEdgeIndex } from "./levelGrid";
 import { entryLevelId } from "../plan/links";
@@ -59,7 +60,6 @@ export interface LevelCell {
   cell: number;
 }
 
-const NON_PASSABLE_OPENINGS = new Set(["window", "arrow_slit", "bars"]);
 const MAX_STEP_QUARTERS = 2; // a 0.5-tile step can be walked; more needs stairs
 const SEATS = new Set(["chair", "stool", "bench"]);
 const TABLES = new Set(["table", "round_table", "desk", "counter", "bar_counter"]);
@@ -294,8 +294,8 @@ export class WalkGraph {
     if (kind === EDGE.OPENING) {
       const o = l.openings[ref];
       if (!o) return [j, true];
-      if (NON_PASSABLE_OPENINGS.has(o.kind)) return [j, false];
-      if (o.kind === "secret_door" && !m.secret) return [j, false];
+      if (!isPassage(o.kind)) return [j, false];
+      if (isSecret(o.kind) && !m.secret) return [j, false];
       if (m.ignoreFeatures !== true && d.blockedOpening.has(o.id)) return [j, false];
     }
     return [j, true];
@@ -483,7 +483,7 @@ export function checkPlayability(
   const waysIn = new Map<string, number>();
   for (const d of g.levels) {
     for (const o of d.l.openings) {
-      if (NON_PASSABLE_OPENINGS.has(o.kind) || o.kind === "secret_door") continue;
+      if (!isPassage(o.kind) || isSecret(o.kind)) continue;
       for (const s of o.sides)
         if (s !== null) waysIn.set(`${d.l.id}|${s}`, (waysIn.get(`${d.l.id}|${s}`) ?? 0) + 1);
     }
@@ -559,7 +559,7 @@ export function checkPlayability(
           return;
         }
         if (cells.some((i) => r[i] === 1)) {
-          const behindSecret = d.l.openings.some((o) => o.kind === "secret_door" && o.sides.includes(a.id));
+          const behindSecret = d.l.openings.some((o) => isSecret(o.kind) && o.sides.includes(a.id));
           if (behindSecret && !cells.some((i) => r0[i] === 1))
             issue(
               d,
@@ -598,9 +598,7 @@ export function checkPlayability(
         if (blocker?.cell && (waysIn.get(`${d.l.id}|${a.id}`) ?? 0) <= 1) {
           const bi = g.idx(d, blocker.cell[0], blocker.cell[1]);
           const atDoor = d.l.openings.some(
-            (o) =>
-              !NON_PASSABLE_OPENINGS.has(o.kind) &&
-              openingSideCells(g, d, o).some((side) => side.includes(bi)),
+            (o) => isPassage(o.kind) && openingSideCells(g, d, o).some((side) => side.includes(bi)),
           );
           if (atDoor) return;
         }
@@ -639,7 +637,7 @@ export function checkPlayability(
   if (want("openings")) {
     for (const d of g.levels) {
       for (const o of d.l.openings) {
-        if (NON_PASSABLE_OPENINGS.has(o.kind)) continue;
+        if (!isPassage(o.kind)) continue;
         const planOpening = plan.levels[levelPath(d.l.id)]?.openings.find((p) => p.id === o.id);
         const markedExit =
           planOpening?.between?.includes("@outside") === true || planOpening?.label !== undefined;
@@ -712,7 +710,7 @@ export function checkPlayability(
           const what = reason?.what ?? "an obstacle";
           const areaId = o.sides[side];
           const only = o.sides.some((s) => s !== null && (waysIn.get(`${d.l.id}|${s}`) ?? 0) <= 1);
-          const secret = o.kind === "secret_door";
+          const secret = isSecret(o.kind);
           issue(
             d,
             secret ? "info" : only && what !== "deep water" ? "error" : "warning",

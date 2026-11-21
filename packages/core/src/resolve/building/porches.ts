@@ -9,7 +9,8 @@ import { SIDE_STEP as STEP } from "../../gen/gridGeometry";
 import { subSeed } from "../../util/hash";
 import { createPrng } from "../../util/prng";
 import type { BuildingCtx } from "./context";
-import { along, DOOR_KINDS, faceRuns, key } from "./footprint";
+import { isPassage } from "../../gen/openingKinds";
+import { along, faceRuns, key } from "./footprint";
 import type { GroundOpening, Porch } from "./types";
 import type { GroundFootprint } from "./volumes";
 
@@ -26,7 +27,7 @@ const ENTRANCES: Array<[string, number]> = [
 const ENTRANCE_TRIES = 8;
 
 export function placePorches(b: BuildingCtx, fp: GroundFootprint, ground: readonly GroundOpening[]): Porch[] {
-  const firstDoor = ground.find((g) => DOOR_KINDS.has(g.kind));
+  const firstDoor = ground.find((g) => isPassage(g.kind));
   // the released porch draw comes first (prng), whether or not the generator 3 entrance replaces it
   const drawn = writtenOrDrawnPorch(b, firstDoor);
   const attachIn = varietyEntrance(b, fp, firstDoor) ?? drawn;
@@ -126,7 +127,7 @@ function placePorch(
   if (!run) return null;
   const width = Math.min(at.width ?? 3, run.cells.length);
   const depth = at.depth ?? 2;
-  const door = ground.find((g) => g.side === at.side && DOOR_KINDS.has(g.kind));
+  const door = ground.find((g) => g.side === at.side && isPassage(g.kind));
   let a: number;
   if (door && at.position === undefined) {
     const di = run.cells.findIndex((c) => c[0] === door.at[0] && c[1] === door.at[1]);

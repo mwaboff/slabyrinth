@@ -23,7 +23,7 @@
  * roofs (absent = site).
  */
 import type { PaletteFacing, Placement, PlacementRole } from "../contracts/compiler";
-import type { Side, WallStyle } from "../contracts/plan";
+import type { OpeningKind, Side, WallStyle } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "../palette/resolve";
 import type { GeneratorProfile } from "../plan/generator";
@@ -40,6 +40,7 @@ import {
 } from "../resolve/roof";
 import { structureStyle } from "../resolve/structureStyles";
 import { OPPOSITE as OPP, SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
+import { hasLeaf, isWindow } from "../gen/openingKinds";
 import { sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
 import type { WorldFrame } from "./geometry";
 import { h32, rotateXZ } from "./geometry";
@@ -70,7 +71,6 @@ export interface StructureRealizeCtx {
 }
 
 const EPS = 1e-6;
-const DOORISH = new Set(["door", "double_door", "locked_door", "secret_door", "portcullis"]);
 const key = (x: number, y: number): string => `${x},${y}`;
 
 const lengthOf = (v: ResolvedVariant): number =>
@@ -304,7 +304,7 @@ function faceRunsOf(list: readonly FaceCell[]): FaceCell[][] {
   return runs;
 }
 
-type Op = { id: string; kind: string; width: number; first: FaceCell; index: number };
+type Op = { id: string; kind: OpeningKind; width: number; first: FaceCell; index: number };
 type VStoreyR = ResolvedVolume["storeys"][number];
 type LitWindow = { x: number; y: number; face: Side; floorTop: number; layer: string; walls: WallStyle };
 
@@ -397,7 +397,7 @@ function buildBuilding(ctx: StructureRealizeCtx, st: ResolvedStructure): void {
   const markOpening = (
     k: string,
     id: string,
-    kind: string,
+    kind: OpeningKind,
     x: number,
     y: number,
     face: Side,
@@ -623,8 +623,7 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
   const brokenOps = new Set<string>();
   if (a.caps)
     for (const [k, op] of ops)
-      if ((op.kind === "window" || op.kind === "arrow_slit") && (a.caps.get(k) ?? Infinity) < top - EPS)
-        brokenOps.add(op.id);
+      if (isWindow(op.kind) && (a.caps.get(k) ?? Infinity) < top - EPS) brokenOps.add(op.id);
   // ruins break cell by cell: one-cell pieces where the style has them
   const single =
     a.openTop === true && a.caps !== undefined && ctx.lookup(theme, mainRoles, lenFilter(1), true) !== null;
@@ -640,7 +639,7 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
     for (const f of faces) {
       const op = ops.get(`${f.x},${f.y},${f.face}`);
       if (chimneyWall.has(`${f.x},${f.y},${f.face}`)) continue;
-      if (op && op.kind !== "window" && op.kind !== "arrow_slit") continue;
+      if (op && !isWindow(op.kind)) continue;
       stackEdge(
         ctx,
         theme,
@@ -717,10 +716,10 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
     done.add(op.id);
     const f = op.first;
     if (!faceKeys.has(`${f.x},${f.y},${f.face}`)) continue;
-    const isWindow = op.kind === "window" || op.kind === "arrow_slit";
+    const windowed = isWindow(op.kind);
     // upper-storey windows sit on the wall top below (the floor band is wall), ground ones on the footing
-    const base = isWindow ? (a.ground ? mainBase : floorTop - 0.5) : floorTop;
-    const roles = isWindow
+    const base = windowed ? (a.ground ? mainBase : floorTop - 0.5) : floorTop;
+    const roles = windowed
       ? [`window.${style}`, `opening.${op.kind}.${style}`, `opening.${op.kind}`]
       : [
           ...(a.ground && a.doorUse ? [`opening.${op.kind}.${a.doorUse}`] : []),
@@ -744,7 +743,7 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
           const r = ctx.lookup(theme, [role], lenFilter(len), true);
           const v = r ? ctx.pick(r.variants, `${ctx.L.id}:${op.id}:${i}`) : undefined;
           if (!v || !r) continue;
-          const facing = DOORISH.has(op.kind) ? ctx.facingOf(v, "opening", r.role) : undefined;
+          const facing = hasLeaf(op.kind) ? ctx.facingOf(v, "opening", r.role) : undefined;
           edgePiece(ctx, v, "opening", cx, cy, f.face, len, base, op.id, layer, facing);
           leafTop = base + v.unitHeight;
           n = len;
@@ -764,7 +763,7 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
       for (let k = 0; k < n; k++) {
         const ex = f.face === "N" || f.face === "S" ? cx + k : cx;
         const ey = f.face === "N" || f.face === "S" ? cy : cy + k;
-        if (isWindow) a.windows.push({ x: ex, y: ey, face: f.face, floorTop, layer, walls: style });
+        if (windowed) a.windows.push({ x: ex, y: ey, face: f.face, floorTop, layer, walls: style });
         // (a ruin's empty doorways and breaches stay open to the top: broken wall stubs either side)
         const tc = Math.min(top, capAt(ex, ey, f.face));
         const standing = a.arches?.has(`${f.x},${f.y},${f.face}`) === true;
@@ -1749,9 +1748,7 @@ function buildShopfront(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: 
 function buildEntranceStrips(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: string): void {
   const s0 = st.storeys[0];
   if (!st.lighting?.strips || !s0) return;
-  const doors = ctx.L.openings.filter(
-    (o) => st.openingIds.includes(o.id) && o.kind !== "window" && o.kind !== "arrow_slit",
-  );
+  const doors = ctx.L.openings.filter((o) => st.openingIds.includes(o.id) && !isWindow(o.kind));
   // the entrance on the street face first
   const op = doors.find((o) => openingFace(st, o).face === st.frontage?.side) ?? doors[0];
   if (!op) return;

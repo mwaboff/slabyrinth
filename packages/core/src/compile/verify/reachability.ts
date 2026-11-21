@@ -8,17 +8,18 @@
  *
  * Emits `verify_area_unreachable` (error), one per area, in level and area order.
  */
-import type { LevelId } from "../../contracts/plan";
+import type { LevelId, OpeningKind } from "../../contracts/plan";
 import type { ResolvedPlan } from "../../contracts/resolved";
 import { CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { OPPOSITE, SIDE_STEP, SIDES } from "../../gen/gridGeometry";
+import { isPassage } from "../../gen/openingKinds";
 import { walkReachability } from "../../resolve";
 import type { VerifyCtx } from "./context";
 import type { Solid } from "./grid";
 import { STEP } from "./limits";
 import type { LinkVerdicts } from "./links";
 import type { ObstructedCells } from "./openFloor";
-import { type BlockedOpenings, NOT_PASSAGE, openingEdges } from "./openings";
+import { type BlockedOpenings, openingEdges } from "./openings";
 import type { StairRuns } from "./runs";
 import { fmt, planElements, solidLabel, uniq } from "./words";
 
@@ -166,10 +167,10 @@ function ownWalkGraph(
   { levels, resolved }: VerifyCtx,
   runs: StairRuns,
 ): {
-  openingAt: Map<string, { id: string; kind: string }>;
+  openingAt: Map<string, { id: string; kind: OpeningKind }>;
   jumps: Map<string, Array<{ to: string; link: string }>>;
 } {
-  const openingAt = new Map<string, { id: string; kind: string }>();
+  const openingAt = new Map<string, { id: string; kind: OpeningKind }>();
   for (const L of levels)
     for (const op of L.openings)
       for (const e of openingEdges(op)) {
@@ -267,7 +268,7 @@ function checkOwnWalkReach(ctx: VerifyCtx, { runs, obstructed, doors, links }: B
         if (kind === EDGE.WALL) continue;
         if (kind === EDGE.OPENING) {
           const op = openingAt.get(`${lv}|${x},${y}|${side}`);
-          if (op && NOT_PASSAGE.has(op.kind)) continue;
+          if (op && !isPassage(op.kind)) continue;
           const blocked = realized && op ? doors.at(lv, op.id) : undefined;
           if (blocked) {
             rejected.push({ cell: nk, solids: blocked.solids });
