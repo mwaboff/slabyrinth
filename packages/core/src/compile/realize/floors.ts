@@ -18,6 +18,7 @@ import {
   glowFeatureRole,
   glowRole,
   markingRole,
+  waterRole,
 } from "../../palette/roles";
 import { CAUSED_FAMILY_NAMES, createFamilyPicker, type FloorFamily } from "../../resolve/floorFamilies";
 import { BARE_ROCK, BED_FALLBACK_FLOOR, isCliffGround, isWater } from "../../resolve/materials";
@@ -404,7 +405,7 @@ export function layWaterBeds(lv: RealizeLevel, waterCells: WaterCells): void {
       });
     }
     // optional surface piece, only where the palette has one (water.<material>)
-    const wr = lookup(L.id, c.theme, [`water.${c.material ?? ""}`], one, true);
+    const wr = lookup(L.id, c.theme, [waterRole(c.material ?? "")], one, true);
     const wv = wr ? pick(wr.variants, `${L.id}:water:${x}:${y}`) : undefined;
     if (wv) {
       const m = frame.rectMin(x, y, 1, 1);

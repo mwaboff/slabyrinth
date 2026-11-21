@@ -23,6 +23,8 @@ export const floorRole = (material: string): RoleName => `${FLOOR_FAMILY}.${mate
 export const fillRole = (material: string): RoleName => `fill.${material}`;
 /** The bed of a water channel of a material: `bed.<material>`. */
 export const bedRole = (material: string): RoleName => `bed.${material}`;
+/** The optional surface piece laid over a water cell of a material: `water.<material>`. */
+export const waterRole = (material: string): RoleName => `water.${material}`;
 /** A water bed's role when the material has none of its own. */
 export const BED_DEFAULT_ROLE: RoleName = bedRole("default");
 /** The face of a drop in ground of a material: `cliff.<material>`. */

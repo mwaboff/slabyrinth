@@ -7,6 +7,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { bundledPalettes } from "../../../src/palette";
 import * as roles from "../../../src/palette/roles";
 
 const SRC = fileURLToPath(new URL("../../../src/", import.meta.url));
@@ -21,11 +22,28 @@ const NOT_YET: readonly string[] = ["compile/calibration.ts"];
 const BUILDING_FAMILIES =
   "footing|facade_post|over_door|wall_short|window|gable|gable_short|seam_ledge|crenel|parapet|corbel|chimney_top|porch_post|wall_light|sign_band|corner_pier|canopy|balcony|balcony_rail|fire_escape|wall_pipe|wall_unit|mast|finial|magic_beacon|roof_clutter|roof_terrace|gate|ruin_rubble|ruin_block|ruin_prop|ruin_growth|ruin_root|ruin_cap|ruin_tree|light";
 
-/** A role name in a string or the start of a template: `<family>.<name>` of a role family the palettes use. */
-const ROLE_LITERAL = new RegExp(
-  `["'\`](?:wall|wall_post|floor|fill|bed|opening|lintel|kerb|cliff|cap|roof|feature|marker|stall|link|ledge|facade|glow|step|ruin_climber|pier|marking|chimney|${BUILDING_FAMILIES})\\.(?:[a-z_]+|\\$\\{)`,
-  "g",
-);
+/**
+ * The role families to look for, gathered rather than listed: every family the bundled palettes use, every family a
+ * builder or constant of the registry makes (a new builder's family is scanned the day it is added, `water.` too),
+ * and the building parts.
+ */
+const PROBE = "probe";
+const REGISTRY_FAMILIES = Object.values(roles as Record<string, unknown>).flatMap((v) => {
+  const made = typeof v === "function" ? (v as (s: string) => unknown)(PROBE) : v;
+  return typeof made === "string" && made.includes(".") ? [roles.roleFamily(made)] : [];
+});
+const FAMILIES = [
+  ...new Set([
+    ...Object.values(bundledPalettes().palettes).flatMap((p) => Object.keys(p.roles).map(roles.roleFamily)),
+    ...REGISTRY_FAMILIES,
+    ...BUILDING_FAMILIES.split("|"),
+  ]),
+]
+  .filter((f) => f !== PROBE && /^[a-z_]+$/.test(f))
+  .sort((a, b) => b.length - a.length);
+
+/** A role name in a string or at the start of a template literal (`<family>.${...}`), of any family above. */
+const ROLE_LITERAL = new RegExp(`["'\`](?:${FAMILIES.join("|")})\\.(?:[a-z_]+|\\$\\{)`, "g");
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -50,6 +68,14 @@ describe("palette role registry", () => {
         for (const m of text.matchAll(ROLE_LITERAL)) found.push(`${rel}: ${m[0]}`);
       }
     expect(found).toEqual([]);
+  });
+
+  it("the scan sees a role spelled in a string or at the start of a template literal, of a builder's family", () => {
+    expect(FAMILIES).toContain("water");
+    const probe = (s: string): string[] => [...s.matchAll(ROLE_LITERAL)].map((m) => m[0]);
+    expect(probe("lookup(t, [`water.${m}`])")).toEqual(["`water.${"]);
+    expect(probe('lookup(t, ["kerb.stone"])')).toEqual(['"kerb.stone']);
+    expect(probe("lookup(t, [waterRole(m)])")).toEqual([]);
   });
 
   it("each builder makes `<family>.<name>` and roleFamily reads the family back", () => {
