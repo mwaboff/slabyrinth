@@ -306,7 +306,7 @@ describe("phase 2: styles", () => {
           `seed ${seed}`,
         ).toEqual([]);
       }
-    }, 180_000);
+    }, 30_000); // 100 resolve + realize + verify runs: 5.5 to 6.5 s under a parallel run, over the 5 s default
   }
 
   it("a tall building compiles to one slab under the size budget", () => {

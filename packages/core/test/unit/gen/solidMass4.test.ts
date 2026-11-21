@@ -218,7 +218,7 @@ describe("a level of rooms and a cave (generator 4)", () => {
       links: [],
     }) as unknown as MapPlan;
 
-  it("never dresses a solid cell twice and leaves no gutter between cap and rock", { timeout: 60000 }, () => {
+  it("never dresses a solid cell twice and leaves no gutter between cap and rock", () => {
     const set = realizeModule.realize(resolvePlan(plan(4)), palettes, {});
     const level = set.levels[0];
     const shell = new Set<string>();
@@ -291,7 +291,7 @@ describe("cave outline: local connectivity test", () => {
     expect(conclusive).toBeGreaterThan(500);
   });
 
-  it("outlines a 160x160 cave with long walls quickly, with the same floor pieces", () => {
+  it("outlines a 160x160 cave with long walls in work linear in its cells, not a flood per cell", () => {
     const W = 160;
     const open = new Uint8Array(W * W);
     const owner = new Int32Array(W * W);
@@ -310,7 +310,8 @@ describe("cave outline: local connectivity test", () => {
     const c = area(3, 10, 90, 140, 60);
     area(4, 70, 30, 20, 4);
     area(5, 30, 70, 4, 20);
-    const t0 = performance.now();
+    // work is counted as reads of the grid, which is deterministic (a wall-clock limit is not)
+    let reads = 0;
     for (const [k, cells] of [
       [1, a],
       [2, b],
@@ -320,10 +321,10 @@ describe("cave outline: local connectivity test", () => {
         {
           w: W,
           h: W,
-          owner: (i) => owner[i] as number,
-          open: (i) => open[i] === 1,
-          rock: (i) => open[i] === 0,
-          keep: () => false,
+          owner: (i) => (reads++, owner[i] as number),
+          open: (i) => (reads++, open[i] === 1),
+          rock: (i) => (reads++, open[i] === 0),
+          keep: () => (reads++, false),
         },
         k,
         cells,
@@ -331,8 +332,11 @@ describe("cave outline: local connectivity test", () => {
       );
       expect(r.open.length + r.close.length).toBeGreaterThan(0);
     }
-    expect(performance.now() - t0).toBeLessThan(8000);
-  }, 30000);
+    const cells = a.length + b.length + c.length;
+    // about 80 reads per cell today; a flood fill per wall cell (what the local window test replaced) needs tens of
+    // millions here, so the budget leaves room for change but not for that
+    expect(reads).toBeLessThan(200 * cells);
+  });
 });
 
 describe("one build per review run", () => {
@@ -391,38 +395,30 @@ describe("one build per review run", () => {
 
   const realized = (): number => vi.mocked(realizeModule.realize).mock.calls.length;
 
-  it(
-    "a generator 4 review whose cave and roof notes both need the pieces builds them once",
-    { timeout: 60000 },
-    () => {
-      const p = plan(4);
-      const r = resolvePlan(p);
-      const before = realized();
-      reviewDesign(p, r, { palettes, limit: 99 });
-      expect(realized() - before).toBe(1);
-    },
-  );
+  it("a generator 4 review whose cave and roof notes both need the pieces builds them once", () => {
+    const p = plan(4);
+    const r = resolvePlan(p);
+    const before = realized();
+    reviewDesign(p, r, { palettes, limit: 99 });
+    expect(realized() - before).toBe(1);
+  });
 
-  it(
-    "a review that is given the build, or has nothing to measure, builds nothing",
-    { timeout: 60000 },
-    () => {
-      const p = plan(4);
-      const r = resolvePlan(p);
-      const set = realizeModule.realize(r, palettes, {});
-      const before = realized();
-      reviewDesign(p, r, { palettes, limit: 99, placements: set });
-      expect(realized() - before).toBe(0);
-      // generator 3 keeps its released behaviour: no build, no mass or roof notes
-      const p3 = plan(3);
-      const r3 = resolvePlan(p3);
-      const b3 = realized();
-      reviewDesign(p3, r3, { palettes, limit: 99 });
-      expect(realized() - b3).toBe(0);
-    },
-  );
+  it("a review that is given the build, or has nothing to measure, builds nothing", () => {
+    const p = plan(4);
+    const r = resolvePlan(p);
+    const set = realizeModule.realize(r, palettes, {});
+    const before = realized();
+    reviewDesign(p, r, { palettes, limit: 99, placements: set });
+    expect(realized() - before).toBe(0);
+    // generator 3 keeps its released behaviour: no build, no mass or roof notes
+    const p3 = plan(3);
+    const r3 = resolvePlan(p3);
+    const b3 = realized();
+    reviewDesign(p3, r3, { palettes, limit: 99 });
+    expect(realized() - b3).toBe(0);
+  });
 
-  it("the build object builds on the first ask only", { timeout: 60000 }, () => {
+  it("the build object builds on the first ask only", () => {
     const r = resolvePlan(plan(4));
     const b = reviewBuild(r, palettes);
     expect(b.given).toBe(false);

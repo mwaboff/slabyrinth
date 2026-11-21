@@ -346,7 +346,7 @@ describe("main entrance on the front face", () => {
           }
         }
       }
-    }, 120_000);
+    });
 });
 
 describe("review measures", () => {

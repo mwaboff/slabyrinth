@@ -288,5 +288,5 @@ describe("structures: variety", () => {
       const holes = (st?.chimneys ?? []).filter((c) => c.at[1] === 7 || c.at[1] === 8).length;
       expect(ridge.length, `seed ${seed}`).toBe(16 - holes);
     }
-  }, 120_000);
+  }, 30_000); // 200 resolve + realize + verify runs: about 4.7 s under a parallel run, too close to the 5 s default
 });

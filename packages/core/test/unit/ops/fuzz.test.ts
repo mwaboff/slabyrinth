@@ -278,5 +278,5 @@ describe("fuzz: applyOps never commits an invalid plan", () => {
       { numRuns: RUNS, seed: 20261118 },
     );
     expect(committed).toBeGreaterThan(RUNS);
-  }, 600_000);
+  }, 600_000); // the default 150 runs take about 1 s; the 10k acceptance run (header) takes minutes
 });

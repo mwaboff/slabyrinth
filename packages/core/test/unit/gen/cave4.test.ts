@@ -116,7 +116,7 @@ describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", ()
   const m3 = measures(g3);
   const m4 = measures(g4);
 
-  it("fills the rock from its foot: no cap over empty rock, no see-through gap", { timeout: 30000 }, () => {
+  it("fills the rock from its foot: no cap over empty rock, no see-through gap", () => {
     expect(m3.hollow).toBeGreaterThan(0.15);
     expect(m4.hollow).toBeLessThan(0.04);
     expect(g4.set.levels.flatMap((l) => l.placements).some((p) => p.source.elementId === "cave_cap")).toBe(
@@ -128,7 +128,7 @@ describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", ()
     expect(m4.families).toEqual(["cavern"]);
   });
 
-  it("keeps the rock-mass piece count near generator 3's (mass and cap)", { timeout: 30000 }, () => {
+  it("keeps the rock-mass piece count near generator 3's (mass and cap)", () => {
     const mass = (b: typeof g3): number =>
       b.set.levels
         .flatMap((l) => l.placements)
@@ -136,7 +136,7 @@ describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", ()
     expect(mass(g4)).toBeLessThanOrEqual(mass(g3) * 1.15);
   });
 
-  it("verify stays clean and every floor stays reachable", { timeout: 30000 }, () => {
+  it("verify stays clean and every floor stays reachable", () => {
     const bad = g4.verify.filter((d) => d.severity !== "info");
     expect(bad.map((d) => `${d.code} ${d.message}`)).toEqual([]);
     const issues = checkPlayability(g4.plan, g4.r).filter((i) => i.severity !== "info");
@@ -201,21 +201,17 @@ describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", ()
     expect(caveHollowNotesOf("l1", m4)).toEqual([]);
   });
 
-  it(
-    "the mass notes run without a build at generator 4 (the in-app review) and stay off at generator 3",
-    { timeout: 30000 },
-    () => {
-      const built = caveMassReviewNotes(g4.plan, g4.r, reviewBuild(g4.r, palettes, g4.set), palettes);
-      const unbuilt = caveMassReviewNotes(g4.plan, g4.r, reviewBuild(g4.r, palettes), palettes);
-      expect(unbuilt).toEqual(built);
-      expect(caveMassReviewNotes(g3.plan, g3.r, reviewBuild(g3.r, palettes), palettes)).toEqual([]);
-      // the whole review with no build given: the generator-4 grotto is neither hollow, flat nor straight-sided
-      const codes = reviewDesign(g4.plan, g4.r, { palettes, limit: 99 }).map((n) => n.code);
-      expect(codes).not.toContain("cave_mass_hollow");
-      expect(codes).not.toContain("cave_floor_flat");
-      expect(codes).not.toContain("cave_outline_straight");
-    },
-  );
+  it("the mass notes run without a build at generator 4 (the in-app review) and stay off at generator 3", () => {
+    const built = caveMassReviewNotes(g4.plan, g4.r, reviewBuild(g4.r, palettes, g4.set), palettes);
+    const unbuilt = caveMassReviewNotes(g4.plan, g4.r, reviewBuild(g4.r, palettes), palettes);
+    expect(unbuilt).toEqual(built);
+    expect(caveMassReviewNotes(g3.plan, g3.r, reviewBuild(g3.r, palettes), palettes)).toEqual([]);
+    // the whole review with no build given: the generator-4 grotto is neither hollow, flat nor straight-sided
+    const codes = reviewDesign(g4.plan, g4.r, { palettes, limit: 99 }).map((n) => n.code);
+    expect(codes).not.toContain("cave_mass_hollow");
+    expect(codes).not.toContain("cave_floor_flat");
+    expect(codes).not.toContain("cave_outline_straight");
+  });
 });
 
 describe("generator 4: rectangular cave chambers and a corridor", () => {

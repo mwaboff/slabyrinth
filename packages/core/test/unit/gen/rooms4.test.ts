@@ -338,7 +338,7 @@ describe("generator 4 dresses rooms by default", () => {
         theme,
       ).toEqual([]);
     }
-  }, 30000);
+  });
 
   it("deterministic: the same plan gives the same rooms", () => {
     const a = JSON.stringify(level(building(NAMES)).features);
