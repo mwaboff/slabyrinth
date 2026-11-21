@@ -148,7 +148,7 @@ function layRockMass(
       shapes,
       ceiling,
       // generator 4: solid rock, filled from the foot with no see-through gap
-      ...(profile.solidCaveRock ? { solid: true } : {}),
+      ...(profile.solidCaveRock ? { solidCaveRock: true } : {}),
     });
     for (const f of faces) if (!plan.columns.has(`${f.x},${f.y}`)) columnLater.delete(`${f.x},${f.y}`);
     for (const pc of plan.pieces) {

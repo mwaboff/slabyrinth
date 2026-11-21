@@ -31,6 +31,7 @@ import { BUILD_CONSTANTS, MATERIALS, PLAN_LIMITS } from "../../contracts/plan";
 import type { ThemeInterior } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
+import { SIDES } from "../../gen/gridGeometry";
 import { type CellMask, forEachMaskCell } from "../../gen/mask";
 import type { RoomClass } from "../../gen/roomPurpose";
 import { type ClipBox, rasterizeShape } from "../../gen/shapes";
@@ -400,7 +401,7 @@ export class ResolveGrid {
 
   /** True when any of the four edges of a global cell already holds a wall or an opening. */
   hasWallAround(gx: number, gy: number): boolean {
-    return (["N", "E", "S", "W"] as const).some((s) => {
+    return SIDES.some((s) => {
       const ed = this.sideEdge(gx, gy, s);
       return !ed || ed.e.kind[ed.i] === EDGE.WALL || ed.e.kind[ed.i] === EDGE.OPENING;
     });

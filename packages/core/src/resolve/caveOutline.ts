@@ -15,6 +15,7 @@
  * Pure: it reads the grid through callbacks and returns the cells to open and to close; the level resolver applies
  * them. Arithmetic and value noise only (architecture §2.5).
  */
+import { NEIGHBOURS4 } from "../gen/gridGeometry";
 import { ValueNoise } from "../gen/noise";
 import { inBlock2x2 } from "../gen/solidMass";
 import { h32, subSeed } from "../util/hash";
@@ -47,12 +48,7 @@ export const CAVE_OUTLINE = {
   rounds: 4,
 } as const;
 
-const N4: ReadonlyArray<readonly [number, number]> = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
+const N4 = NEIGHBOURS4;
 
 /** The eight cells round a cell in order, each 4-adjacent to the next (corners and sides alternate). */
 const RING: ReadonlyArray<readonly [number, number]> = [

@@ -13,6 +13,7 @@ import type { TerrainOp, Vec2, WallStyle } from "../../contracts/plan";
 import type { ResolvedFeature } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
+import { SIDES } from "../../gen/gridGeometry";
 import { ValueNoise } from "../../gen/noise";
 import { isLowWallStyle } from "../../gen/wallStyles";
 import { elementSeed, h32, hashUnit, subSeed } from "../../util/hash";
@@ -207,7 +208,7 @@ export function stepOpeningRims(work: ResolveGrid, out: FloorOpeningRecords): vo
     const set = new Set(fo.cells);
     for (const i of fo.cells) {
       const [x, y] = work.cellXY(i);
-      for (const side of ["N", "E", "S", "W"] as const) {
+      for (const side of SIDES) {
         const [dx, dy] = side === "N" ? [0, -1] : side === "S" ? [0, 1] : side === "E" ? [1, 0] : [-1, 0];
         const j = work.idx(x + dx, y + dy);
         if (j < 0 || work.state[j] !== CELL.OPEN || set.has(j)) continue;

@@ -12,7 +12,7 @@ import { MATERIALS, PLAN_LIMITS } from "../../contracts/plan";
 import type { ResolvedFeature, ResolvedOpening } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
-import { SIDE_STEP } from "../../gen/gridGeometry";
+import { SIDES, SIDE_STEP } from "../../gen/gridGeometry";
 import { isGap, openingWidth } from "../../gen/openingKinds";
 import type { GeneratedPlacement } from "../../gen/placementGrid";
 import { furnishedPurpose } from "../../gen/roomPurpose";
@@ -261,7 +261,7 @@ export function stepWallFootRubble(
     const se = work.sideEdge(x, y, s);
     return se !== null && se.e.kind[se.i] === EDGE.WALL && isUnevenWallStyle(se.e.style[se.i]);
   };
-  const sides: Side[] = ["N", "E", "S", "W"];
+  const sides = SIDES;
   const plain = (i: number): boolean => {
     if (i < 0 || work.state[i] !== CELL.OPEN || features.occupied(i)) return false;
     const f = work.flags[i] as number;

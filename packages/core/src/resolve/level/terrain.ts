@@ -167,7 +167,7 @@ function applyTerrain(
   paths: PathRecords,
 ): { touched: number[]; inShape: number; open: number; partial: boolean } {
   // Generator 2: an under-layer height op sets the height field of every cell (rock included); the areas that open
-  // those cells later inherit it unless they set floorHeight (contracts/plan.ts GENERATOR_VERSION).
+  // those cells later inherit it unless they set floorHeight (switch `underHeightField`).
   const field = op.op === "height" && layer === "under" && work.profile.underHeightField;
   const open = (i: number): boolean => field || work.state[i] === CELL.OPEN;
   const touched: number[] = [];

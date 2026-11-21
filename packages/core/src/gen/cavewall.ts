@@ -68,11 +68,12 @@ export interface CaveWallInput {
   /** Lowest ceiling over the level (Infinity when none): nothing rises through it. */
   ceiling: number;
   /**
-   * Generator 4: solid rock. Every rock cell is filled from its foot up to its top with no see-through gap (no flat
-   * cap over empty rock, no free-standing towers): upper courses are laid as layers, each piece resting on the highest
-   * rock already under its whole outline; tops swell broadly and come down toward the level's edge.
+   * Generator 4 (switch `solidCaveRock`, named after it so a search for the switch finds its rules): solid rock. Every
+   * rock cell is filled from its foot up to its top with no see-through gap (no flat cap over empty rock, no
+   * free-standing towers): upper courses are laid as layers, each piece resting on the highest rock already under its
+   * whole outline; tops swell broadly and come down toward the level's edge.
    */
-  solid?: boolean;
+  solidCaveRock?: boolean;
 }
 
 export interface WallPiece {
@@ -227,7 +228,8 @@ function startCaveWall(input: CaveWallInput) {
   const rng = createPrng(subSeed(input.seed, "cavewall"));
   const noise = new ValueNoise(subSeed(input.seed, "cavewall:skyline"));
   const toeNoise = new ValueNoise(subSeed(input.seed, "cavewall:toe"));
-  const solid = input.solid === true;
+  // generator 4 (`solidCaveRock`): every rule below that reads `solid` is this switch's
+  const solid = input.solidCaveRock === true;
   const swellNoise = new ValueNoise(subSeed(input.seed, "cavewall:swell"));
   const mass = input.shapes.filter((s) => s.family === "A");
   const caps = input.shapes.filter((s) => s.family === "cap");

@@ -34,7 +34,7 @@ import type {
 import { BUILD_CONSTANTS } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
-import { SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
+import { OPPOSITE, SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
 import { forEachMaskCell } from "../gen/mask";
 import { generatorProfile } from "../plan/generator";
 import { withWings } from "../plan/building";
@@ -261,7 +261,7 @@ export class StructureWork {
         }
       if (des.details.includes("services")) {
         const front = this.designs.get(b.st.id)?.building.front ?? "S";
-        const back: Side = front === "N" ? "S" : front === "S" ? "N" : front === "E" ? "W" : "E";
+        const back = OPPOSITE[front];
         const run = faceRuns(b.cellSet, back).sort((p, q) => q.cells.length - p.cells.length)[0];
         if (run && run.cells.length >= 2) {
           const [dx, dy] = STEP[back];
@@ -695,7 +695,7 @@ function drawDesigns({ plan, level, list, work }: Expansion): void {
       d = drawDesign(space, subSeed(seed, `design${k}`), st.use, r.w, r.h, st.character);
     }
     placed.push({ r, d, space });
-    const back: Side = front === "N" ? "S" : front === "S" ? "N" : front === "E" ? "W" : "E";
+    const back = OPPOSITE[front];
     work.designs.set(st.id, {
       design: d,
       building: expandDesign(

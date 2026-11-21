@@ -110,6 +110,25 @@ describe("core guards", () => {
     });
   });
 
+  describe("slabyrinth/sides: sides and their opposites come from gen/gridGeometry.ts", () => {
+    const file = "packages/core/src/resolve/structure.ts";
+    it("reports the four sides written out and a ternary that turns a side round", async () => {
+      expect(await guardHits(file, 'for (const s of ["N", "E", "S", "W"]) f(s);')).toEqual([
+        expect.stringContaining("slabyrinth/sides"),
+      ]);
+      expect(await guardHits(file, 'const back = front === "N" ? "S" : "N";')).toHaveLength(1);
+    });
+    it("leaves other side logic, the geometry module and the schemas alone", async () => {
+      expect(await guardHits(file, 'const face = f0 === "N" ? "N" : "S";')).toEqual([]);
+      expect(
+        await guardHits("packages/core/src/gen/gridGeometry.ts", 'const S = ["N", "E", "S", "W"];'),
+      ).toEqual([]);
+      expect(
+        await guardHits("packages/core/src/plan/schema.ts", 'const S = z.enum(["N", "E", "S", "W"]);'),
+      ).toEqual([]);
+    });
+  });
+
   describe("slabyrinth/hash-unit: a draw from a hash goes through util/hash.ts", () => {
     it("reports 2^32 written by hand anywhere in core but util", async () => {
       const code = "const u = h32(`${seed}:k`) / 4294967296;";

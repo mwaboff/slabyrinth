@@ -14,6 +14,7 @@
  */
 import type { Building, Roof, RoofType, Side, Storey, Volume, WallStyle } from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
+import { OPPOSITE } from "../gen/gridGeometry";
 import { OPENING_KIND_INFO, openingTests } from "../gen/openingKinds";
 import type { GeneratorProfile } from "../plan/generator";
 import { createPrng, type Prng } from "../util/prng";
@@ -633,7 +634,7 @@ export function expandDesign(
   if (d.base === "garage" && !(st.openings ?? []).some((o) => OPENING_KIND_INFO[o.kind].defaultWidth >= 2))
     out.openings = [{ kind: "double_door", side: front, position: 0.5, width: 2 }, ...(st.openings ?? [])];
   // a service door at the back, when the back looks onto open ground
-  const back: Side = front === "N" ? "S" : front === "S" ? "N" : front === "E" ? "W" : "E";
+  const back = OPPOSITE[front];
   if (d.serviceDoor && opts.rearOpen && !(st.openings ?? []).some((o) => o.side === back)) {
     const list = out.openings ?? st.openings ?? [];
     // the main entrance is always on the street face: a service door must never stand in for it (the resolver

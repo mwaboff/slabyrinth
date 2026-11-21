@@ -12,6 +12,7 @@
  *
  * Arithmetic, sqrt and value noise only (architecture §2.5).
  */
+import { NEIGHBOURS4 } from "../gen/gridGeometry";
 import { ValueNoise } from "../gen/noise";
 import { h32, subSeed } from "../util/hash";
 
@@ -237,12 +238,7 @@ export function roughenLumps(tierOf: Map<number, number>, grid: OrganicGrid, see
 /** Longest straight tier step an organic outline keeps (cells). */
 export const MAX_STRAIGHT = 5;
 
-const N4 = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-] as const;
+const N4 = NEIGHBOURS4;
 
 function relax(tierOf: Map<number, number>, grid: OrganicGrid, boundsInside: boolean): void {
   for (let pass = 0; pass < 8; pass++) {

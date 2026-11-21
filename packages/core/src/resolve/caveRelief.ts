@@ -10,6 +10,7 @@
  * Only `cells` change (the caller passes the floor at the flat height, away from water, features, bridges, links,
  * openings and other steps); everything else counts as shelf 0. Pure; arithmetic and value noise only.
  */
+import { NEIGHBOURS4 } from "../gen/gridGeometry";
 import { ValueNoise } from "../gen/noise";
 import { subSeed } from "../util/hash";
 import { breakStraightSteps, type OrganicGrid } from "./organic";
@@ -32,12 +33,7 @@ export const CAVE_RELIEF = {
   minShelf: 8,
 } as const;
 
-const N4: ReadonlyArray<readonly [number, number]> = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
+const N4 = NEIGHBOURS4;
 
 /**
  * Shelf (0..maxShelf, in half tiles) for each of `cells`. `low` are the cells the floor stays low at (water, or the

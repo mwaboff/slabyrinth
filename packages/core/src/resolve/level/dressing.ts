@@ -154,7 +154,9 @@ export function stepGeneratedFeatures(work: ResolveGrid, features: FeatureWork):
 /**
  * Generator 3: every natural open-air region gets its rock band, however it is dressed: every drop of a tile or more
  * between natural ground, and the board's own edge where the ground stands above the base (gen/setpieces
- * `defaultCliffBands`; nothing where the theme has no formation roles). `cliffBands: false` on the level turns it off.
+ * `defaultCliffBands`; nothing where the theme has no formation roles). `cliffBands: false` on the level turns it off,
+ * and so does any building on the level (a town's ground is graded for its streets, not faced as wild rock; an
+ * enclosure alone does not count). Frozen with generator 3: a town level that wants bands names them with a dress op.
  */
 function stepDefaultCliffBands(
   work: ResolveGrid,

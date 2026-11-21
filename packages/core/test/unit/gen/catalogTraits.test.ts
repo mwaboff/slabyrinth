@@ -8,7 +8,7 @@ import { type FeatureType, OPENING_KINDS, type OpeningKind } from "../../../src/
 import { FEATURE_INFO, LIGHT_FEATURES, isLandmark } from "../../../src/gen/catalog";
 import { OPENING_KIND_INFO, isFullHeightOpeningRole } from "../../../src/gen/openingKinds";
 import { CLUSTERED_TYPES } from "../../../src/gen/place";
-import { ROOM_PURPOSE_INFO, type RoomPurpose } from "../../../src/gen/roomPurpose";
+import { type FurnishedPurpose, ROOM_PURPOSE_INFO, type RoomPurpose } from "../../../src/gen/roomPurpose";
 import { COVER_CAUSES, FOCAL_LIT, RUNNERS } from "../../../src/gen/setpieces";
 import { NATURAL_MATERIALS } from "../../../src/review";
 
@@ -203,6 +203,19 @@ describe("material traits are table fields", () => {
 });
 
 describe("purpose traits are table fields", () => {
+  it("FurnishedPurpose (a type) names exactly the purposes whose row says `furnished`", () => {
+    const furnished = (Object.keys(ROOM_PURPOSE_INFO) as RoomPurpose[]).filter(
+      (p) => ROOM_PURPOSE_INFO[p].furnished,
+    );
+    // the type excludes these two; a new unfurnished purpose must be added to its Exclude (gen/roomPurpose.ts)
+    const notFurnished: ReadonlyArray<Exclude<RoomPurpose, FurnishedPurpose>> = ["ruin", "passage"];
+    expect(furnished.sort()).toEqual(
+      (Object.keys(ROOM_PURPOSE_INFO) as RoomPurpose[])
+        .filter((p) => !notFurnished.includes(p as never))
+        .sort(),
+    );
+  });
+
   it("no open fire where paper, cloth, straw or stored goods are kept", () => {
     const noFire = (Object.keys(ROOM_PURPOSE_INFO) as RoomPurpose[]).filter(
       (p) => ROOM_PURPOSE_INFO[p].noFire,

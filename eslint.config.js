@@ -248,6 +248,24 @@ const featureListRule = selectorRule("Feature traits are fields of gen/catalog.t
   },
 ]);
 
+/** The four sides, their order and their opposites are gen/gridGeometry.ts SIDES and OPPOSITE. */
+const sidesRule = selectorRule("Sides come from gen/gridGeometry.ts.", [
+  {
+    selector:
+      "ArrayExpression[elements.length=4][elements.0.value='N'][elements.1.value='E'][elements.2.value='S'][elements.3.value='W']",
+    message: "Use gen/gridGeometry.ts SIDES instead of writing the four sides out.",
+  },
+  ...[
+    ["N", "S"],
+    ["S", "N"],
+    ["E", "W"],
+    ["W", "E"],
+  ].map(([side, opposite]) => ({
+    selector: `ConditionalExpression[test.operator='==='][test.right.value='${side}'][consequent.value='${opposite}']`,
+    message: "Use gen/gridGeometry.ts OPPOSITE instead of a ternary that turns a side round.",
+  })),
+]);
+
 const slabyrinthPlugin = {
   rules: {
     "core-layers": coreLayersRule,
@@ -255,6 +273,7 @@ const slabyrinthPlugin = {
     "hash-unit": hashUnitRule,
     vocabulary: vocabularyRule,
     "feature-lists": featureListRule,
+    sides: sidesRule,
   },
 };
 
@@ -350,6 +369,12 @@ export default tseslint.config(
     files: ["packages/core/src/**/*.ts"],
     ignores: ["packages/core/src/gen/catalog.ts"],
     rules: { "slabyrinth/feature-lists": "error" },
+  },
+  {
+    // the generation side (schemas and tool definitions elsewhere spell the enum out on purpose)
+    files: ["packages/core/src/{gen,resolve}/**/*.ts"],
+    ignores: ["packages/core/src/gen/gridGeometry.ts"],
+    rules: { "slabyrinth/sides": "error" },
   },
   {
     files: ["packages/core/src/**/*.ts"],

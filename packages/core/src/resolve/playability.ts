@@ -24,7 +24,7 @@ import type { ResolvedLevel, ResolvedLink, ResolvedOpening, ResolvedPlan } from 
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
 import { isPassage, isSecret } from "../gen/openingKinds";
-import { SIDE_STEP as DIRS } from "../gen/gridGeometry";
+import { OPPOSITE, SIDES, SIDE_STEP as DIRS } from "../gen/gridGeometry";
 import { sideEdgeIndex } from "./levelGrid";
 import { entryLevelId, linkKindInfo } from "../plan/links";
 
@@ -313,7 +313,7 @@ export class WalkGraph {
     for (let head = 0; head < queue.length; head++) {
       const [li, i] = queue[head] as [number, number];
       const d = this.levels[li] as LevelData;
-      for (const s of ["N", "E", "S", "W"] as const) {
+      for (const s of SIDES) {
         const [j, pass] = this.step(d, i, s, m);
         if (pass) push(li, j);
       }
@@ -568,7 +568,7 @@ function checkAreaReach(
       let sealed = (waysIn.get(`${d.l.id}|${a.id}`) ?? 0) === 0;
       if (sealed) {
         outer: for (const i of cells) {
-          for (const s of ["N", "E", "S", "W"] as const) {
+          for (const s of SIDES) {
             const [j, pass] = g.step(d, i, s, { secret: true, ignoreFeatures: true });
             if (pass && j >= 0 && !inArea.has(j) && d.l.cells.state[j] === CELL.OPEN) {
               sealed = false;
@@ -948,7 +948,7 @@ function checkFurnitureSense(ctx: PlayCtx): void {
           for (let x = f.at[0]; x < f.at[0] + f.size[0] && !touches; x++) {
             const i = g.idx(d, x, y);
             if (i < 0) continue;
-            for (const s of ["N", "E", "S", "W"] as const) {
+            for (const s of SIDES) {
               const [dx, dy] = DIRS[s];
               const inside =
                 x + dx >= f.at[0] &&
@@ -1042,7 +1042,7 @@ function cap(s: string): string {
 }
 
 function opposite(s: Side): Side {
-  return s === "N" ? "S" : s === "S" ? "N" : s === "E" ? "W" : "E";
+  return OPPOSITE[s];
 }
 
 function isHeightStep(d: LevelData, i: number, j: number): boolean {
@@ -1060,7 +1060,7 @@ function components(g: WalkGraph, d: LevelData, cells: number[]): number {
     seen.add(c);
     while (stack.length > 0) {
       const i = stack.pop() as number;
-      for (const s of ["N", "E", "S", "W"] as const) {
+      for (const s of SIDES) {
         const [j, pass] = g.step(d, i, s, { secret: true, ignoreFeatures: true });
         if (pass && set.has(j) && !seen.has(j)) {
           seen.add(j);
@@ -1088,7 +1088,7 @@ function findBlocker(
   )[d.li] as Uint8Array;
   const area = new Set(areaCells);
   const touches = (i: number, mask: Uint8Array | Set<number>): boolean => {
-    for (const s of ["N", "E", "S", "W"] as const) {
+    for (const s of SIDES) {
       const [j, pass] = g.step(d, i, s, { secret: true, ignoreFeatures: true });
       if (pass && j >= 0 && (mask instanceof Set ? mask.has(j) : mask[j] === 1)) return true;
     }
@@ -1125,7 +1125,7 @@ function neighbourArea(g: WalkGraph, d: LevelData, cells: number[], reached: Uin
   const set = new Set(cells);
   const out = new Set<string>();
   for (const i of cells)
-    for (const s of ["N", "E", "S", "W"] as const) {
+    for (const s of SIDES) {
       const [j] = g.step(d, i, s, { secret: true });
       if (j < 0 || set.has(j) || reached[j] !== 1) continue;
       const a = d.l.cells.area[j] as number;

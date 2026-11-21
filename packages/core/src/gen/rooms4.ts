@@ -1,8 +1,7 @@
 /**
- * Room recipes (generator 4). The owner admired a community interior and called ours "a plain hall and identical
- * cells". Measured like for like, our keep dungeon had 1.3 props per 10 floor tiles against 21, 40% of its furniture
- * near a wall against 92%, two props resting on other props against a third of them, six of thirteen rooms with no
- * light and 57% of the floor more than four tiles from one. This is the answer: a room is dressed from its purpose.
+ * Room recipes (generator 4): a room is dressed and lit from its purpose, toward the measures of a well-dressed
+ * interior (about two props per floor tile, nearly all furniture against a wall, a third of the props resting on other
+ * pieces, every room lit and no floor far from a light).
  *
  *   1. an anchor that names the purpose (a bed, a long table, a counter, a forge, an altar), on the wall away from the
  *      door, with its seats on the open side;

@@ -25,6 +25,7 @@ import {
   FLAG_LINK,
   FLAG_PATH,
   FLAG_WATER,
+  OPPOSITE,
   SIDES,
   SIDE_STEP as STEP,
   cellKey as key,
@@ -181,7 +182,7 @@ export function riseUnits(
         // the skirt stays inside the board's bounds (a piece beyond them would meet the neighbouring slab when
         // tiled): an edge whose foot lies off the board gets none
         if (h(x, y) >= minRise && grid.inBounds(lx, ly)) {
-          const back: Side = s === "N" ? "S" : s === "S" ? "N" : s === "E" ? "W" : "E";
+          const back = OPPOSITE[s];
           out.push({ low: [lx, ly], side: back, lo: 0, hi: h(x, y), perim: true });
         }
         continue;
@@ -190,7 +191,7 @@ export function riseUnits(
       if (!grid.inBounds(lx, ly) || !grid.isFloor(lx, ly)) continue;
       const rise = h(x, y) - h(lx, ly);
       if (rise < minRise) continue;
-      const back: Side = s === "N" ? "S" : s === "S" ? "N" : s === "E" ? "W" : "E";
+      const back = OPPOSITE[s];
       out.push({ low: [lx, ly], side: back, lo: h(lx, ly), hi: h(x, y) });
     }
   }
