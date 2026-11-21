@@ -27,11 +27,13 @@
 import type { Material, Side, ThemeId } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
+import { NEIGHBOURS4 as STEPS4, SIDES, SIDE_STEP } from "../gen/gridGeometry";
 import { ValueNoise } from "../gen/noise";
 import { OWNER, dropLumps, fillNotches, ownSolid, trimTeeth, type CellGrid } from "../gen/solidMass";
 import { isNaturalWallStyle } from "../gen/wallStyles";
 import { h32 } from "../util/hash";
-import { areaReferenceHeights, wallSpan, type SpanCell } from "../resolve/wallspan";
+import { cellIndex, sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
+import { areaReferenceHeights, spanCellAt, wallSpan } from "../resolve/wallspan";
 import { roughCells } from "../resolve/wallTops";
 
 export const SHELL = {
@@ -101,18 +103,8 @@ export function isCarvedLevel(L: ResolvedLevel): boolean {
 }
 
 type Dir = readonly [dx: number, dy: number, side: Side];
-const DIRS: readonly Dir[] = [
-  [0, -1, "N"],
-  [1, 0, "E"],
-  [0, 1, "S"],
-  [-1, 0, "W"],
-];
-const STEPS4 = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-] as const;
+/** The four sides of a cell with the step across each, in SIDES order (gen/gridGeometry.ts). */
+const DIRS: readonly Dir[] = SIDES.map((s) => [SIDE_STEP[s][0], SIDE_STEP[s][1], s]);
 
 /** One level's cells as the shell planner reads them: local indices, -1 for a cell outside the bounds. */
 interface ShellGrid extends CellGrid {
@@ -131,7 +123,7 @@ function shellGrid(L: ResolvedLevel, defaultTheme: ThemeId): ShellGrid {
     w,
     h,
     defaultTheme,
-    at: (lx, ly) => (lx < 0 || ly < 0 || lx >= w || ly >= h ? -1 : ly * w + lx),
+    at: (lx, ly) => cellIndex(L.bounds, lx, ly),
     state: (i) => (i < 0 ? -1 : (L.cells.state[i] ?? CELL.VOID)),
   };
 }
@@ -240,12 +232,13 @@ function wallFaces(g: ShellGrid, claimed: (orient: "h" | "v", edge: number) => b
     for (let lx = 0; lx < w; lx++) {
       const i = ly * w + lx;
       if (g.state(i) !== CELL.OPEN) continue;
-      const sc = spanCell(L, i);
+      const sc = spanCellAt(L, i);
       if (sc.floor) faces.floorLow = Math.min(faces.floorLow, sc.height);
       for (const [dx, dy, side] of DIRS) {
         const j = g.at(lx + dx, ly + dy);
         if (g.state(j) !== CELL.SOLID) continue;
-        const { orient, e } = edgeOf(g, lx, ly, side);
+        const orient = sideOrient(side);
+        const e = sideEdgeIndex(g, lx, ly, side);
         const grid = orient === "h" ? L.hEdges : L.vEdges;
         const kind = grid.kind[e] ?? EDGE.NONE;
         if (kind !== EDGE.WALL && kind !== EDGE.OPENING) {
@@ -262,8 +255,8 @@ function wallFaces(g: ShellGrid, claimed: (orient: "h" | "v", edge: number) => b
           rockFace.push(j);
           continue;
         }
-        const first = side === "S" || side === "E" ? sc : spanCell(L, j);
-        const second = side === "S" || side === "E" ? spanCell(L, j) : sc;
+        const first = side === "S" || side === "E" ? sc : spanCellAt(L, j);
+        const second = side === "S" || side === "E" ? spanCellAt(L, j) : sc;
         const hostFirst = (grid.host[e] ?? 1) === 0;
         const hgt = (grid.height[e] ?? 0) > 0 ? (grid.height[e] ?? 2) : 2;
         const span = wallSpan(L.elevation, first, second, hostFirst, hgt, ref);
@@ -279,35 +272,6 @@ function wallFaces(g: ShellGrid, claimed: (orient: "h" | "v", edge: number) => b
       }
     }
   return faces;
-}
-
-/** A cell as the wall span reads it (resolve/wallspan.ts). */
-function spanCell(L: ResolvedLevel, i: number): SpanCell {
-  if (i < 0) return { open: false, floor: false, height: 0, area: 0, flags: 0 };
-  const flags = L.cells.flags[i] ?? 0;
-  const open = L.cells.state[i] === CELL.OPEN;
-  return {
-    open,
-    floor: open && (flags & CELL_FLAG.NO_FLOOR) === 0 && (L.cells.material[i] ?? 0) > 0,
-    height: (L.cells.height[i] ?? 0) / 4,
-    area: L.cells.area[i] ?? 0,
-    flags,
-  };
-}
-
-/** The edge on one side of a cell (local coordinates). */
-function edgeOf(g: ShellGrid, lx: number, ly: number, side: Side): { orient: "h" | "v"; e: number } {
-  const { w } = g;
-  switch (side) {
-    case "N":
-      return { orient: "h", e: ly * w + lx };
-    case "S":
-      return { orient: "h", e: (ly + 1) * w + lx };
-    case "W":
-      return { orient: "v", e: ly * (w + 1) + lx };
-    case "E":
-      return { orient: "v", e: ly * (w + 1) + lx + 1 };
-  }
 }
 
 // ── the cap ──

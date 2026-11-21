@@ -19,6 +19,7 @@
  */
 import type { ResolvedLevel } from "../contracts/resolved";
 import { CELL_FLAG, EDGE } from "../contracts/resolved";
+import { cellIndex, edgeLineLength, edgeLines, edgeOnLine } from "./levelGrid";
 import { areaReferenceHeights, spanCellOf, wallRise } from "./wallspan";
 import { h32 } from "../util/hash";
 import { isUnevenWallStyle } from "../gen/wallStyles";
@@ -49,7 +50,6 @@ const EPS = 1e-6;
 
 /** Edits `L.hEdges.height` / `L.vEdges.height` in place; returns how many edges it set. */
 export function roughWallTops(L: ResolvedLevel, seedKey: string): number {
-  const { w, h } = L.bounds;
   const ref = areaReferenceHeights(L);
   const cellAt = spanCellOf(L);
   // protected edges: "h|line|pos" / "v|line|pos" in local coordinates
@@ -80,14 +80,13 @@ export function roughWallTops(L: ResolvedLevel, seedKey: string): number {
   for (const ln of L.lines ?? []) for (const an of ln.anchors) aroundCell(an.at[0], an.at[1]);
 
   const rough = roughCells(L);
-  const roughAt = (lx: number, ly: number): boolean =>
-    lx >= 0 && ly >= 0 && lx < w && ly < h && rough[ly * w + lx] === 1;
+  const roughAt = (lx: number, ly: number): boolean => rough[cellIndex(L.bounds, lx, ly)] === 1;
 
   let changed = 0;
   for (const orient of ["h", "v"] as const) {
     const grid = orient === "h" ? L.hEdges : L.vEdges;
-    const lines = orient === "h" ? h + 1 : w + 1;
-    const along = orient === "h" ? w : h;
+    const lines = edgeLines(L.bounds, orient);
+    const along = edgeLineLength(L.bounds, orient);
     for (let line = 0; line < lines; line++) {
       // candidates along this line: position -> new height basis
       type Cand = { pos: number; e: number; h0: number; rise: number; host: number; style: string };
@@ -123,7 +122,7 @@ export function roughWallTops(L: ResolvedLevel, seedKey: string): number {
         run = [];
       };
       for (let pos = 0; pos < along; pos++) {
-        const idx = orient === "h" ? line * w + pos : pos * (w + 1) + line;
+        const idx = edgeOnLine(L.bounds, orient, line, pos);
         const kind = grid.kind[idx];
         if (kind !== EDGE.WALL && kind !== EDGE.OPENING) {
           flush();

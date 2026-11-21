@@ -11,6 +11,7 @@
  *  - Railings: an edge hosted on a bridge deck stands on the deck: base = deck top, top = base + height.
  */
 import { CELL, CELL_FLAG, type ResolvedLevel } from "../contracts/resolved";
+import { cellIndex } from "./levelGrid";
 
 export interface SpanCell {
   open: boolean;
@@ -22,23 +23,26 @@ export interface SpanCell {
   flags: number;
 }
 
+/**
+ * The span view of a resolved level's cell by local index (resolve/levelGrid.ts `cellIndex`); -1, outside the level,
+ * is solid. The same fields as the level grid's `LevelCell`, which any span reader may pass instead.
+ */
+export function spanCellAt(L: ResolvedLevel, i: number): SpanCell {
+  if (i < 0) return { open: false, floor: false, height: 0, area: 0, flags: 0 };
+  const flags = L.cells.flags[i] ?? 0;
+  const open = L.cells.state[i] === CELL.OPEN;
+  return {
+    open,
+    floor: open && (flags & CELL_FLAG.NO_FLOOR) === 0 && (L.cells.material[i] ?? 0) > 0,
+    height: (L.cells.height[i] ?? 0) / 4,
+    area: L.cells.area[i] ?? 0,
+    flags,
+  };
+}
+
 /** The span view of a resolved level's cell at local (lx, ly); outside the level it is solid. */
 export function spanCellOf(L: ResolvedLevel): (lx: number, ly: number) => SpanCell {
-  const { w, h } = L.bounds;
-  return (lx, ly) => {
-    if (lx < 0 || ly < 0 || lx >= w || ly >= h)
-      return { open: false, floor: false, height: 0, area: 0, flags: 0 };
-    const i = ly * w + lx;
-    const flags = L.cells.flags[i] ?? 0;
-    const open = L.cells.state[i] === CELL.OPEN;
-    return {
-      open,
-      floor: open && (flags & CELL_FLAG.NO_FLOOR) === 0 && (L.cells.material[i] ?? 0) > 0,
-      height: (L.cells.height[i] ?? 0) / 4,
-      area: L.cells.area[i] ?? 0,
-      flags,
-    };
-  };
+  return (lx, ly) => spanCellAt(L, cellIndex(L.bounds, lx, ly));
 }
 
 /** Reference floor height (tiles) per display area index + 1: the most common height of its floor cells (ties: higher). */
