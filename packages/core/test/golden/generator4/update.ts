@@ -1,33 +1,48 @@
 /**
  * Rewrites the generator-4 golden on purpose: `npm run test:golden:gen4:update` (from the repo root or packages/core).
- * Rebuilds every run, prints what changed per plan (field: was -> now), and writes __golden__/generator4.txt. Commit
- * the golden together with the change that moved it, and say in the commit message why the output changed.
+ * Rebuilds every run, prints what changed per plan (hash fields `field: was -> now`, then the detail lines that went
+ * `-` and came `+`), and writes __golden__/generator4.txt and generator4.detail.txt. Commit both together with the
+ * change that moved them, and give one line of reason per changed plan in the commit message.
  *
  * It refuses (and writes nothing) when a run at a released generator changes its build (resolved hash, slab, asset
  * count or diagnostic counts): that output is frozen, and the change belongs behind a switch of the open generator.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { changesReleasedOutput, GOLDEN_FILE, goldenLine, goldenRuns, lineDiff, readGolden } from "./runs";
+import {
+  changesReleasedOutput,
+  DETAIL_FILE,
+  detailDiff,
+  GOLDEN_FILE,
+  goldenRecord,
+  goldenRuns,
+  lineDiff,
+  readDetail,
+  readGolden,
+} from "./runs";
 
 const before = readGolden();
-const lines = goldenRuns().map(goldenLine);
-const after = new Map(lines.map((l) => [l.split(" ")[0] ?? "", l]));
+const beforeDetail = readDetail();
+const runs = goldenRuns();
+const records = runs.map((r) => ({ name: r.name, ...goldenRecord(r) }));
+const after = new Map(records.map((r) => [r.name, r]));
 
 let changed = 0;
 const frozen: string[] = [];
 for (const name of new Set([...before.keys(), ...after.keys()])) {
   const was = before.get(name);
   const now = after.get(name);
-  if (was === now) continue;
+  const moved = detailDiff(beforeDetail.get(name), now?.detail);
+  if (was === now?.line && moved.length === 0) continue;
   changed++;
-  if (was === undefined) console.log(`ADDED   ${now ?? ""}`);
+  if (was === undefined) console.log(`ADDED   ${now?.line ?? ""}`);
   else if (now === undefined) console.log(`REMOVED ${was}`);
   else {
     console.log(`CHANGED ${name}`);
-    for (const d of lineDiff(was, now)) console.log(`    ${d}`);
-    if (changesReleasedOutput(was, now)) frozen.push(name);
+    for (const d of lineDiff(was, now.line)) console.log(`    ${d}`);
+    if (changesReleasedOutput(was, now.line)) frozen.push(name);
   }
+  for (const d of moved) console.log(`      ${d}`);
 }
 
 if (frozen.length) {
@@ -38,12 +53,13 @@ if (frozen.length) {
   );
   process.exitCode = 1;
 } else if (changed === 0) {
-  console.log(`generator-4 golden unchanged (${String(lines.length)} runs)`);
+  console.log(`generator-4 golden unchanged (${String(records.length)} runs)`);
 } else {
   mkdirSync(new URL(".", GOLDEN_FILE), { recursive: true });
-  writeFileSync(GOLDEN_FILE, lines.join("\n") + "\n");
+  writeFileSync(GOLDEN_FILE, records.map((r) => r.line).join("\n") + "\n");
+  writeFileSync(DETAIL_FILE, records.flatMap((r) => r.detail).join("\n") + "\n");
   console.log(
-    `\n${String(changed)} of ${String(lines.length)} runs changed; wrote ${fileURLToPath(GOLDEN_FILE)}. ` +
-      `Review the diff above and commit the golden with the change that caused it.`,
+    `\n${String(changed)} of ${String(records.length)} runs changed; wrote ${fileURLToPath(GOLDEN_FILE)} and ` +
+      `${fileURLToPath(DETAIL_FILE)}. Review the diff above and commit both with the change that caused it.`,
   );
 }

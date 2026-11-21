@@ -11,11 +11,14 @@
  * every plan of a released generator forced to generator 4. Each run goes through the CLI's pipeline (resolve
  * against the compile palettes, compile, design review with and without the build) and is reduced to one line in
  * __golden__/generator4.txt: resolved hash, asset count, diagnostic counts, and short sha256 hashes of the slabs, the
- * diagnostics and both reviews.
+ * diagnostics and both reviews. Beside it, __golden__/generator4.detail.txt says what each run built, one fact per line
+ * (pieces per level by role, layer and structure part; features by type; diagnostic and review codes with counts: see
+ * runs.ts runDetail), so a diff of it reads "the apothecary's chimney went" rather than "the slab hash changed".
  *
  * This test never writes. If it fails:
  * - You meant to change generator-4 output: run `npm run test:golden:gen4:update`. It prints the per-plan
- *   before/after diff and rewrites the golden; commit the golden with the change and say why in the message.
+ *   before/after diff (hash fields and detail lines) and rewrites both files; commit them with the change and give
+ *   one line of reason per changed plan in the message.
  * - You did not (a refactor): the diff is a bug in the refactor. Do not update the golden.
  * - A run at a released generator changed its build: that output is frozen; the update script refuses it. Put the
  *   change behind a switch of the open generator (src/plan/generator.ts).
@@ -27,10 +30,22 @@
  */
 import { describe, expect, it } from "vitest";
 import { GENERATOR_VERSIONS } from "../../../src/contracts/plan";
-import { changesReleasedOutput, goldenLine, goldenRuns, lineDiff, OPEN_GENERATOR, readGolden } from "./runs";
+import {
+  changesReleasedOutput,
+  detailDiff,
+  goldenRecord,
+  goldenRuns,
+  lineDiff,
+  OPEN_GENERATOR,
+  readDetail,
+  readGolden,
+} from "./runs";
 
 const RUNS = goldenRuns();
 const GOLDEN = readGolden();
+const DETAIL = readDetail();
+/** Detail lines shown in a failure message (the update script prints them all). */
+const SHOWN = 30;
 const UPDATE = "npm run test:golden:gen4:update";
 
 describe("generator 4 output matches the committed golden", () => {
@@ -45,20 +60,26 @@ describe("generator 4 output matches the committed golden", () => {
       [...GOLDEN.keys()],
       `the fixture plans changed: run \`${UPDATE}\` to add or drop their lines, and commit the golden`,
     ).toEqual(RUNS.map((r) => r.name));
+    expect([...DETAIL.keys()], `the detail file is out of step: run \`${UPDATE}\``).toEqual(
+      RUNS.map((r) => r.name),
+    );
   });
 
   // one test per run, so a failure names the plan and one slow build cannot time out the others
   it.each(RUNS.map((r) => [r.name, r] as const))("%s", (name, run) => {
-    const now = goldenLine(run);
+    const { line: now, detail } = goldenRecord(run);
     const was = GOLDEN.get(name);
-    if (now === was) return;
-    const diff = lineDiff(was, now).join("; ");
+    const moved = detailDiff(DETAIL.get(name), detail);
+    if (now === was && moved.length === 0) return;
+    const shown = moved.slice(0, SHOWN).join("\n  ");
+    const more = moved.length > SHOWN ? `\n  ... ${String(moved.length - SHOWN)} more` : "";
+    const diff = `${lineDiff(was, now).join("; ")}${moved.length ? `\n  ${shown}${more}\n` : ""}`;
     const advice =
       was !== undefined && changesReleasedOutput(was, now)
         ? `a released generator's build changed (${diff}). That output is frozen: put the change behind a switch ` +
           `of the open generator (src/plan/generator.ts). Do not update the golden.`
         : `generator-4 output changed (${diff}). If you meant it, run \`${UPDATE}\`, check the printed diff and ` +
           `commit the golden with the change. If this is a refactor, the change is a bug: do not update the golden.`;
-    expect(now, advice).toBe(was);
+    expect([now, ...detail], advice).toEqual([was, ...(DETAIL.get(name) ?? [])]);
   });
 });
