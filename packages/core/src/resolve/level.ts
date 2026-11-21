@@ -10,11 +10,9 @@ import type {
   FeatureType,
   Level,
   Material,
-  OpeningKind,
   Side,
   TerrainOp,
   Vec2,
-  WallMode,
   WallStyle,
 } from "../contracts/plan";
 import { MATERIALS, PLAN_LIMITS } from "../contracts/plan";
@@ -24,7 +22,6 @@ import type {
   ResolvedFeature,
   ResolvedLevel,
   ResolvedLine,
-  ResolvedOpening,
   StallBuild,
 } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
@@ -39,8 +36,8 @@ import {
   scatterFeatures,
 } from "../gen/place";
 import { defaultCliffBands } from "../gen/setpieces";
-import { classifyRoom, furnishedPurpose } from "../gen/roomPurpose";
-import { NATURAL_WALL_STYLE, isLowWallStyle, isNaturalWallStyle, isUnevenWallStyle } from "../gen/wallStyles";
+import { furnishedPurpose } from "../gen/roomPurpose";
+import { isLowWallStyle, isNaturalWallStyle, isUnevenWallStyle } from "../gen/wallStyles";
 import { dressRoom, lightArea } from "../gen/rooms4";
 import { LIGHT_FEATURES } from "../gen/catalog";
 import {
@@ -57,7 +54,6 @@ import {
   jitterPolyline,
   rasterPolyline,
   rasterizeShape,
-  routeCenterline,
 } from "../gen/shapes";
 import { elementSeed, h32, subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
@@ -74,7 +70,6 @@ import { roughWallTops } from "./wallTops";
 import { settleWallHeights } from "./wallSettle";
 import { crossingCells, kerbLinesAndCorners } from "./road";
 import { trailCells } from "./trail";
-import { themeInterior } from "./themes";
 import { traceRings } from "./trace";
 import {
   type AreaInfo,
@@ -86,6 +81,9 @@ import {
   WATER_MATS,
   materialOrdinal,
 } from "./level/work";
+import { checkAreaFields, initAreas, stepAreas, stepBase } from "./level/areas";
+import { stepEdges, stepStairs, stepWallRuns } from "./level/edges";
+import { stepOpenings } from "./level/openings";
 
 const WOOD_DECKS = new Set<Material>(["bridge_wood", "wood_plank"]);
 const NATURAL_DECKS = new Set<Material>(["rock", "dirt", "gravel", "mud", "sand", "grass", "snow", "ice"]);
@@ -98,15 +96,6 @@ const SPAN_RAILING: Record<BridgeSpan, WallStyle | null> = {
   natural: null,
 };
 
-const DEFAULT_MODE: Record<AreaKind, WallMode> = {
-  room: "auto",
-  corridor: "auto",
-  cave: "auto",
-  building: "auto",
-  courtyard: "perimeter",
-  zone: "none",
-  bridge: "none",
-};
 const LAVA_ORDINAL = MATERIALS.indexOf("lava") + 1;
 /** Generator 3: a long rift or river strays from the line between its ends by about this share of its length. */
 const WANDER_SHARE = 0.2;
@@ -161,10 +150,10 @@ export class LevelSteps extends LevelWork {
   // ───────────────────────────── phase 1: steps 1–6 ─────────────────────────────
 
   runPhase1(): void {
-    this.initAreas();
-    this.stepBase();
+    initAreas(this);
+    stepBase(this);
     this.stepTerrain("under");
-    this.stepAreas();
+    stepAreas(this);
     if (this.gen.caveOutlines) this.stepCaveOutlines();
     this.structs?.afterAreas(this);
     this.checkUnderSurvivors();
@@ -175,68 +164,16 @@ export class LevelSteps extends LevelWork {
     this.stepOutline();
     this.stepBridges();
     if (this.gen.roomFloors) this.stepRoomFloors();
-    this.stepEdges();
-    this.stepStairs();
+    stepEdges(this);
+    stepStairs(this);
     this.stepRailings();
     this.stepRoads();
     this.stepKerbs();
-    this.stepWallRuns();
-    this.stepOpenings();
+    stepWallRuns(this);
+    stepOpenings(this);
     this.stepOpeningRims();
     this.structs?.afterOpenings(this);
-    this.checkAreaFields();
-  }
-
-  private initAreas(): void {
-    this.themeIndex(this.levelTheme);
-    this.level.areas.forEach((area, index) => {
-      const theme = area.theme ?? this.levelTheme;
-      const td = this.ctx.themeDefaults(theme);
-      const defFloor =
-        area.kind === "cave" ? td.caveFloor : area.kind === "courtyard" ? td.courtyardFloor : td.floor;
-      const floor = area.floor ?? defFloor;
-      // generator 4 reads these (rooms dressed, floored, finished by purpose); they are cheap and pure, so every
-      // generator computes them, and only generator 4 writes them on the resolved area
-      const room = classifyRoom(area);
-      const interior = themeInterior(this.ctx.palette.interior(theme), td);
-      this.areas.push({
-        area,
-        index,
-        kind: area.kind,
-        mode: area.walls ?? DEFAULT_MODE[area.kind],
-        // generator 2: in a theme whose walls are natural rock (cave), every area defaults to rock walls, so a tunnel
-        // into a cave is rock, not a brick box
-        wallStyle:
-          area.wallStyle ??
-          (area.kind === "cave" || (this.gen.naturalThemeWalls && isNaturalWallStyle(td.wallStyle))
-            ? NATURAL_WALL_STYLE
-            : "wall"),
-        wallHeight: area.wallHeight ?? this.defaultWallHeight,
-        themeIdx: this.themeIndex(theme),
-        theme,
-        floorMat: floor === "none" ? 0 : materialOrdinal(floor),
-        floorNone: floor === "none",
-        isZone: area.kind === "zone",
-        isRoute: area.shape.type === "route",
-        isBridge: area.kind === "bridge",
-        structCount: 0,
-        room,
-        interior,
-        rough: interior.finish === "rough" || room.abandoned,
-      });
-      if (!this.areaIndexById.has(area.id)) this.areaIndexById.set(area.id, index);
-    });
-  }
-
-  private stepBase(): void {
-    const base = this.level.base;
-    if (base.type === "solid") this.state.fill(CELL.SOLID);
-    else if (base.type === "void") this.state.fill(CELL.VOID);
-    else {
-      this.state.fill(CELL.OPEN);
-      for (let i = 0; i < this.n; i++) this.setMaterial(i, base.material);
-    }
-    this.theme.fill(0);
+    checkAreaFields(this);
   }
 
   /**
@@ -924,142 +861,6 @@ export class LevelSteps extends LevelWork {
         pool: [...pool].sort((a, b) => a - b).map((i) => this.cellXY(i) as Vec2),
       });
     });
-  }
-
-  private stepAreas(): void {
-    for (const info of this.areas) {
-      if (info.isRoute) continue;
-      const cells = this.shapeCells(
-        info.area.shape,
-        "area",
-        `/levels/${this.li}/areas/${info.index}/shape`,
-        info.area.id,
-      );
-      for (const i of cells) this.claim(i, info);
-    }
-    for (const info of this.areas) if (info.isRoute) this.routeArea(info);
-    this.recountStruct();
-  }
-
-  private routeArea(info: AreaInfo): void {
-    const shape = info.area.shape;
-    if (shape.type !== "route") return;
-    const path = `/levels/${this.li}/areas/${info.index}/shape`;
-    const endpoint = (
-      ref: string | Vec2,
-      which: "from" | "to",
-    ): { cell: [number, number]; ai: number } | null => {
-      if (typeof ref !== "string") return { cell: [ref[0], ref[1]], ai: -1 };
-      const ai = this.areaIndexById.get(ref);
-      if (ai === undefined) {
-        this.issue("error", "ref_unknown", `route "${info.area.id}" ${which} unknown area "${ref}"`, {
-          path: `${path}/${which}`,
-          elementId: info.area.id,
-          hint: `areas on ${this.level.id}: ${this.level.areas.map((a) => a.id).join(", ")}`,
-        });
-        return null;
-      }
-      const cell = this.anchorOf(this.areaCells(ai));
-      if (!cell) return null;
-      return { cell, ai };
-    };
-    const a = endpoint(shape.from, "from");
-    const b = endpoint(shape.to, "to");
-    if (!a || !b) return;
-    const width = shape.width ?? 1;
-    const line = routeCenterline(a.cell, b.cell, shape.bend ?? "hv");
-    const inA = (c: readonly [number, number]): boolean => a.ai >= 0 && this.ownerIs(c, a.ai);
-    const inB = (c: readonly [number, number]): boolean => b.ai >= 0 && this.ownerIs(c, b.ai);
-    let i0 = 0;
-    while (i0 < line.length && inA(line[i0] as [number, number])) i0++;
-    let j0 = i0;
-    while (j0 < line.length && !inB(line[j0] as [number, number])) j0++;
-    const [lo, hi] = bandOffsets(width);
-    const square = (c: readonly [number, number]): Array<[number, number]> => {
-      const out: Array<[number, number]> = [];
-      for (let y = c[1] + lo; y <= c[1] + hi; y++)
-        for (let x = c[0] + lo; x <= c[0] + hi; x++) out.push([x, y]);
-      return out;
-    };
-    for (let k = i0; k < j0; k++) {
-      for (const [x, y] of square(line[k] as [number, number])) {
-        const i = this.idx(x, y);
-        if (i >= 0 && this.struct[i] === 0) this.claim(i, info);
-      }
-    }
-    this.routes.push({
-      ai: info.index,
-      from: a.ai,
-      to: b.ai,
-      width,
-      kind: shape.openings ?? "open",
-      startSquare: i0 < j0 ? square(line[i0] as [number, number]) : [],
-      endSquare: i0 < j0 ? square(line[j0 - 1] as [number, number]) : [],
-      orientA: i0 > 0 && i0 < line.length ? crossOrient(line[i0 - 1] as Vec2, line[i0] as Vec2) : null,
-      orientB: j0 > 0 && j0 < line.length ? crossOrient(line[j0 - 1] as Vec2, line[j0] as Vec2) : null,
-    });
-  }
-
-  private ownerIs(c: readonly [number, number], ai: number): boolean {
-    const i = this.idx(c[0], c[1]);
-    if (i < 0) return false;
-    const info = this.areas[ai] as AreaInfo;
-    return (info.isZone ? this.disp[i] : this.struct[i]) === ai + 1;
-  }
-
-  // ── step 5: edges ──
-
-  private stepEdges(): void {
-    const one = (orient: "h" | "v", e: EdgeArrays, i: number): void => {
-      const [a, b] = this.edgeCells(orient, i);
-      const ra = this.region(a);
-      const rb = this.region(b);
-      let demand = -1; // 0 = a, 1 = b, 2 = both
-      // A bridge deck never gets area walls toward open cells (it has railings, added after the edges).
-      const deckEdge = ra >= 0 && rb >= 0 && (this.bridgeOf[a] !== 0 || this.bridgeOf[b] !== 0);
-      if (deckEdge) {
-        /* no wall */
-      } else if (ra >= 0 !== rb >= 0) {
-        const r = ra >= 0 ? ra : rb;
-        const m = this.modeOf(r);
-        if (m === "auto" || m === "perimeter") demand = ra >= 0 ? 0 : 1;
-      } else if (ra >= 0 && rb >= 0 && ra !== rb) {
-        const da = this.modeOf(ra) === "auto";
-        const db = this.modeOf(rb) === "auto";
-        if (da && db) demand = 2;
-        else if (da) demand = 0;
-        else if (db) demand = 1;
-      }
-      if (demand >= 0) {
-        // Style: between two demanding sides a thin style beats a full-cell (natural rock) style whatever the
-        // area sizes; between two thin (or two full-cell) styles the host side wins.
-        let side: number;
-        if (demand === 2) {
-          const fa = isNaturalWallStyle((this.areas[ra - 1] as AreaInfo).wallStyle);
-          const fb = isNaturalWallStyle((this.areas[rb - 1] as AreaInfo).wallStyle);
-          side = fa !== fb ? (fa ? 1 : 0) : this.hostOf(a, b, false);
-        } else side = demand;
-        const info = this.areas[(side === 0 ? ra : rb) - 1] as AreaInfo;
-        // Natural rock walls are full-cell blocks in TaleSpire: there is no thin rock wall to stand between two
-        // open cells. When every demanding side uses a full-cell style and both sides are open, the spaces merge.
-        const fullCell = isNaturalWallStyle(info.wallStyle);
-        if (!(fullCell && ra >= 0 && rb >= 0)) {
-          e.kind[i] = EDGE.WALL;
-          e.style[i] = info.wallStyle;
-          e.height[i] = info.wallHeight;
-          return;
-        }
-      }
-      if (ra >= 0 && rb >= 0) {
-        const dh = Math.abs((this.height[a] as number) - (this.height[b] as number));
-        if (dh >= 1) {
-          e.kind[i] = EDGE.LEDGE;
-          e.height[i] = dh / 4;
-        }
-      }
-    };
-    for (let i = 0; i < this.hE.kind.length; i++) one("h", this.hE, i);
-    for (let i = 0; i < this.vE.kind.length; i++) one("v", this.vE, i);
   }
 
   // ── structure ops (over layer): platform, stairs, uneven, outcrop ──
@@ -2152,26 +1953,6 @@ export class LevelSteps extends LevelWork {
     }
   }
 
-  /** Stair edges become EDGE.STAIR (walkable whatever the height); the lower cell holds the stair asset. */
-  private stepStairs(): void {
-    for (const key of this.stairEdges) {
-      const [a, b] = key.split(",").map(Number) as [number, number];
-      if (this.state[a] !== CELL.OPEN || this.state[b] !== CELL.OPEN) continue;
-      const ha = this.height[a] as number;
-      const hb = this.height[b] as number;
-      if (ha === hb) continue;
-      const [ax, ay] = this.cellXY(a);
-      const [bx, by] = this.cellXY(b);
-      const side: Side = bx > ax ? "E" : bx < ax ? "W" : by > ay ? "S" : "N";
-      const ed = this.sideEdge(ax, ay, side);
-      if (!ed || ed.e.kind[ed.i] === EDGE.WALL || ed.e.kind[ed.i] === EDGE.OPENING) continue;
-      ed.e.kind[ed.i] = EDGE.STAIR;
-      ed.e.height[ed.i] = Math.abs(ha - hb) / 4;
-      const lower = ha < hb ? a : b;
-      this.flags[lower] = (this.flags[lower] as number) | CELL_FLAG.STEPS;
-    }
-  }
-
   // ── bridges (after the over-layer terrain, before the edges) ──
 
   /**
@@ -2570,447 +2351,6 @@ export class LevelSteps extends LevelWork {
         }
       }
     });
-  }
-
-  /** Fields that do nothing for an area of this kind (zone floor/height/walls, bridge-only fields elsewhere). */
-  private checkAreaFields(): void {
-    for (const info of this.areas) {
-      const a = info.area;
-      const path = `/levels/${this.li}/areas/${info.index}`;
-      const unused: string[] = [];
-      if (info.isZone) {
-        for (const f of ["floor", "floorHeight", "walls", "wallStyle", "wallHeight"] as const)
-          if (a[f] !== undefined) unused.push(f);
-      } else if (info.mode === "none" && !info.isBridge) {
-        for (const f of ["wallStyle", "wallHeight"] as const) if (a[f] !== undefined) unused.push(f);
-      }
-      if (!info.isBridge)
-        for (const f of ["railing", "broken", "crumble"] as const) if (a[f] !== undefined) unused.push(f);
-      if (unused.length === 0) continue;
-      const hint = info.isZone
-        ? 'a zone only names cells; for a raised dais or sunken pit use kind "room"/"cave" with floorHeight (later in the list than the area it sits in), or a height terrain op with layer "over"; for a floor use a paint op'
-        : info.mode === "none" && !info.isBridge && (a.wallStyle !== undefined || a.wallHeight !== undefined)
-          ? 'walls "none" never builds walls: use walls "auto" or "perimeter" to get them'
-          : 'railing, broken and crumble only apply to kind "bridge"';
-      this.issue(
-        "warning",
-        "no_effect",
-        `area "${a.id}" (${a.kind}) sets ${unused.join(", ")}, which ${unused.length > 1 ? "do" : "does"} nothing for it`,
-        { path, elementId: a.id, hint },
-      );
-    }
-  }
-
-  private stepWallRuns(): void {
-    this.level.walls.forEach((run, k) => {
-      const path = `/levels/${this.li}/walls/${k}`;
-      let clipped = 0;
-      let removed = 0;
-      const thinRock: Array<[number, number]> = [];
-      for (let s = 0; s + 1 < run.points.length; s++) {
-        const p = run.points[s] as Vec2;
-        const q = run.points[s + 1] as Vec2;
-        const edges: Array<{ e: EdgeArrays; i: number; orient: "h" | "v" } | null> = [];
-        if (p[1] === q[1]) {
-          for (let x = Math.min(p[0], q[0]); x < Math.max(p[0], q[0]); x++)
-            edges.push(this.hIndex(x - this.bx, p[1] - this.by));
-        } else if (p[0] === q[0]) {
-          for (let y = Math.min(p[1], q[1]); y < Math.max(p[1], q[1]); y++)
-            edges.push(this.vIndex(p[0] - this.bx, y - this.by));
-        } else {
-          this.issue("error", "shape_invalid", `wall run "${run.id}" segment ${s} is not axis-aligned`, {
-            path: `${path}/points/${s + 1}`,
-            elementId: run.id,
-            hint: `use [${q[0]},${p[1]}] or [${p[0]},${q[1]}] as an intermediate point`,
-          });
-          continue;
-        }
-        for (const ed of edges) {
-          if (!ed) {
-            clipped++;
-            continue;
-          }
-          if (run.op === "add") {
-            const [ca, cb] = this.edgeCells(ed.orient, ed.i);
-            if (isNaturalWallStyle(run.style ?? "wall") && this.region(ca) >= 0 && this.region(cb) >= 0) {
-              thinRock.push(this.edgeStart(ed.orient, ed.i));
-            }
-            ed.e.kind[ed.i] = EDGE.WALL;
-            ed.e.style[ed.i] = run.style ?? "wall";
-            ed.e.height[ed.i] = run.height ?? this.defaultWallHeight;
-            ed.e.run[ed.i] = 1;
-          } else if (ed.e.kind[ed.i] === EDGE.WALL) {
-            removed++;
-            ed.e.kind[ed.i] = EDGE.NONE;
-            ed.e.style[ed.i] = null;
-            ed.e.height[ed.i] = 0;
-            ed.e.run[ed.i] = 0;
-          }
-        }
-      }
-      if (run.op === "remove" && removed === 0)
-        this.issue(
-          "warning",
-          "no_effect",
-          `wall run "${run.id}" (remove) removed nothing: there is no wall along it`,
-          {
-            path,
-            elementId: run.id,
-            hint: "wall runs follow grid VERTICES (cell corners): to remove the wall on the north side of cell x,y use points [[x,y],[x+1,y]]; check the walls with view_plan ascii",
-          },
-        );
-      const firstThin = thinRock[0];
-      if (firstThin)
-        this.issue(
-          "error",
-          "shape_invalid",
-          `wall run "${run.id}" asks for a ${run.style ?? "wall"} wall between two open cells at ${firstThin[0]},${firstThin[1]} (${thinRock.length} edges); natural rock is built as whole cells, so it cannot stand there as a thin wall`,
-          {
-            path: `${path}/style`,
-            elementId: run.id,
-            hint: "leave a solid (unclaimed) cell between the two areas, or use another wall style such as stone",
-          },
-        );
-      if (clipped > 0)
-        this.issue(
-          "warning",
-          "bounds_exceeded",
-          `wall run "${run.id}" leaves the level bounds; ${clipped} edges clipped`,
-          {
-            path,
-            elementId: run.id,
-          },
-        );
-    });
-  }
-
-  // ── step 6: openings ──
-
-  private areaIdOf(region: number): string | null {
-    return region > 0 ? (this.areas[region - 1] as AreaInfo).area.id : null;
-  }
-
-  /** Maximal straight runs of the given edges. */
-  private runsOf(
-    edges: Array<{ orient: "h" | "v"; i: number }>,
-  ): Array<{ orient: "h" | "v"; idx: number[]; start: [number, number] }> {
-    const runs: Array<{ orient: "h" | "v"; idx: number[]; start: [number, number] }> = [];
-    for (const orient of ["h", "v"] as const) {
-      const list = edges
-        .filter((e) => e.orient === orient)
-        .map((e) => {
-          const [x, y] = this.edgeStart(orient, e.i);
-          return { i: e.i, line: orient === "h" ? y : x, pos: orient === "h" ? x : y };
-        })
-        .sort((p, q) => p.line - q.line || p.pos - q.pos);
-      let cur: { line: number; last: number; idx: number[] } | null = null;
-      for (const e of list) {
-        if (cur && cur.line === e.line && e.pos === cur.last + 1) {
-          cur.idx.push(e.i);
-          cur.last = e.pos;
-        } else {
-          if (cur) runs.push({ orient, idx: cur.idx, start: this.edgeStart(orient, cur.idx[0] as number) });
-          cur = { line: e.line, last: e.pos, idx: [e.i] };
-        }
-      }
-      if (cur) runs.push({ orient, idx: cur.idx, start: this.edgeStart(orient, cur.idx[0] as number) });
-    }
-    return runs;
-  }
-
-  /** Longest run; ties → smallest start y, then x, then horizontal before vertical. */
-  private pickRun<T extends { orient: "h" | "v"; idx: number[]; start: [number, number] }>(
-    runs: T[],
-  ): T | null {
-    let best: T | null = null;
-    for (const r of runs) {
-      if (
-        !best ||
-        r.idx.length > best.idx.length ||
-        (r.idx.length === best.idx.length &&
-          (r.start[1] < best.start[1] ||
-            (r.start[1] === best.start[1] &&
-              (r.start[0] < best.start[0] ||
-                (r.start[0] === best.start[0] && r.orient === "h" && best.orient === "v")))))
-      )
-        best = r;
-    }
-    return best;
-  }
-
-  private placeOpening(
-    o: { id: string; kind: OpeningKind; label?: string; gmOnly?: boolean },
-    orient: "h" | "v",
-    idx: number[],
-    path: string,
-    explicitAt: boolean,
-    silentOverlap: boolean,
-  ): boolean {
-    const e = orient === "h" ? this.hE : this.vE;
-    for (const i of idx) {
-      if (e.kind[i] === EDGE.OPENING || e.opened[i] === 1) {
-        if (!silentOverlap) {
-          const [x, y] = this.edgeStart(orient, i);
-          this.issue(
-            "error",
-            "opening_overlap",
-            `opening "${o.id}" overlaps another opening at edge ${orient} ${x},${y}`,
-            {
-              path,
-              elementId: o.id,
-              hint: "move it with position (0..1) or remove the other opening",
-            },
-          );
-        }
-        return false;
-      }
-    }
-    const first = idx[0] as number;
-    const [a, b] = this.edgeCells(orient, first);
-    const anyWall = idx.some((i) => e.kind[i] === EDGE.WALL);
-    if (explicitAt && !anyWall && o.kind !== "open") {
-      const [x, y] = this.edgeStart(orient, first);
-      this.issue(
-        "warning",
-        "opening_no_boundary",
-        `opening "${o.id}" is not on a wall (edge ${orient} ${x},${y}); it is placed anyway`,
-        {
-          path,
-          elementId: o.id,
-          hint: "use between: [areaA, areaB] to snap it onto a shared wall",
-        },
-      );
-    } else if (!explicitAt && !silentOverlap && !anyWall && o.kind !== "open") {
-      const [x, y] = this.edgeStart(orient, first);
-      this.issue(
-        "warning",
-        "opening_no_boundary",
-        `opening "${o.id}" (${o.kind}) stands where there is no wall between its two areas (edge ${orient} ${x},${y}), so it is a free-standing ${o.kind.replace("_", " ")} in the open`,
-        {
-          path,
-          elementId: o.id,
-          hint: 'use kind "open" (or remove it), or give one of the areas walls "auto" so a wall separates them (natural cave rock never stands between two open areas)',
-        },
-      );
-    }
-    const style = e.style[first] ?? "wall";
-    const k = this.openings.length;
-    const rec: ResolvedOpening = {
-      id: o.id,
-      kind: o.kind,
-      orientation: orient,
-      start: this.edgeStart(orient, first),
-      width: idx.length,
-      sides: [this.areaIdOf(this.owner(a)), this.areaIdOf(this.owner(b))],
-      wallStyle: style,
-      theme: this.themes[this.theme[b >= 0 ? b : a] ?? 0] ?? this.levelTheme,
-    };
-    if (o.label !== undefined) rec.label = o.label;
-    if (o.gmOnly === true || o.kind === "secret_door") rec.gmOnly = true;
-    this.openings.push(rec);
-    for (const i of idx) {
-      const wasWall = e.kind[i] === EDGE.WALL;
-      if (o.kind === "open") {
-        e.kind[i] = EDGE.NONE;
-        e.style[i] = null;
-        e.height[i] = 0;
-        e.opened[i] = 1;
-      } else {
-        e.kind[i] = EDGE.OPENING;
-        e.ref[i] = k;
-        if (!wasWall) e.height[i] = this.defaultWallHeight;
-        if (e.style[i] === null) e.style[i] = style;
-      }
-    }
-    return true;
-  }
-
-  private stepOpenings(): void {
-    this.level.openings.forEach((o, k) => {
-      const path = `/levels/${this.li}/openings/${k}`;
-      const width0 = o.width ?? (o.kind === "double_door" ? 2 : 1);
-      if (o.between) {
-        const ids = o.between;
-        const res = ids.map((id) => (id === "@outside" ? 0 : (this.areaIndexById.get(id) ?? -1) + 1));
-        const [ra, rb] = res as [number, number];
-        const unknown = ids.filter((id, j) => id !== "@outside" && (res[j] as number) === 0);
-        if (unknown.length > 0) {
-          this.issue(
-            "error",
-            "ref_unknown",
-            `opening "${o.id}" names unknown area(s) ${unknown.join(", ")}`,
-            {
-              path: `${path}/between`,
-              elementId: o.id,
-              hint: `areas on ${this.level.id}: ${this.level.areas.map((a) => a.id).join(", ")}`,
-            },
-          );
-          return;
-        }
-        if (ra === rb) {
-          this.issue("error", "opening_no_boundary", `opening "${o.id}" needs two different sides`, {
-            path: `${path}/between`,
-            elementId: o.id,
-          });
-          return;
-        }
-        const matches: Array<{ orient: "h" | "v"; i: number }> = [];
-        const test = (orient: "h" | "v", i: number): void => {
-          const [a, b] = this.edgeCells(orient, i);
-          const oa = this.owner(a);
-          const ob = this.owner(b);
-          if ((oa === ra && ob === rb) || (oa === rb && ob === ra)) matches.push({ orient, i });
-        };
-        for (let i = 0; i < this.hE.kind.length; i++) test("h", i);
-        for (let i = 0; i < this.vE.kind.length; i++) test("v", i);
-        const run = this.pickRun(this.runsOf(matches));
-        if (!run) {
-          this.issue(
-            "error",
-            "opening_no_boundary",
-            `areas ${ids[0]} and ${ids[1]} share no edge, so "${o.id}" has nowhere to go`,
-            {
-              path: `${path}/between`,
-              elementId: o.id,
-              hint: this.nearestHint(ra, rb),
-            },
-          );
-          return;
-        }
-        const len = run.idx.length;
-        const wd = Math.min(width0, len);
-        const pos = Math.min(1, Math.max(0, o.position ?? 0.5));
-        const off = Math.min(len - wd, Math.max(0, Math.floor((len - wd) * pos)));
-        this.placeOpening(o, run.orient, run.idx.slice(off, off + wd), path, false, false);
-        return;
-      }
-      if (o.at) {
-        const ed = this.sideEdge(o.at.x, o.at.y, o.at.side);
-        if (!ed) {
-          this.issue("error", "bounds_exceeded", `opening "${o.id}" is outside the level bounds`, {
-            path: `${path}/at`,
-            elementId: o.id,
-          });
-          return;
-        }
-        const idx: number[] = [];
-        for (let j = 0; j < width0; j++) {
-          const next =
-            ed.orient === "h"
-              ? this.hIndex((ed.i % this.w) + j, Math.floor(ed.i / this.w))
-              : this.vIndex(ed.i % (this.w + 1), Math.floor(ed.i / (this.w + 1)) + j);
-          if (!next) {
-            this.issue(
-              "error",
-              "bounds_exceeded",
-              `opening "${o.id}" (width ${width0}) runs past the level bounds`,
-              {
-                path: `${path}/width`,
-                elementId: o.id,
-              },
-            );
-            return;
-          }
-          idx.push(next.i);
-        }
-        this.placeOpening(o, ed.orient, idx, path, true, false);
-      }
-    });
-    for (const r of this.routes) {
-      const info = this.areas[r.ai] as AreaInfo;
-      const make = (
-        target: number,
-        square: Array<[number, number]>,
-        suffix: "a" | "b",
-        prefer: "h" | "v" | null,
-      ): void => {
-        if (target < 0) return;
-        const routeCells = new Set(
-          square.map(([x, y]) => this.idx(x, y)).filter((i) => i >= 0 && this.struct[i] === r.ai + 1),
-        );
-        let matches = this.meetingEdges(r.ai + 1, target + 1, routeCells);
-        if (matches.length === 0) matches = this.meetingEdges(r.ai + 1, target + 1, null);
-        if (prefer && matches.some((m) => m.orient === prefer))
-          matches = matches.filter((m) => m.orient === prefer);
-        const run = this.pickRun(this.runsOf(matches));
-        if (!run) return;
-        const len = run.idx.length;
-        const wd = Math.min(len, r.width, 3);
-        const off = Math.floor((len - wd) * 0.5);
-        this.placeOpening(
-          { id: `${info.area.id}~${suffix}`, kind: r.kind },
-          run.orient,
-          run.idx.slice(off, off + wd),
-          `/levels/${this.li}/areas/${r.ai}`,
-          false,
-          true,
-        );
-      };
-      make(r.from, r.startSquare, "a", r.orientA);
-      make(r.to, r.endSquare, "b", r.orientB);
-    }
-  }
-
-  private meetingEdges(
-    routeRegion: number,
-    targetRegion: number,
-    only: Set<number> | null,
-  ): Array<{ orient: "h" | "v"; i: number }> {
-    const out: Array<{ orient: "h" | "v"; i: number }> = [];
-    const test = (orient: "h" | "v", i: number): void => {
-      const [a, b] = this.edgeCells(orient, i);
-      if (a < 0 || b < 0) return;
-      const oa = this.struct[a] as number;
-      const ob = this.struct[b] as number;
-      if (oa === routeRegion && ob === targetRegion && (!only || only.has(a))) out.push({ orient, i });
-      else if (ob === routeRegion && oa === targetRegion && (!only || only.has(b))) out.push({ orient, i });
-    };
-    for (let i = 0; i < this.hE.kind.length; i++) test("h", i);
-    for (let i = 0; i < this.vE.kind.length; i++) test("v", i);
-    return out;
-  }
-
-  private nearestHint(ra: number, rb: number): string {
-    const cellsOf = (r: number): number[] => {
-      const out: number[] = [];
-      for (let i = 0; i < this.n; i++) {
-        if (r === 0 ? this.struct[i] === 0 : this.struct[i] === r) out.push(i);
-      }
-      return out;
-    };
-    // multi-source BFS from every cell of A (Manhattan distance on the full grid): O(cells)
-    const A = cellsOf(ra);
-    const inB = new Uint8Array(this.n);
-    for (const j of cellsOf(rb)) inB[j] = 1;
-    const dist = new Int32Array(this.n).fill(-1);
-    const src = new Int32Array(this.n);
-    const queue: number[] = [];
-    for (const i of A) {
-      dist[i] = 0;
-      src[i] = i;
-      queue.push(i);
-    }
-    let best = Infinity;
-    let pa: [number, number] = [0, 0];
-    let pb: [number, number] = [0, 0];
-    for (let head = 0; head < queue.length; head++) {
-      const i = queue[head] as number;
-      if (inB[i] === 1) {
-        best = dist[i] as number;
-        pa = this.cellXY(src[i] as number);
-        pb = this.cellXY(i);
-        break;
-      }
-      const lx = i % this.w;
-      for (const j of [i - this.w, lx < this.w - 1 ? i + 1 : -1, i + this.w, lx > 0 ? i - 1 : -1]) {
-        if (j < 0 || j >= this.n || dist[j] !== -1) continue;
-        dist[j] = (dist[i] as number) + 1;
-        src[j] = src[i] as number;
-        queue.push(j);
-      }
-    }
-    if (!Number.isFinite(best)) return "one of the areas has no cells";
-    return `nearest cells are ${pa[0]},${pa[1]} and ${pb[0]},${pb[1]} (${best - 1} cells apart); connect them with a corridor (route) or use at:{x,y,side}`;
   }
 
   // ───────────────────────────── phase 2: steps 8–10 ─────────────────────────────
@@ -4606,11 +3946,6 @@ export class LevelSteps extends LevelWork {
     }
     return surface;
   }
-}
-
-/** Orientation of the edge crossed when stepping from cell a to the 4-adjacent cell b. */
-function crossOrient(a: Vec2, b: Vec2): "h" | "v" {
-  return a[1] !== b[1] ? "h" : "v";
 }
 
 /** Local indices of a mask's cells that lie inside the level (`idx` < 0 = outside). */
