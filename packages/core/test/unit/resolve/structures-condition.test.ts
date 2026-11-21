@@ -356,13 +356,15 @@ describe("a building's arrow slits are windows, not doorways (generator 4, openi
       const st = (L.structures ?? [])[0] as ResolvedStructure;
       return L.openings.filter((o) => st.openingIds.includes(o.id) && o.kind !== "window").map((o) => o.kind);
     };
+    const doors = (kinds: string[]): number => kinds.filter((k) => k === "door").length;
     let extra3 = 0;
     for (let seed = 1; seed <= 12; seed++) {
+      // generator 4: at most the service door is added (a garage base may still give the block a double door)
       const g4 = passages(4, seed);
-      expect(g4).toContain("locked_door");
-      expect(g4.length).toBeLessThanOrEqual(2);
-      if (passages(3, seed).length > g4.length || !passages(3, seed).includes("locked_door")) extra3++;
+      expect(doors(g4)).toBeLessThanOrEqual(1);
+      // generator 3 took the locked door for no door and added a plain one at the street face too
+      if (doors(passages(3, seed)) > doors(g4)) extra3++;
     }
-    expect(extra3).toBeGreaterThan(0);
+    expect(extra3).toBeGreaterThan(3);
   });
 });
