@@ -26,7 +26,7 @@ import { featureInfo } from "../gen/catalog";
 import { isPassage, isSecret } from "../gen/openingKinds";
 import { SIDE_STEP as DIRS } from "../gen/gridGeometry";
 import { sideEdgeIndex } from "./levelGrid";
-import { entryLevelId } from "../plan/links";
+import { entryLevelId, linkKindInfo } from "../plan/links";
 
 // ───────────────────────────── options and walk modes ─────────────────────────────
 
@@ -611,7 +611,7 @@ function checkAreaReach(
       // only reachable by climbing up through a trapdoor: warning, the fix is a ladder
       const viaTrap = reachedTrapUp?.[d.li];
       if (viaTrap && cells.some((i) => viaTrap[i] === 1)) {
-        const trap = g.resolved.links.find((l) => l.kind === "trapdoor" && l.toLevel === d.l.id);
+        const trap = g.resolved.links.find((l) => linkKindInfo(l.kind).hatch && l.toLevel === d.l.id);
         issue(
           d,
           "warning",
@@ -776,7 +776,9 @@ function checkLinkUse(ctx: PlayCtx): void {
   g.resolved.links.forEach((link, k) => {
     const lo = g.byId.get(link.fromLevel);
     const up = g.byId.get(link.toLevel);
-    if (!lo || !up || link.kind === "pit_drop") return;
+    const info = linkKindInfo(link.kind);
+    // a link that lands nowhere you walk from (a pit drop) has no approach or landing to check
+    if (!lo || !up || info.arrival === "none") return;
     const path = `/links/${k}`;
     const kind = link.kind.replace("_", " ");
     const free = (d: LevelData, c: Vec2): boolean => {
@@ -785,7 +787,7 @@ function checkLinkUse(ctx: PlayCtx): void {
     };
     const describe = (d: LevelData, c: Vec2): { what: string; id?: string } =>
       blockerAt(d, g.idx(d, c[0], c[1])) ?? { what: "an obstacle" };
-    if (link.kind === "stairs" || link.kind === "ramp") {
+    if (info.footprint === "run") {
       // run must not cross a wall or doorway
       const [dx, dy] = DIRS[link.dir];
       for (const c of link.lowerCells) {
@@ -868,9 +870,9 @@ function checkLinkUse(ctx: PlayCtx): void {
       }
     } else {
       const lowRing = WalkGraph.ring(link.lowerCells);
-      const upRing = WalkGraph.ring(link.kind === "trapdoor" ? [] : link.upperCells);
+      const upRing = WalkGraph.ring(info.hatch ? [] : link.upperCells);
       const lowOk = lowRing.some((c) => free(lo, c));
-      const upOk = link.kind === "trapdoor" ? true : upRing.some((c) => free(up, c));
+      const upOk = info.hatch ? true : upRing.some((c) => free(up, c));
       if (!lowOk)
         issue(
           lo,

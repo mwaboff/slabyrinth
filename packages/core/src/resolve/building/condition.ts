@@ -12,13 +12,13 @@
  */
 import type { Side } from "../../contracts/plan";
 import { SIDE_STEP as STEP, SIDES } from "../../gen/gridGeometry";
-import { isPassage, isWindow } from "../../gen/openingKinds";
+import { isPassage, isWindow, openingTests } from "../../gen/openingKinds";
 import { isPlankWallStyle } from "../../gen/wallStyles";
 import { subSeed } from "../../util/hash";
 import { createPrng, type Prng } from "../../util/prng";
 import { climbingGrowth } from "../growth";
 import { firstHungDetail } from "../designDetails";
-import { isPitchedRoof } from "../roofTypes";
+import { isFlatRoof, isPitchedRoof, roofEnds } from "../roofTypes";
 import { type RuinProfile, ruinProfile, scatterTopRubble } from "../ruin";
 import { FOOT_DEBRIS, ROOF_BROKEN, RUINED, WEATHERED } from "./conditionRates";
 import type { BuildingCtx } from "./context";
@@ -102,7 +102,7 @@ export function applyCondition(
       for (let k = 0; k < g.width; k++) openKeys.add(faceKey(...alongFace(g.at, g.side, k), g.side));
     scatterTopRubble(ruin, openKeys, subSeed(seed, "ruin"));
   }
-  const blocked = doorPaths(faces.ground, doorwayTest(b));
+  const blocked = doorPaths(faces.ground, openingTests(b.gen).doorway);
   scatterFootDebris(d, blocked);
   if (legible && !ruined) footGrowth(d, blocked);
   if (ruined) insideRubble(d, blocked);
@@ -127,7 +127,7 @@ function ruinOf(
   const { seed } = b;
   const timberWalls = legible && vplans.some((v) => v.on === null && isPlankWallStyle(v.storeys[0]?.walls));
   const gableWing =
-    ruined && !timberWalls && main.roof.layers[0]?.type === "gable" ? main.rects[0] : undefined;
+    ruined && !timberWalls && roofEnds(main.roof.layers[0]?.type) === "gable" ? main.rects[0] : undefined;
   return ruinProfile(
     vplans,
     condition,
@@ -284,7 +284,7 @@ function biteParapets(vplans: readonly VolumePlan[], wp: Prng): string[] {
   const bites: string[] = [];
   for (const v of vplans) {
     const top = v.storeys[v.storeys.length - 1];
-    if (!top || !v.roof.layers.some((l) => l.type === "flat" && l.parapet)) continue;
+    if (!top || !v.roof.layers.some((l) => isFlatRoof(l.type) && l.parapet)) continue;
     const own = new Set(top.cells.map(([x, y]) => key(x, y)));
     for (const [x, y] of top.cells)
       for (const sd of SIDES)
@@ -354,7 +354,7 @@ function onFace(
 function breachGroundStorey(d: DecayWork): void {
   const { b, fp, vplans, faces, ruin, legible, prng4 } = d;
   const ground = faces.ground;
-  const doorway = doorwayTest(b);
+  const doorway = openingTests(b.gen).doorway;
   const breaches = RUINED.breachesMin + prng4.int(RUINED.breachesExtra);
   // the walls of the kept, roofed volume are not breached
   const whole = new Set<string>();
@@ -402,15 +402,6 @@ function breachGroundStorey(d: DecayWork): void {
     ground.push({ id: faces.nextId("breach"), kind: "open", at: [c[0], c[1]], side, width });
     made++;
   }
-}
-
-/**
- * Is a ground opening of this kind a doorway (or a breach): a way in that rubble keeps clear of and a breach spares?
- * Generator 4 (`openingKindTraits`) asks the kind table (a passage); earlier generators took every kind but "window"
- * for a doorway, so an arrow slit or bars counted as one.
- */
-function doorwayTest(b: BuildingCtx): (kind: GroundOpening["kind"]) => boolean {
-  return b.gen.openingKindTraits ? isPassage : (kind) => kind !== "window";
 }
 
 /** Cells in a doorway's or breach's path (three cells out, one in, a cell either side): no heap lies there. */

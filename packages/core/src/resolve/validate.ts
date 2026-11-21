@@ -13,7 +13,7 @@ import type { ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { isPassage } from "../gen/openingKinds";
 import type { ResolvePalettes } from "../palette/resolve";
-import { entryLevelId } from "../plan/links";
+import { entryLevelId, linkKindInfo } from "../plan/links";
 import { edgeIndex, sideEdgeIndex } from "./levelGrid";
 import { type PlayabilityOptions, checkPlayability } from "./playability";
 import { resolvePlan } from "./resolvePlan";
@@ -250,7 +250,7 @@ export function reachableCells(plan: MapPlan, resolved: ResolvedPlan): Map<strin
     for (const c of link.lowerCells) {
       const li = idx(lo, c);
       if (li < 0) continue;
-      if (link.kind !== "pit_drop") addN([lo.id, li], [up.id, ar]);
+      if (linkKindInfo(link.kind).climbsUp) addN([lo.id, li], [up.id, ar]);
       addN([up.id, ar], [lo.id, li]);
     }
   }

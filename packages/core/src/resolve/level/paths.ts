@@ -12,6 +12,7 @@ import type { Material, TerrainOp, Vec2 } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { SIDES, SIDE_STEP, stepSide } from "../../gen/gridGeometry";
+import { isFrontDoor } from "../../gen/openingKinds";
 import { forEachMaskCell } from "../../gen/mask";
 import { ValueNoise } from "../../gen/noise";
 import { rasterPolyline } from "../../gen/shapes";
@@ -443,10 +444,7 @@ export function stepPathSpurs(work: ResolveGrid): void {
     // generator 3: the trail ends at the cell outside the building's door
     const doorOpening = work.profile.spursReachTargets
       ? work.level.openings.find(
-          (o) =>
-            o.id.startsWith(`${st.id}~`) &&
-            (o.kind === "door" || o.kind === "double_door" || o.kind === "locked_door") &&
-            o.at !== undefined,
+          (o) => o.id.startsWith(`${st.id}~`) && isFrontDoor(o.kind) && o.at !== undefined,
         )
       : undefined;
     if (doorOpening?.at) {

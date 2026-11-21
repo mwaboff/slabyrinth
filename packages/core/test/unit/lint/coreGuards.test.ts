@@ -65,6 +65,35 @@ describe("core guards", () => {
     });
   });
 
+  describe("slabyrinth/vocabulary: a closed vocabulary is asked of its trait table", () => {
+    const stage = "packages/core/src/resolve/level/openings.ts";
+    it("reports an opening kind, a link kind, a roof type or a wall style compared by name", async () => {
+      for (const code of [
+        'if (o.kind === "double_door") f();',
+        'if ("pit_drop" !== link.kind) f();',
+        'if (layer.type === "gable") f();',
+        'if (area.wallStyle === "cave_rock") f();',
+      ])
+        expect(await guardHits(stage, code), code).toEqual([
+          expect.stringContaining("slabyrinth/vocabulary"),
+        ]);
+    });
+    it("leaves other vocabularies, the trait readers and the tables alone", async () => {
+      for (const code of [
+        'if (op.op === "stairs") f();',
+        'if (st.condition === "ruined") f();',
+        "if (isGap(o.kind)) f();",
+      ])
+        expect(await guardHits(stage, code), code).toEqual([]);
+      expect(
+        await guardHits("packages/core/src/gen/openingKinds.ts", 'const t = (k) => k.kind === "window";'),
+      ).toEqual([]);
+      expect(
+        await guardHits("packages/core/src/resolve/roof.ts", 'if (layer.type === "gable") f();'),
+      ).toEqual([]);
+    });
+  });
+
   describe("slabyrinth/hash-unit: a draw from a hash goes through util/hash.ts", () => {
     it("reports 2^32 written by hand anywhere in core but util", async () => {
       const code = "const u = h32(`${seed}:k`) / 4294967296;";

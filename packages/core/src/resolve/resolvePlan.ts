@@ -4,7 +4,7 @@
  */
 import type { LevelId, MapPlan, PlanIssue, ThemeId } from "../contracts/plan";
 import { generatorProfile } from "../plan/generator";
-import { linkGeometry } from "../plan/links";
+import { linkGeometry, linkKindInfo } from "../plan/links";
 import type { ResolvedLink, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { canonicalJson } from "../util/canonical";
@@ -127,6 +127,7 @@ function resolveLinks(plan: MapPlan, byId: Map<string, ResolveGrid>, issues: Pla
     }
     const dir = link.dir ?? "N";
     const geo = linkGeometry(link, lo.level.elevation, up.level.elevation);
+    const kind = linkKindInfo(link.kind);
     if (link.to.at && (link.to.at[0] !== geo.arrival[0] || link.to.at[1] !== geo.arrival[1])) {
       push({
         severity: "error",
@@ -152,19 +153,19 @@ function resolveLinks(plan: MapPlan, byId: Map<string, ResolveGrid>, issues: Pla
           cell: c,
           hint: !generatorProfile(plan).explainedLinkRuns
             ? `the run covers ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; move from.at or change dir`
-            : link.kind === "stairs" || link.kind === "ramp"
+            : kind.footprint === "run"
               ? `a rise of ${rise} needs a straight run of ${geo.length} cells (1 per tile of rise) from from.at ${link.from.at[0]},${link.from.at[1]} in direction ${dir}: ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; it does not fit, so move from.at to where ${geo.length} free floor cells lie in a line, change dir, or space the levels closer (not under 3.5) or use a ladder for a short link`
               : `the cells it needs: ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; move from.at`,
         });
         break;
       }
     }
-    const needFloor = link.kind === "stairs" || link.kind === "ramp" || link.kind === "trapdoor";
+    const needFloor = kind.arrival === "floor";
     const badArrival = geo.arrivalCells.find((c) => {
       const ai = up.idx(c[0], c[1]);
       return ai < 0 || up.state[ai] !== CELL.OPEN || (needFloor && !up.isFloor(ai));
     });
-    if (link.kind !== "pit_drop" && badArrival) {
+    if (kind.arrival !== "none" && badArrival) {
       push({
         severity: "error",
         code: "link_blocked",
@@ -178,11 +179,11 @@ function resolveLinks(plan: MapPlan, byId: Map<string, ResolveGrid>, issues: Pla
       const i = lo.idx(c[0], c[1]);
       if (i >= 0) lo.flags[i] = (lo.flags[i] as number) | CELL_FLAG.LINK;
     }
-    if (link.kind !== "trapdoor") {
+    if (kind.cuts !== null) {
       for (const c of geo.upperCells) {
         const i = up.idx(c[0], c[1]);
         if (i < 0 || up.state[i] !== CELL.OPEN) continue;
-        const bits = link.kind === "pit_drop" ? CELL_FLAG.NO_FLOOR : CELL_FLAG.NO_FLOOR | CELL_FLAG.STAIRWELL;
+        const bits = kind.cuts === "hole" ? CELL_FLAG.NO_FLOOR : CELL_FLAG.NO_FLOOR | CELL_FLAG.STAIRWELL;
         up.flags[i] = (up.flags[i] as number) | bits;
       }
     }

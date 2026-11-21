@@ -12,20 +12,13 @@
  * Everything here is generic: archetype names are geometric (box, setback, podium, twin, ell, stepped, shed, gabled,
  * tall), never tied to a theme; the style's data says which apply and how often.
  */
-import type {
-  Building,
-  OpeningKind,
-  Roof,
-  RoofType,
-  Side,
-  Storey,
-  Volume,
-  WallStyle,
-} from "../contracts/plan";
+import type { Building, Roof, RoofType, Side, Storey, Volume, WallStyle } from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
-import { isPassage, isSecret } from "../gen/openingKinds";
+import { OPENING_KIND_INFO, openingTests } from "../gen/openingKinds";
+import type { GeneratorProfile } from "../plan/generator";
 import { createPrng, type Prng } from "../util/prng";
-import { defaultRidge, gableRoof, hipRoof, shedRoof } from "./roof";
+import { defaultRidge, roofRise } from "./roof";
+import { isFlatRoof, isPitchedRoof } from "./roofTypes";
 import { structureStyle } from "./structureStyles";
 
 export type Weights = Readonly<Record<string, number>>;
@@ -398,14 +391,6 @@ const roofOf = (
   }
 };
 
-/** The kinds generators 2 and 3 took for a building's main door (no locked door, no plain gap). */
-const LEGACY_ENTRANCE_KINDS: ReadonlySet<OpeningKind> = new Set([
-  "door",
-  "double_door",
-  "archway",
-  "portcullis",
-]);
-
 /**
  * Expand a design into plan fields on the building (volumes with storeys and roofs, windows, plinth, openings,
  * furniture). `front` is the street face; masses step back from it, never toward it.
@@ -415,6 +400,7 @@ export function expandDesign(
   d: BuildingDesign,
   rect: { x: number; y: number; w: number; h: number },
   front: Side,
+  profile: GeneratorProfile,
   pitchedKit?: string,
   opts: {
     parapetFor?: Readonly<Record<string, string>>;
@@ -424,16 +410,11 @@ export function expandDesign(
     turret?: boolean;
     /** Generator 3: heights the roof-share balance needs from the style (footing course, attic deck). */
     roofBalance?: { footing: number; deck: boolean };
-    /** Generator 4: the main-door test reads the opening-kind table (switch `openingKindTraits`). */
-    openingKindTraits?: boolean;
   } = {},
 ): Building {
   const pat = windowPattern(d.windows);
-  // a way in (generator 4, `openingKindTraits`: the kind table's passages that are not hidden, so a locked door or a
-  // gap counts too); earlier generators took this list of kinds
-  const entrance = opts.openingKindTraits
-    ? (kind: OpeningKind): boolean => isPassage(kind) && !isSecret(kind)
-    : (kind: OpeningKind): boolean => LEGACY_ENTRANCE_KINDS.has(kind);
+  // a way in that may be the main door (gen/openingKinds.ts openingTests: generator 4 asks the kind table)
+  const entrance = openingTests(profile).entrance;
   const own = d.parapet === "walls" ? (opts.parapetFor?.[d.material] ?? d.material) : d.parapet;
   const parapet = own === "none" ? null : own;
   const storeyList = (n: number, first: boolean, roofStorey: boolean): Storey[] =>
@@ -507,7 +488,7 @@ export function expandDesign(
     ...(roofOf("flat", front, lowOwn === "none" ? null : lowOwn, undefined) as Roof),
     ...surface,
   };
-  if (top !== "none" && top.type === "flat") Object.assign(top, surface);
+  if (top !== "none" && isFlatRoof(top.type)) Object.assign(top, surface);
   // a second mass beside the main one: pitched like it, or flat when the main roof is flat
   const second = ["flat", "skirt", "stepped", "spire", "skirt_spire"].includes(d.roof) ? flat : top;
   const n = d.storeys;
@@ -648,7 +629,8 @@ export function expandDesign(
   else if (st.shopfront === undefined) out.shopfront = false;
   if (d.base === "stoop" && st.plinth === undefined)
     out.plinth = { height: 1, margin: 1, sides: [front], approach: "steps", rim: "none" };
-  if (d.base === "garage" && !(st.openings ?? []).some((o) => o.kind === "double_door"))
+  // a garage needs a door a cart goes through: a kind that is wider than a cell (a double door)
+  if (d.base === "garage" && !(st.openings ?? []).some((o) => OPENING_KIND_INFO[o.kind].defaultWidth >= 2))
     out.openings = [{ kind: "double_door", side: front, position: 0.5, width: 2 }, ...(st.openings ?? [])];
   // a service door at the back, when the back looks onto open ground
   const back: Side = front === "N" ? "S" : front === "S" ? "N" : front === "E" ? "W" : "E";
@@ -695,11 +677,10 @@ function balanceRoofs(volumes: Volume[], d: BuildingDesign, opts: { footing: num
   const riseOf = (v: Volume): number => {
     const r = v.roof;
     if (!r || r === "none") return -1;
-    const rect = { x: v.x, y: v.y, w: v.w, h: v.h };
-    if (r.type === "gable") return gableRoof({ ...rect, ridge: r.ridge ?? defaultRidge(v.w, v.h) }).ridgeTop;
-    if (r.type === "hip") return hipRoof(rect).top;
-    if (r.type === "shed") return shedRoof(rect, r.low ?? "S").top;
-    return -1;
+    // only a pitched roof has a ridge to balance
+    if (!isPitchedRoof(r.type)) return -1;
+    const wing = { x: v.x, y: v.y, w: v.w, h: v.h, ridge: r.ridge ?? defaultRidge(v.w, v.h) };
+    return roofRise(r.type, wing, { low: r.low ?? "S" });
   };
   const pitched = (): Array<{ v: Volume; wall: number; ridge: number }> =>
     volumes

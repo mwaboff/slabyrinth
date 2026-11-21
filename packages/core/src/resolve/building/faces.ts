@@ -10,7 +10,8 @@ import { BUILD_CONSTANTS } from "../../contracts/plan";
 import { SIDE_STEP as STEP, SIDES } from "../../gen/gridGeometry";
 import { WINDOW_SPACING } from "../structureStyles";
 import type { BuildingCtx } from "./context";
-import { isPassage } from "../../gen/openingKinds";
+import { isPassage, openingWidth } from "../../gen/openingKinds";
+import { roofEnds } from "../roofTypes";
 import { along, type FaceRun, faceKey, faceRuns, key, pickRange } from "./footprint";
 import type { Chimney, GroundOpening, UpperOpening, VolumePlan, VStorey } from "./types";
 import type { GroundFootprint } from "./volumes";
@@ -99,7 +100,7 @@ export function placeOpenings(
       b.issue("error", `building "${st.id}" has no ${o.side} face`, "use N, E, S or W");
       continue;
     }
-    const width = Math.min(o.width ?? (o.kind === "double_door" ? 2 : 1), run.cells.length);
+    const width = Math.min(openingWidth(o), run.cells.length);
     const pos = o.position ?? (isPassage(o.kind) ? pickRange(prng, profile.variety.doorPosition) : 0.5);
     const a = along(run, pos, width);
     const c = run.cells[a] as [number, number];
@@ -135,7 +136,7 @@ export function placeChimneys(
   );
   const chimneyFaces = ((): Side[] => {
     // generator 3: a hip roof has no gable wall to carry a stack, so a drawn chimney would stand apart from wall and roof
-    if (b.gen.wholeFacades && main.roof.layers[0]?.type === "hip") return [];
+    if (b.gen.wholeFacades && roofEnds(main.roof.layers[0]?.type) === "hip") return [];
     const w0 = main.rects[0];
     const gables: Side[] = !w0 ? SIDES.slice() : w0.ridge === "ew" ? ["W", "E"] : ["N", "S"];
     const g = gables.filter((f) => !doorFaces.has(f));

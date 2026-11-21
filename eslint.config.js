@@ -4,6 +4,7 @@ import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import prettier from "eslint-config-prettier";
 import globals from "globals";
+import { readFileSync } from "node:fs";
 import { builtinModules } from "node:module";
 import path from "node:path";
 
@@ -191,8 +192,55 @@ const hashUnitRule = selectorRule("Draws from a hash go through util/hash.ts.", 
   },
 ]);
 
+/** The words of a closed vocabulary of the plan contract (`export const NAME = [...] as const;` in contracts/plan.ts). */
+function contractWords(/** @type {string} */ name) {
+  const src = readFileSync(path.join(CORE_SRC, "contracts", "plan.ts"), "utf8");
+  const m = new RegExp(`export const ${name} = \\[([\\s\\S]*?)\\] as const`).exec(src);
+  if (!m) throw new Error(`eslint.config.js: ${name} is not a list in contracts/plan.ts`);
+  return [...(m[1] ?? "").replace(/\/\/.*$/gm, "").matchAll(/"([a-z_]+)"/g)].map((w) => w[1] ?? "");
+}
+
+/**
+ * A closed vocabulary (opening kinds, link kinds, roof types, wall styles) is answered by its table's traits
+ * (gen/openingKinds.ts, plan/links.ts, resolve/roofTypes.ts, gen/wallStyles.ts), never by comparing the field with one
+ * of its words: a new word then needs a row, not a hunt through the stages. The field a word is compared on is named,
+ * so the same word in another vocabulary (a ruined condition, a stairs op) is not caught. A frozen generator's rule
+ * that named kinds lives once, in the table module (gen/openingKinds.ts openingTests).
+ * @param {string} field
+ * @param {string[]} words
+ * @param {string} table
+ */
+const vocabularyCompare = (field, words, table) => {
+  const re = `/^(${words.join("|")})$/`;
+  const message = `Ask ${table} for the trait you mean instead of comparing \`${field}\` with one of its words.`;
+  return [
+    {
+      selector: `BinaryExpression[operator=/^[!=]==$/][left.property.name='${field}'][right.value=${re}]`,
+      message,
+    },
+    {
+      selector: `BinaryExpression[operator=/^[!=]==$/][right.property.name='${field}'][left.value=${re}]`,
+      message,
+    },
+  ];
+};
+const vocabularyRule = selectorRule("Closed vocabularies are asked of their trait tables.", [
+  ...vocabularyCompare(
+    "kind",
+    [...contractWords("OPENING_KINDS"), ...contractWords("LINK_KINDS")],
+    "gen/openingKinds.ts (OPENING_KIND_INFO, openingTests) or plan/links.ts (LINK_KIND_INFO)",
+  ),
+  ...vocabularyCompare("type", contractWords("ROOF_TYPES"), "resolve/roofTypes.ts (ROOF_TYPE_INFO)"),
+  ...vocabularyCompare("wallStyle", contractWords("WALL_STYLES"), "gen/wallStyles.ts (WALL_STYLE_INFO)"),
+]);
+
 const slabyrinthPlugin = {
-  rules: { "core-layers": coreLayersRule, "cell-theme": cellThemeRule, "hash-unit": hashUnitRule },
+  rules: {
+    "core-layers": coreLayersRule,
+    "cell-theme": cellThemeRule,
+    "hash-unit": hashUnitRule,
+    vocabulary: vocabularyRule,
+  },
 };
 
 export default tseslint.config(
@@ -270,6 +318,18 @@ export default tseslint.config(
     // util owns the hashes; the slab codec's SHA-256 splits a 64-bit length, it draws nothing
     ignores: ["packages/core/src/util/**", "packages/core/src/slab/**"],
     rules: { "slabyrinth/hash-unit": "error" },
+  },
+  {
+    // the generation side; the tables themselves and the roof geometry (each type's shape is its own case) are exempt
+    files: ["packages/core/src/{gen,resolve,plan}/**/*.ts"],
+    ignores: [
+      "packages/core/src/gen/openingKinds.ts",
+      "packages/core/src/gen/wallStyles.ts",
+      "packages/core/src/plan/links.ts",
+      "packages/core/src/resolve/roofTypes.ts",
+      "packages/core/src/resolve/roof.ts",
+    ],
+    rules: { "slabyrinth/vocabulary": "error" },
   },
   {
     files: ["packages/core/src/**/*.ts"],

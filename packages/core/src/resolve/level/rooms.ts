@@ -13,6 +13,7 @@ import type { ResolvedFeature, ResolvedOpening } from "../../contracts/resolved"
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { SIDE_STEP } from "../../gen/gridGeometry";
+import { isGap, openingWidth } from "../../gen/openingKinds";
 import type { GeneratedPlacement } from "../../gen/placementGrid";
 import { furnishedPurpose } from "../../gen/roomPurpose";
 import { dressRoom, lightArea } from "../../gen/rooms4";
@@ -212,7 +213,7 @@ function roomsOpeningOnCorridors(
     if (o.between) pair(work.areaIndexById.get(o.between[0]), work.areaIndexById.get(o.between[1]));
     else if (o.at) {
       const [dx, dy] = SIDE_STEP[o.at.side];
-      const width = o.width ?? (o.kind === "double_door" ? 2 : 1);
+      const width = openingWidth(o);
       // the run extends east along a horizontal edge (N/S side), south along a vertical one
       for (let k = 0; k < width; k++) {
         const x = o.at.x + (o.at.side === "N" || o.at.side === "S" ? k : 0);
@@ -329,7 +330,7 @@ export function stepWallFootRubble(
   }
   // either side of about half the doorways: the cells flanking the opening along its wall
   openings.forEach((op, k) => {
-    if (op.kind === "open" || u("jamb", k + WALL_FOOT.jambSeedOffset) >= WALL_FOOT.jambShare) return;
+    if (isGap(op.kind) || u("jamb", k + WALL_FOOT.jambSeedOffset) >= WALL_FOOT.jambShare) return;
     const [sx, sy] = op.start;
     const flank: Vec2[] =
       op.orientation === "h"

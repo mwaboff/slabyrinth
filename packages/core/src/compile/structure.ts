@@ -41,7 +41,7 @@ import {
 import { isPitchedRoof } from "../resolve/roofTypes";
 import { structureStyle } from "../resolve/structureStyles";
 import { OPPOSITE as OPP, SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
-import { hasLeaf, isPassage, isWindow } from "../gen/openingKinds";
+import { hasLeaf, isWindow, openingTests } from "../gen/openingKinds";
 import { isPlankWallStyle, THEME_WALL_STYLE } from "../gen/wallStyles";
 import { THEME_WALL_ROLE, wallRole } from "../palette/roles";
 import { sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
@@ -1713,22 +1713,6 @@ function openingFace(
   };
 }
 
-/**
- * A window of the wall (a pane or a slit): generator 4 (`openingKindTraits`) asks the kind table; earlier generators
- * took the kind "window" alone.
- */
-function windowTest(ctx: StructureRealizeCtx): (kind: OpeningKind) => boolean {
-  return ctx.profile.openingKindTraits ? isWindow : (kind) => kind === "window";
-}
-
-/**
- * A doorway (a person walks through it): generator 4 (`openingKindTraits`) asks the kind table; earlier generators
- * took every kind but "window", so an arrow slit or bars counted as one.
- */
-function doorwayTest(ctx: StructureRealizeCtx): (kind: OpeningKind) => boolean {
-  return ctx.profile.openingKindTraits ? isPassage : (kind) => kind !== "window";
-}
-
 /** Shopfront: a sign band over each wide window of the ground storey's street face. */
 function buildShopfront(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: string): void {
   const s0 = st.storeys[0];
@@ -1742,7 +1726,7 @@ function buildShopfront(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: 
   );
   if (!r) return;
   const top = s0.floorTop + (s0.footing?.height ?? 0) + 2;
-  const windowed = windowTest(ctx);
+  const windowed = openingTests(ctx.profile).window;
   for (const op of ctx.L.openings) {
     if (!st.openingIds.includes(op.id) || !windowed(op.kind)) continue;
     const { c, face } = openingFace(st, op);
@@ -2368,7 +2352,7 @@ function buildDetails(
       );
     } else if (detail === "balconies") {
       const [dx, dy] = STEP[front];
-      const windowed = windowTest(ctx);
+      const windowed = openingTests(ctx.profile).window;
       for (const u of st.upperOpenings) {
         if (u.side !== front || !windowed(u.kind)) continue;
         const v = vols.find((vv) => vv.id === u.volume) ?? vols[0];
@@ -2512,7 +2496,7 @@ function buildDetails(
       if (!r) continue;
       // never in front of a doorway: its cell and the cells beside it stay clear
       const doorCells = new Set<string>();
-      const doorway = doorwayTest(ctx);
+      const doorway = openingTests(ctx.profile).doorway;
       for (const op of ctx.L.openings) {
         if (!st.openingIds.includes(op.id) || !doorway(op.kind)) continue;
         const { c, face } = openingFace(st, op);

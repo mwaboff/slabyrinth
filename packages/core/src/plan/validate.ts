@@ -28,7 +28,7 @@ import { type GeneratorVocabulary, VOCABULARY_SINCE, generatorProfile } from "./
 import { listForHint, nearest } from "../util/strings";
 import { KIND_LABEL, freeId, listElements } from "./elements";
 import type { ElementLocation } from "./elements";
-import { linkGeometry } from "./links";
+import { linkGeometry, linkKindInfo } from "./links";
 import { withWings } from "./building";
 import { MapPlanSchema } from "./schema";
 import { boxesIntersect, polylineProblems, shapeCellBox, shapeProblems } from "./shapes";
@@ -739,7 +739,7 @@ function checkLinks(plan: MapPlan, sink: IssueSink): void {
     const arrival = geo.arrival;
     if (link.to.at !== undefined && (link.to.at[0] !== arrival[0] || link.to.at[1] !== arrival[1])) {
       const why =
-        link.kind === "stairs" || link.kind === "ramp"
+        linkKindInfo(link.kind).footprint === "run"
           ? `${link.kind} from ${from.id} ${link.from.at.join(",")} dir ${link.dir ?? "N"} rise ${geo.rise} arrive at ${arrival.join(",")}`
           : `${link.kind} arrives directly above its start ${arrival.join(",")}`;
       sink.error(
@@ -757,7 +757,7 @@ function checkLinks(plan: MapPlan, sink: IssueSink): void {
         "bounds_exceeded",
         `${p}/from/at`,
         `link "${link.id}" run cell [${outLow.join(",")}] is outside level "${from.id}" (${boundsText(from)})`,
-        link.kind === "stairs" || link.kind === "ramp"
+        linkKindInfo(link.kind).footprint === "run"
           ? `the run is ${geo.length} cells toward ${link.dir ?? "N"}; move from.at or change dir`
           : "move from.at inside the level",
         { ...extra, levelId: from.id, cell: outLow },

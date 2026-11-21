@@ -20,6 +20,13 @@ export interface RoofTypeInfo {
   rect: boolean;
   /** Sloped (gable, hip, shed): hides the wall tops under it, sits half a tile up on a deck, can keep a gable wall. */
   pitched: boolean;
+  /**
+   * What closes the ends of its ridge: a gable wall at each end (a chimney stands on one; a ruin keeps one as a gable
+   * wing), or slopes on every side (a hip: no wall to carry a stack); null for anything else.
+   */
+  ends: "gable" | "hip" | null;
+  /** A level roof of its own (not "none", which is no roof): it can carry a parapet and a surface. */
+  flat: boolean;
 }
 
 const row = (flags: Partial<RoofTypeInfo> = {}): RoofTypeInfo => ({
@@ -28,14 +35,16 @@ const row = (flags: Partial<RoofTypeInfo> = {}): RoofTypeInfo => ({
   deck: false,
   rect: false,
   pitched: false,
+  ends: null,
+  flat: false,
   ...flags,
 });
 
 export const ROOF_TYPE_INFO: Record<RoofType, RoofTypeInfo> = {
-  gable: row({ closing: true, rect: true, pitched: true }),
-  flat: row({ closing: true, deck: true }),
+  gable: row({ closing: true, rect: true, pitched: true, ends: "gable" }),
+  flat: row({ closing: true, deck: true, flat: true }),
   none: row({ closing: true, deck: true }),
-  hip: row({ closing: true, rect: true, pitched: true }),
+  hip: row({ closing: true, rect: true, pitched: true, ends: "hip" }),
   shed: row({ closing: true, rect: true, pitched: true }),
   cone: row({ built: false, as: "spire" }),
   dome: row({ built: false }),
@@ -48,6 +57,16 @@ export const ROOF_TYPE_INFO: Record<RoofType, RoofTypeInfo> = {
 /** The traits of a roof type; undefined for a name that is not one. */
 export function roofInfo(type: string): RoofTypeInfo | undefined {
   return own(ROOF_TYPE_INFO, type);
+}
+
+/** What closes the ends of a roof type's ridge (RoofTypeInfo.ends); null for no type or a name that is not one. */
+export function roofEnds(type: string | undefined): RoofTypeInfo["ends"] {
+  return type === undefined ? null : (roofInfo(type)?.ends ?? null);
+}
+
+/** Is the roof type a level roof of its own (RoofTypeInfo.flat)? */
+export function isFlatRoof(type: string | undefined): boolean {
+  return type !== undefined && roofInfo(type)?.flat === true;
 }
 
 /** Is the roof type sloped (gable, hip, shed)? */

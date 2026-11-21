@@ -8,7 +8,7 @@
 import type { OpeningKind } from "../../contracts/plan";
 import type { ResolvedOpening } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
-import { isSecret } from "../../gen/openingKinds";
+import { isGap, isSecret, openingWidth } from "../../gen/openingKinds";
 import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import { edgeCol, edgeRow } from "../levelGrid";
 import type { RouteRecord } from "./areas";
@@ -99,7 +99,7 @@ function placeOpening(
   const first = idx[0] as number;
   const [a, b] = work.edgeCells(orient, first);
   const anyWall = idx.some((i) => e.kind[i] === EDGE.WALL);
-  if (explicitAt && !anyWall && o.kind !== "open") {
+  if (explicitAt && !anyWall && !isGap(o.kind)) {
     const [x, y] = work.edgeStart(orient, first);
     work.issue(
       "warning",
@@ -111,7 +111,7 @@ function placeOpening(
         hint: "use between: [areaA, areaB] to snap it onto a shared wall",
       },
     );
-  } else if (!explicitAt && !silentOverlap && !anyWall && o.kind !== "open") {
+  } else if (!explicitAt && !silentOverlap && !anyWall && !isGap(o.kind)) {
     const [x, y] = work.edgeStart(orient, first);
     work.issue(
       "warning",
@@ -141,7 +141,7 @@ function placeOpening(
   out.push(rec);
   for (const i of idx) {
     const wasWall = e.kind[i] === EDGE.WALL;
-    if (o.kind === "open") {
+    if (isGap(o.kind)) {
       e.kind[i] = EDGE.NONE;
       e.style[i] = null;
       e.height[i] = 0;
@@ -163,7 +163,7 @@ export function stepOpenings(
 ): void {
   work.level.openings.forEach((o, k) => {
     const path = `/levels/${work.li}/openings/${k}`;
-    const width0 = o.width ?? (o.kind === "double_door" ? 2 : 1);
+    const width0 = openingWidth(o);
     if (o.between) {
       const ids = o.between;
       const res = ids.map((id) => (id === "@outside" ? 0 : (work.areaIndexById.get(id) ?? -1) + 1));
