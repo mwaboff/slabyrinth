@@ -10,6 +10,7 @@ import type {
   Level,
   LevelId,
   MapPlan,
+  OpeningKind,
   PlanIssue,
   Shape,
   Structure,
@@ -17,6 +18,7 @@ import type {
   Vec2,
 } from "../contracts/plan";
 import type { ResolvedArea, ResolvedLevel, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
+import { isWindow } from "../gen/openingKinds";
 import { withWings } from "../plan/building";
 import { generatorProfile, type GeneratorProfile } from "../plan/generator";
 import { entryLevelId } from "../plan/links";
@@ -209,7 +211,12 @@ function terrainLine(t: TerrainOp, lvl: ResolvedLevel | undefined): string {
 }
 
 /** One line per building / enclosure: what was written, then what was built (resolved). */
-function structureLine(st: Structure, lvl: ResolvedLevel | undefined, noteChars: number): string {
+function structureLine(
+  st: Structure,
+  lvl: ResolvedLevel | undefined,
+  noteChars: number,
+  profile: GeneratorProfile,
+): string {
   const rs = lvl?.structures?.find((r) => r.id === st.id);
   if (st.kind === "enclosure") {
     const gates = (st.gates ?? [])
@@ -233,12 +240,14 @@ function structureLine(st: Structure, lvl: ResolvedLevel | undefined, noteChars:
   ].filter(Boolean);
   if (!rs) return `${plan.join(" ")} -> not built`;
   const ops = (lvl?.openings ?? []).filter((o) => rs.openingIds.includes(o.id));
+  // generator 4 (`openingKindTraits`): an arrow slit is counted with the windows (the kind table's trait); released
+  // generators list it with the doors, as their outlines always did
+  const windowed = profile.openingKindTraits ? isWindow : (kind: OpeningKind) => kind === "window";
   const doors = ops
-    .filter((o) => o.kind !== "window")
+    .filter((o) => !windowed(o.kind))
     .map((o) => `${o.id.split("~")[1] ?? o.id} ${formatOpeningEdge(o)}`);
   const windows =
-    ops.filter((o) => o.kind === "window").length +
-    rs.upperOpenings.filter((u) => u.kind === "window").length;
+    ops.filter((o) => windowed(o.kind)).length + rs.upperOpenings.filter((u) => windowed(u.kind)).length;
   const walls = rs.storeys
     .map((s) => `${s.footing ? `${s.footing.style}+` : ""}${s.walls ?? "open"}`)
     .join("/");
@@ -292,7 +301,7 @@ function levelLines(
   );
   if (level.notes) out.push(`  notes ${q(truncate(level.notes, noteChars))}`);
   for (const a of level.areas) out.push(areaLine(a, lvl, noteChars, profile));
-  for (const st of level.structures ?? []) out.push(structureLine(st, lvl, noteChars));
+  for (const st of level.structures ?? []) out.push(structureLine(st, lvl, noteChars, profile));
   for (const o of level.openings) {
     const where = o.between
       ? `${o.between[0]}|${o.between[1]} @${n(o.position ?? 0.5)}`
