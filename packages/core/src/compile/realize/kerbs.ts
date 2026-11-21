@@ -3,7 +3,8 @@
  * Reads: the level's kerbs and cells. Writes: ledge placements; one info diagnostic when the palette has no kerb.
  */
 import { lenFilter, placeEdgePiece, type EdgeCtx } from "./edges";
-import { opposite, type RealizeLevel } from "./level";
+import { OPPOSITE } from "../../gen/gridGeometry";
+import type { RealizeLevel } from "./level";
 
 // kerbs along kerbed paths: kerb.<material> / kerb.default, a half-cell piece on the path side of the edge
 export function layKerbs(lv: RealizeLevel): void {
@@ -42,7 +43,7 @@ export function layKerbs(lv: RealizeLevel): void {
       otherX: kb.at[0],
       otherY: kb.at[1],
       otherOpen: true,
-      planSide: opposite(s),
+      planSide: OPPOSITE[s],
       base: topOf(c),
       top: topOf(c) + v.unitHeight,
       theme: c.theme,

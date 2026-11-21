@@ -14,7 +14,7 @@ import { axisPosition } from "../../resolve/road";
 import { h32 } from "../geometry";
 import type { RockBand } from "./cliffBand";
 import { isCliffGround, type RealizeLevel } from "./level";
-import type { CellInfo } from "./view";
+import type { LevelCell } from "../../resolve/levelGrid";
 
 /** Water cells ([x, y]) the floor pass leaves for the bed pass, in the order it met them. */
 export type WaterCells = ReadonlyArray<readonly [number, number]>;
@@ -175,7 +175,7 @@ function causeDistances(lv: RealizeLevel): Map<string, number> {
  * A crossing cell takes the theme's crossing tile (marking.crossing) AS its floor tile, turned by the road axis: a
  * thick striped tile laid on top of the road would stand as a step. False when the palette has none.
  */
-function layCrossing(lv: RealizeLevel, c: CellInfo, x: number, y: number, axis: "h" | "v"): boolean {
+function layCrossing(lv: RealizeLevel, c: LevelCell, x: number, y: number, axis: "h" | "v"): boolean {
   const { L, topOf, emit } = lv;
   const { frame, lookup, pick } = lv.ctx;
   const cr = lookup(
@@ -196,17 +196,17 @@ function layCrossing(lv: RealizeLevel, c: CellInfo, x: number, y: number, axis: 
 }
 
 /** Floor material as laid: natural low ground under a rock band is rock. */
-const laidMaterial = (pass: FloorPass, c: CellInfo, x: number, y: number): Material | null =>
+const laidMaterial = (pass: FloorPass, c: LevelCell, x: number, y: number): Material | null =>
   c.material !== null && isCliffGround(c.material) && pass.band.low.has(`${x},${y}`) ? "rock" : c.material;
 /** Cells one floor piece may cover share this key. */
-const tileKey = (pass: FloorPass, c: CellInfo, x: number, y: number): string =>
+const tileKey = (pass: FloorPass, c: LevelCell, x: number, y: number): string =>
   `${c.theme}|${laidMaterial(pass, c, x, y) ?? ""}|${c.height}`;
 
 /**
  * The biggest floor piece that fits from this cell (its cells free, of one key and one family), from the cell's floor
  * role. False when no piece was laid (the caller gives the cell up).
  */
-function layFloorTile(pass: FloorPass, c: CellInfo, lx: number, ly: number): boolean {
+function layFloorTile(pass: FloorPass, c: LevelCell, lx: number, ly: number): boolean {
   const { lv, used, familyOf } = pass;
   const { L, V, topOf, emit } = lv;
   const { seed, profile, frame, lookup, pickPatch, familiesOf } = lv.ctx;

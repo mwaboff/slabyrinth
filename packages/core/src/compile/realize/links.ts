@@ -8,6 +8,8 @@ import type { Placement } from "../../contracts/compiler";
 import type { Side, ThemeId } from "../../contracts/plan";
 import { EDGE, type ResolvedPlan } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
+import { SIDES } from "../../gen/gridGeometry";
+import type { EdgeOrient } from "../../resolve/levelGrid";
 import { rotateXZ } from "../geometry";
 import { stackFill } from "./fill";
 import { EPS, isCliffGround, type RealizeLevel } from "./level";
@@ -16,9 +18,9 @@ import { EPS, isCliffGround, type RealizeLevel } from "./level";
 export function layStairEdges(lv: RealizeLevel): void {
   const { L, V, topOf, emit } = lv;
   const { frame, lookup, pick, facingOf } = lv.ctx;
-  const stairAt = (orient: "h" | "v", e: number, x: number, y: number): void => {
-    const g = orient === "h" ? L.hEdges : L.vEdges;
-    if (g.kind[e] !== EDGE.STAIR) return;
+  // edge (x, y) = the north (h) or west (v) edge of cell (x, y)
+  const stairAt = (orient: EdgeOrient, x: number, y: number): void => {
+    if (V.edgeKind(x, y, orient === "h" ? "N" : "W") !== EDGE.STAIR) return;
     const a = orient === "h" ? { x, y: y - 1 } : { x: x - 1, y };
     const b = { x, y };
     const ca = V.cell(a.x, a.y);
@@ -59,10 +61,8 @@ export function layStairEdges(lv: RealizeLevel): void {
       emit(v, "link", ctr.x - off.x, topOf(cl), ctr.z - off.z, deg, src);
     }
   };
-  for (let ly = 0; ly <= V.h; ly++)
-    for (let lx = 0; lx < V.w; lx++) stairAt("h", ly * V.w + lx, L.bounds.x + lx, L.bounds.y + ly);
-  for (let ly = 0; ly < V.h; ly++)
-    for (let lx = 0; lx <= V.w; lx++) stairAt("v", ly * (V.w + 1) + lx, L.bounds.x + lx, L.bounds.y + ly);
+  for (let ly = 0; ly <= V.h; ly++) for (let lx = 0; lx < V.w; lx++) stairAt("h", V.x0 + lx, V.y0 + ly);
+  for (let ly = 0; ly < V.h; ly++) for (let lx = 0; lx <= V.w; lx++) stairAt("v", V.x0 + lx, V.y0 + ly);
 }
 
 // ── links (placed on the lower level) ──
@@ -144,19 +144,7 @@ function layVerticalLink(lv: RealizeLevel, lk: Link, v: ResolvedVariant, role: s
   const rw = Math.max(...xs) - rx + 1;
   const rh = Math.max(...ys) - ry + 1;
   const coversLink = v.footprint[0] * v.footprint[1] >= lk.lowerCells.length;
-  const walledSide = (x: number, y: number): boolean =>
-    (["N", "E", "S", "W"] as const).some((s) => {
-      const e =
-        s === "N"
-          ? V.hEdge(x, y)
-          : s === "S"
-            ? V.hEdge(x, y + 1)
-            : s === "W"
-              ? V.vEdge(x, y)
-              : V.vEdge(x + 1, y);
-      const g = s === "N" || s === "S" ? L.hEdges : L.vEdges;
-      return e >= 0 && g.kind[e] === EDGE.WALL;
-    });
+  const walledSide = (x: number, y: number): boolean => SIDES.some((s) => V.wallOn(x, y, s));
   const sorted = [...lk.lowerCells].sort((a, b) => a[1] - b[1] || a[0] - b[0]);
   const cell: readonly [number, number] = coversLink
     ? [rx, ry]
@@ -167,9 +155,7 @@ function layVerticalLink(lv: RealizeLevel, lk: Link, v: ResolvedVariant, role: s
   const c = V.cell(cx, cy);
   const base = c.floor ? topOf(c) : elev + 0.5;
   const upView = views.get(lk.toLevel);
-  const upperTop = upView
-    ? upView.L.elevation + upView.cell(cx, cy).height + 0.5
-    : elev + c.height + 0.5 + lk.rise;
+  const upperTop = upView ? upView.top(cx, cy) : elev + c.height + 0.5 + lk.rise;
   const count = Math.max(1, Math.ceil((upperTop - base) / v.unitHeight - EPS));
   const src: Placement["source"] = { cell: [cx, cy], elementId: lk.id };
   if (role !== roleName && !coversLink) {

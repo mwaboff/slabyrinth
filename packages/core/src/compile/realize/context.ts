@@ -28,7 +28,7 @@ import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
 import { familiesOfVariants, type FloorFamily } from "../../resolve/floorFamilies";
 import { OBSERVED_TONES } from "../../palette/tones";
 import { WorldFrame, h32 } from "../geometry";
-import { LevelView } from "./view";
+import { LevelGrid } from "../../resolve/levelGrid";
 
 export interface RealizeOptions {
   levels?: LevelId[];
@@ -92,8 +92,8 @@ export interface RealizeCtx extends PlacementRegistries {
   readonly addDiag: AddDiag;
   /** Asset substitutions the palette made, counted per role, wanted and used asset. */
   readonly subs: Map<string, BundleSubstitution>;
-  /** A view of every level of the plan (links read the level above). */
-  readonly views: Map<LevelId, LevelView>;
+  /** A read-only grid of every level of the plan (resolve/levelGrid.ts; links read the level above). */
+  readonly views: Map<LevelId, LevelGrid>;
   readonly lookup: Lookup;
   /** Seeded weighted pick among a role's variants. */
   readonly pick: (vs: ResolvedVariant[], key: string) => ResolvedVariant | undefined;
@@ -143,8 +143,8 @@ export function createRealizeCtx(
   const subs = new Map<string, BundleSubstitution>();
   const themeWarned = new Set<string>();
 
-  const views = new Map<LevelId, LevelView>();
-  for (const L of resolved.levels) views.set(L.id, new LevelView(L, defaultTheme));
+  const views = new Map<LevelId, LevelGrid>();
+  for (const L of resolved.levels) views.set(L.id, new LevelGrid(L, defaultTheme));
 
   // ── role lookup with diagnostics ──
   const lookup = (

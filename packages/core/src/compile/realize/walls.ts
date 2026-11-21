@@ -21,7 +21,9 @@ import {
   type EdgeCtx,
   type Strip,
 } from "./edges";
-import { EPS, opposite, type RealizeLevel } from "./level";
+import { OPPOSITE } from "../../gen/gridGeometry";
+import { edgeLineLength, edgeLines } from "../../resolve/levelGrid";
+import { EPS, type RealizeLevel } from "./level";
 import type { SolidShellPlan } from "./solidShell";
 
 /** A full-cell wall column: one per rock cell, spanning every wall edge it closes. */
@@ -82,9 +84,9 @@ export function layWalls(lv: RealizeLevel, shellPlan: SolidShellPlan, strips: Co
 function wallRunsAlong(lv: RealizeLevel, shellPlan: SolidShellPlan, orient: "h" | "v"): WallRun[] {
   const { L, V, claimed } = lv;
   const { shell, skirtEdges } = shellPlan;
-  const grid = orient === "h" ? L.hEdges : L.vEdges;
-  const outer = orient === "h" ? V.h + 1 : V.w + 1;
-  const inner = orient === "h" ? V.w : V.h;
+  const grid = V.edges(orient);
+  const outer = edgeLines(V, orient);
+  const inner = edgeLineLength(V, orient);
   const wallStyleOf = (ref: number): string => (ref === NONE ? "wall" : (L.wallStyles[ref] ?? "wall"));
   const runs: WallRun[] = [];
   for (let o = 0; o < outer; o++) {
@@ -261,8 +263,8 @@ function brokenTop(
   const { L, V } = lv;
   const { seed, lookup, pick } = lv.ctx;
   if (rough === null || !c.hostOpen) return null;
-  const roughHost =
-    V.inBounds(c.hostX, c.hostY) && rough[(c.hostY - L.bounds.y) * L.bounds.w + (c.hostX - L.bounds.x)] === 1;
+  const host = V.index(c.hostX, c.hostY);
+  const roughHost = host >= 0 && rough[host] === 1;
   if (!roughHost || h32(`${seed}:${L.id}:brokentop:${orient}:${c.x}:${c.y}`) % 5 !== 0) return null;
   const rr = lookup(L.id, theme, ["wall.ruined"], lenFilter(n), true);
   const rv = rr ? pick(rr.variants, `${L.id}:${orient}broken:${c.x}:${c.y}`) : undefined;
@@ -272,7 +274,7 @@ function brokenTop(
 /** The strip a wall piece leaves on its edge, for the corner posts. */
 const stripOf = (c: EdgeCtx, style: string): Strip => ({
   orient: c.orient,
-  side: opposite(c.planSide),
+  side: OPPOSITE[c.planSide],
   style,
   theme: c.theme,
   base: c.base,

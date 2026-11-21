@@ -7,7 +7,8 @@
 import type { ResolvedOpening } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { edgeCtx, lenFilter, lengthOf, placeEdgePiece, type CornerStrips, type EdgeCtx } from "./edges";
-import { EPS, opposite, type RealizeLevel } from "./level";
+import { OPPOSITE } from "../../gen/gridGeometry";
+import { EPS, type RealizeLevel } from "./level";
 
 /** Opening roles whose asset is a full-height wall piece (no lintel above them). */
 const NO_LINTEL = new Set(["opening.archway", "opening.window", "opening.arrow_slit"]);
@@ -67,7 +68,7 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
         if (!ck) continue;
         strips.register(op.orientation, ck.x, ck.y, {
           orient: op.orientation,
-          side: opposite(ck.planSide),
+          side: OPPOSITE[ck.planSide],
           style: op.wallStyle,
           theme: ck.theme,
           base: ck.base,
@@ -102,9 +103,9 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
  * wall height).
  */
 function openingEdges(lv: RealizeLevel, op: ResolvedOpening): EdgeCtx[] {
-  const { L, V } = lv;
+  const { V } = lv;
   const orient = op.orientation;
-  const grid = orient === "h" ? L.hEdges : L.vEdges;
+  const grid = V.edges(orient);
   const ctxs: EdgeCtx[] = [];
   for (let k = 0; k < op.width; k++) {
     const x = orient === "h" ? op.start[0] + k : op.start[0];

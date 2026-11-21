@@ -8,7 +8,7 @@
  * passes that read it (the ownership table is at the top of compile/realize.ts).
  */
 import type { Box3, Placement, PlacementRole } from "../../contracts/compiler";
-import type { Material, Side } from "../../contracts/plan";
+import type { Material } from "../../contracts/plan";
 import { CELL, type ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { materialInfo } from "../../resolve/materials";
@@ -16,10 +16,9 @@ import { areaReferenceHeights } from "../../resolve/wallspan";
 import { emptyBox, growBox, h32, placementBox } from "../geometry";
 import { structureClaims } from "../structure";
 import type { RealizeCtx } from "./context";
-import { LevelView, type CellInfo } from "./view";
+import { LevelGrid, type LevelCell } from "../../resolve/levelGrid";
 
 export const EPS = 1e-6;
-export const opposite = (s: Side): Side => (s === "N" ? "S" : s === "S" ? "N" : s === "E" ? "W" : "E");
 
 /**
  * Ground whose drops of a tile or more are built as rock cliffs when the palette has no cliff.<material> role, whose
@@ -41,7 +40,8 @@ export type Emit = (
 ) => void;
 
 export class RealizeLevel {
-  readonly V: LevelView;
+  /** The resolved level's cells and edges, read-only, in plan coordinates (resolve/levelGrid.ts). */
+  readonly V: LevelGrid;
   /** The level's elevation (absolute tiles). */
   readonly elev: number;
   /** This level's placements in emission order (output.ts sorts them). */
@@ -63,7 +63,7 @@ export class RealizeLevel {
   /** Seeded quarter turn for square whole-cell blocks (mixes up repeated rock faces). */
   readonly blockTurn: (v: ResolvedVariant, key: string) => number;
   /** Absolute floor top of a cell. */
-  readonly topOf: (c: CellInfo) => number;
+  readonly topOf: (c: LevelCell) => number;
   readonly emit: Emit;
   /**
    * Replaces the world box of a placement already emitted (a tile turned off the quarter turns, whose box is its turned
@@ -80,13 +80,13 @@ export class RealizeLevel {
     const levelBox = emptyBox();
     this.placements = placements;
     this.levelBox = levelBox;
-    this.V = views.get(L.id) ?? new LevelView(L, defaultTheme);
+    this.V = views.get(L.id) ?? new LevelGrid(L, defaultTheme);
     this.outcropCells = new Set((L.outcrops ?? []).flatMap((o) => o.cells.map(([x, y]) => `${x},${y}`)));
     this.blockTurn = (v: ResolvedVariant, key: string): number =>
       Math.abs(v.geom.size.x - v.geom.size.z) < 0.05 ? (h32(`${seed}:${L.id}:turn:${key}`) % 4) * 90 : 0;
     const elev = L.elevation;
     this.elev = elev;
-    this.topOf = (c: CellInfo): number => elev + c.height + 0.5;
+    this.topOf = (c: LevelCell): number => elev + c.height + 0.5;
     this.refHeights = areaReferenceHeights(L);
     // buildings build their own shell (compile/structure.ts)
     this.claimed = structureClaims(L);

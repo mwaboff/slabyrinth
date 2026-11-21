@@ -15,7 +15,8 @@ import { footprintFromGeom, type ResolvedVariant, type RoleResolution } from "..
 import { h32, rotateDir, rotateXZ } from "../geometry";
 import { realizeStall } from "../stalls";
 import type { CliffTones } from "./cliffBand";
-import { EPS, opposite, type RealizeLevel } from "./level";
+import { OPPOSITE } from "../../gen/gridGeometry";
+import { EPS, type RealizeLevel } from "./level";
 
 /** Upright feature types whose assets are mixed along a run (see `FeaturePass.runPicks`). */
 const RUN_MIX = new Set([
@@ -395,7 +396,7 @@ function featureTurn(pass: FeaturePass, f: ResolvedFeature, asset: FeatureAsset)
     if (wallFacing.has(f.type) && walled(wantPlan)) {
       const square = f.size[0] === f.size[1];
       const alt = [
-        opposite(wantPlan),
+        OPPOSITE[wantPlan],
         ...(square ? [rotateDir(wantPlan, 1), rotateDir(wantPlan, 3)] : []),
       ].find((s) => !walled(s));
       if (alt) wantPlan = alt;
@@ -427,19 +428,19 @@ function rectSideWalled(
   rows: number,
   side: Side,
 ): boolean {
-  const { L, V } = lv;
+  const { V } = lv;
   const n = side === "N" || side === "S" ? cols : rows;
   for (let k = 0; k < n; k++) {
-    const e =
+    // the k-th cell along that side of the rect, and its edge on the side
+    const kind =
       side === "N"
-        ? V.hEdge(x + k, y)
+        ? V.edgeKind(x + k, y, "N")
         : side === "S"
-          ? V.hEdge(x + k, y + rows)
+          ? V.edgeKind(x + k, y + rows - 1, "S")
           : side === "W"
-            ? V.vEdge(x, y + k)
-            : V.vEdge(x + cols, y + k);
-    const g = side === "N" || side === "S" ? L.hEdges : L.vEdges;
-    if (e >= 0 && (g.kind[e] === EDGE.WALL || g.kind[e] === EDGE.OPENING)) return true;
+            ? V.edgeKind(x, y + k, "W")
+            : V.edgeKind(x + cols - 1, y + k, "E");
+    if (kind === EDGE.WALL || kind === EDGE.OPENING) return true;
   }
   return false;
 }
@@ -463,7 +464,7 @@ function noteFootprint(lv: RealizeLevel, f: ResolvedFeature, v: ResolvedVariant,
 
 /** A wall-mounted piece: the back of the asset on the mounting plane (the edge line, or the face of a strip hosted in this cell). */
 function mountOnWall(lv: RealizeLevel, f: ResolvedFeature, asset: FeatureAsset, deg: number): void {
-  const { L, V, emit } = lv;
+  const { V, emit } = lv;
   const { frame, facingOf } = lv.ctx;
   const { v } = asset;
   const s = f.wall;
@@ -471,19 +472,7 @@ function mountOnWall(lv: RealizeLevel, f: ResolvedFeature, asset: FeatureAsset, 
   const facing = facingOf(v, "feature", asset.role);
   const px = s === "W" ? f.at[0] : s === "E" ? f.at[0] + 1 : f.at[0] + 0.5;
   const py = s === "N" ? f.at[1] : s === "S" ? f.at[1] + 1 : f.at[1] + 0.5;
-  const grid = s === "N" || s === "S" ? L.hEdges : L.vEdges;
-  const e =
-    s === "N"
-      ? V.hEdge(f.at[0], f.at[1])
-      : s === "S"
-        ? V.hEdge(f.at[0], f.at[1] + 1)
-        : s === "W"
-          ? V.vEdge(f.at[0], f.at[1])
-          : V.vEdge(f.at[0] + 1, f.at[1]);
-  const hostedHere =
-    e >= 0 &&
-    (grid.host[e] ?? 1) === (s === "N" || s === "W" ? 1 : 0) &&
-    (grid.kind[e] === EDGE.WALL || grid.kind[e] === EDGE.OPENING);
+  const hostedHere = V.hostedOn(f.at[0], f.at[1], s);
   // centred props (banners, paintings) are pushed off the wall by half their depth so the back touches it; "other"-
   // origin props (wall torch, wall lever) are authored with the origin on their back face.
   const mountAxisDepth = facing.mountsOn === "E" || facing.mountsOn === "W" ? v.geom.size.x : v.geom.size.z;

@@ -183,7 +183,7 @@ function massKeepClear(lv: RealizeLevel): { edgeBlocked: Set<string>; taken: Set
   const { L, V } = lv;
   const edgeBlocked = new Set<string>();
   for (const orient of ["h", "v"] as const) {
-    const g = orient === "h" ? L.hEdges : L.vEdges;
+    const g = V.edges(orient);
     for (let y = L.bounds.y; y <= L.bounds.y + V.h; y++)
       for (let x = L.bounds.x; x <= L.bounds.x + V.w; x++) {
         const e = orient === "h" ? V.hEdge(x, y) : V.vEdge(x, y);
