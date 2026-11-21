@@ -16,6 +16,7 @@
  * (gen/place.ts, the generator-3 stall goods) and never read this one.
  */
 import type { FeatureType } from "../contracts/plan";
+import { typesWith } from "./catalog";
 
 /** What a stall or a shop sells, as small things (the palette variant names of `feature.goods`). */
 export type GoodsFamily = "produce" | "bread" | "dairy" | "fish" | "potions" | "grain";
@@ -36,8 +37,8 @@ export const ROOM_FAMILIES: readonly RoomFamily[] = ["table", "study", "store", 
 /** Palette roles that hold small things, in the order they are tried (generator 4). */
 export const SMALL_THINGS_ROLES: readonly string[] = ["feature.clutter", "feature.goods"];
 
-/** Feature types that are small things on a surface; at generator 4 both resolve through SMALL_THINGS_ROLES. */
-export const SMALL_THING_TYPES: ReadonlySet<FeatureType> = new Set<FeatureType>(["clutter", "goods"]);
+/** Feature types that are small things on a surface (`smallThing`); at generator 4 they resolve through SMALL_THINGS_ROLES. */
+export const SMALL_THING_TYPES: ReadonlySet<FeatureType> = new Set(typesWith((f) => f.smallThing === true));
 
 /**
  * Palette roles a feature type is built from at generator 4 (the single place that says so). A small thing is looked up

@@ -14,6 +14,7 @@
 import type { FeatureType, Material, MapPlan, ThemeId } from "../contracts/plan";
 import { GENERATOR_VERSION } from "../contracts/plan";
 import type { StallForm, ThemeInterior } from "../contracts/resolved";
+import { featureInfo } from "../gen/catalog";
 import { featureRoles } from "../gen/surfaces";
 import { generatorProfile } from "../plan/generator";
 import { bundledPalettes } from "./load";
@@ -85,21 +86,6 @@ const ROLE_OF: Partial<Record<FeatureType, string>> = {
 };
 
 /**
- * Generator 3: pieces a small prop may rest on (gen/place.ts topper pass, `Part.on` in gen/setpieces.ts). Their real
- * outline is asked for with `real`; the height is the LOWEST of the role's variants, so a prop never floats over a
- * lower variant (one sunk into a taller variant is hidden inside it).
- */
-const SUPPORT_ROLE: Partial<Record<FeatureType, string>> = {
-  table: "feature.table",
-  round_table: "feature.round_table",
-  counter: "feature.counter",
-  desk: "feature.desk",
-  chest: "feature.chest",
-  boulder: "feature.boulder",
-  stall: "feature.stall",
-};
-
-/**
  * A view of `catalog`. `generator` hides roles introduced after it (default: the newest generator, which hides none
  * the resolver asks about: the older generators' answers do not depend on it).
  */
@@ -137,9 +123,11 @@ export function createPaletteView(
   };
 
   const pieceSize: PieceSizeFn = (theme, type, real, variant) => {
-    const support = SUPPORT_ROLE[type];
-    if (support !== undefined && real === true) {
-      const vs = variantsOf(theme, [support], variant);
+    // generator 3: a support a small prop rests on (gen/catalog.ts `support`; gen/place.ts toppers, `Part.on`): its real
+    // outline, at the LOWEST of its variants' heights, so a prop never floats over a lower variant (one sunk into a
+    // taller variant is hidden inside it)
+    if (featureInfo(type).support === true && real === true) {
+      const vs = variantsOf(theme, featureRoles(type), variant);
       if (vs.length === 0) return undefined;
       return {
         w: Math.min(...vs.map((q) => q.geom.size.x)),

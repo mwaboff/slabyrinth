@@ -6,7 +6,7 @@
 import type { DressPreset, FeatureType, Rotation, Side } from "../contracts/plan";
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
-import { featureInfo, rotatedSize } from "./catalog";
+import { featureInfo, rotatedSize, typesWith } from "./catalog";
 import {
   EDGE_OPENING,
   EDGE_WALL,
@@ -64,19 +64,11 @@ export interface ScatterParams {
 }
 
 /**
- * Feature types that scatter in clumps (a seed placement plus 1–2 neighbours), so a scatter of stalagmites or
- * crystals reads as formations rather than litter. Only types added after generator v1 was frozen are listed:
- * adding a type here changes no existing map.
+ * Feature types that scatter in clumps (a seed placement plus 1–2 neighbours; the catalog's `clusters`), so a scatter
+ * of stalagmites or crystals reads as formations rather than litter. Every generator reads it: a type gains the trait
+ * only if it never scattered before (a type added since), or under a new switch.
  */
-export const CLUSTERED_TYPES: ReadonlySet<FeatureType> = new Set<FeatureType>([
-  "stalagmite",
-  "stalactite",
-  "crystal",
-  "giant_mushroom",
-  "root",
-  "skull_pile",
-  "candles",
-]);
+export const CLUSTERED_TYPES: ReadonlySet<FeatureType> = new Set(typesWith((f) => f.clusters === true));
 const CLUSTER_MEAN = 1.5;
 const SATELLITE_OFFSETS: ReadonlyArray<readonly [number, number]> = [
   [1, 0],

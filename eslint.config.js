@@ -234,12 +234,27 @@ const vocabularyRule = selectorRule("Closed vocabularies are asked of their trai
   ...vocabularyCompare("wallStyle", contractWords("WALL_STYLES"), "gen/wallStyles.ts (WALL_STYLE_INFO)"),
 ]);
 
+/**
+ * A trait of a feature type is a field of gen/catalog.ts FEATURE_INFO, read where it is needed (`typesWith`), never a
+ * hand list of types beside the code that reads it. A list a frozen generator read is the trait plus a named delta
+ * (catalog.ts traitWithDelta).
+ */
+const featureListRule = selectorRule("Feature traits are fields of gen/catalog.ts.", [
+  {
+    selector:
+      "NewExpression[callee.name='Set'][typeArguments.params.0.typeName.name='FeatureType'] > ArrayExpression",
+    message:
+      "Give the types a trait in gen/catalog.ts FEATURE_INFO and read it (typesWith, featureInfo) instead of listing them here.",
+  },
+]);
+
 const slabyrinthPlugin = {
   rules: {
     "core-layers": coreLayersRule,
     "cell-theme": cellThemeRule,
     "hash-unit": hashUnitRule,
     vocabulary: vocabularyRule,
+    "feature-lists": featureListRule,
   },
 };
 
@@ -330,6 +345,11 @@ export default tseslint.config(
       "packages/core/src/resolve/roof.ts",
     ],
     rules: { "slabyrinth/vocabulary": "error" },
+  },
+  {
+    files: ["packages/core/src/**/*.ts"],
+    ignores: ["packages/core/src/gen/catalog.ts"],
+    rules: { "slabyrinth/feature-lists": "error" },
   },
   {
     files: ["packages/core/src/**/*.ts"],

@@ -61,9 +61,6 @@ export interface LevelCell {
 }
 
 const MAX_STEP_QUARTERS = 2; // a 0.5-tile step can be walked; more needs stairs
-const SEATS = new Set(["chair", "stool", "bench"]);
-const TABLES = new Set(["table", "round_table", "desk", "counter", "bar_counter"]);
-const WALL_HUGGERS = new Set(["bookshelf", "shelf", "wardrobe", "weapon_rack"]);
 
 interface LevelData {
   l: ResolvedLevel;
@@ -945,7 +942,7 @@ function checkFurnitureSense(ctx: PlayCtx): void {
       if (f.generatedBy !== undefined) continue;
       const fi = lvl?.features.findIndex((p) => p.id === f.id) ?? -1;
       const path = `/levels/${levelPath(d.l.id)}/features/${fi}`;
-      if (WALL_HUGGERS.has(f.type)) {
+      if (featureInfo(f.type).wallHugger === true) {
         let touches = false;
         for (let y = f.at[1]; y < f.at[1] + f.size[1] && !touches; y++)
           for (let x = f.at[0]; x < f.at[0] + f.size[0] && !touches; x++) {
@@ -976,10 +973,10 @@ function checkFurnitureSense(ctx: PlayCtx): void {
             path,
           );
       }
-      if (SEATS.has(f.type)) {
+      if (featureInfo(f.type).seat === true) {
         const near = (dist: number): string | null => {
           for (const t of d.l.features) {
-            if (!TABLES.has(t.type)) continue;
+            if (featureInfo(t.type).seatsAt !== true) continue;
             const gapX = Math.max(
               t.at[0] - (f.at[0] + f.size[0] - 1),
               f.at[0] - (t.at[0] + t.size[0] - 1),

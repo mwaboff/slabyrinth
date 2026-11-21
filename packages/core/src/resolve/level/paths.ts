@@ -12,6 +12,7 @@ import type { Material, TerrainOp, Vec2 } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { SIDES, SIDE_STEP, stepSide } from "../../gen/gridGeometry";
+import { featureInfo } from "../../gen/catalog";
 import { isFrontDoor } from "../../gen/openingKinds";
 import { forEachMaskCell } from "../../gen/mask";
 import { ValueNoise } from "../../gen/noise";
@@ -86,25 +87,6 @@ const SPUR = {
   width: 1,
   wander: 0.4,
 } as const;
-
-/** Landmark-class pieces a spur trail leads to (the first found), then lesser focal pieces. */
-const SPUR_PRIMARY = new Set<string>([
-  "landmark",
-  "statue_large",
-  "monolith",
-  "tree_large",
-  "giant_mushroom",
-]);
-const SPUR_FOCAL = new Set<string>([
-  "statue",
-  "altar",
-  "fountain",
-  "well",
-  "standing_stone",
-  "tall_marker",
-  "campfire",
-  "fire_pit",
-]);
 
 /**
  * After the building pads are flattened: the cells between a pavement and a building face (the wall ring the pad
@@ -421,9 +403,10 @@ export function stepPathSpurs(work: ResolveGrid): void {
     if (((work.flags[i] as number) & CELL_FLAG.PATH) !== 0) pathCells.push(work.cellXY(i));
   if (pathCells.length === 0) return;
   const targets: Array<{ id: string; at: Vec2; exact?: boolean }> = [];
+  // a spur leads to the first landmark-class piece, else to a lesser focal one (the catalog's `focal`)
   const focal =
-    work.level.features.find((ft) => SPUR_PRIMARY.has(ft.type)) ??
-    work.level.features.find((ft) => SPUR_FOCAL.has(ft.type));
+    work.level.features.find((ft) => featureInfo(ft.type).focal === "primary") ??
+    work.level.features.find((ft) => featureInfo(ft.type).focal === "lesser");
   if (focal)
     targets.push({
       id: focal.id,

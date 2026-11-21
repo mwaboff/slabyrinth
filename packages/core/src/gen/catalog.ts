@@ -50,62 +50,87 @@ export interface FeatureInfo {
   groundCause?: "litter" | "wear";
   /** Strewn on the floor (debris, bones, webs): mess, not what furnishes a room (review/interiors.ts). */
   strewn?: boolean;
+  /** Its crown or mass overhangs its cell: a composed set piece keeps it one cell inside the board (gen/setpieces.ts). */
+  overhangs?: boolean;
+  /** Upright: a run of them in single file reads as a fence, so the set-piece composer breaks such a run up. */
+  upright?: boolean;
+  /**
+   * A focal point: a natural trail's spur leads to the first "primary" piece on the level, else to a "lesser" one
+   * (resolve/level/paths.ts), and a lit place lights it (gen/setpieces.ts).
+   */
+  focal?: "primary" | "lesser";
+  /** Something to sit on: the playability check wants it beside a table it is near (`seatsAt`). */
+  seat?: boolean;
+  /** A top people sit at (a table, a counter, a stall): a seat near it should touch it. */
+  seatsAt?: boolean;
+  /** Stands against a wall (a shelf, a wardrobe): the playability check warns when one stands in the open. */
+  wallHugger?: boolean;
+  /**
+   * A top a small thing rests on, lifted to the height of the lowest of its variants (PaletteView.pieceSize real;
+   * gen/place.ts toppers, gen/setpieces.ts `Part.on`).
+   */
+  support?: boolean;
+  /** Scatters in clumps, a seed placement and one or two neighbours (gen/place.ts scatter). */
+  clusters?: boolean;
+  /** A small thing on a surface (clutter, goods): built from the small-things roles (gen/surfaces.ts featureRoles). */
+  smallThing?: boolean;
 }
 
-const F = (
-  label: string,
-  category: FeatureCategory,
-  opts: Partial<Omit<FeatureInfo, "label" | "category">> = {},
-): FeatureInfo => ({
-  ...(opts.glyph ? { glyph: opts.glyph } : {}),
-  ...(opts.light ? { light: true } : {}),
-  ...(opts.landmark ? { landmark: true } : {}),
-  ...(opts.topLight ? { topLight: opts.topLight } : {}),
-  ...(opts.ceilingMounted ? { ceilingMounted: true } : {}),
-  ...(opts.bandRock ? { bandRock: true } : {}),
-  ...(opts.groundCause ? { groundCause: opts.groundCause } : {}),
-  ...(opts.strewn ? { strewn: true } : {}),
-  size: opts.size ?? [1, 1],
-  blocking: opts.blocking ?? true,
-  organic: opts.organic ?? false,
-  wallMounted: opts.wallMounted ?? false,
-  gmOnly: opts.gmOnly ?? false,
-  category,
-  label,
-});
+type FeatureOpts = Partial<Omit<FeatureInfo, "label" | "category">>;
+
+const F = (label: string, category: FeatureCategory, opts: FeatureOpts = {}): FeatureInfo => {
+  const { size, blocking, organic, wallMounted, gmOnly, ...traits } = opts;
+  // an optional trait is present only where it says something (no `false` or `undefined` keys on the row)
+  const said = Object.fromEntries(Object.entries(traits).filter(([, v]) => Boolean(v)));
+  return {
+    ...said,
+    size: size ?? [1, 1],
+    blocking: blocking ?? true,
+    organic: organic ?? false,
+    wallMounted: wallMounted ?? false,
+    gmOnly: gmOnly ?? false,
+    category,
+    label,
+  };
+};
 
 export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
-  table: F("Table", "furniture", { size: [2, 1], topLight: "candle" }),
-  round_table: F("Round table", "furniture", { topLight: "candle" }),
-  chair: F("Chair", "furniture"),
-  bench: F("Bench", "furniture", { size: [2, 1] }),
-  stool: F("Stool", "furniture"),
+  table: F("Table", "furniture", { size: [2, 1], topLight: "candle", seatsAt: true, support: true }),
+  round_table: F("Round table", "furniture", { topLight: "candle", seatsAt: true, support: true }),
+  chair: F("Chair", "furniture", { seat: true }),
+  bench: F("Bench", "furniture", { size: [2, 1], seat: true }),
+  stool: F("Stool", "furniture", { seat: true }),
   bed: F("Bed", "furniture", { size: [1, 2] }),
   bunk_bed: F("Bunk bed", "furniture", { size: [1, 2] }),
-  wardrobe: F("Wardrobe", "furniture"),
-  bookshelf: F("Bookshelf", "furniture", { size: [2, 1] }),
-  desk: F("Desk", "furniture", { size: [2, 1], topLight: "candle" }),
-  chest: F("Chest", "furniture", { topLight: "lantern" }),
+  wardrobe: F("Wardrobe", "furniture", { wallHugger: true }),
+  bookshelf: F("Bookshelf", "furniture", { size: [2, 1], wallHugger: true }),
+  desk: F("Desk", "furniture", { size: [2, 1], topLight: "candle", seatsAt: true, support: true }),
+  chest: F("Chest", "furniture", { topLight: "lantern", support: true }),
   barrel: F("Barrel", "furniture"),
   crate: F("Crate", "furniture"),
   sack: F("Sack", "furniture"),
-  shelf: F("Shelf", "furniture", { size: [2, 1] }),
-  counter: F("Counter", "furniture", { size: [2, 1], topLight: "lantern" }),
-  bar_counter: F("Bar counter", "furniture", { size: [3, 1], topLight: "candle" }),
+  shelf: F("Shelf", "furniture", { size: [2, 1], wallHugger: true }),
+  counter: F("Counter", "furniture", { size: [2, 1], topLight: "lantern", seatsAt: true, support: true }),
+  bar_counter: F("Bar counter", "furniture", { size: [3, 1], topLight: "candle", seatsAt: true }),
   throne: F("Throne", "furniture"),
   rug: F("Rug", "furniture", { size: [2, 2], blocking: false }),
   cauldron: F("Cauldron", "furniture"),
   anvil: F("Anvil", "furniture"),
   forge: F("Forge", "furniture", { size: [2, 1] }),
-  weapon_rack: F("Weapon rack", "furniture"),
+  weapon_rack: F("Weapon rack", "furniture", { wallHugger: true }),
   armor_stand: F("Armour stand", "furniture"),
   cage: F("Cage", "furniture"),
   stocks: F("Stocks", "furniture"),
   pillar: F("Pillar", "architecture"),
-  statue: F("Statue", "architecture", { groundCause: "wear" }),
-  altar: F("Altar", "architecture", { size: [2, 1], topLight: "candle", groundCause: "wear" }),
-  fountain: F("Fountain", "architecture", { size: [2, 2], groundCause: "wear" }),
-  well: F("Well", "architecture", { groundCause: "wear" }),
+  statue: F("Statue", "architecture", { groundCause: "wear", focal: "lesser" }),
+  altar: F("Altar", "architecture", {
+    size: [2, 1],
+    topLight: "candle",
+    groundCause: "wear",
+    focal: "lesser",
+  }),
+  fountain: F("Fountain", "architecture", { size: [2, 2], groundCause: "wear", focal: "lesser" }),
+  well: F("Well", "architecture", { groundCause: "wear", focal: "lesser" }),
   brazier: F("Brazier", "architecture", { light: true }),
   torch_wall: F("Wall torch", "architecture", { blocking: false, wallMounted: true, light: true }),
   candelabra: F("Candelabra", "furniture", { light: true }),
@@ -123,39 +148,50 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   trap: F("Trap", "hazard", { blocking: false, gmOnly: true }),
   trap_plate: F("Pressure plate", "hazard", { blocking: false, gmOnly: true }),
   chandelier: F("Chandelier", "furniture", { blocking: false, light: true, ceilingMounted: true }),
-  tree: F("Tree", "outdoor", { organic: true, groundCause: "litter" }),
-  dead_tree: F("Dead tree", "outdoor", { organic: true, groundCause: "litter" }),
-  pine_tree: F("Pine", "outdoor", { organic: true, groundCause: "litter" }),
+  tree: F("Tree", "outdoor", { organic: true, groundCause: "litter", overhangs: true, upright: true }),
+  dead_tree: F("Dead tree", "outdoor", {
+    organic: true,
+    groundCause: "litter",
+    overhangs: true,
+    upright: true,
+  }),
+  pine_tree: F("Pine", "outdoor", { organic: true, groundCause: "litter", overhangs: true, upright: true }),
   bush: F("Bush", "outdoor", { organic: true }),
-  rock: F("Rock", "outdoor", { organic: true }),
-  boulder: F("Boulder", "outdoor", { organic: true }),
+  rock: F("Rock", "outdoor", { organic: true, upright: true }),
+  boulder: F("Boulder", "outdoor", { organic: true, upright: true, support: true }),
   stump: F("Stump", "outdoor", { organic: true }),
   log: F("Log", "outdoor", { size: [2, 1], organic: true }),
   mushroom: F("Mushrooms", "outdoor", { organic: true, blocking: false }),
   flowers: F("Flowers", "outdoor", { blocking: false, organic: true }),
   tall_grass: F("Tall grass", "outdoor", { blocking: false, organic: true }),
   reeds: F("Reeds", "outdoor", { blocking: false, organic: true }),
-  campfire: F("Campfire", "outdoor", { light: true, groundCause: "litter" }),
+  campfire: F("Campfire", "outdoor", { light: true, groundCause: "litter", focal: "lesser" }),
   tent: F("Tent", "outdoor", { size: [2, 2], groundCause: "litter" }),
   cart: F("Cart", "outdoor", { size: [2, 1] }),
   wagon: F("Wagon", "outdoor", { size: [3, 2] }),
   fence_post: F("Fence post", "outdoor"),
   signpost: F("Signpost", "outdoor"),
-  standing_stone: F("Standing stone", "outdoor", { organic: true }),
+  standing_stone: F("Standing stone", "outdoor", { organic: true, upright: true, focal: "lesser" }),
   grave: F("Grave", "outdoor", { size: [1, 2] }),
   // caves and set dressing
-  stalagmite: F("Stalagmite", "outdoor", { organic: true, glyph: "rock" }),
+  stalagmite: F("Stalagmite", "outdoor", { organic: true, glyph: "rock", upright: true, clusters: true }),
   stalactite: F("Stalactite", "outdoor", {
     organic: true,
     blocking: false,
     ceilingMounted: true,
     glyph: "debris",
+    clusters: true,
   }),
   rock_formation: F("Rock formation", "outdoor", { size: [2, 2], organic: true, glyph: "boulder" }),
   cave_in: F("Cave-in", "hazard", { size: [2, 2], organic: true, strewn: true, glyph: "rubble" }),
-  crystal: F("Crystals", "outdoor", { organic: true, light: true, glyph: "rock" }),
-  giant_mushroom: F("Giant mushroom", "outdoor", { organic: true, glyph: "mushroom" }),
-  root: F("Roots", "outdoor", { organic: true, blocking: false, glyph: "dead_tree" }),
+  crystal: F("Crystals", "outdoor", { organic: true, light: true, glyph: "rock", clusters: true }),
+  giant_mushroom: F("Giant mushroom", "outdoor", {
+    organic: true,
+    glyph: "mushroom",
+    focal: "primary",
+    clusters: true,
+  }),
+  root: F("Roots", "outdoor", { organic: true, blocking: false, glyph: "dead_tree", clusters: true }),
   root_large: F("Great root", "outdoor", { size: [2, 1], organic: true, glyph: "log" }),
   roots_wall: F("Wall roots", "outdoor", { blocking: false, wallMounted: true, glyph: "dead_tree" }),
   vines: F("Vines", "outdoor", { blocking: false, wallMounted: true, glyph: "tall_grass" }),
@@ -165,34 +201,76 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
     landmark: true,
     groundCause: "litter",
     glyph: "dead_tree",
+    overhangs: true,
+    focal: "primary",
   }),
   // ritual, encounter and lights
-  candles: F("Candles", "furniture", { blocking: false, light: true, glyph: "candelabra" }),
-  skull_pile: F("Skulls", "other", { blocking: false, organic: true, strewn: true, glyph: "bones" }),
+  candles: F("Candles", "furniture", { blocking: false, light: true, glyph: "candelabra", clusters: true }),
+  skull_pile: F("Skulls", "other", {
+    blocking: false,
+    organic: true,
+    strewn: true,
+    glyph: "bones",
+    clusters: true,
+  }),
   spawn_point: F("Spawn point", "hazard", { blocking: false, gmOnly: true, glyph: "trap_plate" }),
   torch_floor: F("Floor torch", "architecture", { light: true, glyph: "brazier" }),
   lantern: F("Lantern", "architecture", { light: true, glyph: "brazier" }),
   magic_fire: F("Magic fire", "architecture", { light: true, glyph: "campfire" }),
   lava_glow: F("Lava glow", "hazard", { blocking: false, light: true, glyph: "brazier" }),
-  fire_pit: F("Fire pit", "outdoor", { light: true, groundCause: "litter", glyph: "campfire" }),
+  fire_pit: F("Fire pit", "outdoor", {
+    light: true,
+    groundCause: "litter",
+    glyph: "campfire",
+    focal: "lesser",
+  }),
   // tall pieces, mining and hanging dressing
-  monolith: F("Monolith", "architecture", { groundCause: "wear", glyph: "standing_stone" }),
+  monolith: F("Monolith", "architecture", {
+    groundCause: "wear",
+    glyph: "standing_stone",
+    upright: true,
+    focal: "primary",
+  }),
   cave_column: F("Rock column", "outdoor", { organic: true, glyph: "pillar" }),
-  statue_large: F("Great statue", "architecture", { size: [2, 2], landmark: true, glyph: "statue" }),
+  statue_large: F("Great statue", "architecture", {
+    size: [2, 2],
+    landmark: true,
+    glyph: "statue",
+    overhangs: true,
+    focal: "primary",
+  }),
   mine_cart: F("Mine cart", "furniture", { glyph: "crate" }),
   rails: F("Rails", "architecture", { blocking: false, glyph: "debris" }),
   mine_support: F("Timber support", "architecture", { glyph: "pillar" }),
   chains: F("Hanging chains", "other", { blocking: false, wallMounted: true, glyph: "banner_wall" }),
   // theme-neutral slots: each theme's palette (feature.<slot>) decides the assets, e.g. cluster_tall is
   // stalagmite columns in a cave, pines in a forest and stone columns in a dungeon
-  landmark: F("Landmark", "architecture", { size: [2, 2], landmark: true, glyph: "statue" }),
-  tall_marker: F("Tall marker", "architecture", { glyph: "standing_stone" }),
-  formation: F("Formation", "outdoor", { size: [2, 2], organic: true, glyph: "boulder" }),
-  cluster_tall: F("Tall growth", "outdoor", { organic: true, groundCause: "litter", glyph: "pine_tree" }),
+  landmark: F("Landmark", "architecture", {
+    size: [2, 2],
+    landmark: true,
+    glyph: "statue",
+    overhangs: true,
+    focal: "primary",
+  }),
+  tall_marker: F("Tall marker", "architecture", { glyph: "standing_stone", upright: true, focal: "lesser" }),
+  formation: F("Formation", "outdoor", {
+    size: [2, 2],
+    organic: true,
+    glyph: "boulder",
+    overhangs: true,
+    upright: true,
+  }),
+  cluster_tall: F("Tall growth", "outdoor", {
+    organic: true,
+    groundCause: "litter",
+    glyph: "pine_tree",
+    overhangs: true,
+    upright: true,
+  }),
   undergrowth: F("Undergrowth", "outdoor", { organic: true, blocking: false, glyph: "bush" }),
   ground_cover: F("Ground cover", "outdoor", { organic: true, blocking: false, glyph: "tall_grass" }),
   accent_light: F("Accent light", "architecture", { light: true, glyph: "brazier" }),
-  edge_dressing: F("Edge dressing", "outdoor", { organic: true, glyph: "rock" }),
+  edge_dressing: F("Edge dressing", "outdoor", { organic: true, glyph: "rock", upright: true }),
   small_detail: F("Small detail", "other", { organic: true, blocking: false, glyph: "debris" }),
   wall_dressing: F("Wall dressing", "other", { blocking: false, wallMounted: true, glyph: "banner_wall" }),
   // water's edge: reeds, lily pads, river stones, driftwood along banks; a small jetty
@@ -200,7 +278,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   jetty: F("Jetty", "architecture", { size: [2, 1], blocking: false, glyph: "bench" }),
   // built places: parked along a road edge (cart, wagon, car), seating, a sign on a frontage
   vehicle: F("Vehicle", "outdoor", { size: [3, 2], glyph: "wagon" }),
-  seating: F("Seating", "furniture", { size: [2, 1], glyph: "bench" }),
+  seating: F("Seating", "furniture", { size: [2, 1], glyph: "bench", seat: true }),
   signage: F("Signage", "architecture", { blocking: false, wallMounted: true, glyph: "banner_wall" }),
   // cliffs as rock bands: pieces of the band along a rise (sizes here are the cell footprint; the palette's asset
   // sets the real size)
@@ -212,12 +290,12 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
     glyph: "boulder",
   }),
   // markets (generator 3): a stall (2 wide by default), goods standing on it, the pieces of an overhead line
-  stall: F("Market stall", "furniture", { size: [2, 1], glyph: "counter" }),
-  goods: F("Goods", "other", { blocking: false, glyph: "sack" }),
+  stall: F("Market stall", "furniture", { size: [2, 1], glyph: "counter", seatsAt: true, support: true }),
+  goods: F("Goods", "other", { blocking: false, glyph: "sack", smallThing: true }),
   overhead: F("Overhead line", "other", { blocking: false, glyph: "banner_wall" }),
   line_post: F("Line post", "architecture", { glyph: "fence_post" }),
   // interiors (generator 4): small things on furniture and the shelf plank they stand on
-  clutter: F("Clutter", "other", { blocking: false, glyph: "debris" }),
+  clutter: F("Clutter", "other", { blocking: false, glyph: "debris", smallThing: true }),
   shelf_line: F("Shelf", "other", { blocking: false, wallMounted: true, glyph: "banner_wall" }),
   custom: F("Custom", "other"),
 };
@@ -226,6 +304,23 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
 export const LIGHT_FEATURES: ReadonlySet<FeatureType> = new Set<FeatureType>(
   (Object.keys(FEATURE_INFO) as FeatureType[]).filter((t) => FEATURE_INFO[t].light === true),
 );
+
+/** The feature types whose row passes `test`, in catalog order. */
+export function typesWith(test: (info: FeatureInfo) => boolean): FeatureType[] {
+  return (Object.keys(FEATURE_INFO) as FeatureType[]).filter((t) => test(FEATURE_INFO[t]));
+}
+
+/**
+ * A trait plus a frozen delta: the list a released generator read before the trait existed, stated as what it adds to
+ * and takes from the trait, so the list cannot drift from the table unseen (test/unit/gen/catalogTraits.test.ts pins
+ * each delta and says why it stays).
+ */
+export function traitWithDelta(
+  base: (f: FeatureInfo) => boolean,
+  delta: { readonly plus: readonly FeatureType[]; readonly minus: readonly FeatureType[] },
+): ReadonlySet<FeatureType> {
+  return new Set([...typesWith(base).filter((t) => !delta.minus.includes(t)), ...delta.plus]);
+}
 
 /** Is the type a landmark (`landmark` in the table)? */
 export function isLandmark(type: FeatureType): boolean {

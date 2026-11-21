@@ -23,7 +23,7 @@ import { createPrng, type Prng } from "../util/prng";
 import { ValueNoise } from "./noise";
 import { dressWater } from "./water";
 import { cliffBand, riseUnits, type BandResult } from "./cliffband";
-import { featureInfo, isLandmark, LIGHT_FEATURES } from "./catalog";
+import { featureInfo, isLandmark, LIGHT_FEATURES, traitWithDelta, typesWith } from "./catalog";
 import {
   EDGE_LEDGE,
   EDGE_OPENING,
@@ -1390,32 +1390,10 @@ const NEIGHBOURS8: ReadonlyArray<readonly [number, number]> = [
   [-1, 1],
   [-1, -1],
 ];
-/** Pieces whose crowns or masses overhang their cell: they keep one cell inside the board. */
-const BIG = new Set<FeatureType>([
-  "cluster_tall",
-  "landmark",
-  "tree_large",
-  "formation",
-  "tree",
-  "pine_tree",
-  "dead_tree",
-  "statue_large",
-]);
-/** Upright pieces that read as a fence when they stand in single file (see makesSingleFile). */
-export const RUNNERS: ReadonlySet<FeatureType> = new Set<FeatureType>([
-  "cluster_tall",
-  "formation",
-  "boulder",
-  "tree",
-  "pine_tree",
-  "dead_tree",
-  "stalagmite",
-  "tall_marker",
-  "monolith",
-  "standing_stone",
-  "edge_dressing",
-  "rock",
-]);
+/** Pieces whose crowns or masses overhang their cell (`overhangs`): they keep one cell inside the board. */
+const overhangs = (t: FeatureType): boolean => featureInfo(t).overhangs === true;
+/** Upright pieces (`upright`) that read as a fence when they stand in single file (see makesSingleFile). */
+export const RUNNERS: ReadonlySet<FeatureType> = new Set(typesWith((f) => f.upright === true));
 /** Anchors along a line (cliff lips and feet, banks, path verges): their groups are placed irregularly. */
 const LINE_ANCHORS = new Set<Group["anchor"]>(["ledge_low", "ledge_high", "water_edge", "path_edge"]);
 /** What a line piece may become instead, so a run mixes sizes and kinds (a fallen log among the rocks). */
@@ -1582,31 +1560,23 @@ function lineRhythm(rng: Prng): {
   };
 }
 
-/** Focal pieces a lit place lights (generator 3, `lightLandmarks`). */
-const FOCAL_LIT = new Set<FeatureType>([
-  "landmark",
-  "statue",
-  "statue_large",
-  "altar",
-  "fountain",
-  "well",
-  "monolith",
-  "standing_stone",
-  "tall_marker",
-  "throne",
-]);
+/**
+ * Focal pieces a lit place lights (generator 3, switch `litLandmarks`; frozen): the focal pieces that are not lights
+ * themselves, less the natural ones (a great tree, a giant mushroom), and a throne, which is no trail's goal.
+ */
+export const FOCAL_LIT = traitWithDelta((f) => f.focal !== undefined && f.light !== true, {
+  plus: ["throne"],
+  minus: ["tree_large", "giant_mushroom"],
+});
 
-/** Pieces that cause ground cover round them (generator 3, `groundCover`). */
-const COVER_CAUSES = new Set<FeatureType>([
-  "campfire",
-  "fire_pit",
-  "tent",
-  "tree_large",
-  "landmark",
-  "tree",
-  "dead_tree",
-  "pine_tree",
-]);
+/**
+ * Pieces that cause ground cover round them (generator 3, switch `causedGroundCover`; frozen): what litters the ground
+ * (groundCause "litter"), less tall growth, and a landmark.
+ */
+export const COVER_CAUSES = traitWithDelta((f) => f.groundCause === "litter", {
+  plus: ["landmark"],
+  minus: ["cluster_tall"],
+});
 
 /**
  * One area being composed: what it is (cells, entrances, the cells each kind of group anchors on), what is placed so
@@ -1990,7 +1960,7 @@ class AreaComposer {
     if (this.runGuard && RUNNERS.has(part.t) && this.makesSingleFile(fp)) return null;
     // big pieces keep one cell inside the board, so crowns and rock masses never hang off the slab
     // (a wall on that side hides the overhang)
-    if (BIG.has(part.t))
+    if (overhangs(part.t))
       for (const [xx, yy] of fp)
         for (const sd of SIDES) {
           const [nx, ny] = step(xx, yy, sd);

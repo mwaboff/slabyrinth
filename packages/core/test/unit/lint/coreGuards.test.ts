@@ -94,6 +94,22 @@ describe("core guards", () => {
     });
   });
 
+  describe("slabyrinth/feature-lists: a feature trait is a catalog field", () => {
+    it("reports a hand list of feature types outside the catalog", async () => {
+      const code = 'const BIG = new Set<FeatureType>(["tree", "landmark"]);';
+      expect(await guardHits("packages/core/src/gen/setpieces.ts", code)).toEqual([
+        expect.stringContaining("slabyrinth/feature-lists"),
+      ]);
+      expect(await guardHits("packages/core/src/gen/catalog.ts", code)).toEqual([]);
+      expect(
+        await guardHits(
+          "packages/core/src/gen/setpieces.ts",
+          "const BIG = new Set(typesWith((f) => f.overhangs === true));",
+        ),
+      ).toEqual([]);
+    });
+  });
+
   describe("slabyrinth/hash-unit: a draw from a hash goes through util/hash.ts", () => {
     it("reports 2^32 written by hand anywhere in core but util", async () => {
       const code = "const u = h32(`${seed}:k`) / 4294967296;";

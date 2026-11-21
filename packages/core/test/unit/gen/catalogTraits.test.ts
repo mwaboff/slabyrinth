@@ -7,7 +7,9 @@ import { describe, expect, it } from "vitest";
 import { type FeatureType, OPENING_KINDS, type OpeningKind } from "../../../src/contracts/plan";
 import { FEATURE_INFO, LIGHT_FEATURES, isLandmark } from "../../../src/gen/catalog";
 import { OPENING_KIND_INFO, isFullHeightOpeningRole } from "../../../src/gen/openingKinds";
+import { CLUSTERED_TYPES } from "../../../src/gen/place";
 import { ROOM_PURPOSE_INFO, type RoomPurpose } from "../../../src/gen/roomPurpose";
+import { COVER_CAUSES, FOCAL_LIT, RUNNERS } from "../../../src/gen/setpieces";
 import { NATURAL_MATERIALS } from "../../../src/review";
 
 const types = Object.keys(FEATURE_INFO) as FeatureType[];
@@ -78,6 +80,83 @@ describe("feature traits are table fields", () => {
       "debris",
     ] as const)
       expect(FEATURE_INFO[t].organic, t).toBe(true);
+  });
+});
+
+describe("traits a released generator reads keep the lists it shipped with", () => {
+  // These are pins on purpose: generators 2 and 3 are frozen, and each of these traits replaced a list one of them read.
+  const sorted = (f: (t: FeatureType) => boolean): FeatureType[] => types.filter(f).sort();
+  const set = (s: ReadonlySet<FeatureType>): FeatureType[] => [...s].sort();
+
+  it("the set-piece composer's overhanging and upright pieces (BIG, RUNNERS)", () => {
+    expect(sorted((t) => FEATURE_INFO[t].overhangs === true)).toEqual(
+      [
+        "cluster_tall",
+        "dead_tree",
+        "formation",
+        "landmark",
+        "pine_tree",
+        "statue_large",
+        "tree",
+        "tree_large",
+      ].sort(),
+    );
+    expect(set(RUNNERS)).toEqual(
+      [
+        "boulder",
+        "cluster_tall",
+        "dead_tree",
+        "edge_dressing",
+        "formation",
+        "monolith",
+        "pine_tree",
+        "rock",
+        "stalagmite",
+        "standing_stone",
+        "tall_marker",
+        "tree",
+      ].sort(),
+    );
+  });
+
+  it("the focal pieces a trail spur leads to (SPUR_PRIMARY, SPUR_FOCAL)", () => {
+    expect(sorted((t) => FEATURE_INFO[t].focal === "primary")).toEqual(
+      ["giant_mushroom", "landmark", "monolith", "statue_large", "tree_large"].sort(),
+    );
+    expect(sorted((t) => FEATURE_INFO[t].focal === "lesser")).toEqual(
+      ["altar", "campfire", "fire_pit", "fountain", "standing_stone", "statue", "tall_marker", "well"].sort(),
+    );
+  });
+
+  it("the frozen deltas: what a lit place lights and what causes ground cover (generator 3)", () => {
+    // the focal pieces that are not lights, less the natural ones; a throne is lit though no trail leads to it
+    expect(set(FOCAL_LIT)).toEqual(
+      [
+        "altar",
+        "fountain",
+        "landmark",
+        "monolith",
+        "standing_stone",
+        "statue",
+        "statue_large",
+        "tall_marker",
+        "throne",
+        "well",
+      ].sort(),
+    );
+    // what litters the ground, less tall growth (generator 3 shipped without it), and a landmark
+    expect(set(COVER_CAUSES)).toEqual(
+      ["campfire", "dead_tree", "fire_pit", "landmark", "pine_tree", "tent", "tree", "tree_large"].sort(),
+    );
+  });
+
+  it("the supports small props rest on, and the types that scatter in clumps", () => {
+    expect(sorted((t) => FEATURE_INFO[t].support === true)).toEqual(
+      ["boulder", "chest", "counter", "desk", "round_table", "stall", "table"].sort(),
+    );
+    expect(set(CLUSTERED_TYPES)).toEqual(
+      ["candles", "crystal", "giant_mushroom", "root", "skull_pile", "stalactite", "stalagmite"].sort(),
+    );
   });
 });
 
