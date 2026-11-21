@@ -12,7 +12,7 @@
  * The structure hooks (resolve/structure.ts `StructureWork`) run between stages, where buildings need the level's
  * cells as they stand at that point.
  */
-import { checkAreaFields, initAreas, stepAreas, stepBase } from "./level/areas";
+import { checkAreaFields, stepAreas, stepBase } from "./level/areas";
 import { stepBridgeRubble, stepBridges, stepRailings } from "./level/bridges";
 import { stepCaveOutlines, stepCaveRelief } from "./level/caves";
 import { stepGeneratedFeatures } from "./level/dressing";
@@ -28,10 +28,9 @@ import type { ResolveGrid } from "./level/grid";
 
 /** Steps 1–6: the level's cells, terrain, edges and openings, before the links between levels. */
 export function runPhase1(work: ResolveGrid): void {
-  initAreas(work);
   stepBase(work);
   stepTerrain(work, "under");
-  stepAreas(work);
+  const routes = stepAreas(work);
   if (work.profile.caveOutlines) stepCaveOutlines(work);
   work.structs?.afterAreas(work);
   checkUnderSurvivors(work);
@@ -48,7 +47,7 @@ export function runPhase1(work: ResolveGrid): void {
   stepRoads(work);
   stepKerbs(work);
   stepWallRuns(work);
-  stepOpenings(work);
+  stepOpenings(work, routes);
   stepOpeningRims(work);
   work.structs?.afterOpenings(work);
   checkAreaFields(work);

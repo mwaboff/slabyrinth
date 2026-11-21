@@ -16,7 +16,6 @@ import type {
   Level,
   MapPlan,
   Material,
-  OpeningKind,
   PlanIssue,
   PlanIssueCode,
   Severity,
@@ -49,6 +48,7 @@ import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
 import { isWater, materialOrdinal } from "../materials";
 import type { ThemeDefaults } from "../themes";
 import { type StructureWork, expandStructures } from "../structure";
+import { areaTable } from "./areas";
 
 export interface LevelContext {
   plan: MapPlan;
@@ -62,27 +62,31 @@ export interface LevelContext {
   palette: PaletteView;
 }
 
+/**
+ * One plan area as the stages see it, described once when the grid is built (resolve/level/areas.ts areaTable) and
+ * never changed: what a stage does to an area's cells (a room's own floor, a step) it does to the cells.
+ */
 export interface AreaInfo {
-  area: Area;
-  index: number;
-  kind: AreaKind;
-  mode: WallMode;
-  wallStyle: WallStyle;
-  wallHeight: number;
-  themeIdx: number;
-  theme: ThemeId;
-  floorMat: number; // MATERIALS ordinal + 1; 0 = no floor ("none")
-  floorNone: boolean;
-  isZone: boolean;
-  isRoute: boolean;
-  isBridge: boolean;
-  structCount: number;
+  readonly area: Area;
+  readonly index: number;
+  readonly kind: AreaKind;
+  readonly mode: WallMode;
+  readonly wallStyle: WallStyle;
+  readonly wallHeight: number;
+  readonly themeIdx: number;
+  readonly theme: ThemeId;
+  /** The floor the area asks for (MATERIALS ordinal + 1; 0 = no floor, "none"), laid when it claims its cells. */
+  readonly floorMat: number;
+  readonly floorNone: boolean;
+  readonly isZone: boolean;
+  readonly isRoute: boolean;
+  readonly isBridge: boolean;
   /** What the area is for and whether it is abandoned: read once from its words (gen/roomPurpose.ts classifyRoom). */
-  room: RoomClass;
+  readonly room: RoomClass;
   /** The theme's interior character (resolve/themes.ts themeInterior). */
-  interior: ThemeInterior;
+  readonly interior: ThemeInterior;
   /** A rough interior: the theme's finish is rough, or nobody keeps the room up (ResolvedArea.finish). */
-  rough: boolean;
+  readonly rough: boolean;
 }
 
 /** A bridge deck waiting for the bridge pass (area of kind "bridge" or a chasm op's bridge). */
@@ -121,19 +125,6 @@ export interface EdgeArrays {
   hostSet: Int8Array;
 }
 
-export interface RouteRecord {
-  ai: number;
-  from: number; // area index or -1
-  to: number;
-  width: number;
-  kind: OpeningKind;
-  startSquare: Array<[number, number]>;
-  endSquare: Array<[number, number]>;
-  /** Edge orientation crossed by the route where it leaves `from` / enters `to` (null = unknown). */
-  orientA: "h" | "v" | null;
-  orientB: "h" | "v" | null;
-}
-
 /** Railing height above the deck (tiles). */
 export const RAILING_HEIGHT = 1;
 // material traits (water, natural ground, deck spans): resolve/materials.ts; wall style traits (low rims, whole-cell
@@ -158,14 +149,17 @@ export class ResolveGrid {
   readonly flags: Uint8Array;
   readonly theme: Uint16Array;
   readonly occ: Uint16Array;
-  readonly themes: ThemeId[] = [];
-  readonly areas: AreaInfo[] = [];
-  readonly areaIndexById = new Map<string, number>();
+  /** The level's themes (cells and areas refer to them by index; the level theme is index 0). */
+  readonly themes: readonly ThemeId[];
+  /** The plan level's areas (structures' synthetic areas included), in plan order. */
+  readonly areas: readonly AreaInfo[];
+  readonly areaIndexById: ReadonlyMap<string, number>;
+  /** Per area, how many cells it owns structurally (recountStruct): the host rule gives a wall to the larger side. */
+  private readonly ownedCells: number[];
   readonly hE: EdgeArrays;
   readonly vE: EdgeArrays;
   readonly openings: ResolvedOpening[] = [];
   readonly features: ResolvedFeature[] = [];
-  readonly routes: RouteRecord[] = [];
   readonly levelTheme: ThemeId;
   readonly defaultWallHeight: number;
   generated = 0;
@@ -294,6 +288,11 @@ export class ResolveGrid {
     this.vE = makeEdges((this.w + 1) * this.h);
     this.levelTheme = level.theme ?? ctx.plan.theme;
     this.defaultWallHeight = level.wallHeight ?? BUILD_CONSTANTS.wallHeight;
+    const table = areaTable(level, ctx, this.profile, this.levelTheme, this.defaultWallHeight);
+    this.areas = table.areas;
+    this.areaIndexById = table.byId;
+    this.themes = table.themes;
+    this.ownedCells = this.areas.map(() => 0);
   }
 
   // ───────────────────────────── cells and edges ─────────────────────────────
@@ -307,15 +306,6 @@ export class ResolveGrid {
 
   isFloor(i: number): boolean {
     return i >= 0 && this.state[i] === CELL.OPEN && ((this.flags[i] as number) & CELL_FLAG.NO_FLOOR) === 0;
-  }
-
-  themeIndex(t: ThemeId): number {
-    let k = this.themes.indexOf(t);
-    if (k < 0) {
-      k = this.themes.length;
-      this.themes.push(t);
-    }
-    return k;
   }
 
   issue(
@@ -542,11 +532,12 @@ export class ResolveGrid {
     }
   }
 
+  /** Counts each area's structural cells again (after the areas claim theirs, and after cave outlines move them). */
   recountStruct(): void {
-    for (const a of this.areas) a.structCount = 0;
+    this.ownedCells.fill(0);
     for (let i = 0; i < this.n; i++) {
       const s = this.struct[i] as number;
-      if (s > 0) (this.areas[s - 1] as AreaInfo).structCount++;
+      if (s > 0) this.ownedCells[s - 1] = (this.ownedCells[s - 1] as number) + 1;
     }
   }
 
@@ -613,8 +604,8 @@ export class ResolveGrid {
     const sa = this.struct[a] as number;
     const sb = this.struct[b] as number;
     if ((sa === 0) !== (sb === 0)) return sa === 0 ? 0 : 1;
-    const ca = sa > 0 ? (this.areas[sa - 1] as AreaInfo).structCount : 0;
-    const cb = sb > 0 ? (this.areas[sb - 1] as AreaInfo).structCount : 0;
+    const ca = sa > 0 ? (this.ownedCells[sa - 1] as number) : 0;
+    const cb = sb > 0 ? (this.ownedCells[sb - 1] as number) : 0;
     if (ca !== cb) return ca > cb ? 0 : 1;
     return 1;
   }

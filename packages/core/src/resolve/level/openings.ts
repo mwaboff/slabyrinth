@@ -7,6 +7,7 @@
 import type { OpeningKind } from "../../contracts/plan";
 import type { ResolvedOpening } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
+import type { RouteRecord } from "./areas";
 import type { AreaInfo, ResolveGrid } from "./grid";
 
 function areaIdOf(work: ResolveGrid, region: number): string | null {
@@ -150,7 +151,7 @@ function placeOpening(
   return true;
 }
 
-export function stepOpenings(work: ResolveGrid): void {
+export function stepOpenings(work: ResolveGrid, routes: readonly RouteRecord[]): void {
   work.level.openings.forEach((o, k) => {
     const path = `/levels/${work.li}/openings/${k}`;
     const width0 = o.width ?? (o.kind === "double_door" ? 2 : 1);
@@ -236,7 +237,7 @@ export function stepOpenings(work: ResolveGrid): void {
       placeOpening(work, o, ed.orient, idx, path, true, false);
     }
   });
-  for (const r of work.routes) {
+  for (const r of routes) {
     const info = work.areas[r.ai] as AreaInfo;
     const make = (
       target: number,

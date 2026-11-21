@@ -18,7 +18,6 @@ import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed, h32, subSeed } from "../../util/hash";
 import { BUILT_FLOORS, FAMILY_ROTATION, purposeFloor } from "../interiorFloors";
-import { materialOrdinal } from "../materials";
 import { commitGenerated, placementGrid } from "./features";
 import type { AreaInfo, ResolveGrid } from "./grid";
 
@@ -118,10 +117,9 @@ export function stepRoomFloors(work: ResolveGrid): void {
         (nCells <= 36 || (work.ctx.palette.floorTileArea(info.theme, m) ?? 4) >= 4),
     );
     if (pick === undefined || pick === td.floor) continue;
-    const ord = materialOrdinal(pick);
+    // the room's cells that still hold the floor it claimed (a dais or a painted patch keeps its own)
     const cells = cellsOf.get(info.index) ?? [];
     for (const i of cells) if (work.mat[i] === info.floorMat) work.setMaterial(i, pick);
-    info.floorMat = ord;
   }
   // (b) a step above the corridor, for a room you enter from one
   const joined = roomsOpeningOnCorridors(work, nbrs);

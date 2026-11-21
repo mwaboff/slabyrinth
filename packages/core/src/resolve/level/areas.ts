@@ -1,19 +1,21 @@
 /**
- * Steps 1 and 3 of a level: the base, then the areas.
+ * The level's areas: the area table the grid is built with, then steps 1 and 3 of a level, the base and the areas.
  * Reads: the level's base and areas (with the theme defaults and the palette's interior character), the routes'
- * endpoints. Writes: `areas` (one AreaInfo per plan area: wall mode and style, floor, room class, rough finish),
- * the base fill of the cell arrays, each area's cells (state, owner, floor, theme, floorHeight) and `routes` (the
- * corridors drawn between two areas, read again when the openings are placed). Also the check, after the openings,
- * that warns about area fields that do nothing for the area's kind.
+ * endpoints. Writes: the area table (`areaTable`: one AreaInfo per plan area, wall mode and style, floor, room class,
+ * rough finish; built once, never changed), the base fill of the cell arrays and each area's cells (state, owner,
+ * floor, theme, floorHeight). Returns the routes (`RouteRecord`, the corridors drawn between two areas) to the
+ * caller, which hands them to the openings. Also the check, after the openings, that warns about area fields that do
+ * nothing for the area's kind.
  */
-import type { AreaKind, Vec2, WallMode } from "../../contracts/plan";
+import type { AreaKind, Level, OpeningKind, ThemeId, Vec2, WallMode } from "../../contracts/plan";
 import { CELL } from "../../contracts/resolved";
 import { classifyRoom } from "../../gen/roomPurpose";
 import { bandOffsets, routeCenterline } from "../../gen/shapes";
 import { NATURAL_WALL_STYLE, isNaturalWallStyle } from "../../gen/wallStyles";
+import type { GeneratorProfile } from "../../plan/generator";
 import { materialOrdinal } from "../materials";
 import { themeInterior } from "../themes";
-import type { AreaInfo, ResolveGrid } from "./grid";
+import type { AreaInfo, LevelContext, ResolveGrid } from "./grid";
 
 const DEFAULT_MODE: Record<AreaKind, WallMode> = {
   room: "auto",
@@ -25,19 +27,44 @@ const DEFAULT_MODE: Record<AreaKind, WallMode> = {
   bridge: "none",
 };
 
-export function initAreas(work: ResolveGrid): void {
-  work.themeIndex(work.levelTheme);
-  work.level.areas.forEach((area, index) => {
-    const theme = area.theme ?? work.levelTheme;
-    const td = work.ctx.themeDefaults(theme);
+/** What a level's grid is built with: one AreaInfo per plan area, each area's index by id, and the theme table. */
+export interface AreaTable {
+  readonly areas: readonly AreaInfo[];
+  /** First area of each id (a plan with a duplicate id is reported by validation; the first one wins here). */
+  readonly byId: ReadonlyMap<string, number>;
+  /** The level's themes; cells and areas refer to them by index, the level theme is index 0. */
+  readonly themes: readonly ThemeId[];
+}
+
+/**
+ * Describes the level's areas once, before any cell is claimed (ResolveGrid's constructor): wall mode and style, floor,
+ * theme, room class and finish. Pure; nothing changes an AreaInfo afterwards.
+ */
+export function areaTable(
+  level: Level,
+  ctx: LevelContext,
+  profile: GeneratorProfile,
+  levelTheme: ThemeId,
+  defaultWallHeight: number,
+): AreaTable {
+  const themes: ThemeId[] = [levelTheme];
+  const themeIndex = (t: ThemeId): number => {
+    const k = themes.indexOf(t);
+    return k >= 0 ? k : themes.push(t) - 1;
+  };
+  const areas: AreaInfo[] = [];
+  const byId = new Map<string, number>();
+  level.areas.forEach((area, index) => {
+    const theme = area.theme ?? levelTheme;
+    const td = ctx.themeDefaults(theme);
     const defFloor =
       area.kind === "cave" ? td.caveFloor : area.kind === "courtyard" ? td.courtyardFloor : td.floor;
     const floor = area.floor ?? defFloor;
     // generator 4 reads these (rooms dressed, floored, finished by purpose); they are cheap and pure, so every
     // generator computes them, and only generator 4 writes them on the resolved area
     const room = classifyRoom(area);
-    const interior = themeInterior(work.ctx.palette.interior(theme), td);
-    work.areas.push({
+    const interior = themeInterior(ctx.palette.interior(theme), td);
+    areas.push({
       area,
       index,
       kind: area.kind,
@@ -46,24 +73,24 @@ export function initAreas(work: ResolveGrid): void {
       // into a cave is rock, not a brick box
       wallStyle:
         area.wallStyle ??
-        (area.kind === "cave" || (work.profile.naturalThemeWalls && isNaturalWallStyle(td.wallStyle))
+        (area.kind === "cave" || (profile.naturalThemeWalls && isNaturalWallStyle(td.wallStyle))
           ? NATURAL_WALL_STYLE
           : "wall"),
-      wallHeight: area.wallHeight ?? work.defaultWallHeight,
-      themeIdx: work.themeIndex(theme),
+      wallHeight: area.wallHeight ?? defaultWallHeight,
+      themeIdx: themeIndex(theme),
       theme,
       floorMat: floor === "none" ? 0 : materialOrdinal(floor),
       floorNone: floor === "none",
       isZone: area.kind === "zone",
       isRoute: area.shape.type === "route",
       isBridge: area.kind === "bridge",
-      structCount: 0,
       room,
       interior,
       rough: interior.finish === "rough" || room.abandoned,
     });
-    if (!work.areaIndexById.has(area.id)) work.areaIndexById.set(area.id, index);
+    if (!byId.has(area.id)) byId.set(area.id, index);
   });
+  return { areas, byId, themes };
 }
 
 export function stepBase(work: ResolveGrid): void {
@@ -77,7 +104,22 @@ export function stepBase(work: ResolveGrid): void {
   work.theme.fill(0);
 }
 
-export function stepAreas(work: ResolveGrid): void {
+/** A corridor drawn between two areas (an area of shape "route"): where its openings go (resolve/level/openings.ts). */
+export interface RouteRecord {
+  ai: number;
+  from: number; // area index or -1
+  to: number;
+  width: number;
+  kind: OpeningKind;
+  startSquare: Array<[number, number]>;
+  endSquare: Array<[number, number]>;
+  /** Edge orientation crossed by the route where it leaves `from` / enters `to` (null = unknown). */
+  orientA: "h" | "v" | null;
+  orientB: "h" | "v" | null;
+}
+
+/** Claims each area's cells (shapes in plan order, then the routes between them); returns the routes drawn. */
+export function stepAreas(work: ResolveGrid): RouteRecord[] {
   for (const info of work.areas) {
     if (info.isRoute) continue;
     const cells = work.shapeCells(
@@ -88,13 +130,18 @@ export function stepAreas(work: ResolveGrid): void {
     );
     for (const i of cells) work.claim(i, info);
   }
-  for (const info of work.areas) if (info.isRoute) routeArea(work, info);
+  const routes: RouteRecord[] = [];
+  for (const info of work.areas) {
+    const r = info.isRoute ? routeArea(work, info) : null;
+    if (r) routes.push(r);
+  }
   work.recountStruct();
+  return routes;
 }
 
-function routeArea(work: ResolveGrid, info: AreaInfo): void {
+function routeArea(work: ResolveGrid, info: AreaInfo): RouteRecord | null {
   const shape = info.area.shape;
-  if (shape.type !== "route") return;
+  if (shape.type !== "route") return null;
   const path = `/levels/${work.li}/areas/${info.index}/shape`;
   const endpoint = (
     ref: string | Vec2,
@@ -116,7 +163,7 @@ function routeArea(work: ResolveGrid, info: AreaInfo): void {
   };
   const a = endpoint(shape.from, "from");
   const b = endpoint(shape.to, "to");
-  if (!a || !b) return;
+  if (!a || !b) return null;
   const width = shape.width ?? 1;
   const line = routeCenterline(a.cell, b.cell, shape.bend ?? "hv");
   const inA = (c: readonly [number, number]): boolean => a.ai >= 0 && ownerIs(work, c, a.ai);
@@ -138,7 +185,7 @@ function routeArea(work: ResolveGrid, info: AreaInfo): void {
       if (i >= 0 && work.struct[i] === 0) work.claim(i, info);
     }
   }
-  work.routes.push({
+  return {
     ai: info.index,
     from: a.ai,
     to: b.ai,
@@ -148,7 +195,7 @@ function routeArea(work: ResolveGrid, info: AreaInfo): void {
     endSquare: i0 < j0 ? square(line[j0 - 1] as [number, number]) : [],
     orientA: i0 > 0 && i0 < line.length ? crossOrient(line[i0 - 1] as Vec2, line[i0] as Vec2) : null,
     orientB: j0 > 0 && j0 < line.length ? crossOrient(line[j0 - 1] as Vec2, line[j0] as Vec2) : null,
-  });
+  };
 }
 
 function ownerIs(work: ResolveGrid, c: readonly [number, number], ai: number): boolean {
