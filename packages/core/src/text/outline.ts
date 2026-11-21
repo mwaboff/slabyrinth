@@ -20,8 +20,9 @@ import type { ResolvedArea, ResolvedLevel, ResolvedOpening, ResolvedPlan } from 
 import { openingTests } from "../gen/openingKinds";
 import { withWings } from "../plan/building";
 import { generatorProfile, type GeneratorProfile } from "../plan/generator";
-import { entryLevelId } from "../plan/links";
+import { entryLevelId, isRunLink } from "../plan/links";
 import { isRoomArea } from "../plan/validate";
+import { isBareRoof } from "../resolve/roofTypes";
 
 export interface OutlineOptions {
   version?: number;
@@ -274,7 +275,7 @@ function structureLine(
       });
   const built = [
     `${rs.storeys.length} storey${rs.storeys.length > 1 ? "s" : ""} (${walls})`,
-    `roof ${roof}${rs.roof.type !== "none" ? ` ${rs.roof.style}` : ""}`,
+    `roof ${roof}${!isBareRoof(rs.roof.type) ? ` ${rs.roof.style}` : ""}`,
     ...massing,
     rs.plinth ? `plinth ${n(rs.plinth.height)}` : "",
     ...doors,
@@ -358,7 +359,7 @@ export function outlineView(plan: MapPlan, resolved: ResolvedPlan | null, opts: 
     const rl = resolved?.links.find((l) => l.id === link.id);
     const dir = link.dir ?? "N";
     const res = rl
-      ? `-> ${link.to.level} ${xy(rl.arrival)} (run ${rl.kind === "stairs" || rl.kind === "ramp" ? rl.lowerCells.length / (link.width ?? 1) : 1})`
+      ? `-> ${link.to.level} ${xy(rl.arrival)} (run ${isRunLink(rl.kind) ? rl.lowerCells.length / (link.width ?? 1) : 1})`
       : `-> ${link.to.level} NOT RESOLVED`;
     lines.push(
       `LINK ${link.id} ${link.kind} ${link.from.level} ${xy(link.from.at)} dir=${dir}${link.width ? ` w${link.width}` : ""} ${res}${link.label ? ` ${q(link.label)}` : ""}`,

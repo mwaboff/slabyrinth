@@ -5,6 +5,8 @@
  */
 import type { DisplayItem, ResolvedLevel } from "../../contracts/resolved";
 import { gableRoof, hipRoof, ringLayer, shedRoof, spireShell } from "../../resolve/roof";
+import { isBareRoof, roofEnds } from "../../resolve/roofTypes";
+import { exhaustive } from "../../util/never";
 import type { DisplayCtx } from "./context";
 import { box, flat } from "./rings";
 
@@ -29,11 +31,13 @@ interface RoofLines {
 export function roofItems(c: DisplayCtx): DisplayItem[] {
   const items: DisplayItem[] = [];
   for (const st of c.level.structures ?? []) {
-    if (st.kind !== "building" || st.roof.type === "none") continue;
+    if (st.kind !== "building" || isBareRoof(st.roof.type)) continue;
     const lines: RoofLines = { rings: [], ridges: [] };
     const multi = (st.volumes?.length ?? 0) > 1 || (st.volumes ?? []).some((v) => v.roof.layers.length > 1);
-    if (st.volumes && (multi || st.roof.type !== "gable")) for (const v of st.volumes) volumeLines(v, lines);
-    else if (st.roof.type === "gable" && st.wings.length > 0) {
+    // a single gable roof is drawn over the building's wings (the roof with gable ends is the one built per wing)
+    const perWing = roofEnds(st.roof.type) === "gable";
+    if (st.volumes && (multi || !perWing)) for (const v of st.volumes) volumeLines(v, lines);
+    else if (perWing && st.wings.length > 0) {
       for (const wg of st.wings) {
         const g = gableRoof(wg);
         lines.rings.push(box(g.outline.x, g.outline.y, g.outline.w, g.outline.h));
@@ -74,33 +78,53 @@ function volumeLines(v: Volume, out: RoofLines): void {
   const top = v.storeys[v.storeys.length - 1];
   if (!top) return;
   let rect = { ...top.rect };
+  // each roof type's plan is its own shape (as in resolve/roof.ts)
   v.roof.layers.forEach((layer, li) => {
-    if (layer.type === "gable") {
-      for (const wg of li === 0 ? v.rects : [{ ...rect, ridge: layer.ridge }]) {
-        const g = gableRoof(wg);
+    switch (layer.type) {
+      case "gable":
+        for (const wg of li === 0 ? v.rects : [{ ...rect, ridge: layer.ridge }]) {
+          const g = gableRoof(wg);
+          rings.push(box(g.outline.x, g.outline.y, g.outline.w, g.outline.h));
+          ridges.push([...g.ridge]);
+        }
+        return;
+      case "hip":
+      case "shed": {
+        const PITCHED = { hip: () => hipRoof(rect), shed: () => shedRoof(rect, layer.low) };
+        const g = PITCHED[layer.type]();
         rings.push(box(g.outline.x, g.outline.y, g.outline.w, g.outline.h));
-        ridges.push([...g.ridge]);
+        for (const rg of g.ridges) ridges.push([...rg]);
+        return;
       }
-    } else if (layer.type === "hip" || layer.type === "shed") {
-      const g = layer.type === "hip" ? hipRoof(rect) : shedRoof(rect, layer.low);
-      rings.push(box(g.outline.x, g.outline.y, g.outline.w, g.outline.h));
-      for (const rg of g.ridges) ridges.push([...rg]);
-    } else if (layer.type === "skirt" || layer.type === "stepped") {
-      const g = ringLayer(rect, layer.courses, layer.type === "stepped" ? "step" : "slope", li === 0);
-      rings.push(box(g.outline.x, g.outline.y, g.outline.w, g.outline.h));
-      if (g.inner) {
-        rings.push(box(g.inner.x, g.inner.y, g.inner.w, g.inner.h));
-        rect = g.inner;
+      case "skirt":
+      case "stepped": {
+        const RING = { skirt: "slope", stepped: "step" } as const;
+        const g = ringLayer(rect, layer.courses, RING[layer.type], li === 0);
+        rings.push(box(g.outline.x, g.outline.y, g.outline.w, g.outline.h));
+        if (g.inner) {
+          rings.push(box(g.inner.x, g.inner.y, g.inner.w, g.inner.h));
+          rect = g.inner;
+        }
+        return;
       }
-    } else if (layer.type === "spire") {
-      const sh = spireShell({ x: rect.x - 0.5, y: rect.y - 0.5, w: rect.w + 1, h: rect.h + 1 });
-      for (const k of sh.courses) rings.push(box(k.x0, k.y0, k.x1 - k.x0, k.y1 - k.y0));
-      const f = sh.finial;
-      ridges.push(
-        [f.x - FINIAL_ARM, f.y, f.x + FINIAL_ARM, f.y],
-        [f.x, f.y - FINIAL_ARM, f.x, f.y + FINIAL_ARM],
-      );
-    } else if (layer.type === "flat") rings.push(wallLine(rect));
+      case "spire": {
+        const sh = spireShell({ x: rect.x - 0.5, y: rect.y - 0.5, w: rect.w + 1, h: rect.h + 1 });
+        for (const k of sh.courses) rings.push(box(k.x0, k.y0, k.x1 - k.x0, k.y1 - k.y0));
+        const f = sh.finial;
+        ridges.push(
+          [f.x - FINIAL_ARM, f.y, f.x + FINIAL_ARM, f.y],
+          [f.x, f.y - FINIAL_ARM, f.x, f.y + FINIAL_ARM],
+        );
+        return;
+      }
+      case "flat":
+        rings.push(wallLine(rect));
+        return;
+      case "none":
+        return;
+      default:
+        exhaustive(layer.type, "roof type");
+    }
   });
 }
 

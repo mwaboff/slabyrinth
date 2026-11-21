@@ -19,6 +19,7 @@ import {
 } from "../../../palette/roles";
 import { PART_FALLBACK_KITS, partWalls } from "../../../resolve/building/parts";
 import { ringLayer } from "../../../resolve/roof";
+import { usesRoofKit } from "../../../resolve/roofTypes";
 import type { StructureCtx } from "./context";
 import { cellOfKey, edgePiece, faceCells, key, layTiles, setOf, stackEdge } from "./pieces";
 import { layRoofPiece } from "./roofPiece";
@@ -69,7 +70,7 @@ export function layLips(b: StructureCtx, vols: readonly ResolvedVolume[]): void 
   const { st } = b;
   // the skirts take the building's pitched roof kit (one roof material throughout)
   const kit =
-    vols.flatMap((v) => v.roof.layers).find((l) => l.type !== "flat" && l.type !== "none")?.style ||
+    vols.flatMap((v) => v.roof.layers).find((l) => usesRoofKit(l.type))?.style ||
     st.roof.style ||
     PART_FALLBACK_KITS.pitched;
   for (const v of vols) {

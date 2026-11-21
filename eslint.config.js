@@ -259,16 +259,31 @@ function contractWords(/** @type {string} */ name) {
 const vocabularyCompare = (field, words, table) => {
   const re = `/^(${words.join("|")})$/`;
   const message = `Ask ${table} for the trait you mean instead of comparing \`${field}\` with one of its words.`;
+  /** The field read off an object (`x.kind`) or held in a variable of its name (`kind`). */
+  const isField = (/** @type {string} */ at) =>
+    `:matches([${at}.property.name='${field}'], [${at}.name='${field}'])`;
   return [
     {
       field,
-      selector: `BinaryExpression[operator=/^[!=]==$/][left.property.name='${field}'][right.value=${re}]`,
+      selector: `BinaryExpression[operator=/^[!=]==$/]${isField("left")}[right.value=${re}]`,
       message,
     },
     {
       field,
-      selector: `BinaryExpression[operator=/^[!=]==$/][right.property.name='${field}'][left.value=${re}]`,
+      selector: `BinaryExpression[operator=/^[!=]==$/]${isField("right")}[left.value=${re}]`,
       message,
+    },
+    {
+      field,
+      selector: `CallExpression[callee.property.name='includes'][callee.object.type='ArrayExpression']${isField("arguments.0")}:has(ArrayExpression > Literal[value=${re}])`,
+      message,
+    },
+    {
+      // a switch that does a different thing per word is dispatch, allowed when it is exhaustive: a new word then fails
+      // to compile until the switch has its case
+      field,
+      selector: `SwitchStatement${isField("discriminant")}:has(SwitchCase > Literal.test[value=${re}]):not(:has(SwitchCase[test=null] CallExpression[callee.name='exhaustive']))`,
+      message: `A switch on \`${field}\` that dispatches per word ends with \`default: exhaustive(...)\` (util/never.ts), so a new word fails to compile; a question of what a word is goes to ${table}.`,
     },
   ];
 };
@@ -307,8 +322,9 @@ function fieldSelectorRule(description, selectors) {
   };
 }
 /**
- * The rule takes an optional `{ fields: [...] }`: the fields it checks in a files block (all by default). The build and
- * the review check materials only: their link-kind and roof-type dispatch predates the rule (listed for the owner).
+ * The rule takes an optional `{ fields: [...] }`: the fields it checks in a files block (all by default). Comparisons
+ * (`===`, `!==`, `[...].includes`) of a field with one of its words are reported, on the field of an object or a
+ * variable of the field's name; a `switch` on the field is allowed as dispatch when it ends in `exhaustive`.
  */
 const vocabularyRule = fieldSelectorRule("Closed vocabularies are asked of their trait tables.", [
   ...vocabularyCompare(
@@ -609,8 +625,8 @@ export default tseslint.config(
     rules: { "slabyrinth/hash-unit": "error" },
   },
   {
-    // the generation side; the tables themselves and the roof geometry (each type's shape is its own case) are exempt
-    files: ["packages/core/src/{gen,resolve,plan}/**/*.ts"],
+    // every stage; the tables themselves and the roof geometry (each type's shape is its own case) are exempt
+    files: ["packages/core/src/{gen,resolve,plan,compile,review,render,text}/**/*.ts"],
     ignores: [
       "packages/core/src/gen/openingKinds.ts",
       "packages/core/src/gen/wallStyles.ts",
@@ -619,11 +635,6 @@ export default tseslint.config(
       "packages/core/src/resolve/roof.ts",
     ],
     rules: { "slabyrinth/vocabulary": "error" },
-  },
-  {
-    // the build and the review: materials only (their per-link-kind and roof-type dispatch predates the rule)
-    files: ["packages/core/src/{compile,review}/**/*.ts"],
-    rules: { "slabyrinth/vocabulary": ["error", { fields: ["material"] }] },
   },
   {
     files: ["packages/core/src/**/*.ts"],

@@ -14,7 +14,7 @@ import type { RoleName } from "../../../contracts/compiler";
 import type { Side, WallStyle } from "../../../contracts/plan";
 import type { ResolvedVariant } from "../../../palette/resolve";
 import { SIDE_STEP } from "../../../gen/gridGeometry";
-import { hasLeaf, isWindow } from "../../../gen/openingKinds";
+import { hasLeaf, isGap, isOpenWithoutPiece, isWindow } from "../../../gen/openingKinds";
 import { lenFilter } from "../../../palette/filters";
 import {
   THEME_POST_ROLE,
@@ -224,7 +224,7 @@ function layOpenings(b: StructureCtx, a: CourseArgs, mainBase: number, brokenOps
     while (i < op.width) {
       const c = alongFace(f, i);
       let n = 0;
-      if (op.kind !== "open")
+      if (!isGap(op.kind))
         // the style's own role first in every length, before a broader role (no 2-wide window of another kit
         // where the style has 1-wide ones)
         for (const [role, len] of roles.flatMap((ro) =>
@@ -241,7 +241,7 @@ function layOpenings(b: StructureCtx, a: CourseArgs, mainBase: number, brokenOps
           break;
         }
       if (n === 0) {
-        if (op.kind !== "open" && op.kind !== "archway")
+        if (!isOpenWithoutPiece(op.kind))
           info(
             b.lv,
             "role_missing",
@@ -259,12 +259,12 @@ function layOpenings(b: StructureCtx, a: CourseArgs, mainBase: number, brokenOps
         // (a ruin's empty doorways and breaches stay open to the top: broken wall stubs either side)
         const tc = Math.min(top, capAt(e.x, e.y, f.face));
         const standing = a.arches?.has(faceKey(f.x, f.y, f.face)) === true;
-        if (tc - leafTop > 0.2 && !(a.openTop && op.kind === "open" && !standing)) {
+        if (tc - leafTop > 0.2 && !(a.openTop && isGap(op.kind) && !standing)) {
           const lintel = [partRole("over_door", style)];
           if (footing) lintel.push(partRole("footing", footing.style));
           lintel.push(...wallChain(style));
           // (over an empty doorway the grid has no opening edge, so the lintel is a wall piece, not a door piece)
-          stackEdge(b, lintel, op.kind === "open" ? "wall" : "opening", e, leafTop, tc, part, {
+          stackEdge(b, lintel, isGap(op.kind) ? "wall" : "opening", e, leafTop, tc, part, {
             shortRoles: [partRole("over_door", style)],
           });
         }

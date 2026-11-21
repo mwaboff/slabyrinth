@@ -18,7 +18,7 @@ import {
   stairsRole,
   stepRole,
 } from "../../palette/roles";
-import { linkKindInfo } from "../../plan/links";
+import { isRunLink, linkKindInfo } from "../../plan/links";
 import { elementTheme, type EdgeOrient } from "../../resolve/levelGrid";
 import { rotateXZ } from "../geometry";
 import { stackFill } from "./fill";
@@ -101,7 +101,7 @@ export function layLinks(lv: RealizeLevel): void {
     const f = facingOf(v, "link", res.role);
     const wdir = frame.worldSide(lk.dir);
     const deg = (f.ascendsToward ? frame.stepsToFace(f.ascendsToward, wdir) : 0) * 15 + v.rot;
-    if (lk.kind === "stairs" || lk.kind === "ramp") layFlight(lv, lk, v, theme, deg);
+    if (isRunLink(lk.kind)) layFlight(lv, lk, v, theme, deg);
     else layVerticalLink(lv, lk, v, res.role, deg);
   }
 }
@@ -174,7 +174,8 @@ function layVerticalLink(lv: RealizeLevel, lk: Link, v: ResolvedVariant, role: s
     addDiag({
       severity: "info",
       code: "asset_substituted",
-      message: `${lk.kind === "spiral_stairs" ? "Spiral stairs" : `Link (${lk.kind})`} ${lk.id} built as ${v.name ?? role} in one cell: no ${roleName} asset in this palette`,
+      // (a square footprint is a spiral stair's)
+      message: `${linkKindInfo(lk.kind).footprint === "square" ? "Spiral stairs" : `Link (${lk.kind})`} ${lk.id} built as ${v.name ?? role} in one cell: no ${roleName} asset in this palette`,
       levelId: L.id,
       elementId: lk.id,
       role: roleName,

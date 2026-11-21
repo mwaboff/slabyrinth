@@ -5,6 +5,7 @@
  */
 import type { LevelId } from "../../contracts/plan";
 import type { ResolvedPlan } from "../../contracts/resolved";
+import { isRunLink } from "../../plan/links";
 import { SIDE_STEP } from "../../gen/gridGeometry";
 
 type Link = ResolvedPlan["links"][number];
@@ -51,7 +52,7 @@ export class StairRuns {
 
 /** Stairs and ramps climb along a run of cells; the other links stand in one place. */
 export function isRun(lk: Link): boolean {
-  return lk.kind === "stairs" || lk.kind === "ramp";
+  return isRunLink(lk.kind);
 }
 
 /** Steps from the foot of the run to cell c, counted along the run's direction. */

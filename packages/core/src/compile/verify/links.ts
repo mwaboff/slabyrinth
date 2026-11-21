@@ -13,6 +13,7 @@ import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import type { ResolvedLevel, ResolvedPlan } from "../../contracts/resolved";
 import { CELL_FLAG } from "../../contracts/resolved";
 import { OPPOSITE, SIDE_STEP } from "../../gen/gridGeometry";
+import { linkKindInfo } from "../../plan/links";
 import type { LevelGrid } from "../../resolve/levelGrid";
 import type { VerifyCtx } from "./context";
 import type { Solid, SolidIndex } from "./grid";
@@ -89,8 +90,10 @@ export function checkLinks(
       checkEveryStep(ctx, solids, runs, verdicts, c, parts);
       checkStairApproach(ctx, runs, obstructed, verdicts, c);
     }
-    if (lk.kind === "ladder" || lk.kind === "spiral_stairs") checkVerticalStack(ctx, solids, verdicts, c);
-    if (lk.kind === "trapdoor") checkTrapdoorHatch(ctx, solids, verdicts, c);
+    // a climb up through a stairwell onto an open cell (a ladder, a spiral stair) is a stack of pieces
+    const info = linkKindInfo(lk.kind);
+    if (info.arrival === "open") checkVerticalStack(ctx, solids, verdicts, c);
+    if (info.hatch) checkTrapdoorHatch(ctx, solids, verdicts, c);
     else checkShaftOpen(ctx, solids, verdicts, c);
   }
   return verdicts;

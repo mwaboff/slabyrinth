@@ -58,6 +58,11 @@ export function linkKindInfo(kind: LinkKind): LinkKindInfo {
   return LINK_KIND_INFO[kind];
 }
 
+/** Does a link of this kind climb along a run of cells (stairs, a ramp), not stand in one place? */
+export function isRunLink(kind: LinkKind): boolean {
+  return LINK_KIND_INFO[kind].footprint === "run";
+}
+
 /**
  * Entry level id: plan.entryLevel, else the level with the smallest |elevation| (ties: plan order). The one rule: the
  * playability walk and verify's reachability ask it (verify of a plan-less build passes the resolved levels).

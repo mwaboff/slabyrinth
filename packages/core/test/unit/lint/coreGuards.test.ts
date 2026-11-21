@@ -174,7 +174,7 @@ describe("core guards", () => {
         await guardHits("packages/core/src/resolve/roof.ts", 'if (layer.type === "gable") f();'),
       ).toEqual([]);
     });
-    it("reports a material compared by name, in the build and the review too (materials only there)", async () => {
+    it("reports a material compared by name, in the build and the review too", async () => {
       for (const file of [
         stage,
         "packages/core/src/compile/verify/fidelity.ts",
@@ -183,10 +183,37 @@ describe("core guards", () => {
         expect(await guardHits(file, 'if (cell.material === "lava") f();'), file).toEqual([
           expect.stringContaining("resolve/materials.ts"),
         ]);
-      expect(await guardHits("packages/core/src/compile/x.ts", 'if (lk.kind === "ladder") f();')).toEqual([]);
       expect(
         await guardHits("packages/core/src/compile/x.ts", "if (MATERIAL_INFO[cell.material].hazard) f();"),
       ).toEqual([]);
+    });
+    it("reports kinds and types in every stage, held in a variable or tested with includes", async () => {
+      const cases: Array<[string, string]> = [
+        ["packages/core/src/compile/realize/links.ts", 'if (lk.kind === "ladder") f();'],
+        ["packages/core/src/review/x.ts", 'if (o.kind !== "open") f();'],
+        ["packages/core/src/render/display/roofs.ts", 'if (layer.type === "spire") f();'],
+        ["packages/core/src/text/outline.ts", 'const run = ["stairs", "ramp"].includes(rl.kind);'],
+        ["packages/core/src/resolve/building/volumes.ts", 'if (type === "gable") f();'],
+      ];
+      for (const [file, code] of cases)
+        expect(await guardHits(file, code), `${file}: ${code}`).toEqual([
+          expect.stringContaining("slabyrinth/vocabulary"),
+        ]);
+    });
+    it("allows a switch that dispatches per word only when it ends in exhaustive", async () => {
+      const file = "packages/core/src/compile/realize/structures/roofs.ts";
+      expect(
+        await guardHits(file, 'switch (layer.type) { case "gable": f(); break; default: g(); }'),
+      ).toEqual([expect.stringContaining("exhaustive")]);
+      expect(
+        await guardHits(
+          file,
+          'switch (layer.type) { case "gable": f(); break; default: exhaustive(layer.type, "roof type"); }',
+        ),
+      ).toEqual([]);
+      expect(await guardHits(file, 'switch (op.op) { case "stairs": f(); break; default: g(); }')).toEqual(
+        [],
+      );
     });
   });
 

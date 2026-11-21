@@ -28,6 +28,7 @@ import { isPassage, isSecret } from "../gen/openingKinds";
 import { OPPOSITE, SIDES, SIDE_STEP as DIRS } from "../gen/gridGeometry";
 import { sideEdgeIndex } from "./levelGrid";
 import { entryLevelId, linkKindInfo } from "../plan/links";
+import { exhaustive } from "../util/never";
 
 // ───────────────────────────── options and walk modes ─────────────────────────────
 
@@ -236,9 +237,14 @@ export class WalkGraph {
         for (const n of WalkGraph.ring(link.upperCells))
           for (const c of link.lowerCells) if (ok(U(n)) && ok(L(c))) this.move(U(n), L(c));
         break;
-      default: // ladder, spiral stairs: climb out onto any cell beside the hole
+      case "ladder":
+      case "spiral_stairs":
+        // climb out onto any cell beside the hole
         for (const n of WalkGraph.ring(link.upperCells))
           for (const c of link.lowerCells) if (ok(U(n)) && ok(L(c))) both(L(c), U(n));
+        break;
+      default:
+        exhaustive(link.kind, "link kind");
     }
   }
 

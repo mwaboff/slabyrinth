@@ -317,7 +317,7 @@ function resolveRoof(b: BuildingCtx, spec: VolumeSpec, prng2: Prng): VolumePlan[
       );
       type = "flat";
     }
-    if (type === "gable" && spec.rects.length > 1 && layers.length === 0)
+    if (roofInfo(type)?.ends === "gable" && spec.rects.length > 1 && layers.length === 0)
       b.issue(
         "info",
         `building "${st.id}": roofs of several wings meet with approximate valleys`,
@@ -326,7 +326,7 @@ function resolveRoof(b: BuildingCtx, spec: VolumeSpec, prng2: Prng): VolumePlan[
     const parapet = l.parapet === "none" ? null : (l.parapet ?? profile.roof.parapet);
     const courses =
       l.courses ??
-      (type === "spire" && profile.spire
+      (roofInfo(type)?.tapers === true && profile.spire
         ? profile.spire.bands[0] + prng2.int(profile.spire.bands[1] - profile.spire.bands[0] + 1)
         : 1);
     layers.push({

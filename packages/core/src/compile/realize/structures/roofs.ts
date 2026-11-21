@@ -25,6 +25,7 @@ import {
 } from "../../../resolve/roof";
 import { isPitchedRoof } from "../../../resolve/roofTypes";
 import { h32Utf16 } from "../../../util/hash";
+import { exhaustive } from "../../../util/never";
 import type { StructureCtx } from "./context";
 import {
   cellOfKey,
@@ -194,10 +195,11 @@ export function layRoof(
       }
       case "hip":
       case "shed": {
-        const g =
-          layer.type === "hip"
-            ? hipRoof(rect, holes)
-            : shedRoof(rect, layer.low, holes, st.roofFill === true);
+        const PITCHED = {
+          hip: () => hipRoof(rect, holes),
+          shed: () => shedRoof(rect, layer.low, holes, st.roofFill === true),
+        };
+        const g = PITCHED[layer.type]();
         for (const p of (first && merge ? merge.get(`${v.id}#0`) : undefined) ?? g.pieces)
           layRoofPiece(b, kit, p, base, tag);
         if (first)
@@ -212,7 +214,8 @@ export function layRoof(
       }
       case "skirt":
       case "stepped": {
-        const g = ringLayer(rect, layer.courses, layer.type === "stepped" ? "step" : "slope", first, holes);
+        const RING = { skirt: "slope", stepped: "step" } as const;
+        const g = ringLayer(rect, layer.courses, RING[layer.type], first, holes);
         for (const p of g.pieces) layRoofPiece(b, kit, p, base, tag);
         base += layer.courses;
         roofTop = Math.max(roofTop, base);
@@ -236,6 +239,8 @@ export function layRoof(
       }
       case "none":
         return;
+      default:
+        exhaustive(layer.type, "roof type");
     }
   });
   return { top: roofTop, flat };

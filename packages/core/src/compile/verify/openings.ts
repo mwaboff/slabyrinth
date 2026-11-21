@@ -12,7 +12,7 @@ import type { LevelId, Side } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import { CELL_FLAG } from "../../contracts/resolved";
 import { OPPOSITE, SIDE_STEP } from "../../gen/gridGeometry";
-import { isPassage } from "../../gen/openingKinds";
+import { isGap, isPassage } from "../../gen/openingKinds";
 import type { LevelGrid } from "../../resolve/levelGrid";
 import type { VerifyCtx } from "./context";
 import { overlap1, type Solid, type SolidIndex } from "./grid";
@@ -125,7 +125,7 @@ function checkDoorPieces(
   edges: readonly OpeningEdge[],
   pieces: readonly Solid[],
 ): void {
-  if (op.kind !== "open" && pieces.length === 0) {
+  if (!isGap(op.kind) && pieces.length === 0) {
     const known = [...ctx.reportedMissing].some((k) => k.startsWith(`${L.id}|${op.id}|`));
     if (!known)
       ctx.report.add({

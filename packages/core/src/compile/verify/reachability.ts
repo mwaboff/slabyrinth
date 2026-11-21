@@ -13,7 +13,7 @@
 import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import type { LevelId } from "../../contracts/plan";
 import type { ResolvedPlan } from "../../contracts/resolved";
-import { entryLevelId } from "../../plan/links";
+import { entryLevelId, isRunLink } from "../../plan/links";
 import { walkPathsFrom, type WalkCell, type WalkPaths } from "../../resolve";
 import type { VerifyCtx } from "./context";
 import type { Solid } from "./grid";
@@ -197,10 +197,9 @@ function pathBlame(ctx: VerifyCtx, { runs, obstructed, doors, links }: BuildBloc
 /** One-line description of a link, with the ends spelled out: "stairs "a" (from l2 (9,26) climbing N to l1)". */
 function linkWords(lk: Link): string {
   const f = lk.lowerCells[0];
-  const run =
-    lk.kind === "stairs" || lk.kind === "ramp"
-      ? ` climbing ${lk.dir} to ${lk.toLevel}, landing at ${fmt(lk.arrival)}`
-      : ` up to ${lk.toLevel}`;
+  const run = isRunLink(lk.kind)
+    ? ` climbing ${lk.dir} to ${lk.toLevel}, landing at ${fmt(lk.arrival)}`
+    : ` up to ${lk.toLevel}`;
   return `${lk.kind.replace("_", " ")} "${lk.id}" (from ${lk.fromLevel} ${f ? fmt([f[0], f[1]]) : ""}${run})`;
 }
 

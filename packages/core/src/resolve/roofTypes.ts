@@ -27,6 +27,16 @@ export interface RoofTypeInfo {
   ends: "gable" | "hip" | null;
   /** A level roof of its own (not "none", which is no roof): it can carry a parapet and a surface. */
   flat: boolean;
+  /**
+   * No roof at all ("none"): the top storey stays open, nothing is drawn on the map and no roof kit is used. Every
+   * other type that is neither bare nor flat is built of the roof kit's pieces (slopes, ring courses, a spire).
+   */
+  bare: boolean;
+  /**
+   * Rises to a point in courses that step in (a spire): when the plan gives no course count, the building profile's
+   * spire bands draw one.
+   */
+  tapers: boolean;
 }
 
 const row = (flags: Partial<RoofTypeInfo> = {}): RoofTypeInfo => ({
@@ -37,20 +47,22 @@ const row = (flags: Partial<RoofTypeInfo> = {}): RoofTypeInfo => ({
   pitched: false,
   ends: null,
   flat: false,
+  bare: false,
+  tapers: false,
   ...flags,
 });
 
 export const ROOF_TYPE_INFO: Record<RoofType, RoofTypeInfo> = {
   gable: row({ closing: true, rect: true, pitched: true, ends: "gable" }),
   flat: row({ closing: true, deck: true, flat: true }),
-  none: row({ closing: true, deck: true }),
+  none: row({ closing: true, deck: true, bare: true }),
   hip: row({ closing: true, rect: true, pitched: true, ends: "hip" }),
   shed: row({ closing: true, rect: true, pitched: true }),
   cone: row({ built: false, as: "spire" }),
   dome: row({ built: false }),
   skirt: row({ deck: true, rect: true }),
   stepped: row({ deck: true, rect: true }),
-  spire: row({ closing: true, rect: true }),
+  spire: row({ closing: true, rect: true, tapers: true }),
   vault: row({ built: false }),
 };
 
@@ -67,6 +79,17 @@ export function roofEnds(type: string | undefined): RoofTypeInfo["ends"] {
 /** Is the roof type a level roof of its own (RoofTypeInfo.flat)? */
 export function isFlatRoof(type: string | undefined): boolean {
   return type !== undefined && roofInfo(type)?.flat === true;
+}
+
+/** Is the roof type no roof at all (RoofTypeInfo.bare)? */
+export function isBareRoof(type: string | undefined): boolean {
+  return type !== undefined && roofInfo(type)?.bare === true;
+}
+
+/** Is the roof type built of the roof kit's pieces (neither bare nor a level top)? */
+export function usesRoofKit(type: string): boolean {
+  const info = roofInfo(type);
+  return info !== undefined && !info.bare && !info.flat;
 }
 
 /** Is the roof type sloped (gable, hip, shed)? */
