@@ -117,7 +117,7 @@ export default tseslint.config(
     // edit the copies to satisfy lint: contract changes go through the lead.
     files: [
       "packages/core/src/contracts/**",
-      "packages/core/src/agent/tools.ts",
+      "packages/core/src/agent/toolContract.ts",
       "apps/desktop/src/shared/ipc.ts",
       "apps/desktop/src/shared/project.ts",
       "apps/desktop/src/main/agent/provider/types.ts",

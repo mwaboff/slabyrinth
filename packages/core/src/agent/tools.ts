@@ -1,21 +1,15 @@
 /**
- * Slabyrinth — agent tools (provider-neutral definitions + input/output types).
- * NORMATIVE CONTRACT. Copy verbatim into packages/core/src/agent/tools.ts.
+ * Slabyrinth — agent tools: the interface (re-exported from toolContract.ts, the copy of the normative
+ * docs/contracts/tools.ts) and the working tool list, TOOL_DEFINITIONS (descriptions and JSON Schemas: what the
+ * model sees). The definitions are model-facing text, versioned like the system prompt (`TOOLS_VERSION`,
+ * agent/prompt.ts): released versions are frozen copies (tools.frozen*.ts) pinned by hash in
+ * test/unit/agent/tools.test.ts; this file holds the working version.
  *
- * - Definitions are provider-neutral ({name, description, inputSchema}). The Anthropic adapter maps
- *   them to API tools (adding `eager_input_streaming: true`); a JSON-protocol provider embeds them in
- *   its instructions (§3.11). Same schemas, same executor, same validation either way.
  * - The tool list is FROZEN per conversation (byte-identical every request; order below) — required
  *   for prompt caching and preserved thinking.
- * - Inputs are validated by the core Zod schemas (the same ones that validate plans). These JSON
- *   Schemas are what the model sees; a unit test asserts every example in docs/architecture.md §3
- *   passes both.
- * - The executor is pure core code: executeTool(ctx, name, input) → ToolOutcome. The engine supplies
- *   ctx (current plan/head, resolver cache, palettes, image renderer callback).
+ * - Inputs are validated by the core Zod schemas in inputs.ts, which mirror these JSON Schemas.
  */
-import type { MapPlan, LevelId, ElementId, PlanIssue, DesignBrief } from "../contracts/plan";
-import type { PlanOp, OpError } from "../contracts/ops";
-import type { CompileEstimate } from "../contracts/compiler";
+import type { JsonSchema, ToolDefinition } from "./toolContract";
 import {
   MATERIALS,
   WALL_STYLES,
@@ -29,152 +23,7 @@ import {
   ROOM_PURPOSES,
 } from "../contracts/plan";
 
-// ───────────────────────────── neutral tool types ─────────────────────────────
-
-export type JsonSchema = { [k: string]: unknown };
-
-export interface ToolDefinition {
-  name: ToolName;
-  description: string;
-  inputSchema: JsonSchema;
-  /** Large inputs (create_plan/edit_plan) benefit from streamed tool input where the provider supports it. */
-  streamInput: boolean;
-}
-
-export type ToolResultContent =
-  { type: "text"; text: string } | { type: "image"; mediaType: "image/png"; dataBase64: string };
-
-export type ToolName =
-  | "update_brief"
-  | "ask_questions"
-  | "create_plan"
-  | "edit_plan"
-  | "view_plan"
-  | "view_map_image"
-  | "compile_preview"
-  | "list_catalog";
-
-// ───────────────────────────── inputs ─────────────────────────────
-
-/** Shallow patch of the brief; fields the USER set are not overwritten (the result says which were skipped). */
-export interface UpdateBriefInput {
-  set: { [K in keyof DesignBrief]?: NonNullable<DesignBrief[K]>["value"] };
-}
-
-/**
- * Shows ONE Question card (UX §5.3). The engine ends the turn right after this call WITHOUT sending a
- * tool_result; the GM's answers become this call's tool_result at the start of the next user message.
- */
-export interface AskQuestionsInput {
-  questions: Array<{
-    id: string;
-    text: string;
-    /** The assumption used if the GM ignores the question ("I'll assume Tier 2"). */
-    default: string;
-    options: string[]; // 2..4 chips; the UI adds "You decide"
-  }>; // 1..3
-}
-
-/** Answers as delivered in the tool_result (JSON text). */
-export interface AskQuestionsAnswer {
-  answers: Array<{ id: string; answer: string | "you_decide" | null }>;
-  /** Free text the GM typed alongside (also present as the user message). */
-  note?: string;
-}
-
-/** Plan as authored by the model: app fills schema/generator/id. */
-export type AuthoredPlan = Omit<MapPlan, "schema" | "generator" | "id" | "seed"> & { seed?: number };
-
-export interface CreatePlanInput {
-  /** Must be true when a plan already exists (prevents accidental wipes). */
-  replace: boolean;
-  /** ≤ 80 chars; becomes the version label. */
-  summary: string;
-  /** ≤ 6 bullets for the Plan update card. */
-  changes?: string[];
-  plan: AuthoredPlan;
-}
-
-export interface EditPlanInput {
-  /** The version the model believes is current (from the last tool result / context message). */
-  baseVersion: number;
-  /** ≤ 80 chars; becomes the version label ("Added secret door to crypt"). */
-  summary: string;
-  /** ≤ 6 bullets for the Plan update card ("Enlarged 4 Hall of Pillars 2 squares east"). */
-  changes: string[];
-  ops: PlanOp[]; // 1..100
-}
-
-export interface ViewPlanInput {
-  level?: LevelId; // default: all levels (outline) / first level (ascii)
-  format: "outline" | "ascii" | "json";
-  /** ascii/json: restrict to a cell rect. */
-  region?: { x: number; y: number; w: number; h: number };
-  /** json: only these elements. */
-  ids?: ElementId[];
-}
-
-export interface ViewMapImageInput {
-  level: LevelId;
-  region?: { x: number; y: number; w: number; h: number };
-  /** Overlay element ids on the image (default true). */
-  showIds?: boolean;
-}
-
-export interface CompilePreviewInput {
-  levels?: LevelId[];
-}
-
-export interface ListCatalogInput {
-  what: "themes" | "features" | "materials" | "wall_styles" | "presets";
-  /** For "features": report palette coverage for this theme. */
-  theme?: string;
-}
-
-// ───────────────────────────── outcomes (engine-facing) ─────────────────────────────
-
-export type ToolOutcome =
-  | {
-      ok: true;
-      /** Content returned to the model. */
-      content: ToolResultContent[];
-      /** Set when the tool produced a new plan version. */
-      newPlan?: {
-        plan: MapPlan;
-        summary: string;
-        changes: string[];
-        cause: "create" | "ops";
-        ops?: PlanOp[];
-      };
-      newBrief?: DesignBrief;
-      /** ask_questions: end the turn now; the tool_result is supplied later from the GM's answers. */
-      awaitUser?: boolean;
-    }
-  | {
-      ok: false;
-      content: ToolResultContent[]; // rendered error report (§3.4)
-      errors: Array<
-        | OpError
-        | PlanIssue
-        | {
-            code: "stale_version" | "invalid_input" | "no_plan" | "plan_exists" | "unavailable";
-            message: string;
-            hint?: string;
-          }
-      >;
-    };
-
-/** Structured header of every edit/create result (serialized as the FIRST text block, compact JSON). */
-export interface PlanChangeReport {
-  status: "applied" | "rejected";
-  version: number; // new head (applied) or unchanged head (rejected)
-  added?: ElementId[];
-  updated?: ElementId[];
-  removed?: ElementId[];
-  warnings?: Array<{ code: string; id?: string; msg: string; hint?: string }>;
-  errors?: Array<{ op?: number; code: string; path?: string; msg: string; hint?: string }>;
-  estimate?: Pick<CompileEstimate, "totalAssets" | "estimatedChunks">;
-}
+export * from "./toolContract";
 
 // ───────────────────────────── JSON Schemas (what the model sees) ─────────────────────────────
 
@@ -693,7 +542,12 @@ const terrainSchema: JsonSchema = {
         op: { const: "stairs" },
         from: vec2,
         to: vec2,
-        width: { type: "integer", minimum: 1, maximum: 6, description: "Stairs 1..3 (default 1); a ramp 3..6 (default 4)." },
+        width: {
+          type: "integer",
+          minimum: 1,
+          maximum: 6,
+          description: "Stairs 1..3 (default 1); a ramp 3..6 (default 4).",
+        },
         style: {
           type: "string",
           enum: ["stairs", "ramp"],
@@ -737,7 +591,7 @@ const terrainSchema: JsonSchema = {
       required: ["id", "op", "shape"],
       additionalProperties: false,
       description:
-        "Generator 3. An opening in the floor of this level so the level below shows through: a collapsed floor, a shaft, a gallery or balcony looking down into a hall. Put it inside a room of the upper level, over open floor of a room on the level below (stack the levels by elevation, one storey = 2.5). No wall is built round it (unlike an area with floor \"none\"): the edge gets a low railing or broken rim, a collapse gets a ragged outline and a heap of rubble on the floor below, and the build checks the cells beneath are open floor.",
+        'Generator 3. An opening in the floor of this level so the level below shows through: a collapsed floor, a shaft, a gallery or balcony looking down into a hall. Put it inside a room of the upper level, over open floor of a room on the level below (stack the levels by elevation, one storey = 2.5). No wall is built round it (unlike an area with floor "none"): the edge gets a low railing or broken rim, a collapse gets a ragged outline and a heap of rubble on the floor below, and the build checks the cells beneath are open floor.',
       properties: {
         id,
         op: { const: "floor_opening" },
@@ -748,7 +602,11 @@ const terrainSchema: JsonSchema = {
           description:
             "collapse (default): ragged hole, broken edge, rubble below. shaft: clean hole with a railing. balcony: like shaft, for a gallery over a room.",
         },
-        edge: { type: "string", enum: ["ragged", "clean"], description: "Outline (default: ragged for a collapse, clean otherwise)." },
+        edge: {
+          type: "string",
+          enum: ["ragged", "clean"],
+          description: "Outline (default: ragged for a collapse, clean otherwise).",
+        },
         rim: {
           type: "string",
           enum: [...WALL_STYLES, "none"],
@@ -1164,7 +1022,7 @@ const levelSchema: JsonSchema = {
       type: "array",
       maxItems: 8,
       description:
-        "Generator 3. Rows or clusters of market stalls, laid out for you in a rectangle whose long side is the row, kinds from `goods` in shuffled order; cells already taken (a well, a building) are skipped. Generator 4: covered stalls that differ: small 2x3, medium 3x3, large 4x4 (and 4x3, 3x2, 2x2), a raised base, skirted counters with a walk-in gap or goods trays, corner posts, a gable or flat cloth canopy, a stool and a lantern, an empty one when `goods` has \"empty\", a few open tables, loose gaps and the odd turned stall. Two rows face each other across the aisle when the rectangle is at least aisle + 4 deep (aisle + 6 for full-size stalls), else one row up to 4 deep faces `facing`. A theme without canopy pieces builds generator 3's stalls. Keep overhead lines along the aisle or street: a line through a covered stall is dropped. Generator 3: tables 2 cells wide, spaced irregularly, two rows from aisle + 2 deep; fruit, vegetables, spices, magic and weapons use the theme's stall pieces, the rest a bare table with bread, dairy, fish, potions or grain on it. Example: {\"id\": \"market\", \"area\": {\"x\": 17, \"y\": 6, \"w\": 14, \"h\": 7}, \"goods\": [\"fruit\", \"bread\", \"potions\", \"vegetables\"]}. A single stall: a feature of type stall with variant = the kind. Do not dress the same square with the plaza preset: it plants trees and seats in the aisle.",
+        'Generator 3. Rows or clusters of market stalls, laid out for you in a rectangle whose long side is the row, kinds from `goods` in shuffled order; cells already taken (a well, a building) are skipped. Generator 4: covered stalls that differ: small 2x3, medium 3x3, large 4x4 (and 4x3, 3x2, 2x2), a raised base, skirted counters with a walk-in gap or goods trays, corner posts, a gable or flat cloth canopy, a stool and a lantern, an empty one when `goods` has "empty", a few open tables, loose gaps and the odd turned stall. Two rows face each other across the aisle when the rectangle is at least aisle + 4 deep (aisle + 6 for full-size stalls), else one row up to 4 deep faces `facing`. A theme without canopy pieces builds generator 3\'s stalls. Keep overhead lines along the aisle or street: a line through a covered stall is dropped. Generator 3: tables 2 cells wide, spaced irregularly, two rows from aisle + 2 deep; fruit, vegetables, spices, magic and weapons use the theme\'s stall pieces, the rest a bare table with bread, dairy, fish, potions or grain on it. Example: {"id": "market", "area": {"x": 17, "y": 6, "w": 14, "h": 7}, "goods": ["fruit", "bread", "potions", "vegetables"]}. A single stall: a feature of type stall with variant = the kind. Do not dress the same square with the plaza preset: it plants trees and seats in the aisle.',
       items: {
         type: "object",
         additionalProperties: false,
@@ -1193,7 +1051,7 @@ const levelSchema: JsonSchema = {
       type: "array",
       maxItems: 12,
       description:
-        "Generator 3. A line strung overhead between two cells on one row or column: lanterns (rope with lanterns hung along it), lights (a string of lights) or flags (rope with cloth flags; the data has no bunting piece). Each end is anchored on a building wall within 3 cells beyond it, else on a post the generator stands there; the line hangs `height` tiles up (2 to 3, default 2.6, clear of shop awnings). A wall shorter than the line cannot hold it: the build warns (verify_line_unanchored) and the pieces float, so end such a line on a post or pick taller buildings. Example across a street between facing buildings: {\"id\": \"across1\", \"from\": [12, 14], \"to\": [12, 22], \"kind\": \"lanterns\"}. Lines over a street are the way to light it from above; do not float lanterns with lift.",
+        'Generator 3. A line strung overhead between two cells on one row or column: lanterns (rope with lanterns hung along it), lights (a string of lights) or flags (rope with cloth flags; the data has no bunting piece). Each end is anchored on a building wall within 3 cells beyond it, else on a post the generator stands there; the line hangs `height` tiles up (2 to 3, default 2.6, clear of shop awnings). A wall shorter than the line cannot hold it: the build warns (verify_line_unanchored) and the pieces float, so end such a line on a post or pick taller buildings. Example across a street between facing buildings: {"id": "across1", "from": [12, 14], "to": [12, 22], "kind": "lanterns"}. Lines over a street are the way to light it from above; do not float lanterns with lift.',
       items: {
         type: "object",
         additionalProperties: false,
@@ -1633,23 +1491,3 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     },
   },
 ];
-
-/** Executor signature implemented in core. */
-export interface ToolContext {
-  plan: MapPlan | null;
-  head: number;
-  brief: DesignBrief;
-  /** App-provided PNG renderer (renderer process); null in CLI/headless or when the model has no image input. */
-  renderImage:
-    ((level: LevelId, region?: ViewMapImageInput["region"], showIds?: boolean) => Promise<Uint8Array>) | null;
-  /** Cheap compile estimate; null when the compiler is unavailable (the tool then says so). May be async (worker). */
-  estimate: (plan: MapPlan, levels?: LevelId[]) => CompileEstimate | null | Promise<CompileEstimate | null>;
-  catalog: {
-    themes: Array<{ id: string; name: string; description?: string }>;
-    featureCoverage: (theme: string) => Record<string, boolean>;
-  };
-  newSeed: () => number;
-  newPlanId: () => string;
-}
-
-export type ExecuteTool = (ctx: ToolContext, name: string, input: unknown) => Promise<ToolOutcome>;

@@ -20,7 +20,7 @@ Shared test fixtures live in `packages/core/test/fixtures/`.
 `docs/contracts/*.ts` are the normative types. The copies are:
 
 - `packages/core/src/contracts/{plan,ops,resolved,compiler}.ts`
-- `packages/core/src/agent/tools.ts`
+- `packages/core/src/agent/toolContract.ts` (copy of `tools.ts`: the tool interface; the model-facing tool definitions are versioned code in `agent/tools.ts`)
 - `apps/desktop/src/shared/{ipc,project}.ts`
 - `apps/desktop/src/main/agent/provider/types.ts` (copy of `provider.ts`)
 
