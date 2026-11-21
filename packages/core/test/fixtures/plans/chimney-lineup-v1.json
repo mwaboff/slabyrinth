@@ -1,0 +1,34 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 4,
+  "id": "c41a2b70-6d3e-4a58-9c12-7e5b0f3d8a41",
+  "title": "chimney-lineup-v1",
+  "kind": "outdoor",
+  "seed": 4101,
+  "theme": "wood_town",
+  "summary": "Six village houses in a row: different sizes, roof kinds and chimney positions. A chimney must rise through or beside an unbroken roof.",
+  "levels": [
+    {
+      "id": "g",
+      "name": "Line-up",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 78, "h": 18 },
+      "base": { "type": "ground", "material": "grass" },
+      "areas": [{ "id": "field", "kind": "zone", "name": "Field", "shape": { "type": "rect", "x": 0, "y": 0, "w": 78, "h": 18 } }],
+      "openings": [],
+      "walls": [],
+      "features": [],
+      "labels": [],
+      "terrain": [],
+      "structures": [
+        { "id": "h1", "name": "Small cottage, stack W at the middle", "style": "cottage", "seed": 11, "wings": [{ "x": 3, "y": 5, "w": 5, "h": 5 }], "chimneys": [{ "side": "W", "position": 0.5 }], "front": "S" },
+        { "id": "h2", "name": "Cottage, ridge north-south, stack N", "style": "cottage", "seed": 12, "wings": [{ "x": 13, "y": 4, "w": 7, "h": 8, "ridge": "ns" }], "chimneys": [{ "side": "N", "position": 0.5 }], "front": "S" },
+        { "id": "h3", "name": "Wide house, stack E near the corner", "style": "cottage", "seed": 13, "wings": [{ "x": 25, "y": 5, "w": 9, "h": 6 }], "chimneys": [{ "side": "E", "position": 0.2 }], "front": "S" },
+        { "id": "h4", "name": "Narrow tall house, stack S", "style": "cottage", "seed": 14, "wings": [{ "x": 40, "y": 4, "w": 6, "h": 8, "ridge": "ns" }], "chimneys": [{ "side": "S", "position": 0.8 }], "front": "W" },
+        { "id": "h5", "name": "Lean-to roof, stack E", "style": "cottage", "seed": 15, "wings": [{ "x": 51, "y": 5, "w": 8, "h": 6 }], "roof": { "type": "shed", "low": "S" }, "chimneys": [{ "side": "E", "position": 0.5 }], "front": "S" },
+        { "id": "h6", "name": "L-shaped house, stack W", "style": "cottage", "seed": 16, "wings": [{ "x": 64, "y": 4, "w": 8, "h": 6 }, { "x": 64, "y": 10, "w": 5, "h": 5 }], "chimneys": [{ "side": "W", "position": 0.5 }], "front": "S" }
+      ]
+    }
+  ],
+  "links": []
+}

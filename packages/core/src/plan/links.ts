@@ -1,9 +1,19 @@
 /**
- * Level-link arithmetic (architecture §2.6). Pure and resolver-independent, so validation can check link
- * consistency (rise, computed arrival) and WP2's resolver can reuse the exact same footprints.
+ * Level-link arithmetic (architecture §2.6) and the entry level the links are walked from. Pure and
+ * resolver-independent, so validation can check link consistency (rise, computed arrival) and WP2's resolver can
+ * reuse the exact same footprints.
  */
 import { BUILD_CONSTANTS } from "../contracts/plan";
 import type { LevelLink, MapPlan, Side, Vec2 } from "../contracts/plan";
+
+/** Entry level id: plan.entryLevel, else the level with the smallest |elevation| (ties: plan order). */
+export function entryLevelId(plan: MapPlan): string | undefined {
+  if (plan.entryLevel && plan.levels.some((l) => l.id === plan.entryLevel)) return plan.entryLevel;
+  let best: { id: string; e: number } | undefined;
+  for (const l of plan.levels)
+    if (!best || Math.abs(l.elevation) < best.e) best = { id: l.id, e: Math.abs(l.elevation) };
+  return best?.id;
+}
 
 /** Unit step per side in plan space (y grows south). */
 export const SIDE_STEP: Record<Side, Vec2> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };

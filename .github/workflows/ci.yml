@@ -29,6 +29,7 @@ jobs:
       - run: npm ci
       # Electron >= 45 no longer downloads its binary on install; fetch it for e2e.
       - run: node node_modules/electron/install.js
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       # Includes the crash-safety tests (fault injection + kill -9 of a writing process).

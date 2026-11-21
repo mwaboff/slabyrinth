@@ -515,8 +515,7 @@ function ApprovePopover({
       <h3>Approve v{version} for building?</h3>
       <p>
         {snap.plan.levels.length} level{snap.plan.levels.length === 1 ? "" : "s"} · {rooms} rooms ·{" "}
-        {est === null ? "estimating the slab size…" : slabEstimate(est)}
-        .
+        {est === null ? "estimating the slab size…" : slabEstimate(est)}.
       </p>
       <p className="muted">You can still change the plan afterwards; you'll just approve and rebuild.</p>
       {errors.length + warnings.length > 0 && (
@@ -862,7 +861,10 @@ export function MapContent({ plan, version }: { plan: MapPlan; version: number }
         )}
         {compare && preview === null && <CompareChips diff={compare.diff} />}
         {revising && (
-          <div className="revising" title="The map will update when this finishes. You can keep looking around.">
+          <div
+            className="revising"
+            title="The map will update when this finishes. You can keep looking around."
+          >
             <span className="spinner" aria-hidden="true" />
             {verb(runPhaseNow, snap?.head ?? 0, newVersions)}…
             <button className="btn btn--sm btn--ghost" title="Stop (Esc)" onClick={() => void stop()}>

@@ -4,8 +4,9 @@
  */
 import { randomUUID } from "node:crypto";
 import { commitVersion, createHistory, getVersion, reconstruct } from "@slabyrinth/core/history";
-import { BUNDLED_PALETTES, parsePalette } from "@slabyrinth/core/palette";
-import type { CompileEstimate, Palette } from "@slabyrinth/core/contracts/compiler";
+import { BUNDLED_PALETTES, bundledPalettes, parsePalette } from "@slabyrinth/core/palette";
+import { planRules } from "@slabyrinth/core/resolve";
+import type { CompileEstimate, Palette, PaletteCatalog } from "@slabyrinth/core/contracts/compiler";
 import type { DesignBrief, LevelId, MapPlan } from "@slabyrinth/core/contracts/plan";
 import type { ChatEvent } from "../../../shared/ipc";
 import type { AppSettings, ChatMessageMeta, Conversation, ProjectFile } from "../../../shared/project";
@@ -84,6 +85,8 @@ export interface MemoryHostOptions {
   apiKey?: string | null;
   settings?: AppSettings;
   palettes?: Palette[];
+  /** The palettes builds compile with (default: the bundled palettes alone). */
+  buildPalettes?: PaletteCatalog;
   estimate?: (plan: MapPlan, levels?: LevelId[]) => CompileEstimate | null;
   image?: (req: ImageRequest) => string;
 }
@@ -127,7 +130,7 @@ export class MemoryHost implements EngineHost {
     const p = this.p();
     const n = version ?? p.history.head;
     if (n === 0) return null;
-    const r = reconstruct(p.history, n);
+    const r = reconstruct(p.history, n, planRules(this.getBuildPalettes()));
     return r.ok ? r.plan : null;
   }
 
@@ -145,7 +148,7 @@ export class MemoryHost implements EngineHost {
     if (input.changeSummary) c.changeSummary = input.changeSummary;
     if (input.messageId !== undefined) c.messageId = input.messageId;
     if (input.cost !== undefined) c.cost = input.cost;
-    const r = commitVersion(p.history, c);
+    const r = commitVersion(p.history, c, planRules(this.getBuildPalettes()));
     p.history = r.history;
     p.plan = input.plan;
     return { version: r.version.number, plan: input.plan };
@@ -235,6 +238,10 @@ export class MemoryHost implements EngineHost {
         return r.ok ? [r.value] : [];
       })
     );
+  }
+
+  getBuildPalettes(): PaletteCatalog {
+    return this.opts.buildPalettes ?? bundledPalettes();
   }
 
   flush(): Promise<void> {

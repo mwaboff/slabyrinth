@@ -85,7 +85,10 @@ export const roleSchema = z
 
 const themeId = z.string().regex(/^[a-z][a-z0-9_]{0,31}$/);
 /** Generator 4: the theme's interior character (contracts/resolved.ts ThemeInterior). */
-const themeInterior = z.object({ finish: z.enum(["tidy", "rough"]), floorFamily: z.enum(["stone", "timber"]) });
+const themeInterior = z.object({
+  finish: z.enum(["tidy", "rough"]),
+  floorFamily: z.enum(["stone", "timber"]),
+});
 
 export const paletteSchema = z.looseObject({
   schema: z.literal("slabyrinth/palette@1"),

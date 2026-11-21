@@ -53,7 +53,9 @@ export function terraceRockShare(
     const e = by.get(k) ?? { cells: 0, covered: 0 };
     e.cells++;
     const near = shapes.filter(
-      (s) => Math.abs(s.base - c.ground) <= 0.6 && Math.hypot(s.cx - c.x - 0.5, s.cy - c.y - 0.5) <= Math.max(s.w, s.d),
+      (s) =>
+        Math.abs(s.base - c.ground) <= 0.6 &&
+        Math.hypot(s.cx - c.x - 0.5, s.cy - c.y - 0.5) <= Math.max(s.w, s.d),
     );
     if (near.length > 0) {
       let hit = 0;

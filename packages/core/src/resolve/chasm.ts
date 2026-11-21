@@ -210,7 +210,8 @@ function buildCourse(
           const e =
             amplitude *
             env *
-            (0.78 * wave(freq * u + phase) + 0.22 * Math.max(-1, Math.min(1, (grain.sample(s / 3.5, 1.5) - 0.5) * 3.2)));
+            (0.78 * wave(freq * u + phase) +
+              0.22 * Math.max(-1, Math.min(1, (grain.sample(s / 3.5, 1.5) - 0.5) * 3.2)));
           // keep the interior of the course inside the board (the ends stay where the plan put them)
           const x = c.x + px * e;
           const y = c.y + py * e;
@@ -241,7 +242,9 @@ function buildCourse(
       for (let k = 1; k < best.length; k++) {
         const p = best[k - 1] as [number, number];
         const q = best[k] as [number, number];
-        cum.push((cum[k - 1] as number) + Math.sqrt((q[0] - p[0]) * (q[0] - p[0]) + (q[1] - p[1]) * (q[1] - p[1])));
+        cum.push(
+          (cum[k - 1] as number) + Math.sqrt((q[0] - p[0]) * (q[0] - p[0]) + (q[1] - p[1]) * (q[1] - p[1])),
+        );
       }
       const len2 = cum[cum.length - 1] as number;
       const m2 = Math.max(1, Math.ceil(len2 / 0.5));
@@ -272,7 +275,10 @@ function buildCourse(
         const bank = (v: number): number =>
           Math.min(
             width * 0.8,
-            Math.max(0.5, (width / 2) * taper * (1 + Math.max(-0.8, Math.min(0.8, mb * 1.6 * (v - 0.5) * 2)))),
+            Math.max(
+              0.5,
+              (width / 2) * taper * (1 + Math.max(-0.8, Math.min(0.8, mb * 1.6 * (v - 0.5) * 2))),
+            ),
           );
         halfL.push(bank(left.sample(p[2] / 2.5, 2.5)));
         halfR.push(bank(right.sample(p[2] / 2.5, 4.5)));
@@ -344,7 +350,8 @@ function buildCourse(
         [x, y - 1],
       ] as const) {
         const nk = `${nx},${ny}`;
-        if (snap.has(nk) || seen.has(nk) || nx < clip.x0 || nx > clip.x1 || ny < clip.y0 || ny > clip.y1) continue;
+        if (snap.has(nk) || seen.has(nk) || nx < clip.x0 || nx > clip.x1 || ny < clip.y0 || ny > clip.y1)
+          continue;
         seen.add(nk);
         const m = +inSnap(nx + 1, ny) + +inSnap(nx - 1, ny) + +inSnap(nx, ny + 1) + +inSnap(nx, ny - 1);
         if (m === 1 && h32(`${seed}:rag:b:${nx}:${ny}`) % 100 < 20) bumped.push(nk);

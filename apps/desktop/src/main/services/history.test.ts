@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as core from "@slabyrinth/core/history";
+import { STRUCTURAL_RULES } from "@slabyrinth/core/ops";
 import type { MapPlan } from "@slabyrinth/core/contracts/plan";
 import { moveHeadBack } from "./history";
 
@@ -19,13 +20,17 @@ const plan = (title: string): MapPlan =>
 function twoVersions() {
   let h = core.createHistory();
   for (const t of ["one", "two"]) {
-    h = core.commitVersion(h, {
-      plan: plan(t),
-      author: "ai",
-      createdAt: "2026-11-18T00:00:00Z",
-      summary: t,
-      cause: { type: "restore", from: 0 },
-    }).history;
+    h = core.commitVersion(
+      h,
+      {
+        plan: plan(t),
+        author: "ai",
+        createdAt: "2026-11-18T00:00:00Z",
+        summary: t,
+        cause: { type: "restore", from: 0 },
+      },
+      STRUCTURAL_RULES,
+    ).history;
   }
   return structuredClone(h);
 }

@@ -1,5 +1,5 @@
 /**
- * Roof strategies (2026-11-20): pure geometry in plan cells, shared by the compiler (pieces) and the 2D overlay
+ * Roof strategies: pure geometry in plan cells, shared by the compiler (pieces) and the 2D overlay
  * (outline, ridge). Built today: gable; flat and none need no geometry here. New strategies (hip, shed, cone, dome)
  * add a function with the same output shape.
  *
@@ -11,6 +11,7 @@
  */
 import type { Side } from "../contracts/plan";
 import type { ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
+import { isPitchedRoof } from "./roofTypes";
 
 export interface RoofWing {
   /** Footprint rectangle (cells), without the wall ring. */
@@ -165,7 +166,7 @@ export function defaultRidge(w: number, h: number): "ew" | "ns" {
   return h > w ? "ns" : "ew";
 }
 
-// ───────────────────────────── more strategies (phase 2, 2026-11-20) ─────────────────────────────
+// ───────────────────────────── more strategies (hip, shed, ring layers, spire) ─────────────────────────────
 
 export interface Rect {
   x: number;
@@ -474,7 +475,7 @@ export function roofOwners(
     const top = v.storeys[v.storeys.length - 1];
     const layer = v.roof.layers[0];
     if (!top || !layer || v.roof.gableOnly) continue;
-    const base = top.wallTop + (v.roof.deck && ["gable", "hip", "shed"].includes(layer.type) ? 0.5 : 0);
+    const base = top.wallTop + (v.roof.deck && isPitchedRoof(layer.type) ? 0.5 : 0);
     if (layer.type === "gable") {
       v.rects.forEach((w, wi) => {
         const g = gableRoof(w, holes);
@@ -526,7 +527,7 @@ export function roofProportion(st: ResolvedStructure): RoofProportion | null {
     let top = base;
     let pitched = false;
     v.roof.layers.forEach((layer, li) => {
-      const isPitched = layer.type === "gable" || layer.type === "hip" || layer.type === "shed";
+      const isPitched = isPitchedRoof(layer.type);
       if (li === 0 && v.roof.deck && isPitched) base += 0.5;
       const rects = li === 0 ? v.rects : [{ ...last.rect, ridge: layer.ridge }];
       let rise = 0;

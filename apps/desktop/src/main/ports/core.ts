@@ -1,12 +1,18 @@
 import { applyOps, diffPlans, isBlocking, migrateProject, splitIssues, validatePlan } from "@slabyrinth/core";
-import type { ApplyOps, DiffPlans, MapPlan, PlanIssue } from "@slabyrinth/core";
-// (The root entry also registers the resolver's geometric checks that validatePlan runs.)
+import type { ApplyOps, DiffPlans, MapPlan, PlanIssue, PlanRules } from "@slabyrinth/core";
 
 /**
  * Narrow port onto @slabyrinth/core's plan functions, injected into ProjectService so service
- * tests can substitute doubles. Production always uses the real core functions.
+ * tests can substitute doubles. Production always uses the real core functions, with the rules of
+ * the palettes the app builds with (core `planRules(buildPalettes.current())`).
  */
 export interface PlanCorePort {
+  /**
+   * The current plan rules (the resolver's checks and the materialize generator for the build
+   * palettes). History replay takes them: an op that removes generated features by their shown id
+   * materializes them first.
+   */
+  rules(): PlanRules;
   /**
    * Applies ops WITHOUT validating the result (op errors still fail). Used for history replay, where
    * newer checks must not make old versions unreadable. null only in tests that exercise "no plan
@@ -37,14 +43,15 @@ export interface PlanCoreOverrides {
   migrateProject?: Override<(json: unknown) => unknown>;
 }
 
-export function createPlanCorePort(overrides: PlanCoreOverrides = {}): PlanCorePort {
+/** `rules`: asked at each call, since the build palettes change (user palettes, the game's assets). */
+export function createPlanCorePort(rules: () => PlanRules, overrides: PlanCoreOverrides = {}): PlanCorePort {
   const apply: ApplyOps | null =
     overrides.applyOps === undefined
-      ? (plan, ops) => applyOps(plan, ops, { validate: false })
+      ? (plan, ops) => applyOps(plan, ops, rules(), { validate: false })
       : overrides.applyOps;
   const validate =
     overrides.validatePlan === undefined
-      ? (plan: MapPlan): unknown => validatePlan(plan)
+      ? (plan: MapPlan): unknown => validatePlan(plan, rules())
       : overrides.validatePlan;
   const migrate =
     overrides.migrateProject === undefined
@@ -70,6 +77,7 @@ export function createPlanCorePort(overrides: PlanCoreOverrides = {}): PlanCoreP
       }
     : null;
   return {
+    rules,
     applyOps: apply,
     applyChecked,
     validatePlan: validateIssues,

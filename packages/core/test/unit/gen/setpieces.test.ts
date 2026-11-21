@@ -3,9 +3,10 @@
  * playability guards, determinism; clustered scatter for the natural types; and the flat "dressed cave" proof
  * plan end to end (resolve → validate → compile) within the slab size budget.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { FeatureType, MapPlan, Side } from "../../../src/contracts/plan";
+import type { FeatureType, Side } from "../../../src/contracts/plan";
+import { loadPlan } from "../../fixtures";
+import { STRUCTURE_ONLY } from "../../fixtures/rules";
 import { DRESS_PRESETS, FEATURE_TYPES } from "../../../src/contracts/plan";
 import {
   COMPOSED_PRESETS,
@@ -20,7 +21,7 @@ import {
   scatterFeatures,
 } from "../../../src/gen/index";
 import { compileResolved } from "../../../src/compile";
-import { loadPalettes, resolveRole } from "../../../src/palette";
+import { bundledPalettes, loadPalettes, resolveRole } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { slabCodec } from "../../../src/slab";
 import { validatePlan } from "../../../src/plan";
@@ -361,17 +362,15 @@ describe("vocabulary coverage", () => {
   });
 });
 
-describe.each(["dressed-cave", "dressed-cave-v2", "dressed-forest"])(
+describe.each(["dressed-cave", "dressed-cave-v2", "dressed-forest"] as const)(
   "dressed cave proof plan %s (flat)",
   (name) => {
-    const plan = JSON.parse(
-      readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url), "utf8"),
-    ) as MapPlan;
-    const resolved = resolvePlan(plan);
+    const plan = loadPlan(name);
+    const resolved = resolvePlan(plan, bundledPalettes());
     const bundle = compileResolved(resolved, loadPalettes(), slabCodec, { createdAt: "t", plan });
 
     it("validates with no errors and composes a dense room", () => {
-      const v = validatePlan(plan);
+      const v = validatePlan(plan, STRUCTURE_ONLY);
       expect(v.issues.filter((i) => i.severity === "error")).toEqual([]);
       const level = resolved.levels[0];
       expect(level?.features.length ?? 0).toBeGreaterThan(120);

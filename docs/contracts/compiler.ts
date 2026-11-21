@@ -359,6 +359,22 @@ export interface PlacementSet {
   bounds: Box3;
   diagnostics: CompileDiagnostic[];
   stats: { byRole: Record<PlacementRole, number>; total: number; distinctAssets: number };
+  /**
+   * What realize knows about each placement it made, keyed by the placement object. It belongs to this set and lives
+   * as long as it: a PlacementSet stays in memory inside one compile (it never crosses IPC, is never stored and is never
+   * hashed; the ExportBundle is what leaves), so the map is not serialisable on purpose. Absent (a set built elsewhere)
+   * or without an entry (a placement added or copied after realize): readers use the placement's point and uuid.
+   */
+  placed?: Map<Placement, PlacedAsset>;
+}
+
+/** One realized placement's asset name, geometry and world box (PlacementSet.placed). */
+export interface PlacedAsset {
+  /** Display name: the palette variant's name, else the catalog's, else the uuid. */
+  name: string;
+  geom: PaletteVariant["geom"];
+  /** World AABB, tiles. The verify stage moves it with the placement when it nudges a prop. */
+  box: Box3;
 }
 
 export interface Box3 { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } }

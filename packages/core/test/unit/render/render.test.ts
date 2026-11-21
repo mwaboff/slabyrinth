@@ -15,11 +15,12 @@ import {
   selectRect,
   selectionItems,
 } from "../../../src/render/index";
+import { bundledPalettes } from "../../../src/palette";
 import { ringArea } from "../../../src/resolve/index";
 import { resolvePlan } from "../../../src/resolve/index";
 import { loadPlan } from "../../fixtures/index";
 
-const a = resolvePlan(loadPlan("example-a"));
+const a = resolvePlan(loadPlan("example-a"), bundledPalettes());
 const l1 = a.levels.find((l) => l.id === "l1");
 const l2 = a.levels.find((l) => l.id === "l2");
 if (!l1 || !l2) throw new Error("levels");
@@ -103,7 +104,7 @@ describe("buildDisplayList", () => {
     plan.levels
       .find((l) => l.id === "l1")
       ?.features.push({ id: "shelf_mid", type: "bookshelf", at: [15, 10] });
-    const lvl = resolvePlan(plan).levels.find((l) => l.id === "l1");
+    const lvl = resolvePlan(plan, bundledPalettes()).levels.find((l) => l.id === "l1");
     if (!lvl) throw new Error("l1");
     const shelf = lvl.features.find((f) => f.id === "shelf_mid");
     expect(shelf).toBeDefined();
@@ -159,7 +160,7 @@ describe("buildDisplayList", () => {
   });
   it("labels levels in tab order (entry first)", () => {
     expect(levelLabels(a, "l1")).toEqual({ l1: "L1", l2: "L2" });
-    const tower = resolvePlan(loadPlan("multi-level-stairs"));
+    const tower = resolvePlan(loadPlan("multi-level-stairs"), bundledPalettes());
     expect(levelLabels(tower, "ground")).toEqual({ ground: "L1", study_lvl: "L2", roof: "L3" });
   });
   it("legend lists only what is drawn", () => {
@@ -261,7 +262,7 @@ function bigPlan(): MapPlan {
 
 describe("performance (§8.3)", () => {
   it("builds the display list of a 160×160 level with 4,000 features in < 150 ms", () => {
-    const r = resolvePlan(bigPlan());
+    const r = resolvePlan(bigPlan(), bundledPalettes());
     const lvl = r.levels[0];
     if (!lvl) throw new Error("level");
     expect(lvl.features.length).toBeGreaterThanOrEqual(4000);
@@ -307,7 +308,7 @@ describe("contentViewBox (build thumbnails)", () => {
     ],
     links: [],
   } as unknown as MapPlan;
-  const list = buildPlanDisplayList(resolvePlan(plan), "up", {}) as DisplayList;
+  const list = buildPlanDisplayList(resolvePlan(plan, bundledPalettes()), "up", {}) as DisplayList;
 
   it("fits the drawn content with padding, not the whole level", () => {
     expect(list.viewBox).toEqual({ x: 0, y: 0, w: 80, h: 60 });

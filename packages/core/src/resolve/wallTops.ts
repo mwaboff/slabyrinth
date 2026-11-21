@@ -1,5 +1,5 @@
 /**
- * Rough wall tops, generator 4 (interior round, item 8, 2026-11-20). A built dungeon or cellar has every wall at one
+ * Rough wall tops, generator 4 (switch `interiorWallTops`). A built dungeon or cellar has every wall at one
  * height, a ruled line from above. The reference interior's wall bases sit a quarter tile apart, so its tops vary
  * (2.0 / 2.25 / 2.5 above the floor, 41 / 16 / 32%) and runs break into shorter stubs at openings.
  *
@@ -19,21 +19,35 @@
  */
 import type { ResolvedLevel } from "../contracts/resolved";
 import { CELL_FLAG, EDGE } from "../contracts/resolved";
-import { areaReferenceHeights, spanCellOf, wallRise } from "./wallspan";
+import { cellIndex, edgeLineLength, edgeLines, edgeOnLine } from "./levelGrid";
+import { areaReferenceHeights, edgeWallHeight, spanCellOf, wallRise } from "./wallspan";
 import { h32 } from "../util/hash";
-import { isUnevenWallStyle } from "../gen/wallStyles";
+import { THEME_WALL_STYLE, isUnevenWallStyle } from "../gen/wallStyles";
 
 /**
- * Is each cell of a resolved level part of a rough interior (wall-foot rubble, broken wall tops, uneven tops)? Read
- * from the finish the resolver gave its area (ResolvedArea.finish: the theme's interior character, rough when the room
- * is abandoned). A cell outside every area is not a room and is not rough. Row-major, local index.
+ * Is each cell of a resolved level part of a rough-dressed interior (wall-foot rubble, broken wall tops, uneven tops)?
+ * Rough when its area is built rough (ResolvedArea.finish) or nobody keeps it up (ResolvedArea.abandoned): condition
+ * changes the dressing. A cell outside every area is not a room and is not rough. Row-major, local index.
  */
 export function roughCells(L: ResolvedLevel): Uint8Array {
+  return areaCells(L, (a) => a.finish !== "tidy" || a.abandoned === true);
+}
+
+/**
+ * Is each cell of a resolved level a room built rough, carved into a mass (ResolvedArea.finish: the theme's interior
+ * character)? What the solid behind its walls is (the earth cap and skirt of compile/shell.ts) follows this, never the
+ * room's condition: an abandoned room in a timber building is still walled in timber. Row-major, local index.
+ */
+export function carvedCells(L: ResolvedLevel): Uint8Array {
+  return areaCells(L, (a) => a.finish !== "tidy");
+}
+
+function areaCells(L: ResolvedLevel, test: (a: ResolvedLevel["areas"][number]) => boolean): Uint8Array {
   const out = new Uint8Array(L.bounds.w * L.bounds.h);
-  const rough = L.areas.map((a) => a.finish !== "tidy");
+  const hit = L.areas.map(test);
   for (let i = 0; i < out.length; i++) {
     const aid = L.cells.area[i] ?? 0;
-    out[i] = aid > 0 && rough[aid - 1] === true ? 1 : 0;
+    out[i] = aid > 0 && hit[aid - 1] === true ? 1 : 0;
   }
   return out;
 }
@@ -49,7 +63,6 @@ const EPS = 1e-6;
 
 /** Edits `L.hEdges.height` / `L.vEdges.height` in place; returns how many edges it set. */
 export function roughWallTops(L: ResolvedLevel, seedKey: string): number {
-  const { w, h } = L.bounds;
   const ref = areaReferenceHeights(L);
   const cellAt = spanCellOf(L);
   // protected edges: "h|line|pos" / "v|line|pos" in local coordinates
@@ -80,13 +93,13 @@ export function roughWallTops(L: ResolvedLevel, seedKey: string): number {
   for (const ln of L.lines ?? []) for (const an of ln.anchors) aroundCell(an.at[0], an.at[1]);
 
   const rough = roughCells(L);
-  const roughAt = (lx: number, ly: number): boolean => lx >= 0 && ly >= 0 && lx < w && ly < h && rough[ly * w + lx] === 1;
+  const roughAt = (lx: number, ly: number): boolean => rough[cellIndex(L.bounds, lx, ly)] === 1;
 
   let changed = 0;
   for (const orient of ["h", "v"] as const) {
     const grid = orient === "h" ? L.hEdges : L.vEdges;
-    const lines = orient === "h" ? h + 1 : w + 1;
-    const along = orient === "h" ? w : h;
+    const lines = edgeLines(L.bounds, orient);
+    const along = edgeLineLength(L.bounds, orient);
     for (let line = 0; line < lines; line++) {
       // candidates along this line: position -> new height basis
       type Cand = { pos: number; e: number; h0: number; rise: number; host: number; style: string };
@@ -122,14 +135,14 @@ export function roughWallTops(L: ResolvedLevel, seedKey: string): number {
         run = [];
       };
       for (let pos = 0; pos < along; pos++) {
-        const idx = orient === "h" ? line * w + pos : pos * (w + 1) + line;
+        const idx = edgeOnLine(L.bounds, orient, line, pos);
         const kind = grid.kind[idx];
         if (kind !== EDGE.WALL && kind !== EDGE.OPENING) {
           flush();
           continue;
         }
-        const style = kind === EDGE.WALL ? (L.wallStyles[grid.ref[idx] ?? 0] ?? "wall") : "";
-        const h0 = (grid.height[idx] ?? 0) > 0 ? (grid.height[idx] ?? 2) : 2;
+        const style = kind === EDGE.WALL ? (L.wallStyles[grid.ref[idx] ?? 0] ?? THEME_WALL_STYLE) : "";
+        const h0 = edgeWallHeight(grid, idx);
         const a = orient === "h" ? cellAt(pos, line - 1) : cellAt(line - 1, pos);
         const b = orient === "h" ? cellAt(pos, line) : cellAt(line, pos);
         const host = grid.host[idx] ?? 1;

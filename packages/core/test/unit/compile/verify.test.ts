@@ -1,22 +1,25 @@
 import fc from "fast-check";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { CompileDiagnosticCode, Placement, PlacementSet } from "../../../src/contracts/compiler";
 import type { MapPlan } from "../../../src/contracts/plan";
 import {
   compileResolved,
-  placementBoxes,
-  placementMeta,
+  placedBox,
+  placedName,
   realize,
   verifyBuild,
   VERIFY_CODES,
 } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { checkPlayability, resolvePlan } from "../../../src/resolve";
+import { vEdgeIndex } from "../../../src/resolve/levelGrid";
 import { slabCodec } from "../../../src/slab";
 import { loadPlan } from "../../fixtures";
 import { handLevel, handPlan } from "./handResolved";
+import { clonePlaced, movePlaced, setPlacedBox } from "./placedSet";
 
 const cat = loadPalettes();
 const room = (extra: Partial<Parameters<typeof handLevel>[0]> = {}): ReturnType<typeof handLevel> =>
@@ -25,31 +28,7 @@ const room = (extra: Partial<Parameters<typeof handLevel>[0]> = {}): ReturnType<
 /** Hg = 4 for `room()`: plan row y → world z = 3 − y. */
 const all = (set: PlacementSet): Placement[] => set.levels.flatMap((l) => l.placements);
 const named = (set: PlacementSet, name: string): Placement[] =>
-  all(set).filter((p) => placementMeta.get(p)?.name === name);
-/** Copy of a placement moved by (dx,dy,dz), with its box and meta. */
-function clone(p: Placement, dx = 0, dy = 0, dz = 0, patch: Partial<Placement> = {}): Placement {
-  const q: Placement = { ...p, source: { ...p.source }, x: p.x + dx, y: p.y + dy, z: p.z + dz, ...patch };
-  const b = placementBoxes.get(p);
-  if (b)
-    placementBoxes.set(q, {
-      min: { x: b.min.x + dx, y: b.min.y + dy, z: b.min.z + dz },
-      max: { x: b.max.x + dx, y: b.max.y + dy, z: b.max.z + dz },
-    });
-  const m = placementMeta.get(p);
-  if (m) placementMeta.set(q, m);
-  return q;
-}
-function move(p: Placement, dx = 0, dy = 0, dz = 0): void {
-  const b = placementBoxes.get(p);
-  p.x += dx;
-  p.y += dy;
-  p.z += dz;
-  if (b)
-    placementBoxes.set(p, {
-      min: { x: b.min.x + dx, y: b.min.y + dy, z: b.min.z + dz },
-      max: { x: b.max.x + dx, y: b.max.y + dy, z: b.max.z + dz },
-    });
-}
+  all(set).filter((p) => placedName(set, p) === name);
 const level0 = (set: PlacementSet): Placement[] => set.levels[0]?.placements ?? [];
 const codes = (set: PlacementSet, resolved: Parameters<typeof verifyBuild>[0]): CompileDiagnosticCode[] =>
   verifyBuild(resolved, set, cat).diagnostics.map((d) => d.code);
@@ -62,8 +41,22 @@ describe("verify: a clean build stays clean", () => {
     const set = realize(r, cat);
     expect(verifyBuild(r, set, cat).diagnostics).toEqual([]);
   });
-  it("every documented code is covered by a test below", () => {
-    expect(VERIFY_CODES).toHaveLength(28);
+  it("VERIFY_CODES is every verify code the compiler emits and the contract declares, each once", () => {
+    const src = fileURLToPath(new URL("../../../src/", import.meta.url));
+    const sources = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? sources(join(dir, e.name)) : e.name.endsWith(".ts") ? [join(dir, e.name)] : [],
+      );
+    const emitted = new Set(
+      sources(join(src, "compile")).flatMap((f) =>
+        [...readFileSync(f, "utf8").matchAll(/code: "(verify_[a-z_]+)"/g)].map((m) => m[1]),
+      ),
+    );
+    const contract = readFileSync(join(src, "contracts", "compiler.ts"), "utf8");
+    const declared = new Set([...contract.matchAll(/\| "(verify_[a-z_]+)"/g)].map((m) => m[1]));
+    expect(new Set(VERIFY_CODES).size).toBe(VERIFY_CODES.length);
+    expect([...VERIFY_CODES].sort()).toEqual([...emitted].sort());
+    expect([...VERIFY_CODES].sort()).toEqual([...declared].sort());
   });
 });
 
@@ -74,7 +67,7 @@ describe("verify: one fixture per code", () => {
     const floor = level0(set).find((p) => p.role === "floor");
     if (!floor) throw new Error("fixture");
     // two courses (1.0 high): a single 0.5 course is a walkable step, not an obstruction
-    level0(set).push(clone(floor, 0, 0.5, 0), clone(floor, 0, 1.0, 0));
+    level0(set).push(clonePlaced(set, floor, 0, 0.5, 0), clonePlaced(set, floor, 0, 1.0, 0));
     const d = run(r, set, "verify_cell_obstructed");
     expect(d[0]).toMatchObject({ severity: "warning", levelId: "l1" });
     expect(d[0]?.assets?.length).toBe(1);
@@ -82,20 +75,27 @@ describe("verify: one fixture per code", () => {
 
   it("verify_door_blocked + verify_area_unreachable — a block in front of the only door names the blocker", () => {
     const plan = loadPlan("two-rooms-door");
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     const set = realize(r, cat);
     const op = r.levels[0]?.openings[0];
     if (!op || op.orientation !== "v") throw new Error("fixture: expected a vertical door");
     // the back-room side of the door: cell (start.x, start.y); world z = Hg − 1 − y
     const hg = r.levels[0] ? r.levels[0].bounds.y + r.levels[0].bounds.h : 0;
     const anyFloor =
-      level0(set).find((p) => p.role === "floor" && placementMeta.get(p)?.name === "Dungeon Floor - Small") ??
+      level0(set).find((p) => p.role === "floor" && placedName(set, p) === "Dungeon Floor - Small") ??
       level0(set).find((p) => p.role === "floor");
     if (!anyFloor) throw new Error("fixture");
-    const block = clone(anyFloor, op.start[0] - anyFloor.x, 0.5, hg - 1 - op.start[1] - anyFloor.z, {
-      source: { cell: [op.start[0], op.start[1]], elementId: "crate_stack" },
-    });
-    placementBoxes.set(block, {
+    const block = clonePlaced(
+      set,
+      anyFloor,
+      op.start[0] - anyFloor.x,
+      0.5,
+      hg - 1 - op.start[1] - anyFloor.z,
+      {
+        source: { cell: [op.start[0], op.start[1]], elementId: "crate_stack" },
+      },
+    );
+    setPlacedBox(set, block, {
       min: { x: op.start[0], y: 0.5, z: hg - 1 - op.start[1] },
       max: { x: op.start[0] + 1, y: 1.5, z: hg - op.start[1] },
     });
@@ -134,7 +134,7 @@ describe("verify: one fixture per code", () => {
     const set = realize(r, cat);
     const door = level0(set).find((p) => p.role === "opening");
     if (!door) throw new Error("fixture");
-    move(door, 0, 0, -1);
+    movePlaced(set, door, 0, 0, -1);
     expect(run(r, set, "verify_door_misplaced")[0]?.severity).toBe("error");
   });
 
@@ -144,11 +144,8 @@ describe("verify: one fixture per code", () => {
     const door = level0(set).find((p) => p.role === "opening");
     const wall = named(set, "Dungeon Wall 01")[0] ?? level0(set).find((p) => p.role === "wall");
     if (!door || !wall) throw new Error("fixture");
-    const w = clone(wall, door.x - wall.x, door.y - wall.y, door.z - wall.z, { rot: door.rot });
-    placementBoxes.set(
-      w,
-      placementBoxes.get(door) ?? { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } },
-    );
+    const w = clonePlaced(set, wall, door.x - wall.x, door.y - wall.y, door.z - wall.z, { rot: door.rot });
+    setPlacedBox(set, w, placedBox(set, door));
     level0(set).push(w);
     expect(run(r, set, "verify_door_buried")[0]?.severity).toBe("error");
   });
@@ -261,7 +258,7 @@ describe("verify: one fixture per code", () => {
     const set = realize(r, cat);
     const chest = level0(set).find((p) => p.role === "feature");
     if (!chest) throw new Error("fixture");
-    move(chest, -0.2);
+    movePlaced(set, chest, -0.2);
     const before = chest.x;
     const d = run(r, set, "verify_prop_nudged")[0];
     expect(d).toMatchObject({ severity: "info", elementId: "c" });
@@ -274,24 +271,24 @@ describe("verify: one fixture per code", () => {
     const set = realize(r, cat);
     const chest = level0(set).find((p) => p.role === "feature");
     if (!chest) throw new Error("fixture");
-    move(chest, -0.7);
+    movePlaced(set, chest, -0.7);
     expect(run(r, set, "verify_prop_in_wall")[0]?.severity).toBe("warning");
   });
 
   it("verify_prop_floating / verify_prop_sunk", () => {
     const r = handPlan([room({ features: [{ id: "c", type: "chest", at: [2, 1] }] })]);
     const up = realize(r, cat);
-    move(level0(up).find((p) => p.role === "feature") as Placement, 0, 1);
+    movePlaced(up, level0(up).find((p) => p.role === "feature") as Placement, 0, 1);
     expect(run(r, up, "verify_prop_floating")[0]?.severity).toBe("warning");
     const down = realize(r, cat);
-    move(level0(down).find((p) => p.role === "feature") as Placement, 0, -0.3);
+    movePlaced(down, level0(down).find((p) => p.role === "feature") as Placement, 0, -0.3);
     expect(run(r, down, "verify_prop_sunk")[0]?.severity).toBe("warning");
     // stalactites hang from the ceiling on purpose: never "floating"
     const rs = handPlan([room({ features: [{ id: "s", type: "stalactite", at: [2, 1], blocking: false }] })]);
     const hung = realize(rs, cat);
     const st = level0(hung).find((p) => p.role === "feature");
     if (st) {
-      move(st, 0, 2);
+      movePlaced(hung, st, 0, 2);
       expect(run(rs, hung, "verify_prop_floating")).toEqual([]);
     }
   });
@@ -322,7 +319,7 @@ describe("verify: one fixture per code", () => {
   it("verify_prop_outside — a prop beyond the level bounds", () => {
     const r = handPlan([room({ features: [{ id: "c", type: "chest", at: [2, 1] }] })]);
     const set = realize(r, cat);
-    move(level0(set).find((p) => p.role === "feature") as Placement, 20);
+    movePlaced(set, level0(set).find((p) => p.role === "feature") as Placement, 20);
     expect(run(r, set, "verify_prop_outside")[0]?.severity).toBe("warning");
   });
 
@@ -347,7 +344,7 @@ describe("verify: one fixture per code", () => {
       material: "rock",
       wallStyle: "cave_rock",
     });
-    const e = (cave.bounds.w + 1) * 1 + 2; // vertical edge west of (2,1)
+    const e = vEdgeIndex(cave.bounds, 2, 1); // vertical edge west of (2,1)
     cave.vEdges.kind[e] = 1;
     cave.vEdges.ref[e] = 0;
     cave.vEdges.host[e] = 1;
@@ -392,12 +389,44 @@ describe("verify: one fixture per code", () => {
     expect(ok).toEqual([]);
   });
 
+  it("verify_material_substituted — a wall style is asked of the theme its wall is built in (generator 4)", () => {
+    // a cave without stone walls of its own: wall.stone falls back to wall.timber there, but not in stone_dungeon
+    const pals = loadPalettes({
+      user: [
+        {
+          source: "test",
+          data: {
+            schema: "slabyrinth/palette@1",
+            id: "cave",
+            overrides: true,
+            roles: { "wall.stone": { variants: [], fallback: "wall.timber" } },
+          },
+        },
+      ],
+    });
+    // the level's first theme is stone_dungeon; every cell (and so every wall) is the cave's
+    const lv = handLevel({ id: "l1", rows: ["#####", "#...#", "#####"], wallStyle: "stone" });
+    lv.themes = ["stone_dungeon", "cave"];
+    lv.cells.theme.fill(1);
+    const wallNotes = (generator: number) => {
+      const r = { ...handPlan([lv]), generator };
+      return verifyBuild(r, realize(r, pals), pals).diagnostics.filter(
+        (x) => x.code === "verify_material_substituted" && x.role === "wall.stone",
+      );
+    };
+    const four = wallNotes(4);
+    expect(four).toHaveLength(1);
+    expect(four[0]?.message).toMatch(/in theme "cave": it is built with wall\.timber/);
+    // released generators keep asking the level's first theme (their diagnostics are pinned)
+    expect(wallNotes(3)).toEqual([]);
+  });
+
   it("verify_duplicate_removed — exact duplicates are dropped (repair)", () => {
     const r = handPlan([room()]);
     const set = realize(r, cat);
     const n = level0(set).length;
     const f = level0(set)[0] as Placement;
-    level0(set).push(clone(f), clone(f));
+    level0(set).push(clonePlaced(set, f), clonePlaced(set, f));
     const d = run(r, set, "verify_duplicate_removed")[0];
     expect(d).toMatchObject({ severity: "info", count: 2 });
     expect(level0(set)).toHaveLength(n);
@@ -407,7 +436,7 @@ describe("verify: one fixture per code", () => {
   it("verify_bad_coordinate — a non-finite placement is dropped with an error", () => {
     const r = handPlan([room()]);
     const set = realize(r, cat);
-    level0(set).push(clone(level0(set)[0] as Placement, 0, 0, 0, { x: Number.NaN }));
+    level0(set).push(clonePlaced(set, level0(set)[0] as Placement, 0, 0, 0, { x: Number.NaN }));
     expect(run(r, set, "verify_bad_coordinate")[0]?.severity).toBe("error");
     expect(level0(set).every((p) => Number.isFinite(p.x))).toBe(true);
   });
@@ -440,7 +469,7 @@ describe("verify: the proof room's east door (regression)", () => {
   ];
 
   it("flags door_e with the stairs as the blocker and suggests a clear cell", () => {
-    const r = resolvePlan(old);
+    const r = resolvePlan(old, bundledPalettes());
     const v = verifyBuild(r, realize(r, cat), cat);
     const d = v.diagnostics.find((x) => x.code === "verify_door_blocked");
     expect(d).toMatchObject({ severity: "error", elementId: "door_e", cell: [9, 6] });
@@ -450,7 +479,7 @@ describe("verify: the proof room's east door (regression)", () => {
   });
 
   it("with the plan, the plan-level pass reports it (opening_blocked) and verify does not repeat it", () => {
-    const r = resolvePlan(old);
+    const r = resolvePlan(old, bundledPalettes());
     const planIssues = checkPlayability(old, r);
     expect(planIssues.some((i) => i.code === "opening_blocked" && i.elementId === "door_e")).toBe(true);
     const v = verifyBuild(r, realize(r, cat), cat, { plan: old });
@@ -460,7 +489,7 @@ describe("verify: the proof room's east door (regression)", () => {
   });
 
   it("the fixed plan (v5) verifies clean", () => {
-    const r = resolvePlan(fixed);
+    const r = resolvePlan(fixed, bundledPalettes());
     expect(verifyBuild(r, realize(r, cat), cat, { plan: fixed }).diagnostics).toEqual([]);
   });
 });
@@ -468,7 +497,7 @@ describe("verify: the proof room's east door (regression)", () => {
 describe("verify: no duplicates across the plan and build layers", () => {
   const leads = (opts: Parameters<typeof verifyBuild>[3]) => {
     const plan = loadPlan("multi-level-stairs");
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     return verifyBuild(
       r,
       realize(r, cat),
@@ -494,7 +523,7 @@ describe("verify: no duplicates across the plan and build layers", () => {
   });
   it("with the plan, the plan layer's own finding is used and verify stays silent", () => {
     const plan = loadPlan("multi-level-stairs");
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     expect(
       checkPlayability(plan, r).some((i) => i.code === "opening_dead_end" && i.elementId === "front_door"),
     ).toBe(true);
@@ -520,7 +549,7 @@ describe("verify: fixtures, pipeline wiring, robustness, speed", () => {
         ),
       ) as MapPlan,
     ]) {
-      const r = resolvePlan(plan);
+      const r = resolvePlan(plan, bundledPalettes());
       const v = verifyBuild(r, realize(r, cat), cat, { plan });
       expect(v.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     }
@@ -585,7 +614,7 @@ describe("verify: fixtures, pipeline wiring, robustness, speed", () => {
   });
 });
 
-describe("vertical links: ladders, spiral stairs, trapdoors, pits (review finding)", () => {
+describe("vertical links: ladders, spiral stairs, trapdoors, pits", () => {
   const LO = ["######", "#....#", "#....#", "#....#", "######"];
   const upRows = (hole: Array<[number, number]>, floorHoles = true): string[] =>
     ["      ", " .... ", " .... ", " .... ", "      "].map((r, y) =>
@@ -621,7 +650,7 @@ describe("vertical links: ladders, spiral stairs, trapdoors, pits (review findin
       ],
     );
   const pieces = (set: PlacementSet) => all(set).filter((p) => p.source.elementId === "v");
-  const topOf = (ps: Placement[]) => Math.max(...ps.map((p) => placementBoxes.get(p)?.max.y ?? p.y));
+  const topOf = (set: PlacementSet, ps: Placement[]) => Math.max(...ps.map((p) => placedBox(set, p).max.y));
 
   it("spiral stairs (2×2) with only a ladder in the palette: ONE ladder stack, against a wall, reaching the floor above, info diagnostic", () => {
     for (const rise of [2.5, 5]) {
@@ -640,7 +669,7 @@ describe("vertical links: ladders, spiral stairs, trapdoors, pits (review findin
       expect(new Set(ps.map((p) => `${p.x},${p.z}`)).size).toBe(1); // one cell
       expect(ps).toHaveLength(Math.ceil(rise / 2));
       expect(ps[0]?.source.cell).toEqual([1, 1]); // (1,1) has walls on N and W
-      expect(topOf(ps)).toBeGreaterThanOrEqual(rise + 0.5 - 0.25);
+      expect(topOf(set, ps)).toBeGreaterThanOrEqual(rise + 0.5 - 0.25);
       expect(set.diagnostics.find((d) => d.elementId === "v")).toMatchObject({
         severity: "info",
         code: "asset_substituted",

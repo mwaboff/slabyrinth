@@ -8,11 +8,27 @@
  * with a `RoleProbe` over the palettes they hold, and `resolve/` is handed the compiler's palettes through its
  * `PaletteView` (palette/view.ts), so they ask the same question of the same palettes.
  */
+import type { ThemeId } from "../contracts/plan";
 import type { StallForm } from "../contracts/resolved";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "./resolve";
+import { STALL_ROLES } from "./roles";
 
 /** Resolves the first of `roles` the theme can supply (variants passing `filter`), or null. The theme is bound by the caller. */
 export type RoleProbe = (roles: readonly string[], filter?: VariantFilter) => RoleResolution | null;
+
+/** The probe over a role resolver (palette/resolve.ts `createRoleResolver`) for one theme. */
+export function roleProbe(
+  resolve: (theme: ThemeId, role: string, filter?: VariantFilter) => { resolution: RoleResolution | null },
+  theme: ThemeId,
+): RoleProbe {
+  return (roles, filter) => {
+    for (const role of roles) {
+      const r = resolve(theme, role, filter).resolution;
+      if (r) return r;
+    }
+    return null;
+  };
+}
 
 /** A 1x1 tile standing on its cell (the platform and the counter blocks). */
 export const ONE_CELL_TILE: VariantFilter = {
@@ -24,11 +40,11 @@ export const STALL_FORMS: readonly StallForm[] = ["gable", "flat"];
 
 /** Where each part of a stall comes from: the roles tried in order, and the variants that qualify. */
 export const STALL_PART_SPECS = {
-  base: { roles: ["stall.base", "floor.wood_plank"], filter: ONE_CELL_TILE },
-  counter: { roles: ["stall.counter"], filter: ONE_CELL_TILE },
-  post: { roles: ["stall.post"], filter: undefined },
+  base: { roles: [STALL_ROLES.base, "floor.wood_plank"], filter: ONE_CELL_TILE },
+  counter: { roles: [STALL_ROLES.counter], filter: ONE_CELL_TILE },
+  post: { roles: [STALL_ROLES.post], filter: undefined },
   canopy: (form: StallForm): { roles: string[]; filter: VariantFilter } => ({
-    roles: ["stall.canopy"],
+    roles: [STALL_ROLES.canopy],
     filter: { key: `form:${form}`, test: (v: ResolvedVariant) => v.variant === form },
   }),
 } as const;
@@ -45,7 +61,11 @@ export interface StallParts {
  * is applied HERE, not inside the probe: a filtered lookup that finds nothing in the theme's role would go on to the
  * generic theme's definition of it and hand a city stall a gable cloth the city palette never listed (it lists flat only).
  */
-function part(probe: RoleProbe, roles: readonly string[], filter: VariantFilter | undefined): RoleResolution | null {
+function part(
+  probe: RoleProbe,
+  roles: readonly string[],
+  filter: VariantFilter | undefined,
+): RoleResolution | null {
   const r = probe(roles);
   if (!r) return null;
   const variants = filter ? r.variants.filter(filter.test) : r.variants;
@@ -53,7 +73,10 @@ function part(probe: RoleProbe, roles: readonly string[], filter: VariantFilter 
 }
 
 /** The parts of a stall of `form`, or the name of the first part the palette lacks. */
-export function stallParts(probe: RoleProbe, form: StallForm): StallParts | { missing: "base" | "counter" | "post" | "canopy" } {
+export function stallParts(
+  probe: RoleProbe,
+  form: StallForm,
+): StallParts | { missing: "base" | "counter" | "post" | "canopy" } {
   const base = part(probe, STALL_PART_SPECS.base.roles, STALL_PART_SPECS.base.filter);
   if (!base) return { missing: "base" };
   const counter = part(probe, STALL_PART_SPECS.counter.roles, STALL_PART_SPECS.counter.filter);

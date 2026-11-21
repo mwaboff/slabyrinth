@@ -23,7 +23,10 @@ import type {
 import type { ResolvedLevel, ResolvedLink, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
-import { entryLevelId } from "./validate";
+import { isPassage, isSecret } from "../gen/openingKinds";
+import { SIDE_STEP as DIRS } from "../gen/gridGeometry";
+import { sideEdgeIndex } from "./levelGrid";
+import { entryLevelId } from "../plan/links";
 
 // ───────────────────────────── options and walk modes ─────────────────────────────
 
@@ -57,12 +60,10 @@ export interface LevelCell {
   cell: number;
 }
 
-const NON_PASSABLE_OPENINGS = new Set(["window", "arrow_slit", "bars"]);
 const MAX_STEP_QUARTERS = 2; // a 0.5-tile step can be walked; more needs stairs
 const SEATS = new Set(["chair", "stool", "bench"]);
 const TABLES = new Set(["table", "round_table", "desk", "counter", "bar_counter"]);
 const WALL_HUGGERS = new Set(["bookshelf", "shelf", "wardrobe", "weapon_rack"]);
-const DIRS: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
 
 interface LevelData {
   l: ResolvedLevel;
@@ -272,16 +273,13 @@ export class WalkGraph {
     let kind: number;
     let ref: number;
     let height: number;
+    const e = sideEdgeIndex(d, lx, ly, side);
     if (side === "N" || side === "S") {
-      const ey = side === "N" ? ly : ly + 1;
-      const e = ey * w + lx;
       j = side === "N" ? (ly > 0 ? i - w : -1) : ly < h - 1 ? i + w : -1;
       kind = l.hEdges.kind[e] as number;
       ref = l.hEdges.ref[e] as number;
       height = l.hEdges.height[e] as number;
     } else {
-      const ex = side === "W" ? lx : lx + 1;
-      const e = ly * (w + 1) + ex;
       j = side === "W" ? (lx > 0 ? i - 1 : -1) : lx < w - 1 ? i + 1 : -1;
       kind = l.vEdges.kind[e] as number;
       ref = l.vEdges.ref[e] as number;
@@ -296,8 +294,8 @@ export class WalkGraph {
     if (kind === EDGE.OPENING) {
       const o = l.openings[ref];
       if (!o) return [j, true];
-      if (NON_PASSABLE_OPENINGS.has(o.kind)) return [j, false];
-      if (o.kind === "secret_door" && !m.secret) return [j, false];
+      if (!isPassage(o.kind)) return [j, false];
+      if (isSecret(o.kind) && !m.secret) return [j, false];
       if (m.ignoreFeatures !== true && d.blockedOpening.has(o.id)) return [j, false];
     }
     return [j, true];
@@ -410,13 +408,32 @@ export function walkReachability(
 
 // ───────────────────────────── the checks ─────────────────────────────
 
+/**
+ * The playability checks in issue order. Every check reads the context (`PlayCtx`: the walk graph, the plan, the one
+ * issue writer and the naming helpers); the floods and the ways into each area are computed once and passed on, and
+ * the blockers the reachability check names (`blamed`) are handed to the checks after it, which do not name them again.
+ */
 export function checkPlayability(
   plan: MapPlan,
   resolved: ResolvedPlan,
   options: PlayabilityOptions = {},
 ): PlanIssue[] {
-  const g = new WalkGraph(resolved, options);
+  const ctx = playCtx(plan, resolved, options);
   const want = (c: PlayabilityCheck): boolean => !options.checks || options.checks.includes(c);
+  const walks = structuralWalks(ctx);
+  const waysIn = countWaysIn(ctx);
+  const blamed = want("reachability") ? checkAreaReach(ctx, walks, waysIn) : new Set<string>();
+  if (want("openings")) checkOpeningUse(ctx, waysIn, blamed);
+  if (want("links")) checkLinkUse(ctx);
+  if (want("passages")) checkCorridorPlugs(ctx, blamed);
+  if (want("features")) checkFurnitureSense(ctx);
+  if (want("routes")) checkRouteEnds(ctx);
+  return ctx.out;
+}
+
+/** What every playability check reads: the walk graph, the plan, the issue list and its writer, naming helpers. */
+function playCtx(plan: MapPlan, resolved: ResolvedPlan, options: PlayabilityOptions) {
+  const g = new WalkGraph(resolved, options);
   const out: PlanIssue[] = [];
   const levelPath = (id: string): number => plan.levels.findIndex((l) => l.id === id);
   const issue = (
@@ -464,8 +481,13 @@ export function checkPlayability(
     if (d.lava > 0 && l.cells.material[i] === d.lava) return { what: "lava" };
     return null;
   };
+  return { g, plan, out, issue, levelPath, xy, at, areaName, blockerAt };
+}
 
-  // structural reachability, computed once
+type PlayCtx = ReturnType<typeof playCtx>;
+
+/** Structural reachability from the plan's starts, computed once: with and without secret doors, loose, and up trapdoors. */
+function structuralWalks({ g, plan }: PlayCtx) {
   const starts = g.starts(plan);
   // deep water is swimmable for reachability (a door opening straight into it is still flagged above)
   const reached = g.flood(starts, { secret: true, ignoreWater: true });
@@ -480,12 +502,17 @@ export function checkPlayability(
   const reachedTrapUp = g.hasTrapdoors
     ? g.flood(starts, { secret: true, ignoreWater: true, trapdoorUp: true })
     : null;
+  return { starts, reached, reachedNoSecret, reachedLoose, reachedTrapUp };
+}
 
-  /** Passable (non-secret) openings and links touching each area, for "only way in" decisions. */
+type StructuralWalks = ReturnType<typeof structuralWalks>;
+
+/** Passable (non-secret) openings and links touching each area ("level|area"), for "only way in" decisions. */
+function countWaysIn({ g }: PlayCtx): ReadonlyMap<string, number> {
   const waysIn = new Map<string, number>();
   for (const d of g.levels) {
     for (const o of d.l.openings) {
-      if (NON_PASSABLE_OPENINGS.has(o.kind) || o.kind === "secret_door") continue;
+      if (!isPassage(o.kind) || isSecret(o.kind)) continue;
       for (const s of o.sides)
         if (s !== null) waysIn.set(`${d.l.id}|${s}`, (waysIn.get(`${d.l.id}|${s}`) ?? 0) + 1);
     }
@@ -505,498 +532,510 @@ export function checkPlayability(
       }
     }
   }
+  return waysIn;
+}
 
-  /** Blockers already named by an unreachable issue: not reported again under another code. */
+/**
+ * (b) Reachability on foot, sealed rooms, secret-only rooms. Returns the blockers it named (an unreachable issue): the
+ * later checks do not report them again under another code.
+ */
+function checkAreaReach(
+  ctx: PlayCtx,
+  { starts, reached, reachedNoSecret, reachedLoose, reachedTrapUp }: StructuralWalks,
+  waysIn: ReadonlyMap<string, number>,
+): ReadonlySet<string> {
+  const { g, plan, issue, levelPath, at, areaName } = ctx;
   const blamed = new Set<string>();
-
-  // ── (b) reachability on foot, sealed rooms, secret-only rooms ──
-  if (want("reachability")) {
-    for (const d of g.levels) {
-      const r = reached[d.li] as Uint8Array;
-      const r0 = reachedNoSecret[d.li] as Uint8Array;
-      const rl = reachedLoose[d.li] as Uint8Array;
-      const isStart = new Set(
-        starts.filter(([li]) => li === d.li).map(([, i]) => d.l.cells.area[i] as number),
-      );
-      d.l.areas.forEach((a, ai) => {
-        if (a.kind === "zone" || a.cellCount === 0) return;
-        const cells: number[] = [];
-        d.l.cells.area.forEach((v, i) => {
-          if (
-            v === ai + 1 &&
-            d.l.cells.state[i] === CELL.OPEN &&
-            ((d.l.cells.flags[i] as number) & CELL_FLAG.NO_FLOOR) === 0
-          )
-            cells.push(i);
-        });
-        if (cells.length === 0 || isStart.has(ai + 1)) return;
-        const name = areaName(d, a.id);
-        const intended = a.key !== undefined;
-        const path = `/levels/${levelPath(d.l.id)}/areas/${plan.levels[levelPath(d.l.id)]?.areas.findIndex((p) => p.id === a.id) ?? -1}`;
-        // sealed: no passable edge out (secret doors count, furniture ignored) and no level link touching it
-        const inArea = new Set(cells);
-        let sealed = (waysIn.get(`${d.l.id}|${a.id}`) ?? 0) === 0;
-        if (sealed) {
-          outer: for (const i of cells) {
-            for (const s of ["N", "E", "S", "W"] as const) {
-              const [j, pass] = g.step(d, i, s, { secret: true, ignoreFeatures: true });
-              if (pass && j >= 0 && !inArea.has(j) && d.l.cells.state[j] === CELL.OPEN) {
-                sealed = false;
-                break outer;
-              }
+  for (const d of g.levels) {
+    const r = reached[d.li] as Uint8Array;
+    const r0 = reachedNoSecret[d.li] as Uint8Array;
+    const rl = reachedLoose[d.li] as Uint8Array;
+    const isStart = new Set(starts.filter(([li]) => li === d.li).map(([, i]) => d.l.cells.area[i] as number));
+    d.l.areas.forEach((a, ai) => {
+      if (a.kind === "zone" || a.cellCount === 0) return;
+      const cells: number[] = [];
+      d.l.cells.area.forEach((v, i) => {
+        if (
+          v === ai + 1 &&
+          d.l.cells.state[i] === CELL.OPEN &&
+          ((d.l.cells.flags[i] as number) & CELL_FLAG.NO_FLOOR) === 0
+        )
+          cells.push(i);
+      });
+      if (cells.length === 0 || isStart.has(ai + 1)) return;
+      const name = areaName(d, a.id);
+      const intended = a.key !== undefined;
+      const path = `/levels/${levelPath(d.l.id)}/areas/${plan.levels[levelPath(d.l.id)]?.areas.findIndex((p) => p.id === a.id) ?? -1}`;
+      // sealed: no passable edge out (secret doors count, furniture ignored) and no level link touching it
+      const inArea = new Set(cells);
+      let sealed = (waysIn.get(`${d.l.id}|${a.id}`) ?? 0) === 0;
+      if (sealed) {
+        outer: for (const i of cells) {
+          for (const s of ["N", "E", "S", "W"] as const) {
+            const [j, pass] = g.step(d, i, s, { secret: true, ignoreFeatures: true });
+            if (pass && j >= 0 && !inArea.has(j) && d.l.cells.state[j] === CELL.OPEN) {
+              sealed = false;
+              break outer;
             }
           }
         }
-        if (sealed) {
+      }
+      if (sealed) {
+        issue(
+          d,
+          intended ? "error" : "warning",
+          "area_sealed",
+          `${cap(name)} has no door, opening or stairs: it is walled in.`,
+          `add an opening between ["${a.id}", "<neighbouring area or @outside>"] or a level link into it`,
+          a.id,
+          a.anchor,
+          path,
+        );
+        return;
+      }
+      if (cells.some((i) => r[i] === 1)) {
+        const behindSecret = d.l.openings.some((o) => isSecret(o.kind) && o.sides.includes(a.id));
+        if (behindSecret && !cells.some((i) => r0[i] === 1))
           issue(
             d,
-            intended ? "error" : "warning",
-            "area_sealed",
-            `${cap(name)} has no door, opening or stairs: it is walled in.`,
-            `add an opening between ["${a.id}", "<neighbouring area or @outside>"] or a level link into it`,
+            "info",
+            "reachable_secret_only",
+            `${cap(name)} can only be reached through a secret door.`,
+            `fine if intended; otherwise add a normal door into "${a.id}"`,
             a.id,
             a.anchor,
             path,
           );
-          return;
-        }
-        if (cells.some((i) => r[i] === 1)) {
-          const behindSecret = d.l.openings.some((o) => o.kind === "secret_door" && o.sides.includes(a.id));
-          if (behindSecret && !cells.some((i) => r0[i] === 1))
-            issue(
-              d,
-              "info",
-              "reachable_secret_only",
-              `${cap(name)} can only be reached through a secret door.`,
-              `fine if intended; otherwise add a normal door into "${a.id}"`,
-              a.id,
-              a.anchor,
-              path,
-            );
-          return;
-        }
-        // only reachable by climbing up through a trapdoor: warning, the fix is a ladder
-        const viaTrap = reachedTrapUp?.[d.li];
-        if (viaTrap && cells.some((i) => viaTrap[i] === 1)) {
-          const trap = g.resolved.links.find((l) => l.kind === "trapdoor" && l.toLevel === d.l.id);
+        return;
+      }
+      // only reachable by climbing up through a trapdoor: warning, the fix is a ladder
+      const viaTrap = reachedTrapUp?.[d.li];
+      if (viaTrap && cells.some((i) => viaTrap[i] === 1)) {
+        const trap = g.resolved.links.find((l) => l.kind === "trapdoor" && l.toLevel === d.l.id);
+        issue(
+          d,
+          "warning",
+          "unreachable",
+          `${cap(name)} can only be reached by climbing up through the trapdoor${trap ? ` "${trap.id}"` : ""}, and there is nothing to climb.`,
+          "add a ladder link beside the trapdoor",
+          a.id,
+          trap ? trap.arrival : a.anchor,
+          path,
+        );
+        return;
+      }
+      // not reachable on foot: find the single blocker if the layout itself connects
+      let blocker: { what: string; id?: string; cell?: Vec2 } | null = null;
+      if (cells.some((i) => rl[i] === 1)) blocker = findBlocker(g, d, cells, r);
+      const severity: Severity = intended ? "error" : "warning";
+      // A blocker standing in front of the area's only door is reported once, as that door's
+      // opening_blocked (error), whatever the keys: suppress the unreachable issue for it.
+      if (blocker?.cell && (waysIn.get(`${d.l.id}|${a.id}`) ?? 0) <= 1) {
+        const bi = g.idx(d, blocker.cell[0], blocker.cell[1]);
+        const atDoor = d.l.openings.some(
+          (o) => isPassage(o.kind) && openingSideCells(g, d, o).some((side) => side.includes(bi)),
+        );
+        if (atDoor) return;
+      }
+      if (blocker) {
+        if (blocker.id !== undefined) blamed.add(blocker.id);
+        issue(
+          d,
+          severity,
+          "unreachable",
+          `${cap(name)} can't be reached on foot: ${blocker.what} blocks the only way in${blocker.cell ? ` at ${at(blocker.cell)}` : ""}.`,
+          blocker.id !== undefined ? `move or remove "${blocker.id}"` : "clear a path into the area",
+          a.id,
+          blocker.cell ?? a.anchor,
+          path,
+        );
+      } else {
+        const nb = neighbourArea(g, d, cells, r);
+        issue(
+          d,
+          severity,
+          "unreachable",
+          `${cap(name)} can't be reached from the entrance.`,
+          nb !== null
+            ? `add an opening between ["${a.id}", "${nb}"]`
+            : "connect it with a corridor (route), an opening, or a level link",
+          a.id,
+          a.anchor,
+          path,
+        );
+      }
+    });
+  }
+  return blamed;
+}
+
+/** (a) Door approaches and (f) doors that lead nowhere. */
+function checkOpeningUse(
+  ctx: PlayCtx,
+  waysIn: ReadonlyMap<string, number>,
+  blamed: ReadonlySet<string>,
+): void {
+  const { g, plan, issue, levelPath, xy, at, areaName, blockerAt } = ctx;
+  for (const d of g.levels) {
+    for (const o of d.l.openings) {
+      if (!isPassage(o.kind)) continue;
+      const planOpening = plan.levels[levelPath(d.l.id)]?.openings.find((p) => p.id === o.id);
+      const markedExit =
+        planOpening?.between?.includes("@outside") === true || planOpening?.label !== undefined;
+      const sides = openingSideCells(g, d, o);
+      const nowhere = sides.map((cells) => cells.every((i) => i < 0 || d.l.cells.state[i] !== CELL.OPEN));
+      const kindName = o.kind.replace("_", " ");
+      const where = `edge ${o.orientation} ${at(o.start)}`;
+      if (nowhere[0] === true || nowhere[1] === true) {
+        if (nowhere[0] === true && nowhere[1] === true) {
           issue(
             d,
             "warning",
-            "unreachable",
-            `${cap(name)} can only be reached by climbing up through the trapdoor${trap ? ` "${trap.id}"` : ""}, and there is nothing to climb.`,
-            "add a ladder link beside the trapdoor",
-            a.id,
-            trap ? trap.arrival : a.anchor,
-            path,
-          );
-          return;
-        }
-        // not reachable on foot: find the single blocker if the layout itself connects
-        let blocker: { what: string; id?: string; cell?: Vec2 } | null = null;
-        if (cells.some((i) => rl[i] === 1)) blocker = findBlocker(g, d, cells, r);
-        const severity: Severity = intended ? "error" : "warning";
-        // A blocker standing in front of the area's only door is reported once, as that door's
-        // opening_blocked (error), whatever the keys: suppress the unreachable issue for it.
-        if (blocker?.cell && (waysIn.get(`${d.l.id}|${a.id}`) ?? 0) <= 1) {
-          const bi = g.idx(d, blocker.cell[0], blocker.cell[1]);
-          const atDoor = d.l.openings.some(
-            (o) =>
-              !NON_PASSABLE_OPENINGS.has(o.kind) &&
-              openingSideCells(g, d, o).some((side) => side.includes(bi)),
-          );
-          if (atDoor) return;
-        }
-        if (blocker) {
-          if (blocker.id !== undefined) blamed.add(blocker.id);
-          issue(
-            d,
-            severity,
-            "unreachable",
-            `${cap(name)} can't be reached on foot: ${blocker.what} blocks the only way in${blocker.cell ? ` at ${at(blocker.cell)}` : ""}.`,
-            blocker.id !== undefined ? `move or remove "${blocker.id}"` : "clear a path into the area",
-            a.id,
-            blocker.cell ?? a.anchor,
-            path,
-          );
-        } else {
-          const nb = neighbourArea(g, d, cells, r);
-          issue(
-            d,
-            severity,
-            "unreachable",
-            `${cap(name)} can't be reached from the entrance.`,
-            nb !== null
-              ? `add an opening between ["${a.id}", "${nb}"]`
-              : "connect it with a corridor (route), an opening, or a level link",
-            a.id,
-            a.anchor,
-            path,
-          );
-        }
-      });
-    }
-  }
-
-  // ── (a) door approaches and (f) doors that lead nowhere ──
-  if (want("openings")) {
-    for (const d of g.levels) {
-      for (const o of d.l.openings) {
-        if (NON_PASSABLE_OPENINGS.has(o.kind)) continue;
-        const planOpening = plan.levels[levelPath(d.l.id)]?.openings.find((p) => p.id === o.id);
-        const markedExit =
-          planOpening?.between?.includes("@outside") === true || planOpening?.label !== undefined;
-        const sides = openingSideCells(g, d, o);
-        const nowhere = sides.map((cells) => cells.every((i) => i < 0 || d.l.cells.state[i] !== CELL.OPEN));
-        const kindName = o.kind.replace("_", " ");
-        const where = `edge ${o.orientation} ${at(o.start)}`;
-        if (nowhere[0] === true || nowhere[1] === true) {
-          if (nowhere[0] === true && nowhere[1] === true) {
-            issue(
-              d,
-              "warning",
-              "opening_dead_end",
-              `The ${kindName} "${o.id}" has no floor on either side.`,
-              `remove "${o.id}" or move it onto a wall between two areas`,
-              o.id,
-              o.start,
-            );
-            continue;
-          }
-          const side = nowhere[0] === true ? 0 : 1;
-          const cells = sides[side];
-          const first = cells.find((i) => i >= 0) ?? -1;
-          const into =
-            first < 0
-              ? "off the edge of the map"
-              : d.l.cells.state[first] === CELL.SOLID
-                ? "into solid rock"
-                : "into empty air";
-          const rock = first >= 0 && d.l.cells.state[first] === CELL.SOLID;
-          if (!markedExit && !o.id.includes("~"))
-            issue(
-              d,
-              rock ? "warning" : "info",
-              "opening_dead_end",
-              `The ${kindName} "${o.id}" (${where}) opens ${into}.`,
-              rock
-                ? `move "${o.id}" onto a wall shared with another area (use between: [a, b]) or add a corridor beyond it`
-                : `if "${o.id}" is a way out of the map, set between: ["${o.sides[0] ?? o.sides[1] ?? "area"}", "@outside"]`,
-              o.id,
-              o.start,
-            );
-        }
-        for (const side of [0, 1] as const) {
-          if (nowhere[side] === true) continue;
-          const cells = sides[side];
-          const other = sides[side === 0 ? 1 : 0];
-          const blocked = d.blockedOpening.get(o.id)?.sides.has(side) === true;
-          const okCell = cells.findIndex((i, k) => {
-            if (blocked || i < 0) return false;
-            if (!g.walkable(d, i, { secret: true })) return false;
-            if (d.linkLower.has(i) || d.linkUpper.has(i)) return false;
-            const j = other[k] ?? -1;
-            return !(
-              j >= 0 &&
-              Math.abs((d.l.cells.height[i] as number) - (d.l.cells.height[j] as number)) > MAX_STEP_QUARTERS
-            );
-          });
-          if (okCell >= 0) continue;
-          const i0 = cells[0] ?? -1;
-          const j0 = other[0] ?? -1;
-          let reason = blocked
-            ? { what: d.blockedOpening.get(o.id)?.reason ?? "built geometry" }
-            : blockerAt(d, i0);
-          if (reason === null && i0 >= 0 && j0 >= 0) {
-            const step = Math.abs((d.l.cells.height[i0] as number) - (d.l.cells.height[j0] as number)) / 4;
-            reason = { what: `a ${step}-tile height step` };
-          }
-          if (reason?.id !== undefined && blamed.has(reason.id)) continue;
-          const what = reason?.what ?? "an obstacle";
-          const areaId = o.sides[side];
-          const only = o.sides.some((s) => s !== null && (waysIn.get(`${d.l.id}|${s}`) ?? 0) <= 1);
-          const secret = o.kind === "secret_door";
-          issue(
-            d,
-            secret ? "info" : only && what !== "deep water" ? "error" : "warning",
-            "opening_blocked",
-            `The ${kindName} "${o.id}" cannot be used from ${areaName(d, areaId)}: ${what} stands right in front of it at ${i0 >= 0 ? at(xy(d, i0)) : "the map edge"}.`,
-            o.id.includes("~")
-              ? `the corridor "${o.id.split("~")[0] ?? ""}" ends here; change its bend ("hv"/"vh") or its endpoint`
-              : reason?.id !== undefined
-                ? `move "${reason.id}" away from ${at(i0 >= 0 ? xy(d, i0) : o.start)} or move "${o.id}" along the wall`
-                : `move "${o.id}" along the wall to a spot with open floor on both sides`,
+            "opening_dead_end",
+            `The ${kindName} "${o.id}" has no floor on either side.`,
+            `remove "${o.id}" or move it onto a wall between two areas`,
             o.id,
-            i0 >= 0 ? xy(d, i0) : o.start,
+            o.start,
           );
+          continue;
         }
+        const side = nowhere[0] === true ? 0 : 1;
+        const cells = sides[side];
+        const first = cells.find((i) => i >= 0) ?? -1;
+        const into =
+          first < 0
+            ? "off the edge of the map"
+            : d.l.cells.state[first] === CELL.SOLID
+              ? "into solid rock"
+              : "into empty air";
+        const rock = first >= 0 && d.l.cells.state[first] === CELL.SOLID;
+        if (!markedExit && !o.id.includes("~"))
+          issue(
+            d,
+            rock ? "warning" : "info",
+            "opening_dead_end",
+            `The ${kindName} "${o.id}" (${where}) opens ${into}.`,
+            rock
+              ? `move "${o.id}" onto a wall shared with another area (use between: [a, b]) or add a corridor beyond it`
+              : `if "${o.id}" is a way out of the map, set between: ["${o.sides[0] ?? o.sides[1] ?? "area"}", "@outside"]`,
+            o.id,
+            o.start,
+          );
+      }
+      for (const side of [0, 1] as const) {
+        if (nowhere[side] === true) continue;
+        const cells = sides[side];
+        const other = sides[side === 0 ? 1 : 0];
+        const blocked = d.blockedOpening.get(o.id)?.sides.has(side) === true;
+        const okCell = cells.findIndex((i, k) => {
+          if (blocked || i < 0) return false;
+          if (!g.walkable(d, i, { secret: true })) return false;
+          if (d.linkLower.has(i) || d.linkUpper.has(i)) return false;
+          const j = other[k] ?? -1;
+          return !(
+            j >= 0 &&
+            Math.abs((d.l.cells.height[i] as number) - (d.l.cells.height[j] as number)) > MAX_STEP_QUARTERS
+          );
+        });
+        if (okCell >= 0) continue;
+        const i0 = cells[0] ?? -1;
+        const j0 = other[0] ?? -1;
+        let reason = blocked
+          ? { what: d.blockedOpening.get(o.id)?.reason ?? "built geometry" }
+          : blockerAt(d, i0);
+        if (reason === null && i0 >= 0 && j0 >= 0) {
+          const step = Math.abs((d.l.cells.height[i0] as number) - (d.l.cells.height[j0] as number)) / 4;
+          reason = { what: `a ${step}-tile height step` };
+        }
+        if (reason?.id !== undefined && blamed.has(reason.id)) continue;
+        const what = reason?.what ?? "an obstacle";
+        const areaId = o.sides[side];
+        const only = o.sides.some((s) => s !== null && (waysIn.get(`${d.l.id}|${s}`) ?? 0) <= 1);
+        const secret = isSecret(o.kind);
+        issue(
+          d,
+          secret ? "info" : only && what !== "deep water" ? "error" : "warning",
+          "opening_blocked",
+          `The ${kindName} "${o.id}" cannot be used from ${areaName(d, areaId)}: ${what} stands right in front of it at ${i0 >= 0 ? at(xy(d, i0)) : "the map edge"}.`,
+          o.id.includes("~")
+            ? `the corridor "${o.id.split("~")[0] ?? ""}" ends here; change its bend ("hv"/"vh") or its endpoint`
+            : reason?.id !== undefined
+              ? `move "${reason.id}" away from ${at(i0 >= 0 ? xy(d, i0) : o.start)} or move "${o.id}" along the wall`
+              : `move "${o.id}" along the wall to a spot with open floor on both sides`,
+          o.id,
+          i0 >= 0 ? xy(d, i0) : o.start,
+        );
       }
     }
   }
+}
 
-  // ── (c) level links: approach, landing, run ──
-  if (want("links")) {
-    g.resolved.links.forEach((link, k) => {
-      const lo = g.byId.get(link.fromLevel);
-      const up = g.byId.get(link.toLevel);
-      if (!lo || !up || link.kind === "pit_drop") return;
-      const path = `/links/${k}`;
-      const kind = link.kind.replace("_", " ");
-      const free = (d: LevelData, c: Vec2): boolean => {
-        const i = g.idx(d, c[0], c[1]);
-        return g.walkable(d, i, { secret: true }) && !d.linkLower.has(i) && !d.linkUpper.has(i);
-      };
-      const describe = (d: LevelData, c: Vec2): { what: string; id?: string } =>
-        blockerAt(d, g.idx(d, c[0], c[1])) ?? { what: "an obstacle" };
-      if (link.kind === "stairs" || link.kind === "ramp") {
-        // run must not cross a wall or doorway
-        const [dx, dy] = DIRS[link.dir];
-        for (const c of link.lowerCells) {
-          const i = g.idx(lo, c[0], c[1]);
-          const nxt: Vec2 = [c[0] + dx, c[1] + dy];
-          if (i < 0 || !link.lowerCells.some((p) => p[0] === nxt[0] && p[1] === nxt[1])) continue;
-          const [, pass] = g.step(lo, i, link.dir, { secret: true, ignoreFeatures: true });
-          if (!pass) {
-            issue(
-              lo,
-              "error",
-              "link_run_blocked",
-              `The ${kind} "${link.id}" run crosses a wall or doorway between ${at(c)} and ${at(nxt)}.`,
-              `move from.at or change dir so the whole run lies inside one room`,
-              link.id,
-              c,
-              path,
-            );
-            break;
-          }
-        }
-        const bottoms = WalkGraph.runBottom(link);
-        const usableBottom = bottoms.some(({ bottom, before }) => {
-          const i = g.idx(lo, bottom[0], bottom[1]);
-          const [j, pass] = g.step(lo, i, opposite(link.dir), { secret: true });
-          return pass && j === g.idx(lo, before[0], before[1]) && free(lo, before);
-        });
-        if (!usableBottom && bottoms[0]) {
-          const walled = !g.edgeOpen(lo, bottoms[0].bottom, opposite(link.dir));
-          const b = walled ? { what: "a wall" } : describe(lo, bottoms[0].before);
+/** (c) Level links: approach, landing, run. */
+function checkLinkUse(ctx: PlayCtx): void {
+  const { g, issue, at, blockerAt } = ctx;
+  g.resolved.links.forEach((link, k) => {
+    const lo = g.byId.get(link.fromLevel);
+    const up = g.byId.get(link.toLevel);
+    if (!lo || !up || link.kind === "pit_drop") return;
+    const path = `/links/${k}`;
+    const kind = link.kind.replace("_", " ");
+    const free = (d: LevelData, c: Vec2): boolean => {
+      const i = g.idx(d, c[0], c[1]);
+      return g.walkable(d, i, { secret: true }) && !d.linkLower.has(i) && !d.linkUpper.has(i);
+    };
+    const describe = (d: LevelData, c: Vec2): { what: string; id?: string } =>
+      blockerAt(d, g.idx(d, c[0], c[1])) ?? { what: "an obstacle" };
+    if (link.kind === "stairs" || link.kind === "ramp") {
+      // run must not cross a wall or doorway
+      const [dx, dy] = DIRS[link.dir];
+      for (const c of link.lowerCells) {
+        const i = g.idx(lo, c[0], c[1]);
+        const nxt: Vec2 = [c[0] + dx, c[1] + dy];
+        if (i < 0 || !link.lowerCells.some((p) => p[0] === nxt[0] && p[1] === nxt[1])) continue;
+        const [, pass] = g.step(lo, i, link.dir, { secret: true, ignoreFeatures: true });
+        if (!pass) {
           issue(
             lo,
             "error",
-            "link_approach_blocked",
-            `The ${kind} "${link.id}" can't be stepped onto: ${b.what} is at its foot (${at(bottoms[0].before)}).`,
-            b.id !== undefined
-              ? `move "${b.id}" off ${at(bottoms[0].before)}`
-              : `turn the stairs (dir) or move from.at so the cell before ${at(link.lowerCells[0] ?? bottoms[0].bottom)} is open floor`,
+            "link_run_blocked",
+            `The ${kind} "${link.id}" run crosses a wall or doorway between ${at(c)} and ${at(nxt)}.`,
+            `move from.at or change dir so the whole run lies inside one room`,
             link.id,
-            bottoms[0].before,
+            c,
             path,
           );
+          break;
         }
-        const tops = WalkGraph.runTop(link);
-        const usableTop = tops.some(({ top, beyond }) => free(up, beyond) && g.edgeOpen(up, top, link.dir));
-        const topWalled = tops.length > 0 && tops.every(({ top }) => !g.edgeOpen(up, top, link.dir));
-        const firstTop = tops[0];
-        if (!usableTop && firstTop) {
-          const i = g.idx(up, firstTop.beyond[0], firstTop.beyond[1]);
-          const openFloor =
-            i >= 0 &&
-            up.l.cells.state[i] === CELL.OPEN &&
-            ((up.l.cells.flags[i] as number) & CELL_FLAG.NO_FLOOR) === 0;
-          if (openFloor && topWalled) {
-            issue(
-              up,
-              "error",
-              "link_approach_blocked",
-              `The ${kind} "${link.id}" arrives at ${at(firstTop.beyond)} on ${up.l.name}, but a wall stands between the stairwell and that landing.`,
-              `extend the upper area over the stairwell ${at(firstTop.top)} so no wall separates it from ${at(firstTop.beyond)}, or turn the stairs (dir)`,
-              link.id,
-              firstTop.beyond,
-              path,
-            );
-          } else if (openFloor) {
-            const b = describe(up, firstTop.beyond);
-            issue(
-              up,
-              "error",
-              "link_approach_blocked",
-              `The ${kind} "${link.id}" arrives at ${at(firstTop.beyond)} on ${up.l.name}, but ${b.what} stands on the landing.`,
-              b.id !== undefined
-                ? `move "${b.id}" off the landing ${at(firstTop.beyond)}`
-                : `clear ${at(firstTop.beyond)}`,
-              link.id,
-              firstTop.beyond,
-              path,
-            );
-          }
-        }
-      } else {
-        const lowRing = WalkGraph.ring(link.lowerCells);
-        const upRing = WalkGraph.ring(link.kind === "trapdoor" ? [] : link.upperCells);
-        const lowOk = lowRing.some((c) => free(lo, c));
-        const upOk = link.kind === "trapdoor" ? true : upRing.some((c) => free(up, c));
-        if (!lowOk)
-          issue(
-            lo,
-            "error",
-            "link_approach_blocked",
-            `The ${kind} "${link.id}" at ${at(link.lowerCells[0] ?? [0, 0])} has no free floor beside it on ${lo.l.name}.`,
-            `clear a cell next to ${at(link.lowerCells[0] ?? [0, 0])}`,
-            link.id,
-            link.lowerCells[0],
-            path,
-          );
-        if (!upOk)
+      }
+      const bottoms = WalkGraph.runBottom(link);
+      const usableBottom = bottoms.some(({ bottom, before }) => {
+        const i = g.idx(lo, bottom[0], bottom[1]);
+        const [j, pass] = g.step(lo, i, opposite(link.dir), { secret: true });
+        return pass && j === g.idx(lo, before[0], before[1]) && free(lo, before);
+      });
+      if (!usableBottom && bottoms[0]) {
+        const walled = !g.edgeOpen(lo, bottoms[0].bottom, opposite(link.dir));
+        const b = walled ? { what: "a wall" } : describe(lo, bottoms[0].before);
+        issue(
+          lo,
+          "error",
+          "link_approach_blocked",
+          `The ${kind} "${link.id}" can't be stepped onto: ${b.what} is at its foot (${at(bottoms[0].before)}).`,
+          b.id !== undefined
+            ? `move "${b.id}" off ${at(bottoms[0].before)}`
+            : `turn the stairs (dir) or move from.at so the cell before ${at(link.lowerCells[0] ?? bottoms[0].bottom)} is open floor`,
+          link.id,
+          bottoms[0].before,
+          path,
+        );
+      }
+      const tops = WalkGraph.runTop(link);
+      const usableTop = tops.some(({ top, beyond }) => free(up, beyond) && g.edgeOpen(up, top, link.dir));
+      const topWalled = tops.length > 0 && tops.every(({ top }) => !g.edgeOpen(up, top, link.dir));
+      const firstTop = tops[0];
+      if (!usableTop && firstTop) {
+        const i = g.idx(up, firstTop.beyond[0], firstTop.beyond[1]);
+        const openFloor =
+          i >= 0 &&
+          up.l.cells.state[i] === CELL.OPEN &&
+          ((up.l.cells.flags[i] as number) & CELL_FLAG.NO_FLOOR) === 0;
+        if (openFloor && topWalled) {
           issue(
             up,
             "error",
             "link_approach_blocked",
-            `The ${kind} "${link.id}" comes up at ${at(link.arrival)} on ${up.l.name} with no free floor beside it.`,
-            `clear a cell next to ${at(link.arrival)} on ${up.l.id}`,
+            `The ${kind} "${link.id}" arrives at ${at(firstTop.beyond)} on ${up.l.name}, but a wall stands between the stairwell and that landing.`,
+            `extend the upper area over the stairwell ${at(firstTop.top)} so no wall separates it from ${at(firstTop.beyond)}, or turn the stairs (dir)`,
             link.id,
-            link.arrival,
+            firstTop.beyond,
             path,
           );
+        } else if (openFloor) {
+          const b = describe(up, firstTop.beyond);
+          issue(
+            up,
+            "error",
+            "link_approach_blocked",
+            `The ${kind} "${link.id}" arrives at ${at(firstTop.beyond)} on ${up.l.name}, but ${b.what} stands on the landing.`,
+            b.id !== undefined
+              ? `move "${b.id}" off the landing ${at(firstTop.beyond)}`
+              : `clear ${at(firstTop.beyond)}`,
+            link.id,
+            firstTop.beyond,
+            path,
+          );
+        }
       }
+    } else {
+      const lowRing = WalkGraph.ring(link.lowerCells);
+      const upRing = WalkGraph.ring(link.kind === "trapdoor" ? [] : link.upperCells);
+      const lowOk = lowRing.some((c) => free(lo, c));
+      const upOk = link.kind === "trapdoor" ? true : upRing.some((c) => free(up, c));
+      if (!lowOk)
+        issue(
+          lo,
+          "error",
+          "link_approach_blocked",
+          `The ${kind} "${link.id}" at ${at(link.lowerCells[0] ?? [0, 0])} has no free floor beside it on ${lo.l.name}.`,
+          `clear a cell next to ${at(link.lowerCells[0] ?? [0, 0])}`,
+          link.id,
+          link.lowerCells[0],
+          path,
+        );
+      if (!upOk)
+        issue(
+          up,
+          "error",
+          "link_approach_blocked",
+          `The ${kind} "${link.id}" comes up at ${at(link.arrival)} on ${up.l.name} with no free floor beside it.`,
+          `clear a cell next to ${at(link.arrival)} on ${up.l.id}`,
+          link.id,
+          link.arrival,
+          path,
+        );
+    }
+  });
+}
+
+/** (d) Corridors plugged by furniture. */
+function checkCorridorPlugs(ctx: PlayCtx, blamed: ReadonlySet<string>): void {
+  const { g, issue, xy, at, blockerAt } = ctx;
+  for (const d of g.levels) {
+    d.l.areas.forEach((a, ai) => {
+      if (a.kind !== "corridor" || a.cellCount === 0) return;
+      const cells: number[] = [];
+      d.l.cells.area.forEach((v, i) => {
+        if (v === ai + 1 && g.walkable(d, i, { secret: true, ignoreFeatures: true })) cells.push(i);
+      });
+      const plugs = cells.filter((i) => (d.featAt[i] as number) > 0 || d.extra[i] === 1);
+      if (plugs.length === 0) return;
+      const before = components(g, d, cells);
+      const after = components(
+        g,
+        d,
+        cells.filter((i) => !plugs.includes(i)),
+      );
+      if (after <= before) return;
+      const p = plugs[0] as number;
+      const b = blockerAt(d, p);
+      if (b?.id !== undefined && blamed.has(b.id)) return;
+      issue(
+        d,
+        "warning",
+        "passage_blocked",
+        `${cap(b?.what ?? "Something")} blocks corridor "${a.id}" at ${at(xy(d, p))}; nobody can get past.`,
+        b?.id !== undefined
+          ? `move "${b.id}" out of the corridor or widen the corridor to 2`
+          : "clear the corridor",
+        b?.id ?? a.id,
+        xy(d, p),
+      );
     });
   }
+}
 
-  // ── (d) corridors plugged by furniture ──
-  if (want("passages")) {
-    for (const d of g.levels) {
-      d.l.areas.forEach((a, ai) => {
-        if (a.kind !== "corridor" || a.cellCount === 0) return;
-        const cells: number[] = [];
-        d.l.cells.area.forEach((v, i) => {
-          if (v === ai + 1 && g.walkable(d, i, { secret: true, ignoreFeatures: true })) cells.push(i);
-        });
-        const plugs = cells.filter((i) => (d.featAt[i] as number) > 0 || d.extra[i] === 1);
-        if (plugs.length === 0) return;
-        const before = components(g, d, cells);
-        const after = components(
-          g,
-          d,
-          cells.filter((i) => !plugs.includes(i)),
-        );
-        if (after <= before) return;
-        const p = plugs[0] as number;
-        const b = blockerAt(d, p);
-        if (b?.id !== undefined && blamed.has(b.id)) return;
-        issue(
-          d,
-          "warning",
-          "passage_blocked",
-          `${cap(b?.what ?? "Something")} blocks corridor "${a.id}" at ${at(xy(d, p))}; nobody can get past.`,
-          b?.id !== undefined
-            ? `move "${b.id}" out of the corridor or widen the corridor to 2`
-            : "clear the corridor",
-          b?.id ?? a.id,
-          xy(d, p),
-        );
-      });
-    }
-  }
-
-  // ── (e) furniture sense: against walls, seats at tables ──
-  if (want("features")) {
-    for (const d of g.levels) {
-      const lvl = plan.levels[levelPath(d.l.id)];
-      for (const f of d.l.features) {
-        if (f.generatedBy !== undefined) continue;
-        const fi = lvl?.features.findIndex((p) => p.id === f.id) ?? -1;
-        const path = `/levels/${levelPath(d.l.id)}/features/${fi}`;
-        if (WALL_HUGGERS.has(f.type)) {
-          let touches = false;
-          for (let y = f.at[1]; y < f.at[1] + f.size[1] && !touches; y++)
-            for (let x = f.at[0]; x < f.at[0] + f.size[0] && !touches; x++) {
-              const i = g.idx(d, x, y);
-              if (i < 0) continue;
-              for (const s of ["N", "E", "S", "W"] as const) {
-                const [dx, dy] = DIRS[s];
-                const inside =
-                  x + dx >= f.at[0] &&
-                  x + dx < f.at[0] + f.size[0] &&
-                  y + dy >= f.at[1] &&
-                  y + dy < f.at[1] + f.size[1];
-                if (inside) continue;
-                const [j, pass] = g.step(d, i, s, { secret: true, ignoreFeatures: true });
-                if (j < 0 || d.l.cells.state[j] !== CELL.OPEN || (!pass && !isHeightStep(d, i, j)))
-                  touches = true;
-              }
+/** (e) Furniture sense: against walls, seats at tables. */
+function checkFurnitureSense(ctx: PlayCtx): void {
+  const { g, plan, issue, levelPath, at } = ctx;
+  for (const d of g.levels) {
+    const lvl = plan.levels[levelPath(d.l.id)];
+    for (const f of d.l.features) {
+      if (f.generatedBy !== undefined) continue;
+      const fi = lvl?.features.findIndex((p) => p.id === f.id) ?? -1;
+      const path = `/levels/${levelPath(d.l.id)}/features/${fi}`;
+      if (WALL_HUGGERS.has(f.type)) {
+        let touches = false;
+        for (let y = f.at[1]; y < f.at[1] + f.size[1] && !touches; y++)
+          for (let x = f.at[0]; x < f.at[0] + f.size[0] && !touches; x++) {
+            const i = g.idx(d, x, y);
+            if (i < 0) continue;
+            for (const s of ["N", "E", "S", "W"] as const) {
+              const [dx, dy] = DIRS[s];
+              const inside =
+                x + dx >= f.at[0] &&
+                x + dx < f.at[0] + f.size[0] &&
+                y + dy >= f.at[1] &&
+                y + dy < f.at[1] + f.size[1];
+              if (inside) continue;
+              const [j, pass] = g.step(d, i, s, { secret: true, ignoreFeatures: true });
+              if (j < 0 || d.l.cells.state[j] !== CELL.OPEN || (!pass && !isHeightStep(d, i, j)))
+                touches = true;
             }
-          if (!touches)
-            issue(
-              d,
-              "warning",
-              "feature_not_at_wall",
-              `The ${featureInfo(f.type).label.toLowerCase()} "${f.id}" stands in the middle of the floor at ${at(f.at)}, not against a wall.`,
-              `move "${f.id}" so one side touches a wall (rot turns its back to the wall)`,
-              f.id,
-              f.at,
-              path,
-            );
-        }
-        if (SEATS.has(f.type)) {
-          const near = (dist: number): string | null => {
-            for (const t of d.l.features) {
-              if (!TABLES.has(t.type)) continue;
-              const gapX = Math.max(
-                t.at[0] - (f.at[0] + f.size[0] - 1),
-                f.at[0] - (t.at[0] + t.size[0] - 1),
-                0,
-              );
-              const gapY = Math.max(
-                t.at[1] - (f.at[1] + f.size[1] - 1),
-                f.at[1] - (t.at[1] + t.size[1] - 1),
-                0,
-              );
-              if (Math.max(gapX, gapY) <= dist) return t.id;
-            }
-            return null;
-          };
-          const far = near(2);
-          if (far !== null && near(1) === null)
-            issue(
-              d,
-              "warning",
-              "seat_detached",
-              `The ${featureInfo(f.type).label.toLowerCase()} "${f.id}" at ${at(f.at)} is near table "${far}" but not next to it.`,
-              `move "${f.id}" to a cell touching "${far}"`,
-              f.id,
-              f.at,
-              path,
-            );
-        }
-      }
-    }
-  }
-
-  // ── (f) corridors (routes) that never reach their destination ──
-  if (want("routes")) {
-    for (const d of g.levels) {
-      const lvl = plan.levels[levelPath(d.l.id)];
-      for (const a of lvl?.areas ?? []) {
-        if (a.shape.type !== "route") continue;
-        const ra = d.l.areas.find((r) => r.id === a.id);
-        if (!ra || ra.cellCount === 0) continue;
-        for (const [suffix, end] of [
-          ["a", a.shape.from],
-          ["b", a.shape.to],
-        ] as const) {
-          if (typeof end !== "string") continue;
-          if (d.l.openings.some((o) => o.id === `${a.id}~${suffix}`)) continue;
+          }
+        if (!touches)
           issue(
             d,
             "warning",
-            "route_dead_end",
-            `Corridor "${a.id}" never opens into "${end}": it ends at a wall or another room.`,
-            `change the route's bend ("hv"/"vh") or add an opening between ["${a.id}", "${end}"]`,
-            a.id,
-            ra.anchor,
+            "feature_not_at_wall",
+            `The ${featureInfo(f.type).label.toLowerCase()} "${f.id}" stands in the middle of the floor at ${at(f.at)}, not against a wall.`,
+            `move "${f.id}" so one side touches a wall (rot turns its back to the wall)`,
+            f.id,
+            f.at,
+            path,
           );
-        }
+      }
+      if (SEATS.has(f.type)) {
+        const near = (dist: number): string | null => {
+          for (const t of d.l.features) {
+            if (!TABLES.has(t.type)) continue;
+            const gapX = Math.max(
+              t.at[0] - (f.at[0] + f.size[0] - 1),
+              f.at[0] - (t.at[0] + t.size[0] - 1),
+              0,
+            );
+            const gapY = Math.max(
+              t.at[1] - (f.at[1] + f.size[1] - 1),
+              f.at[1] - (t.at[1] + t.size[1] - 1),
+              0,
+            );
+            if (Math.max(gapX, gapY) <= dist) return t.id;
+          }
+          return null;
+        };
+        const far = near(2);
+        if (far !== null && near(1) === null)
+          issue(
+            d,
+            "warning",
+            "seat_detached",
+            `The ${featureInfo(f.type).label.toLowerCase()} "${f.id}" at ${at(f.at)} is near table "${far}" but not next to it.`,
+            `move "${f.id}" to a cell touching "${far}"`,
+            f.id,
+            f.at,
+            path,
+          );
       }
     }
   }
-  return out;
+}
+
+/** (f) Corridors (routes) that never reach their destination. */
+function checkRouteEnds(ctx: PlayCtx): void {
+  const { g, plan, issue, levelPath } = ctx;
+  for (const d of g.levels) {
+    const lvl = plan.levels[levelPath(d.l.id)];
+    for (const a of lvl?.areas ?? []) {
+      if (a.shape.type !== "route") continue;
+      const ra = d.l.areas.find((r) => r.id === a.id);
+      if (!ra || ra.cellCount === 0) continue;
+      for (const [suffix, end] of [
+        ["a", a.shape.from],
+        ["b", a.shape.to],
+      ] as const) {
+        if (typeof end !== "string") continue;
+        if (d.l.openings.some((o) => o.id === `${a.id}~${suffix}`)) continue;
+        issue(
+          d,
+          "warning",
+          "route_dead_end",
+          `Corridor "${a.id}" never opens into "${end}": it ends at a wall or another room.`,
+          `change the route's bend ("hv"/"vh") or add an opening between ["${a.id}", "${end}"]`,
+          a.id,
+          ra.anchor,
+        );
+      }
+    }
+  }
 }
 
 function cap(s: string): string {

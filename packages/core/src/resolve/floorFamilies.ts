@@ -1,5 +1,5 @@
 /**
- * Floor families of natural ground, generator 3 (terrain round, 2026-11-20). A floor role's weighted variants that carry
+ * Floor families of natural ground, generator 3. A floor role's weighted variants that carry
  * a `variant` name form one family each (untagged variants are the default family). Generator 2 lets a coarse noise
  * field give each cell one family, which in a cave read as a quilt of hard-edged patches (dark cobble, pale slab, peach
  * sand, white gravel). Generator 3 reads like real ground instead:
@@ -14,6 +14,7 @@
  * the review measures the floor as it is laid. Arithmetic and integer-lattice noise only.
  */
 import { CELL, CELL_FLAG, type ResolvedLevel } from "../contracts/resolved";
+import { featureInfo } from "../gen/catalog";
 import { ValueNoise } from "../gen/noise";
 import { h32 } from "../util/hash";
 
@@ -25,25 +26,11 @@ export interface FloorFamily {
   tone?: string;
 }
 
-/** Families that only ever grow where something causes them (leaf litter, worn earth). */
+/**
+ * Families that only ever grow where something causes them (leaf litter, worn earth): under trees, along paths, at the
+ * foot of a rise, round a camp. The causes are the features with `groundCause` (gen/catalog.ts).
+ */
 export const CAUSED_FAMILY_NAMES: ReadonlySet<string> = new Set(["lush"]);
-
-/** Features that cause litter and worn ground round them. */
-export const GROUND_CAUSE_FEATURES: ReadonlySet<string> = new Set([
-  "cluster_tall",
-  "tree",
-  "pine_tree",
-  "dead_tree",
-  "tree_large",
-  "campfire",
-  "fire_pit",
-  "tent",
-  "statue",
-  "monolith",
-  "altar",
-  "well",
-  "fountain",
-]);
 
 export interface FamilyVariant {
   variant?: string | undefined;
@@ -161,7 +148,7 @@ export function createFamilyPicker(
       }
     }
   for (const f of L.features) {
-    if (!GROUND_CAUSE_FEATURES.has(f.type)) continue;
+    if (featureInfo(f.type).groundCause === undefined) continue;
     for (let y = f.at[1]; y < f.at[1] + f.size[1]; y++)
       for (let x = f.at[0]; x < f.at[0] + f.size[0]; x++) stamp(x - bx, y - by);
   }

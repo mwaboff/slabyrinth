@@ -23,7 +23,14 @@ export type GoodsFamily = "produce" | "bread" | "dairy" | "fish" | "potions" | "
 export type RoomFamily = "table" | "study" | "store" | "tools" | "shelf";
 export type SmallFamily = GoodsFamily | RoomFamily;
 
-export const GOODS_FAMILIES: readonly GoodsFamily[] = ["produce", "bread", "dairy", "fish", "potions", "grain"];
+export const GOODS_FAMILIES: readonly GoodsFamily[] = [
+  "produce",
+  "bread",
+  "dairy",
+  "fish",
+  "potions",
+  "grain",
+];
 export const ROOM_FAMILIES: readonly RoomFamily[] = ["table", "study", "store", "tools", "shelf"];
 
 /** Palette roles that hold small things, in the order they are tried (generator 4). */

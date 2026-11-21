@@ -133,7 +133,7 @@ describe("canonical JSON", () => {
   });
 });
 
-describe("partial JSON: nesting limit (review finding)", () => {
+describe("partial JSON: nesting limit", () => {
   it("very deep input takes the bad-input path instead of overflowing the stack", () => {
     const deep = "[".repeat(100_000);
     const r = parsePartialJson(deep);

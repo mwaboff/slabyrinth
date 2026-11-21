@@ -4,15 +4,15 @@
  * cliffs, and a level with no band (the state the owner's terraced-hill-v2 was in) fails the checks that the
  * generator-3 band passes.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { edgeHidden, type RockShape } from "../../../src/gen/index";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import { reviewDesign, type CliffCoverage } from "../../../src/review/index";
+import { loadPlan } from "../../fixtures";
 
-const fixture = (): MapPlan =>
-  JSON.parse(readFileSync(new URL("../gen/fixtures/terraced-hill.json", import.meta.url), "utf8")) as MapPlan;
+const fixture = (): MapPlan => loadPlan("terraced-hill");
 
 /** The terraced hill with one-tile terraces (rises of 1 tile: the low class) and no routes across them. */
 const lowHill = (): MapPlan => {
@@ -25,7 +25,10 @@ const lowHill = (): MapPlan => {
 
 const run = (plan: MapPlan): { codes: string[]; cover: CliffCoverage | undefined } => {
   let cover: CliffCoverage | undefined;
-  const notes = reviewDesign(plan, resolvePlan(plan), { onCoverage: (c) => (cover = c), limit: 99 });
+  const notes = reviewDesign(plan, resolvePlan(plan, bundledPalettes()), bundledPalettes(), {
+    onCoverage: (c) => (cover = c),
+    limit: 99,
+  });
   return { codes: notes.map((n) => n.code), cover };
 };
 

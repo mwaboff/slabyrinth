@@ -13,6 +13,7 @@ import type {
   Box3,
   ChunkOptions,
   CompileDiagnostic,
+  CompileDiagnosticCode,
   ExportBundle,
   Placement,
   PlacementSet,
@@ -23,7 +24,11 @@ import type {
 import type { LevelId } from "../contracts/plan";
 import { sha256Hex } from "../slab/sha256";
 import { emptyBox, finiteBox, growBox } from "./geometry";
-import { placementBoxes, type RealizedSet } from "./realize";
+import { placedBox } from "./placed";
+import type { RealizedSet } from "./realize/output";
+
+/** The verify codes this stage emits (the water level note; VERIFY_CODES is the union of every check's list). */
+export const CHUNK_VERIFY_CODES = ["verify_water_level"] as const satisfies readonly CompileDiagnosticCode[];
 
 export const DEFAULT_FILL = 0.8;
 export const DEFAULT_SIDE_BY_SIDE_GAP = 10;
@@ -74,11 +79,38 @@ export function chunkAndEncode(
   const layout = opts.levelLayout ?? "stacked";
   const diagnostics: CompileDiagnostic[] = [...set.diagnostics];
   const markerAsset = opts.marker !== undefined ? opts.marker : (rs.marker ?? null);
-  const { levels, levelPlacement, perLevelRaw, gmin, gmax, overflow } = layoutBuild(set, opts, codec);
-  if (overflow) {
-    diagnostics.push(overflow);
-    return emptyBundle(set, rs, opts, diagnostics, levelPlacement);
+  const laid = layoutBuild(set, opts, codec);
+  if (laid.overflow) {
+    diagnostics.push(laid.overflow);
+    return emptyBundle(set, rs, opts, diagnostics, laid.levelPlacement);
   }
+  const packing = startPacking(codec, opts, budget, markerAsset, laid);
+  const { found, withMarkers } = packRegions(packing, alignment, diagnostics);
+  const chunks = buildChunks(packing, found, withMarkers);
+  return finishBundle({ set, rs, opts, laid, chunks, diagnostics, withMarkers, layout });
+}
+
+/** A region of the build that is encoded as one chunk: its levels, items, cell rectangle, assets and encoding. */
+interface Region {
+  levelId: LevelId;
+  levelIds: LevelId[];
+  items: Item[];
+  rect: { x: number; y: number; w: number; h: number };
+  enc: { slab: string; rawBytes: number; compressedBytes: number };
+  assets: SlabAsset[];
+}
+
+/**
+ * How the laid-out build is packed into chunks: the alignment markers and the shared offset, the slab assets of a set of
+ * items, the level order, and `split` (whole levels packed into as few groups as fit, each cut until it fits).
+ */
+function startPacking(
+  codec: SlabCodec,
+  opts: ChunkEncodeOptions,
+  budget: number,
+  markerAsset: { uuid: string } | null,
+  { levels, perLevelRaw, gmin, gmax }: ReturnType<typeof layoutBuild>,
+) {
   const grouping: "fewest" | "per-level" = opts.grouping ?? "fewest";
   // Markers sit diagonally outside the corner cells with MARKER_GAP_CELLS empty cells in between: the min marker at
   // ground level (min y), the max marker raised to the top of the build (max y).
@@ -116,15 +148,6 @@ export function chunkAndEncode(
       });
     return out;
   };
-
-  interface Region {
-    levelId: LevelId;
-    levelIds: LevelId[];
-    items: Item[];
-    rect: { x: number; y: number; w: number; h: number };
-    enc: { slab: string; rawBytes: number; compressedBytes: number };
-    assets: SlabAsset[];
-  }
 
   const levelOrder = new Map(levels.map((l, i) => [l.levelId, i]));
   const levelsOf = (items: Item[]): LevelId[] =>
@@ -224,7 +247,20 @@ export function chunkAndEncode(
     for (const g of groupsFor(withMarkers)) rec(g.levelId, g.items);
     return { regions, oversize, splits };
   };
+  return { codec, budget, markerAsset, levelOrder, split };
+}
 
+type Packing = ReturnType<typeof startPacking>;
+
+/**
+ * The regions, with alignment markers when the build needs them (always, or when it is more than one chunk); notes a
+ * missing marker asset, oversize cells and the split.
+ */
+function packRegions(
+  { budget, markerAsset, split }: Packing,
+  alignment: NonNullable<ChunkOptions["alignment"]>,
+  diagnostics: CompileDiagnostic[],
+): { found: readonly Region[]; withMarkers: boolean } {
   let pass = split(alignment === "always");
   let withMarkers = alignment === "always";
   if (alignment === "multi-chunk" && pass.regions.length > 1) {
@@ -251,9 +287,16 @@ export function chunkAndEncode(
       count: pass.splits,
     });
   }
+  return { found: pass.regions, withMarkers };
+}
 
-  // ── order: by first level, then row-major by region rect ──
-  const regions = [...pass.regions].sort(
+/** The chunks in paste order (by first level, then row-major by region rect), labelled and with their paste notes. */
+function buildChunks(
+  { codec, levelOrder }: Packing,
+  found: readonly Region[],
+  withMarkers: boolean,
+): SlabChunk[] {
+  const regions = [...found].sort(
     (a, b) =>
       (levelOrder.get(a.levelId) ?? 0) - (levelOrder.get(b.levelId) ?? 0) ||
       a.rect.y - b.rect.y ||
@@ -316,7 +359,25 @@ export function chunkAndEncode(
       });
     });
   }
+  return chunks;
+}
 
+/**
+ * The bundle: each level's paste order, the stats, the water level notes (diagnostics and instructions: TaleSpire water
+ * is a board-wide plane the slab cannot carry) and the paste instructions.
+ */
+function finishBundle(b: {
+  set: PlacementSet;
+  rs: Partial<RealizedSet> & PlacementSet;
+  opts: ChunkEncodeOptions;
+  laid: ReturnType<typeof layoutBuild>;
+  chunks: SlabChunk[];
+  diagnostics: CompileDiagnostic[];
+  withMarkers: boolean;
+  layout: NonNullable<ChunkOptions["levelLayout"]>;
+}): ExportBundle {
+  const { set, rs, opts, chunks, diagnostics, withMarkers, layout } = b;
+  const { levels, levelPlacement, gmin } = b.laid;
   // paste order per level = position of the first chunk that contains it
   for (const lp of levelPlacement) {
     const k = chunks.findIndex((c) => c.levelIds.includes(lp.levelId));
@@ -417,7 +478,7 @@ function layoutBuild(
     const elev = elevOf.get(l.levelId) ?? 0;
     if (layout === "side_by_side") {
       const b = emptyBox();
-      for (const p of l.placements) growBox(b, boxOf(p));
+      for (const p of l.placements) growBox(b, placedBox(set, p));
       const minX = Number.isFinite(b.min.x) ? Math.floor(b.min.x) : 0;
       const width = Number.isFinite(b.max.x) ? Math.ceil(b.max.x) - minX : 0;
       const dx = i === 0 ? 0 : cursorX - minX;
@@ -440,7 +501,7 @@ function layoutBuild(
     const s = shift.get(l.levelId) ?? { dx: 0, dy: 0 };
     const items: Item[] = l.placements.map((p0) => {
       const p = s.dx || s.dy ? { ...p0, x: p0.x + s.dx, y: p0.y + s.dy } : p0;
-      const b0 = boxOf(p0);
+      const b0 = placedBox(set, p0);
       const box = {
         min: { x: b0.min.x + s.dx, y: b0.min.y + s.dy, z: b0.min.z },
         max: { x: b0.max.x + s.dx, y: b0.max.y + s.dy, z: b0.max.z },
@@ -488,10 +549,6 @@ export function extentDiagnostic(
   opts: Pick<ChunkEncodeOptions, "levels" | "levelLayout" | "sideBySideGap"> = {},
 ): CompileDiagnostic | null {
   return layoutBuild(set, opts, codec).overflow;
-}
-
-function boxOf(p: Placement): Box3 {
-  return placementBoxes.get(p) ?? { min: { x: p.x, y: p.y, z: p.z }, max: { x: p.x, y: p.y, z: p.z } };
 }
 
 const round4 = (v: number): number => Math.round(v * 10000) / 10000 || 0;

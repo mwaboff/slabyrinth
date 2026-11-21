@@ -7,12 +7,11 @@
 import { describe, expect, it } from "vitest";
 import type { Building, MapPlan, Structure } from "../../../src/contracts/plan";
 import { CELL, type ResolvedLevel, type ResolvedStructure } from "../../../src/contracts/resolved";
-import { realize, verifyBuild } from "../../../src/compile";
-import { placementMeta } from "../../../src/compile/realize";
-import { loadPalettes } from "../../../src/palette";
+import { placedName, realize, verifyBuild } from "../../../src/compile";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
+import { BUNDLED_RULES } from "../../fixtures/rules";
 import {
   WEATHER_MINIMUMS,
   structureRuinMeasures,
@@ -21,39 +20,23 @@ import {
   structureTone,
   weatherMeasures,
 } from "../../../src/resolve";
+import { townPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
 
-function plan(structures: Structure[], w = 60, h = 24, theme = "city"): MapPlan {
-  return {
-    schema: "slabyrinth/plan@1",
+const plan = (structures: Structure[], w = 60, h = 24, theme = "city"): MapPlan =>
+  townPlan({
     generator: 2,
     id: "variety",
-    title: "variety",
-    kind: "outdoor",
     seed: 5,
     theme,
-    links: [],
-    levels: [
-      {
-        id: "g",
-        name: "g",
-        elevation: 0,
-        bounds: { x: 0, y: 0, w, h },
-        base: { type: "ground", material: "concrete" },
-        areas: [{ id: "lot", kind: "zone", shape: { type: "rect", x: 0, y: 0, w, h } }],
-        openings: [],
-        walls: [],
-        features: [],
-        terrain: [],
-        labels: [],
-        structures,
-      },
-    ],
-  };
-}
+    w,
+    h,
+    base: { type: "ground", material: "concrete" },
+    structures,
+  });
 const structuresOf = (p: MapPlan): ResolvedStructure[] =>
-  (resolvePlan(p).levels[0] as ResolvedLevel).structures ?? [];
+  (resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel).structures ?? [];
 const sig = (s: ResolvedStructure): string => {
   const d = s.design;
   return d
@@ -150,8 +133,8 @@ describe("variety: a street", () => {
   for (const gap of [0, 1, 2])
     it(`a terrace with ${gap === 0 ? "party walls" : `${gap}-cell alleys`} validates and builds without errors`, () => {
       const p = street(gap);
-      expect(validatePlan(p).issues.filter((i) => i.severity === "error")).toEqual([]);
-      const r = resolvePlan(p);
+      expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "error")).toEqual([]);
+      const r = resolvePlan(p, bundledPalettes());
       const set = realize(r, palettes);
       const ver = verifyBuild(r, set, palettes, { plan: p });
       expect(ver.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
@@ -175,13 +158,13 @@ describe("street frontage", () => {
         ],
       },
     ]);
-    expect(validatePlan(p).issues.filter((i) => i.severity === "error")).toEqual([]);
+    expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "error")).toEqual([]);
     expect(structuresOf(p)[0]?.volumes?.length).toBe(2);
   });
 
   it("a style missing its own pieces in a theme says so (structure_style_fallback)", () => {
     const p = plan([{ ...one("modern_block", 1), use: "shop" }], 20, 20, "wood_town");
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const set = realize(r, palettes);
     const codes = new Set(set.diagnostics.map((d) => d.code));
     // wood_town has the generic structure batch through its parent, so nothing may fall back; when it does, it is named
@@ -212,20 +195,20 @@ describe("city street faults (street v1 repro)", () => {
 
   it("every piece of a modern_block under city comes from a modern (or approved cross-pack) kit", () => {
     const p = street();
-    const set = realize(resolvePlan(p), palettes);
+    const set = realize(resolvePlan(p, bundledPalettes()), palettes);
     const ids = new Set(uses);
     const medieval =
       /castle|haunted|rural|tavern|candle|lantern|stone wall|dungeon|peasant|moorgoth|md_|abandoned|pole support/i;
     const bad = (set.levels[0]?.placements ?? [])
       .filter((q) => ids.has((q.source.elementId ?? "").split("~")[0] ?? ""))
-      .map((q) => placementMeta.get(q)?.name ?? "")
+      .map((q) => placedName(set, q))
       .filter((n) => medieval.test(n));
     expect([...new Set(bad)]).toEqual([]);
   });
 
   it("rooftop props sit on the roof (no base above the roof top under them), and the no-roof export verifies clean", () => {
     const p = street();
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const set = realize(r, palettes);
     const ver = verifyBuild(r, set, palettes, { plan: p });
     expect(
@@ -238,7 +221,7 @@ describe("city street faults (street v1 repro)", () => {
 
   it("a stoop stays inside its own plot (no plinth into a neighbour, no warning)", () => {
     const p = street();
-    const issues = validatePlan(p).issues.filter((i) => /plinth/.test(i.message));
+    const issues = validatePlan(p, BUNDLED_RULES).issues.filter((i) => /plinth/.test(i.message));
     expect(issues).toEqual([]);
     const sts = structuresOf(p);
     const plots = new Map<string, Set<string>>();
@@ -329,7 +312,7 @@ describe("main entrance on the front face", () => {
           x += w + (i === 1 ? 2 : 0); // a party wall, then a 2-cell alley
         });
         const p = plan(s, x + 2, 20);
-        const L = resolvePlan(p).levels[0] as ResolvedLevel;
+        const L = resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
         for (const st of L.structures ?? []) {
           const front = st.frontage?.side ?? "?";
           if (withFront) expect(front, `seed ${seed} ${st.id}`).toBe("S");
@@ -346,7 +329,7 @@ describe("main entrance on the front face", () => {
           }
         }
       }
-    }, 120_000);
+    });
 });
 
 describe("review measures", () => {
@@ -411,7 +394,7 @@ describe("wizard tower, character and condition", () => {
   it("a wizard tower is a plumb, tapering shaft under a lantern room and a steep spire, with at least two signs of magic", () => {
     for (let seed = 0; seed < 12; seed++) {
       const p = plan([wiz(seed)], 24, 24, "forest");
-      const r = resolvePlan(p);
+      const r = resolvePlan(p, bundledPalettes());
       const st = (r.levels[0] as ResolvedLevel).structures?.[0] as ResolvedStructure;
       const vols = st.volumes ?? [];
       const stack = vols.filter((v) => v.id === "shaft" || /^s\d+$/.test(v.id) || v.id === "crown");
@@ -454,7 +437,7 @@ describe("wizard tower, character and condition", () => {
   });
   it("no bare floor edge: overhanging storeys hang on a corbel course, set-backs under a roof skirt", () => {
     const p = plan([wiz(31, ["twisted"])], 24, 24, "forest");
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const st = (r.levels[0] as ResolvedLevel).structures?.[0] as ResolvedStructure;
     const pl = realize(r, palettes).levels[0]?.placements ?? [];
     for (const v of st.volumes ?? []) {
@@ -473,14 +456,14 @@ describe("wizard tower, character and condition", () => {
   });
   it("twisted: every storey of the shaft stands offset from the one below; the build overhangs without errors", () => {
     const p = plan([wiz(31, ["twisted"])], 24, 24, "forest");
-    expect(validatePlan(p).issues.filter((i) => i.severity !== "info")).toEqual([]);
+    expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity !== "info")).toEqual([]);
     const st = structuresOf(p)[0] as ResolvedStructure;
     const rects = (st.volumes ?? [])
       .filter((v) => v.id !== "turret" && v.id !== "crown")
       .map((v) => v.storeys[0]?.rect);
     for (let i = 1; i < rects.length; i++)
       expect(`${rects[i]?.x},${rects[i]?.y}`).not.toBe(`${rects[i - 1]?.x},${rects[i - 1]?.y}`);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const ver = verifyBuild(r, realize(r, palettes), palettes, { plan: p });
     expect(ver.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
   });
@@ -498,19 +481,19 @@ describe("wizard tower, character and condition", () => {
     expect(ruined.lighting?.windows).toBe("none");
     expect(ruined.lights).toEqual([]);
     expect((ruined.debris ?? []).length).toBeGreaterThan(2);
-    const L = resolvePlan(ruinedPlan).levels[0] as ResolvedLevel;
+    const L = resolvePlan(ruinedPlan, bundledPalettes()).levels[0] as ResolvedLevel;
     const kinds = L.openings.filter((o) => ruined.openingIds.includes(o.id)).map((o) => o.kind);
     expect(kinds).not.toContain("door");
     expect(kinds.filter((k) => k === "open").length).toBeGreaterThan(1);
     const walls = (s: ResolvedStructure, p: MapPlan) =>
-      (realize(resolvePlan(p), palettes).levels[0]?.placements ?? []).filter(
+      (realize(resolvePlan(p, bundledPalettes()), palettes).levels[0]?.placements ?? []).filter(
         (q) => q.source.elementId === `${s.id}~wall` && q.layer === "storey:1",
       ).length;
     // the upper storey breaks off column by column (one-cell pieces, so the count is no guide): most of it is gone
     expect(walls(intact, plan([base], 20, 20, "forest"))).toBeGreaterThan(0);
     const upper = (ruined.ruin?.columns ?? []).filter((c) => c.full > (ruined.storeys[0]?.floorTop ?? 0) + 4);
     expect(upper.filter((c) => c.top < c.full).length).toBeGreaterThan(upper.length / 2);
-    const r = resolvePlan(ruinedPlan);
+    const r = resolvePlan(ruinedPlan, bundledPalettes());
     const ver = verifyBuild(r, realize(r, palettes), palettes, { plan: ruinedPlan });
     expect(ver.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     const weathered = structuresOf(plan([{ ...base, condition: "weathered" }], 20, 20, "forest"))[0];
@@ -568,7 +551,7 @@ describe("wizard tower, character and condition", () => {
       for (const v of st.volumes ?? []) if (!v.roof.gableOnly) expect(v.roof.layers, tag).toEqual([]);
       // the build follows the profile: walls stop at the column tops, and verify passes
       const p = plan([b], 24, 24, "forest");
-      const r = resolvePlan(p);
+      const r = resolvePlan(p, bundledPalettes());
       const set = realize(r, palettes);
       const ver = verifyBuild(r, set, palettes, { plan: p });
       expect(
@@ -595,7 +578,7 @@ describe("wizard tower, character and condition", () => {
     const st = structuresOf(p)[0] as ResolvedStructure;
     const side = st.volumes?.[0]?.roof.gableOnly;
     expect(side).toBeDefined();
-    const pl = realize(resolvePlan(p), palettes).levels[0]?.placements ?? [];
+    const pl = realize(resolvePlan(p, bundledPalettes()), palettes).levels[0]?.placements ?? [];
     expect(pl.filter((q) => q.source.elementId === `${st.id}~gable`).length).toBeGreaterThan(0);
     expect(pl.some((q) => /~roofd*$/.test(String(q.source.elementId)))).toBe(false);
     // the gable wall's columns stand whole
@@ -632,10 +615,11 @@ describe("wizard tower, character and condition", () => {
       expect(wm?.darkWindows ?? 0, style).toBeGreaterThanOrEqual(WEATHER_MINIMUMS.darkWindows);
       const ip = { ...plan([{ ...wb, condition: "intact" }], 24, 24, "forest"), generator: 3 as const };
       const roofOf = (pp: MapPlan): number =>
-        (realize(resolvePlan(pp), palettes).levels[0]?.placements ?? []).filter((q) => q.layer === "roof")
-          .length;
+        (realize(resolvePlan(pp, bundledPalettes()), palettes).levels[0]?.placements ?? []).filter(
+          (q) => q.layer === "roof",
+        ).length;
       expect(roofOf(wp), style).toBeLessThan(roofOf(ip));
-      const r = resolvePlan(wp);
+      const r = resolvePlan(wp, bundledPalettes());
       expect(
         verifyBuild(r, realize(r, palettes), palettes, { plan: wp }).diagnostics.filter(
           (x) => x.severity === "error",
@@ -647,7 +631,7 @@ describe("wizard tower, character and condition", () => {
   it("a ruin's rubble, growth and props come only from their own roles: a theme without them gets nothing", () => {
     const b: Building = { ...one("keep", 4, undefined, 9, 9), condition: "ruined" };
     const p = plan([b], 24, 24, "forest");
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     expect((((r.levels[0] as ResolvedLevel).structures ?? [])[0]?.debris ?? []).length).toBeGreaterThan(0);
     const bare = {
       ...palettes,
@@ -670,7 +654,7 @@ describe("wizard tower, character and condition", () => {
   });
   it("bare x, y, w, h on a building is its one wing", () => {
     const p = plan([{ id: "b", style: "cottage", x: 4, y: 4, w: 6, h: 5 }], 20, 20, "forest");
-    expect(validatePlan(p).issues.filter((i) => i.severity === "error")).toEqual([]);
+    expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "error")).toEqual([]);
     expect(structuresOf(p)[0]?.cells.length).toBeGreaterThan(8); // the drawn size class may keep part of the plot
   });
 });
@@ -698,8 +682,8 @@ describe("design spaces of the other styles", () => {
       expect(archs.size).toBeGreaterThanOrEqual(minArch);
       for (const seed of [1, 7, 13]) {
         const p = plan([one(style, seed, undefined, w, h)], 22, 22, "outdoor");
-        expect(validatePlan(p).issues.filter((i) => i.severity === "error")).toEqual([]);
-        const r = resolvePlan(p);
+        expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "error")).toEqual([]);
+        const r = resolvePlan(p, bundledPalettes());
         const ver = verifyBuild(r, realize(r, palettes), palettes, { plan: p });
         expect(
           ver.diagnostics.filter((d) => d.severity === "error"),

@@ -23,9 +23,10 @@
  * roofs (absent = site).
  */
 import type { PaletteFacing, Placement, PlacementRole } from "../contracts/compiler";
-import type { Side, WallStyle } from "../contracts/plan";
+import type { OpeningKind, Side, WallStyle } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "../palette/resolve";
+import type { GeneratorProfile } from "../plan/generator";
 import {
   gableRoof,
   hipRoof,
@@ -37,12 +38,20 @@ import {
   shedRoof,
   spireShell,
 } from "../resolve/roof";
+import { isPitchedRoof } from "../resolve/roofTypes";
 import { structureStyle } from "../resolve/structureStyles";
+import { OPPOSITE as OPP, SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
+import { hasLeaf, isPassage, isWindow } from "../gen/openingKinds";
+import { isPlankWallStyle, THEME_WALL_STYLE } from "../gen/wallStyles";
+import { THEME_WALL_ROLE, wallRole } from "../palette/roles";
+import { sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
 import type { WorldFrame } from "./geometry";
 import { h32, rotateXZ } from "./geometry";
 
 export interface StructureRealizeCtx {
   L: ResolvedLevel;
+  /** What the plan's generator does (plan/generator.ts); a version-dependent rule here reads a switch of it. */
+  profile: GeneratorProfile;
   frame: WorldFrame;
   seed: number;
   /** Role lookup for this level (quiet: no role_missing warning). */
@@ -65,10 +74,6 @@ export interface StructureRealizeCtx {
 }
 
 const EPS = 1e-6;
-const STEP: Record<Side, [number, number]> = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
-const OPP: Record<Side, Side> = { N: "S", S: "N", E: "W", W: "E" };
-const DOORISH = new Set(["door", "double_door", "locked_door", "secret_door", "portcullis"]);
 const key = (x: number, y: number): string => `${x},${y}`;
 
 const lengthOf = (v: ResolvedVariant): number =>
@@ -82,6 +87,14 @@ const both = (a: VariantFilter, b: VariantFilter): VariantFilter => ({
   key: `${a.key}+${b.key}`,
   test: (v) => a.test(v) && b.test(v),
 });
+
+/**
+ * A weathered or ruined building whose condition the generator makes legible (generator 3, `legibleCondition`): its
+ * porch roofs fall, its debris is of its own material and lies at its own angles, and the rubble on its broken walls
+ * lies along them. (The resolver gives exactly these buildings a growth level.)
+ */
+const legiblyWorn = (ctx: StructureRealizeCtx, st: ResolvedStructure): boolean =>
+  ctx.profile.legibleCondition && (st.condition ?? "intact") !== "intact";
 
 /** Footprint at rot 0 in plan cells [w, h]; tiles round up, props to nearest. */
 const footOf = (v: ResolvedVariant): readonly [number, number] => v.footprint;
@@ -294,7 +307,7 @@ function faceRunsOf(list: readonly FaceCell[]): FaceCell[][] {
   return runs;
 }
 
-type Op = { id: string; kind: string; width: number; first: FaceCell; index: number };
+type Op = { id: string; kind: OpeningKind; width: number; first: FaceCell; index: number };
 type VStoreyR = ResolvedVolume["storeys"][number];
 type LitWindow = { x: number; y: number; face: Side; floorTop: number; layer: string; walls: WallStyle };
 
@@ -387,7 +400,7 @@ function buildBuilding(ctx: StructureRealizeCtx, st: ResolvedStructure): void {
   const markOpening = (
     k: string,
     id: string,
-    kind: string,
+    kind: OpeningKind,
     x: number,
     y: number,
     face: Side,
@@ -459,7 +472,9 @@ function buildBuilding(ctx: StructureRealizeCtx, st: ResolvedStructure): void {
     });
 
   // a weathered or ruined building: every wall column stops at its surviving top; fallen floor cells stay open
-  const caps = st.ruin ? new Map(st.ruin.columns.map((c) => [`${c.at[0]},${c.at[1]},${c.side}`, c.top])) : undefined;
+  const caps = st.ruin
+    ? new Map(st.ruin.columns.map((c) => [`${c.at[0]},${c.at[1]},${c.side}`, c.top]))
+    : undefined;
   const holesOf = new Map((st.ruin?.holes ?? []).map((h) => [`${h.volume}:${h.storey}`, setOf(h.cells)]));
   const ruined = st.condition === "ruined";
   const windows: LitWindow[] = [];
@@ -603,7 +618,7 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
   const { s, faces, ops, floorTop, top, footing, layer, chimneyWall, tag } = a;
   const style = a.walls;
   const mainBase = floorTop + (footing?.height ?? 0);
-  const mainRoles = [`facade.${style}`, `wall.${style}`, "wall.wall"];
+  const mainRoles = [`facade.${style}`, wallRole(style), THEME_WALL_ROLE];
   const capAt = (x: number, y: number, face: Side): number => a.caps?.get(`${x},${y},${face}`) ?? Infinity;
   const along = (f: FaceCell, k: number): [number, number, Side] =>
     f.face === "N" || f.face === "S" ? [f.x + k, f.y, f.face] : [f.x, f.y + k, f.face];
@@ -611,9 +626,10 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
   const brokenOps = new Set<string>();
   if (a.caps)
     for (const [k, op] of ops)
-      if ((op.kind === "window" || op.kind === "arrow_slit") && (a.caps.get(k) ?? Infinity) < top - EPS) brokenOps.add(op.id);
+      if (isWindow(op.kind) && (a.caps.get(k) ?? Infinity) < top - EPS) brokenOps.add(op.id);
   // ruins break cell by cell: one-cell pieces where the style has them
-  const single = a.openTop === true && a.caps !== undefined && ctx.lookup(theme, mainRoles, lenFilter(1), true) !== null;
+  const single =
+    a.openTop === true && a.caps !== undefined && ctx.lookup(theme, mainRoles, lenFilter(1), true) !== null;
   // ground storey walls reach down to the ground outside when the pad is higher than its surroundings
   const lowAt = (f: FaceCell): number => {
     if (!a.ground) return floorTop;
@@ -626,7 +642,7 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
     for (const f of faces) {
       const op = ops.get(`${f.x},${f.y},${f.face}`);
       if (chimneyWall.has(`${f.x},${f.y},${f.face}`)) continue;
-      if (op && op.kind !== "window" && op.kind !== "arrow_slit") continue;
+      if (op && !isWindow(op.kind)) continue;
       stackEdge(
         ctx,
         theme,
@@ -703,10 +719,10 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
     done.add(op.id);
     const f = op.first;
     if (!faceKeys.has(`${f.x},${f.y},${f.face}`)) continue;
-    const isWindow = op.kind === "window" || op.kind === "arrow_slit";
+    const windowed = isWindow(op.kind);
     // upper-storey windows sit on the wall top below (the floor band is wall), ground ones on the footing
-    const base = isWindow ? (a.ground ? mainBase : floorTop - 0.5) : floorTop;
-    const roles = isWindow
+    const base = windowed ? (a.ground ? mainBase : floorTop - 0.5) : floorTop;
+    const roles = windowed
       ? [`window.${style}`, `opening.${op.kind}.${style}`, `opening.${op.kind}`]
       : [
           ...(a.ground && a.doorUse ? [`opening.${op.kind}.${a.doorUse}`] : []),
@@ -730,7 +746,7 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
           const r = ctx.lookup(theme, [role], lenFilter(len), true);
           const v = r ? ctx.pick(r.variants, `${ctx.L.id}:${op.id}:${i}`) : undefined;
           if (!v || !r) continue;
-          const facing = DOORISH.has(op.kind) ? ctx.facingOf(v, "opening", r.role) : undefined;
+          const facing = hasLeaf(op.kind) ? ctx.facingOf(v, "opening", r.role) : undefined;
           edgePiece(ctx, v, "opening", cx, cy, f.face, len, base, op.id, layer, facing);
           leafTop = base + v.unitHeight;
           n = len;
@@ -750,7 +766,7 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
       for (let k = 0; k < n; k++) {
         const ex = f.face === "N" || f.face === "S" ? cx + k : cx;
         const ey = f.face === "N" || f.face === "S" ? cy : cy + k;
-        if (isWindow) a.windows.push({ x: ex, y: ey, face: f.face, floorTop, layer, walls: style });
+        if (windowed) a.windows.push({ x: ex, y: ey, face: f.face, floorTop, layer, walls: style });
         // (a ruin's empty doorways and breaches stay open to the top: broken wall stubs either side)
         const tc = Math.min(top, capAt(ex, ey, f.face));
         const standing = a.arches?.has(`${f.x},${f.y},${f.face}`) === true;
@@ -759,9 +775,22 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
           if (footing) lintel.push(`footing.${footing.style}`);
           lintel.push(...mainRoles);
           // (over an empty doorway the grid has no opening edge, so the lintel is a wall piece, not a door piece)
-          stackEdge(ctx, theme, lintel, op.kind === "open" ? "wall" : "opening", ex, ey, f.face, leafTop, tc, op.id, layer, {
-            shortRoles: [`over_door.${style}`],
-          });
+          stackEdge(
+            ctx,
+            theme,
+            lintel,
+            op.kind === "open" ? "wall" : "opening",
+            ex,
+            ey,
+            f.face,
+            leafTop,
+            tc,
+            op.id,
+            layer,
+            {
+              shortRoles: [`over_door.${style}`],
+            },
+          );
         }
       }
       i += n;
@@ -786,7 +815,11 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
       const courses: Array<[string[], number, number]> = [];
       if (footing) {
         const fs = footing.style;
-        courses.push([[`facade_post.${fs}`, `wall_post.${fs}`, "wall_post.wall"], lo, Math.min(mainBase, ptop)]);
+        courses.push([
+          [`facade_post.${fs}`, `wall_post.${fs}`, "wall_post.wall"],
+          lo,
+          Math.min(mainBase, ptop),
+        ]);
         courses.push([[`facade_post.${style}`, `wall_post.${style}`, "wall_post.wall"], mainBase, ptop]);
       } else courses.push([[`facade_post.${style}`, `wall_post.${style}`, "wall_post.wall"], lo, ptop]);
       for (const [roles, ya, yb] of courses) {
@@ -972,7 +1005,7 @@ function buildRoof(
     const kit = layer.style;
     const first = li === 0;
     const last = li === n - 1;
-    const pitched = layer.type === "gable" || layer.type === "hip" || layer.type === "shed";
+    const pitched = isPitchedRoof(layer.type);
     if (first && v.roof.deck && pitched) {
       placeFloor(
         ctx,
@@ -1068,7 +1101,10 @@ function buildRoof(
       }
       case "hip":
       case "shed": {
-        const g = layer.type === "hip" ? hipRoof(rect, holes) : shedRoof(rect, layer.low, holes, st.roofFill === true);
+        const g =
+          layer.type === "hip"
+            ? hipRoof(rect, holes)
+            : shedRoof(rect, layer.low, holes, st.roofFill === true);
         for (const p of (first && merge ? merge.get(`${v.id}#0`) : undefined) ?? g.pieces)
           placeRoofPiece(ctx, st, theme, kit, p, base, tag);
         if (first)
@@ -1121,7 +1157,13 @@ function buildRoof(
         );
         base += 0.5;
         roofTop = Math.max(roofTop, base);
-        flat = { cells: new Set([...topCells].filter((k) => !fallen.has(k))), y: base, rect, walls: topStyle, kit };
+        flat = {
+          cells: new Set([...topCells].filter((k) => !fallen.has(k))),
+          y: base,
+          rect,
+          walls: topStyle,
+          kit,
+        };
         if (layer.parapet) {
           // one course of the parapet style along each run of the roof edge (length-2 pieces where they fit)
           const roles = [`parapet.${layer.parapet}`, `wall.${layer.parapet}`];
@@ -1421,10 +1463,11 @@ function buildChimneys(
     const lo = Math.min(st.storeys[0]?.floorTop ?? 0, ctx.groundTop(c.at[0], c.at[1]));
     // generator 3: the stack tops out about a tile and a half above the ridge, pot included (it was two and a half), and
     // the foot is three wide for its first two courses (a breast, not a pole)
-    const gen3 = st.valleys === true;
-    const hi = roofTop + (gen3 ? 0.5 : 1.5);
+    // (the profile's `roofValleys` switch, carried on the building as ResolvedStructure.valleys)
+    const chimneyBreast = st.valleys === true;
+    const hi = roofTop + (chimneyBreast ? 0.5 : 1.5);
     const n = Math.max(1, Math.ceil((hi - lo) / v.unitHeight - EPS));
-    if (gen3) {
+    if (chimneyBreast) {
       const [dx, dy] = STEP[c.side];
       const lat: Array<[number, number]> = [
         [c.at[0] + Math.abs(dy), c.at[1] + Math.abs(dx)],
@@ -1435,7 +1478,16 @@ function buildChimneys(
         const ml = ctx.frame.rectMin(lx, ly, 1, 1);
         const lowL = Math.min(st.storeys[0]?.floorTop ?? 0, ctx.groundTop(lx, ly));
         for (let k = 0; k < Math.min(2, n); k++)
-          ctx.emit(v, "wall", ml.x, lowL + k * v.unitHeight, ml.z, v.rot, { cell: [lx, ly], elementId: `${st.id}~chimney` }, "storey:0");
+          ctx.emit(
+            v,
+            "wall",
+            ml.x,
+            lowL + k * v.unitHeight,
+            ml.z,
+            v.rot,
+            { cell: [lx, ly], elementId: `${st.id}~chimney` },
+            "storey:0",
+          );
       }
     }
     for (let k = 0; k < n; k++)
@@ -1482,7 +1534,7 @@ function buildPorches(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: st
     const roofY = Math.max(s0.floorTop + 2, groundWallTop - 1);
     // generator 3: an attached porch takes the building's condition: a ruin's hood has fallen (one post stands), a
     // weathered one has lost a third of its roof cells
-    const worn = st.growthLevel !== undefined;
+    const worn = legiblyWorn(ctx, st);
     const gone = worn && st.condition === "ruined";
     const roofCells = gone
       ? []
@@ -1661,6 +1713,22 @@ function openingFace(
   };
 }
 
+/**
+ * A window of the wall (a pane or a slit): generator 4 (`openingKindTraits`) asks the kind table; earlier generators
+ * took the kind "window" alone.
+ */
+function windowTest(ctx: StructureRealizeCtx): (kind: OpeningKind) => boolean {
+  return ctx.profile.openingKindTraits ? isWindow : (kind) => kind === "window";
+}
+
+/**
+ * A doorway (a person walks through it): generator 4 (`openingKindTraits`) asks the kind table; earlier generators
+ * took every kind but "window", so an arrow slit or bars counted as one.
+ */
+function doorwayTest(ctx: StructureRealizeCtx): (kind: OpeningKind) => boolean {
+  return ctx.profile.openingKindTraits ? isPassage : (kind) => kind !== "window";
+}
+
 /** Shopfront: a sign band over each wide window of the ground storey's street face. */
 function buildShopfront(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: string): void {
   const s0 = st.storeys[0];
@@ -1668,14 +1736,15 @@ function buildShopfront(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: 
   if (!fr?.shopfront || !s0) return;
   const r = ctx.lookup(
     theme,
-    [`sign_band.${s0.walls ?? "wall"}`, "feature.signage", "sign_band.default"],
+    [`sign_band.${s0.walls ?? THEME_WALL_STYLE}`, "feature.signage", "sign_band.default"],
     undefined,
     true,
   );
   if (!r) return;
   const top = s0.floorTop + (s0.footing?.height ?? 0) + 2;
+  const windowed = windowTest(ctx);
   for (const op of ctx.L.openings) {
-    if (!st.openingIds.includes(op.id) || op.kind !== "window") continue;
+    if (!st.openingIds.includes(op.id) || !windowed(op.kind)) continue;
     const { c, face } = openingFace(st, op);
     if (face !== fr.side) continue;
     const v = ctx.pick(r.variants, `${ctx.L.id}:${op.id}:sign`);
@@ -1699,9 +1768,7 @@ function buildShopfront(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: 
 function buildEntranceStrips(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: string): void {
   const s0 = st.storeys[0];
   if (!st.lighting?.strips || !s0) return;
-  const doors = ctx.L.openings.filter(
-    (o) => st.openingIds.includes(o.id) && o.kind !== "window" && o.kind !== "arrow_slit",
-  );
+  const doors = ctx.L.openings.filter((o) => st.openingIds.includes(o.id) && !isWindow(o.kind));
   // the entrance on the street face first
   const op = doors.find((o) => openingFace(st, o).face === st.frontage?.side) ?? doors[0];
   if (!op) return;
@@ -2076,7 +2143,6 @@ export function structureClaims(L: ResolvedLevel): {
   const edges = new Set<string>();
   const ruined = new Set<string>();
   const openings = new Set<string>();
-  const w = L.bounds.w;
   for (const st of L.structures ?? []) {
     for (const id of st.openingIds) openings.add(id);
     if (st.kind !== "building") continue;
@@ -2088,14 +2154,7 @@ export function structureClaims(L: ResolvedLevel): {
       for (const face of SIDES) {
         const [dx, dy] = STEP[face];
         if (cells.has(key(x + dx, y + dy))) continue;
-        const e =
-          face === "N"
-            ? `h${ly * w + lx}`
-            : face === "S"
-              ? `h${(ly + 1) * w + lx}`
-              : face === "W"
-                ? `v${ly * (w + 1) + lx}`
-                : `v${ly * (w + 1) + lx + 1}`;
+        const e = `${sideOrient(face)}${sideEdgeIndex(L.bounds, lx, ly, face)}`;
         edges.add(e);
         out?.add(e);
       }
@@ -2118,7 +2177,7 @@ function buildRoofHut(
   t: FlatTop,
   ring: Set<string>,
 ): void {
-  const walls = t.walls ?? "wall";
+  const walls = t.walls ?? THEME_WALL_STYLE;
   const r = t.rect;
   const w = r.w >= 8 ? 3 : 2; // a bigger stair hut on a big roof
   const h = r.h >= 6 ? 2 : 1;
@@ -2164,7 +2223,7 @@ function buildRoofHut(
     stackEdge(
       ctx,
       theme,
-      [`facade.${walls}`, `wall.${walls}`, "wall.wall"],
+      [`facade.${walls}`, wallRole(walls), THEME_WALL_ROLE],
       "wall",
       f.x,
       f.y,
@@ -2225,7 +2284,7 @@ function buildDetails(
   if (!d || d.details.length === 0 || !s0) return;
   const front = st.frontage?.side ?? "S";
   const cells = setOf(st.cells);
-  const walls = s0.walls ?? "wall";
+  const walls = s0.walls ?? THEME_WALL_STYLE;
   const free = (f: FaceCell): boolean => {
     const [dx, dy] = STEP[f.face];
     return !foreign.has(key(f.x + dx, f.y + dy));
@@ -2309,8 +2368,9 @@ function buildDetails(
       );
     } else if (detail === "balconies") {
       const [dx, dy] = STEP[front];
+      const windowed = windowTest(ctx);
       for (const u of st.upperOpenings) {
-        if (u.side !== front || u.kind !== "window") continue;
+        if (u.side !== front || !windowed(u.kind)) continue;
         const v = vols.find((vv) => vv.id === u.volume) ?? vols[0];
         const sp = v?.storeys[u.storey];
         if (!sp) continue;
@@ -2452,11 +2512,13 @@ function buildDetails(
       if (!r) continue;
       // never in front of a doorway: its cell and the cells beside it stay clear
       const doorCells = new Set<string>();
+      const doorway = doorwayTest(ctx);
       for (const op of ctx.L.openings) {
-        if (!st.openingIds.includes(op.id) || op.kind === "window") continue;
+        if (!st.openingIds.includes(op.id) || !doorway(op.kind)) continue;
         const { c, face } = openingFace(st, op);
         const along = face === "N" || face === "S" ? [1, 0] : [0, 1];
-        for (let k = -1; k <= op.width; k++) doorCells.add(`${c[0] + (along[0] ?? 0) * k},${c[1] + (along[1] ?? 0) * k},${face}`);
+        for (let k = -1; k <= op.width; k++)
+          doorCells.add(`${c[0] + (along[0] ?? 0) * k},${c[1] + (along[1] ?? 0) * k},${face}`);
       }
       for (const ff of faces) {
         if (doorCells.has(`${ff.x},${ff.y},${ff.face}`)) continue;
@@ -2615,12 +2677,13 @@ function buildRooftopSets(
 function buildDebris(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: string): void {
   for (const d of st.debris ?? []) {
     // a theme without the role gets nothing: never a wrong object
-    const timber = st.growthLevel !== undefined && (st.design?.material ?? st.storeys[0]?.walls) === "wood";
+    const walls = st.design?.material ?? st.storeys[0]?.walls;
+    const timber = legiblyWorn(ctx, st) && isPlankWallStyle(walls);
     // (generator 3: fallen stone does not lie beside a timber building; its own material or nothing)
     const roles = [
       d.kind === "rubble"
         ? timber
-          ? "ruin_rubble.wood"
+          ? `ruin_rubble.${walls}`
           : "ruin_rubble.default"
         : d.kind === "prop"
           ? "ruin_prop.default"
@@ -2639,7 +2702,7 @@ function buildDebris(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: str
         d.at[1] + 0.5,
         ctx.groundTop(d.at[0], d.at[1]),
         // generator 3: heaps lie at their own angles, not square to the grid
-        st.growthLevel !== undefined ? (h32(k) % 24) * 15 : (h32(k) % 4) * 90,
+        legiblyWorn(ctx, st) ? (h32(k) % 24) * 15 : (h32(k) % 4) * 90,
         `${st.id}~${d.kind}`,
         undefined,
       );
@@ -2661,9 +2724,19 @@ function buildWallTopRubble(ctx: StructureRealizeCtx, st: ResolvedStructure, the
   // role has small broken ones (a brick pile), each turned at its own angle along the wall
   // timber walls (generator 3): what lies on a timber wall is timber (fallen beams, planks): the wall material's own
   // role, and nothing when the palette has none, never grey stone blocks on brown planks
-  const timber = st.growthLevel !== undefined && style === "wood";
-  const blockRole = ctx.lookup(theme, timber ? [`ruin_block.${style}`] : [`ruin_block.${style}`, "ruin_block.default"], undefined, true);
-  const heapRole = ctx.lookup(theme, timber ? [`ruin_rubble.${style}`] : ["ruin_rubble.default"], undefined, true);
+  const timber = legiblyWorn(ctx, st) && isPlankWallStyle(style);
+  const blockRole = ctx.lookup(
+    theme,
+    timber ? [`ruin_block.${style}`] : [`ruin_block.${style}`, "ruin_block.default"],
+    undefined,
+    true,
+  );
+  const heapRole = ctx.lookup(
+    theme,
+    timber ? [`ruin_rubble.${style}`] : ["ruin_rubble.default"],
+    undefined,
+    true,
+  );
   const longest = (x: ResolvedVariant): number => Math.max(x.geom.size.x, x.geom.size.z);
   const smallBroken = [
     ...(heapRole?.variants.filter((x) => longest(x) <= 1.1) ?? []),
@@ -2673,12 +2746,12 @@ function buildWallTopRubble(ctx: StructureRealizeCtx, st: ResolvedStructure, the
   const longPile = heapRole?.variants.filter((x) => longest(x) > 1.1 && longest(x) <= 1.7) ?? [];
   const listed = new Set(list.map((t) => `${t.at[0]},${t.at[1]},${t.side}`));
   if (smallBroken.length === 0) return;
-  const gen3 = st.growthLevel !== undefined;
+  const legibleCondition = legiblyWorn(ctx, st);
   for (const t of list) {
     const k = `${st.id}:walltop:${t.at[0]},${t.at[1]}${t.side}`;
     const [ax, ay] = t.side === "N" || t.side === "S" ? [1, 0] : [0, 1];
     const spans =
-      gen3 &&
+      legibleCondition &&
       longPile.length > 0 &&
       listed.has(`${t.at[0] - ax},${t.at[1] - ay},${t.side}`) &&
       listed.has(`${t.at[0] + ax},${t.at[1] + ay},${t.side}`) &&
@@ -2689,13 +2762,19 @@ function buildWallTopRubble(ctx: StructureRealizeCtx, st: ResolvedStructure, the
     const jit = (s: string): number => h32(`${ctx.seed}:${k}:${s}`) / 4294967296 - 0.5;
     // along the wall (a long pile lies lengthwise), 15 degree steps of yaw either side, never square to the step
     const base = (t.side === "N" || t.side === "S" ? 0 : 90) + (h32(`${k}:flip`) % 2) * 180;
-    const yaw = gen3 ? base + Math.round(jit("yaw") * 6) * 15 : (h32(k) % 4) * 90;
+    const yaw = legibleCondition ? base + Math.round(jit("yaw") * 6) * 15 : (h32(k) % 4) * 90;
     const [ux, uy] = t.side === "N" || t.side === "S" ? [1, 0] : [0, 1];
     placeProp(
       ctx,
       v,
-      t.at[0] + 0.5 + dx * (0.75 + (gen3 ? jit("out") * 0.2 : 0)) + (gen3 ? ux * jit("al") * 0.3 : 0), // the wall strip lies in the ring cell outside the face (edge pieces are hosted there)
-      t.at[1] + 0.5 + dy * (0.75 + (gen3 ? jit("out") * 0.2 : 0)) + (gen3 ? uy * jit("al") * 0.3 : 0),
+      t.at[0] +
+        0.5 +
+        dx * (0.75 + (legibleCondition ? jit("out") * 0.2 : 0)) +
+        (legibleCondition ? ux * jit("al") * 0.3 : 0), // the wall strip lies in the ring cell outside the face (edge pieces are hosted there)
+      t.at[1] +
+        0.5 +
+        dy * (0.75 + (legibleCondition ? jit("out") * 0.2 : 0)) +
+        (legibleCondition ? uy * jit("al") * 0.3 : 0),
       t.top,
       ((yaw % 360) + 360) % 360,
       `${st.id}~walltop`,
@@ -2716,7 +2795,12 @@ function buildGrowth(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: str
   const list = st.growth;
   if (!list || list.length === 0) return;
   const slim = (v: ResolvedVariant): boolean => Math.max(v.geom.size.x, v.geom.size.z) <= 1.1;
-  const climber = ctx.lookup(theme, ["ruin_climber.default", "feature.vines"], { key: "strand", test: (v) => slim(v) && v.geom.size.y <= 2.4 }, true);
+  const climber = ctx.lookup(
+    theme,
+    ["ruin_climber.default", "feature.vines"],
+    { key: "strand", test: (v) => slim(v) && v.geom.size.y <= 2.4 },
+    true,
+  );
   // the largest climbing piece the palette has: a broad batch (a face and a half wide) for the foot of a heavy mass
   const batcher = ctx.lookup(
     theme,
@@ -2724,7 +2808,12 @@ function buildGrowth(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: str
     { key: "vinebatch", test: (v) => v.geom.size.x >= 1.5 && v.geom.size.x <= 2.1 && v.geom.size.y <= 2.4 },
     true,
   );
-  const rooter = ctx.lookup(theme, ["ruin_root.default", "feature.roots_wall"], { key: "wallroot", test: slim }, true);
+  const rooter = ctx.lookup(
+    theme,
+    ["ruin_root.default", "feature.roots_wall"],
+    { key: "wallroot", test: slim },
+    true,
+  );
   const capper = ctx.lookup(
     theme,
     ["ruin_cap.default", "ruin_growth.default"],
@@ -2764,7 +2853,19 @@ function buildGrowth(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: str
           const base = Math.max(g.from, Math.min(y, g.to - h));
           const along =
             n === 1 ? (rnd(`a${i}`) - 0.5) * 0.5 : (j - (n - 1) / 2) * 0.34 + (rnd(`a${i}:${j}`) - 0.5) * 0.1;
-          wallProp(ctx, v, r.role, g.at[0], g.at[1], g.side, 1.15, base, `${st.id}~${g.kind === "vine" ? "vine" : "wallroot"}`, "storey:0", along);
+          wallProp(
+            ctx,
+            v,
+            r.role,
+            g.at[0],
+            g.at[1],
+            g.side,
+            1.15,
+            base,
+            `${st.id}~${g.kind === "vine" ? "vine" : "wallroot"}`,
+            "storey:0",
+            along,
+          );
           adv = Math.max(adv, base + h * 0.9);
         }
         if (adv === 0) break;
@@ -2774,11 +2875,30 @@ function buildGrowth(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: str
       const v = ctx.pick(capper.variants, `${ctx.L.id}:${k}`);
       if (!v) continue;
       const [dx, dy] = STEP[g.side];
-      placeProp(ctx, v, g.at[0] + 0.5 + dx * 0.75, g.at[1] + 0.5 + dy * 0.75, g.from, (h32(k) % 4) * 90, `${st.id}~topgrowth`, "roof", "wall");
+      placeProp(
+        ctx,
+        v,
+        g.at[0] + 0.5 + dx * 0.75,
+        g.at[1] + 0.5 + dy * 0.75,
+        g.from,
+        (h32(k) % 4) * 90,
+        `${st.id}~topgrowth`,
+        "roof",
+        "wall",
+      );
     } else if (g.kind === "tree" && treer) {
       const v = ctx.pick(treer.variants, `${ctx.L.id}:${k}`);
       if (!v) continue;
-      placeProp(ctx, v, g.at[0] + 0.5, g.at[1] + 0.5, ctx.groundTop(g.at[0], g.at[1]), (h32(k) % 4) * 90, `${st.id}~tree`, undefined);
+      placeProp(
+        ctx,
+        v,
+        g.at[0] + 0.5,
+        g.at[1] + 0.5,
+        ctx.groundTop(g.at[0], g.at[1]),
+        (h32(k) % 4) * 90,
+        `${st.id}~tree`,
+        undefined,
+      );
     }
   }
 }

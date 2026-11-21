@@ -18,37 +18,34 @@ import {
   restore,
   undo,
 } from "../../../src/history";
-import { applyOps } from "../../../src/ops";
+import { STRUCTURAL_RULES, applyOps } from "../../../src/ops";
 import { canonicalJson } from "../../../src/util";
 import { loadPlan } from "../../fixtures";
 
 const T = "2026-11-18T12:00:00.000Z";
+/** These histories hold no op that materializes generated features: no resolver needed. */
+const R = STRUCTURAL_RULES;
 
 function create(plan: MapPlan): PlanHistory {
-  return commitVersion(createHistory(), {
-    plan,
-    author: "ai",
-    createdAt: T,
-    summary: "Created",
-    cause: { type: "create" },
-  }).history;
+  return commitVersion(
+    createHistory(),
+    { plan, author: "ai", createdAt: T, summary: "Created", cause: { type: "create" } },
+    R,
+  ).history;
 }
 
 /** Applies ops to head and commits; returns the new history. */
 function edit(h: PlanHistory, ops: PlanOp[], author: "ai" | "user" = "ai"): PlanHistory {
-  const head = headPlan(h);
+  const head = headPlan(h, R);
   if (!head.ok || head.plan === null) throw new Error("no head");
-  const r = applyOps(head.plan, ops);
+  const r = applyOps(head.plan, ops, R);
   if (!r.ok) throw new Error(JSON.stringify(r));
-  return commitOps(h, r.plan, ops, {
-    author,
-    createdAt: T,
-    summary: describeChanges(head.plan, r.plan, author).summary,
-  }).history;
+  const summary = describeChanges(head.plan, r.plan, author).summary;
+  return commitOps(h, r.plan, ops, { author, createdAt: T, summary }, R).history;
 }
 const rename = (name: string): PlanOp[] => [{ op: "update", id: "cellar", set: { name } }];
 const nameAt = (h: PlanHistory, n: number): string | undefined => {
-  const r = reconstruct(h, n);
+  const r = reconstruct(h, n, R);
   return r.ok ? r.plan.levels[0]?.areas[0]?.name : undefined;
 };
 
@@ -81,29 +78,29 @@ describe("versions and keyframes", () => {
     const plan = loadPlan("single-room");
     let h = create(plan);
     const other = { ...plan, title: "Not what the ops say" };
-    h = commitOps(h, other, rename("X"), { author: "user", createdAt: T, summary: "edit" }).history;
+    h = commitOps(h, other, rename("X"), { author: "user", createdAt: T, summary: "edit" }, R).history;
     expect(h.versions[1]?.snapshot).toEqual(other);
-    expect(reconstruct(h, 2)).toEqual({ ok: true, plan: other });
+    expect(reconstruct(h, 2, R)).toEqual({ ok: true, plan: other });
   });
 
   it("caches reconstructions", () => {
     let h = create(loadPlan("single-room"));
     h = edit(h, rename("A"));
     const cache = new Map<number, MapPlan>();
-    const a = reconstruct(h, 2, cache);
+    const a = reconstruct(h, 2, R, cache);
     expect(cache.has(2)).toBe(true);
-    expect(reconstruct(h, 2, cache)).toEqual(a);
+    expect(reconstruct(h, 2, R, cache)).toEqual(a);
   });
 
   it("reports missing versions and corrupt chains", () => {
     const h = create(loadPlan("single-room"));
-    expect(reconstruct(h, 9)).toMatchObject({ ok: false, error: { code: "no_version" } });
+    expect(reconstruct(h, 9, R)).toMatchObject({ ok: false, error: { code: "no_version" } });
     const broken: PlanHistory = {
       ...h,
       versions: [{ ...(h.versions[0] as PlanHistory["versions"][number]), snapshot: undefined as never }],
     };
     delete (broken.versions[0] as { snapshot?: unknown }).snapshot;
-    expect(reconstruct(broken, 1)).toMatchObject({ ok: false, error: { code: "corrupt" } });
+    expect(reconstruct(broken, 1, R)).toMatchObject({ ok: false, error: { code: "corrupt" } });
     expect(checkHistory(broken).length).toBeGreaterThan(0);
   });
 });
@@ -163,7 +160,7 @@ describe("pointer semantics (UX §7.2)", () => {
     let h = create(loadPlan("single-room"));
     h = edit(h, rename("A"));
     h = edit(h, rename("B"));
-    const r = restore(h, 1, T);
+    const r = restore(h, 1, T, R);
     if (!r.ok) throw new Error();
     expect(r.version).toMatchObject({
       number: 4,
@@ -173,10 +170,10 @@ describe("pointer semantics (UX §7.2)", () => {
       cause: { type: "restore", from: 1 },
     });
     expect(r.version.snapshot).toBeDefined();
-    expect(canonicalJson(headPlan(r.history))).toBe(
+    expect(canonicalJson(headPlan(r.history, R))).toBe(
       canonicalJson({ ok: true, plan: loadPlan("single-room") }),
     );
-    expect(restore(h, 99, T)).toMatchObject({ ok: false, error: { code: "no_version" } });
+    expect(restore(h, 99, T, R)).toMatchObject({ ok: false, error: { code: "no_version" } });
   });
 
   it("approve moves a single pointer independent of head", () => {
@@ -200,15 +197,13 @@ describe("pointer semantics (UX §7.2)", () => {
     const snap = JSON.stringify(h);
     undo(h);
     redo(h);
-    restore(h, 1, T);
+    restore(h, 1, T, R);
     approve(h, 1);
-    commitVersion(h, {
-      plan: loadPlan("cave"),
-      author: "ai",
-      createdAt: T,
-      summary: "x",
-      cause: { type: "create" },
-    });
+    commitVersion(
+      h,
+      { plan: loadPlan("cave"), author: "ai", createdAt: T, summary: "x", cause: { type: "create" } },
+      R,
+    );
     expect(JSON.stringify(h)).toBe(snap);
   });
 });
@@ -216,37 +211,41 @@ describe("pointer semantics (UX §7.2)", () => {
 describe("change summaries", () => {
   it("describes AI and user edits", () => {
     const before = loadPlan("example-a");
-    const r = applyOps(before, [{ op: "update", id: "ossuary", set: { notes: "Bones everywhere." } }]);
+    const r = applyOps(before, [{ op: "update", id: "ossuary", set: { notes: "Bones everywhere." } }], R);
     if (!r.ok) throw new Error();
     expect(describeChanges(before, r.plan, "user").summary).toBe("You edited notes for 4");
-    const r2 = applyOps(before, [
-      {
-        op: "add",
-        element: {
-          kind: "level",
-          value: {
-            id: "l3",
-            name: "Deep Vault",
-            elevation: -5,
-            bounds: { x: 0, y: 0, w: 10, h: 10 },
-            base: { type: "solid" },
+    const r2 = applyOps(
+      before,
+      [
+        {
+          op: "add",
+          element: {
+            kind: "level",
+            value: {
+              id: "l3",
+              name: "Deep Vault",
+              elevation: -5,
+              bounds: { x: 0, y: 0, w: 10, h: 10 },
+              base: { type: "solid" },
+            },
           },
         },
-      },
-      {
-        op: "add",
-        element: {
-          kind: "area",
-          level: "l3",
-          value: {
-            id: "vault",
-            kind: "room",
-            name: "Vault",
-            shape: { type: "rect", x: 1, y: 1, w: 4, h: 4 },
+        {
+          op: "add",
+          element: {
+            kind: "area",
+            level: "l3",
+            value: {
+              id: "vault",
+              kind: "room",
+              name: "Vault",
+              shape: { type: "rect", x: 1, y: 1, w: 4, h: 4 },
+            },
           },
         },
-      },
-    ]);
+      ],
+      R,
+    );
     if (!r2.ok) throw new Error();
     const d = describeChanges(before, r2.plan, "ai");
     expect(d.summary).toBe("Added Deep Vault level (+1 more)");

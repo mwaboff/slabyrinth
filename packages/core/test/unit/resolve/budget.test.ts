@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { Area, Level, MapPlan, Opening, TerrainOp } from "../../../src/contracts/plan";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 
 function plan(level: Partial<Level>): MapPlan {
@@ -56,21 +57,21 @@ describe("resolve budgets", () => {
   it("dresses a 158×158 storeroom at density 1 in well under 1 s (was ~29 s)", () => {
     const terrain: TerrainOp[] = [{ id: "d", op: "dress", area: "a", preset: "storeroom", density: 1 }];
     const p = plan({ areas: [room("a", 1, 1, 158, 158)], terrain });
-    expect(resolvePlan(p).levels[0]?.features.length).toBeGreaterThan(3000);
-    expect(bestOf3(() => resolvePlan(p))).toBeLessThan(1000);
+    expect(resolvePlan(p, bundledPalettes()).levels[0]?.features.length).toBeGreaterThan(3000);
+    expect(bestOf3(() => resolvePlan(p, bundledPalettes()))).toBeLessThan(1000);
   });
 
   it("scatters with minSpacing 32 on 160×160 quickly (was ~1.8 s)", () => {
     const terrain: TerrainOp[] = [{ id: "s", op: "scatter", feature: "rock", density: 1, minSpacing: 32 }];
     const p = plan({ base: { type: "ground", material: "grass" }, terrain });
-    const feats = resolvePlan(p).levels[0]?.features ?? [];
+    const feats = resolvePlan(p, bundledPalettes()).levels[0]?.features ?? [];
     for (const a of feats)
       for (const b of feats)
         if (a !== b)
           expect(Math.max(Math.abs(a.at[0] - b.at[0]), Math.abs(a.at[1] - b.at[1]))).toBeGreaterThanOrEqual(
             32,
           );
-    expect(bestOf3(() => resolvePlan(p))).toBeLessThan(500);
+    expect(bestOf3(() => resolvePlan(p, bundledPalettes()))).toBeLessThan(500);
   });
 
   it("explains five impossible doors between two huge rooms quickly (was ~3.7 s)", () => {
@@ -80,11 +81,11 @@ describe("resolve budgets", () => {
       between: ["a", "b"],
     }));
     const p = plan({ areas: [room("a", 0, 0, 79, 160), room("b", 81, 0, 79, 160)], openings });
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     expect(r.issues.filter((i) => i.code === "opening_no_boundary")[0]?.hint).toMatch(
       /2 cells apart|1 cells apart/,
     );
-    expect(bestOf3(() => resolvePlan(p))).toBeLessThan(500);
+    expect(bestOf3(() => resolvePlan(p, bundledPalettes()))).toBeLessThan(500);
   });
 
   it("rasterises a polygon with corners at ±4096 only inside the level (was tens of seconds)", () => {
@@ -108,10 +109,10 @@ describe("resolve budgets", () => {
         },
       ],
     });
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     expect(r.levels[0]?.areas[0]?.cellCount).toBe(1600);
     expect(r.issues.map((i) => i.code)).toEqual(["bounds_exceeded"]);
-    expect(bestOf3(() => resolvePlan(p))).toBeLessThan(200);
+    expect(bestOf3(() => resolvePlan(p, bundledPalettes()))).toBeLessThan(200);
   });
 
   it("huge circles, blobs and paths are clipped too", () => {
@@ -133,6 +134,6 @@ describe("resolve budgets", () => {
         },
       ],
     });
-    expect(bestOf3(() => resolvePlan(p))).toBeLessThan(500);
+    expect(bestOf3(() => resolvePlan(p, bundledPalettes()))).toBeLessThan(500);
   });
 });

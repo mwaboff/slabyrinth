@@ -1,6 +1,6 @@
 /**
- * Floor accent tone (generator 4, interior round item 6c). The owner called the hall's dais "a stark white rectangle":
- * a marble top on a flagstone room is the palest thing on the board. The resolver now tones such a platform top down
+ * Floor accent tone (generator 4). A pale accent reads as a spotlit slab: a marble dais top in a flagstone hall looked
+ * like "a stark white rectangle", the palest thing on the board. The resolver now tones such a platform top down
  * (resolve/interiorFloors.ts accentTop), so this note catches what remains: a patch of floor of a much paler material
  * than the room round it (a pale painted patch, a pale raised floor), which reads as a spotlit slab.
  *
@@ -16,8 +16,8 @@ const SCORE = 3.4;
 const MIN_CELLS = 6;
 const MAX_SHARE = 0.45;
 
-export function floorAccentNotes(levelId: string, L: ResolvedLevel, generator: number): DesignNote[] {
-  if (generator < 4) return [];
+/** The review runs it where the generator tones accents itself (`floorAccentReview`, plan/generator.ts). */
+export function floorAccentNotes(levelId: string, L: ResolvedLevel): DesignNote[] {
   if (!L.cells.state.some((s) => s === CELL.SOLID)) return [];
   const byArea = new Map<number, Map<number, number[]>>();
   const n = L.bounds.w * L.bounds.h;

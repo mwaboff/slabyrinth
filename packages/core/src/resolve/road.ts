@@ -1,13 +1,11 @@
 /**
  * Roads (generator 2): the geometry half of a path op in road form (`sidewalk` / `crossings`). The resolver
- * (level.ts) lays the cells; these helpers measure along the axis and describe the result for the build and dressing:
+ * (resolve/level/terrain.ts and paths.ts) lays the cells; these helpers measure along the axis and describe the result for the build and dressing:
  * crossings, kerb lines and pavement corners. Theme-neutral: nothing here knows what the road is made of.
  */
 import type { Side, Vec2 } from "../contracts/plan";
 import type { ResolvedRoad } from "../contracts/resolved";
-
-const STEP: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
+import { SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
 
 /** Arc-length position of a cell centre projected on the nearest segment of the axis, and that segment's direction. */
 export function axisPosition(axis: readonly Vec2[], x: number, y: number): { s: number; dir: "h" | "v" } {

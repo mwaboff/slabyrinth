@@ -13,9 +13,10 @@ import {
   type ResolvedStructure,
 } from "../contracts/resolved";
 import type { CompileDiagnostic, PaletteCatalog, PlacementSet } from "../contracts/compiler";
-import { loadPalettes } from "../palette/load";
-import { createRoleResolver } from "../palette/resolve";
-import { coveredStallForms } from "../palette/stallParts";
+import { generatorProfile, type GeneratorProfile } from "../plan/generator";
+import type { ResolvedVariant } from "../palette/resolve";
+import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE } from "../palette/roles";
+import { paletteView } from "../palette/view";
 import { structureSignature, structureSilhouette, structureTone } from "../resolve/structureVariety";
 import { roofUnsupportedEdges, structureRuinMeasures, weatherMeasures, weatherSigns } from "../resolve/ruin";
 import { GROWTH_LEVELS, growthMeasures } from "../resolve/growth";
@@ -31,7 +32,7 @@ import {
   type ToneVariant,
 } from "../gen/cover";
 import { rasterizeShape } from "../gen/shapes";
-import { OBSERVED_TONES } from "./tones";
+import { OBSERVED_TONES } from "../palette/tones";
 import { FENCE, fenceShare, type FenceRule } from "./rockSpacing";
 import { courseShape } from "../resolve/chasm";
 import {
@@ -50,11 +51,10 @@ import { roofGapNotes } from "./roofGaps";
 import { reviewBuild } from "./reviewBuild";
 import { stallNotes } from "./stalls";
 import { floorAccentNotes } from "./floorTone";
-import { LIGHT_FEATURES } from "../gen/catalog";
+import { LIGHT_FEATURES, isBandRock } from "../gen/catalog";
 import {
   FORMAL_THEMES,
   REPEAT_WATCH,
-  BAND_ROCK,
   COVER_FEATURES,
   SMALL_FEATURES,
   GROWTH_FEATURES,
@@ -156,8 +156,6 @@ export interface CliffCoverage {
 export interface ReviewOptions {
   /** Called once per level with the bare-face figures behind the cliff notes. */
   onCoverage?: (c: CliffCoverage) => void;
-  /** Palettes for tone tags (default: the bundled palettes). */
-  palettes?: PaletteCatalog;
   /** False judges the rock as built without the one-tone rule (generator 2's way); for tests and proofs. Default true. */
   oneToneRule?: boolean;
   /** Build diagnostics, when a build ran: substituted and unresolved pieces become one note. */
@@ -188,6 +186,8 @@ export interface DesignNote {
 
 interface Ctx {
   plan: MapPlan;
+  /** What the plan's generator does (plan/generator.ts): a check of newer behaviour reads its switch. */
+  gen: GeneratorProfile;
   /** Ids of features the build dropped (custom_unresolved); absent in tests that build a context by hand. */
   dropped?: ReadonlySet<string>;
   /** Tones of a floor role's variants in a theme (tagged variants only). */
@@ -223,19 +223,30 @@ interface Ctx {
 
 const over = (value: number, threshold: number): number => Math.min(3, value / Math.max(1e-9, threshold));
 
-/** Review every level of a resolved plan. Notes are ranked across levels and capped. */
-let bundled: PaletteCatalog | null = null;
-
-export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: ReviewOptions = {}): DesignNote[] {
+/**
+ * Review every level of a resolved plan, against the palettes it is built with (tones, piece kinds and sizes, what a
+ * theme can build). Notes are ranked across levels and capped.
+ */
+export function reviewDesign(
+  plan: MapPlan,
+  resolved: ResolvedPlan,
+  palettes: PaletteCatalog,
+  opts: ReviewOptions = {},
+): DesignNote[] {
   const notes: DesignNote[] = [];
-  const role = createRoleResolver(opts.palettes ?? (bundled ??= loadPalettes()));
+  const gen = generatorProfile(plan);
+  // the questions the resolver and the compiler ask of these palettes, with their answers (palette/view.ts)
+  const view = paletteView(palettes);
+  /** The usable variants of a role in a theme (after the palette's fallbacks). */
+  const variants = (theme: string, name: string): readonly ResolvedVariant[] =>
+    view.probe(theme)([name])?.variants ?? [];
   const toneMemo = new Map<string, Set<string>>();
   const floorTones = (theme: string, material: string): Set<string> => {
     const k = `${theme}|${material}`;
     let t = toneMemo.get(k);
     if (!t) {
       t = new Set<string>();
-      for (const v of role(theme, `floor.${material}`).resolution?.variants ?? [])
+      for (const v of variants(theme, `floor.${material}`))
         if (v.weight > 0) {
           const tone = v.tone ?? OBSERVED_TONES[v.uuid]?.tone;
           if (tone !== undefined) t.add(tone);
@@ -254,7 +265,7 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     let f = famMemo.get(k);
     if (!f) {
       const w = new Map<string, number>();
-      for (const v of role(theme, `floor.${material}`).resolution?.variants ?? [])
+      for (const v of variants(theme, `floor.${material}`))
         if (v.weight > 0) w.set(v.variant ?? "", (w.get(v.variant ?? "") ?? 0) + v.weight);
       const total = [...w.values()].reduce((a, b) => a + b, 0);
       f = {
@@ -272,7 +283,7 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     const k = `${theme}|${material}`;
     let l = listMemo.get(k);
     if (!l) {
-      l = familiesOfVariants(role(theme, `floor.${material}`).resolution?.variants ?? [], (u) => OBSERVED_TONES[u]?.tone);
+      l = familiesOfVariants(variants(theme, `floor.${material}`), (u) => OBSERVED_TONES[u]?.tone);
       listMemo.set(k, l);
     }
     return l;
@@ -283,7 +294,7 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     let n = kindMemo.get(k);
     if (n === undefined) {
       n = new Set(
-        (role(theme, `feature.${type}`).resolution?.variants ?? [])
+        variants(theme, `feature.${type}`)
           .filter((v) => v.weight > 0)
           .map((v) => v.uuid),
       ).size;
@@ -291,25 +302,16 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     }
     return n;
   };
-  const hasRole = (theme: string, name: string): boolean =>
-    (role(theme, name).resolution?.variants ?? []).some((v) => v.weight > 0);
-  const canCoverStall = (theme: string): boolean =>
-    coveredStallForms((roles, filter) => {
-      for (const r of roles) {
-        const found = role(theme, r, filter).resolution;
-        if (found) return found;
-      }
-      return null;
-    }).length > 0;
+  const hasRole = (theme: string, name: string): boolean => variants(theme, name).some((v) => v.weight > 0);
+  const canCoverStall = (theme: string): boolean => view.stallForms(theme).length > 0;
   const extentMemo = new Map<string, { w: number; d: number; h: number } | null>();
   const rockExtent: Ctx["rockExtent"] = (theme, type) => {
     const k = `${theme}|${type}`;
     let e = extentMemo.get(k);
     if (e === undefined) {
-      const vs = (
-        role(theme, type === "cliff_face" ? "cliff.formation_face" : "cliff.formation_crest").resolution
-          ?.variants ?? []
-      ).filter((v) => v.weight > 0 && (type === "cliff_face" || v.geom.size.y >= 1.2));
+      const vs = variants(theme, type === "cliff_face" ? CLIFF_FACE_ROLE : CLIFF_CREST_ROLE).filter(
+        (v) => v.weight > 0 && (type === "cliff_face" || v.geom.size.y >= 1.2),
+      );
       const v = [...vs].sort((a, b) => b.weight - a.weight)[0];
       e = v ? { w: v.geom.size.x, d: v.geom.size.z, h: v.geom.size.y } : null;
       extentMemo.set(k, e);
@@ -317,13 +319,11 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     return e ?? undefined;
   };
   const roleTones: Ctx["roleTones"] = (theme, roleName, only) =>
-    toneFamilies(
-      (role(theme, roleName).resolution?.variants ?? []).filter((v) => only === undefined || v.tone === only),
-    );
+    toneFamilies(variants(theme, roleName).filter((v) => only === undefined || v.tone === only));
   const rockKinds: Ctx["rockKinds"] = (theme) => {
-    if (opts.oneToneRule === false || plan.generator < 3) return { face: true, crest: true };
-    const vs = (n: string): readonly ToneVariant[] => role(theme, n).resolution?.variants ?? [];
-    return cliffRockKinds(vs("cliff.formation_face"), vs("cliff.formation_crest"));
+    if (opts.oneToneRule === false || !gen.cliffToneRule) return { face: true, crest: true };
+    const vs = (n: string): readonly ToneVariant[] => variants(theme, n);
+    return cliffRockKinds(vs(CLIFF_FACE_ROLE), vs(CLIFF_CREST_ROLE));
   };
   for (const L of resolved.levels) {
     const W = L.bounds.w;
@@ -340,9 +340,12 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     if (walkCount < REVIEW.minCells) continue;
     const ctx: Ctx = {
       plan,
+      gen,
       // features the build dropped (unresolved or wrong size) are not on the map: repeated_prop counts what stands
       dropped: new Set(
-        (opts.diagnostics ?? []).filter((d) => d.code === "custom_unresolved").flatMap((d) => d.elementIds ?? (d.elementId !== undefined ? [d.elementId] : [])),
+        (opts.diagnostics ?? [])
+          .filter((d) => d.code === "custom_unresolved")
+          .flatMap((d) => d.elementIds ?? (d.elementId !== undefined ? [d.elementId] : [])),
       ),
       floorTones,
       floorFamilies,
@@ -393,23 +396,23 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
       rockTonesMixed,
       (c: Ctx) => caveWallChecks(plan, c.L),
       (c: Ctx) => caveNaturalChecks(plan, c.L),
-      (c: Ctx) => floorAccentNotes(c.L.id, c.L, c.plan.generator),
+      (c: Ctx) => (c.gen.floorAccentReview ? floorAccentNotes(c.L.id, c.L) : []),
       focalLights,
       ruins,
       (c: Ctx) =>
-        stallNotes({
-          levelId: c.L.id,
-          level: c.L,
-          generator: c.plan.generator,
-          ...(c.canCoverStall ? { canCoverStall: c.canCoverStall } : {}),
-        }),
+        c.gen.coveredStalls
+          ? stallNotes({
+              levelId: c.L.id,
+              level: c.L,
+              ...(c.canCoverStall ? { canCoverStall: c.canCoverStall } : {}),
+            })
+          : [],
     ])
       notes.push(...fn(ctx));
   }
   // the cave rock mass as built (generator 3): measured on the realized pieces; generator 4 builds the cave itself when
   // the review was given no build (the in-app model review), so the mass checks run in every review
   // one build per review run (review/reviewBuild.ts): every note measured on the placed pieces shares it
-  const palettes = opts.palettes ?? (bundled ??= loadPalettes());
   const build = reviewBuild(resolved, palettes, opts.placements);
   notes.push(...caveMassReviewNotes(plan, resolved, build, palettes));
   // generator 4: an intact roof is whole (only a chimney stack stands in it); measured on the realized roof pieces
@@ -426,7 +429,8 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
   // the ground and the water course are what the eye meets first: a crowded review never drops their notes (the
   // owner's cave proof showed a quilt of floor families with no floor_patchwork note in the result)
   for (const n of ranked.slice(limit)) {
-    if (!NEVER_CROWDED_OUT.has(n.code) || kept.some((k) => k.code === n.code && k.levelId === n.levelId)) continue;
+    if (!NEVER_CROWDED_OUT.has(n.code) || kept.some((k) => k.code === n.code && k.levelId === n.levelId))
+      continue;
     let at = -1;
     for (let k = kept.length - 1; k >= 0 && at < 0; k--)
       if (!NEVER_CROWDED_OUT.has((kept[k] as DesignNote).code)) at = k;
@@ -439,7 +443,11 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
 }
 
 /** Notes the cap on the review never drops in favour of a lower-ranked kind. */
-const NEVER_CROWDED_OUT: ReadonlySet<DesignNoteCode> = new Set(["floor_patchwork", "river_trench", "rift_broken"]);
+const NEVER_CROWDED_OUT: ReadonlySet<DesignNoteCode> = new Set([
+  "floor_patchwork",
+  "river_trench",
+  "rift_broken",
+]);
 
 /**
  * A bridge crosses a channel by the shortest span, square to its course. A deck that runs along the channel (its long
@@ -448,7 +456,7 @@ const NEVER_CROWDED_OUT: ReadonlySet<DesignNoteCode> = new Set(["floor_patchwork
 function bridgeAlong(c: Ctx): DesignNote[] {
   const T = REVIEW.channels;
   const { L } = c;
-  if (c.plan.generator < 3) return [];
+  if (!c.gen.wanderingChannels) return [];
   const out: DesignNote[] = [];
   for (const b of L.bridges ?? []) {
     if (!b.id.includes("~b") || b.cells.length < 4) continue;
@@ -484,7 +492,8 @@ function bridgeAlong(c: Ctx): DesignNote[] {
       score: T.weight * 1.5,
       cell: [Math.round(mx), Math.round(my)],
       message: `bridge ${b.id} runs ${Math.round((Math.acos(Math.min(1, cos)) * 180) / Math.PI)} degrees off the channel's course for ${Math.max(dx, dy)} cells: it is a ribbon laid along the crack, not a crossing`,
-      action: "cross the channel by the shortest span, square to its course: move the bridge's `at` to a straighter stretch",
+      action:
+        "cross the channel by the shortest span, square to its course: move the bridge's `at` to a straighter stretch",
     });
   }
   return out;
@@ -498,14 +507,15 @@ function bridgeAlong(c: Ctx): DesignNote[] {
 function riftBroken(c: Ctx): DesignNote[] {
   const T = REVIEW.channels;
   const { L, W, H } = c;
-  if (c.plan.generator < 3 || (L.channels ?? []).length === 0) return [];
+  if (!c.gen.wanderingChannels || (L.channels ?? []).length === 0) return [];
   const lava = L.materials.indexOf("lava") + 1;
   const cells: Array<[number, number]> = [];
   for (let i = 0; i < W * H; i++) {
     if (L.cells.state[i] !== CELL.OPEN) continue;
     const f = L.cells.flags[i] as number;
     const wet = (f & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) !== 0;
-    if (wet || (lava > 0 && L.cells.material[i] === lava)) cells.push([L.bounds.x + (i % W), L.bounds.y + Math.floor(i / W)]);
+    if (wet || (lava > 0 && L.cells.material[i] === lava))
+      cells.push([L.bounds.x + (i % W), L.bounds.y + Math.floor(i / W)]);
   }
   const bodies = components(cells)
     .filter((b) => b.length >= T.brokenMinCells)
@@ -514,7 +524,9 @@ function riftBroken(c: Ctx): DesignNote[] {
   // only bodies lying on a recorded course count
   const onCourse = (b: Array<[number, number]>): boolean =>
     (L.channels ?? []).some((ch) =>
-      ch.centre.some(([cx, cy]) => b.some(([x, y]) => Math.abs(x + 0.5 - cx) <= 2.5 && Math.abs(y + 0.5 - cy) <= 2.5)),
+      ch.centre.some(([cx, cy]) =>
+        b.some(([x, y]) => Math.abs(x + 0.5 - cx) <= 2.5 && Math.abs(y + 0.5 - cy) <= 2.5),
+      ),
     );
   const on = bodies.filter(onCourse);
   if (on.length < 2) return [];
@@ -548,7 +560,7 @@ export function designReviewText(notes: readonly DesignNote[], briefLine = ""): 
 /** Levels a player can see or walk between from this one: linked by a stair or ladder, or looking through a floor opening. */
 function connectedLevels(c: Ctx): ResolvedLevel[] {
   const r = c.resolved;
-  if (!r || c.plan.generator < 3) return [];
+  if (!r || !c.gen.levelsJudgedTogether) return [];
   const ids = new Set<string>();
   for (const lk of r.links) {
     if (lk.fromLevel === c.L.id) ids.add(lk.toLevel);
@@ -565,10 +577,9 @@ function connectedLevels(c: Ctx): ResolvedLevel[] {
 /** Generator 3: a stack of built levels is judged as one map, not level by level. */
 function stackedLevels(c: Ctx): DesignNote[] {
   const r = c.resolved;
-  if (!r || c.plan.generator < 3) return [];
+  if (!r || !c.gen.levelsJudgedTogether) return [];
   const out: DesignNote[] = [];
-  const need =
-    (c.plan.levels.find((l) => l.id === c.L.id)?.wallHeight ?? 2) + 0.5 + LEVEL_AIR;
+  const need = (c.plan.levels.find((l) => l.id === c.L.id)?.wallHeight ?? 2) + 0.5 + LEVEL_AIR;
   for (const up of r.levels) {
     if (up.elevation <= c.L.elevation || up.elevation - c.L.elevation >= need - 1e-9) continue;
     // only levels that really lie over this one (open floor in both on at least a fifth of the smaller)
@@ -577,9 +588,14 @@ function stackedLevels(c: Ctx): DesignNote[] {
     for (let i = 0; i < c.W * c.H; i++) {
       const a = c.L.cells.state[i] === CELL.OPEN;
       if (a) mine++;
-      if (a && up.cells.state[i] === CELL.OPEN && ((up.cells.flags[i] ?? 0) & CELL_FLAG.NO_FLOOR) === 0) both++;
+      if (a && up.cells.state[i] === CELL.OPEN && ((up.cells.flags[i] ?? 0) & CELL_FLAG.NO_FLOOR) === 0)
+        both++;
     }
-    if (up.bounds.w !== c.W || both < 0.2 * Math.max(1, Math.min(mine, up.cells.state.filter((s) => s === CELL.OPEN).length))) continue;
+    if (
+      up.bounds.w !== c.W ||
+      both < 0.2 * Math.max(1, Math.min(mine, up.cells.state.filter((s) => s === CELL.OPEN).length))
+    )
+      continue;
     // one note per pair: on the lower level, once
     out.push({
       code: "levels_close",
@@ -605,7 +621,8 @@ function floorOpeningNotes(c: Ctx): DesignNote[] {
         elementIds: [fo.id],
         cell: fo.cells[0] as [number, number],
         message: `the floor opening ${fo.id} has open floor beneath only ${fo.floorBelow} of its ${n} cells${fo.below ? ` (level ${fo.below})` : " (there is no level below)"}: you would look into solid rock or void`,
-        action: "put a room of the level below directly under it (same cells, one storey down), or move the opening over a room",
+        action:
+          "put a room of the level below directly under it (same cells, one storey down), or move the opening over a room",
       });
     if (fo.edgeCells >= 4 && fo.hiddenEdge >= 0.4 * fo.edgeCells)
       out.push({
@@ -615,10 +632,9 @@ function floorOpeningNotes(c: Ctx): DesignNote[] {
         elementIds: [fo.id],
         cell: fo.cells[0] as [number, number],
         message: `walls hide the floor opening ${fo.id}: ${fo.hiddenEdge} of its ${fo.edgeCells} edge cells have a full-height wall between the walkway and the hole`,
-        action:
-          c.plan.generator >= 4
-            ? 'keep the hole inside one room with floor all round it (no area boundary or wall on its edge), and leave "rim" unset or low (low_wall, railing, none): a 2-tall wall round a hole reads as a maze of stubs from the table'
-            : "keep the hole inside one room with floor all round it (no area boundary or wall on its edge), so players can stand at the rim and look down",
+        action: c.gen.lowOpeningRims
+          ? 'keep the hole inside one room with floor all round it (no area boundary or wall on its edge), and leave "rim" unset or low (low_wall, railing, none): a 2-tall wall round a hole reads as a maze of stubs from the table'
+          : "keep the hole inside one room with floor all round it (no area boundary or wall on its edge), so players can stand at the rim and look down",
       });
   }
   return out;
@@ -645,11 +661,12 @@ function flat(c: Ctx): DesignNote[] {
   if (share < T.maxShare && levels >= T.minBands) {
     // generator 3: half-tile lumps (an uneven op) are not depth. When nearly all the walkable ground lies within one
     // tile of one height, no part of the map is a tile or more above or below the rest
-    if (c.plan.generator < 3) return [];
+    if (!c.gen.depthInTiles) return [];
     const tiles = new Map<number, number>();
     // ground to stand on: not a lava rift or a pit's floor
     const lava = c.L.materials.indexOf("lava") + 1;
-    const ground = (i: number): boolean => c.walkable[i] === 1 && (lava === 0 || c.L.cells.material[i] !== lava);
+    const ground = (i: number): boolean =>
+      c.walkable[i] === 1 && (lava === 0 || c.L.cells.material[i] !== lava);
     let groundN = 0;
     for (let i = 0; i < c.W * c.H; i++) {
       if (!ground(i)) continue;
@@ -863,7 +880,8 @@ function riverTrench(c: Ctx): DesignNote[] {
   const { L, W, H } = c;
   const wet = (i: number): boolean =>
     L.cells.state[i] === CELL.OPEN &&
-    ((L.cells.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) === CELL_FLAG.WATER;
+    ((L.cells.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) ===
+      CELL_FLAG.WATER;
   const dry = (i: number): boolean =>
     L.cells.state[i] === CELL.OPEN &&
     ((L.cells.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) === 0;
@@ -871,9 +889,12 @@ function riverTrench(c: Ctx): DesignNote[] {
   const out: DesignNote[] = [];
   const nb = (i: number): number[] => {
     const x = i % W;
-    return [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i >= W ? i - W : -1, i < W * (H - 1) ? i + W : -1].filter(
-      (j) => j >= 0,
-    );
+    return [
+      x > 0 ? i - 1 : -1,
+      x < W - 1 ? i + 1 : -1,
+      i >= W ? i - W : -1,
+      i < W * (H - 1) ? i + W : -1,
+    ].filter((j) => j >= 0);
   };
   const bfs = (start: number, inside: (i: number) => boolean): Map<number, number> => {
     const d = new Map<number, number>([[start, 0]]);
@@ -937,7 +958,10 @@ function riverTrench(c: Ctx): DesignNote[] {
       .map(([k, v]) => [k, [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)] as number] as const);
     // a running median of three bins (six cells): one odd bin where the course doubles back is not a trench
     const med = raw.map(([k], j) => {
-      const w = raw.slice(Math.max(0, j - 1), j + 2).map((r) => r[1]).sort((a, b) => a - b);
+      const w = raw
+        .slice(Math.max(0, j - 1), j + 2)
+        .map((r) => r[1])
+        .sort((a, b) => a - b);
       return [k, w[Math.floor(w.length / 2)] as number] as const;
     });
     if (med.length < 4) continue;
@@ -1359,7 +1383,7 @@ function floors(c: Ctx): DesignNote[] {
   }
   // one material laid as several tile families with none dominant
   const top = big[0];
-  if (top && top[1].n / field >= T.familyFieldShare && c.plan.generator >= 3) {
+  if (top && top[1].n / field >= T.familyFieldShare && c.gen.floorFamilies) {
     // generator 3: measure the floor as it is laid (one dominant family; a second only in caused patches)
     const fams = c.familyList(top[1].theme, top[0]);
     if (fams.length >= 2 && NATURAL_MATERIALS.has(top[0])) {
@@ -1379,7 +1403,13 @@ function floors(c: Ctx): DesignNote[] {
       const toneOf = (name: string): string | undefined => fams.find((f) => f.name === name)?.tone;
       const names = [...laid.keys()];
       const clash = names.some((a) =>
-        names.some((b) => a < b && (laid.get(a) ?? 0) / n >= 0.08 && (laid.get(b) ?? 0) / n >= 0.08 && !tonesClose(toneOf(a), toneOf(b))),
+        names.some(
+          (b) =>
+            a < b &&
+            (laid.get(a) ?? 0) / n >= 0.08 &&
+            (laid.get(b) ?? 0) / n >= 0.08 &&
+            !tonesClose(toneOf(a), toneOf(b)),
+        ),
       );
       // the second family is laid as ragged blobs round a real cause (water, a path, the foot of a rise of a tile or
       // more, a tree, camp or set piece), a few percent of the ground: single squares scattered over open grass fail
@@ -1519,7 +1549,7 @@ const LIT_FOCALS: ReadonlySet<string> = new Set([
 ]);
 
 function focalLights(c: Ctx): DesignNote[] {
-  if (c.plan.generator < 3) return [];
+  if (!c.gen.litLandmarks) return [];
   const T = REVIEW.caveMass;
   const lights = c.L.features.filter((f) => LIGHT_FEATURES.has(f.type));
   const gap = (a: (typeof lights)[number], b: (typeof lights)[number]): number => {
@@ -1621,7 +1651,7 @@ function routes(c: Ctx): DesignNote[] {
   }
   // generator 3: stairs and ladders join the rooms of different levels, so a loop may run up one stair and down another;
   // the whole plan is judged once (on its first level)
-  if (c.resolved && c.plan.generator >= 3 && c.resolved.links.length > 0) {
+  if (c.resolved && c.gen.levelsJudgedTogether && c.resolved.links.length > 0) {
     if (c.resolved.levels[0]?.id !== L.id) return [];
     const parent = new Map<string, string>();
     const find = (a: string): string => {
@@ -1646,7 +1676,8 @@ function routes(c: Ctx): DesignNote[] {
       const i = (y - lv.bounds.y) * lv.bounds.w + (x - lv.bounds.x);
       const a = lv.cells.area[i] ?? 0;
       const id = a > 0 ? lv.areaIds[a - 1] : undefined;
-      return id !== undefined && lv.areas.some((q) => q.id === id && q.kind !== "zone" && q.kind !== "building")
+      return id !== undefined &&
+        lv.areas.some((q) => q.id === id && q.kind !== "zone" && q.kind !== "building")
         ? `${lv.id}|${id}`
         : null;
     };
@@ -1760,7 +1791,7 @@ function symmetry(c: Ctx): DesignNote[] {
   for (const st of L.structures ?? [])
     if (st.kind === "building") for (const [x, y] of st.cells) occ.add(`${x},${y}`);
   for (const f of L.features)
-    if (!NATURAL_FEATURES.has(f.type) && !BAND_ROCK.has(f.type))
+    if (!NATURAL_FEATURES.has(f.type) && !isBandRock(f.type))
       for (let dy = 0; dy < f.size[1]; dy++)
         for (let dx = 0; dx < f.size[0]; dx++) occ.add(`${f.at[0] + dx},${f.at[1] + dy}`);
   if (occ.size < T.minCells) return [];
@@ -2038,7 +2069,9 @@ function terraces(c: Ctx): DesignNote[] {
   for (const op of lv?.terrain ?? []) {
     if (op.op === "platform") {
       // a knoll built as thin plates: two or more raised levels with every step under a tile, square outlines
-      const cells = opCells(c, op.shape).filter(([x, y]) => c.walkable[(y - c.L.bounds.y) * c.W + (x - c.L.bounds.x)]);
+      const cells = opCells(c, op.shape).filter(
+        ([x, y]) => c.walkable[(y - c.L.bounds.y) * c.W + (x - c.L.bounds.x)],
+      );
       const levels = new Map<number, Array<[number, number]>>();
       for (const [x, y] of cells) {
         const h = c.L.cells.height[(y - c.L.bounds.y) * c.W + (x - c.L.bounds.x)] as number;
@@ -2243,7 +2276,7 @@ function reachFocus(c: Ctx): DesignNote[] {
   ];
 }
 
-// ───────────────────────── cliffs (docs/internal/cliffs-lessons-reference.md §4) ─────────────────────────
+// ───────────────────────── cliffs (judged as gen/cliffband.ts builds them) ─────────────────────────
 
 /**
  * Rock of more than one tone family in a cliff (generator 3). Cliffs are judged as the realizer builds them (one tone
@@ -2252,7 +2285,7 @@ function reachFocus(c: Ctx): DesignNote[] {
  */
 function rockTonesMixed(c: Ctx): DesignNote[] {
   const { L } = c;
-  if (c.plan.generator < 3) return [];
+  if (!c.gen.cliffToneRule) return [];
   const where = new Map<string, Set<string>>();
   const add = (place: string, tones: string[]): void => {
     if (tones.length > 0) where.set(place, new Set([...(where.get(place) ?? []), ...tones]));
@@ -2263,13 +2296,14 @@ function rockTonesMixed(c: Ctx): DesignNote[] {
     const k = c.rockKinds(theme);
     // the rule narrows each kind to the cliff's tone; without it every piece of the role can stand
     const narrow = k.tone;
-    if (faces.has(theme) && k.face) add("the cliffs", c.roleTones(theme, "cliff.formation_face", narrow));
+    if (faces.has(theme) && k.face) add("the cliffs", c.roleTones(theme, CLIFF_FACE_ROLE, narrow));
     if (crests.has(theme) && k.crest) {
       // boulders of the face's tone (the boulder role's, else the palette's same-tone boulder role), else the other
       // tone as they are: that is the mixed case
-      const same = c.roleTones(theme, "cliff.formation_crest", narrow);
-      const alt = narrow === undefined || same.length > 0 ? [] : c.roleTones(theme, `cliff.formation_crest_${narrow}`);
-      add("the cliffs", same.length > 0 ? same : alt.length > 0 ? alt : c.roleTones(theme, "cliff.formation_crest"));
+      const same = c.roleTones(theme, CLIFF_CREST_ROLE, narrow);
+      const alt =
+        narrow === undefined || same.length > 0 ? [] : c.roleTones(theme, `${CLIFF_CREST_ROLE}_${narrow}`);
+      add("the cliffs", same.length > 0 ? same : alt.length > 0 ? alt : c.roleTones(theme, CLIFF_CREST_ROLE));
     }
   }
   // cave walls: the tone count of the built wall is review/caveMass.ts (`cave_rock_tones`, measured on the realized
@@ -2282,31 +2316,54 @@ function rockTonesMixed(c: Ctx): DesignNote[] {
       levelId: L.id,
       score: REVIEW.rockTones.weight,
       message: `rock of ${tones.size} tone families (${[...tones].sort().join(", ")}) in ${place}: pale and grey stones side by side read as two kinds of rock`,
-      action: "keep the cliff's rock to one family: a theme whose cliff and boulders match, or no cliff band here",
+      action:
+        "keep the cliff's rock to one family: a theme whose cliff and boulders match, or no cliff band here",
     });
   }
   return out;
 }
 
+/** The cliff notes of a level, in note order: bare faces, the band's shape, timid rises, a rectangular natural board. */
 function cliffChecks(c: Ctx): DesignNote[] {
-  const T = REVIEW.cliffs;
-  const { L } = c;
+  const band = cliffBandView(c);
+  reportCliffCoverage(c, band);
   const out: DesignNote[] = [];
+  bareFaceNotes(c, band, out);
+  bandShapeNotes(c, band, out);
+  timidRiseNotes(c, out);
+  boardFillNotes(c, out);
+  return out;
+}
+
+/** A cliff edge unit: the middle of the edge, the low cell, the outward step and the rise (tiles). */
+interface Unit {
+  mid: [number, number];
+  low: [number, number];
+  out: [number, number];
+  rise: number;
+}
+
+/** Edge units with the ground heights on either side (tiles above the base plane), judged by what hides the face. */
+interface Face extends Unit {
+  lo: number;
+  hi: number;
+}
+
+/**
+ * The level's rock band as the checks see it: its pieces and their shapes as the build lays them, the cliff edge units,
+ * the faces judged by what hides them (inner cliffs and, generator 3, the board's own edge), and the share helpers.
+ */
+function cliffBandView(c: Ctx) {
+  const { L } = c;
   // (the band as planned: where the realizer drops a kind of rock for tone, it clads those drops with its plain block
   // face instead, which the plan cannot change, so these notes judge the plan)
-  const rocks = L.features.filter((f) => BAND_ROCK.has(f.type));
-  const covers =(f: (typeof rocks)[number], px: number, py: number, pad: number): boolean =>
+  const rocks = L.features.filter((f) => isBandRock(f.type));
+  const covers = (f: (typeof rocks)[number], px: number, py: number, pad: number): boolean =>
     px >= f.at[0] - pad &&
     px <= f.at[0] + f.size[0] + pad &&
     py >= f.at[1] - pad &&
     py <= f.at[1] + f.size[1] + pad;
   const STEPV: Record<string, [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
-  interface Unit {
-    mid: [number, number];
-    low: [number, number];
-    out: [number, number];
-    rise: number;
-  }
   const units: Unit[] = [];
   for (const run of L.cliffs ?? [])
     for (const e of run.edges) {
@@ -2316,7 +2373,7 @@ function cliffChecks(c: Ctx): DesignNote[] {
     }
   // what really hides a face (gen/cover.ts): the pieces as the build lays them (generator 3 turns and slides them;
   // earlier generators laid every rock at one turn), over the whole height of the drop
-  const turned = c.plan.generator >= 3;
+  const turned = c.gen.restingCliffBand;
   const shapes: RockShape[] = [];
   for (const f of rocks) {
     const ext = c.rockExtent(f.theme, f.type as "cliff_face" | "cliff_crest");
@@ -2332,11 +2389,6 @@ function cliffChecks(c: Ctx): DesignNote[] {
     });
   }
   const ground = L.elevation + 0.5;
-  /** Edge units with the ground heights on either side (tiles above the base plane), judged by what hides the face. */
-  interface Face extends Unit {
-    lo: number;
-    hi: number;
-  }
   const faceOf = (u: Unit, lo: number, hi: number): Face => ({ ...u, lo, hi });
   const hides = (u: Face): boolean =>
     edgeHidden(
@@ -2384,7 +2436,7 @@ function cliffChecks(c: Ctx): DesignNote[] {
     }
   // the board's own edge: open ground standing a tile or more above the base, beside void or off the board
   const edgeFaces: Face[] = [];
-  if (c.plan.generator >= 3)
+  if (c.gen.restingCliffBand)
     for (let ly = 0; ly < c.H; ly++)
       for (let lx = 0; lx < c.W; lx++) {
         const i = ly * c.W + lx;
@@ -2422,6 +2474,14 @@ function cliffChecks(c: Ctx): DesignNote[] {
   const clad = (u: Unit): boolean => rocks.some((f) => covers(f, u.mid[0], u.mid[1], 0.3));
   const share = (list: Unit[], pred: (u: Unit) => boolean): number =>
     list.length === 0 ? 0 : list.filter(pred).length / list.length;
+  return { rocks, covers, units, turned, shapes, hides, edgeFaces, high, faceHigh, faceLow, clad, share };
+}
+
+type CliffBandView = ReturnType<typeof cliffBandView>;
+
+/** The coverage the band leaves (tall, low and board-edge faces: how many, and where bare) for the caller's measures. */
+function reportCliffCoverage(c: Ctx, { hides, faceHigh, faceLow, edgeFaces }: CliffBandView): void {
+  const { L } = c;
   c.onCoverage?.({
     levelId: L.id,
     tall: { edges: faceHigh.length, bare: faceHigh.filter((u) => !hides(u)).length },
@@ -2433,6 +2493,16 @@ function cliffChecks(c: Ctx): DesignNote[] {
       board: edgeFaces.filter((u) => !hides(u)).map((u) => u.mid),
     },
   });
+}
+
+/**
+ * Bare faces: the board's edge, the tall cliffs (unclad, sheer, thin band, no crest) and the one-tile banks. The band
+ * measures (reach, width, crest) look at where pieces stand; only bare face uses `hides`.
+ */
+function bareFaceNotes(c: Ctx, band: CliffBandView, out: DesignNote[]): void {
+  const T = REVIEW.cliffs;
+  const { L } = c;
+  const { rocks, covers, hides, edgeFaces, high, faceHigh, faceLow, clad, share } = band;
   const bareShare = (list: Face[]): number =>
     list.length === 0 ? 0 : list.filter((u) => !hides(u)).length / list.length;
   if (edgeFaces.length >= T.minUnits) {
@@ -2519,7 +2589,15 @@ function cliffChecks(c: Ctx): DesignNote[] {
           "set loose boulders along about half of each bank, or merge small steps into fewer, bolder rises",
       });
   }
-  // the band's outer boundary should wander
+}
+
+/**
+ * The band's shape: its outer boundary should wander, its pieces vary in piece and turn, stand unevenly spaced, leave
+ * the terraces walkable and rest on something.
+ */
+function bandShapeNotes(c: Ctx, { rocks, turned, shapes }: CliffBandView, out: DesignNote[]): void {
+  const T = REVIEW.cliffs;
+  const { L } = c;
   if (rocks.length >= T.minPieces) {
     const cells: Array<[number, number]> = [];
     const seen = new Set<string>();
@@ -2595,7 +2673,11 @@ function cliffChecks(c: Ctx): DesignNote[] {
       for (let lx = 0; lx < c.W; lx++) {
         const i = ly * c.W + lx;
         if (L.cells.state[i] !== CELL.OPEN || (L.cells.material[i] ?? 0) === 0) continue;
-        walk.push({ x: L.bounds.x + lx, y: L.bounds.y + ly, ground: L.elevation + 0.5 + (L.cells.height[i] ?? 0) / 4 });
+        walk.push({
+          x: L.bounds.x + lx,
+          y: L.bounds.y + ly,
+          ground: L.elevation + 0.5 + (L.cells.height[i] ?? 0) / 4,
+        });
       }
     const buried = terraceRockShare(shapes, walk).filter((t) => t.share > T.terraceShare);
     const worst = buried.sort((a, b) => b.share - a.share)[0];
@@ -2633,7 +2715,12 @@ function cliffChecks(c: Ctx): DesignNote[] {
           "rest every rock on the ground or on the rock below it (the base course sits on the low ground)",
       });
   }
-  // few, bold rises: most steps a single tile is timid
+}
+
+/** Few, bold rises: most steps a single tile is timid. */
+function timidRiseNotes(c: Ctx, out: DesignNote[]): void {
+  const T = REVIEW.cliffs;
+  const { L } = c;
   const natural = (L.cliffs ?? []).flatMap((r) => r.edges);
   const bands = new Set<number>();
   for (let i = 0; i < c.W * c.H; i++)
@@ -2650,7 +2737,12 @@ function cliffChecks(c: Ctx): DesignNote[] {
           "shape the hill as two or three terraces 2–3 tiles apart (a ragged platform with tiers and rise 2.5)",
       });
   }
-  // a natural map should not fill its rectangle
+}
+
+/** A natural map should not fill its rectangle. */
+function boardFillNotes(c: Ctx, out: DesignNote[]): void {
+  const T = REVIEW.cliffs;
+  const { L } = c;
   const lv = c.plan.levels.find((l) => l.id === L.id);
   const naturalMap =
     lv?.base.type === "ground" &&
@@ -2672,7 +2764,6 @@ function cliffChecks(c: Ctx): DesignNote[] {
           'leave the level outline natural (the default; outline "rect" turns it off) and keep a strip of low ground at the edge',
       });
   }
-  return out;
 }
 
 // ───────────────────────── ruins (the building engineer's measures) ─────────────────────────
@@ -2682,7 +2773,7 @@ function ruins(c: Ctx): DesignNote[] {
   const out: DesignNote[] = [];
   for (const st of buildingsOf(c)) {
     // a weathered building must read as neglected: too few signs and it looks like its intact version (generator 3)
-    if (st.condition === "weathered" && c.plan.generator >= 3) {
+    if (st.condition === "weathered" && c.gen.legibleCondition) {
       const wm = weatherMeasures(st);
       const signs = wm ? weatherSigns(wm) : 0;
       if (wm && signs < T.weatherSigns)
@@ -2697,7 +2788,7 @@ function ruins(c: Ctx): DesignNote[] {
         });
     }
     // generator 3: a weathered or ruined building in a theme with climbing growth must not be bare of it
-    if (st.condition && st.condition !== "intact" && c.plan.generator >= 3 && c.hasRole) {
+    if (st.condition && st.condition !== "intact" && c.gen.legibleCondition && c.hasRole) {
       const has = (n: string): boolean => c.hasRole?.(st.theme, n) === true;
       if (has("ruin_climber.default") || has("feature.vines")) {
         const g = growthMeasures(st);
@@ -2712,12 +2803,12 @@ function ruins(c: Ctx): DesignNote[] {
             elementIds: [st.id],
             message: `the ${st.condition} building ${st.id} is not ${level === "heavy" ? "overgrown" : "grown over"}: vines and roots cover ${Math.round(g.coverage * 100)}% of its ${g.columns} wall cells, a ${level} level wants ${Math.round(min * 100)}% or more`,
             action:
-              "give it free ground at the wall foot (leave a ring of open cells round it) so vines and roots can climb it, set growth: \"heavy\" for an overgrown place, or build it intact",
+              'give it free ground at the wall foot (leave a ring of open cells round it) so vines and roots can climb it, set growth: "heavy" for an overgrown place, or build it intact',
           });
       }
     }
     // generator 3: the roof is the larger part of a cottage or inn (the study: 55-65 % of the visible height)
-    if (st.style === "cottage" && c.plan.generator >= 3) {
+    if (st.style === "cottage" && c.gen.buildingVariety) {
       const rp = roofProportion(st);
       if (rp && rp.share < T.roofShare)
         out.push({
@@ -2734,25 +2825,26 @@ function ruins(c: Ctx): DesignNote[] {
     const m = structureRuinMeasures(st);
     if (!m) continue;
     // generator 3 judges the cut wall tops only: a roofed part standing whole is the anchor, not a flat top
-    const g3 = c.plan.generator >= 3;
-    const flat = g3 && m.intactShare > 0 ? 1 - m.cutVariety : 1 - m.topVariety;
+    const legible = c.gen.legibleCondition;
+    const flat = legible && m.intactShare > 0 ? 1 - m.cutVariety : 1 - m.topVariety;
     // (generator 3: a collapse steps down in slopes and long runs, so level neighbours alone no longer condemn it; one
     // level line does, and so does a clean cut with long equal runs)
-    if (flat > (g3 ? T.flatTop3 : T.flatTop) || (g3 && m.runShort < T.runShort))
+    if (flat > (legible ? T.flatTop3 : T.flatTop) || (legible && m.runShort < T.runShort))
       out.push({
         code: "ruin_flat_top",
         levelId: c.L.id,
         score:
-          T.weight * Math.max(over(flat, T.flatTop), g3 ? over(T.runShort, Math.max(0.1, m.runShort)) : 0),
+          T.weight *
+          Math.max(over(flat, T.flatTop), legible ? over(T.runShort, Math.max(0.1, m.runShort)) : 0),
         elementIds: [st.id],
-        message: g3
+        message: legible
           ? `the ruin ${st.id} has clean-cut wall tops (${Math.round(m.runShort * 100)}% of its runs of equal height are short; ${Math.round(flat * 100)}% of neighbouring cut tops are level)`
           : `the ruin ${st.id} has a level, even wall top (${Math.round(flat * 100)}% of neighbouring wall tops are the same height)`,
         action:
           "break it further: a taller tower mass, more loss, or another seed, so the wall tops step every one or two cells",
       });
     // generator 3: wall tops that alternate one up, one down read as battlements, not a collapse
-    if (g3 && m.teeth > T.teeth)
+    if (legible && m.teeth > T.teeth)
       out.push({
         code: "ruin_teeth",
         levelId: c.L.id,
@@ -2763,7 +2855,7 @@ function ruins(c: Ctx): DesignNote[] {
           "let the wall fall in long runs: a tall surviving corner, a slope stepping down over several cells, a stretch near ground level, a breach",
       });
     // generator 3: a roof is always held up: no eave over a wall that has fallen away
-    if (g3) {
+    if (legible) {
       const bare = roofUnsupportedEdges(st);
       if (bare.length > 0)
         out.push({
@@ -2777,7 +2869,7 @@ function ruins(c: Ctx): DesignNote[] {
     }
     const intact = st.storeys.reduce((t, q) => t + q.wallHeight, 0);
     // a part standing whole under its roof is itself the contrast with the stubs (generator 3)
-    if (intact >= T.minIntact && m.contrast < T.contrast && !(g3 && m.intactShare > 0))
+    if (intact >= T.minIntact && m.contrast < T.contrast && !(legible && m.intactShare > 0))
       out.push({
         code: "ruin_uniform",
         levelId: c.L.id,

@@ -1,6 +1,6 @@
 /**
- * Interior floors, generator 4 (interior round, items 5-6, 2026-11-20). Pure helpers for the resolver
- * (`LevelWork.stepRoomFloors`) and the review (`floor_accent_tone`).
+ * Interior floors, generator 4 (switches `roomFloors`, `accentTops`). Pure helpers for the resolver
+ * (resolve/level/rooms.ts `stepRoomFloors`) and the review (`floor_accent_tone`).
  *
  * A built interior reads as separate rooms when each room has its own floor and sits a step above the corridor. The
  * reference interior the owner admired has five floor families (a room is one family, the corridor another that ties
@@ -31,7 +31,10 @@ export const BUILT_FLOORS: ReadonlySet<Material> = new Set<Material>([
  * The floor a room of `purpose` takes in a level of `family`: a material, "keep" for a corridor in all but name (it
  * keeps the corridor's floor and height), null when the purpose asks for none (the rotation decides).
  */
-export function purposeFloor(purpose: RoomPurpose | undefined, family: FloorFamily): Material | "keep" | null {
+export function purposeFloor(
+  purpose: RoomPurpose | undefined,
+  family: FloorFamily,
+): Material | "keep" | null {
   if (purpose === undefined) return null;
   const f = ROOM_PURPOSE_INFO[purpose].floor;
   return f === "keep" ? "keep" : f[family];

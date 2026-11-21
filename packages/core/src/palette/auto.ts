@@ -1,5 +1,5 @@
 /**
- * Runtime palette enrichment from the user's scanned catalog (2026-11-19): assets a game update adds become
+ * Runtime palette enrichment from the user's scanned catalog: assets a game update adds become
  * extra, low-weight variants of the roles they classify into (catalog/classify.ts), with footprint and pivot
  * from the catalog record. Curated entries stay authoritative:
  *  - only roles a theme ALREADY defines get auto variants (no new roles, no aliases filled behind the curator's back);

@@ -1,87 +1,10 @@
 /**
- * Read-only views used by the verify stage: resolved cells/edges of a level, and a spatial index of realized
- * placement boxes keyed by PLAN cell (all levels share the global plan grid, so stacked levels index together).
+ * The verify stage's spatial index of realized placement boxes, keyed by PLAN cell (all levels share the global plan
+ * grid, so stacked levels index together). The resolved cells and edges it checks against are read through the level
+ * grid (resolve/levelGrid.ts LevelGrid), as realize reads them.
  */
 import type { Box3, Placement, PlacementRole } from "../../contracts/compiler";
-import type { LevelId, Side } from "../../contracts/plan";
-import { CELL, CELL_FLAG, EDGE, type ResolvedLevel } from "../../contracts/resolved";
-
-export interface CellView {
-  inBounds: boolean;
-  open: boolean;
-  floor: boolean;
-  /** Relative floor height (tiles). */
-  height: number;
-  flags: number;
-  area: number;
-}
-
-export class LevelGrid {
-  readonly w: number;
-  readonly h: number;
-  constructor(readonly L: ResolvedLevel) {
-    this.w = L.bounds.w;
-    this.h = L.bounds.h;
-  }
-  idx(x: number, y: number): number {
-    const lx = x - this.L.bounds.x;
-    const ly = y - this.L.bounds.y;
-    return lx < 0 || ly < 0 || lx >= this.w || ly >= this.h ? -1 : ly * this.w + lx;
-  }
-  cell(x: number, y: number): CellView {
-    const i = this.idx(x, y);
-    if (i < 0) return { inBounds: false, open: false, floor: false, height: 0, flags: 0, area: 0 };
-    const c = this.L.cells;
-    const open = c.state[i] === CELL.OPEN;
-    const flags = c.flags[i] ?? 0;
-    return {
-      inBounds: true,
-      open,
-      floor: open && (flags & CELL_FLAG.NO_FLOOR) === 0 && (c.material[i] ?? 0) > 0,
-      height: (c.height[i] ?? 0) / 4,
-      flags,
-      area: c.area[i] ?? 0,
-    };
-  }
-  /** Walkable floor top (absolute y). */
-  top(x: number, y: number): number {
-    return this.L.elevation + this.cell(x, y).height + 0.5;
-  }
-  /** Edge on `side` of cell (x,y): grid, index, and whether that cell hosts the strip. */
-  edge(
-    x: number,
-    y: number,
-    side: Side,
-  ): { kind: number; hostedHere: boolean; index: number; horizontal: boolean } {
-    const L = this.L;
-    const lx = x - L.bounds.x;
-    const ly = y - L.bounds.y;
-    let horizontal: boolean;
-    let i: number;
-    let hereIsSecond: boolean;
-    if (side === "N" || side === "S") {
-      horizontal = true;
-      const ey = side === "N" ? ly : ly + 1;
-      i = lx < 0 || lx >= this.w || ey < 0 || ey > this.h ? -1 : ey * this.w + lx;
-      hereIsSecond = side === "N";
-    } else {
-      horizontal = false;
-      const ex = side === "W" ? lx : lx + 1;
-      i = ex < 0 || ex > this.w || ly < 0 || ly >= this.h ? -1 : ly * (this.w + 1) + ex;
-      hereIsSecond = side === "W";
-    }
-    if (i < 0) return { kind: EDGE.NONE, hostedHere: false, index: -1, horizontal };
-    const g = horizontal ? L.hEdges : L.vEdges;
-    const kind = g.kind[i] ?? EDGE.NONE;
-    const host = g.host[i] ?? 1;
-    return {
-      kind,
-      hostedHere: (kind === EDGE.WALL || kind === EDGE.OPENING) && (host === 1) === hereIsSecond,
-      index: i,
-      horizontal,
-    };
-  }
-}
+import type { LevelId } from "../../contracts/plan";
 
 export interface Solid {
   p: Placement;

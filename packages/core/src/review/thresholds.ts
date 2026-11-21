@@ -2,6 +2,9 @@
  * Design review thresholds (data, not code). Each note fires when its measure crosses the threshold; `weight` ranks
  * notes against each other (higher = shown first). Tuned on the team's proof history (docs/decisions.md).
  */
+import { MATERIALS } from "../contracts/plan";
+import { isNaturalGround } from "../resolve/materials";
+
 export const REVIEW = {
   /** Notes shown at most (the rest are dropped, lowest rank first). */
   maxNotes: 6,
@@ -213,8 +216,8 @@ export const REVIEW = {
   /** Rock of more than one tone family in a cliff or a cave (advisory; gen/cover.ts cliffRockKinds). */
   rockTones: { weight: 3 },
   /**
-   * Cave rock mass as built (review/caveMass.ts, needs the realized pieces). Reference: good community builds close the
-   * rock behind a face with about 6 overlapping neighbours per piece (docs/internal/talestavern-lessons-strata-caves.md).
+   * Cave rock mass as built (review/caveMass.ts, needs the realized pieces). Reference: good community cave builds
+   * close the rock behind a face with about 6 overlapping neighbours per piece, so no gap shows through.
    */
   caveMass: {
     weight: 6,
@@ -249,8 +252,16 @@ export const REVIEW = {
    * straight-sided when over `straightShare` of the wall lies in straight runs longer than `run` cells, or one run is
    * longer than `longest` (v2: 46% / 11, v3: 12% / 8).
    */
-  caveNatural: { weight: 4, flatShare: 0.8, minCells: 40, run: 5, straightShare: 0.3, longest: 10, minEdges: 30 },
-  /** Cliff checks (docs/internal/cliffs-lessons-reference.md §4; reference values in the comments). */
+  caveNatural: {
+    weight: 4,
+    flatShare: 0.8,
+    minCells: 40,
+    run: 5,
+    straightShare: 0.3,
+    longest: 10,
+    minEdges: 30,
+  },
+  /** Cliff checks (rock bands as gen/cliffband.ts builds them; reference values in the comments). */
   cliffs: {
     weight: 6,
     /** Judge only with at least this many edge units / rock pieces. */
@@ -348,17 +359,11 @@ export const REVIEW = {
   },
 } as const;
 
-/** Ground that should read as natural (meandering, irregular) rather than built. */
-export const NATURAL_MATERIALS: ReadonlySet<string> = new Set([
-  "grass",
-  "dirt",
-  "gravel",
-  "rock",
-  "sand",
-  "mud",
-  "snow",
-  "swamp",
-]);
+/**
+ * Ground that should read as natural (meandering, irregular) rather than built: the material table's `natural` trait
+ * (resolve/materials.ts), so ice counts like snow.
+ */
+export const NATURAL_MATERIALS: ReadonlySet<string> = new Set(MATERIALS.filter(isNaturalGround));
 
 /** Feature types that are natural growth or rock (they should cluster, never stand in rows). */
 export const NATURAL_FEATURES: ReadonlySet<string> = new Set([
@@ -397,7 +402,10 @@ export const ROCK_FAMILIES: ReadonlyArray<readonly [RegExp, string]> = [
   [/^burrow_/i, "burrow"],
   [/flowstone/i, "flowstone"],
   [/stalagmite|stalactite/i, "stalagmite"],
-  [/^Boulder - Large|^rock_large|^rock_mossy|^Moss Rock|^Cliff Face|Cliff \d|Rock - Small|Rubble|Rockpile/i, "grey_rock"],
+  [
+    /^Boulder - Large|^rock_large|^rock_mossy|^Moss Rock|^Cliff Face|Cliff \d|Rock - Small|Rubble|Rockpile/i,
+    "grey_rock",
+  ],
 ];
 
 /** Families that read as one tone (the first is the group's name). Anything else is its own tone. */
@@ -501,6 +509,3 @@ export const COVER_FEATURES: ReadonlySet<string> = new Set([
   "stalagmite",
   "bush",
 ]);
-
-/** Rock-band pieces (the dressing's cliff band) the cliff checks measure. */
-export const BAND_ROCK: ReadonlySet<string> = new Set(["cliff_face", "cliff_crest"]);

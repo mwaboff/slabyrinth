@@ -17,7 +17,13 @@ import { TOOLS_VERSION } from "../../../src/agent/prompt";
 /** Hash of the published sp-1.1.0 text (frozen). */
 const SP_1_1_0_HASH = "2176e2d9b0362e06";
 
-describe("frozen tool list", () => {
+describe("working tool list (tools-1.9.0; published versions are pinned by hash below)", () => {
+  it("working versions are open", () => {
+    // generator 4 opened sp-1.13.0, dp-1.3.0, tools-1.9.0
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.13.0");
+    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.3.0");
+    expect(TOOLS_VERSION).toBe("tools-1.9.0");
+  });
   it("serializes deterministically (the bytes are the cache key)", () => {
     const a = serializeTools(toolsForConversation(true));
     const b = serializeTools(toolsForConversation(true));
@@ -46,13 +52,7 @@ describe("frozen tool list", () => {
   });
 });
 
-describe("released in 0.1.2: sp-1.11.0, dp-1.1.0, tools-1.7.0 (frozen; the working versions are sp-1.12.0, dp-1.2.0, tools-1.8.0)", () => {
-  it("working versions are open", () => {
-    // generator 4 opened sp-1.13.0, dp-1.3.0, tools-1.9.0 (the 0.2.0 texts are pinned below)
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.13.0");
-    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.3.0");
-    expect(TOOLS_VERSION).toBe("tools-1.9.0");
-  });
+describe("released in 0.1.2: sp-1.11.0, dp-1.1.0, tools-1.7.0 (frozen)", () => {
   it("sp-1.11.0 is byte-identical to the release", () => {
     expect(h64hex(systemPromptFor("sp-1.11.0") ?? "")).toBe("d074cc244ed28a6b");
   });
@@ -102,6 +102,18 @@ describe("system prompt", () => {
     expect(h64hex(systemPromptFor("sp-1.1.0") ?? "")).toBe(SP_1_1_0_HASH);
     expect(h64hex(SYSTEM_PROMPT)).toMatchSnapshot();
   });
+  it("sp-1.13.0 (working) says the generator-4 room rules once, where they apply", () => {
+    // the dressing how-to lives in the set-dressing section only; the principle carries no list of purposes
+    expect(SYSTEM_PROMPT.match(/Rooms dress themselves/g)).toHaveLength(1);
+    expect(SYSTEM_PROMPT).toMatch(/Name every room for its use .* and leave its floor off/);
+    expect(DESIGN_PRINCIPLES).not.toMatch(/Kitchen|Guard room|Inhabited places are lit/);
+    // a carved interior and a kept-up building are told apart, not given contradictory rules
+    expect(DESIGN_PRINCIPLES).toMatch(/Rooms cut into rock sit in solid mass/);
+    expect(DESIGN_PRINCIPLES).toMatch(/Rooms of a kept-up building .* share their walls/);
+    expect(DESIGN_PRINCIPLES).not.toMatch(/roughens the wall tops/);
+    // the review runs from generator 2 on, so the prompt no longer scopes it to "a generator-2 plan"
+    expect(SYSTEM_PROMPT).not.toMatch(/generator-2 plan/);
+  });
   it("sp-1.1.0 makes the checking method explicit", () => {
     expect(SYSTEM_PROMPT).toContain("# Checking your work");
     expect(SYSTEM_PROMPT).toMatch(/Fix every error, and every warning that is a genuine mistake/);
@@ -124,8 +136,12 @@ describe("system prompt", () => {
     const released = systemPromptFor("sp-1.12.0") ?? "";
     expect(released).not.toBe(old);
     // the building sentences: things attach to the structure; the roof is the larger half of a cottage or inn
-    expect(SYSTEM_PROMPT).toContain("- Attach things. Vines climb upper walls and rubble lies at wall feet; little stands alone on open floor.");
-    expect(SYSTEM_PROMPT).toContain("On cottages and inns the roof is the larger half; the top storey can sit inside it.");
+    expect(SYSTEM_PROMPT).toContain(
+      "- Attach things. Vines climb upper walls and rubble lies at wall feet; little stands alone on open floor.",
+    );
+    expect(SYSTEM_PROMPT).toContain(
+      "On cottages and inns the roof is the larger half; the top storey can sit inside it.",
+    );
     expect(released.length - old.length).toBeLessThan(500);
   });
   it("sp-1.11.0: current principles, streets with junctions and green, plot sizes by kind, condition and character honoured", () => {

@@ -1005,67 +1005,52 @@ const bench = (p: PaintArgs): void => {
 };
 
 /**
- * A covered market stall (generator 4), drawn upright (`front` is the side the customer stands on): the cloth canopy as
- * a filled panel with a ridge line along the front and rafters running down to the eaves, the front eave drawn heavier,
- * and a post at each corner. The canopy hides the counters in this view, as it does from above in game.
+ * A covered market stall (generator 4): the cloth canopy as a filled panel with a ridge line along the front and
+ * rafters running down to the eaves, the front eave drawn heavier, and a post at each corner. The canopy hides the
+ * counters in this view, as it does from above in game. Drawn with its front (the side the customer stands on) at the
+ * top; the display list turns it to the real front (`rot` = SIDE_ROT of the front: N 0, E 90, S 180, W 270).
  */
-const coveredStall =
-  (front: "N" | "E" | "S" | "W"): Painter =>
-  (p) => {
-    const { ctx, u } = p;
-    const inset = 0.05 * u;
-    const x = -p.w / 2 + inset;
-    const y = -p.h / 2 + inset;
-    const w = p.w - 2 * inset;
-    const h = p.h - 2 * inset;
+const coveredStall: Painter = (p) => {
+  const { ctx, u } = p;
+  const inset = 0.05 * u;
+  const x = -p.w / 2 + inset;
+  const y = -p.h / 2 + inset;
+  const w = p.w - 2 * inset;
+  const h = p.h - 2 * inset;
+  ctx.beginPath();
+  roundRectPath(ctx, x, y, w, h, 0.05 * u);
+  fillStroke(p, c(p, "accent"), c(p, "ink"));
+  // ridge between the front and back halves, parallel to the front edge, and rafters down to the eaves
+  ctx.beginPath();
+  line(ctx, x + 0.06 * u, 0, x + w - 0.06 * u, 0);
+  for (let k = 0.2; k < w / u; k += 0.4) {
+    line(ctx, x + k * u, y + 0.06 * u, x + k * u, y + h - 0.06 * u);
+  }
+  ctx.strokeStyle = c(p, "ink");
+  ctx.lineWidth = p.lw * 0.5;
+  ctx.stroke();
+  // the front eave
+  ctx.beginPath();
+  line(ctx, x, y, x + w, y);
+  ctx.strokeStyle = c(p, "ink");
+  ctx.lineWidth = p.lw * 1.6;
+  ctx.stroke();
+  // corner posts
+  const s = 0.16 * u;
+  for (const [px, py] of [
+    [x, y],
+    [x + w - s, y],
+    [x, y + h - s],
+    [x + w - s, y + h - s],
+  ] as const) {
     ctx.beginPath();
-    roundRectPath(ctx, x, y, w, h, 0.05 * u);
-    fillStroke(p, c(p, "accent"), c(p, "ink"));
-    const across = front === "N" || front === "S";
-    // ridge between the front and back halves, parallel to the front edge
-    ctx.beginPath();
-    if (across) {
-      line(ctx, x + 0.06 * u, 0, x + w - 0.06 * u, 0);
-      for (let k = 0.2; k < w / u; k += 0.4) {
-        line(ctx, x + k * u, y + 0.06 * u, x + k * u, y + h - 0.06 * u);
-      }
-    } else {
-      line(ctx, 0, y + 0.06 * u, 0, y + h - 0.06 * u);
-      for (let k = 0.2; k < h / u; k += 0.4) {
-        line(ctx, x + 0.06 * u, y + k * u, x + w - 0.06 * u, y + k * u);
-      }
-    }
-    ctx.strokeStyle = c(p, "ink");
-    ctx.lineWidth = p.lw * 0.5;
-    ctx.stroke();
-    // the front eave
-    ctx.beginPath();
-    if (front === "S") line(ctx, x, y + h, x + w, y + h);
-    else if (front === "N") line(ctx, x, y, x + w, y);
-    else if (front === "E") line(ctx, x + w, y, x + w, y + h);
-    else line(ctx, x, y, x, y + h);
-    ctx.strokeStyle = c(p, "ink");
-    ctx.lineWidth = p.lw * 1.6;
-    ctx.stroke();
-    // corner posts
-    const s = 0.16 * u;
-    for (const [px, py] of [
-      [x, y],
-      [x + w - s, y],
-      [x, y + h - s],
-      [x + w - s, y + h - s],
-    ] as const) {
-      ctx.beginPath();
-      ctx.rect(px, py, s, s);
-      fillStroke(p, c(p, "wood"), c(p, "ink"), p.lw * 0.6);
-    }
-  };
+    ctx.rect(px, py, s, s);
+    fillStroke(p, c(p, "wood"), c(p, "ink"), p.lw * 0.6);
+  }
+};
 
 export const PAINTERS: Record<string, Painter> = {
-  "feat-stall_cover_N": coveredStall("N"),
-  "feat-stall_cover_E": coveredStall("E"),
-  "feat-stall_cover_S": coveredStall("S"),
-  "feat-stall_cover_W": coveredStall("W"),
+  "feat-stall_cover": coveredStall,
   "feat-table": table,
   "feat-desk": box(0.08, 0.03, (p, x, y, w) => {
     line(p.ctx, x + w * 0.62, y, x + w * 0.62, y + p.h * 0.3);
@@ -1137,7 +1122,7 @@ export const PAINTERS: Record<string, Painter> = {
   "feat-standing_stone": standingStone,
   "feat-grave": grave,
   "feat-custom": custom,
-  // cave, ritual and light dressing (feature types added 2026-11-19): nearest existing cartographic symbol
+  // cave, ritual and light dressing: nearest existing cartographic symbol
   "feat-stalagmite": rock(0.3),
   "feat-stalactite": rock(0.25),
   "feat-rock_formation": rock(0.44),
@@ -1164,7 +1149,7 @@ export const PAINTERS: Record<string, Painter> = {
   "feat-rails": smallSquare,
   "feat-mine_support": pillar,
   "feat-chains": dots(5, 0.04, false),
-  // theme-neutral dressing roles (2026-11-19): a generic glyph per role, whatever asset a theme puts there
+  // theme-neutral dressing roles: a generic glyph per role, whatever asset a theme puts there
   "feat-landmark": statue,
   "feat-tall_marker": standingStone,
   "feat-formation": rock(0.44),
@@ -1177,7 +1162,7 @@ export const PAINTERS: Record<string, Painter> = {
   "feat-wall_dressing": wallHanging(false),
   "feat-bank_dressing": sprigs(6, "forest", false),
   "feat-jetty": bench,
-  // built places (2026-11-20): a parked vehicle, seating, a sign on a frontage
+  // built places: a parked vehicle, seating, a sign on a frontage
   "feat-vehicle": cart,
   "feat-seating": bench,
   "feat-signage": wallHanging(true),

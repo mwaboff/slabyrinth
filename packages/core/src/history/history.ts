@@ -16,12 +16,16 @@
  * ops from the nearest keyframe ancestor. Keyframes: the first version, creates, restores, migrations, every 20th
  * version along a parent chain, any version whose ops contain `materialize` (it depends on the resolver), and any
  * version whose ops do not reproduce the committed plan when replayed.
+ *
+ * Replay applies ops without validating them, but an op that removes generated features by their shown id
+ * ("rocks#5") materializes their op first, so the functions that replay take the caller's `PlanRules` (the
+ * palettes the project builds with, as when the version was committed).
  */
 import type { MapPlan } from "../contracts/plan";
 import type { PlanIssue } from "../contracts/plan";
 import type { OpError, PlanHistory, PlanOp, PlanVersion, VersionAuthor } from "../contracts/ops";
 import { canonicalJson, cloneJson } from "../util/canonical";
-import { applyOps } from "../ops/apply";
+import { applyOps, type PlanRules } from "../ops/apply";
 
 /** A keyframe at least every KEYFRAME_INTERVAL versions along any parent chain. */
 export const KEYFRAME_INTERVAL = 20;
@@ -53,7 +57,12 @@ export type ReconstructResult = { ok: true; plan: MapPlan } | { ok: false; error
 export type PlanCache = Map<number, MapPlan>;
 
 /** Rebuilds the plan of version `n` from its nearest keyframe ancestor. */
-export function reconstruct(history: PlanHistory, n: number, cache?: PlanCache): ReconstructResult {
+export function reconstruct(
+  history: PlanHistory,
+  n: number,
+  rules: PlanRules,
+  cache?: PlanCache,
+): ReconstructResult {
   const cached = cache?.get(n);
   if (cached !== undefined) return { ok: true, plan: cached };
   const chain: PlanVersion[] = [];
@@ -98,7 +107,7 @@ export function reconstruct(history: PlanHistory, n: number, cache?: PlanCache):
         error: { code: "corrupt", message: `v${v.number} (${v.cause.type}) has no snapshot` },
       };
     }
-    const r = applyOps(plan, v.cause.ops, { validate: false });
+    const r = applyOps(plan, v.cause.ops, rules, { validate: false });
     if (!r.ok) {
       return {
         ok: false,
@@ -120,10 +129,11 @@ export function reconstruct(history: PlanHistory, n: number, cache?: PlanCache):
 /** Plan at head, or null when there is no version yet. */
 export function headPlan(
   history: PlanHistory,
+  rules: PlanRules,
   cache?: PlanCache,
 ): ReconstructResult | { ok: true; plan: null } {
   if (history.head === 0) return { ok: true, plan: null };
-  return reconstruct(history, history.head, cache);
+  return reconstruct(history, history.head, rules, cache);
 }
 
 /** Versions since the nearest keyframe along the parent chain of `n` (0 if `n` is a keyframe). */
@@ -163,7 +173,12 @@ export interface CommitResult {
  * Ops-caused versions are verified by replay against the head plan; if replay does not reproduce `plan`
  * exactly, the version is stored as a keyframe so it can always be reconstructed.
  */
-export function commitVersion(history: PlanHistory, input: CommitInput, cache?: PlanCache): CommitResult {
+export function commitVersion(
+  history: PlanHistory,
+  input: CommitInput,
+  rules: PlanRules,
+  cache?: PlanCache,
+): CommitResult {
   const number = latestNumber(history) + 1;
   const parentNumber = history.head;
   const version: PlanVersion = {
@@ -177,7 +192,7 @@ export function commitVersion(history: PlanHistory, input: CommitInput, cache?: 
   };
   if (input.messageId !== undefined) version.messageId = input.messageId;
   if (input.cost !== undefined) version.cost = input.cost;
-  if (needsKeyframe(history, version, input.plan, cache)) version.snapshot = cloneJson(input.plan);
+  if (needsKeyframe(history, version, input.plan, rules, cache)) version.snapshot = cloneJson(input.plan);
   cache?.set(number, input.plan);
   return {
     history: {
@@ -194,14 +209,15 @@ function needsKeyframe(
   history: PlanHistory,
   version: PlanVersion,
   plan: MapPlan,
+  rules: PlanRules,
   cache?: PlanCache,
 ): boolean {
   if (version.parentNumber === 0 || version.cause.type !== "ops") return true;
   if (version.cause.ops.some((o) => o.op === "materialize")) return true;
   if (depthSinceKeyframe(history, version.parentNumber) + 1 >= KEYFRAME_INTERVAL) return true;
-  const parent = reconstruct(history, version.parentNumber, cache);
+  const parent = reconstruct(history, version.parentNumber, rules, cache);
   if (!parent.ok) return true;
-  const replay = applyOps(parent.plan, version.cause.ops, { validate: false });
+  const replay = applyOps(parent.plan, version.cause.ops, rules, { validate: false });
   return !replay.ok || canonicalJson(replay.plan) !== canonicalJson(plan);
 }
 
@@ -211,9 +227,10 @@ export function commitOps(
   plan: MapPlan,
   ops: PlanOp[],
   meta: Omit<CommitInput, "plan" | "cause">,
+  rules: PlanRules,
   cache?: PlanCache,
 ): CommitResult {
-  return commitVersion(history, { ...meta, plan, cause: { type: "ops", ops } }, cache);
+  return commitVersion(history, { ...meta, plan, cause: { type: "ops", ops } }, rules, cache);
 }
 
 // ───────────────────────────── pointers ─────────────────────────────
@@ -286,9 +303,10 @@ export function restore(
   history: PlanHistory,
   n: number,
   createdAt: string,
+  rules: PlanRules,
   cache?: PlanCache,
 ): RestoreResult {
-  const r = reconstruct(history, n, cache);
+  const r = reconstruct(history, n, rules, cache);
   if (!r.ok) return r;
   const { history: h, version } = commitVersion(
     history,
@@ -300,6 +318,7 @@ export function restore(
       changeSummary: [],
       cause: { type: "restore", from: n },
     },
+    rules,
     cache,
   );
   return { ok: true, history: h, version, plan: r.plan };

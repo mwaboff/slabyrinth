@@ -5,7 +5,9 @@
 import { describe, expect, it } from "vitest";
 import type { Area, Level, LevelBase, MapPlan, WallRun } from "../../../src/contracts/plan";
 import { EDGE } from "../../../src/contracts/resolved";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
+import { vEdgeIndex } from "../../../src/resolve/levelGrid";
 
 function planOf(base: LevelBase, areas: Area[], walls: WallRun[] = [], w = 12, h = 5): MapPlan {
   const level: Level = {
@@ -36,9 +38,9 @@ function planOf(base: LevelBase, areas: Area[], walls: WallRun[] = [], w = 12, h
 
 /** Vertical edge at vertex x on row y: [kind, host, height]. */
 function vEdge(plan: MapPlan, x: number, y = 2): [number, number, number] {
-  const l = resolvePlan(plan).levels[0];
+  const l = resolvePlan(plan, bundledPalettes()).levels[0];
   if (!l) throw new Error("no level");
-  const i = y * (l.bounds.w + 1) + x;
+  const i = vEdgeIndex(l.bounds, x, y);
   return [l.vEdges.kind[i] as number, l.vEdges.host[i] as number, l.vEdges.height[i] as number];
 }
 
@@ -200,9 +202,9 @@ describe("wall test and host rule", () => {
       [6, 3],
     ] as const) {
       const p = planOf(SOLID, [room("r", 1, rw), room("c", 1 + rw, cw, { kind: "cave" })]);
-      const l = resolvePlan(p).levels[0];
+      const l = resolvePlan(p, bundledPalettes()).levels[0];
       if (!l) throw new Error("level");
-      const e = 2 * (l.bounds.w + 1) + 1 + rw;
+      const e = vEdgeIndex(l.bounds, 1 + rw, 2);
       expect([l.vEdges.kind[e], l.wallStyles[l.vEdges.ref[e] as number]], `room ${rw} cave ${cw}`).toEqual([
         EDGE.WALL,
         "wall",
@@ -213,7 +215,10 @@ describe("wall test and host rule", () => {
   });
 
   it("cave walls default to cave_rock style; others to the theme wall", () => {
-    const l = resolvePlan(planOf(SOLID, [room("a", 1, 4, { kind: "cave" }), room("b", 6, 4)])).levels[0];
+    const l = resolvePlan(
+      planOf(SOLID, [room("a", 1, 4, { kind: "cave" }), room("b", 6, 4)]),
+      bundledPalettes(),
+    ).levels[0];
     expect(l?.wallStyles).toEqual(["cave_rock", "wall"]);
   });
 
@@ -223,7 +228,7 @@ describe("wall test and host rule", () => {
       room("b", 8, 3),
       { id: "c", kind: "corridor", shape: { type: "route", from: "a", to: "b", width: 1, openings: "door" } },
     ]);
-    const l = resolvePlan(plan).levels[0];
+    const l = resolvePlan(plan, bundledPalettes()).levels[0];
     if (!l) throw new Error("level");
     expect(l.areas.find((a) => a.id === "c")?.bbox).toEqual({ x: 3, y: 2, w: 5, h: 1 });
     expect(l.openings.map((o) => [o.id, o.kind, o.orientation, o.start])).toEqual([

@@ -19,6 +19,10 @@ import type {
 } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
+import { SIDE_ROT } from "../gen/gridGeometry";
+import { isSecret, isWindow } from "../gen/openingKinds";
+import { THEME_WALL_STYLE } from "../gen/wallStyles";
+import { cellIndex, hEdgeIndex, vEdgeIndex } from "../resolve/levelGrid";
 import { gableRoof, hipRoof, ringLayer, shedRoof, spireShell } from "../resolve/roof";
 import { traceRings } from "../resolve/trace";
 
@@ -50,10 +54,8 @@ export const DEFAULT_DISPLAY_OPTIONS: DisplayOptions = {
   legend: false,
 };
 
-const SIDE_ROT: Record<Side, number> = { N: 0, E: 90, S: 180, W: 270 };
+/** Symbol rotation of a link or a flight of steps climbing toward a side (0 = climbing north, the screen's up). */
 const DIR_ROT: Record<Side, number> = { N: 0, E: 90, S: 180, W: 270 };
-/** Openings drawn as wall (with an overlay symbol) rather than as a gap. */
-const WALL_LIKE_OPENINGS = new Set(["window", "arrow_slit"]);
 
 /** "L1", "L2"… in tab order: entry level first, then by distance in elevation (ties: higher first). */
 export function levelLabels(
@@ -219,8 +221,8 @@ export function buildDisplayList(
   const V = level.vEdges;
   const ledgeRings: number[][] = [];
   const gridRings: number[][] = [];
-  const cellAt = (lx: number, ly: number): number =>
-    lx < 0 || ly < 0 || lx >= w || ly >= h ? -1 : ly * w + lx;
+  const size = level.bounds;
+  const cellAt = (lx: number, ly: number): number => cellIndex(size, lx, ly);
   const gridOk = (a: number, b: number, kind: number): boolean => {
     if (kind === EDGE.WALL || kind === EDGE.OPENING) return false;
     const fa = a >= 0 && isFloor(a);
@@ -232,7 +234,7 @@ export function buildDisplayList(
     let lStart = -1;
     for (let lx = 0; lx <= w; lx++) {
       const inRow = lx < w;
-      const e = ly * w + lx;
+      const e = hEdgeIndex(size, lx, ly);
       const kind = inRow ? (H.kind[e] as number) : -1;
       const g = inRow && gridOk(cellAt(lx, ly - 1), cellAt(lx, ly), kind);
       const l = inRow && kind === EDGE.LEDGE && (H.height[e] as number) < 1;
@@ -253,7 +255,7 @@ export function buildDisplayList(
     let lStart = -1;
     for (let ly = 0; ly <= h; ly++) {
       const inCol = ly < h;
-      const e = ly * (w + 1) + lx;
+      const e = vEdgeIndex(size, lx, ly);
       const kind = inCol ? (V.kind[e] as number) : -1;
       const g = inCol && gridOk(cellAt(lx - 1, ly), cellAt(lx, ly), kind);
       const l = inCol && kind === EDGE.LEDGE && (V.height[e] as number) < 1;
@@ -280,7 +282,7 @@ export function buildDisplayList(
   const cliffRings: number[][] = [];
   for (let ly = 1; ly < h; ly++)
     for (let lx = 0; lx < w; lx++) {
-      const e = ly * w + lx;
+      const e = hEdgeIndex(size, lx, ly);
       if (H.kind[e] !== EDGE.LEDGE || (H.height[e] as number) < 1) continue;
       const northLow = hq((ly - 1) * w + lx) < hq(ly * w + lx);
       cliffRings.push(
@@ -289,7 +291,7 @@ export function buildDisplayList(
     }
   for (let ly = 0; ly < h; ly++)
     for (let lx = 1; lx < w; lx++) {
-      const e = ly * (w + 1) + lx;
+      const e = vEdgeIndex(size, lx, ly);
       if (V.kind[e] !== EDGE.LEDGE || (V.height[e] as number) < 1) continue;
       const westLow = hq(ly * w + lx - 1) < hq(ly * w + lx);
       cliffRings.push(
@@ -320,10 +322,11 @@ export function buildDisplayList(
   const openings = level.openings;
   const openingAsWall = (o: ResolvedOpening | undefined): boolean =>
     !!o &&
-    (WALL_LIKE_OPENINGS.has(o.kind) || (!opts.gmLayer && (o.gmOnly === true || o.kind === "secret_door")));
+    // a window is drawn as wall (with an overlay symbol) rather than as a gap
+    (isWindow(o.kind) || (!opts.gmLayer && (o.gmOnly === true || isSecret(o.kind))));
   const styleKeys: string[] = [""];
   const styleKey = (style: string): number => {
-    const tok = style === "wall" ? "wall" : `wall-${style}`;
+    const tok = style === THEME_WALL_STYLE ? "wall" : `wall-${style}`;
     let k = styleKeys.indexOf(tok);
     if (k < 0) {
       k = styleKeys.length;
@@ -341,16 +344,16 @@ export function buildDisplayList(
   /** Style key if the edge is drawn as wall (0 if not); `posts` also counts real openings. */
   const edgeWall = (g: ResolvedLevel["hEdges"], e: number, posts: boolean): number => {
     const kind = g.kind[e];
-    if (kind === EDGE.WALL) return styleKey(level.wallStyles[g.ref[e] as number] ?? "wall");
+    if (kind === EDGE.WALL) return styleKey(level.wallStyles[g.ref[e] as number] ?? THEME_WALL_STYLE);
     if (kind === EDGE.OPENING) {
       const o = openings[g.ref[e] as number];
-      if (openingAsWall(o) || (posts && o)) return styleKey(o?.wallStyle ?? "wall");
+      if (openingAsWall(o) || (posts && o)) return styleKey(o?.wallStyle ?? THEME_WALL_STYLE);
     }
     return 0;
   };
   for (let ly = 0; ly <= h; ly++) {
     for (let lx = 0; lx < w; lx++) {
-      const e = ly * w + lx;
+      const e = hEdgeIndex(size, lx, ly);
       const k = edgeWall(H, e, false);
       if (!k) continue;
       const qy = H.host[e] === 1 ? 2 * ly : 2 * ly - 1;
@@ -360,7 +363,7 @@ export function buildDisplayList(
   }
   for (let ly = 0; ly < h; ly++) {
     for (let lx = 0; lx <= w; lx++) {
-      const e = ly * (w + 1) + lx;
+      const e = vEdgeIndex(size, lx, ly);
       const k = edgeWall(V, e, false);
       if (!k) continue;
       const qx = V.host[e] === 1 ? 2 * lx : 2 * lx - 1;
@@ -374,14 +377,14 @@ export function buildDisplayList(
       const hs: Array<[number, number]> = [];
       for (const ex of [vx - 1, vx]) {
         if (ex < 0 || ex >= w) continue;
-        const e = vy * w + ex;
+        const e = hEdgeIndex(size, ex, vy);
         const k = edgeWall(H, e, false);
         if (k) hs.push([k, H.host[e] === 1 ? 2 * vy : 2 * vy - 1]);
       }
       if (hs.length === 0) continue;
       for (const ey of [vy - 1, vy]) {
         if (ey < 0 || ey >= h) continue;
-        const e = ey * (w + 1) + vx;
+        const e = vEdgeIndex(size, vx, ey);
         if (!edgeWall(V, e, false)) continue;
         const qx = V.host[e] === 1 ? 2 * vx : 2 * vx - 1;
         for (const [k, qy] of hs)
@@ -398,11 +401,11 @@ export function buildDisplayList(
   // ── openings ──
   openings.forEach((o) => {
     if (o.kind === "open") return;
-    if (!opts.gmLayer && (o.gmOnly === true || o.kind === "secret_door")) return;
+    if (!opts.gmLayer && (o.gmOnly === true || isSecret(o.kind))) return;
     const g = o.orientation === "h" ? H : V;
     const lx = o.start[0] - bx;
     const ly = o.start[1] - by;
-    const e = o.orientation === "h" ? ly * w + lx : ly * (w + 1) + lx;
+    const e = o.orientation === "h" ? hEdgeIndex(size, lx, ly) : vEdgeIndex(size, lx, ly);
     const host = g.host[e] === 1 ? 1 : 0;
     let sym: NonNullable<DisplayItem["symbol"]>;
     if (o.orientation === "h") {
@@ -426,7 +429,7 @@ export function buildDisplayList(
     }
     items.push({
       layer: "opening",
-      style: o.kind === "secret_door" ? "secret" : "door",
+      style: isSecret(o.kind) ? "secret" : "door",
       symbol: sym,
       ref: o.id,
     });
@@ -450,8 +453,10 @@ export function buildDisplayList(
       symbol: { id: "link-stairs", x, y, w: 1, h: 1, rot: DIR_ROT[dir] },
     });
   };
-  for (let ly = 0; ly <= h; ly++) for (let lx = 0; lx < w; lx++) stepSym("h", ly * w + lx, lx, ly);
-  for (let ly = 0; ly < h; ly++) for (let lx = 0; lx <= w; lx++) stepSym("v", ly * (w + 1) + lx, lx, ly);
+  for (let ly = 0; ly <= h; ly++)
+    for (let lx = 0; lx < w; lx++) stepSym("h", hEdgeIndex(size, lx, ly), lx, ly);
+  for (let ly = 0; ly < h; ly++)
+    for (let lx = 0; lx <= w; lx++) stepSym("v", vEdgeIndex(size, lx, ly), lx, ly);
 
   // ── links ──
   const labels = ctx.levelLabels ?? {};
@@ -501,14 +506,15 @@ export function buildDisplayList(
   for (const f of ordered) {
     const info = featureInfo(f.type);
     const rot = info.wallMounted && f.wall ? SIDE_ROT[f.wall] : f.rotFine;
-    // generator 4: a covered stall is drawn as its canopy, upright, with the front eave on the side the customer stands
-    const covered = f.stall !== undefined;
+    // generator 4: a covered stall is drawn as its canopy, turned so the front eave is on the side the customer stands
+    // (the symbol is drawn front-up; only covered stalls carry `stall`)
+    const symbol = f.stall
+      ? { id: "feat-stall_cover", rot: SIDE_ROT[f.stall.front] }
+      : { id: `feat-${f.type}`, rot };
     items.push({
       layer: "feature",
       style: f.gmOnly ? "feat-gm" : "feat",
-      symbol: covered
-        ? { id: `feat-stall_cover_${f.stall?.front ?? "S"}`, x: f.at[0], y: f.at[1], w: f.size[0], h: f.size[1], rot: 0 }
-        : { id: `feat-${f.type}`, x: f.at[0], y: f.at[1], w: f.size[0], h: f.size[1], rot },
+      symbol: { id: symbol.id, x: f.at[0], y: f.at[1], w: f.size[0], h: f.size[1], rot: symbol.rot },
       ref: f.id,
     });
   }

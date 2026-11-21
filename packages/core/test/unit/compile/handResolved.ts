@@ -15,6 +15,7 @@ import {
   type ResolvedOpening,
   type ResolvedPlan,
 } from "../../../src/contracts/resolved";
+import { edgeCount, edgeIndex, hEdgeIndex, vEdgeIndex } from "../../../src/resolve/levelGrid";
 
 export interface HandDoor {
   x: number;
@@ -69,8 +70,9 @@ export function handLevel(h: HandLevel): ResolvedLevel {
     height: new Array<number>(count).fill(0),
     host: new Array<number>(count).fill(1),
   });
-  const hE = edgeGrid(W * (H + 1));
-  const vE = edgeGrid((W + 1) * H);
+  const size = { w: W, h: H };
+  const hE = edgeGrid(edgeCount(size, "h"));
+  const vE = edgeGrid(edgeCount(size, "v"));
   const setWall = (g: ResolvedLevel["hEdges"], i: number, aOpen: boolean, bOpen: boolean): void => {
     if (aOpen === bOpen) return;
     g.kind[i] = EDGE.WALL;
@@ -79,10 +81,11 @@ export function handLevel(h: HandLevel): ResolvedLevel {
     g.host[i] = aOpen ? 1 : 0;
   };
   for (let ly = 0; ly <= H; ly++)
-    for (let lx = 0; lx < W; lx++) setWall(hE, ly * W + lx, isOpen(ch(lx, ly - 1)), isOpen(ch(lx, ly)));
+    for (let lx = 0; lx < W; lx++)
+      setWall(hE, hEdgeIndex(size, lx, ly), isOpen(ch(lx, ly - 1)), isOpen(ch(lx, ly)));
   for (let ly = 0; ly < H; ly++)
     for (let lx = 0; lx <= W; lx++)
-      setWall(vE, ly * (W + 1) + lx, isOpen(ch(lx - 1, ly)), isOpen(ch(lx, ly)));
+      setWall(vE, vEdgeIndex(size, lx, ly), isOpen(ch(lx - 1, ly)), isOpen(ch(lx, ly)));
   const openings: ResolvedOpening[] = [];
   for (const [k, d] of (h.doors ?? []).entries()) {
     const width = d.width ?? 1;
@@ -99,7 +102,7 @@ export function handLevel(h: HandLevel): ResolvedLevel {
       const lx = start[0] - x0 + (orientation === "h" ? j : 0);
       const ly = start[1] - y0 + (orientation === "v" ? j : 0);
       const g = orientation === "h" ? hE : vE;
-      const i = orientation === "h" ? ly * W + lx : ly * (W + 1) + lx;
+      const i = edgeIndex(size, orientation, lx, ly);
       g.kind[i] = EDGE.OPENING;
       g.ref[i] = k;
     }

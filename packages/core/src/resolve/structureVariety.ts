@@ -1,5 +1,5 @@
 /**
- * Building variety (2026-11-20, owner: "all the buildings look the same"). A style profile may declare a DESIGN SPACE:
+ * Building variety (without it "all the buildings look the same"). A style profile may declare a DESIGN SPACE:
  * weighted choices on independent axes — massing archetype, storeys and storey heights, wall material (and a base
  * storey in another one), roof, parapet, rooftop sets, window pattern, base treatment, top treatment — and a map from
  * a building's `use` (shop, apartments, warehouse …) to weight multipliers. When the plan leaves a building's shape
@@ -12,8 +12,18 @@
  * Everything here is generic: archetype names are geometric (box, setback, podium, twin, ell, stepped, shed, gabled,
  * tall), never tied to a theme; the style's data says which apply and how often.
  */
-import type { Building, Roof, RoofType, Side, Storey, Volume, WallStyle } from "../contracts/plan";
+import type {
+  Building,
+  OpeningKind,
+  Roof,
+  RoofType,
+  Side,
+  Storey,
+  Volume,
+  WallStyle,
+} from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
+import { isPassage, isSecret } from "../gen/openingKinds";
 import { createPrng, type Prng } from "../util/prng";
 import { defaultRidge, gableRoof, hipRoof, shedRoof } from "./roof";
 import { structureStyle } from "./structureStyles";
@@ -98,17 +108,20 @@ export interface DesignSpace {
    * and cross wings and lean-tos stand a tile or more below the main ridge.
    */
   roofShare?: readonly [number, number];
-  /** Generator 3 only: axes replacing the ones above (shallow merge), so a style's older output stays as it was. */
-  gen3?: Partial<Omit<DesignSpace, "gen3">>;
+  /**
+   * Under the profile's `buildingVariety` switch (generator 3 on): axes replacing the ones above (shallow merge), so a
+   * style's older output stays as it was.
+   */
+  buildingVariety?: Partial<Omit<DesignSpace, "buildingVariety">>;
 }
 
 const merged = new WeakMap<DesignSpace, DesignSpace>();
-/** The design space a generator uses: generator 3 plans take the style's `gen3` overrides (one object per space). */
-export function designSpaceFor(space: DesignSpace, gen3: boolean): DesignSpace {
-  if (!gen3 || !space.gen3) return space;
+/** The design space a generator uses: with `buildingVariety` on, the style's `buildingVariety` overrides (one object per space). */
+export function designSpaceFor(space: DesignSpace, buildingVariety: boolean): DesignSpace {
+  if (!buildingVariety || !space.buildingVariety) return space;
   let m = merged.get(space);
   if (!m) {
-    m = { ...space, ...space.gen3 };
+    m = { ...space, ...space.buildingVariety };
     merged.set(space, m);
   }
   return m;
@@ -385,6 +398,14 @@ const roofOf = (
   }
 };
 
+/** The kinds generators 2 and 3 took for a building's main door (no locked door, no plain gap). */
+const LEGACY_ENTRANCE_KINDS: ReadonlySet<OpeningKind> = new Set([
+  "door",
+  "double_door",
+  "archway",
+  "portcullis",
+]);
+
 /**
  * Expand a design into plan fields on the building (volumes with storeys and roofs, windows, plinth, openings,
  * furniture). `front` is the street face; masses step back from it, never toward it.
@@ -403,9 +424,16 @@ export function expandDesign(
     turret?: boolean;
     /** Generator 3: heights the roof-share balance needs from the style (footing course, attic deck). */
     roofBalance?: { footing: number; deck: boolean };
+    /** Generator 4: the main-door test reads the opening-kind table (switch `openingKindTraits`). */
+    openingKindTraits?: boolean;
   } = {},
 ): Building {
   const pat = windowPattern(d.windows);
+  // a way in (generator 4, `openingKindTraits`: the kind table's passages that are not hidden, so a locked door or a
+  // gap counts too); earlier generators took this list of kinds
+  const entrance = opts.openingKindTraits
+    ? (kind: OpeningKind): boolean => isPassage(kind) && !isSecret(kind)
+    : (kind: OpeningKind): boolean => LEGACY_ENTRANCE_KINDS.has(kind);
   const own = d.parapet === "walls" ? (opts.parapetFor?.[d.material] ?? d.material) : d.parapet;
   const parapet = own === "none" ? null : own;
   const storeyList = (n: number, first: boolean, roofStorey: boolean): Storey[] =>
@@ -628,8 +656,7 @@ export function expandDesign(
     const list = out.openings ?? st.openings ?? [];
     // the main entrance is always on the street face: a service door must never stand in for it (the resolver
     // only adds a door when the building has none)
-    const DOORS = new Set(["door", "double_door", "archway", "portcullis"]);
-    const mainDoor = list.some((o) => (o.storey ?? 0) === 0 && DOORS.has(o.kind));
+    const mainDoor = list.some((o) => (o.storey ?? 0) === 0 && entrance(o.kind));
     out.openings = [
       ...(mainDoor ? [] : [{ kind: "door" as const, side: front }]),
       ...list,
@@ -654,11 +681,7 @@ export function expandDesign(
  *    top storey is lowered, and when it cannot go lower the main walls rise by half a tile (at most a tile).
  * The heights are those of the resolver (footing course, floor thickness, deck), the roof rise the roof module's own.
  */
-function balanceRoofs(
-  volumes: Volume[],
-  d: BuildingDesign,
-  opts: { footing: number; deck: boolean },
-): void {
+function balanceRoofs(volumes: Volume[], d: BuildingDesign, opts: { footing: number; deck: boolean }): void {
   const FLOOR = 0.5;
   const list = (v: Volume): Storey[] => (Array.isArray(v.storeys) ? v.storeys : []);
   const wallOf = (v: Volume): number => {

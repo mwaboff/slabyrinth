@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
 import type { PlanOp } from "../../../src/contracts/ops";
-import { applyOps, diffPlans, summarizeDiff } from "../../../src/ops";
+import { STRUCTURAL_RULES, applyOps, diffPlans, summarizeDiff } from "../../../src/ops";
 import { loadPlan } from "../../fixtures";
 
 function edit(plan: MapPlan, ops: PlanOp[]): MapPlan {
-  const r = applyOps(plan, ops);
+  const r = applyOps(plan, ops, STRUCTURAL_RULES);
   if (!r.ok) throw new Error(JSON.stringify(r));
   return r.plan;
 }

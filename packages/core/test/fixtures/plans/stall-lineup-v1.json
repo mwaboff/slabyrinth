@@ -1,0 +1,53 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 4,
+  "id": "9a1f2a40-3b5c-4f60-8a71-2b3c4d5e7101",
+  "title": "Stall lineup",
+  "kind": "town",
+  "seed": 5121,
+  "theme": "wood_town",
+  "summary": "A paved pad with a row of six covered market stalls of different sizes and goods, one of them empty, set along a lane with a well and a few crates and barrels.",
+  "levels": [
+    {
+      "id": "g",
+      "name": "Market pad",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 32, "h": 11 },
+      "outline": "rect",
+      "base": { "type": "ground", "material": "grass" },
+      "areas": [
+        {
+          "id": "pad",
+          "kind": "courtyard",
+          "name": "Market pad",
+          "key": "1",
+          "shape": { "type": "rect", "x": 2, "y": 2, "w": 28, "h": 7 },
+          "floor": "cobble",
+          "walls": "none"
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [
+        { "id": "well", "type": "well", "at": [26, 7] },
+        { "id": "wlamp", "type": "lantern", "at": [28, 7] },
+        { "id": "crate1", "type": "crate", "at": [4, 8] },
+        { "id": "barrel1", "type": "barrel", "at": [13, 8] },
+        { "id": "cart1", "type": "cart", "at": [18, 7], "size": [2, 1] }
+      ],
+      "labels": [],
+      "terrain": [],
+      "stalls": [
+        {
+          "id": "row",
+          "area": { "x": 3, "y": 2, "w": 24, "h": 5 },
+          "goods": ["fruit", "vegetables", "bread", "empty", "magic", "potions", "spices", "weapons"],
+          "facing": "S",
+          "count": 6,
+          "aisle": 2
+        }
+      ]
+    }
+  ],
+  "links": []
+}

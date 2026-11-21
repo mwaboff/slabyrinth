@@ -1,6 +1,6 @@
 /**
- * WP1 plan model: Zod schemas mirroring contracts/plan.ts, validatePlan (+ registration hook for WP2 geometric
- * checks), element addressing, link arithmetic, shape facts, migrations. Pure TypeScript.
+ * WP1 plan model: Zod schemas mirroring contracts/plan.ts, validatePlan (structural checks plus the checks the
+ * caller passes in), element addressing, link arithmetic, shape facts, migrations. Pure TypeScript.
  */
 export * from "./schema";
 export * from "./schemaTypes";

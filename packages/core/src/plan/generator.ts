@@ -1,37 +1,369 @@
-import type { GeneratorVersion } from "../contracts/plan";
+import { GENERATOR_VERSIONS, type GeneratorVersion } from "../contracts/plan";
 
 /**
- * The one way to gate behaviour on the generator version (architecture §2.7). Takes a plan or a resolved plan.
+ * What each generator version does (architecture §2.7): one profile of named behaviour switches per version, the one
+ * way to gate behaviour on a plan's generator. Code reads the switch, never a version number:
  *
- *   if (generatorAtLeast(this.plan, 4)) { ...new behaviour, only for generator-4 plans... }
+ *   const gen = generatorProfile(plan);            // a plan, a resolved plan, or a placement grid's version
+ *   if (gen.coveredStalls) { ...built from parts... }
  *
- * Generators 1, 2 and 3 are released: their output is frozen (test/golden/generator2, generator3). Never change
- * what a plan with `generator: 1`, `2` or `3` produces; put new rules behind `generatorAtLeast(x, 4)`. Existing
- * `>= 2` and `>= 3` checks stay as they are and stay on for 4.
+ * A profile has three kinds of data, each declared once below and built into every version's profile:
+ *   - SWITCHES: named booleans, each declared with the generator it starts in and a one-line description;
+ *   - TUNINGS: numbers a generator sets, as steps (the value from a generator on);
+ *   - VOCABULARY: plan words a generator understands beyond the base set.
  *
- * Review policy (decided 2026-11-20, code review finding 4): the design review is advice about the build, not the
+ * A switch is on in its first generator and in every later one, by construction, so the SWITCHES table read top to
+ * bottom is the changelog of the generators. Generators 1, 2 and 3 are released: what they turn on is frozen, and so
+ * is their output (test/golden/generator2, generator3). New behaviour is a new switch that starts in the open
+ * generator. A later generator never switches an old behaviour off: it adds a new switch for the new behaviour, and
+ * the code reads the new one first. Opening generator 5 means adding a version to GENERATOR_VERSIONS
+ * (contracts/plan.ts); the compiler then asks for its TUNINGS and VOCABULARY entries, and new switches start in 5.
+ *
+ * Palette roles carry their own first generator (`minGenerator` in the palette data, palette/resolve.ts): palettes
+ * are data, generated and user-written, so they name a version rather than a switch. A test keeps the roles of the
+ * vocabulary below in step with it (test/unit/plan/generatorProfile.test.ts).
+ *
+ * Review policy: the design review is advice about the build, not the
  * build, so its output is NOT frozen per generator: a new note may run on an older generator's plan when what it
  * measures is true there. Its advice must hold for the plan's own generator: a note whose action relies on newer
- * behaviour ("name the room and the generator dresses it") is gated on that generator or words its action per
- * generator (review/interiors.ts room_bare and room_unlit, review/review.ts opening_hidden).
+ * behaviour ("name the room and the generator dresses it") is gated on that behaviour's switch or words its action by
+ * it (review/interiors.ts room_bare and room_unlit, review/review.ts opening_hidden).
  */
-export function generatorAtLeast(
-  subject: { readonly generator: GeneratorVersion },
-  version: GeneratorVersion,
-): boolean {
-  return subject.generator >= version;
+
+/** One switch: the generator it starts in, and what it does (the sentence says what is on from that generator). */
+interface SwitchDeclaration {
+  readonly since: GeneratorVersion;
+  readonly description: string;
+}
+
+const on = (since: GeneratorVersion, description: string): SwitchDeclaration => ({ since, description });
+
+/** Every behaviour switch, grouped by the generator it starts in. The names are what call sites read. */
+const SWITCHES = {
+  // ── generator 2 (released in 0.1.2) ──
+  underHeightField: on(
+    2,
+    "An under-layer `height` op sets the height of every cell in its shape, rock included (areas opened later inherit it).",
+  ),
+  naturalThemeWalls: on(
+    2,
+    "An area in a theme whose wall style is natural rock gets rock walls, not the built wall.",
+  ),
+  roads: on(2, "Roads: sidewalks and crossings, pavements and frontages, vehicles parked in the kerb lane."),
+  naturalPaths: on(
+    2,
+    'Natural paths wind like trails (a style "straight" path does not), with broken kerbs and spurs to what they serve.',
+  ),
+  riverCourses: on(
+    2,
+    "A river or brook crosses the map from one board edge to another, off the high ground.",
+  ),
+  raggedTerrainEdges: on(2, "Height ops and platforms on natural ground get ragged edges by default."),
+  ramps: on(2, "Stairs ops can be rock ramps; ramp cells stay clear of dressing."),
+  organicBands: on(
+    2,
+    "The bands of an uneven op wander like an organic outline (no straight or square stair-steps).",
+  ),
+  scatterKeepsClear: on(2, "Generated dressing keeps off reserved, bridge and step cells."),
+  realPieceSizes: on(
+    2,
+    "The placer knows the rock band's pieces at their real size (no band where a theme has none).",
+  ),
+  featureLift: on(2, "A placement's `lift` raises the piece."),
+  naturalLevelOutline: on(2, "A level of natural ground gets an irregular outline instead of its rectangle."),
+  dressWholeLevel: on(2, "A dress op with no area dresses the whole level, region by region."),
+  naturalScatter: on(
+    2,
+    "Natural pieces scatter in drifts and clumps and stand only where the ground carries them.",
+  ),
+  cliffRockBand: on(2, "Natural cliff runs are recorded and faced by the dressing's rock band."),
+  foundation: on(
+    2,
+    "A level has a foundation under its ground, the outside ground reaches down to it, and the water level is set.",
+  ),
+  rockWallSkirt: on(
+    2,
+    "Rock walls reach down to the level's lowest floor, vary in height, turn their blocks and stop under the floor above.",
+  ),
+  buildings: on(2, "Buildings and enclosures (level.structures)."),
+  designReview: on(
+    2,
+    "The agent runs the design review (and the substitution note) on the plan after each change.",
+  ),
+
+  // ── generator 3 (released in 0.2.0) ──
+  wanderingChannels: on(
+    3,
+    "Rifts and rivers stray from the line between their ends (bridges span them square), are recorded as channels, rivers run in reaches.",
+  ),
+  wildPlatforms: on(
+    3,
+    "In a natural or cave level a platform is rock with a ragged outline unless the plan asks for worked stone.",
+  ),
+  roundedRises: on(3, "A gentle rise on natural ground is one rounded mound of fewer, taller steps."),
+  roughenedLumps: on(3, "Small lumps and natural rises lose their square corners and get bitten sides."),
+  floorOpenings: on(3, "Floor openings look into the level below (rubble heaps, checks on both levels)."),
+  explainedLinkRuns: on(
+    3,
+    "A link that does not fit says how long a run its rise needs and where it would lie.",
+  ),
+  voidIsBasePlane: on(3, "A void cell's ground is the base plane, not the stale height it kept."),
+  realPieceOutlines: on(3, "The placer knows pieces' real outlines and the cells off the board."),
+  stallsAndLines: on(3, "Market stalls and lines strung overhead."),
+  wallMountSnap: on(
+    3,
+    "A wall-mounted piece asked for a cell without a wall snaps to the nearest wall face within one cell.",
+  ),
+  subCellOffsets: on(3, "A placement's sub-cell `offset` shifts the piece (within half a tile)."),
+  furnitureOffWalls: on(3, "Blocking furniture set against a wall stands clear of it."),
+  spursReachTargets: on(
+    3,
+    "A trail spur ends exactly at its focal point and at the cell outside a building's door.",
+  ),
+  defaultCliffBands: on(3, "Natural regions get a default rock band along their rises."),
+  waterLevelChecks: on(
+    3,
+    "Fords are meant to be wet, and water above the board's water plane is reported dry.",
+  ),
+  buildingVariety: on(
+    3,
+    "Buildings vary along a street: style overrides, no repeated wall-and-roof pair, varied entrances.",
+  ),
+  wholeFacades: on(
+    3,
+    "No blank wall: windows on every long face, corners keep their wall, no chimney on a hip roof.",
+  ),
+  legibleCondition: on(
+    3,
+    "Weathered and ruined buildings read from the game camera: growth, ragged holes, stepped ruins, roof valleys.",
+  ),
+  roofValleys: on(
+    3,
+    "Roofs that meet merge into valleys, and a chimney is a shorter stack on a breast (ResolvedStructure.valleys).",
+  ),
+  floorFamilies: on(
+    3,
+    "A floor is one dominant tile family, a tonally close second only in feathered patches with a cause.",
+  ),
+  cliffToneRule: on(3, "One rock tone per cliff; loose rock near a cliff follows it."),
+  restingCliffBand: on(
+    3,
+    "Rock band pieces rest on the ground or on rock, plan with their real outline, turn and slide, and hide the face.",
+  ),
+  turnedFloorTiles: on(3, "A field of 1x2 floor pieces lies both ways round."),
+  rockGroundFaces: on(3, "Natural ground shows rock where its face is bare, never earth-coloured fill."),
+  boardEdgeExits: on(
+    3,
+    "A passage that reaches the board edge is an exit: no rock column outside the bounds.",
+  ),
+  caveRockMass: on(
+    3,
+    "A cave wall is a mass of rock (gen/cavewall.ts), the wall column only its closing skin.",
+  ),
+  naturalStanding: on(3, "A natural standing piece (a stalagmite) is never a wall block."),
+  supportedParts: on(3, "Set pieces put things on things (parts on a support, toppers on tables)."),
+  levelFootprints: on(3, "Dressed furniture stands on one height (no footprint across a step)."),
+  waterBody: on(
+    3,
+    "Water is dressed as one body (sunk boulders, shallows plants, shore rock, stepping stones).",
+  ),
+  causedGroundCover: on(
+    3,
+    "Ground cover grows in fewer, denser drifts tied to a cause (damp ground, a camp, a tree).",
+  ),
+  litLandmarks: on(3, "A landmark is lit: a floor light beside it when none stands near."),
+  levelsJudgedTogether: on(3, "The review judges levels joined by links and floor openings as one map."),
+  depthInTiles: on(3, "The review counts depth in whole tiles (half-tile lumps are not depth)."),
+
+  // ── generator 4 (open) ──
+  caveOutlines: on(4, "Natural cave chambers and corridors get ragged outlines (resolve/caveOutline.ts)."),
+  caveRelief: on(4, "A flat cave floor gets shelves (resolve/caveRelief.ts)."),
+  roomFloors: on(4, "Each room of a built interior gets a floor of its own and a step above the corridor."),
+  accentTops: on(
+    4,
+    "A platform top much paler than the room's floor takes a closer tone (resolve/interiorFloors.ts accentTop).",
+  ),
+  lowOpeningRims: on(
+    4,
+    "A floor opening's rim is low (a collapse none, with debris on its edge; a shaft a kerb; a balcony a railing).",
+  ),
+  rubbleMounds: on(4, "The rubble under a collapse heaps into a mound."),
+  wallFootRubble: on(4, "Rough interiors get rubble at the foot of their walls."),
+  roomRecipes: on(
+    4,
+    "Rooms are dressed and lit from their purpose (gen/rooms4.ts recipes); naming a room is enough.",
+  ),
+  doorwaysKeepClear: on(4, "A blocking piece keeps one more cell back from a doorway."),
+  coveredStalls: on(4, "Covered market stalls built from parts (base, counters, posts, canopy)."),
+  roomClassification: on(
+    4,
+    "Each area is classified once in resolve (purpose, abandoned, finish) for the compiler and the review.",
+  ),
+  interiorWallTops: on(4, "Built interior walls vary in height (rough tops) and settle beside raised rooms."),
+  solidShell: on(
+    4,
+    "A built interior is carved into a solid mass: cap, skirt and strips (compile/shell.ts).",
+  ),
+  flushRaisedFloors: on(
+    4,
+    "A floor raised no more than its own slab abuts its neighbour's slab, with no fill course.",
+  ),
+  exactWallTops: on(
+    4,
+    "Wall pieces and posts stop a quarter or half tile short where the edge says (sinking into the slab).",
+  ),
+  solidCaveRock: on(4, "Cave rock is solid, filled from its foot with no see-through gap."),
+  secretDoorPlug: on(4, "A secret door is one removable plug in the wall line, reported to the GM."),
+  sharedSmallThings: on(
+    4,
+    "Small things on surfaces (clutter, goods) share one family table over both roles (gen/surfaces.ts).",
+  ),
+  everyStepVerified: on(4, "Verify checks every step of a stair run, not only the last."),
+  outlineRoomReading: on(
+    4,
+    "The outline shows how each room was read: its purpose (stated or from its words), abandoned or not.",
+  ),
+  wallNoteInFaceTheme: on(
+    4,
+    "Verify's wall-style substitution note asks each wall's own theme, not the level's first theme.",
+  ),
+  naturalCaveReview: on(
+    4,
+    "The review measures natural caves (hollow rock mass, flat floors, square outlines).",
+  ),
+  floorAccentReview: on(4, "The review flags floor accents much paler than their room."),
+  closedRoofs: on(4, "Pitched roofs leave no open roof cell; the review measures roof gaps."),
+  resolveWithCompilePalettes: on(
+    4,
+    "The resolver decides from the palettes the plan is compiled with (palette/view.ts resolveView).",
+  ),
+  openingKindTraits: on(
+    4,
+    "Opening tests read the opening-kind table's traits (a passage, a window) where they named one kind (gen/openingKinds.ts).",
+  ),
+} as const satisfies Record<string, SwitchDeclaration>;
+
+/** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */
+export type SwitchName = keyof typeof SWITCHES;
+
+/** A value a generator sets, from that generator on (until a later step replaces it). */
+interface TuningStep<T> {
+  readonly since: GeneratorVersion;
+  readonly value: T;
+}
+
+/** How a ragged floor opening is cut: noise grain and threshold of the rim bites, share kept, lobe threshold. */
+export interface OpeningOutlineTuning {
+  readonly grain: number;
+  readonly cut: number;
+  readonly keepShare: number;
+  readonly lobeCut: number;
+}
+
+/** Numbers a generator sets. Each tuning starts with a step for generator 1; a later step replaces it from there on. */
+const TUNINGS = {
+  openingOutline: [
+    { since: 1, value: { grain: 1.6, cut: 0.3, keepShare: 0.55, lobeCut: 0.74 } },
+    // deeper bites at a coarser grain, so the outline reads as broken rather than as a nibbled rectangle
+    { since: 4, value: { grain: 2.2, cut: 0.36, keepShare: 0.45, lobeCut: 0.6 } },
+  ],
+} as const satisfies Record<string, readonly [TuningStep<unknown>, ...TuningStep<unknown>[]]>;
+
+/**
+ * Plan vocabulary a generator adds to what the one before understood: feature types (wherever a plan names one: a
+ * feature, a scatter op), level fields and area fields.
+ *
+ * The rule, the same for every kind: a word used below its generator is refused by validation (plan/validate.ts
+ * `checkVocabulary`, an error with code `schema`). That is what the released generator did before the word existed,
+ * since its own schema did not know it, so a released generator's plans validate exactly as they did when it shipped.
+ * The schema accepts the word for every generator (one schema serves every plan); validation holds each plan to its
+ * own generator's words. A new kind of word gets a key here and a check there.
+ */
+interface VocabularyDeclaration {
+  readonly featureTypes: readonly string[];
+  readonly levelFields: readonly string[];
+  readonly areaFields: readonly string[];
+}
+
+const VOCABULARY: Readonly<Record<GeneratorVersion, VocabularyDeclaration>> = {
+  1: { featureTypes: [], levelFields: [], areaFields: [] },
+  2: { featureTypes: [], levelFields: [], areaFields: [] },
+  3: { featureTypes: [], levelFields: [], areaFields: [] },
+  4: { featureTypes: ["clutter", "shelf_line"], levelFields: ["roomDress"], areaFields: ["purpose"] },
+};
+
+/** The plan vocabulary one generator understands (what it added and what the generators before it did). */
+export interface GeneratorVocabulary {
+  readonly featureTypes: ReadonlySet<string>;
+  readonly levelFields: ReadonlySet<string>;
+  readonly areaFields: ReadonlySet<string>;
+}
+
+export type GeneratorProfile = {
+  readonly version: GeneratorVersion;
+  /** Plan vocabulary this generator understands beyond the base set. */
+  readonly vocabulary: GeneratorVocabulary;
+} & { readonly [K in SwitchName]: boolean } & {
+  readonly [K in keyof typeof TUNINGS]: (typeof TUNINGS)[K][number]["value"];
+};
+
+/** What a switch is and when it starts, by name: the table the profiles are built from. */
+export const SWITCH_DECLARATIONS: Readonly<Record<SwitchName, SwitchDeclaration>> = SWITCHES;
+
+const SWITCH_NAMES = Object.keys(SWITCHES) as SwitchName[];
+
+function profileFor(version: GeneratorVersion): GeneratorProfile {
+  const upTo = GENERATOR_VERSIONS.filter((v) => v <= version);
+  const switches = Object.fromEntries(SWITCH_NAMES.map((name) => [name, SWITCHES[name].since <= version]));
+  const tunings = Object.fromEntries(
+    Object.entries(TUNINGS).map(([name, steps]) => [
+      name,
+      steps.filter((s) => s.since <= version).reduce((_, s) => s, steps[0]).value,
+    ]),
+  );
+  const words = (key: keyof VocabularyDeclaration): ReadonlySet<string> =>
+    new Set(upTo.flatMap((v) => VOCABULARY[v][key]));
+  return {
+    version,
+    ...switches,
+    ...tunings,
+    vocabulary: {
+      featureTypes: words("featureTypes"),
+      levelFields: words("levelFields"),
+      areaFields: words("areaFields"),
+    },
+  } as GeneratorProfile;
+}
+
+/** Every generator's profile, by version. */
+export const GENERATOR_PROFILES: Readonly<Record<GeneratorVersion, GeneratorProfile>> = Object.fromEntries(
+  GENERATOR_VERSIONS.map((v) => [v, profileFor(v)]),
+) as Record<GeneratorVersion, GeneratorProfile>;
+
+/**
+ * The profile of a plan's generator. Takes a plan, a resolved plan or a version number (a placement grid's
+ * `generator`); it is a table lookup that returns the same object for the same version, so call it where it is needed.
+ */
+export function generatorProfile(subject: { readonly generator: number } | number): GeneratorProfile {
+  const version = typeof subject === "number" ? subject : subject.generator;
+  const profile = (GENERATOR_PROFILES as Partial<Record<number, GeneratorProfile>>)[version];
+  if (!profile)
+    throw new Error(`unknown generator version ${String(version)} (known: ${GENERATOR_VERSIONS.join(", ")})`);
+  return profile;
 }
 
 /**
- * Plan vocabulary that exists only from a generator on. The schema accepts these names for every generator (a plan can be
- * re-pointed at another generator without being rejected), so a plan that uses one below its generator is warned: the
- * generator would ignore the field or substitute the piece, and the model should hear that instead of seeing nothing.
- * Add a row here when a generator adds a feature type or a level field.
+ * Plan vocabulary that exists only from a generator on, with that generator: derived from the profiles' `vocabulary`.
+ * Validation refuses a word below its generator (see VocabularyDeclaration).
  */
 export const VOCABULARY_SINCE: {
-  readonly featureTypes: Readonly<Record<string, GeneratorVersion>>;
-  readonly levelFields: Readonly<Record<string, GeneratorVersion>>;
-} = {
-  featureTypes: { clutter: 4, shelf_line: 4 },
-  levelFields: { roomDress: 4 },
-};
+  readonly [K in keyof GeneratorVocabulary]: Readonly<Record<string, GeneratorVersion>>;
+} = (() => {
+  const since = { featureTypes: {}, levelFields: {}, areaFields: {} } as {
+    [K in keyof GeneratorVocabulary]: Record<string, GeneratorVersion>;
+  };
+  for (const v of [...GENERATOR_VERSIONS].reverse())
+    for (const kind of Object.keys(since) as Array<keyof GeneratorVocabulary>)
+      for (const word of GENERATOR_PROFILES[v].vocabulary[kind]) since[kind][word] = v;
+  return since;
+})();

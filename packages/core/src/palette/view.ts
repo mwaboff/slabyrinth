@@ -5,20 +5,21 @@
  * band's pieces really are (`pieceSize`), how tall the piece a room recipe stands on is (`roomPiece`), whether a theme can
  * build a covered stall (`stallForms`), and how large a floor tile is (`floorTileArea`). They used to live in three
  * modules with three lazily created resolvers over the bundled palettes, so the resolver could never see a user's
- * palette and could disagree with the compiler (finding 9 and 7 of the generator-4 review).
+ * palette and could disagree with the compiler.
  *
- * A view is built from a catalog (`createPaletteView`, memoizing its own resolutions) and handed to `resolvePlan` through
- * `ResolveOptions.palette`. Callers that also compile pass the catalog they compile with (`paletteOptionsFor`), so both
- * stages decide from the same palettes. The default is the bundled palettes, built once.
+ * Every caller hands `resolvePlan` the palettes the plan is compiled with; `resolveView` picks the view the plan's
+ * generator decides from, and `paletteView` builds one view per catalog, so the resolver and the design review of
+ * one build ask the same memoized questions.
  */
-import type { PaletteCatalog } from "../contracts/compiler";
 import type { FeatureType, Material, MapPlan, ThemeId } from "../contracts/plan";
 import { GENERATOR_VERSION } from "../contracts/plan";
 import type { StallForm, ThemeInterior } from "../contracts/resolved";
 import { featureRoles } from "../gen/surfaces";
-import { loadPalettes } from "./load";
-import { createRoleResolver, themeChain, type VariantFilter } from "./resolve";
-import { coveredStallForms, type RoleProbe } from "./stallParts";
+import { generatorProfile } from "../plan/generator";
+import { bundledPalettes } from "./load";
+import { createRoleResolver, themeChain, type ResolvePalettes } from "./resolve";
+import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE } from "./roles";
+import { coveredStallForms, roleProbe, type RoleProbe } from "./stallParts";
 
 export type PieceSizeFn = (
   theme: ThemeId,
@@ -34,7 +35,18 @@ export type RoomPieceFn = (
   theme: ThemeId,
   type: FeatureType,
   variant?: string,
-) => { w: number; d: number; h: number; wMax: number; dMax: number; hMax: number; tile: boolean; mixed: boolean } | undefined;
+) =>
+  | {
+      w: number;
+      d: number;
+      h: number;
+      wMax: number;
+      dMax: number;
+      hMax: number;
+      tile: boolean;
+      mixed: boolean;
+    }
+  | undefined;
 
 /** The canopy forms a theme can build a covered stall in (generator 4; none = the table stall of generator 3). */
 export type StallFormsFn = (theme: ThemeId) => StallForm[];
@@ -59,8 +71,8 @@ export interface PaletteView {
 
 /** Feature types whose size comes from a palette role. */
 const ROLE_OF: Partial<Record<FeatureType, string>> = {
-  cliff_face: "cliff.formation_face",
-  cliff_crest: "cliff.formation_crest",
+  cliff_face: CLIFF_FACE_ROLE,
+  cliff_crest: CLIFF_CREST_ROLE,
 };
 
 /**
@@ -82,15 +94,12 @@ const SUPPORT_ROLE: Partial<Record<FeatureType, string>> = {
  * A view of `catalog`. `generator` hides roles introduced after it (default: the newest generator, which hides none
  * the resolver asks about: the older generators' answers do not depend on it).
  */
-export function createPaletteView(catalog: PaletteCatalog, generator: number = GENERATOR_VERSION): PaletteView {
+export function createPaletteView(
+  catalog: ResolvePalettes,
+  generator: number = GENERATOR_VERSION,
+): PaletteView {
   const resolver = createRoleResolver(catalog, generator);
-  const probe = (theme: ThemeId): RoleProbe => (roles, filter?: VariantFilter) => {
-    for (const role of roles) {
-      const r = resolver(theme, role, filter).resolution;
-      if (r) return r;
-    }
-    return null;
-  };
+  const probe = (theme: ThemeId): RoleProbe => roleProbe(resolver, theme);
   const variantsOf = (theme: ThemeId, roles: readonly string[], variant: string | undefined) => {
     for (const role of roles) {
       const vs = (resolver(theme, role).resolution?.variants ?? []).filter(
@@ -162,19 +171,23 @@ export function createPaletteView(catalog: PaletteCatalog, generator: number = G
   return { pieceSize, roomPiece, stallForms, floorTileArea, probe, interior };
 }
 
-let bundled: PaletteView | null = null;
+const views = new WeakMap<ResolvePalettes, PaletteView>();
 
-/** The bundled palettes, built once. */
-export function bundledPaletteView(): PaletteView {
-  bundled ??= createPaletteView(loadPalettes());
-  return bundled;
+/** The view of `palettes`, built once per catalog object (its answers are memoized), so every stage shares it. */
+export function paletteView(palettes: ResolvePalettes): PaletteView {
+  let view = views.get(palettes);
+  if (!view) {
+    view = createPaletteView(palettes);
+    views.set(palettes, view);
+  }
+  return view;
 }
 
 /**
- * `ResolveOptions` for resolving a plan that is then compiled with `catalog`: from generator 4 on the resolver asks the
- * compiler's palettes (user palettes, game availability), so a covered stall is only laid out where the compiler can
- * build it. Older generators keep the bundled view (their output is frozen).
+ * The view a plan is resolved with, given the palettes it is compiled with. From generator 4 on the resolver decides
+ * from those palettes (user palettes, game availability), so a covered stall is only laid out where the build can make
+ * it; the released generators decide from the bundled palettes whatever is compiled (their output is frozen).
  */
-export function paletteOptionsFor(plan: Pick<MapPlan, "generator">, catalog: PaletteCatalog): { palette?: PaletteView } {
-  return plan.generator >= 4 ? { palette: createPaletteView(catalog) } : {};
+export function resolveView(plan: Pick<MapPlan, "generator">, palettes: ResolvePalettes): PaletteView {
+  return paletteView(generatorProfile(plan).resolveWithCompilePalettes ? palettes : bundledPalettes());
 }

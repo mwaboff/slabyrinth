@@ -101,7 +101,12 @@ describe("secrets:setApiKey with verify (store, check, drop a rejected key)", ()
   }
 
   it("an auth rejection removes the key from memory and secret.bin", async () => {
-    const auth = { kind: "auth", retryable: false, httpStatus: 401, message: "Your API key was rejected." } as const;
+    const auth = {
+      kind: "auth",
+      retryable: false,
+      httpStatus: 401,
+      message: "Your API key was rejected.",
+    } as const;
     const r = keyRig({ ok: false, error: auth });
     const res = await r.handlers["secrets:setApiKey"]({ providerId: "anthropic", apiKey: KEY, verify: true });
     expect(res).toMatchObject({ stored: false, check: { ok: false, error: { kind: "auth" } } });
@@ -113,9 +118,17 @@ describe("secrets:setApiKey with verify (store, check, drop a rejected key)", ()
 
   it("a network failure (or a failing check) keeps the key; an OK check keeps it too", async () => {
     const net = { kind: "network", retryable: true, message: "Connection lost." } as const;
-    for (const check of [{ ok: false as const, error: net }, new Error("engine down"), { ok: true as const }]) {
+    for (const check of [
+      { ok: false as const, error: net },
+      new Error("engine down"),
+      { ok: true as const },
+    ]) {
       const r = keyRig(check);
-      const res = await r.handlers["secrets:setApiKey"]({ providerId: "anthropic", apiKey: KEY, verify: true });
+      const res = await r.handlers["secrets:setApiKey"]({
+        providerId: "anthropic",
+        apiKey: KEY,
+        verify: true,
+      });
       expect(res.stored).toBe(true);
       expect(res.check?.ok).toBe(check instanceof Error ? false : check.ok);
       expect((await r.secrets.status())["anthropic"].hasKey).toBe(true);

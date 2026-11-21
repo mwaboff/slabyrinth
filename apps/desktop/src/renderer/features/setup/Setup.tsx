@@ -54,7 +54,13 @@ export const KEY_STORAGE_TEXT = {
   none: "Your key is only ever sent to api.anthropic.com. It is never written into project files.",
 } as const;
 
-export function KeyStorageNote({ providerId = "anthropic", className }: { providerId?: string; className?: string }) {
+export function KeyStorageNote({
+  providerId = "anthropic",
+  className,
+}: {
+  providerId?: string;
+  className?: string;
+}) {
   const row = useSettings((s) => s.secrets[providerId]);
   const [failed, setFailed] = useState<string | null>(null);
   const backend = row?.hasKey === true ? row.backend : null;

@@ -1,9 +1,11 @@
 /**
- * validatePlan (architecture §2.8): every resolver-INDEPENDENT check, plus a registration hook through which
- * WP2 plugs in geometric checks (opening_no_boundary on real edges, feature_blocked, area_empty, unreachable…)
- * without this module importing the resolver.
+ * validatePlan (architecture §2.8): every resolver-INDEPENDENT check, plus the checks the caller passes in
+ * (`ValidateContext.checks`). The resolver's geometric checks (opening_no_boundary on real edges, feature_blocked,
+ * area_empty, unreachable…) sit in a higher layer and need the palettes the plan is built with, so this module
+ * cannot import them: the caller hands them over (resolve's `planRules(palettes).checks`), or passes `[]` to check
+ * structure only. There is no process-wide registry: the same call gives the same answer in every process.
  *
- * Order: size limit → Zod structure → cross-element rules → registered checks. Registered checks run only when
+ * Order: size limit → Zod structure → cross-element rules → the given checks. The given checks run only when
  * everything before produced no error, so they may assume a structurally sound plan with valid references.
  *
  * Every issue carries a stable code, a JSON-pointer path, the element/level ids and a model-facing hint.
@@ -20,9 +22,9 @@ import type {
   Vec2,
 } from "../contracts/plan";
 import { BUILD_CONSTANTS, PLAN_LIMITS } from "../contracts/plan";
-import { own } from "../palette/own";
+import { own } from "../util/own";
 import { utf8Length } from "../util/hash";
-import { VOCABULARY_SINCE } from "./generator";
+import { type GeneratorVocabulary, VOCABULARY_SINCE, generatorProfile } from "./generator";
 import { listForHint, nearest } from "../util/strings";
 import { KIND_LABEL, freeId, listElements } from "./elements";
 import type { ElementLocation } from "./elements";
@@ -33,44 +35,31 @@ import { boxesIntersect, polylineProblems, shapeCellBox, shapeProblems } from ".
 import type { CellBox } from "./shapes";
 import { zodIssueToPlanIssue } from "./zodIssues";
 
-// ───────────────────────────── context and check registry ─────────────────────────────
+// ───────────────────────────── context and checks ─────────────────────────────
 
 export interface ValidateContext {
+  /**
+   * The checks that run after the structural ones, in this order, on a plan with no structural error. Required so
+   * that no caller leaves them out by accident: `planRules(palettes).checks` (resolve) adds the resolver's geometry
+   * and playability checks for the palettes the plan is built with; `[]` checks structure only.
+   */
+  checks: readonly PlanCheck[];
   /** Theme ids known to the installed palettes. When given, unknown themes produce `theme_unknown` warnings. */
   themes?: readonly string[];
-  /** Additional checks for this call only (run after the registered ones). */
-  checks?: readonly PlanCheck[];
-  /** Skip globally registered checks (structural validation only). */
-  skipRegistered?: boolean;
 }
 
 /**
- * A pluggable validation pass (WP2 geometry, WP3 palette checks such as custom_unresolved).
+ * A validation pass a higher layer supplies (the resolver's geometry and playability checks).
  * Must be pure and deterministic; receives only plans that passed every structural check.
  */
 export interface PlanCheck {
-  /** Unique name; registered checks run in name order. */
+  /** A name for tests and logs. */
   name: string;
   run(plan: MapPlan, ctx: ValidateContext): readonly PlanIssue[];
 }
 
-const registry = new Map<string, PlanCheck>();
-
-/**
- * Registers a check that validatePlan (and therefore applyOps) runs on every structurally valid plan.
- * Re-registering a name replaces it. Returns a function that unregisters it.
- */
-export function registerPlanCheck(check: PlanCheck): () => void {
-  registry.set(check.name, check);
-  return () => {
-    if (registry.get(check.name) === check) registry.delete(check.name);
-  };
-}
-
-/** Registered checks in deterministic (name) order. */
-export function registeredPlanChecks(): PlanCheck[] {
-  return [...registry.values()].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-}
+/** No checks beyond the structural ones: `validatePlan(plan, STRUCTURE_ONLY)`. */
+export const STRUCTURE_ONLY: ValidateContext = Object.freeze({ checks: Object.freeze([]) });
 
 // ───────────────────────────── entry points ─────────────────────────────
 
@@ -93,13 +82,12 @@ export function parsePlan(input: unknown): ParsePlanResult {
 /**
  * Validates a plan (or untrusted JSON). Pure and deterministic. `ok` is false iff an issue has severity "error".
  */
-export function validatePlan(input: unknown, ctx: ValidateContext = {}): ValidationResult {
+export function validatePlan(input: unknown, ctx: ValidateContext): ValidationResult {
   const parsed = parsePlan(input);
   if (!parsed.ok) return { ok: false, issues: parsed.issues };
   const issues = structuralChecks(parsed.plan, ctx);
   if (!issues.some((i) => i.severity === "error")) {
-    const checks = [...(ctx.skipRegistered === true ? [] : registeredPlanChecks()), ...(ctx.checks ?? [])];
-    for (const check of checks) issues.push(...check.run(parsed.plan, ctx));
+    for (const check of ctx.checks) issues.push(...check.run(parsed.plan, ctx));
   }
   return { ok: !issues.some((i) => i.severity === "error"), issues };
 }
@@ -134,6 +122,13 @@ function checkSize(input: unknown): PlanIssue | null {
   return null;
 }
 
+/** Where an issue points beyond its path. */
+interface IssueExtra {
+  elementId?: string;
+  levelId?: string;
+  cell?: Vec2;
+}
+
 class IssueSink {
   readonly issues: PlanIssue[] = [];
   add(
@@ -142,7 +137,7 @@ class IssueSink {
     path: string,
     message: string,
     hint: string,
-    extra: { elementId?: string; levelId?: string; cell?: Vec2 } = {},
+    extra: IssueExtra = {},
   ): void {
     const issue: PlanIssue = { severity, code, message, path, hint };
     if (extra.elementId !== undefined) issue.elementId = extra.elementId;
@@ -150,13 +145,7 @@ class IssueSink {
     if (extra.cell !== undefined) issue.cell = extra.cell;
     this.issues.push(issue);
   }
-  error(
-    code: PlanIssueCode,
-    path: string,
-    message: string,
-    hint: string,
-    extra?: { elementId?: string; levelId?: string; cell?: Vec2 },
-  ): void {
+  error(code: PlanIssueCode, path: string, message: string, hint: string, extra?: IssueExtra): void {
     this.add("error", code, path, message, hint, extra);
   }
 }
@@ -210,7 +199,7 @@ export function nextFreeKey(plan: MapPlan): string {
   return String(max + 1);
 }
 
-export function structuralChecks(plan: MapPlan, ctx: ValidateContext): PlanIssue[] {
+export function structuralChecks(plan: MapPlan, ctx: Pick<ValidateContext, "themes">): PlanIssue[] {
   const sink = new IssueSink();
   const elements = listElements(plan);
   checkIds(plan, elements, sink);
@@ -371,44 +360,86 @@ function areaRefCheck(
     elsewhere !== undefined
       ? `${what} "${elementId}" refers to area "${ref}", which is on level "${elsewhere.id}", not "${level.id}"`
       : `${what} "${elementId}" refers to unknown area "${ref}"`,
-    `${near !== undefined ? `did you mean "${near}"? ` : ""}areas on ${level.id}: ${ids.length > 0 ? listForHint(ids) : "(none)"}${what === "dress op" && plan.generator >= 2 ? "; or leave area out to dress the whole level" : ""}`,
+    `${near !== undefined ? `did you mean "${near}"? ` : ""}areas on ${level.id}: ${ids.length > 0 ? listForHint(ids) : "(none)"}${what === "dress op" && generatorProfile(plan).dressWholeLevel ? "; or leave area out to dress the whole level" : ""}`,
     { elementId, levelId: level.id },
   );
   return false;
+}
+
+/**
+ * Plan vocabulary a later generator added (plan/generator.ts VOCABULARY), used below that generator: refused, code
+ * `schema`, the same for every kind of word. The schema accepts the word for every generator (one schema serves every
+ * plan), so this is where a released generator's plan is held to the words its own release knew.
+ */
+function checkVocabulary(plan: MapPlan, level: Level, li: number, sink: IssueSink): void {
+  const known = generatorProfile(plan).vocabulary;
+  const base = `/levels/${li}`;
+  const refuse = (
+    kind: keyof GeneratorVocabulary,
+    word: string,
+    path: string,
+    what: string,
+    instead: string,
+    extra: IssueExtra,
+  ): void => {
+    const since = own(VOCABULARY_SINCE[kind], word);
+    if (since === undefined || known[kind].has(word)) return;
+    sink.error(
+      "schema",
+      path,
+      `${what} needs generator ${since}; this plan is generator ${plan.generator}`,
+      `set the plan generator to ${since} (new plans have it), or ${instead}`,
+      extra,
+    );
+  };
+  const fields = (
+    kind: "levelFields" | "areaFields",
+    element: object,
+    path: string,
+    label: string,
+    extra: IssueExtra,
+  ): void => {
+    for (const field of Object.keys(element))
+      refuse(kind, field, `${path}/${field}`, `${label}: ${field}`, `remove ${field}`, extra);
+  };
+  fields("levelFields", level, base, `level "${level.id}"`, { elementId: level.id, levelId: level.id });
+  level.areas.forEach((a, ai) => {
+    fields("areaFields", a, `${base}/areas/${ai}`, `area "${a.id}"`, { elementId: a.id, levelId: level.id });
+  });
+  level.features.forEach((f, fi) => {
+    refuse(
+      "featureTypes",
+      f.type,
+      `${base}/features/${fi}/type`,
+      `feature "${f.id}": type ${f.type}`,
+      "use another feature type",
+      { elementId: f.id, levelId: level.id, cell: f.at },
+    );
+  });
+  level.terrain.forEach((t, ti) => {
+    if (t.op === "scatter")
+      refuse(
+        "featureTypes",
+        t.feature,
+        `${base}/terrain/${ti}/feature`,
+        `scatter "${t.id}": feature ${t.feature}`,
+        "scatter another feature type",
+        { elementId: t.id, levelId: level.id },
+      );
+  });
 }
 
 function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: IssueSink): void {
   const base = `/levels/${li}`;
   const lb = levelBox(level);
 
-  // vocabulary a later generator added: below that generator it is ignored or substituted, so say so
-  for (const [field, since] of Object.entries(VOCABULARY_SINCE.levelFields))
-    if (since > plan.generator && (level as unknown as Record<string, unknown>)[field] !== undefined)
-      sink.add(
-        "warning",
-        "no_effect",
-        `${base}/${field}`,
-        `level "${level.id}": ${field} needs generator ${since}; this plan is generator ${plan.generator}, so it changes nothing`,
-        `set the plan generator to ${since} (new plans have it), or remove ${field}`,
-        { elementId: level.id, levelId: level.id },
-      );
-  level.features.forEach((f, fi) => {
-    const since = own(VOCABULARY_SINCE.featureTypes, f.type);
-    if (since !== undefined && since > plan.generator)
-      sink.add(
-        "warning",
-        "no_effect",
-        `${base}/features/${fi}/type`,
-        `feature "${f.id}": type ${f.type} needs generator ${since}; this plan is generator ${plan.generator}, so a stand-in piece is used`,
-        `set the plan generator to ${since} (new plans have it), or use another feature type`,
-        { elementId: f.id, levelId: level.id, cell: f.at },
-      );
-  });
+  checkVocabulary(plan, level, li, sink);
+  const gen = generatorProfile(plan);
 
   (level.structures ?? []).map(withWings).forEach((st, si) => {
     const p = `${base}/structures/${si}`;
     const extra = { elementId: st.id, levelId: level.id };
-    if (plan.generator < 2)
+    if (!gen.buildings)
       sink.error(
         "structure_invalid",
         p,
@@ -632,7 +663,7 @@ function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: Issue
       case "dress":
         // generator 2: no area (or the level's own id) dresses the whole level
         if (t.area === undefined || t.area === level.id) {
-          if (plan.generator < 2)
+          if (!generatorProfile(plan).dressWholeLevel)
             sink.error(
               "ref_unknown",
               `${p}/area`,

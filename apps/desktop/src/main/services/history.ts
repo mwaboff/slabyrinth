@@ -1,4 +1,4 @@
-import type { MapPlan, PlanHistory, PlanVersion } from "@slabyrinth/core";
+import type { MapPlan, PlanHistory, PlanRules, PlanVersion } from "@slabyrinth/core";
 import * as core from "@slabyrinth/core/history";
 import { AppFailure } from "../util/errors";
 
@@ -43,7 +43,12 @@ function assign(h: PlanHistory, next: PlanHistory): void {
 }
 
 /** Appends a version (mutates `h`), moves head to it. Returns the new version. */
-export function commit(h: PlanHistory, input: NewVersionInput, cache?: Map<number, MapPlan>): PlanVersion {
+export function commit(
+  h: PlanHistory,
+  input: NewVersionInput,
+  rules: PlanRules,
+  cache?: Map<number, MapPlan>,
+): PlanVersion {
   const ci: core.CommitInput = {
     plan: input.plan,
     author: input.author,
@@ -54,7 +59,7 @@ export function commit(h: PlanHistory, input: NewVersionInput, cache?: Map<numbe
   if (input.changeSummary !== undefined) ci.changeSummary = input.changeSummary;
   if (input.messageId !== undefined) ci.messageId = input.messageId;
   if (input.cost !== undefined) ci.cost = input.cost;
-  const r = core.commitVersion(h, ci, cache);
+  const r = core.commitVersion(h, ci, rules, cache);
   assign(h, r.history);
   return r.version;
 }
@@ -99,9 +104,14 @@ export function moveHeadBack(h: PlanHistory, target: number): number {
   return h.head;
 }
 
-/** Rebuilds version n from its nearest keyframe ancestor (core replay). */
-export function reconstruct(h: PlanHistory, n: number, cache?: Map<number, MapPlan>): MapPlan {
-  const r = core.reconstruct(h, n, cache);
+/** Rebuilds version n from its nearest keyframe ancestor (core replay with the project's plan rules). */
+export function reconstruct(
+  h: PlanHistory,
+  n: number,
+  rules: PlanRules,
+  cache?: Map<number, MapPlan>,
+): MapPlan {
+  const r = core.reconstruct(h, n, rules, cache);
   if (r.ok) return r.plan;
   if (r.error.code === "no_version") throw new AppFailure("not_found", `Version ${String(n)} doesn't exist.`);
   throw new AppFailure("internal", `Version ${String(n)} can't be rebuilt: ${r.error.message}.`);

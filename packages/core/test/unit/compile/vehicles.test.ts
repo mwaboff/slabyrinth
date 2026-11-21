@@ -6,9 +6,8 @@
 import { describe, expect, it } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { realize } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { handLevel, handPlan } from "./handResolved";
 
 const cat = loadPalettes();
@@ -92,7 +91,10 @@ const street = (features: MapPlan["levels"][number]["features"], dress = false):
 
 describe("vehicles the plan places near a road park in the kerb lane", () => {
   it("one on the pavement, set across the road, is moved into the lane along the road with an info note", () => {
-    const r = resolvePlan(street([{ id: "car", type: "vehicle", at: [10, 4], size: [2, 3] }]));
+    const r = resolvePlan(
+      street([{ id: "car", type: "vehicle", at: [10, 4], size: [2, 3] }]),
+      bundledPalettes(),
+    );
     const L = r.levels[0];
     const road = L?.roads?.[0];
     const f = L?.features.find((q) => q.id === "car");
@@ -112,7 +114,10 @@ describe("vehicles the plan places near a road park in the kerb lane", () => {
   });
 
   it("one in a yard away from the road keeps its spot", () => {
-    const r = resolvePlan(street([{ id: "yard", type: "vehicle", at: [10, 0], size: [3, 2] }]));
+    const r = resolvePlan(
+      street([{ id: "yard", type: "vehicle", at: [10, 0], size: [3, 2] }]),
+      bundledPalettes(),
+    );
     const f = r.levels[0]?.features.find((q) => q.id === "yard");
     expect(f?.at).toEqual([10, 0]);
   });
@@ -125,7 +130,7 @@ describe("vehicles the plan places near a road park in the kerb lane", () => {
       ],
       true,
     );
-    const L = resolvePlan(plan).levels[0];
+    const L = resolvePlan(plan, bundledPalettes()).levels[0];
     const all = L?.features.filter((q) => q.type === "vehicle") ?? [];
     // two lanes of 48 cells: about 96 lane cells, so at most 8 vehicles in all
     expect(all.length).toBeLessThanOrEqual(8);

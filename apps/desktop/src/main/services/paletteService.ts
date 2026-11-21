@@ -30,6 +30,8 @@ export interface PaletteServiceDeps {
   orientationOverride: string;
   logger: Logger;
   openPath: (dir: string) => Promise<string>;
+  /** After every load (startup or reload): the palettes may have changed. */
+  onLoaded?: () => void;
 }
 
 async function readUserDir(dir: string, logger: Logger): Promise<UserFile[]> {
@@ -101,6 +103,7 @@ export class PaletteService {
       this.deps.logger.warn("palette issue", { source: i.source, severity: i.severity, message: i.message });
     this.entries = entries;
     this.deps.logger.info("palettes loaded", { bundled: bundledIds.size, user: this.user.length });
+    this.deps.onLoaded?.();
   }
 
   private userInputs(): Array<{ source: string; data: unknown }> {

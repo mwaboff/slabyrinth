@@ -3,7 +3,7 @@
  * from assets a game update adds (no code or palette change).
  */
 import { describe, expect, it } from "vitest";
-import type { CatalogAsset } from "../../../src/contracts/compiler";
+import type { AssetCatalog, CatalogAsset } from "../../../src/contracts/compiler";
 import {
   classifyAsset,
   createAvailability,
@@ -11,7 +11,7 @@ import {
   searchCatalog,
   sizeClass,
 } from "../../../src/catalog";
-import { loadPalettes, resolveRole } from "../../../src/palette";
+import { buildPaletteCatalog, loadPalettes, resolveRole } from "../../../src/palette";
 import { FEATURE_TYPES } from "../../../src/contracts/plan";
 import { COMPOSED_PRESETS, FEATURE_INFO, NEUTRAL_SLOT, SET_PIECES } from "../../../src/gen";
 
@@ -119,6 +119,16 @@ describe("assets from a game update join the palettes at runtime", () => {
     const before = resolveRole(plain, "cave", "feature.cluster_tall").resolution?.variants ?? [];
     const after = resolveRole(rich, "cave", "feature.cluster_tall").resolution?.variants ?? [];
     expect(after.slice(0, before.length)).toEqual(before);
+  });
+
+  it("buildPaletteCatalog (app and CLI) adds them and the catalog's availability from one argument", () => {
+    const built = buildPaletteCatalog([], { assets: update } as unknown as AssetCatalog);
+    expect(built.autoVariants).toBe(rich.autoVariants);
+    expect(built.palettes).toEqual(rich.palettes);
+    const curated = resolveRole(plain, "cave", "feature.cluster_tall").resolution?.variants[0]?.uuid ?? "";
+    expect(built.availability.status(curated)).toBe("missing"); // not in this (tiny) catalog
+    expect(buildPaletteCatalog([], update).palettes).toEqual(rich.palettes);
+    expect(buildPaletteCatalog([], null)).toMatchObject({ autoVariants: 0, palettes: plain.palettes });
   });
 });
 

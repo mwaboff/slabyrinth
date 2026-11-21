@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { compileResolved, createCompilePlan } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { decodeDetailed, slabCodec } from "../../../src/slab";
 import { VALID_PLAN_FIXTURES, loadPlan } from "../../fixtures";
@@ -22,7 +22,7 @@ const KNOWN_ERRORS: Partial<Record<string, string[]>> = {};
 
 describe.each(VALID_PLAN_FIXTURES)("compile fixture %s", (name) => {
   const plan = loadPlan(name);
-  const resolved = resolvePlan(plan);
+  const resolved = resolvePlan(plan, bundledPalettes());
   const bundle = compileResolved(resolved, cat, slabCodec, { createdAt: "t", plan });
 
   it("compiles from bundled palettes with no errors (except known, routed ones)", () => {
@@ -52,7 +52,7 @@ describe.each(VALID_PLAN_FIXTURES)("compile fixture %s", (name) => {
   });
 
   it("is deterministic", () => {
-    expect(compileResolved(resolvePlan(loadPlan(name)), cat, slabCodec, { createdAt: "t", plan })).toEqual(
+    expect(compileResolved(resolvePlan(loadPlan(name), bundledPalettes()), cat, slabCodec, { createdAt: "t", plan })).toEqual(
       bundle,
     );
   });

@@ -1,13 +1,14 @@
 /**
  * Markets and settlements (generator 3): rows of market stalls, goods standing on them, lines strung overhead and the
- * props a trade puts outside its door. Pure layout: the resolver (resolve/level.ts `stepMarket`) asks for placements
+ * props a trade puts outside its door. Pure layout: the resolver (resolve/level/market.ts `stepMarket`) asks for placements
  * and commits the ones whose cells are free; the realizer turns the feature types (`stall`, `goods`, `overhead`,
- * `line_post`) into palette pieces. See docs/internal/handoff-settlement.md.
+ * `line_post`) into palette pieces.
  */
 import type { FeatureType, Side, StallKind, StallRow } from "../contracts/plan";
 import type { StallBuild, StallForm } from "../contracts/resolved";
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
+import { FACE_ROT } from "./gridGeometry";
 import type { SmallFamily } from "./surfaces";
 
 /** The palette variants of `feature.stall`: the real stall pieces, and the bare table the other kinds stand on. */
@@ -45,7 +46,13 @@ export const STALL_KIND_INFO: Readonly<Record<StallKind, StallKindInfo>> = {
   bread: { piece: "empty", front: "counter", goods: "bread", tableGoods: "bread", stock: GENERAL_STOCK },
   dairy: { piece: "empty", front: "counter", goods: "dairy", tableGoods: "dairy", stock: GENERAL_STOCK },
   fish: { piece: "empty", front: "counter", goods: "fish", tableGoods: "fish", stock: GENERAL_STOCK },
-  potions: { piece: "empty", front: "counter", goods: "potions", tableGoods: "potions", stock: GENERAL_STOCK },
+  potions: {
+    piece: "empty",
+    front: "counter",
+    goods: "potions",
+    tableGoods: "potions",
+    stock: GENERAL_STOCK,
+  },
   grain: { piece: "empty", front: "counter", goods: "grain", tableGoods: "grain", stock: GENERAL_STOCK },
 };
 
@@ -70,7 +77,8 @@ export const DEFAULT_STALL_GOODS: readonly StallKind[] = [
   "spices",
 ];
 
-const TURN: Record<Side, number> = { S: 0, W: 90, N: 180, E: 270 };
+/** A stall or line piece turns to face the side named by its `faces`. */
+const TURN = FACE_ROT;
 
 export interface StallPlacement {
   at: [number, number];
@@ -262,7 +270,8 @@ export function layoutStalls4(
   const cap = row.count ?? 60;
   const GAPS = [0, 0, 1, 1, 1, 2];
   const cellsFree = (at: [number, number], size: [number, number]): boolean => {
-    for (let y = at[1]; y < at[1] + size[1]; y++) for (let x = at[0]; x < at[0] + size[0]; x++) if (!ok(x, y)) return false;
+    for (let y = at[1]; y < at[1] + size[1]; y++)
+      for (let x = at[0]; x < at[0] + size[0]; x++) if (!ok(x, y)) return false;
     return true;
   };
   for (const band of bands) {
@@ -282,7 +291,8 @@ export function layoutStalls4(
         depthFront: number,
         faces: Side,
       ): [number, number] | null => {
-        const dmin = toEnd || faces === "W" || faces === "N" ? depthFront - (toEnd ? depLen - 1 : 0) : depthFront;
+        const dmin =
+          toEnd || faces === "W" || faces === "N" ? depthFront - (toEnd ? depLen - 1 : 0) : depthFront;
         const at: [number, number] = horizontal ? [ax + along0, ay + dmin] : [ax + dmin, ay + along0];
         const size: [number, number] = horizontal ? [alongLen, depLen] : [depLen, alongLen];
         return cellsFree(at, size) ? at : null;
@@ -333,7 +343,13 @@ export function layoutStalls4(
       const size: [number, number] = horizontal ? [s.w, s.d] : [s.d, s.w];
       if (cellsFree(at, size)) {
         const kind = nextKind();
-        out.push({ at, size, rot: TURN[band.faces], kind, build: designStall(s, kind, band.faces, forms, rng) });
+        out.push({
+          at,
+          size,
+          rot: TURN[band.faces],
+          kind,
+          build: designStall(s, kind, band.faces, forms, rng),
+        });
         p += s.w + (GAPS[rng.int(GAPS.length)] as number);
         prev = s.name;
         first = false;
@@ -376,8 +392,7 @@ export function layoutLine(
   if (L < 1) return [];
   const out: LinePiece[] = [];
   const rotFine = span.alongX ? 0 : 90;
-  const cell = (along: number): [number, number] =>
-    span.alongX ? [along, span.lane] : [span.lane, along];
+  const cell = (along: number): [number, number] => (span.alongX ? [along, span.lane] : [span.lane, along]);
   const body = kind === "lights" ? "lights" : "rope";
   const n = Math.max(1, Math.ceil(L / 2 - 1e-6));
   for (let k = 0; k < n; k++) {
@@ -444,18 +459,55 @@ export const TRADE_OF: Readonly<Record<string, Trade>> = {
 
 /** Props outside the door by trade (feature types the palettes have), with weights. */
 export const TRADE_PROPS: Readonly<Record<Trade, ReadonlyArray<readonly [FeatureType, number]>>> = {
-  baker: [["sack", 3], ["barrel", 1], ["crate", 1]],
-  smith: [["anvil", 3], ["barrel", 1], ["weapon_rack", 1]],
-  shop: [["crate", 3], ["barrel", 2], ["sack", 2]],
-  tavern: [["barrel", 3], ["bench", 2], ["stool", 1]],
-  apothecary: [["barrel", 2], ["crate", 1], ["flowers", 2]],
-  cobbler: [["bench", 2], ["crate", 2], ["stool", 1]],
-  butcher: [["barrel", 2], ["crate", 2], ["cart", 1]],
-  stable: [["barrel", 1], ["crate", 1], ["cart", 1]],
+  baker: [
+    ["sack", 3],
+    ["barrel", 1],
+    ["crate", 1],
+  ],
+  smith: [
+    ["anvil", 3],
+    ["barrel", 1],
+    ["weapon_rack", 1],
+  ],
+  shop: [
+    ["crate", 3],
+    ["barrel", 2],
+    ["sack", 2],
+  ],
+  tavern: [
+    ["barrel", 3],
+    ["bench", 2],
+    ["stool", 1],
+  ],
+  apothecary: [
+    ["barrel", 2],
+    ["crate", 1],
+    ["flowers", 2],
+  ],
+  cobbler: [
+    ["bench", 2],
+    ["crate", 2],
+    ["stool", 1],
+  ],
+  butcher: [
+    ["barrel", 2],
+    ["crate", 2],
+    ["cart", 1],
+  ],
+  stable: [
+    ["barrel", 1],
+    ["crate", 1],
+    ["cart", 1],
+  ],
 };
 
 /** The trade a `use` word means (case and spaces ignored), or undefined. */
 export function tradeOf(use: string | undefined): Trade | undefined {
   if (!use) return undefined;
-  return TRADE_OF[use.trim().toLowerCase().replace(/[^a-z]/g, "")];
+  return TRADE_OF[
+    use
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z]/g, "")
+  ];
 }

@@ -77,8 +77,10 @@ export interface ModelDescriptor {
   /** "api": live Models API; "static": bundled table; "api+static": merged (static supplies defaults the API lacks, e.g. default effort). */
   source: "api" | "static" | "api+static";
   status: "recommended" | "available" | "legacy" | "unavailable";
-  /** UX §5.8 guidance (static table only; absent = "No guidance yet"). */
+  /** UX §5.8 guidance (static table only; absent = listed under "Other models"). */
   guidance?: string;
+  /** Release time (ISO 8601) from the live Models API; absent for bundled-only entries. Orders "Other models". */
+  createdAt?: string;
   costTier?: 1 | 2 | 3 | 4;
   speedTier?: 1 | 2 | 3;
   notes?: string[];

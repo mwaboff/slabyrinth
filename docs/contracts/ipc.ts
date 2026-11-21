@@ -9,10 +9,10 @@
  * - Nothing here is provider-specific: models are addressed by ModelSelection / ModelDescriptor.
  * - Secrets never cross IPC towards the renderer (apiKey.set is write-only).
  */
-import type { MapPlan, LevelId } from "./plan";
+import type { MapPlan, LevelId, ThemeId } from "./plan";
 import type { PlanOp, PlanVersion, ApplyResult } from "./ops";
 import type { MapSelection } from "./resolved";
-import type { ExportBundle, ChunkOptions, CompileEstimate, CatalogChangeReport } from "./compiler";
+import type { ExportBundle, ChunkOptions, CompileEstimate, CatalogChangeReport, Palette } from "./compiler";
 import type {
   ChatItem, EffortLevel, ModelDescriptor, ModelSelection, ProviderErrorInfo, ProviderId, StopReason,
   SwitchImpact, Usage, Cost,
@@ -203,6 +203,12 @@ export interface IpcRequests {
   "palettes:list": { req: void; res: Array<{ id: string; name: string; source: "bundled" | "user"; extends?: string; issues: number }> };
   "palettes:reload": { req: void; res: void };
   "palettes:openFolder": { req: void; res: void };
+  /**
+   * The palettes builds compile with (bundled + user files + the scanned game assets), as the plain data the renderer
+   * resolves plans against, so the 2D preview shows the map the build produces (core palette/transfer.ts). Fetched at
+   * start and again after "palettes:changed".
+   */
+  "palettes:resolveData": { req: void; res: ResolvePalettesData };
 
   /** Opens https URLs from an allowlist (docs, GitHub releases, console.anthropic.com) in the system browser. */
   "shell:openExternal": { req: { url: string }; res: { opened: boolean } };
@@ -213,6 +219,16 @@ export interface IpcRequests {
   "updates:check": { req: { manual: boolean }; res: UpdateStatus };
   /** "Skip this version": no chip for this version; a newer one shows again. */
   "updates:skip": { req: { version: string }; res: UpdateStatus };
+}
+
+/**
+ * Palettes as plain data (same shape as core palette/transfer.ts ResolvePalettesData): the merged palettes and the
+ * game status and name of every asset they name. `key` is a content hash: equal keys, equal palettes.
+ */
+export interface ResolvePalettesData {
+  key: string;
+  palettes: Record<ThemeId, Palette>;
+  assets: Record<string, { status: "present" | "deprecated" | "missing" | null; name: string | null }>;
 }
 
 /** A newer release found by the update check. */
@@ -268,6 +284,8 @@ export interface IpcEvents {
   "catalog:changed": CatalogChangeReport;
   /** Non-blocking startup warning when no install / unparseable index: app runs on bundled palettes only. */
   "catalog:warning": { kind: "no_install" | "parse_failed"; message: string };
+  /** The build's palettes changed (palette files reloaded, asset library rescanned): fetch palettes:resolveData. */
+  "palettes:changed": { key: string };
   "compile:progress": { stage: "resolve" | "realize" | "chunk" | "encode"; done: number; total: number };
   "settings:changed": AppSettings;
   /** Main asks renderer to rasterize a level for view_map_image (renderer replies via "render:imageResult"). */

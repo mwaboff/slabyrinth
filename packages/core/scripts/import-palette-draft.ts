@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import type { Palette, PaletteFacing, PaletteRole, PaletteVariant } from "../src/contracts/compiler";
 import { FEATURE_TYPES, LINK_KINDS, MATERIALS, OPENING_KINDS, WALL_STYLES } from "../src/contracts/plan";
 import { format, resolveConfig } from "prettier";
-import { OBSERVED_TONES } from "../src/review/tones";
+import { OBSERVED_TONES } from "../src/palette/tones";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, "..", "..", "..");
@@ -587,14 +587,17 @@ async function main(): Promise<void> {
   };
   // Curated assets beyond the draft (catalog-copied geometry), added first so they are each role's preferred variant.
   const extras = [
-    ...(JSON.parse(readFileSync(join(here, "palette-extra-assets.json"), "utf8")) as { entries: ExtraEntry[] })
-      .entries,
+    ...(
+      JSON.parse(readFileSync(join(here, "palette-extra-assets.json"), "utf8")) as { entries: ExtraEntry[] }
+    ).entries,
     // market and settlement pieces (generator 3): stalls by kind, goods, overhead line pieces and posts
-    ...(JSON.parse(readFileSync(join(here, "palette-market-assets.json"), "utf8")) as { entries: ExtraEntry[] })
-      .entries,
+    ...(
+      JSON.parse(readFileSync(join(here, "palette-market-assets.json"), "utf8")) as { entries: ExtraEntry[] }
+    ).entries,
     // covered market stall parts (generator 4)
-    ...(JSON.parse(readFileSync(join(here, "palette-stall-assets.json"), "utf8")) as { entries: ExtraEntry[] })
-      .entries,
+    ...(
+      JSON.parse(readFileSync(join(here, "palette-stall-assets.json"), "utf8")) as { entries: ExtraEntry[] }
+    ).entries,
     // room dressing (generator 4): clutter families and the shelf plank
     ...(JSON.parse(readFileSync(join(here, "palette-room-assets.json"), "utf8")) as { entries: ExtraEntry[] })
       .entries,
@@ -761,7 +764,7 @@ async function main(): Promise<void> {
     coverage,
   };
 
-  // tones seen in game (review/tones.ts) on rows that carry none of their own
+  // tones seen in game (palette/tones.ts) on rows that carry none of their own
   for (const p of palettes)
     for (const def of Object.values(p.roles))
       for (const v of def.variants) {

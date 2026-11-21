@@ -6,23 +6,23 @@
  */
 import type { MapPlan } from "../contracts/plan";
 import { CELL, CELL_FLAG, EDGE, type ResolvedLevel } from "../contracts/resolved";
+import { NEIGHBOURS4 as D4 } from "../gen/gridGeometry";
 import { hasNaturalWallStyle, naturalStyleRefs } from "../gen/wallStyles";
-import { generatorAtLeast } from "../plan/generator";
+import { generatorProfile } from "../plan/generator";
+import { cellIndex, hEdgeIndex, vEdgeIndex } from "../resolve/levelGrid";
 import type { DesignNote } from "./review";
 import { REVIEW } from "./thresholds";
 
-const D4: ReadonlyArray<readonly [number, number]> = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
+/** CELL state of local cell (x, y), -1 outside the level. */
+function stateAt(L: ResolvedLevel, x: number, y: number): number {
+  const i = cellIndex(L.bounds, x, y);
+  return i < 0 ? -1 : (L.cells.state[i] ?? CELL.VOID);
+}
 
 /** Thickness (rock cells straight back from the floor, capped) of every wall cell of a level; for tests and proofs. */
 export function caveWallThickness(L: ResolvedLevel): number[] {
   const { w, h } = L.bounds;
-  const state = (x: number, y: number): number =>
-    x < 0 || y < 0 || x >= w || y >= h ? -1 : (L.cells.state[y * w + x] ?? CELL.VOID);
+  const state = (x: number, y: number): number => stateAt(L, x, y);
   const out: number[] = [];
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
@@ -60,13 +60,12 @@ export function caveNaturalMeasures(L: ResolvedLevel): CaveNaturalMeasures {
   const T = REVIEW.caveNatural;
   const { w, h } = L.bounds;
   const natural = naturalStyleRefs(L.wallStyles);
-  const st = (x: number, y: number): number =>
-    x < 0 || y < 0 || x >= w || y >= h ? -1 : (L.cells.state[y * w + x] ?? CELL.VOID);
+  const st = (x: number, y: number): number => stateAt(L, x, y);
   // an edge walled in cave rock (local coordinates): the north edge of (x,y) or its west edge
-  const caveH = (x: number, y: number): boolean =>
-    L.hEdges.kind[y * w + x] === EDGE.WALL && natural.has(L.hEdges.ref[y * w + x] ?? -1);
-  const caveV = (x: number, y: number): boolean =>
-    L.vEdges.kind[y * (w + 1) + x] === EDGE.WALL && natural.has(L.vEdges.ref[y * (w + 1) + x] ?? -1);
+  const caveWall = (g: ResolvedLevel["hEdges"], e: number): boolean =>
+    g.kind[e] === EDGE.WALL && natural.has(g.ref[e] ?? -1);
+  const caveH = (x: number, y: number): boolean => caveWall(L.hEdges, hEdgeIndex(L.bounds, x, y));
+  const caveV = (x: number, y: number): boolean => caveWall(L.vEdges, vEdgeIndex(L.bounds, x, y));
   // areas with a cave-rock wall, and their dry floor
   const caveAreas = new Set<number>();
   // straight runs: per line of edges (orientation, line, which side is open) the positions along it
@@ -105,7 +104,8 @@ export function caveNaturalMeasures(L: ResolvedLevel): CaveNaturalMeasures {
         longest = run;
         const fixed = Number(k.slice(1, -1));
         const along = l[start] as number;
-        longestAt = k[0] === "h" ? [L.bounds.x + along, L.bounds.y + fixed] : [L.bounds.x + fixed, L.bounds.y + along];
+        longestAt =
+          k[0] === "h" ? [L.bounds.x + along, L.bounds.y + fixed] : [L.bounds.x + fixed, L.bounds.y + along];
       }
       start = i;
     }
@@ -114,7 +114,8 @@ export function caveNaturalMeasures(L: ResolvedLevel): CaveNaturalMeasures {
   let floorCells = 0;
   for (let i = 0; i < w * h; i++) {
     if (L.cells.state[i] !== CELL.OPEN || !caveAreas.has(L.cells.area[i] ?? 0)) continue;
-    if (((L.cells.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) !== 0) continue;
+    if (((L.cells.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) !== 0)
+      continue;
     floorCells++;
     const hq = L.cells.height[i] as number;
     count.set(hq, (count.get(hq) ?? 0) + 1);
@@ -135,7 +136,7 @@ export function caveNaturalMeasures(L: ResolvedLevel): CaveNaturalMeasures {
  * catch what is left (a floor the shelves could not reach, outlines pinned by features and links).
  */
 export function caveNaturalChecks(plan: MapPlan, L: ResolvedLevel): DesignNote[] {
-  if (!generatorAtLeast(plan, 4) || !hasNaturalWallStyle(L.wallStyles)) return [];
+  if (!generatorProfile(plan).naturalCaveReview || !hasNaturalWallStyle(L.wallStyles)) return [];
   const T = REVIEW.caveNatural;
   const m = caveNaturalMeasures(L);
   const out: DesignNote[] = [];
@@ -163,7 +164,7 @@ export function caveNaturalChecks(plan: MapPlan, L: ResolvedLevel): DesignNote[]
 
 export function caveWallChecks(plan: MapPlan, L: ResolvedLevel): DesignNote[] {
   const T = REVIEW.caveWall;
-  if (plan.generator < 3) return [];
+  if (!generatorProfile(plan).caveRockMass) return [];
   if (!hasNaturalWallStyle(L.wallStyles)) return [];
   const t = caveWallThickness(L);
   if (t.length < T.minFaces) return [];

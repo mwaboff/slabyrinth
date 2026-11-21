@@ -15,6 +15,7 @@
     "build": "tsc -b",
     "typecheck": "tsc -b . tsconfig.cli.json tsconfig.test.json",
     "test": "vitest run --root ../.. --project core",
+    "test:golden:gen4:update": "tsx test/golden/generator4/update.ts",
     "cli": "tsx src/cli/index.ts"
   },
   "dependencies": {

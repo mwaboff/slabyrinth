@@ -68,7 +68,8 @@ function setup(renderer: "absent" | "present") {
         return p ? Promise.resolve(p) : Promise.reject(new Error(`no plan v${version}`));
       },
       resolve: (plan) => {
-        const r = resolvePlan(plan);
+        // the renderer resolves against the build's palettes, as the engine does
+        const r = resolvePlan(plan, host.getBuildPalettes());
         const labels = levelLabels(r, plan.entryLevel);
         const lists: Record<string, DisplayList> = {};
         for (const l of r.levels)
