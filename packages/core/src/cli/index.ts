@@ -23,12 +23,17 @@
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
-import { buildCatalogFromInstall, createAvailability, locateTaleSpire } from "../catalog/index";
+import {
+  buildCatalogFromInstall,
+  createAvailability,
+  locateTaleSpire,
+  parseAssetCatalog,
+} from "../catalog/index";
 import type { AssetCatalog, ChunkOptions, PaletteCatalog, SlabAsset } from "../contracts/compiler";
 import type { MapPlan } from "../contracts/plan";
 import { calibrationAssetsFrom, calibrationSlabAssets, compileResolved, realize } from "../compile/index";
 import { buildPaletteCatalog, loadOrientation, loadPalettes } from "../palette/index";
-import { planGate, validatePlan } from "../plan/index";
+import { parsePlan, planGate, validatePlan } from "../plan/index";
 import { planRules, resolvePlan } from "../resolve/index";
 import {
   decodeDetailed,
@@ -40,6 +45,7 @@ import {
   degreesToRot,
 } from "../slab/index";
 import { asciiView } from "../text/index";
+import { parseJsonText, type Unparsed } from "../util/index";
 import { designReviewText, reviewDesign } from "../review/index";
 import { hostSteamHints, nodeReadonlyFs } from "./nodeFs";
 
@@ -84,10 +90,33 @@ function parseArgs(argv: string[]): Args {
 const flag = (a: Args, k: string): string | undefined =>
   typeof a.flags[k] === "string" ? a.flags[k] : undefined;
 
-function readJson(path: string, io: CliIo): unknown {
-  const text = path === "-" ? io.readStdin() : readFileSync(path, "utf8");
-  return JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text) as unknown;
+/** A JSON file (or stdin, "-"): unchecked until a parser below checks it (a cast of it does not compile). */
+function readJson(path: string, io: CliIo): Unparsed {
+  return parseJsonText(path === "-" ? io.readStdin() : readFileSync(path, "utf8"));
 }
+
+/** A plan file, checked against the plan schema; a bad file stops the command with what is wrong (exit 1). */
+function readPlan(path: string, io: CliIo): MapPlan {
+  return planOrThrow(readJson(path, io), path);
+}
+
+function planOrThrow(input: unknown, path: string): MapPlan {
+  const r = parsePlan(input);
+  if (r.ok) return r.plan;
+  const shown = r.issues.slice(0, 5).map((i) => `  ${i.path ? `${i.path}: ` : ""}${i.message}`);
+  const more = r.issues.length > 5 ? [`  … ${r.issues.length - 5} more`] : [];
+  throw new Error(`${path} is not a valid plan:\n${[...shown, ...more].join("\n")}`);
+}
+
+/** A catalog file, checked against the catalog schema; a bad file stops the command with what is wrong (exit 1). */
+function readCatalog(path: string, io: CliIo): AssetCatalog {
+  const r = parseAssetCatalog(readJson(path, io));
+  if (!r.ok) throw new Error(`${path}: ${r.message}`);
+  return r.catalog;
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
 
 function palettesFrom(a: Args, io: CliIo): PaletteCatalog {
   const user: Array<{ source: string; data: unknown }> = [];
@@ -98,7 +127,7 @@ function palettesFrom(a: Args, io: CliIo): PaletteCatalog {
       .sort())
       user.push({ source: f, data: readJson(join(dir, f), io) });
   const catPath = flag(a, "catalog");
-  const cat = buildPaletteCatalog(user, catPath ? (readJson(catPath, io) as AssetCatalog) : null);
+  const cat = buildPaletteCatalog(user, catPath ? readCatalog(catPath, io) : null);
   for (const i of cat.issues) io.err(`palette ${i.severity}: ${i.source}: ${i.message}`);
   return cat;
 }
@@ -121,7 +150,7 @@ function cmdValidate(a: Args, io: CliIo): number {
 function cmdAscii(a: Args, io: CliIo): number {
   const path = a._[1];
   if (!path) throw new UsageError("ascii <plan.json> [--level <id>]");
-  const plan = readJson(path, io) as MapPlan;
+  const plan = readPlan(path, io);
   const resolved = resolvePlan(plan, palettesFrom(a, io));
   const levels = flag(a, "level") ? [flag(a, "level") ?? ""] : resolved.levels.map((l) => l.id);
   for (const id of levels) {
@@ -134,7 +163,7 @@ function cmdAscii(a: Args, io: CliIo): number {
 function cmdCompile(a: Args, io: CliIo): number {
   const path = a._[1];
   if (!path) throw new UsageError("compile <plan.json> [--out <dir>] …");
-  const plan = readJson(path, io) as MapPlan;
+  const plan = readPlan(path, io);
   const cat = palettesFrom(a, io);
   // the app's build gate (plan/gate.ts): structural errors refuse; playability errors are reported, as in the app
   const gate = planGate(validatePlan(plan, planRules(cat)).issues, "build");
@@ -212,8 +241,9 @@ function cmdCompile(a: Args, io: CliIo): number {
 function cmdReview(a: Args, io: CliIo): number {
   const path = a._[1];
   if (!path) throw new UsageError("review <plan.json> [--no-build] [--json]");
-  const raw = readJson(path, io) as MapPlan | { plan: MapPlan; format: string };
-  const plan = "format" in raw && "plan" in raw ? raw.plan : raw;
+  // a plan, or an exported document that wraps one ({ format, plan })
+  const raw: unknown = readJson(path, io);
+  const plan = planOrThrow(isRecord(raw) && "format" in raw && "plan" in raw ? raw["plan"] : raw, path);
   const palettes = palettesFrom(a, io);
   const resolved = resolvePlan(plan, palettes);
   const noBuild = a.flags["no-build"] === true;
@@ -235,7 +265,7 @@ function namesFrom(a: Args, io: CliIo): (uuid: string) => string | null {
     for (const r of Object.values(p.roles))
       for (const v of r.variants) if (v.name) names.set(v.asset.toLowerCase(), v.name);
   const catPath = flag(a, "catalog");
-  const av = catPath ? createAvailability(readJson(catPath, io) as AssetCatalog) : null;
+  const av = catPath ? createAvailability(readCatalog(catPath, io)) : null;
   return (u) => av?.name(u) ?? names.get(u) ?? null;
 }
 
@@ -277,10 +307,11 @@ function cmdDecode(a: Args, io: CliIo): number {
 function cmdEncode(a: Args, io: CliIo): number {
   const src = a._[1];
   if (!src) throw new UsageError("encode <assets.json | ->");
-  const doc = readJson(src, io) as
-    { assets?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
-  const list = Array.isArray(doc) ? doc : (doc.assets ?? []);
-  const assets: SlabAsset[] = list.map((r, i) => {
+  const doc: unknown = readJson(src, io);
+  const list: unknown = Array.isArray(doc) ? doc : isRecord(doc) ? (doc["assets"] ?? []) : null;
+  if (!Array.isArray(list)) throw new Error(`${src}: expected a list of assets or { "assets": [...] }`);
+  const assets: SlabAsset[] = (list as unknown[]).map((r, i) => {
+    if (!isRecord(r)) throw new UsageError(`asset ${i}: not an object`);
     const id = r["uuid"] ?? r["asset"];
     const uuid = normalizeGuid(typeof id === "string" ? id : "");
     if (typeof r["sx"] === "number")
@@ -320,9 +351,9 @@ async function cmdCatalog(a: Args, io: CliIo): Promise<number> {
   let cached: AssetCatalog | null = null;
   if (cachedPath) {
     try {
-      cached = readJson(cachedPath, io) as AssetCatalog;
-    } catch {
-      io.err(`no usable cache at ${cachedPath}`);
+      cached = readCatalog(cachedPath, io);
+    } catch (e) {
+      io.err(`no usable cache at ${cachedPath} (${(e as Error).message})`);
     }
   }
   const r = await buildCatalogFromInstall(nodeReadonlyFs, install, {

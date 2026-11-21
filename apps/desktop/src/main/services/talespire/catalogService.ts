@@ -10,6 +10,7 @@ import type {
   InstallFingerprint,
   Palette,
 } from "@slabyrinth/core";
+import { parseAssetCatalog } from "@slabyrinth/core/catalog";
 import type { IpcRequests } from "../../../shared/ipc";
 import type { Logger } from "../../logger";
 import type { CatalogReaderPort, PackFile } from "../../ports/catalog";
@@ -240,10 +241,14 @@ export class CatalogService {
 
   private async loadCache(): Promise<void> {
     try {
-      const raw = JSON.parse(await fsp.readFile(this.deps.catalogFile, "utf8")) as Partial<CacheFile>;
-      if (raw.catalog?.schema !== "slabyrinth/asset-catalog@1" || !Array.isArray(raw.catalog.assets))
-        throw new Error("bad cache");
-      this.catalog = raw.catalog;
+      // the catalog is checked by its schema; the last report is only shown, field by field
+      const raw = JSON.parse(await fsp.readFile(this.deps.catalogFile, "utf8")) as Partial<{
+        catalog: unknown;
+        lastReport: CacheFile["lastReport"];
+      }>;
+      const parsed = parseAssetCatalog(raw.catalog);
+      if (!parsed.ok) throw new Error(`bad cache: ${parsed.message}`);
+      this.catalog = parsed.catalog;
       this.lastReport = raw.lastReport ?? null;
       this.state = "stale"; // until the fingerprint check confirms it
     } catch (err) {

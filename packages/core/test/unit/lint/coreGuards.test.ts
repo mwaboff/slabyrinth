@@ -440,5 +440,26 @@ describe("app guards", () => {
       ])
         expect(await guardHits("apps/desktop/src/main/services/x.ts", code), code).toEqual([]);
     });
+    it("reports a cast of a JSON-reading helper's result, awaited or through unknown", async () => {
+      for (const code of [
+        "const p = readJson(path, io) as MapPlan;",
+        "const c = io.readCatalogJson(path) as AssetCatalog;",
+        "async function f() { return (await readJsonFile(file)) as Palette; }",
+        "const p = readJson(path, io) as unknown as MapPlan;",
+        "const p = load(path) as unknown as MapPlan;",
+      ])
+        expect(await guardHits("packages/core/src/cli/x.ts", code), code).toEqual([
+          expect.stringContaining("slabyrinth/parsed-json"),
+        ]);
+    });
+    it("allows validating a helper's result, and double casts of values that are not read JSON", async () => {
+      for (const code of [
+        "const p = parsePlan(readJson(path, io));",
+        "const raw: unknown = readJson(path, io);",
+        "const v = readJson(path, io) as Unparsed;",
+        "const api = (window as unknown as { api?: Api }).api;",
+      ])
+        expect(await guardHits("packages/core/src/cli/x.ts", code), code).toEqual([]);
+    });
   });
 });

@@ -51,6 +51,8 @@ export type {
   PackBuildInfo,
 } from "./build";
 export { diffCatalogs, geometryChanged } from "./diff";
+export { AssetCatalogSchema, parseAssetCatalog } from "./schema";
+export type { ParseCatalogResult } from "./schema";
 export { NULL_AVAILABILITY, createAvailability, isNullAvailability } from "./availability";
 export {
   ROLE_RULES,

@@ -453,13 +453,33 @@ const reportedCallsRule = selectorRule("Renderer IPC calls report their failures
  * JSON from outside (a file, IPC, the command line) is checked by a schema where it enters typed code; `JSON.parse(x)
  * as T` skips that. Parse to `unknown` and validate (core parsePlan, the shared/schemas, a zod schema). `as
  * Partial<T>` stays allowed: it says every field may be missing, and the code then checks each field it reads.
+ *
+ * A reading helper returns core util `Unparsed` (parseJsonText), which the type system refuses to cast to a domain
+ * type. What is left to catch by syntax: a cast of a JSON-reading helper's result by name (`readJson(f) as T`, also
+ * awaited), and the double cast that would get round `Unparsed` (`readJson(f) as unknown as T`).
  */
+const NOT_UNKNOWN_OR_PARTIAL =
+  ":not([typeAnnotation.type='TSUnknownKeyword'], [typeAnnotation.typeName.name='Partial'], [typeAnnotation.typeName.name='Unparsed'])";
+const JSON_HELPER = ":matches([callee.name=/json/i], [callee.property.name=/json/i])";
 const parsedJsonRule = selectorRule("Parsed JSON is validated, not cast.", [
   {
-    selector:
-      "TSAsExpression:not([typeAnnotation.type='TSUnknownKeyword'], [typeAnnotation.typeName.name='Partial']) > CallExpression[callee.object.name='JSON'][callee.property.name='parse']",
+    selector: `TSAsExpression${NOT_UNKNOWN_OR_PARTIAL} > CallExpression[callee.object.name='JSON'][callee.property.name='parse']`,
     message:
       "Don't cast JSON.parse: parse to unknown and validate it with a schema (core parsePlan, shared/schemas, zod).",
+  },
+  ...[
+    `TSAsExpression${NOT_UNKNOWN_OR_PARTIAL} > CallExpression.expression${JSON_HELPER}`,
+    `TSAsExpression${NOT_UNKNOWN_OR_PARTIAL} > AwaitExpression.expression > CallExpression.argument${JSON_HELPER}`,
+  ].map((selector) => ({
+    selector,
+    message:
+      "Don't cast what a JSON-reading helper returns: validate it with a schema (core parsePlan, parseAssetCatalog, shared/schemas, zod).",
+  })),
+  {
+    selector:
+      "TSAsExpression > TSAsExpression.expression[typeAnnotation.type='TSUnknownKeyword'] > :matches(CallExpression, AwaitExpression).expression",
+    message:
+      "`f(x) as unknown as T` gets round the Unparsed type of read JSON: validate the value with a schema instead.",
   },
 ]);
 
