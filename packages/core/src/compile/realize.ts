@@ -17,6 +17,10 @@
  *   CornerStrips        edges.ts (layWalls, layOpenings add)   layCornerPosts
  *   FullCellColumns     walls.ts layWalls                      layRockWalls
  *
+ * The level's wall faces (`RealizeLevel.faces`, resolve/wallFaces.ts: every wall and opening edge with its host, the
+ * cell its mass stands in, style, theme and span) are found once per level and read by planSolidShell and layWalls
+ * (whose rock columns stand in the mass cells); verify's wall check reads the same faces.
+ *
  * A pass that only runs for some generators checks its own switch on its first line and names it in its doc comment,
  * so this file stays a plain list.
  */
