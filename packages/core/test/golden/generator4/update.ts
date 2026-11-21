@@ -1,0 +1,46 @@
+/**
+ * Rewrites the generator-4 golden on purpose: `npm run test:golden:gen4:update` (from the repo root or packages/core).
+ * Rebuilds every run, prints what changed per plan (field: was -> now), and writes __golden__/generator4.txt. Commit
+ * the golden together with the change that moved it, and say in the commit message why the output changed.
+ *
+ * It refuses (and writes nothing) when a run at a released generator changes its build (resolved hash, slab, asset
+ * count or diagnostic counts): that output is frozen, and the change belongs behind a switch of the open generator.
+ */
+import { mkdirSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { changesReleasedOutput, GOLDEN_FILE, goldenLine, goldenRuns, lineDiff, readGolden } from "./runs";
+
+const before = readGolden();
+const lines = goldenRuns().map(goldenLine);
+const after = new Map(lines.map((l) => [l.split(" ")[0] ?? "", l]));
+
+let changed = 0;
+const frozen: string[] = [];
+for (const name of new Set([...before.keys(), ...after.keys()])) {
+  const was = before.get(name);
+  const now = after.get(name);
+  if (was === now) continue;
+  changed++;
+  const what = was === undefined ? "ADDED" : now === undefined ? "REMOVED" : "CHANGED";
+  console.log(`${what} ${name}`);
+  for (const d of lineDiff(was, now)) console.log(`    ${d}`);
+  if (was !== undefined && now !== undefined && changesReleasedOutput(was, now)) frozen.push(name);
+}
+
+if (frozen.length) {
+  console.error(
+    `\nRefusing to write: ${String(frozen.length)} run(s) at a released generator changed their build ` +
+      `(${frozen.join(", ")}). Released output is frozen; put the change behind a switch of the open generator ` +
+      `(src/plan/generator.ts).`,
+  );
+  process.exitCode = 1;
+} else if (changed === 0) {
+  console.log(`generator-4 golden unchanged (${String(lines.length)} runs)`);
+} else {
+  mkdirSync(new URL(".", GOLDEN_FILE), { recursive: true });
+  writeFileSync(GOLDEN_FILE, lines.join("\n") + "\n");
+  console.log(
+    `\n${String(changed)} of ${String(lines.length)} runs changed; wrote ${fileURLToPath(GOLDEN_FILE)}. ` +
+      `Review the diff above and commit the golden with the change that caused it.`,
+  );
+}
