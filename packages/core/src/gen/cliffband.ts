@@ -197,8 +197,40 @@ export function riseUnits(
   return out;
 }
 
-/** Builds the rock band for every rise in the area. */
+/**
+ * Builds the rock band for every rise in the area. The steps run in draw order (one stream, "cliffband"); each reads
+ * and adds to the band (`Band`: the pieces placed so far, the rock tops they leave, the shapes that hide the face),
+ * the one record that lives across the steps on purpose, as every piece stands on or beside the ones before it.
+ */
 export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
+  const band = startBand(grid, p);
+  // a theme without the formation roles (the resolver says so through pieceSize) gets no band: its cliff keeps the
+  // built face, and the composer's growth along the rises still follows the edge
+  if (!band.hasPieces)
+    return {
+      placements: [],
+      units: band.units.length,
+      clad: 0,
+      cells: [],
+      rises: band.units,
+      footprints: [],
+      restsOn: [],
+    };
+  // edges in reading order: a straight run comes in sequence; corners and ragged steps are sorted out by distance
+  const order = [...band.units].sort((a, b) => a.low[1] - b.low[1] || a.low[0] - b.low[0]);
+  placeFaceCourses(band, order);
+  placeLowCourse(band, order);
+  placeCrestClusters(band, order);
+  placeLipCrests(band, order);
+  const plugCrests = plugGaps(band, order);
+  dropRedundantPlugs(band, plugCrests);
+  fadeRunEnds(band);
+  unburyTerraces(band);
+  return bandResult(band);
+}
+
+/** The band's stream, measures and cell tests, and the record of the pieces placed so far (placePiece adds one). */
+function bandBase(grid: PlacementGrid, p: BandParams) {
   const rng = createPrng(subSeed(p.seed, "cliffband"));
   const between = (r: readonly [number, number]): number => r[0] + rng.next() * (r[1] - r[0]);
   const h = (x: number, y: number): number => grid.height?.(x, y) ?? 0;
@@ -211,22 +243,11 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
   // pieces rest on the ground or on rock, turn and slide, skirt the board's edge (PlacementGrid.generator, SUPPORT)
   const resting = gen.restingCliffBand;
   const units = riseUnits(grid, p.areaCells, p.minRise, resting);
-  // a theme without the formation roles (the resolver says so through pieceSize) gets no band: its cliff keeps the
-  // built face, and the composer's growth along the rises still follows the edge
-  if (
+  const hasPieces = !(
     grid.pieceSize &&
     grid.pieceSize("cliff_face") === undefined &&
     grid.pieceSize("cliff_crest") === undefined
-  )
-    return {
-      placements: [],
-      units: units.length,
-      clad: 0,
-      cells: [],
-      rises: units,
-      footprints: [],
-      restsOn: [],
-    };
+  );
   const out: Array<GeneratedPlacement & { lift: number }> = [];
   const footprints: Array<Array<[number, number]>> = [];
   const pieceCells = new Set<number>();
@@ -280,11 +301,286 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) cs.push([x, y]);
     return cs;
   };
+  return {
+    grid,
+    p,
+    rng,
+    between,
+    h,
+    resting,
+    units,
+    hasPieces,
+    size,
+    out,
+    footprints,
+    pieceCells,
+    rockTop,
+    rockOf,
+    restsOn,
+    shapes,
+    rockUnder,
+    isVoid,
+    standable,
+    blockedFor,
+    noStand,
+    isRamp,
+    route,
+    cellsRound,
+  };
+}
 
-  /**
-   * Places one piece with its centre in cell (ax, ay), lying along the edge of `side`; `base` is "ground" (stands
-   * on the floor of that cell) or "rock" (stands on the rock beneath it). False when it cannot stand there.
-   */
+type BandBase = ReturnType<typeof bandBase>;
+
+/**
+ * Places one piece with its centre in cell (ax, ay), lying along the edge of `side`; `base` is "ground" (stands on the
+ * floor of that cell) or "rock" (stands on the rock beneath it). False when it cannot stand there.
+ */
+function placePiece(
+  band: BandBase,
+  t: Piece,
+  ax: number,
+  ay: number,
+  side: Side,
+  base: "ground" | "rock",
+  strict = false,
+): boolean {
+  const { standable, rng, resting } = band;
+  if (!standable(ax, ay)) return false;
+  // generator 3: a turn that meets a path, a ramp or the board's bounds is replaced by another before the piece is
+  // given up, so a rock reaches right up to a gap instead of leaving the whole edge beside it bare
+  const first = rng.int(BAND.maxTurnSteps * 2 + 1) - BAND.maxTurnSteps;
+  const flip = rng.chance(0.5) ? 180 : 0;
+  const turns = resting ? [first, ...[0, 2, -2, 1, -1].filter((q) => q !== first).slice(0, 3)] : [first];
+  for (const q of turns) if (placeTurned(band, t, ax, ay, side, base, strict, q * 15 + flip)) return true;
+  return false;
+}
+
+/** placePiece at one turn (degrees): the piece is added when it fits there. */
+function placeTurned(
+  band: BandBase,
+  t: Piece,
+  ax: number,
+  ay: number,
+  side: Side,
+  base: "ground" | "rock",
+  strict: boolean,
+  turn: number,
+): boolean {
+  const fit = fitTurned(band, t, ax, ay, side, base, turn);
+  if (!fit) return false;
+  addPiece(band, t, ax, ay, side, strict, fit);
+  return true;
+}
+
+/** Where a piece that fits stands: its size, turn, footprint (and the part it blocks for walking), lift and support. */
+interface PieceFit {
+  readonly s: Size;
+  readonly rotFine: number;
+  readonly bw: number;
+  readonly bd: number;
+  readonly kx: number;
+  readonly ky: number;
+  readonly fp: Array<[number, number]>;
+  readonly ground: number;
+  readonly lift: number;
+  readonly foot: number;
+  readonly inside: Array<[number, number]>;
+  readonly under: number;
+}
+
+/**
+ * Does the piece fit at this turn: its footprint clear of routes, ramps and the board's bounds, standing on the ground
+ * or the rock under it, held up (generator 3), not a duplicate, and accepted by the caller? Draws nothing.
+ */
+function fitTurned(
+  band: BandBase,
+  t: Piece,
+  ax: number,
+  ay: number,
+  side: Side,
+  base: "ground" | "rock",
+  turn: number,
+): PieceFit | null {
+  const { grid, p, h, resting, size, rockTop, rockOf, shapes, rockUnder } = band;
+  const { isVoid, standable, blockedFor, noStand, isRamp } = band;
+  if (!standable(ax, ay)) return null;
+  const s = size(t);
+  const along = side === "N" || side === "S" ? 0 : 90;
+  const rotFine = (along + turn + 360) % 360;
+  const rad = (rotFine * Math.PI) / 180;
+  const bw = Math.abs(s.w * Math.cos(rad)) + Math.abs(s.d * Math.sin(rad));
+  const bd = Math.abs(s.w * Math.sin(rad)) + Math.abs(s.d * Math.cos(rad));
+  // its footprint: the odd box of cells centred on its cell that its turned outline fills (5×3 for a 4.6×3 face
+  // rock along the edge, 1×1 for a crest boulder); emitted as the feature's at/size, so the realizer centres the
+  // asset on (ax, ay) and the review and verify measure the rock where it stands
+  const kx = Math.max(0, Math.round(bw / 2 - 0.5));
+  const ky = Math.max(0, Math.round(bd / 2 - 0.5));
+  const fp: Array<[number, number]> = [];
+  for (let y = ay - ky; y <= ay + ky; y++) for (let x = ax - kx; x <= ax + kx; x++) fp.push([x, y]);
+  const off = (x: number, y: number): boolean => blockedFor(x, y) || isRamp(x, y);
+  // generator 3: only the cells the turned outline really covers keep a piece off a path or a ramp (its bounding
+  // box of cells is larger, and left a bare run as wide as the box beside every route)
+  const touches = (x: number, y: number): boolean => {
+    if (!resting) return true;
+    const cs = Math.cos(rad);
+    const sn = Math.sin(rad);
+    for (const [qx, qy] of [
+      [0.5, 0.5],
+      [0.2, 0.2],
+      [0.8, 0.2],
+      [0.2, 0.8],
+      [0.8, 0.8],
+    ] as const) {
+      const u = (x + qx - (ax + 0.5)) * cs + (y + qy - (ay + 0.5)) * sn;
+      const v = -(x + qx - (ax + 0.5)) * sn + (y + qy - (ay + 0.5)) * cs;
+      if (Math.abs(u) <= s.w / 2 + 0.2 && Math.abs(v) <= s.d / 2 + 0.2) return true;
+    }
+    return false;
+  };
+  if (fp.some(([x, y]) => !(grid.inBounds(x, y) || isVoid(x, y)) || (touches(x, y) && off(x, y))))
+    return null;
+  // generator 3: every piece lies inside the board's bounds (its turned outline; the skirt, `strict`, also takes no slide)
+  if (resting) {
+    const hw = bw / 2;
+    const hd = bd / 2;
+    for (const [ex, ey] of [
+      [-hw, -hd],
+      [hw, -hd],
+      [-hw, hd],
+      [hw, hd],
+    ] as const)
+      if (!grid.inBounds(Math.floor(ax + 0.5 + ex), Math.floor(ay + 0.5 + ey))) return null;
+  }
+  const ground = h(ax, ay);
+  if (noStand(ax, ay)) return null;
+  let b = ground;
+  if (base === "rock") {
+    const top = rockTop.get(key(ax, ay));
+    if (top === undefined || top <= ground + 0.5) return null;
+    b = top;
+  }
+  const under = base === "rock" ? (rockOf.get(key(ax, ay)) ?? -1) : -1;
+  // a lift in quarter tiles, never below the top it stands on (so the rock beneath carries it)
+  const lift = Math.ceil((b - ground) * 4 - 1e-6) / 4;
+  // the cells it blocks for walking: where it stands on the floor (an overhang high above the low ground, or the
+  // hill rising above a face rock leaning on it, stays walkable)
+  const foot = ground + lift;
+  const inside = fp.filter(
+    ([x, y]) => grid.inBounds(x, y) && !isRamp(x, y) && h(x, y) >= foot - 0.5 && h(x, y) < foot + s.h,
+  );
+  if (inside.some(([x, y]) => noStand(x, y))) return null;
+  // generator 3: stand on the ground or on rock under most of the footprint, anchor corner included
+  const held = (x: number, y: number): boolean =>
+    ((grid.isFloor(x, y) || isVoid(x, y)) && h(x, y) >= foot - 0.5) ||
+    (rockUnder.get(key(x, y)) ?? []).some(([b0, top]) => b0 <= foot - 0.1 && top >= foot - 0.1);
+  if (resting) {
+    const [cx0, cy0] = fp[0] as [number, number];
+    if (!held(cx0, cy0)) return null;
+    if (fp.filter(([x, y]) => !held(x, y)).length > SUPPORT.maxOver * fp.length) return null;
+  }
+  // generator 3: never a second piece of the same kind on the same spot at the same height (a pile hides nothing more)
+  if (
+    resting &&
+    shapes.some(
+      (q) =>
+        Math.abs(q.cx - (ax + 0.5)) < 0.8 &&
+        Math.abs(q.cy - (ay + 0.5)) < 0.8 &&
+        Math.abs(q.base - foot) < 0.3 &&
+        Math.abs(q.w - s.w) < 0.01,
+    )
+  )
+    return null;
+  if (p.accept && !p.accept(inside)) return null;
+  return { s, rotFine, bw, bd, kx, ky, fp, ground, lift, foot, inside, under };
+}
+
+/**
+ * Adds a piece that fits: the rock it leaves for others to stand on and under, its cells, and (generator 3, not the
+ * skirt) a slide along and into the edge drawn from the band's stream.
+ */
+function addPiece(
+  band: BandBase,
+  t: Piece,
+  ax: number,
+  ay: number,
+  side: Side,
+  strict: boolean,
+  fit: PieceFit,
+): void {
+  const {
+    rng,
+    h,
+    resting,
+    out,
+    footprints,
+    pieceCells,
+    rockTop,
+    rockOf,
+    restsOn,
+    shapes,
+    rockUnder,
+    cellsRound,
+  } = band;
+  const { s, rotFine, bw, bd, kx, ky, fp, ground, lift, foot, inside, under } = fit;
+  if (resting)
+    for (const [x, y] of fp) {
+      const k = key(x, y);
+      const list = rockUnder.get(k);
+      if (list) list.push([foot, foot + s.h]);
+      else rockUnder.set(k, [[foot, foot + s.h]]);
+    }
+  for (const [x, y] of fp) pieceCells.add(key(x, y));
+  if (t === "cliff_face")
+    for (const [x, y] of cellsRound(ax, ay, (bw * BAND.standOn) / 2, (bd * BAND.standOn) / 2)) {
+      const k = key(x, y);
+      const top = ground + lift + s.h;
+      if (top > (rockTop.get(k) ?? -Infinity)) {
+        rockTop.set(k, top);
+        rockOf.set(k, out.length);
+      }
+    }
+  const rot = ((Math.round(rotFine / 90) % 4) * 90) as Rotation;
+  // the lift is measured from the floor of the footprint's first cell (where the feature is anchored)
+  const corner = h(ax - kx, ay - ky);
+  // generator 3: slide along the edge and a little into it, so neighbours overlap unevenly instead of on a grid
+  // (the footprint cells, and so the support test above, stay those of the cell centre)
+  let offset: [number, number] | undefined;
+  if (resting && !strict) {
+    const slide = t === "cliff_face" ? SLIDE.face : SLIDE.crest;
+    const along = (rng.next() * 2 - 1) * slide[0];
+    // mostly toward the cliff, never far off it: the rock must still stand over the edge it hides
+    // (a face rock is slid up to the foot of its riser, so it reaches no more than about a tile and a half out)
+    const into = t === "cliff_face" ? 0.3 + rng.next() * 0.2 : (rng.next() * 0.45 - 0.15) * (slide[1] / 0.3);
+    const [sx, sy] = STEP[side];
+    const ns = side === "N" || side === "S";
+    offset = [(ns ? along : 0) + sx * into, (ns ? 0 : along) + sy * into];
+  }
+  shapes.push({
+    cx: ax + 0.5 + (offset?.[0] ?? 0),
+    cy: ay + 0.5 + (offset?.[1] ?? 0),
+    rot: rotFine,
+    w: s.w,
+    d: s.d,
+    base: foot,
+    top: foot + s.h,
+  });
+  out.push({
+    type: t,
+    at: [ax - kx, ay - ky],
+    size: [2 * kx + 1, 2 * ky + 1],
+    rot,
+    rotFine,
+    ...(offset ? { offset } : {}),
+    lift: ground + lift - corner,
+  });
+  footprints.push(inside);
+  restsOn.push(under);
+}
+
+/** The band's record and helpers, with the pieces' spacing and course measures added. */
+function startBand(grid: PlacementGrid, p: BandParams) {
+  const band = bandBase(grid, p);
+  const { size, resting, shapes } = band;
   const place = (
     t: Piece,
     ax: number,
@@ -292,170 +588,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
     side: Side,
     base: "ground" | "rock",
     strict = false,
-  ): boolean => {
-    if (!standable(ax, ay)) return false;
-    // generator 3: a turn that meets a path, a ramp or the board's bounds is replaced by another before the piece is
-    // given up, so a rock reaches right up to a gap instead of leaving the whole edge beside it bare
-    const first = rng.int(BAND.maxTurnSteps * 2 + 1) - BAND.maxTurnSteps;
-    const flip = rng.chance(0.5) ? 180 : 0;
-    const turns = resting ? [first, ...[0, 2, -2, 1, -1].filter((q) => q !== first).slice(0, 3)] : [first];
-    for (const q of turns) if (placeTurned(t, ax, ay, side, base, strict, q * 15 + flip)) return true;
-    return false;
-  };
-  const placeTurned = (
-    t: Piece,
-    ax: number,
-    ay: number,
-    side: Side,
-    base: "ground" | "rock",
-    strict: boolean,
-    turn: number,
-  ): boolean => {
-    if (!standable(ax, ay)) return false;
-    const s = size(t);
-    const along = side === "N" || side === "S" ? 0 : 90;
-    const rotFine = (along + turn + 360) % 360;
-    const rad = (rotFine * Math.PI) / 180;
-    const bw = Math.abs(s.w * Math.cos(rad)) + Math.abs(s.d * Math.sin(rad));
-    const bd = Math.abs(s.w * Math.sin(rad)) + Math.abs(s.d * Math.cos(rad));
-    // its footprint: the odd box of cells centred on its cell that its turned outline fills (5×3 for a 4.6×3 face
-    // rock along the edge, 1×1 for a crest boulder); emitted as the feature's at/size, so the realizer centres the
-    // asset on (ax, ay) and the review and verify measure the rock where it stands
-    const kx = Math.max(0, Math.round(bw / 2 - 0.5));
-    const ky = Math.max(0, Math.round(bd / 2 - 0.5));
-    const fp: Array<[number, number]> = [];
-    for (let y = ay - ky; y <= ay + ky; y++) for (let x = ax - kx; x <= ax + kx; x++) fp.push([x, y]);
-    const off = (x: number, y: number): boolean => blockedFor(x, y) || isRamp(x, y);
-    // generator 3: only the cells the turned outline really covers keep a piece off a path or a ramp (its bounding
-    // box of cells is larger, and left a bare run as wide as the box beside every route)
-    const touches = (x: number, y: number): boolean => {
-      if (!resting) return true;
-      const cs = Math.cos(rad);
-      const sn = Math.sin(rad);
-      for (const [qx, qy] of [
-        [0.5, 0.5],
-        [0.2, 0.2],
-        [0.8, 0.2],
-        [0.2, 0.8],
-        [0.8, 0.8],
-      ] as const) {
-        const u = (x + qx - (ax + 0.5)) * cs + (y + qy - (ay + 0.5)) * sn;
-        const v = -(x + qx - (ax + 0.5)) * sn + (y + qy - (ay + 0.5)) * cs;
-        if (Math.abs(u) <= s.w / 2 + 0.2 && Math.abs(v) <= s.d / 2 + 0.2) return true;
-      }
-      return false;
-    };
-    if (fp.some(([x, y]) => !(grid.inBounds(x, y) || isVoid(x, y)) || (touches(x, y) && off(x, y))))
-      return false;
-    // generator 3: every piece lies inside the board's bounds (its turned outline; the skirt, `strict`, also takes no slide)
-    if (resting) {
-      const hw = bw / 2;
-      const hd = bd / 2;
-      for (const [ex, ey] of [
-        [-hw, -hd],
-        [hw, -hd],
-        [-hw, hd],
-        [hw, hd],
-      ] as const)
-        if (!grid.inBounds(Math.floor(ax + 0.5 + ex), Math.floor(ay + 0.5 + ey))) return false;
-    }
-    const ground = h(ax, ay);
-    if (noStand(ax, ay)) return false;
-    let b = ground;
-    if (base === "rock") {
-      const top = rockTop.get(key(ax, ay));
-      if (top === undefined || top <= ground + 0.5) return false;
-      b = top;
-    }
-    const under = base === "rock" ? (rockOf.get(key(ax, ay)) ?? -1) : -1;
-    // a lift in quarter tiles, never below the top it stands on (so the rock beneath carries it)
-    const lift = Math.ceil((b - ground) * 4 - 1e-6) / 4;
-    // the cells it blocks for walking: where it stands on the floor (an overhang high above the low ground, or the
-    // hill rising above a face rock leaning on it, stays walkable)
-    const foot = ground + lift;
-    const inside = fp.filter(
-      ([x, y]) => grid.inBounds(x, y) && !isRamp(x, y) && h(x, y) >= foot - 0.5 && h(x, y) < foot + s.h,
-    );
-    if (inside.some(([x, y]) => noStand(x, y))) return false;
-    // generator 3: stand on the ground or on rock under most of the footprint, anchor corner included
-    const held = (x: number, y: number): boolean =>
-      ((grid.isFloor(x, y) || isVoid(x, y)) && h(x, y) >= foot - 0.5) ||
-      (rockUnder.get(key(x, y)) ?? []).some(([b0, top]) => b0 <= foot - 0.1 && top >= foot - 0.1);
-    if (resting) {
-      const [cx0, cy0] = fp[0] as [number, number];
-      if (!held(cx0, cy0)) return false;
-      if (fp.filter(([x, y]) => !held(x, y)).length > SUPPORT.maxOver * fp.length) return false;
-    }
-    // generator 3: never a second piece of the same kind on the same spot at the same height (a pile hides nothing more)
-    if (
-      resting &&
-      shapes.some(
-        (q) =>
-          Math.abs(q.cx - (ax + 0.5)) < 0.8 &&
-          Math.abs(q.cy - (ay + 0.5)) < 0.8 &&
-          Math.abs(q.base - foot) < 0.3 &&
-          Math.abs(q.w - s.w) < 0.01,
-      )
-    )
-      return false;
-    if (p.accept && !p.accept(inside)) return false;
-    if (resting)
-      for (const [x, y] of fp) {
-        const k = key(x, y);
-        const list = rockUnder.get(k);
-        if (list) list.push([foot, foot + s.h]);
-        else rockUnder.set(k, [[foot, foot + s.h]]);
-      }
-    for (const [x, y] of fp) pieceCells.add(key(x, y));
-    if (t === "cliff_face")
-      for (const [x, y] of cellsRound(ax, ay, (bw * BAND.standOn) / 2, (bd * BAND.standOn) / 2)) {
-        const k = key(x, y);
-        const top = ground + lift + s.h;
-        if (top > (rockTop.get(k) ?? -Infinity)) {
-          rockTop.set(k, top);
-          rockOf.set(k, out.length);
-        }
-      }
-    const rot = ((Math.round(rotFine / 90) % 4) * 90) as Rotation;
-    // the lift is measured from the floor of the footprint's first cell (where the feature is anchored)
-    const corner = h(ax - kx, ay - ky);
-    // generator 3: slide along the edge and a little into it, so neighbours overlap unevenly instead of on a grid
-    // (the footprint cells, and so the support test above, stay those of the cell centre)
-    let offset: [number, number] | undefined;
-    if (resting && !strict) {
-      const slide = t === "cliff_face" ? SLIDE.face : SLIDE.crest;
-      const along = (rng.next() * 2 - 1) * slide[0];
-      // mostly toward the cliff, never far off it: the rock must still stand over the edge it hides
-      // (a face rock is slid up to the foot of its riser, so it reaches no more than about a tile and a half out)
-      const into =
-        t === "cliff_face" ? 0.3 + rng.next() * 0.2 : (rng.next() * 0.45 - 0.15) * (slide[1] / 0.3);
-      const [sx, sy] = STEP[side];
-      const ns = side === "N" || side === "S";
-      offset = [(ns ? along : 0) + sx * into, (ns ? 0 : along) + sy * into];
-    }
-    shapes.push({
-      cx: ax + 0.5 + (offset?.[0] ?? 0),
-      cy: ay + 0.5 + (offset?.[1] ?? 0),
-      rot: rotFine,
-      w: s.w,
-      d: s.d,
-      base: foot,
-      top: foot + s.h,
-    });
-    out.push({
-      type: t,
-      at: [ax - kx, ay - ky],
-      size: [2 * kx + 1, 2 * ky + 1],
-      rot,
-      rotFine,
-      ...(offset ? { offset } : {}),
-      lift: ground + lift - corner,
-    });
-    footprints.push(inside);
-    restsOn.push(under);
-    return true;
-  };
-
+  ): boolean => placePiece(band, t, ax, ay, side, base, strict);
   /** Centres placed so far (cell centres), per course of face rock and for the crest. */
   const faceAt: Array<Array<[number, number]>> = [];
   const crestAt: Array<[number, number]> = [];
@@ -469,8 +602,6 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
     const ey = u.low[1] + 0.5 + dy * 0.5 - dy * outward + (ns ? 0 : jitter);
     return [Math.floor(ex), Math.floor(ey)];
   };
-  // edges in reading order: a straight run comes in sequence; corners and ragged steps are sorted out by distance
-  const order = [...units].sort((a, b) => a.low[1] - b.low[1] || a.low[0] - b.low[0]);
   const face = size("cliff_face");
   const crest = size("cliff_crest");
   // the board-edge skirt is one simple course, whatever the drop (and nothing else: no crest, no second course)
@@ -484,8 +615,35 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
       : u.hi - u.lo < BAND.faceFrom
         ? 0
         : Math.max(1, Math.ceil((u.hi - u.lo - BAND.crestShare) / face.h));
+  const unitMid = (u: RiseUnit): [number, number] => [
+    u.low[0] + 0.5 + STEP[u.side][0] * 0.5,
+    u.low[1] + 0.5 + STEP[u.side][1] * 0.5,
+  ];
+  const hidden = (u: RiseUnit): boolean => {
+    const [mx, my] = unitMid(u);
+    const ns = u.side === "N" || u.side === "S";
+    return edgeHidden(shapes, mx, my, ns ? 1 : 0, ns ? 0 : 1, u.lo, u.hi);
+  };
+  return {
+    ...band,
+    face,
+    crest,
+    faceAt,
+    crestAt,
+    place,
+    near,
+    cellOut,
+    coursesOf,
+    unitMid,
+    hidden,
+  };
+}
 
-  // ── face courses: the base course on the low ground, each course above a step back toward the cliff, on the rock
+type Band = ReturnType<typeof startBand>;
+
+/** Face courses: the base course on the low ground, each course above a step back toward the cliff, on the rock. */
+function placeFaceCourses(band: Band, order: readonly RiseUnit[]): void {
+  const { units, coursesOf, faceAt, route, between, rng, resting, cellOut, face, near, h, place } = band;
   const maxCourses = Math.max(0, ...units.map(coursesOf));
   for (let c = 0; c < maxCourses; c++) {
     const mine: Array<[number, number]> = [];
@@ -523,9 +681,14 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
           }
       }
   }
+}
 
-  // ── generator 3, low rises (1 to under 2 tiles): boulders standing on the low ground against the face, closely
-  //    spaced, so the face is hidden up to the lip; a fill pass closes the gaps
+/**
+ * Generator 3, low rises (1 to under 2 tiles): boulders standing on the low ground against the face, closely spaced,
+ * so the face is hidden up to the lip; a fill pass closes the gaps.
+ */
+function placeLowCourse(band: Band, order: readonly RiseUnit[]): void {
+  const { resting, route, noStand, rng, cellOut, crest, between, near, h, place } = band;
   if (resting) {
     const lowAt: Array<[number, number]> = [];
     for (const gap of [null, BAND.lowFill] as const)
@@ -550,21 +713,16 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
         }
       }
   }
+}
 
-  const unitMid = (u: RiseUnit): [number, number] => [
-    u.low[0] + 0.5 + STEP[u.side][0] * 0.5,
-    u.low[1] + 0.5 + STEP[u.side][1] * 0.5,
-  ];
-  const hidden = (u: RiseUnit): boolean => {
-    const [mx, my] = unitMid(u);
-    const ns = u.side === "N" || u.side === "S";
-    return edgeHidden(shapes, mx, my, ns ? 1 : 0, ns ? 0 : 1, u.lo, u.hi);
-  };
-
-  // ── generator 3 crest boulders: accents in clusters of two to five (rarely one) with clear gaps between the
-  //    clusters and no boulder at all along a lip the face rock already hides. Cluster seeds are drawn in random
-  //    order and kept CLUSTER.apart cells from each other; a cluster's members stand on the neighbouring lip cells
-  //    (a cell or so apart, some a cell further back), so the group overlaps and staggers instead of marching.
+/**
+ * Generator 3 crest boulders: accents in clusters of two to five (rarely one) with clear gaps between the clusters and
+ * no boulder at all along a lip the face rock already hides. Cluster seeds are drawn in random order and kept
+ * CLUSTER.apart cells from each other; a cluster's members stand on the neighbouring lip cells (a cell or so apart,
+ * some a cell further back), so the group overlaps and staggers instead of marching.
+ */
+function placeCrestClusters(band: Band, order: readonly RiseUnit[]): void {
+  const { resting, route, rng, cellOut, hidden, near, between, h, place, crestAt, unitMid } = band;
   if (resting) {
     const lip = order.filter((u) => !u.perim && !route(u));
     const seeds: Array<[number, number]> = [];
@@ -610,8 +768,11 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
       seeds.push([sx + 0.5, sy + 0.5]);
     }
   }
+}
 
-  // ── generator 2 (frozen) crest boulders on the upper ground at the lip, every rise; on low rises a broken single row
+/** Generator 2 (frozen) crest boulders on the upper ground at the lip, every rise; on low rises a broken single row. */
+function placeLipCrests(band: Band, order: readonly RiseUnit[]): void {
+  const { resting, route, rng, cellOut, crest, between, near, crestAt, h, place } = band;
   for (const u of order) {
     if (resting || route(u)) continue;
     const low = u.hi - u.lo < BAND.faceFrom;
@@ -624,10 +785,16 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
     if (h(ax, ay) < u.hi - 0.25) continue;
     if (place("cliff_crest", ax, ay, u.side, "ground")) crestAt.push([ax + 0.5, ay + 0.5]);
   }
+}
 
-  // ── plugs: a cliff face must be hidden (rock over the middle of every edge cell and 0.4 either side, over the whole
-  //    height of the face; gen/cover.ts). Generator 2 asked only for a piece's box near the edge midpoint; generator 3
-  //    re-tests every edge and plugs what is still seen, up to three rounds, with the piece that fits the rise
+/**
+ * Plugs: a cliff face must be hidden (rock over the middle of every edge cell and 0.4 either side, over the whole height
+ * of the face; gen/cover.ts). Generator 2 asked only for a piece's box near the edge midpoint; generator 3 re-tests
+ * every edge and plugs what is still seen, up to three rounds, with the piece that fits the rise. Returns the indices
+ * of the boulders the plugs added.
+ */
+function plugGaps(band: Band, order: readonly RiseUnit[]): number[] {
+  const { resting, hidden, unitMid, out, coursesOf, route, noStand, h, place, crestAt, faceAt } = band;
   const covers = (u: RiseUnit): boolean => {
     if (resting) return hidden(u);
     const [mx, my] = unitMid(u);
@@ -713,10 +880,15 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
         }
       }
     }
+  return plugCrests;
+}
 
-  // ── run ends fade into two or three loose boulders on the low ground (an edge that turns a corner goes on)
-  // generator 3: a plug boulder that a later piece made redundant goes (boulders are accents, the long pieces hide the
-  // face): removed when every edge near it stays hidden without it. Highest index first, so the indices below hold.
+/**
+ * Generator 3: a plug boulder that a later piece made redundant goes (boulders are accents, the long pieces hide the
+ * face): removed when every edge near it stays hidden without it. Highest index first, so the indices below hold.
+ */
+function dropRedundantPlugs(band: Band, plugCrests: readonly number[]): void {
+  const { resting, shapes, units, unitMid, hidden, out, footprints, restsOn, crestAt } = band;
   if (resting)
     for (const i of [...plugCrests].sort((a, b) => b - a)) {
       const s = shapes[i] as RockShape;
@@ -736,6 +908,11 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
         if (at_ >= 0) crestAt.splice(at_, 1);
       } else shapes.splice(i, 0, s);
     }
+}
+
+/** Run ends fade into two or three loose boulders on the low ground (an edge that turns a corner goes on). */
+function fadeRunEnds(band: Band): void {
+  const { units, coursesOf, route, resting, rng, grid, h, place } = band;
   const at = new Set<number>();
   for (const u of units) {
     const [dx, dy] = STEP[u.side];
@@ -773,9 +950,14 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
       }
     }
   }
+}
 
-  // ── generator 3: rock must not bury a terrace. Where the rock stands on more than BAND.terraceShare of a terrace's
-  //    walkable ground, boulders go (those the face rock does not need, in random order) until it does not, or none is left.
+/**
+ * Generator 3: rock must not bury a terrace. Where the rock stands on more than BAND.terraceShare of a terrace's walkable
+ * ground, boulders go (those the face rock does not need, in random order) until it does not, or none is left.
+ */
+function unburyTerraces(band: Band): void {
+  const { resting, p, grid, h, shapes, rng, out, units, unitMid, hidden, footprints, restsOn } = band;
   if (resting) {
     const ground = p.areaCells
       .filter(([x, y]) => grid.isFloor(x, y))
@@ -818,8 +1000,11 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
       }
     }
   }
+}
 
-  // coverage: a unit is clad when a piece covers its low cell or its upper cell
+/** The band as placed: its pieces, coverage (a unit is clad when a piece covers its low cell or its upper cell), cells. */
+function bandResult(band: Band): BandResult {
+  const { units, resting, hidden, pieceCells, out, footprints, restsOn } = band;
   let clad = 0;
   for (const u of units) {
     const [dx, dy] = STEP[u.side];
