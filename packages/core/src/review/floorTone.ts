@@ -13,10 +13,9 @@ import type { PaletteView } from "../palette/view";
 import { floorTone } from "../resolve/interiorFloors";
 import { cellTheme } from "../resolve/levelGrid";
 import type { DesignNote } from "./review";
+import { REVIEW } from "./thresholds";
 
-const SCORE = 3.4;
-const MIN_CELLS = 6;
-const MAX_SHARE = 0.45;
+const { weight: SCORE, minCells: MIN_CELLS, maxShare: MAX_SHARE } = REVIEW.floorAccent;
 
 /** The review runs it where the generator tones accents itself (`floorAccentReview`, plan/generator.ts). */
 export function floorAccentNotes(

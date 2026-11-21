@@ -9,9 +9,11 @@
  */
 import type { ResolvedLevel } from "../contracts/resolved";
 import { cellIndex, cellTheme, elementTheme } from "../resolve/levelGrid";
+import { REVIEW } from "./thresholds";
 import type { DesignNote } from "./review";
 
-const SCORE = { uncovered: 3.6, grid: 3.2 } as const;
+const T = REVIEW.stalls;
+const SCORE = T.weights;
 
 export interface StallNoteInput {
   levelId: string;
@@ -24,7 +26,7 @@ export interface StallNoteInput {
 
 export function stallNotes(input: StallNoteInput): DesignNote[] {
   const stalls = input.level.features.filter((f) => f.type === "stall");
-  if (stalls.length < 3) return [];
+  if (stalls.length < T.minStalls) return [];
   const out: DesignNote[] = [];
   // a bare table counts where its own theme (its own, else its cell's) could have covered it
   const L = input.level;
@@ -36,7 +38,7 @@ export function stallNotes(input: StallNoteInput): DesignNote[] {
   const bare = stalls.filter(
     (f) => f.stall === undefined && (input.canCoverStall ? input.canCoverStall(themeOf(f)) : true),
   );
-  if (bare.length >= 2 && bare.length * 2 >= stalls.length) {
+  if (bare.length >= T.minBare && bare.length >= stalls.length * T.bareShare) {
     out.push({
       code: "stalls_uncovered",
       levelId: input.levelId,
@@ -67,7 +69,7 @@ export function stallNotes(input: StallNoteInput): DesignNote[] {
   for (const f of stalls) lines.set(lineKey(f), [...(lines.get(lineKey(f)) ?? []), f]);
   let regular: Array<(typeof stalls)[number]> | undefined;
   for (const row of lines.values()) {
-    if (row.length < 4 || new Set(row.map(size)).size > 1) continue;
+    if (row.length < T.gridRow || new Set(row.map(size)).size > 1) continue;
     const across = row[0]?.stall
       ? row[0].stall.front === "S" || row[0].stall.front === "N"
       : row[0]?.rot === 0 || row[0]?.rot === 180;
@@ -78,7 +80,7 @@ export function stallNotes(input: StallNoteInput): DesignNote[] {
     });
     if (new Set(gaps).size === 1) regular = sorted;
   }
-  const sameSize = stalls.length >= 4 && new Set(stalls.map(size)).size === 1;
+  const sameSize = stalls.length >= T.gridRow && new Set(stalls.map(size)).size === 1;
   if (regular || sameSize) {
     const group = regular ?? stalls;
     out.push({

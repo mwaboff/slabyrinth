@@ -73,6 +73,8 @@ import {
   PRIMARY_FEATURES,
   REVIEW,
   SUBSTITUTION_CODES,
+  capped,
+  over,
 } from "./thresholds";
 
 export type DesignNoteCode =
@@ -232,8 +234,6 @@ interface Ctx {
   walkCount: number;
   onCoverage?: (c: CliffCoverage) => void;
 }
-
-const over = (value: number, threshold: number): number => Math.min(3, value / Math.max(1e-9, threshold));
 
 /** The level's material ordinals (cells.material) of hazard materials (resolve/materials.ts `hazard`: lava). */
 function hazardOrdinals(L: ResolvedLevel): ReadonlySet<number> {
@@ -1189,7 +1189,7 @@ function lookalikes(c: Ctx): DesignNote[] {
     {
       code: "lookalike_neighbours",
       levelId: c.L.id,
-      score: T.weight * Math.min(3, 0.8 + pairs.length * 0.4),
+      score: T.weight * capped(0.8 + pairs.length * 0.4),
       ...(at ? { cell: at } : {}),
       elementIds: pairs.flatMap((p) => p.split("/")).filter((v, k, s) => s.indexOf(v) === k),
       message: `neighbouring buildings differ on fewer than ${T.minAxes} of storeys, walls, roof, size, height and tone: ${pairs.slice(0, 4).join(", ")}`,
@@ -1271,7 +1271,7 @@ function pathEnds(c: Ctx): DesignNote[] {
     {
       code: "path_to_nowhere",
       levelId: L.id,
-      score: T.weight * Math.min(3, 0.8 + lost.length * 0.3),
+      score: T.weight * capped(0.8 + lost.length * 0.3),
       cell: (lost[0] as { p: Vec2 }).p,
       elementIds: lost.map((l) => l.id).filter((v, k, s) => s.indexOf(v) === k),
       message: `${lost.length} path end${lost.length === 1 ? "" : "s"} stop in open ground with nothing there`,
@@ -1752,7 +1752,7 @@ export function substitutionNotes(diags: readonly CompileDiagnostic[], levelId =
     {
       code: "pieces_substituted",
       levelId: hit[0]?.levelId ?? levelId,
-      score: T.weight * Math.min(3, 0.8 + n * 0.1),
+      score: T.weight * capped(0.8 + n * 0.1),
       ...(ids.length > 0 ? { elementIds: ids.slice(0, 8) } : {}),
       message: `${n} piece${n === 1 ? " was" : "s were"} unresolved or substituted (${[...new Set(hit.map((d) => d.code))].join(", ")}${ids.length ? `: ${ids.slice(0, 6).join(", ")}` : ""})`,
       action:
@@ -2070,7 +2070,7 @@ function squareOutcrops(c: Ctx): DesignNote[] {
     {
       code: "square_outcrop",
       levelId: c.L.id,
-      score: T.weight * Math.min(3, 0.8 + square.length * 0.3),
+      score: T.weight * capped(0.8 + square.length * 0.3),
       elementIds: square,
       message: `${square.join(", ")}: small natural rise${square.length > 1 ? "s are" : " is a"} square block${square.length > 1 ? "s" : ""} (square corners, straight sides)`,
       action:

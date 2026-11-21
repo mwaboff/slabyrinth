@@ -358,7 +358,42 @@ export const REVIEW = {
     adriftShare: 0.6,
     weights: { bare: 6, alike: 5, unlit: 6.5, adrift: 4 },
   },
+  /** Market stalls (generator 4, review/stalls.ts). */
+  stalls: {
+    /** Fewer stalls than this on a level are not judged. */
+    minStalls: 3,
+    /** stalls_uncovered: at least this many bare tables a covered stall could have been ... */
+    minBare: 2,
+    /** ... and at least this share of the stalls. */
+    bareShare: 0.5,
+    /** stalls_grid: this many stalls of one size in one line at one gap (or all of one size) read as a grid. */
+    gridRow: 4,
+    weights: { uncovered: 3.6, grid: 3.2 },
+  },
+  /** Floor accents much paler than their room (generator 4, review/floorTone.ts). */
+  floorAccent: {
+    /** An accent patch of fewer cells than this is not judged ... */
+    minCells: 6,
+    /** ... nor one covering more than this share of the room (it is the room's floor, not an accent). */
+    maxShare: 0.45,
+    weight: 3.4,
+  },
+  /** A hole in an intact roof (review/roofGaps.ts): the score is base plus one point per `cellsPerPoint`, up to `extraMax`. */
+  roofGap: { base: 2, cellsPerPoint: 8, extraMax: 2 },
 } as const;
+
+/** The most a measure counts past its threshold when a note is ranked (a note's score is its weight times this). */
+export const MAX_OVER = 3;
+
+/** How far past its threshold a measure is, for ranking: value / threshold, at most MAX_OVER. */
+export function over(value: number, threshold: number): number {
+  return capped(value / Math.max(1e-9, threshold));
+}
+
+/** A rank factor capped at MAX_OVER. */
+export function capped(factor: number): number {
+  return Math.min(MAX_OVER, factor);
+}
 
 /**
  * Ground that should read as natural (meandering, irregular) rather than built: the material table's `natural` trait

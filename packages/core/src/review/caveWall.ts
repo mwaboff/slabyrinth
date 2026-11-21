@@ -11,7 +11,7 @@ import { hasNaturalWallStyle, naturalStyleRefs } from "../gen/wallStyles";
 import { generatorProfile } from "../plan/generator";
 import { cellIndex, hEdgeIndex, vEdgeIndex } from "../resolve/levelGrid";
 import type { DesignNote } from "./review";
-import { REVIEW } from "./thresholds";
+import { REVIEW, capped, over } from "./thresholds";
 
 /** CELL state of local cell (x, y), -1 outside the level. */
 function stateAt(L: ResolvedLevel, x: number, y: number): number {
@@ -144,7 +144,7 @@ export function caveNaturalChecks(plan: MapPlan, L: ResolvedLevel): DesignNote[]
     out.push({
       code: "cave_floor_flat",
       levelId: L.id,
-      score: T.weight * Math.min(3, m.flatShare / T.flatShare),
+      score: T.weight * over(m.flatShare, T.flatShare),
       message: `${Math.round(m.flatShare * 100)}% of the cave floor is at one height: a natural cave floor steps and shelves, it is not a ballroom floor`,
       action:
         "let the floor rise in a few broad half-tile shelves toward the back of side chambers and stay low by the water (an uneven op with amount 1 and scale 6, or a ragged platform of 2 tiers of 0.5), keeping the ground under features flat",
@@ -153,7 +153,7 @@ export function caveNaturalChecks(plan: MapPlan, L: ResolvedLevel): DesignNote[]
     out.push({
       code: "cave_outline_straight",
       levelId: L.id,
-      score: T.weight * Math.min(3, Math.max(m.straightShare / T.straightShare, m.longest / T.longest)),
+      score: T.weight * capped(Math.max(m.straightShare / T.straightShare, m.longest / T.longest)),
       message: `the cave walls run ruler-straight: ${Math.round(m.straightShare * 100)}% of the wall lies in straight runs over ${T.run} cells, the longest ${m.longest} cells: the chambers read as boxes cut into the rock`,
       action:
         "draw cave chambers and passages as polygons with bulges and bays (no rect), passages at least 2 cells wide, and keep features and links off the walls so the outline can wander",
@@ -174,7 +174,7 @@ export function caveWallChecks(plan: MapPlan, L: ResolvedLevel): DesignNote[] {
     {
       code: "cave_wall_thin",
       levelId: L.id,
-      score: T.weight * Math.min(3, thin / T.share),
+      score: T.weight * over(thin, T.share),
       message: `${Math.round(thin * 100)}% of the cave wall has under ${T.thin} cells of rock behind it: it is built as one block column per cell, a row of identical posts (palisade), not as rock mass`,
       action: `leave ${T.depth} or more cells of solid rock behind the cave wall (keep areas and the level edge ${T.depth + 1} cells apart, and leave a solid cell between neighbouring areas)`,
     },

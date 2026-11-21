@@ -16,6 +16,7 @@ import { generatorProfile } from "../plan/generator";
 import { roofOwners } from "../resolve/roof";
 import type { DesignNote } from "./review";
 import type { ReviewBuild } from "./reviewBuild";
+import { REVIEW } from "./thresholds";
 
 /** Roof cells of a building that have no roof piece. `covered` is a set of "x,y" keys the realized pieces fill. */
 export function uncoveredRoofCells(
@@ -106,7 +107,8 @@ export function roofGapNotes(
       out.push({
         code: "roof_gap",
         levelId: L.id,
-        score: 2 + Math.min(2, open.length / 8),
+        score:
+          REVIEW.roofGap.base + Math.min(REVIEW.roofGap.extraMax, open.length / REVIEW.roofGap.cellsPerPoint),
         elementIds: [st.id],
         cell: first,
         message: `the roof of ${st.id} has ${open.length} open cell${open.length === 1 ? "" : "s"} (first at (${first[0]},${first[1]})) that no roof piece covers, so the deck or the wall shows through; only a chimney stack may stand in a roof`,

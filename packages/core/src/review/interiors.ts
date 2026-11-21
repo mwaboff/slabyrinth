@@ -26,7 +26,7 @@ import { LevelGrid } from "../resolve/levelGrid";
 import { type RoomClass, classifyRoom } from "../gen/roomPurpose";
 import { generatorProfile } from "../plan/generator";
 import type { DesignNote } from "./review";
-import { REVIEW } from "./thresholds";
+import { REVIEW, capped } from "./thresholds";
 
 export interface RoomStat {
   levelId: string;
@@ -140,7 +140,7 @@ const names = (rooms: readonly RoomStat[]): string =>
     .map((r) => `${r.name} (${r.id})`)
     .join(", ") + (rooms.length > 6 ? ` and ${rooms.length - 6} more` : "");
 
-const rank = (weight: number, n: number): number => weight * Math.min(3, 0.8 + n / 3);
+const rank = (weight: number, n: number): number => weight * capped(0.8 + n / 3);
 
 /** The interior notes of a map: bare, alike, unlit and adrift rooms. */
 export function interiorNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[] {

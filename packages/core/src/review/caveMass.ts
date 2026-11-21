@@ -22,7 +22,7 @@ import { loadOrientation } from "../palette/load";
 import { NATURAL_WALL_ROLE } from "../palette/roles";
 import type { DesignNote } from "./review";
 import type { ReviewBuild } from "./reviewBuild";
-import { REVIEW, ROCK_FAMILIES, ROCK_TONE_GROUPS } from "./thresholds";
+import { REVIEW, ROCK_FAMILIES, ROCK_TONE_GROUPS, over } from "./thresholds";
 
 export type MassRole = "column" | "mass" | "cap" | "toe";
 
@@ -514,7 +514,7 @@ export function caveHollowNotesOf(levelId: string, m: MassMeasures): DesignNote[
     {
       code: "cave_mass_hollow",
       levelId,
-      score: T.weight * Math.min(3, m.hollow / T.hollow),
+      score: T.weight * over(m.hollow, T.hollow),
       message: `${Math.round(m.hollow * 100)}% of the rock behind the cave wall is hollow seen from the side: pieces stand over empty space, so from the low side the rock reads as lace with the floor or the water showing through`,
       action:
         "leave whole cells of solid rock behind the wall (3 or more deep, and the cave 3 or more cells from the level edge) so the mass can stand on the ground everywhere; a thin or broken band of rock cannot be filled",
@@ -525,7 +525,6 @@ export function caveHollowNotesOf(levelId: string, m: MassMeasures): DesignNote[
 export function caveMassNotesOf(levelId: string, m: MassMeasures): DesignNote[] {
   const T = REVIEW.caveMass;
   const out: DesignNote[] = [];
-  const over = (v: number, t: number): number => Math.min(3, v / Math.max(1e-9, t));
   if (m.solidCells >= T.minSolid && m.uncovered > T.uncovered)
     out.push({
       code: "cave_rock_uncovered",
