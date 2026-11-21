@@ -26,6 +26,7 @@ import type { CompileDiagnostic, CompileEstimate } from "../contracts/compiler";
 import { applyOps, autoKeyRooms } from "../ops/apply";
 import { diffPlans } from "../ops/diff";
 import { listElements } from "../plan/elements";
+import { generatorProfile } from "../plan/generator";
 import { validatePlan } from "../plan/validate";
 import { resolvePlan } from "../resolve";
 import {
@@ -334,7 +335,7 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
     const view = changeView(before, after, report.version, dirtyLevels);
     if (view) content.push({ type: "text", text: view });
     // design review (review/): measured advice, never an error; generator 2 plans only (issue maps stay last)
-    if (after.generator >= 2) {
+    if (generatorProfile(after).designReview) {
       try {
         const r = resolve(after, report.version);
         const notes = r ? reviewDesign(after, r, { brief }) : null;
@@ -630,7 +631,9 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
       ]);
     }
     // the build's substituted and unresolved pieces as one design note (review/), with the elements named
-    const sub = plan.generator >= 2 ? designReviewText(substitutionNotes(est.diagnostics)) : "";
+    const sub = generatorProfile(plan).designReview
+      ? designReviewText(substitutionNotes(est.diagnostics))
+      : "";
     return textResult(compilePreviewText(ctx.head, est) + (sub ? `\n${sub}` : ""));
   }
 

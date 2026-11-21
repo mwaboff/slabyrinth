@@ -1,5 +1,6 @@
 /**
- * Market stall notes (generator 4). The owner's market proof had bare tables in a tidy grid: no canopy, no cloth, every
+ * Market stall notes (generator 4: the review runs them where the generator builds covered stalls, `coveredStalls`).
+ * The owner's market proof had bare tables in a tidy grid: no canopy, no cloth, every
  * stall the same. A market reads as a market when its stalls are covered and differ, so the review says so.
  *
  *   stalls_uncovered  a map whose theme has canopy pieces but whose stalls are bare tables (plan-placed stall features or
@@ -14,13 +15,11 @@ const SCORE = { uncovered: 3.6, grid: 3.2 } as const;
 export interface StallNoteInput {
   levelId: string;
   level: ResolvedLevel;
-  generator: number;
   /** Can the level's theme build a covered stall (palette/stallParts.ts, the resolver's and compiler's question)? Absent: assume yes. */
   canCoverStall?: (theme: string) => boolean;
 }
 
 export function stallNotes(input: StallNoteInput): DesignNote[] {
-  if (input.generator < 4) return [];
   const stalls = input.level.features.filter((f) => f.type === "stall");
   if (stalls.length < 3) return [];
   const out: DesignNote[] = [];

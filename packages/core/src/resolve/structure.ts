@@ -40,7 +40,7 @@ import { BUILD_CONSTANTS } from "../contracts/plan";
 import type { BuiltRoofType, ResolvedLevel, ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { forEachMaskCell } from "../gen/mask";
-import { generatorAtLeast } from "../plan/generator";
+import { generatorProfile } from "../plan/generator";
 import { withWings } from "../plan/building";
 import { rasterizeShape } from "../gen/shapes";
 import { elementSeed, subSeed } from "../util/hash";
@@ -707,7 +707,7 @@ export function expandStructures(
   inBounds: (x: number, y: number) => boolean,
 ): { level: Level; work: StructureWork | null } {
   const list = (level.structures ?? []).map(withWings);
-  if (list.length === 0 || plan.generator < 2) return { level, work: null };
+  if (list.length === 0 || !generatorProfile(plan).buildings) return { level, work: null };
   const work = new StructureWork(level, li, issues);
   const areas: Area[] = [];
   const openings: Opening[] = [];
@@ -791,7 +791,7 @@ export function expandStructures(
     const style0 = structureStyle(st.style);
     const base0 = style0?.design;
     // generator 3: the style's gen3 overrides (roof share, attic tops) apply
-    const space = base0 ? designSpaceFor(base0, generatorAtLeast(plan, 3)) : undefined;
+    const space = base0 ? designSpaceFor(base0, generatorProfile(plan).buildingVariety) : undefined;
     const r = designable(st);
     if (!space || !r) continue;
     const near = placed.filter(
@@ -808,7 +808,7 @@ export function expandStructures(
       const darkNow = placed.filter((p) => p.space === space && tone(p.d) === "dark").length;
       // generator 3: a street never repeats one wall-and-roof pair (material, base and roof kit) within ten cells
       const alike =
-        generatorAtLeast(plan, 3) && space.roofKits !== undefined
+        generatorProfile(plan).buildingVariety && space.roofKits !== undefined
           ? placed.some(
               (p) =>
                 p.space === space &&
@@ -1547,7 +1547,7 @@ function planBuilding(
   );
   const chimneyFaces = (() => {
     // generator 3: a hip roof has no gable wall to carry a stack, so a drawn chimney would stand apart from wall and roof
-    if (generatorAtLeast(plan, 3) && main.roof.layers[0]?.type === "hip") return [];
+    if (generatorProfile(plan).wholeFacades && main.roof.layers[0]?.type === "hip") return [];
     const g = gableFaces().filter((f) => !doorFaces.has(f));
     return g.length > 0 ? g : SIDES.filter((f) => !doorFaces.has(f));
   })();
@@ -1655,7 +1655,7 @@ function planBuilding(
               const k = `${c[0]},${c[1]},${side}`;
               if (isTaken(vk, vs, k) || innerCorner(c, side)) continue;
               // generator 3 (cottage-like walls): a corner cell keeps its wall, a window there is walled over
-              if (generatorAtLeast(plan, 3) && (ci === 0 || ci === n - 1) && n >= 3) continue;
+              if (generatorProfile(plan).wholeFacades && (ci === 0 || ci === n - 1) && n >= 3) continue;
               take(vk, vs, k);
               ground.push({ id: nextId("window"), kind: "window", at: [c[0], c[1]], side, width: 1 });
             }
@@ -1663,9 +1663,9 @@ function planBuilding(
           }
           // generator 3: no blank wall (the baseline every condition inherits): a face of three cells or more gets a
           // window (one cell wide when two will not fit), and the gap between windows is at most three cells
-          const g3w = generatorAtLeast(plan, 3) && !shop;
-          const wd = g3w && n < width + 2 && n >= 3 ? 1 : width;
-          const gap = g3w ? Math.min(spacing, 3) : spacing;
+          const noBlankWall = generatorProfile(plan).wholeFacades && !shop;
+          const wd = noBlankWall && n < width + 2 && n >= 3 ? 1 : width;
+          const gap = noBlankWall ? Math.min(spacing, 3) : spacing;
           if (n < wd + 2) continue;
           const keepFree = (i: number): boolean => {
             if (i < 1 || i >= n - 1) return false;
@@ -1725,7 +1725,7 @@ function planBuilding(
       : []);
   // generator 3: the entrance varies (none, a hood on two posts, a full-width porch, steps and a landing), drawn per
   // building and never the same as the building drawn before it (own stream; styles with no porches keep none)
-  if (generatorAtLeast(plan, 3) && st.attachments === undefined && firstDoor && profile.variety.porchChance > 0) {
+  if (generatorProfile(plan).buildingVariety && st.attachments === undefined && firstDoor && profile.variety.porchChance > 0) {
     const ep = createPrng(subSeed(seed, "entrance3"));
     const kinds: Array<[string, number]> = [["none", 0.2], ["hood", 0.3], ["porch", 0.25], ["landing", 0.25]];
     const last = work.entrances[work.entrances.length - 1];
@@ -1810,13 +1810,14 @@ function planBuilding(
   // ── condition: a weathered or ruined building loses roof pieces, its doors and lights; breaches open in a
   // ruined ground storey; rubble and growth gather at its foot (the compiler also breaks the upper wall courses) ──
   const condition = st.condition ?? profile.condition ?? "intact";
-  const g3 = generatorAtLeast(plan, 3);
+  const gen = generatorProfile(plan);
+  const legible = gen.legibleCondition;
   const prng4 = createPrng(subSeed(seed, "condition"));
   const debris: BuildingPlan["debris"] = [];
   const growth: BuildingPlan["growth"] = [];
   // generator 3: how overgrown the building is (the plan's word, else light for weathered, medium for ruined)
   const growthLevel: BuildingPlan["growthLevel"] =
-    g3 && condition !== "intact" ? (st.growth ?? (condition === "ruined" ? "medium" : "light")) : null;
+    legible && condition !== "intact" ? (st.growth ?? (condition === "ruined" ? "medium" : "light")) : null;
   const heavyGrowth = growthLevel === "heavy";
   let ruin: RuinProfile | null = null;
   if (condition !== "intact") {
@@ -1824,7 +1825,7 @@ function planBuilding(
     // the wall tops and fallen floors (resolve/ruin.ts); a gable-roofed main mass keeps the gable wall nearest
     // its standing corner, its slopes fallen in
     // (generator 3: not on timber walls: a lone stepped gable of planks is masonry logic)
-    const timberWalls = g3 && vplans.some((v) => v.on === null && v.storeys[0]?.walls === "wood");
+    const timberWalls = legible && vplans.some((v) => v.on === null && v.storeys[0]?.walls === "wood");
     const gableWing = ruined && !timberWalls && main.roof.layers[0]?.type === "gable" ? main.rects[0] : undefined;
     ruin = ruinProfile(
       vplans,
@@ -1833,7 +1834,7 @@ function planBuilding(
       gableWing,
       new Set(vplans.filter((v) => v.roof.layers.length > 0).map((v) => v.id)),
       {
-        gen3: g3,
+        gen3: legible,
         pitched: new Set(
           vplans
             .filter((v) => ["gable", "hip", "shed"].includes(v.roof.layers[0]?.type ?? ""))
@@ -1841,7 +1842,7 @@ function planBuilding(
         ),
         // generator 3: a ruin of several volumes keeps one whole under its roof more often than not
         keepRoofed:
-          g3 && ruined && vplans.filter((v) => v.on === null).length > 1
+          legible && ruined && vplans.filter((v) => v.on === null).length > 1
             ? createPrng(subSeed(seed, "anchor3")).chance(0.65)
             : false,
         openings: ground.map((g) => ({ at: g.at, side: g.side, width: g.width })),
@@ -1875,7 +1876,7 @@ function planBuilding(
       }
       const lost: string[] = chimneys.length > 0 ? ["chimney"] : [];
       chimneys.splice(0, chimneys.length);
-      if (g3) {
+      if (legible) {
         // generator 3: the signs must read from the game camera (own stream; generator 2 draws are untouched)
         const wp = createPrng(subSeed(seed, "weather3"));
         // the fallen patch is ragged and sits at an eave or a corner, not in the middle (a clean square hole reads as
@@ -1975,7 +1976,7 @@ function planBuilding(
         v.roof.broken = Math.max(v.roof.broken, 0.12);
         continue;
       }
-      v.roof.broken = Math.max(v.roof.broken, ruined ? 0.45 : g3 ? 0.3 : 0.2);
+      v.roof.broken = Math.max(v.roof.broken, ruined ? 0.45 : legible ? 0.3 : 0.2);
       // a ruin's roofs have fallen in (the gable wall of a pitched one may stand)
       if (ruined) {
         if (v === main && ruin.gable) v.roof.gableOnly = ruin.gable;
@@ -2039,7 +2040,7 @@ function planBuilding(
         }
         for (const cc of cells) take(groundKey, 0, `${cc[0]},${cc[1]},${side}`);
         // generator 3: collapse goes top-down, so no upper wall hangs over a breach (the column ends at the storey's top)
-        if (g3)
+        if (legible)
           for (const cc of cells) {
             const col = ruin.columns.find((q) => q.at[0] === cc[0] && q.at[1] === cc[1] && q.side === side);
             const gt = vplans[0]?.storeys[0]?.relTop;
@@ -2051,7 +2052,7 @@ function planBuilding(
       }
     }
     // generator 3: broken blocks and rubble on the cut wall tops (never over a doorway, breach or window)
-    if (ruined && g3) {
+    if (ruined && legible) {
       const openKeys = new Set<string>();
       for (const g of ground)
         for (let k = 0; k < g.width; k++)
@@ -2091,7 +2092,7 @@ function planBuilding(
         kind: prng4.chance(heavyGrowth ? (ruined ? 0.25 : 0.08) : ruined ? 0.55 : 0.3) ? "rubble" : "growth",
       });
     }
-    if (g3 && !ruined) {
+    if (legible && !ruined) {
       // generator 3: growth against the foot of the walls, a heap for about every seven wall faces, never in a door's path
       const wp2 = createPrng(subSeed(seed, "weather3b"));
       let faceCount = 0;
@@ -2154,7 +2155,7 @@ function planBuilding(
     }
     // generator 3: what fell lies on the ground beside where it fell: clusters of heaps within two or three cells of
     // each fallen stretch of wall, inside and outside, not in the ring cell the vines use (own stream)
-    if (ruined && g3) {
+    if (ruined && legible) {
       const fp = createPrng(subSeed(seed, "fallen3"));
       const have = new Set(debris.map((d) => key(d.at[0], d.at[1])));
       const fallenCols = ruin.columns.filter((c) => {
@@ -2183,7 +2184,7 @@ function planBuilding(
     }
     // generator 3: growth that climbs the structure (vines up the faces, roots at the base, plants on cut tops, a tree
     // in a roofless middle); own stream, so generator 2 draws are untouched
-    if (g3) {
+    if (legible) {
       const faceKeys = new Set<string>();
       const around = (at: readonly [number, number], side: Side, from: number, to: number): void => {
         for (let k = from; k <= to; k++)
@@ -2340,7 +2341,7 @@ function planBuilding(
       ? { hut: st.roofFurniture?.hut ?? prng3.chance(pf.hut ?? 0) }
       : {}),
   };
-  if (g3 && ruin?.weather && furniture.mast) {
+  if (legible && ruin?.weather && furniture.mast) {
     furniture.mast = false;
     ruin.weather.lost.push("mast");
   }
@@ -2367,7 +2368,7 @@ function planBuilding(
   if (condition === "ruined") {
     lighting.windows = "none";
     lighting.strips = false;
-  } else if (condition === "weathered") lighting.lit = Math.round(lighting.lit * (g3 ? 15 : 30)) / 100; // most windows dark
+  } else if (condition === "weathered") lighting.lit = Math.round(lighting.lit * (legible ? 15 : 30)) / 100; // most windows dark
 
   // ── reserved cells: wall ring, door approaches (two cells out), chimney, porch and a ring around the porch ──
   const reserve = new Set<string>(ringOf(cellSet));
@@ -2412,8 +2413,8 @@ function planBuilding(
     lighting,
     frontage: { side: frontSide, shopfront },
     condition,
-    valleys: g3,
-    roofFill: generatorAtLeast(plan, 4),
+    valleys: gen.roofValleys,
+    roofFill: gen.closedRoofs,
     debris,
     growth,
     ...(growthLevel !== null ? { growthLevel } : {}),

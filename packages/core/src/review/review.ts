@@ -14,6 +14,7 @@ import {
 } from "../contracts/resolved";
 import type { CompileDiagnostic, PaletteCatalog, PlacementSet } from "../contracts/compiler";
 import { loadPalettes } from "../palette/load";
+import { generatorProfile, type GeneratorProfile } from "../plan/generator";
 import { createRoleResolver } from "../palette/resolve";
 import { coveredStallForms } from "../palette/stallParts";
 import { structureSignature, structureSilhouette, structureTone } from "../resolve/structureVariety";
@@ -188,6 +189,8 @@ export interface DesignNote {
 
 interface Ctx {
   plan: MapPlan;
+  /** What the plan's generator does (plan/generator.ts): a check of newer behaviour reads its switch. */
+  gen: GeneratorProfile;
   /** Ids of features the build dropped (custom_unresolved); absent in tests that build a context by hand. */
   dropped?: ReadonlySet<string>;
   /** Tones of a floor role's variants in a theme (tagged variants only). */
@@ -228,6 +231,7 @@ let bundled: PaletteCatalog | null = null;
 
 export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: ReviewOptions = {}): DesignNote[] {
   const notes: DesignNote[] = [];
+  const gen = generatorProfile(plan);
   const role = createRoleResolver(opts.palettes ?? (bundled ??= loadPalettes()));
   const toneMemo = new Map<string, Set<string>>();
   const floorTones = (theme: string, material: string): Set<string> => {
@@ -321,7 +325,7 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
       (role(theme, roleName).resolution?.variants ?? []).filter((v) => only === undefined || v.tone === only),
     );
   const rockKinds: Ctx["rockKinds"] = (theme) => {
-    if (opts.oneToneRule === false || plan.generator < 3) return { face: true, crest: true };
+    if (opts.oneToneRule === false || !gen.cliffToneRule) return { face: true, crest: true };
     const vs = (n: string): readonly ToneVariant[] => role(theme, n).resolution?.variants ?? [];
     return cliffRockKinds(vs("cliff.formation_face"), vs("cliff.formation_crest"));
   };
@@ -340,6 +344,7 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     if (walkCount < REVIEW.minCells) continue;
     const ctx: Ctx = {
       plan,
+      gen,
       // features the build dropped (unresolved or wrong size) are not on the map: repeated_prop counts what stands
       dropped: new Set(
         (opts.diagnostics ?? []).filter((d) => d.code === "custom_unresolved").flatMap((d) => d.elementIds ?? (d.elementId !== undefined ? [d.elementId] : [])),
@@ -393,16 +398,17 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
       rockTonesMixed,
       (c: Ctx) => caveWallChecks(plan, c.L),
       (c: Ctx) => caveNaturalChecks(plan, c.L),
-      (c: Ctx) => floorAccentNotes(c.L.id, c.L, c.plan.generator),
+      (c: Ctx) => (c.gen.floorAccentReview ? floorAccentNotes(c.L.id, c.L) : []),
       focalLights,
       ruins,
       (c: Ctx) =>
-        stallNotes({
-          levelId: c.L.id,
-          level: c.L,
-          generator: c.plan.generator,
-          ...(c.canCoverStall ? { canCoverStall: c.canCoverStall } : {}),
-        }),
+        c.gen.coveredStalls
+          ? stallNotes({
+              levelId: c.L.id,
+              level: c.L,
+              ...(c.canCoverStall ? { canCoverStall: c.canCoverStall } : {}),
+            })
+          : [],
     ])
       notes.push(...fn(ctx));
   }
@@ -448,7 +454,7 @@ const NEVER_CROWDED_OUT: ReadonlySet<DesignNoteCode> = new Set(["floor_patchwork
 function bridgeAlong(c: Ctx): DesignNote[] {
   const T = REVIEW.channels;
   const { L } = c;
-  if (c.plan.generator < 3) return [];
+  if (!c.gen.wanderingChannels) return [];
   const out: DesignNote[] = [];
   for (const b of L.bridges ?? []) {
     if (!b.id.includes("~b") || b.cells.length < 4) continue;
@@ -498,7 +504,7 @@ function bridgeAlong(c: Ctx): DesignNote[] {
 function riftBroken(c: Ctx): DesignNote[] {
   const T = REVIEW.channels;
   const { L, W, H } = c;
-  if (c.plan.generator < 3 || (L.channels ?? []).length === 0) return [];
+  if (!c.gen.wanderingChannels || (L.channels ?? []).length === 0) return [];
   const lava = L.materials.indexOf("lava") + 1;
   const cells: Array<[number, number]> = [];
   for (let i = 0; i < W * H; i++) {
@@ -548,7 +554,7 @@ export function designReviewText(notes: readonly DesignNote[], briefLine = ""): 
 /** Levels a player can see or walk between from this one: linked by a stair or ladder, or looking through a floor opening. */
 function connectedLevels(c: Ctx): ResolvedLevel[] {
   const r = c.resolved;
-  if (!r || c.plan.generator < 3) return [];
+  if (!r || !c.gen.levelsJudgedTogether) return [];
   const ids = new Set<string>();
   for (const lk of r.links) {
     if (lk.fromLevel === c.L.id) ids.add(lk.toLevel);
@@ -565,7 +571,7 @@ function connectedLevels(c: Ctx): ResolvedLevel[] {
 /** Generator 3: a stack of built levels is judged as one map, not level by level. */
 function stackedLevels(c: Ctx): DesignNote[] {
   const r = c.resolved;
-  if (!r || c.plan.generator < 3) return [];
+  if (!r || !c.gen.levelsJudgedTogether) return [];
   const out: DesignNote[] = [];
   const need =
     (c.plan.levels.find((l) => l.id === c.L.id)?.wallHeight ?? 2) + 0.5 + LEVEL_AIR;
@@ -616,7 +622,7 @@ function floorOpeningNotes(c: Ctx): DesignNote[] {
         cell: fo.cells[0] as [number, number],
         message: `walls hide the floor opening ${fo.id}: ${fo.hiddenEdge} of its ${fo.edgeCells} edge cells have a full-height wall between the walkway and the hole`,
         action:
-          c.plan.generator >= 4
+          c.gen.lowOpeningRims
             ? 'keep the hole inside one room with floor all round it (no area boundary or wall on its edge), and leave "rim" unset or low (low_wall, railing, none): a 2-tall wall round a hole reads as a maze of stubs from the table'
             : "keep the hole inside one room with floor all round it (no area boundary or wall on its edge), so players can stand at the rim and look down",
       });
@@ -645,7 +651,7 @@ function flat(c: Ctx): DesignNote[] {
   if (share < T.maxShare && levels >= T.minBands) {
     // generator 3: half-tile lumps (an uneven op) are not depth. When nearly all the walkable ground lies within one
     // tile of one height, no part of the map is a tile or more above or below the rest
-    if (c.plan.generator < 3) return [];
+    if (!c.gen.depthInTiles) return [];
     const tiles = new Map<number, number>();
     // ground to stand on: not a lava rift or a pit's floor
     const lava = c.L.materials.indexOf("lava") + 1;
@@ -1359,7 +1365,7 @@ function floors(c: Ctx): DesignNote[] {
   }
   // one material laid as several tile families with none dominant
   const top = big[0];
-  if (top && top[1].n / field >= T.familyFieldShare && c.plan.generator >= 3) {
+  if (top && top[1].n / field >= T.familyFieldShare && c.gen.floorFamilies) {
     // generator 3: measure the floor as it is laid (one dominant family; a second only in caused patches)
     const fams = c.familyList(top[1].theme, top[0]);
     if (fams.length >= 2 && NATURAL_MATERIALS.has(top[0])) {
@@ -1519,7 +1525,7 @@ const LIT_FOCALS: ReadonlySet<string> = new Set([
 ]);
 
 function focalLights(c: Ctx): DesignNote[] {
-  if (c.plan.generator < 3) return [];
+  if (!c.gen.litLandmarks) return [];
   const T = REVIEW.caveMass;
   const lights = c.L.features.filter((f) => LIGHT_FEATURES.has(f.type));
   const gap = (a: (typeof lights)[number], b: (typeof lights)[number]): number => {
@@ -1621,7 +1627,7 @@ function routes(c: Ctx): DesignNote[] {
   }
   // generator 3: stairs and ladders join the rooms of different levels, so a loop may run up one stair and down another;
   // the whole plan is judged once (on its first level)
-  if (c.resolved && c.plan.generator >= 3 && c.resolved.links.length > 0) {
+  if (c.resolved && c.gen.levelsJudgedTogether && c.resolved.links.length > 0) {
     if (c.resolved.levels[0]?.id !== L.id) return [];
     const parent = new Map<string, string>();
     const find = (a: string): string => {
@@ -2252,7 +2258,7 @@ function reachFocus(c: Ctx): DesignNote[] {
  */
 function rockTonesMixed(c: Ctx): DesignNote[] {
   const { L } = c;
-  if (c.plan.generator < 3) return [];
+  if (!c.gen.cliffToneRule) return [];
   const where = new Map<string, Set<string>>();
   const add = (place: string, tones: string[]): void => {
     if (tones.length > 0) where.set(place, new Set([...(where.get(place) ?? []), ...tones]));
@@ -2316,7 +2322,7 @@ function cliffChecks(c: Ctx): DesignNote[] {
     }
   // what really hides a face (gen/cover.ts): the pieces as the build lays them (generator 3 turns and slides them;
   // earlier generators laid every rock at one turn), over the whole height of the drop
-  const turned = c.plan.generator >= 3;
+  const turned = c.gen.restingCliffBand;
   const shapes: RockShape[] = [];
   for (const f of rocks) {
     const ext = c.rockExtent(f.theme, f.type as "cliff_face" | "cliff_crest");
@@ -2384,7 +2390,7 @@ function cliffChecks(c: Ctx): DesignNote[] {
     }
   // the board's own edge: open ground standing a tile or more above the base, beside void or off the board
   const edgeFaces: Face[] = [];
-  if (c.plan.generator >= 3)
+  if (c.gen.restingCliffBand)
     for (let ly = 0; ly < c.H; ly++)
       for (let lx = 0; lx < c.W; lx++) {
         const i = ly * c.W + lx;
@@ -2682,7 +2688,7 @@ function ruins(c: Ctx): DesignNote[] {
   const out: DesignNote[] = [];
   for (const st of buildingsOf(c)) {
     // a weathered building must read as neglected: too few signs and it looks like its intact version (generator 3)
-    if (st.condition === "weathered" && c.plan.generator >= 3) {
+    if (st.condition === "weathered" && c.gen.legibleCondition) {
       const wm = weatherMeasures(st);
       const signs = wm ? weatherSigns(wm) : 0;
       if (wm && signs < T.weatherSigns)
@@ -2697,7 +2703,7 @@ function ruins(c: Ctx): DesignNote[] {
         });
     }
     // generator 3: a weathered or ruined building in a theme with climbing growth must not be bare of it
-    if (st.condition && st.condition !== "intact" && c.plan.generator >= 3 && c.hasRole) {
+    if (st.condition && st.condition !== "intact" && c.gen.legibleCondition && c.hasRole) {
       const has = (n: string): boolean => c.hasRole?.(st.theme, n) === true;
       if (has("ruin_climber.default") || has("feature.vines")) {
         const g = growthMeasures(st);
@@ -2717,7 +2723,7 @@ function ruins(c: Ctx): DesignNote[] {
       }
     }
     // generator 3: the roof is the larger part of a cottage or inn (the study: 55-65 % of the visible height)
-    if (st.style === "cottage" && c.plan.generator >= 3) {
+    if (st.style === "cottage" && c.gen.buildingVariety) {
       const rp = roofProportion(st);
       if (rp && rp.share < T.roofShare)
         out.push({
@@ -2734,25 +2740,25 @@ function ruins(c: Ctx): DesignNote[] {
     const m = structureRuinMeasures(st);
     if (!m) continue;
     // generator 3 judges the cut wall tops only: a roofed part standing whole is the anchor, not a flat top
-    const g3 = c.plan.generator >= 3;
-    const flat = g3 && m.intactShare > 0 ? 1 - m.cutVariety : 1 - m.topVariety;
+    const legible = c.gen.legibleCondition;
+    const flat = legible && m.intactShare > 0 ? 1 - m.cutVariety : 1 - m.topVariety;
     // (generator 3: a collapse steps down in slopes and long runs, so level neighbours alone no longer condemn it; one
     // level line does, and so does a clean cut with long equal runs)
-    if (flat > (g3 ? T.flatTop3 : T.flatTop) || (g3 && m.runShort < T.runShort))
+    if (flat > (legible ? T.flatTop3 : T.flatTop) || (legible && m.runShort < T.runShort))
       out.push({
         code: "ruin_flat_top",
         levelId: c.L.id,
         score:
-          T.weight * Math.max(over(flat, T.flatTop), g3 ? over(T.runShort, Math.max(0.1, m.runShort)) : 0),
+          T.weight * Math.max(over(flat, T.flatTop), legible ? over(T.runShort, Math.max(0.1, m.runShort)) : 0),
         elementIds: [st.id],
-        message: g3
+        message: legible
           ? `the ruin ${st.id} has clean-cut wall tops (${Math.round(m.runShort * 100)}% of its runs of equal height are short; ${Math.round(flat * 100)}% of neighbouring cut tops are level)`
           : `the ruin ${st.id} has a level, even wall top (${Math.round(flat * 100)}% of neighbouring wall tops are the same height)`,
         action:
           "break it further: a taller tower mass, more loss, or another seed, so the wall tops step every one or two cells",
       });
     // generator 3: wall tops that alternate one up, one down read as battlements, not a collapse
-    if (g3 && m.teeth > T.teeth)
+    if (legible && m.teeth > T.teeth)
       out.push({
         code: "ruin_teeth",
         levelId: c.L.id,
@@ -2763,7 +2769,7 @@ function ruins(c: Ctx): DesignNote[] {
           "let the wall fall in long runs: a tall surviving corner, a slope stepping down over several cells, a stretch near ground level, a breach",
       });
     // generator 3: a roof is always held up: no eave over a wall that has fallen away
-    if (g3) {
+    if (legible) {
       const bare = roofUnsupportedEdges(st);
       if (bare.length > 0)
         out.push({
@@ -2777,7 +2783,7 @@ function ruins(c: Ctx): DesignNote[] {
     }
     const intact = st.storeys.reduce((t, q) => t + q.wallHeight, 0);
     // a part standing whole under its roof is itself the contrast with the stubs (generator 3)
-    if (intact >= T.minIntact && m.contrast < T.contrast && !(g3 && m.intactShare > 0))
+    if (intact >= T.minIntact && m.contrast < T.contrast && !(legible && m.intactShare > 0))
       out.push({
         code: "ruin_uniform",
         levelId: c.L.id,

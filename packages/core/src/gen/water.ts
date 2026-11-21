@@ -13,7 +13,7 @@
  */
 import type { FeatureType } from "../contracts/plan";
 import { ValueNoise } from "./noise";
-import type { GeneratedPlacement, PlacementGrid } from "./place";
+import { gridProfile, type GeneratedPlacement, type PlacementGrid } from "./place";
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
 
@@ -57,7 +57,7 @@ export interface WaterResult {
 export function dressWater(grid: PlacementGrid, prm: WaterParams): WaterResult {
   const out: GeneratedPlacement[] = [];
   const res: WaterResult = { placements: out, edge: 0, plants: 0, shore: 0, sunk: 0, stones: 0, openBank: 0 };
-  if ((grid.generator ?? 2) < 3 || !grid.height) return res;
+  if (!gridProfile(grid).waterBody || !grid.height) return res;
   const height = (x: number, y: number): number => grid.height?.(x, y) ?? 0;
   const fl = (x: number, y: number): number => grid.flags(x, y);
   const isWater = (x: number, y: number): boolean =>

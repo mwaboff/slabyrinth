@@ -12,6 +12,7 @@ import type { PaletteCatalog, PlacementSet } from "../contracts/compiler";
 import type { MapPlan } from "../contracts/plan";
 import type { ResolvedPlan, ResolvedStructure } from "../contracts/resolved";
 import { footprintFromGeom } from "../palette/resolve";
+import { generatorProfile } from "../plan/generator";
 import { roofOwners } from "../resolve/roof";
 import type { DesignNote } from "./review";
 import type { ReviewBuild } from "./reviewBuild";
@@ -82,7 +83,7 @@ export function roofGapNotes(
   build: ReviewBuild,
   palettes: PaletteCatalog,
 ): DesignNote[] {
-  if (plan.generator < 4) return [];
+  if (!generatorProfile(plan).closedRoofs) return [];
   const out: DesignNote[] = [];
   const intact = (st: ResolvedStructure): boolean =>
     st.kind !== "enclosure" && (st.condition ?? "intact") === "intact" && !!st.volumes?.length;

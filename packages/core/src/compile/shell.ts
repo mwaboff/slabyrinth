@@ -27,6 +27,7 @@ import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { ValueNoise } from "../gen/noise";
 import { OWNER, dropLumps, fillNotches, ownSolid, trimTeeth, type CellGrid } from "../gen/solidMass";
 import { isNaturalWallStyle } from "../gen/wallStyles";
+import { generatorProfile } from "../plan/generator";
 import { h32 } from "../util/hash";
 import { areaReferenceHeights, wallSpan, type SpanCell } from "../resolve/wallspan";
 import { roughCells } from "../resolve/wallTops";
@@ -98,7 +99,7 @@ const DIRS: readonly Dir[] = [
 ];
 
 /**
- * Plans the shell of one level, or null when it has none: no SOLID cells, no thin wall against rock, or generator < 4.
+ * Plans the shell of one level, or null when it has none: no SOLID cells, no thin wall against rock, or a generator without `solidShell`.
  * `claimed` tells which wall edges belong to buildings (their shells are their own).
  */
 export function planShell(
@@ -108,7 +109,7 @@ export function planShell(
   claimed: (orient: "h" | "v", edge: number) => boolean,
   defaultTheme: ThemeId,
 ): Shell | null {
-  if (resolved.generator < 4) return null;
+  if (!generatorProfile(resolved).solidShell) return null;
   const { w, h } = L.bounds;
   const at = (lx: number, ly: number): number => (lx < 0 || ly < 0 || lx >= w || ly >= h ? -1 : ly * w + lx);
   const state = (i: number): number => (i < 0 ? -1 : (L.cells.state[i] ?? CELL.VOID));

@@ -16,8 +16,8 @@ const SCORE = 3.4;
 const MIN_CELLS = 6;
 const MAX_SHARE = 0.45;
 
-export function floorAccentNotes(levelId: string, L: ResolvedLevel, generator: number): DesignNote[] {
-  if (generator < 4) return [];
+/** The review runs it where the generator tones accents itself (`floorAccentReview`, plan/generator.ts). */
+export function floorAccentNotes(levelId: string, L: ResolvedLevel): DesignNote[] {
   if (!L.cells.state.some((s) => s === CELL.SOLID)) return [];
   const byArea = new Map<number, Map<number, number[]>>();
   const n = L.bounds.w * L.bounds.h;

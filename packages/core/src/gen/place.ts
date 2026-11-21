@@ -4,6 +4,7 @@
  * commits them (ids `<opId>#<n>`, occupancy flags).
  */
 import type { DressPreset, FeatureType, Rotation, Side } from "../contracts/plan";
+import { generatorProfile, type GeneratorProfile } from "../plan/generator";
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
 import { featureInfo, rotatedSize } from "./catalog";
@@ -66,8 +67,8 @@ export interface PlacementGrid {
    */
   ramp?(x: number, y: number): boolean;
   /**
-   * The plan's generator version (`plan.generator`). Optional: absent means 2. Generator 3 rules (rock that rests
-   * on something, default cliff bands) switch on at 3 (plan/generator.ts `generatorAtLeast`).
+   * The plan's generator version (`plan.generator`). Optional: absent means 2. The placers read what it does through
+   * `gridProfile(grid)` (plan/generator.ts), never the number.
    */
   generator?: number;
   /**
@@ -110,6 +111,11 @@ export interface PlacementGrid {
    * purpose draw different variants. Created per level by the resolver.
    */
   roomMemory?: Map<string, number[]>;
+}
+
+/** What the grid's generator does (plan/generator.ts); a grid that names no generator is generator 2. */
+export function gridProfile(grid: Pick<PlacementGrid, "generator">): GeneratorProfile {
+  return generatorProfile(grid.generator ?? 2);
 }
 
 export interface GeneratedPlacement {
@@ -452,9 +458,10 @@ const SAMPLE_TRIES = 24;
 
 export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   if (isComposedPreset(p.preset)) return composeArea(grid, { ...p, preset: p.preset });
-  // generator 4: an interior preset dresses the room from its purpose's recipe (anchor, wall run, things on things,
-  // lights); a theme without the pieces, or an area without walls, keeps the weighted scatter below
-  if ((grid.generator ?? 2) >= 4 && grid.piece4 !== undefined) {
+  const gen = gridProfile(grid);
+  // an interior preset dresses the room from its purpose's recipe (anchor, wall run, things on things, lights); a
+  // theme without the pieces, or an area without walls, keeps the weighted scatter below
+  if (gen.roomRecipes && grid.piece4 !== undefined) {
     const purpose = presetPurpose(p.preset);
     if (purpose !== undefined) {
       const res = dressRoom(grid, {
@@ -477,8 +484,7 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   const count = Math.round((p.density * floorCells.length) / 6);
   const totalWeight = table.reduce((a, i) => a + i.weight, 0);
   const taken = new Set<number>();
-  const g3 = (grid.generator ?? 2) >= 3;
-  const oneHeight = (at: readonly [number, number], size: readonly [number, number]): boolean => {
+  const oneHeight =(at: readonly [number, number], size: readonly [number, number]): boolean => {
     if (!grid.height) return true;
     const h0 = grid.height(at[0], at[1]);
     return footprintCells(at, size).every(([x, y]) => grid.height?.(x, y) === h0);
@@ -492,7 +498,7 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   // a cell, and one standing beside the cell in front of a door spills into it (verify_door_blocked)
   const nearOpening = (x: number, y: number): boolean =>
     atOpening(x, y) ||
-    ((grid.generator ?? 2) >= 4 &&
+    (gen.doorwaysKeepClear &&
       (
         [
           [1, 0],
@@ -560,7 +566,7 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
       footprintCells(c.at, c.size).every(([x, y]) => free(x, y, blocking)) &&
       !footprintCrossesWall(grid, c.at, c.size) &&
       // generator 3: furniture never stands half on a ledge (a counter over a one-tile step floats)
-      (!g3 || oneHeight(c.at, c.size));
+      (!gen.levelFootprints || oneHeight(c.at, c.size));
     const fromWall = (e: readonly [number, number, Side]): Cand => {
       const rot = SIDE_ROT[e[2]];
       const c: Cand = {
@@ -592,7 +598,7 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
     if (c.wall) placement.wall = c.wall;
     out.push(placement);
   }
-  if (g3) addToppers(grid, out, rng, p.remaining);
+  if (gen.supportedParts) addToppers(grid, out, rng, p.remaining);
   return { placements: out, capped };
 }
 

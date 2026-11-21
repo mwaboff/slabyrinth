@@ -18,7 +18,7 @@ import type { Rotation, Side } from "../contracts/plan";
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
 import { edgeHidden, terraceRockShare, type RockShape } from "./cover";
-import type { GeneratedPlacement, PlacementGrid } from "./place";
+import { gridProfile, type GeneratedPlacement, type PlacementGrid } from "./place";
 
 const EDGE_LEDGE = 3;
 const EDGE_STAIR = 4;
@@ -133,7 +133,7 @@ export interface BandParams {
 }
 
 /**
- * Generator 3 rules (PlacementGrid.generator >= 3): every piece rests on the ground or on rock under most of its
+ * Generator 3 rules (`restingCliffBand`, plan/generator.ts): every piece rests on the ground or on rock under most of its
  * footprint, and its anchor corner is held up too (nothing hangs over a lower terrace or a stream).
  */
 export const SUPPORT = {
@@ -200,13 +200,15 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
   const rng = createPrng(subSeed(p.seed, "cliffband"));
   const between = (r: readonly [number, number]): number => r[0] + rng.next() * (r[1] - r[0]);
   const h = (x: number, y: number): number => grid.height?.(x, y) ?? 0;
-  // generator 3 plans with the asset's real outline (pieceExtent); earlier generators with its footprint in cells
+  const gen = gridProfile(grid);
+  // the band plans with the asset's real outline (pieceExtent) where the generator knows it, else its footprint in cells
   const size = (t: Piece): Size =>
-    (grid.generator ?? 2) >= 3
+    gen.realPieceOutlines
       ? (grid.pieceExtent?.(t) ?? grid.pieceSize?.(t) ?? NOMINAL[t])
       : (grid.pieceSize?.(t) ?? NOMINAL[t]);
-  const gen3 = (grid.generator ?? 2) >= 3;
-  const units = riseUnits(grid, p.areaCells, p.minRise, gen3);
+  // pieces rest on the ground or on rock, turn and slide, skirt the board's edge (PlacementGrid.generator, SUPPORT)
+  const resting = gen.restingCliffBand;
+  const units = riseUnits(grid, p.areaCells, p.minRise, resting);
   // a theme without the formation roles (the resolver says so through pieceSize) gets no band: its cliff keeps the
   // built face, and the composer's growth along the rises still follows the edge
   if (
@@ -239,7 +241,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
   /** Cells no part of a piece may cover: links (steps, bridges), paths, and what the caller keeps clear. */
   // (generator 3: never beyond the board's bounds: a piece out there would meet the neighbouring slab when tiled)
   const isVoid = (x: number, y: number): boolean =>
-    gen3 && grid.void?.(x, y) === true && grid.inBounds(x, y);
+    resting && grid.void?.(x, y) === true && grid.inBounds(x, y);
   /** Where a piece may stand (its centre) or reach: the floor, or (generator 3) the void beside the board's edge. */
   const standable = (x: number, y: number): boolean =>
     (grid.inBounds(x, y) && grid.isFloor(x, y)) || isVoid(x, y);
@@ -294,7 +296,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
     // given up, so a rock reaches right up to a gap instead of leaving the whole edge beside it bare
     const first = rng.int(BAND.maxTurnSteps * 2 + 1) - BAND.maxTurnSteps;
     const flip = rng.chance(0.5) ? 180 : 0;
-    const turns = gen3
+    const turns = resting
       ? [first, ...[0, 2, -2, 1, -1].filter((q) => q !== first).slice(0, 3)]
       : [first];
     for (const q of turns) if (placeTurned(t, ax, ay, side, base, strict, q * 15 + flip)) return true;
@@ -327,7 +329,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
     // generator 3: only the cells the turned outline really covers keep a piece off a path or a ramp (its bounding
     // box of cells is larger, and left a bare run as wide as the box beside every route)
     const touches = (x: number, y: number): boolean => {
-      if (!gen3) return true;
+      if (!resting) return true;
       const cs = Math.cos(rad);
       const sn = Math.sin(rad);
       for (const [qx, qy] of [
@@ -346,7 +348,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
     if (fp.some(([x, y]) => !(grid.inBounds(x, y) || isVoid(x, y)) || (touches(x, y) && off(x, y))))
       return false;
     // generator 3: every piece lies inside the board's bounds (its turned outline; the skirt, `strict`, also takes no slide)
-    if (gen3) {
+    if (resting) {
       const hw = bw / 2;
       const hd = bd / 2;
       for (const [ex, ey] of [
@@ -379,14 +381,14 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
     const held = (x: number, y: number): boolean =>
       ((grid.isFloor(x, y) || isVoid(x, y)) && h(x, y) >= foot - 0.5) ||
       (rockUnder.get(key(x, y)) ?? []).some(([b0, top]) => b0 <= foot - 0.1 && top >= foot - 0.1);
-    if (gen3) {
+    if (resting) {
       const [cx0, cy0] = fp[0] as [number, number];
       if (!held(cx0, cy0)) return false;
       if (fp.filter(([x, y]) => !held(x, y)).length > SUPPORT.maxOver * fp.length) return false;
     }
     // generator 3: never a second piece of the same kind on the same spot at the same height (a pile hides nothing more)
     if (
-      gen3 &&
+      resting &&
       shapes.some(
         (q) =>
           Math.abs(q.cx - (ax + 0.5)) < 0.8 &&
@@ -397,7 +399,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
     )
       return false;
     if (p.accept && !p.accept(inside)) return false;
-    if (gen3)
+    if (resting)
       for (const [x, y] of fp) {
         const k = key(x, y);
         const list = rockUnder.get(k);
@@ -420,7 +422,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
     // generator 3: slide along the edge and a little into it, so neighbours overlap unevenly instead of on a grid
     // (the footprint cells, and so the support test above, stay those of the cell centre)
     let offset: [number, number] | undefined;
-    if (gen3 && !strict) {
+    if (resting && !strict) {
       const slide = t === "cliff_face" ? SLIDE.face : SLIDE.crest;
       const along = (rng.next() * 2 - 1) * slide[0];
       // mostly toward the cliff, never far off it: the rock must still stand over the edge it hides
@@ -475,7 +477,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
   // plain face and the boulders instead of a 2.3-tile shelf)
   const coursesOf = (u: RiseUnit): number =>
     u.perim === true
-      ? !gen3 || u.hi - u.lo + BAND.crestShare >= face.h
+      ? !resting || u.hi - u.lo + BAND.crestShare >= face.h
         ? 1
         : 0
       : u.hi - u.lo < BAND.faceFrom
@@ -496,7 +498,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
         // the base course reaches further out the more courses stand on it, so every course rests on rock
         // generator 3: a single course stands on the first cell of the low ground, so it reaches about a tile and a half
         // out from the foot (the deep Cliff Face piece, slid to the foot below), not three
-        const outward = 0.5 + (n - 1 - c) * between(BAND.stepBack) + rng.next() * (gen3 && n === 1 ? 0.45 : 0.6);
+        const outward = 0.5 + (n - 1 - c) * between(BAND.stepBack) + rng.next() * (resting && n === 1 ? 0.45 : 0.6);
         const jit = (rng.next() - 0.5) * 0.9;
         const [ax, ay] = cellOut(u, outward, jit);
         const spacing = face.w * (gap ?? between(BAND.faceGap));
@@ -508,7 +510,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
           continue;
         }
         // generator 3: a piece with nothing under it moves a cell along or in, or is dropped
-        if (gen3)
+        if (resting)
           for (const [da, dout] of NUDGE) {
             const [bx, by] = cellOut(u, outward + dout, jit + da);
             if (near(mine, bx + 0.5, by + 0.5, spacing) || h(bx, by) > u.lo + 0.25) continue;
@@ -522,7 +524,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
 
   // ── generator 3, low rises (1 to under 2 tiles): boulders standing on the low ground against the face, closely
   //    spaced, so the face is hidden up to the lip; a fill pass closes the gaps
-  if (gen3) {
+  if (resting) {
     const lowAt: Array<[number, number]> = [];
     for (const gap of [null, BAND.lowFill] as const)
       for (const u of order) {
@@ -561,7 +563,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
   //    clusters and no boulder at all along a lip the face rock already hides. Cluster seeds are drawn in random
   //    order and kept CLUSTER.apart cells from each other; a cluster's members stand on the neighbouring lip cells
   //    (a cell or so apart, some a cell further back), so the group overlaps and staggers instead of marching.
-  if (gen3) {
+  if (resting) {
     const lip = order.filter((u) => !u.perim && !route(u));
     const seeds: Array<[number, number]> = [];
     const lipCell = (u: RiseUnit): [number, number] => {
@@ -609,7 +611,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
 
   // ── generator 2 (frozen) crest boulders on the upper ground at the lip, every rise; on low rises a broken single row
   for (const u of order) {
-    if (gen3 || route(u)) continue;
+    if (resting || route(u)) continue;
     const low = u.hi - u.lo < BAND.faceFrom;
     if (low && !rng.chance(BAND.lowCrest)) continue;
     const back = rng.chance(BAND.crestBack) ? 1.5 : 0.5;
@@ -625,7 +627,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
   //    height of the face; gen/cover.ts). Generator 2 asked only for a piece's box near the edge midpoint; generator 3
   //    re-tests every edge and plugs what is still seen, up to three rounds, with the piece that fits the rise
   const covers = (u: RiseUnit): boolean => {
-    if (gen3) return hidden(u);
+    if (resting) return hidden(u);
     const [mx, my] = unitMid(u);
     return out.some(
       (q) =>
@@ -637,9 +639,9 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
   };
   /** Indices of the boulders the plug rounds added (generator 3 prunes the redundant ones below). */
   const plugCrests: number[] = [];
-  for (let round = 0; round < (gen3 ? 3 : 1); round++)
+  for (let round = 0; round < (resting ? 3 : 1); round++)
     for (const u of order) {
-      if ((!gen3 && coursesOf(u) === 0) || route(u) || (gen3 && noStand(u.low[0], u.low[1])) || covers(u))
+      if ((!resting && coursesOf(u) === 0) || route(u) || (resting && noStand(u.low[0], u.low[1])) || covers(u))
         continue;
       // the skirt is one simple course: its gaps are not plugged
       if (u.perim) continue;
@@ -647,7 +649,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
       const ns = u.side === "N" || u.side === "S";
       const tall = u.hi - u.lo >= BAND.faceFrom;
       const tries: Array<[Piece, number, number, "ground" | "rock", boolean]> = [];
-      if (!gen3) {
+      if (!resting) {
         for (const along of [0, 1, -1])
           tries.push([
             "cliff_face",
@@ -700,7 +702,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
             plugCrests.push(out.length - 1);
           } else faceAt[0]?.push([ax + 0.5, ay + 0.5]);
           placed++;
-          if (!gen3 || hidden(u) || placed >= 2) break;
+          if (!resting || hidden(u) || placed >= 2) break;
         }
       }
     }
@@ -708,7 +710,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
   // ── run ends fade into two or three loose boulders on the low ground (an edge that turns a corner goes on)
   // generator 3: a plug boulder that a later piece made redundant goes (boulders are accents, the long pieces hide the
   // face): removed when every edge near it stays hidden without it. Highest index first, so the indices below hold.
-  if (gen3)
+  if (resting)
     for (const i of [...plugCrests].sort((a, b) => b - a)) {
       const s = shapes[i] as RockShape;
       const nearby = units.filter((u) => {
@@ -733,7 +735,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
     at.add(key(u.low[0] + dx, u.low[1] + dy));
   }
   for (const u of units) {
-    if (coursesOf(u) === 0 || route(u) || (gen3 && u.perim)) continue;
+    if (coursesOf(u) === 0 || route(u) || (resting && u.perim)) continue;
     const ns = u.side === "N" || u.side === "S";
     for (const dir of [-1, 1] as const) {
       const nx = u.low[0] + (ns ? dir : 0);
@@ -751,8 +753,8 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
       if (goesOn) continue;
       const [dx, dy] = STEP[u.side];
       // generator 3: a run ends in one or two loose boulders, and not at every end
-      if (gen3 && !rng.chance(0.3)) continue;
-      const k = gen3 ? 1 + rng.int(2) : 2 + rng.int(2);
+      if (resting && !rng.chance(0.3)) continue;
+      const k = resting ? 1 + rng.int(2) : 2 + rng.int(2);
       let along = 0;
       for (let i = 0; i < k; i++) {
         along += 0.8 + rng.next();
@@ -766,7 +768,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
 
   // ── generator 3: rock must not bury a terrace. Where the rock stands on more than BAND.terraceShare of a terrace's
   //    walkable ground, boulders go (those the face rock does not need, in random order) until it does not, or none is left.
-  if (gen3) {
+  if (resting) {
     const ground = p.areaCells
       .filter(([x, y]) => grid.isFloor(x, y))
       .map(([x, y]) => ({ x, y, ground: h(x, y) }));
@@ -809,14 +811,14 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
   for (const u of units) {
     const [dx, dy] = STEP[u.side];
     if (
-      gen3
+      resting
         ? hidden(u)
         : pieceCells.has(key(u.low[0], u.low[1])) || pieceCells.has(key(u.low[0] + dx, u.low[1] + dy))
     )
       clad++;
   }
   const cells: Array<[number, number]> = [];
-  if (gen3) {
+  if (resting) {
     // (pruned boulders leave their cells free)
     const kept = new Set<number>();
     for (const q of out)

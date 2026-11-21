@@ -22,7 +22,7 @@ import type {
 import { BUILD_CONSTANTS, PLAN_LIMITS } from "../contracts/plan";
 import { own } from "../palette/own";
 import { utf8Length } from "../util/hash";
-import { VOCABULARY_SINCE } from "./generator";
+import { VOCABULARY_SINCE, generatorProfile } from "./generator";
 import { listForHint, nearest } from "../util/strings";
 import { KIND_LABEL, freeId, listElements } from "./elements";
 import type { ElementLocation } from "./elements";
@@ -371,7 +371,7 @@ function areaRefCheck(
     elsewhere !== undefined
       ? `${what} "${elementId}" refers to area "${ref}", which is on level "${elsewhere.id}", not "${level.id}"`
       : `${what} "${elementId}" refers to unknown area "${ref}"`,
-    `${near !== undefined ? `did you mean "${near}"? ` : ""}areas on ${level.id}: ${ids.length > 0 ? listForHint(ids) : "(none)"}${what === "dress op" && plan.generator >= 2 ? "; or leave area out to dress the whole level" : ""}`,
+    `${near !== undefined ? `did you mean "${near}"? ` : ""}areas on ${level.id}: ${ids.length > 0 ? listForHint(ids) : "(none)"}${what === "dress op" && generatorProfile(plan).dressWholeLevel ? "; or leave area out to dress the whole level" : ""}`,
     { elementId, levelId: level.id },
   );
   return false;
@@ -382,8 +382,12 @@ function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: Issue
   const lb = levelBox(level);
 
   // vocabulary a later generator added: below that generator it is ignored or substituted, so say so
+  const gen = generatorProfile(plan);
   for (const [field, since] of Object.entries(VOCABULARY_SINCE.levelFields))
-    if (since > plan.generator && (level as unknown as Record<string, unknown>)[field] !== undefined)
+    if (
+      !gen.vocabulary.levelFields.has(field) &&
+      (level as unknown as Record<string, unknown>)[field] !== undefined
+    )
       sink.add(
         "warning",
         "no_effect",
@@ -394,7 +398,7 @@ function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: Issue
       );
   level.features.forEach((f, fi) => {
     const since = own(VOCABULARY_SINCE.featureTypes, f.type);
-    if (since !== undefined && since > plan.generator)
+    if (since !== undefined && !gen.vocabulary.featureTypes.has(f.type))
       sink.add(
         "warning",
         "no_effect",
@@ -408,7 +412,7 @@ function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: Issue
   (level.structures ?? []).map(withWings).forEach((st, si) => {
     const p = `${base}/structures/${si}`;
     const extra = { elementId: st.id, levelId: level.id };
-    if (plan.generator < 2)
+    if (!gen.buildings)
       sink.error(
         "structure_invalid",
         p,
@@ -632,7 +636,7 @@ function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: Issue
       case "dress":
         // generator 2: no area (or the level's own id) dresses the whole level
         if (t.area === undefined || t.area === level.id) {
-          if (plan.generator < 2)
+          if (!generatorProfile(plan).dressWholeLevel)
             sink.error(
               "ref_unknown",
               `${p}/area`,

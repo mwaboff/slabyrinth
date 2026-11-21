@@ -7,7 +7,7 @@
 import type { MapPlan } from "../contracts/plan";
 import { CELL, CELL_FLAG, EDGE, type ResolvedLevel } from "../contracts/resolved";
 import { hasNaturalWallStyle, naturalStyleRefs } from "../gen/wallStyles";
-import { generatorAtLeast } from "../plan/generator";
+import { generatorProfile } from "../plan/generator";
 import type { DesignNote } from "./review";
 import { REVIEW } from "./thresholds";
 
@@ -135,7 +135,7 @@ export function caveNaturalMeasures(L: ResolvedLevel): CaveNaturalMeasures {
  * catch what is left (a floor the shelves could not reach, outlines pinned by features and links).
  */
 export function caveNaturalChecks(plan: MapPlan, L: ResolvedLevel): DesignNote[] {
-  if (!generatorAtLeast(plan, 4) || !hasNaturalWallStyle(L.wallStyles)) return [];
+  if (!generatorProfile(plan).naturalCaveReview || !hasNaturalWallStyle(L.wallStyles)) return [];
   const T = REVIEW.caveNatural;
   const m = caveNaturalMeasures(L);
   const out: DesignNote[] = [];
@@ -163,7 +163,7 @@ export function caveNaturalChecks(plan: MapPlan, L: ResolvedLevel): DesignNote[]
 
 export function caveWallChecks(plan: MapPlan, L: ResolvedLevel): DesignNote[] {
   const T = REVIEW.caveWall;
-  if (plan.generator < 3) return [];
+  if (!generatorProfile(plan).caveRockMass) return [];
   if (!hasNaturalWallStyle(L.wallStyles)) return [];
   const t = caveWallThickness(L);
   if (t.length < T.minFaces) return [];

@@ -31,8 +31,9 @@ export const PLAN_SCHEMA = "slabyrinth/plan@1" as const;
  *     Released in 0.1.2 and frozen since (golden tests in test/golden/generator2 pin it).
  *  3: cliffs, cave walls, growth, floor openings, stalls and overhead lines, trades. Released in 0.2.0 and
  *     frozen since (golden tests in test/golden/generator3 pin it).
- *  4: unreleased, open for new work. Until behaviour is gated on it, it resolves exactly like 3.
- *     Gate new behaviour with `generatorAtLeast(plan, 4)` (plan/generator.ts); every `>= 3` rule stays on for 4.
+ *  4: unreleased, open for new work.
+ *  What each version does is its profile in plan/generator.ts (`generatorProfile(plan)`): new behaviour is a named
+ *  switch, off in the released profiles and on from the open generator; code reads the switch, never the number.
  */
 export const GENERATOR_VERSION = 4 as const;
 /** Generator versions a reader accepts. */

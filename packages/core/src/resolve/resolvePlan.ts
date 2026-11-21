@@ -3,6 +3,7 @@
  * view and the slab compiler. Pure and deterministic: the same plan gives byte-identical canonical JSON.
  */
 import type { LevelId, MapPlan, PlanIssue, ThemeId } from "../contracts/plan";
+import { generatorProfile } from "../plan/generator";
 import { linkGeometry } from "../plan/links";
 import type { ResolvedLink, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG } from "../contracts/resolved";
@@ -46,7 +47,7 @@ export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedP
 
   for (const w of works) w.runPhase1();
   const links = resolveLinks(plan, byId, issues);
-  if (plan.generator >= 3) {
+  if (generatorProfile(plan).floorOpenings) {
     // floor openings look into the next level down (rubble heaps and checks happen on both sides)
     const byElev = [...works].sort((a, b) => a.level.elevation - b.level.elevation);
     for (const w of works)
@@ -137,7 +138,7 @@ function resolveLinks(plan: MapPlan, byId: Map<string, LevelWork>, issues: PlanI
           levelId: lo.level.id,
           cell: c,
           hint:
-            plan.generator < 3
+            !generatorProfile(plan).explainedLinkRuns
               ? `the run covers ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; move from.at or change dir`
               : link.kind === "stairs" || link.kind === "ramp"
               ? `a rise of ${rise} needs a straight run of ${geo.length} cells (1 per tile of rise) from from.at ${link.from.at[0]},${link.from.at[1]} in direction ${dir}: ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; it does not fit, so move from.at to where ${geo.length} free floor cells lie in a line, change dir, or space the levels closer (not under 3.5) or use a ladder for a short link`

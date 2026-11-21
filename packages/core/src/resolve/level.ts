@@ -80,7 +80,7 @@ import { CAVE_RELIEF, caveShelves } from "./caveRelief";
 import { cliffRuns } from "./cliffs";
 import type { PaletteView } from "../palette/view";
 import { STILL_WATER, riverCourse } from "./water";
-import { generatorAtLeast } from "../plan/generator";
+import { generatorProfile, type GeneratorProfile } from "../plan/generator";
 import { linkCellsOnLevel } from "../plan/links";
 import { BUILT_FLOORS, FAMILY_ROTATION, accentTop, purposeFloor } from "./interiorFloors";
 import { roughWallTops } from "./wallTops";
@@ -243,6 +243,8 @@ export function materialOrdinal(m: Material): number {
 
 export class LevelWork {
   readonly plan: MapPlan;
+  /** What the plan's generator does (plan/generator.ts): every version-dependent rule below reads a switch of it. */
+  readonly gen: GeneratorProfile;
   readonly level: Level;
   readonly li: number;
   readonly bx: number;
@@ -308,6 +310,7 @@ export class LevelWork {
   constructor(ctx: LevelContext) {
     this.ctx = ctx;
     this.plan = ctx.plan;
+    this.gen = generatorProfile(ctx.plan);
     this.li = ctx.levelIndex;
     const planLevel = ctx.plan.levels[ctx.levelIndex] as Level;
     const lb = planLevel.bounds;
@@ -515,19 +518,16 @@ export class LevelWork {
     this.stepBase();
     this.stepTerrain("under");
     this.stepAreas();
-    // generator 4: natural cave chambers and corridors get ragged outlines (resolve/caveOutline.ts)
-    if (generatorAtLeast(this.plan, 4)) this.stepCaveOutlines();
+    if (this.gen.caveOutlines) this.stepCaveOutlines();
     this.structs?.afterAreas(this);
     this.checkUnderSurvivors();
     this.stepTerrain("over");
     this.structs?.afterTerrain(this);
-    // generator 4: a flat cave floor gets shelves (resolve/caveRelief.ts)
-    if (generatorAtLeast(this.plan, 4)) this.stepCaveRelief();
+    if (this.gen.caveRelief) this.stepCaveRelief();
     this.stepPavementFronts();
     this.stepOutline();
     this.stepBridges();
-    // generator 4: each room of a built interior gets a floor of its own and a step above the corridor
-    if (generatorAtLeast(this.plan, 4)) this.stepRoomFloors();
+    if (this.gen.roomFloors) this.stepRoomFloors();
     this.stepEdges();
     this.stepStairs();
     this.stepRailings();
@@ -561,7 +561,7 @@ export class LevelWork {
         // into a cave is rock, not a brick box
         wallStyle:
           area.wallStyle ??
-          (area.kind === "cave" || (this.plan.generator >= 2 && isNaturalWallStyle(td.wallStyle))
+          (area.kind === "cave" || (this.gen.naturalThemeWalls && isNaturalWallStyle(td.wallStyle))
             ? NATURAL_WALL_STYLE
             : "wall"),
         wallHeight: area.wallHeight ?? this.defaultWallHeight,
@@ -870,7 +870,7 @@ export class LevelWork {
   ): { touched: number[]; inShape: number; open: number; partial: boolean } {
     // Generator 2: an under-layer height op sets the height field of every cell (rock included); the areas that open
     // those cells later inherit it unless they set floorHeight (contracts/plan.ts GENERATOR_VERSION).
-    const field = op.op === "height" && layer === "under" && this.plan.generator >= 2;
+    const field = op.op === "height" && layer === "under" && this.gen.underHeightField;
     const open = (i: number): boolean => field || this.state[i] === CELL.OPEN;
     const touched: number[] = [];
     let inShape = 0;
@@ -908,22 +908,22 @@ export class LevelWork {
       case "path": {
         const seed = elementSeed(this.plan.seed, op.id, op.seed);
         // generator 2 road form (resolve/road.ts): sidewalk and/or crossings; always straight
-        const road = this.plan.generator >= 2 && (op.sidewalk !== undefined || op.crossings !== undefined);
+        const road = this.gen.roads && (op.sidewalk !== undefined || op.crossings !== undefined);
         // generator 2: water winds like a trail unless told to run straight
         const wetPath = WATER_MATS.has(op.material);
         const natural0 =
-          this.plan.generator >= 2 &&
+          this.gen.naturalPaths &&
           !road &&
           (op.style ?? (NATURAL_PATH.has(op.material) || wetPath ? "natural" : "straight")) === "natural";
         const drawn = op.points ?? this.connectPoints(op.connect ?? [], path, op.id, !natural0);
         // a river or brook crosses the map: from one board edge to another, off the border in between
         const base =
-          this.plan.generator >= 2 && wetPath && op.points !== undefined && !STILL_WATER.test(op.id)
+          this.gen.riverCourses && wetPath && op.points !== undefined && !STILL_WATER.test(op.id)
             ? this.keepOffHighGround(drawn, riverCourse(drawn, this.boardBox(), op.width))
             : drawn;
         const natural = natural0;
         // a straight road never wobbles: jitter only for paths that do not ask for straight
-        const straightOnly = road || (this.plan.generator >= 2 && op.style === "straight");
+        const straightOnly = road || (this.gen.naturalPaths && op.style === "straight");
         const visit = (x: number, y: number): void => {
           const i = this.idx(x, y);
           if (i < 0) return;
@@ -957,7 +957,7 @@ export class LevelWork {
       case "height": {
         let cells = this.shapeCells(op.shape, "terrain", path, op.id);
         if (
-          this.plan.generator >= 2 &&
+          this.gen.raggedTerrainEdges &&
           (op.edge ?? (this.level.base.type === "ground" ? "ragged" : "clean")) === "ragged"
         ) {
           // natural ground: a rounded, wandering outline (resolve/organic.ts)
@@ -1004,10 +1004,10 @@ export class LevelWork {
     const wet0 = op.floor === "water_shallow" || op.floor === "water_deep";
     // a river channel crosses the map from one board edge to another (generator 2; still water keeps its course)
     const course =
-      this.plan.generator >= 2 && wet0 && !STILL_WATER.test(op.id)
+      this.gen.riverCourses && wet0 && !STILL_WATER.test(op.id)
         ? this.keepOffHighGround(op.points, riverCourse(op.points, this.boardBox(), op.width))
         : op.points;
-    const g3 = generatorAtLeast(this.plan, 3);
+    const wander = this.gen.wanderingChannels;
     // generator 3: a long rift, chasm or river strays visibly from the line between its ends (a fifth of its length)
     const geo = chasmGeometry(
       course,
@@ -1020,12 +1020,12 @@ export class LevelWork {
         x1: clip.x1,
         y1: clip.y1,
       },
-      g3 && op.meander !== 0 && !STILL_WATER.test(op.id)
+      wander && op.meander !== 0 && !STILL_WATER.test(op.id)
         ? { wander: WANDER_SHARE, avoid: this.explicitFeatureCells() }
         : {},
     );
     const wet = op.floor === "water_shallow" || op.floor === "water_deep";
-    if (g3 && geo.samples.length > 16 && !STILL_WATER.test(op.id))
+    if (wander && geo.samples.length > 16 && !STILL_WATER.test(op.id))
       this.channels.push({
         id: op.id,
         kind: wet ? "river" : "rift",
@@ -1058,7 +1058,7 @@ export class LevelWork {
     let lowSide = Infinity;
     // a river that drops 2 tiles or more is split into reaches at different levels with a fall between them
     let reaches: ReachPlan | null = null;
-    if (wet && g3 && !STILL_WATER.test(op.id)) {
+    if (wet && wander && !STILL_WATER.test(op.id)) {
       const grounds: number[] = [];
       const chan: ChannelCell[] = [];
       for (const [x, y] of geo.cells) {
@@ -1128,7 +1128,7 @@ export class LevelWork {
       let vertical = Math.abs(s.tx) >= Math.abs(s.ty);
       const px = Math.floor(s.x);
       const py = Math.floor(s.y);
-      if (g3) {
+      if (wander) {
         // generator 3: a bridge takes the shortest span across the cut, square to the channel there (a wandering rift
         // can run either way at its sample): measure the cut cells in a line along each axis through the sample
         const spanAlong = (vert: boolean): number => {
@@ -1590,14 +1590,13 @@ export class LevelWork {
     // never differ by more than one tier
     // generator 3: in a natural or cave level a platform is rock with a ragged outline unless the plan asks for worked
     // stone (a built material, or an explicit clean edge)
-    const wild =
-      generatorAtLeast(this.plan, 3) && (this.level.base.type === "ground" || this.plan.kind === "cave");
+    const wild = this.gen.wildPlatforms && (this.level.base.type === "ground" || this.plan.kind === "cave");
     const worked = [op.material, op.topMaterial].some((m) => m !== undefined && !NATURAL_PATH.has(m));
     const rockDefault = wild && !worked && this.plan.kind === "cave" && op.material === undefined;
     const material: Material | undefined = rockDefault ? "rock" : op.material;
     const natural = material !== undefined && NATURAL_PATH.has(material);
     const ragged =
-      this.plan.generator >= 2 &&
+      this.gen.raggedTerrainEdges &&
       (op.edge ??
         ((this.level.base.type === "ground" && natural) || (wild && !worked) ? "ragged" : "clean")) ===
         "ragged";
@@ -1609,7 +1608,7 @@ export class LevelWork {
     let inset = op.inset ?? (bold ? 3 : 1);
     // generator 3: a gentle rise on natural ground reads as one rounded mound, not stacked half-tile plates with
     // square, stair-stepped outlines: fewer, larger steps (a tile or more each), outline rounded by the organic pass
-    if (generatorAtLeast(this.plan, 3) && ragged && natural && riseQ > 0 && riseQ < 4 && tiers > 1) {
+    if (this.gen.roundedRises && ragged && natural && riseQ > 0 && riseQ < 4 && tiers > 1) {
       const total = tiers * riseQ;
       if (total >= 4) {
         tiers = Math.max(1, Math.floor(total / 4));
@@ -1656,7 +1655,7 @@ export class LevelWork {
       let m = t === tiers ? (op.topMaterial ?? material) : material;
       // generator 4: a top much paler than the room's floor (marble over flagstone) is a stark slab: it takes the tier's
       // own material, or the room's floor (resolve/interiorFloors.ts accentTop)
-      if (m !== undefined && t === tiers && op.topMaterial !== undefined && generatorAtLeast(this.plan, 4)) {
+      if (m !== undefined && t === tiers && op.topMaterial !== undefined && this.gen.accentTops) {
         const ord = this.mat[i] as number;
         m = accentTop(m, ord > 0 ? MATERIALS[ord - 1] : undefined, material);
       }
@@ -1768,7 +1767,7 @@ export class LevelWork {
   }
 
   private applyStairsOp(op: Extract<TerrainOp, { op: "stairs" }>, path: string): void {
-    if (op.style === "ramp" && this.plan.generator >= 2) {
+    if (op.style === "ramp" && this.gen.ramps) {
       this.applyRamp(op, path);
       return;
     }
@@ -1885,13 +1884,13 @@ export class LevelWork {
       delta.set(i, 2 * Math.round((noise.sample(x / scale, y / scale) - 0.5) * amountQ * taper));
     }
     // generator 2: the band edges wander like an organic outline (no straight or square stair-steps)
-    if (this.plan.generator >= 2) {
+    if (this.gen.organicBands) {
       const tiers = new Map<number, number>();
       for (const i of cells) tiers.set(i, Math.round((delta.get(i) as number) / 2));
       breakStraightSteps(tiers, this.organicGrid(), subSeed(seed, "bands"));
       chamferCorners(tiers, this.organicGrid());
       // generator 3: small lumps lose their square corners and their straight sides are bitten
-      if (generatorAtLeast(this.plan, 3)) roughenLumps(tiers, this.organicGrid(), subSeed(seed, "lumps"));
+      if (this.gen.roughenedLumps) roughenLumps(tiers, this.organicGrid(), subSeed(seed, "lumps"));
       for (const i of cells) delta.set(i, 2 * (tiers.get(i) ?? 0));
     }
     // walkable: neighbours in the region never differ by more than 2 quarters (relaxation, then applied)
@@ -1931,7 +1930,7 @@ export class LevelWork {
     );
     // generator 3: a small natural rise is not a rectangle: its corners are cut (twice on larger ones) and its sides
     // bitten. Only ever removes cells, so no route is closed that the shape did not already close.
-    if (generatorAtLeast(this.plan, 3) && cells.length >= 6) {
+    if (this.gen.roughenedLumps && cells.length >= 6) {
       const tiers = new Map<number, number>(cells.map((i) => [i, 1]));
       const lumpSeed = subSeed(elementSeed(this.plan.seed, op.id), "outcrop-lumps");
       roughenLumps(tiers, this.organicGrid(), lumpSeed);
@@ -1982,7 +1981,7 @@ export class LevelWork {
    * lobes bulging out where noise says so, never into a wall's cell.
    */
   private applyFloorOpening(op: Extract<TerrainOp, { op: "floor_opening" }>, path: string): void {
-    if (!generatorAtLeast(this.plan, 3)) {
+    if (!this.gen.floorOpenings) {
       this.issue(
         "warning",
         "no_effect",
@@ -1998,7 +1997,7 @@ export class LevelWork {
       ((this.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE | CELL_FLAG.LINK | CELL_FLAG.STEPS)) === 0;
     let cells = this.shapeCells(op.shape, "terrain", path, op.id).filter(free);
     const seed = subSeed(elementSeed(this.plan.seed, op.id), "floor-opening");
-    const g4 = generatorAtLeast(this.plan, 4);
+    const outline = this.gen.openingOutline;
     if ((op.edge ?? (kind === "collapse" ? "ragged" : "clean")) === "ragged" && cells.length >= 6) {
       const tiers = new Map<number, number>(cells.map((i) => [i, 1]));
       roughenLumps(tiers, this.organicGrid(), seed);
@@ -2009,11 +2008,10 @@ export class LevelWork {
         const dist = this.innerDistance(kept);
         kept = kept.filter((i) => {
           const [x, y] = this.cellXY(i);
-          // generator 4: deeper bites at a coarser grain, so the outline reads as broken rather than as a nibbled rectangle
-          return !((dist.get(i) ?? 2) === 1 && noise.sample(x / (g4 ? 2.2 : 1.6), y / (g4 ? 2.2 : 1.6)) < (g4 ? 0.36 : 0.3));
+          return !((dist.get(i) ?? 2) === 1 && noise.sample(x / outline.grain, y / outline.grain) < outline.cut);
         });
       }
-      if (kept.length >= Math.ceil(cells.length * (g4 ? 0.45 : 0.55))) {
+      if (kept.length >= Math.ceil(cells.length * outline.keepShare)) {
         // lobes: open floor beside the hole, with open floor on every side of it (no wall or rock next to the new edge)
         const inSet = new Set(kept);
         const noise = new ValueNoise(subSeed(seed, "lobes"));
@@ -2022,7 +2020,7 @@ export class LevelWork {
           const [x, y] = this.cellXY(i);
           for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
             const j = this.idx(x + dx, y + dy);
-            if (!free(j) || inSet.has(j) || noise.sample((x + dx) / 1.6, (y + dy) / 1.6) < (g4 ? 0.6 : 0.74)) continue;
+            if (!free(j) || inSet.has(j) || noise.sample((x + dx) / 1.6, (y + dy) / 1.6) < outline.lobeCut) continue;
             const [jx, jy] = this.cellXY(j);
             const clear = (
               [[1, 0], [-1, 0], [0, 1], [0, -1]] as const
@@ -2050,7 +2048,7 @@ export class LevelWork {
       kind,
       rim:
         op.rim ??
-        (generatorAtLeast(this.plan, 4)
+        (this.gen.lowOpeningRims
           ? // generator 4: a collapse has no wall at all (stepOpeningRims drops rubble on its edge instead); a shaft has a
             // low kerb, a balcony a railing: nothing 2 tall hides the hole
             kind === "collapse"
@@ -2085,7 +2083,7 @@ export class LevelWork {
    * ones a full-height wall already hides (the walls of the area itself), for the review.
    */
   private stepOpeningRims(): void {
-    const g4 = generatorAtLeast(this.plan, 4);
+    const low = this.gen.lowOpeningRims;
     for (const fo of this.floorOpenings) {
       const set = new Set(fo.cells);
       for (const i of fo.cells) {
@@ -2104,7 +2102,7 @@ export class LevelWork {
             continue;
           }
           if (k === EDGE.OPENING || k === EDGE.STAIR) continue;
-          if (g4 && fo.kind === "collapse" && !fo.rimCells.includes(j)) fo.rimCells.push(j);
+          if (low && fo.kind === "collapse" && !fo.rimCells.includes(j)) fo.rimCells.push(j);
           if (fo.rim === "none") continue;
           // a broken rim has gaps: where people walk to the edge, and rubble spilled over it
           if (fo.kind === "collapse" && h32(`${fo.seed}:rim:${x}:${y}:${side}`) / 4294967296 < 0.4) continue;
@@ -2112,7 +2110,7 @@ export class LevelWork {
           ed.e.style[ed.i] = fo.rim;
           ed.e.height[ed.i] = RAILING_HEIGHT;
           // generator 4: a rim piece that stands taller than a railing (a wall style a model asked for) hides the hole
-          if (g4 && !isLowWallStyle(fo.rim)) fo.hiddenEdge++;
+          if (low && !isLowWallStyle(fo.rim)) fo.hiddenEdge++;
           // the rim stands on the floor beside the hole: host on that cell (first = N/W cell of the edge)
           ed.e.hostSet[ed.i] = side === "N" || side === "W" ? 0 : 1;
         }
@@ -2159,7 +2157,7 @@ export class LevelWork {
         );
       }
       if (fo.rubble) below.rubbleUnder.push({ id: fo.id, cells: xy, seed: fo.seed });
-      if (fo.rubble && generatorAtLeast(this.plan, 4)) below.moundUnder(xy, fo.seed);
+      if (fo.rubble && this.gen.rubbleMounds) below.moundUnder(xy, fo.seed);
     }
   }
 
@@ -2198,7 +2196,7 @@ export class LevelWork {
    * tile, never blocking) on most rim cells, thinning one cell further back. The hole itself stays open.
    */
   private stepOpeningRimDebris(): void {
-    if (!generatorAtLeast(this.plan, 4)) return;
+    if (!this.gen.lowOpeningRims) return;
     for (const fo of this.floorOpenings) {
       if (fo.kind !== "collapse" || fo.rim !== "none" || fo.rimCells.length === 0) continue;
       const holes = new Set(fo.cells);
@@ -2246,7 +2244,7 @@ export class LevelWork {
    * in a corridor. Never on a link, steps, a doorway cell, a cell that holds a feature, or a collapse rim.
    */
   private stepWallFootRubble(): void {
-    if (!generatorAtLeast(this.plan, 4) || this.level.base.type !== "solid" || this.structs) return;
+    if (!this.gen.wallFootRubble || this.level.base.type !== "solid" || this.structs) return;
     const seed = elementSeed(this.plan.seed, `${this.level.id}~footrubble`, undefined);
     const u = (k: string, i: number): number => h32(`${seed}:${k}:${i}`) / 4294967296;
     const roughSide = (x: number, y: number, s: Side): boolean => {
@@ -2414,8 +2412,8 @@ export class LevelWork {
    * frontage. Footprints, porches, stair and link cells and anything higher than the pavement (a plinth) keep theirs.
    */
   private stepPavementFronts(): void {
-    if (this.plan.generator < 2 || !this.structs) return;
-    type Road = (typeof this.pendingRoads)[number];
+    if (!this.gen.roads || !this.structs) return;
+    type Road =(typeof this.pendingRoads)[number];
     const owner = new Map<number, Road>();
     for (const r of this.pendingRoads) for (const p of r.pave) owner.set(p.i, r);
     if (owner.size === 0) return;
@@ -2470,7 +2468,7 @@ export class LevelWork {
 
   /** Lays the pavements of this layer's roads: beside the carriageway, never on any road's carriageway or a building. */
   private stepPavements(layer: "under" | "over"): void {
-    if (this.plan.generator < 2) return;
+    if (!this.gen.roads) return;
     const carriage = new Set<number>();
     for (const r of this.pendingRoads) for (const i of r.cells) carriage.add(i);
     const paved = new Set<number>();
@@ -2694,7 +2692,7 @@ export class LevelWork {
           if (Math.abs((this.height[j] as number) - (this.height[i] as number)) > 1) continue;
           const ed = this.sideEdge(x, y, side);
           if (!ed || ed.e.kind[ed.i] !== EDGE.NONE) continue;
-          if (this.plan.generator >= 2 && k.natural) {
+          if (this.gen.naturalPaths && k.natural) {
             // broken runs (about 40% of the edge), none at junctions or where the path meets what it joins
             if (nearAnchor(x, y)) continue;
             const off = side === "N" ? 0.3 : side === "S" ? 0.6 : side === "E" ? 0.9 : 0.1;
@@ -2703,7 +2701,7 @@ export class LevelWork {
           this.kerbs.push({ at: [x, y], side, material: k.material });
         }
       }
-      if (this.plan.generator >= 2 && k.natural) {
+      if (this.gen.naturalPaths && k.natural) {
         // never both sides of the same cell (that reads as a rail); keep the one on the noisier side
         const added = this.kerbs.splice(before);
         const byCell = new Map<string, Array<(typeof added)[number]>>();
@@ -3603,7 +3601,7 @@ export class LevelWork {
    */
   private placeable(i: number): boolean {
     if (!this.isFloor(i)) return false;
-    if (this.plan.generator < 2) return true;
+    if (!this.gen.scatterKeepsClear) return true;
     if (this.structs?.reservedCell(i)) return false;
     if ((this.flags[i] as number) & (CELL_FLAG.BRIDGE | CELL_FLAG.STEPS)) return false;
     // keep the approach to bridges and stairs clear: no generated props on a cell beside a deck or a flight
@@ -3646,21 +3644,25 @@ export class LevelWork {
       vehicle: (x, y) => this.vehicleCells.has(this.idx(x, y)),
       keepClear: (x, y) => this.crossingClear().has(this.idx(x, y)),
       // generator 2: rock ramp cells (no path flag) stay clear of the band and other dressing
-      ramp: (x, y) => this.plan.generator >= 2 && this.rampCells().has(this.idx(x, y)),
+      ramp: (x, y) => this.gen.ramps && this.rampCells().has(this.idx(x, y)),
       generator: this.plan.generator,
-      // generator 2: the band's pieces at their real size; undefined where the theme has no such piece (no band)
-      ...(this.plan.generator >= 2
+      // the band's pieces at their real size; undefined where the theme has no such piece (no band)
+      ...(this.gen.realPieceSizes
         ? { pieceSize: (t: FeatureType) => this.ctx.palette.pieceSize(this.levelTheme, t) }
         : {}),
-      // generator 3: the real outline of those pieces, and the cells off the board (void or outside the bounds)
-      ...(generatorAtLeast(this.plan, 3)
+      // the real outline of those pieces, and the cells off the board (void or outside the bounds)
+      ...(this.gen.realPieceOutlines
         ? {
             pieceExtent: (t: FeatureType) => this.ctx.palette.pieceSize(this.levelTheme, t, true),
             void: (x: number, y: number) => {
               const i = this.idx(x, y);
               return i < 0 || this.state[i] === CELL.VOID;
             },
-            // the board's water plane in tiles above the level floor (the scale of `height`): dressing sinks stones to it
+          }
+        : {}),
+      // the board's water plane in tiles above the level floor (the scale of `height`): dressing sinks stones to it
+      ...(this.gen.waterBody
+        ? {
             waterSurface: () => {
               const s = this.waterSurface(false);
               return s === null ? undefined : s - this.level.elevation - 0.5;
@@ -3670,12 +3672,12 @@ export class LevelWork {
       // floor height in tiles: set pieces put focal pieces on high ground and keep big pieces off height steps
       height: (x, y) => {
         const i = this.idx(x, y);
-        // generator 3: a void cell (cut away by the outline) keeps a stale height; the ground there is the base plane
-        if (i < 0 || (this.state[i] === CELL.VOID && generatorAtLeast(this.plan, 3))) return 0;
+        // a void cell (cut away by the outline) keeps a stale height; the ground there is the base plane
+        if (i < 0 || (this.state[i] === CELL.VOID && this.gen.voidIsBasePlane)) return 0;
         return (this.height[i] as number) / 4;
       },
-      // generator 4: what the room recipes need (gen/rooms4.ts)
-      ...(generatorAtLeast(this.plan, 4)
+      // what the room recipes need (gen/rooms4.ts)
+      ...(this.gen.roomRecipes
         ? {
             piece4: (t: FeatureType, v?: string) => this.ctx.palette.roomPiece(this.levelTheme, t, v),
             wallHosted: (x: number, y: number, s: Side) => {
@@ -3750,7 +3752,7 @@ export class LevelWork {
 
   private featureBase(i: number, lift: number): number {
     const h =
-      i >= 0 && !(this.state[i] === CELL.VOID && generatorAtLeast(this.plan, 3))
+      i >= 0 && !(this.state[i] === CELL.VOID && this.gen.voidIsBasePlane)
         ? (this.height[i] as number) / 4
         : 0;
     return this.level.elevation + BUILD_CONSTANTS.floorThickness + h + lift;
@@ -3837,7 +3839,7 @@ export class LevelWork {
     this.stepOpeningRimDebris();
     // generator 4: rooms the plan left bare are dressed from their purpose, and every room is lit. Before the loose
     // rubble and the scatters, so those fill what the furniture leaves and never take a wall run from it.
-    if (generatorAtLeast(this.plan, 4) && this.level.roomDress !== false) this.stepRoomRecipes();
+    if (this.gen.roomRecipes && this.level.roomDress !== false) this.stepRoomRecipes();
     this.stepWallFootRubble();
     this.stepGeneratedFeatures();
   }
@@ -3971,7 +3973,7 @@ export class LevelWork {
   private stepMarket(): void {
     const stallRows = this.level.stalls ?? [];
     const lineList = this.level.lines ?? [];
-    if (!generatorAtLeast(this.plan, 3)) {
+    if (!this.gen.stallsAndLines) {
       if (stallRows.length + lineList.length > 0)
         this.issue("warning", "no_effect", `stalls and lines need generator 3; this plan is generator ${this.plan.generator}`, {
           hint: 'set "generator": 3 on the plan',
@@ -4012,7 +4014,7 @@ export class LevelWork {
       if (f.type === "stall" && f.generatedBy === undefined) putGoods(f.id, { at: [f.at[0], f.at[1]], size: [f.size[0], f.size[1]] }, f.variant ?? "empty");
     }
     // generator 4: covered stalls when the theme's palette has the parts (else the table stall of generator 3)
-    const forms = generatorAtLeast(this.plan, 4) ? this.ctx.palette.stallForms(this.levelTheme) : [];
+    const forms = this.gen.coveredStalls ? this.ctx.palette.stallForms(this.levelTheme) : [];
     stallRows.forEach((row, k) => {
       let placed;
       if (forms.length > 0) {
@@ -4132,7 +4134,7 @@ export class LevelWork {
       return;
     }
     // generator 4: a covered stall's canopy rises above a rope's height; the line runs along the aisle, not through it
-    if (generatorAtLeast(this.plan, 4))
+    if (this.gen.coveredStalls)
       for (let a = aLo.at + 1; a < aHi.at; a++) {
         const [cx, cy] = cellAt(a);
         if (
@@ -4287,7 +4289,7 @@ export class LevelWork {
     at: Vec2,
     size: readonly [number, number],
   ): { at: Vec2; size: [number, number] } | null {
-    if (this.plan.generator < 2 || this.roads.length === 0) return null;
+    if (!this.gen.roads || this.roads.length === 0) return null;
     const k = (x: number, y: number): string => `${x},${y}`;
     const cw = new Set<string>();
     const pave = new Set<string>();
@@ -4366,7 +4368,7 @@ export class LevelWork {
       let wall = info.wallMounted ? (f.wall ?? "N") : f.wall;
       // generator 3: a wall-mounted piece asked for a cell or side without a wall snaps to the nearest wall face within
       // one cell (same side first, then the other sides), instead of failing
-      if (info.wallMounted && generatorAtLeast(this.plan, 3) && this.featureProblem(f.type, f.at, size, wall) !== null) {
+      if (info.wallMounted && this.gen.wallMountSnap && this.featureProblem(f.type, f.at, size, wall) !== null) {
         let snapped: { at: Vec2; wall: Side } | null = null;
         const sides: Side[] = [wall as Side, "N", "E", "S", "W"].filter((s, n, a) => a.indexOf(s) === n) as Side[];
         const offs: Array<[number, number]> = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
@@ -4439,7 +4441,7 @@ export class LevelWork {
         // generator 2: a generated piece may stand above (or sink below) the floor, e.g. a second course of rock
         baseHeight: this.featureBase(
           anchor,
-          this.plan.generator >= 2 ? ((p as { lift?: number }).lift ?? 0) : 0,
+          this.gen.featureLift ? ((p as { lift?: number }).lift ?? 0) : 0,
         ),
         theme: this.themes[anchor >= 0 ? (this.theme[anchor] as number) : 0] ?? this.levelTheme,
         blocking: info.blocking,
@@ -4447,11 +4449,11 @@ export class LevelWork {
       if (p.wall !== undefined) rf.wall = p.wall;
       if (p.variant !== undefined) rf.variant = p.variant;
       // generator 3: a sub-cell shift (each axis within half a tile)
-      if (p.offset !== undefined && generatorAtLeast(this.plan, 3))
+      if (p.offset !== undefined && this.gen.subCellOffsets)
         rf.offset = [Math.max(-0.5, Math.min(0.5, p.offset[0])), Math.max(-0.5, Math.min(0.5, p.offset[1]))];
       // generator 3: a furnishing set against a wall stands clear of it (a preset's bed, coffin or brazier is a little
       // wider than its cell and would sink into the wall, verify_prop_in_wall): shifted 0.45 tile off each wall it touches
-      if (generatorAtLeast(this.plan, 3) && rf.offset === undefined && !info.wallMounted && !info.organic && info.blocking) {
+      if (this.gen.furnitureOffWalls && rf.offset === undefined && !info.wallMounted && !info.organic && info.blocking) {
         const [x0, y0] = p.at;
         const [x1, y1] = [p.at[0] + p.size[0] - 1, p.at[1] + p.size[1] - 1];
         let ox = 0;
@@ -4647,7 +4649,7 @@ export class LevelWork {
    */
   private stepOutline(): void {
     const base = this.level.base;
-    if (this.plan.generator < 2 || base.type !== "ground" || this.level.outline === "rect") return;
+    if (!this.gen.naturalLevelOutline || base.type !== "ground" || this.level.outline === "rect") return;
     if (!NATURAL_PATH.has(base.material)) return;
     if (this.pendingRoads.length > 0) return;
     if (
@@ -4697,7 +4699,7 @@ export class LevelWork {
    * within 3 cells. The spur is a 1-cell winding trail of the same material.
    */
   private stepPathSpurs(): void {
-    if (this.plan.generator < 2) return;
+    if (!this.gen.naturalPaths) return;
     const trails = this.level.terrain.filter(
       (t): t is Extract<TerrainOp, { op: "path" }> =>
         t.op === "path" &&
@@ -4719,7 +4721,7 @@ export class LevelWork {
       targets.push({
         id: focal.id,
         at: focal.at,
-        ...(generatorAtLeast(this.plan, 3) ? { exact: true } : {}),
+        ...(this.gen.spursReachTargets ? { exact: true } : {}),
       });
     for (const st of this.level.structures ?? []) {
       if (st.kind === "enclosure") continue;
@@ -4733,7 +4735,7 @@ export class LevelWork {
           : undefined);
       if (!w0) continue;
       // generator 3: the trail ends at the cell outside the building's door
-      const doorOpening = generatorAtLeast(this.plan, 3)
+      const doorOpening = this.gen.spursReachTargets
         ? this.level.openings.find(
             (o) =>
               o.id.startsWith(`${st.id}~`) &&
@@ -4870,7 +4872,7 @@ export class LevelWork {
       const path = `/levels/${this.li}/terrain/${k}`;
       if (op.area === undefined || op.area === this.level.id) {
         // generator 2: the whole level, region by region (the open ground outside areas, then each zone)
-        if (this.plan.generator >= 2) this.dressWholeLevel(op, path, grid, cap, capWarn);
+        if (this.gen.dressWholeLevel) this.dressWholeLevel(op, path, grid, cap, capWarn);
         continue;
       }
       const ai = this.areaIndexById.get(op.area);
@@ -4926,8 +4928,8 @@ export class LevelWork {
         seed: elementSeed(this.plan.seed, op.id, op.seed),
         remaining: cap - this.generated,
         // generator 2: natural pieces scatter in drifts and clumps, never an even lattice
-        drift: this.plan.generator >= 2 && info.organic,
-        supported: this.plan.generator >= 2,
+        drift: this.gen.naturalScatter && info.organic,
+        supported: this.gen.naturalScatter,
       };
       const res = scatterFeatures(grid, op.variants ? { ...params, variants: op.variants } : params);
       this.commitGenerated(op.id, res.placements);
@@ -4950,7 +4952,7 @@ export class LevelWork {
    * `defaultCliffBands`; nothing where the theme has no formation roles). `cliffBands: false` on the level turns it off.
    */
   private stepDefaultCliffBands(grid: PlacementGrid, cap: number): void {
-    if (!generatorAtLeast(this.plan, 3) || this.level.cliffBands === false) return;
+    if (!this.gen.defaultCliffBands || this.level.cliffBands === false) return;
     const base = this.level.base;
     if (base.type !== "ground" || !NATURAL_PATH.has(base.material)) return;
     if ((this.level.structures ?? []).some((st) => st.kind !== "enclosure")) return;
@@ -5106,7 +5108,7 @@ export class LevelWork {
       if (info.area.notes !== undefined) ra.notes = info.area.notes;
       if (info.area.labelAt !== undefined) ra.labelAt = [info.area.labelAt[0], info.area.labelAt[1]];
       // generator 4: the area's one classification, for the compiler and the review (they never parse words)
-      if (generatorAtLeast(this.plan, 4)) {
+      if (this.gen.roomClassification) {
         if (info.room.purpose !== undefined) ra.purpose = info.room.purpose;
         if (info.room.abandoned) ra.abandoned = true;
         ra.finish = info.rough ? "rough" : "tidy";
@@ -5148,34 +5150,34 @@ export class LevelWork {
     if (this.kerbs.length > 0) lvl.kerbs = this.kerbs;
     if (this.roads.length > 0) lvl.roads = this.roads;
     if (this.ramps.length > 0) lvl.ramps = this.ramps;
-    if (this.plan.generator >= 2) {
+    if (this.gen.cliffRockBand) {
       const cliffs = cliffRuns(lvl);
       if (cliffs.length > 0) lvl.cliffs = cliffs;
     }
-    if (this.plan.generator >= 2) {
+    if (this.gen.foundation) {
       lvl.foundation = this.level.foundation ?? (this.level.base.type === "ground" ? 2 : 0);
       const wl = this.waterSurface();
       if (wl !== null) lvl.waterLevel = wl;
     }
-    if (generatorAtLeast(this.plan, 3)) {
-      if (this.floorOpenings.length > 0)
-        lvl.floorOpenings = this.floorOpenings.map((fo) => ({
-          id: fo.id,
-          kind: fo.kind,
-          cells: fo.cells.map((i) => this.cellXY(i) as Vec2),
-          ...(fo.below !== undefined ? { below: fo.below } : {}),
-          floorBelow: fo.floorBelow,
-          hiddenEdge: fo.hiddenEdge,
-          edgeCells: fo.edgeCells,
-        }));
+    if (this.gen.floorOpenings && this.floorOpenings.length > 0)
+      lvl.floorOpenings = this.floorOpenings.map((fo) => ({
+        id: fo.id,
+        kind: fo.kind,
+        cells: fo.cells.map((i) => this.cellXY(i) as Vec2),
+        ...(fo.below !== undefined ? { below: fo.below } : {}),
+        floorBelow: fo.floorBelow,
+        hiddenEdge: fo.hiddenEdge,
+        edgeCells: fo.edgeCells,
+      }));
+    if (this.gen.wanderingChannels) {
       if (this.channels.length > 0) lvl.channels = this.channels;
       if (this.falls.length > 0) lvl.falls = this.falls;
       if (this.waterRange !== null) lvl.waterRange = this.waterRange;
     }
     if (this.resolvedLines.length > 0) lvl.lines = this.resolvedLines;
     if (this.structs) Object.assign(lvl, this.structs.finish(this.level.elevation));
-    // generator 4: the walls of a built interior vary in height (resolve/wallTops.ts)
-    if (generatorAtLeast(this.plan, 4) && this.level.base.type === "solid") {
+    // the walls of a built interior vary in height (resolve/wallTops.ts)
+    if (this.gen.interiorWallTops && this.level.base.type === "solid") {
       if (!this.structs) roughWallTops(lvl, String(elementSeed(this.plan.seed, `${this.level.id}~walltops`, undefined)));
       // stepRoomFloors raises rooms in every solid-based level: the walls beside them are shortened by the step
       settleWallHeights(lvl);
@@ -5222,13 +5224,13 @@ export class LevelWork {
     const surface = Number.isFinite(bank) ? Math.max(bed + 0.25, bank - 0.5) : bed + 0.25;
     let low: number | null = null;
     let lowCount = 0;
-    const g3 = generatorAtLeast(this.plan, 3);
+    const checks = this.gen.waterLevelChecks;
     for (let i = 0; i < this.n; i++) {
       if (!this.isFloor(i) || (this.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.BRIDGE)) continue;
       if (top(i) < surface) {
         // generator 3: a trail cell on a channel's bed beside water is a ford; it is meant to be wet
         if (
-          g3 &&
+          checks &&
           ((this.flags[i] as number) & CELL_FLAG.PATH) !== 0 &&
           this.nearWater(i, 2)
         )
@@ -5239,7 +5241,7 @@ export class LevelWork {
     }
     // generator 3: water cells above the plane stay dry in game (the upper reaches of a stepped river): the slab cannot
     // carry a second water level and the palettes have no piece that reads as water, so say so
-    if (g3) {
+    if (checks) {
       let dry = 0;
       let first: number | null = null;
       for (const i of this.upperReach) {

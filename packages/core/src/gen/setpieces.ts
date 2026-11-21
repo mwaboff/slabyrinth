@@ -25,6 +25,7 @@ import { cliffBand, riseUnits, type BandResult } from "./cliffband";
 import { featureInfo, LIGHT_FEATURES } from "./catalog";
 import {
   footprintCrossesWall,
+  gridProfile,
   type GeneratedPlacement,
   type PlacementGrid,
   type ScatterResult,
@@ -74,7 +75,7 @@ export interface Part {
    * such support piece. Below generator 3 the part stands at its own dx, dy as before.
    */
   on?: number;
-  /** Generator 3 only: the part does not exist at earlier generators (their output is frozen). */
+  /** A part that exists only where the generator puts things on things (`supportedParts`, from generator 3). */
   gen3?: boolean;
 }
 
@@ -1477,12 +1478,12 @@ export interface DefaultBandParams {
 }
 
 /**
- * The default rock band of a natural region at generator 3 (grid.generator >= 3; nothing at 2): a face of rock on
+ * The default rock band of a natural region (`defaultCliffBands`, from generator 3; nothing before): a face of rock on
  * every rise of 2 tiles or more in the region, however the model dressed it. Themes without the formation roles get
  * nothing (grid.pieceSize says so). The caller decides which regions are natural and open-air and honours any opt-out.
  */
 export function defaultCliffBands(grid: PlacementGrid, prm: DefaultBandParams): ScatterResult {
-  if ((grid.generator ?? 2) < 3) return { placements: [], capped: false };
+  if (!gridProfile(grid).defaultCliffBands) return { placements: [], capped: false };
   return composeArea(
     grid,
     { preset: "natural_clusters", density: 0, ...prm, seed: subSeed(prm.seed, "defaultband") },
@@ -1497,7 +1498,7 @@ export function composeArea(
 ): ScatterResult {
   const def = defOverride ?? SET_PIECES[prm.preset];
   const rng = createPrng(subSeed(prm.seed, `compose:${prm.preset}`));
-  const isG3 = (grid.generator ?? 2) >= 3;
+  const gen = gridProfile(grid);
   const inArea =(x: number, y: number): boolean =>
     grid.inBounds(x, y) && grid.area(x, y) === prm.areaIndex && grid.isFloor(x, y);
   const cells = prm.areaCells.filter(([x, y]) => inArea(x, y)).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
@@ -1865,12 +1866,12 @@ export function composeArea(
     const byPart = new Map<number, Planned>();
     for (let i = 0; i < g.parts.length; i++) {
       // generator 3 parts do not exist (and draw nothing) at earlier generators
-      if ((g.parts[i] as Part).gen3 === true && !isG3) continue;
+      if ((g.parts[i] as Part).gen3 === true && !gen.supportedParts) continue;
       // optional pieces drop out at random so repeated groups never look stamped
       if (i > 0 && keepOptional < 1 && (g.parts[i] as Part).required !== true && !rng.chance(keepOptional))
         continue;
       const part = g.parts[i] as Part;
-      if (isG3 && part.on !== undefined) {
+      if (gen.supportedParts && part.on !== undefined) {
         const sup = byPart.get(part.on);
         const ext = sup ? grid.pieceExtent?.(sup.placement.type) : undefined;
         if (!sup || !ext) continue;
@@ -1962,7 +1963,7 @@ export function composeArea(
   //    the lip; then growth that follows the rock: roots at the lip, shrubs on and behind the crest, a tree or a
   //    broken trunk a cell or two behind it ──
   if (def.cladLedges === true && !st.capped) {
-    const levelBand = (grid.generator ?? 2) >= 3 && def.bandOnly !== true;
+    const levelBand = gen.defaultCliffBands && def.bandOnly !== true;
     const band: BandResult = levelBand
       ? {
           placements: [],
@@ -2323,7 +2324,7 @@ export function composeArea(
   const groups = def.groups
     .filter(([g]) => (g.anchor !== "open" || big) && (g.anchor !== "ledge_low" || ledgeLow.length > 0))
     .filter(([g]) => g.anchor !== "ledge_high" || ledgeHigh.length > 0)
-    .filter(([g]) => g.anchor !== "water_edge" || (waterCands.length > 0 && !isG3))
+    .filter(([g]) => g.anchor !== "water_edge" || (waterCands.length > 0 && !gen.waterBody))
     .filter(([g]) => g.anchor !== "path_edge" || pathCands.length > 0)
     .map(([g, w]) => ({ g, w, used: 0 }));
   // large natural areas need many stands of trees and rocks, not three
@@ -2533,7 +2534,7 @@ export function composeArea(
   }
   // ── 3b. generator 3: a landmark is lit: a floor light a cell or two off its footprint when none stands within four
   //    cells (the review's focal_unlit check; the lights of a lit place stand at the focal points, not only at walls) ──
-  if ((grid.generator ?? 2) >= 3) {
+  if (gen.litLandmarks) {
     const FOCAL_LIT = new Set<FeatureType>(["landmark", "statue", "statue_large", "altar", "fountain", "well", "monolith", "standing_stone", "tall_marker", "throne"]);
     for (const f of out.filter((q) => FOCAL_LIT.has(q.type))) {
       if (st.capped) break;
@@ -2623,7 +2624,7 @@ export function composeArea(
           return grid.inBounds(nx, ny) && grid.isFloor(nx, ny) && (grid.flags(nx, ny) & FLAG_WATER) === 0;
         });
         // (generator 3 dresses the water as one body: gen/water.ts)
-        if (atBank && rng.chance(0.35) && !isG3) {
+        if (atBank && rng.chance(0.35) && !gen.waterBody) {
           taken.add(k);
           takenOrg.add(k);
           anchorsOrg.add(k);
@@ -2633,7 +2634,7 @@ export function composeArea(
       }
       if ((fl & (FLAG_LINK | FLAG_PATH)) !== 0) continue;
       // generator 3: broader drifts (about 7 cells), so the bare ground between them is wide
-      const patch = isG3 ? field.sample(x / 6.5, y / 7.5) : field.sample(x / 3.3, y / 4.7);
+      const patch = gen.causedGroundCover ? field.sample(x / 6.5, y / 7.5) : field.sample(x / 3.3, y / 4.7);
       const r = rng.next();
       const t = types[rng.int(types.length)] as FeatureType;
       // beside trees, rocks and paths the ground cover thickens (tree feet, verges)
@@ -2650,7 +2651,7 @@ export function composeArea(
       // patch, a thicker sowing inside it, and nothing at its feathered edge
       // and tied to a cause: damp ground by a rift or water, a camp, a tree; far from any, only the odd tuft
       let tied = false;
-      if (isG3) {
+      if (gen.causedGroundCover) {
         tied = causes.some(([cx, cy]) => Math.hypot(cx - x, cy - y) <= 3.5);
         for (let dy = -3; dy <= 3 && !tied; dy++)
           for (let dx = -3; dx <= 3; dx++)
@@ -2659,7 +2660,7 @@ export function composeArea(
               break;
             }
       }
-      const pr = isG3
+      const pr = gen.causedGroundCover
         ? 0.4 * def.groundCover * (patch > 0.64 ? 3.6 : patch > 0.58 ? 1.0 : 0) * (1 + near * 0.6) * (tied ? 1.6 : 0.15)
         : 0.4 * def.groundCover * (patch > 0.55 ? 2.2 : patch > 0.45 ? 0.6 : 0) * (1 + near * 0.6);
       if (r >= pr) continue;
@@ -2697,7 +2698,7 @@ export function composeArea(
     }
   }
   // ── 6. generator 3: the water is dressed as one body (sunk boulders, shallows plants, shore rock, stepping stones) ──
-  if (isG3 && !st.capped) {
+  if (gen.waterBody && !st.capped) {
     const wd = dressWater(grid, {
       cells,
       inArea,

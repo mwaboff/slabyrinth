@@ -16,7 +16,7 @@ import { CELL, type ResolvedLevel, type ResolvedPlan } from "../contracts/resolv
 import { placementBox, rotateXZ } from "../compile/geometry";
 import { hasNaturalWallStyle } from "../gen/wallStyles";
 import { massDepth, massFoot } from "../gen/solidMass";
-import { generatorAtLeast } from "../plan/generator";
+import { generatorProfile } from "../plan/generator";
 import { loadOrientation } from "../palette/load";
 import type { DesignNote } from "./review";
 import type { ReviewBuild } from "./reviewBuild";
@@ -396,7 +396,7 @@ export function massPiecesOf(
       const cw = p.rot * orientation.rotSense;
       // generator 4: a fill column is a corner-origin block turned in quarter turns, which stays on its own cell
       // (compile/geometry.ts placementBox); turning it about its corner would put it on the neighbouring cell
-      if (role === "column" && resolved.generator >= 4 && g.geom.originAt === "minCorner") {
+      if (role === "column" && generatorProfile(resolved).solidCaveRock && g.geom.originAt === "minCorner") {
         const box = placementBox(g.geom, p.x, p.y, p.z, cw);
         const corner = (wx: number, wz: number): readonly [number, number] => [wx, orientation.flipZ ? hg - wz : wz];
         out.push({
@@ -468,7 +468,8 @@ export function caveMassNotes(
   set: PlacementSet,
   palettes: PaletteCatalog,
 ): DesignNote[] {
-  if (plan.generator < 3) return [];
+  const gen = generatorProfile(plan);
+  if (!gen.caveRockMass) return [];
   const out: DesignNote[] = [];
   for (const L of resolved.levels) {
     if (!hasNaturalWallStyle(L.wallStyles)) continue;
@@ -476,7 +477,7 @@ export function caveMassNotes(
     if (pieces.length === 0) continue;
     const m = massMeasures(massInputOf(L, pieces));
     out.push(...caveMassNotesOf(L.id, m));
-    if (generatorAtLeast(plan, 4)) out.push(...caveHollowNotesOf(L.id, m));
+    if (gen.naturalCaveReview) out.push(...caveHollowNotesOf(L.id, m));
   }
   return out;
 }
@@ -494,7 +495,7 @@ export function caveMassReviewNotes(
 ): DesignNote[] {
   if (
     !build.given &&
-    (!generatorAtLeast(plan, 4) || !resolved.levels.some((L) => hasNaturalWallStyle(L.wallStyles)))
+    (!generatorProfile(plan).naturalCaveReview || !resolved.levels.some((L) => hasNaturalWallStyle(L.wallStyles)))
   )
     return [];
   return caveMassNotes(plan, resolved, build.get(), palettes);

@@ -21,6 +21,7 @@ import {
   type ResolvedPlan,
 } from "../../contracts/resolved";
 import { createRoleResolver } from "../../palette/resolve";
+import { generatorProfile } from "../../plan/generator";
 import { stallParts } from "../../palette/stallParts";
 import { checkPlayability, walkReachability } from "../../resolve";
 import { placementBoxes, placementMeta, type RealizedSet } from "../realize";
@@ -404,7 +405,7 @@ export function verifyBuild(
             cx + dx >= L.bounds.x + L.bounds.w ||
             cy + dy < L.bounds.y ||
             cy + dy >= L.bounds.y + L.bounds.h;
-          if (!covered && resolved.generator >= 3 && mount === "full-cell" && here.open && onBoardEdge) continue;
+          if (!covered && generatorProfile(resolved).boardEdgeExits && mount === "full-cell" && here.open && onBoardEdge) continue;
           if (!covered) {
             gaps++;
             firstGap ??= {
@@ -453,7 +454,7 @@ export function verifyBuild(
   // fill behind it) must be covered by band rock, or the void behind it shows ──
   for (const L of levels) {
     const runs = L.cliffs ?? [];
-    if (resolved.generator < 2 || runs.length === 0) continue;
+    if (!generatorProfile(resolved).cliffRockBand || runs.length === 0) continue;
     const rocks = L.features.filter((f) => f.type === "cliff_face" || f.type === "cliff_crest");
     const placed = set.levels.find((s) => s.levelId === L.id)?.placements ?? [];
     const blocks = new Set(
@@ -500,7 +501,7 @@ export function verifyBuild(
   }
 
   // ── (6a) covered stalls (generator 4) the palettes cannot build: the same question the resolver asked (palette/stallParts.ts) ──
-  if (resolved.generator >= 4)
+  if (generatorProfile(resolved).coveredStalls)
     for (const L of levels) {
       for (const f of L.features) {
         if (!f.stall) continue;
@@ -896,8 +897,8 @@ export function verifyBuild(
       }
       // generator 4: every step of the run, not only the last: each cell's top stands above the one behind it by no
       // more than a step (1 tile), so no gap or drop breaks the climb (a missing piece, a step of another height)
-      if (resolved.generator >= 4) {
-        const topAt = (c: readonly [number, number]): number => {
+      if (generatorProfile(resolved).everyStepVerified) {
+        const topAt =(c: readonly [number, number]): number => {
           const pc = w(c[0] + 0.5, c[1] + 0.5);
           return Math.max(
             -Infinity,
@@ -1159,7 +1160,7 @@ export function verifyBuild(
       const f = featureById.get(`${L.id}|${s.p.source.elementId ?? ""}`);
       // generator 3: the rock band skirts the board's edge from the base plane, partly outside the level and over no floor
       // by design (cliffband.ts checks every piece rests on something)
-      if (resolved.generator >= 3 && (f?.type === "cliff_face" || f?.type === "cliff_crest")) continue;
+      if (generatorProfile(resolved).restingCliffBand && (f?.type === "cliff_face" || f?.type === "cliff_crest")) continue;
       const cx = (s.box.min.x + s.box.max.x) / 2;
       const cz = (s.box.min.z + s.box.max.z) / 2;
       const pc = index.toPlan(cx, cz);

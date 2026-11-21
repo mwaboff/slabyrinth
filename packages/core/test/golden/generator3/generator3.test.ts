@@ -9,8 +9,8 @@
  * dp-1.2.0, tools-1.8.0) are pinned in test/unit/agent/tools.test.ts.
  *
  * If this test fails you changed what generator 3 produces. Do not update the golden, and never touch the
- * generator-2 golden either. Open generator 4 first (add 4 to GENERATOR_VERSIONS in src/contracts/plan.ts, make new
- * plans default to it) and put the change behind `generatorAtLeast(plan, 4)` (src/plan/generator.ts).
+ * generator-2 golden either. Put the change behind a switch of the open generator's profile (src/plan/generator.ts),
+ * off in the released profiles.
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";

@@ -16,6 +16,7 @@ import type { FeatureType, Material, MapPlan, ThemeId } from "../contracts/plan"
 import { GENERATOR_VERSION } from "../contracts/plan";
 import type { StallForm, ThemeInterior } from "../contracts/resolved";
 import { featureRoles } from "../gen/surfaces";
+import { generatorProfile } from "../plan/generator";
 import { loadPalettes } from "./load";
 import { createRoleResolver, themeChain, type VariantFilter } from "./resolve";
 import { coveredStallForms, type RoleProbe } from "./stallParts";
@@ -176,5 +177,5 @@ export function bundledPaletteView(): PaletteView {
  * build it. Older generators keep the bundled view (their output is frozen).
  */
 export function paletteOptionsFor(plan: Pick<MapPlan, "generator">, catalog: PaletteCatalog): { palette?: PaletteView } {
-  return plan.generator >= 4 ? { palette: createPaletteView(catalog) } : {};
+  return generatorProfile(plan).resolveWithCompilePalettes ? { palette: createPaletteView(catalog) } : {};
 }

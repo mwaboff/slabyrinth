@@ -22,7 +22,7 @@ import type { ResolvedArea, ResolvedLevel, ResolvedPlan } from "../contracts/res
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { LIGHT_FEATURES, featureInfo } from "../gen/catalog";
 import { type RoomClass, classifyRoom } from "../gen/roomPurpose";
-import { generatorAtLeast } from "../plan/generator";
+import { generatorProfile } from "../plan/generator";
 import type { DesignNote } from "./review";
 import { REVIEW } from "./thresholds";
 
@@ -150,13 +150,15 @@ const rank = (weight: number, n: number): number => weight * Math.min(3, 0.8 + n
 /** The interior notes of a map: bare, alike, unlit and adrift rooms. */
 export function interiorNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[] {
   const T = REVIEW.interiors;
-  const g4 = generatorAtLeast(plan, 4);
-  // generators 1-3 resolve no classification: read the plan's area with the same classifier the resolver uses
+  const gen = generatorProfile(plan);
+  // a generator that resolves no classification: read the plan's area with the same classifier the resolver uses
   const planClass = (levelId: string) => {
     const byId = new Map<string, Area>((plan.levels.find((l) => l.id === levelId)?.areas ?? []).map((a) => [a.id, a]));
     return (a: ResolvedArea): RoomClass => classifyRoom(byId.get(a.id) ?? a);
   };
-  const rooms = resolved.levels.flatMap((L) => roomStats(L, g4 ? resolvedRoomClass : planClass(L.id)));
+  const rooms = resolved.levels.flatMap((L) =>
+    roomStats(L, gen.roomClassification ? resolvedRoomClass : planClass(L.id)),
+  );
   if (rooms.length === 0) return [];
   const out: DesignNote[] = [];
   const density = (r: RoomStat): number => (r.props * 10) / r.floor;
@@ -172,7 +174,7 @@ export function interiorNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote
       cell: (bare[0] as RoomStat).cell,
       elementIds: bare.slice(0, 6).map((r) => r.id),
       message: `${bare.length} of ${rooms.length} rooms read bare (under ${T.bareDensity} props per 10 floor tiles) while other rooms are dressed: ${names(bare)}`,
-      action: g4
+      action: gen.roomRecipes
         ? "name each room for what it is (Kitchen, Guard room, Library, Store room, Bedroom, Armoury, Shrine, Washroom) so the generator dresses it, or give it a dress op with the matching preset; keep a crypt or cells sparse on purpose"
         : "give each bare room a dress op with the preset of its purpose, or furnish it with features along its walls; keep a crypt or cells sparse on purpose",
     });
@@ -203,7 +205,7 @@ export function interiorNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote
       cell: (unlit[0] as RoomStat).cell,
       elementIds: unlit.slice(0, 6).map((r) => r.id),
       message: `${unlit.length} of ${rooms.length} rooms have no light inside or on their walls: ${names(unlit)}`,
-      action: g4
+      action: gen.roomRecipes
         ? "light every room that is lived in: candles on its table, a lantern on a chest, wall torches, a brazier in a big room (naming a room for its purpose lights it by itself); leave only crypts, cells and ruins dark"
         : "light every room that is lived in: candles on its table, a lantern on a chest, wall torches, a brazier in a big room; leave only crypts, cells and ruins dark",
     });

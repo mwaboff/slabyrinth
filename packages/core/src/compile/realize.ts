@@ -45,6 +45,7 @@ import { axisPosition } from "../resolve/road";
 import { roughCells } from "../resolve/wallTops";
 import { createFamilyPicker, familiesOfVariants, type FloorFamily } from "../resolve/floorFamilies";
 import { OBSERVED_TONES } from "../review/tones";
+import { generatorProfile } from "../plan/generator";
 
 /** Rock band (generator 2, themes with cliff.formation_face): rise that gets a band, and how far it reaches. */
 const BAND = { minRiseQ: 8, out: 2, back: 2 } as const;
@@ -285,6 +286,8 @@ export function realize(
   const seed = opts.seed ?? h32(resolved.planId);
   const hg = resolved.levels.reduce((m, l) => Math.max(m, l.bounds.y + l.bounds.h), 0);
   const frame = new WorldFrame(orientation, hg);
+  // what the plan's generator does (plan/generator.ts); palette roles carry their own first generator (minGenerator)
+  const gen = generatorProfile(resolved);
   const resolveRole = createRoleResolver(palettes, resolved.generator);
   const defaultTheme = Object.keys(palettes.palettes).includes("generic")
     ? "generic"
@@ -521,7 +524,7 @@ export function realize(
     }
     /** The cell's floor family: caused families only near their cause, with a feathered, noisy edge. */
     // generator 3: one dominant family, a tonally close second only in feathered patches with a cause
-    const pickFamily = resolved.generator >= 3 ? createFamilyPicker(L, seed) : null;
+    const pickFamily = gen.floorFamilies ? createFamilyPicker(L, seed) : null;
     const famAt = (fams: FloorFamily[], x: number, y: number): string => {
       if (pickFamily) return pickFamily(fams, x, y);
       const caused = fams.filter((q) => CAUSED_FAMILIES.has(q.name));
@@ -556,7 +559,7 @@ export function realize(
     // tone is not built (its drops get the plain block face), and the dressing rock near a cliff follows the tone
     const kindMemo = new Map<ThemeId, ReturnType<typeof cliffRockKinds>>();
     const cliffKinds = (theme: ThemeId): ReturnType<typeof cliffRockKinds> => {
-      if (resolved.generator < 3) return { face: true, crest: true };
+      if (!gen.cliffToneRule) return { face: true, crest: true };
       let k = kindMemo.get(theme);
       if (k === undefined) {
         const vs = (role: string): readonly ResolvedVariant[] =>
@@ -589,9 +592,9 @@ export function realize(
     /** Upper cells of a band edge the band left bare: they get a face block of one family. */
     const bandBare = new Set<string>();
     // generator 3: the rocks as they stand (real outline, turn, slide, vertical span), to test what hides a face
-    const g3 = resolved.generator >= 3;
+    const restingBand = gen.restingCliffBand;
     const rockShapes: RockShape[] = [];
-    if (g3) {
+    if (restingBand) {
       const extent = (
         theme: ThemeId,
         role: string,
@@ -621,10 +624,10 @@ export function realize(
         });
       }
     }
-    if (resolved.generator >= 2)
+    if (gen.cliffRockBand)
       for (const run of L.cliffs ?? [])
         for (const e of run.edges) {
-          if (e.high - e.low < (g3 ? 4 : BAND.minRiseQ)) continue;
+          if (e.high - e.low < (restingBand ? 4 : BAND.minRiseQ)) continue;
           const c0 = V.cell(e.at[0], e.at[1]);
           if (!hasBand(c0.theme)) continue;
           const [dx, dy] =
@@ -638,7 +641,7 @@ export function realize(
           const mx = e.at[0] + 0.5 + dx * 0.5;
           const my = e.at[1] + 0.5 + dy * 0.5;
           const base = L.elevation + 0.5;
-          const covered = g3
+          const covered = restingBand
             ? edgeHidden(
                 rockShapes,
                 mx,
@@ -725,10 +728,10 @@ export function realize(
           .sort((a, b) => b[0] * b[1] - a[0] * a[1] || b[0] - a[0]);
         // generator 3: a 1x2 piece may lie either way (turned a quarter), the way round chosen per cell from the seed, so
         // a field of them is not all one orientation
-        if (g3 && greedy)
+        if (gen.turnedFloorTiles && greedy)
           for (const [fw0, fh0] of [...fps])
             if (fw0 !== fh0 && !fps.some(([a, b]) => a === fh0 && b === fw0)) fps.push([fh0, fw0]);
-        if (g3 && greedy) {
+        if (gen.turnedFloorTiles && greedy) {
           const flip = h32(`${seed}:${L.id}:floororient:${x}:${y}`) % 2 === 1;
           fps.sort((a, b) => b[0] * b[1] - a[0] * a[1] || (flip ? a[0] - b[0] : b[0] - a[0]));
         }
@@ -753,7 +756,7 @@ export function realize(
               (u) =>
                 u.footprint[0] === a && u.footprint[1] === b && u.weight > 0 && (inFam(u) || (u.variant ?? "") === ""),
             );
-          const turned = g3 && fw !== fh && ownOf(fw, fh).length === 0 && ownOf(fh, fw).length > 0;
+          const turned = gen.turnedFloorTiles && fw !== fh && ownOf(fw, fh).length === 0 && ownOf(fh, fw).length > 0;
           const sized = res.variants.filter((u) =>
             turned ? u.footprint[0] === fh && u.footprint[1] === fw : u.footprint[0] === fw && u.footprint[1] === fh,
           );
@@ -914,7 +917,7 @@ export function realize(
     for (let i = 0; i < V.w * V.h; i++)
       if (L.cells.state[i] === CELL.OPEN) levelLowest = Math.min(levelLowest, (L.cells.height[i] ?? 0) / 4);
     for (const b of L.bridges ?? []) for (const q of b.under) levelLowest = Math.min(levelLowest, q / 4);
-    const outsideGround = resolved.generator >= 2 ? Math.min(levelLowest, -(L.foundation ?? 0)) : 0;
+    const outsideGround = gen.foundation ? Math.min(levelLowest, -(L.foundation ?? 0)) : 0;
     const groundOf = (x: number, y: number): number => {
       const g = groundUnder.get(`${x},${y}`);
       if (g !== undefined) return g;
@@ -941,7 +944,7 @@ export function realize(
         // slab, so nothing shows under it and no fill course is needed (a room raised a quarter tile over its corridor
         // costs no extra pieces); the board edge and open air beside it keep their fill
         if (
-          resolved.generator >= 4 &&
+          gen.flushRaisedFloors &&
           c.height - minN <= 0.5 + EPS &&
           c.material !== null &&
           !NATURAL_GROUND.has(c.material) &&
@@ -992,7 +995,7 @@ export function realize(
           v.geom.originAt === "minCorner",
       };
       // generator 3: natural ground shows rock where its face is bare, never earth-coloured fill (cliff.rock_block)
-      const rockFirst = resolved.generator >= 3 && material !== null && NATURAL_GROUND.has(material);
+      const rockFirst = gen.rockGroundFaces && material !== null && NATURAL_GROUND.has(material);
       let res = lookup(
         L.id,
         theme,
@@ -1109,7 +1112,7 @@ export function realize(
         : WATER.has(material)
           ? [`bed.${material}`, "bed.default", "fill.default"]
           : [
-              ...(resolved.generator >= 3 && NATURAL_GROUND.has(material) ? ["fill.rock"] : []),
+              ...(gen.rockGroundFaces && NATURAL_GROUND.has(material) ? ["fill.rock"] : []),
               `fill.${material}`,
               `floor.${material}`,
               "fill.default",
@@ -1280,15 +1283,14 @@ export function realize(
     // generator 4: a built interior is carved into a solid mass: a flat cap on the solid cells round the rooms, closed
     // on its outer edge by a skirt of the level's wall style (compile/shell.ts). The cap piece comes first: with no
     // cap tile in any palette the shell is left out whole.
-    const g4 = resolved.generator >= 4;
-    const roughLevel = g4 && !L.structures?.length && L.cells.state.some((s) => s === CELL.SOLID);
+    const carvedLevel = !L.structures?.length && L.cells.state.some((s) => s === CELL.SOLID);
     // ... and only a rough interior gets broken wall tops (a kept-up timber inn keeps clean walls)
-    const roughMap = roughLevel ? roughCells(L) : null;
+    const roughMap = gen.interiorWallTops && carvedLevel ? roughCells(L) : null;
     const roughCellAt = (x: number, y: number): boolean => {
       if (!roughMap || !V.inBounds(x, y)) return false;
       return roughMap[(y - L.bounds.y) * L.bounds.w + (x - L.bounds.x)] === 1;
     };
-    let shell = roughLevel
+    let shell = gen.solidShell && carvedLevel
       ? planShell(resolved, L, seed, (o, e) => claimed.edges.has(`${o}${e}`), defaultTheme)
       : null;
     const capRes = shell ? lookup(L.id, shell.theme, ["cap.solid"], undefined, true) : null;
@@ -1369,7 +1371,7 @@ export function realize(
             const k = `${bx},${by}`;
             // generator 3: a passage that reaches the board edge is an exit; no rock column stands outside the bounds
             if (
-              resolved.generator >= 3 &&
+              gen.boardEdgeExits &&
               (bx < L.bounds.x || bx >= L.bounds.x + L.bounds.w || by < L.bounds.y || by >= L.bounds.y + L.bounds.h)
             )
               continue;
@@ -1432,7 +1434,7 @@ export function realize(
             if (!v || !c) continue;
             // generator 4, rough interiors: about one piece in five of a run is a broken-top variant (wall.ruined)
             if (
-              roughLevel &&
+              roughMap !== null &&
               style === "wall" &&
               n >= 2 &&
               c.hostOpen &&
@@ -1452,7 +1454,7 @@ export function realize(
               const count = Math.max(1, Math.ceil((c.top - c.base) / v.unitHeight - EPS));
               // generator 4: a wall a quarter or half a tile short of whole pieces sinks into the floor slab so its top
               // lands where the edge says (rough tops, resolve/wallTops.ts); the piece never lifts off the floor
-              const yBase = g4
+              const yBase = gen.exactWallTops
                 ? Math.max(c.base - 0.5, Math.min(c.base, c.top - count * v.unitHeight))
                 : c.base;
               placeEdgePiece(
@@ -1548,7 +1550,7 @@ export function realize(
     }
     // Generator 2: rock walls reach down to the lowest floor of the level (nothing below the room shows from outside)
     // and vary in height like a natural cave (0, 1 or 2 extra blocks from seeded value noise).
-    const gen2 = resolved.generator >= 2;
+    const rockSkirt = gen.rockWallSkirt;
     const skirt = elev + outsideGround;
     const wallNoise = new ValueNoise(h32(`${seed}:${L.id}:walltops`));
     // the extra blocks never rise through the floor of a level stacked above (verify_pokes_into_level_above)
@@ -1569,7 +1571,7 @@ export function realize(
       let base = c.base;
       let top = c.top;
       const floorTop = c.base;
-      if (gen2) {
+      if (rockSkirt) {
         base = Math.min(base, skirt);
         // clustered: broad noise picks masses (up to 3 blocks taller) and a few lower stretches (1 block down, never
         // below a tile above the floor), a per-cell hash breaks up runs of equal columns
@@ -1577,7 +1579,7 @@ export function realize(
           wallNoise.sample(c.x / 4, c.y / 4) * 0.8 + (h32(`${seed}:${c.x}:${c.y}:wt`) / 4294967296) * 0.2;
         let extra = nz < 0.22 ? -1 : nz < 0.45 ? 0 : nz < 0.62 ? 1 : nz < 0.8 ? 2 : 3;
         // generator 3: the column is the closing skin of a wall of rock mass (gen/cavewall.ts): lower, in uneven runs
-        if (g3 && c.roleName === "wall.cave_rock") extra = nz < 0.3 ? -1 : nz < 0.72 ? 0 : 1;
+        if (gen.caveRockMass && c.roleName === "wall.cave_rock") extra =nz < 0.3 ? -1 : nz < 0.72 ? 0 : 1;
         if (extra < 0 && top - v.unitHeight < floorTop + 1.5) extra = 0;
         // a column that closes the mouth of a chasm or pit (its wall reaches below the floor) is never one of the
         // low stretches, and stands at least a block taller, so nothing glows over it from inside
@@ -1590,20 +1592,20 @@ export function realize(
       // the block below), so a stacked cave keeps its wall closed without poking into the level above
       const yAt = (s: number): number => {
         const y = base + s * v.unitHeight;
-        return gen2 && y + v.unitHeight > ceiling + EPS && ceiling - v.unitHeight >= base - EPS
+        return rockSkirt && y + v.unitHeight > ceiling + EPS && ceiling - v.unitHeight >= base - EPS
           ? ceiling - v.unitHeight
           : y;
       };
       const buildColumn = (): void => {
         for (let s = 0; s < n; s++)
-          emit(v, "wall", m.x, yAt(s), m.z, v.rot + (gen2 ? blockTurn(v, `${k}:${s}`) : 0), {
+          emit(v, "wall", m.x, yAt(s), m.z, v.rot + (rockSkirt ? blockTurn(v, `${k}:${s}`) : 0), {
             cell: [c.x, c.y],
             elementId: c.roleName,
           });
       };
       // generator 3: the column is only the fill of a wall of rock mass (gen/cavewall.ts); it is built below, where
       // no mass piece closes the face cell
-      if (g3 && c.roleName === "wall.cave_rock") {
+      if (gen.caveRockMass && c.roleName === "wall.cave_rock") {
         massFaces.push({ x: c.x, y: c.y, base, top: base + n * v.unitHeight, edgeBase: floorTop, theme: c.theme });
         columnLater.set(`${c.x},${c.y}`, buildColumn);
       } else buildColumn();
@@ -1691,7 +1693,7 @@ export function realize(
           shapes,
           ceiling,
           // generator 4: solid rock, filled from the foot with no see-through gap
-          ...(resolved.generator >= 4 ? { solid: true } : {}),
+          ...(gen.solidCaveRock ? { solid: true } : {}),
         });
         for (const f of faces) if (!plan.columns.has(`${f.x},${f.y}`)) columnLater.delete(`${f.x},${f.y}`);
         for (const pc of plan.pieces) {
@@ -1894,7 +1896,7 @@ export function realize(
           );
           // generator 4: a secret door is ONE removable plug in the wall line (the palette's `opening.secret_door` piece, else
           // the wall style's own piece); the build report says where it stands so a GM can find and delete it
-          if (op.kind === "secret_door" && resolved.generator >= 4 && i === 0) {
+          if (op.kind === "secret_door" && gen.secretDoorPlug && i === 0) {
             const sideName = { N: "north", S: "south", E: "east", W: "west" }[c.planSide];
             const [a, b] = op.sides;
             addDiag({
@@ -2015,7 +2017,7 @@ export function realize(
         // generator 4: a post up to half a tile (a quarter for a 1-tall piece) short of whole pieces stops there; walls
         // beside a room raised a quarter tile stand that much taller than the post's own course, which would otherwise
         // stack a second 2-tall piece through the floor above
-        const slack = resolved.generator >= 4 ? Math.min(0.5, v.unitHeight / 4) : 0;
+        const slack = gen.exactWallTops ? Math.min(0.5, v.unitHeight / 4) : 0;
         const n = Math.max(1, Math.ceil((top - base - slack) / v.unitHeight - EPS));
         const cellX = Math.floor(px);
         const cellY = Math.floor(py0);
@@ -2223,7 +2225,7 @@ export function realize(
       const roleName = `feature.${f.type}`;
       // generator 4: a covered stall is built from parts (base, counters, posts, canopy); without them the table below
       if (
-        resolved.generator >= 4 &&
+        gen.coveredStalls &&
         f.type === "stall" &&
         f.stall !== undefined &&
         realizeStall(
@@ -2300,7 +2302,7 @@ export function realize(
       } else {
         // generator 4: small things on a surface (clutter, goods) are one family table over two roles (gen/surfaces.ts):
         // the first role that has the asked family wins, else the first role there is (the variant note below applies)
-        const roles = resolved.generator >= 4 ? featureRoles(f.type) : [roleName];
+        const roles = gen.sharedSmallThings ? featureRoles(f.type) : [roleName];
         const wantFamily = f.variant;
         const res =
           (roles.length > 1 && wantFamily !== undefined
@@ -2312,7 +2314,7 @@ export function realize(
         let pool = res.variants;
         // generator 3: the band's rocks turn as the generator set them (the palette's role says "fixed", which left every
         // rock at one turn), and a boulder is a tall one (Moss Rock 01 is knee-high and hides no face)
-        if (resolved.generator >= 3 && (f.type === "cliff_face" || f.type === "cliff_crest")) {
+        if (gen.restingCliffBand && (f.type === "cliff_face" || f.type === "cliff_crest")) {
           rule = "inherit";
           if (f.type === "cliff_crest") {
             const tallOnes = pool.filter((u) => u.geom.size.y >= 1.2);
@@ -2331,7 +2333,7 @@ export function realize(
           }
         }
         // generator 3: the loose rock within 3 cells of a cliff follows the cliff's tone (untagged pieces are unknown: kept)
-        if (resolved.generator >= 3 && CLIFF_DRESSING.has(f.type) && nearCliff(f.at[0], f.at[1])) {
+        if (gen.cliffToneRule && CLIFF_DRESSING.has(f.type) && nearCliff(f.at[0], f.at[1])) {
           const tone = cliffKinds(theme).tone;
           const tagged = pool.filter((u) => u.weight > 0 && u.tone !== undefined);
           if (tone !== undefined && tagged.length > 0) {
@@ -2344,13 +2346,13 @@ export function realize(
         }
         // generator 3: a wall block (a tile, minCorner) is not a natural standing piece: a cave's stone columns are
         // stalagmites, never a row of Cave Wall stubs that read as a brick maze
-        if (resolved.generator >= 3 && NATURAL_STANDING.has(f.type)) {
+        if (gen.naturalStanding && NATURAL_STANDING.has(f.type)) {
           const notTiles = pool.filter((u) => u.geom.originAt !== "minCorner");
           if (notTiles.length > 0) pool = notTiles;
         }
         // generator 3: a stall's kind is the goods it sells; kinds that stand on the bare table share its variant
         const wantVariant =
-          resolved.generator >= 3 && f.type === "stall" && f.variant !== undefined
+          gen.stallsAndLines && f.type === "stall" && f.variant !== undefined
             ? stallPieceOf(f.variant)
             : f.variant;
         if (wantVariant !== undefined) {
@@ -2370,7 +2372,7 @@ export function realize(
         // generator 3: a stall made of 1x1 tiles (fruit, vegetables, spices) is one tile in each of its two cells
         if (
           v &&
-          resolved.generator >= 3 &&
+          gen.stallsAndLines &&
           f.type === "stall" &&
           v.footprint[0] * v.footprint[1] === 1 &&
           f.size[0] * f.size[1] === 2
