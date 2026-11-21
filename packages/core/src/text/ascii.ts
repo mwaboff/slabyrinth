@@ -7,6 +7,7 @@ import type { LevelId, OpeningKind, PlanIssue, Vec2 } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
+import { hEdgeIndex, vEdgeIndex } from "../resolve/levelGrid";
 
 export interface AsciiOptions {
   /** Crop to a cell rect (global coords). */
@@ -195,20 +196,12 @@ export function asciiLevel(
     }
     const cv = (gx: number, gy: number): CellView =>
       (cells[gy - ry0 + 1] as CellView[])[gx - rx0 + 1] as CellView;
-    const hEdge = (gx: number, gy: number): { kind: number; ref: number } => {
-      const lx = gx - B.x;
-      const ly = gy - B.y;
-      if (lx < 0 || lx >= B.w || ly < 0 || ly > B.h) return { kind: EDGE.NONE, ref: 0 };
-      const i = ly * B.w + lx;
-      return { kind: lvl.hEdges.kind[i] as number, ref: lvl.hEdges.ref[i] as number };
-    };
-    const vEdge = (gx: number, gy: number): { kind: number; ref: number } => {
-      const lx = gx - B.x;
-      const ly = gy - B.y;
-      if (lx < 0 || lx > B.w || ly < 0 || ly >= B.h) return { kind: EDGE.NONE, ref: 0 };
-      const i = ly * (B.w + 1) + lx;
-      return { kind: lvl.vEdges.kind[i] as number, ref: lvl.vEdges.ref[i] as number };
-    };
+    const edgeAt = (grid: ResolvedLevel["hEdges"], i: number): { kind: number; ref: number } =>
+      i < 0 ? { kind: EDGE.NONE, ref: 0 } : { kind: grid.kind[i] as number, ref: grid.ref[i] as number };
+    const hEdge = (gx: number, gy: number): { kind: number; ref: number } =>
+      edgeAt(lvl.hEdges, hEdgeIndex(B, gx - B.x, gy - B.y));
+    const vEdge = (gx: number, gy: number): { kind: number; ref: number } =>
+      edgeAt(lvl.vEdges, vEdgeIndex(B, gx - B.x, gy - B.y));
     const join = (a: CellView, b: CellView): string => {
       if (a.featId !== null && a.featId === b.featId && a.feat !== null) return a.feat;
       if (a.base === "") return b.base === "" ? " " : b.base;

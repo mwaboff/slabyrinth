@@ -19,8 +19,10 @@
  */
 import type { Area, MapPlan } from "../contracts/plan";
 import type { ResolvedArea, ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
-import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
+import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { LIGHT_FEATURES, featureInfo } from "../gen/catalog";
+import { SIDES, SIDE_STEP } from "../gen/gridGeometry";
+import { LevelGrid } from "../resolve/levelGrid";
 import { type RoomClass, classifyRoom } from "../gen/roomPurpose";
 import { generatorProfile } from "../plan/generator";
 import type { DesignNote } from "./review";
@@ -51,23 +53,6 @@ export interface RoomStat {
  */
 const LITTER: ReadonlySet<string> = new Set(["debris", "rubble", "bones", "web", "skull_pile", "cave_in"]);
 
-/** Does a wall stand on the `side` of cell (x, y)? */
-function wallOn(L: ResolvedLevel, x: number, y: number, side: "N" | "E" | "S" | "W"): boolean {
-  const W = L.bounds.w;
-  const lx = x - L.bounds.x;
-  const ly = y - L.bounds.y;
-  if (lx < 0 || ly < 0 || lx >= W || ly >= L.bounds.h) return false;
-  const k =
-    side === "N"
-      ? L.hEdges.kind[ly * W + lx]
-      : side === "S"
-        ? L.hEdges.kind[(ly + 1) * W + lx]
-        : side === "W"
-          ? L.vEdges.kind[ly * (W + 1) + lx]
-          : L.vEdges.kind[ly * (W + 1) + lx + 1];
-  return k === EDGE.WALL;
-}
-
 /** A resolved area's classification as the resolver wrote it (generator 4). */
 export const resolvedRoomClass = (a: ResolvedArea): RoomClass =>
   a.purpose === undefined
@@ -81,6 +66,7 @@ export function roomStats(
 ): RoomStat[] {
   const T = REVIEW.interiors;
   const W = L.bounds.w;
+  const grid = new LevelGrid(L);
   const out: RoomStat[] = [];
   L.areas.forEach((a, ai) => {
     if (a.kind !== "room") return;
@@ -95,18 +81,15 @@ export function roomStats(
     const own = new Set(cells.map(([x, y]) => `${x},${y}`));
     // furniture: blocking pieces that are not mounted on a wall; "near a wall" = a wall within one cell of any of its cells
     const near = (x: number, y: number): boolean => {
-      for (const [dx, dy, s] of [
-        [0, -1, "N"],
-        [1, 0, "E"],
-        [0, 1, "S"],
-        [-1, 0, "W"],
-      ] as const)
+      for (const s of SIDES) {
+        const [dx, dy] = SIDE_STEP[s];
         for (let k = 0; k < 2; k++) {
           const cx = x + dx * k;
           const cy = y + dy * k;
           if (!own.has(`${cx},${cy}`)) break;
-          if (wallOn(L, cx, cy, s)) return true;
+          if (grid.wallOn(cx, cy, s)) return true;
         }
+      }
       return false;
     };
     const blockers = mine.filter((f) => f.blocking && !featureInfo(f.type).wallMounted);
@@ -124,9 +107,7 @@ export function roomStats(
     const counts = new Map<string, number>();
     for (const f of mine) counts.set(f.type, (counts.get(f.type) ?? 0) + 1);
     const first = cells[0] as [number, number];
-    const mat =
-      L.materials[(L.cells.material[(first[1] - L.bounds.y) * W + (first[0] - L.bounds.x)] as number) - 1] ??
-      "";
+    const mat = L.materials[(L.cells.material[grid.index(first[0], first[1])] as number) - 1] ?? "";
     const sizeClass = T.sizeClasses.findIndex((m) => cells.length <= m);
     const cls = classOf(a);
     out.push({

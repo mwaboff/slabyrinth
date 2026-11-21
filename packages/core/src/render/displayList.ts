@@ -19,6 +19,8 @@ import type {
 } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
+import { SIDE_ROT } from "../gen/gridGeometry";
+import { cellIndex, hEdgeIndex, vEdgeIndex } from "../resolve/levelGrid";
 import { gableRoof, hipRoof, ringLayer, shedRoof, spireShell } from "../resolve/roof";
 import { traceRings } from "../resolve/trace";
 
@@ -50,7 +52,7 @@ export const DEFAULT_DISPLAY_OPTIONS: DisplayOptions = {
   legend: false,
 };
 
-const SIDE_ROT: Record<Side, number> = { N: 0, E: 90, S: 180, W: 270 };
+/** Symbol rotation of a link or a flight of steps climbing toward a side (0 = climbing north, the screen's up). */
 const DIR_ROT: Record<Side, number> = { N: 0, E: 90, S: 180, W: 270 };
 /** Openings drawn as wall (with an overlay symbol) rather than as a gap. */
 const WALL_LIKE_OPENINGS = new Set(["window", "arrow_slit"]);
@@ -219,8 +221,8 @@ export function buildDisplayList(
   const V = level.vEdges;
   const ledgeRings: number[][] = [];
   const gridRings: number[][] = [];
-  const cellAt = (lx: number, ly: number): number =>
-    lx < 0 || ly < 0 || lx >= w || ly >= h ? -1 : ly * w + lx;
+  const size = level.bounds;
+  const cellAt = (lx: number, ly: number): number => cellIndex(size, lx, ly);
   const gridOk = (a: number, b: number, kind: number): boolean => {
     if (kind === EDGE.WALL || kind === EDGE.OPENING) return false;
     const fa = a >= 0 && isFloor(a);
@@ -232,7 +234,7 @@ export function buildDisplayList(
     let lStart = -1;
     for (let lx = 0; lx <= w; lx++) {
       const inRow = lx < w;
-      const e = ly * w + lx;
+      const e = hEdgeIndex(size, lx, ly);
       const kind = inRow ? (H.kind[e] as number) : -1;
       const g = inRow && gridOk(cellAt(lx, ly - 1), cellAt(lx, ly), kind);
       const l = inRow && kind === EDGE.LEDGE && (H.height[e] as number) < 1;
@@ -253,7 +255,7 @@ export function buildDisplayList(
     let lStart = -1;
     for (let ly = 0; ly <= h; ly++) {
       const inCol = ly < h;
-      const e = ly * (w + 1) + lx;
+      const e = vEdgeIndex(size, lx, ly);
       const kind = inCol ? (V.kind[e] as number) : -1;
       const g = inCol && gridOk(cellAt(lx - 1, ly), cellAt(lx, ly), kind);
       const l = inCol && kind === EDGE.LEDGE && (V.height[e] as number) < 1;
@@ -280,7 +282,7 @@ export function buildDisplayList(
   const cliffRings: number[][] = [];
   for (let ly = 1; ly < h; ly++)
     for (let lx = 0; lx < w; lx++) {
-      const e = ly * w + lx;
+      const e = hEdgeIndex(size, lx, ly);
       if (H.kind[e] !== EDGE.LEDGE || (H.height[e] as number) < 1) continue;
       const northLow = hq((ly - 1) * w + lx) < hq(ly * w + lx);
       cliffRings.push(
@@ -289,7 +291,7 @@ export function buildDisplayList(
     }
   for (let ly = 0; ly < h; ly++)
     for (let lx = 1; lx < w; lx++) {
-      const e = ly * (w + 1) + lx;
+      const e = vEdgeIndex(size, lx, ly);
       if (V.kind[e] !== EDGE.LEDGE || (V.height[e] as number) < 1) continue;
       const westLow = hq(ly * w + lx - 1) < hq(ly * w + lx);
       cliffRings.push(
@@ -350,7 +352,7 @@ export function buildDisplayList(
   };
   for (let ly = 0; ly <= h; ly++) {
     for (let lx = 0; lx < w; lx++) {
-      const e = ly * w + lx;
+      const e = hEdgeIndex(size, lx, ly);
       const k = edgeWall(H, e, false);
       if (!k) continue;
       const qy = H.host[e] === 1 ? 2 * ly : 2 * ly - 1;
@@ -360,7 +362,7 @@ export function buildDisplayList(
   }
   for (let ly = 0; ly < h; ly++) {
     for (let lx = 0; lx <= w; lx++) {
-      const e = ly * (w + 1) + lx;
+      const e = vEdgeIndex(size, lx, ly);
       const k = edgeWall(V, e, false);
       if (!k) continue;
       const qx = V.host[e] === 1 ? 2 * lx : 2 * lx - 1;
@@ -374,14 +376,14 @@ export function buildDisplayList(
       const hs: Array<[number, number]> = [];
       for (const ex of [vx - 1, vx]) {
         if (ex < 0 || ex >= w) continue;
-        const e = vy * w + ex;
+        const e = hEdgeIndex(size, ex, vy);
         const k = edgeWall(H, e, false);
         if (k) hs.push([k, H.host[e] === 1 ? 2 * vy : 2 * vy - 1]);
       }
       if (hs.length === 0) continue;
       for (const ey of [vy - 1, vy]) {
         if (ey < 0 || ey >= h) continue;
-        const e = ey * (w + 1) + vx;
+        const e = vEdgeIndex(size, vx, ey);
         if (!edgeWall(V, e, false)) continue;
         const qx = V.host[e] === 1 ? 2 * vx : 2 * vx - 1;
         for (const [k, qy] of hs)
@@ -402,7 +404,7 @@ export function buildDisplayList(
     const g = o.orientation === "h" ? H : V;
     const lx = o.start[0] - bx;
     const ly = o.start[1] - by;
-    const e = o.orientation === "h" ? ly * w + lx : ly * (w + 1) + lx;
+    const e = o.orientation === "h" ? hEdgeIndex(size, lx, ly) : vEdgeIndex(size, lx, ly);
     const host = g.host[e] === 1 ? 1 : 0;
     let sym: NonNullable<DisplayItem["symbol"]>;
     if (o.orientation === "h") {
@@ -450,8 +452,10 @@ export function buildDisplayList(
       symbol: { id: "link-stairs", x, y, w: 1, h: 1, rot: DIR_ROT[dir] },
     });
   };
-  for (let ly = 0; ly <= h; ly++) for (let lx = 0; lx < w; lx++) stepSym("h", ly * w + lx, lx, ly);
-  for (let ly = 0; ly < h; ly++) for (let lx = 0; lx <= w; lx++) stepSym("v", ly * (w + 1) + lx, lx, ly);
+  for (let ly = 0; ly <= h; ly++)
+    for (let lx = 0; lx < w; lx++) stepSym("h", hEdgeIndex(size, lx, ly), lx, ly);
+  for (let ly = 0; ly < h; ly++)
+    for (let lx = 0; lx <= w; lx++) stepSym("v", vEdgeIndex(size, lx, ly), lx, ly);
 
   // ── links ──
   const labels = ctx.levelLabels ?? {};
