@@ -15,7 +15,7 @@ import type { GeneratorProfile } from "../plan/generator";
 import { LevelGrid } from "../resolve/levelGrid";
 import { findWallFaces, type WallFaces } from "../resolve/wallFaces";
 import { areaReferenceHeights } from "../resolve/wallspan";
-import { structureClaims } from "./structure";
+import { structureClaims } from "./realize/structures/claims";
 
 /** One level's facts (built on first ask). */
 export interface LevelFacts {
@@ -23,7 +23,7 @@ export interface LevelFacts {
   readonly grid: LevelGrid;
   /** Reference floor height of each area (resolve/wallspan.ts), for wall spans. */
   readonly refHeights: ReadonlyMap<number, number>;
-  /** Edges and openings buildings build themselves (compile/structure.ts): the wall passes leave them alone. */
+  /** Edges and openings buildings build themselves (compile/realize/structures/): the wall passes leave them alone. */
   readonly claims: ReturnType<typeof structureClaims>;
   /** Every wall and opening edge with its host, mass cell, style, theme and span (resolve/wallFaces.ts). */
   readonly faces: WallFaces;

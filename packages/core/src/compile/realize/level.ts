@@ -45,7 +45,7 @@ export class RealizeLevel {
   readonly outcropCells: ReadonlySet<number>;
   /** Reference floor height of each area (resolve/wallspan.ts), for wall spans. */
   readonly refHeights: ReadonlyMap<number, number>;
-  /** Edges and openings buildings build themselves (compile/structure.ts): the wall passes leave them alone. */
+  /** Edges and openings buildings build themselves (realize/structures/): the wall passes leave them alone. */
   readonly claimed: LevelFacts["claims"];
   /** The level's wall faces (resolve/wallFaces.ts): the shell, the wall runs and their rock columns read them. */
   readonly faces: WallFaces;
@@ -87,7 +87,7 @@ export class RealizeLevel {
     this.elev = elev;
     this.topOf = (c: LevelCell): number => elev + c.height + 0.5;
     this.refHeights = refHeights;
-    // buildings build their own shell (compile/structure.ts)
+    // buildings build their own shell (realize/structures/)
     this.claimed = claims;
     this.faces = faces;
     this.outsideGround = profile.foundation ? Math.min(lowestGround(L), -(L.foundation ?? 0)) : 0;

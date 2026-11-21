@@ -123,7 +123,7 @@ function checkWallCoverage(
         const base = face.base;
         const inside = hostedHere ? other : here; // shells host outside the footprint
         const floorTop = L.elevation + inside.height + BUILD_CONSTANTS.floorThickness;
-        // a building's shell edge (compile/structure.ts) stands on the building's own floor: its storey height is
+        // a building's shell edge (compile/realize/structures/) stands on the building's own floor: its storey height is
         // measured from there, not from higher ground outside; a ruin's walls only need to stand a tile above it
         const top = face.claimed
           ? claims.ruined.has(`${orient}${ei}`)

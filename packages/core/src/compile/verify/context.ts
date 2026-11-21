@@ -29,7 +29,7 @@ export class VerifyReport {
 
 /** The walls of one level as realize builds them. */
 export interface LevelWalls {
-  /** Edges a building builds itself (compile/structure.ts). */
+  /** Edges a building builds itself (compile/realize/structures/claims.ts). */
   readonly claims: LevelFacts["claims"];
   /** Every wall and opening edge with its host, mass cell, style, theme and span (resolve/wallFaces.ts). */
   readonly faces: WallFaces;

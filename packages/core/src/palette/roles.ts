@@ -112,6 +112,7 @@ export type BuildingPart =
   | "gable_short"
   | "seam_ledge"
   | "crenel"
+  | "parapet"
   | "corbel"
   | "chimney"
   | "chimney_top"

@@ -85,7 +85,7 @@ export function h32(str: string): number {
 
 /**
  * FNV-1a 32 over the UTF-16 code units of `str` (not its UTF-8 bytes). FROZEN: the compiler's draws (piece picks, block
- * turns, noise seeds in compile/realize and compile/structure.ts) have been made with it since generator 1, so the slabs
+ * turns, noise seeds in compile/realize, its structures included) have been made with it since generator 1, so the slabs
  * of every released generator depend on it. It agrees with `h32` on ASCII and differs on any other character (a plan id
  * with an accent), so the two are never swapped. New code uses `h32`.
  */

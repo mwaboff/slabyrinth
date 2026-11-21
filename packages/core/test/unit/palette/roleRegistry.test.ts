@@ -13,14 +13,19 @@ const SRC = fileURLToPath(new URL("../../../src/", import.meta.url));
 
 /**
  * Files that still spell roles in place, each with its reason (docs/internal/code-review-senior-build.md):
- * - compile/structure.ts: the building realizer, to be split onto realize's primitives (finding M2);
  * - compile/calibration.ts: the calibration build of one palette (stone_dungeon), data about that palette.
  */
-const NOT_YET: readonly string[] = ["compile/structure.ts", "compile/calibration.ts"];
+const NOT_YET: readonly string[] = ["compile/calibration.ts"];
+
+/** The families of a building's parts (palette/roles.ts BuildingPart) and its light anchors. */
+const BUILDING_FAMILIES =
+  "footing|facade_post|over_door|wall_short|window|gable|gable_short|seam_ledge|crenel|parapet|corbel|chimney_top|porch_post|wall_light|sign_band|corner_pier|canopy|balcony|balcony_rail|fire_escape|wall_pipe|wall_unit|mast|finial|magic_beacon|roof_clutter|roof_terrace|gate|ruin_rubble|ruin_block|ruin_prop|ruin_growth|ruin_root|ruin_cap|ruin_tree|light";
 
 /** A role name in a string or the start of a template: `<family>.<name>` of a role family the palettes use. */
-const ROLE_LITERAL =
-  /["'`](?:wall|wall_post|floor|fill|bed|opening|lintel|kerb|cliff|cap|roof|feature|marker|stall|link|ledge|facade|glow|step|ruin_climber|pier|marking|chimney)\.(?:[a-z_]+|\$\{)/g;
+const ROLE_LITERAL = new RegExp(
+  `["'\`](?:wall|wall_post|floor|fill|bed|opening|lintel|kerb|cliff|cap|roof|feature|marker|stall|link|ledge|facade|glow|step|ruin_climber|pier|marking|chimney|${BUILDING_FAMILIES})\\.(?:[a-z_]+|\\$\\{)`,
+  "g",
+);
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

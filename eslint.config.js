@@ -408,8 +408,8 @@ export default tseslint.config(
   },
   {
     files: ["packages/core/src/**/*.ts"],
-    // the owner; compile/structure.ts keeps its few dynamic filters until it moves onto realize's primitives (M2)
-    ignores: ["packages/core/src/palette/filters.ts", "packages/core/src/compile/structure.ts"],
+    // the owner
+    ignores: ["packages/core/src/palette/filters.ts"],
     rules: { "slabyrinth/variant-filters": "error" },
   },
   {

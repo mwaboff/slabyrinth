@@ -72,7 +72,7 @@ function noteFloorMaterials(ctx: VerifyCtx, L: ResolvedLevel, g: LevelGrid): voi
 
 /**
  * Wall styles the theme builds with another wall role, counted in edge index order (h edges, then v edges). Building
- * shells are built from facade.<style> roles (compile/structure.ts), not wall.<style>, so claimed edges are left out.
+ * shells are built from facade.<style> roles (compile/realize/structures/), not wall.<style>, so claimed edges are left out.
  * The theme asked is the face's (switch `wallNoteInFaceTheme`); released generators asked the level's first theme.
  */
 function noteWallStyles(ctx: VerifyCtx, L: ResolvedLevel, g: LevelGrid): void {

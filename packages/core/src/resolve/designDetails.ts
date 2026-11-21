@@ -1,6 +1,6 @@
 /**
  * What each facade detail of a drawn building design IS (resolve/structureVariety.ts draws them by weight from a style's
- * `details`; compile/structure.ts builds each one): one row per detail name, read through the helpers below instead of
+ * `details`; compile/realize/structures/details.ts builds each one): one row per detail name, read through the helpers below instead of
  * lists of detail names in the code. What a detail looks like stays the compiler's own branch per name.
  */
 

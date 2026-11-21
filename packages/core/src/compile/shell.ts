@@ -100,7 +100,7 @@ export interface Shell {
 
 /**
  * A level carved into a solid mass: it has SOLID cells and no buildings (a building builds its own shell,
- * compile/structure.ts). Only such a level gets a shell, and only its rough interiors get broken wall tops.
+ * compile/realize/structures/). Only such a level gets a shell, and only its rough interiors get broken wall tops.
  */
 export function isCarvedLevel(L: ResolvedLevel): boolean {
   return !L.structures?.length && L.cells.state.some((s) => s === CELL.SOLID);
