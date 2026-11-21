@@ -35,6 +35,8 @@ export interface FeatureInfo {
    * table, a desk, an altar), a small lantern on a counter or chest. Unset: nothing is lit on it.
    */
   topLight?: "candle" | "lantern";
+  /** Hung from the ceiling: raised on purpose, so verify never calls it floating (compile/verify/props.ts). */
+  ceilingMounted?: boolean;
 }
 
 const F = (
@@ -46,6 +48,7 @@ const F = (
   ...(opts.light ? { light: true } : {}),
   ...(opts.landmark ? { landmark: true } : {}),
   ...(opts.topLight ? { topLight: opts.topLight } : {}),
+  ...(opts.ceilingMounted ? { ceilingMounted: true } : {}),
   size: opts.size ?? [1, 1],
   blocking: opts.blocking ?? true,
   organic: opts.organic ?? false,
@@ -103,7 +106,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   lever: F("Lever", "hazard", { blocking: false }),
   trap: F("Trap", "hazard", { blocking: false, gmOnly: true }),
   trap_plate: F("Pressure plate", "hazard", { blocking: false, gmOnly: true }),
-  chandelier: F("Chandelier", "furniture", { blocking: false, light: true }),
+  chandelier: F("Chandelier", "furniture", { blocking: false, light: true, ceilingMounted: true }),
   tree: F("Tree", "outdoor", { organic: true }),
   dead_tree: F("Dead tree", "outdoor", { organic: true }),
   pine_tree: F("Pine", "outdoor", { organic: true }),
@@ -126,7 +129,12 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   grave: F("Grave", "outdoor", { size: [1, 2] }),
   // caves and set dressing
   stalagmite: F("Stalagmite", "outdoor", { organic: true, glyph: "rock" }),
-  stalactite: F("Stalactite", "outdoor", { organic: true, blocking: false, glyph: "debris" }),
+  stalactite: F("Stalactite", "outdoor", {
+    organic: true,
+    blocking: false,
+    ceilingMounted: true,
+    glyph: "debris",
+  }),
   rock_formation: F("Rock formation", "outdoor", { size: [2, 2], organic: true, glyph: "boulder" }),
   cave_in: F("Cave-in", "hazard", { size: [2, 2], organic: true, glyph: "rubble" }),
   crystal: F("Crystals", "outdoor", { organic: true, light: true, glyph: "rock" }),

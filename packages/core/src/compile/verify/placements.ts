@@ -3,33 +3,12 @@
  * and the set's stats after the repairs.
  */
 import type { Placement, PlacementSet } from "../../contracts/compiler";
-import type { FeatureType } from "../../contracts/plan";
 import { featureInfo } from "../../gen/catalog";
 import { placedBox, placedName } from "../placed";
 import type { VerifyCtx } from "./context";
 import { SolidIndex, type Solid } from "./grid";
 import { ROTATION_STEP } from "./limits";
 import { elementRef } from "./words";
-
-/** Feature types that are organic dressing: their overlaps are expected and reported as info only. */
-const ORGANIC = new Set<FeatureType>([
-  "tree",
-  "dead_tree",
-  "pine_tree",
-  "bush",
-  "rock",
-  "boulder",
-  "stump",
-  "log",
-  "mushroom",
-  "tall_grass",
-  "reeds",
-  "flowers",
-  "rubble",
-  "bones",
-  "web",
-  "debris",
-]);
 
 /**
  * Drops placements with a bad position or rotation (error, `verify_bad_coordinate`) and, when repairing, exact
@@ -100,7 +79,8 @@ export function indexSolids(ctx: VerifyCtx): SolidIndex {
         role: p.role,
         name: placedName(set, p),
         blocking: p.role !== "feature" || (f?.blocking ?? true),
-        organic: f !== undefined && (ORGANIC.has(f.type) || featureInfo(f.type).organic),
+        // organic dressing (the feature table's trait): its overlaps are expected and reported as info only
+        organic: f !== undefined && featureInfo(f.type).organic,
         wallMounted: f?.wall !== undefined,
         isTileFeature: p.role === "feature" && meta?.geom.originAt === "minCorner",
       };

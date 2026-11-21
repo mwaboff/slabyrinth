@@ -27,6 +27,35 @@ describe("feature traits are table fields", () => {
     expect(by("candle")).toEqual(["altar", "bar_counter", "desk", "round_table", "table"]);
     expect(by("lantern")).toEqual(["chest", "counter"]);
   });
+
+  it("stalactites and chandeliers hang from the ceiling", () => {
+    expect(types.filter((t) => FEATURE_INFO[t].ceilingMounted === true).sort()).toEqual([
+      "chandelier",
+      "stalactite",
+    ]);
+  });
+
+  it("the organic dressing verify once listed by hand carries `organic`", () => {
+    for (const t of [
+      "tree",
+      "dead_tree",
+      "pine_tree",
+      "bush",
+      "rock",
+      "boulder",
+      "stump",
+      "log",
+      "mushroom",
+      "tall_grass",
+      "reeds",
+      "flowers",
+      "rubble",
+      "bones",
+      "web",
+      "debris",
+    ] as const)
+      expect(FEATURE_INFO[t].organic, t).toBe(true);
+  });
 });
 
 describe("purpose traits are table fields", () => {

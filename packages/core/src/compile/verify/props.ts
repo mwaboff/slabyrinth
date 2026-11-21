@@ -10,6 +10,7 @@
  */
 import type { ResolvedFeature, ResolvedLevel } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
+import { featureInfo } from "../../gen/catalog";
 import { SIDE_STEP } from "../../gen/gridGeometry";
 import type { LevelGrid } from "../../resolve/levelGrid";
 import type { VerifyCtx } from "./context";
@@ -30,9 +31,6 @@ import {
 import { OverheadLines } from "./lines";
 import { wallish } from "./walls";
 import { elementRef, fmt, round2, round4, solidLabel } from "./words";
-
-/** Features hung from the ceiling: raised on purpose, never "floating". */
-const CEILING_MOUNTED = new Set<string>(["stalactite", "chandelier"]);
 
 /** What every prop check of a level reads. */
 interface PropLevel {
@@ -316,7 +314,8 @@ function checkSupport(
     s.p.y - support > FLOAT_TOLERANCE &&
     // an upper piece of an assembly (palette parts: trunk on stump, capital on shaft) stands on its lower piece
     !(s.p.y > (assemblyBase.get(`${L.id}|${s.p.source.elementId ?? ""}`) ?? Infinity) + 0.01) &&
-    !CEILING_MOUNTED.has(type ?? "") &&
+    // a piece hung from the ceiling is raised on purpose
+    !(type !== undefined && featureInfo(type).ceilingMounted === true) &&
     !(type === "overhead" && lines.held(L, s.p.source.elementId, s.p.y))
   )
     ctx.report.add({
