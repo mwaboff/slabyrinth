@@ -168,6 +168,26 @@ interface TurnState {
   lastAssistantId: string | null;
 }
 
+/** The turn loop's counters: steps run, pauses taken, the output limit (raised once) and busy retries in a row. */
+interface TurnLoop {
+  steps: number;
+  pauses: number;
+  maxOutput: number;
+  maxTokensRetried: boolean;
+  busyRetries: number;
+}
+
+/** What a turn does after a step: run another step, or stop (the turn has finished, failed or been cancelled). */
+type StepNext = "continue" | "stop";
+
+/** A step's event sink: forwards the provider's stream as chat events and keeps what it streamed and spent. */
+interface StepSink {
+  onEvent: (e: StepEvent) => void;
+  streamed: () => string;
+  trackers: Map<string, ProgressTracker>;
+  spent: () => Usage;
+}
+
 export class SlabyrinthConversationEngine implements ConversationEngine {
   private readonly registry: ProviderRegistry;
   private readonly execute: AgentExecuteTool;
@@ -611,22 +631,20 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
 
   // ───────────────────────────── the turn loop ─────────────────────────────
 
+  /**
+   * The turn loop: build the step's request, run it, then act on how it stopped, until the turn finishes, fails or is
+   * cancelled. A failed step may be retried after a back-off (busy, network); a cut-off tool call once with more room.
+   */
   private async runTurn(t: TurnState, signal: AbortSignal): Promise<void> {
-    let steps = 0;
-    let pauses = 0;
-    let maxOutput = DEFAULT_MAX_OUTPUT;
-    let maxTokensRetried = false;
-    let busyRetries = 0;
-    const conv = (): Readonly<Conversation> => {
-      const c = this.project().conversations.find((x) => x.id === t.conversationId);
-      if (!c) throw new Error("conversation vanished");
-      return c;
+    const loop: TurnLoop = {
+      steps: 0,
+      pauses: 0,
+      maxOutput: DEFAULT_MAX_OUTPUT,
+      maxTokensRetried: false,
+      busyRetries: 0,
     };
-    const tools = (c: Readonly<Conversation>): StepRequest["tools"] =>
-      c.toolMode === "none" ? [] : toolsForConversation(c.imageToolEnabled, c.toolsVersion);
-
     for (;;) {
-      if (steps >= MAX_STEPS_PER_TURN) {
+      if (loop.steps >= MAX_STEPS_PER_TURN) {
         this.emit({
           type: "notice",
           turnId: t.turnId,
@@ -636,172 +654,200 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         this.finish(t, "end_turn", false);
         return;
       }
-      const c = conv();
-      const request: StepRequest = {
-        conversationId: c.id,
-        turnId: t.turnId,
-        selection: t.selection,
-        systemPrompt: this.systemPrompt(c),
-        tools: tools(c),
-        transcript: this.hydrate(c.items),
-        maxOutputTokens: maxOutput,
-        effort: t.effort,
-        toolMode: c.toolMode,
-      };
-      const step = steps;
-      const sink = this.stepSink(t, step);
+      const request = this.stepRequest(t, loop.maxOutput);
+      const sink = this.stepSink(t, loop.steps);
       let result: StepResult;
       try {
         this.lastRequestAt.set(t.conversationId, Date.now());
         result = await t.provider.runStep(request, sink.onEvent, signal);
       } catch (err) {
-        // Whatever a failed step streamed was billed: count it (an estimate; the final usage never arrived).
-        const spent = sink.spent();
-        if (promptTokens(spent) + spent.outputTokens > 0)
-          this.account(t, spent, costOf(spent, t.descriptor?.pricing ?? null));
-        const info = errorInfo(err);
-        if (signal.aborted || info?.kind === "cancelled") {
-          this.cancelled(t, sink.streamed());
-          return;
-        }
-        if (info && isRetryableKind(info.kind) && busyRetries < BUSY_BACKOFF_MS.length) {
-          const delay = info.retryAfterMs ?? BUSY_BACKOFF_MS[busyRetries] ?? 30_000;
-          busyRetries++;
-          const what =
-            info.kind === "network" || info.kind === "timeout" ? "Connection lost" : "Anthropic is busy";
-          this.emit({
-            type: "notice",
-            turnId: t.turnId,
-            kind: "retrying",
-            text: `${what} — retrying in ${Math.round(delay / 1000)}s.`,
-          });
-          try {
-            await this.sleep(delay, signal);
-          } catch {
-            this.cancelled(t, "");
-            return;
-          }
-          continue;
-        }
-        this.failed(
-          t,
-          info ?? {
-            kind: "server",
-            retryable: false,
-            message: err instanceof Error ? redactString(err.message) : "Unknown error.",
-          },
-          busyRetries > 0,
-        );
-        return;
+        if ((await this.stepFailed(t, err, sink, signal, loop)) === "stop") return;
+        continue;
       }
-      steps++;
-      busyRetries = 0;
+      loop.steps++;
+      loop.busyRetries = 0;
       this.account(t, result.usage, result.cost);
-      if (result.stopReason === "cancelled") {
-        this.cancelled(t, sink.streamed());
-        return;
-      }
+      if ((await this.afterStep(t, result, sink, signal, loop)) === "stop") return;
+    }
+  }
 
-      const assistant = result.assistant;
-      switch (result.stopReason) {
-        case "end_turn":
-        case "error": {
-          if (assistant) this.appendAssistant(t, assistant, "complete");
+  /** The next step's request: the conversation as it stands, its prompt and tools, at the loop's output limit. */
+  private stepRequest(t: TurnState, maxOutput: number): StepRequest {
+    const c = this.project().conversations.find((x) => x.id === t.conversationId);
+    if (!c) throw new Error("conversation vanished");
+    return {
+      conversationId: c.id,
+      turnId: t.turnId,
+      selection: t.selection,
+      systemPrompt: this.systemPrompt(c),
+      tools: c.toolMode === "none" ? [] : toolsForConversation(c.imageToolEnabled, c.toolsVersion),
+      transcript: this.hydrate(c.items),
+      maxOutputTokens: maxOutput,
+      effort: t.effort,
+      toolMode: c.toolMode,
+    };
+  }
+
+  /**
+   * A step that threw: what it streamed is billed (an estimate; the final usage never arrived), then the turn is
+   * cancelled, retried after a back-off (busy or connection errors, up to BUSY_BACKOFF_MS.length times in a row) or
+   * failed.
+   */
+  private async stepFailed(
+    t: TurnState,
+    err: unknown,
+    sink: StepSink,
+    signal: AbortSignal,
+    loop: TurnLoop,
+  ): Promise<StepNext> {
+    const spent = sink.spent();
+    if (promptTokens(spent) + spent.outputTokens > 0)
+      this.account(t, spent, costOf(spent, t.descriptor?.pricing ?? null));
+    const info = errorInfo(err);
+    if (signal.aborted || info?.kind === "cancelled") {
+      this.cancelled(t, sink.streamed());
+      return "stop";
+    }
+    if (info && isRetryableKind(info.kind) && loop.busyRetries < BUSY_BACKOFF_MS.length) {
+      const delay = info.retryAfterMs ?? BUSY_BACKOFF_MS[loop.busyRetries] ?? 30_000;
+      loop.busyRetries++;
+      const what =
+        info.kind === "network" || info.kind === "timeout" ? "Connection lost" : "Anthropic is busy";
+      this.emit({
+        type: "notice",
+        turnId: t.turnId,
+        kind: "retrying",
+        text: `${what} — retrying in ${Math.round(delay / 1000)}s.`,
+      });
+      try {
+        await this.sleep(delay, signal);
+      } catch {
+        this.cancelled(t, "");
+        return "stop";
+      }
+      return "continue";
+    }
+    this.failed(
+      t,
+      info ?? {
+        kind: "server",
+        retryable: false,
+        message: err instanceof Error ? redactString(err.message) : "Unknown error.",
+      },
+      loop.busyRetries > 0,
+    );
+    return "stop";
+  }
+
+  /** Acts on how a step stopped: finish, pause and go on, refuse, handle the output limit, or run the tools. */
+  private async afterStep(
+    t: TurnState,
+    result: StepResult,
+    sink: StepSink,
+    signal: AbortSignal,
+    loop: TurnLoop,
+  ): Promise<StepNext> {
+    if (result.stopReason === "cancelled") {
+      this.cancelled(t, sink.streamed());
+      return "stop";
+    }
+    const assistant = result.assistant;
+    switch (result.stopReason) {
+      case "end_turn":
+      case "error": {
+        if (assistant) this.appendAssistant(t, assistant, "complete");
+        this.finish(t, "end_turn", false);
+        return "stop";
+      }
+      case "pause": {
+        if (assistant) this.appendAssistant(t, assistant, "complete");
+        if (++loop.pauses > MAX_PAUSES) {
+          this.finish(t, "pause", true);
+          return "stop";
+        }
+        return "continue";
+      }
+      case "refusal": {
+        if (assistant) this.appendAssistant(t, { ...assistant, excludedFromContext: true }, "refused");
+        this.emit({
+          type: "notice",
+          turnId: t.turnId,
+          kind: "refusal",
+          text: "The request was declined. The plan wasn't changed.",
+        });
+        this.finish(t, "refusal", false);
+        return "stop";
+      }
+      case "max_tokens":
+        return this.outputLimitReached(t, assistant, loop);
+      case "tool_use": {
+        if (!assistant) {
           this.finish(t, "end_turn", false);
-          return;
+          return "stop";
         }
-        case "pause": {
-          if (assistant) this.appendAssistant(t, assistant, "complete");
-          if (++pauses > MAX_PAUSES) {
-            this.finish(t, "pause", true);
-            return;
-          }
-          continue;
+        const outcome = await this.runTools(t, assistant, sink, signal);
+        if (outcome === "await_user") {
+          this.finish(t, "tool_use", false);
+          return "stop";
         }
-        case "refusal": {
-          if (assistant) this.appendAssistant(t, { ...assistant, excludedFromContext: true }, "refused");
-          this.emit({
-            type: "notice",
-            turnId: t.turnId,
-            kind: "refusal",
-            text: "The request was declined. The plan wasn't changed.",
-          });
-          this.finish(t, "refusal", false);
-          return;
+        if (signal.aborted) {
+          this.cancelled(t, "");
+          return "stop";
         }
-        case "max_tokens": {
-          if (assistant && toolCalls(assistant).length > 0) {
-            // A tool input cut off by the output limit is never executed: discard the step, retry once bigger.
-            if (!maxTokensRetried) {
-              maxTokensRetried = true;
-              maxOutput = RETRY_MAX_OUTPUT;
-              this.append(t.conversationId, t.turnId, [
-                {
-                  type: "context",
-                  id: this.newId(),
-                  reason: "retry_hint",
-                  text: RETRY_HINT_MAX_TOKENS,
-                  createdAt: this.nowIso(),
-                },
-              ]);
-              this.emit({
-                type: "notice",
-                turnId: t.turnId,
-                kind: "retrying",
-                text: "The plan came back incomplete; trying again in smaller pieces.",
-              });
-              continue;
-            }
-            this.failed(
-              t,
-              {
-                kind: "malformed_output",
-                retryable: false,
-                message: `That plan came back incomplete, so I didn't apply it. Your map is still v${this.project().history.head}. Very large maps cause this — try again, or ask for one level at a time.`,
-              },
-              false,
-            );
-            return;
-          }
-          if (assistant) this.appendAssistant(t, assistant, "truncated");
-          this.emit({
-            type: "notice",
-            turnId: t.turnId,
-            kind: "truncated",
-            text: "The reply was cut off. Press Continue for the rest.",
-          });
-          this.finish(t, "max_tokens", false, true);
-          return;
-        }
-        case "tool_use": {
-          if (!assistant) {
-            this.finish(t, "end_turn", false);
-            return;
-          }
-          const outcome = await this.runTools(t, assistant, sink, signal);
-          if (outcome === "await_user") {
-            this.finish(t, "tool_use", false);
-            return;
-          }
-          if (signal.aborted) {
-            this.cancelled(t, "");
-            return;
-          }
-          continue;
-        }
+        return "continue";
       }
     }
   }
 
-  private stepSink(
-    t: TurnState,
-    step: number,
-  ): {
-    onEvent: (e: StepEvent) => void;
-    streamed: () => string;
-    trackers: Map<string, ProgressTracker>;
-    spent: () => Usage;
-  } {
+  /**
+   * The step hit the output limit. A tool input cut off by it is never executed: the step is discarded and retried
+   * once with more room (then the turn fails). Plain text is kept as truncated, for Continue.
+   */
+  private outputLimitReached(t: TurnState, assistant: AssistantItem | undefined, loop: TurnLoop): StepNext {
+    if (assistant && toolCalls(assistant).length > 0) {
+      if (!loop.maxTokensRetried) {
+        loop.maxTokensRetried = true;
+        loop.maxOutput = RETRY_MAX_OUTPUT;
+        this.append(t.conversationId, t.turnId, [
+          {
+            type: "context",
+            id: this.newId(),
+            reason: "retry_hint",
+            text: RETRY_HINT_MAX_TOKENS,
+            createdAt: this.nowIso(),
+          },
+        ]);
+        this.emit({
+          type: "notice",
+          turnId: t.turnId,
+          kind: "retrying",
+          text: "The plan came back incomplete; trying again in smaller pieces.",
+        });
+        return "continue";
+      }
+      this.failed(
+        t,
+        {
+          kind: "malformed_output",
+          retryable: false,
+          message: `That plan came back incomplete, so I didn't apply it. Your map is still v${this.project().history.head}. Very large maps cause this — try again, or ask for one level at a time.`,
+        },
+        false,
+      );
+      return "stop";
+    }
+    if (assistant) this.appendAssistant(t, assistant, "truncated");
+    this.emit({
+      type: "notice",
+      turnId: t.turnId,
+      kind: "truncated",
+      text: "The reply was cut off. Press Continue for the rest.",
+    });
+    this.finish(t, "max_tokens", false, true);
+    return "stop";
+  }
+
+  private stepSink(t: TurnState, step: number): StepSink {
     let text = "";
     let spent: Usage = ZERO_USAGE;
     const trackers = new Map<string, ProgressTracker>();
