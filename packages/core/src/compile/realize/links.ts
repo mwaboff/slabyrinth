@@ -5,8 +5,9 @@
  * fill under flights and landings, through stackFill); a diagnostic for a vertical link built from a stand-in piece.
  */
 import type { Placement } from "../../contracts/compiler";
-import type { Side } from "../../contracts/plan";
+import type { Side, ThemeId } from "../../contracts/plan";
 import { EDGE, type ResolvedPlan } from "../../contracts/resolved";
+import type { ResolvedVariant } from "../../palette/resolve";
 import { rotateXZ } from "../geometry";
 import { stackFill } from "./fill";
 import { EPS, isCliffGround, type RealizeLevel } from "./level";
@@ -66,8 +67,8 @@ export function layStairEdges(lv: RealizeLevel): void {
 
 // ── links (placed on the lower level) ──
 export function layLinks(lv: RealizeLevel): void {
-  const { L, V, elev, topOf, emit } = lv;
-  const { resolved, frame, views, lookup, pick, facingOf, addDiag } = lv.ctx;
+  const { L, V } = lv;
+  const { resolved, frame, lookup, pick, facingOf } = lv.ctx;
   for (const lk of resolved.links) {
     if (lk.kind === "trapdoor") {
       // the hatch lies on the UPPER level's floor (the resolver keeps that floor for trapdoors)
@@ -87,91 +88,108 @@ export function layLinks(lv: RealizeLevel): void {
     if (!v) continue;
     const f = facingOf(v, "link", res.role);
     const wdir = frame.worldSide(lk.dir);
-    const steps = f.ascendsToward ? frame.stepsToFace(f.ascendsToward, wdir) : 0;
-    if (lk.kind === "stairs" || lk.kind === "ramp") {
-      const xs = lk.lowerCells.map((c) => c[0]);
-      const ys = lk.lowerCells.map((c) => c[1]);
-      const minX = Math.min(...xs),
-        maxX = Math.max(...xs),
-        minY = Math.min(...ys),
-        maxY = Math.max(...ys);
-      for (const [cx, cy] of lk.lowerCells) {
-        const kIdx =
-          lk.dir === "N" ? maxY - cy : lk.dir === "S" ? cy - minY : lk.dir === "E" ? cx - minX : maxX - cx;
-        const c = V.cell(cx, cy);
-        const lowerTop = c.floor ? topOf(c) : elev + 0.5;
-        const rise = v.unitHeight;
-        const m = frame.rectMin(cx, cy, 1, 1);
-        if ((kIdx + 1) * rise <= lk.rise + EPS) {
-          const base = lowerTop + kIdx * rise;
-          if (base > lowerTop + EPS) stackFill(lv, theme, c.material, cx, cy, lowerTop, base, "link", lk.id);
-          emit(v, "link", m.x, base, m.z, steps * 15 + v.rot, { cell: [cx, cy], elementId: lk.id });
-        } else {
-          // landing: the rest of a non-integer rise as fill courses up to the upper floor top
-          stackFill(lv, theme, c.material, cx, cy, lowerTop, lowerTop + lk.rise, "link", lk.id);
-        }
-      }
+    const deg = (f.ascendsToward ? frame.stepsToFace(f.ascendsToward, wdir) : 0) * 15 + v.rot;
+    if (lk.kind === "stairs" || lk.kind === "ramp") layFlight(lv, lk, v, theme, deg);
+    else layVerticalLink(lv, lk, v, res.role, deg);
+  }
+}
+
+type Link = ResolvedPlan["links"][number];
+
+/**
+ * A stair flight or ramp: one piece per lower cell, stepped up by its index along the climb, with fill under it; the
+ * cells past the rise are a landing of fill courses up to the upper floor top.
+ */
+function layFlight(lv: RealizeLevel, lk: Link, v: ResolvedVariant, theme: ThemeId, deg: number): void {
+  const { V, elev, topOf, emit } = lv;
+  const { frame } = lv.ctx;
+  const xs = lk.lowerCells.map((c) => c[0]);
+  const ys = lk.lowerCells.map((c) => c[1]);
+  const minX = Math.min(...xs),
+    maxX = Math.max(...xs),
+    minY = Math.min(...ys),
+    maxY = Math.max(...ys);
+  for (const [cx, cy] of lk.lowerCells) {
+    const kIdx =
+      lk.dir === "N" ? maxY - cy : lk.dir === "S" ? cy - minY : lk.dir === "E" ? cx - minX : maxX - cx;
+    const c = V.cell(cx, cy);
+    const lowerTop = c.floor ? topOf(c) : elev + 0.5;
+    const rise = v.unitHeight;
+    const m = frame.rectMin(cx, cy, 1, 1);
+    if ((kIdx + 1) * rise <= lk.rise + EPS) {
+      const base = lowerTop + kIdx * rise;
+      if (base > lowerTop + EPS) stackFill(lv, theme, c.material, cx, cy, lowerTop, base, "link", lk.id);
+      emit(v, "link", m.x, base, m.z, deg, { cell: [cx, cy], elementId: lk.id });
     } else {
-      // Vertical links (ladder, spiral stairs): ONE stack of the resolved asset, from the lower floor top until it
-      // reaches the upper floor top. The count comes from the asset's height versus the real span (rise 2.5, 5.0,
-      // …), never from the link kind. An asset smaller than the link's footprint (a ladder standing in for spiral
-      // stairs) goes once, into a cell of the footprint against a wall when there is one.
-      const xs = lk.lowerCells.map((c) => c[0]);
-      const ys = lk.lowerCells.map((c) => c[1]);
-      const rx = Math.min(...xs);
-      const ry = Math.min(...ys);
-      const rw = Math.max(...xs) - rx + 1;
-      const rh = Math.max(...ys) - ry + 1;
-      const coversLink = v.footprint[0] * v.footprint[1] >= lk.lowerCells.length;
-      const walledSide = (x: number, y: number): boolean =>
-        (["N", "E", "S", "W"] as const).some((s) => {
-          const e =
-            s === "N"
-              ? V.hEdge(x, y)
-              : s === "S"
-                ? V.hEdge(x, y + 1)
-                : s === "W"
-                  ? V.vEdge(x, y)
-                  : V.vEdge(x + 1, y);
-          const g = s === "N" || s === "S" ? L.hEdges : L.vEdges;
-          return e >= 0 && g.kind[e] === EDGE.WALL;
-        });
-      const sorted = [...lk.lowerCells].sort((a, b) => a[1] - b[1] || a[0] - b[0]);
-      const cell: readonly [number, number] = coversLink
-        ? [rx, ry]
-        : (sorted.find(([x, y]) => walledSide(x, y)) ?? sorted[0] ?? [rx, ry]);
-      const [cx, cy] = cell;
-      const w = coversLink ? rw : 1;
-      const h = coversLink ? rh : 1;
-      const c = V.cell(cx, cy);
-      const base = c.floor ? topOf(c) : elev + 0.5;
-      const upView = views.get(lk.toLevel);
-      const upperTop = upView
-        ? upView.L.elevation + upView.cell(cx, cy).height + 0.5
-        : elev + c.height + 0.5 + lk.rise;
-      const count = Math.max(1, Math.ceil((upperTop - base) / v.unitHeight - EPS));
-      const deg = steps * 15 + v.rot;
-      const src: Placement["source"] = { cell: [cx, cy], elementId: lk.id };
-      if (res.role !== roleName && !coversLink) {
-        addDiag({
-          severity: "info",
-          code: "asset_substituted",
-          message: `${lk.kind === "spiral_stairs" ? "Spiral stairs" : `Link (${lk.kind})`} ${lk.id} built as ${v.name ?? res.role} in one cell: no ${roleName} asset in this palette`,
-          levelId: L.id,
-          elementId: lk.id,
-          role: roleName,
-        });
-      }
-      if (v.geom.originAt === "minCorner") {
-        const m = frame.rectMin(cx, cy, w, h);
-        for (let s = 0; s < count; s++) emit(v, "link", m.x, base + s * v.unitHeight, m.z, deg, src);
-      } else {
-        const centre = frame.point(cx + w / 2, cy + h / 2);
-        const off = rotateXZ(v.geom.boundsCenter.x, v.geom.boundsCenter.z, deg * frame.o.rotSense);
-        for (let s = 0; s < count; s++)
-          emit(v, "link", centre.x - off.x, base + s * v.unitHeight, centre.z - off.z, deg, src);
-      }
+      // landing: the rest of a non-integer rise as fill courses up to the upper floor top
+      stackFill(lv, theme, c.material, cx, cy, lowerTop, lowerTop + lk.rise, "link", lk.id);
     }
+  }
+}
+
+/**
+ * Vertical links (ladder, spiral stairs): ONE stack of the resolved asset, from the lower floor top until it reaches
+ * the upper floor top. The count comes from the asset's height versus the real span (rise 2.5, 5.0, …), never from the
+ * link kind. An asset smaller than the link's footprint (a ladder standing in for spiral stairs) goes once, into a
+ * cell of the footprint against a wall when there is one.
+ */
+function layVerticalLink(lv: RealizeLevel, lk: Link, v: ResolvedVariant, role: string, deg: number): void {
+  const { L, V, elev, topOf, emit } = lv;
+  const { frame, views, addDiag } = lv.ctx;
+  const roleName = `link.${lk.kind}`;
+  const xs = lk.lowerCells.map((c) => c[0]);
+  const ys = lk.lowerCells.map((c) => c[1]);
+  const rx = Math.min(...xs);
+  const ry = Math.min(...ys);
+  const rw = Math.max(...xs) - rx + 1;
+  const rh = Math.max(...ys) - ry + 1;
+  const coversLink = v.footprint[0] * v.footprint[1] >= lk.lowerCells.length;
+  const walledSide = (x: number, y: number): boolean =>
+    (["N", "E", "S", "W"] as const).some((s) => {
+      const e =
+        s === "N"
+          ? V.hEdge(x, y)
+          : s === "S"
+            ? V.hEdge(x, y + 1)
+            : s === "W"
+              ? V.vEdge(x, y)
+              : V.vEdge(x + 1, y);
+      const g = s === "N" || s === "S" ? L.hEdges : L.vEdges;
+      return e >= 0 && g.kind[e] === EDGE.WALL;
+    });
+  const sorted = [...lk.lowerCells].sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+  const cell: readonly [number, number] = coversLink
+    ? [rx, ry]
+    : (sorted.find(([x, y]) => walledSide(x, y)) ?? sorted[0] ?? [rx, ry]);
+  const [cx, cy] = cell;
+  const cols = coversLink ? rw : 1;
+  const rows = coversLink ? rh : 1;
+  const c = V.cell(cx, cy);
+  const base = c.floor ? topOf(c) : elev + 0.5;
+  const upView = views.get(lk.toLevel);
+  const upperTop = upView
+    ? upView.L.elevation + upView.cell(cx, cy).height + 0.5
+    : elev + c.height + 0.5 + lk.rise;
+  const count = Math.max(1, Math.ceil((upperTop - base) / v.unitHeight - EPS));
+  const src: Placement["source"] = { cell: [cx, cy], elementId: lk.id };
+  if (role !== roleName && !coversLink) {
+    addDiag({
+      severity: "info",
+      code: "asset_substituted",
+      message: `${lk.kind === "spiral_stairs" ? "Spiral stairs" : `Link (${lk.kind})`} ${lk.id} built as ${v.name ?? role} in one cell: no ${roleName} asset in this palette`,
+      levelId: L.id,
+      elementId: lk.id,
+      role: roleName,
+    });
+  }
+  if (v.geom.originAt === "minCorner") {
+    const m = frame.rectMin(cx, cy, cols, rows);
+    for (let s = 0; s < count; s++) emit(v, "link", m.x, base + s * v.unitHeight, m.z, deg, src);
+  } else {
+    const centre = frame.point(cx + cols / 2, cy + rows / 2);
+    const off = rotateXZ(v.geom.boundsCenter.x, v.geom.boundsCenter.z, deg * frame.o.rotSense);
+    for (let s = 0; s < count; s++)
+      emit(v, "link", centre.x - off.x, base + s * v.unitHeight, centre.z - off.z, deg, src);
   }
 }
 
