@@ -1,7 +1,7 @@
 /**
  * Small things on a surface (generator 4): the one table behind "a plate on a table", "loaves on a counter" and "jugs on
- * a stall". Three places used to carry their own copy of it: market goods (`feature.goods`, by kind of stall), room
- * clutter (`feature.clutter`, by family of room) and the room recipes' per-support counts. Now:
+ * a stall", read by market goods (`feature.goods`, by kind of stall), room clutter (`feature.clutter`, by family of room)
+ * and the room recipes' per-support counts:
  *
  *   FAMILIES        every family of small things, and the palette variant name it goes by. The variant name is the
  *                   family name, so a palette lists the pieces of a family under one name wherever they live.
@@ -53,6 +53,10 @@ export function featureRoles(type: FeatureType): readonly string[] {
 export interface SurfaceLoad {
   n: readonly [number, number];
   family?: SmallFamily;
+  /** Chance it takes anything at all (default: gen/rooms4.ts ROOM_DRESS.topChance). */
+  chance?: number;
+  /** The variant that carries things and stacks on itself (a small crate: a large one's top is taller). */
+  stackVariant?: string;
 }
 
 /**
@@ -65,8 +69,8 @@ export const SURFACE_LOAD: Readonly<Record<string, SurfaceLoad>> = {
   counter: { n: [2, 3] },
   bar_counter: { n: [1, 2] },
   desk: { n: [2, 3] },
-  chest: { n: [1, 1] },
-  crate: { n: [1, 1], family: "store" },
+  chest: { n: [1, 1], chance: 0.8 },
+  crate: { n: [1, 1], family: "store", stackVariant: "small" },
   barrel: { n: [1, 1], family: "store" },
   anvil: { n: [1, 1], family: "tools" },
   stall_counter: { n: [1, 2] },

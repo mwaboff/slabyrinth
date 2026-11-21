@@ -555,12 +555,33 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
  */
 const FILL_GAIN = 1.3;
 
-/** How many small things go on a support of each type, and its default family: the shared table (gen/surfaces.ts). */
-const TOP = SURFACE_LOAD;
+/** The measures a room is dressed and lit by (tiles unless said). */
+const ROOM_DRESS = {
+  /** Variants of one support whose heights differ by more than this take nothing on top (it would sink or float). */
+  heightSpread: 0.15,
+  /** A piece taller than this is tall: no shelf plank hangs over it, no torch in front of it. */
+  tall: 1.1,
+  /** The lowest wall a shelf plank hangs on, and a wall torch. */
+  shelfWall: 1.75,
+  torchWall: 1.5,
+  /** Chance a support takes small things on its top, unless its SURFACE_LOAD row says another. */
+  topChance: 0.94,
+  /** A dark point with no wall nearer than this for a torch gets a floor light first. */
+  torchReach: 3.2,
+  /** Furniture whose top takes a light is lit when it stands within this of the dark point. */
+  lampReach: 3.4,
+  /** No cell farther than this from a light: a dressed room, and an area that only gets lights. */
+  roomLightRadius: 3.6,
+  areaLightRadius: 4.4,
+  /** A lived-in place of this many floor tiles gets a floor light: a dressed room, and an area that only gets lights. */
+  roomFloorLightCells: 30,
+  areaFloorLightCells: 60,
+} as const;
+
+/** The small-things family a shelf plank carries. */
+const SHELF_FAMILY: Family = "shelf";
 
 // ───────────────────────────── geometry helpers ─────────────────────────────
-
-const ckey = cellKey;
 
 /**
  * Where a piece stands in its footprint: pushed against the wall it backs onto (and the side wall in a corner) so its
@@ -683,6 +704,9 @@ class Room {
   readonly cornerPairs = new Set<number>();
   /** Vertices of the room's inner corners (a corner post stands there). */
   readonly posts: Array<[number, number]> = [];
+  /** Wall spots (cell key × 4 + side) a shelf plank hangs on, and those a wall torch took. */
+  readonly hung = new Set<number>();
+  readonly torched = new Set<number>();
 
   /** Is the point within 0.9 of a corner post (0.5 square from the vertex, and the width of the thing, turned)? */
   nearPost(px: number, py: number): boolean {
@@ -708,7 +732,7 @@ class Room {
       if (!grid.inBounds(x, y) || grid.area(x, y) !== areaIndex || !grid.isFloor(x, y)) continue;
       if ((grid.flags(x, y) & (FLAG_LINK | FLAG_NO_FLOOR)) !== 0) continue;
       this.cells.push([x, y]);
-      this.inRoom.add(ckey(x, y));
+      this.inRoom.add(cellKey(x, y));
     }
     let sx = 0;
     let sy = 0;
@@ -718,7 +742,7 @@ class Room {
       const walls = wallSides(grid, x, y);
       for (const s of walls) this.wallPairs.push([x, y, s]);
       if (SIDES.some((s, i) => walls.includes(s) && walls.includes(SIDES[(i + 1) % 4] as Side)))
-        this.cornerPairs.add(ckey(x, y));
+        this.cornerPairs.add(cellKey(x, y));
       // the vertex of each inner corner: its post takes the 0.5 square beside it
       for (const v of ["N", "S"] as const)
         for (const h of ["W", "E"] as const)
@@ -731,7 +755,7 @@ class Room {
     this.entry = this.thresholds.length > 0 ? this.meanOf(this.thresholds) : this.centroid;
     this.reach = this.walk(new Set());
     for (const [lx, ly] of grid.lightCells?.() ?? [])
-      if (this.inRoom.has(ckey(lx, ly))) this.lights.push([lx, ly]);
+      if (this.inRoom.has(cellKey(lx, ly))) this.lights.push([lx, ly]);
   }
 
   private meanOf(list: ReadonlyArray<readonly [number, number]>): [number, number] {
@@ -753,29 +777,30 @@ class Room {
         const e = g.edge(x, y, s);
         const [nx, ny] = stepSide(x, y, s);
         let door = e === EDGE_OPENING || e === EDGE_STAIR;
-        if (!door && e === 0 && g.inBounds(nx, ny) && !this.inRoom.has(ckey(nx, ny)))
+        if (!door && e === 0 && g.inBounds(nx, ny) && !this.inRoom.has(cellKey(nx, ny)))
           door = g.isFloor(nx, ny) || (g.flags(nx, ny) & FLAG_LINK) !== 0;
         if (
           !door &&
           g.inBounds(nx, ny) &&
           (g.flags(nx, ny) & FLAG_LINK) !== 0 &&
-          !this.inRoom.has(ckey(nx, ny))
+          !this.inRoom.has(cellKey(nx, ny))
         )
           door = true;
         if (!door) continue;
-        if (!seen.has(ckey(x, y))) {
-          seen.add(ckey(x, y));
+        if (!seen.has(cellKey(x, y))) {
+          seen.add(cellKey(x, y));
           this.thresholds.push([x, y]);
         }
         const inward = INWARD[s];
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) this.zone.add(ckey(x + dx, y + dy));
-        this.zone.add(ckey(x + inward[0] * 2, y + inward[1] * 2));
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) this.zone.add(cellKey(x + dx, y + dy));
+        this.zone.add(cellKey(x + inward[0] * 2, y + inward[1] * 2));
       }
     }
   }
 
   blocked(x: number, y: number): boolean {
-    return this.taken.has(ckey(x, y)) || (this.grid.flags(x, y) & FLAG_FEATURE) !== 0;
+    return this.taken.has(cellKey(x, y)) || (this.grid.flags(x, y) & FLAG_FEATURE) !== 0;
   }
 
   /** The room cells reachable from its doors when `extra` is also blocked. */
@@ -783,16 +808,16 @@ class Room {
     const seen = new Set<number>();
     const queue: Array<[number, number]> = [];
     const open = (x: number, y: number): boolean =>
-      this.inRoom.has(ckey(x, y)) && !this.blocked(x, y) && !extra.has(ckey(x, y));
+      this.inRoom.has(cellKey(x, y)) && !this.blocked(x, y) && !extra.has(cellKey(x, y));
     for (const [x, y] of this.thresholds)
-      if (open(x, y) && !seen.has(ckey(x, y))) {
-        seen.add(ckey(x, y));
+      if (open(x, y) && !seen.has(cellKey(x, y))) {
+        seen.add(cellKey(x, y));
         queue.push([x, y]);
       }
     if (queue.length === 0) {
       const first = this.cells.find(([x, y]) => open(x, y));
       if (first) {
-        seen.add(ckey(first[0], first[1]));
+        seen.add(cellKey(first[0], first[1]));
         queue.push([first[0], first[1]]);
       }
     }
@@ -801,8 +826,8 @@ class Room {
       for (const s of SIDES) {
         if (this.grid.edge(x, y, s) === EDGE_WALL) continue;
         const [nx, ny] = stepSide(x, y, s);
-        if (!open(nx, ny) || seen.has(ckey(nx, ny))) continue;
-        seen.add(ckey(nx, ny));
+        if (!open(nx, ny) || seen.has(cellKey(nx, ny))) continue;
+        seen.add(cellKey(nx, ny));
         queue.push([nx, ny]);
       }
     }
@@ -811,7 +836,7 @@ class Room {
 
   /** May these cells be blocked: every cell still reachable from the doors stays reachable. */
   keepsWay(cells: ReadonlyArray<readonly [number, number]>): Set<number> | null {
-    const extra = new Set(cells.map(([x, y]) => ckey(x, y)));
+    const extra = new Set(cells.map(([x, y]) => cellKey(x, y)));
     const after = this.walk(extra);
     let lost = 0;
     for (const k of this.reach) if (!after.has(k) && !extra.has(k)) lost++;
@@ -819,7 +844,7 @@ class Room {
   }
 
   free(x: number, y: number): boolean {
-    const k = ckey(x, y);
+    const k = cellKey(x, y);
     return this.inRoom.has(k) && !this.taken.has(k) && !this.used.has(k) && !this.grid.occupied(x, y);
   }
 
@@ -862,7 +887,7 @@ class Room {
     const blocking = featureInfo(type).blocking;
     const ext = this.piece(type, variant);
     for (const [x, y, s] of this.wallPairs) {
-      const corner = this.cornerPairs.has(ckey(x, y));
+      const corner = this.cornerPairs.has(cellKey(x, y));
       if (cornerOnly && !corner) continue;
       const along: readonly [number, number] = s === "N" || s === "S" ? [1, 0] : [0, 1];
       const total: [number, number] = [base[0] * run, base[1]];
@@ -874,11 +899,11 @@ class Room {
       for (let i = 0; i < total[0] && ok; i++) {
         const ax = x + along[0] * i;
         const ay = y + along[1] * i;
-        if (!this.inRoom.has(ckey(ax, ay)) || this.grid.edge(ax, ay, s) !== EDGE_WALL) ok = false;
+        if (!this.inRoom.has(cellKey(ax, ay)) || this.grid.edge(ax, ay, s) !== EDGE_WALL) ok = false;
       }
       if (!ok) continue;
       for (const [cx, cy] of cells) {
-        if (!this.free(cx, cy) || (blocking && this.zone.has(ckey(cx, cy)))) {
+        if (!this.free(cx, cy) || (blocking && this.zone.has(cellKey(cx, cy)))) {
           ok = false;
           break;
         }
@@ -913,19 +938,21 @@ class Room {
 
   /** Is the cell on the wall side `s` close to a placed piece (a run of furniture along the wall). */
   nextToPlaced(c: Cand): boolean {
-    return c.cells.some(([x, y]) => SIDES.some((s) => this.taken.has(ckey(...stepSide(x, y, s)))));
+    return c.cells.some(([x, y]) => SIDES.some((s) => this.taken.has(cellKey(...stepSide(x, y, s)))));
   }
 
   /** Choose and place one wall item of the spec; returns the pieces placed or null. */
   placeWall(spec: Spec, opts: { far?: boolean; family: Family }): Placed[] | null {
-    // a crate that carries things is the small one (the large crate's top is a taller piece than the height we lift to)
+    // a support that carries things is its stacking variant where the load table names one (the small crate: the large
+    // crate's top is a taller piece than the height we lift to)
+    const stackVariant = SURFACE_LOAD[spec.type]?.stackVariant;
     if (
-      spec.type === "crate" &&
+      stackVariant !== undefined &&
       spec.variant === undefined &&
       spec.top !== "none" &&
-      this.has("crate", "small")
+      this.has(spec.type, stackVariant)
     )
-      spec = { ...spec, variant: "small" };
+      spec = { ...spec, variant: stackVariant };
     const info = featureInfo(spec.type);
     // a preferred variant the theme lacks (a straw bed, a small crate) gives way to the theme's own; stacking needs it
     if (spec.variant !== undefined && !this.has(spec.type, spec.variant)) {
@@ -985,7 +1012,11 @@ class Room {
       if (!this.push(g)) break;
       // a role whose variants are some tiles and some props has no one top height or centre: nothing stands on it
       const fam =
-        ext?.mixed === true ? "none" : spec.top === undefined ? (TOP[spec.type]?.family ?? family) : spec.top;
+        ext?.mixed === true
+          ? "none"
+          : spec.top === undefined
+            ? (SURFACE_LOAD[spec.type]?.family ?? family)
+            : spec.top;
       placed.push({
         type: spec.type,
         at: pc.at,
@@ -1001,9 +1032,9 @@ class Room {
     if (placed.length === 0) return null;
     for (const [x, y] of c.cells) {
       if (info.blocking && !info.wallMounted) {
-        this.taken.add(ckey(x, y));
+        this.taken.add(cellKey(x, y));
         this.blockCells++;
-      } else this.used.add(ckey(x, y));
+      } else this.used.add(cellKey(x, y));
     }
     if (after) this.reach = after;
     this.placed.push(...placed);
@@ -1030,7 +1061,7 @@ class Room {
     let placed = 0;
     for (const [x, y] of this.rng.shuffle(cells)) {
       if (placed >= seat.n) break;
-      if (!this.free(x, y) || this.zone.has(ckey(x, y))) continue;
+      if (!this.free(x, y) || this.zone.has(cellKey(x, y))) continue;
       if (this.grid.edge(x, y, p.side) === EDGE_WALL) continue;
       const after = this.keepsWay([[x, y]]);
       if (after === null) continue;
@@ -1041,7 +1072,7 @@ class Room {
         sext && !sext.tile ? (touchShift(this.grid, [x, y], [1, 1], turn, sext) ?? [0, 0]) : [0, 0];
       g.offset = [shift[0] as number, shift[1] as number];
       if (!this.push(g)) return;
-      this.taken.add(ckey(x, y));
+      this.taken.add(cellKey(x, y));
       this.blockCells++;
       this.reach = after;
       this.placed.push({
@@ -1063,9 +1094,9 @@ class Room {
     const ext = this.piece(p.type, p.variant);
     if (!ext || ext.mixed) return;
     // variants of very different height (a large and a small crate): a thing lifted to one sinks into, or floats over, another
-    if (ext.hMax - ext.h > 0.15) return;
-    // a second crate on the first (things resting on things): the small crate again, at the small crate's top
-    if (stacked && p.variant === "small") {
+    if (ext.hMax - ext.h > ROOM_DRESS.heightSpread) return;
+    // a second crate on the first (things resting on things): the small variant again, at its top
+    if (stacked && rule.stackVariant !== undefined && p.variant === rule.stackVariant) {
       const cx = clampTo(p.centre[0], p.at[0], p.size[0]);
       const cy = clampTo(p.centre[1], p.at[1], p.size[1]);
       if (this.grid.inBounds(cx, cy))
@@ -1075,7 +1106,7 @@ class Room {
           size: [1, 1],
           rot: 0,
           rotFine: this.rng.int(24) * 15,
-          variant: "small",
+          variant: rule.stackVariant,
           lift: ext.hMax,
           offset: [
             p.centre[0] - (cx + 0.5) + (this.rng.next() - 0.5) * 0.12,
@@ -1129,19 +1160,19 @@ class Room {
         ],
       };
       if (!this.push(g)) return;
-      this.used.add(ckey(cx, cy));
+      this.used.add(cellKey(cx, cy));
     }
   }
 
   /** A shelf plank along one stretch of wall with small things on it (the reference's built-in shelving). */
-  addShelf(family: Family): void {
+  addShelf(): void {
     const g = this.grid;
-    if (!this.has("shelf_line") || !this.has("clutter", family)) return;
+    if (!this.has("shelf_line") || !this.has("clutter", SHELF_FAMILY)) return;
     // wall cells where a plank may hang: a tall wall, nothing tall beneath it, off the door zones
     const tallBelow = (x: number, y: number): boolean =>
       this.placed.some(
         (q) =>
-          q.height > 1.1 &&
+          q.height > ROOM_DRESS.tall &&
           x >= q.at[0] &&
           x < q.at[0] + q.size[0] &&
           y >= q.at[1] &&
@@ -1149,21 +1180,22 @@ class Room {
       );
     const mountable = (x: number, y: number, s: Side): boolean =>
       g.edge(x, y, s) === EDGE_WALL &&
-      (g.wallHeight?.(x, y, s) ?? 2) >= 1.75 &&
+      (g.wallHeight?.(x, y, s) ?? 2) >= ROOM_DRESS.shelfWall &&
       !isNaturalWallStyle(g.wallStyle?.(x, y, s)) &&
       !tallBelow(x, y) &&
-      !this.hung.has(ckey(x, y) * 4 + SIDES.indexOf(s));
+      !this.hung.has(cellKey(x, y) * 4 + SIDES.indexOf(s));
     const runs: Array<Array<[number, number, Side]>> = [];
     for (const s of SIDES) {
       const along: readonly [number, number] = s === "N" || s === "S" ? [1, 0] : [0, 1];
       const cells = this.cells
         .filter(([x, y]) => mountable(x, y, s))
         .sort((a, b) => a[1] - b[1] || a[0] - b[0]);
-      const set = new Set(cells.map(([x, y]) => ckey(x, y)));
+      const set = new Set(cells.map(([x, y]) => cellKey(x, y)));
       for (const [x, y] of cells) {
-        if (set.has(ckey(x - along[0], y - along[1]))) continue;
+        if (set.has(cellKey(x - along[0], y - along[1]))) continue;
         const run: Array<[number, number, Side]> = [];
-        for (let cx = x, cy = y; set.has(ckey(cx, cy)); cx += along[0], cy += along[1]) run.push([cx, cy, s]);
+        for (let cx = x, cy = y; set.has(cellKey(cx, cy)); cx += along[0], cy += along[1])
+          run.push([cx, cy, s]);
         if (run.length >= 3) runs.push(run);
       }
     }
@@ -1176,7 +1208,7 @@ class Room {
       const turn = SIDE_ROT[s];
       if (!this.push({ type: "shelf_line", at: [x, y], size: [1, 1], rot: turn, rotFine: turn, wall: s }))
         return;
-      this.hung.add(ckey(x, y) * 4 + SIDES.indexOf(s));
+      this.hung.add(cellKey(x, y) * 4 + SIDES.indexOf(s));
       const hosted = g.wallHosted?.(x, y, s) ?? false;
       // the things stand against the wall on the plank (0.18 deep), 0.09 off its back face: over its middle
       const depth = (hosted ? 0.5 : 0) + 0.09;
@@ -1194,7 +1226,7 @@ class Room {
             size: [1, 1],
             rot: 0,
             rotFine: this.rng.int(24) * 15,
-            variant: "shelf",
+            variant: SHELF_FAMILY,
             lift: SHELF_TOP,
             offset: [ox, oy],
           })
@@ -1204,8 +1236,6 @@ class Room {
     }
   }
 
-  readonly hung = new Set<number>();
-
   /** A rug on a free 2×2 near the middle of the room (it blocks nothing). */
   addRug(): void {
     if (!this.has("rug")) return;
@@ -1213,7 +1243,7 @@ class Room {
     let bestD = Infinity;
     for (const [x, y] of this.cells) {
       const block = footprintCells([x, y], [2, 2]);
-      if (!block.every(([cx, cy]) => this.free(cx, cy) && !this.zone.has(ckey(cx, cy)))) continue;
+      if (!block.every(([cx, cy]) => this.free(cx, cy) && !this.zone.has(cellKey(cx, cy)))) continue;
       if (this.crossesWall([x, y], [2, 2]) || !this.oneHeight(block)) continue;
       const d = Math.hypot(x + 1 - this.centroid[0], y + 1 - this.centroid[1]) + this.rng.next() * 0.9;
       if (d < bestD) {
@@ -1224,7 +1254,7 @@ class Room {
     if (best.length === 0) return;
     const at = best[0] as [number, number];
     if (!this.push({ type: "rug", at, size: [2, 2], rot: 0, rotFine: 0 })) return;
-    for (const [x, y] of best) this.used.add(ckey(x, y));
+    for (const [x, y] of best) this.used.add(cellKey(x, y));
   }
 
   /**
@@ -1248,7 +1278,8 @@ class Room {
       if (r === "full") return;
       // the wall spot is chosen every round (its draw keeps the seeded sequence), used only if nothing is lit yet
       const wall = torch ? this.nearestTorchSpot(wx, wy) : null;
-      if (r === "none" && (wall === null || wall.dist > 3.2)) r = this.floorLight(wx, wy, opts.floor);
+      if (r === "none" && (wall === null || wall.dist > ROOM_DRESS.torchReach))
+        r = this.floorLight(wx, wy, opts.floor);
       if (r === "none" && wall !== null) r = this.wallTorch(wall.at);
       if (r === "none") r = this.floorLight(wx, wy, opts.floor);
       if (r !== "lit") return;
@@ -1271,7 +1302,7 @@ class Room {
     return worst === null ? null : { at: worst, dist: worstD };
   }
 
-  /** A candle or a small lantern on the nearest piece of furniture within 3.4 of (wx, wy) whose top takes one. */
+  /** A candle or a small lantern on the nearest piece of furniture within reach of (wx, wy) whose top takes one. */
   private lampOnFurniture(wx: number, wy: number): LightStep {
     const near = (q: Placed): number => Math.hypot(q.centre[0] - wx, q.centre[1] - wy);
     const sups = this.placed
@@ -1279,7 +1310,7 @@ class Room {
         (q) =>
           !q.light &&
           featureInfo(q.type).topLight !== undefined &&
-          near(q) <= 3.4 &&
+          near(q) <= ROOM_DRESS.lampReach &&
           !this.nearPost(q.centre[0], q.centre[1]),
       )
       .sort((a, b) => near(a) - near(b));
@@ -1288,7 +1319,8 @@ class Room {
       const lamp: FeatureType = featureInfo(q.type).topLight === "candle" ? "candles" : "candelabra";
       const variant = lamp === "candelabra" ? "lantern" : undefined;
       const ext = this.piece(q.type, q.variant);
-      if (!ext || ext.mixed || ext.hMax - ext.h > 0.15 || !this.has(lamp, variant)) continue;
+      if (!ext || ext.mixed || ext.hMax - ext.h > ROOM_DRESS.heightSpread || !this.has(lamp, variant))
+        continue;
       const cx = clampTo(q.centre[0], q.at[0], q.size[0]);
       const cy = clampTo(q.centre[1], q.at[1], q.size[1]);
       const placement: GeneratedPlacement = {
@@ -1315,10 +1347,10 @@ class Room {
   /** May a wall torch hang on side `s` of (x, y): a tall wall, nothing hung there yet, nothing tall in front. */
   private torchFits(x: number, y: number, s: Side): boolean {
     const g = this.grid;
-    if (g.edge(x, y, s) !== EDGE_WALL || (g.wallHeight?.(x, y, s) ?? 2) < 1.5) return false;
-    const spot = ckey(x, y) * 4 + SIDES.indexOf(s);
+    if (g.edge(x, y, s) !== EDGE_WALL || (g.wallHeight?.(x, y, s) ?? 2) < ROOM_DRESS.torchWall) return false;
+    const spot = cellKey(x, y) * 4 + SIDES.indexOf(s);
     if (this.hung.has(spot) || this.torched.has(spot)) return false;
-    if (g.occupied(x, y) && !this.taken.has(ckey(x, y))) return false;
+    if (g.occupied(x, y) && !this.taken.has(cellKey(x, y))) return false;
     const under = this.placed.find(
       (q) =>
         x >= q.at[0] &&
@@ -1327,7 +1359,7 @@ class Room {
         y < q.at[1] + q.size[1] &&
         q.type !== "clutter",
     );
-    return under === undefined || under.height <= 1.1;
+    return under === undefined || under.height <= ROOM_DRESS.tall;
   }
 
   /** The wall spot for a torch nearest (wx, wy), door zones a little less welcome; with its distance. */
@@ -1338,7 +1370,7 @@ class Room {
     for (const [x, y, s] of this.wallPairs) {
       if (!this.torchFits(x, y, s)) continue;
       const d = Math.hypot(x - wx, y - wy);
-      const sc = d + this.rng.next() * 0.6 + (this.zone.has(ckey(x, y)) ? 0.8 : 0);
+      const sc = d + this.rng.next() * 0.6 + (this.zone.has(cellKey(x, y)) ? 0.8 : 0);
       if (sc < bestScore) {
         bestScore = sc;
         bestDist = d;
@@ -1353,7 +1385,7 @@ class Room {
     const turn = SIDE_ROT[s];
     if (!this.push({ type: "torch_wall", at: [x, y], size: [1, 1], rot: turn, rotFine: turn, wall: s }))
       return "full";
-    this.torched.add(ckey(x, y) * 4 + SIDES.indexOf(s));
+    this.torched.add(cellKey(x, y) * 4 + SIDES.indexOf(s));
     this.lights.push([x, y]);
     return "lit";
   }
@@ -1366,7 +1398,7 @@ class Room {
     if (kind === null || !this.has(kind)) return "none";
     const near = ([x, y]: readonly [number, number]): number => Math.hypot(x - wx, y - wy);
     const spots = this.cells
-      .filter((c) => this.free(c[0], c[1]) && !this.zone.has(ckey(c[0], c[1])) && near(c) <= 3)
+      .filter((c) => this.free(c[0], c[1]) && !this.zone.has(cellKey(c[0], c[1])) && near(c) <= 3)
       .sort((a, b) => near(a) - near(b));
     if (kind === "candles") {
       const at = spots[0];
@@ -1379,7 +1411,7 @@ class Room {
         rotFine: this.rng.int(24) * 15,
       };
       if (!this.push(candles)) return "full";
-      this.used.add(ckey(at[0], at[1]));
+      this.used.add(cellKey(at[0], at[1]));
       this.lights.push([at[0], at[1]]);
       return "lit";
     }
@@ -1391,7 +1423,7 @@ class Room {
       const bp: GeneratedPlacement = { type: "brazier", at: [x, y], size: [1, 1], rot: 0, rotFine: 0 };
       bp.offset = [shift[0] as number, shift[1] as number];
       if (!this.push(bp)) return "full";
-      this.taken.add(ckey(x, y));
+      this.taken.add(cellKey(x, y));
       this.blockCells++;
       this.reach = after;
       this.lights.push([x, y]);
@@ -1399,8 +1431,6 @@ class Room {
     }
     return "none";
   }
-
-  readonly torched = new Set<number>();
 }
 
 /** What `Room.light` asks for. */
@@ -1436,10 +1466,13 @@ const pickSpec = (rng: Prng, list: readonly Spec[]): Spec | null => {
   return list[list.length - 1] ?? null;
 };
 
-/** How many lights a room asks for: one per about 9 floor tiles when lived in, one per 50 (at least one) when not. */
-export function lightTarget(floor: number, abandoned: boolean): number {
+/**
+ * How many lights a place asks for: one per `every` floor tiles when lived in (about 9 in a dressed room), one per 50
+ * (at least one) when abandoned. The one rule for a dressed room and an area that only gets lights.
+ */
+export function lightTarget(floor: number, abandoned: boolean, every = 9): number {
   if (abandoned) return floor >= 8 ? Math.max(1, Math.floor(floor / 50)) : 0;
-  return floor >= 6 ? Math.max(1, Math.ceil(floor / 9)) : 0;
+  return floor >= 6 ? Math.max(1, Math.ceil(floor / every)) : 0;
 }
 
 /**
@@ -1502,13 +1535,13 @@ export function dressRoom(grid: PlacementGrid, p: RoomDressParams): ScatterResul
 
   // 3. things on the furniture
   for (const q of room.placed.slice()) {
-    const rule = TOP[q.type];
+    const rule = SURFACE_LOAD[q.type];
     if (!rule || q.family === "none") continue;
     const spec = [...variant.anchors, ...variant.wall].find((s) => s.type === q.type);
-    if (room.rng.chance(q.type === "chest" ? 0.8 : 0.94))
+    if (room.rng.chance(rule.chance ?? ROOM_DRESS.topChance))
       room.addToppers(q, q.family, rule, spec?.stack === true && room.rng.chance(0.7));
   }
-  if (variant.shelf === true) room.addShelf("shelf");
+  if (variant.shelf === true) room.addShelf();
 
   // 4. a rug
   if (variant.rug === true) room.addRug();
@@ -1518,16 +1551,22 @@ export function dressRoom(grid: PlacementGrid, p: RoomDressParams): ScatterResul
   room.light({
     target: lightTarget(floor, p.abandoned),
     // an abandoned place keeps its dark pockets: one light, then no more
-    radius: p.abandoned ? Infinity : 3.6,
+    radius: p.abandoned ? Infinity : ROOM_DRESS.roomLightRadius,
     torchOnly: p.abandoned,
-    floor: floor >= 30 && !p.abandoned ? (ROOM_PURPOSE_INFO[p.purpose].noFire ? "candles" : "brazier") : null,
+    floor:
+      floor >= ROOM_DRESS.roomFloorLightCells && !p.abandoned
+        ? ROOM_PURPOSE_INFO[p.purpose].noFire
+          ? "candles"
+          : "brazier"
+        : null,
   });
   return { placements: room.out, capped: room.capped };
 }
 
 /**
  * Lights only: a room or passage nobody dressed (no purpose in its words, or the plan furnished it itself) still gets
- * its torches. Abandoned places keep one, a lived-in one about one per 12 floor tiles, a passage one per 18.
+ * its torches, as many as lightTarget asks (one per `every` floor tiles: 12 in a room, 18 in a passage; an abandoned
+ * place one per 50).
  */
 export function lightArea(
   grid: PlacementGrid,
@@ -1543,12 +1582,11 @@ export function lightArea(
   const room = new Room(grid, p.areaIndex, p.areaCells, p.seed, p.remaining);
   const n = room.cells.length;
   if (n < 6 || grid.piece4 === undefined) return { placements: [], capped: false };
-  const target = p.abandoned ? (n >= 8 ? 1 : 0) : Math.max(1, Math.ceil(n / p.every));
   room.light({
-    target,
-    radius: p.abandoned ? Infinity : 4.4,
+    target: lightTarget(n, p.abandoned, p.every),
+    radius: p.abandoned ? Infinity : ROOM_DRESS.areaLightRadius,
     torchOnly: true,
-    floor: n >= 60 && !p.abandoned ? "brazier" : null,
+    floor: n >= ROOM_DRESS.areaFloorLightCells && !p.abandoned ? "brazier" : null,
   });
   return { placements: room.out, capped: room.capped };
 }
