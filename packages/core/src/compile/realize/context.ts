@@ -26,7 +26,7 @@ import {
 } from "../../palette/resolve";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
 import { familiesOfVariants, type FloorFamily } from "../../resolve/floorFamilies";
-import { OBSERVED_TONES } from "../../review/tones";
+import { OBSERVED_TONES } from "../../palette/tones";
 import { WorldFrame, h32 } from "../geometry";
 import { LevelView } from "./view";
 

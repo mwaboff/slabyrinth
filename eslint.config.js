@@ -30,6 +30,30 @@ const coreBoundary = {
   ],
 };
 
+/**
+ * Layer direction inside @slabyrinth/core: plan and palette data, then gen, resolve, compile, review. The design
+ * review reads what the build produced (it may import compile), so nothing below it may import review, and nothing
+ * below compile may import compile; a cycle between them starts with such an import.
+ */
+/** @param {string} layer */
+const layerImport = (layer) => ({
+  regex: `(^|/)${layer}(/|$)`,
+  message: `This layer must not import ${layer}/ (core layer direction: plan, palette, gen, resolve, compile, review).`,
+});
+/** @type {import("eslint").Linter.Config[]} */
+const coreLayers = [
+  { files: ["plan", "palette", "gen", "resolve"], forbidden: ["compile", "review"] },
+  { files: ["compile"], forbidden: ["review"] },
+].map(({ files, forbidden }) => ({
+  files: files.map((dir) => `packages/core/src/${dir}/**/*.ts`),
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      { paths: coreBoundary.paths, patterns: [...coreBoundary.patterns, ...forbidden.map(layerImport)] },
+    ],
+  },
+}));
+
 export default tseslint.config(
   {
     ignores: [
@@ -89,6 +113,7 @@ export default tseslint.config(
     ignores: ["packages/core/src/cli/**"],
     rules: { "no-restricted-imports": ["error", coreBoundary] },
   },
+  ...coreLayers,
   {
     files: ["apps/desktop/src/renderer/**/*.{ts,tsx}", "packages/render-canvas/src/**/*.ts"],
     languageOptions: { globals: globals.browser },

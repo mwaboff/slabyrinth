@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import type { Palette, PaletteFacing, PaletteRole, PaletteVariant } from "../src/contracts/compiler";
 import { FEATURE_TYPES, LINK_KINDS, MATERIALS, OPENING_KINDS, WALL_STYLES } from "../src/contracts/plan";
 import { format, resolveConfig } from "prettier";
-import { OBSERVED_TONES } from "../src/review/tones";
+import { OBSERVED_TONES } from "../src/palette/tones";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, "..", "..", "..");
@@ -764,7 +764,7 @@ async function main(): Promise<void> {
     coverage,
   };
 
-  // tones seen in game (review/tones.ts) on rows that carry none of their own
+  // tones seen in game (palette/tones.ts) on rows that carry none of their own
   for (const p of palettes)
     for (const def of Object.values(p.roles))
       for (const v of def.variants) {

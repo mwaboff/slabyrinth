@@ -31,7 +31,7 @@ import {
   type ToneVariant,
 } from "../gen/cover";
 import { rasterizeShape } from "../gen/shapes";
-import { OBSERVED_TONES } from "./tones";
+import { OBSERVED_TONES } from "../palette/tones";
 import { FENCE, fenceShare, type FenceRule } from "./rockSpacing";
 import { courseShape } from "../resolve/chasm";
 import {
