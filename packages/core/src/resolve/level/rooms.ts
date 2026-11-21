@@ -23,6 +23,45 @@ import type { FeatureWork } from "./features";
 import type { FloorOpeningRecords } from "./floorOpenings";
 import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
 
+/** Room floors and the step above the corridor (stepRoomFloors). */
+const ROOM_FLOORS = {
+  /** A room of more cells keeps to floors that come in big tiles (a 1x1-only tile would take four times the pieces). */
+  bigRoomCells: 36,
+  /** The smallest tile (in cells) a big room's floor may come in; a floor the palette gives no size for counts as it. */
+  bigTileCells: 4,
+  /** A room of fewer cells is not raised. */
+  minStepCells: 4,
+  /** How far a room entered from a corridor is raised (quarter tiles): a step a miniature always climbs. */
+  stepQ: 1,
+} as const;
+
+/** Rubble at the foot of rough walls (stepWallFootRubble). */
+const WALL_FOOT = {
+  /** Chance of a pile on a cell against one rough wall. */
+  oneWall: 0.28,
+  /** Chance of a pile on a cell in a corner (against two or more). */
+  corner: 0.5,
+  /** Chance a corner pile in a room (never in a corridor) is blocking rubble rather than low debris. */
+  blocking: 0.35,
+  /** Share of doorways that get piles at their jambs. */
+  jambShare: 0.5,
+  /** Most piles at one doorway (of its four flanking cells). */
+  jambPiles: 2,
+  /** Added to a doorway's index so its draw never repeats a cell's draw from the same seed (any large prime). */
+  jambSeedOffset: 7919,
+} as const;
+
+/** The default dressing of rooms (stepRoomRecipes). */
+const RECIPES = {
+  /** An area with fewer floor cells is left as it is. */
+  minCells: 6,
+  /** The plan furnished a room itself when it placed at least this many features per 10 floor cells. */
+  ownPer10Cells: 2,
+  /** Cells per light (gen/rooms4.ts lightArea) in a corridor and in a room. */
+  corridorLightEvery: 18,
+  roomLightEvery: 12,
+} as const;
+
 /**
  * Generator 4 (switch `roomFloors`), built interiors (level base solid): rooms are told apart by floor and sit a step
  * above the corridor (resolve/interiorFloors.ts).
@@ -111,12 +150,14 @@ export function stepRoomFloors(work: ResolveGrid): void {
       ...rotation.map((_, k) => rotation[(start + k) % rotation.length] as Material),
     ];
     const nCells = (cellsOf.get(info.index) ?? []).length;
-    // a big room keeps to floors that come in big tiles (a 1x1-only tile would take four times the pieces)
+    // a big room keeps to floors that come in big tiles
+    const { bigRoomCells, bigTileCells } = ROOM_FLOORS;
     const pick = cand.find(
       (m) =>
         (!used.has(m) || (family === "timber" && m === purpose)) &&
         BUILT_FLOORS.has(m) &&
-        (nCells <= 36 || (work.ctx.palette.floorTileArea(info.theme, m) ?? 4) >= 4),
+        (nCells <= bigRoomCells ||
+          (work.ctx.palette.floorTileArea(info.theme, m) ?? bigTileCells) >= bigTileCells),
     );
     if (pick === undefined || pick === td.floor) continue;
     // the room's cells that still hold the floor it claimed (a dais or a painted patch keeps its own)
@@ -128,7 +169,7 @@ export function stepRoomFloors(work: ResolveGrid): void {
   for (const info of rooms) {
     if (info.area.floorHeight !== undefined) continue;
     const cells = cellsOf.get(info.index) ?? [];
-    if (cells.length < 4) continue;
+    if (cells.length < ROOM_FLOORS.minStepCells) continue;
     if (!joined.has(info.index)) continue;
     const clean = cells.every(
       (i) =>
@@ -144,7 +185,7 @@ export function stepRoomFloors(work: ResolveGrid): void {
           0,
     );
     if (!clean) continue;
-    for (const i of cells) work.height[i] = 1;
+    for (const i of cells) work.height[i] = ROOM_FLOORS.stepQ;
   }
 }
 
@@ -285,14 +326,14 @@ export function stepWallFootRubble(
     const [x, y] = work.cellXY(i);
     const walls = sides.filter((s) => roughSide(x, y, s)).length;
     if (walls === 0) continue;
-    const p = walls >= 2 ? 0.5 : 0.28;
+    const p = walls >= 2 ? WALL_FOOT.corner : WALL_FOOT.oneWall;
     if (u("foot", i) >= p) continue;
-    const block = walls >= 2 && !inCorridor(i) && u("blk", i) < 0.35;
+    const block = walls >= 2 && !inCorridor(i) && u("blk", i) < WALL_FOOT.blocking;
     put(i, block ? "rubble" : "debris");
   }
   // either side of about half the doorways: the cells flanking the opening along its wall
   openings.forEach((op, k) => {
-    if (op.kind === "open" || u("jamb", k + 7919) >= 0.5) return;
+    if (op.kind === "open" || u("jamb", k + WALL_FOOT.jambSeedOffset) >= WALL_FOOT.jambShare) return;
     const [sx, sy] = op.start;
     const flank: Vec2[] =
       op.orientation === "h"
@@ -316,7 +357,7 @@ export function stepWallFootRubble(
         return roughSide(c[0], c[1], side);
       })
       .sort((a, b) => a.r - b.r)
-      .slice(0, 2);
+      .slice(0, WALL_FOOT.jambPiles);
     for (const { c, j } of picks) {
       const i = work.idx(c[0], c[1]);
       if (i < 0) continue;
@@ -327,8 +368,8 @@ export function stepWallFootRubble(
 
 /**
  * Generator 4 (switch `roomRecipes`): the default dressing of rooms (gen/rooms4.ts). An area of kind room whose
- * name, tags or notes name a purpose, that no dress op covers and that the plan furnished lightly (under 2 features
- * per 10 floor tiles), gets that purpose's furniture, things on it and lights. A room with no purpose, or one the plan
+ * name, tags or notes name a purpose, that no dress op covers and that the plan furnished lightly (under
+ * RECIPES.ownPer10Cells features per 10 floor tiles), gets that purpose's furniture, things on it and lights. A room with no purpose, or one the plan
  * furnished itself, still gets its torches; a passage a few. Abandoned places (a crypt, cells, a ruin) stay sparse and
  * keep one light at most. `roomDress: false` on the level turns it off. Runs before the loose rubble and the scatters,
  * so those fill what the furniture leaves and never take a wall run from it.
@@ -346,7 +387,7 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
     const cells: Array<[number, number]> = [];
     for (let i = 0; i < work.n; i++)
       if (work.disp[i] === info.index + 1 && work.isFloor(i)) cells.push(work.cellXY(i));
-    if (cells.length < 6) continue;
+    if (cells.length < RECIPES.minCells) continue;
     const theme = info.theme;
     const grid: PlacementGrid = {
       ...baseGrid,
@@ -356,7 +397,7 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
     const own = features.all.filter(
       (f) => f.area === area.id && f.generatedBy === undefined && f.type !== "torch_wall",
     ).length;
-    const lightly = own * 10 < 2 * cells.length;
+    const lightly = own * 10 < RECIPES.ownPer10Cells * cells.length;
     // a corridor is never furnished, but its name still says whether it is kept up ("Crypt passage" stays dark)
     const { purpose, abandoned } = info.room;
     const ruin = purpose === "ruin";
@@ -383,7 +424,7 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
         areaCells: cells,
         seed,
         remaining: cap - features.generated,
-        every: info.kind === "corridor" ? 18 : 12,
+        every: info.kind === "corridor" ? RECIPES.corridorLightEvery : RECIPES.roomLightEvery,
         abandoned,
       });
     }

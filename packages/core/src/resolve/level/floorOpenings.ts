@@ -21,6 +21,35 @@ import type { FeatureWork } from "./features";
 import { type AreaInfo, type ReadOnly, type ResolveGrid, RAILING_HEIGHT } from "./grid";
 import type { ResolveLevelState } from "./state";
 
+/** The shape of a collapse (applyFloorOpening); the rest of its outline is the profile's `openingOutline` tuning. */
+const RAGGED = {
+  /** A hole of fewer cells keeps its shape. */
+  minCells: 6,
+  /** A hole of this many cells has its lumps roughened twice. */
+  twiceFrom: 20,
+  /** A roughened hole of this many cells also has rim cells bitten off. */
+  biteFrom: 12,
+  /** Noise scale (cells) of the lobes that bulge out beside the hole. */
+  lobeScale: 1.6,
+} as const;
+/** Share of a collapse's rim edges left open (where people walk to the edge, and rubble spilled over it). */
+const RIM_GAP_SHARE = 0.4;
+/** Below this share of its cells over open floor on the level below, a floor opening looks into rock (a warning). */
+const FLOOR_BELOW_SHARE = 0.6;
+/** The mound under a collapse (moundUnder). */
+const MOUND = {
+  /** Fewer floor cells under the hole get no mound. */
+  minCells: 6,
+  /** Noise scale (cells) and share of inner cells that stay at the lower step. */
+  scale: 1.7,
+  lowShare: 0.35,
+  /** Rise (quarter tiles): one cell in from the skirt, and the crown. */
+  lowQ: 2,
+  highQ: 4,
+} as const;
+/** Debris along the rim of a collapse (stepOpeningRimDebris): share of rim cells, and of the cells one further back. */
+const RIM_DEBRIS = { onRim: 0.75, behind: 0.22 } as const;
+
 /** Generator 3: a hole cut in the floor by a floor_opening op, and what the review and the level below learn of it. */
 export interface FloorOpening {
   id: string;
@@ -75,12 +104,15 @@ export function applyFloorOpening(
   let cells = work.shapeCells(op.shape, "terrain", path, op.id).filter(free);
   const seed = subSeed(elementSeed(work.plan.seed, op.id), "floor-opening");
   const outline = work.profile.openingOutline;
-  if ((op.edge ?? (kind === "collapse" ? "ragged" : "clean")) === "ragged" && cells.length >= 6) {
+  if (
+    (op.edge ?? (kind === "collapse" ? "ragged" : "clean")) === "ragged" &&
+    cells.length >= RAGGED.minCells
+  ) {
     const tiers = new Map<number, number>(cells.map((i) => [i, 1]));
     roughenLumps(tiers, work.organicGrid(), seed);
-    if (cells.length >= 20) roughenLumps(tiers, work.organicGrid(), subSeed(seed, "again"));
+    if (cells.length >= RAGGED.twiceFrom) roughenLumps(tiers, work.organicGrid(), subSeed(seed, "again"));
     let kept = cells.filter((i) => (tiers.get(i) ?? 0) > 0);
-    if (kept.length >= 12) {
+    if (kept.length >= RAGGED.biteFrom) {
       const noise = new ValueNoise(subSeed(seed, "rim"));
       const dist = work.innerDistance(kept);
       kept = kept.filter((i) => {
@@ -104,8 +136,8 @@ export function applyFloorOpening(
           [0, -1],
         ] as const) {
           const j = work.idx(x + dx, y + dy);
-          if (!free(j) || inSet.has(j) || noise.sample((x + dx) / 1.6, (y + dy) / 1.6) < outline.lobeCut)
-            continue;
+          const lobe = noise.sample((x + dx) / RAGGED.lobeScale, (y + dy) / RAGGED.lobeScale);
+          if (!free(j) || inSet.has(j) || lobe < outline.lobeCut) continue;
           const [jx, jy] = work.cellXY(j);
           const clear = (
             [
@@ -192,7 +224,8 @@ export function stepOpeningRims(work: ResolveGrid, out: FloorOpeningRecords): vo
         if (low && fo.kind === "collapse" && !fo.rimCells.includes(j)) fo.rimCells.push(j);
         if (fo.rim === "none") continue;
         // a broken rim has gaps: where people walk to the edge, and rubble spilled over it
-        if (fo.kind === "collapse" && h32(`${fo.seed}:rim:${x}:${y}:${side}`) / 4294967296 < 0.4) continue;
+        if (fo.kind === "collapse" && h32(`${fo.seed}:rim:${x}:${y}:${side}`) / 4294967296 < RIM_GAP_SHARE)
+          continue;
         ed.e.kind[ed.i] = EDGE.WALL;
         ed.e.style[ed.i] = fo.rim;
         ed.e.height[ed.i] = RAILING_HEIGHT;
@@ -241,7 +274,7 @@ function linkOpenings(level: ResolveLevelState, lower: ResolveLevelState | undef
     }
     fo.below = below.level.id;
     fo.floorBelow = xy.filter(([x, y]) => below.hasFloorAt(x, y)).length;
-    if (fo.floorBelow < Math.ceil(xy.length * 0.6)) {
+    if (fo.floorBelow < Math.ceil(xy.length * FLOOR_BELOW_SHARE)) {
       const first = xy.find(([x, y]) => !below.hasFloorAt(x, y)) ?? xy[0];
       work.issue(
         "warning",
@@ -280,13 +313,18 @@ function moundUnder(work: ResolveGrid, xy: Vec2[], seed: number): void {
     if (work.hasWallAround(x, y)) continue;
     wanted.add(i);
   }
-  if (wanted.size < 6) return;
+  if (wanted.size < MOUND.minCells) return;
   const dist = work.innerDistance([...wanted]);
   const noise = new ValueNoise(subSeed(seed, "mound"));
   for (const i of wanted) {
     const d = dist.get(i) ?? 1;
     const [x, y] = work.cellXY(i);
-    const lift = d <= 1 ? 0 : d === 2 ? 2 : noise.sample(x / 1.7, y / 1.7) < 0.35 ? 2 : 4;
+    const lift =
+      d <= 1
+        ? 0
+        : d === 2 || noise.sample(x / MOUND.scale, y / MOUND.scale) < MOUND.lowShare
+          ? MOUND.lowQ
+          : MOUND.highQ;
     if (lift === 0) continue;
     work.height[i] = (work.height[i] as number) + lift;
     work.setMaterial(i, "rock");
@@ -332,7 +370,7 @@ export function stepOpeningRimDebris(
     const rim = [...new Set(fo.rimCells)].sort((a, b) => a - b);
     const back = new Set<number>();
     for (const i of rim) {
-      if (u(i, "on") < 0.75) drop(i);
+      if (u(i, "on") < RIM_DEBRIS.onRim) drop(i);
       const [x, y] = work.cellXY(i);
       for (const [dx, dy] of [
         [1, 0],
@@ -344,7 +382,7 @@ export function stepOpeningRimDebris(
         if (j >= 0 && !holes.has(j) && !rim.includes(j) && work.hasFloorAt(x + dx, y + dy)) back.add(j);
       }
     }
-    for (const j of [...back].sort((a, b) => a - b)) if (u(j, "back") < 0.22) drop(j);
+    for (const j of [...back].sort((a, b) => a - b)) if (u(j, "back") < RIM_DEBRIS.behind) drop(j);
   }
 }
 

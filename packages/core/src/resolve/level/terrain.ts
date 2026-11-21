@@ -351,6 +351,22 @@ function rasterCellsOf(m: CellMask, idx: (x: number, y: number) => number): numb
   return out;
 }
 
+/** The natural board outline (stepOutline). Insets are cells in from the board edge, in 2-cell blocks. */
+const OUTLINE = {
+  /** A board narrower than this (cells) keeps its rectangle. */
+  minSide: 16,
+  /** Noise scale (2-cell blocks) of the wandering inset. */
+  scale: 3.2,
+  /** Where the noise is above these, the outline steps in by `deep` or `shallow` cells. */
+  deepAbove: 0.62,
+  deep: 4,
+  shallowAbove: 0.42,
+  shallow: 2,
+  /** Within this many cells of a corner (along both edges together) the outline steps in `corner` cells more. */
+  cornerReach: 5,
+  corner: 2,
+} as const;
+
 /**
  * Generator 2, open-air natural levels: the board gets a ragged, rounded outline (about 80–90% of its rectangle,
  * stepping in 2-cell blocks) with a strip of low ground about 2 cells wide inside it, so a rise never meets the
@@ -367,7 +383,7 @@ export function stepOutline(work: ResolveGrid, paths: ReadOnly<PathRecords>): vo
     (work.level.structures ?? []).length >= 3
   )
     return;
-  if (work.w < 16 || work.h < 16) return;
+  if (work.w < OUTLINE.minSide || work.h < OUTLINE.minSide) return;
   const noise = new ValueNoise(subSeed(elementSeed(work.plan.seed, `${work.level.id}~outline`), "outline"));
   const keep = (i: number): boolean => {
     const f = work.flags[i] as number;
@@ -388,10 +404,11 @@ export function stepOutline(work: ResolveGrid, paths: ReadOnly<PathRecords>): vo
     const bx2 = Math.floor(lx / 2);
     const by2 = Math.floor(ly / 2);
     const d = Math.min(lx, ly, work.w - 1 - lx, work.h - 1 - ly);
-    const n = noise.sample(bx2 / 3.2, by2 / 3.2);
-    const inset = n > 0.62 ? 4 : n > 0.42 ? 2 : 0;
+    const n = noise.sample(bx2 / OUTLINE.scale, by2 / OUTLINE.scale);
+    const inset = n > OUTLINE.deepAbove ? OUTLINE.deep : n > OUTLINE.shallowAbove ? OUTLINE.shallow : 0;
     // corners round off: the inset grows where two edges are near
-    const corner = Math.min(lx, work.w - 1 - lx) + Math.min(ly, work.h - 1 - ly) < 5 ? 2 : 0;
+    const nearCorner = Math.min(lx, work.w - 1 - lx) + Math.min(ly, work.h - 1 - ly) < OUTLINE.cornerReach;
+    const corner = nearCorner ? OUTLINE.corner : 0;
     inside[i] = d >= inset + corner ? 1 : 0;
   }
   // the open board: inside the outline, plus whatever must reach the edge
