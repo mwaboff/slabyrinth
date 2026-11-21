@@ -31,6 +31,7 @@ interface ProjectState {
 
 let uiTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingUi: Partial<Omit<UiResume, "lastActivityAt">> = {};
+let pendingUiProject: string | null = null;
 
 export const useProject = create<ProjectState>((set, get) => ({
   snap: null,
@@ -73,6 +74,10 @@ export const useProject = create<ProjectState>((set, get) => ({
     if (snap) set({ snap: { ...snap, brief } });
   },
   saveUi: (ui) => {
+    // pending view state belongs to the project it was made in: another project opening drops it
+    const projectId = get().snap?.projectId ?? null;
+    if (pendingUiProject !== projectId) pendingUi = {};
+    pendingUiProject = projectId;
     pendingUi = { ...pendingUi, ...ui };
     if (uiTimer !== null) clearTimeout(uiTimer);
     uiTimer = setTimeout(() => {
@@ -80,7 +85,7 @@ export const useProject = create<ProjectState>((set, get) => ({
       const payload = { ...pendingUi };
       pendingUi = {};
       uiTimer = null;
-      if (get().snap === null) return;
+      if (get().snap === null || get().snap?.projectId !== pendingUiProject) return;
       call("project:setUiState", { ui: payload }).catch((e: unknown) => {
         console.warn("[slabyrinth] could not save the view state", e);
       });
