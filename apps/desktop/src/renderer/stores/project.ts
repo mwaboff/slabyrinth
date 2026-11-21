@@ -32,6 +32,50 @@ interface ProjectState {
 let uiTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingUi: Partial<Omit<UiResume, "lastActivityAt">> = {};
 let pendingUiProject: string | null = null;
+/** Project switches in flight (`switchProject`): no view state is sent meanwhile. */
+let switching = 0;
+
+/**
+ * Sends view state for the open project (project:setUiState names no project: main takes it for the project it last
+ * handed the renderer and drops it otherwise). Nothing is sent while a project switch is in flight, so a save sent
+ * before the switch is handled before it, never after.
+ */
+function sendUiState(req: IpcRequests["project:setUiState"]["req"]): void {
+  if (switching > 0) return;
+  call("project:setUiState", req).catch((e: unknown) => {
+    console.warn("[slabyrinth] could not save the view state", e);
+  });
+}
+
+/** Sends the pending view state now, if it is for the project still open. */
+function flushUi(snapProjectId: string | null): void {
+  if (uiTimer !== null) clearTimeout(uiTimer);
+  uiTimer = null;
+  const payload = { ...pendingUi };
+  pendingUi = {};
+  if (snapProjectId === null || snapProjectId !== pendingUiProject || Object.keys(payload).length === 0)
+    return;
+  sendUiState({ ui: payload });
+}
+
+/**
+ * Every call that opens, creates or closes a project goes through here: the pending view state of the project being
+ * left is sent first (it is that project's), and no view state is sent until the switch is done.
+ */
+export async function switchProject<T>(go: () => Promise<T>): Promise<T> {
+  flushUi(useProject.getState().snap?.projectId ?? null);
+  switching++;
+  try {
+    return await go();
+  } finally {
+    switching--;
+  }
+}
+
+/** Saves a resume value other than the view (the PNG export options) for the open project. */
+export function saveProjectUiState(req: Omit<IpcRequests["project:setUiState"]["req"], "ui">): void {
+  sendUiState(req);
+}
 
 export const useProject = create<ProjectState>((set, get) => ({
   snap: null,
@@ -80,20 +124,14 @@ export const useProject = create<ProjectState>((set, get) => ({
     pendingUiProject = projectId;
     pendingUi = { ...pendingUi, ...ui };
     if (uiTimer !== null) clearTimeout(uiTimer);
+    // main stamps lastActivityAt itself and rejects it in requests
     uiTimer = setTimeout(() => {
-      // main stamps lastActivityAt itself and rejects it in requests
-      const payload = { ...pendingUi };
-      pendingUi = {};
-      uiTimer = null;
-      if (get().snap === null || get().snap?.projectId !== pendingUiProject) return;
-      call("project:setUiState", { ui: payload }).catch((e: unknown) => {
-        console.warn("[slabyrinth] could not save the view state", e);
-      });
+      flushUi(get().snap?.projectId ?? null);
     }, 600);
   },
   savePasteGuide: (p) => {
     set({ resume: { ...get().resume, pasteGuide: p } });
-    call("project:setUiState", { pasteGuide: p }).catch(() => undefined);
+    sendUiState({ pasteGuide: p });
   },
 }));
 

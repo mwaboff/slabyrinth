@@ -520,6 +520,34 @@ describe("app guards", () => {
     });
   });
 
+  describe("slabyrinth/project-switch: view state follows its project", () => {
+    const file = "apps/desktop/src/renderer/features/x.ts";
+    it("reports view state sent past the store, and a project switch outside switchProject", async () => {
+      for (const code of [
+        'call("project:setUiState", { ui: { zoom: 2 } }).catch(() => undefined);',
+        'async function f() { await call("project:open", { path: p }); }',
+        'async function f() { await tryCall("project:close", {}); }',
+      ])
+        expect(await guardHits(file, code), code).toEqual([
+          expect.stringContaining("slabyrinth/project-switch"),
+        ]);
+    });
+    it("leaves switches inside switchProject, the store itself and other channels alone", async () => {
+      for (const code of [
+        'async function f() { await switchProject(() => call("project:open", { path: p })); }',
+        'async function f() { await switchProject(async () => { await call("project:close", {}); }); }',
+        'async function f() { await call("project:rename", { name }); }',
+      ])
+        expect(await guardHits(file, code), code).toEqual([]);
+      expect(
+        await guardHits(
+          "apps/desktop/src/renderer/stores/project.ts",
+          'call("project:setUiState", { ui: {} }).catch(() => undefined);',
+        ),
+      ).toEqual([]);
+    });
+  });
+
   describe("slabyrinth/parsed-json: JSON from outside is validated, not cast", () => {
     it("reports a cast of JSON.parse in the app and the CLI, not in tests", async () => {
       const code = "const p = JSON.parse(text) as MapPlan;";

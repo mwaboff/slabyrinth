@@ -11,7 +11,7 @@ import { resolveAsync } from "../map/resolveClient";
 import { useApp } from "../stores/app";
 import { useChat } from "../stores/chat";
 import { useMap } from "../stores/map";
-import { useProject } from "../stores/project";
+import { switchProject, useProject } from "../stores/project";
 import { useSettings } from "../stores/settings";
 import { useBuild } from "../stores/build";
 import { useUpdates } from "../stores/updates";
@@ -156,7 +156,8 @@ export async function boot(): Promise<void> {
     return;
   }
   if (settings?.ui.onLaunch === "last_project" && settings.projects.recent[0] !== undefined) {
-    const r = await tryCall("project:open", { path: settings.projects.recent[0] });
+    const last = settings.projects.recent[0];
+    const r = await switchProject(() => tryCall("project:open", { path: last }));
     if (r.ok && r.value) {
       openSnapshot(r.value);
       return;

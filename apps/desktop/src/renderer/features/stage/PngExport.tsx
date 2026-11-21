@@ -6,7 +6,7 @@ import { Icon } from "../../ui/Icon";
 import { useDismiss } from "../../ui/dismiss";
 import { useMap } from "../../stores/map";
 import { useApp } from "../../stores/app";
-import { levelShort, orderedLevels, useProject } from "../../stores/project";
+import { levelShort, orderedLevels, saveProjectUiState, useProject } from "../../stores/project";
 import { call, errorMessage } from "../../bridge/client";
 import { run as runCall } from "../../app/actions";
 import { resolveAsync, useResolved } from "../../map/resolveClient";
@@ -139,7 +139,7 @@ export function PngExport({
     // keep the local snapshot in step so reopening the popover shows the saved choice
     const cur = useProject.getState().snap;
     if (cur) useProject.setState({ snap: { ...cur, pngExport: saved } });
-    call("project:setUiState", { pngExport: saved }).catch(() => undefined);
+    saveProjectUiState({ pngExport: saved });
   };
 
   useEffect(() => {

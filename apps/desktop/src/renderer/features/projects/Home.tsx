@@ -5,7 +5,7 @@ import "../chat/chat.css";
 import { Icon, Mark } from "../../ui/Icon";
 import { useDismiss } from "../../ui/dismiss";
 import { useApp } from "../../stores/app";
-import { useProject, type ProjectListEntry } from "../../stores/project";
+import { switchProject, useProject, type ProjectListEntry } from "../../stores/project";
 import { newProject, openProject, run } from "../../app/actions";
 import { call, errorMessage } from "../../bridge/client";
 import { greeting, plural, relativeTime } from "../../lib/format";
@@ -155,9 +155,11 @@ function ProjectCard({ p }: { p: ProjectListEntry }) {
     if (clean === "" || clean === p.name) return;
     // Rename needs the project open (project:rename acts on the open project).
     try {
-      await call("project:open", { path: p.path });
-      await call("project:rename", { name: clean });
-      await call("project:close", {});
+      await switchProject(async () => {
+        await call("project:open", { path: p.path });
+        await call("project:rename", { name: clean });
+        await call("project:close", {});
+      });
       await useProject.getState().loadList();
     } catch (e) {
       useApp.getState().toast({ lead: "Couldn't rename.", body: errorMessage(e), tone: "error" });

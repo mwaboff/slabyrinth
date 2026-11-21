@@ -114,8 +114,8 @@ export function createHandlers(s: HandlerServices): Handlers {
     "providers:check": (req) => engine().checkProvider(req.providerId),
     "models:list": (req) => engine().listModels(req.providerId, req.refresh === true),
 
-    "project:new": (req) => s.projects.create(req),
-    "project:open": (req) => s.projects.open(req),
+    "project:new": async (req) => s.projects.handedToRenderer(await s.projects.create(req)),
+    "project:open": async (req) => s.projects.handedToRenderer(await s.projects.open(req)),
     "project:saveCopyAs": () => s.projects.saveCopyAs(),
     "project:rename": (req) => s.projects.rename(req.name),
     "project:duplicate": (req) => s.projects.duplicate(req.path),
@@ -124,12 +124,12 @@ export function createHandlers(s: HandlerServices): Handlers {
       s.projects.revealInFolder(req.path);
     },
     "project:close": (req) => s.projects.close(req),
-    "project:snapshot": () => s.projects.snapshot(),
+    "project:snapshot": () => s.projects.handedToRenderer(s.projects.snapshot()),
     "project:setUiState": (req) => {
-      s.projects.setUiState(req);
+      s.projects.setUiStateFromRenderer(req);
     },
     "project:list": () => s.projects.list(),
-    "project:importPlan": () => s.projects.importPlan(),
+    "project:importPlan": async () => s.projects.handedToRenderer(await s.projects.importPlan()),
     "project:exportPlan": () => s.projects.exportPlan(),
 
     "plan:applyOps": (req) => s.projects.applyOps(req),

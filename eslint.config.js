@@ -512,6 +512,25 @@ const reportedCallsRule = selectorRule("Renderer IPC calls report their failures
 ]);
 
 /**
+ * project:setUiState names no project: main takes it for the project it last handed the renderer. The renderer sends it
+ * only through stores/project.ts (which sends nothing while a switch is in flight), and every call that opens, creates
+ * or closes a project runs inside `switchProject` (which sends the pending view state of the project being left first).
+ */
+const IPC_CALL = "CallExpression[callee.name=/^(call|tryCall|run|invoke)$/]";
+const projectSwitchRule = selectorRule("View state follows its project.", [
+  {
+    selector: `${IPC_CALL}[arguments.0.value='project:setUiState']`,
+    message:
+      "Save view state through stores/project.ts (saveUi, savePasteGuide, saveProjectUiState): they hold it back while a project switch is in flight.",
+  },
+  {
+    selector: `${IPC_CALL}[arguments.0.value=/^project:(open|new|close|importPlan)$/]:not(CallExpression[callee.name='switchProject'] CallExpression)`,
+    message:
+      "Open, create or close a project inside stores/project.ts switchProject(() => ...), so the view state of the project being left is saved to it first.",
+  },
+]);
+
+/**
  * JSON from outside (a file, IPC, the command line) is checked by a schema where it enters typed code; `JSON.parse(x)
  * as T` skips that. Parse to `unknown` and validate (core parsePlan, the shared/schemas, a zod schema). `as
  * Partial<T>` stays allowed: it says every field may be missing, and the code then checks each field it reads.
@@ -549,6 +568,7 @@ const slabyrinthPlugin = {
   rules: {
     "app-layers": appLayersRule,
     "reported-calls": reportedCallsRule,
+    "project-switch": projectSwitchRule,
     "parsed-json": parsedJsonRule,
     "element-theme": elementThemeRule,
     "variant-filters": variantFilterRule,
@@ -756,6 +776,16 @@ export default tseslint.config(
   {
     files: ["apps/desktop/src/renderer/**/*.{ts,tsx}"],
     rules: { "slabyrinth/reported-calls": "error" },
+  },
+  {
+    // the store that owns view state; the fake bridge is main's stand-in; tests drive the channels directly
+    files: ["apps/desktop/src/renderer/**/*.{ts,tsx}"],
+    ignores: [
+      "apps/desktop/src/renderer/stores/project.ts",
+      "apps/desktop/src/renderer/bridge/fake/**",
+      "**/*.test.{ts,tsx}",
+    ],
+    rules: { "slabyrinth/project-switch": "error" },
   },
   {
     // where outside JSON enters typed code; tests build their own JSON and may cast it

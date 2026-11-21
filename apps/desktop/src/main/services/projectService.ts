@@ -118,6 +118,8 @@ export class ProjectService {
   private writeChain: Promise<void> = Promise.resolve();
   private hooks: EngineHooks | null = null;
   private readonly listCache = new Map<string, { mtimeMs: number; size: number; entry: ProjectListEntry }>();
+  /** The project whose snapshot the renderer was last handed (`handedToRenderer`): its view-state saves are for it. */
+  private rendererProjectId: string | null = null;
   /** Project paths main has handed to the renderer (list, recents, dialogs, create/duplicate results). */
   private readonly knownPaths = new Set<string>();
   /** open/new/close/duplicate/trash/import run one at a time, so a lock is never replaced without release(). */
@@ -1024,6 +1026,34 @@ export class ProjectService {
     const b = this.require().project.builds.find((x) => x.id === buildId);
     if (!b) throw new AppFailure("not_found", "That build no longer exists.");
     return b;
+  }
+
+  /**
+   * IPC: the renderer is handed this snapshot (project:new, project:open, project:snapshot): from now on its view-state
+   * saves are for that project. A project main opens on its own (a file opened from the OS) is not the renderer's
+   * until it asks for its snapshot.
+   */
+  handedToRenderer<T extends ProjectSnapshot | null>(snap: T): T {
+    if (snap !== null) this.rendererProjectId = snap.projectId;
+    return snap;
+  }
+
+  /**
+   * Channel project:setUiState. The request names no project, so it is for the project the renderer was last handed:
+   * a save that arrives after another project opened (main opened one on its own, or the renderer's save was on its way
+   * while the switch happened) is dropped rather than written into the wrong project. The renderer sends no save while
+   * its own switch is in flight (stores/project.ts), so a save sent before the switch is handled before it.
+   */
+  setUiStateFromRenderer(patch: Parameters<ProjectService["setUiState"]>[0]): void {
+    const open = this.state?.project.id ?? null;
+    if (open === null || open !== this.rendererProjectId) {
+      this.deps.logger.info("view state for another project dropped", {
+        open,
+        renderer: this.rendererProjectId,
+      });
+      return;
+    }
+    this.setUiState(patch);
   }
 
   /** Resume state (UX §8.9), channel project:setUiState: ui is shallow-merged; pasteGuide null clears it. */

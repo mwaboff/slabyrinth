@@ -79,6 +79,25 @@ describe("ProjectService: files", () => {
     expect(reopened?.pngExport).toEqual(png);
   });
 
+  it("view state from the renderer lands only in the project the renderer was handed", async () => {
+    rig = await projectRig();
+    const a = rig.projects.handedToRenderer(await rig.projects.create({ name: "A" }));
+    rig.projects.setUiStateFromRenderer({ ui: { zoom: 2 } });
+    expect(rig.projects.getProject()?.ui.zoom).toBe(2);
+    // main opens B on its own (a file opened from the OS): the renderer still shows A, its save is dropped
+    const b = await rig.projects.create({ name: "B" });
+    rig.projects.setUiStateFromRenderer({ ui: { zoom: 5 } });
+    expect(rig.projects.getProject()?.ui.zoom).not.toBe(5);
+    // once the renderer has B's snapshot, its saves are B's
+    rig.projects.handedToRenderer(rig.projects.snapshot());
+    rig.projects.setUiStateFromRenderer({ ui: { zoom: 3 } });
+    expect(rig.projects.getProject()?.ui.zoom).toBe(3);
+    await rig.projects.close({});
+    const reopenedA = await rig.projects.open({ path: a.filePath as string });
+    expect(reopenedA?.ui).toMatchObject({ zoom: 2 });
+    expect(b.projectId).not.toBe(a.projectId);
+  });
+
   it("starts a new project's brief with the default game system from settings", async () => {
     rig = await projectRig();
     expect((await rig.projects.create({ name: "No system" })).brief.system).toBeUndefined();
