@@ -67,6 +67,7 @@ const STEPS = [
       call("e1", "edit_plan", {
         baseVersion: 1,
         summary: "Brazier",
+        changes: ["Added a brazier in the entry hall"],
         ops: [
           { op: "add_features", level: "l1", features: [{ id: "brazier1", type: "brazier", at: [4, 6] }] },
         ],
