@@ -23,6 +23,7 @@ import type {
 import type { ResolvedLevel, ResolvedLink, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
+import { sideEdgeIndex } from "./levelGrid";
 import { entryLevelId } from "./validate";
 
 // ───────────────────────────── options and walk modes ─────────────────────────────
@@ -272,16 +273,13 @@ export class WalkGraph {
     let kind: number;
     let ref: number;
     let height: number;
+    const e = sideEdgeIndex(d, lx, ly, side);
     if (side === "N" || side === "S") {
-      const ey = side === "N" ? ly : ly + 1;
-      const e = ey * w + lx;
       j = side === "N" ? (ly > 0 ? i - w : -1) : ly < h - 1 ? i + w : -1;
       kind = l.hEdges.kind[e] as number;
       ref = l.hEdges.ref[e] as number;
       height = l.hEdges.height[e] as number;
     } else {
-      const ex = side === "W" ? lx : lx + 1;
-      const e = ly * (w + 1) + ex;
       j = side === "W" ? (lx > 0 ? i - 1 : -1) : lx < w - 1 ? i + 1 : -1;
       kind = l.vEdges.kind[e] as number;
       ref = l.vEdges.ref[e] as number;

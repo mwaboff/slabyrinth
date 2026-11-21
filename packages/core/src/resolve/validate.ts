@@ -11,6 +11,7 @@ import type { MapPlan, PlanIssue, PlanIssueCode, Vec2 } from "../contracts/plan"
 import type { ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import type { ResolvePalettes } from "../palette/resolve";
+import { edgeIndex, sideEdgeIndex } from "./levelGrid";
 import { type PlayabilityOptions, checkPlayability } from "./playability";
 import { resolvePlan } from "./resolvePlan";
 
@@ -121,7 +122,7 @@ function narrowCorridors(plan: MapPlan, lvl: ResolvedLevel): PlanIssue[] {
   const li = levelPath(plan, lvl.id);
   const hostedIn = (orient: "h" | "v", lx: number, ly: number, which: 0 | 1): boolean => {
     const g = orient === "h" ? lvl.hEdges : lvl.vEdges;
-    const i = orient === "h" ? ly * w + lx : ly * (w + 1) + lx;
+    const i = edgeIndex(lvl.bounds, orient, lx, ly);
     const k = g.kind[i];
     return (k === EDGE.WALL || k === EDGE.OPENING) && g.host[i] === which;
   };
@@ -277,10 +278,10 @@ export function reachableCells(plan: MapPlan, resolved: ResolvedPlan): Map<strin
       }
       return false;
     };
-    if (ly > 0 && pass(l.hEdges, ly * w + lx)) seed(lid, i - w);
-    if (ly < h - 1 && pass(l.hEdges, (ly + 1) * w + lx)) seed(lid, i + w);
-    if (lx > 0 && pass(l.vEdges, ly * (w + 1) + lx)) seed(lid, i - 1);
-    if (lx < w - 1 && pass(l.vEdges, ly * (w + 1) + lx + 1)) seed(lid, i + 1);
+    if (ly > 0 && pass(l.hEdges, sideEdgeIndex(l.bounds, lx, ly, "N"))) seed(lid, i - w);
+    if (ly < h - 1 && pass(l.hEdges, sideEdgeIndex(l.bounds, lx, ly, "S"))) seed(lid, i + w);
+    if (lx > 0 && pass(l.vEdges, sideEdgeIndex(l.bounds, lx, ly, "W"))) seed(lid, i - 1);
+    if (lx < w - 1 && pass(l.vEdges, sideEdgeIndex(l.bounds, lx, ly, "E"))) seed(lid, i + 1);
     for (const [nl, ni] of linkNbrs.get(`${lid}|${i}`) ?? []) seed(nl, ni);
   }
   return reached;

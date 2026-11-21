@@ -4,6 +4,7 @@
  */
 import type { Material, Side, Vec2 } from "../contracts/plan";
 import { CELL, CELL_FLAG, EDGE, type ResolvedCliffRun, type ResolvedLevel } from "../contracts/resolved";
+import { cellIndex, hEdgeIndex, vEdgeIndex } from "./levelGrid";
 
 export interface CliffEdge {
   /** The upper cell (the edge lies on its `side`). */
@@ -20,7 +21,7 @@ export interface CliffEdge {
 export function cliffEdges(level: ResolvedLevel, minDrop = 1): CliffEdge[] {
   const { x: bx, y: by, w, h } = level.bounds;
   const out: CliffEdge[] = [];
-  const at = (x: number, y: number): number => (x < 0 || y < 0 || x >= w || y >= h ? -1 : y * w + x);
+  const at = (x: number, y: number): number => cellIndex(level.bounds, x, y);
   const usable = (i: number): boolean =>
     i >= 0 && level.cells.state[i] === CELL.OPEN && ((level.cells.flags[i] ?? 0) & CELL_FLAG.BRIDGE) === 0;
   const push = (a: number, b: number, sideOfA: Side, sideOfB: Side): void => {
@@ -39,10 +40,12 @@ export function cliffEdges(level: ResolvedLevel, minDrop = 1): CliffEdge[] {
   };
   for (let ly = 1; ly < h; ly++)
     for (let lx = 0; lx < w; lx++)
-      if (level.hEdges.kind[ly * w + lx] === EDGE.LEDGE) push(at(lx, ly - 1), at(lx, ly), "S", "N");
+      if (level.hEdges.kind[hEdgeIndex(level.bounds, lx, ly)] === EDGE.LEDGE)
+        push(at(lx, ly - 1), at(lx, ly), "S", "N");
   for (let ly = 0; ly < h; ly++)
     for (let lx = 1; lx < w; lx++)
-      if (level.vEdges.kind[ly * (w + 1) + lx] === EDGE.LEDGE) push(at(lx - 1, ly), at(lx, ly), "E", "W");
+      if (level.vEdges.kind[vEdgeIndex(level.bounds, lx, ly)] === EDGE.LEDGE)
+        push(at(lx - 1, ly), at(lx, ly), "E", "W");
   return out.sort((p, q) => p.at[1] - q.at[1] || p.at[0] - q.at[0]);
 }
 
@@ -55,7 +58,7 @@ const NATURAL = new Set(["grass", "dirt", "gravel", "rock", "sand", "mud", "snow
  */
 export function cliffRuns(level: ResolvedLevel, minRise = 4): ResolvedCliffRun[] {
   const { x: bx, y: by, w, h } = level.bounds;
-  const at = (x: number, y: number): number => (x < 0 || y < 0 || x >= w || y >= h ? -1 : y * w + x);
+  const at = (x: number, y: number): number => cellIndex(level.bounds, x, y);
   const mat = (i: number): string | null => level.materials[(level.cells.material[i] ?? 1) - 1] ?? null;
   const usable = (i: number): boolean =>
     i >= 0 &&
@@ -111,12 +114,12 @@ export function cliffRuns(level: ResolvedLevel, minRise = 4): ResolvedCliffRun[]
   };
   for (let ly = 1; ly < h; ly++)
     for (let lx = 0; lx < w; lx++) {
-      const k = level.hEdges.kind[ly * w + lx];
+      const k = level.hEdges.kind[hEdgeIndex(level.bounds, lx, ly)];
       if (k === EDGE.LEDGE || k === EDGE.STAIR) add(at(lx, ly - 1), at(lx, ly), "S", "N", k === EDGE.STAIR);
     }
   for (let ly = 0; ly < h; ly++)
     for (let lx = 1; lx < w; lx++) {
-      const k = level.vEdges.kind[ly * (w + 1) + lx];
+      const k = level.vEdges.kind[vEdgeIndex(level.bounds, lx, ly)];
       if (k === EDGE.LEDGE || k === EDGE.STAIR) add(at(lx - 1, ly), at(lx, ly), "E", "W", k === EDGE.STAIR);
     }
   const byStart = new Map<string, Seg[]>();

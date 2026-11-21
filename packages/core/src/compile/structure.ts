@@ -39,6 +39,8 @@ import {
   spireShell,
 } from "../resolve/roof";
 import { structureStyle } from "../resolve/structureStyles";
+import { OPPOSITE as OPP, SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
+import { sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
 import type { WorldFrame } from "./geometry";
 import { h32, rotateXZ } from "./geometry";
 
@@ -68,9 +70,6 @@ export interface StructureRealizeCtx {
 }
 
 const EPS = 1e-6;
-const STEP: Record<Side, [number, number]> = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
-const OPP: Record<Side, Side> = { N: "S", S: "N", E: "W", W: "E" };
 const DOORISH = new Set(["door", "double_door", "locked_door", "secret_door", "portcullis"]);
 const key = (x: number, y: number): string => `${x},${y}`;
 
@@ -2127,7 +2126,6 @@ export function structureClaims(L: ResolvedLevel): {
   const edges = new Set<string>();
   const ruined = new Set<string>();
   const openings = new Set<string>();
-  const w = L.bounds.w;
   for (const st of L.structures ?? []) {
     for (const id of st.openingIds) openings.add(id);
     if (st.kind !== "building") continue;
@@ -2139,14 +2137,7 @@ export function structureClaims(L: ResolvedLevel): {
       for (const face of SIDES) {
         const [dx, dy] = STEP[face];
         if (cells.has(key(x + dx, y + dy))) continue;
-        const e =
-          face === "N"
-            ? `h${ly * w + lx}`
-            : face === "S"
-              ? `h${(ly + 1) * w + lx}`
-              : face === "W"
-                ? `v${ly * (w + 1) + lx}`
-                : `v${ly * (w + 1) + lx + 1}`;
+        const e = `${sideOrient(face)}${sideEdgeIndex(L.bounds, lx, ly, face)}`;
         edges.add(e);
         out?.add(e);
       }
