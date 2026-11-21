@@ -9,7 +9,7 @@ import { CELL, CELL_FLAG, type ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { finiteBox, growBox } from "../geometry";
 import type { BundleSubstitution, RealizeCtx } from "./context";
-import type { LevelWork } from "./work";
+import type { RealizeLevel } from "./level";
 
 export const ROLE_ORDER: readonly PlacementRole[] = [
   "floor",
@@ -71,21 +71,16 @@ function waterRangeOf(L: ResolvedLevel): [number, number] {
 }
 
 /** Drops omitted layers, sorts the level's placements into their deterministic order and records the level. */
-export function finishLevel(w: LevelWork, out: RealizeOutput): void {
-  const { L, placements, levelBox, elev } = w;
-  const { opts } = w.ctx;
+export function finishLevel(lv: RealizeLevel, out: RealizeOutput): void {
+  const { L, levelBox, elev } = lv;
+  const { opts } = lv.ctx;
   const { levels: outLevels, levelInfo, allBox } = out;
-  if (opts.omitLayers?.length) {
-    const drop = new Set(opts.omitLayers);
-    for (let i = placements.length - 1; i >= 0; i--) {
-      const ly = placements[i]?.layer;
-      if (ly !== undefined && drop.has(ly)) placements.splice(i, 1);
-    }
-  }
+  const drop = new Set(opts.omitLayers ?? []);
+  const kept = lv.placements.filter((p) => p.layer === undefined || !drop.has(p.layer));
 
   // deterministic order: role, then source cell (y, x), then emission order
   const order = new Map(ROLE_ORDER.map((r, i) => [r, i]));
-  const indexed = placements.map((p, i) => ({ p, i }));
+  const indexed = kept.map((p, i) => ({ p, i }));
   indexed.sort(
     (a, b) =>
       (order.get(a.p.role) ?? 99) - (order.get(b.p.role) ?? 99) ||

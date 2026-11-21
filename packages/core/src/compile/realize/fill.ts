@@ -1,28 +1,23 @@
 /**
  * Realize, fill passes: what stands under a raised floor (fill courses, cliff blocks, outcrop columns) and the piers
- * under bridge decks. `stackFill` and `cliffFace` are also used by the link pass (fill under stair flights).
- * Reads: the level's cells and bridges; `groundUnder` (floors.ts), `bandBack` and `bandBare` (cliffBand.ts),
- * `outcropCells`. Writes: fill and ledge placements; `outsideGround` (read by the rock wall pass); `cliffNoted`.
+ * under bridge decks. `stackFill` is also used by the link pass (fill under stair flights).
+ * Reads: the level's cells and bridges; the ground under decks (floors.ts), the rock band's back and bare cells
+ * (cliffBand.ts), `outcropCells`, `outsideGround`. Writes: fill and ledge placements.
  */
 import type { PlacementRole } from "../../contracts/compiler";
-import type { LevelId, ThemeId } from "../../contracts/plan";
-import { CELL, CELL_FLAG } from "../../contracts/resolved";
+import type { ThemeId } from "../../contracts/plan";
+import { CELL_FLAG } from "../../contracts/resolved";
 import type { VariantFilter } from "../../palette/resolve";
-import { BAND } from "./cliffBand";
-import { EPS, NATURAL_GROUND, WATER, type LevelWork } from "./work";
+import { BAND, type RockBand } from "./cliffBand";
+import type { GroundUnderDecks } from "./floors";
+import { EPS, NATURAL_GROUND, WATER, type RealizeLevel } from "./level";
 
 // fill under raised cells; drops of a tile or more get a cliff face (ledge role / natural rock) instead
-export function layRaisedFill(w: LevelWork): void {
-  const { L, V, elev, groundUnder, outcropCells, bandBack, bandBare } = w;
-  const { gen } = w.ctx;
-  // Generator 2: the level stands on a solid foundation down to its lowest floor, so outside the level bounds the
-  // ground is that low and cells on the border get solid sides (raised land has thickness seen from the side).
-  let levelLowest = 0;
-  for (let i = 0; i < V.w * V.h; i++)
-    if (L.cells.state[i] === CELL.OPEN) levelLowest = Math.min(levelLowest, (L.cells.height[i] ?? 0) / 4);
-  for (const b of L.bridges ?? []) for (const q of b.under) levelLowest = Math.min(levelLowest, q / 4);
-  const outsideGround = gen.foundation ? Math.min(levelLowest, -(L.foundation ?? 0)) : 0;
-  w.outsideGround = outsideGround;
+export function layRaisedFill(lv: RealizeLevel, band: RockBand, groundUnder: GroundUnderDecks): void {
+  const { L, V, elev, outcropCells, outsideGround } = lv;
+  const { profile } = lv.ctx;
+  /** Theme and material pairs already noted as having no cliff piece (one diagnostic each). */
+  const noted = new Set<string>();
   /** Height of the ground a neighbour presents to a raised cell (open cells, floorless ones included, and the ground under decks). */
   const groundOf = (x: number, y: number): number => {
     const g = groundUnder.get(`${x},${y}`);
@@ -40,8 +35,9 @@ export function layRaisedFill(w: LevelWork): void {
       const minN = Math.min(groundOf(x, y - 1), groundOf(x + 1, y), groundOf(x, y + 1), groundOf(x - 1, y));
       if (outcropCells.has(`${x},${y}`)) {
         // a rock column from the ground around it up to its top (no floor tile): reads as rock, not a tiled box
-        if (!cliffFace(w, c.theme, c.material, x, y, elev + Math.min(minN, 0), elev + c.height + 0.5, true))
-          stackFill(w, L.id, c.theme, c.material, x, y, elev + Math.min(minN, 0), elev + c.height + 0.5);
+        const from = elev + Math.min(minN, 0);
+        if (!cliffFace(lv, noted, c.theme, c.material, x, y, from, elev + c.height + 0.5, true))
+          stackFill(lv, c.theme, c.material, x, y, from, elev + c.height + 0.5);
         continue;
       }
       if (c.height <= minN + EPS) continue;
@@ -49,7 +45,7 @@ export function layRaisedFill(w: LevelWork): void {
       // slab, so nothing shows under it and no fill course is needed (a room raised a quarter tile over its corridor
       // costs no extra pieces); the board edge and open air beside it keep their fill
       if (
-        gen.flushRaisedFloors &&
+        profile.flushRaisedFloors &&
         c.height - minN <= 0.5 + EPS &&
         c.material !== null &&
         !NATURAL_GROUND.has(c.material) &&
@@ -58,14 +54,13 @@ export function layRaisedFill(w: LevelWork): void {
         continue;
       // behind a rock band: no face blocks and no hidden fill (the band covers the drop); the board's own edge keeps
       // its solid side
-      if (bandBare.has(`${x},${y}`)) {
+      if (band.bare.has(`${x},${y}`)) {
         // one rock family for every such patch (the band's backing), never the mixed per-cell picks
-        if (
-          cliffFace(w, c.theme, c.material, x, y, elev + minN, elev + c.height, false, `${L.id}:ledge:band`)
-        )
+        const bandKey = `${L.id}:ledge:band`;
+        if (cliffFace(lv, noted, c.theme, c.material, x, y, elev + minN, elev + c.height, false, bandKey))
           continue;
       } else if (
-        bandBack.has(`${x},${y}`) &&
+        band.back.has(`${x},${y}`) &&
         c.height - minN >= BAND.minRiseQ / 4 - EPS &&
         lx > 0 &&
         ly > 0 &&
@@ -74,16 +69,23 @@ export function layRaisedFill(w: LevelWork): void {
       ) {
         continue;
       }
-      if (c.height - minN >= 1 - EPS && cliffFace(w, c.theme, c.material, x, y, elev + minN, elev + c.height))
+      if (
+        c.height - minN >= 1 - EPS &&
+        cliffFace(lv, noted, c.theme, c.material, x, y, elev + minN, elev + c.height)
+      )
         continue;
-      stackFill(w, L.id, c.theme, c.material, x, y, elev + minN, elev + c.height);
+      stackFill(lv, c.theme, c.material, x, y, elev + minN, elev + c.height);
     }
   }
 }
 
-/** Stacks cliff blocks (cliff.<material>, cliff.default, or natural rock for natural ground) under a raised cell. */
-export function cliffFace(
-  w: LevelWork,
+/**
+ * Stacks cliff blocks (cliff.<material>, cliff.default, or natural rock for natural ground) under a raised cell.
+ * False when the palette has none (then `noted` remembers the theme and material, so the note is given once).
+ */
+function cliffFace(
+  lv: RealizeLevel,
+  noted: Set<string>,
   theme: ThemeId,
   material: string | null,
   x: number,
@@ -93,8 +95,8 @@ export function cliffFace(
   force = false,
   pickKey?: string,
 ): boolean {
-  const { L, cliffNoted, blockTurn, emit } = w;
-  const { gen, frame, lookup, pick, addDiag } = w.ctx;
+  const { L, blockTurn, emit } = lv;
+  const { profile, frame, lookup, pick, addDiag } = lv.ctx;
   // whole-cell blocks only: 1×1 footprint and about a tile wide both ways
   const one: VariantFilter = {
     key: "block1x1",
@@ -106,7 +108,7 @@ export function cliffFace(
       v.geom.originAt === "minCorner",
   };
   // generator 3: natural ground shows rock where its face is bare, never earth-coloured fill (cliff.rock_block)
-  const rockFirst = gen.rockGroundFaces && material !== null && NATURAL_GROUND.has(material);
+  const rockFirst = profile.rockGroundFaces && material !== null && NATURAL_GROUND.has(material);
   let res = lookup(
     L.id,
     theme,
@@ -119,8 +121,8 @@ export function cliffFace(
   if (!res && material !== null && (force || NATURAL_GROUND.has(material)))
     res = lookup(L.id, theme, ["cliff.natural"], one, true);
   if (!res) {
-    if (material !== null && NATURAL_GROUND.has(material) && !cliffNoted.has(`${theme}|${material}`)) {
-      cliffNoted.add(`${theme}|${material}`);
+    if (material !== null && NATURAL_GROUND.has(material) && !noted.has(`${theme}|${material}`)) {
+      noted.add(`${theme}|${material}`);
       addDiag({
         severity: "info",
         code: "asset_substituted",
@@ -144,14 +146,14 @@ export function cliffFace(
     });
   // the rest (less than one block) in fill courses, so nothing reaches below the lower floor
   const rest = to - n * u - from;
-  if (rest > EPS) stackFill(w, L.id, theme, material, x, y, from, from + rest);
+  if (rest > EPS) stackFill(lv, theme, material, x, y, from, from + rest);
   return true;
 }
 
 // stone piers under bridge decks: courses of the deck's fill from the ground beneath up to the deck
-export function layPiers(w: LevelWork): void {
-  const { L, V, elev, emit } = w;
-  const { frame, lookup, pick } = w.ctx;
+export function layPiers(lv: RealizeLevel): void {
+  const { L, V, elev, emit } = lv;
+  const { frame, lookup, pick } = lv.ctx;
   for (const b of L.bridges ?? []) {
     for (const [px, py] of b.piers ?? []) {
       const j = b.cells.findIndex((c) => c[0] === px && c[1] === py);
@@ -175,27 +177,15 @@ export function layPiers(w: LevelWork): void {
           });
         const rest = c.height - ground - n * pv.unitHeight;
         if (rest > EPS)
-          stackFill(
-            w,
-            L.id,
-            c.theme,
-            c.material,
-            px,
-            py,
-            elev + ground,
-            elev + ground + rest,
-            "fill",
-            "pier",
-          );
-      } else stackFill(w, L.id, c.theme, c.material, px, py, elev + ground, elev + c.height, "fill", "pier");
+          stackFill(lv, c.theme, c.material, px, py, elev + ground, elev + ground + rest, "fill", "pier");
+      } else stackFill(lv, c.theme, c.material, px, py, elev + ground, elev + c.height, "fill", "pier");
     }
   }
 }
 
 /** Stacks fill courses (the cell's own fill or floor tile, else fill.default) from `from` up to `to`. */
 export function stackFill(
-  w: LevelWork,
-  levelId: LevelId,
+  lv: RealizeLevel,
   theme: ThemeId,
   material: string | null,
   x: number,
@@ -205,15 +195,16 @@ export function stackFill(
   role: PlacementRole = "fill",
   elementId = "fill",
 ): void {
-  const { emit } = w;
-  const { gen, frame, lookup, pick } = w.ctx;
+  const { L, emit } = lv;
+  const { profile, frame, lookup, pick } = lv.ctx;
+  const levelId = L.id;
   // water cells sit on their bed; other cells fill with their own floor tile before the generic fill
   const roles = !material
     ? ["fill.default"]
     : WATER.has(material)
       ? [`bed.${material}`, "bed.default", "fill.default"]
       : [
-          ...(gen.rockGroundFaces && NATURAL_GROUND.has(material) ? ["fill.rock"] : []),
+          ...(profile.rockGroundFaces && NATURAL_GROUND.has(material) ? ["fill.rock"] : []),
           `fill.${material}`,
           `floor.${material}`,
           "fill.default",

@@ -2,13 +2,13 @@
  * Realize, kerb pass: kerb pieces along kerbed paths, a half-cell piece on the verge side of the edge.
  * Reads: the level's kerbs and cells. Writes: ledge placements; one info diagnostic when the palette has no kerb.
  */
-import { lenFilter, placeEdgePiece } from "./edges";
-import { opposite, type EdgeCtx, type LevelWork } from "./work";
+import { lenFilter, placeEdgePiece, type EdgeCtx } from "./edges";
+import { opposite, type RealizeLevel } from "./level";
 
 // kerbs along kerbed paths: kerb.<material> / kerb.default, a half-cell piece on the path side of the edge
-export function layKerbs(w: LevelWork): void {
-  const { L, V, topOf } = w;
-  const { lookup, pick, addDiag } = w.ctx;
+export function layKerbs(lv: RealizeLevel): void {
+  const { L, V, topOf } = lv;
+  const { lookup, pick, addDiag } = lv.ctx;
   let kerbNoted = false;
   for (const kb of L.kerbs ?? []) {
     const c = V.cell(kb.at[0], kb.at[1]);
@@ -49,7 +49,7 @@ export function layKerbs(w: LevelWork): void {
       hostOpen: true,
     };
     placeEdgePiece(
-      w,
+      lv,
       v,
       "ledge",
       res.role,

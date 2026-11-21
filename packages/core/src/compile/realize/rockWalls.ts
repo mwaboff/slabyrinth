@@ -2,24 +2,28 @@
  * Realize, rock wall pass: the full-cell wall columns the wall runs gathered (generator 2: reaching down to the
  * level's lowest floor and varying in height), and the generator-3 rock mass behind and over cave walls
  * (gen/cavewall.ts), which replaces the columns it covers.
- * Reads: `fullCells` (walls.ts), `outsideGround` (fill.ts), `shell` (solidShell.ts), the level's edges, features and
- * cells, the levels above (ceiling). Writes: wall and feature placements (and corrects the boxes of turned tiles).
+ * Reads: the full-cell columns (walls.ts), `outsideGround`, the solid shell (solidShell.ts: which solid cells the rock
+ * may take), the level's edges, features and cells, the levels above (ceiling). Writes: wall and feature placements
+ * (and corrects the boxes of turned tiles).
  */
 import type { ThemeId } from "../../contracts/plan";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { planCaveWall, type WallFace, type WallShape } from "../../gen/cavewall";
 import { ValueNoise } from "../../gen/noise";
 import type { ResolvedVariant } from "../../palette/resolve";
-import { growBox, h32, placementBox, rotateXZ } from "../geometry";
-import { EPS, type LevelWork } from "./work";
+import { h32, placementBox, rotateXZ } from "../geometry";
+import { EPS, type RealizeLevel } from "./level";
+import type { SolidShellPlan } from "./solidShell";
+import type { FullCellColumns } from "./walls";
 
-export function layRockWalls(w: LevelWork): void {
-  const { L, V, elev, fullCells, shell, placements, levelBox, blockTurn, topOf, emit } = w;
-  const { resolved, seed, gen, frame, orientation, lookup, pick, placementBoxes } = w.ctx;
+export function layRockWalls(lv: RealizeLevel, fullCells: FullCellColumns, shellPlan: SolidShellPlan): void {
+  const { L, V, elev, placements, blockTurn, topOf, emit, rebox } = lv;
+  const { resolved, seed, profile, frame, orientation, lookup, pick } = lv.ctx;
+  const { shell } = shellPlan;
   // Generator 2: rock walls reach down to the lowest floor of the level (nothing below the room shows from outside)
   // and vary in height like a natural cave (0, 1 or 2 extra blocks from seeded value noise).
-  const rockSkirt = gen.rockWallSkirt;
-  const skirt = elev + w.outsideGround;
+  const rockSkirt = profile.rockWallSkirt;
+  const skirt = elev + lv.outsideGround;
   const wallNoise = new ValueNoise(h32(`${seed}:${L.id}:walltops`));
   // the extra blocks never rise through the floor of a level stacked above (verify_pokes_into_level_above)
   const ceiling = resolved.levels.reduce(
@@ -47,7 +51,7 @@ export function layRockWalls(w: LevelWork): void {
         wallNoise.sample(c.x / 4, c.y / 4) * 0.8 + (h32(`${seed}:${c.x}:${c.y}:wt`) / 4294967296) * 0.2;
       let extra = nz < 0.22 ? -1 : nz < 0.45 ? 0 : nz < 0.62 ? 1 : nz < 0.8 ? 2 : 3;
       // generator 3: the column is the closing skin of a wall of rock mass (gen/cavewall.ts): lower, in uneven runs
-      if (gen.caveRockMass && c.roleName === "wall.cave_rock") extra = nz < 0.3 ? -1 : nz < 0.72 ? 0 : 1;
+      if (profile.caveRockMass && c.roleName === "wall.cave_rock") extra = nz < 0.3 ? -1 : nz < 0.72 ? 0 : 1;
       if (extra < 0 && top - v.unitHeight < floorTop + 1.5) extra = 0;
       // a column that closes the mouth of a chasm or pit (its wall reaches below the floor) is never one of the
       // low stretches, and stands at least a block taller, so nothing glows over it from inside
@@ -73,7 +77,7 @@ export function layRockWalls(w: LevelWork): void {
     };
     // generator 3: the column is only the fill of a wall of rock mass (gen/cavewall.ts); it is built below, where
     // no mass piece closes the face cell
-    if (gen.caveRockMass && c.roleName === "wall.cave_rock") {
+    if (profile.caveRockMass && c.roleName === "wall.cave_rock") {
       massFaces.push({
         x: c.x,
         y: c.y,
@@ -105,7 +109,8 @@ export function layRockWalls(w: LevelWork): void {
         for (let x = f.at[0]; x < f.at[0] + f.size[0]; x++)
           for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) taken.add(`${x + dx},${y + dy}`);
     for (const theme of new Set(massFaces.map((f) => f.theme))) {
-      const vars: Array<{ v: ResolvedVariant; role: string }> = [];
+      /** The variant of each shape (WallShape.id indexes it). */
+      const vars: ResolvedVariant[] = [];
       const shapes: WallShape[] = [];
       const add = (
         roleName: string,
@@ -125,7 +130,7 @@ export function layRockWalls(w: LevelWork): void {
             weight: q.weight,
             ...(lift === undefined ? {} : { lift: lift(q) }),
           });
-          vars.push({ v: q, role: r?.role ?? roleName });
+          vars.push(q);
         }
       };
       // one rock family per cave: the Cavern kit (cliff.cave_mass), the tone of the wall columns; themes without it
@@ -184,33 +189,33 @@ export function layRockWalls(w: LevelWork): void {
         shapes,
         ceiling,
         // generator 4: solid rock, filled from the foot with no see-through gap
-        ...(gen.solidCaveRock ? { solid: true } : {}),
+        ...(profile.solidCaveRock ? { solid: true } : {}),
       });
       for (const f of faces) if (!plan.columns.has(`${f.x},${f.y}`)) columnLater.delete(`${f.x},${f.y}`);
       for (const pc of plan.pieces) {
         const q = vars[pc.shape];
         if (!q) continue;
-        const deg = (((frame.planDegreesToWorld(pc.rot) + q.v.rot) % 360) + 360) % 360;
+        const deg = (((frame.planDegreesToWorld(pc.rot) + q.rot) % 360) + 360) % 360;
         const c = frame.point(pc.cx, pc.cy);
-        const off = rotateXZ(q.v.geom.boundsCenter.x, q.v.geom.boundsCenter.z, deg * frame.o.rotSense);
-        emit(q.v, pc.family === "toe" ? "feature" : "wall", c.x - off.x, pc.base, c.z - off.z, deg, {
+        const off = rotateXZ(q.geom.boundsCenter.x, q.geom.boundsCenter.z, deg * frame.o.rotSense);
+        emit(q, pc.family === "toe" ? "feature" : "wall", c.x - off.x, pc.base, c.z - off.z, deg, {
           cell: [Math.floor(pc.cx), Math.floor(pc.cy)],
           elementId: pc.family === "toe" ? "cave_foot" : pc.family === "cap" ? "cave_cap" : "cave_mass",
         });
         // a tile (corner-origin) piece turned off the quarter turns: its box is the turned outline's (the box of a
         // corner-origin piece is only right for quarter turns)
         const last = placements[placements.length - 1];
-        if (last && q.v.geom.originAt === "minCorner") {
-          const box = placementBox(
-            { ...q.v.geom, originAt: "other" },
-            last.x,
-            last.y,
-            last.z,
-            last.rot * orientation.rotSense,
+        if (last && q.geom.originAt === "minCorner")
+          rebox(
+            last,
+            placementBox(
+              { ...q.geom, originAt: "other" },
+              last.x,
+              last.y,
+              last.z,
+              last.rot * orientation.rotSense,
+            ),
           );
-          placementBoxes.set(last, box);
-          growBox(levelBox, box);
-        }
       }
     }
   }

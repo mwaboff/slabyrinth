@@ -5,12 +5,12 @@
  */
 import type { CompileDiagnostic } from "../../contracts/compiler";
 import { realizeStructures } from "../structure";
-import type { LevelWork } from "./work";
+import type { RealizeLevel } from "./level";
 
 // ── buildings and enclosures ──
-export function layStructures(w: LevelWork): void {
-  const { L, V, elev, topOf, emit } = w;
-  const { seed, frame, lookup, pick, facingOf, addDiag } = w.ctx;
+export function layStructures(lv: RealizeLevel): void {
+  const { L, V, elev, topOf, emit } = lv;
+  const { seed, frame, lookup, pick, facingOf, addDiag } = lv.ctx;
   if (L.structures?.length)
     realizeStructures({
       L,

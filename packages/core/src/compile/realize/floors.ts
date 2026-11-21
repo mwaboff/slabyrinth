@@ -1,16 +1,23 @@
 /**
  * Realize, floor passes: the floor tiles of every open cell (greedy tiling, floor families, road crossings), road
  * drains, water beds, the floor under bridge decks, and light props on liquid surfaces.
- * Reads: the level's cells, roads, bridges and features; `bandLow` (cliffBand.ts), `outcropCells`, `roadAxisAt`.
- * Writes: floor placements (and glow features); `waterCells` (layFloors, read by layWaterBeds) and `groundUnder`
- * (layGroundUnderDecks, read by fill.ts).
+ * Reads: the level's cells, roads, bridges and features; the rock band's low ground (cliffBand.ts), `outcropCells`.
+ * Writes: floor placements (and glow features). Returns the water cells (layFloors, read by layWaterBeds) and the
+ * ground under bridge decks (layGroundUnderDecks, read by fill.ts).
  */
 import { CELL_FLAG } from "../../contracts/resolved";
 import type { ResolvedVariant, VariantFilter } from "../../palette/resolve";
 import { createFamilyPicker, type FloorFamily } from "../../resolve/floorFamilies";
+import { axisPosition } from "../../resolve/road";
 import { h32 } from "../geometry";
+import type { RockBand } from "./cliffBand";
+import { NATURAL_GROUND, WATER, type RealizeLevel } from "./level";
 import type { CellInfo } from "./view";
-import { NATURAL_GROUND, WATER, type LevelWork } from "./work";
+
+/** Water cells ([x, y]) the floor pass leaves for the bed pass, in the order it met them. */
+export type WaterCells = ReadonlyArray<readonly [number, number]>;
+/** The ground under each bridge deck cell ("x,y", relative tiles), for the faces round it (fill.ts). */
+export type GroundUnderDecks = ReadonlyMap<string, number>;
 
 /** Road markings (generator 2 roads): sparse drains along the kerb, data rather than code. */
 const ROAD_MARKINGS = {
@@ -46,9 +53,14 @@ const CAUSE_FEATURES = new Set([
 // ── 1. floors (greedy tiling) ──
 // crossing cells take the theme's crossing tile (marking.crossing) AS their floor tile, turned by the road
 // axis: a thick striped tile laid on top of the road would stand as a step
-export function layFloors(w: LevelWork): void {
-  const { L, V, outcropCells, waterCells, roadAxisAt, bandLow, topOf, emit } = w;
-  const { seed, gen, frame, lookup, pick, pickPatch, familiesOf, familyAt, familyWarp } = w.ctx;
+export function layFloors(lv: RealizeLevel, band: RockBand): WaterCells {
+  const { L, V, outcropCells, topOf, emit } = lv;
+  const { seed, profile, frame, lookup, pick, pickPatch, familiesOf, familyAt, familyWarp } = lv.ctx;
+  const waterCells: Array<[number, number]> = [];
+  // road carriageway tiles keep one orientation along the road's axis (markings on the tiles line up)
+  const roadAxisAt = new Map<string, "h" | "v">();
+  for (const rd of L.roads ?? [])
+    for (const [x, y] of rd.carriageway) roadAxisAt.set(`${x},${y}`, axisPosition(rd.axis, x, y).dir);
   // where caused floor families may grow: within two cells of a tree, a camp, a path or the foot of a rise
   const causeDist = new Map<string, number>();
   {
@@ -88,7 +100,7 @@ export function layFloors(w: LevelWork): void {
   }
   /** The cell's floor family: caused families only near their cause, with a feathered, noisy edge. */
   // generator 3: one dominant family, a tonally close second only in feathered patches with a cause
-  const pickFamily = gen.floorFamilies ? createFamilyPicker(L, seed) : null;
+  const pickFamily = profile.floorFamilies ? createFamilyPicker(L, seed) : null;
   const famAt = (fams: FloorFamily[], x: number, y: number): string => {
     if (pickFamily) return pickFamily(fams, x, y);
     const caused = fams.filter((q) => CAUSED_FAMILIES.has(q.name));
@@ -109,7 +121,7 @@ export function layFloors(w: LevelWork): void {
   const used = new Set<number>();
   /** Floor material as laid: natural low ground under a rock band is rock. */
   const laidMaterial = (c: CellInfo, x: number, y: number): string | null =>
-    c.material !== null && NATURAL_GROUND.has(c.material) && bandLow.has(`${x},${y}`) ? "rock" : c.material;
+    c.material !== null && NATURAL_GROUND.has(c.material) && band.low.has(`${x},${y}`) ? "rock" : c.material;
   const keyOf = (c: CellInfo, x: number, y: number): string =>
     `${c.theme}|${laidMaterial(c, x, y) ?? ""}|${c.height}`;
   for (let ly = 0; ly < V.h; ly++) {
@@ -169,19 +181,18 @@ export function layFloors(w: LevelWork): void {
         ),
       ]
         .map((s) => s.split("x").map(Number) as [number, number])
-        .filter(([w, h]) => greedy || (w === 1 && h === 1))
+        .filter(([cols, rows]) => greedy || (cols === 1 && rows === 1))
         .sort((a, b) => b[0] * b[1] - a[0] * a[1] || b[0] - a[0]);
       // generator 3: a 1x2 piece may lie either way (turned a quarter), the way round chosen per cell from the seed, so
       // a field of them is not all one orientation
-      if (gen.turnedFloorTiles && greedy)
+      if (profile.turnedFloorTiles && greedy)
         for (const [fw0, fh0] of [...fps])
           if (fw0 !== fh0 && !fps.some(([a, b]) => a === fh0 && b === fw0)) fps.push([fh0, fw0]);
-      if (gen.turnedFloorTiles && greedy) {
+      if (profile.turnedFloorTiles && greedy) {
         const flip = h32(`${seed}:${L.id}:floororient:${x}:${y}`) % 2 === 1;
         fps.sort((a, b) => b[0] * b[1] - a[0] * a[1] || (flip ? a[0] - b[0] : b[0] - a[0]));
       }
       const k0 = keyOf(c, x, y);
-      // road carriageway tiles keep one orientation along the road's axis (markings on the tiles line up)
       const roadDir = roadAxisAt.get(`${x},${y}`);
       let placed = false;
       for (const [fw, fh] of fps.length ? fps : [[1, 1] as [number, number]]) {
@@ -205,7 +216,7 @@ export function layFloors(w: LevelWork): void {
               (inFam(u) || (u.variant ?? "") === ""),
           );
         const turned =
-          gen.turnedFloorTiles && fw !== fh && ownOf(fw, fh).length === 0 && ownOf(fh, fw).length > 0;
+          profile.turnedFloorTiles && fw !== fh && ownOf(fw, fh).length === 0 && ownOf(fh, fw).length > 0;
         const sized = res.variants.filter((u) =>
           turned
             ? u.footprint[0] === fh && u.footprint[1] === fw
@@ -253,13 +264,14 @@ export function layFloors(w: LevelWork): void {
       if (!placed) used.add(ly * V.w + lx);
     }
   }
+  return waterCells;
 }
 
 // road markings (generator 2 roads): marking.crossing on crossing cells, an occasional marking.drain on the
 // carriageway beside the kerb; optional roles, the road is complete without them
-export function layRoadMarkings(w: LevelWork): void {
-  const { L, V, topOf, emit } = w;
-  const { seed, frame, lookup, pick } = w.ctx;
+export function layRoadMarkings(lv: RealizeLevel): void {
+  const { L, V, topOf, emit } = lv;
+  const { seed, frame, lookup, pick } = lv.ctx;
   for (const rd of L.roads ?? []) {
     const one: VariantFilter = { key: "1x1", test: (q) => q.footprint[0] === 1 && q.footprint[1] === 1 };
     const mark = (role: string, x: number, y: number, dir: "h" | "v", tag: string): boolean => {
@@ -298,9 +310,9 @@ export function layRoadMarkings(w: LevelWork): void {
 }
 
 // water beds: bed.<water material> → bed.default → the floor of the bank beside it (never an open void)
-export function layWaterBeds(w: LevelWork): void {
-  const { L, V, waterCells, topOf, emit } = w;
-  const { seed, frame, lookup, pick, addDiag } = w.ctx;
+export function layWaterBeds(lv: RealizeLevel, waterCells: WaterCells): void {
+  const { L, V, topOf, emit } = lv;
+  const { seed, frame, lookup, pick, addDiag } = lv.ctx;
   const bedNoted = new Set<string>();
   for (const [x, y] of waterCells) {
     const c = V.cell(x, y);
@@ -349,9 +361,10 @@ export function layWaterBeds(w: LevelWork): void {
 }
 
 // the ground under bridge decks: its floor tile, and its height for the cliff faces around it
-export function layGroundUnderDecks(w: LevelWork): void {
-  const { L, V, elev, groundUnder, emit } = w;
-  const { seed, frame, lookup, pick } = w.ctx;
+export function layGroundUnderDecks(lv: RealizeLevel): GroundUnderDecks {
+  const { L, V, elev, emit } = lv;
+  const { seed, frame, lookup, pick } = lv.ctx;
+  const groundUnder = new Map<string, number>();
   for (const b of L.bridges ?? []) {
     b.cells.forEach(([bx, by], j) => {
       const uq = b.under[j] ?? b.deck;
@@ -375,12 +388,13 @@ export function layGroundUnderDecks(w: LevelWork): void {
       });
     });
   }
+  return groundUnder;
 }
 
 // light props on liquid surfaces (lava glow): every third cell on a 3×3 lattice, when the palette has the role
-export function layLiquidGlow(w: LevelWork): void {
-  const { L, V, topOf, emit } = w;
-  const { frame, lookup, pick } = w.ctx;
+export function layLiquidGlow(lv: RealizeLevel): void {
+  const { L, V, topOf, emit } = lv;
+  const { frame, lookup, pick } = lv.ctx;
   for (let ly = 0; ly < V.h; ly++) {
     for (let lx = 0; lx < V.w; lx++) {
       const x = L.bounds.x + lx;

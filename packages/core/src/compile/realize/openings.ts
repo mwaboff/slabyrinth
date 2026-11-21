@@ -2,18 +2,18 @@
  * Realize, opening pass: doors, arches, windows and secret doors in their wall line, the wall pieces or lintel above
  * a door shorter than its wall, and the strips the corner posts need.
  * Reads: the level's openings and edges, `claimed` (openings a building builds itself). Writes: opening and wall
- * placements, `strips`; secret-door and missing-piece diagnostics.
+ * placements, `CornerStrips`; secret-door and missing-piece diagnostics.
  */
-import { EPS, opposite, type EdgeCtx, type LevelWork } from "./work";
-import { edgeCtx, lenFilter, lengthOf, placeEdgePiece, registerEdgeStrip } from "./edges";
+import { edgeCtx, lenFilter, lengthOf, placeEdgePiece, type CornerStrips, type EdgeCtx } from "./edges";
+import { EPS, opposite, type RealizeLevel } from "./level";
 
 /** Opening roles whose asset is a full-height wall piece (no lintel above them). */
 const NO_LINTEL = new Set(["opening.archway", "opening.window", "opening.arrow_slit"]);
 
 // openings
-export function layOpenings(w: LevelWork): void {
-  const { L, V, claimed } = w;
-  const { gen, lookup, pick, addDiag } = w.ctx;
+export function layOpenings(lv: RealizeLevel, strips: CornerStrips): void {
+  const { L, V, claimed } = lv;
+  const { profile, lookup, pick, addDiag } = lv.ctx;
   for (const op of L.openings) {
     if (op.kind === "open" || claimed.openings.has(op.id)) continue;
     const orient = op.orientation;
@@ -24,7 +24,7 @@ export function layOpenings(w: LevelWork): void {
       const y = orient === "h" ? op.start[1] : op.start[1] + k;
       const e = orient === "h" ? V.hEdge(x, y) : V.vEdge(x, y);
       if (e < 0) continue;
-      ctxs.push(edgeCtx(w, orient, x, y, grid, e, (grid.height[e] ?? 0) > 0 ? (grid.height[e] ?? 2) : 2));
+      ctxs.push(edgeCtx(lv, orient, x, y, grid, e, (grid.height[e] ?? 0) > 0 ? (grid.height[e] ?? 2) : 2));
     }
     const first = ctxs[0];
     if (!first) continue;
@@ -37,7 +37,7 @@ export function layOpenings(w: LevelWork): void {
         Object.assign(
           c,
           edgeCtx(
-            w,
+            lv,
             orient,
             c.x,
             c.y,
@@ -67,7 +67,7 @@ export function layOpenings(w: LevelWork): void {
         if (!v || !r) continue;
         const isDoor = r.role.startsWith("opening.");
         placeEdgePiece(
-          w,
+          lv,
           v,
           r.role.startsWith("wall.") ? "wall" : "opening",
           r.role,
@@ -80,7 +80,7 @@ export function layOpenings(w: LevelWork): void {
         );
         // generator 4: a secret door is ONE removable plug in the wall line (the palette's `opening.secret_door` piece, else
         // the wall style's own piece); the build report says where it stands so a GM can find and delete it
-        if (op.kind === "secret_door" && gen.secretDoorPlug && i === 0) {
+        if (op.kind === "secret_door" && profile.secretDoorPlug && i === 0) {
           const sideName = { N: "north", S: "south", E: "east", W: "west" }[c.planSide];
           const [a, b] = op.sides;
           addDiag({
@@ -98,7 +98,7 @@ export function layOpenings(w: LevelWork): void {
         for (let k = 0; k < n; k++) {
           const ck = ctxs[i + k];
           if (!ck) continue;
-          registerEdgeStrip(w, orient, ck.x, ck.y, {
+          strips.register(orient, ck.x, ck.y, {
             orient,
             side: opposite(ck.planSide),
             style: op.wallStyle,
@@ -112,7 +112,7 @@ export function layOpenings(w: LevelWork): void {
             if (wv && (wr?.def.mount ?? "half-cell") === "half-cell") {
               const cnt = Math.ceil((wallTop - leafTop) / wv.unitHeight - EPS);
               placeEdgePiece(
-                w,
+                lv,
                 wv,
                 "wall",
                 `wall.${op.wallStyle}`,
@@ -134,11 +134,11 @@ export function layOpenings(w: LevelWork): void {
               lenFilter(1),
               true,
             );
-            const lv = lr ? pick(lr.variants, `${L.id}:lintel:${ck.x}:${ck.y}`) : undefined;
-            if (lv) {
+            const lintel = lr ? pick(lr.variants, `${L.id}:lintel:${ck.x}:${ck.y}`) : undefined;
+            if (lintel) {
               placeEdgePiece(
-                w,
                 lv,
+                lintel,
                 "opening",
                 lr?.role ?? "lintel.wall",
                 ck,

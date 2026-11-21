@@ -1,38 +1,80 @@
 /**
- * Realize, edge primitives: how a piece standing on a cell edge is placed. Shared by the wall, kerb and opening
- * passes; places only what a pass asks for.
- * Reads: the level's cells and wall spans (`refHeights`). Writes: placements (through `emit`) and `strips`.
+ * Realize, edge primitives: how a piece standing on a cell edge is placed, and the strips such pieces leave at the
+ * vertices for the corner posts. Shared by the wall, kerb and opening passes; places only what a pass asks for.
+ * Reads: the level's cells and wall spans (`refHeights`). Writes: placements (through `emit`); `CornerStrips`.
  */
 import type { Placement, PlacementRole, RoleName } from "../../contracts/compiler";
-import type { Side } from "../../contracts/plan";
+import type { Side, ThemeId } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant, VariantFilter } from "../../palette/resolve";
 import { wallSpan } from "../../resolve/wallspan";
 import { rotateXZ } from "../geometry";
-import type { EdgeCtx, LevelWork, Strip } from "./work";
+import type { RealizeLevel } from "./level";
 
-function addStrip(w: LevelWork, vx: number, vy: number, s: Strip, dir: Side): void {
-  const { strips } = w;
-  const k = `${vx},${vy}`;
-  const arr = strips.get(k) ?? [];
-  arr.push({ ...s, dir });
-  strips.set(k, arr);
+/** One edge strip (a wall or door piece occupying the half-cell next to an edge), for corner posts. */
+export interface Strip {
+  orient: "h" | "v";
+  /** Plan side of the edge line the strip lies on: h → "N"|"S", v → "W"|"E". */
+  side: Side;
+  style: string;
+  theme: ThemeId;
+  base: number;
+  top: number;
 }
 
-/** Registers a 1-long strip on the edge starting at vertex (vx,vy) running +x (h) or +y (v). */
-export function registerEdgeStrip(w: LevelWork, orient: "h" | "v", vx: number, vy: number, s: Strip): void {
-  if (orient === "h") {
-    addStrip(w, vx, vy, s, "E");
-    addStrip(w, vx + 1, vy, s, "W");
-  } else {
-    addStrip(w, vx, vy, s, "S");
-    addStrip(w, vx, vy + 1, s, "N");
+/** One wall edge as a piece standing on it sees it (`edgeCtx`; the shell's skirt and kerbs build their own). */
+export interface EdgeCtx {
+  orient: "h" | "v";
+  x: number;
+  y: number;
+  hostFirst: boolean;
+  hostX: number;
+  hostY: number;
+  /** The cell on the other side of the edge (full-cell blocks go there when the host cell is open). */
+  otherX: number;
+  otherY: number;
+  otherOpen: boolean;
+  planSide: Side;
+  base: number;
+  top: number;
+  theme: ThemeId;
+  hostOpen: boolean;
+}
+
+/**
+ * The edge strips ending at each vertex of a level. The wall and opening passes register the strips their pieces
+ * occupy; the corner-post pass reads `byVertex` once both are done.
+ */
+export class CornerStrips {
+  private readonly map = new Map<string, Array<Strip & { dir: Side }>>();
+
+  /** Strips ending at each vertex ("x,y"), each with the direction it leaves the vertex in. */
+  get byVertex(): ReadonlyMap<string, ReadonlyArray<Strip & { dir: Side }>> {
+    return this.map;
+  }
+
+  /** Registers a 1-long strip on the edge starting at vertex (vx,vy) running +x (h) or +y (v). */
+  register(orient: "h" | "v", vx: number, vy: number, s: Strip): void {
+    if (orient === "h") {
+      this.add(vx, vy, s, "E");
+      this.add(vx + 1, vy, s, "W");
+    } else {
+      this.add(vx, vy, s, "S");
+      this.add(vx, vy + 1, s, "N");
+    }
+  }
+
+  private add(vx: number, vy: number, s: Strip, dir: Side): void {
+    const k = `${vx},${vy}`;
+    const arr = this.map.get(k) ?? [];
+    arr.push({ ...s, dir });
+    this.map.set(k, arr);
   }
 }
 
 /** Edge (x,y) = north edge of cell (x,y) for h, west edge for v. */
 export function edgeCtx(
-  w: LevelWork,
+  lv: RealizeLevel,
   orient: "h" | "v",
   x: number,
   y: number,
@@ -40,8 +82,8 @@ export function edgeCtx(
   e: number,
   wallHeight: number,
 ): EdgeCtx {
-  const { V, elev, refHeights } = w;
-  const { defaultTheme } = w.ctx;
+  const { V, elev, refHeights } = lv;
+  const { defaultTheme } = lv.ctx;
   const a = orient === "h" ? V.cell(x, y - 1) : V.cell(x - 1, y);
   const b = V.cell(x, y);
   const hostFirst = (grid.host[e] ?? 1) === 0;
@@ -81,7 +123,7 @@ export const lenFilter = (n: number): VariantFilter => ({ key: `len${n}`, test: 
 
 /** Places one half-cell edge piece covering `len` edges starting at the run's first edge ctx. */
 export function placeEdgePiece(
-  w: LevelWork,
+  lv: RealizeLevel,
   v: ResolvedVariant,
   role: PlacementRole,
   roleName: RoleName,
@@ -92,8 +134,8 @@ export function placeEdgePiece(
   source: Placement["source"],
   isDoor: boolean,
 ): void {
-  const { emit } = w;
-  const { frame, facingOf } = w.ctx;
+  const { emit } = lv;
+  const { frame, facingOf } = lv.ctx;
   // host cell whose world min corner anchors the piece: west-most (h run) or south-most in world (v run)
   const hx = first.hostX;
   const hy = first.orient === "v" && frame.o.flipZ ? first.hostY + len - 1 : first.hostY;
@@ -120,15 +162,15 @@ export function placeEdgePiece(
 
 /** Places one piece centred over `len` edges (free-standing low walls, fences, railings). */
 export function placeEdgeCenterPiece(
-  w: LevelWork,
+  lv: RealizeLevel,
   v: ResolvedVariant,
   role: PlacementRole,
   first: EdgeCtx,
   len: number,
   source: Placement["source"],
 ): void {
-  const { emit } = w;
-  const { frame } = w.ctx;
+  const { emit } = lv;
+  const { frame } = lv.ctx;
   const along =
     first.orient === "h" ? { x: first.x + len / 2, y: first.y } : { x: first.x, y: first.y + len / 2 };
   const c = frame.point(along.x, along.y);

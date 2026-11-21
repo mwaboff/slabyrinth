@@ -2,7 +2,7 @@
  * Realize, level view: read-only cell and edge access to one resolved level in plan coordinates.
  * Reads: a ResolvedLevel. Writes: nothing.
  */
-import type { ThemeId } from "../../contracts/plan";
+import type { Material, ThemeId } from "../../contracts/plan";
 import { CELL, CELL_FLAG, type ResolvedLevel } from "../../contracts/resolved";
 
 export interface CellInfo {
@@ -10,7 +10,7 @@ export interface CellInfo {
   floor: boolean;
   /** Relative floor height in tiles. */
   height: number;
-  material: string | null;
+  material: Material | null;
   theme: ThemeId;
   area: number;
   flags: number;

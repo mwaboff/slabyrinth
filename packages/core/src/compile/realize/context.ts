@@ -2,7 +2,7 @@
  * Realize, plan-wide context: what every pass on every level shares, built once per realize() call.
  * Reads: the resolved plan, the palettes, the options and the orientation calibration.
  * Writes: through `lookup` and `addDiag`, the build's diagnostics (`diag`) and asset substitutions (`subs`); through
- * the registries, each placement's world box and asset name (written by `LevelWork.emit`).
+ * the registries, each placement's world box and asset name (written by `RealizeLevel.emit`, realize/level.ts).
  */
 import type {
   Box3,
@@ -81,8 +81,11 @@ export interface RealizeCtx extends PlacementRegistries {
   readonly orientation: OrientationCalibration;
   readonly seed: number;
   readonly frame: WorldFrame;
-  /** What the plan's generator does (plan/generator.ts); palette roles carry their own first generator (minGenerator). */
-  readonly gen: GeneratorProfile;
+  /**
+   * What the plan's generator does (plan/generator.ts): every version-dependent rule of a pass reads a switch of it.
+   * Palette roles carry their own first generator (minGenerator).
+   */
+  readonly profile: GeneratorProfile;
   readonly defaultTheme: ThemeId;
   /** Diagnostics of the whole build, merged by severity, code, level, role and element. */
   readonly diag: Map<string, CompileDiagnostic>;
@@ -121,8 +124,7 @@ export function createRealizeCtx(
   const seed = opts.seed ?? h32(resolved.planId);
   const hg = resolved.levels.reduce((m, l) => Math.max(m, l.bounds.y + l.bounds.h), 0);
   const frame = new WorldFrame(orientation, hg);
-  // what the plan's generator does (plan/generator.ts); palette roles carry their own first generator (minGenerator)
-  const gen = generatorProfile(resolved);
+  const profile = generatorProfile(resolved);
   const resolveRole = createRoleResolver(palettes, resolved.generator);
   const defaultTheme = Object.keys(palettes.palettes).includes("generic")
     ? "generic"
@@ -268,7 +270,7 @@ export function createRealizeCtx(
     orientation,
     seed,
     frame,
-    gen,
+    profile,
     defaultTheme,
     diag,
     addDiag,

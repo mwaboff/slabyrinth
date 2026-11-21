@@ -9,12 +9,12 @@ import type { Side } from "../../contracts/plan";
 import { EDGE, type ResolvedPlan } from "../../contracts/resolved";
 import { rotateXZ } from "../geometry";
 import { stackFill } from "./fill";
-import { EPS, NATURAL_GROUND, type LevelWork } from "./work";
+import { EPS, NATURAL_GROUND, type RealizeLevel } from "./level";
 
 // stairs (EDGE.STAIR): a stair piece in the lower cell climbing toward the higher one
-export function layStairEdges(w: LevelWork): void {
-  const { L, V, topOf, emit } = w;
-  const { frame, lookup, pick, facingOf } = w.ctx;
+export function layStairEdges(lv: RealizeLevel): void {
+  const { L, V, topOf, emit } = lv;
+  const { frame, lookup, pick, facingOf } = lv.ctx;
   const stairAt = (orient: "h" | "v", e: number, x: number, y: number): void => {
     const g = orient === "h" ? L.hEdges : L.vEdges;
     if (g.kind[e] !== EDGE.STAIR) return;
@@ -64,15 +64,14 @@ export function layStairEdges(w: LevelWork): void {
     for (let lx = 0; lx <= V.w; lx++) stairAt("v", ly * (V.w + 1) + lx, L.bounds.x + lx, L.bounds.y + ly);
 }
 
-// ── 4. links (placed on the lower level) ──
-// (the level state is `work` here: the vertical-link branch has its own `w`, the footprint width)
-export function layLinks(work: LevelWork): void {
-  const { L, V, elev, topOf, emit } = work;
-  const { resolved, frame, views, lookup, pick, facingOf, addDiag } = work.ctx;
+// ── links (placed on the lower level) ──
+export function layLinks(lv: RealizeLevel): void {
+  const { L, V, elev, topOf, emit } = lv;
+  const { resolved, frame, views, lookup, pick, facingOf, addDiag } = lv.ctx;
   for (const lk of resolved.links) {
     if (lk.kind === "trapdoor") {
       // the hatch lies on the UPPER level's floor (the resolver keeps that floor for trapdoors)
-      if (lk.toLevel === L.id) placeHatch(work, lk);
+      if (lk.toLevel === L.id) placeHatch(lv, lk);
       continue;
     }
     if (lk.fromLevel !== L.id) continue;
@@ -105,12 +104,11 @@ export function layLinks(work: LevelWork): void {
         const m = frame.rectMin(cx, cy, 1, 1);
         if ((kIdx + 1) * rise <= lk.rise + EPS) {
           const base = lowerTop + kIdx * rise;
-          if (base > lowerTop + EPS)
-            stackFill(work, L.id, theme, c.material, cx, cy, lowerTop, base, "link", lk.id);
+          if (base > lowerTop + EPS) stackFill(lv, theme, c.material, cx, cy, lowerTop, base, "link", lk.id);
           emit(v, "link", m.x, base, m.z, steps * 15 + v.rot, { cell: [cx, cy], elementId: lk.id });
         } else {
           // landing: the rest of a non-integer rise as fill courses up to the upper floor top
-          stackFill(work, L.id, theme, c.material, cx, cy, lowerTop, lowerTop + lk.rise, "link", lk.id);
+          stackFill(lv, theme, c.material, cx, cy, lowerTop, lowerTop + lk.rise, "link", lk.id);
         }
       }
     } else {
@@ -177,9 +175,9 @@ export function layLinks(work: LevelWork): void {
   }
 }
 
-function placeHatch(w: LevelWork, lk: ResolvedPlan["links"][number]): void {
-  const { L, V, elev, topOf, emit } = w;
-  const { frame, lookup, pick } = w.ctx;
+function placeHatch(lv: RealizeLevel, lk: ResolvedPlan["links"][number]): void {
+  const { L, V, elev, topOf, emit } = lv;
+  const { frame, lookup, pick } = lv.ctx;
   const cell = lk.upperCells[0] ?? lk.arrival;
   const c = V.cell(cell[0], cell[1]);
   const res = lookup(L.id, lk.theme || c.theme, ["link.trapdoor"]);

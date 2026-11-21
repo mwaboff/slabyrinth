@@ -2,8 +2,8 @@
  * Realize, feature passes: every resolved feature (covered stalls through compile/stalls.ts, custom assets by name,
  * the run mix, cliff tones, wall-mounted and wall-facing pieces, assemblies), then the rock dressing piled on
  * outcrops.
- * Reads: the level's features, outcrops, edges and cells; the cliff tone helpers (cliffBand.ts); `runPicks`.
- * Writes: feature placements, `runPicks`; custom, vehicle, variant, footprint and landmark diagnostics.
+ * Reads: the level's features, outcrops, edges and cells; the cliff tones (cliffBand.ts). Writes: feature placements;
+ * custom, vehicle, variant, footprint and landmark diagnostics.
  */
 import type { CompileDiagnostic, Placement, RoleName } from "../../contracts/compiler";
 import type { Side } from "../../contracts/plan";
@@ -13,10 +13,10 @@ import { featureRoles } from "../../gen/surfaces";
 import { footprintFromGeom, type ResolvedVariant } from "../../palette/resolve";
 import { h32, rotateDir, rotateXZ } from "../geometry";
 import { realizeStall } from "../stalls";
-import { cliffKinds, nearCliff, toneBoulders } from "./cliffBand";
-import { EPS, opposite, type LevelWork } from "./work";
+import type { CliffTones } from "./cliffBand";
+import { EPS, opposite, type RealizeLevel } from "./level";
 
-/** Upright feature types whose assets are mixed along a run (see runPicks). */
+/** Upright feature types whose assets are mixed along a run (see `runPicks` in layFeatures). */
 const RUN_MIX = new Set([
   "cluster_tall",
   "formation",
@@ -38,21 +38,27 @@ const CLIFF_DRESSING = new Set(["formation", "rock_formation", "boulder", "rock"
 const NATURAL_STANDING = new Set(["cluster_tall", "formation", "landmark", "rock_formation", "tall_marker"]);
 
 // ── 5. features ──
-export function layFeatures(w: LevelWork): void {
-  const { L, V, runPicks, emit } = w;
-  const { seed, gen, frame, palettes, orientation, lookup, pick, facingOf, addDiag } = w.ctx;
+export function layFeatures(lv: RealizeLevel, tones: CliffTones): void {
+  const { L, V, emit } = lv;
+  const { seed, profile, frame, palettes, orientation, lookup, pick, facingOf, addDiag } = lv.ctx;
+  /**
+   * Upright pieces already realized per role, for the run mix (round 5): along a row or column, a piece does not take
+   * an asset a neighbour within three cells already shows (a row of identical cypresses read as a planted hedge), when
+   * its role has another weighted asset.
+   */
+  const runPicks = new Map<string, Array<{ x: number; y: number; uuid: string }>>();
   /** True when any edge along `side` of the plan rect is a wall (or a door) edge. */
-  const rectSideWalled = (x: number, y: number, w: number, h: number, side: Side): boolean => {
-    const n = side === "N" || side === "S" ? w : h;
+  const rectSideWalled = (x: number, y: number, cols: number, rows: number, side: Side): boolean => {
+    const n = side === "N" || side === "S" ? cols : rows;
     for (let k = 0; k < n; k++) {
       const e =
         side === "N"
           ? V.hEdge(x + k, y)
           : side === "S"
-            ? V.hEdge(x + k, y + h)
+            ? V.hEdge(x + k, y + rows)
             : side === "W"
               ? V.vEdge(x, y + k)
-              : V.vEdge(x + w, y + k);
+              : V.vEdge(x + cols, y + k);
       const g = side === "N" || side === "S" ? L.hEdges : L.vEdges;
       if (e >= 0 && (g.kind[e] === EDGE.WALL || g.kind[e] === EDGE.OPENING)) return true;
     }
@@ -68,7 +74,7 @@ export function layFeatures(w: LevelWork): void {
     const roleName = `feature.${f.type}`;
     // generator 4: a covered stall is built from parts (base, counters, posts, canopy); without them the table below
     if (
-      gen.coveredStalls &&
+      profile.coveredStalls &&
       f.type === "stall" &&
       f.stall !== undefined &&
       realizeStall(
@@ -145,7 +151,7 @@ export function layFeatures(w: LevelWork): void {
     } else {
       // generator 4: small things on a surface (clutter, goods) are one family table over two roles (gen/surfaces.ts):
       // the first role that has the asked family wins, else the first role there is (the variant note below applies)
-      const roles = gen.sharedSmallThings ? featureRoles(f.type) : [roleName];
+      const roles = profile.sharedSmallThings ? featureRoles(f.type) : [roleName];
       const wantFamily = f.variant;
       const res =
         (roles.length > 1 && wantFamily !== undefined
@@ -163,7 +169,7 @@ export function layFeatures(w: LevelWork): void {
       let pool = res.variants;
       // generator 3: the band's rocks turn as the generator set them (the palette's role says "fixed", which left every
       // rock at one turn), and a boulder is a tall one (Moss Rock 01 is knee-high and hides no face)
-      if (gen.restingCliffBand && (f.type === "cliff_face" || f.type === "cliff_crest")) {
+      if (profile.restingCliffBand && (f.type === "cliff_face" || f.type === "cliff_crest")) {
         rule = "inherit";
         if (f.type === "cliff_crest") {
           const tallOnes = pool.filter((u) => u.geom.size.y >= 1.2);
@@ -171,38 +177,38 @@ export function layFeatures(w: LevelWork): void {
         }
         // one rock tone per cliff: the face piece decides; boulders match it (the palette's same-tone boulder role when
         // the boulder role has none), and keep their own tone only when the palette has no piece of that tone
-        const tone = cliffKinds(w, theme).tone;
+        const tone = tones.kinds(theme).tone;
         if (tone !== undefined) {
           const same = pool.filter((u) => u.weight > 0 && u.tone === tone);
           if (same.length > 0) pool = same;
           else if (f.type === "cliff_crest") {
-            const alt = toneBoulders(w, theme, tone);
+            const alt = tones.boulders(theme, tone);
             if (alt.length > 0) pool = [...alt];
           }
         }
       }
       // generator 3: the loose rock within 3 cells of a cliff follows the cliff's tone (untagged pieces are unknown: kept)
-      if (gen.cliffToneRule && CLIFF_DRESSING.has(f.type) && nearCliff(w, f.at[0], f.at[1])) {
-        const tone = cliffKinds(w, theme).tone;
+      if (profile.cliffToneRule && CLIFF_DRESSING.has(f.type) && tones.near(f.at[0], f.at[1])) {
+        const tone = tones.kinds(theme).tone;
         const tagged = pool.filter((u) => u.weight > 0 && u.tone !== undefined);
         if (tone !== undefined && tagged.length > 0) {
           if (tagged.some((u) => u.tone === tone))
             pool = pool.filter((u) => u.tone === undefined || u.tone === tone);
           else {
-            const alt = toneBoulders(w, theme, tone);
+            const alt = tones.boulders(theme, tone);
             if (alt.length > 0) pool = [...pool.filter((u) => u.tone === undefined), ...alt];
           }
         }
       }
       // generator 3: a wall block (a tile, minCorner) is not a natural standing piece: a cave's stone columns are
       // stalagmites, never a row of Cave Wall stubs that read as a brick maze
-      if (gen.naturalStanding && NATURAL_STANDING.has(f.type)) {
+      if (profile.naturalStanding && NATURAL_STANDING.has(f.type)) {
         const notTiles = pool.filter((u) => u.geom.originAt !== "minCorner");
         if (notTiles.length > 0) pool = notTiles;
       }
       // generator 3: a stall's kind is the goods it sells; kinds that stand on the bare table share its variant
       const wantVariant =
-        gen.stallsAndLines && f.type === "stall" && f.variant !== undefined
+        profile.stallsAndLines && f.type === "stall" && f.variant !== undefined
           ? stallPieceOf(f.variant)
           : f.variant;
       if (wantVariant !== undefined) {
@@ -222,7 +228,7 @@ export function layFeatures(w: LevelWork): void {
       // generator 3: a stall made of 1x1 tiles (fruit, vegetables, spices) is one tile in each of its two cells
       if (
         v &&
-        gen.stallsAndLines &&
+        profile.stallsAndLines &&
         f.type === "stall" &&
         v.footprint[0] * v.footprint[1] === 1 &&
         f.size[0] * f.size[1] === 2
@@ -320,7 +326,7 @@ export function layFeatures(w: LevelWork): void {
     if (!f.wall && fp[0] !== fp[1]) {
       const q = Math.round(deg / 90) % 2 === 1;
       const [aw, ah] = q ? [v.footprint[1], v.footprint[0]] : [v.footprint[0], v.footprint[1]];
-      const miss = (w: number, h: number): number => Math.abs(w - fp[0]) + Math.abs(h - fp[1]);
+      const miss = (cols: number, rows: number): number => Math.abs(cols - fp[0]) + Math.abs(rows - fp[1]);
       if (miss(ah, aw) < miss(aw, ah)) deg = (deg + 90) % 360;
     }
     // tiles (and tile assemblies) stay on quarter turns: a 15° tile would not sit on the grid
@@ -427,9 +433,9 @@ export function layFeatures(w: LevelWork): void {
 
 // outcrops are built up with the theme's rock formations: one on the crown, and formations and edge dressing
 // piled round the foot, so a crag reads as a rock mass rather than a stack of blocks
-export function dressOutcrops(w: LevelWork): void {
-  const { L, V, topOf, emit } = w;
-  const { seed, frame, lookup, pick } = w.ctx;
+export function dressOutcrops(lv: RealizeLevel): void {
+  const { L, V, topOf, emit } = lv;
+  const { seed, frame, lookup, pick } = lv.ctx;
   for (const oc of L.outcrops ?? []) {
     const inOc = new Set(oc.cells.map(([x, y]) => `${x},${y}`));
     const placeDressing = (role: string, x: number, y: number, key: string): void => {
