@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { BetaFlags } from "./provider/anthropic/betas";
 import { buildRequest } from "./provider/anthropic/render";
 import { requestShapeViolations } from "./testing/invariants";
@@ -316,7 +316,10 @@ describe("stop reasons and failures", () => {
   it("cancel keeps streamed text display-only and ends the turn", async () => {
     const { host, engine } = setup([{ kind: "hang" }]);
     const { turnId } = await engine.send({ text: "draw" });
-    await new Promise((r) => setTimeout(r, 5));
+    // wait for the partial answer to stream, not for a guessed number of milliseconds
+    await vi.waitFor(() => {
+      expect(host.events.some((e) => e.type === "text_delta")).toBe(true);
+    });
     await engine.cancel(turnId);
     const last = items(host).at(-1);
     expect(last).toMatchObject({

@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { gzipSync } from "node:zlib";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FIXTURE_PLAN } from "../fixturePlan";
 import { corePort, projectRig, type ProjectRig } from "./testing/helpers";
 import { sanitizeFileName } from "./projectService";
@@ -96,9 +96,10 @@ describe("ProjectService: files", () => {
     const snap = await rig.projects.create({ name: "Autosave" });
     rig.projects.updateBrief({ tone: "eerie" });
     expect(rig.projects.snapshot().dirty).toBe(true);
-    await new Promise((r) => setTimeout(r, 120));
-    await rig.projects.flush();
-    expect(rig.projects.snapshot().dirty).toBe(false);
+    // the debounced autosave cleans the project on its own (no flush): wait for that, not for a fixed time
+    await vi.waitFor(() => {
+      expect(rig?.projects.snapshot().dirty).toBe(false);
+    });
     const file = await read(snap.filePath as string);
     expect((file["brief"] as Record<string, unknown>)["tone"]).toEqual({ value: "eerie", source: "user" });
     const changes = rig.emit.events

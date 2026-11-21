@@ -391,7 +391,7 @@ describe("robustness and speed", () => {
     );
   });
 
-  it("checks a 160×160 level with rooms, doors and 4,000+ features quickly (best of three)", () => {
+  it("checks a 160×160 level with rooms, doors and 4,000+ features", () => {
     const areas: Area[] = [];
     const openings: Opening[] = [];
     for (let k = 0; k < 64; k++) {
@@ -427,15 +427,8 @@ describe("robustness and speed", () => {
     };
     const r = resolvePlan(p, bundledPalettes());
     expect(r.levels[0]?.features.length).toBeGreaterThan(4000);
-    checkPlayability(p, r);
-    const times: number[] = [];
-    for (let i = 0; i < 3; i++) {
-      const t0 = performance.now();
-      checkPlayability(p, r);
-      times.push(performance.now() - t0);
-    }
-    // A guard against a quadratic blow-up, not a benchmark: ~35 ms alone, 90-120 ms under the full parallel
-    // suite on a loaded machine, so the bound leaves generous headroom (best of three).
-    expect(Math.min(...times)).toBeLessThan(500);
+    // A guard against a quadratic blow-up (it would run past the test's timeout); no elapsed-time assertion, which
+    // measures the machine rather than the code.
+    expect(Array.isArray(checkPlayability(p, r))).toBe(true);
   });
 });

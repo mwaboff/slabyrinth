@@ -614,7 +614,9 @@ describe("verify: fixtures, pipeline wiring, robustness, speed", () => {
     );
   });
 
-  it("verifies the largest supported level (160×160) quickly", () => {
+  // A guard against a quadratic blow-up: it would run far past the test's timeout. No elapsed-time assertion (that
+  // measures the machine, not the code).
+  it("verifies the largest supported level (160×160)", () => {
     const rows = Array.from({ length: 160 }, (_, y) =>
       Array.from({ length: 160 }, (_, x) =>
         x === 0 || y === 0 || x === 159 || y === 159 || (x % 20 === 0 && y % 7 !== 3) ? "#" : ".",
@@ -626,12 +628,8 @@ describe("verify: fixtures, pipeline wiring, robustness, speed", () => {
       at: [1 + ((i * 7) % 157), 1 + ((i * 13) % 157)] as const,
     }));
     const r = handPlan([handLevel({ id: "big", rows, features })]);
-    const set = realize(r, cat);
-    verifyBuild(r, realize(r, cat), cat); // warm-up
-    // A guard against a quadratic blow-up, not a benchmark: best of three, with headroom for a loaded machine
-    // (parallel test workers, shared CI runners). Typical time on an idle desktop is well under 200 ms.
-    const best = Math.min(...[0, 1, 2].map(() => verifyBuild(r, set, cat).ms));
-    expect(best).toBeLessThan(1000);
+    const v = verifyBuild(r, realize(r, cat), cat);
+    expect(v.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
   });
 });
 

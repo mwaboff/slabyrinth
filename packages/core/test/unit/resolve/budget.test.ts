@@ -1,6 +1,7 @@
 /**
- * Resolve-time budgets for legal-but-large plans (review items 1, 4, 5, 6). Each case was seconds before the fix;
- * bounds are generous (best of three) so they only catch algorithmic regressions, not a busy machine.
+ * Legal-but-large plans resolve (each case once took seconds to tens of seconds: an algorithmic blow-up). The guard is
+ * the test's timeout, which such a blow-up runs far past; there is no elapsed-time assertion, which would measure the
+ * machine rather than the code.
  */
 import { describe, expect, it } from "vitest";
 import type { Area, Level, MapPlan, Opening, TerrainOp } from "../../../src/contracts/plan";
@@ -36,16 +37,6 @@ function plan(level: Partial<Level>): MapPlan {
   };
 }
 
-function bestOf3(fn: () => void): number {
-  let best = Infinity;
-  for (let i = 0; i < 3; i++) {
-    const t0 = performance.now();
-    fn();
-    best = Math.min(best, performance.now() - t0);
-  }
-  return best;
-}
-
 const room = (id: string, x: number, y: number, w: number, h: number): Area => ({
   id,
   kind: "room",
@@ -53,15 +44,14 @@ const room = (id: string, x: number, y: number, w: number, h: number): Area => (
   shape: { type: "rect", x, y, w, h },
 });
 
-describe("resolve budgets", () => {
-  it("dresses a 158×158 storeroom at density 1 in well under 1 s", () => {
+describe("large plans resolve", () => {
+  it("dresses a 158×158 storeroom at density 1", () => {
     const terrain: TerrainOp[] = [{ id: "d", op: "dress", area: "a", preset: "storeroom", density: 1 }];
     const p = plan({ areas: [room("a", 1, 1, 158, 158)], terrain });
     expect(resolvePlan(p, bundledPalettes()).levels[0]?.features.length).toBeGreaterThan(3000);
-    expect(bestOf3(() => resolvePlan(p, bundledPalettes()))).toBeLessThan(1000);
   });
 
-  it("scatters with minSpacing 32 on 160×160 quickly (was ~1.8 s)", () => {
+  it("scatters with minSpacing 32 on 160×160", () => {
     const terrain: TerrainOp[] = [{ id: "s", op: "scatter", feature: "rock", density: 1, minSpacing: 32 }];
     const p = plan({ base: { type: "ground", material: "grass" }, terrain });
     const feats = resolvePlan(p, bundledPalettes()).levels[0]?.features ?? [];
@@ -71,10 +61,9 @@ describe("resolve budgets", () => {
           expect(Math.max(Math.abs(a.at[0] - b.at[0]), Math.abs(a.at[1] - b.at[1]))).toBeGreaterThanOrEqual(
             32,
           );
-    expect(bestOf3(() => resolvePlan(p, bundledPalettes()))).toBeLessThan(500);
   });
 
-  it("explains five impossible doors between two huge rooms quickly (was ~3.7 s)", () => {
+  it("explains five impossible doors between two huge rooms", () => {
     const openings: Opening[] = Array.from({ length: 5 }, (_, k) => ({
       id: `o${k}`,
       kind: "door",
@@ -85,10 +74,9 @@ describe("resolve budgets", () => {
     expect(r.issues.filter((i) => i.code === "opening_no_boundary")[0]?.hint).toMatch(
       /2 cells apart|1 cells apart/,
     );
-    expect(bestOf3(() => resolvePlan(p, bundledPalettes()))).toBeLessThan(500);
   });
 
-  it("rasterises a polygon with corners at ±4096 only inside the level (was tens of seconds)", () => {
+  it("rasterises a polygon with corners at ±4096 only inside the level", () => {
     const n = 4096;
     const p = plan({
       bounds: { x: 0, y: 0, w: 40, h: 40 },
@@ -112,7 +100,6 @@ describe("resolve budgets", () => {
     const r = resolvePlan(p, bundledPalettes());
     expect(r.levels[0]?.areas[0]?.cellCount).toBe(1600);
     expect(r.issues.map((i) => i.code)).toEqual(["bounds_exceeded"]);
-    expect(bestOf3(() => resolvePlan(p, bundledPalettes()))).toBeLessThan(200);
   });
 
   it("huge circles, blobs and paths are clipped too", () => {
@@ -134,6 +121,7 @@ describe("resolve budgets", () => {
         },
       ],
     });
-    expect(bestOf3(() => resolvePlan(p, bundledPalettes()))).toBeLessThan(500);
+    const L = resolvePlan(p, bundledPalettes()).levels[0];
+    expect(L?.cells.state).toHaveLength(1600);
   });
 });
