@@ -12,20 +12,12 @@
  * What a room is for comes from the one classifier (gen/roomPurpose.ts); the floors each purpose takes in each floor
  * family are in its table, and the family is the theme's interior character (resolve/themes.ts).
  */
-import type { Material } from "../contracts/plan";
+import type { Material, ThemeId } from "../contracts/plan";
 import type { FloorFamily, RoomPurpose } from "../contracts/resolved";
 import { ROOM_PURPOSE_INFO } from "../gen/roomPurpose";
-
-/** Floors that count as "built": a default of one of these is a candidate for being replaced by a purpose floor. */
-export const BUILT_FLOORS: ReadonlySet<Material> = new Set<Material>([
-  "flagstone",
-  "stone_tile",
-  "marble",
-  "brick",
-  "cobble",
-  "wood_plank",
-  "carpet",
-]);
+import { TONE_RANK, type Tone } from "../palette/tones";
+import type { PaletteView } from "../palette/view";
+import { materialInfo } from "./materials";
 
 /**
  * The floor a room of `purpose` takes in a level of `family`: a material, "keep" for a corridor in all but name (it
@@ -46,32 +38,20 @@ export const FAMILY_ROTATION: Readonly<Record<FloorFamily, readonly Material[]>>
   stone: ["stone_tile", "cobble", "flagstone"],
 };
 
-/** Tone rank of a floor material (0 dark, 1 mid, 2 light): a guess from the pieces, not observed in game for all. */
-export const MATERIAL_TONE: Readonly<Record<string, 0 | 1 | 2>> = {
-  flagstone: 0,
-  brick: 0,
-  cobble: 0,
-  dirt: 0,
-  mud: 0,
-  rock: 0,
-  asphalt: 0,
-  lava: 0,
-  stone_tile: 1,
-  wood_plank: 1,
-  carpet: 1,
-  concrete: 1,
-  gravel: 1,
-  bridge_wood: 1,
-  grass: 1,
-  swamp: 1,
-  marble: 2,
-  sand: 2,
-  snow: 2,
-  ice: 2,
-};
+/** How pale a floor is, as a rank (0 dark, 1 mid, 2 light); undefined when nothing knows. */
+export type ToneOf = (m: Material | undefined) => number | undefined;
 
-export function toneOf(m: string | undefined): 0 | 1 | 2 | undefined {
-  return m === undefined ? undefined : MATERIAL_TONE[m];
+/**
+ * How pale a theme's floor of `material` is (generator 4): the tone its palette's pieces carry (PaletteView.floorTone),
+ * else the material's guess (resolve/materials.ts MATERIAL_INFO `tone`), as a rank. A user palette whose flagstone is
+ * pale makes flagstone pale here, so the accent rule and the review follow the pieces.
+ */
+export function floorTone(view: Pick<PaletteView, "floorTone">, theme: ThemeId): ToneOf {
+  return (m) => {
+    if (m === undefined) return undefined;
+    const t: Tone | undefined = view.floorTone(theme, m) ?? materialInfo(m).tone;
+    return t === undefined ? undefined : TONE_RANK[t];
+  };
 }
 
 /**
@@ -79,7 +59,12 @@ export function toneOf(m: string | undefined): 0 | 1 | 2 | undefined {
  * reads as a stark pale slab. The top takes the platform's own tier material, or the room's floor, when it is not
  * lighter than the room; returns the material to lay (the given one when it is already close in tone).
  */
-export function accentTop(top: Material, room: Material | undefined, tier: Material | undefined): Material {
+export function accentTop(
+  top: Material,
+  room: Material | undefined,
+  tier: Material | undefined,
+  toneOf: ToneOf,
+): Material {
   const tt = toneOf(top);
   const rt = toneOf(room);
   if (tt === undefined || rt === undefined || tt <= rt) return top;

@@ -398,7 +398,7 @@ export function reviewDesign(
       rockTonesMixed,
       (c: Ctx) => caveWallChecks(plan, c.L),
       (c: Ctx) => caveNaturalChecks(plan, c.L),
-      (c: Ctx) => (c.gen.floorAccentReview ? floorAccentNotes(c.L.id, c.L) : []),
+      (c: Ctx) => (c.gen.floorAccentReview ? floorAccentNotes(c.L.id, c.L, view) : []),
       focalLights,
       ruins,
       (c: Ctx) =>

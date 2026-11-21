@@ -14,7 +14,7 @@ import { forEachMaskCell } from "../../gen/mask";
 import { ValueNoise } from "../../gen/noise";
 import { bandOffsets, rasterPolyline, rasterizeShape } from "../../gen/shapes";
 import { elementSeed, subSeed } from "../../util/hash";
-import { accentTop } from "../interiorFloors";
+import { accentTop, floorTone } from "../interiorFloors";
 import { isNaturalGround } from "../materials";
 import { breakStraightSteps, chamferCorners, organicTiers, roughenLumps } from "../organic";
 import type { ResolveGrid } from "./grid";
@@ -190,7 +190,12 @@ export function applyPlatform(
     // own material, or the room's floor (resolve/interiorFloors.ts accentTop)
     if (m !== undefined && t === tiers && op.topMaterial !== undefined && work.profile.accentTops) {
       const ord = work.mat[i] as number;
-      m = accentTop(m, ord > 0 ? MATERIALS[ord - 1] : undefined, material);
+      m = accentTop(
+        m,
+        ord > 0 ? MATERIALS[ord - 1] : undefined,
+        material,
+        floorTone(work.ctx.palette, work.themeAt(i)),
+      );
     }
     if (m !== undefined) work.setMaterial(i, m);
   }

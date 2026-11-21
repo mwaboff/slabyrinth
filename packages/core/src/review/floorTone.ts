@@ -9,7 +9,10 @@
  */
 import { CELL } from "../contracts/resolved";
 import type { ResolvedLevel } from "../contracts/resolved";
-import { toneOf } from "../resolve/interiorFloors";
+import { GENERIC_THEME } from "../palette/resolve";
+import type { PaletteView } from "../palette/view";
+import { floorTone } from "../resolve/interiorFloors";
+import { cellTheme } from "../resolve/levelGrid";
 import type { DesignNote } from "./review";
 
 const SCORE = 3.4;
@@ -17,7 +20,11 @@ const MIN_CELLS = 6;
 const MAX_SHARE = 0.45;
 
 /** The review runs it where the generator tones accents itself (`floorAccentReview`, plan/generator.ts). */
-export function floorAccentNotes(levelId: string, L: ResolvedLevel): DesignNote[] {
+export function floorAccentNotes(
+  levelId: string,
+  L: ResolvedLevel,
+  view: Pick<PaletteView, "floorTone">,
+): DesignNote[] {
   if (!L.cells.state.some((s) => s === CELL.SOLID)) return [];
   const byArea = new Map<number, Map<number, number[]>>();
   const n = L.bounds.w * L.bounds.h;
@@ -38,6 +45,8 @@ export function floorAccentNotes(levelId: string, L: ResolvedLevel): DesignNote[
     const main = [...mats].sort((x, y) => y[1].length - x[1].length || x[0] - y[0])[0];
     if (!main) continue;
     const mainMat = L.materials[main[0] - 1];
+    // the tones the resolver's accent rule asks, in the area's theme (resolve/interiorFloors.ts floorTone)
+    const toneOf = floorTone(view, cellTheme(L, main[1][0] ?? -1, GENERIC_THEME));
     const mainTone = toneOf(mainMat);
     if (mainTone === undefined) continue;
     for (const [m, cells] of [...mats].sort((x, y) => x[0] - y[0])) {

@@ -6,6 +6,7 @@
  */
 import type { BridgeSpan, Material } from "../contracts/plan";
 import { MATERIALS } from "../contracts/plan";
+import type { Tone } from "../palette/tones";
 
 export interface MaterialInfo {
   /** Water: TaleSpire's board-wide water plane covers it, so the slab carries only the channel's bed. */
@@ -22,6 +23,16 @@ export interface MaterialInfo {
   cliffGround: boolean;
   /** The span a bridge deck of this material is built as when the plan does not say (resolve/level/bridges.ts). */
   deckSpan: BridgeSpan;
+  /**
+   * A built floor (generator 4, resolve/interiorFloors.ts): a room whose floor is the theme's default built floor takes
+   * the floor its purpose asks for instead.
+   */
+  built: boolean;
+  /**
+   * How pale the material's floor usually is: the last answer of resolve/interiorFloors.ts floorTone, a guess from the
+   * pieces, used only where the palette's floor variants carry no tone. Absent for a floor that is never toned.
+   */
+  tone?: Tone;
 }
 
 const row = (flags: Partial<MaterialInfo> = {}): MaterialInfo => ({
@@ -29,6 +40,7 @@ const row = (flags: Partial<MaterialInfo> = {}): MaterialInfo => ({
   natural: false,
   cliffGround: false,
   deckSpan: "arch",
+  built: false,
   ...flags,
 });
 /** Natural ground: winds, cliffs as rock, a deck of it is a natural span. */
@@ -36,30 +48,35 @@ const ground = (flags: Partial<MaterialInfo> = {}): MaterialInfo =>
   row({ natural: true, cliffGround: true, deckSpan: "natural", ...flags });
 
 export const MATERIAL_INFO: Record<Material, MaterialInfo> = {
-  flagstone: row(),
-  stone_tile: row(),
-  marble: row(),
-  brick: row(),
-  cobble: row(),
-  wood_plank: row({ deckSpan: "plank" }),
-  carpet: row(),
-  rock: ground(),
-  dirt: ground(),
-  grass: ground(),
-  sand: ground(),
-  gravel: ground(),
-  mud: ground(),
-  snow: ground(),
-  ice: ground(),
+  flagstone: row({ built: true, tone: "dark" }),
+  stone_tile: row({ built: true, tone: "mid" }),
+  marble: row({ built: true, tone: "light" }),
+  brick: row({ built: true, tone: "dark" }),
+  cobble: row({ built: true, tone: "dark" }),
+  wood_plank: row({ deckSpan: "plank", built: true, tone: "mid" }),
+  carpet: row({ built: true, tone: "mid" }),
+  rock: ground({ tone: "dark" }),
+  dirt: ground({ tone: "dark" }),
+  grass: ground({ tone: "mid" }),
+  sand: ground({ tone: "light" }),
+  gravel: ground({ tone: "mid" }),
+  mud: ground({ tone: "dark" }),
+  snow: ground({ tone: "light" }),
+  ice: ground({ tone: "light" }),
   // a swamp deck reads as built, not as a natural land bridge
-  swamp: ground({ deckSpan: "arch" }),
+  swamp: ground({ deckSpan: "arch", tone: "mid" }),
   water_shallow: row({ water: true }),
   water_deep: row({ water: true }),
-  lava: row({ cliffGround: true }),
-  bridge_wood: row({ deckSpan: "plank" }),
-  asphalt: row(),
-  concrete: row(),
+  lava: row({ cliffGround: true, tone: "dark" }),
+  bridge_wood: row({ deckSpan: "plank", tone: "mid" }),
+  asphalt: row({ tone: "dark" }),
+  concrete: row({ tone: "mid" }),
 };
+
+/** Is the material a built floor (MaterialInfo.built)? */
+export function isBuiltFloor(m: Material): boolean {
+  return MATERIAL_INFO[m].built;
+}
 
 /** The traits of a material. */
 export function materialInfo(m: Material): MaterialInfo {

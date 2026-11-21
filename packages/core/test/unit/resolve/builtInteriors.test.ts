@@ -12,7 +12,7 @@ import { findWallFaces } from "../../../src/resolve/wallFaces";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { classifyRoom } from "../../../src/gen/roomPurpose";
-import { accentTop, purposeFloor } from "../../../src/resolve/interiorFloors";
+import { accentTop, floorTone, purposeFloor } from "../../../src/resolve/interiorFloors";
 import { LevelGrid, sideOrient } from "../../../src/resolve/levelGrid";
 import { DEFAULT_INTERIOR, themeDefaults } from "../../../src/resolve/themes";
 import { generatorProfile } from "../../../src/plan/generator";
@@ -77,10 +77,34 @@ describe("interior floors (helpers)", () => {
     expect(floor("The inner ward", "timber", ["tavern"])).toBe("wood_plank");
   });
   it("tones a pale top down to the room, never up", () => {
-    expect(accentTop("marble", "flagstone", "stone_tile")).toBe("flagstone");
-    expect(accentTop("marble", "stone_tile", "stone_tile")).toBe("stone_tile");
-    expect(accentTop("marble", "marble", undefined)).toBe("marble");
-    expect(accentTop("flagstone", "marble", undefined)).toBe("flagstone");
+    // no piece carries a tone: the materials' guess
+    const guess = floorTone({ floorTone: () => undefined }, "any");
+    expect(accentTop("marble", "flagstone", "stone_tile", guess)).toBe("flagstone");
+    expect(accentTop("marble", "stone_tile", "stone_tile", guess)).toBe("stone_tile");
+    expect(accentTop("marble", "marble", undefined, guess)).toBe("marble");
+    expect(accentTop("flagstone", "marble", undefined, guess)).toBe("flagstone");
+  });
+  it("asks the palette's pieces first: a theme whose flagstone is pale keeps a marble top on it", () => {
+    const generic = palettes.palettes.generic;
+    const flag = generic?.roles["floor.flagstone"];
+    if (!flag) throw new Error("generic has no floor.flagstone");
+    const user = {
+      schema: "slabyrinth/palette@1",
+      id: "pale_hall",
+      name: "Pale hall",
+      extends: "generic",
+      defaults: { floor: "flagstone", wallStyle: "wall" },
+      roles: {
+        "floor.flagstone": { ...flag, variants: flag.variants.map((v) => ({ ...v, tone: "light" })) },
+      },
+    };
+    const view = createPaletteView(loadPalettes({ user: [{ source: "pale_hall.json", data: user }] }));
+    expect(view.floorTone("pale_hall", "flagstone")).toBe("light");
+    const pale = floorTone(view, "pale_hall");
+    expect(pale("flagstone")).toBe(2);
+    expect(accentTop("marble", "flagstone", "stone_tile", pale)).toBe("marble");
+    // the bundled theme keeps the guess where its pieces say nothing
+    expect(accentTop("marble", "flagstone", "stone_tile", floorTone(view, "generic"))).toBe("flagstone");
   });
 });
 

@@ -1,10 +1,19 @@
 /**
+ * The one tone scale: a palette variant's `tone`, the observations below, and the floor materials' guess
+ * (resolve/materials.ts MATERIAL_INFO `tone`), darkest first.
+ */
+export type Tone = "dark" | "mid" | "light";
+
+/** A tone's rank on the scale (0 dark, 1 mid, 2 light), for "paler by a step" comparisons. */
+export const TONE_RANK: Readonly<Record<Tone, number>> = { dark: 0, mid: 1, light: 2 };
+
+/**
  * Tones observed in the owner's screenshots, by asset uuid, for palette rows that do not carry a `tone` tag yet.
  * Each entry is a piece someone has seen in game (an entry marked `basis: "guess"` is the exception, said so). A palette row's own `tone` wins. (The palette
  * import script regenerates the rows; until it carries `tone`/`hue`, this table keeps the observations.)
  */
 export const OBSERVED_TONES: Readonly<
-  Record<string, { tone: "dark" | "mid" | "light"; hue?: string; name: string; basis?: "guess" }>
+  Record<string, { tone: Tone; hue?: string; name: string; basis?: "guess" }>
 > = {
   // cliff rock (owner's glen and terraced-hill screenshots, 2026-11-20): the Cliff Face shelves read cream next to grey
   // Boulder - Large stones. The catalog's own tags say otherwise (Cliff Face "black"), so tags are no evidence here.

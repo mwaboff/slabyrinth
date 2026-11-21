@@ -20,7 +20,8 @@ import { dressRoom, lightArea } from "../../gen/rooms4";
 import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed, h32, hashUnit, subSeed } from "../../util/hash";
-import { BUILT_FLOORS, FAMILY_ROTATION, purposeFloor } from "../interiorFloors";
+import { FAMILY_ROTATION, purposeFloor } from "../interiorFloors";
+import { isBuiltFloor } from "../materials";
 import type { FeatureWork } from "./features";
 import type { FloorOpeningRecords } from "./floorOpenings";
 import type { ReadOnly, ResolveGrid } from "./grid";
@@ -132,7 +133,7 @@ export function stepRoomFloors(work: ResolveGrid): void {
   // (a) floors
   for (const info of rooms) {
     const td = work.ctx.themeDefaults(info.theme);
-    if (!BUILT_FLOORS.has(td.floor)) continue;
+    if (!isBuiltFloor(td.floor)) continue;
     if (info.area.floor !== undefined && info.area.floor !== td.floor) continue;
     // the floor stays inside the theme's floor family: stone and earth below ground, wood and a few domestic tiles in
     // an inhabited timber building (the theme's interior character, resolve/themes.ts)
@@ -157,7 +158,7 @@ export function stepRoomFloors(work: ResolveGrid): void {
     const pick = cand.find(
       (m) =>
         (!used.has(m) || (family === "timber" && m === purpose)) &&
-        BUILT_FLOORS.has(m) &&
+        isBuiltFloor(m) &&
         (nCells <= bigRoomCells ||
           (work.ctx.palette.floorTileArea(info.theme, m) ?? bigTileCells) >= bigTileCells),
     );

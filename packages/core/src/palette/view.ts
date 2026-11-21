@@ -21,6 +21,7 @@ import { bundledPalettes } from "./load";
 import { createRoleResolver, themeChain, type ResolvePalettes } from "./resolve";
 import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE } from "./roles";
 import { coveredStallForms, roleProbe, type RoleProbe } from "./stallParts";
+import { OBSERVED_TONES, TONE_RANK, type Tone } from "./tones";
 
 export type PieceSizeFn = (
   theme: ThemeId,
@@ -69,6 +70,11 @@ export interface PaletteView {
    * (resolve/themes.ts then has them).
    */
   themeDefaults: (theme: ThemeId) => PaletteThemeDefaults | undefined;
+  /**
+   * How pale a theme's floor of `material` is: the tone most of its pieces carry, by weight (a variant's `tone`, else
+   * what was observed of its asset, palette/tones.ts); undefined when none of its pieces has a known tone.
+   */
+  floorTone: (theme: ThemeId, material: Material) => Tone | undefined;
 }
 
 /** What a palette says about its theme (Palette.defaults, the optional fields read along `extends`). */
@@ -167,7 +173,22 @@ export function createPaletteView(
     };
   };
 
-  return { pieceSize, roomPiece, stallForms, floorTileArea, probe, themeDefaults };
+  const tones = new Map<string, Tone | undefined>();
+  const floorTone = (theme: ThemeId, material: Material): Tone | undefined => {
+    const key = `${theme}|${material}`;
+    if (tones.has(key)) return tones.get(key);
+    const weight = new Map<Tone, number>();
+    for (const v of variantsOf(theme, [`floor.${material}`], undefined)) {
+      const t = v.tone ?? OBSERVED_TONES[v.uuid]?.tone;
+      if (t !== undefined) weight.set(t, (weight.get(t) ?? 0) + v.weight);
+    }
+    // the heaviest tone; a tie goes to the darker one
+    const tone = [...weight].sort((a, b) => b[1] - a[1] || TONE_RANK[a[0]] - TONE_RANK[b[0]])[0]?.[0];
+    tones.set(key, tone);
+    return tone;
+  };
+
+  return { pieceSize, roomPiece, stallForms, floorTileArea, probe, themeDefaults, floorTone };
 }
 
 const views = new WeakMap<ResolvePalettes, Map<number, PaletteView>>();

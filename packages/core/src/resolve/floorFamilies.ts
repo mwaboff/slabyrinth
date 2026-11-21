@@ -42,14 +42,14 @@ export interface FamilyVariant {
 /** The families of a role's variants (weight above zero), sorted by name; tone from the row or the lookup. */
 export function familiesOfVariants(
   vs: readonly FamilyVariant[],
-  toneOf: (uuid: string) => string | undefined = () => undefined,
+  observedTone: (uuid: string) => string | undefined = () => undefined,
 ): FloorFamily[] {
   const m = new Map<string, { share: number; tone?: string }>();
   for (const v of vs) {
     if (v.weight <= 0) continue;
     const name = v.variant ?? "";
     const e = m.get(name);
-    const tone = v.tone ?? toneOf(v.uuid);
+    const tone = v.tone ?? observedTone(v.uuid);
     if (!e) m.set(name, { share: v.weight, ...(tone !== undefined ? { tone } : {}) });
     else if (v.weight > e.share) {
       e.share = v.weight;
