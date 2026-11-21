@@ -1,7 +1,8 @@
 /**
  * Realize, wall passes: wall runs along every wall edge and shell skirt edge (half-cell and edge-centre pieces, with
  * the generator-4 broken tops of a rough interior), and the corner posts where strips meet.
- * Reads: the level's edges, `claimed`, the solid shell's skirt edges and style (solidShell.ts); the corner strips (the
+ * Reads: the level's wall faces (`faces`, resolve/wallFaces.ts), the solid shell's skirt edges and style
+ * (solidShell.ts); the corner strips (the
  * wall and opening passes register them) for the corner posts. Writes: wall and wall_post placements, `CornerStrips`;
  * returns the full-cell columns its runs gathered (built by the rock wall pass).
  */
@@ -12,7 +13,7 @@ import { roughCells } from "../../resolve/wallTops";
 import { h32 } from "../geometry";
 import { isCarvedLevel } from "../shell";
 import {
-  edgeCtx,
+  faceEdgeCtx,
   lenFilter,
   lengthOf,
   placeEdgeCenterPiece,
@@ -22,7 +23,7 @@ import {
   type Strip,
 } from "./edges";
 import { OPPOSITE, cellKey } from "../../gen/gridGeometry";
-import { edgeLineLength, edgeLines } from "../../resolve/levelGrid";
+import { edgeLineLength, edgeLines, edgeOnLine } from "../../resolve/levelGrid";
 import { EPS, type RealizeLevel } from "./level";
 import type { SolidShellPlan } from "./solidShell";
 
@@ -41,14 +42,17 @@ export interface FullCellColumn {
  */
 export type FullCellColumns = ReadonlyMap<number, FullCellColumn>;
 
-/** Edge reference meaning "no wall style". */
-const NONE = 0xffff;
+/**
+ * One edge of a wall run: as a piece standing on it sees it, and the cell a full-cell piece stands in (the face's mass
+ * cell, resolve/wallFaces.ts; a skirt edge's own cap cell), null when it has none.
+ */
+type RunEdge = EdgeCtx & { mass: { x: number; y: number } | null };
 
 /** One run of wall edges along a row (h) or column (v) of edges that one piece kind can tile. */
 interface WallRun {
   orient: "h" | "v";
   style: string;
-  edges: EdgeCtx[];
+  edges: RunEdge[];
 }
 
 /** What every run of one layWalls call shares. */
@@ -81,43 +85,43 @@ export function layWalls(lv: RealizeLevel, shellPlan: SolidShellPlan, strips: Co
 }
 
 /**
- * The wall runs of one orientation, row by row: unclaimed WALL edges and the shell's skirt edges, split where the host
- * side, style, theme, base or top changes.
+ * The wall runs of one orientation, line by line: the level's unclaimed WALL faces (resolve/wallFaces.ts) and the
+ * shell's skirt edges, split where the host side, style, theme, base or top changes.
  */
 function wallRunsAlong(lv: RealizeLevel, shellPlan: SolidShellPlan, orient: "h" | "v"): WallRun[] {
-  const { L, V, claimed } = lv;
+  const { V, faces } = lv;
   const { shell, skirtEdges } = shellPlan;
-  const grid = V.edges(orient);
-  const outer = edgeLines(V, orient);
-  const inner = edgeLineLength(V, orient);
-  const wallStyleOf = (ref: number): string => (ref === NONE ? "wall" : (L.wallStyles[ref] ?? "wall"));
+  const lines = edgeLines(V, orient);
+  const length = edgeLineLength(V, orient);
   const runs: WallRun[] = [];
-  for (let o = 0; o < outer; o++) {
+  for (let line = 0; line < lines; line++) {
     let run: WallRun | null = null;
     let runKey = "";
-    for (let i = 0; i < inner; i++) {
-      const x = orient === "h" ? L.bounds.x + i : L.bounds.x + o;
-      const y = orient === "h" ? L.bounds.y + o : L.bounds.y + i;
-      const e = orient === "h" ? V.hEdge(x, y) : V.vEdge(x, y);
-      const skirt = e >= 0 ? skirtEdges.get(`${orient}${e}`) : undefined;
-      if (
-        skirt === undefined &&
-        (e < 0 || grid.kind[e] !== EDGE.WALL || claimed.edges.has(`${orient}${e}`))
-      ) {
+    for (let pos = 0; pos < length; pos++) {
+      const e = edgeOnLine(V, orient, line, pos);
+      const skirt = skirtEdges.get(`${orient}${e}`);
+      const face = skirt ? undefined : faces.at(orient, e);
+      let edge: RunEdge;
+      let style: string;
+      if (skirt) {
+        // the skirt stands on the cap cell it closes
+        edge = { ...skirt, mass: { x: skirt.hostX, y: skirt.hostY } };
+        style = shell?.style ?? "wall";
+      } else if (face && face.kind === EDGE.WALL && !face.claimed) {
+        edge = { ...faceEdgeCtx(face), mass: face.mass };
+        style = face.style;
+      } else {
         run = null;
         runKey = "";
         continue;
       }
-      const style = skirt && shell ? shell.style : wallStyleOf(grid.ref[e] ?? NONE);
-      const height = (grid.height[e] ?? 0) > 0 ? (grid.height[e] ?? 2) : 2;
-      const ctx = skirt ?? edgeCtx(lv, orient, x, y, grid, e, height);
-      const key = [ctx.hostFirst, style, ctx.theme, ctx.base, ctx.top].join("|");
+      const key = [edge.hostFirst, style, edge.theme, edge.base, edge.top].join("|");
       if (run === null || key !== runKey) {
         run = { orient, style, edges: [] };
         runs.push(run);
       }
       runKey = key;
-      run.edges.push(ctx);
+      run.edges.push(edge);
     }
   }
   return runs;
@@ -137,37 +141,23 @@ function placeWallRun(pass: WallPass, run: WallRun): void {
 }
 
 /**
- * The columns a run of full-cell wall pieces (rock) needs, merged per cell: one column per rock cell, spanning every edge
- * it closes (a cell beside a chasm and its rim gets one column from the chasm floor to the rim wall top). The rock wall
- * pass builds them.
- *
- * This is the rock walls' own way of finding wall faces, and it differs from the solid shell's (compile/shell.ts
- * `wallFaces`) on purpose, so the two are not one routine: it takes WALL edges only (an opening is a piece of its
- * own), and only those the palette mounts full-cell (role data, not the wall-style trait); the face cell is the edge's
- * host or, when the host is open and the other side is not, the other cell, which may be VOID or outside the bounds
- * (dropped only under `boardEdgeExits`); spans merge as the lowest base and the highest top. The shell keeps the
- * tallest top of in-bounds SOLID cells behind WALL and OPENING edges and splits natural from built by the style trait.
+ * The columns a run of full-cell wall pieces (rock) needs, merged per cell: one column per mass cell (the cell the solid
+ * behind the wall stands in, resolve/wallFaces.ts), spanning every edge it closes (lowest base to highest top: a cell
+ * beside a chasm and its rim gets one column from the chasm floor to the rim wall top). The rock wall pass builds them.
+ * Which runs are full-cell is the palette's mount for the run's role, not the natural-rock trait: a theme with no rock
+ * block builds a natural wall as a thin wall.
  */
-function gatherFullCells(pass: WallPass, edges: readonly EdgeCtx[], roleName: string): void {
+function gatherFullCells(pass: WallPass, edges: readonly RunEdge[], roleName: string): void {
   const { lv, fullCells, conflictNoted } = pass;
   const { L } = lv;
-  const { profile, addDiag } = lv.ctx;
+  const { addDiag } = lv.ctx;
   for (const c of edges) {
-    // A rock block cannot stand in an open host cell; put it in the other cell when that one is rock, void or
-    // outside the level (a cave touching the level bounds), otherwise skip it with a warning.
-    const flip = c.hostOpen && !c.otherOpen;
-    const bx = flip ? c.otherX : c.hostX;
-    const by = flip ? c.otherY : c.hostY;
-    const k = cellKey(bx, by);
-    // generator 3: a passage that reaches the board edge is an exit; no rock column stands outside the bounds
-    if (
-      profile.boardEdgeExits &&
-      (bx < L.bounds.x || bx >= L.bounds.x + L.bounds.w || by < L.bounds.y || by >= L.bounds.y + L.bounds.h)
-    )
-      continue;
-    if (c.hostOpen && !flip) {
-      if (conflictNoted.has(k)) continue;
-      conflictNoted.add(k);
+    if (!c.mass) {
+      // no cell for the block: past the board edge (an exit, nothing stands there), or both sides open (a warning)
+      if (!c.hostOpen || !c.otherOpen) continue;
+      const host = cellKey(c.hostX, c.hostY);
+      if (conflictNoted.has(host)) continue;
+      conflictNoted.add(host);
       addDiag({
         severity: "warning",
         code: "thick_wall_conflict",
@@ -178,11 +168,13 @@ function gatherFullCells(pass: WallPass, edges: readonly EdgeCtx[], roleName: st
       });
       continue;
     }
+    const { x, y } = c.mass;
+    const k = cellKey(x, y);
     const prev = fullCells.get(k);
     if (prev) {
       prev.base = Math.min(prev.base, c.base);
       prev.top = Math.max(prev.top, c.top);
-    } else fullCells.set(k, { x: bx, y: by, base: c.base, top: c.top, theme: c.theme, roleName });
+    } else fullCells.set(k, { x, y, base: c.base, top: c.top, theme: c.theme, roleName });
   }
 }
 

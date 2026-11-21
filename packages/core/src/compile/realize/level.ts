@@ -15,6 +15,7 @@ import { emptyBox, growBox, h32, placementBox } from "../geometry";
 import { structureClaims } from "../structure";
 import type { RealizeCtx } from "./context";
 import { LevelGrid, type LevelCell } from "../../resolve/levelGrid";
+import { findWallFaces, type WallFaces } from "../../resolve/wallFaces";
 
 export const EPS = 1e-6;
 
@@ -45,6 +46,8 @@ export class RealizeLevel {
   readonly refHeights: ReadonlyMap<number, number>;
   /** Edges and openings buildings build themselves (compile/structure.ts): the wall passes leave them alone. */
   readonly claimed: ReturnType<typeof structureClaims>;
+  /** The level's wall faces (resolve/wallFaces.ts): the shell, the wall runs and their rock columns read them. */
+  readonly faces: WallFaces;
   /**
    * Relative ground height outside the level bounds: with the generator's `foundation` switch the level stands on a
    * solid foundation down to its lowest floor (raised land has thickness seen from the side); else 0.
@@ -84,6 +87,11 @@ export class RealizeLevel {
     this.refHeights = areaReferenceHeights(L);
     // buildings build their own shell (compile/structure.ts)
     this.claimed = structureClaims(L);
+    this.faces = findWallFaces(V, {
+      claimed: this.claimed.edges,
+      refHeights: this.refHeights,
+      boardEdgeIsExit: profile.boardEdgeExits,
+    });
     this.outsideGround = profile.foundation ? Math.min(lowestGround(L), -(L.foundation ?? 0)) : 0;
 
     this.emit = (

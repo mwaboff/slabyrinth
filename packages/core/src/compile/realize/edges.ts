@@ -7,6 +7,7 @@ import type { Placement, PlacementRole, RoleName } from "../../contracts/compile
 import type { Side, ThemeId } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant, VariantFilter } from "../../palette/resolve";
+import type { WallFace } from "../../resolve/wallFaces";
 import { wallSpan } from "../../resolve/wallspan";
 import { rotateXZ } from "../geometry";
 import type { RealizeLevel } from "./level";
@@ -22,7 +23,10 @@ export interface Strip {
   top: number;
 }
 
-/** One wall edge as a piece standing on it sees it (`edgeCtx`; the shell's skirt and kerbs build their own). */
+/**
+ * One wall edge as a piece standing on it sees it (`faceEdgeCtx` for a wall face, `edgeCtx` for an opening with its own
+ * host; the shell's skirt and kerbs build their own).
+ */
 export interface EdgeCtx {
   orient: "h" | "v";
   x: number;
@@ -70,6 +74,26 @@ export class CornerStrips {
     arr.push({ ...s, dir });
     this.map.set(k, arr);
   }
+}
+
+/** A wall face (resolve/wallFaces.ts) as a piece standing on its edge sees it. */
+export function faceEdgeCtx(f: WallFace): EdgeCtx {
+  return {
+    orient: f.orient,
+    x: f.x,
+    y: f.y,
+    hostFirst: f.hostFirst,
+    hostX: f.host.x,
+    hostY: f.host.y,
+    otherX: f.other.x,
+    otherY: f.other.y,
+    otherOpen: f.other.open,
+    planSide: f.hostSide,
+    base: f.base,
+    top: f.top,
+    theme: f.theme,
+    hostOpen: f.host.open,
+  };
 }
 
 /** Edge (x,y) = north edge of cell (x,y) for h, west edge for v. */
