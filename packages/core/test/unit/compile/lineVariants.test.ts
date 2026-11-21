@@ -8,7 +8,6 @@ import type { MapPlan } from "../../../src/contracts/plan";
 import { realize } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { loadPlan } from "../../fixtures";
 
 const UPRIGHT =

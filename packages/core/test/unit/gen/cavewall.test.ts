@@ -22,7 +22,6 @@ import {
 } from "../../../src/review/caveMass";
 import { caveWallChecks, caveWallThickness } from "../../../src/review/caveWall";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { loadPlan } from "../../fixtures";
 
 const D4 = [

@@ -10,7 +10,6 @@ import { verifyBuild } from "../../../src/compile/verify/verify";
 import { dressArea, type GeneratedPlacement, type PlacementGrid } from "../../../src/gen/index";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { loadPlan } from "../../fixtures";
 
 const W = 30;

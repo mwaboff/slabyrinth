@@ -25,7 +25,6 @@ import { edgeLineLength, edgeLines, edgeOnLine } from "../../../src/resolve/leve
 import { areaReferenceHeights, edgeWallHeight, spanCellOf, wallRise } from "../../../src/resolve/wallspan";
 import { reviewDesign } from "../../../src/review";
 import { reviewBuild } from "../../../src/review/reviewBuild";
-import "../../../src/resolve/autoregister";
 import * as realizeModule from "../../../src/compile/realize";
 import { loadPlan } from "../../fixtures";
 import { dungeonPlan } from "../../fixtures/planBuilder";

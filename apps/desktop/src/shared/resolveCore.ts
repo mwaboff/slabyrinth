@@ -5,14 +5,13 @@
  * imports only) so main's tests can hold it against the build and the agent (main/resolveParity.test.ts).
  */
 import type { DisplayList, DisplayOptions, MapPlan, PlanIssue, ResolvedPlan } from "@slabyrinth/core";
-// The core root registers WP2's geometric + playability checks with validatePlan (core/resolve/autoregister).
-import { validatePlan } from "@slabyrinth/core";
+import { validatePlan } from "@slabyrinth/core/plan";
 import {
   resolvePalettesFromData,
   type ResolvePalettes,
   type ResolvePalettesData,
 } from "@slabyrinth/core/palette";
-import { resolvePlan } from "@slabyrinth/core/resolve";
+import { planRules, resolvePlan } from "@slabyrinth/core/resolve";
 import { buildDisplayList, levelLabels } from "@slabyrinth/core/render";
 
 export interface ResolveRequest {
@@ -47,7 +46,7 @@ export function palettesFromData(data: ResolvePalettesData): ResolvePalettes {
 
 export function planIssues(plan: MapPlan, palettes: ResolvePalettes): UiIssue[] {
   try {
-    return validatePlan(plan, { palettes }).issues.map((i) => {
+    return validatePlan(plan, planRules(palettes)).issues.map((i) => {
       const out: UiIssue = { severity: i.severity, code: i.code, message: i.message };
       if (i.path !== undefined) out.path = i.path;
       if (i.elementId !== undefined) out.elementId = i.elementId;

@@ -11,7 +11,7 @@ import { compileResolved, placedName, realize, verifyBuild } from "../../../src/
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
+import { BUNDLED_RULES } from "../../fixtures/rules";
 import { canonicalJson } from "../../../src/util/canonical";
 import { townPlan } from "../../fixtures/planBuilder";
 
@@ -27,8 +27,9 @@ const build = (p: MapPlan) => {
   const pl = set.levels[0]?.placements ?? [];
   return { r, set, pl, L: r.levels[0] as ResolvedLevel };
 };
-const errorsOf = (p: MapPlan) => validatePlan(p).issues.filter((i) => i.severity === "error");
-const warningsOf = (p: MapPlan) => validatePlan(p).issues.filter((i) => i.severity === "warning");
+const errorsOf = (p: MapPlan) => validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "error");
+const warningsOf = (p: MapPlan) =>
+  validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "warning");
 
 const tower = (more: Partial<Building> = {}): Building => ({
   id: "tower",

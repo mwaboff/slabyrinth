@@ -13,7 +13,7 @@ import { asciiView } from "../../../src/text";
 import { buildDisplayList, DEFAULT_DISPLAY_OPTIONS, legendEntries } from "../../../src/render";
 import { slabCodec } from "../../../src/slab";
 import { boxFill, longestStraight, squareCorners } from "./shapeMetrics";
-import { validatePlan } from "../../../src/plan";
+import { STRUCTURE_ONLY, validatePlan } from "../../../src/plan";
 
 const cat = loadPalettes();
 
@@ -115,8 +115,8 @@ describe("under-layer height ops", () => {
     expect(issues(p, "no_effect")[0]?.message).toMatch(/overridden everywhere/);
   });
   it("new plans are generator 2 and old ones still validate", () => {
-    expect(validatePlan(crevicePlan(1)).ok).toBe(true);
-    expect(validatePlan(crevicePlan(2)).ok).toBe(true);
+    expect(validatePlan(crevicePlan(1), STRUCTURE_ONLY).ok).toBe(true);
+    expect(validatePlan(crevicePlan(2), STRUCTURE_ONLY).ok).toBe(true);
   });
 });
 

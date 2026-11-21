@@ -1,14 +1,15 @@
 /**
- * Plugs WP2 into WP1's hooks: the geometric validation pass (registerPlanCheck) and the `materialize` op
- * generator (registerMaterializer). Both resolve the plan, so they are registered with the palettes the process
- * builds with: `validatePlan` and `applyOps` then see the map the build produces. Re-registering replaces the
- * previous registration.
+ * The plan rules that need the resolver: the geometric and playability check validatePlan runs after its structural
+ * ones, and the generator behind the `materialize` op. Plan and ops sit below the resolver and cannot import it, so
+ * they take these as an argument (`ValidateContext.checks`, ops' `PlanRules`); this module builds them for the
+ * palettes a plan is built with. Every caller passes them explicitly: no process-wide registration, so validatePlan
+ * and applyOps give the same answer whoever imported what.
  */
 import type { ElementId, Feature, LevelId, MapPlan } from "../contracts/plan";
 import { featureInfo, rotatedSize } from "../gen/catalog";
-import { registerMaterializer } from "../ops/apply";
+import type { PlanRules } from "../ops/apply";
 import type { ResolvePalettes } from "../palette/resolve";
-import { registerPlanCheck } from "../plan/validate";
+import type { PlanCheck } from "../plan/validate";
 import { resolvePlan } from "./resolvePlan";
 import { geometryChecks } from "./validate";
 
@@ -47,20 +48,19 @@ export function materializeOp(
   return { ok: true, features };
 }
 
+/** The resolver's geometry and playability check, on the plan resolved against `palettes`. */
+export function geometryCheck(palettes: ResolvePalettes): PlanCheck {
+  return { name: GEOMETRY_CHECK_NAME, run: (plan) => geometryChecks(plan, palettes) };
+}
+
 /**
- * Registers the WP2 plan check and materializer for this process. `palettes` returns the palettes the process
- * builds with, asked at each check (they change when the user's palettes or the game's assets do); core's index
- * registers `bundledPalettes`, and the app registers its build palettes. A validation that names its own palettes
- * (`ValidateContext.palettes`) checks against those. Returns a function that unregisters both.
+ * The full rules for plans built with `palettes`: what validatePlan checks (`validatePlan(plan, planRules(p))`) and
+ * what applyOps checks and materializes with (`applyOps(plan, ops, planRules(p))`). Cheap to build; a caller whose
+ * palettes change (the app: user palettes, the game's assets) builds them from its current palettes at each call.
  */
-export function registerWp2Hooks(palettes: () => ResolvePalettes): () => void {
-  const a = registerPlanCheck({
-    name: GEOMETRY_CHECK_NAME,
-    run: (plan, ctx) => geometryChecks(plan, ctx.palettes ?? palettes()),
-  });
-  const b = registerMaterializer((plan, levelId, opId) => materializeOp(plan, levelId, opId, palettes()));
-  return () => {
-    a();
-    b();
+export function planRules(palettes: ResolvePalettes): PlanRules {
+  return {
+    checks: [geometryCheck(palettes)],
+    materialize: (plan, levelId, opId) => materializeOp(plan, levelId, opId, palettes),
   };
 }

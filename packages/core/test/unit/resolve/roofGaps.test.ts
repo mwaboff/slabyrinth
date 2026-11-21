@@ -12,7 +12,6 @@ import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { reviewDesign } from "../../../src/review";
 import { roofCoverOf, uncoveredRoofCells } from "../../../src/review/roofGaps";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { townPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();

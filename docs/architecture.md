@@ -242,7 +242,7 @@ All generators use **integer-lattice value noise and arithmetic only**: `+ − �
 
 ### 2.8 Validation
 
-Validation is a pure function `validatePlan(plan, ctx {themes})` that returns `PlanIssue[]` with stable codes. **Errors** block (op batches are rejected, approval is blocked). **Warnings** don't block.
+Validation is a pure function `validatePlan(plan, ctx {checks, themes})` that returns `PlanIssue[]` with stable codes. **Errors** block (op batches are rejected, approval is blocked). **Warnings** don't block.
 
 Errors:
 - Zod schema failures. Messages are rewritten for the model: path, expected value, and nearest valid enum value.
@@ -1371,7 +1371,7 @@ Separate build and release jobs avoid two matrix jobs racing to create the same 
 
 | WP | Name | Owns | Delivers |
 |---|---|---|---|
-| **WP1** | Plan model | `packages/core/src/{contracts,plan,ops,history,util}/**`, `core/test/{unit/plan,unit/ops}`, root `tsconfig.base.json` | Contract copies, run through `tsc`. Zod schemas mirroring `plan.ts`. `validatePlan` (resolver-independent checks plus a hook for geometric checks provided by WP2). `applyOps` with key auto-assignment and cascades. History pointer operations, keyframes and replay. `diffPlans`. Plan and project migrations framework. hash, prng, canonical JSON. |
+| **WP1** | Plan model | `packages/core/src/{contracts,plan,ops,history,util}/**`, `core/test/{unit/plan,unit/ops}`, root `tsconfig.base.json` | Contract copies, run through `tsc`. Zod schemas mirroring `plan.ts`. `validatePlan` (resolver-independent checks plus the geometric checks the caller passes in, built by WP2's `planRules(palettes)`). `applyOps` with key auto-assignment and cascades. History pointer operations, keyframes and replay. `diffPlans`. Plan and project migrations framework. hash, prng, canonical JSON. |
 | **WP2** | Geometry & 2D | `core/src/{resolve,gen,render,text}/**`, `packages/render-canvas/**`, golden tests for those | `resolvePlan` (§2.4–2.7) and geometric validation checks. `buildDisplayList`, `hitTest`, outline and ASCII views, `drawDisplayList`, the three MapThemes, symbol painters for the UX §6.2 vocabulary, PNG export helper. |
 | **WP3** | Build | `core/src/{slab,palette,catalog,compile,cli}/**`, `core/data/**`, `core/scripts/**`, related tests | Codec (byte-exact). CatalogSource json now, binary when research lands. VDF parser. Palette load, merge and resolve. Draft import script. `orientation.json`. Realize, chunk and bundle. Estimate. CLI including `calibration`. |
 | **WP4** | Agent | `core/src/agent/**`, `apps/desktop/src/main/agent/**`, `apps/desktop/scripts/agent-eval.ts` | System prompt, tool definitions and executor, JSON protocol, progress parser. ConversationEngine, ProviderRegistry, AnthropicProvider (render, stream, errors, models table, pricing, cost), estimates. Eval harness. |

@@ -1,21 +1,21 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { Area, Level, MapPlan } from "../../../src/contracts/plan";
 import type { ApplyResult, PlanOp } from "../../../src/contracts/ops";
-import { applyOps, registerMaterializer, renumberLevelOrder } from "../../../src/ops";
+import { STRUCTURAL_RULES, applyOps, renumberLevelOrder, type PlanRules } from "../../../src/ops";
 import { canonicalJson } from "../../../src/util";
 import { loadPlan } from "../../fixtures";
 
 type Ok = Extract<ApplyResult, { ok: true }>;
 type Fail = Extract<ApplyResult, { ok: false }>;
 
-function ok(plan: MapPlan, ops: PlanOp[]): Ok {
-  const r = applyOps(plan, ops);
+function ok(plan: MapPlan, ops: PlanOp[], rules: PlanRules = STRUCTURAL_RULES): Ok {
+  const r = applyOps(plan, ops, rules);
   if (!r.ok) throw new Error(`expected ok: ${JSON.stringify(r)}`);
   return r;
 }
 function fail(plan: MapPlan, ops: unknown[]): Fail {
   const before = canonicalJson(plan);
-  const r = applyOps(plan, ops as PlanOp[]);
+  const r = applyOps(plan, ops as PlanOp[], STRUCTURAL_RULES);
   if (r.ok) throw new Error("expected failure");
   expect(canonicalJson(plan)).toBe(before); // input never mutated
   return r;
@@ -461,9 +461,7 @@ describe("reorder / renumber / materialize", () => {
   });
 
   describe("materialize", () => {
-    let unregister: (() => void) | undefined;
-    afterEach(() => unregister?.());
-    it("needs the resolver hook", () => {
+    it("needs the caller's materialize generator", () => {
       const r = fail(loadPlan("example-a"), [{ op: "materialize", id: "rocks" }]);
       expect(r.opErrors[0]?.code).toBe("not_applicable");
       expect(fail(loadPlan("example-a"), [{ op: "materialize", id: "flood" }]).opErrors[0]?.code).toBe(
@@ -471,18 +469,20 @@ describe("reorder / renumber / materialize", () => {
       );
     });
     it("converts generated features to explicit ones and removes the op", () => {
-      unregister = registerMaterializer((_plan, levelId, opId) => ({
-        ok: true,
-        features: [
-          { id: `${opId}#0`, type: "rock", at: [20, 10] },
-          { id: `${opId}#1`, type: "rock", at: [22, 12], rot: 90 },
-        ],
-      }));
-      expect(unregister).toBeTypeOf("function");
-      const r = ok(loadPlan("example-a"), [{ op: "materialize", id: "rocks" }]);
+      const rules: PlanRules = {
+        checks: [],
+        materialize: (_plan, _levelId, opId) => ({
+          ok: true,
+          features: [
+            { id: `${opId}#0`, type: "rock", at: [20, 10] },
+            { id: `${opId}#1`, type: "rock", at: [22, 12], rot: 90 },
+          ],
+        }),
+      };
+      const r = ok(loadPlan("example-a"), [{ op: "materialize", id: "rocks" }], rules);
       expect(r.changed).toEqual({ added: ["rocks_0", "rocks_1"], updated: [], removed: ["rocks"] });
       expect(r.plan.levels[1]?.terrain.map((t) => t.id)).toEqual(["flood", "pool", "dais"]);
-      const kept = ok(loadPlan("example-a"), [{ op: "materialize", id: "rocks", keepOp: true }]);
+      const kept = ok(loadPlan("example-a"), [{ op: "materialize", id: "rocks", keepOp: true }], rules);
       expect(kept.plan.levels[1]?.terrain).toHaveLength(4);
     });
   });

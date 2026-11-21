@@ -2,12 +2,13 @@ import * as fsp from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { createPlanCorePort } from "../ports/core";
 import { doorPlan } from "./testing/fixtures";
-import { projectRig, type ProjectRig } from "./testing/helpers";
+import { BUNDLED_RULES, projectRig, type ProjectRig } from "./testing/helpers";
 
 /**
  * Playability findings never reject a user edit (decisions.md "Playability validation"); only blocking
- * issues do. Uses the REAL core (applyOps, validatePlan with the playability check registered).
+ * issues do. Uses the REAL core (applyOps, validatePlan with the resolver's playability check).
  */
+const realCore = () => createPlanCorePort(() => BUNDLED_RULES);
 let rig: ProjectRig | null = null;
 afterEach(async () => {
   if (rig) {
@@ -18,7 +19,7 @@ afterEach(async () => {
 });
 
 async function start(altar: [number, number]): Promise<ProjectRig> {
-  rig = await projectRig({ core: createPlanCorePort() });
+  rig = await projectRig({ core: realCore() });
   await rig.projects.create({ name: "Playability" });
   rig.projects.commitVersion({
     plan: doorPlan(altar),
@@ -33,7 +34,7 @@ const codes = (issues: Array<{ code: string }>): string[] => issues.map((i) => i
 
 describe("user edits and playability checks (real core)", () => {
   it("the fixture really has a pre-existing opening_blocked error", () => {
-    const issues = createPlanCorePort().validatePlan(doorPlan([7, 3])) ?? [];
+    const issues = realCore().validatePlan(doorPlan([7, 3])) ?? [];
     expect(issues.find((i) => i.code === "opening_blocked")?.severity).toBe("error");
   });
 
@@ -56,9 +57,7 @@ describe("user edits and playability checks (real core)", () => {
 
   it("an op that introduces a playability error is applied and reported", async () => {
     const r = await start([10, 3]);
-    expect(codes(createPlanCorePort().validatePlan(doorPlan([10, 3])) ?? [])).not.toContain(
-      "opening_blocked",
-    );
+    expect(codes(realCore().validatePlan(doorPlan([10, 3])) ?? [])).not.toContain("opening_blocked");
     const res = r.projects.applyOps({
       baseVersion: 1,
       label: "Move altar",

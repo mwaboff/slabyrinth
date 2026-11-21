@@ -8,7 +8,6 @@ import type { ResolvedLevel, ResolvedStructure } from "../../../src/contracts/re
 import { realize, verifyBuild } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { WEATHER_MINIMUMS, structureRuinMeasures, weatherMeasures, weatherSigns } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
 import { townPlan } from "../../fixtures/planBuilder";

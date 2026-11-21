@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { FeatureType, Side } from "../../../src/contracts/plan";
 import { loadPlan } from "../../fixtures";
+import { STRUCTURE_ONLY } from "../../fixtures/rules";
 import { DRESS_PRESETS, FEATURE_TYPES } from "../../../src/contracts/plan";
 import {
   COMPOSED_PRESETS,
@@ -369,7 +370,7 @@ describe.each(["dressed-cave", "dressed-cave-v2", "dressed-forest"] as const)(
     const bundle = compileResolved(resolved, loadPalettes(), slabCodec, { createdAt: "t", plan });
 
     it("validates with no errors and composes a dense room", () => {
-      const v = validatePlan(plan);
+      const v = validatePlan(plan, STRUCTURE_ONLY);
       expect(v.issues.filter((i) => i.severity === "error")).toEqual([]);
       const level = resolved.levels[0];
       expect(level?.features.length ?? 0).toBeGreaterThan(120);

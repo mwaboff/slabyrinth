@@ -10,7 +10,6 @@ import { LIGHT_FEATURES } from "../../../src/gen/catalog";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { reviewDesign } from "../../../src/review";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { loadPlan } from "../../fixtures";
 
 const fixture = loadPlan("sea-grotto");

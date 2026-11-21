@@ -45,6 +45,7 @@ import {
   newUntitledProject,
   type FakeProject,
 } from "./fixtures";
+import { fakeRules as rules } from "./rules";
 import { FakeTurn } from "./engine";
 import { FAKE_MODELS, FAKE_PROVIDERS } from "./models";
 
@@ -98,9 +99,9 @@ export function parseScenario(search: string): FakeScenario {
  * problems; structural op errors still fail.
  */
 function applyLenient(plan: MapPlan, ops: PlanOp[]): ReturnType<typeof applyOps> {
-  const r = applyOps(plan, ops);
+  const r = applyOps(plan, ops, rules());
   if (r.ok || r.opErrors.length > 0) return r;
-  return applyOps(plan, ops, { validate: false });
+  return applyOps(plan, ops, rules(), { validate: false });
 }
 
 export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
@@ -195,7 +196,7 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
   };
   const planAt = (p: FakeProject, n: number): MapPlan | null => {
     if (n === 0) return null;
-    const r = reconstruct(p.history, n);
+    const r = reconstruct(p.history, n, rules());
     return r.ok ? r.plan : null;
   };
   const phaseOf = (p: FakeProject): Phase =>
@@ -285,16 +286,20 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
             if (!r.ok) throw new Error("edit rejected");
             next = r.plan;
           }
-          const c = commitVersion(p.history, {
-            plan: next,
-            author: "ai",
-            createdAt: new Date().toISOString(),
-            summary,
-            changeSummary: changes,
-            cause: ops ? { type: "ops", ops } : { type: "create" },
-            messageId,
-            cost: { currency: "USD", amount: 0.05 },
-          });
+          const c = commitVersion(
+            p.history,
+            {
+              plan: next,
+              author: "ai",
+              createdAt: new Date().toISOString(),
+              summary,
+              changeSummary: changes,
+              cause: ops ? { type: "ops", ops } : { type: "create" },
+              messageId,
+              cost: { currency: "USD", amount: 0.05 },
+            },
+            rules(),
+          );
           p.history = c.history;
           touch(p);
           planChanged(p);
@@ -354,7 +359,7 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
         outstanding: () => {
           const plan = planAt(p, p.history.head);
           if (!plan) return undefined;
-          const issues = validatePlan(plan).issues.filter((i) => i.severity !== "info");
+          const issues = validatePlan(plan, rules()).issues.filter((i) => i.severity !== "info");
           // set only when error-level issues remain (warnings are listed alongside)
           if (!issues.some((i) => i.severity === "error")) return undefined;
           const rank = { error: 0, warning: 1, info: 2 } as const;
@@ -549,13 +554,17 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
       if (!plan) return fail("no_project", "There is no plan yet.");
       const r = applyLenient(plan, ops);
       if (!r.ok) return r;
-      p.history = commitVersion(p.history, {
-        plan: r.plan,
-        author: "user",
-        createdAt: new Date().toISOString(),
-        summary: label,
-        cause: { type: "ops", ops },
-      }).history;
+      p.history = commitVersion(
+        p.history,
+        {
+          plan: r.plan,
+          author: "user",
+          createdAt: new Date().toISOString(),
+          summary: label,
+          cause: { type: "ops", ops },
+        },
+        rules(),
+      ).history;
       touch(p);
       planChanged(p);
       return { ...r, version: p.history.head };
@@ -580,7 +589,7 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
     },
     "plan:restore": ({ version }) => {
       const p = open();
-      const r = restoreHistory(p.history, version, new Date().toISOString());
+      const r = restoreHistory(p.history, version, new Date().toISOString(), rules());
       if (!r.ok) return fail("not_found", r.error.message);
       p.history = r.history;
       touch(p);
@@ -640,23 +649,31 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
         const parentPlan = planAt(p, head.parentNumber);
         const prevOps = head.cause.ops;
         p.history = { ...p.history, head: head.parentNumber, versions: p.history.versions.slice(0, -1) };
-        const merged = parentPlan ? applyOps(parentPlan, [...prevOps, ...ops]) : r;
+        const merged = parentPlan ? applyOps(parentPlan, [...prevOps, ...ops], rules()) : r;
         if (merged.ok)
-          p.history = commitVersion(p.history, {
-            plan: merged.plan,
+          p.history = commitVersion(
+            p.history,
+            {
+              plan: merged.plan,
+              author: "user",
+              createdAt: new Date().toISOString(),
+              summary: label,
+              cause: { type: "ops", ops: [...prevOps, ...ops] },
+            },
+            rules(),
+          ).history;
+      } else {
+        p.history = commitVersion(
+          p.history,
+          {
+            plan: r.plan,
             author: "user",
             createdAt: new Date().toISOString(),
             summary: label,
-            cause: { type: "ops", ops: [...prevOps, ...ops] },
-          }).history;
-      } else {
-        p.history = commitVersion(p.history, {
-          plan: r.plan,
-          author: "user",
-          createdAt: new Date().toISOString(),
-          summary: label,
-          cause: { type: "ops", ops },
-        }).history;
+            cause: { type: "ops", ops },
+          },
+          rules(),
+        ).history;
       }
       touch(p);
       planChanged(p);

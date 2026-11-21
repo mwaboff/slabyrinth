@@ -11,7 +11,7 @@ import { placedName, realize, verifyBuild } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
+import { BUNDLED_RULES } from "../../fixtures/rules";
 import {
   WEATHER_MINIMUMS,
   structureRuinMeasures,
@@ -133,7 +133,7 @@ describe("variety: a street", () => {
   for (const gap of [0, 1, 2])
     it(`a terrace with ${gap === 0 ? "party walls" : `${gap}-cell alleys`} validates and builds without errors`, () => {
       const p = street(gap);
-      expect(validatePlan(p).issues.filter((i) => i.severity === "error")).toEqual([]);
+      expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "error")).toEqual([]);
       const r = resolvePlan(p, bundledPalettes());
       const set = realize(r, palettes);
       const ver = verifyBuild(r, set, palettes, { plan: p });
@@ -158,7 +158,7 @@ describe("street frontage", () => {
         ],
       },
     ]);
-    expect(validatePlan(p).issues.filter((i) => i.severity === "error")).toEqual([]);
+    expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "error")).toEqual([]);
     expect(structuresOf(p)[0]?.volumes?.length).toBe(2);
   });
 
@@ -221,7 +221,7 @@ describe("city street faults (street v1 repro)", () => {
 
   it("a stoop stays inside its own plot (no plinth into a neighbour, no warning)", () => {
     const p = street();
-    const issues = validatePlan(p).issues.filter((i) => /plinth/.test(i.message));
+    const issues = validatePlan(p, BUNDLED_RULES).issues.filter((i) => /plinth/.test(i.message));
     expect(issues).toEqual([]);
     const sts = structuresOf(p);
     const plots = new Map<string, Set<string>>();
@@ -456,7 +456,7 @@ describe("wizard tower, character and condition", () => {
   });
   it("twisted: every storey of the shaft stands offset from the one below; the build overhangs without errors", () => {
     const p = plan([wiz(31, ["twisted"])], 24, 24, "forest");
-    expect(validatePlan(p).issues.filter((i) => i.severity !== "info")).toEqual([]);
+    expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity !== "info")).toEqual([]);
     const st = structuresOf(p)[0] as ResolvedStructure;
     const rects = (st.volumes ?? [])
       .filter((v) => v.id !== "turret" && v.id !== "crown")
@@ -654,7 +654,7 @@ describe("wizard tower, character and condition", () => {
   });
   it("bare x, y, w, h on a building is its one wing", () => {
     const p = plan([{ id: "b", style: "cottage", x: 4, y: 4, w: 6, h: 5 }], 20, 20, "forest");
-    expect(validatePlan(p).issues.filter((i) => i.severity === "error")).toEqual([]);
+    expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "error")).toEqual([]);
     expect(structuresOf(p)[0]?.cells.length).toBeGreaterThan(8); // the drawn size class may keep part of the plot
   });
 });
@@ -682,7 +682,7 @@ describe("design spaces of the other styles", () => {
       expect(archs.size).toBeGreaterThanOrEqual(minArch);
       for (const seed of [1, 7, 13]) {
         const p = plan([one(style, seed, undefined, w, h)], 22, 22, "outdoor");
-        expect(validatePlan(p).issues.filter((i) => i.severity === "error")).toEqual([]);
+        expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "error")).toEqual([]);
         const r = resolvePlan(p, bundledPalettes());
         const ver = verifyBuild(r, realize(r, palettes), palettes, { plan: p });
         expect(

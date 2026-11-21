@@ -21,8 +21,6 @@ export * from "./resolve";
 export * from "./gen";
 export * from "./render";
 export * from "./text";
-// Side effect: registers the geometric plan checks and the materializer with the plan module.
-import "./resolve/autoregister";
 // WP3 exports (slab, palette, catalog, compile).
 export * from "./slab";
 export * from "./palette";

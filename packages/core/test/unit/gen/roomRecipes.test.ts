@@ -11,7 +11,7 @@ import { EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
 import { LIGHT_FEATURES, featureInfo } from "../../../src/gen/catalog";
 import { classifyRoom } from "../../../src/gen/roomPurpose";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
-import { validatePlan } from "../../../src/plan";
+import { STRUCTURE_ONLY, validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
 import { interiorNotes, roomStats } from "../../../src/review/interiors";
@@ -235,19 +235,19 @@ describe("an explicit purpose (Area.purpose) wins over the words", () => {
 
   it("is rejected below generator 4, so plans for released generators validate as before", () => {
     const names = [{ name: "Shrine antechamber", purpose: "shrine" as const }];
-    const v3 = validatePlan(building(names, { generator: 3 }));
+    const v3 = validatePlan(building(names, { generator: 3 }), STRUCTURE_ONLY);
     expect(v3.ok).toBe(false);
     expect(v3.issues.filter((i) => i.severity === "error")).toMatchObject([
       { code: "schema", path: "/levels/0/areas/1/purpose", elementId: "r0" },
     ]);
     expect(v3.issues[0]?.message).toMatch(/purpose needs generator 4; this plan is generator 3/);
-    expect(validatePlan(building(["Shrine antechamber"], { generator: 3 })).ok).toBe(true);
-    expect(validatePlan(building(names)).ok).toBe(true);
+    expect(validatePlan(building(["Shrine antechamber"], { generator: 3 }), STRUCTURE_ONLY).ok).toBe(true);
+    expect(validatePlan(building(names), STRUCTURE_ONLY).ok).toBe(true);
   });
 
   it("the stored purpose line-up resolves every room to its stated purpose (the golden builds it)", () => {
     const plan = loadPlan("purpose-lineup-v1");
-    expect(validatePlan(plan).ok).toBe(true);
+    expect(validatePlan(plan, STRUCTURE_ONLY).ok).toBe(true);
     const L = level(plan);
     const by = (id: string) => L.areas.find((a) => a.id === id);
     expect(
@@ -268,7 +268,7 @@ describe("an explicit purpose (Area.purpose) wins over the words", () => {
 
   it("an unknown purpose is rejected with the valid values and the nearest one", () => {
     const plan = building([{ name: "Cookhouse", purpose: "kitchens" as RoomPurpose }]);
-    const bad = validatePlan(plan).issues.filter((i) => i.severity === "error");
+    const bad = validatePlan(plan, STRUCTURE_ONLY).issues.filter((i) => i.severity === "error");
     expect(bad).toHaveLength(1);
     expect(bad[0]).toMatchObject({ code: "schema", path: "/levels/0/areas/1/purpose" });
     expect(bad[0]?.message).toMatch(/"kitchens" is not a valid value/);

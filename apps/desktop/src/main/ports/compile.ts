@@ -4,7 +4,7 @@ import { createCompilePlan, estimate as coreEstimate } from "@slabyrinth/core/co
 import { loadOrientation, loadPalettes } from "@slabyrinth/core/palette";
 import { isBlocking } from "@slabyrinth/core";
 import { validatePlan } from "@slabyrinth/core/plan";
-import { resolvePlan } from "@slabyrinth/core/resolve";
+import { planRules, resolvePlan } from "@slabyrinth/core/resolve";
 import { slabCodec } from "@slabyrinth/core/slab";
 import type {
   AssetCatalog,
@@ -89,7 +89,7 @@ export function createCoreCompileBackend(): CompileBackend {
         // (decisions.md "Playability validation"). createCompilePlan passes the plan to verify,
         // which then skips build findings the plan-level checks already report.
         validatePlan: (plan, palettes) => {
-          const blocking = validatePlan(plan, { palettes }).issues.filter(isBlocking);
+          const blocking = validatePlan(plan, planRules(palettes)).issues.filter(isBlocking);
           return { ok: blocking.length === 0, issues: blocking };
         },
         orientation: orientationFor(input),

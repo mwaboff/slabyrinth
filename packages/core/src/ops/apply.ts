@@ -48,11 +48,11 @@ import type { ValidateContext } from "../plan/validate";
 import { zodIssueToPlanIssue } from "../plan/zodIssues";
 import { across, shapeHasCell, tr, translateShape, translateStructure, translateTerrain } from "./geometry";
 
-// ───────────────────────────── materialize hook (WP2 provides the generators) ─────────────────────────────
+// ───────────────────────────── rules (the resolver supplies them) ─────────────────────────────
 
 /**
  * Returns the features a scatter/dress op generates on the given plan (ids "<opId>#<n>", rot rounded to a
- * multiple of 90). Registered by WP2's resolver; applyOps renames ids to "<opId>_<n>".
+ * multiple of 90). The resolver provides it (resolve's `planRules`); applyOps renames ids to "<opId>_<n>".
  */
 export type Materializer = (
   plan: MapPlan,
@@ -60,19 +60,24 @@ export type Materializer = (
   opId: ElementId,
 ) => { ok: true; features: Feature[] } | { ok: false; message: string };
 
-let materializer: Materializer | null = null;
-
-/** Registers the generator used by the `materialize` op. Returns an unregister function. */
-export function registerMaterializer(fn: Materializer): () => void {
-  materializer = fn;
-  return () => {
-    if (materializer === fn) materializer = null;
-  };
+/**
+ * What applyOps needs from the layers above it, passed by every caller: the checks validation runs after the
+ * structural ones, and the generator behind `materialize` (and behind removing generated features by their shown
+ * id). Both resolve the plan, so both belong to the palettes the plan is built with: resolve's `planRules(palettes)`
+ * builds them. `STRUCTURAL_RULES` has neither (structure-only validation; materializing fails with a message).
+ * A `PlanRules` is also a `ValidateContext`, so `validatePlan(plan, rules)` checks what applyOps checks.
+ */
+export interface PlanRules {
+  readonly checks: ValidateContext["checks"];
+  readonly materialize: Materializer | null;
 }
 
+/** No resolver: structural validation only, and `materialize` fails with a message. */
+export const STRUCTURAL_RULES: PlanRules = Object.freeze({ checks: Object.freeze([]), materialize: null });
+
 export interface ApplyOptions {
-  /** Validation context for the resulting plan (themes, extra checks). */
-  ctx?: ValidateContext;
+  /** Theme ids known to the installed palettes (validation warns on unknown themes). */
+  themes?: readonly string[];
   /**
    * false skips validation of the resulting plan (op errors still fail). Only for replaying history, where the
    * plan was validated when the version was committed and newer checks must not make old versions unreadable.
@@ -96,7 +101,10 @@ class Draft {
   readonly failedIds = new Set<ElementId>();
   opIndex = 0;
 
-  constructor(readonly plan: MapPlan) {}
+  constructor(
+    readonly plan: MapPlan,
+    readonly materialize: Materializer | null,
+  ) {}
 
   err(code: OpErrorCode, path: string, message: string, hint?: string): void {
     const e: OpError = { opIndex: this.opIndex, code, message, path: `/ops/${this.opIndex}${path}` };
@@ -213,8 +221,13 @@ function zodToOpErrors(
 
 // ───────────────────────────── entry point ─────────────────────────────
 
-export function applyOps(plan: MapPlan, ops: readonly PlanOp[], options: ApplyOptions = {}): ApplyResult {
-  const d = new Draft(cloneJson(plan));
+export function applyOps(
+  plan: MapPlan,
+  ops: readonly PlanOp[],
+  rules: PlanRules,
+  options: ApplyOptions = {},
+): ApplyResult {
+  const d = new Draft(cloneJson(plan), rules.materialize);
   ops.forEach((raw: unknown, i) => {
     d.opIndex = i;
     const parsed = PlanOpSchema.safeParse(raw);
@@ -230,7 +243,12 @@ export function applyOps(plan: MapPlan, ops: readonly PlanOp[], options: ApplyOp
   if (d.errors.length > 0) return { ok: false, opErrors: d.errors, issues: [] };
 
   const v: { ok: boolean; issues: PlanIssue[] } =
-    options.validate === false ? { ok: true, issues: [] } : validatePlan(d.plan, options.ctx ?? {});
+    options.validate === false
+      ? { ok: true, issues: [] }
+      : validatePlan(d.plan, {
+          checks: rules.checks,
+          ...(options.themes !== undefined ? { themes: options.themes } : {}),
+        });
   if (!v.ok) return { ok: false, opErrors: [], issues: v.issues.filter((i) => i.severity === "error") };
 
   const dirtyLevels = [
@@ -1102,16 +1120,16 @@ function opMaterialize(d: Draft, id: ElementId, keepOp: boolean): void {
     );
     return;
   }
-  if (materializer === null) {
+  if (d.materialize === null) {
     d.err(
       "not_applicable",
       "/id",
-      "materialize needs the resolver, which is not registered in this process",
+      "materialize needs the resolver, which this caller did not supply",
       "retry later; the generated features are unchanged",
     );
     return;
   }
-  const res = materializer(d.plan, level.id, id);
+  const res = d.materialize(d.plan, level.id, id);
   if (!res.ok) {
     d.err("not_applicable", "/id", res.message, "check the op's parameters");
     return;

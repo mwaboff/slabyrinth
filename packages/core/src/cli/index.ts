@@ -33,7 +33,7 @@ import type { MapPlan } from "../contracts/plan";
 import { calibrationAssetsFrom, calibrationSlabAssets, compileResolved, realize } from "../compile/index";
 import { loadOrientation, loadPalettes } from "../palette/index";
 import { validatePlan } from "../plan/index";
-import { resolvePlan } from "../resolve/index";
+import { planRules, resolvePlan } from "../resolve/index";
 import {
   decodeDetailed,
   encode,
@@ -113,7 +113,7 @@ function palettesFrom(a: Args, io: CliIo): PaletteCatalog {
 function cmdValidate(a: Args, io: CliIo): number {
   const path = a._[1];
   if (!path) throw new UsageError("validate <plan.json>");
-  const r = validatePlan(readJson(path, io), { palettes: palettesFrom(a, io) });
+  const r = validatePlan(readJson(path, io), planRules(palettesFrom(a, io)));
   if (a.flags["json"]) io.out(JSON.stringify(r, null, 2));
   else {
     for (const i of r.issues)
@@ -143,7 +143,7 @@ function cmdCompile(a: Args, io: CliIo): number {
   if (!path) throw new UsageError("compile <plan.json> [--out <dir>] …");
   const plan = readJson(path, io) as MapPlan;
   const cat = palettesFrom(a, io);
-  const v = validatePlan(plan, { palettes: cat });
+  const v = validatePlan(plan, planRules(cat));
   if (!v.ok) {
     for (const i of v.issues.filter((x) => x.severity === "error")) io.err(`error ${i.code}: ${i.message}`);
     io.err("compile refused: the plan has validation errors");

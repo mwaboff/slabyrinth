@@ -14,7 +14,7 @@ import { calibrationAssetsFrom, calibrationSlabAssets, compileResolved } from ".
 import type { ExportBundle, SlabChunk } from "../src/contracts/compiler";
 import type { MapPlan } from "../src/contracts/plan";
 import { bundledPalettes, loadPalettes } from "../src/palette";
-import { validatePlan } from "../src/plan";
+import { STRUCTURE_ONLY, validatePlan } from "../src/plan";
 import { resolvePlan } from "../src/resolve";
 import { decodeDetailed, encode, encodeRaw, slabCodec, toHex } from "../src/slab";
 
@@ -24,7 +24,8 @@ const outDir = join(repo, "data", "test-slabs");
 const cat = loadPalettes();
 
 function check(plan: MapPlan): void {
-  const v = validatePlan(plan);
+  // structure here; the resolver's own errors are checked below
+  const v = validatePlan(plan, STRUCTURE_ONLY);
   const errs = v.issues.filter((i) => i.severity === "error");
   if (errs.length) throw new Error(`${plan.title}: ${errs.map((e) => `${e.code} ${e.message}`).join("; ")}`);
   const r = resolvePlan(plan, bundledPalettes());

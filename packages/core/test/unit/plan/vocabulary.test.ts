@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { GENERATOR_VERSIONS, type MapPlan } from "../../../src/contracts/plan";
-import { VOCABULARY_SINCE, validatePlan } from "../../../src/plan";
+import { STRUCTURE_ONLY, VOCABULARY_SINCE, validatePlan } from "../../../src/plan";
 import { loadPlan } from "../../fixtures";
 
 type Level = MapPlan["levels"][number];
@@ -47,7 +47,7 @@ const USES: Record<string, { word: string; use: (level: Level) => void; path: st
 };
 
 const refusals = (plan: MapPlan): Array<{ severity: string; code: string; path: string | undefined }> =>
-  validatePlan(plan)
+  validatePlan(plan, STRUCTURE_ONLY)
     .issues.filter((i) => /needs generator/.test(i.message))
     .map((i) => ({ severity: i.severity, code: i.code, path: i.path }));
 
@@ -69,9 +69,9 @@ describe("vocabulary of a later generator", () => {
       for (const g of released) {
         const plan = planWith(g, use);
         const at = path.replace("FEATURE", String((plan.levels[0] as Level).features.length - 1));
-        expect(validatePlan(plan).ok, `generator ${g}`).toBe(false);
+        expect(validatePlan(plan, STRUCTURE_ONLY).ok, `generator ${g}`).toBe(false);
         expect(refusals(plan), `generator ${g}`).toEqual([{ severity: "error", code: "schema", path: at }]);
-        const issue = validatePlan(plan).issues.find((i) => i.path === at);
+        const issue = validatePlan(plan, STRUCTURE_ONLY).issues.find((i) => i.path === at);
         expect(issue?.message).toMatch(new RegExp(`${word} needs generator 4; this plan is generator ${g}$`));
         expect(issue?.hint).toMatch(/^set the plan generator to 4 \(new plans have it\), or /);
       }

@@ -21,7 +21,6 @@ import { caveNaturalChecks, caveNaturalMeasures } from "../../../src/review/cave
 import { reviewDesign } from "../../../src/review";
 import { reviewBuild } from "../../../src/review/reviewBuild";
 import { checkPlayability, resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { loadPlan } from "../../fixtures";
 import { dungeonPlan } from "../../fixtures/planBuilder";
 

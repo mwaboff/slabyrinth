@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import type { z } from "zod";
 import type { MapPlan, PlanIssue, PlanIssueCode } from "../../../src/contracts/plan";
 import type { PlanOp } from "../../../src/contracts/ops";
@@ -6,14 +6,15 @@ import {
   MapPlanSchema,
   PlanOpSchema,
   SCHEMA_TYPE_CHECKS,
+  STRUCTURE_ONLY,
   parsePlan,
-  registerPlanCheck,
-  registeredPlanChecks,
   validatePlan,
 } from "../../../src/plan";
 import { VALID_PLAN_FIXTURES, loadInvalidFixtures, loadPlan } from "../../fixtures";
 
 const THEMES = ["stone_dungeon", "cave", "outdoor"];
+/** This file tests validatePlan's own (structural) checks. */
+const S = STRUCTURE_ONLY;
 
 /** Codes validatePlan (WP1) emits itself; every one must have a failing fixture. */
 const WP1_CODES: PlanIssueCode[] = [
@@ -56,7 +57,7 @@ describe("schema mirrors the contract", () => {
 
 describe("valid fixtures", () => {
   it.each(VALID_PLAN_FIXTURES)("%s validates with no issues", (name) => {
-    const r = validatePlan(loadPlan(name), { themes: THEMES });
+    const r = validatePlan(loadPlan(name), { ...S, themes: THEMES });
     expect(r.issues).toEqual([]);
     expect(r.ok).toBe(true);
   });
@@ -70,7 +71,7 @@ describe("valid fixtures", () => {
 describe("invalid fixtures (one per issue code, hint asserted)", () => {
   const fixtures = loadInvalidFixtures();
   it.each(fixtures.map((f) => [f.name, f] as const))("%s", (_name, fx) => {
-    const r = validatePlan(fx.plan, fx.context ?? {});
+    const r = validatePlan(fx.plan, { ...S, ...fx.context });
     for (const e of fx.expect) {
       const hit = r.issues.find((i) => i.code === e.code && i.path === e.path);
       expect(hit, `${e.code} at ${e.path} in ${JSON.stringify(r.issues)}`).toBeDefined();
@@ -91,7 +92,7 @@ describe("invalid fixtures (one per issue code, hint asserted)", () => {
   });
   it("every issue carries a hint and a JSON-pointer path", () => {
     for (const fx of fixtures) {
-      for (const i of validatePlan(fx.plan, fx.context ?? {}).issues) {
+      for (const i of validatePlan(fx.plan, { ...S, ...fx.context }).issues) {
         expect(i.hint, `${fx.name}: ${i.message}`).toBeTruthy();
         expect(i.path === "" || i.path?.startsWith("/")).toBe(true);
       }
@@ -99,15 +100,15 @@ describe("invalid fixtures (one per issue code, hint asserted)", () => {
   });
   it("issues carry element and level ids", () => {
     const fx = fixtures.find((f) => f.name === "ref-unknown-opening");
-    const issue = validatePlan(fx?.plan).issues[0];
+    const issue = validatePlan(fx?.plan, S).issues[0];
     expect(issue).toMatchObject({ elementId: "door1", levelId: "l1" });
   });
 });
 
 describe("other validation rules", () => {
   it("rejects non-objects and oversized plans without throwing", () => {
-    expect(validatePlan(null).ok).toBe(false);
-    expect(validatePlan(undefined).issues[0]?.code).toBe("schema");
+    expect(validatePlan(null, S).ok).toBe(false);
+    expect(validatePlan(undefined, S).issues[0]?.code).toBe("schema");
     // 6000 features × ~120 bytes ≈ 700 KB > 512 KB: the size check fires before the per-level count limit.
     const big = loadPlan("single-room") as unknown as { levels: Array<{ features: unknown[] }> };
     (big.levels[0] as { features: unknown[] }).features = Array.from({ length: 6000 }, (_, k) => ({
@@ -116,7 +117,7 @@ describe("other validation rules", () => {
       at: [1, 1],
       notes: "q".repeat(80),
     }));
-    const r = validatePlan(big);
+    const r = validatePlan(big, S);
     expect(r.ok).toBe(false);
     expect(r.issues).toHaveLength(1);
     expect(r.issues[0]).toMatchObject({ code: "limit_exceeded", path: "" });
@@ -124,7 +125,7 @@ describe("other validation rules", () => {
   });
   it("detects the diagonal path in the architecture's example B as written", () => {
     const fx = loadInvalidFixtures().find((f) => f.name === "shape-diagonal-path");
-    expect(validatePlan(fx?.plan).ok).toBe(false);
+    expect(validatePlan(fx?.plan, S).ok).toBe(false);
   });
   it("route endpoints may not be routes; opening needs between or at", () => {
     const plan = loadPlan("l-corridor-route");
@@ -134,7 +135,7 @@ describe("other validation rules", () => {
       shape: { type: "route", from: "hall", to: [10, 2] },
     });
     plan.levels[0]?.openings.push({ id: "o1", kind: "door" });
-    const codes = validatePlan(plan).issues.map((i) => [i.code, i.path]);
+    const codes = validatePlan(plan, S).issues.map((i) => [i.code, i.path]);
     expect(codes).toContainEqual(["shape_invalid", "/levels/0/areas/3/shape/from"]);
     expect(codes).toContainEqual(["schema", "/levels/0/openings/0"]);
   });
@@ -146,24 +147,18 @@ describe("other validation rules", () => {
       from: { level: "ground", at: [3, 3] },
       to: { level: "study_lvl", at: [3, 3] },
     });
-    expect(validatePlan(plan).ok).toBe(true);
+    expect(validatePlan(plan, S).ok).toBe(true);
     plan.links.push({
       id: "bad",
       kind: "ladder",
       from: { level: "ground", at: [3, 4] },
       to: { level: "ground" },
     });
-    expect(validatePlan(plan).issues.find((i) => i.elementId === "bad")?.code).toBe("link_mismatch");
+    expect(validatePlan(plan, S).issues.find((i) => i.elementId === "bad")?.code).toBe("link_mismatch");
   });
 });
 
-describe("check registry (WP2 hook)", () => {
-  const unregister: Array<() => void> = [];
-  afterEach(() => {
-    unregister.splice(0).forEach((u) => {
-      u();
-    });
-  });
+describe("checks the caller passes in (the resolver's, from a higher layer)", () => {
   const geometric = (code: PlanIssueCode) => ({
     name: `test-${code}`,
     run: (plan: MapPlan): PlanIssue[] => [
@@ -171,25 +166,19 @@ describe("check registry (WP2 hook)", () => {
     ],
   });
 
-  it("runs registered checks on structurally valid plans only, in name order", () => {
-    unregister.push(
-      registerPlanCheck(geometric("unreachable")),
-      registerPlanCheck(geometric("feature_blocked")),
-    );
-    expect(registeredPlanChecks().map((c) => c.name)).toEqual(["test-feature_blocked", "test-unreachable"]);
-    const r = validatePlan(loadPlan("single-room"));
-    expect(r.issues.map((i) => i.code)).toEqual(["feature_blocked", "unreachable"]);
+  it("runs the given checks on structurally valid plans only, in the given order", () => {
+    const checks = [geometric("unreachable"), geometric("feature_blocked")];
+    const r = validatePlan(loadPlan("single-room"), { checks });
+    expect(r.issues.map((i) => i.code)).toEqual(["unreachable", "feature_blocked"]);
     const bad = loadPlan("single-room");
     (bad.levels[0]?.features[0] as { id: string }).id = "cellar";
-    expect(validatePlan(bad).issues.map((i) => i.code)).toEqual(["id_duplicate"]);
-    expect(validatePlan(loadPlan("single-room"), { skipRegistered: true }).issues).toEqual([]);
+    expect(validatePlan(bad, { checks }).issues.map((i) => i.code)).toEqual(["id_duplicate"]);
+    expect(validatePlan(loadPlan("single-room"), S).issues).toEqual([]);
   });
-  it("per-call checks and unregistering", () => {
-    const u = registerPlanCheck(geometric("area_disconnected"));
-    u();
-    expect(validatePlan(loadPlan("single-room")).ok).toBe(true);
-    expect(
-      validatePlan(loadPlan("single-room"), { checks: [geometric("custom_unresolved")] }).issues[0]?.code,
-    ).toBe("custom_unresolved");
+  it("a check given to one call does not reach the next", () => {
+    expect(validatePlan(loadPlan("single-room"), { checks: [geometric("custom_unresolved")] }).ok).toBe(
+      false,
+    );
+    expect(validatePlan(loadPlan("single-room"), S).ok).toBe(true);
   });
 });

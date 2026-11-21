@@ -28,7 +28,7 @@ import { diffPlans } from "../ops/diff";
 import { listElements } from "../plan/elements";
 import { generatorProfile } from "../plan/generator";
 import { validatePlan } from "../plan/validate";
-import { resolvePlan } from "../resolve";
+import { planRules, resolvePlan } from "../resolve";
 import {
   type DesignNote,
   briefCheckLine,
@@ -48,7 +48,8 @@ import type { PlanChangeReport, ToolContext, ToolName, ToolOutcome, ToolResultCo
 // ───────────────────────────── ports ─────────────────────────────
 
 export interface ExecutorPorts {
-  applyOps: ApplyOps;
+  /** `palettes`: the ones the plan is built with (`materialize` resolves the plan against them). */
+  applyOps: (plan: MapPlan, ops: Parameters<ApplyOps>[1], palettes: PaletteCatalog) => ReturnType<ApplyOps>;
   /** `palettes`: the ones the plan is built with (the checks that resolve the plan use them). */
   validatePlan: (
     input: unknown,
@@ -85,8 +86,12 @@ export interface ExecutorPorts {
  * blocking errors (reject) from playability findings (report, never reject) — see checks.ts.
  */
 export const defaultExecutorPorts: ExecutorPorts = {
-  applyOps: (plan, ops) => applyOps(plan, ops, { validate: false }),
-  validatePlan: (input, ctx) => validatePlan(input, ctx),
+  applyOps: (plan, ops, palettes) => applyOps(plan, ops, planRules(palettes), { validate: false }),
+  validatePlan: (input, ctx) =>
+    validatePlan(input, {
+      checks: planRules(ctx.palettes).checks,
+      ...(ctx.themes !== undefined ? { themes: ctx.themes } : {}),
+    }),
   diffPlans: (before, after) => diffPlans(before, after),
   resolvePlan: (plan, palettes, version) => resolvePlan(plan, palettes, { planVersion: version }),
   outline: (plan, resolved, opts) => outlineView(plan, resolved, opts),
@@ -488,7 +493,7 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
         extra,
       );
     }
-    const result = ports.applyOps(ctx.plan, ops);
+    const result = ports.applyOps(ctx.plan, ops, ctx.palettes);
     if (!result.ok) {
       const errors = [
         ...result.opErrors.map(fromOpError),

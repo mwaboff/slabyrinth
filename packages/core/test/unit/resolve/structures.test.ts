@@ -11,7 +11,7 @@ import { compileResolved, placedName, realize, verifyBuild } from "../../../src/
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
+import { BUNDLED_RULES } from "../../fixtures/rules";
 import { canonicalJson } from "../../../src/util/canonical";
 import { townPlan } from "../../fixtures/planBuilder";
 
@@ -115,15 +115,19 @@ describe("structures: resolution", () => {
     const p = plan([shack()], {
       terrain: [{ id: "furnish", op: "dress", area: "shack", preset: "storeroom", density: 0.5 }],
     });
-    expect(validatePlan(p).issues.filter((i) => i.severity === "error")).toEqual([]);
+    expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "error")).toEqual([]);
   });
 });
 
 describe("structures: validation", () => {
   const errors = (p: MapPlan) =>
-    validatePlan(p).issues.filter((i) => i.severity === "error" && i.code === "structure_invalid");
+    validatePlan(p, BUNDLED_RULES).issues.filter(
+      (i) => i.severity === "error" && i.code === "structure_invalid",
+    );
   const warnings = (p: MapPlan) =>
-    validatePlan(p).issues.filter((i) => i.severity === "warning" && i.code === "structure_invalid");
+    validatePlan(p, BUNDLED_RULES).issues.filter(
+      (i) => i.severity === "warning" && i.code === "structure_invalid",
+    );
 
   it("rejects overlapping buildings", () => {
     const p = plan([shack(), shack({ id: "other", wings: [{ x: 10, y: 7, w: 5, h: 4 }], attachments: [] })]);
@@ -165,7 +169,7 @@ describe("structures: validation", () => {
         attachments: [],
       }),
     ]);
-    const issues = validatePlan(p).issues.filter((i) => i.elementId?.startsWith("shack"));
+    const issues = validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.elementId?.startsWith("shack"));
     for (const i of issues) {
       expect(i.elementId).toBe("shack");
       if (i.path?.startsWith("/levels/0/")) expect(i.path).not.toMatch(/\/(areas|openings|walls)\/[1-9]/);
@@ -248,7 +252,7 @@ describe("structures: variety", () => {
   it("200 seeds of one style: every building is valid, its door opens onto reachable ground, ridge and walls are whole", () => {
     for (let seed = 0; seed < 200; seed++) {
       const p = spec(seed);
-      const v = validatePlan(p);
+      const v = validatePlan(p, BUNDLED_RULES);
       expect(
         v.issues.filter((i) => i.severity === "error"),
         `seed ${seed}`,

@@ -9,7 +9,6 @@ import type { ResolvedLevel, ResolvedStructure } from "../../../src/contracts/re
 import { realize } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { mergeRoofs, roofOwners, roofProportion } from "../../../src/resolve";
 import { gableRoof, type RoofOwner } from "../../../src/resolve/roof";
 import { reviewDesign } from "../../../src/review";

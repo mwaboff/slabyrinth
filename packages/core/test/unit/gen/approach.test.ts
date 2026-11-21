@@ -17,8 +17,8 @@ import {
 } from "../../../src/gen/index";
 import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { loadPlan } from "../../fixtures";
+import { BUNDLED_RULES } from "../../fixtures/rules";
 import { validatePlan } from "../../../src/plan";
 
 // A plateau (3 tiles up) with a low rim (2 up) along its north and south edges, split by a rock barrier at
@@ -114,7 +114,7 @@ describe("dressing keeps routes open", () => {
           t.preset = "dense_forest";
           t.density = 1;
         }
-    const issues = validatePlan(plan).issues.filter(
+    const issues = validatePlan(plan, BUNDLED_RULES).issues.filter(
       (i) => i.code === "unreachable" || i.code === "area_sealed" || i.code === "opening_blocked",
     );
     expect(issues.map((i) => i.message)).toEqual([]);

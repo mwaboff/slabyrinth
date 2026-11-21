@@ -10,7 +10,7 @@ import fc from "fast-check";
 import type { MapPlan, Shape, Vec2 } from "../../../src/contracts/plan";
 import { FEATURE_TYPES, OPENING_KINDS } from "../../../src/contracts/plan";
 import type { PlanHistory, PlanOp } from "../../../src/contracts/ops";
-import { applyOps } from "../../../src/ops";
+import { STRUCTURAL_RULES, applyOps } from "../../../src/ops";
 import { validatePlan } from "../../../src/plan";
 import { commitOps, commitVersion, createHistory, reconstruct } from "../../../src/history";
 import { canonicalJson, createPrng } from "../../../src/util";
@@ -248,30 +248,40 @@ describe("fuzz: applyOps never commits an invalid plan", () => {
         (fi, seed, steps) => {
           const g = createPrng(seed);
           let plan = loadPlan(VALID_PLAN_FIXTURES[fi] as (typeof VALID_PLAN_FIXTURES)[number]);
-          let history: PlanHistory = commitVersion(createHistory(), {
-            plan,
-            author: "ai",
-            createdAt: T,
-            summary: "c",
-            cause: { type: "create" },
-          }).history;
+          let history: PlanHistory = commitVersion(
+            createHistory(),
+            {
+              plan,
+              author: "ai",
+              createdAt: T,
+              summary: "c",
+              cause: { type: "create" },
+            },
+            STRUCTURAL_RULES,
+          ).history;
           for (let s = 0; s < steps; s++) {
             const ops = Array.from({ length: g.range(1, 3) }, (_, k) => randomOp(plan, g, s * 10 + k));
             const before = canonicalJson(plan);
-            const r = applyOps(plan, ops);
+            const r = applyOps(plan, ops, STRUCTURAL_RULES);
             expect(canonicalJson(plan)).toBe(before);
             if (!r.ok) {
               expect(r.opErrors.length + r.issues.length).toBeGreaterThan(0);
               for (const e of [...r.opErrors, ...r.issues]) expect(e.hint ?? e.message).toBeTruthy();
               continue;
             }
-            const v = validatePlan(r.plan);
+            const v = validatePlan(r.plan, STRUCTURAL_RULES);
             expect(v.ok, JSON.stringify(v.issues)).toBe(true);
-            history = commitOps(history, r.plan, ops, { author: "ai", createdAt: T, summary: "e" }).history;
+            history = commitOps(
+              history,
+              r.plan,
+              ops,
+              { author: "ai", createdAt: T, summary: "e" },
+              STRUCTURAL_RULES,
+            ).history;
             plan = r.plan;
             committed++;
           }
-          const rebuilt = reconstruct(history, history.head);
+          const rebuilt = reconstruct(history, history.head, STRUCTURAL_RULES);
           expect(rebuilt.ok && canonicalJson(rebuilt.plan)).toBe(canonicalJson(plan));
         },
       ),

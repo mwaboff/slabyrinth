@@ -3,10 +3,10 @@
  * features can be removed by the id a result showed ("rocks#5"), and a remove op takes a filter.
  */
 import { describe, expect, it } from "vitest";
-import "../../../src/resolve/autoregister";
 import type { MapPlan, TerrainOp } from "../../../src/contracts/plan";
 import { applyOps } from "../../../src/ops";
 import { validatePlan } from "../../../src/plan";
+import { BUNDLED_RULES } from "../../fixtures/rules";
 import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { designReviewDelta, type DesignNote } from "../../../src/review";
@@ -45,17 +45,17 @@ describe("dress with no area", () => {
     for (const area of [undefined, "g"]) {
       const op = { id: "wood", op: "dress", preset: "woodland", ...(area ? { area } : {}) } as TerrainOp;
       const p = meadow([op]);
-      expect(validatePlan(p).issues.filter((i) => i.severity === "error")).toEqual([]);
+      expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "error")).toEqual([]);
       const l = resolvePlan(p, bundledPalettes()).levels[0];
       expect(l?.features.filter((f) => f.generatedBy === "wood").length).toBeGreaterThan(10);
     }
   });
   it("is an error with a plain hint on generator 1, and an unknown area names the way out", () => {
     const p1 = meadow([{ id: "wood", op: "dress", preset: "woodland" }], 1);
-    const e1 = validatePlan(p1).issues.find((i) => i.severity === "error");
+    const e1 = validatePlan(p1, BUNDLED_RULES).issues.find((i) => i.severity === "error");
     expect(e1?.hint).toContain("area");
     const p2 = meadow([{ id: "wood", op: "dress", area: "l1", preset: "woodland" }]);
-    const e2 = validatePlan(p2).issues.find((i) => i.code === "ref_unknown");
+    const e2 = validatePlan(p2, BUNDLED_RULES).issues.find((i) => i.code === "ref_unknown");
     expect(e2?.hint).toContain("leave area out to dress the whole level");
   });
 });
@@ -66,7 +66,7 @@ describe("removing generated features", () => {
     const before =
       resolvePlan(p, bundledPalettes()).levels[0]?.features.filter((f) => f.generatedBy === "rocks") ?? [];
     expect(before.length).toBeGreaterThan(3);
-    const r = applyOps(p, [{ op: "remove", ids: ["rocks#3"] }]);
+    const r = applyOps(p, [{ op: "remove", ids: ["rocks#3"] }], BUNDLED_RULES);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     const feats = r.plan.levels[0]?.features ?? [];
@@ -80,7 +80,7 @@ describe("removing generated features", () => {
       resolvePlan(p, bundledPalettes()).levels[0]?.features.filter((f) => f.generatedBy === "rocks") ?? [];
     const rect = { x: 0, y: 0, w: 15, h: 20 };
     const inside = all.filter((f) => f.at[0] < 15).length;
-    const r = applyOps(p, [{ op: "remove", ids: [], where: { generatedBy: "rocks", rect } }]);
+    const r = applyOps(p, [{ op: "remove", ids: [], where: { generatedBy: "rocks", rect } }], BUNDLED_RULES);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     const left = r.plan.levels[0]?.features ?? [];

@@ -8,7 +8,6 @@ import type { ResolvedLevel, ResolvedStructure } from "../../../src/contracts/re
 import { realize, verifyBuild } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { growthMeasures, roofUnsupportedEdges, structureRuinMeasures } from "../../../src/resolve";
 import { GROWTH_LEVELS } from "../../../src/resolve/growth";
 import { reviewDesign } from "../../../src/review";

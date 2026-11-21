@@ -10,7 +10,6 @@ import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { createRoleResolver } from "../../../src/palette/resolve";
 import { PATCH, familiesOfVariants, patchStats } from "../../../src/resolve/floorFamilies";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 
 const knoll = (tier: number, extra: object[] = []): MapPlan =>
   ({

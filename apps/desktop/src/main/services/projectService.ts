@@ -339,7 +339,12 @@ export class ProjectService {
     const s = this.state;
     if (!s || s.project.history.head === 0) return;
     try {
-      const rebuilt = history.reconstruct(s.project.history, s.project.history.head, s.planCache);
+      const rebuilt = history.reconstruct(
+        s.project.history,
+        s.project.history.head,
+        this.deps.core.rules(),
+        s.planCache,
+      );
       if (JSON.stringify(rebuilt) !== JSON.stringify(s.project.plan)) {
         this.deps.logger.warn("head plan differs from history replay; keeping the stored plan", {
           head: s.project.history.head,
@@ -700,7 +705,7 @@ export class ProjectService {
     const n = version ?? h.head;
     if (n === 0) return null;
     if (n === h.head && s.project.plan) return s.project.plan;
-    return history.reconstruct(h, n, s.planCache);
+    return history.reconstruct(h, n, this.deps.core.rules(), s.planCache);
   }
 
   commitVersion(input: CommitVersionInput): { version: number; plan: MapPlan } {
@@ -719,7 +724,7 @@ export class ProjectService {
       if (input.changeSummary !== undefined) nv.changeSummary = input.changeSummary.slice(0, 6);
       if (input.messageId !== undefined) nv.messageId = input.messageId;
       if (input.cost !== undefined) nv.cost = input.cost;
-      const v = history.commit(p.history, nv, s.planCache);
+      const v = history.commit(p.history, nv, this.deps.core.rules(), s.planCache);
       p.plan = structuredClone(input.plan);
       return v;
     });
@@ -808,7 +813,10 @@ export class ProjectService {
     const s = this.require();
     const nextHistory = structuredClone(s.project.history);
     const n = step(nextHistory);
-    const plan = n === 0 ? null : structuredClone(history.reconstruct(nextHistory, n, s.planCache));
+    const plan =
+      n === 0
+        ? null
+        : structuredClone(history.reconstruct(nextHistory, n, this.deps.core.rules(), s.planCache));
     return this.mutate((p) => {
       p.history = nextHistory;
       p.plan = plan;

@@ -13,6 +13,7 @@ import towerRaw from "../../../../../../packages/core/test/fixtures/plans/multi-
 import proofRaw from "../../../../../../data/test-slabs/02-single-room.plan.json?raw";
 import proofV4Raw from "../../../../../../data/test-slabs/02-single-room.v4.plan.json?raw";
 import { fakeCompile } from "./compile";
+import { fakeRules } from "./rules";
 
 export const DEFAULT_SELECTION: ModelSelection = {
   providerId: "anthropic",
@@ -62,7 +63,7 @@ const ago = (now: number, minutes: number): string => new Date(now - minutes * 6
 
 /** applyOps that falls back to the input plan when a fixture op does not validate (WP1/WP2 still moving). */
 export function tryOps(plan: MapPlan, ops: PlanOp[]): MapPlan {
-  const r = applyOps(plan, ops);
+  const r = applyOps(plan, ops, fakeRules());
   if (r.ok) return r.plan;
   console.warn("[fake] fixture ops rejected", r.opErrors, r.issues);
   return plan;
@@ -131,16 +132,20 @@ function buildProject(args: {
     const versions: number[] = [];
     if (t.version) {
       const v = t.version;
-      const r = commitVersion(history, {
-        plan: v.plan,
-        author: "ai",
-        createdAt: at,
-        summary: v.summary,
-        changeSummary: v.changes,
-        cause: v.cause === "create" ? { type: "create" } : { type: "ops", ops: v.cause },
-        messageId: aid,
-        cost: { currency: "USD", amount: v.cost },
-      });
+      const r = commitVersion(
+        history,
+        {
+          plan: v.plan,
+          author: "ai",
+          createdAt: at,
+          summary: v.summary,
+          changeSummary: v.changes,
+          cause: v.cause === "create" ? { type: "create" } : { type: "ops", ops: v.cause },
+          messageId: aid,
+          cost: { currency: "USD", amount: v.cost },
+        },
+        fakeRules(),
+      );
       history = r.history;
       versions.push(r.version.number);
     }
@@ -162,13 +167,17 @@ function buildProject(args: {
     totalUsage.cacheReadTokens += u.cacheReadTokens;
   });
   if (args.userEdit) {
-    history = commitVersion(history, {
-      plan: args.userEdit.plan,
-      author: "user",
-      createdAt: ago(now, args.userEdit.minutesAgo),
-      summary: args.userEdit.summary,
-      cause: { type: "ops", ops: args.userEdit.ops },
-    }).history;
+    history = commitVersion(
+      history,
+      {
+        plan: args.userEdit.plan,
+        author: "user",
+        createdAt: ago(now, args.userEdit.minutesAgo),
+        summary: args.userEdit.summary,
+        cause: { type: "ops", ops: args.userEdit.ops },
+      },
+      fakeRules(),
+    ).history;
   }
   const builds: BuildRecord[] = [];
   const slabs: FakeProject["slabs"] = {};

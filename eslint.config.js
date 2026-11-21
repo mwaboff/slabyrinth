@@ -74,6 +74,17 @@ const handEdgeIndex = {
     "Index a level's edges with resolve/levelGrid.ts (hEdgeIndex, vEdgeIndex, sideEdgeIndex, edgeOnLine, edgeCol/edgeRow, LevelGrid) instead of by hand.",
 };
 
+/**
+ * No core module is imported for its side effects. A module that changes what other functions do when it is
+ * imported (registering checks or generators process-wide) makes their results depend on who imported what; pass
+ * what a function needs as an argument instead (validatePlan's `checks`, applyOps' `PlanRules`).
+ */
+const sideEffectImport = {
+  selector: "ImportDeclaration[specifiers.length=0][importKind!='type']",
+  message:
+    "Do not import a core module for its side effects: pass what a function needs as an argument (e.g. resolve's planRules).",
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -136,12 +147,12 @@ export default tseslint.config(
   ...coreLayers,
   {
     files: ["packages/core/src/**/*.ts"],
-    rules: { "no-restricted-syntax": ["error", numberedEdgeKinds, handEdgeIndex] },
+    rules: { "no-restricted-syntax": ["error", numberedEdgeKinds, handEdgeIndex, sideEffectImport] },
   },
   {
     // the one module that owns the edge layout
     files: ["packages/core/src/resolve/levelGrid.ts"],
-    rules: { "no-restricted-syntax": ["error", numberedEdgeKinds] },
+    rules: { "no-restricted-syntax": ["error", numberedEdgeKinds, sideEffectImport] },
   },
   {
     files: ["apps/desktop/src/renderer/**/*.{ts,tsx}", "packages/render-canvas/src/**/*.ts"],

@@ -9,7 +9,6 @@ import type { ResolvedLevel, ResolvedStructure } from "../../../src/contracts/re
 import { realize } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { townPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();

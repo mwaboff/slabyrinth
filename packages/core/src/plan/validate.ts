@@ -1,9 +1,11 @@
 /**
- * validatePlan (architecture §2.8): every resolver-INDEPENDENT check, plus a registration hook through which
- * WP2 plugs in geometric checks (opening_no_boundary on real edges, feature_blocked, area_empty, unreachable…)
- * without this module importing the resolver.
+ * validatePlan (architecture §2.8): every resolver-INDEPENDENT check, plus the checks the caller passes in
+ * (`ValidateContext.checks`). The resolver's geometric checks (opening_no_boundary on real edges, feature_blocked,
+ * area_empty, unreachable…) sit in a higher layer and need the palettes the plan is built with, so this module
+ * cannot import them: the caller hands them over (resolve's `planRules(palettes).checks`), or passes `[]` to check
+ * structure only. There is no process-wide registry: the same call gives the same answer in every process.
  *
- * Order: size limit → Zod structure → cross-element rules → registered checks. Registered checks run only when
+ * Order: size limit → Zod structure → cross-element rules → the given checks. The given checks run only when
  * everything before produced no error, so they may assume a structurally sound plan with valid references.
  *
  * Every issue carries a stable code, a JSON-pointer path, the element/level ids and a model-facing hint.
@@ -21,7 +23,6 @@ import type {
 } from "../contracts/plan";
 import { BUILD_CONSTANTS, PLAN_LIMITS } from "../contracts/plan";
 import { own } from "../palette/own";
-import type { ResolvePalettes } from "../palette/resolve";
 import { utf8Length } from "../util/hash";
 import { type GeneratorVocabulary, VOCABULARY_SINCE, generatorProfile } from "./generator";
 import { listForHint, nearest } from "../util/strings";
@@ -34,50 +35,31 @@ import { boxesIntersect, polylineProblems, shapeCellBox, shapeProblems } from ".
 import type { CellBox } from "./shapes";
 import { zodIssueToPlanIssue } from "./zodIssues";
 
-// ───────────────────────────── context and check registry ─────────────────────────────
+// ───────────────────────────── context and checks ─────────────────────────────
 
 export interface ValidateContext {
+  /**
+   * The checks that run after the structural ones, in this order, on a plan with no structural error. Required so
+   * that no caller leaves them out by accident: `planRules(palettes).checks` (resolve) adds the resolver's geometry
+   * and playability checks for the palettes the plan is built with; `[]` checks structure only.
+   */
+  checks: readonly PlanCheck[];
   /** Theme ids known to the installed palettes. When given, unknown themes produce `theme_unknown` warnings. */
   themes?: readonly string[];
-  /** Additional checks for this call only (run after the registered ones). */
-  checks?: readonly PlanCheck[];
-  /** Skip globally registered checks (structural validation only). */
-  skipRegistered?: boolean;
-  /**
-   * The palettes the plan is built with, for this call, when the caller holds them (a build, the CLI): registered
-   * checks that resolve the plan (WP2 geometry) use them. Absent: the palettes the process registered those checks
-   * with (resolve/register.ts).
-   */
-  palettes?: ResolvePalettes;
 }
 
 /**
- * A pluggable validation pass (WP2 geometry, WP3 palette checks such as custom_unresolved).
+ * A validation pass a higher layer supplies (the resolver's geometry and playability checks).
  * Must be pure and deterministic; receives only plans that passed every structural check.
  */
 export interface PlanCheck {
-  /** Unique name; registered checks run in name order. */
+  /** A name for tests and logs. */
   name: string;
   run(plan: MapPlan, ctx: ValidateContext): readonly PlanIssue[];
 }
 
-const registry = new Map<string, PlanCheck>();
-
-/**
- * Registers a check that validatePlan (and therefore applyOps) runs on every structurally valid plan.
- * Re-registering a name replaces it. Returns a function that unregisters it.
- */
-export function registerPlanCheck(check: PlanCheck): () => void {
-  registry.set(check.name, check);
-  return () => {
-    if (registry.get(check.name) === check) registry.delete(check.name);
-  };
-}
-
-/** Registered checks in deterministic (name) order. */
-export function registeredPlanChecks(): PlanCheck[] {
-  return [...registry.values()].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-}
+/** No checks beyond the structural ones: `validatePlan(plan, STRUCTURE_ONLY)`. */
+export const STRUCTURE_ONLY: ValidateContext = Object.freeze({ checks: Object.freeze([]) });
 
 // ───────────────────────────── entry points ─────────────────────────────
 
@@ -100,13 +82,12 @@ export function parsePlan(input: unknown): ParsePlanResult {
 /**
  * Validates a plan (or untrusted JSON). Pure and deterministic. `ok` is false iff an issue has severity "error".
  */
-export function validatePlan(input: unknown, ctx: ValidateContext = {}): ValidationResult {
+export function validatePlan(input: unknown, ctx: ValidateContext): ValidationResult {
   const parsed = parsePlan(input);
   if (!parsed.ok) return { ok: false, issues: parsed.issues };
   const issues = structuralChecks(parsed.plan, ctx);
   if (!issues.some((i) => i.severity === "error")) {
-    const checks = [...(ctx.skipRegistered === true ? [] : registeredPlanChecks()), ...(ctx.checks ?? [])];
-    for (const check of checks) issues.push(...check.run(parsed.plan, ctx));
+    for (const check of ctx.checks) issues.push(...check.run(parsed.plan, ctx));
   }
   return { ok: !issues.some((i) => i.severity === "error"), issues };
 }
@@ -218,7 +199,7 @@ export function nextFreeKey(plan: MapPlan): string {
   return String(max + 1);
 }
 
-export function structuralChecks(plan: MapPlan, ctx: ValidateContext): PlanIssue[] {
+export function structuralChecks(plan: MapPlan, ctx: Pick<ValidateContext, "themes">): PlanIssue[] {
   const sink = new IssueSink();
   const elements = listElements(plan);
   checkIds(plan, elements, sink);

@@ -1,6 +1,7 @@
 /**
  * Geometric validation (architecture §2.8) — the checks that need the resolver. WP1's `validatePlan` owns schema,
- * ids, refs and limits; it registers `geometryChecks` through its hook and merges the issues.
+ * ids, refs and limits; callers pass `geometryChecks` to it as a check (resolve/rules.ts `planRules`) and it merges the
+ * issues.
  *
  * Errors reported here: opening_no_boundary, opening_overlap, link_mismatch, link_blocked, feature_blocked,
  * area_empty, shape_invalid (wall runs), bounds_exceeded (openings out of bounds).
@@ -35,7 +36,8 @@ export interface GeometryCheckContext {
 }
 
 /**
- * The checks WP1's validatePlan hook runs (resolve/register.ts), on the plan resolved against `palettes`. Pure; never
+ * The checks validatePlan runs when given `planRules(palettes)` (resolve/rules.ts), on the plan resolved against
+ * `palettes`. Pure; never
  * throws for bad content.
  */
 export function geometryChecks(

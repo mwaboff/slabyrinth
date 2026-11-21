@@ -9,9 +9,6 @@
  *    model fixes them in steps — but every create/edit result reports them until they are resolved.
  */
 import type { MapPlan, PlanIssue, PlanIssueCode, ValidationResult } from "../contracts/plan";
-import { validatePlan } from "../plan/validate";
-// Registers WP2's geometry + playability check with validatePlan (idempotent side-effect module).
-import "../resolve/autoregister";
 
 /** Issue codes that describe playability (walkability) rather than validity; never blocking. */
 export const PLAYABILITY_CODES: ReadonlySet<PlanIssueCode> = new Set<PlanIssueCode>([
@@ -108,10 +105,8 @@ export interface OutstandingIssues {
   items: Array<Pick<PlanIssue, "severity" | "code" | "message" | "hint" | "elementId" | "levelId" | "cell">>;
 }
 
-export function checkPlan(
-  plan: MapPlan,
-  validate: (p: unknown) => ValidationResult = (p) => validatePlan(p),
-): CheckResults {
+/** `validate`: validatePlan with the rules of the palettes the plan is built with. */
+export function checkPlan(plan: MapPlan, validate: (p: unknown) => ValidationResult): CheckResults {
   return splitIssues(validate(plan).issues).checks;
 }
 

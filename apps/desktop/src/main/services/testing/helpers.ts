@@ -1,7 +1,8 @@
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ApplyOps, MapPlan, PlanOp } from "@slabyrinth/core";
+import { bundledPalettes, planRules } from "@slabyrinth/core";
+import type { ApplyOps, MapPlan, PlanOp, PlanRules } from "@slabyrinth/core";
 import { memoryLogger } from "../../logger";
 import { createPlanCorePort, type PlanCorePort } from "../../ports/core";
 import type { Dialogs } from "../dialogs";
@@ -46,10 +47,13 @@ export const testApplyOps: ApplyOps = (plan: MapPlan, ops: readonly PlanOp[]) =>
   };
 };
 
+/** The plan rules of the bundled palettes (what the service tests build with). */
+export const BUNDLED_RULES: PlanRules = planRules(bundledPalettes());
+
 export function corePort(
   opts: { applyOps?: boolean; validate?: (p: MapPlan) => unknown; migrate?: (j: unknown) => unknown } = {},
 ): PlanCorePort {
-  return createPlanCorePort({
+  return createPlanCorePort(() => BUNDLED_RULES, {
     applyOps: opts.applyOps === false ? null : testApplyOps,
     validatePlan: opts.validate ?? null,
     migrateProject: opts.migrate ?? null,

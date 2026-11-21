@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { execFile } from "node:child_process";
 import { Worker } from "node:worker_threads";
 import { clipboard, dialog, ipcMain, Menu, safeStorage, shell, type BrowserWindow } from "electron";
-import { registerWp2Hooks } from "@slabyrinth/core/resolve";
+import { planRules } from "@slabyrinth/core/resolve";
 import type { IpcEvents } from "../shared/ipc";
 import { resolveApiKey, selectEngine, type EngineKind } from "./engineWiring";
 import { createDispatcher, makeSenderCheck, registerIpc, type Dispatch } from "./ipc/router";
@@ -202,30 +202,6 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
       }
     : (url: string): Promise<void> => shell.openExternal(url);
 
-  // ── core ports
-  const core = createPlanCorePort();
-
-  // ── projects
-  const projects = new ProjectService({
-    settings,
-    core,
-    dialogs,
-    emit,
-    logger: logger.child("projects"),
-    appVersion: ctx.appVersion,
-    trashItem: safeMode
-      ? async (file) => {
-          const dir = path.join(paths.userData, "trash");
-          await fsp.mkdir(dir, { recursive: true });
-          await fsp.rename(file, path.join(dir, `${String(Date.now())}-${path.basename(file)}`));
-        }
-      : (file) => shell.trashItem(file),
-    showItemInFolder: safeMode
-      ? () => undefined
-      : (file) => {
-          shell.showItemInFolder(file);
-        },
-  });
   void cleanupTempFiles(settings.get().projects.folder);
 
   // ── palettes, TaleSpire, catalog
@@ -294,9 +270,34 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
   });
 
   // ── the build's palettes: everything that resolves a plan resolves against them (services/buildPalettes.ts).
-  // Plan validation and `materialize` in this process use them through core's hooks; the renderer fetches them.
+  // Plan validation, `materialize` and history replay in this process get their rules from them (the core port
+  // below); the renderer fetches them.
   const buildPalettes = new BuildPalettes({ palettes, catalog });
-  registerWp2Hooks(() => buildPalettes.current());
+
+  // ── core ports
+  const core = createPlanCorePort(() => planRules(buildPalettes.current()));
+
+  // ── projects
+  const projects = new ProjectService({
+    settings,
+    core,
+    dialogs,
+    emit,
+    logger: logger.child("projects"),
+    appVersion: ctx.appVersion,
+    trashItem: safeMode
+      ? async (file) => {
+          const dir = path.join(paths.userData, "trash");
+          await fsp.mkdir(dir, { recursive: true });
+          await fsp.rename(file, path.join(dir, `${String(Date.now())}-${path.basename(file)}`));
+        }
+      : (file) => shell.trashItem(file),
+    showItemInFolder: safeMode
+      ? () => undefined
+      : (file) => {
+          shell.showItemInFolder(file);
+        },
+  });
   let announcedKey: string | null = null;
   announcePalettes = () => {
     const { key } = buildPalettes.data();

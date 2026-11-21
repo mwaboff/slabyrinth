@@ -7,7 +7,6 @@ import { describe, expect, it } from "vitest";
 import { realize } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { loadPlan } from "../../fixtures";
 
 const pal = loadPalettes();
