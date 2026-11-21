@@ -1,6 +1,5 @@
 import type { AssetCatalog, Palette, PaletteCatalog } from "@slabyrinth/core";
-import { resolvePalettesData, type ResolvePalettesData } from "@slabyrinth/core/palette";
-import { availabilityFromCatalog, buildPaletteCatalog } from "../ports/compile";
+import { buildPaletteCatalog, resolvePalettesData, type ResolvePalettesData } from "@slabyrinth/core/palette";
 import type { PaletteService } from "./paletteService";
 import type { CatalogService } from "./talespire/catalogService";
 
@@ -12,9 +11,10 @@ export interface BuildPalettesDeps {
 /**
  * The palettes builds compile with (the bundled palettes, the user's palette files and the scanned game assets),
  * for everything outside the compile worker that resolves a plan: the agent's views, checks and design review, plan
- * validation and `materialize` (registered with core's hooks in app.ts), and the 2D preview, which receives them as
- * plain data (`data()`, IPC "palettes:resolveData"). They are built by the same function as the compile worker's
- * (ports/compile.ts `buildPaletteCatalog`), so preview, agent and build resolve a plan alike.
+ * validation, `materialize` and history replay (core `planRules` of these, through the core port in app.ts), and the
+ * 2D preview, which receives them as plain data (`data()`, IPC "palettes:resolveData"). They are built by the same
+ * core function as the compile worker's and the CLI's (`buildPaletteCatalog`), so preview, agent and build resolve a
+ * plan alike.
  *
  * Rebuilt only when the palette files are reloaded or the asset catalog changes (both replace the objects this keys
  * on: PaletteService's effective list and CatalogService's current catalog).
@@ -48,7 +48,7 @@ export class BuildPalettes {
       this.memo = {
         effective,
         catalog,
-        palettes: buildPaletteCatalog(userPalettes, availabilityFromCatalog(catalog)),
+        palettes: buildPaletteCatalog(userPalettes, catalog),
       };
     }
     return this.memo;

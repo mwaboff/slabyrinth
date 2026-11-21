@@ -16,22 +16,18 @@
  *                      builds the plan so substituted pieces are summarised, unless --no-build)
  *
  * Every command that resolves a plan resolves it against the palettes it would be compiled with (`palettesFrom`:
- * the bundled palettes, plus --palettes and --catalog when given), so validate, ascii, compile and review agree.
+ * the bundled palettes, plus --palettes and --catalog when given, built by core's `buildPaletteCatalog` as the app
+ * builds them), so validate, ascii, compile and review agree with each other and with the app.
  * node:* imports are allowed only in src/cli. Exit codes: 0 ok, 1 errors in the input, 2 usage.
  */
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
-import {
-  NULL_AVAILABILITY,
-  buildCatalogFromInstall,
-  createAvailability,
-  locateTaleSpire,
-} from "../catalog/index";
+import { buildCatalogFromInstall, createAvailability, locateTaleSpire } from "../catalog/index";
 import type { AssetCatalog, ChunkOptions, PaletteCatalog, SlabAsset } from "../contracts/compiler";
 import type { MapPlan } from "../contracts/plan";
 import { calibrationAssetsFrom, calibrationSlabAssets, compileResolved, realize } from "../compile/index";
-import { loadOrientation, loadPalettes } from "../palette/index";
+import { buildPaletteCatalog, loadOrientation, loadPalettes } from "../palette/index";
 import { validatePlan } from "../plan/index";
 import { planRules, resolvePlan } from "../resolve/index";
 import {
@@ -102,10 +98,7 @@ function palettesFrom(a: Args, io: CliIo): PaletteCatalog {
       .sort())
       user.push({ source: f, data: readJson(join(dir, f), io) });
   const catPath = flag(a, "catalog");
-  const availability = catPath
-    ? createAvailability(readJson(catPath, io) as AssetCatalog)
-    : NULL_AVAILABILITY;
-  const cat = loadPalettes({ user, availability });
+  const cat = buildPaletteCatalog(user, catPath ? (readJson(catPath, io) as AssetCatalog) : null);
   for (const i of cat.issues) io.err(`palette ${i.severity}: ${i.source}: ${i.message}`);
   return cat;
 }

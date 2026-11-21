@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
-import { createAvailability } from "@slabyrinth/core/catalog";
 import { createCompilePlan, estimate as coreEstimate } from "@slabyrinth/core/compile";
-import { loadOrientation, loadPalettes } from "@slabyrinth/core/palette";
+import { buildPaletteCatalog, loadOrientation } from "@slabyrinth/core/palette";
 import { isBlocking } from "@slabyrinth/core";
 import { validatePlan } from "@slabyrinth/core/plan";
 import { planRules, resolvePlan } from "@slabyrinth/core/resolve";
@@ -54,28 +53,10 @@ export function availabilityFromCatalog(catalog: AssetCatalog | null): CompileIn
   return catalog ? catalog.assets : null;
 }
 
-/**
- * The palettes a build compiles with: the bundled palettes, the user's palette files and, with a scanned catalog,
- * the game's assets (availability, and assets from game updates joining their roles as low-weight extra variants,
- * core palette/auto.ts). The compile worker builds them for each job; main builds the same for everything else that
- * resolves a plan (services/buildPalettes.ts), so the preview and the agent describe the map the build produces.
- */
-export function buildPaletteCatalog(
-  userPalettes: CompileInput["userPalettes"],
-  availability: CompileInput["availability"],
-): PaletteCatalog {
-  return availability === null
-    ? loadPalettes({ user: userPalettes })
-    : loadPalettes({
-        user: userPalettes,
-        availability: createAvailability(availability),
-        catalog: availability,
-      });
-}
-
 export function createCoreCompileBackend(): CompileBackend {
   const orientationFor = (input: CompileInput): OrientationCalibration =>
     loadOrientation(input.orientationOverride ?? undefined).orientation;
+  // the same function main builds its palettes with (services/buildPalettes.ts) and the CLI uses
   const palettesFor = (input: CompileInput): PaletteCatalog =>
     buildPaletteCatalog(input.userPalettes, input.availability);
 
