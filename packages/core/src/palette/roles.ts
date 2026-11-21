@@ -95,8 +95,79 @@ export const RUINED_WALL_ROLE: RoleName = wallRole("ruined");
 export const THEME_LINTEL_ROLE: RoleName = lintelRole(THEME_WALL_STYLE);
 export const THEME_POST_ROLE: RoleName = postRole(THEME_WALL_STYLE);
 
+// ── a building's parts (compile/realize/structures/*) ──
+
+/**
+ * The families of a building's parts: each part's role is `<family>.<style>` for a wall style, a roof kit or a door
+ * family (`chimney.stone`), with a palette-wide `<family>.default` after the style's own (`chimney.default`).
+ */
+export type BuildingPart =
+  | "facade"
+  | "footing"
+  | "facade_post"
+  | "over_door"
+  | "wall_short"
+  | "window"
+  | "gable"
+  | "gable_short"
+  | "seam_ledge"
+  | "crenel"
+  | "corbel"
+  | "chimney"
+  | "chimney_top"
+  | "porch_post"
+  | "wall_light"
+  | "sign_band"
+  | "corner_pier"
+  | "canopy"
+  | "balcony"
+  | "balcony_rail"
+  | "fire_escape"
+  | "wall_pipe"
+  | "wall_unit"
+  | "mast"
+  | "finial"
+  | "magic_beacon"
+  | "roof_clutter"
+  | "roof_terrace"
+  | "gate"
+  | "ruin_rubble"
+  | "ruin_block"
+  | "ruin_prop"
+  | "ruin_growth"
+  | "ruin_climber"
+  | "ruin_root"
+  | "ruin_cap"
+  | "ruin_tree";
+
+/** The style word of a part's palette-wide piece (`chimney.default`, `roof.default.deck`). */
+export const DEFAULT_PART = "default";
+/** A building part in a style: `<part>.<style>`. */
+export const partRole = (part: BuildingPart, style: string): RoleName => `${part}.${style}`;
+/** A building part's palette-wide piece: `<part>.default`. */
+export const defaultPartRole = (part: BuildingPart): RoleName => partRole(part, DEFAULT_PART);
+/** A piece of a roof kit: `roof.<kit>.<piece>` (slope, slope2, slope2x2, cap, corner, step, flat, deck, shell, tip ...). */
+export const roofRole = (kit: string, piece: string): RoleName => `roof.${kit}.${piece}`;
+/** An opening kind's piece of one style or door family: `opening.<kind>.<family>` (opening.door.shop). */
+export const styledOpeningRole = (kind: string, family: string): RoleName => `${openingRole(kind)}.${family}`;
+/** A light anchor of a building: `light.<kind>` (window, glow, strip), or of a wall style or colour. */
+export const lightRole = (kind: "window" | "glow" | "strip", style?: string): RoleName =>
+  style === undefined ? `light.${kind}` : `light.${kind}.${style}`;
+/** The battlements of a seam with no crenel piece: a parapet course, else a low wall. */
+export const CRENEL_FALLBACK_ROLES: readonly RoleName[] = [wallRole("parapet"), wallRole("low_wall")];
+/** The railing round a tower's balcony ring. */
+export const BALCONY_RING_RAIL_ROLES: readonly RoleName[] = [wallRole("railing_stone"), wallRole("railing")];
+
+/**
+ * The roles a building style's look depends on (walls, windows, doors, the roof kit's slopes and flats): a fallback away
+ * from one of them is named (`structure_style_fallback`).
+ */
+const STYLE_LOOK_ROLE =
+  /^(facade|window|opening\.(door|double_door))\.[a-z_]+$|^roof\.[a-z_]+\.(slope|slope2x2|flat)$/;
+export const isStyleLookRole = (role: RoleName): boolean => STYLE_LOOK_ROLE.test(role);
+
 /** Climbing growth on a weathered or ruined building's walls (resolve/growth.ts). */
-export const RUIN_CLIMBER_ROLE: RoleName = "ruin_climber.default";
+export const RUIN_CLIMBER_ROLE: RoleName = defaultPartRole("ruin_climber");
 
 /** A market stall as one piece (the generator-3 table stall and its kinds' variants). */
 export const STALL_PIECE_ROLE: RoleName = featureRole("stall");

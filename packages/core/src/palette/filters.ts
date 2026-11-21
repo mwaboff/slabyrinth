@@ -2,8 +2,7 @@
  * Every variant filter the build asks a role with (palette/resolve.ts VariantFilter), each with a memo key made from
  * its parameters. The role resolver memoizes answers by theme, role and filter key, so two filters with one key and
  * different tests would share whichever answer came first: a filter is made here, where its key follows from what it
- * tests, never as an object literal where it is used (a lint guard keeps it so; compile/structure.ts is listed until it
- * moves onto realize's primitives).
+ * tests, never as an object literal where it is used (a lint guard keeps it so).
  */
 import type { ResolvedVariant, VariantFilter } from "./resolve";
 
@@ -61,6 +60,31 @@ export const variantNamed = (name: string): VariantFilter => ({
 /** Intact pieces (not the "broken" variant) and broken ones. */
 export const INTACT: VariantFilter = { key: "intact", test: (v) => v.variant !== "broken" };
 export const BROKEN: VariantFilter = { key: "broken", test: (v) => v.variant === "broken" };
+
+// ── growth on a building (compile/realize/structures/dressing.ts) ──
+
+const widest = (v: ResolvedVariant): number => Math.max(v.geom.size.x, v.geom.size.z);
+const slim = (v: ResolvedVariant): boolean => widest(v) <= 1.1;
+
+/** A vine strand: no wider than a wall face, no taller than a storey. */
+export const VINE_STRAND: VariantFilter = { key: "strand", test: (v) => slim(v) && v.geom.size.y <= 2.4 };
+/** A broad batch of climbing growth, a face and a half to two wide, for the foot of a heavy mass. */
+export const VINE_BATCH: VariantFilter = {
+  key: "vinebatch",
+  test: (v) => v.geom.size.x >= 1.5 && v.geom.size.x <= 2.1 && v.geom.size.y <= 2.4,
+};
+/** Roots on a wall face: no wider than the face. */
+export const WALL_ROOT: VariantFilter = { key: "wallroot", test: slim };
+/** A small plant on a cut wall top. */
+export const SMALL_PLANT: VariantFilter = {
+  key: "smallplant",
+  test: (v) => widest(v) <= 1.8 && v.geom.size.y <= 1.3,
+};
+/** A small tree in a roofless room. */
+export const SMALL_TREE: VariantFilter = {
+  key: "smalltree",
+  test: (v) => widest(v) <= 3.2 && v.geom.size.y <= 4.2,
+};
 
 /** Both filters at once. */
 export const both = (a: VariantFilter, b: VariantFilter): VariantFilter => ({
