@@ -20,6 +20,9 @@
  * Levels stacked in one slab: a cap cell over an open cell of a level below is left out (it would hide that room, and
  * the lower level must stay visible where it sticks out or opens under a hole), and a cap cell under a higher level's
  * floor is left out (hidden, saves pieces).
+ *
+ * planShell is a list of steps over the level's cells (local indices): the wall faces, the cap top, the rings, the
+ * blocks and the budget, the outline cleanup and the skirt, and the strips of a tidy interior.
  */
 import type { Material, Side, ThemeId } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
@@ -104,6 +107,34 @@ const DIRS: readonly Dir[] = [
   [0, 1, "S"],
   [-1, 0, "W"],
 ];
+const STEPS4 = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
+
+/** One level's cells as the shell planner reads them: local indices, -1 for a cell outside the bounds. */
+interface ShellGrid extends CellGrid {
+  readonly L: ResolvedLevel;
+  readonly defaultTheme: ThemeId;
+  /** Local index of a cell, -1 outside the bounds. */
+  at(lx: number, ly: number): number;
+  /** CELL state of a local index, -1 for -1. */
+  state(i: number): number;
+}
+
+function shellGrid(L: ResolvedLevel, defaultTheme: ThemeId): ShellGrid {
+  const { w, h } = L.bounds;
+  return {
+    L,
+    w,
+    h,
+    defaultTheme,
+    at: (lx, ly) => (lx < 0 || ly < 0 || lx >= w || ly >= h ? -1 : ly * w + lx),
+    state: (i) => (i < 0 ? -1 : (L.cells.state[i] ?? CELL.VOID)),
+  };
+}
 
 /**
  * Plans the shell of one level, or null when it has none: no SOLID cells or no thin wall against rock. Only generators
@@ -117,60 +148,104 @@ export function planShell(
   claimed: (orient: "h" | "v", edge: number) => boolean,
   defaultTheme: ThemeId,
 ): Shell | null {
-  const { w, h } = L.bounds;
-  const at = (lx: number, ly: number): number => (lx < 0 || ly < 0 || lx >= w || ly >= h ? -1 : ly * w + lx);
-  const state = (i: number): number => (i < 0 ? -1 : (L.cells.state[i] ?? CELL.VOID));
-  let anySolid = false;
-  for (let i = 0; i < w * h; i++)
-    if (L.cells.state[i] === CELL.SOLID) {
-      anySolid = true;
-      break;
-    }
-  if (!anySolid) return null;
+  const g = shellGrid(L, defaultTheme);
+  if (!L.cells.state.some((s, i) => i < g.w * g.h && s === CELL.SOLID)) return null;
+  const faces = wallFaces(g, claimed);
+  if (faces.seeds.size === 0 && faces.tidyTop.size === 0) return null;
+  // the solid cells are shared with the cave rock mass (gen/solidMass.ts): each belongs to the dresser of the nearest
+  // wall, so the cap and the rock meet with no gutter between them and no cell is dressed twice
+  const owner = ownSolid(g, (i) => g.state(i) === CELL.SOLID, faces.rockFace, [
+    ...faces.seeds.keys(),
+    ...faces.tidyTop.keys(),
+  ]);
+  const cap: CapPlan = {
+    g,
+    faces,
+    rockOwns: (k) => owner[k] === OWNER.rock,
+    ...capTop(faces),
+    theme: new Map(),
+    stacked: stackedLevels(resolved, L),
+  };
+  const ring = reachRings(cap, seed);
 
+  // the budget: the pieces the cap (2x2 tiles with singles at the rim, about 2.5 cells a piece) and the skirt (2 edges a
+  // piece) take; a level over it gives up its outer blocks (blockMin 3, then 5 = only the ring against the walls)
+  let assembled: { cells: Shell["cells"]; edges: ShellEdge[] } = { cells: new Map(), edges: [] };
+  for (const blockMin of SHELL.blockMin) {
+    const a = assemble(cap, blocks(cap, ring, blockMin));
+    assembled = a;
+    // cells that stand lower than the flat cap are single tiles; the rest tile about 3 cells to a piece
+    const singles = [...a.cells.values()].filter((c) => c.top !== cap.top).length;
+    const pieces = singles + Math.ceil((a.cells.size - singles) / 3) + Math.ceil(a.edges.length / 1.6);
+    if (pieces <= SHELL.budget) break;
+  }
+  const { cells, edges } = assembled;
+  const strips = tidyStrips(cap, cells);
+  if (cells.size === 0 && strips.length === 0) return null;
+  return {
+    cells,
+    top: faces.seeds.size > 0 ? cap.top : 0,
+    base: L.elevation + Math.min(0, faces.floorLow),
+    edges,
+    strips,
+    style: cap.style,
+    theme: [...cells.values()][0]?.theme ?? strips[0]?.theme ?? defaultTheme,
+    rockMayTake: (x, y) => {
+      const k = g.at(x - L.bounds.x, y - L.bounds.y);
+      return k < 0 || owner[k] !== OWNER.built;
+    },
+  };
+}
+
+// ── wall faces ──
+
+/** What the thin walls round a level's rooms say about the solid cells behind them (local indices). */
+interface WallFaces {
+  /** Solid cells against a thin wall of a rough room: the room's theme, the wall's style, the tallest wall top. */
+  seeds: Map<number, { theme: ThemeId; style: string; top: number }>;
+  /** Solid cells against a thin wall of a tidy room -> the tallest wall top. */
+  tidyTop: Map<number, number>;
+  /** Solid cells touching an open cell with no wall between (left uncapped). */
+  bare: Set<number>;
+  /** Solid cells behind a natural rock wall (the cave work owns them), once per face. */
+  rockFace: number[];
+  /** The lowest floor of the level (relative tiles, at most 0). */
+  floorLow: number;
+  /** Rough interior cells (1; resolve/wallTops.ts roughCells). */
+  rough: Uint8Array;
+}
+
+/**
+ * The shell's own way of finding wall faces: every OPEN cell's sides that are a WALL or an OPENING edge to an in-bounds
+ * SOLID cell, unless a building claims the edge. Natural rock (the wall-style trait, gen/wallStyles.ts) is the cave
+ * work's; the rest keep the tallest wall top per solid cell.
+ *
+ * The rock wall pass finds its faces differently on purpose (compile/realize/walls.ts `gatherFullCells`: WALL edges
+ * only, chosen by the palette's full-cell mount, the face cell flipped across an open host and possibly VOID or out of
+ * bounds, spans merged as lowest base and highest top), so the two are not one routine.
+ */
+function wallFaces(g: ShellGrid, claimed: (orient: "h" | "v", edge: number) => boolean): WallFaces {
+  const { L, w, h, defaultTheme } = g;
   const ref = areaReferenceHeights(L);
-  const spanCell = (i: number): SpanCell => {
-    if (i < 0) return { open: false, floor: false, height: 0, area: 0, flags: 0 };
-    const flags = L.cells.flags[i] ?? 0;
-    const open = L.cells.state[i] === CELL.OPEN;
-    return {
-      open,
-      floor: open && (flags & CELL_FLAG.NO_FLOOR) === 0 && (L.cells.material[i] ?? 0) > 0,
-      height: (L.cells.height[i] ?? 0) / 4,
-      area: L.cells.area[i] ?? 0,
-      flags,
-    };
+  const faces: WallFaces = {
+    seeds: new Map(),
+    tidyTop: new Map(),
+    bare: new Set(),
+    rockFace: [],
+    floorLow: 0,
+    rough: roughCells(L),
   };
-  const edgeOf = (lx: number, ly: number, side: Side): { orient: "h" | "v"; e: number } => {
-    switch (side) {
-      case "N":
-        return { orient: "h", e: ly * w + lx };
-      case "S":
-        return { orient: "h", e: (ly + 1) * w + lx };
-      case "W":
-        return { orient: "v", e: ly * (w + 1) + lx };
-      case "E":
-        return { orient: "v", e: ly * (w + 1) + lx + 1 };
-    }
-  };
-
-  // ── seeds: solid cells that stand against a thin wall of a room ──
-  const seeds = new Map<number, { theme: ThemeId; style: string; top: number }>();
-  const rough = roughCells(L);
-  const tidyTop = new Map<number, number>(); // solid cells against a thin wall of a tidy room -> tallest wall top
-  const bare = new Set<number>(); // solid cells touching an open cell with no wall between (left uncapped)
-  const rockFace: number[] = [];
-  let floorLow = 0;
+  const { seeds, tidyTop, bare, rockFace, rough } = faces;
   for (let ly = 0; ly < h; ly++)
     for (let lx = 0; lx < w; lx++) {
       const i = ly * w + lx;
-      if (state(i) !== CELL.OPEN) continue;
-      const sc = spanCell(i);
-      if (sc.floor) floorLow = Math.min(floorLow, sc.height);
+      if (g.state(i) !== CELL.OPEN) continue;
+      const sc = spanCell(L, i);
+      if (sc.floor) faces.floorLow = Math.min(faces.floorLow, sc.height);
       for (const [dx, dy, side] of DIRS) {
-        const j = at(lx + dx, ly + dy);
-        if (state(j) !== CELL.SOLID) continue;
-        const { orient, e } = edgeOf(lx, ly, side);
+        const j = g.at(lx + dx, ly + dy);
+        if (g.state(j) !== CELL.SOLID) continue;
+        const { orient, e } = edgeOf(g, lx, ly, side);
         const grid = orient === "h" ? L.hEdges : L.vEdges;
         const kind = grid.kind[e] ?? EDGE.NONE;
         if (kind !== EDGE.WALL && kind !== EDGE.OPENING) {
@@ -187,8 +262,8 @@ export function planShell(
           rockFace.push(j);
           continue;
         }
-        const first = side === "S" || side === "E" ? sc : spanCell(j);
-        const second = side === "S" || side === "E" ? spanCell(j) : sc;
+        const first = side === "S" || side === "E" ? sc : spanCell(L, j);
+        const second = side === "S" || side === "E" ? spanCell(L, j) : sc;
         const hostFirst = (grid.host[e] ?? 1) === 0;
         const hgt = (grid.height[e] ?? 0) > 0 ? (grid.height[e] ?? 2) : 2;
         const span = wallSpan(L.elevation, first, second, hostFirst, hgt, ref);
@@ -203,38 +278,87 @@ export function planShell(
         if (!prev || span.top > prev.top) seeds.set(j, { theme, style, top: span.top });
       }
     }
-  if (seeds.size === 0 && tidyTop.size === 0) return null;
-  // the solid cells are shared with the cave rock mass (gen/solidMass.ts): each belongs to the dresser of the nearest
-  // wall, so the cap and the rock meet with no gutter between them and no cell is dressed twice
-  const grid: CellGrid = { w, h };
-  const owner = ownSolid(grid, (i) => state(i) === CELL.SOLID, rockFace, [
-    ...seeds.keys(),
-    ...tidyTop.keys(),
-  ]);
-  const clear = { has: (k: number): boolean => owner[k] === OWNER.rock };
+  return faces;
+}
 
-  // the cap top: the most common wall top among the seeds (ties: the higher), so a lowered run sits below the cap
+/** A cell as the wall span reads it (resolve/wallspan.ts). */
+function spanCell(L: ResolvedLevel, i: number): SpanCell {
+  if (i < 0) return { open: false, floor: false, height: 0, area: 0, flags: 0 };
+  const flags = L.cells.flags[i] ?? 0;
+  const open = L.cells.state[i] === CELL.OPEN;
+  return {
+    open,
+    floor: open && (flags & CELL_FLAG.NO_FLOOR) === 0 && (L.cells.material[i] ?? 0) > 0,
+    height: (L.cells.height[i] ?? 0) / 4,
+    area: L.cells.area[i] ?? 0,
+    flags,
+  };
+}
+
+/** The edge on one side of a cell (local coordinates). */
+function edgeOf(g: ShellGrid, lx: number, ly: number, side: Side): { orient: "h" | "v"; e: number } {
+  const { w } = g;
+  switch (side) {
+    case "N":
+      return { orient: "h", e: ly * w + lx };
+    case "S":
+      return { orient: "h", e: (ly + 1) * w + lx };
+    case "W":
+      return { orient: "v", e: ly * (w + 1) + lx };
+    case "E":
+      return { orient: "v", e: ly * (w + 1) + lx + 1 };
+  }
+}
+
+// ── the cap ──
+
+/** Everything the cap steps share. */
+interface CapPlan {
+  g: ShellGrid;
+  faces: WallFaces;
+  /** The cave rock mass owns this solid cell (gen/solidMass.ts ownSolid): the shell leaves it. */
+  rockOwns: (k: number) => boolean;
+  /** The most common wall top among the seeds (ties: the higher). */
+  flat: number;
+  /** The flat cap's top: `flat` plus the lift. */
+  top: number;
+  /** The skirt's wall style: the most common style among the seeds (ties: the first by name). */
+  style: string;
+  /** Theme of each capped cell; the ring, block and notch steps add to it as they reach cells. */
+  theme: Map<number, ThemeId>;
+  stacked: StackedLevels;
+}
+
+/** May the cap take this solid cell (not bare, not the rock's)? */
+const cappable = (cap: CapPlan, k: number): boolean =>
+  k >= 0 && cap.g.state(k) === CELL.SOLID && !cap.faces.bare.has(k) && !cap.rockOwns(k);
+
+/** The cap top: the most common wall top among the seeds (ties: the higher), so a lowered run sits below the cap. */
+function capTop(faces: WallFaces): { flat: number; top: number; style: string } {
   const tally = new Map<number, number>();
   const styles = new Map<string, number>();
-  for (const s of seeds.values()) {
+  for (const s of faces.seeds.values()) {
     tally.set(s.top, (tally.get(s.top) ?? 0) + 1);
     styles.set(s.style, (styles.get(s.style) ?? 0) + 1);
   }
   let flat = -Infinity;
   let best = -1;
   for (const [t, c] of tally) if (c > best || (c === best && t > flat)) [flat, best] = [t, c];
-  const top = flat + SHELL.lift;
   let style = "wall";
   let sBest = -1;
   for (const [s, c] of [...styles].sort((a, b) => (a[0] < b[0] ? -1 : 1)))
     if (c > sBest) [style, sBest] = [s, c];
+  return { flat, top: flat + SHELL.lift, style };
+}
 
-  // ── rings ──
+/** The rings: ring 1 is every seed the cap may take, each further ring the noisy part of the cells round the last. */
+function reachRings(cap: CapPlan, seed: number): Map<number, number> {
+  const { g, faces, theme } = cap;
+  const { L, w, defaultTheme } = g;
   const noise = new ValueNoise(h32(`${seed}:${L.id}:shell`));
   const ring = new Map<number, number>();
-  const theme = new Map<number, ThemeId>();
-  for (const [j, s] of seeds) {
-    if (bare.has(j) || clear.has(j)) continue;
+  for (const [j, s] of faces.seeds) {
+    if (faces.bare.has(j) || cap.rockOwns(j)) continue;
     ring.set(j, 1);
     theme.set(j, s.theme);
   }
@@ -246,8 +370,8 @@ export function planShell(
       const y = (i - x) / w;
       for (let dy = -1; dy <= 1; dy++)
         for (let dx = -1; dx <= 1; dx++) {
-          const k = at(x + dx, y + dy);
-          if (k < 0 || ring.has(k) || state(k) !== CELL.SOLID || bare.has(k) || clear.has(k)) continue;
+          const k = g.at(x + dx, y + dy);
+          if (ring.has(k) || !cappable(cap, k)) continue;
           const kx = k % w;
           const ky = (k - kx) / w;
           const n =
@@ -262,29 +386,120 @@ export function planShell(
       theme.set(k, t);
     }
   }
+  return ring;
+}
 
-  // ── blocks: outer rings are laid in 2x2 blocks on the level's own even lattice (a block is kept when at least two of
-  // its four cells reached by the rings are solid and the other two are solid too), so the outline steps in twos and
-  // the cap needs big tiles; the ring-1 cells against the walls are always capped, in tiles of their own ──
-  const blocksFor = (blockMin: number): Map<number, number> => {
-    const capRing = new Map<number, number>();
-    for (const [i, r] of ring) if (r === 1) capRing.set(i, 1);
-    for (let by = 0; by < h; by += 2)
-      for (let bx = 0; bx < w; bx += 2) {
-        const ks = [at(bx, by), at(bx + 1, by), at(bx, by + 1), at(bx + 1, by + 1)];
-        if (ks.some((k) => k < 0 || state(k) !== CELL.SOLID || bare.has(k) || clear.has(k))) continue;
-        const reached = ks.filter((k) => ring.has(k));
-        if (reached.length < blockMin) continue;
-        const near = theme.get(reached[0] as number) ?? defaultTheme;
-        for (const k of ks) {
-          if (!capRing.has(k)) capRing.set(k, ring.get(k) ?? SHELL.reach + 1);
-          if (!theme.has(k)) theme.set(k, near);
-        }
+/**
+ * The blocks: outer rings are laid in 2x2 blocks on the level's own even lattice (a block is kept when at least
+ * `blockMin` of its four cells were reached by the rings and all four may be capped), so the outline steps in twos and the
+ * cap needs big tiles; the ring-1 cells against the walls are always capped, in tiles of their own.
+ */
+function blocks(cap: CapPlan, ring: ReadonlyMap<number, number>, blockMin: number): Map<number, number> {
+  const { g, theme } = cap;
+  const capRing = new Map<number, number>();
+  for (const [i, r] of ring) if (r === 1) capRing.set(i, 1);
+  for (let by = 0; by < g.h; by += 2)
+    for (let bx = 0; bx < g.w; bx += 2) {
+      const ks = [g.at(bx, by), g.at(bx + 1, by), g.at(bx, by + 1), g.at(bx + 1, by + 1)];
+      if (ks.some((k) => !cappable(cap, k))) continue;
+      const reached = ks.filter((k) => ring.has(k));
+      if (reached.length < blockMin) continue;
+      const near = theme.get(reached[0] as number) ?? g.defaultTheme;
+      for (const k of ks) {
+        if (!capRing.has(k)) capRing.set(k, ring.get(k) ?? SHELL.reach + 1);
+        if (!theme.has(k)) theme.set(k, near);
       }
-    return capRing;
-  };
+    }
+  return capRing;
+}
 
-  // ── other levels in the slab ──
+/** The cap cells (plan coordinates) and the skirt round them, from the cells the blocks chose. */
+function assemble(cap: CapPlan, capRing: Map<number, number>): { cells: Shell["cells"]; edges: ShellEdge[] } {
+  const { g, faces, theme, stacked } = cap;
+  const { L, w, defaultTheme } = g;
+  const hiddenNeighbour = new Set<number>();
+  // eligible cells: solid, not bare, clear of rock, not hidden (cells under a higher floor or over a lower room)
+  const eligible = (i: number): boolean => {
+    if (!cappable(cap, i)) return false;
+    const x = i % w;
+    const y = (i - x) / w;
+    return (
+      !stacked.hiddenAbove(L.bounds.x + x, L.bounds.y + y, cap.top) &&
+      !stacked.hidesBelow(L.bounds.x + x, L.bounds.y + y)
+    );
+  };
+  const set = new Map<number, number>(); // local index -> ring
+  for (const [i, r] of capRing) {
+    const x = i % w;
+    const y = (i - x) / w;
+    if (stacked.hiddenAbove(L.bounds.x + x, L.bounds.y + y, cap.top)) {
+      hiddenNeighbour.add(i);
+      continue;
+    }
+    if (stacked.hidesBelow(L.bounds.x + x, L.bounds.y + y)) continue;
+    set.set(i, r);
+  }
+  // outline cleanup (gen/solidMass.ts, shared with the cave outline): teeth of the outer rings, notches and holes, and
+  // isolated lumps (components with no cell against a wall, or under minComponent cells)
+  if (SHELL.cleanup) {
+    trimTeeth(g, set, (_i, r) => r > 1);
+    fillNotches(g, set, eligible, (k, near) => {
+      theme.set(k, theme.get(near) ?? defaultTheme);
+      return 2;
+    });
+    dropLumps(g, set, (_i, r) => r === 1, SHELL.minComponent);
+  }
+  const cells: Shell["cells"] = new Map();
+  for (const [i, r] of set) {
+    const x = i % w;
+    const y = (i - x) / w;
+    const gx = L.bounds.x + x;
+    const gy = L.bounds.y + y;
+    cells.set(`${gx},${gy}`, {
+      x: gx,
+      y: gy,
+      theme: theme.get(i) ?? defaultTheme,
+      ring: r,
+      top: r === 1 ? (faces.seeds.get(i)?.top ?? cap.flat) + SHELL.lift : cap.top,
+    });
+  }
+  return { cells, edges: skirtOf(g, cells, hiddenNeighbour) };
+}
+
+/** The skirt: the outer edge of the cap (not the board's own edge, not toward an open or a hidden cell). */
+function skirtOf(g: ShellGrid, cells: Shell["cells"], hiddenNeighbour: ReadonlySet<number>): ShellEdge[] {
+  const { L } = g;
+  const edges: ShellEdge[] = [];
+  for (const c of [...cells.values()].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    const lx = c.x - L.bounds.x;
+    const ly = c.y - L.bounds.y;
+    for (const [dx, dy, side] of DIRS) {
+      const j = g.at(lx + dx, ly + dy);
+      if (j < 0) continue; // the board's own edge: slabs are tiled beside each other
+      if (cells.has(`${c.x + dx},${c.y + dy}`) || g.state(j) === CELL.OPEN || hiddenNeighbour.has(j))
+        continue;
+      const hostFirst = side === "S" || side === "E";
+      const e = { hostX: c.x, hostY: c.y, hostFirst, planSide: side, top: c.top };
+      if (side === "N") edges.push({ orient: "h", x: c.x, y: c.y, ...e });
+      else if (side === "S") edges.push({ orient: "h", x: c.x, y: c.y + 1, ...e });
+      else if (side === "W") edges.push({ orient: "v", x: c.x, y: c.y, ...e });
+      else edges.push({ orient: "v", x: c.x + 1, y: c.y, ...e });
+    }
+  }
+  return edges;
+}
+
+// ── other levels in the slab ──
+
+/** What the other levels stacked in the slab hide or need to show (plan coordinates). */
+interface StackedLevels {
+  /** A higher level's floor stands over the cell within four tiles of the cap top (the cap would be hidden). */
+  hiddenAbove(gx: number, gy: number, capTop: number): boolean;
+  /** A lower level has an open cell under it (a cap there would hide that room). */
+  hidesBelow(gx: number, gy: number): boolean;
+}
+
+function stackedLevels(resolved: ResolvedPlan, L: ResolvedLevel): StackedLevels {
   const above = resolved.levels.filter((o) => o.id !== L.id && o.elevation > L.elevation);
   const below = resolved.levels.filter((o) => o.id !== L.id && o.elevation < L.elevation);
   const otherAt = (o: ResolvedLevel, gx: number, gy: number): number => {
@@ -292,44 +507,40 @@ export function planShell(
     const ly = gy - o.bounds.y;
     return lx < 0 || ly < 0 || lx >= o.bounds.w || ly >= o.bounds.h ? -1 : ly * o.bounds.w + lx;
   };
-  const hiddenAbove = (gx: number, gy: number): boolean =>
-    above.some((o) => {
-      const k = otherAt(o, gx, gy);
-      if (k < 0 || o.cells.state[k] !== CELL.OPEN || ((o.cells.flags[k] ?? 0) & CELL_FLAG.NO_FLOOR) !== 0)
-        return false;
-      // within four tiles: a higher floor further up still hides the cap, but a gap that big is a different map
-      return o.elevation - top <= 4;
-    });
-  const hidesBelow = (gx: number, gy: number): boolean =>
-    below.some((o) => {
-      const k = otherAt(o, gx, gy);
-      return k >= 0 && o.cells.state[k] === CELL.OPEN;
-    });
+  return {
+    hiddenAbove: (gx, gy, capTop) =>
+      above.some((o) => {
+        const k = otherAt(o, gx, gy);
+        if (k < 0 || o.cells.state[k] !== CELL.OPEN || ((o.cells.flags[k] ?? 0) & CELL_FLAG.NO_FLOOR) !== 0)
+          return false;
+        // within four tiles: a higher floor further up still hides the cap, but a gap that big is a different map
+        return o.elevation - capTop <= 4;
+      }),
+    hidesBelow: (gx, gy) =>
+      below.some((o) => {
+        const k = otherAt(o, gx, gy);
+        return k >= 0 && o.cells.state[k] === CELL.OPEN;
+      }),
+  };
+}
 
-  // the budget: the pieces the cap (2x2 tiles with singles at the rim, about 2.5 cells a piece) and the skirt (2 edges a
-  // piece) take; a level over it gives up its outer blocks (blockMin 3, then 5 = only the ring against the walls)
-  let assembled: { cells: Shell["cells"]; edges: ShellEdge[] } = { cells: new Map(), edges: [] };
-  for (const blockMin of SHELL.blockMin) {
-    const a = assemble(blocksFor(blockMin));
-    assembled = a;
-    // cells that stand lower than the flat cap are single tiles; the rest tile about 3 cells to a piece
-    const singles = [...a.cells.values()].filter((c) => c.top !== top).length;
-    const pieces = singles + Math.ceil((a.cells.size - singles) / 3) + Math.ceil(a.edges.length / 1.6);
-    if (pieces <= SHELL.budget) break;
-  }
-  const { cells, edges } = assembled;
+// ── tidy strips ──
 
-  // ── tidy strips: a one-cell solid strip between two tidy rooms (or a room and the corridor) ──
-  const tidyOpen = (k: number): boolean => k >= 0 && state(k) === CELL.OPEN && rough[k] !== 1;
+/** A one-cell solid strip between two tidy rooms (or a room and the corridor), closed flush at wall-top height. */
+function tidyStrips(cap: CapPlan, cells: Shell["cells"]): Shell["strips"] {
+  const { g, faces, stacked } = cap;
+  const { L, w, h, defaultTheme } = g;
+  const { tidyTop, rough } = faces;
+  const tidyOpen = (k: number): boolean => k >= 0 && g.state(k) === CELL.OPEN && rough[k] !== 1;
   const strip = new Set<number>();
   for (let pass = 0; pass < 4; pass++) {
     for (let k = 0; k < w * h; k++) {
-      if (strip.has(k) || state(k) !== CELL.SOLID || bare.has(k) || clear.has(k)) continue;
+      if (strip.has(k) || !cappable(cap, k)) continue;
       const x = k % w;
       const y = (k - x) / w;
       const pairs: Array<[number, number]> = [
-        [at(x - 1, y), at(x + 1, y)],
-        [at(x, y - 1), at(x, y + 1)],
+        [g.at(x - 1, y), g.at(x + 1, y)],
+        [g.at(x, y - 1), g.at(x, y + 1)],
       ];
       const ok = pairs.some(([a, b]) => {
         const sa = a >= 0 && strip.has(a);
@@ -346,22 +557,18 @@ export function planShell(
     const y = (k - x) / w;
     const gx = L.bounds.x + x;
     const gy = L.bounds.y + y;
-    if (cells.has(`${gx},${gy}`) || hiddenAbove(gx, gy) || hidesBelow(gx, gy)) continue;
+    if (cells.has(`${gx},${gy}`) || stacked.hiddenAbove(gx, gy, cap.top) || stacked.hidesBelow(gx, gy))
+      continue;
     // the tallest wall top among this cell's own walls, else its strip neighbours' (a junction of two strips)
     let t = tidyTop.get(k) ?? -Infinity;
     if (t === -Infinity)
-      for (const [dx, dy] of [
-        [1, 0],
-        [-1, 0],
-        [0, 1],
-        [0, -1],
-      ] as const) {
-        const q = at(x + dx, y + dy);
+      for (const [dx, dy] of STEPS4) {
+        const q = g.at(x + dx, y + dy);
         if (q >= 0 && tidyTop.has(q)) t = Math.max(t, tidyTop.get(q) as number);
       }
     if (t === -Infinity) t = stripTopFallback;
     // the strip is laid with the floor of the room it joins (the compiler asks the palette for that floor's role)
-    const room = nearestOpen(k);
+    const room = nearestOpen(g, k);
     const mat = L.cells.material[room] ?? 0;
     strips.push({
       x: gx,
@@ -371,102 +578,16 @@ export function planShell(
       material: mat > 0 ? (L.materials[mat - 1] ?? null) : null,
     });
   }
-  if (cells.size === 0 && strips.length === 0) return null;
-  return {
-    cells,
-    top: seeds.size > 0 ? top : 0,
-    base: L.elevation + Math.min(0, floorLow),
-    edges,
-    strips,
-    style,
-    theme: [...cells.values()][0]?.theme ?? strips[0]?.theme ?? defaultTheme,
-    rockMayTake: (x, y) => {
-      const k = at(x - L.bounds.x, y - L.bounds.y);
-      return k < 0 || owner[k] !== OWNER.built;
-    },
-  };
+  return strips;
+}
 
-  function nearestOpen(k: number): number {
-    const x = k % w;
-    const y = (k - x) / w;
-    for (const [dx, dy] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ] as const) {
-      const q = at(x + dx, y + dy);
-      if (q >= 0 && state(q) === CELL.OPEN) return q;
-    }
-    return k;
+/** The first open neighbour of a cell (east, west, south, north), else the cell itself. */
+function nearestOpen(g: ShellGrid, k: number): number {
+  const x = k % g.w;
+  const y = (k - x) / g.w;
+  for (const [dx, dy] of STEPS4) {
+    const q = g.at(x + dx, y + dy);
+    if (q >= 0 && g.state(q) === CELL.OPEN) return q;
   }
-
-  function assemble(capRing: Map<number, number>): { cells: Shell["cells"]; edges: ShellEdge[] } {
-    const hiddenNeighbour = new Set<number>();
-    // eligible cells: solid, not bare, clear of rock, not hidden (cells under a higher floor or over a lower room)
-    const eligible = (i: number): boolean => {
-      if (i < 0 || state(i) !== CELL.SOLID || bare.has(i) || clear.has(i)) return false;
-      const x = i % w;
-      const y = (i - x) / w;
-      return !hiddenAbove(L.bounds.x + x, L.bounds.y + y) && !hidesBelow(L.bounds.x + x, L.bounds.y + y);
-    };
-    const set = new Map<number, number>(); // local index -> ring
-    for (const [i, r] of capRing) {
-      const x = i % w;
-      const y = (i - x) / w;
-      if (hiddenAbove(L.bounds.x + x, L.bounds.y + y)) {
-        hiddenNeighbour.add(i);
-        continue;
-      }
-      if (hidesBelow(L.bounds.x + x, L.bounds.y + y)) continue;
-      set.set(i, r);
-    }
-    // outline cleanup (gen/solidMass.ts, shared with the cave outline): teeth of the outer rings, notches and holes,
-    // and isolated lumps (components with no cell against a wall, or under minComponent cells)
-    if (SHELL.cleanup) {
-      trimTeeth(grid, set, (_i, r) => r > 1);
-      fillNotches(grid, set, eligible, (k, near) => {
-        theme.set(k, theme.get(near) ?? defaultTheme);
-        return 2;
-      });
-      dropLumps(grid, set, (_i, r) => r === 1, SHELL.minComponent);
-    }
-    const cells: Shell["cells"] = new Map();
-    for (const [i, r] of set) {
-      const x = i % w;
-      const y = (i - x) / w;
-      const gx = L.bounds.x + x;
-      const gy = L.bounds.y + y;
-      cells.set(`${gx},${gy}`, {
-        x: gx,
-        y: gy,
-        theme: theme.get(i) ?? defaultTheme,
-        ring: r,
-        top: r === 1 ? (seeds.get(i)?.top ?? flat) + SHELL.lift : top,
-      });
-    }
-    return { cells, edges: skirtOf(cells, hiddenNeighbour) };
-  }
-
-  // ── skirt: the outer edge of the cap ──
-  function skirtOf(cells: Shell["cells"], hiddenNeighbour: Set<number>): ShellEdge[] {
-    const edges: ShellEdge[] = [];
-    for (const c of [...cells.values()].sort((a, b) => a.y - b.y || a.x - b.x)) {
-      const lx = c.x - L.bounds.x;
-      const ly = c.y - L.bounds.y;
-      for (const [dx, dy, side] of DIRS) {
-        const j = at(lx + dx, ly + dy);
-        if (j < 0) continue; // the board's own edge: slabs are tiled beside each other
-        if (cells.has(`${c.x + dx},${c.y + dy}`) || state(j) === CELL.OPEN || hiddenNeighbour.has(j))
-          continue;
-        const hostFirst = side === "S" || side === "E";
-        const e = { hostX: c.x, hostY: c.y, hostFirst, planSide: side, top: c.top };
-        if (side === "N") edges.push({ orient: "h", x: c.x, y: c.y, ...e });
-        else if (side === "S") edges.push({ orient: "h", x: c.x, y: c.y + 1, ...e });
-        else if (side === "W") edges.push({ orient: "v", x: c.x, y: c.y, ...e });
-        else edges.push({ orient: "v", x: c.x + 1, y: c.y, ...e });
-      }
-    }
-    return edges;
-  }
+  return k;
 }
