@@ -2,9 +2,10 @@
  * The measures verify judges the build by (tiles unless named otherwise). Data, not code: each constant says what it
  * stands for, and the checks read them by name.
  */
+import { HEADROOM } from "../../plan/levels";
 
-/** Clear height a creature needs above a floor top (medium creature with margin). */
-export const HEAD = 1.5;
+/** Clear height a creature needs above a floor top (plan/levels.ts, which the resolver's cave relief also keeps). */
+export const HEAD = HEADROOM;
 /** Largest height difference walkable without stairs. */
 export const STEP = 0.5;
 /** The step of a placement's rotation (degrees): TaleSpire turns assets in 15° steps. */

@@ -5,7 +5,8 @@
  * compare the same plans at generators 3 and 4.
  */
 import { describe, expect, it } from "vitest";
-import type { MapPlan } from "../../../src/contracts/plan";
+import { BUILD_CONSTANTS, type MapPlan } from "../../../src/contracts/plan";
+import { floorTopAt, highestFloorTop, QUARTERS_PER_TILE } from "../../../src/plan/levels";
 import { CELL, CELL_FLAG, type ResolvedLevel } from "../../../src/contracts/resolved";
 import { realize } from "../../../src/compile";
 import { verifyBuild } from "../../../src/compile/verify/verify";
@@ -177,6 +178,37 @@ describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", ()
     for (let i = 0; i < w * h; i++)
       if (((L3.cells.flags[i] as number) & CELL_FLAG.WATER) !== 0 && L.cells.state[i] === CELL.OPEN)
         expect(L.cells.height[i]).toBe(L3.cells.height[i]);
+  });
+
+  it("a level stacked above flattens the top shelves: every floor keeps a creature's headroom under it", () => {
+    const below = fixture.levels[0];
+    if (!below) throw new Error("no level");
+    const up = {
+      ...structuredClone(below),
+      id: "above",
+      elevation: below.elevation + BUILD_CONSTANTS.storeyHeight,
+      areas: [],
+      openings: [],
+      walls: [],
+      features: [],
+      terrain: [],
+      labels: [],
+      base: { type: "solid" as const },
+    };
+    const plan = { ...fixture, generator: 4, levels: [below, up], links: [] } as MapPlan;
+    const L = level(resolvePlan(plan, bundledPalettes()));
+    const highest = highestFloorTop(plan.levels, L.elevation);
+    const { w, h } = L.bounds;
+    let shelved = 0;
+    for (let i = 0; i < w * h; i++) {
+      if (L.cells.state[i] !== CELL.OPEN || ((L.cells.flags[i] as number) & CELL_FLAG.WATER) !== 0) continue;
+      const q = L.cells.height[i] as number;
+      if (q === level(g3.r).cells.height[i]) continue; // not a shelf
+      shelved++;
+      expect(floorTopAt(L.elevation, q / QUARTERS_PER_TILE)).toBeLessThanOrEqual(highest + 1e-9);
+    }
+    // the cave still has its relief where there is room for it (one shelf under a storey)
+    expect(shelved).toBeGreaterThan(0);
   });
 
   it("rags the outline, keeps passages two wide and the floor in one piece", () => {

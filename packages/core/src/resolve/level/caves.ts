@@ -10,6 +10,7 @@ import { CELL, CELL_FLAG } from "../../contracts/resolved";
 import { forEachMaskCell } from "../../gen/mask";
 import { rasterPolyline, rasterizeShape } from "../../gen/shapes";
 import { isNaturalWallStyle } from "../../gen/wallStyles";
+import { floorTopAt, highestFloorTop, QUARTERS_PER_TILE } from "../../plan/levels";
 import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed } from "../../util/hash";
 import { raggedCaveOutline } from "../caveOutline";
@@ -172,12 +173,19 @@ export function stepCaveRelief(work: ResolveGrid): void {
     const top = Math.max(...d.values());
     low = [...d].filter(([, v]) => v >= top - 1).map(([i]) => i);
   }
+  // a shelf leaves a creature's headroom under the level stacked above (whose floor the rock walls stop at)
+  const room =
+    highestFloorTop(work.plan.levels, work.level.elevation) -
+    floorTopAt(work.level.elevation, flat / QUARTERS_PER_TILE);
+  const ceilingShelf = Math.floor((room + 1e-9) / CAVE_RELIEF.shelfTiles);
   const shelves = caveShelves(
     work.organicGrid(),
     cells,
     low,
     (i) => work.state[i] === CELL.OPEN && ((work.flags[i] as number) & CELL_FLAG.NO_FLOOR) === 0,
     elementSeed(work.plan.seed, `${work.level.id}~caverelief`),
+    ceilingShelf,
   );
-  for (const [i, t] of shelves) if (t > 0) work.height[i] = (work.height[i] as number) + 2 * t;
+  for (const [i, t] of shelves)
+    if (t > 0) work.height[i] = (work.height[i] as number) + t * CAVE_RELIEF.shelfTiles * QUARTERS_PER_TILE;
 }

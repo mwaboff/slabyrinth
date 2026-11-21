@@ -249,6 +249,10 @@ const SWITCHES = {
     4,
     "Piece sizes (a rock band's pieces, the support a small thing rests on) are asked of the anchor cell's theme, the one the piece is built in, not the level's (resolve/level/grid.ts pieceTheme).",
   ),
+  columnsCloseHighestFloor: on(
+    4,
+    "A rock wall column is a low stretch only where it still stands closed above the highest floor it walls in, not only the lowest (compile/realize/rockWalls.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

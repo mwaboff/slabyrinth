@@ -10,9 +10,11 @@ import type { ThemeId } from "../../contracts/plan";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { planCaveWall, type WallFace, type WallShape } from "../../gen/cavewall";
 import { ValueNoise } from "../../gen/noise";
+import { levelCeiling } from "../../plan/levels";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE, NATURAL_WALL_ROLE } from "../../palette/roles";
 import { h32, placementBox, rotateXZ, unitHash } from "../geometry";
+import { ROCK_WALL_CLOSED } from "../verify/limits";
 import { EPS, type RealizeLevel } from "./level";
 import type { SolidShellPlan } from "./solidShell";
 import type { FullCellColumn, FullCellColumns } from "./walls";
@@ -24,10 +26,7 @@ export function layRockWalls(lv: RealizeLevel, fullCells: FullCellColumns, shell
   const { L, elev } = lv;
   const { resolved, seed, profile } = lv.ctx;
   // the extra blocks never rise through the floor of a level stacked above (verify_pokes_into_level_above)
-  const ceiling = resolved.levels.reduce(
-    (m, o) => (o.elevation > elev + EPS ? Math.min(m, o.elevation) : m),
-    Infinity,
-  );
+  const ceiling = levelCeiling(resolved.levels, elev);
   const wallNoise = new ValueNoise(h32(`${seed}:${L.id}:walltops`));
   const massFaces: MassFace[] = [];
   /** The columns of the mass faces, built after the mass where no mass piece closes the face cell. */
@@ -72,7 +71,9 @@ function planColumn(
   const m = frame.rectMin(c.x, c.y, 1, 1);
   let base = c.base;
   let top = c.top;
-  const floorTop = c.base;
+  // generator 4 (`columnsCloseHighestFloor`): a low stretch must still close the highest floor it walls in (verify
+  // measures every face it closes, ROCK_WALL_CLOSED above that face's floor), not only the lowest
+  const floorTop = profile.columnsCloseHighestFloor ? c.highestBase : c.base;
   if (rockSkirt) {
     base = Math.min(base, elev + lv.outsideGround);
     // clustered: broad noise picks masses (up to 3 blocks taller) and a few lower stretches (1 block down, never
@@ -81,7 +82,7 @@ function planColumn(
     let extra = nz < 0.22 ? -1 : nz < 0.45 ? 0 : nz < 0.62 ? 1 : nz < 0.8 ? 2 : 3;
     // generator 3: the column is the closing skin of a wall of rock mass (gen/cavewall.ts): lower, in uneven runs
     if (profile.caveRockMass && c.roleName === NATURAL_WALL_ROLE) extra = nz < 0.3 ? -1 : nz < 0.72 ? 0 : 1;
-    if (extra < 0 && top - v.unitHeight < floorTop + 1.5) extra = 0;
+    if (extra < 0 && top - v.unitHeight < floorTop + ROCK_WALL_CLOSED) extra = 0;
     // a column that closes the mouth of a chasm or pit (its wall reaches below the floor) is never one of the low
     // stretches, and stands at least a block taller, so nothing glows over it from inside
     if (c.base < elev + 0.5 - 0.75) extra = Math.max(extra, 1);

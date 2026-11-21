@@ -33,8 +33,11 @@ import type { SolidShellPlan } from "./solidShell";
 export interface FullCellColumn {
   x: number;
   y: number;
+  /** Lowest base and highest top of the edges it closes. */
   base: number;
   top: number;
+  /** Highest base of the edges it closes: the highest floor the column walls in. */
+  highestBase: number;
   theme: ThemeId;
   roleName: string;
 }
@@ -176,7 +179,9 @@ function gatherFullCells(pass: WallPass, edges: readonly RunEdge[], roleName: st
     if (prev) {
       prev.base = Math.min(prev.base, c.base);
       prev.top = Math.max(prev.top, c.top);
-    } else fullCells.set(k, { x, y, base: c.base, top: c.top, theme: c.theme, roleName });
+      prev.highestBase = Math.max(prev.highestBase, c.base);
+    } else
+      fullCells.set(k, { x, y, base: c.base, top: c.top, highestBase: c.base, theme: c.theme, roleName });
   }
 }
 

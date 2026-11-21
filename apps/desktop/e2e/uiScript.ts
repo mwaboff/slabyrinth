@@ -16,11 +16,14 @@ const fixture = JSON.parse(
   ),
 ) as Record<string, unknown> & { levels: Array<{ id: string; features: unknown[] }> };
 
-/** As the model authors it: the app fills schema, generator, id and seed. */
+/**
+ * As the model authors it: the app fills schema, generator and id. The plan keeps the fixture's seed, so the build the
+ * test copies is the same every run (a seed the app picked would make the test depend on that seed's build).
+ */
 const authored: Record<string, unknown> & { levels: Array<{ id: string; features: unknown[] }> } = {
   ...fixture,
 };
-for (const k of ["schema", "generator", "id", "seed"]) Reflect.deleteProperty(authored, k);
+for (const k of ["schema", "generator", "id"]) Reflect.deleteProperty(authored, k);
 const l1 = authored.levels.find((l) => l.id === "l1");
 l1?.features.push({ id: "shelf_mid", type: "bookshelf", at: [15, 10] });
 
