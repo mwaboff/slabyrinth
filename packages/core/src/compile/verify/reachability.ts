@@ -158,17 +158,18 @@ function brokenLinkFor(
 }
 
 /**
- * Without the plan: a breadth-first walk from the largest area of the entry level over cells, openings and links, once
- * as the plan has it and once with the build's blocks; steps the realized walk refuses are kept to name the culprit.
+ * What the own walk steps over besides cells: the opening on each side of a cell ("level|x,y|side"), and the jumps a
+ * link makes between cells ("level|x,y" → cells; a stair run from its top step to its arrival, a pit drop one way
+ * down, other links between their lower and upper cells both ways).
  */
-function checkOwnWalkReach(ctx: VerifyCtx, { runs, obstructed, doors, links }: BuildBlocks): void {
-  const { levels, grids, resolved } = ctx;
-  if (!levels.length) return;
-  const entry =
-    levels.find((l) => l.id === ctx.opts.entryLevelId) ??
-    [...levels].sort((a, b) => Math.abs(a.elevation) - Math.abs(b.elevation))[0];
-  if (!entry) return;
-  const openingAt = new Map<string, { id: string; kind: string }>(); // `${level}|x,y|side` → opening
+function ownWalkGraph(
+  { levels, resolved }: VerifyCtx,
+  runs: StairRuns,
+): {
+  openingAt: Map<string, { id: string; kind: string }>;
+  jumps: Map<string, Array<{ to: string; link: string }>>;
+} {
+  const openingAt = new Map<string, { id: string; kind: string }>();
   for (const L of levels)
     for (const op of L.openings)
       for (const e of openingEdges(op)) {
@@ -196,6 +197,21 @@ function checkOwnWalkReach(ctx: VerifyCtx, { runs, obstructed, doors, links }: B
       });
     }
   }
+  return { openingAt, jumps };
+}
+
+/**
+ * Without the plan: a breadth-first walk from the largest area of the entry level over cells, openings and links, once
+ * as the plan has it and once with the build's blocks; steps the realized walk refuses are kept to name the culprit.
+ */
+function checkOwnWalkReach(ctx: VerifyCtx, { runs, obstructed, doors, links }: BuildBlocks): void {
+  const { levels, grids } = ctx;
+  if (!levels.length) return;
+  const entry =
+    levels.find((l) => l.id === ctx.opts.entryLevelId) ??
+    [...levels].sort((a, b) => Math.abs(a.elevation) - Math.abs(b.elevation))[0];
+  if (!entry) return;
+  const { openingAt, jumps } = ownWalkGraph(ctx, runs);
   const rejected: Array<{ cell: string; solids: readonly Solid[] }> = [];
   const cellOf = (k: string): [LevelId, number, number] => {
     const [lv, xy] = k.split("|") as [string, string];
