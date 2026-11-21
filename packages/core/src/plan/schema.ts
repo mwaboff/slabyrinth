@@ -198,7 +198,7 @@ export const AreaSchema = z.strictObject({
   readAloud: text(1500).exactOptional(),
   encounter: text(1000).exactOptional(),
   tags: z.array(z.string().min(1).max(24)).max(8).exactOptional(),
-  // generator 4 vocabulary (plan/generator.ts VOCABULARY.areaFields): validation rejects it below
+  // generator 4 vocabulary (plan/generator.ts VOCABULARY.areaFields): validation refuses it below
   purpose: z.enum(ROOM_PURPOSES).exactOptional(),
   railing: z.union([WallStyleSchema, z.literal("none")]).exactOptional(),
   broken: z.array(Vec2Schema).max(64).exactOptional(),

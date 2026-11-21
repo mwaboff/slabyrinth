@@ -258,10 +258,14 @@ const TUNINGS = {
 } as const satisfies Record<string, readonly [TuningStep<unknown>, ...TuningStep<unknown>[]]>;
 
 /**
- * Plan vocabulary a generator adds to what the one before understood. Below it, validation (plan/validate.ts) warns
- * `no_effect` for a feature type (a stand-in piece is used) or a level field (an opt-out that changes nothing), and
- * rejects an area field: it states what the area is, which an earlier generator cannot read, so the plan is refused
- * as it was before the field existed.
+ * Plan vocabulary a generator adds to what the one before understood: feature types (wherever a plan names one: a
+ * feature, a scatter op), level fields and area fields.
+ *
+ * The rule, the same for every kind: a word used below its generator is refused by validation (plan/validate.ts
+ * `checkVocabulary`, an error with code `schema`). That is what the released generator did before the word existed,
+ * since its own schema did not know it, so a released generator's plans validate exactly as they did when it shipped.
+ * The schema accepts the word for every generator (one schema serves every plan); validation holds each plan to its
+ * own generator's words. A new kind of word gets a key here and a check there.
  */
 interface VocabularyDeclaration {
   readonly featureTypes: readonly string[];
@@ -338,10 +342,7 @@ export function generatorProfile(subject: { readonly generator: number } | numbe
 
 /**
  * Plan vocabulary that exists only from a generator on, with that generator: derived from the profiles' `vocabulary`.
- * The schema accepts these names for every generator (one schema serves every plan), so validation checks a plan's
- * use of them against its generator: a feature type or level field below its generator is warned (the generator would
- * ignore the field or substitute the piece, and the model should hear that instead of seeing nothing), an area field
- * is rejected (see VocabularyDeclaration).
+ * Validation refuses a word below its generator (see VocabularyDeclaration).
  */
 export const VOCABULARY_SINCE: {
   readonly [K in keyof GeneratorVocabulary]: Readonly<Record<string, GeneratorVersion>>;

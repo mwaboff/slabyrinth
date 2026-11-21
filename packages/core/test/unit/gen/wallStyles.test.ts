@@ -1,9 +1,9 @@
 /**
  * The wall-style trait table (gen/wallStyles.ts) and the palette role chain that replaced a role name hard-coded in the
- * compiler (roof.default.cap), generator 4 code review findings 5, 6 and 13.
+ * compiler (roof.default.cap).
  */
 import { describe, expect, it } from "vitest";
-import { WALL_STYLES, type MapPlan } from "../../../src/contracts/plan";
+import { WALL_STYLES } from "../../../src/contracts/plan";
 import {
   WALL_STYLE_INFO,
   hasNaturalWallStyle,
@@ -14,8 +14,6 @@ import {
   wallStyleInfo,
 } from "../../../src/gen/wallStyles";
 import { createRoleResolver, loadPalettes } from "../../../src/palette";
-import { validatePlan } from "../../../src/plan";
-import { loadPlan } from "../../fixtures";
 
 const sorted = (xs: readonly string[]): string[] => [...xs].sort();
 const having = (key: "natural" | "low" | "uneven"): string[] =>
@@ -94,37 +92,5 @@ describe("the ridge cap is a palette role chain, not a role name in the compiler
 
   it("generator 3 does not see the role", () => {
     expect(createRoleResolver(cat, 3)("generic", "roof.default.cap").resolution).toBeNull();
-  });
-});
-
-describe("generator 4 vocabulary on an earlier generator", () => {
-  const withFeature = (generator: 3 | 4, type: string, roomDress?: false): MapPlan => {
-    const plan = structuredClone<MapPlan>(loadPlan("single-room"));
-    plan.generator = generator;
-    const level = plan.levels[0] as MapPlan["levels"][number];
-    level.features.push({ id: "extra", type, at: [4, 6] } as MapPlan["levels"][number]["features"][number]);
-    if (roomDress === false) level.roomDress = false;
-    return plan;
-  };
-  const noEffect = (plan: MapPlan): string[] =>
-    validatePlan(plan)
-      .issues.filter((i) => i.code === "no_effect")
-      .map((i) => `${i.severity} ${i.path ?? ""}`);
-
-  it("warns on clutter, shelf_line and roomDress below generator 4", () => {
-    expect(noEffect(withFeature(3, "clutter"))).toHaveLength(1);
-    expect(noEffect(withFeature(3, "clutter"))[0]).toMatch(/^warning \/levels\/0\/features\/\d+\/type$/);
-    expect(noEffect(withFeature(3, "shelf_line"))).toHaveLength(1);
-    expect(noEffect(withFeature(3, "chest", false))).toEqual(["warning /levels/0/roomDress"]);
-  });
-
-  it("is quiet on generator 4 and for older feature types", () => {
-    expect(noEffect(withFeature(4, "clutter"))).toEqual([]);
-    expect(noEffect(withFeature(4, "chest", false))).toEqual([]);
-    expect(noEffect(withFeature(3, "chest"))).toEqual([]);
-  });
-
-  it("still validates (a warning is not an error)", () => {
-    expect(validatePlan(withFeature(3, "clutter")).ok).toBe(true);
   });
 });

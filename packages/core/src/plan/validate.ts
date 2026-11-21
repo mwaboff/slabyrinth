@@ -23,7 +23,7 @@ import { BUILD_CONSTANTS, PLAN_LIMITS } from "../contracts/plan";
 import { own } from "../palette/own";
 import type { ResolvePalettes } from "../palette/resolve";
 import { utf8Length } from "../util/hash";
-import { VOCABULARY_SINCE, generatorProfile } from "./generator";
+import { type GeneratorVocabulary, VOCABULARY_SINCE, generatorProfile } from "./generator";
 import { listForHint, nearest } from "../util/strings";
 import { KIND_LABEL, freeId, listElements } from "./elements";
 import type { ElementLocation } from "./elements";
@@ -141,6 +141,13 @@ function checkSize(input: unknown): PlanIssue | null {
   return null;
 }
 
+/** Where an issue points beyond its path. */
+interface IssueExtra {
+  elementId?: string;
+  levelId?: string;
+  cell?: Vec2;
+}
+
 class IssueSink {
   readonly issues: PlanIssue[] = [];
   add(
@@ -149,7 +156,7 @@ class IssueSink {
     path: string,
     message: string,
     hint: string,
-    extra: { elementId?: string; levelId?: string; cell?: Vec2 } = {},
+    extra: IssueExtra = {},
   ): void {
     const issue: PlanIssue = { severity, code, message, path, hint };
     if (extra.elementId !== undefined) issue.elementId = extra.elementId;
@@ -157,13 +164,7 @@ class IssueSink {
     if (extra.cell !== undefined) issue.cell = extra.cell;
     this.issues.push(issue);
   }
-  error(
-    code: PlanIssueCode,
-    path: string,
-    message: string,
-    hint: string,
-    extra?: { elementId?: string; levelId?: string; cell?: Vec2 },
-  ): void {
+  error(code: PlanIssueCode, path: string, message: string, hint: string, extra?: IssueExtra): void {
     this.add("error", code, path, message, hint, extra);
   }
 }
@@ -384,52 +385,75 @@ function areaRefCheck(
   return false;
 }
 
+/**
+ * Plan vocabulary a later generator added (plan/generator.ts VOCABULARY), used below that generator: refused, code
+ * `schema`, the same for every kind of word. The schema accepts the word for every generator (one schema serves every
+ * plan), so this is where a released generator's plan is held to the words its own release knew.
+ */
+function checkVocabulary(plan: MapPlan, level: Level, li: number, sink: IssueSink): void {
+  const known = generatorProfile(plan).vocabulary;
+  const base = `/levels/${li}`;
+  const refuse = (
+    kind: keyof GeneratorVocabulary,
+    word: string,
+    path: string,
+    what: string,
+    instead: string,
+    extra: IssueExtra,
+  ): void => {
+    const since = own(VOCABULARY_SINCE[kind], word);
+    if (since === undefined || known[kind].has(word)) return;
+    sink.error(
+      "schema",
+      path,
+      `${what} needs generator ${since}; this plan is generator ${plan.generator}`,
+      `set the plan generator to ${since} (new plans have it), or ${instead}`,
+      extra,
+    );
+  };
+  const fields = (
+    kind: "levelFields" | "areaFields",
+    element: object,
+    path: string,
+    label: string,
+    extra: IssueExtra,
+  ): void => {
+    for (const field of Object.keys(element))
+      refuse(kind, field, `${path}/${field}`, `${label}: ${field}`, `remove ${field}`, extra);
+  };
+  fields("levelFields", level, base, `level "${level.id}"`, { elementId: level.id, levelId: level.id });
+  level.areas.forEach((a, ai) => {
+    fields("areaFields", a, `${base}/areas/${ai}`, `area "${a.id}"`, { elementId: a.id, levelId: level.id });
+  });
+  level.features.forEach((f, fi) => {
+    refuse(
+      "featureTypes",
+      f.type,
+      `${base}/features/${fi}/type`,
+      `feature "${f.id}": type ${f.type}`,
+      "use another feature type",
+      { elementId: f.id, levelId: level.id, cell: f.at },
+    );
+  });
+  level.terrain.forEach((t, ti) => {
+    if (t.op === "scatter")
+      refuse(
+        "featureTypes",
+        t.feature,
+        `${base}/terrain/${ti}/feature`,
+        `scatter "${t.id}": feature ${t.feature}`,
+        "scatter another feature type",
+        { elementId: t.id, levelId: level.id },
+      );
+  });
+}
+
 function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: IssueSink): void {
   const base = `/levels/${li}`;
   const lb = levelBox(level);
 
-  // vocabulary a later generator added: below that generator it is ignored or substituted, so say so
+  checkVocabulary(plan, level, li, sink);
   const gen = generatorProfile(plan);
-  for (const [field, since] of Object.entries(VOCABULARY_SINCE.levelFields))
-    if (
-      !gen.vocabulary.levelFields.has(field) &&
-      (level as unknown as Record<string, unknown>)[field] !== undefined
-    )
-      sink.add(
-        "warning",
-        "no_effect",
-        `${base}/${field}`,
-        `level "${level.id}": ${field} needs generator ${since}; this plan is generator ${plan.generator}, so it changes nothing`,
-        `set the plan generator to ${since} (new plans have it), or remove ${field}`,
-        { elementId: level.id, levelId: level.id },
-      );
-  // an area field states what the area is, which an earlier generator cannot read: refused, as before it existed
-  level.areas.forEach((a, ai) => {
-    for (const [field, since] of Object.entries(VOCABULARY_SINCE.areaFields))
-      if (
-        !gen.vocabulary.areaFields.has(field) &&
-        (a as unknown as Record<string, unknown>)[field] !== undefined
-      )
-        sink.error(
-          "schema",
-          `${base}/areas/${ai}/${field}`,
-          `area "${a.id}": ${field} needs generator ${since}; this plan is generator ${plan.generator}`,
-          `set the plan generator to ${since} (new plans have it), or remove ${field}`,
-          { elementId: a.id, levelId: level.id },
-        );
-  });
-  level.features.forEach((f, fi) => {
-    const since = own(VOCABULARY_SINCE.featureTypes, f.type);
-    if (since !== undefined && !gen.vocabulary.featureTypes.has(f.type))
-      sink.add(
-        "warning",
-        "no_effect",
-        `${base}/features/${fi}/type`,
-        `feature "${f.id}": type ${f.type} needs generator ${since}; this plan is generator ${plan.generator}, so a stand-in piece is used`,
-        `set the plan generator to ${since} (new plans have it), or use another feature type`,
-        { elementId: f.id, levelId: level.id, cell: f.at },
-      );
-  });
 
   (level.structures ?? []).map(withWings).forEach((st, si) => {
     const p = `${base}/structures/${si}`;
