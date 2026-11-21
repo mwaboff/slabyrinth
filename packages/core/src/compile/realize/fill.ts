@@ -21,9 +21,10 @@ export function layRaisedFill(lv: RealizeLevel, band: RockBand, groundUnder: Gro
   const noted = new Set<string>();
   /** Height of the ground a neighbour presents to a raised cell (open cells, floorless ones included, and the ground under decks). */
   const groundOf = (x: number, y: number): number => {
-    const g = groundUnder.get(`${x},${y}`);
+    const i = V.index(x, y);
+    if (i < 0) return outsideGround;
+    const g = groundUnder.get(i);
     if (g !== undefined) return g;
-    if (!V.inBounds(x, y)) return outsideGround;
     const n = V.cell(x, y);
     return n.open ? n.height : 0;
   };
@@ -31,10 +32,11 @@ export function layRaisedFill(lv: RealizeLevel, band: RockBand, groundUnder: Gro
     for (let lx = 0; lx < V.w; lx++) {
       const x = L.bounds.x + lx;
       const y = L.bounds.y + ly;
+      const i = V.index(x, y);
       const c = V.cell(x, y);
       if (!c.floor || (c.flags & CELL_FLAG.BRIDGE) !== 0) continue; // decks have open air beneath
       const minN = Math.min(groundOf(x, y - 1), groundOf(x + 1, y), groundOf(x, y + 1), groundOf(x - 1, y));
-      if (outcropCells.has(`${x},${y}`)) {
+      if (outcropCells.has(i)) {
         // a rock column from the ground around it up to its top (no floor tile): reads as rock, not a tiled box
         const from = elev + Math.min(minN, 0);
         if (!cliffFace(lv, noted, c.theme, c.material, x, y, from, elev + c.height + 0.5, true))
@@ -55,13 +57,13 @@ export function layRaisedFill(lv: RealizeLevel, band: RockBand, groundUnder: Gro
         continue;
       // behind a rock band: no face blocks and no hidden fill (the band covers the drop); the board's own edge keeps
       // its solid side
-      if (band.bare.has(`${x},${y}`)) {
+      if (band.bare.has(i)) {
         // one rock family for every such patch (the band's backing), never the mixed per-cell picks
         const bandKey = `${L.id}:ledge:band`;
         if (cliffFace(lv, noted, c.theme, c.material, x, y, elev + minN, elev + c.height, false, bandKey))
           continue;
       } else if (
-        band.back.has(`${x},${y}`) &&
+        band.back.has(i) &&
         c.height - minN >= BAND.minRiseQ / 4 - EPS &&
         lx > 0 &&
         ly > 0 &&

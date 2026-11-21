@@ -68,8 +68,8 @@ export interface ShellEdge {
 }
 
 export interface Shell {
-  /** Capped cells, "x,y" -> theme of the wall they back onto. */
-  cells: Map<string, { x: number; y: number; theme: ThemeId; ring: number; top: number }>;
+  /** Capped cells by cell index (resolve/levelGrid.ts `cellIndex`; the cell's plan coordinates are in the entry). */
+  cells: Map<number, { x: number; y: number; theme: ThemeId; ring: number; top: number }>;
   /**
    * Absolute top of the flat cap (world tiles): the most common wall top of the level, a hair higher so a cap tile
    * never shares a top face with the wall piece standing in the same cell. The cells against a wall (ring 1) take the
@@ -419,7 +419,7 @@ function assemble(cap: CapPlan, capRing: Map<number, number>): { cells: Shell["c
     const y = (i - x) / w;
     const gx = L.bounds.x + x;
     const gy = L.bounds.y + y;
-    cells.set(`${gx},${gy}`, {
+    cells.set(i, {
       x: gx,
       y: gy,
       theme: theme.get(i) ?? defaultTheme,
@@ -440,8 +440,7 @@ function skirtOf(g: ShellGrid, cells: Shell["cells"], hiddenNeighbour: ReadonlyS
     for (const [dx, dy, side] of DIRS) {
       const j = g.at(lx + dx, ly + dy);
       if (j < 0) continue; // the board's own edge: slabs are tiled beside each other
-      if (cells.has(`${c.x + dx},${c.y + dy}`) || g.state(j) === CELL.OPEN || hiddenNeighbour.has(j))
-        continue;
+      if (cells.has(j) || g.state(j) === CELL.OPEN || hiddenNeighbour.has(j)) continue;
       const hostFirst = side === "S" || side === "E";
       const e = { hostX: c.x, hostY: c.y, hostFirst, planSide: side, top: c.top };
       if (side === "N") edges.push({ orient: "h", x: c.x, y: c.y, ...e });
@@ -466,11 +465,8 @@ interface StackedLevels {
 function stackedLevels(resolved: ResolvedPlan, L: ResolvedLevel): StackedLevels {
   const above = resolved.levels.filter((o) => o.id !== L.id && o.elevation > L.elevation);
   const below = resolved.levels.filter((o) => o.id !== L.id && o.elevation < L.elevation);
-  const otherAt = (o: ResolvedLevel, gx: number, gy: number): number => {
-    const lx = gx - o.bounds.x;
-    const ly = gy - o.bounds.y;
-    return lx < 0 || ly < 0 || lx >= o.bounds.w || ly >= o.bounds.h ? -1 : ly * o.bounds.w + lx;
-  };
+  const otherAt = (o: ResolvedLevel, gx: number, gy: number): number =>
+    cellIndex(o.bounds, gx - o.bounds.x, gy - o.bounds.y);
   return {
     hiddenAbove: (gx, gy, capTop) =>
       above.some((o) => {
@@ -521,8 +517,7 @@ function tidyStrips(cap: CapPlan, cells: Shell["cells"]): Shell["strips"] {
     const y = (k - x) / w;
     const gx = L.bounds.x + x;
     const gy = L.bounds.y + y;
-    if (cells.has(`${gx},${gy}`) || stacked.hiddenAbove(gx, gy, cap.top) || stacked.hidesBelow(gx, gy))
-      continue;
+    if (cells.has(k) || stacked.hiddenAbove(gx, gy, cap.top) || stacked.hidesBelow(gx, gy)) continue;
     // the tallest wall top among this cell's own walls, else its strip neighbours' (a junction of two strips)
     let t = tidyTop.get(k) ?? -Infinity;
     if (t === -Infinity)

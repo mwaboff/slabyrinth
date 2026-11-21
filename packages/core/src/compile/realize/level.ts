@@ -48,8 +48,8 @@ export class RealizeLevel {
   readonly placements: readonly Placement[];
   /** World box of this level's placements. */
   readonly levelBox: Readonly<Box3>;
-  /** Cells of the level's outcrops ("x,y"): rock columns, not floor tiles. */
-  readonly outcropCells: ReadonlySet<string>;
+  /** Cells of the level's outcrops (cell index, `V.index`): rock columns, not floor tiles. */
+  readonly outcropCells: ReadonlySet<number>;
   /** Reference floor height of each area (resolve/wallspan.ts), for wall spans. */
   readonly refHeights: ReadonlyMap<number, number>;
   /** Edges and openings buildings build themselves (compile/structure.ts): the wall passes leave them alone. */
@@ -80,8 +80,11 @@ export class RealizeLevel {
     const levelBox = emptyBox();
     this.placements = placements;
     this.levelBox = levelBox;
-    this.V = views.get(L.id) ?? new LevelGrid(L, defaultTheme);
-    this.outcropCells = new Set((L.outcrops ?? []).flatMap((o) => o.cells.map(([x, y]) => `${x},${y}`)));
+    const V = views.get(L.id) ?? new LevelGrid(L, defaultTheme);
+    this.V = V;
+    this.outcropCells = new Set(
+      (L.outcrops ?? []).flatMap((o) => o.cells.map(([x, y]) => V.index(x, y)).filter((i) => i >= 0)),
+    );
     this.blockTurn = (v: ResolvedVariant, key: string): number =>
       Math.abs(v.geom.size.x - v.geom.size.z) < 0.05 ? (h32(`${seed}:${L.id}:turn:${key}`) % 4) * 90 : 0;
     const elev = L.elevation;

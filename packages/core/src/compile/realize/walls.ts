@@ -21,7 +21,7 @@ import {
   type EdgeCtx,
   type Strip,
 } from "./edges";
-import { OPPOSITE } from "../../gen/gridGeometry";
+import { OPPOSITE, cellKey } from "../../gen/gridGeometry";
 import { edgeLineLength, edgeLines } from "../../resolve/levelGrid";
 import { EPS, type RealizeLevel } from "./level";
 import type { SolidShellPlan } from "./solidShell";
@@ -35,8 +35,11 @@ export interface FullCellColumn {
   theme: ThemeId;
   roleName: string;
 }
-/** The full-cell columns by cell ("x,y"), in the order the wall runs met them. */
-export type FullCellColumns = ReadonlyMap<string, FullCellColumn>;
+/**
+ * The full-cell columns by cell (gen/gridGeometry.ts `cellKey` of the plan cell: a column may stand outside the level),
+ * in the order the wall runs met them.
+ */
+export type FullCellColumns = ReadonlyMap<number, FullCellColumn>;
 
 /** Edge reference meaning "no wall style". */
 const NONE = 0xffff;
@@ -54,9 +57,9 @@ interface WallPass {
   strips: CornerStrips;
   /** Rough interior cells (1) that get broken wall tops; null when the level has none. */
   rough: Uint8Array | null;
-  fullCells: Map<string, FullCellColumn>;
-  /** Open cells already warned about as the host of a full-cell wall (one thick_wall_conflict each). */
-  conflictNoted: Set<string>;
+  fullCells: Map<number, FullCellColumn>;
+  /** Open cells (`cellKey`) already warned about as the host of a full-cell wall (one thick_wall_conflict each). */
+  conflictNoted: Set<number>;
 }
 
 // ── walls ──
@@ -155,7 +158,7 @@ function gatherFullCells(pass: WallPass, edges: readonly EdgeCtx[], roleName: st
     const flip = c.hostOpen && !c.otherOpen;
     const bx = flip ? c.otherX : c.hostX;
     const by = flip ? c.otherY : c.hostY;
-    const k = `${bx},${by}`;
+    const k = cellKey(bx, by);
     // generator 3: a passage that reaches the board edge is an exit; no rock column stands outside the bounds
     if (
       profile.boardEdgeExits &&

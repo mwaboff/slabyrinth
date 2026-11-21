@@ -7,20 +7,21 @@
  */
 import type { ThemeId } from "../../contracts/plan";
 import { cliffRockKinds, edgeHidden, type RockShape } from "../../gen/cover";
+import { SIDE_STEP } from "../../gen/gridGeometry";
 import type { ResolvedVariant } from "../../palette/resolve";
 import type { RealizeLevel } from "./level";
 
 /** Rock band (generator 2, themes with cliff.formation_face): rise that gets a band, and how far it reaches. */
 export const BAND = { minRiseQ: 8, out: 2, back: 2 } as const;
 
-/** The cells the rock band changes (all "x,y"). */
+/** The cells of the level the rock band changes (all cell indices, `V.index`). */
 export interface RockBand {
   /** Low ground in front of a tall band edge: natural ground there is laid as rock (floors.ts). */
-  readonly low: ReadonlySet<string>;
+  readonly low: ReadonlySet<number>;
   /** Cells just behind a tall band edge: no face blocks and no hidden fill (fill.ts). */
-  readonly back: ReadonlySet<string>;
+  readonly back: ReadonlySet<number>;
   /** Upper cells of a band edge the band left bare: they get a face block of one family (fill.ts). */
-  readonly bare: ReadonlySet<string>;
+  readonly bare: ReadonlySet<number>;
 }
 
 const NO_BAND: RockBand = { low: new Set(), back: new Set(), bare: new Set() };
@@ -86,9 +87,14 @@ export function planRockBand(lv: RealizeLevel, tones: CliffTones): RockBand {
   const { L, V } = lv;
   const { profile, lookup } = lv.ctx;
   if (!profile.cliffRockBand) return NO_BAND;
-  const low = new Set<string>();
-  const back = new Set<string>();
-  const bare = new Set<string>();
+  const low = new Set<number>();
+  const back = new Set<number>();
+  const bare = new Set<number>();
+  /** Adds a cell of the level (cells outside it are never asked about). */
+  const mark = (set: Set<number>, x: number, y: number): void => {
+    const i = V.index(x, y);
+    if (i >= 0) set.add(i);
+  };
   const bandThemes = new Map<string, boolean>();
   const hasBand = (theme: ThemeId): boolean => {
     let b = bandThemes.get(theme);
@@ -105,11 +111,11 @@ export function planRockBand(lv: RealizeLevel, tones: CliffTones): RockBand {
       if (e.high - e.low < (restingBand ? 4 : BAND.minRiseQ)) continue;
       const c0 = V.cell(e.at[0], e.at[1]);
       if (!hasBand(c0.theme)) continue;
-      const [dx, dy] = e.side === "N" ? [0, -1] : e.side === "S" ? [0, 1] : e.side === "E" ? [1, 0] : [-1, 0];
+      const [dx, dy] = SIDE_STEP[e.side];
       const tallEdge = e.high - e.low >= BAND.minRiseQ;
       if (tallEdge) {
-        for (let k = 1; k <= BAND.out; k++) low.add(`${e.at[0] + dx * k},${e.at[1] + dy * k}`);
-        for (let k = 0; k < BAND.back; k++) back.add(`${e.at[0] - dx * k},${e.at[1] - dy * k}`);
+        for (let k = 1; k <= BAND.out; k++) mark(low, e.at[0] + dx * k, e.at[1] + dy * k);
+        for (let k = 0; k < BAND.back; k++) mark(back, e.at[0] - dx * k, e.at[1] - dy * k);
       }
       // what the band actually placed: an edge with no rock over its midpoint keeps a face behind it (no hole)
       const mx = e.at[0] + 0.5 + dx * 0.5;
@@ -134,7 +140,7 @@ export function planRockBand(lv: RealizeLevel, tones: CliffTones): RockBand {
               my >= f.at[1] - 0.3 &&
               my <= f.at[1] + f.size[1] + 0.3,
           );
-      if (!covered) bare.add(`${e.at[0]},${e.at[1]}`);
+      if (!covered) mark(bare, e.at[0], e.at[1]);
     }
   return { low, back, bare };
 }

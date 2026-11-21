@@ -79,7 +79,7 @@ export function layShellCap(lv: RealizeLevel, plan: SolidShellPlan): void {
 }
 
 function layCap(lv: RealizeLevel, shell: Shell, capVariants: readonly ResolvedVariant[]): void {
-  const { L, emit } = lv;
+  const { L, V, emit } = lv;
   const { seed, frame, pick } = lv.ctx;
   const sizes = [...new Set(capVariants.map((v) => v.footprint[0]))].sort((a, b) => b - a);
   const capUsed = new Set<string>();
@@ -99,7 +99,7 @@ function layCap(lv: RealizeLevel, shell: Shell, capVariants: readonly ResolvedVa
       let fits = true;
       for (let dy = 0; fits && dy < s; dy++)
         for (let dx = 0; fits && dx < s; dx++) {
-          const cc = shell.cells.get(`${c.x + dx},${c.y + dy}`);
+          const cc = shell.cells.get(V.index(c.x + dx, c.y + dy));
           if (!cc || capUsed.has(`${c.x + dx},${c.y + dy}`) || cc.theme !== c.theme || cc.top !== c.top)
             fits = false;
         }

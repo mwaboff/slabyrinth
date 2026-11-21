@@ -433,7 +433,9 @@ describe("generator 4 shell: tidy buildings, outline", () => {
     for (const L of R.levels) {
       const shell = planShell(R, L, h32(R.planId), () => false, "stone_dungeon");
       if (!shell) continue;
-      const has = (x: number, y: number): boolean => shell.cells.has(`${x},${y}`);
+      // capped cells by plan coordinates ("x,y")
+      const capped = new Set([...shell.cells.values()].map((c) => `${c.x},${c.y}`));
+      const has = (x: number, y: number): boolean => capped.has(`${x},${y}`);
       const solid = (x: number, y: number): boolean => {
         const lx = x - L.bounds.x;
         const ly = y - L.bounds.y;
@@ -472,7 +474,7 @@ describe("generator 4 shell: tidy buildings, outline", () => {
         }
       // no component of fewer than SHELL.minComponent cells
       const seen = new Set<string>();
-      for (const k of shell.cells.keys()) {
+      for (const k of capped) {
         if (seen.has(k)) continue;
         let n = 0;
         const stack = [k];
@@ -484,7 +486,7 @@ describe("generator 4 shell: tidy buildings, outline", () => {
           for (let dy = -1; dy <= 1; dy++)
             for (let dx = -1; dx <= 1; dx++) {
               const t = `${x + dx},${y + dy}`;
-              if (shell.cells.has(t) && !seen.has(t)) {
+              if (capped.has(t) && !seen.has(t)) {
                 seen.add(t);
                 stack.push(t);
               }

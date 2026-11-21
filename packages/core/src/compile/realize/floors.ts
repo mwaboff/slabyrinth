@@ -18,8 +18,8 @@ import type { LevelCell } from "../../resolve/levelGrid";
 
 /** Water cells ([x, y]) the floor pass leaves for the bed pass, in the order it met them. */
 export type WaterCells = ReadonlyArray<readonly [number, number]>;
-/** The ground under each bridge deck cell ("x,y", relative tiles), for the faces round it (fill.ts). */
-export type GroundUnderDecks = ReadonlyMap<string, number>;
+/** The ground under each bridge deck cell (cell index, `V.index`; relative tiles), for the faces round it (fill.ts). */
+export type GroundUnderDecks = ReadonlyMap<number, number>;
 
 /** Road markings (generator 2 roads): sparse drains along the kerb, data rather than code. */
 const ROAD_MARKINGS = {
@@ -85,7 +85,7 @@ export function layFloors(lv: RealizeLevel, band: RockBand): WaterCells {
       const c = V.cell(x, y);
       if (!c.floor || used.has(ly * V.w + lx)) continue;
       // outcrops are solid rock columns (built in the cliff pass), not floor tiles
-      if (outcropCells.has(`${x},${y}`)) {
+      if (outcropCells.has(V.index(x, y))) {
         used.add(ly * V.w + lx);
         continue;
       }
@@ -197,7 +197,9 @@ function layCrossing(lv: RealizeLevel, c: LevelCell, x: number, y: number, axis:
 
 /** Floor material as laid: natural low ground under a rock band is rock. */
 const laidMaterial = (pass: FloorPass, c: LevelCell, x: number, y: number): Material | null =>
-  c.material !== null && isCliffGround(c.material) && pass.band.low.has(`${x},${y}`) ? "rock" : c.material;
+  c.material !== null && isCliffGround(c.material) && pass.band.low.has(pass.lv.V.index(x, y))
+    ? "rock"
+    : c.material;
 /** Cells one floor piece may cover share this key. */
 const tileKey = (pass: FloorPass, c: LevelCell, x: number, y: number): string =>
   `${c.theme}|${laidMaterial(pass, c, x, y) ?? ""}|${c.height}`;
@@ -422,11 +424,11 @@ export function layWaterBeds(lv: RealizeLevel, waterCells: WaterCells): void {
 export function layGroundUnderDecks(lv: RealizeLevel): GroundUnderDecks {
   const { L, V, elev, emit } = lv;
   const { seed, frame, lookup, pick } = lv.ctx;
-  const groundUnder = new Map<string, number>();
+  const groundUnder = new Map<number, number>();
   for (const b of L.bridges ?? []) {
     b.cells.forEach(([bx, by], j) => {
       const uq = b.under[j] ?? b.deck;
-      groundUnder.set(`${bx},${by}`, uq / 4);
+      groundUnder.set(V.index(bx, by), uq / 4);
       const mat = b.underMaterial[j] ?? null;
       if (mat === null || uq >= b.deck) return;
       const c = V.cell(bx, by);

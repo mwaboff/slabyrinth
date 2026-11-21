@@ -31,8 +31,8 @@ export function layRockWalls(lv: RealizeLevel, fullCells: FullCellColumns, shell
   const massFaces: MassFace[] = [];
   /** The columns of the mass faces, built after the mass where no mass piece closes the face cell. */
   const columnLater = new Map<string, () => void>();
-  for (const [k, c] of fullCells) {
-    const col = planColumn(lv, k, c, ceiling, wallNoise);
+  for (const c of fullCells.values()) {
+    const col = planColumn(lv, c, ceiling, wallNoise);
     if (!col) continue;
     // generator 3: the column is only the fill of a wall of rock mass (gen/cavewall.ts); it is built below, where no
     // mass piece closes the face cell
@@ -53,12 +53,13 @@ export function layRockWalls(lv: RealizeLevel, fullCells: FullCellColumns, shell
  */
 function planColumn(
   lv: RealizeLevel,
-  k: string,
   c: FullCellColumn,
   ceiling: number,
   wallNoise: ValueNoise,
 ): { base: number; top: number; build: () => void } | null {
   const { L, elev, blockTurn, emit } = lv;
+  /** The column's cell as its seeded picks name it. */
+  const k = `${c.x},${c.y}`;
   const { seed, profile, frame, lookup, pick } = lv.ctx;
   const rockSkirt = profile.rockWallSkirt;
   const r1 = lookup(L.id, c.theme, [c.roleName], {
