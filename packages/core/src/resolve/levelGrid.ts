@@ -139,6 +139,15 @@ export function cellTheme(level: ResolvedLevel, i: number, fallback: ThemeId): T
   return level.themes[(i >= 0 ? level.cells.theme[i] : 0) ?? 0] ?? fallback;
 }
 
+/**
+ * The theme a resolved element (a feature, a link, an opening) is built in: its own, or, when it has none (`""`, the
+ * resolver's "inherit"), the theme of where it stands (`inherited`: its anchor cell's, an opening's wall face's). The
+ * one reader of that convention: the realize passes, verify and the review ask it.
+ */
+export function elementTheme(own: ThemeId, inherited: ThemeId): ThemeId {
+  return own === "" ? inherited : own;
+}
+
 export class LevelGrid implements GridSize {
   /** Plan coordinates of the level's first cell. */
   readonly x0: number;
@@ -212,6 +221,11 @@ export class LevelGrid implements GridSize {
     if (kind !== EDGE.WALL && kind !== EDGE.OPENING) return false;
     // host 1 = the edge's second cell: the cell whose N or W side it is
     return ((g.host[i] ?? 1) === 1) === (side === "N" || side === "W");
+  }
+
+  /** The theme an element standing at (x, y) is built in: its own, else that cell's (`elementTheme`). */
+  themeAt(own: ThemeId, x: number, y: number): ThemeId {
+    return elementTheme(own, this.cell(x, y).theme);
   }
 
   /** The cell at (x, y) as the build reads it (a new object; see `LevelCell`). */

@@ -55,7 +55,7 @@ export function layFeatures(lv: RealizeLevel, tones: CliffTones): void {
 function placeFeature(pass: FeaturePass, f: ResolvedFeature): void {
   const { lv } = pass;
   if (buildCoveredStall(lv, f)) return;
-  const theme = f.theme || lv.V.cell(f.at[0], f.at[1]).theme;
+  const theme = lv.V.themeAt(f.theme, f.at[0], f.at[1]);
   const asset = f.type === "custom" ? customAsset(lv, f) : paletteAsset(pass, f, theme);
   if (!asset) return;
   const deg = featureTurn(pass, f, asset);

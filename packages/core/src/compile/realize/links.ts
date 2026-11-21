@@ -19,7 +19,7 @@ import {
   stepRole,
 } from "../../palette/roles";
 import { linkKindInfo } from "../../plan/links";
-import type { EdgeOrient } from "../../resolve/levelGrid";
+import { elementTheme, type EdgeOrient } from "../../resolve/levelGrid";
 import { rotateXZ } from "../geometry";
 import { stackFill } from "./fill";
 import { isCliffGround } from "../../resolve/materials";
@@ -92,7 +92,7 @@ export function layLinks(lv: RealizeLevel): void {
     const roleName = linkRole(lk.kind);
     const firstCell = lk.lowerCells[0];
     if (!firstCell) continue;
-    const theme = lk.theme || V.cell(firstCell[0], firstCell[1]).theme;
+    const theme = V.themeAt(lk.theme, firstCell[0], firstCell[1]);
     const res = lookup(L.id, theme, [roleName]);
     if (!res) continue;
     const pool = res.variants.filter((v) => v.weight > 0);
@@ -196,7 +196,7 @@ function placeHatch(lv: RealizeLevel, lk: ResolvedPlan["links"][number]): void {
   const { frame, lookup, pick } = lv.ctx;
   const cell = lk.upperCells[0] ?? lk.arrival;
   const c = V.cell(cell[0], cell[1]);
-  const res = lookup(L.id, lk.theme || c.theme, [linkRole(lk.kind)]);
+  const res = lookup(L.id, elementTheme(lk.theme, c.theme), [linkRole(lk.kind)]);
   const pool = res ? res.variants.filter((u) => u.weight > 0) : [];
   const v = res ? pick(pool.length ? pool : res.variants, `${L.id}:hatch:${lk.id}`) : undefined;
   if (!v) return;

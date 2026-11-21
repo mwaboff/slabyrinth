@@ -129,6 +129,25 @@ describe("core guards", () => {
     });
   });
 
+  describe("slabyrinth/element-theme: a resolved element's theme is read with elementTheme", () => {
+    it("reports `x.theme || other` in a stage that reads a resolved plan", async () => {
+      expect(
+        await guardHits("packages/core/src/compile/realize/features.ts", "const t = f.theme || cell.theme;"),
+      ).toEqual([expect.stringContaining("slabyrinth/element-theme")]);
+      expect(await guardHits("packages/core/src/review/stalls.ts", 'const t = s.theme || "";')).toHaveLength(
+        1,
+      );
+    });
+    it("leaves the reader, other fallbacks and the resolver alone", async () => {
+      const file = "packages/core/src/compile/realize/features.ts";
+      expect(await guardHits(file, "const t = V.themeAt(f.theme, x, y);")).toEqual([]);
+      expect(await guardHits(file, "const t = f.theme ?? fallback;")).toEqual([]);
+      expect(
+        await guardHits("packages/core/src/resolve/level/features.ts", "const t = f.theme || cell.theme;"),
+      ).toEqual([]);
+    });
+  });
+
   describe("slabyrinth/hash-unit: a draw from a hash goes through util/hash.ts", () => {
     it("reports 2^32 written by hand anywhere in core but util", async () => {
       const code = "const u = h32(`${seed}:k`) / 4294967296;";

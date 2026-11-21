@@ -266,8 +266,22 @@ const sidesRule = selectorRule("Sides come from gen/gridGeometry.ts.", [
   })),
 ]);
 
+/**
+ * A resolved element's theme ("" = inherit) has one reader, resolve/levelGrid.ts elementTheme / LevelGrid.themeAt: a
+ * `x.theme || other` at the reader works it out again, and the day one reader picks another `other`, two stages build
+ * the same element in two themes.
+ */
+const elementThemeRule = selectorRule("A resolved element's theme is read with elementTheme.", [
+  {
+    selector: "LogicalExpression[operator='||'][left.type='MemberExpression'][left.property.name='theme']",
+    message:
+      "Ask resolve/levelGrid.ts elementTheme(own, inherited) or LevelGrid.themeAt(own, x, y) instead of `x.theme || ...`.",
+  },
+]);
+
 const slabyrinthPlugin = {
   rules: {
+    "element-theme": elementThemeRule,
     "core-layers": coreLayersRule,
     "cell-theme": cellThemeRule,
     "hash-unit": hashUnitRule,
@@ -369,6 +383,11 @@ export default tseslint.config(
     files: ["packages/core/src/**/*.ts"],
     ignores: ["packages/core/src/gen/catalog.ts"],
     rules: { "slabyrinth/feature-lists": "error" },
+  },
+  {
+    // the stages that read a resolved plan (the resolver writes the themes)
+    files: ["packages/core/src/{compile,review,render,text}/**/*.ts"],
+    rules: { "slabyrinth/element-theme": "error" },
   },
   {
     // the generation side (schemas and tool definitions elsewhere spell the enum out on purpose)

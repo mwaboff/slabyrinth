@@ -6,6 +6,7 @@
  */
 import type { ResolvedOpening } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
+import { elementTheme } from "../../resolve/levelGrid";
 import type { WallFace } from "../../resolve/wallFaces";
 import { faceEdgeCtx, lenFilter, lengthOf, placeEdgePiece, type CornerStrips, type EdgeCtx } from "./edges";
 import { OPPOSITE } from "../../gen/gridGeometry";
@@ -36,7 +37,8 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
   const first = ctxs[0];
   if (!first) return;
   const roleName = openingRole(op.kind);
-  const res = lookup(L.id, op.theme || first.theme, [roleName]);
+  const theme = elementTheme(op.theme, first.theme);
+  const res = lookup(L.id, theme, [roleName]);
   if (!res) return;
   const lengths = [
     ...new Set(res.variants.filter((v) => v.weight > 0 || res.variants.length === 1).map(lengthOf)),
@@ -48,7 +50,7 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
     if (!c) break;
     let placed = 0;
     for (const n of lengths.filter((l) => l <= remaining)) {
-      const r = lookup(L.id, op.theme || first.theme, [roleName], lenFilter(n), true);
+      const r = lookup(L.id, theme, [roleName], lenFilter(n), true);
       const pool = r ? r.variants.filter((v) => v.weight > 0) : [];
       const v = r ? (pool.length ? pick(pool, `${L.id}:opening:${op.id}:${i}`) : r.variants[0]) : undefined;
       if (!v || !r) continue;
@@ -180,7 +182,7 @@ function closeAboveLeaf(
     // when the palette has one (data-driven; absent role = no lintel, no warning).
     const lr = lookup(
       L.id,
-      op.theme || ck.theme,
+      elementTheme(op.theme, ck.theme),
       [lintelRole(op.wallStyle), THEME_LINTEL_ROLE],
       lenFilter(1),
       true,

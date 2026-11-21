@@ -8,6 +8,7 @@
  *   stalls_grid       four or more stalls of one size standing in one line at one gap, or every stall the same size
  */
 import type { ResolvedLevel } from "../contracts/resolved";
+import { cellIndex, cellTheme, elementTheme } from "../resolve/levelGrid";
 import type { DesignNote } from "./review";
 
 const SCORE = { uncovered: 3.6, grid: 3.2 } as const;
@@ -15,18 +16,27 @@ const SCORE = { uncovered: 3.6, grid: 3.2 } as const;
 export interface StallNoteInput {
   levelId: string;
   level: ResolvedLevel;
-  /** Can the level's theme build a covered stall (palette/stallParts.ts, the resolver's and compiler's question)? Absent: assume yes. */
+  /** Can a theme build a covered stall (palette/stallParts.ts, the resolver's and compiler's question)? Absent: assume yes. */
   canCoverStall?: (theme: string) => boolean;
+  /** The theme a cell with no theme reads as (the build's default theme). */
+  defaultTheme: string;
 }
 
 export function stallNotes(input: StallNoteInput): DesignNote[] {
   const stalls = input.level.features.filter((f) => f.type === "stall");
   if (stalls.length < 3) return [];
   const out: DesignNote[] = [];
-  const bare = stalls.filter((f) => f.stall === undefined);
-  const theme = stalls[0]?.theme ?? "";
-  const canCover = input.canCoverStall ? input.canCoverStall(theme) : true;
-  if (canCover && bare.length >= 2 && bare.length * 2 >= stalls.length) {
+  // a bare table counts where its own theme (its own, else its cell's) could have covered it
+  const L = input.level;
+  const themeOf = (f: (typeof stalls)[number]): string =>
+    elementTheme(
+      f.theme,
+      cellTheme(L, cellIndex(L.bounds, f.at[0] - L.bounds.x, f.at[1] - L.bounds.y), input.defaultTheme),
+    );
+  const bare = stalls.filter(
+    (f) => f.stall === undefined && (input.canCoverStall ? input.canCoverStall(themeOf(f)) : true),
+  );
+  if (bare.length >= 2 && bare.length * 2 >= stalls.length) {
     out.push({
       code: "stalls_uncovered",
       levelId: input.levelId,

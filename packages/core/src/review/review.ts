@@ -428,6 +428,7 @@ export function reviewDesign(
           ? stallNotes({
               levelId: c.L.id,
               level: c.L,
+              defaultTheme: c.defaultTheme,
               ...(c.canCoverStall ? { canCoverStall: c.canCoverStall } : {}),
             })
           : [],

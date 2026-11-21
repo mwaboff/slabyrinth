@@ -21,7 +21,7 @@ export function checkCoveredStalls(ctx: VerifyCtx): void {
     if (!g) continue;
     for (const f of L.features) {
       if (!f.stall) continue;
-      const theme = f.theme || g.cell(f.at[0], f.at[1]).theme;
+      const theme = g.themeAt(f.theme, f.at[0], f.at[1]);
       const parts = stallParts(roleProbe(ctx.resolveRole, theme), f.stall.form);
       if ("missing" in parts)
         ctx.report.add({

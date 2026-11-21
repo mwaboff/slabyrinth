@@ -22,6 +22,8 @@ import { GOODS_FAMILIES, SMALL_THINGS_ROLES, SURFACE_LOAD, featureRoles } from "
 import { buildPlanDisplayList } from "../../../src/render";
 import { resolvePlan } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
+import { stallNotes } from "../../../src/review/stalls";
+import { handLevel } from "../compile/handResolved";
 
 function marketPlan(
   generator: 3 | 4,
@@ -501,6 +503,27 @@ describe("design review of stalls", () => {
     expect(
       reviewDesign(row, resolvePlan(row, bundledPalettes()), bundledPalettes()).map((n) => n.code),
     ).not.toContain("stalls_grid");
+  });
+
+  it("stalls_uncovered asks each stall's own theme (a stall with none takes its cell's), not the first stall's", () => {
+    const L = handLevel({
+      id: "m",
+      theme: "market_theme",
+      rows: ["..........", ".........."],
+      features: [0, 3, 6].map((x) => ({
+        id: `s${x}`,
+        type: "stall" as const,
+        at: [x, 0],
+        size: [2, 1],
+        theme: "",
+      })),
+    });
+    const notes = (canCover: (t: string) => boolean): string[] =>
+      stallNotes({ levelId: "m", level: L, defaultTheme: "generic", canCoverStall: canCover }).map(
+        (n) => n.code,
+      );
+    expect(notes((t) => t === "market_theme")).toContain("stalls_uncovered");
+    expect(notes((t) => t === "")).not.toContain("stalls_uncovered");
   });
 
   it("is silent on generator 3", () => {
