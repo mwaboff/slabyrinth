@@ -209,109 +209,137 @@ function ownWalkGraph(
  * Without the plan: a breadth-first walk from the largest area of the entry level over cells, openings and links, once
  * as the plan has it and once with the build's blocks; steps the realized walk refuses are kept to name the culprit.
  */
-function checkOwnWalkReach(ctx: VerifyCtx, { runs, obstructed, doors, links }: BuildBlocks): void {
-  const { levels, grids } = ctx;
+function checkOwnWalkReach(ctx: VerifyCtx, blocks: BuildBlocks): void {
+  const { levels } = ctx;
   if (!levels.length) return;
   const entry =
     levels.find((l) => l.id === ctx.opts.entryLevelId) ??
     [...levels].sort((a, b) => Math.abs(a.elevation) - Math.abs(b.elevation))[0];
   if (!entry) return;
-  const { openingAt, jumps } = ownWalkGraph(ctx, runs);
-  const rejected: Array<{ cell: string; solids: readonly Solid[] }> = [];
-  const cellOf = (k: string): [LevelId, number, number] => {
-    const [lv, xy] = k.split("|") as [string, string];
-    const [x, y] = xy.split(",").map(Number) as [number, number];
-    return [lv, x, y];
-  };
+  const graph = ownWalkGraph(ctx, blocks.runs);
+  const rejected: RejectedStep[] = [];
+  const plan = ownWalk(ctx, entry, graph, blocks, false, rejected);
+  const real = ownWalk(ctx, entry, graph, blocks, true, rejected);
+  reportOwnWalkUnreached(ctx, plan, real, rejected);
+}
 
-  const walk = (realized: boolean): Map<string, number> => {
-    const dist = new Map<string, number>();
-    const q: string[] = [];
-    let head = 0;
-    const walkable = (lv: LevelId, x: number, y: number): boolean => {
-      const g = grids.get(lv);
-      if (!g) return false;
-      const c = g.cell(x, y);
-      if (!c.open || !c.floor || (c.flags & CELL_FLAG.FEATURE) !== 0) return false;
-      if (realized && obstructed.at(lv, x, y)) return false;
-      return true;
-    };
-    const g0 = grids.get(entry.id);
-    if (!g0) return dist;
-    // start: the largest area on the entry level
-    const counts = new Map<number, number>();
-    for (let i = 0; i < entry.cells.area.length; i++) {
-      const a = entry.cells.area[i] ?? 0;
-      if (a > 0) counts.set(a, (counts.get(a) ?? 0) + 1);
-    }
-    const startArea = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0];
-    for (let ly = 0; ly < g0.h; ly++)
-      for (let lx = 0; lx < g0.w; lx++) {
-        const x = entry.bounds.x + lx;
-        const y = entry.bounds.y + ly;
-        if ((startArea === undefined || g0.cell(x, y).area === startArea) && walkable(entry.id, x, y)) {
-          const k = `${entry.id}|${x},${y}`;
-          dist.set(k, 0);
-          q.push(k);
-        }
+/** A step the realized walk refused ("level|x,y" of the cell it would have entered) and what stood in the way. */
+interface RejectedStep {
+  cell: string;
+  solids: readonly Solid[];
+}
+
+/** The cell of an own-walk key "level|x,y". */
+function walkCellOf(k: string): [LevelId, number, number] {
+  const [lv, xy] = k.split("|") as [string, string];
+  const [x, y] = xy.split(",").map(Number) as [number, number];
+  return [lv, x, y];
+}
+
+/**
+ * The own walk from the largest area of the entry level: distance (steps) of every cell reached ("level|x,y"). The
+ * realized walk also refuses obstructed cells, blocked doors and broken links, and records each refused step.
+ */
+function ownWalk(
+  { grids }: VerifyCtx,
+  entry: ResolvedPlan["levels"][number],
+  { openingAt, jumps }: ReturnType<typeof ownWalkGraph>,
+  { runs, obstructed, doors, links }: BuildBlocks,
+  realized: boolean,
+  rejected: RejectedStep[],
+): Map<string, number> {
+  const dist = new Map<string, number>();
+  const q: string[] = [];
+  let head = 0;
+  const walkable = (lv: LevelId, x: number, y: number): boolean => {
+    const g = grids.get(lv);
+    if (!g) return false;
+    const c = g.cell(x, y);
+    if (!c.open || !c.floor || (c.flags & CELL_FLAG.FEATURE) !== 0) return false;
+    if (realized && obstructed.at(lv, x, y)) return false;
+    return true;
+  };
+  const g0 = grids.get(entry.id);
+  if (!g0) return dist;
+  // start: the largest area on the entry level
+  const counts = new Map<number, number>();
+  for (let i = 0; i < entry.cells.area.length; i++) {
+    const a = entry.cells.area[i] ?? 0;
+    if (a > 0) counts.set(a, (counts.get(a) ?? 0) + 1);
+  }
+  const startArea = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0];
+  for (let ly = 0; ly < g0.h; ly++)
+    for (let lx = 0; lx < g0.w; lx++) {
+      const x = entry.bounds.x + lx;
+      const y = entry.bounds.y + ly;
+      if ((startArea === undefined || g0.cell(x, y).area === startArea) && walkable(entry.id, x, y)) {
+        const k = `${entry.id}|${x},${y}`;
+        dist.set(k, 0);
+        q.push(k);
       }
-    while (head < q.length) {
-      const k = q[head++] as string;
-      const d = dist.get(k) ?? 0;
-      const [lv, x, y] = cellOf(k);
-      const g = grids.get(lv);
-      if (!g) continue;
-      const run0 = runs.at(lv, x, y);
-      for (const side of SIDES) {
-        const [dx, dy] = SIDE_STEP[side];
-        const nx = x + dx;
-        const ny = y + dy;
-        const nk = `${lv}|${nx},${ny}`;
-        if (dist.has(nk)) continue;
-        const kind = g.edgeKind(x, y, side);
-        if (kind === EDGE.WALL) continue;
-        if (kind === EDGE.OPENING) {
-          const op = openingAt.get(`${lv}|${x},${y}|${side}`);
-          if (op && !isPassage(op.kind)) continue;
-          const blocked = realized && op ? doors.at(lv, op.id) : undefined;
-          if (blocked) {
-            rejected.push({ cell: nk, solids: blocked.solids });
-            continue;
-          }
-        }
-        const runN = runs.at(lv, nx, ny);
-        // inside a stair run you move along the run; lateral entry only at the bottom step
-        if (run0 && run0.k > 0 && !(runN && runN.linkId === run0.linkId)) continue;
-        if (runN && runN.k > 0 && !(run0 && run0.linkId === runN.linkId)) continue;
-        if (!walkable(lv, nx, ny)) {
-          const there = realized ? obstructed.at(lv, nx, ny) : undefined;
-          if (there) rejected.push({ cell: nk, solids: there });
+    }
+  while (head < q.length) {
+    const k = q[head++] as string;
+    const d = dist.get(k) ?? 0;
+    const [lv, x, y] = walkCellOf(k);
+    const g = grids.get(lv);
+    if (!g) continue;
+    const run0 = runs.at(lv, x, y);
+    for (const side of SIDES) {
+      const [dx, dy] = SIDE_STEP[side];
+      const nx = x + dx;
+      const ny = y + dy;
+      const nk = `${lv}|${nx},${ny}`;
+      if (dist.has(nk)) continue;
+      const kind = g.edgeKind(x, y, side);
+      if (kind === EDGE.WALL) continue;
+      if (kind === EDGE.OPENING) {
+        const op = openingAt.get(`${lv}|${x},${y}|${side}`);
+        if (op && !isPassage(op.kind)) continue;
+        const blocked = realized && op ? doors.at(lv, op.id) : undefined;
+        if (blocked) {
+          rejected.push({ cell: nk, solids: blocked.solids });
           continue;
         }
-        if (!(run0 && runN) && Math.abs(g.top(x, y) - g.top(nx, ny)) > STEP + 1e-6) continue;
-        dist.set(nk, d + 1);
-        q.push(nk);
       }
-      for (const j of jumps.get(k) ?? []) {
-        if (dist.has(j.to)) continue;
-        if (realized && links.broken(j.link)) continue;
-        const [tl, tx, ty] = cellOf(j.to);
-        const tg = grids.get(tl);
-        if (!tg) continue;
-        const c = tg.cell(tx, ty);
-        if (!c.open) continue;
-        if (!c.floor && !runs.at(tl, tx, ty)) continue;
-        if (realized && obstructed.at(tl, tx, ty)) continue;
-        dist.set(j.to, d + 1);
-        q.push(j.to);
+      const runN = runs.at(lv, nx, ny);
+      // inside a stair run you move along the run; lateral entry only at the bottom step
+      if (run0 && run0.k > 0 && !(runN && runN.linkId === run0.linkId)) continue;
+      if (runN && runN.k > 0 && !(run0 && run0.linkId === runN.linkId)) continue;
+      if (!walkable(lv, nx, ny)) {
+        const there = realized ? obstructed.at(lv, nx, ny) : undefined;
+        if (there) rejected.push({ cell: nk, solids: there });
+        continue;
       }
+      if (!(run0 && runN) && Math.abs(g.top(x, y) - g.top(nx, ny)) > STEP + 1e-6) continue;
+      dist.set(nk, d + 1);
+      q.push(nk);
     }
-    return dist;
-  };
+    for (const j of jumps.get(k) ?? []) {
+      if (dist.has(j.to)) continue;
+      if (realized && links.broken(j.link)) continue;
+      const [tl, tx, ty] = walkCellOf(j.to);
+      const tg = grids.get(tl);
+      if (!tg) continue;
+      const c = tg.cell(tx, ty);
+      if (!c.open) continue;
+      if (!c.floor && !runs.at(tl, tx, ty)) continue;
+      if (realized && obstructed.at(tl, tx, ty)) continue;
+      dist.set(j.to, d + 1);
+      q.push(j.to);
+    }
+  }
+  return dist;
+}
 
-  const plan = walk(false);
-  const real = walk(true);
-  for (const L of levels) {
+/** Every area the plan walk reaches and the realized walk does not, named with the first refused step on its way. */
+function reportOwnWalkUnreached(
+  ctx: VerifyCtx,
+  plan: ReadonlyMap<string, number>,
+  real: ReadonlyMap<string, number>,
+  rejected: readonly RejectedStep[],
+): void {
+  for (const L of ctx.levels) {
     for (const area of L.areas) {
       if (area.kind === "zone") continue;
       const ai = L.areaIds.indexOf(area.id) + 1;
