@@ -257,6 +257,22 @@ const SWITCHES = {
     4,
     "A rock wall column is a low stretch only where it still stands closed above the highest floor it walls in, not only the lowest (compile/realize/rockWalls.ts).",
   ),
+  buildingReach: on(
+    4,
+    "A building's chimneys and windows keep out of the cells another building reaches (its footprint and the wall ring its walls, eaves and chimneys stand in: resolve/building/faces.ts reachedByOther).",
+  ),
+  lowMassesOffNeighbours: on(
+    4,
+    "A drawn building design never puts a lower ground mass (a lean-to, a twin's second mass, an ell's wing) against another building: the design is drawn again (resolve/structure.ts drawDesigns).",
+  ),
+  partyWallsOutsideTaller: on(
+    4,
+    "A party wall between two buildings is hosted outside the one whose walls stand higher there (the earlier one on a tie), the wall that closes the edge's full height (resolve/structure.ts afterOpenings).",
+  ),
+  windowsInOneVolume: on(
+    4,
+    "A ground-storey window stands in the wall of one volume, never across the joint where a lower one (a lean-to) meets it.",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

@@ -28,6 +28,7 @@ import type {
   Structure,
   TerrainOp,
   Vec2,
+  Volume,
   WallRun,
   WallStyle,
 } from "../contracts/plan";
@@ -36,7 +37,7 @@ import type { ResolvedLevel, ResolvedStructure, ResolvedVolume } from "../contra
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { OPPOSITE, SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
 import { forEachMaskCell } from "../gen/mask";
-import { generatorProfile } from "../plan/generator";
+import { generatorProfile, type GeneratorProfile } from "../plan/generator";
 import { withWings } from "../plan/building";
 import { rasterizeShape } from "../gen/shapes";
 import { elementSeed, subSeed } from "../util/hash";
@@ -93,7 +94,12 @@ export class StructureWork {
   private readonly issues: PlanIssue[];
   private readonly issueStart: number;
 
-  constructor(level: Level, li: number, issues: PlanIssue[]) {
+  constructor(
+    level: Level,
+    li: number,
+    issues: PlanIssue[],
+    private readonly gen: GeneratorProfile,
+  ) {
     this.li = li;
     this.levelId = level.id;
     this.issues = issues;
@@ -212,6 +218,13 @@ export class StructureWork {
   afterOpenings(w: LevelLike): void {
     // a party wall between two buildings stands outside the earlier one (which builds it): host the later ones first
     for (const b of [...this.buildings].reverse()) forceHostsOutside(w, b.cellSet);
+    // generator 4 (`partyWallsOutsideTaller`): unless the earlier one's walls there stop below the later one's ground
+    // storey; they cannot close it then, so the later one builds its ground storey's wall itself (compile/structure.ts
+    // `party`) on its own outside, and that is the wall the edge describes
+    if (this.gen.partyWallsOutsideTaller)
+      this.buildings.forEach((b, i) => {
+        for (const o of this.buildings.slice(0, i)) hostOutsideWhereTaller(w, b, o);
+      });
     for (const b of this.buildings) {
       for (const g of b.ground) {
         const [dx, dy] = STEP[g.side];
@@ -503,6 +516,39 @@ export interface LevelLike {
   ): { e: { kind: Uint8Array; hostSet: Int8Array }; i: number } | null;
 }
 
+/**
+ * The top of a building's walls over one of its cells (above the level's ground: its pad and the storey's top), the
+ * highest storey standing on the cell, or only the ground storey of the ground volume standing on it.
+ */
+function wallTopAt(b: BuildingPlan, k: string, groundOnly: boolean): number {
+  let top = -Infinity;
+  for (const v of b.volumes)
+    v.storeys.forEach((sp, s) => {
+      if (sp.cellSet.has(k) && (!groundOnly || (s === 0 && v.on === null))) top = Math.max(top, sp.relTop);
+    });
+  return top + (b.pad ?? 0) / 4;
+}
+
+/**
+ * Party edges of the later building `b` against the earlier `o`: hosted outside `b` (in `o`'s cell) where `o`'s walls
+ * stop below the top of `b`'s ground storey.
+ */
+function hostOutsideWhereTaller(w: LevelLike, b: BuildingPlan, o: BuildingPlan): void {
+  for (const k of b.cellSet) {
+    const [x, y] = k.split(",").map(Number) as [number, number];
+    for (const side of SIDES) {
+      const [dx, dy] = STEP[side];
+      const n = key(x + dx, y + dy);
+      if (!o.cellSet.has(n) || wallTopAt(o, n, false) >= wallTopAt(b, k, true) - 1e-6) continue;
+      const ed = w.sideEdge(x, y, side);
+      if (!ed) continue;
+      const kind = ed.e.kind[ed.i] as number;
+      if (kind !== EDGE.WALL && kind !== EDGE.OPENING) continue;
+      ed.e.hostSet[ed.i] = side === "N" || side === "W" ? 0 : 1;
+    }
+  }
+}
+
 function forceHostsOutside(w: LevelLike, cells: ReadonlySet<string>): void {
   for (const k of cells) {
     const [x, y] = k.split(",").map(Number) as [number, number];
@@ -556,7 +602,7 @@ function startExpansion(
   inBounds: (x: number, y: number) => boolean,
   list: Structure[],
 ) {
-  const work = new StructureWork(level, li, issues);
+  const work = new StructureWork(level, li, issues, generatorProfile(plan));
   const areas: Area[] = [];
   const openings: Opening[] = [];
   const walls: WallRun[] = [];
@@ -661,6 +707,31 @@ function drawDesigns({ plan, level, list, work }: Expansion): void {
     );
     const front = st.front ?? facingOpen(level, r, st.id, work.neighbours);
     const seed = elementSeed(plan.seed, st.id, st.seed);
+    const back = OPPOSITE[front];
+    const profile = generatorProfile(plan);
+    const expand = (dd: BuildingDesign): Building =>
+      expandDesign(
+        st,
+        dd,
+        r,
+        front,
+        profile,
+        dd.roofKit !== undefined && dd.roofKit !== "" ? dd.roofKit : space.pitchedKit,
+        {
+          ...(space.parapetFor ? { parapetFor: space.parapetFor } : {}),
+          ...(space.atticHeight !== undefined ? { atticHeight: space.atticHeight } : {}),
+          ...(space.maxFootprint !== undefined ? { maxFootprint: space.maxFootprint } : {}),
+          ...(space.roofShare && style0
+            ? { roofBalance: { footing: style0.footing ? style0.footingHeight : 0, deck: style0.roof.deck } }
+            : {}),
+          rearOpen: openDepth(level, r, back, st.id, work.neighbours, 3) >= 2.5,
+        },
+      );
+    // generator 4 (`lowMassesOffNeighbours`): a design whose lower ground mass would stand against another building
+    // is drawn again, like one that repeats its neighbour
+    const footing = style0?.footing ? style0.footingHeight : 0;
+    const lowAgainst = (dd: BuildingDesign): boolean =>
+      profile.lowMassesOffNeighbours && lowMassAgainstNeighbour(expand(dd), st.id, work.neighbours, footing);
     let d = drawDesign(space, subSeed(seed, "design0"), st.use, r.w, r.h, st.character);
     for (let k = 1; k < 16; k++) {
       // tone: neighbours differ in wall tone, and at most a share of the street is dark-walled
@@ -690,33 +761,53 @@ function drawDesigns({ plan, level, list, work }: Expansion): void {
             (p.d.roofSurface === d.roofSurface && space.roofSurfaces !== undefined) ||
             (space.tones !== undefined && tone(p.d) === tone(d)),
         ) ||
-        (space.tones !== undefined && tone(d) === "dark" && darkNow >= darkCap);
+        (space.tones !== undefined && tone(d) === "dark" && darkNow >= darkCap) ||
+        lowAgainst(d);
       if (!clash) break;
       d = drawDesign(space, subSeed(seed, `design${k}`), st.use, r.w, r.h, st.character);
     }
+    // every draw put a low mass against a neighbour: the last one keeps one mass (a plain box)
+    if (lowAgainst(d)) d = { ...d, archetype: "box" };
     placed.push({ r, d, space });
-    const back = OPPOSITE[front];
-    work.designs.set(st.id, {
-      design: d,
-      building: expandDesign(
-        st,
-        d,
-        r,
-        front,
-        generatorProfile(plan),
-        d.roofKit !== undefined && d.roofKit !== "" ? d.roofKit : space.pitchedKit,
-        {
-          ...(space.parapetFor ? { parapetFor: space.parapetFor } : {}),
-          ...(space.atticHeight !== undefined ? { atticHeight: space.atticHeight } : {}),
-          ...(space.maxFootprint !== undefined ? { maxFootprint: space.maxFootprint } : {}),
-          ...(space.roofShare && style0
-            ? { roofBalance: { footing: style0.footing ? style0.footingHeight : 0, deck: style0.roof.deck } }
-            : {}),
-          rearOpen: openDepth(level, r, back, st.id, work.neighbours, 3) >= 2.5,
-        },
-      ),
-    });
+    work.designs.set(st.id, { design: d, building: expand(d) });
   }
+}
+
+/**
+ * A ground volume lower than the building's tallest (a lean-to, the second mass of a twin, an ell's wing) stands
+ * against another building's plot: they would share a party wall that the lower one cannot carry (the neighbour's wall
+ * above it is missing, and a lean-to's roof falls into the neighbour).
+ */
+function lowMassAgainstNeighbour(
+  b: Building,
+  id: string,
+  neighbours: ReadonlyMap<string, string>,
+  styleFooting: number,
+): boolean {
+  const ground = (b.volumes ?? []).filter((v) => v.on === undefined);
+  // the wall top above the ground: the ground storey's footing course (the style's, unless the storey has none),
+  // every storey's walls and the floors between them
+  const heightOf = (v: Volume): number =>
+    Array.isArray(v.storeys)
+      ? v.storeys.reduce(
+          (t, s, i) =>
+            t +
+            (s.height ?? 0) +
+            (i > 0 ? BUILD_CONSTANTS.floorThickness : s.footing === "none" ? 0 : styleFooting),
+          0,
+        )
+      : 0;
+  const tallest = Math.max(...ground.map(heightOf));
+  return ground.some((v) => {
+    if (heightOf(v) >= tallest) return false;
+    for (let y = v.y - 1; y <= v.y + v.h; y++)
+      for (let x = v.x - 1; x <= v.x + v.w; x++) {
+        const inside = x >= v.x && x < v.x + v.w && y >= v.y && y < v.y + v.h;
+        const o = neighbours.get(key(x, y));
+        if (!inside && o !== undefined && o !== id) return true;
+      }
+    return false;
+  });
 }
 
 /** The neighbour map follows the drawn designs (a small house leaves part of its plot open). */

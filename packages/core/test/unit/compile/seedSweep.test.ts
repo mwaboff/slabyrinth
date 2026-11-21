@@ -22,11 +22,13 @@ const sweepSeed = (i: number): number => Math.imul(i + 1, 2654435761) >>> 0;
 const SEEDS = Array.from({ length: SEEDS_PER_PLAN }, (_, i) => sweepSeed(i));
 /**
  * More seeds per plan: ones that once failed (heartroot-rift's rock column was lowered below the higher of the two
- * floors it walls in: generator switch `columnsCloseHighestFloor`) and the KNOWN_FAILURES below.
+ * floors it walls in: generator switch `columnsCloseHighestFloor`; market-street's buildings met in each other's wall
+ * ring: switches `buildingReach`, `lowMassesOffNeighbours`, `partyWallsOutsideTaller`, `windowsInOneVolume`) and the
+ * KNOWN_FAILURES below.
  */
 const ONCE_FAILED: Partial<Record<StoredPlan, readonly number[]>> = {
   "heartroot-rift-v7": [2471588027],
-  "market-street-v3": [1218333409],
+  "market-street-v3": [1218333409, 443779575, 4203543429, 3929271828, 3049954367],
   "outdoor-scatter": [2027808452],
   "example-b": [1457683801],
 };
@@ -51,12 +53,9 @@ const E2E_SEEDS = [...SEEDS, 1274836067, 2676017210, 3620079018, 4028937384];
 /**
  * Plans and seeds that still build with errors, as "<plan>@<seed>" -> the error codes (sorted, distinct). Each is a
  * known fault of the generation side, left for its owner (docs/internal/handoff-lead.md "BUILD REVIEW FIXES"):
- * - market-street: two buildings' parts overlap (a lean-to's walls and roof in the shop's cells), so a wall run and
- *   windows are covered by the other building's pieces; about half of all seeds fail this way;
  * - outdoor-scatter, example-b: a scattered tree or boulder stands in front of a door.
  */
 const KNOWN_FAILURES: Readonly<Record<string, readonly string[]>> = {
-  "market-street-v3@1218333409": ["verify_door_buried", "verify_wall_gap"],
   "outdoor-scatter@2027808452": ["verify_door_blocked"],
   "example-b@1457683801": ["verify_door_blocked"],
 };

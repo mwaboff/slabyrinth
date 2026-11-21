@@ -61,6 +61,17 @@ export function party(b: BuildingCtx, x: number, y: number): boolean {
 }
 
 /**
+ * Another building reaches this cell: it stands on it, or the cell is in its wall ring (one of the eight cells round its
+ * footprint), where that building's walls are hosted, its roof's eaves and gable ends overhang (resolve/roof.ts: the
+ * roof outline is the wing plus its wall ring) and its chimney breasts stand. A part of this building that stands in
+ * the cell (a chimney) or looks out through it (a window) would meet that building's parts there.
+ */
+export function reachedByOther(b: BuildingCtx, x: number, y: number): boolean {
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (party(b, x + dx, y + dy)) return true;
+  return false;
+}
+
+/**
  * The written openings, after a default door when the ground storey has none (on a face with room in front, not a
  * party wall): ground openings on the whole footprint's faces, upper ones on the main volume. Returns the openings as
  * placed in order (with the default door first), which the chimney step reads for the door faces.
@@ -162,36 +173,52 @@ export function placeChimneys(
       );
       continue;
     }
-    let a = along(run, ch.position ?? 0.5, 1);
-    const free = (i: number): boolean => {
-      const c = run.cells[i] as [number, number];
-      return !faces.isTaken(GROUND_FACES, 0, faceKey(c[0], c[1], ch.side));
-    };
-    if (!free(a)) {
-      const alt = run.cells
-        .map((_, i) => i)
-        .filter(free)
-        .sort((p, q) => Math.abs(p - a) - Math.abs(q - a))[0];
-      if (alt === undefined) continue;
-      a = alt;
-    }
+    // the stack moves along its face to the nearest free cell, and is left out when the face has none
+    const a = freeChimneyCell(b, faces, run, along(run, ch.position ?? 0.5, 1));
+    if (a === null) continue;
+    const side = ch.side;
     const c = run.cells[a] as [number, number];
-    const [dx, dy] = STEP[ch.side];
-    const at: Vec2 = [c[0] + dx, c[1] + dy];
+    const [sx, sy] = STEP[side];
+    const at: Vec2 = [c[0] + sx, c[1] + sy];
     if (!b.inBounds(at[0], at[1])) {
       b.issue(
         "error",
-        `building "${st.id}": its ${ch.side} chimney would stand outside the level`,
+        `building "${st.id}": its ${side} chimney would stand outside the level`,
         "use another side or move the building in",
       );
       continue;
     }
     for (const v of vplans)
-      for (let s = 0; s < v.storeys.length; s++)
-        faces.take(...faces.keyOf(v, s), faceKey(c[0], c[1], ch.side));
-    chimneys.push({ at, side: ch.side, wall: [c[0], c[1]] });
+      for (let s = 0; s < v.storeys.length; s++) faces.take(...faces.keyOf(v, s), faceKey(c[0], c[1], side));
+    chimneys.push({ at, side, wall: [c[0], c[1]] });
   }
   return chimneys;
+}
+
+/**
+ * The cell of a face run a chimney stands against: `a`, else the nearest free one (null when none is). Free: no opening
+ * took its face, and (generator 4, `buildingReach`) no other building reaches the ring cell its breast stands in (with
+ * valleys the stack's foot is three wide: its side cells too).
+ */
+function freeChimneyCell(b: BuildingCtx, faces: BuildingFaces, run: FaceRun, a: number): number | null {
+  const [sx, sy] = STEP[run.side];
+  const foot = b.gen.roofValleys ? [-1, 0, 1] : [0];
+  const free = (i: number): boolean => {
+    const c = run.cells[i] as [number, number];
+    if (
+      b.gen.buildingReach &&
+      foot.some((k) => reachedByOther(b, c[0] + sx + Math.abs(sy) * k, c[1] + sy + Math.abs(sx) * k))
+    )
+      return false;
+    return !faces.isTaken(GROUND_FACES, 0, faceKey(c[0], c[1], run.side));
+  };
+  if (free(a)) return a;
+  return (
+    run.cells
+      .map((_, i) => i)
+      .filter(free)
+      .sort((p, q) => Math.abs(p - a) - Math.abs(q - a))[0] ?? null
+  );
 }
 
 /** The street face (given, else the first door's face) and whether it is a shopfront (written, or drawn: prng3). */
@@ -276,12 +303,36 @@ function uncoveredStretches(
               BUILD_CONSTANTS.floorThickness,
         ),
     );
+  // generator 4 (`windowsInOneVolume`): the ground storey's faces belong to every ground volume; a stretch ends where
+  // the face passes from one volume's wall to a wall of another height (a lean-to's lower wall, with its roof and
+  // gable against the house)
+  const ground = v.on === null && sp === v.storeys[0];
+  const wallAt = (c: readonly [number, number]): string => {
+    const s0 = r.vplans.find((o) => o.on === null && o.storeys[0]?.cellSet.has(key(c[0], c[1])))?.storeys[0];
+    return s0 ? `${s0.relTop}:${s0.footing?.height ?? 0}` : "";
+  };
+  const splitWalls = ground && r.b.gen.windowsInOneVolume;
   const parts: Array<Array<[number, number]>> = [[]];
+  let prev = "";
   for (const c of run.cells) {
+    const here = splitWalls ? wallAt(c) : "";
     if (covered(c[0] + dx, c[1] + dy) || party(r.b, c[0] + dx, c[1] + dy)) parts.push([]);
-    else parts[parts.length - 1]?.push(c);
+    else {
+      if (here !== prev && (parts[parts.length - 1]?.length ?? 0) > 0) parts.push([]);
+      parts[parts.length - 1]?.push(c);
+    }
+    prev = here;
   }
   return parts;
+}
+
+/**
+ * Generator 4 (`buildingReach`): a window in this face cell would look into a cell another building reaches (its wall,
+ * eave or chimney stands there, over the window).
+ */
+function looksIntoReach(b: BuildingCtx, c: readonly [number, number], side: Side): boolean {
+  const [dx, dy] = STEP[side];
+  return b.gen.buildingReach && reachedByOther(b, c[0] + dx, c[1] + dy);
 }
 
 /** The wall outside this face cell meets another wall of the building in the same host cell (an inner corner). */
@@ -303,7 +354,8 @@ function glazeShopfront(
   const n = cellsRun.length;
   for (const [ci, c] of cellsRun.entries()) {
     const k = faceKey(c[0], c[1], side);
-    if (faces.isTaken(GROUND_FACES, 0, k) || innerCorner(fp.cellSet, c, side)) continue;
+    if (faces.isTaken(GROUND_FACES, 0, k) || innerCorner(fp.cellSet, c, side) || looksIntoReach(b, c, side))
+      continue;
     // generator 3 (cottage-like walls): a corner cell keeps its wall, a window there is walled over
     if (b.gen.wholeFacades && (ci === 0 || ci === n - 1) && n >= 3) continue;
     faces.take(GROUND_FACES, 0, k);
@@ -332,7 +384,7 @@ function windowRhythm(
   const keepFree = (i: number): boolean => {
     if (i < 1 || i >= n - 1) return false;
     const c = cellsRun[i] as [number, number];
-    if (innerCorner(fp.cellSet, c, side)) return false;
+    if (innerCorner(fp.cellSet, c, side) || looksIntoReach(b, c, side)) return false;
     for (const d of [-1, 0, 1]) {
       const cc = cellsRun[i + d];
       if (cc && faces.isTaken(vk, vs, faceKey(cc[0], cc[1], side))) return false;
