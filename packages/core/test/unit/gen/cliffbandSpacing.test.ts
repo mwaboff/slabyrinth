@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { MapPlan, Side } from "../../../src/contracts/plan";
 import { cliffBand, matchTone, terraceRockShare, type PlacementGrid } from "../../../src/gen/index";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import { reviewDesign } from "../../../src/review/index";
 import { FENCE, fenceShare, type FenceRule } from "../../../src/review/rockSpacing";
@@ -97,9 +98,11 @@ describe("review: cliff_even_spacing", () => {
 
   it("the default band passes; the same level with its boulders in an even row fails", () => {
     const plan = load();
-    const ok = reviewDesign(plan, resolvePlan(plan), { limit: 99 }).map((n) => n.code);
+    const ok = reviewDesign(plan, resolvePlan(plan, bundledPalettes()), bundledPalettes(), { limit: 99 }).map(
+      (n) => n.code,
+    );
     expect(ok).not.toContain("cliff_even_spacing");
-    const resolved = resolvePlan(plan);
+    const resolved = resolvePlan(plan, bundledPalettes());
     const L = resolved.levels[0];
     if (!L) throw new Error("no level");
     const crest = L.features.find((f) => f.type === "cliff_crest");
@@ -112,7 +115,7 @@ describe("review: cliff_even_spacing", () => {
       at: [L.bounds.x + 4 + i * 2, L.bounds.y + 4] as [number, number],
     }));
     L.features = [...rest, ...row];
-    const codes = reviewDesign(plan, resolved, { limit: 99 }).map((n) => n.code);
+    const codes = reviewDesign(plan, resolved, bundledPalettes(), { limit: 99 }).map((n) => n.code);
     expect(codes).toContain("cliff_even_spacing");
   });
 });

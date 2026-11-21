@@ -9,6 +9,7 @@ import {
   type ExecutorPorts,
 } from "../../../src/agent";
 import { loadPlan } from "../../fixtures";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 
 const exec = createToolExecutor();
@@ -43,6 +44,7 @@ function ctx(
     },
     newSeed: () => 1234,
     newPlanId: () => "00000000-0000-4000-8000-000000000001",
+    palettes: bundledPalettes(),
     ...over,
   };
 }
@@ -611,7 +613,10 @@ describe("design review in create/edit results", () => {
     const ports: ExecutorPorts = {
       ...defaultExecutorPorts,
       // a resolver whose output the review cannot read
-      resolvePlan: (p, v) => ({ ...resolvePlan(p, { planVersion: v }), levels: [{} as never] }),
+      resolvePlan: (p, palettes, v) => ({
+        ...resolvePlan(p, palettes, { planVersion: v }),
+        levels: [{} as never],
+      }),
       changedViews: null,
       ascii: null,
     };

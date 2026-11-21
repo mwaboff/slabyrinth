@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
 import type { ResolvedLevel, ResolvedStructure } from "../../../src/contracts/resolved";
 import { realize } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
 import { mergeRoofs, roofOwners, roofProportion } from "../../../src/resolve";
@@ -40,7 +40,7 @@ const plan = (seed: number, use: string | undefined, w: number, h: number, gener
     level: { features: [{ id: "f", type: "statue", at: [1, 1] }] },
   });
 const build = (p: MapPlan): ResolvedStructure =>
-  ((resolvePlan(p).levels[0] as ResolvedLevel).structures ?? [])[0] as ResolvedStructure;
+  ((resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel).structures ?? [])[0] as ResolvedStructure;
 
 const SAMPLE: Array<{
   use: "cottage" | "inn";
@@ -121,15 +121,17 @@ describe("roof proportions (generator 3)", () => {
 
   it("the review notes a squat pitched roof (roof_squat) only when the roof is under 40 % of the height", () => {
     const p = SAMPLE[0]?.p as MapPlan;
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const st = (r.levels[0] as ResolvedLevel).structures?.[0] as ResolvedStructure;
-    expect(reviewDesign(p, r, { limit: 99 }).some((n) => n.code === "roof_squat")).toBe(
+    expect(reviewDesign(p, r, bundledPalettes(), { limit: 99 }).some((n) => n.code === "roof_squat")).toBe(
       (roofProportion(st)?.share ?? 1) < 0.4,
     );
     // raise the walls of every volume until the roof is a lid
     for (const v of st.volumes ?? []) for (const s of v.storeys) s.wallTop += 6;
     expect(roofProportion(st)?.share ?? 1).toBeLessThan(0.4);
-    expect(reviewDesign(p, r, { limit: 99 }).some((n) => n.code === "roof_squat")).toBe(true);
+    expect(reviewDesign(p, r, bundledPalettes(), { limit: 99 }).some((n) => n.code === "roof_squat")).toBe(
+      true,
+    );
   });
 });
 
@@ -215,7 +217,8 @@ describe("valleys where roofs meet (generator 3)", () => {
   it("the compiler builds the merged roof: a generator 3 ell has roof pieces and verifies without a roof overlap", () => {
     const s = SAMPLE.find((x) => x.use === "inn" && x.st.design?.archetype === "ell");
     expect(s).toBeDefined();
-    const pl = realize(resolvePlan((s as { p: MapPlan }).p), palettes).levels[0]?.placements ?? [];
+    const pl =
+      realize(resolvePlan((s as { p: MapPlan }).p, bundledPalettes()), palettes).levels[0]?.placements ?? [];
     expect(pl.filter((q) => /roof/.test(String(q.source.elementId))).length).toBeGreaterThan(20);
   });
 });

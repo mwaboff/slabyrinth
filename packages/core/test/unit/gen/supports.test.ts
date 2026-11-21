@@ -8,7 +8,7 @@ import type { Side } from "../../../src/contracts/plan";
 import { realize } from "../../../src/compile";
 import { verifyBuild } from "../../../src/compile/verify/verify";
 import { dressArea, type GeneratedPlacement, type PlacementGrid } from "../../../src/gen/index";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
 import { loadPlan } from "../../fixtures";
@@ -128,7 +128,7 @@ describe("props rest on props: the whole build", () => {
   const palettes = loadPalettes();
   const build = (generator: 2 | 3) => {
     const plan = { ...fixture, generator };
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     const set = realize(r, palettes, {});
     set.diagnostics.push(...verifyBuild(r, set, palettes, { plan }).diagnostics);
     return { r, set };

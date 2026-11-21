@@ -21,6 +21,7 @@ import type {
 } from "../contracts/plan";
 import { BUILD_CONSTANTS, PLAN_LIMITS } from "../contracts/plan";
 import { own } from "../palette/own";
+import type { ResolvePalettes } from "../palette/resolve";
 import { utf8Length } from "../util/hash";
 import { VOCABULARY_SINCE, generatorProfile } from "./generator";
 import { listForHint, nearest } from "../util/strings";
@@ -42,6 +43,12 @@ export interface ValidateContext {
   checks?: readonly PlanCheck[];
   /** Skip globally registered checks (structural validation only). */
   skipRegistered?: boolean;
+  /**
+   * The palettes the plan is built with, for this call, when the caller holds them (a build, the CLI): registered
+   * checks that resolve the plan (WP2 geometry) use them. Absent: the palettes the process registered those checks
+   * with (resolve/register.ts).
+   */
+  palettes?: ResolvePalettes;
 }
 
 /**

@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { realize } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
 import { loadPlan } from "../../fixtures";
@@ -16,7 +16,7 @@ const UPRIGHT =
 const palettes = loadPalettes();
 
 function runFaults(plan: MapPlan): string[] {
-  const r = resolvePlan(plan);
+  const r = resolvePlan(plan, bundledPalettes());
   const set = realize(r, palettes, {});
   // one entry per feature (assemblies emit several pieces: the first is the feature's own asset)
   const byFeature = new Map<string, { role: string; x: number; y: number; asset: string }>();

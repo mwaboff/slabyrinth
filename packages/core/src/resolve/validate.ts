@@ -10,8 +10,9 @@
 import type { MapPlan, PlanIssue, PlanIssueCode, Vec2 } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
+import type { ResolvePalettes } from "../palette/resolve";
 import { type PlayabilityOptions, checkPlayability } from "./playability";
-import { type ResolveOptions, resolvePlan } from "./resolvePlan";
+import { resolvePlan } from "./resolvePlan";
 
 /** Codes the resolver may emit that WP1's own (structural) checks already cover — dropped to avoid duplicates. */
 const WP1_CODES = new Set<PlanIssueCode>(["ref_unknown", "link_mismatch"]);
@@ -28,16 +29,22 @@ const BLOCKING_OPENINGS = new Set(["window", "arrow_slit", "bars"]);
 export interface GeometryCheckContext {
   /** Extra blocked cells / openings (e.g. from realized geometry) for the playability pass. */
   playability?: PlayabilityOptions;
-  /** A resolved plan for this exact plan, when the caller already has one (avoids resolving twice). */
+  /** A resolved plan for this exact plan and palettes, when the caller already has one (avoids resolving twice). */
   resolved?: ResolvedPlan;
-  resolveOptions?: ResolveOptions;
 }
 
-/** The function WP1's validatePlan hook registers. Pure; never throws for bad content. */
-export function geometryChecks(plan: MapPlan, ctx: GeometryCheckContext = {}): PlanIssue[] {
+/**
+ * The checks WP1's validatePlan hook runs (resolve/register.ts), on the plan resolved against `palettes`. Pure; never
+ * throws for bad content.
+ */
+export function geometryChecks(
+  plan: MapPlan,
+  palettes: ResolvePalettes,
+  ctx: GeometryCheckContext = {},
+): PlanIssue[] {
   let resolved: ResolvedPlan;
   try {
-    resolved = ctx.resolved ?? resolvePlan(plan, ctx.resolveOptions);
+    resolved = ctx.resolved ?? resolvePlan(plan, palettes);
   } catch (err) {
     return [
       {

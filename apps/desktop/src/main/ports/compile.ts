@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createAvailability } from "@slabyrinth/core/catalog";
 import { createCompilePlan, estimate as coreEstimate } from "@slabyrinth/core/compile";
-import { loadOrientation, loadPalettes, paletteOptionsFor } from "@slabyrinth/core/palette";
+import { loadOrientation, loadPalettes } from "@slabyrinth/core/palette";
 import { isBlocking } from "@slabyrinth/core";
 import { validatePlan } from "@slabyrinth/core/plan";
 import { resolvePlan } from "@slabyrinth/core/resolve";
@@ -54,30 +54,42 @@ export function availabilityFromCatalog(catalog: AssetCatalog | null): CompileIn
   return catalog ? catalog.assets : null;
 }
 
+/**
+ * The palettes a build compiles with: the bundled palettes, the user's palette files and, with a scanned catalog,
+ * the game's assets (availability, and assets from game updates joining their roles as low-weight extra variants,
+ * core palette/auto.ts). The compile worker builds them for each job; main builds the same for everything else that
+ * resolves a plan (services/buildPalettes.ts), so the preview and the agent describe the map the build produces.
+ */
+export function buildPaletteCatalog(
+  userPalettes: CompileInput["userPalettes"],
+  availability: CompileInput["availability"],
+): PaletteCatalog {
+  return availability === null
+    ? loadPalettes({ user: userPalettes })
+    : loadPalettes({
+        user: userPalettes,
+        availability: createAvailability(availability),
+        catalog: availability,
+      });
+}
+
 export function createCoreCompileBackend(): CompileBackend {
   const orientationFor = (input: CompileInput): OrientationCalibration =>
     loadOrientation(input.orientationOverride ?? undefined).orientation;
   const palettesFor = (input: CompileInput): PaletteCatalog =>
-    input.availability === null
-      ? loadPalettes({ user: input.userPalettes })
-      : loadPalettes({
-          user: input.userPalettes,
-          availability: createAvailability(input.availability),
-          // assets from game updates join their roles as low-weight extra variants (core palette/auto.ts)
-          catalog: input.availability,
-        });
+    buildPaletteCatalog(input.userPalettes, input.availability);
 
   return {
     kind: "core",
     compile(input, progress) {
       progress("resolve", 0, 4);
       const compilePlan = createCompilePlan({
-        resolvePlan: (plan, opts) => resolvePlan(plan, opts ?? {}),
+        resolvePlan: (plan, palettes, opts) => resolvePlan(plan, palettes, opts ?? {}),
         // Only blocking issues refuse a build; playability findings are reported, never refused
         // (decisions.md "Playability validation"). createCompilePlan passes the plan to verify,
         // which then skips build findings the plan-level checks already report.
-        validatePlan: (plan) => {
-          const blocking = validatePlan(plan).issues.filter(isBlocking);
+        validatePlan: (plan, palettes) => {
+          const blocking = validatePlan(plan, { palettes }).issues.filter(isBlocking);
           return { ok: blocking.length === 0, issues: blocking };
         },
         orientation: orientationFor(input),
@@ -89,12 +101,8 @@ export function createCoreCompileBackend(): CompileBackend {
       return bundle;
     },
     estimate(input, levels) {
-      // generator 4: resolve against the palettes the build will use (covered stalls only where they can be built)
       const palettes = palettesFor(input);
-      const resolved = resolvePlan(input.plan, {
-        ...(levels === undefined ? {} : { levels }),
-        ...paletteOptionsFor(input.plan, palettes),
-      });
+      const resolved = resolvePlan(input.plan, palettes, levels === undefined ? {} : { levels });
       // The plan lets verify skip findings the plan-level playability pass already reports.
       const opts: Parameters<typeof coreEstimate>[2] = {
         orientation: orientationFor(input),

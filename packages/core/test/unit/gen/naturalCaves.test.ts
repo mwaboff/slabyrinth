@@ -9,7 +9,7 @@ import type { MapPlan } from "../../../src/contracts/plan";
 import { CELL, CELL_FLAG, type ResolvedLevel } from "../../../src/contracts/resolved";
 import { realize } from "../../../src/compile";
 import { verifyBuild } from "../../../src/compile/verify/verify";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import {
   caveHollowNotesOf,
   caveMassReviewNotes,
@@ -101,7 +101,7 @@ function narrowCells(L: ResolvedLevel): number {
 describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", () => {
   const build = (generator: 3 | 4) => {
     const plan = { ...fixture, generator } as MapPlan;
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     const set = realize(r, palettes, {});
     const verify = verifyBuild(r, set, palettes, { plan }).diagnostics;
     return { plan, r, set, verify };
@@ -206,7 +206,7 @@ describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", ()
     expect(unbuilt).toEqual(built);
     expect(caveMassReviewNotes(g3.plan, g3.r, reviewBuild(g3.r, palettes), palettes)).toEqual([]);
     // the whole review with no build given: the generator-4 grotto is neither hollow, flat nor straight-sided
-    const codes = reviewDesign(g4.plan, g4.r, { palettes, limit: 99 }).map((n) => n.code);
+    const codes = reviewDesign(g4.plan, g4.r, palettes, { limit: 99 }).map((n) => n.code);
     expect(codes).not.toContain("cave_mass_hollow");
     expect(codes).not.toContain("cave_floor_flat");
     expect(codes).not.toContain("cave_outline_straight");
@@ -238,8 +238,8 @@ describe("generator 4: rectangular cave chambers and a corridor", () => {
       ],
       level: { features: [{ id: "statue", type: "statue", at: [11, 11] }] },
     });
-  const r3 = resolvePlan(plan(3));
-  const r4 = resolvePlan(plan(4));
+  const r3 = resolvePlan(plan(3), bundledPalettes());
+  const r4 = resolvePlan(plan(4), bundledPalettes());
 
   it("gives the boxes ragged outlines with every connection and passage width kept", () => {
     const n3 = caveNaturalMeasures(level(r3));

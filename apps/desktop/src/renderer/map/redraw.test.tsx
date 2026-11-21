@@ -3,12 +3,16 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import type { MapPlan } from "@slabyrinth/core";
 import exampleA from "../../../../../packages/core/test/fixtures/plans/example-a.json?raw";
+import { setBridge } from "../bridge/client";
+import { createFakeBridge } from "../bridge/fake/fakeBridge";
 import { MapContent } from "../features/stage/Stage";
 import { mapDrawStats } from "./MapView";
 import { useChat } from "../stores/chat";
 import { useMap } from "../stores/map";
 
 beforeAll(() => {
+  // the map resolves against the build's palettes, which come from main ("palettes:resolveData")
+  setBridge(createFakeBridge({ speed: 0 }));
   Element.prototype.scrollIntoView = function scrollIntoView(): void {};
   // jsdom has no ResizeObserver
   globalThis.ResizeObserver = class {

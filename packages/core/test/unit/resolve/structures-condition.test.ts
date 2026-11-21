@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { Building, MapPlan, Structure } from "../../../src/contracts/plan";
 import type { ResolvedLevel, ResolvedStructure } from "../../../src/contracts/resolved";
 import { realize, verifyBuild } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
 import { WEATHER_MINIMUMS, structureRuinMeasures, weatherMeasures, weatherSigns } from "../../../src/resolve";
@@ -27,7 +27,7 @@ const plan = (structures: Structure[], generator: 2 | 3 = 3, theme = "forest"): 
     level: { features: [{ id: "f", type: "statue", at: [2, 2] }] },
   });
 const first = (p: MapPlan): ResolvedStructure =>
-  ((resolvePlan(p).levels[0] as ResolvedLevel).structures ?? [])[0] as ResolvedStructure;
+  ((resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel).structures ?? [])[0] as ResolvedStructure;
 const b = (style: string, seed: number, w: number, h: number, extra: Partial<Building> = {}): Building => ({
   id: "b",
   style,
@@ -35,7 +35,8 @@ const b = (style: string, seed: number, w: number, h: number, extra: Partial<Bui
   wings: [{ x: 8, y: 8, w, h }],
   ...extra,
 });
-const placementsOf = (p: MapPlan) => realize(resolvePlan(p), palettes).levels[0]?.placements ?? [];
+const placementsOf = (p: MapPlan) =>
+  realize(resolvePlan(p, bundledPalettes()), palettes).levels[0]?.placements ?? [];
 
 const CASES: Array<[string, number, number, number, Partial<Building>]> = [
   ["cottage", 12, 8, 7, { roof: { type: "gable" } }],
@@ -64,7 +65,7 @@ describe("weathered at generator 3", () => {
       expect(im.roofMissing).toBe(0);
       // the shape stays whole and the build is clean
       const p = plan([wb]);
-      const r = resolvePlan(p);
+      const r = resolvePlan(p, bundledPalettes());
       expect(
         verifyBuild(r, realize(r, palettes), palettes, { plan: p }).diagnostics.filter(
           (x) => x.severity === "error",
@@ -92,11 +93,11 @@ describe("weathered at generator 3", () => {
 
   it("review: weathered_same_as_intact fires when the signs are missing, and is quiet otherwise", () => {
     const wp = plan([b("cottage", 12, 8, 7, { roof: { type: "gable" }, condition: "weathered" })]);
-    const good = resolvePlan(wp);
-    expect(reviewDesign(wp, good, { limit: 99 }).map((n) => n.code)).not.toContain(
+    const good = resolvePlan(wp, bundledPalettes());
+    expect(reviewDesign(wp, good, bundledPalettes(), { limit: 99 }).map((n) => n.code)).not.toContain(
       "weathered_same_as_intact",
     );
-    const bare = resolvePlan(wp);
+    const bare = resolvePlan(wp, bundledPalettes());
     const st = (bare.levels[0] as ResolvedLevel).structures?.[0] as ResolvedStructure;
     if (st.ruin) {
       st.ruin.roofHoles = [];
@@ -105,12 +106,14 @@ describe("weathered at generator 3", () => {
     }
     st.debris = [];
     if (st.lighting) st.lighting.lit = 0.8;
-    const notes = reviewDesign(wp, bare, { limit: 99 });
+    const notes = reviewDesign(wp, bare, bundledPalettes(), { limit: 99 });
     expect(notes.map((n) => n.code)).toContain("weathered_same_as_intact");
     // generator 2 plans are never told (their output is frozen)
     const wp2 = plan([b("cottage", 12, 8, 7, { roof: { type: "gable" }, condition: "weathered" })], 2);
-    const r2 = resolvePlan(wp2);
-    expect(reviewDesign(wp2, r2, { limit: 99 }).map((n) => n.code)).not.toContain("weathered_same_as_intact");
+    const r2 = resolvePlan(wp2, bundledPalettes());
+    expect(reviewDesign(wp2, r2, bundledPalettes(), { limit: 99 }).map((n) => n.code)).not.toContain(
+      "weathered_same_as_intact",
+    );
   });
 });
 
@@ -136,7 +139,7 @@ describe("ruins at generator 3", () => {
       expect(top.length, `${style} ${seed}`).toBeLessThan(Math.max(1, cut));
       const cells = new Set(st.cells.map(([x, y]) => `${x},${y}`));
       const doorFaces = new Set<string>();
-      for (const o of (resolvePlan(p).levels[0] as ResolvedLevel).openings) {
+      for (const o of (resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel).openings) {
         if (!st.openingIds.includes(o.id) || o.kind === "window") continue;
         for (let k = 0; k < o.width; k++) {
           const [x, y] = o.orientation === "h" ? [o.start[0] + k, o.start[1]] : [o.start[0], o.start[1] + k];
@@ -178,7 +181,7 @@ describe("ruins at generator 3", () => {
     const rb = b("keep", 4, 9, 9, { condition: "ruined" });
     expect(first(plan([rb], 2)).ruin?.topRubble).toBeUndefined();
     const p = plan([rb]);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const bare = {
       ...palettes,
       palettes: Object.fromEntries(
@@ -226,7 +229,7 @@ describe("ruins at generator 3", () => {
       // it is built: lintel pieces over the open doorway
       const pl = placementsOf(p);
       expect(pl.length).toBeGreaterThan(0);
-      const r = resolvePlan(p);
+      const r = resolvePlan(p, bundledPalettes());
       const ver = verifyBuild(r, realize(r, palettes), palettes, { plan: p });
       expect(ver.diagnostics.filter((x) => x.severity === "error")).toEqual([]);
       const m = structureRuinMeasures(st);

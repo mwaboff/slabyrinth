@@ -10,8 +10,8 @@ import type { ResolvedLevel } from "../../../src/contracts/resolved";
 import { layoutStalls4, layoutStalls, stallCell } from "../../../src/gen/market";
 import { realize, placementBoxes, placementMeta } from "../../../src/compile/realize";
 import { verifyBuild } from "../../../src/compile/verify";
-import { loadPalettes } from "../../../src/palette/load";
-import { createPaletteView, paletteOptionsFor } from "../../../src/palette/view";
+import { bundledPalettes, loadPalettes } from "../../../src/palette/load";
+import { createPaletteView, resolveView } from "../../../src/palette/view";
 import { coveredStallForms } from "../../../src/palette/stallParts";
 import { STALL_KINDS } from "../../../src/contracts/plan";
 import { STALL_KIND_INFO, stallKindInfo, stallPieceOf } from "../../../src/gen/market";
@@ -173,11 +173,11 @@ describe("layoutStalls4", () => {
 
 describe("generator 4 stalls in a resolved plan", () => {
   it("a generator-4 plan carries builds; the same plan at generator 3 has plain tables", () => {
-    const g4 = resolvePlan(marketPlan(4));
+    const g4 = resolvePlan(marketPlan(4), bundledPalettes());
     const stalls4 = g4.levels[0]?.features.filter((f) => f.type === "stall") ?? [];
     expect(stalls4.length).toBeGreaterThan(5);
     expect(stalls4.some((f) => f.stall !== undefined)).toBe(true);
-    const g3 = resolvePlan(marketPlan(3));
+    const g3 = resolvePlan(marketPlan(3), bundledPalettes());
     const stalls3 = g3.levels[0]?.features.filter((f) => f.type === "stall") ?? [];
     expect(stalls3.length).toBeGreaterThan(3);
     expect(stalls3.every((f) => f.stall === undefined && f.size[0] * f.size[1] === 2)).toBe(true);
@@ -186,7 +186,7 @@ describe("generator 4 stalls in a resolved plan", () => {
 
 describe("stock beside the stalls", () => {
   it("some stalls have a crate, barrel or sack on a free cell behind or beside them, never inside another stall", () => {
-    const L = resolvePlan(marketPlan(4)).levels[0] as ResolvedLevel;
+    const L = resolvePlan(marketPlan(4), bundledPalettes()).levels[0] as ResolvedLevel;
     const stock = L.features.filter((f) => f.id.endsWith("#stock"));
     expect(stock.length).toBeGreaterThan(0);
     const cells = new Map<string, string>();
@@ -203,7 +203,7 @@ describe("stock beside the stalls", () => {
 describe("the realized stall", () => {
   const catalog = loadPalettes();
   const plan = marketPlan(4);
-  const resolved = resolvePlan(plan);
+  const resolved = resolvePlan(plan, bundledPalettes());
   const set = realize(resolved, catalog, {});
   const L = resolved.levels[0] as ResolvedLevel;
   const built = L.features.filter((f) => f.type === "stall" && f.stall !== undefined);
@@ -267,7 +267,7 @@ describe("the realized stall", () => {
     for (const p of Object.values(stripped.palettes))
       delete (p.roles as Record<string, unknown>)["stall.canopy"];
     // the resolver asks the same palettes the compiler gets (a view of them): no canopy, no covered stall
-    const none = resolvePlan(plan, { palette: createPaletteView(stripped) });
+    const none = resolvePlan(plan, stripped);
     expect(
       none.levels[0]?.features.filter((f) => f.type === "stall").every((f) => f.stall === undefined),
     ).toBe(true);
@@ -281,7 +281,7 @@ describe("the realized stall", () => {
   });
 
   it("the sci-fi city theme builds flat-roofed stalls from its own pieces", () => {
-    const city = resolvePlan(marketPlan(4, "city"));
+    const city = resolvePlan(marketPlan(4, "city"), bundledPalettes());
     const stalls = city.levels[0]?.features.filter((f) => f.type === "stall" && f.stall !== undefined) ?? [];
     expect(stalls.length).toBeGreaterThan(3);
     expect(stalls.every((f) => f.stall?.form === "flat")).toBe(true);
@@ -297,8 +297,8 @@ describe("the realized stall", () => {
 describe("the 2D preview", () => {
   it("draws a covered stall as its canopy with the front on the lane side, a table as before", () => {
     const opts = { grid: false, roomNumbers: false, roomNames: false, furniture: true };
-    const g4 = buildPlanDisplayList(resolvePlan(marketPlan(4)), "g", opts);
-    const g3 = buildPlanDisplayList(resolvePlan(marketPlan(3)), "g", opts);
+    const g4 = buildPlanDisplayList(resolvePlan(marketPlan(4), bundledPalettes()), "g", opts);
+    const g3 = buildPlanDisplayList(resolvePlan(marketPlan(3), bundledPalettes()), "g", opts);
     if (!g4 || !g3) throw new Error("no display list");
     const ids = g4.items.filter((i) => i.symbol?.id.startsWith("feat-stall")).map((i) => i.symbol?.id);
     expect(ids.some((id) => /^feat-stall_cover_[NESW]$/.test(id ?? ""))).toBe(true);
@@ -318,7 +318,7 @@ describe("overhead lines and covered stalls", () => {
         { id: "aisle", from: [1, 7], to: [32, 7], kind: "lights" },
       ],
     });
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     const L = r.levels[0] as ResolvedLevel;
     const ids = (L.lines ?? []).map((l) => l.id);
     expect(ids).not.toContain("through");
@@ -353,7 +353,7 @@ describe("one palette view, one stall capability", () => {
     const view = createPaletteView(noBase);
     expect(view.stallForms("wood_town")).toEqual([]);
     const plan = marketPlan(4);
-    const r = resolvePlan(plan, { palette: view });
+    const r = resolvePlan(plan, noBase);
     const stalls = r.levels[0]?.features.filter((f) => f.type === "stall") ?? [];
     expect(stalls.length).toBeGreaterThan(4);
     expect(stalls.every((f) => f.stall === undefined && f.size[0] * f.size[1] === 2)).toBe(true);
@@ -367,7 +367,7 @@ describe("one palette view, one stall capability", () => {
   });
 
   it("when a caller resolved against other palettes, the footprint still gets its table and goods, and verify says so", () => {
-    const resolved = resolvePlan(marketPlan(4));
+    const resolved = resolvePlan(marketPlan(4), bundledPalettes());
     const c = strip("stall.post");
     const set = realize(resolved, c, {});
     const covered = (resolved.levels[0]?.features ?? []).filter((f) => f.stall !== undefined);
@@ -389,9 +389,11 @@ describe("one palette view, one stall capability", () => {
     expect(diags.length).toBe(covered.length);
   });
 
-  it("paletteOptionsFor: a view of the compiler's palettes from generator 4, the bundled default before", () => {
-    expect(paletteOptionsFor({ generator: 3 }, catalog)).toEqual({});
-    expect(paletteOptionsFor({ generator: 4 }, catalog).palette?.stallForms("wood_town")).toEqual([
+  it("resolveView: the compiled palettes decide from generator 4 on, the bundled ones before (frozen output)", () => {
+    const noPost = strip("stall.post");
+    expect(resolveView({ generator: 4 }, noPost).stallForms("wood_town")).toEqual([]);
+    expect(resolveView({ generator: 3 }, noPost).stallForms("wood_town")).toEqual(["gable", "flat"]);
+    expect(resolveView({ generator: 4 }, bundledPalettes()).stallForms("wood_town")).toEqual([
       "gable",
       "flat",
     ]);
@@ -437,23 +439,30 @@ describe("design review of stalls", () => {
   it("stalls_uncovered: plan-placed tables where the theme has canopy pieces; silent for a built row", () => {
     const bare = reviewDesign(
       marketPlan(4, "wood_town", 1, { stalls: [], features: tables(4, 1) }),
-      resolvePlan(marketPlan(4, "wood_town", 1, { stalls: [], features: tables(4, 1) })),
+      resolvePlan(marketPlan(4, "wood_town", 1, { stalls: [], features: tables(4, 1) }), bundledPalettes()),
+      bundledPalettes(),
     );
     expect(bare.map((n) => n.code)).toContain("stalls_uncovered");
     const row = marketPlan(4);
-    expect(reviewDesign(row, resolvePlan(row)).map((n) => n.code)).not.toContain("stalls_uncovered");
+    expect(
+      reviewDesign(row, resolvePlan(row, bundledPalettes()), bundledPalettes()).map((n) => n.code),
+    ).not.toContain("stalls_uncovered");
   });
 
   it("stalls_grid: four tables of one size at an even gap; silent for generated stalls", () => {
     const p = marketPlan(4, "wood_town", 1, { stalls: [], features: tables(5, 1) });
-    expect(reviewDesign(p, resolvePlan(p)).map((n) => n.code)).toContain("stalls_grid");
+    expect(
+      reviewDesign(p, resolvePlan(p, bundledPalettes()), bundledPalettes()).map((n) => n.code),
+    ).toContain("stalls_grid");
     const row = marketPlan(4);
-    expect(reviewDesign(row, resolvePlan(row)).map((n) => n.code)).not.toContain("stalls_grid");
+    expect(
+      reviewDesign(row, resolvePlan(row, bundledPalettes()), bundledPalettes()).map((n) => n.code),
+    ).not.toContain("stalls_grid");
   });
 
   it("is silent on generator 3", () => {
     const p = marketPlan(3, "wood_town", 1, { stalls: [], features: tables(5, 1) });
-    const codes = reviewDesign(p, resolvePlan(p)).map((n) => n.code);
+    const codes = reviewDesign(p, resolvePlan(p, bundledPalettes()), bundledPalettes()).map((n) => n.code);
     expect(codes).not.toContain("stalls_grid");
     expect(codes).not.toContain("stalls_uncovered");
   });

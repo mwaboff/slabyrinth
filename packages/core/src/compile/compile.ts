@@ -11,7 +11,6 @@ import type {
 } from "../contracts/compiler";
 import type { LevelId, MapPlan, ValidationResult } from "../contracts/plan";
 import type { ResolvedPlan } from "../contracts/resolved";
-import { paletteOptionsFor, type PaletteView } from "../palette/view";
 import { slabCodec } from "../slab/codec";
 import { DEFAULT_FILL, chunkAndEncode, extentDiagnostic, type ChunkEncodeOptions } from "./chunk";
 import { realize } from "./realize";
@@ -81,10 +80,10 @@ export function compileResolved(
 }
 
 export interface CompileDeps {
-  /** `palette` is a view of the palettes the plan is compiled with (generator 4+), so both stages decide from the same ones. */
-  resolvePlan: (plan: MapPlan, opts?: { levels?: LevelId[]; palette?: PaletteView }) => ResolvedPlan;
-  /** Optional: plans with error issues are refused with `plan_invalid`. */
-  validatePlan?: (plan: MapPlan) => ValidationResult;
+  /** Given the palettes the plan is compiled with, so both stages decide from the same ones. */
+  resolvePlan: (plan: MapPlan, palettes: PaletteCatalog, opts?: { levels?: LevelId[] }) => ResolvedPlan;
+  /** Optional: plans with error issues are refused with `plan_invalid`. Given the palettes it is compiled with. */
+  validatePlan?: (plan: MapPlan, palettes: PaletteCatalog) => ValidationResult;
   orientation?: OrientationCalibration;
 }
 
@@ -95,7 +94,7 @@ export interface CompileDeps {
 export function createCompilePlan(deps: CompileDeps): CompilePlan {
   return (plan: MapPlan, palettes: PaletteCatalog, codec: SlabCodec, opts?: ChunkOptions): ExportBundle => {
     if (deps.validatePlan) {
-      const v = deps.validatePlan(plan);
+      const v = deps.validatePlan(plan, palettes);
       const errors = v.issues.filter((i) => i.severity === "error");
       if (!v.ok || errors.length) {
         const diagnostics: CompileDiagnostic[] = errors.map((i) => {
@@ -127,8 +126,7 @@ export function createCompilePlan(deps: CompileDeps): CompilePlan {
         };
       }
     }
-    const view = paletteOptionsFor(plan, palettes);
-    const resolved = deps.resolvePlan(plan, opts?.levels ? { levels: opts.levels, ...view } : view);
+    const resolved = deps.resolvePlan(plan, palettes, opts?.levels ? { levels: opts.levels } : {});
     const copts: CompileOptions = { ...(opts ?? {}) };
     if (deps.orientation) copts.orientation = deps.orientation;
     if (plan.entryLevel) copts.entryLevelId = plan.entryLevel;

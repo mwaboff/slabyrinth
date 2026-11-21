@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { Level, MapPlan, TerrainOp } from "../../../src/contracts/plan";
 import { CELL_FLAG, type ResolvedLevel } from "../../../src/contracts/resolved";
 import { compileResolved, placementMeta, realize } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { checkPlayability, resolvePlan } from "../../../src/resolve";
 import { slabCodec } from "../../../src/slab";
 
@@ -68,7 +68,7 @@ const side: TerrainOp = {
   sidewalk,
 };
 
-const L0 = (p: MapPlan): ResolvedLevel => resolvePlan(p).levels[0] as ResolvedLevel;
+const L0 = (p: MapPlan): ResolvedLevel => resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
 const key = (c: readonly [number, number]): string => `${c[0]},${c[1]}`;
 
 describe("roads: path op in road form (generator 2)", () => {
@@ -267,7 +267,7 @@ describe("roads: path op in road form (generator 2)", () => {
       ],
     });
     const p = street([main({ crossings: [0.5] }), side]);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const set = realize(r, city);
     const pl = set.levels[0]?.placements ?? [];
     const named = (n: string): typeof pl => pl.filter((q) => placementMeta.get(q)?.name === n);

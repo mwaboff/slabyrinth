@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { realize } from "../../../src/compile";
 import type { Feature, GeneratorVersion, Level, MapPlan, TerrainOp } from "../../../src/contracts/plan";
 import { CELL, CELL_FLAG, type ResolvedPlan } from "../../../src/contracts/resolved";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { createRoleResolver } from "../../../src/palette/resolve";
 import { resolvePlan } from "../../../src/resolve";
 import { courseShape } from "../../../src/resolve/chasm";
@@ -53,8 +53,8 @@ function plan(
 const cave = (generator: GeneratorVersion, level: Partial<Level>): MapPlan =>
   plan(generator, "cave", "cave", level);
 
-const noteCodes = (p: MapPlan, r: ResolvedPlan = resolvePlan(p)): DesignNoteCode[] =>
-  reviewDesign(p, r, { limit: 99 }).map((n) => n.code);
+const noteCodes = (p: MapPlan, r: ResolvedPlan = resolvePlan(p, bundledPalettes())): DesignNoteCode[] =>
+  reviewDesign(p, r, bundledPalettes(), { limit: 99 }).map((n) => n.code);
 
 const statue: Feature = { id: "focus", type: "statue", at: [22, 16] };
 
@@ -85,7 +85,7 @@ describe("floor families (generator 3)", () => {
   /** Share of the laid floor area (tiles) by family, from the built floor pieces. */
   const laidShares = (p: MapPlan): Map<string, number> => {
     const palettes = loadPalettes();
-    const set = realize(resolvePlan(p), palettes, {});
+    const set = realize(resolvePlan(p, bundledPalettes()), palettes, {});
     const variants = createRoleResolver(palettes)("cave", "floor.rock").resolution?.variants ?? [];
     const family = new Map(variants.map((v) => [v.uuid, v.variant ?? ""]));
     const area = new Map(variants.map((v) => [v.uuid, v.footprint[0] * v.footprint[1]]));
@@ -125,10 +125,12 @@ describe("floor families (generator 3)", () => {
 
   it("a crowded review keeps floor_patchwork (the cap never drops it)", () => {
     const p = cave(2, { features: [statue] });
-    const r = resolvePlan(p);
-    const all = reviewDesign(p, r, { limit: 99 });
+    const r = resolvePlan(p, bundledPalettes());
+    const all = reviewDesign(p, r, bundledPalettes(), { limit: 99 });
     expect(all.map((n) => n.code)).toContain("floor_patchwork");
-    expect(reviewDesign(p, r, { limit: 1 }).map((n) => n.code)).toContain("floor_patchwork");
+    expect(reviewDesign(p, r, bundledPalettes(), { limit: 1 }).map((n) => n.code)).toContain(
+      "floor_patchwork",
+    );
   });
 
   it("a platform in a cave is rock with a ragged outline unless the plan asks for worked stone", () => {
@@ -141,14 +143,14 @@ describe("floor families (generator 3)", () => {
       ...extra,
     });
     const raised = (p: MapPlan): Array<[number, number]> => {
-      const l = resolvePlan(p).levels[0];
+      const l = resolvePlan(p, bundledPalettes()).levels[0];
       const out: Array<[number, number]> = [];
       for (let i = 0; i < 46 * 34; i++)
         if ((l?.cells.height[i] ?? 0) > 0) out.push([i % 46, Math.floor(i / 46)]);
       return out;
     };
     const mat = (p: MapPlan, x: number, y: number): string | undefined => {
-      const l = resolvePlan(p).levels[0];
+      const l = resolvePlan(p, bundledPalettes()).levels[0];
       return l?.materials[(l.cells.material[y * 46 + x] ?? 1) - 1];
     };
     const wild3 = cave(3, { terrain: [dais({})] });
@@ -194,7 +196,7 @@ describe("a gentle knoll is one mound (generator 3)", () => {
     );
   it("two half-tile plates become one tile-high step at generator 3; square_terraces fires on the plates only", () => {
     const heights = (p: MapPlan): Set<number> => {
-      const l = resolvePlan(p).levels[0];
+      const l = resolvePlan(p, bundledPalettes()).levels[0];
       return new Set(Array.from(l?.cells.height ?? []).filter((h) => h > 0));
     };
     expect([...heights(knoll(2))].sort()).toEqual([2, 4]);
@@ -229,7 +231,7 @@ describe("rifts and rivers wander (generator 3)", () => {
     });
 
   it("a long rift strays about a fifth of its length from the line between its ends, with two or more bends", () => {
-    const l = resolvePlan(rift(3)).levels[0];
+    const l = resolvePlan(rift(3), bundledPalettes()).levels[0];
     const ch = l?.channels?.[0];
     expect(ch?.kind).toBe("rift");
     const s = courseShape(ch?.centre as Array<[number, number]>);
@@ -246,7 +248,7 @@ describe("rifts and rivers wander (generator 3)", () => {
   });
 
   it("its bridge still lands on both banks and the plan has no errors", () => {
-    const r = resolvePlan(rift(3));
+    const r = resolvePlan(rift(3), bundledPalettes());
     expect(r.issues.filter((i) => i.severity === "error")).toEqual([]);
     expect(r.issues.some((i) => i.code === "no_effect")).toBe(false);
     expect(r.levels[0]?.bridges?.length).toBe(1);
@@ -254,22 +256,22 @@ describe("rifts and rivers wander (generator 3)", () => {
 
   it("straight_natural fires on a rift drawn straight (meander 0) and is quiet on the wandering one", () => {
     const straight = rift(3, { meander: 0 });
-    const rs = resolvePlan(straight);
+    const rs = resolvePlan(straight, bundledPalettes());
     const sh = courseShape(rs.levels[0]?.channels?.[0]?.centre ?? []);
     expect(sh.deviation / sh.chord).toBeLessThan(0.16);
-    const fired = reviewDesign(straight, rs, { limit: 99 }).filter(
+    const fired = reviewDesign(straight, rs, bundledPalettes(), { limit: 99 }).filter(
       (n) => n.code === "straight_natural" && n.elementIds?.includes("rift"),
     );
     expect(fired.length).toBe(1);
     expect(
-      reviewDesign(rift(3), resolvePlan(rift(3)), { limit: 99 }).some(
+      reviewDesign(rift(3), resolvePlan(rift(3), bundledPalettes()), bundledPalettes(), { limit: 99 }).some(
         (n) => n.code === "straight_natural" && n.elementIds?.includes("rift"),
       ),
     ).toBe(false);
   });
 
   it("generator 2 keeps its channel as it was (no record, no wander)", () => {
-    const l = resolvePlan(rift(2)).levels[0];
+    const l = resolvePlan(rift(2), bundledPalettes()).levels[0];
     expect(l?.channels).toBeUndefined();
     expect(l?.falls).toBeUndefined();
   });
@@ -345,7 +347,7 @@ describe("stepped rivers (generator 3)", () => {
   };
 
   it("a river that drops 6 tiles is split into reaches with falls of 1 to 3 tiles between them", () => {
-    const r = resolvePlan(glen(3));
+    const r = resolvePlan(glen(3), bundledPalettes());
     const falls = r.levels[0]?.falls ?? [];
     expect(falls.length).toBeGreaterThanOrEqual(3);
     for (const f of falls) {
@@ -370,7 +372,7 @@ describe("stepped rivers (generator 3)", () => {
   });
 
   it("the board water plane follows the lowest reach, and the level records its range", () => {
-    const l = resolvePlan(glen(3)).levels[0];
+    const l = resolvePlan(glen(3), bundledPalettes()).levels[0];
     const falls = l?.falls ?? [];
     expect(l?.waterLevel).toBeDefined();
     expect(l?.waterRange).toBeDefined();
@@ -379,12 +381,12 @@ describe("stepped rivers (generator 3)", () => {
   });
 
   it("a river that drops under 2 tiles stays one level (no fall)", () => {
-    const l = resolvePlan(glen(3, 0.25)).levels[0];
+    const l = resolvePlan(glen(3, 0.25), bundledPalettes()).levels[0];
     expect(l?.falls).toBeUndefined();
   });
 
   it("generator 2 is untouched: no falls, no records", () => {
-    const l = resolvePlan(glen(2)).levels[0];
+    const l = resolvePlan(glen(2), bundledPalettes()).levels[0];
     expect(l?.falls).toBeUndefined();
     expect(l?.channels).toBeUndefined();
     expect(l?.waterRange).toBeUndefined();
@@ -392,7 +394,7 @@ describe("stepped rivers (generator 3)", () => {
 
   it("river_trench: quiet on the stepped river, fires when the same river is cut to one level", () => {
     const p = glen(3);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     expect(noteCodes(p, r)).not.toContain("river_trench");
     // the old output: every water cell at the lowest bed, no falls
     const l = r.levels[0];
@@ -401,7 +403,7 @@ describe("stepped rivers (generator 3)", () => {
     const lowest = Math.min(...cells.map((i) => l.cells.height[i] as number));
     for (const i of cells) l.cells.height[i] = lowest;
     delete l.falls;
-    const old = reviewDesign(p, r, { limit: 99 }).filter((n) => n.code === "river_trench");
+    const old = reviewDesign(p, r, bundledPalettes(), { limit: 99 }).filter((n) => n.code === "river_trench");
     expect(old.length).toBe(1);
     expect(old[0]?.message).toMatch(/no fall/);
   });
@@ -409,6 +411,7 @@ describe("stepped rivers (generator 3)", () => {
   it("a crossing bridge still spans the lowest reach", () => {
     const r = resolvePlan(
       glen(3, 2, { bridges: [{ at: 0.9, width: 2, floor: "bridge_wood", span: "plank" }] }),
+      bundledPalettes(),
     );
     expect(r.levels[0]?.bridges?.length).toBe(1);
     expect(r.issues.filter((i) => i.severity === "error")).toEqual([]);

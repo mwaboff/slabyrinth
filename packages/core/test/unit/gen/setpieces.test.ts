@@ -20,7 +20,7 @@ import {
   scatterFeatures,
 } from "../../../src/gen/index";
 import { compileResolved } from "../../../src/compile";
-import { loadPalettes, resolveRole } from "../../../src/palette";
+import { bundledPalettes, loadPalettes, resolveRole } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { slabCodec } from "../../../src/slab";
 import { validatePlan } from "../../../src/plan";
@@ -365,7 +365,7 @@ describe.each(["dressed-cave", "dressed-cave-v2", "dressed-forest"] as const)(
   "dressed cave proof plan %s (flat)",
   (name) => {
     const plan = loadPlan(name);
-    const resolved = resolvePlan(plan);
+    const resolved = resolvePlan(plan, bundledPalettes());
     const bundle = compileResolved(resolved, loadPalettes(), slabCodec, { createdAt: "t", plan });
 
     it("validates with no errors and composes a dense room", () => {

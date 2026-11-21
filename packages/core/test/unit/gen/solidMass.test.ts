@@ -6,7 +6,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { CELL, EDGE } from "../../../src/contracts/resolved";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import {
   OWNER,
   dropLumps,
@@ -167,7 +167,7 @@ describe("link cells", () => {
         },
       ],
     } as unknown as MapPlan;
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     for (const L of r.levels) {
       const cells = linkCellsOnLevel(p, L.id);
       expect(cells.length).toBeGreaterThan(0);
@@ -201,7 +201,7 @@ describe("a level of rooms and a cave (generator 4)", () => {
     });
 
   it("never dresses a solid cell twice and leaves no gutter between cap and rock", () => {
-    const set = realizeModule.realize(resolvePlan(plan(4)), palettes, {});
+    const set = realizeModule.realize(resolvePlan(plan(4), bundledPalettes()), palettes, {});
     const level = set.levels[0];
     const shell = new Set<string>();
     const rock = new Set<string>();
@@ -379,29 +379,29 @@ describe("one build per review run", () => {
 
   it("a generator 4 review whose cave and roof notes both need the pieces builds them once", () => {
     const p = plan(4);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const before = realized();
-    reviewDesign(p, r, { palettes, limit: 99 });
+    reviewDesign(p, r, palettes, { limit: 99 });
     expect(realized() - before).toBe(1);
   });
 
   it("a review that is given the build, or has nothing to measure, builds nothing", () => {
     const p = plan(4);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const set = realizeModule.realize(r, palettes, {});
     const before = realized();
-    reviewDesign(p, r, { palettes, limit: 99, placements: set });
+    reviewDesign(p, r, palettes, { limit: 99, placements: set });
     expect(realized() - before).toBe(0);
     // generator 3 keeps its released behaviour: no build, no mass or roof notes
     const p3 = plan(3);
-    const r3 = resolvePlan(p3);
+    const r3 = resolvePlan(p3, bundledPalettes());
     const b3 = realized();
-    reviewDesign(p3, r3, { palettes, limit: 99 });
+    reviewDesign(p3, r3, palettes, { limit: 99 });
     expect(realized() - b3).toBe(0);
   });
 
   it("the build object builds on the first ask only", () => {
-    const r = resolvePlan(plan(4));
+    const r = resolvePlan(plan(4), bundledPalettes());
     const b = reviewBuild(r, palettes);
     expect(b.given).toBe(false);
     expect(b.built).toBe(0);
@@ -415,7 +415,7 @@ describe("one build per review run", () => {
 describe("wall heights beside raised floors", () => {
   it("no wall of a built interior reaches more than the wall height above its lower floor", () => {
     const p = { ...fixtureKeep, generator: 4 } as MapPlan;
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     let checked = 0;
     for (const L of r.levels) {
       if (L.cells.state.every((s) => s !== CELL.SOLID)) continue;

@@ -22,7 +22,7 @@ import {
   type ValidationResult,
 } from "../contracts/plan";
 import type { ResolvedPlan } from "../contracts/resolved";
-import type { CompileDiagnostic, CompileEstimate } from "../contracts/compiler";
+import type { CompileDiagnostic, CompileEstimate, PaletteCatalog } from "../contracts/compiler";
 import { applyOps, autoKeyRooms } from "../ops/apply";
 import { diffPlans } from "../ops/diff";
 import { listElements } from "../plan/elements";
@@ -49,10 +49,14 @@ import type { PlanChangeReport, ToolContext, ToolName, ToolOutcome, ToolResultCo
 
 export interface ExecutorPorts {
   applyOps: ApplyOps;
-  validatePlan: (input: unknown, ctx?: { themes?: readonly string[] }) => ValidationResult;
+  /** `palettes`: the ones the plan is built with (the checks that resolve the plan use them). */
+  validatePlan: (
+    input: unknown,
+    ctx: { themes?: readonly string[]; palettes: PaletteCatalog },
+  ) => ValidationResult;
   diffPlans: DiffPlans;
   /** null: resolver unavailable (outline still works without resolved facts; ascii is unavailable). */
-  resolvePlan: ((plan: MapPlan, version: number) => ResolvedPlan) | null;
+  resolvePlan: ((plan: MapPlan, palettes: PaletteCatalog, version: number) => ResolvedPlan) | null;
   outline:
     | ((
         plan: MapPlan,
@@ -82,9 +86,9 @@ export interface ExecutorPorts {
  */
 export const defaultExecutorPorts: ExecutorPorts = {
   applyOps: (plan, ops) => applyOps(plan, ops, { validate: false }),
-  validatePlan: (input, ctx) => validatePlan(input, ctx?.themes ? { themes: ctx.themes } : {}),
+  validatePlan: (input, ctx) => validatePlan(input, ctx),
   diffPlans: (before, after) => diffPlans(before, after),
-  resolvePlan: (plan, version) => resolvePlan(plan, { planVersion: version }),
+  resolvePlan: (plan, palettes, version) => resolvePlan(plan, palettes, { planVersion: version }),
   outline: (plan, resolved, opts) => outlineView(plan, resolved, opts),
   ascii: (resolved, levelId, opts) => {
     const o: { region?: { x: number; y: number; w: number; h: number }; issues?: readonly PlanIssue[] } = {};
@@ -97,10 +101,13 @@ export const defaultExecutorPorts: ExecutorPorts = {
 
 /**
  * The context the engine supplies: the contract's ToolContext plus
+ *  - `palettes`: the palettes the plan is built with (bundled, the user's, the game's assets), so the views, checks
+ *    and design review the model gets describe the map the build produces;
  *  - `nextVersion`: the number the next committed version will get (default head + 1);
  *  - `planAt`: lets stale_version report what changed since the model's base version.
  */
 export interface AgentToolContext extends ToolContext {
+  palettes: PaletteCatalog;
   nextVersion?: number;
   planAt?: (version: number) => MapPlan | null;
 }
@@ -239,10 +246,10 @@ export function completeAuthoredPlan(
 export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts): AgentExecuteTool {
   /** The design review last shown for each plan (by plan id), so later results show only what changed. */
   const lastReview = new Map<string, DesignNote[]>();
-  const resolve = (plan: MapPlan, version: number): ResolvedPlan | null => {
+  const resolve = (palettes: PaletteCatalog, plan: MapPlan, version: number): ResolvedPlan | null => {
     if (!ports.resolvePlan) return null;
     try {
-      return ports.resolvePlan(plan, version);
+      return ports.resolvePlan(plan, palettes, version);
     } catch {
       return null;
     }
@@ -250,13 +257,14 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
 
   /** The second block of a create/edit result: changed-region ASCII, degrading to an outline (§3.3 item 1). */
   const changeView = (
+    palettes: PaletteCatalog,
     before: MapPlan | null,
     after: MapPlan,
     version: number,
     dirtyLevels: LevelId[],
   ): string => {
-    const prevResolved = before ? resolve(before, version - 1) : null;
-    const nextResolved = resolve(after, version);
+    const prevResolved = before ? resolve(palettes, before, version - 1) : null;
+    const nextResolved = resolve(palettes, after, version);
     if (nextResolved && ports.changedViews) {
       const r = ports.changedViews(prevResolved, nextResolved, { maxChars: RESULT_VIEW_BUDGET });
       if (r.fits && r.views.length > 0) return r.views.map((v) => v.text).join("\n");
@@ -269,12 +277,19 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
   };
 
   /** All non-blocking issues of a plan (playability findings, warnings, notes). */
-  const issuesOf = (plan: MapPlan, ctx: AgentToolContext): PlanIssue[] => {
+  /** Validation against the palettes the plan is built with, knowing the installed themes. */
+  const validateFor = (ctx: AgentToolContext, input: unknown): ValidationResult => {
     const themes = themesOf(ctx);
-    return ports.validatePlan(plan, themes ? { themes } : {}).issues;
+    return ports.validatePlan(
+      input,
+      themes ? { themes, palettes: ctx.palettes } : { palettes: ctx.palettes },
+    );
   };
 
+  const issuesOf = (plan: MapPlan, ctx: AgentToolContext): PlanIssue[] => validateFor(ctx, plan).issues;
+
   const outlineOf = (
+    palettes: PaletteCatalog,
     plan: MapPlan,
     version: number,
     levels?: LevelId[],
@@ -284,16 +299,16 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
     const opts: { version: number; levels?: LevelId[]; issues?: readonly PlanIssue[] } = { version };
     if (levels) opts.levels = levels;
     if (issues) opts.issues = issues;
-    return ports.outline(plan, resolve(plan, version), opts);
+    return ports.outline(plan, resolve(palettes, plan, version), opts);
   };
 
   /** ASCII crops around the cells of error/warning findings, marked with "!" (third block of a create/edit result). */
-  const issueMaps = (plan: MapPlan, version: number, c: CheckResults): string => {
+  const issueMaps = (palettes: PaletteCatalog, plan: MapPlan, version: number, c: CheckResults): string => {
     const flagged = [...c.errors, ...c.warnings].filter(
       (i) => i.cell !== undefined && i.levelId !== undefined,
     );
     if (flagged.length === 0 || !ports.ascii) return "";
-    const resolved = resolve(plan, version);
+    const resolved = resolve(palettes, plan, version);
     if (!resolved) return "";
     const out: string[] = [];
     let used = 0;
@@ -320,6 +335,7 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
 
   /** The content of an applied create/edit: report + CHECKS line, changed-region view, issue map. */
   const appliedContent = (
+    palettes: PaletteCatalog,
     report: PlanChangeReport,
     checks: CheckResults,
     before: MapPlan | null,
@@ -332,13 +348,13 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
     const content: ToolResultContent[] = [
       { type: "text", text: `${changeReportJson(full)}\n${checksLine(checks)}` },
     ];
-    const view = changeView(before, after, report.version, dirtyLevels);
+    const view = changeView(palettes, before, after, report.version, dirtyLevels);
     if (view) content.push({ type: "text", text: view });
     // design review (review/): measured advice, never an error; generator 2 plans only (issue maps stay last)
     if (generatorProfile(after).designReview) {
       try {
-        const r = resolve(after, report.version);
-        const notes = r ? reviewDesign(after, r, { brief }) : null;
+        const r = resolve(palettes, after, report.version);
+        const notes = r ? reviewDesign(after, r, palettes, { brief }) : null;
         // a later result for the same plan shows what changed: new notes in full, open ones short, cleared ones
         const previous = before === null ? undefined : lastReview.get(after.id);
         const text = notes ? designReviewDelta(notes, previous, briefCheckLine(brief, after)) : "";
@@ -353,7 +369,7 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
         });
       }
     }
-    const maps = issueMaps(after, report.version, checks);
+    const maps = issueMaps(palettes, after, report.version, checks);
     if (maps) content.push({ type: "text", text: maps });
     return content;
   };
@@ -400,8 +416,7 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
       ]);
     }
     const candidate = completeAuthoredPlan(v.value.plan, ctx.newPlanId(), ctx.newSeed());
-    const themes = themesOf(ctx);
-    const result = ports.validatePlan(candidate, themes ? { themes } : {});
+    const result = validateFor(ctx, candidate);
     const split = splitIssues(result.issues);
     if (split.blocking.length > 0) {
       return fail(
@@ -419,6 +434,7 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
       added: listElements(plan).map((e) => e.id),
     };
     const content = appliedContent(
+      ctx.palettes,
       report,
       split.checks,
       null,
@@ -458,7 +474,7 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
                 .join(", ")
         }${ids.length > 30 ? ` (+${ids.length - 30} more)` : ""}.\n`;
       }
-      extra += clip(outlineOf(ctx.plan, ctx.head, affected), RESULT_VIEW_BUDGET);
+      extra += clip(outlineOf(ctx.palettes, ctx.plan, ctx.head, affected), RESULT_VIEW_BUDGET);
       return fail(
         "edit_plan",
         ctx.head,
@@ -499,6 +515,7 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
       removed: result.changed.removed,
     };
     const content = appliedContent(
+      ctx.palettes,
       report,
       dedupeIssues(split.checks),
       ctx.plan,
@@ -531,11 +548,17 @@ export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts):
     const checks = splitIssues(issuesOf(plan, ctx)).checks;
     const flagged = [...checks.errors, ...checks.warnings, ...checks.info];
     if (format === "outline") {
-      const text = outlineOf(plan, ctx.head, level !== undefined ? [level] : undefined, flagged);
+      const text = outlineOf(
+        ctx.palettes,
+        plan,
+        ctx.head,
+        level !== undefined ? [level] : undefined,
+        flagged,
+      );
       return textResult(text ? `${text}\n${checksLine(checks)}` : JSON.stringify(plan));
     }
     if (format === "ascii") {
-      const resolved = resolve(plan, ctx.head);
+      const resolved = resolve(ctx.palettes, plan, ctx.head);
       if (!resolved || !ports.ascii) {
         return fail("view_plan", ctx.head, [
           {

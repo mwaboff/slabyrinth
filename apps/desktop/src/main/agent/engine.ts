@@ -17,6 +17,7 @@ import {
   briefHash,
   createProgressTracker,
   createToolExecutor,
+  defaultExecutorPorts,
   sessionStartText,
   systemPromptFor,
   toolsForConversation,
@@ -174,7 +175,8 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
   private readonly now: () => Date;
   private readonly sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   private readonly random32: () => number;
-  private readonly validate: ((p: unknown) => ValidationResult) | undefined;
+  /** Plan validation against the build's palettes (the engine guard's outstanding issues). */
+  private readonly validate: (p: unknown) => ValidationResult;
   private running: RunningTurn | null = null;
   /** Synchronous lock held while a turn is being set up (between the entry call and startTurn). */
   private starting = false;
@@ -198,8 +200,8 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         },
       });
     this.execute = opts.executor ?? createToolExecutor(opts.executorPorts);
-    const vp = opts.executorPorts?.validatePlan;
-    this.validate = vp ? (p) => vp(p) : undefined;
+    const vp = opts.executorPorts?.validatePlan ?? defaultExecutorPorts.validatePlan;
+    this.validate = (p) => vp(p, { palettes: host.getBuildPalettes() });
     this.newId = opts.newId ?? randomUUID;
     this.now = opts.now ?? (() => new Date());
     this.sleep = opts.sleep ?? defaultSleep;
@@ -344,7 +346,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     try {
       return outlineView(
         plan,
-        resolvePlan(plan, { planVersion: version }),
+        resolvePlan(plan, this.host.getBuildPalettes(), { planVersion: version }),
         levels ? { version, levels } : { version },
       );
     } catch {
@@ -920,6 +922,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       catalog: { themes: this.themes(), featureCoverage: (theme) => this.featureCoverage(theme) },
       newSeed: () => this.random32() >>> 0,
       newPlanId: () => randomUUID(),
+      palettes: this.host.getBuildPalettes(),
       nextVersion: this.nextVersionNumber(),
       planAt: (v) => this.host.getPlan(v),
     };

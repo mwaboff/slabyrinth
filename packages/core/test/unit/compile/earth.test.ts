@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { realize, placementMeta } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
 import { loadPlan } from "../../fixtures";
@@ -32,7 +32,7 @@ describe("caused floor families", () => {
   for (const name of ["dressed-forest-v4", "hillside-v5"] as const)
     it(`${name}: every litter tile has a cause within two cells`, () => {
       const plan = loadPlan(name);
-      const r = resolvePlan(plan);
+      const r = resolvePlan(plan, bundledPalettes());
       const set = realize(r, pal, {});
       for (const L of r.levels) {
         const W = L.bounds.w;

@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import type { Side } from "../../../src/contracts/plan";
 import { cliffBand, defaultCliffBands, type PlacementGrid } from "../../../src/gen/index";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import { loadPlan } from "../../fixtures";
 
@@ -171,7 +172,7 @@ describe("terraced hill at generator 3 (resolved plan)", () => {
     const plan = loadPlan("terraced-hill");
     expect(plan.generator).toBe(3);
     {
-      const resolved = resolvePlan(plan);
+      const resolved = resolvePlan(plan, bundledPalettes());
       const L = resolved.levels[0];
       expect(L).toBeDefined();
       if (!L) return;

@@ -7,18 +7,17 @@
  * modules with three lazily created resolvers over the bundled palettes, so the resolver could never see a user's
  * palette and could disagree with the compiler (finding 9 and 7 of the generator-4 review).
  *
- * A view is built from a catalog (`createPaletteView`, memoizing its own resolutions) and handed to `resolvePlan` through
- * `ResolveOptions.palette`. Callers that also compile pass the catalog they compile with (`paletteOptionsFor`), so both
- * stages decide from the same palettes. The default is the bundled palettes, built once.
+ * Every caller hands `resolvePlan` the palettes the plan is compiled with; `resolveView` picks the view the plan's
+ * generator decides from, and `paletteView` builds one view per catalog, so the resolver and the design review of
+ * one build ask the same memoized questions.
  */
-import type { PaletteCatalog } from "../contracts/compiler";
 import type { FeatureType, Material, MapPlan, ThemeId } from "../contracts/plan";
 import { GENERATOR_VERSION } from "../contracts/plan";
 import type { StallForm, ThemeInterior } from "../contracts/resolved";
 import { featureRoles } from "../gen/surfaces";
 import { generatorProfile } from "../plan/generator";
-import { loadPalettes } from "./load";
-import { createRoleResolver, themeChain, type VariantFilter } from "./resolve";
+import { bundledPalettes } from "./load";
+import { createRoleResolver, themeChain, type ResolvePalettes, type VariantFilter } from "./resolve";
 import { coveredStallForms, type RoleProbe } from "./stallParts";
 
 export type PieceSizeFn = (
@@ -95,7 +94,7 @@ const SUPPORT_ROLE: Partial<Record<FeatureType, string>> = {
  * the resolver asks about: the older generators' answers do not depend on it).
  */
 export function createPaletteView(
-  catalog: PaletteCatalog,
+  catalog: ResolvePalettes,
   generator: number = GENERATOR_VERSION,
 ): PaletteView {
   const resolver = createRoleResolver(catalog, generator);
@@ -179,22 +178,23 @@ export function createPaletteView(
   return { pieceSize, roomPiece, stallForms, floorTileArea, probe, interior };
 }
 
-let bundled: PaletteView | null = null;
+const views = new WeakMap<ResolvePalettes, PaletteView>();
 
-/** The bundled palettes, built once. */
-export function bundledPaletteView(): PaletteView {
-  bundled ??= createPaletteView(loadPalettes());
-  return bundled;
+/** The view of `palettes`, built once per catalog object (its answers are memoized), so every stage shares it. */
+export function paletteView(palettes: ResolvePalettes): PaletteView {
+  let view = views.get(palettes);
+  if (!view) {
+    view = createPaletteView(palettes);
+    views.set(palettes, view);
+  }
+  return view;
 }
 
 /**
- * `ResolveOptions` for resolving a plan that is then compiled with `catalog`: from generator 4 on the resolver asks the
- * compiler's palettes (user palettes, game availability), so a covered stall is only laid out where the compiler can
- * build it. Older generators keep the bundled view (their output is frozen).
+ * The view a plan is resolved with, given the palettes it is compiled with. From generator 4 on the resolver decides
+ * from those palettes (user palettes, game availability), so a covered stall is only laid out where the build can make
+ * it; the released generators decide from the bundled palettes whatever is compiled (their output is frozen).
  */
-export function paletteOptionsFor(
-  plan: Pick<MapPlan, "generator">,
-  catalog: PaletteCatalog,
-): { palette?: PaletteView } {
-  return generatorProfile(plan).resolveWithCompilePalettes ? { palette: createPaletteView(catalog) } : {};
+export function resolveView(plan: Pick<MapPlan, "generator">, palettes: ResolvePalettes): PaletteView {
+  return paletteView(generatorProfile(plan).resolveWithCompilePalettes ? palettes : bundledPalettes());
 }

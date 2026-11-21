@@ -9,7 +9,7 @@ import type { Building, Level, MapPlan, Structure } from "../../../src/contracts
 import { CELL_FLAG, EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
 import { compileResolved, realize, verifyBuild } from "../../../src/compile";
 import { placementMeta } from "../../../src/compile/realize";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
@@ -42,7 +42,7 @@ const shack = (more: Partial<Building> = {}): Building => ({
   ...more,
 });
 
-const level0 = (p: MapPlan): ResolvedLevel => resolvePlan(p).levels[0] as ResolvedLevel;
+const level0 = (p: MapPlan): ResolvedLevel => resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
 const idx = (L: ResolvedLevel, x: number, y: number): number =>
   (y - L.bounds.y) * L.bounds.w + (x - L.bounds.x);
 
@@ -176,7 +176,7 @@ describe("structures: validation", () => {
 
 describe("structures: build", () => {
   const p = plan([shack()]);
-  const resolved = resolvePlan(p);
+  const resolved = resolvePlan(p, bundledPalettes());
   const set = realize(resolved, palettes);
   const pl = set.levels[0]?.placements ?? [];
   const named = (s: string) => pl.filter((x) => placementMeta.get(x)?.name === s);
@@ -229,15 +229,15 @@ describe("structures: variety", () => {
     plan([{ id: "hut", wings: [{ x: 8, y: 6, w: 6, h: 4 }], roof: { type: "gable" }, seed }]);
 
   it("the same spec with another seed builds a different building; the same seed is byte-stable", () => {
-    const a = resolvePlan(spec(1));
-    const a2 = resolvePlan(spec(1));
+    const a = resolvePlan(spec(1), bundledPalettes());
+    const a2 = resolvePlan(spec(1), bundledPalettes());
     expect(canonicalJson(a)).toBe(canonicalJson(a2));
     const pa = realize(a, palettes).levels[0]?.placements ?? [];
     const pa2 = realize(a2, palettes).levels[0]?.placements ?? [];
     expect(canonicalJson(pa)).toBe(canonicalJson(pa2));
     const variants = new Set<string>();
     for (const s of [1, 2, 3, 4, 5, 6]) {
-      const r = resolvePlan(spec(s));
+      const r = resolvePlan(spec(s), bundledPalettes());
       const st = r.levels[0]?.structures?.[0];
       variants.add(
         canonicalJson({ o: st?.openingIds, ops: r.levels[0]?.openings, c: st?.chimneys, p: st?.porches }),
@@ -254,7 +254,7 @@ describe("structures: variety", () => {
         v.issues.filter((i) => i.severity === "error"),
         `seed ${seed}`,
       ).toEqual([]);
-      const r = resolvePlan(p);
+      const r = resolvePlan(p, bundledPalettes());
       const L = r.levels[0] as ResolvedLevel;
       const st = L.structures?.[0];
       const door = L.openings.find((o) => o.id === "hut~door0");

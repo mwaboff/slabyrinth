@@ -8,7 +8,7 @@ import { compileResolved, realize } from "../../../src/compile";
 import { SHELL, planShell } from "../../../src/compile/shell";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { CELL, EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { classifyRoom } from "../../../src/gen/roomPurpose";
 import { accentTop, purposeFloor } from "../../../src/resolve/interiorFloors";
@@ -29,7 +29,7 @@ const inn = (theme?: string): MapPlan => {
   return p;
 };
 const lvl = (plan: MapPlan, id: string): ResolvedLevel => {
-  const L = resolvePlan(plan).levels.find((l) => l.id === id);
+  const L = resolvePlan(plan, bundledPalettes()).levels.find((l) => l.id === id);
   if (!L) throw new Error(`no level ${id}`);
   return L;
 };
@@ -93,7 +93,7 @@ describe("generator 4 room floors", () => {
     expect(areaMat(lvl(keep(), "l3"), "shrine")).toBe("marble");
   });
   it("no room of a stone level takes a wood floor, and the dais stays stone", () => {
-    const R = resolvePlan(keep());
+    const R = resolvePlan(keep(), bundledPalettes());
     for (const L of R.levels) {
       expect(L.materials).not.toContain("wood_plank");
       expect(L.materials).not.toContain("carpet");
@@ -148,7 +148,7 @@ describe("generator 4 room steps", () => {
   });
   it("stairs still land: no verify error about arrival or reachability", () => {
     const plan = keep();
-    const r = compileResolved(resolvePlan(plan), palettes, slabCodec, { plan });
+    const r = compileResolved(resolvePlan(plan, bundledPalettes()), palettes, slabCodec, { plan });
     const codes = r.diagnostics.filter((d) => d.severity === "error").map((d) => d.code);
     expect(codes).not.toContain("verify_stairs_no_arrival");
     expect(codes).not.toContain("verify_area_unreachable");
@@ -331,7 +331,7 @@ describe("generator 4 rough walls", () => {
         roles: {},
       };
       const catalog = loadPalettes({ user: [{ source: "elf_hall.json", data: user }] });
-      const R = resolvePlan(inn("elf_hall"), { palette: createPaletteView(catalog) });
+      const R = resolvePlan(inn("elf_hall"), catalog);
       const L = R.levels.find((l) => l.id === "l1") as ResolvedLevel;
       expect(finishes(L)).toEqual(new Set(["tidy"]));
       expect(L.features.filter((f) => f.generatedBy === "walls")).toHaveLength(0);
@@ -349,7 +349,7 @@ describe("generator 4 rough walls", () => {
 describe("generator 4 solid shell", () => {
   it("caps the solid cells round the rooms, flush with the wall tops, and closes the edge with a skirt", () => {
     const plan = keep();
-    const R = resolvePlan(plan);
+    const R = resolvePlan(plan, bundledPalettes());
     const L = R.levels.find((l) => l.id === "l1") as ResolvedLevel;
     const shell = planShell(R, L, h32(R.planId), () => false, "generic");
     expect(shell).not.toBeNull();
@@ -373,7 +373,7 @@ describe("generator 4 solid shell", () => {
     for (const p of cap) expect(p.y + 0.5).toBeLessThanOrEqual(shell.top + 0.3);
   });
   it("a cap cell over an open cell of a level below is left out, so the lower level stays visible", () => {
-    const R = resolvePlan(keep());
+    const R = resolvePlan(keep(), bundledPalettes());
     const upper = R.levels.find((l) => l.id === "l1") as ResolvedLevel;
     const lower = R.levels.find((l) => l.id === "l2") as ResolvedLevel;
     const shell = planShell(R, upper, h32(R.planId), () => false, "generic");
@@ -386,12 +386,12 @@ describe("generator 4 solid shell", () => {
   });
   it("generators 1-3 build no shell", () => {
     const plan = keep(3);
-    const set = realize(resolvePlan(plan), palettes, {});
+    const set = realize(resolvePlan(plan, bundledPalettes()), palettes, {});
     for (const lv of set.levels)
       expect(lv.placements.filter((p) => p.source.elementId === "shell")).toHaveLength(0);
   });
   it("the shell stays within its budget: under 260 cap tiles on each level", () => {
-    const set = realize(resolvePlan(keep()), palettes, {});
+    const set = realize(resolvePlan(keep(), bundledPalettes()), palettes, {});
     for (const lv of set.levels) {
       const cap = lv.placements.filter((p) => p.source.elementId === "shell").length;
       expect(cap).toBeLessThan(260);
@@ -406,7 +406,7 @@ describe("generator 4 solid shell", () => {
 
 describe("generator 4 shell: tidy buildings, outline", () => {
   it("a tidy timber inn gets no cap and no skirt, only flush strips between its rooms", () => {
-    const R = resolvePlan(inn("wood_town"));
+    const R = resolvePlan(inn("wood_town"), bundledPalettes());
     const L = R.levels[0] as ResolvedLevel;
     const shell = planShell(R, L, h32(R.planId), () => false, "wood_town");
     expect(shell?.cells.size ?? 0).toBe(0);
@@ -423,13 +423,13 @@ describe("generator 4 shell: tidy buildings, outline", () => {
     expect(shellPieces.length).toBeLessThanOrEqual(shell?.strips.length ?? 0);
   });
   it("the same plan in a stone dungeon keeps the cap and skirt", () => {
-    const R = resolvePlan(inn("stone_dungeon"));
+    const R = resolvePlan(inn("stone_dungeon"), bundledPalettes());
     const shell = planShell(R, R.levels[0] as ResolvedLevel, h32(R.planId), () => false, "stone_dungeon");
     expect(shell?.cells.size ?? 0).toBeGreaterThan(50);
     expect(shell?.strips.length ?? 0).toBe(0);
   });
   it("the outline has no one-cell notches or holes, no lumps and no cell floating away from its rooms", () => {
-    const R = resolvePlan(keep());
+    const R = resolvePlan(keep(), bundledPalettes());
     for (const L of R.levels) {
       const shell = planShell(R, L, h32(R.planId), () => false, "stone_dungeon");
       if (!shell) continue;
@@ -499,7 +499,7 @@ describe("generator 4 shell: tidy buildings, outline", () => {
 describe("generator 4 secret door plug", () => {
   const fixture = (): MapPlan => keep();
   it("is one removable wall piece in the wall line, with a GM note naming it", () => {
-    const R = resolvePlan(fixture());
+    const R = resolvePlan(fixture(), bundledPalettes());
     const set = realize(R, palettes, {});
     const mine = set.levels.flatMap((l) => l.placements).filter((p) => p.source.elementId === "o_secret");
     expect(mine).toHaveLength(1);
@@ -510,12 +510,12 @@ describe("generator 4 secret door plug", () => {
     // generator 3: no note
     const p3 = fixture();
     p3.generator = 3;
-    const s3 = realize(resolvePlan(p3), palettes, {});
+    const s3 = realize(resolvePlan(p3, bundledPalettes()), palettes, {});
     expect(s3.diagnostics.filter((d) => d.code === "secret_door_plug")).toHaveLength(0);
   });
   it("verify treats the two rooms as connected through it", () => {
     const plan = fixture();
-    const res = compileResolved(resolvePlan(plan), palettes, slabCodec, { plan });
+    const res = compileResolved(resolvePlan(plan, bundledPalettes()), palettes, slabCodec, { plan });
     const errors = res.diagnostics.filter((d) => d.severity === "error");
     expect(errors).toHaveLength(0);
     expect(res.diagnostics.some((d) => d.code === "verify_area_unreachable")).toBe(false);
@@ -533,8 +533,12 @@ describe("generator 4 review", () => {
       material: "marble",
       layer: "over",
     } as never);
-    const codes = reviewDesign(plan, resolvePlan(plan)).map((n) => n.code);
+    const codes = reviewDesign(plan, resolvePlan(plan, bundledPalettes()), bundledPalettes()).map(
+      (n) => n.code,
+    );
     expect(codes).toContain("floor_accent_tone");
-    expect(reviewDesign(keep(), resolvePlan(keep())).map((n) => n.code)).not.toContain("floor_accent_tone");
+    expect(
+      reviewDesign(keep(), resolvePlan(keep(), bundledPalettes()), bundledPalettes()).map((n) => n.code),
+    ).not.toContain("floor_accent_tone");
   });
 });

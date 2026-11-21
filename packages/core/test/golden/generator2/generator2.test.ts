@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { compileResolved } from "../../../src/compile";
 import type { Building, MapPlan, Structure } from "../../../src/contracts/plan";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { canonicalResolved, resolvePlan } from "../../../src/resolve/index";
 import { slabCodec } from "../../../src/slab";
 import { h64hex } from "../../../src/util";
@@ -147,7 +147,7 @@ const PLANS: Array<[string, MapPlan]> = [
 ];
 
 function build(plan: MapPlan): string {
-  const resolved = resolvePlan(plan);
+  const resolved = resolvePlan(plan, bundledPalettes());
   const bundle = compileResolved(resolved, palettes, slabCodec, { createdAt: "t", plan });
   const sev = (s: string): number => bundle.diagnostics.filter((d) => d.severity === s).length;
   return [
@@ -172,7 +172,7 @@ describe("generator 2 is frozen", () => {
 
   it("each plan builds without errors", () => {
     for (const [name, plan] of PLANS) {
-      const bundle = compileResolved(resolvePlan(plan), palettes, slabCodec, { createdAt: "t", plan });
+      const bundle = compileResolved(resolvePlan(plan, bundledPalettes()), palettes, slabCodec, { createdAt: "t", plan });
       expect(
         bundle.diagnostics.filter((d) => d.severity === "error"),
         name,

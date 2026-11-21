@@ -12,7 +12,7 @@ import {
   verifyBuild,
   VERIFY_CODES,
 } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { checkPlayability, resolvePlan } from "../../../src/resolve";
 import { slabCodec } from "../../../src/slab";
 import { loadPlan } from "../../fixtures";
@@ -82,7 +82,7 @@ describe("verify: one fixture per code", () => {
 
   it("verify_door_blocked + verify_area_unreachable — a block in front of the only door names the blocker", () => {
     const plan = loadPlan("two-rooms-door");
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     const set = realize(r, cat);
     const op = r.levels[0]?.openings[0];
     if (!op || op.orientation !== "v") throw new Error("fixture: expected a vertical door");
@@ -440,7 +440,7 @@ describe("verify: the proof room's east door (regression)", () => {
   ];
 
   it("flags door_e with the stairs as the blocker and suggests a clear cell", () => {
-    const r = resolvePlan(old);
+    const r = resolvePlan(old, bundledPalettes());
     const v = verifyBuild(r, realize(r, cat), cat);
     const d = v.diagnostics.find((x) => x.code === "verify_door_blocked");
     expect(d).toMatchObject({ severity: "error", elementId: "door_e", cell: [9, 6] });
@@ -450,7 +450,7 @@ describe("verify: the proof room's east door (regression)", () => {
   });
 
   it("with the plan, the plan-level pass reports it (opening_blocked) and verify does not repeat it", () => {
-    const r = resolvePlan(old);
+    const r = resolvePlan(old, bundledPalettes());
     const planIssues = checkPlayability(old, r);
     expect(planIssues.some((i) => i.code === "opening_blocked" && i.elementId === "door_e")).toBe(true);
     const v = verifyBuild(r, realize(r, cat), cat, { plan: old });
@@ -460,7 +460,7 @@ describe("verify: the proof room's east door (regression)", () => {
   });
 
   it("the fixed plan (v5) verifies clean", () => {
-    const r = resolvePlan(fixed);
+    const r = resolvePlan(fixed, bundledPalettes());
     expect(verifyBuild(r, realize(r, cat), cat, { plan: fixed }).diagnostics).toEqual([]);
   });
 });
@@ -468,7 +468,7 @@ describe("verify: the proof room's east door (regression)", () => {
 describe("verify: no duplicates across the plan and build layers", () => {
   const leads = (opts: Parameters<typeof verifyBuild>[3]) => {
     const plan = loadPlan("multi-level-stairs");
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     return verifyBuild(
       r,
       realize(r, cat),
@@ -494,7 +494,7 @@ describe("verify: no duplicates across the plan and build layers", () => {
   });
   it("with the plan, the plan layer's own finding is used and verify stays silent", () => {
     const plan = loadPlan("multi-level-stairs");
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     expect(
       checkPlayability(plan, r).some((i) => i.code === "opening_dead_end" && i.elementId === "front_door"),
     ).toBe(true);
@@ -520,7 +520,7 @@ describe("verify: fixtures, pipeline wiring, robustness, speed", () => {
         ),
       ) as MapPlan,
     ]) {
-      const r = resolvePlan(plan);
+      const r = resolvePlan(plan, bundledPalettes());
       const v = verifyBuild(r, realize(r, cat), cat, { plan });
       expect(v.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     }

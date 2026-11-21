@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { realize } from "../../../src/compile";
 import type { GeneratorVersion, Level, MapPlan, TerrainOp } from "../../../src/contracts/plan";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
 import { boxFill, components, squareCorners } from "../../../src/review/metrics";
@@ -47,7 +47,7 @@ describe("outcrops are not blocks (generator 3)", () => {
       { id: "o", op: "outcrop", shape: { type: "rect", x: 10, y: 10, w: 5, h: 4 } },
     ]);
     p.seed = seed;
-    const l = resolvePlan(p).levels[0];
+    const l = resolvePlan(p, bundledPalettes()).levels[0];
     const out: Array<[number, number]> = [];
     for (let i = 0; i < 36 * 28; i++)
       if ((l?.cells.height[i] ?? 0) > 0) out.push([i % 36, Math.floor(i / 36)]);
@@ -92,8 +92,9 @@ describe("default rock bands (generator 3)", () => {
     edge: "ragged",
   };
   const faces = (p: MapPlan): number =>
-    resolvePlan(p).levels[0]?.features.filter((f) => f.type === "cliff_face" || f.type === "cliff_crest")
-      .length ?? 0;
+    resolvePlan(p, bundledPalettes()).levels[0]?.features.filter(
+      (f) => f.type === "cliff_face" || f.type === "cliff_crest",
+    ).length ?? 0;
   it("a 2-tile rise with no dress op gets rock; cliffBands:false and generator 2 get none", () => {
     expect(faces(plan(3, [rise]))).toBeGreaterThan(0);
     expect(faces(plan(3, [rise], { cliffBands: false }))).toBe(0);
@@ -105,7 +106,10 @@ describe("sub-cell offsets (generator 3)", () => {
   it("a feature offset moves the compiled piece by that many tiles", () => {
     const palettes = loadPalettes();
     const build = (offset?: [number, number]): { x: number; z: number } | undefined => {
-      const r = resolvePlan(plan(3, [], {}, [{ id: "stone", type: "boulder", at: [10, 10] }]));
+      const r = resolvePlan(
+        plan(3, [], {}, [{ id: "stone", type: "boulder", at: [10, 10] }]),
+        bundledPalettes(),
+      );
       const f = r.levels[0]?.features.find((q) => q.id === "stone");
       if (f && offset) f.offset = offset;
       const set = realize(r, palettes, {});
@@ -142,11 +146,11 @@ describe("trails arrive (generator 3)", () => {
       [{ id: "mark", type: "landmark", at: [30, 22] }],
     );
   const pathAt = (generator: GeneratorVersion, x: number, y: number): boolean => {
-    const l = resolvePlan(p(generator)).levels[0];
+    const l = resolvePlan(p(generator), bundledPalettes()).levels[0];
     return ((l?.cells.flags[y * 36 + x] ?? 0) & 8) !== 0; // CELL_FLAG.PATH
   };
   it("ends at the cell outside the door and at the landmark; generator 2 stops short", () => {
-    const l = resolvePlan(p(3)).levels[0];
+    const l = resolvePlan(p(3), bundledPalettes()).levels[0];
     const door = l?.openings.find((o) => o.kind === "door" || o.kind === "double_door");
     expect(door).toBeDefined();
     const inside = new Set((l?.structures?.[0]?.cells ?? []).map(([x, y]) => `${x},${y}`));
@@ -174,7 +178,7 @@ describe("review: square_outcrop", () => {
     const p = plan(generator, [
       { id: "o", op: "outcrop", shape: { type: "rect", x: 10, y: 10, w: 5, h: 4 } },
     ]);
-    return reviewDesign(p, resolvePlan(p)).map((n) => n.code);
+    return reviewDesign(p, resolvePlan(p, bundledPalettes()), bundledPalettes()).map((n) => n.code);
   };
   it("fires on a block-shaped outcrop (generator 2), is silent once the outline is cut (generator 3)", () => {
     expect(codes(2)).toContain("square_outcrop");

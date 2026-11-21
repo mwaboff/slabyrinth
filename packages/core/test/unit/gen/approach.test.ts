@@ -15,6 +15,7 @@ import {
   type ComposedPreset,
   type PlacementGrid,
 } from "../../../src/gen/index";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
 import { loadPlan } from "../../fixtures";
@@ -160,7 +161,7 @@ describe("dressing stays off building ground (ResolvedLevel.reserved)", () => {
 
   for (const preset of COMPOSED_PRESETS)
     it(`${preset}: no generated piece on a reserved cell`, () => {
-      const L = resolvePlan(shackPlan(preset)).levels[0];
+      const L = resolvePlan(shackPlan(preset), bundledPalettes()).levels[0];
       if (!L) throw new Error("no level");
       const reserved = new Set(L.reserved ?? []);
       expect(reserved.size).toBeGreaterThan(0);

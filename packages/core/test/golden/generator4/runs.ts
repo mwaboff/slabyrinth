@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { compileResolved, realize } from "../../../src/compile";
 import type { MapPlan } from "../../../src/contracts/plan";
-import { loadPalettes, paletteOptionsFor } from "../../../src/palette";
+import { loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import { designReviewText, reviewDesign } from "../../../src/review";
 import { slabCodec } from "../../../src/slab";
@@ -70,11 +70,11 @@ export function goldenLine(run: Run): string {
   const { plan } = run;
   const fields: Array<[string, string | number]> = [["gen", plan.generator]];
   try {
-    const resolved = resolvePlan(plan, paletteOptionsFor(plan, palettes));
+    const resolved = resolvePlan(plan, palettes);
     const bundle = compileResolved(resolved, palettes, slabCodec, { createdAt: "t", plan });
     const placements = realize(resolved, palettes, {});
-    const withBuild = reviewDesign(plan, resolved, { palettes, diagnostics: bundle.diagnostics, placements });
-    const noBuild = reviewDesign(plan, resolved, { palettes });
+    const withBuild = reviewDesign(plan, resolved, palettes, { diagnostics: bundle.diagnostics, placements });
+    const noBuild = reviewDesign(plan, resolved, palettes);
     const count = (s: string): number => bundle.diagnostics.filter((d) => d.severity === s).length;
     fields.push(
       ["resolved", resolved.hash],

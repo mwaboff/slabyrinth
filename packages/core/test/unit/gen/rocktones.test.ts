@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { realize } from "../../../src/compile/index";
 import type { GeneratorVersion, MapPlan } from "../../../src/contracts/plan";
 import { cliffRockKinds } from "../../../src/gen/index";
-import { loadPalettes } from "../../../src/palette/load";
+import { bundledPalettes, loadPalettes } from "../../../src/palette/load";
 import { resolvePlan } from "../../../src/resolve/index";
 import { reviewDesign } from "../../../src/review/index";
 import { loadPlan } from "../../fixtures";
@@ -73,7 +73,7 @@ describe("the bundled cliff rock", () => {
   });
 
   const toneOfPieces = (plan: MapPlan): { band: Set<string>; face: number; crest: number } => {
-    const resolved = resolvePlan(plan);
+    const resolved = resolvePlan(plan, bundledPalettes());
     const cat = loadPalettes();
     const set = realize(resolved, cat);
     const tones = new Map<string, string>();
@@ -112,7 +112,7 @@ describe("the bundled cliff rock", () => {
 
 describe("rock_tones_mixed", () => {
   const codes = (plan: MapPlan, oneToneRule?: boolean): string[] =>
-    reviewDesign(plan, resolvePlan(plan), {
+    reviewDesign(plan, resolvePlan(plan, bundledPalettes()), bundledPalettes(), {
       limit: 99,
       ...(oneToneRule === undefined ? {} : { oneToneRule }),
     }).map((n) => n.code);

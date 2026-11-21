@@ -9,7 +9,7 @@ import type { Building, Level, MapPlan, Structure } from "../../../src/contracts
 import type { ResolvedLevel } from "../../../src/contracts/resolved";
 import { compileResolved, realize, verifyBuild } from "../../../src/compile";
 import { placementMeta } from "../../../src/compile/realize";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
@@ -21,9 +21,9 @@ const palettes = loadPalettes();
 const plan = (structures: Structure[], extra: Partial<Level> = {}): MapPlan =>
   townPlan({ generator: 2, id: "phase2", seed: 17, w: 36, h: 30, lot: "land", structures, level: extra });
 
-const level0 = (p: MapPlan): ResolvedLevel => resolvePlan(p).levels[0] as ResolvedLevel;
+const level0 = (p: MapPlan): ResolvedLevel => resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
 const build = (p: MapPlan) => {
-  const r = resolvePlan(p);
+  const r = resolvePlan(p, bundledPalettes());
   const set = realize(r, palettes);
   const pl = set.levels[0]?.placements ?? [];
   return { r, set, pl, L: r.levels[0] as ResolvedLevel };
@@ -272,7 +272,7 @@ describe("wizard tower and modern block styles", () => {
       for (let seed = 0; seed < 100; seed++) {
         const p = make(seed);
         expect(errorsOf(p), `seed ${seed}`).toEqual([]);
-        const r = resolvePlan(p);
+        const r = resolvePlan(p, bundledPalettes());
         const set = realize(r, palettes);
         const ver = verifyBuild(r, set, palettes, { plan: p });
         expect(
@@ -285,7 +285,7 @@ describe("wizard tower and modern block styles", () => {
 
   it("a tall building compiles to one slab under the size budget", () => {
     const p = plan([tower({ seed: 3 })]);
-    const bundle = compileResolved(resolvePlan(p), palettes, undefined, { plan: p });
+    const bundle = compileResolved(resolvePlan(p, bundledPalettes()), palettes, undefined, { plan: p });
     expect(bundle.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     expect(bundle.chunks.length).toBe(1);
   });

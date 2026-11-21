@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { Building, MapPlan, Structure } from "../../../src/contracts/plan";
 import type { ResolvedLevel, ResolvedStructure } from "../../../src/contracts/resolved";
 import { realize, verifyBuild } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
 import { growthMeasures, roofUnsupportedEdges, structureRuinMeasures } from "../../../src/resolve";
@@ -28,7 +28,7 @@ const plan = (structures: Structure[], generator: 2 | 3 = 3, theme = "forest"): 
     level: { features: [{ id: "f", type: "statue", at: [2, 2] }] },
   });
 const first = (p: MapPlan): ResolvedStructure =>
-  ((resolvePlan(p).levels[0] as ResolvedLevel).structures ?? [])[0] as ResolvedStructure;
+  ((resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel).structures ?? [])[0] as ResolvedStructure;
 const b = (style: string, seed: number, w: number, h: number, extra: Partial<Building> = {}): Building => ({
   id: "b",
   style,
@@ -36,7 +36,8 @@ const b = (style: string, seed: number, w: number, h: number, extra: Partial<Bui
   wings: [{ x: 8, y: 8, w, h }],
   ...extra,
 });
-const placementsOf = (p: MapPlan) => realize(resolvePlan(p), palettes).levels[0]?.placements ?? [];
+const placementsOf = (p: MapPlan) =>
+  realize(resolvePlan(p, bundledPalettes()), palettes).levels[0]?.placements ?? [];
 const count = (p: MapPlan, re: RegExp): number =>
   placementsOf(p).filter((q) => re.test(String(q.source.elementId))).length;
 
@@ -130,7 +131,7 @@ describe("growth that climbs (generator 3)", () => {
         }
       }
       // no vine or root on a doorway's or window's face (nor the cell beside it)
-      const level = resolvePlan(p).levels[0] as ResolvedLevel;
+      const level = resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
       for (const o of level.openings.filter((q) => st.openingIds.includes(q.id)))
         for (let k = -1; k <= o.width; k++) {
           // the two faces the opening's edge can be (the building's cell on the one side or the other)
@@ -194,7 +195,7 @@ describe("growth that climbs (generator 3)", () => {
   it("verifies clean: no door blocked by a plant, nothing floating", () => {
     for (const seed of SEEDS) {
       const p = plan([chapel(seed)]);
-      const r = resolvePlan(p);
+      const r = resolvePlan(p, bundledPalettes());
       const ver = verifyBuild(r, realize(r, palettes), palettes, { plan: p });
       expect(
         ver.diagnostics.filter((x) => x.severity === "error"),
@@ -205,9 +206,9 @@ describe("growth that climbs (generator 3)", () => {
 
   it("the review flags a weathered or ruined building bare of growth, and nothing when it is overgrown", () => {
     const p = plan([chapel(4)]);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const code = (rr: typeof r): string[] =>
-      reviewDesign(p, rr, { limit: 99 })
+      reviewDesign(p, rr, bundledPalettes(), { limit: 99 })
         .filter((n) => n.code === "growth_bare")
         .map((n) => n.code);
     expect(code(r)).toEqual([]);
@@ -275,10 +276,10 @@ describe("growth that climbs (generator 3)", () => {
 
   it("growth_bare fails a chapel with the sparse growth of the first proof (a share of almost nothing), and brief words ask for heavy", () => {
     const p = plan([chapel(5, { growth: "heavy" })]);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const st = (r.levels[0] as ResolvedLevel).structures?.[0] as ResolvedStructure;
     const notes = (): string[] =>
-      reviewDesign(p, r, { limit: 99 })
+      reviewDesign(p, r, bundledPalettes(), { limit: 99 })
         .filter((n) => n.code === "growth_bare")
         .map((n) => n.message);
     expect(notes()).toEqual([]);
@@ -293,17 +294,22 @@ describe("growth that climbs (generator 3)", () => {
     expect(notes().length).toBe(1);
     // the review's brief check: overgrown / ivy / reclaimed / abandoned want heavy growth
     const asked = { ...p, title: "An overgrown, ivy-covered chapel" };
-    const brief = reviewDesign(asked, r, { limit: 99 }).filter((n) => n.code === "brief_not_met");
+    const brief = reviewDesign(asked, r, bundledPalettes(), { limit: 99 }).filter(
+      (n) => n.code === "brief_not_met",
+    );
     expect(brief.some((n) => /heavy growth/.test(n.message))).toBe(true);
     const light = plan([chapel(5, { growth: "light" })]);
     expect(
-      reviewDesign({ ...light, title: "Reclaimed ruin" }, resolvePlan(light), { limit: 99 }).some(
-        (n) => n.code === "brief_not_met" && /heavy growth/.test(n.message),
-      ),
+      reviewDesign(
+        { ...light, title: "Reclaimed ruin" },
+        resolvePlan(light, bundledPalettes()),
+        bundledPalettes(),
+        { limit: 99 },
+      ).some((n) => n.code === "brief_not_met" && /heavy growth/.test(n.message)),
     ).toBe(true);
     const ok = { ...plan([chapel(5, { growth: "heavy" })]), title: "Overgrown chapel" };
     expect(
-      reviewDesign(ok, resolvePlan(ok), { limit: 99 }).some(
+      reviewDesign(ok, resolvePlan(ok, bundledPalettes()), bundledPalettes(), { limit: 99 }).some(
         (n) => n.code === "brief_not_met" && /heavy growth/.test(n.message),
       ),
     ).toBe(false);
@@ -339,13 +345,13 @@ describe("a ruin keeps one roofed part as its anchor (generator 3)", () => {
     let checked = 0;
     for (const seed of SEEDS) {
       const p = plan([chapel(seed)]);
-      const r = resolvePlan(p);
+      const r = resolvePlan(p, bundledPalettes());
       const st = (r.levels[0] as ResolvedLevel).structures?.[0] as ResolvedStructure;
       if (st.ruin?.keep === undefined) continue;
       checked++;
       const m = structureRuinMeasures(st);
       expect(m?.runShort ?? 0).toBeGreaterThanOrEqual(0.55);
-      const notes = reviewDesign(p, r, { limit: 99 }).filter(
+      const notes = reviewDesign(p, r, bundledPalettes(), { limit: 99 }).filter(
         (n) => n.code === "ruin_flat_top" || n.code === "ruin_uniform",
       );
       expect(notes, `seed ${seed}`).toEqual([]);
@@ -353,7 +359,7 @@ describe("a ruin keeps one roofed part as its anchor (generator 3)", () => {
     expect(checked).toBeGreaterThan(3);
     // a clean-cut ruin: every cut top at one height, one long run per face
     const p = plan([chapel(2)]);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const st = (r.levels[0] as ResolvedLevel).structures?.[0] as ResolvedStructure;
     const ruin = st.ruin;
     expect(ruin).toBeDefined();
@@ -362,7 +368,9 @@ describe("a ruin keeps one roofed part as its anchor (generator 3)", () => {
       if (c.top < c.full - 1e-6) c.top = Math.min(c.full, (st.storeys[0]?.floorTop ?? 0) + 2);
     const m = structureRuinMeasures(st);
     expect(m?.runShort ?? 1).toBeLessThan(0.55);
-    const notes = reviewDesign(p, r, { limit: 99 }).filter((n) => n.code === "ruin_flat_top");
+    const notes = reviewDesign(p, r, bundledPalettes(), { limit: 99 }).filter(
+      (n) => n.code === "ruin_flat_top",
+    );
     expect(notes.length).toBe(1);
   });
 
@@ -371,7 +379,7 @@ describe("a ruin keeps one roofed part as its anchor (generator 3)", () => {
     let joined = 0;
     for (const seed of SEEDS) {
       const p = plan([chapel(seed)]);
-      const r = resolvePlan(p);
+      const r = resolvePlan(p, bundledPalettes());
       const st = (r.levels[0] as ResolvedLevel).structures?.[0] as ResolvedStructure;
       expect(roofUnsupportedEdges(st), `seed ${seed}`).toEqual([]);
       const keep = st.ruin?.keep;
@@ -409,7 +417,9 @@ describe("a ruin keeps one roofed part as its anchor (generator 3)", () => {
       if (!col) continue;
       col.top = Math.max(0, col.full - 2);
       expect(roofUnsupportedEdges(st).length).toBeGreaterThan(0);
-      expect(reviewDesign(p, r, { limit: 99 }).some((n) => n.code === "roof_unsupported")).toBe(true);
+      expect(
+        reviewDesign(p, r, bundledPalettes(), { limit: 99 }).some((n) => n.code === "roof_unsupported"),
+      ).toBe(true);
     }
     expect(checked).toBeGreaterThanOrEqual(5);
     expect(joined).toBeGreaterThan(0);
@@ -418,7 +428,7 @@ describe("a ruin keeps one roofed part as its anchor (generator 3)", () => {
   it("collapse goes top-down: no upper wall hangs over a breach", () => {
     for (const seed of SEEDS) {
       const p = plan([b("keep", seed, 9, 8, { condition: "ruined" })]);
-      const r = resolvePlan(p);
+      const r = resolvePlan(p, bundledPalettes());
       const st = (r.levels[0] as ResolvedLevel).structures?.[0] as ResolvedStructure;
       const level = r.levels[0] as ResolvedLevel;
       const groundTop = (st.storeys[0]?.floorTop ?? 0) + (st.storeys[0]?.wallHeight ?? 0);
@@ -452,14 +462,16 @@ describe("a ruin keeps one roofed part as its anchor (generator 3)", () => {
     expect(total / SEEDS.length).toBeLessThan(0.4);
     // a regular alternation (one block up, one down along every wall) is flagged
     const p = plan([chapel(2)]);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const st = (r.levels[0] as ResolvedLevel).structures?.[0] as ResolvedStructure;
     const floor0 = st.storeys[0]?.floorTop ?? 0;
     for (const c of st.ruin?.columns ?? [])
       if (c.top < c.full - 1e-6)
         c.top = floor0 + 1 + ((c.side === "N" || c.side === "S" ? c.at[0] : c.at[1]) % 2 === 0 ? 1 : 0);
     expect(structureRuinMeasures(st)?.teeth ?? 0).toBeGreaterThan(0.6);
-    expect(reviewDesign(p, r, { limit: 99 }).some((n) => n.code === "ruin_teeth")).toBe(true);
+    expect(reviewDesign(p, r, bundledPalettes(), { limit: 99 }).some((n) => n.code === "ruin_teeth")).toBe(
+      true,
+    );
   });
 
   it("wall-top rubble is broken stuff at its own angles, never a neat pale block seated square", () => {

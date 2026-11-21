@@ -20,7 +20,12 @@
  */
 import type { DesignBrief, LevelId, MapPlan } from "@slabyrinth/core/contracts/plan";
 import type { PlanVersion, VersionAuthor } from "@slabyrinth/core/contracts/ops";
-import type { AssetCatalog, CompileEstimate, Palette } from "@slabyrinth/core/contracts/compiler";
+import type {
+  AssetCatalog,
+  CompileEstimate,
+  Palette,
+  PaletteCatalog,
+} from "@slabyrinth/core/contracts/compiler";
 import type {
   ChatItem,
   Cost,
@@ -95,6 +100,11 @@ export interface EngineHost {
   getAssetCatalog(): AssetCatalog | null;
   /** Palettes visible to the app (bundled + user). */
   getPalettes(): Palette[];
+  /**
+   * The palettes builds compile with (bundled + user + the scanned game assets). Every plan the engine resolves,
+   * checks or reviews is resolved against these, so the model sees the map the build produces.
+   */
+  getBuildPalettes(): PaletteCatalog;
   /** Writes pending changes now (end of turn). */
   flush(): Promise<void>;
   readonly logger: EngineLogger;

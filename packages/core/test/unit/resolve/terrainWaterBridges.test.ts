@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { placementMeta, realize, verifyBuild } from "../../../src/compile";
 import type { MapPlan } from "../../../src/contracts/plan";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
 import { loadPlan } from "../../fixtures";
@@ -20,7 +20,7 @@ const must = <T>(v: T | undefined): T => {
 
 describe("bridges cross the channel (generator 3)", () => {
   const p = rift(3);
-  const r = resolvePlan(p);
+  const r = resolvePlan(p, bundledPalettes());
   const L = must(r.levels[0]);
 
   it("the arched bridge is a short span across the rift, not a ribbon down it", () => {
@@ -31,7 +31,9 @@ describe("bridges cross the channel (generator 3)", () => {
     const dy = Math.max(...ys) - Math.min(...ys) + 1;
     // v7 laid this deck 10 cells down the crack (2 wide); now it spans it
     expect(Math.max(dx, dy)).toBeLessThanOrEqual(8);
-    expect(reviewDesign(p, r, { limit: 99 }).map((n) => n.code)).not.toContain("bridge_along");
+    expect(reviewDesign(p, r, bundledPalettes(), { limit: 99 }).map((n) => n.code)).not.toContain(
+      "bridge_along",
+    );
   });
 
   it("bridge_along fires on a deck laid down the channel", () => {
@@ -60,7 +62,7 @@ describe("bridges cross the channel (generator 3)", () => {
     for (let t = -4; t <= 5; t++)
       for (const o of [0, 1])
         b.cells.push([Math.floor(mid[0]) + (alongX ? t : o), Math.floor(mid[1]) + (alongX ? o : t)]);
-    const notes = reviewDesign(p, bad, { limit: 99 });
+    const notes = reviewDesign(p, bad, bundledPalettes(), { limit: 99 });
     // only fires when the course there runs along the deck: the stray of the rift is mostly north-south
     expect(notes.some((n) => n.code === "bridge_along")).toBe(true);
   });
@@ -69,7 +71,7 @@ describe("bridges cross the channel (generator 3)", () => {
 describe("a passage that reaches the board edge is an exit (generator 3)", () => {
   it("places nothing outside the bounds and verify accepts the open edge", () => {
     const p = rift(3);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const set = realize(r, cat);
     const outside = must(set.levels[0]).placements.filter((q) => q.role === "wall" && q.x < -0.01);
     expect(outside).toEqual([]);
@@ -81,7 +83,7 @@ describe("a passage that reaches the board edge is an exit (generator 3)", () =>
 
   it("generator 2 still builds the end caps outside the bounds", () => {
     const p = rift(2);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const set = realize(r, cat);
     const outside = must(set.levels[0]).placements.filter(
       (q) => q.x < -0.01 && /Cave Wall/.test(placementMeta.get(q)?.name ?? ""),
@@ -92,7 +94,7 @@ describe("a passage that reaches the board edge is an exit (generator 3)", () =>
 
 describe("water is one plane (generator 3)", () => {
   const p = loadPlan("three-step-glen-v1");
-  const r = resolvePlan(p);
+  const r = resolvePlan(p, bundledPalettes());
   it("a stepped brook warns that its upper reaches stay dry, and no trail ford is called flooded", () => {
     const w = r.issues.filter((i) => i.code === "water_level");
     expect(w.some((i) => /stay dry/.test(i.message))).toBe(true);
@@ -106,7 +108,7 @@ describe("water is one plane (generator 3)", () => {
 describe("floors vary orientation (generator 3)", () => {
   it("1x2 cave floor pieces lie both ways", () => {
     const p = rift(3);
-    const set = realize(resolvePlan(p), cat);
+    const set = realize(resolvePlan(p, bundledPalettes()), cat);
     const rots = new Set<number>();
     for (const q of must(set.levels[0]).placements)
       if (q.role === "floor" && /Cave Floor - Rock 04/.test(placementMeta.get(q)?.name ?? ""))
@@ -119,8 +121,16 @@ describe("floors vary orientation (generator 3)", () => {
 describe("flat_map judges real depth (generator 3)", () => {
   it("fires on the heartroot cave (88% within a tile of one height), quiet on the stepped glen", () => {
     const cave = rift(3);
-    expect(reviewDesign(cave, resolvePlan(cave), { limit: 99 }).map((n) => n.code)).toContain("flat_map");
+    expect(
+      reviewDesign(cave, resolvePlan(cave, bundledPalettes()), bundledPalettes(), { limit: 99 }).map(
+        (n) => n.code,
+      ),
+    ).toContain("flat_map");
     const glen = loadPlan("three-step-glen-v1");
-    expect(reviewDesign(glen, resolvePlan(glen), { limit: 99 }).map((n) => n.code)).not.toContain("flat_map");
+    expect(
+      reviewDesign(glen, resolvePlan(glen, bundledPalettes()), bundledPalettes(), { limit: 99 }).map(
+        (n) => n.code,
+      ),
+    ).not.toContain("flat_map");
   });
 });

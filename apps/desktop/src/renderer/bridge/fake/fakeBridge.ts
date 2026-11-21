@@ -21,6 +21,7 @@ import {
   validatePlan,
 } from "@slabyrinth/core";
 import { countPlanRooms } from "@slabyrinth/core";
+import { bundledPalettes, resolvePalettesData } from "@slabyrinth/core/palette";
 import type { DesignBrief, MapPlan, PlanOp } from "@slabyrinth/core";
 import type {
   AppError,
@@ -889,6 +890,8 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
     ],
     "palettes:reload": () => undefined,
     "palettes:openFolder": () => undefined,
+    // the fake main builds with the bundled palettes alone (no user files, no game catalog)
+    "palettes:resolveData": () => resolvePalettesData(bundledPalettes()),
     "shell:openExternal": () => ({ opened: true }),
 
     "updates:status": () => updateStatus(),

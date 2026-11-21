@@ -4,8 +4,8 @@
  */
 import { randomUUID } from "node:crypto";
 import { commitVersion, createHistory, getVersion, reconstruct } from "@slabyrinth/core/history";
-import { BUNDLED_PALETTES, parsePalette } from "@slabyrinth/core/palette";
-import type { CompileEstimate, Palette } from "@slabyrinth/core/contracts/compiler";
+import { BUNDLED_PALETTES, bundledPalettes, parsePalette } from "@slabyrinth/core/palette";
+import type { CompileEstimate, Palette, PaletteCatalog } from "@slabyrinth/core/contracts/compiler";
 import type { DesignBrief, LevelId, MapPlan } from "@slabyrinth/core/contracts/plan";
 import type { ChatEvent } from "../../../shared/ipc";
 import type { AppSettings, ChatMessageMeta, Conversation, ProjectFile } from "../../../shared/project";
@@ -84,6 +84,8 @@ export interface MemoryHostOptions {
   apiKey?: string | null;
   settings?: AppSettings;
   palettes?: Palette[];
+  /** The palettes builds compile with (default: the bundled palettes alone). */
+  buildPalettes?: PaletteCatalog;
   estimate?: (plan: MapPlan, levels?: LevelId[]) => CompileEstimate | null;
   image?: (req: ImageRequest) => string;
 }
@@ -235,6 +237,10 @@ export class MemoryHost implements EngineHost {
         return r.ok ? [r.value] : [];
       })
     );
+  }
+
+  getBuildPalettes(): PaletteCatalog {
+    return this.opts.buildPalettes ?? bundledPalettes();
   }
 
   flush(): Promise<void> {

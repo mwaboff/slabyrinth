@@ -40,6 +40,8 @@ export interface CatalogServiceDeps {
   logger: Logger;
   suppressWarning: () => boolean;
   onScanned?: (at: string) => Promise<void>;
+  /** After every check (startup or refresh): `current()` may have changed. */
+  onChecked?: () => void;
   now?: () => Date;
 }
 
@@ -96,6 +98,7 @@ export class CatalogService {
     if (this.running) return this.running;
     const run = this.doRefresh(force).finally(() => {
       this.running = null;
+      this.deps.onChecked?.();
     });
     this.running = run;
     return run;

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { realize } from "../../../src/compile";
 import { placementMeta } from "../../../src/compile/realize";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import { asciiView, outlineView } from "../../../src/text";
 
@@ -60,7 +60,7 @@ const PLAN: MapPlan = {
 };
 
 describe("structures golden", () => {
-  const resolved = resolvePlan(PLAN);
+  const resolved = resolvePlan(PLAN, bundledPalettes());
   it("ascii and outline", async () => {
     const text = [
       asciiView(resolved, "g"),

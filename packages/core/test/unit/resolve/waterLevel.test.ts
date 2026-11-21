@@ -1,6 +1,7 @@
 /** Generator 3: a river's bed follows its channel's low side, so a clipped terrace bank does not raise the surface. */
 import { describe, expect, it } from "vitest";
 import type { GeneratorVersion, MapPlan } from "../../../src/contracts/plan";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 
 function plan(generator: GeneratorVersion): MapPlan {
@@ -55,8 +56,9 @@ function plan(generator: GeneratorVersion): MapPlan {
   };
 }
 
-const warns = (p: MapPlan): number => resolvePlan(p).issues.filter((i) => i.code === "water_level").length;
-const surface = (p: MapPlan): number => resolvePlan(p).levels[0]?.waterLevel ?? NaN;
+const warns = (p: MapPlan): number =>
+  resolvePlan(p, bundledPalettes()).issues.filter((i) => i.code === "water_level").length;
+const surface = (p: MapPlan): number => resolvePlan(p, bundledPalettes()).levels[0]?.waterLevel ?? NaN;
 
 describe("river surface follows the low bank (generator 3)", () => {
   it("generator 2 is unchanged: the clipped terrace raises the surface", () => {

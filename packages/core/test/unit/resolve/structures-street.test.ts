@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { Building, MapPlan, Structure } from "../../../src/contracts/plan";
 import type { ResolvedLevel, ResolvedStructure } from "../../../src/contracts/resolved";
 import { realize } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
 import { townPlan } from "../../fixtures/planBuilder";
@@ -25,7 +25,8 @@ const plan = (structures: Structure[], generator: 2 | 3 = 3, seed = 5): MapPlan 
     structures,
     level: { features: [{ id: "f", type: "statue", at: [1, 1] }] },
   });
-const all = (p: MapPlan): ResolvedStructure[] => (resolvePlan(p).levels[0] as ResolvedLevel).structures ?? [];
+const all = (p: MapPlan): ResolvedStructure[] =>
+  (resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel).structures ?? [];
 const street = (seed: number): MapPlan =>
   plan(
     [3, 15, 28, 40, 54].map((x, i) => ({
@@ -100,7 +101,7 @@ describe("a street of one style (generator 3)", () => {
         s,
       );
       const st = all(p)[0] as ResolvedStructure;
-      const level = resolvePlan(p).levels[0] as ResolvedLevel;
+      const level = resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
       const wins =
         level.openings.filter((o) => st.openingIds.includes(o.id) && o.kind === "window").length +
         st.upperOpenings.filter((o) => o.kind === "window").length;
@@ -112,7 +113,7 @@ describe("a street of one style (generator 3)", () => {
         s,
       );
       const st2 = all(old)[0] as ResolvedStructure;
-      const level2 = resolvePlan(old).levels[0] as ResolvedLevel;
+      const level2 = resolvePlan(old, bundledPalettes()).levels[0] as ResolvedLevel;
       const wins2 =
         level2.openings.filter((o) => st2.openingIds.includes(o.id) && o.kind === "window").length +
         st2.upperOpenings.filter((o) => o.kind === "window").length;
@@ -171,7 +172,7 @@ describe("weathered and ruined buildings (generator 3)", () => {
           3,
           s,
         );
-        n += (realize(resolvePlan(p), palettes).levels[0]?.placements ?? []).filter(
+        n += (realize(resolvePlan(p, bundledPalettes()), palettes).levels[0]?.placements ?? []).filter(
           (q) => String(q.source.elementId) === "b~porchroof0",
         ).length;
       }
@@ -197,7 +198,7 @@ describe("weathered and ruined buildings (generator 3)", () => {
       );
       const st = all(p)[0] as ResolvedStructure;
       expect((st.volumes ?? []).every((v) => v.roof.gableOnly === undefined)).toBe(true);
-      const pl = realize(resolvePlan(p), palettes).levels[0]?.placements ?? [];
+      const pl = realize(resolvePlan(p, bundledPalettes()), palettes).levels[0]?.placements ?? [];
       expect(pl.filter((q) => ["b~walltop", "b~rubble"].includes(String(q.source.elementId)))).toEqual([]);
     }
   });

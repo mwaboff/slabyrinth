@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { compileResolved, realize } from "../../../src/compile";
 import type { MapPlan, TerrainOp } from "../../../src/contracts/plan";
 import { EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
 import { slabCodec } from "../../../src/slab";
@@ -31,13 +31,16 @@ function withOpening(patch: Partial<Extract<TerrainOp, { op: "floor_opening" }>>
 }
 
 function level(plan: MapPlan, id: string): ResolvedLevel {
-  const L = resolvePlan(plan).levels.find((l) => l.id === id);
+  const L = resolvePlan(plan, bundledPalettes()).levels.find((l) => l.id === id);
   if (!L) throw new Error(`no level ${id}`);
   return L;
 }
 
 function placementsOf(plan: MapPlan, id: string): Array<{ asset: string; source: { elementId?: string } }> {
-  return realize(resolvePlan(plan), palettes, {}).levels.find((l) => l.levelId === id)?.placements ?? [];
+  return (
+    realize(resolvePlan(plan, bundledPalettes()), palettes, {}).levels.find((l) => l.levelId === id)
+      ?.placements ?? []
+  );
 }
 
 /** Heights of wall edges that touch a hole cell. */
@@ -114,7 +117,7 @@ describe("floor_opening, generator 4", () => {
       expect(heights.every((h) => h <= 1)).toBe(true);
       const pieces = placementsOf(plan, "l1");
       expect(pieces.some((p) => p.asset === RUINED || p.asset === IRON_BARS)).toBe(false);
-      const bundle = compileResolved(resolvePlan(plan), palettes, slabCodec, { plan });
+      const bundle = compileResolved(resolvePlan(plan, bundledPalettes()), palettes, slabCodec, { plan });
       expect(bundle.diagnostics.filter((d) => d.severity !== "info")).toEqual([]);
       if (kind === "shaft") expect(pieces.some((p) => p.asset === LOW_WALL)).toBe(true);
     }
@@ -129,16 +132,16 @@ describe("floor_opening, generator 4", () => {
 
   it("review: a tall rim round the opening hides it, a low one does not", () => {
     const tall = withOpening({ kind: "shaft", rim: "stone" }, 4);
-    const notes = reviewDesign(tall, resolvePlan(tall), { palettes, diagnostics: [] });
+    const notes = reviewDesign(tall, resolvePlan(tall, bundledPalettes()), palettes, { diagnostics: [] });
     expect(notes.some((n) => n.code === "opening_hidden")).toBe(true);
     const low = withOpening({ kind: "shaft" }, 4);
-    const quiet = reviewDesign(low, resolvePlan(low), { palettes, diagnostics: [] });
+    const quiet = reviewDesign(low, resolvePlan(low, bundledPalettes()), palettes, { diagnostics: [] });
     expect(quiet.some((n) => n.code === "opening_hidden")).toBe(false);
   });
 
   it("the stairs climb the whole rise: top step at the upper floor, one tile per step, verify passes", () => {
     const plan = keep();
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     const set = realize(r, palettes, {});
     const stairs = r.links.filter((l) => l.kind === "stairs");
     expect(stairs.length).toBeGreaterThan(0);

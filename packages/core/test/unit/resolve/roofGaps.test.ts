@@ -8,7 +8,7 @@ import type { Building, MapPlan, Structure } from "../../../src/contracts/plan";
 import type { ResolvedLevel, ResolvedStructure } from "../../../src/contracts/resolved";
 import type { PlacementSet } from "../../../src/contracts/compiler";
 import { realize } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { reviewDesign } from "../../../src/review";
 import { roofCoverOf, uncoveredRoofCells } from "../../../src/review/roofGaps";
 import { resolvePlan } from "../../../src/resolve/index";
@@ -42,7 +42,7 @@ const houses = (roof?: Building["roof"]): Structure[] =>
   }));
 
 function built(p: MapPlan): { set: PlacementSet; sts: ResolvedStructure[]; pId: string } {
-  const r = resolvePlan(p);
+  const r = resolvePlan(p, bundledPalettes());
   return { set: realize(r, palettes), sts: (r.levels[0] as ResolvedLevel).structures ?? [], pId: p.id };
 }
 const open = (b: ReturnType<typeof built>, st: ResolvedStructure): Array<[number, number]> =>
@@ -96,7 +96,9 @@ describe("a roof with a chimney (generator 4)", () => {
 
 describe("roof_gap in the review (generator 4)", () => {
   const codes = (p: MapPlan, set: PlacementSet): string[] =>
-    reviewDesign(p, resolvePlan(p), { palettes, placements: set, limit: 99 }).map((n) => n.code);
+    reviewDesign(p, resolvePlan(p, bundledPalettes()), palettes, { placements: set, limit: 99 }).map(
+      (n) => n.code,
+    );
   /** The same build with every roof piece of one building removed. */
   const stripped = (set: PlacementSet, id: string): PlacementSet => ({
     ...set,
@@ -112,8 +114,7 @@ describe("roof_gap in the review (generator 4)", () => {
     const p = plan(houses(), 4);
     const b = built(p);
     expect(codes(p, b.set)).not.toContain("roof_gap");
-    const notes = reviewDesign(p, resolvePlan(p), {
-      palettes,
+    const notes = reviewDesign(p, resolvePlan(p, bundledPalettes()), palettes, {
       placements: stripped(b.set, "h2"),
       limit: 99,
     }).filter((n) => n.code === "roof_gap");

@@ -268,6 +268,7 @@ export const requestSchemas: { [C in keyof IpcRequests]: z.ZodType } = {
   "palettes:list": voidReq,
   "palettes:reload": voidReq,
   "palettes:openFolder": voidReq,
+  "palettes:resolveData": voidReq,
 
   "shell:openExternal": z.strictObject({ url: z.string().min(1).max(2048) }),
 

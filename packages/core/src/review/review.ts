@@ -13,10 +13,9 @@ import {
   type ResolvedStructure,
 } from "../contracts/resolved";
 import type { CompileDiagnostic, PaletteCatalog, PlacementSet } from "../contracts/compiler";
-import { loadPalettes } from "../palette/load";
 import { generatorProfile, type GeneratorProfile } from "../plan/generator";
-import { createRoleResolver } from "../palette/resolve";
-import { coveredStallForms } from "../palette/stallParts";
+import type { ResolvedVariant } from "../palette/resolve";
+import { paletteView } from "../palette/view";
 import { structureSignature, structureSilhouette, structureTone } from "../resolve/structureVariety";
 import { roofUnsupportedEdges, structureRuinMeasures, weatherMeasures, weatherSigns } from "../resolve/ruin";
 import { GROWTH_LEVELS, growthMeasures } from "../resolve/growth";
@@ -157,8 +156,6 @@ export interface CliffCoverage {
 export interface ReviewOptions {
   /** Called once per level with the bare-face figures behind the cliff notes. */
   onCoverage?: (c: CliffCoverage) => void;
-  /** Palettes for tone tags (default: the bundled palettes). */
-  palettes?: PaletteCatalog;
   /** False judges the rock as built without the one-tone rule (generator 2's way); for tests and proofs. Default true. */
   oneToneRule?: boolean;
   /** Build diagnostics, when a build ran: substituted and unresolved pieces become one note. */
@@ -226,20 +223,30 @@ interface Ctx {
 
 const over = (value: number, threshold: number): number => Math.min(3, value / Math.max(1e-9, threshold));
 
-/** Review every level of a resolved plan. Notes are ranked across levels and capped. */
-let bundled: PaletteCatalog | null = null;
-
-export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: ReviewOptions = {}): DesignNote[] {
+/**
+ * Review every level of a resolved plan, against the palettes it is built with (tones, piece kinds and sizes, what a
+ * theme can build). Notes are ranked across levels and capped.
+ */
+export function reviewDesign(
+  plan: MapPlan,
+  resolved: ResolvedPlan,
+  palettes: PaletteCatalog,
+  opts: ReviewOptions = {},
+): DesignNote[] {
   const notes: DesignNote[] = [];
   const gen = generatorProfile(plan);
-  const role = createRoleResolver(opts.palettes ?? (bundled ??= loadPalettes()));
+  // the questions the resolver and the compiler ask of these palettes, with their answers (palette/view.ts)
+  const view = paletteView(palettes);
+  /** The usable variants of a role in a theme (after the palette's fallbacks). */
+  const variants = (theme: string, name: string): readonly ResolvedVariant[] =>
+    view.probe(theme)([name])?.variants ?? [];
   const toneMemo = new Map<string, Set<string>>();
   const floorTones = (theme: string, material: string): Set<string> => {
     const k = `${theme}|${material}`;
     let t = toneMemo.get(k);
     if (!t) {
       t = new Set<string>();
-      for (const v of role(theme, `floor.${material}`).resolution?.variants ?? [])
+      for (const v of variants(theme, `floor.${material}`))
         if (v.weight > 0) {
           const tone = v.tone ?? OBSERVED_TONES[v.uuid]?.tone;
           if (tone !== undefined) t.add(tone);
@@ -258,7 +265,7 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     let f = famMemo.get(k);
     if (!f) {
       const w = new Map<string, number>();
-      for (const v of role(theme, `floor.${material}`).resolution?.variants ?? [])
+      for (const v of variants(theme, `floor.${material}`))
         if (v.weight > 0) w.set(v.variant ?? "", (w.get(v.variant ?? "") ?? 0) + v.weight);
       const total = [...w.values()].reduce((a, b) => a + b, 0);
       f = {
@@ -276,10 +283,7 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     const k = `${theme}|${material}`;
     let l = listMemo.get(k);
     if (!l) {
-      l = familiesOfVariants(
-        role(theme, `floor.${material}`).resolution?.variants ?? [],
-        (u) => OBSERVED_TONES[u]?.tone,
-      );
+      l = familiesOfVariants(variants(theme, `floor.${material}`), (u) => OBSERVED_TONES[u]?.tone);
       listMemo.set(k, l);
     }
     return l;
@@ -290,7 +294,7 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     let n = kindMemo.get(k);
     if (n === undefined) {
       n = new Set(
-        (role(theme, `feature.${type}`).resolution?.variants ?? [])
+        variants(theme, `feature.${type}`)
           .filter((v) => v.weight > 0)
           .map((v) => v.uuid),
       ).size;
@@ -298,24 +302,16 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     }
     return n;
   };
-  const hasRole = (theme: string, name: string): boolean =>
-    (role(theme, name).resolution?.variants ?? []).some((v) => v.weight > 0);
-  const canCoverStall = (theme: string): boolean =>
-    coveredStallForms((roles, filter) => {
-      for (const r of roles) {
-        const found = role(theme, r, filter).resolution;
-        if (found) return found;
-      }
-      return null;
-    }).length > 0;
+  const hasRole = (theme: string, name: string): boolean => variants(theme, name).some((v) => v.weight > 0);
+  const canCoverStall = (theme: string): boolean => view.stallForms(theme).length > 0;
   const extentMemo = new Map<string, { w: number; d: number; h: number } | null>();
   const rockExtent: Ctx["rockExtent"] = (theme, type) => {
     const k = `${theme}|${type}`;
     let e = extentMemo.get(k);
     if (e === undefined) {
-      const vs = (
-        role(theme, type === "cliff_face" ? "cliff.formation_face" : "cliff.formation_crest").resolution
-          ?.variants ?? []
+      const vs = variants(
+        theme,
+        type === "cliff_face" ? "cliff.formation_face" : "cliff.formation_crest",
       ).filter((v) => v.weight > 0 && (type === "cliff_face" || v.geom.size.y >= 1.2));
       const v = [...vs].sort((a, b) => b.weight - a.weight)[0];
       e = v ? { w: v.geom.size.x, d: v.geom.size.z, h: v.geom.size.y } : null;
@@ -324,12 +320,10 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     return e ?? undefined;
   };
   const roleTones: Ctx["roleTones"] = (theme, roleName, only) =>
-    toneFamilies(
-      (role(theme, roleName).resolution?.variants ?? []).filter((v) => only === undefined || v.tone === only),
-    );
+    toneFamilies(variants(theme, roleName).filter((v) => only === undefined || v.tone === only));
   const rockKinds: Ctx["rockKinds"] = (theme) => {
     if (opts.oneToneRule === false || !gen.cliffToneRule) return { face: true, crest: true };
-    const vs = (n: string): readonly ToneVariant[] => role(theme, n).resolution?.variants ?? [];
+    const vs = (n: string): readonly ToneVariant[] => variants(theme, n);
     return cliffRockKinds(vs("cliff.formation_face"), vs("cliff.formation_crest"));
   };
   for (const L of resolved.levels) {
@@ -420,7 +414,6 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
   // the cave rock mass as built (generator 3): measured on the realized pieces; generator 4 builds the cave itself when
   // the review was given no build (the in-app model review), so the mass checks run in every review
   // one build per review run (review/reviewBuild.ts): every note measured on the placed pieces shares it
-  const palettes = opts.palettes ?? (bundled ??= loadPalettes());
   const build = reviewBuild(resolved, palettes, opts.placements);
   notes.push(...caveMassReviewNotes(plan, resolved, build, palettes));
   // generator 4: an intact roof is whole (only a chimney stack stands in it); measured on the realized roof pieces

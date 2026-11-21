@@ -10,7 +10,7 @@ import { CELL } from "../../../src/contracts/resolved";
 import { realize } from "../../../src/compile";
 import { verifyBuild } from "../../../src/compile/verify/verify";
 import { planCaveWall, type WallFace, type WallShape, type CaveWallPlan } from "../../../src/gen/cavewall";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import {
   caveMassNotesOf,
   massInputOf,
@@ -285,7 +285,7 @@ describe("cave wall mass: the whole build on a sea cave", () => {
   const palettes = loadPalettes();
   const build = (generator: 2 | 3) => {
     const plan = { ...fixture, generator };
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     const set = realize(r, palettes, {});
     set.diagnostics.push(...verifyBuild(r, set, palettes, { plan }).diagnostics);
     return { r, set };
@@ -344,7 +344,7 @@ describe("cave wall mass: the whole build on a sea cave", () => {
 describe("cave wall review note (thin rock)", () => {
   const fixture = loadPlan("sea-grotto");
   it("measures wall thickness from the resolved level and fires only on thin walls at generator 3", () => {
-    const r = resolvePlan(fixture);
+    const r = resolvePlan(fixture, bundledPalettes());
     const L = r.levels[0];
     if (!L) throw new Error("no level");
     expect(caveWallThickness(L).length).toBeGreaterThan(20);

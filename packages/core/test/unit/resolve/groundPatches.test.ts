@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { createRoleResolver } from "../../../src/palette/resolve";
 import { PATCH, familiesOfVariants, patchStats } from "../../../src/resolve/floorFamilies";
 import { resolvePlan } from "../../../src/resolve/index";
@@ -53,7 +53,7 @@ const knoll = (tier: number, extra: object[] = []): MapPlan =>
   }) as unknown as MapPlan;
 
 function stats(plan: MapPlan) {
-  const r = resolvePlan(plan);
+  const r = resolvePlan(plan, bundledPalettes());
   const L = r.levels[0];
   if (!L) throw new Error("no level");
   const res = createRoleResolver(loadPalettes())("outdoor", "floor.grass").resolution;

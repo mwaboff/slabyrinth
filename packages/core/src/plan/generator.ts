@@ -188,7 +188,7 @@ export interface GeneratorProfile {
   readonly floorAccentReview: boolean;
   /** Pitched roofs leave no open roof cell; the review measures roof gaps. */
   readonly closedRoofs: boolean;
-  /** The resolver decides from the palettes the plan is compiled with (palette/view.ts paletteOptionsFor). */
+  /** The resolver decides from the palettes the plan is compiled with (palette/view.ts resolveView). */
   readonly resolveWithCompilePalettes: boolean;
   /** Plan vocabulary this generator understands beyond the base set (validation warns `no_effect` below it). */
   readonly vocabulary: {

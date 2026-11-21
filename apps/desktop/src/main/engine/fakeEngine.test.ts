@@ -1,5 +1,6 @@
 import * as fsp from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
+import { bundledPalettes } from "@slabyrinth/core/palette";
 import type { ChatEvent } from "../../shared/ipc";
 import type { ConversationEngine, EngineHost } from "../ports/engine";
 import { memoryLogger } from "../logger";
@@ -47,6 +48,7 @@ function hostFor(r: ProjectRig): EngineHost {
     estimateCompile: () => Promise.resolve(null),
     getAssetCatalog: () => null,
     getPalettes: () => [],
+    getBuildPalettes: () => bundledPalettes(),
     flush: () => p.flush(),
     logger: memoryLogger(),
   };

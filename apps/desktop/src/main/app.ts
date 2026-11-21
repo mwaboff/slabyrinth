@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { execFile } from "node:child_process";
 import { Worker } from "node:worker_threads";
 import { clipboard, dialog, ipcMain, Menu, safeStorage, shell, type BrowserWindow } from "electron";
+import { registerWp2Hooks } from "@slabyrinth/core/resolve";
 import type { IpcEvents } from "../shared/ipc";
 import { resolveApiKey, selectEngine, type EngineKind } from "./engineWiring";
 import { createDispatcher, makeSenderCheck, registerIpc, type Dispatch } from "./ipc/router";
@@ -16,6 +17,7 @@ import type { AppPaths } from "./paths";
 import { createCoreCatalogReader } from "./ports/catalog";
 import { createPlanCorePort } from "./ports/core";
 import type { ConversationEngine, EngineHost } from "./ports/engine";
+import { BuildPalettes } from "./services/buildPalettes";
 import { BuildService } from "./services/buildService";
 import { ClipboardService, memoryClipboard } from "./services/clipboardService";
 import { CompileService } from "./services/compileService";
@@ -227,11 +229,16 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
   void cleanupTempFiles(settings.get().projects.folder);
 
   // ── palettes, TaleSpire, catalog
+  // Set once the build palettes exist (below): tells the renderer when they change.
+  let announcePalettes: () => void = () => undefined;
   const palettes = new PaletteService({
     userDir: paths.userPalettes,
     orientationOverride: paths.orientationOverride,
     logger: logger.child("palettes"),
     openPath: safeMode ? () => Promise.resolve("") : (dir) => shell.openPath(dir),
+    onLoaded: () => {
+      announcePalettes();
+    },
   });
   await palettes.load();
 
@@ -281,7 +288,22 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
         return s;
       });
     },
+    onChecked: () => {
+      announcePalettes();
+    },
   });
+
+  // ── the build's palettes: everything that resolves a plan resolves against them (services/buildPalettes.ts).
+  // Plan validation and `materialize` in this process use them through core's hooks; the renderer fetches them.
+  const buildPalettes = new BuildPalettes({ palettes, catalog });
+  registerWp2Hooks(() => buildPalettes.current());
+  let announcedKey: string | null = null;
+  announcePalettes = () => {
+    const { key } = buildPalettes.data();
+    if (key === announcedKey) return;
+    announcedKey = key;
+    emit("palettes:changed", { key });
+  };
 
   // ── compile worker
   // The fake compiler is a dev aid only: packaged builds ignore the flag.
@@ -371,6 +393,7 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
       compiler.backend === "none" ? null : build.estimate(plan, levels),
     getAssetCatalog: () => catalog.current(),
     getPalettes: () => palettes.palettes(),
+    getBuildPalettes: () => buildPalettes.current(),
     flush: () => projects.flush(),
     logger: logger.child("engine"),
   };
@@ -439,6 +462,7 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
     build,
     exporter,
     palettes,
+    buildPalettes,
     dialogs,
     openExternal,
     updates,

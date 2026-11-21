@@ -7,6 +7,7 @@ import "../../../src/resolve/autoregister";
 import type { MapPlan, TerrainOp } from "../../../src/contracts/plan";
 import { applyOps } from "../../../src/ops";
 import { validatePlan } from "../../../src/plan";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { designReviewDelta, type DesignNote } from "../../../src/review";
 
@@ -45,7 +46,7 @@ describe("dress with no area", () => {
       const op = { id: "wood", op: "dress", preset: "woodland", ...(area ? { area } : {}) } as TerrainOp;
       const p = meadow([op]);
       expect(validatePlan(p).issues.filter((i) => i.severity === "error")).toEqual([]);
-      const l = resolvePlan(p).levels[0];
+      const l = resolvePlan(p, bundledPalettes()).levels[0];
       expect(l?.features.filter((f) => f.generatedBy === "wood").length).toBeGreaterThan(10);
     }
   });
@@ -62,7 +63,8 @@ describe("dress with no area", () => {
 describe("removing generated features", () => {
   it("accepts the id a result showed (rocks#3): the op is materialized and that piece removed", () => {
     const p = meadow([rocks]);
-    const before = resolvePlan(p).levels[0]?.features.filter((f) => f.generatedBy === "rocks") ?? [];
+    const before =
+      resolvePlan(p, bundledPalettes()).levels[0]?.features.filter((f) => f.generatedBy === "rocks") ?? [];
     expect(before.length).toBeGreaterThan(3);
     const r = applyOps(p, [{ op: "remove", ids: ["rocks#3"] }]);
     expect(r.ok).toBe(true);
@@ -74,7 +76,8 @@ describe("removing generated features", () => {
   });
   it("removes by filter in one op: every generated piece of an op inside a rect", () => {
     const p = meadow([rocks]);
-    const all = resolvePlan(p).levels[0]?.features.filter((f) => f.generatedBy === "rocks") ?? [];
+    const all =
+      resolvePlan(p, bundledPalettes()).levels[0]?.features.filter((f) => f.generatedBy === "rocks") ?? [];
     const rect = { x: 0, y: 0, w: 15, h: 20 };
     const inside = all.filter((f) => f.at[0] < 15).length;
     const r = applyOps(p, [{ op: "remove", ids: [], where: { generatedBy: "rocks", rect } }]);

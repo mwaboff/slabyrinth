@@ -10,6 +10,7 @@
  * the nearest role (floor.marble → floor.stone_tile). The contract allows this (ruling 2026-11-18).
  */
 import type {
+  AssetAvailability,
   Palette,
   PaletteCatalog,
   PaletteFacing,
@@ -21,6 +22,16 @@ import type { ThemeId } from "../contracts/plan";
 import { own } from "./own";
 
 export const GENERIC_THEME = "generic";
+
+/**
+ * What role resolution reads of a palette catalog: the palettes, and whether the game has an asset (and its name).
+ * A `PaletteCatalog` is one; so is the plain-data copy a process that resolves but never builds receives
+ * (palette/transfer.ts). Resolving a plan needs no more than this; building it needs the whole catalog.
+ */
+export interface ResolvePalettes {
+  palettes: PaletteCatalog["palettes"];
+  availability: Pick<AssetAvailability, "status" | "name">;
+}
 
 export interface ResolvedVariant {
   /** uuid actually used (preferred or alternate). */
@@ -112,7 +123,7 @@ function variantGeomFor(v: PaletteVariant, uuid: string): PaletteVariant["geom"]
 function usableVariants(
   def: PaletteRole,
   role: RoleName,
-  cat: PaletteCatalog,
+  cat: ResolvePalettes,
   subs: Substitution[],
 ): ResolvedVariant[] {
   const out: ResolvedVariant[] = [];
@@ -171,7 +182,7 @@ function usableVariants(
  * filter continues down the chain exactly like an unavailable one).
  */
 export function resolveRole(
-  cat: PaletteCatalog,
+  cat: ResolvePalettes,
   theme: ThemeId,
   role: RoleName,
   filter?: VariantFilter,
@@ -232,7 +243,7 @@ export function resolveRole(
  * `minGenerator` is higher; omitted, every role is visible.
  */
 export function createRoleResolver(
-  cat: PaletteCatalog,
+  cat: ResolvePalettes,
   generator?: number,
 ): (theme: ThemeId, role: RoleName, filter?: VariantFilter) => ResolveOutcome {
   const memo = new Map<string, ResolveOutcome>();

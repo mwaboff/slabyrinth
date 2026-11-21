@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 import { compileResolved } from "../../../src/compile";
 import type { CompileDiagnostic } from "../../../src/contracts/compiler";
 import type { Building, MapPlan, Structure } from "../../../src/contracts/plan";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { canonicalResolved, resolvePlan } from "../../../src/resolve/index";
 import { slabCodec } from "../../../src/slab";
 import { h64hex } from "../../../src/util";
@@ -218,7 +218,7 @@ const PLANS: Array<[string, MapPlan]> = [
 
 /** One build of a plan: its golden line (name first) and its error diagnostics. */
 function build(name: string, plan: MapPlan): { line: string; errors: CompileDiagnostic[] } {
-  const resolved = resolvePlan(plan);
+  const resolved = resolvePlan(plan, bundledPalettes());
   const bundle = compileResolved(resolved, palettes, slabCodec, { createdAt: "t", plan });
   const sev = (s: string): number => bundle.diagnostics.filter((d) => d.severity === s).length;
   const line = [
@@ -269,10 +269,10 @@ describe("generator 3 is frozen", () => {
       if (!p) throw new Error(`no pinned plan ${name}`);
       return p;
     };
-    const market = resolvePlan(get("market-street")).levels[0];
+    const market = resolvePlan(get("market-street"), bundledPalettes()).levels[0];
     expect(market?.lines?.length).toBeGreaterThan(0);
     expect(market?.features.filter((f) => f.type === "stall").length).toBeGreaterThan(0);
-    const opening = resolvePlan(get("floor-opening")).levels.flatMap((l) => l.floorOpenings ?? []);
+    const opening = resolvePlan(get("floor-opening"), bundledPalettes()).levels.flatMap((l) => l.floorOpenings ?? []);
     expect(opening.length).toBe(1);
     expect(opening[0]?.floorBelow).toBeGreaterThan(0);
   });

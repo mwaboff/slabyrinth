@@ -146,6 +146,18 @@ export function loadPalettes(
   };
 }
 
+let bundled: PaletteCatalog | null = null;
+
+/**
+ * The palettes Slabyrinth ships with, alone (no user files, no game catalog), built once and shared: do not change
+ * the object. The released generators resolve against these whatever a plan is compiled with (their output is
+ * frozen, palette/view.ts `resolveView`), and a test or script that means "the bundled palettes" says so here.
+ */
+export function bundledPalettes(): PaletteCatalog {
+  bundled ??= loadPalettes();
+  return bundled;
+}
+
 /** Bundled orientation, optionally replaced by a user file (userData/orientation.json). Invalid user data is ignored. */
 export function loadOrientation(user?: unknown): {
   orientation: OrientationCalibration;

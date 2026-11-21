@@ -2,8 +2,8 @@
 /**
  * slabyrinth CLI — headless seam for scripts and a future Claude Code plugin (architecture §4.7).
  *
- *   slabyrinth validate <plan.json>
- *   slabyrinth ascii <plan.json> [--level <id>]
+ *   slabyrinth validate <plan.json> [--palettes <dir>] [--catalog <catalog.json>]
+ *   slabyrinth ascii <plan.json> [--level <id>] [--palettes <dir>] [--catalog <catalog.json>]
  *   slabyrinth compile <plan.json> [--out <dir>] [--palettes <dir>] [--orientation <file>] [--catalog <catalog.json>]
  *                      [--fill <0..1>] [--alignment multi-chunk|always|none] [--layout stacked|side_by_side] [--json]
  *                      [--force] (write slabs despite verify errors) [--verbose] (also print info diagnostics)
@@ -15,6 +15,8 @@
  *   slabyrinth review <plan.json> [--no-build] [--json] [--palettes <dir>]  (design review: advice, never errors;
  *                      builds the plan so substituted pieces are summarised, unless --no-build)
  *
+ * Every command that resolves a plan resolves it against the palettes it would be compiled with (`palettesFrom`:
+ * the bundled palettes, plus --palettes and --catalog when given), so validate, ascii, compile and review agree.
  * node:* imports are allowed only in src/cli. Exit codes: 0 ok, 1 errors in the input, 2 usage.
  */
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -29,7 +31,7 @@ import {
 import type { AssetCatalog, ChunkOptions, PaletteCatalog, SlabAsset } from "../contracts/compiler";
 import type { MapPlan } from "../contracts/plan";
 import { calibrationAssetsFrom, calibrationSlabAssets, compileResolved, realize } from "../compile/index";
-import { loadOrientation, loadPalettes, paletteOptionsFor } from "../palette/index";
+import { loadOrientation, loadPalettes } from "../palette/index";
 import { validatePlan } from "../plan/index";
 import { resolvePlan } from "../resolve/index";
 import {
@@ -111,7 +113,7 @@ function palettesFrom(a: Args, io: CliIo): PaletteCatalog {
 function cmdValidate(a: Args, io: CliIo): number {
   const path = a._[1];
   if (!path) throw new UsageError("validate <plan.json>");
-  const r = validatePlan(readJson(path, io));
+  const r = validatePlan(readJson(path, io), { palettes: palettesFrom(a, io) });
   if (a.flags["json"]) io.out(JSON.stringify(r, null, 2));
   else {
     for (const i of r.issues)
@@ -127,7 +129,7 @@ function cmdAscii(a: Args, io: CliIo): number {
   const path = a._[1];
   if (!path) throw new UsageError("ascii <plan.json> [--level <id>]");
   const plan = readJson(path, io) as MapPlan;
-  const resolved = resolvePlan(plan);
+  const resolved = resolvePlan(plan, palettesFrom(a, io));
   const levels = flag(a, "level") ? [flag(a, "level") ?? ""] : resolved.levels.map((l) => l.id);
   for (const id of levels) {
     if (levels.length > 1) io.out(`── ${id} ──`);
@@ -140,13 +142,13 @@ function cmdCompile(a: Args, io: CliIo): number {
   const path = a._[1];
   if (!path) throw new UsageError("compile <plan.json> [--out <dir>] …");
   const plan = readJson(path, io) as MapPlan;
-  const v = validatePlan(plan);
+  const cat = palettesFrom(a, io);
+  const v = validatePlan(plan, { palettes: cat });
   if (!v.ok) {
     for (const i of v.issues.filter((x) => x.severity === "error")) io.err(`error ${i.code}: ${i.message}`);
     io.err("compile refused: the plan has validation errors");
     return 1;
   }
-  const cat = palettesFrom(a, io);
   const oPath = flag(a, "orientation");
   const orientation = loadOrientation(oPath ? readJson(oPath, io) : undefined);
   for (const i of orientation.issues) io.err(`orientation ${i.severity}: ${i.message}`);
@@ -165,7 +167,7 @@ function cmdCompile(a: Args, io: CliIo): number {
       .filter(Boolean);
   const lay = flag(a, "layout");
   if (lay) opts.levelLayout = lay as NonNullable<ChunkOptions["levelLayout"]>;
-  const resolved = resolvePlan(plan, paletteOptionsFor(plan, cat));
+  const resolved = resolvePlan(plan, cat);
   const bundle = compileResolved(resolved, cat, slabCodec, { ...opts, plan });
   const errors = bundle.diagnostics.filter((d) => d.severity === "error");
   const force = a.flags["force"] === true;
@@ -218,13 +220,12 @@ function cmdReview(a: Args, io: CliIo): number {
   const raw = readJson(path, io) as MapPlan | { plan: MapPlan; format: string };
   const plan = "format" in raw && "plan" in raw ? raw.plan : raw;
   const palettes = palettesFrom(a, io);
-  const resolved = resolvePlan(plan, paletteOptionsFor(plan, palettes));
+  const resolved = resolvePlan(plan, palettes);
   const noBuild = a.flags["no-build"] === true;
   const diagnostics = noBuild ? [] : compileResolved(resolved, palettes, slabCodec, { plan }).diagnostics;
   // the realized pieces too (the cave rock mass is measured on them)
   const placements = noBuild ? undefined : realize(resolved, palettes, {});
-  const notes = reviewDesign(plan, resolved, {
-    palettes,
+  const notes = reviewDesign(plan, resolved, palettes, {
     diagnostics,
     ...(placements ? { placements } : {}),
   });

@@ -10,7 +10,7 @@ import type { Area, MapPlan, Opening } from "../../../src/contracts/plan";
 import { EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
 import { LIGHT_FEATURES, featureInfo } from "../../../src/gen/catalog";
 import { classifyRoom } from "../../../src/gen/roomPurpose";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
 import { interiorNotes, roomStats } from "../../../src/review/interiors";
@@ -95,7 +95,7 @@ const NAMES = [
 ];
 
 function level(plan: MapPlan): ResolvedLevel {
-  return resolvePlan(plan).levels[0] as ResolvedLevel;
+  return resolvePlan(plan, bundledPalettes()).levels[0] as ResolvedLevel;
 }
 
 /** Features other than the loose wall-foot rubble of the wall pass (not part of the room recipes). */
@@ -180,17 +180,17 @@ describe("room purpose from words (gen/roomPurpose.ts classifyRoom, the one clas
       expect([a.purpose, a.abandoned, a.finish]).toEqual([undefined, undefined, undefined]);
     // ... and its review classifies from the plan with the same classifier: the ruined hall is not judged unlit
     const p3 = building(names, { generator: 3 });
-    const unlit3 = interiorNotes(p3, resolvePlan(p3)).find((n) => n.code === "room_unlit");
+    const unlit3 = interiorNotes(p3, resolvePlan(p3, bundledPalettes())).find((n) => n.code === "room_unlit");
     expect(unlit3?.elementIds).toEqual(["r0"]);
   });
 
   it("the review only promises what the plan's generator does (naming a room dresses and lights it at 4 only)", () => {
     const p3 = building(["Kitchen", "Library"], { generator: 3 });
-    const unlit3 = interiorNotes(p3, resolvePlan(p3)).find((n) => n.code === "room_unlit");
+    const unlit3 = interiorNotes(p3, resolvePlan(p3, bundledPalettes())).find((n) => n.code === "room_unlit");
     expect(unlit3?.action).toBeDefined();
     expect(unlit3?.action).not.toMatch(/naming a room/);
     const p4 = building(["Kitchen", "Library"], { roomDress: false });
-    const unlit4 = interiorNotes(p4, resolvePlan(p4)).find((n) => n.code === "room_unlit");
+    const unlit4 = interiorNotes(p4, resolvePlan(p4, bundledPalettes())).find((n) => n.code === "room_unlit");
     expect(unlit4?.action).toMatch(/naming a room for its purpose lights it/);
   });
 });
@@ -332,7 +332,7 @@ describe("generator 4 dresses rooms by default", () => {
   it("the build is clean: no floating, sunk or walled-in prop", () => {
     for (const theme of ["wood_town", "stone_dungeon", "city"]) {
       const plan = building(NAMES, { theme });
-      const bundle = compileResolved(resolvePlan(plan), palettes, slabCodec, { plan });
+      const bundle = compileResolved(resolvePlan(plan, bundledPalettes()), palettes, slabCodec, { plan });
       expect(
         bundle.diagnostics.filter((d) => d.severity !== "info"),
         theme,
@@ -357,7 +357,9 @@ describe("generator 4 dresses rooms by default", () => {
 
 describe("interior review notes", () => {
   const codes = (plan: MapPlan): string[] =>
-    reviewDesign(plan, resolvePlan(plan), { limit: 99 }).map((n) => n.code);
+    reviewDesign(plan, resolvePlan(plan, bundledPalettes()), bundledPalettes(), { limit: 99 }).map(
+      (n) => n.code,
+    );
 
   it("silent on a dressed building", () => {
     const c = codes(building(NAMES));
@@ -370,7 +372,7 @@ describe("interior review notes", () => {
     const plan = building(["Kitchen", "Cell", "Cell", "Cell", "Study", "Study"], { roomDress: false });
     const l1 = plan.levels[0] as unknown as { terrain: unknown[] };
     l1.terrain.push({ id: "d1", op: "dress", area: "r0", preset: "kitchen", density: 0.6 });
-    const notes = reviewDesign(plan, resolvePlan(plan), { limit: 99 });
+    const notes = reviewDesign(plan, resolvePlan(plan, bundledPalettes()), bundledPalettes(), { limit: 99 });
     const c = notes.map((n) => n.code);
     expect(c).toContain("room_bare");
     expect(c).toContain("room_unlit");
@@ -391,7 +393,7 @@ describe("interior review notes", () => {
       [3, [4, 5]],
     ] as const)
       l1.features.push({ id: `p${i}`, type: "barrel", at: [at[0], at[1]] });
-    const notes = interiorNotes(plan, resolvePlan(plan));
+    const notes = interiorNotes(plan, resolvePlan(plan, bundledPalettes()));
     expect(notes.map((n) => n.code)).toContain("furniture_adrift");
   });
 });

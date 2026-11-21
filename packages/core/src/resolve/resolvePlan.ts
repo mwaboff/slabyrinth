@@ -1,6 +1,6 @@
 /**
  * resolvePlan (architecture §2.4–§2.7): MapPlan → ResolvedPlan, the single geometric source of truth for the 2D
- * view and the slab compiler. Pure and deterministic: the same plan gives byte-identical canonical JSON.
+ * view and the slab compiler. Pure and deterministic: the same plan and palettes give byte-identical canonical JSON.
  */
 import type { LevelId, MapPlan, PlanIssue, ThemeId } from "../contracts/plan";
 import { generatorProfile } from "../plan/generator";
@@ -14,7 +14,8 @@ import { linkOpenings } from "./level/floorOpenings";
 import { toResolved } from "./level/output";
 import { LevelWork } from "./level/work";
 import { type ThemeDefaults, builtinThemeDefaults } from "./themes";
-import { type PaletteView, bundledPaletteView } from "../palette/view";
+import type { ResolvePalettes } from "../palette/resolve";
+import { resolveView } from "../palette/view";
 
 export interface ResolveOptions {
   /** Restrict the output to these levels (all levels are still resolved, because links span levels). */
@@ -23,18 +24,22 @@ export interface ResolveOptions {
   planVersion?: number;
   /** Theme defaults lookup (default: the built-in table mirroring the bundled palettes). */
   themeDefaults?: (theme: ThemeId) => ThemeDefaults;
-  /**
-   * What the resolver asks of the palette (piece sizes, room pieces, covered-stall forms, floor tile sizes); default
-   * the bundled palettes. A caller that goes on to compile passes a view of the compiler's palettes
-   * (`paletteOptionsFor`), so both stages decide from the same palettes.
-   */
-  palette?: PaletteView;
 }
 
-export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedPlan {
+/**
+ * Resolves `plan` against `palettes`: the palettes it is compiled with (bundled, user files, game availability), so
+ * the 2D preview, the agent's views and checks, and the build all describe the same map. What the resolver asks of
+ * them (piece sizes, room pieces, covered-stall forms, floor tile sizes) depends on the plan's generator
+ * (palette/view.ts `resolveView`). A caller that means the bundled palettes alone passes `bundledPalettes()`.
+ */
+export function resolvePlan(
+  plan: MapPlan,
+  palettes: ResolvePalettes,
+  opts: ResolveOptions = {},
+): ResolvedPlan {
   const issues: PlanIssue[] = [];
   const themeDefaults = opts.themeDefaults ?? builtinThemeDefaults;
-  const palette = opts.palette ?? bundledPaletteView();
+  const palette = resolveView(plan, palettes);
   const works: LevelWork[] = plan.levels.map(
     (_, levelIndex) =>
       new LevelWork({

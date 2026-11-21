@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { edgeHidden, type RockShape } from "../../../src/gen/index";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import { reviewDesign, type CliffCoverage } from "../../../src/review/index";
 import { loadPlan } from "../../fixtures";
@@ -24,7 +25,10 @@ const lowHill = (): MapPlan => {
 
 const run = (plan: MapPlan): { codes: string[]; cover: CliffCoverage | undefined } => {
   let cover: CliffCoverage | undefined;
-  const notes = reviewDesign(plan, resolvePlan(plan), { onCoverage: (c) => (cover = c), limit: 99 });
+  const notes = reviewDesign(plan, resolvePlan(plan, bundledPalettes()), bundledPalettes(), {
+    onCoverage: (c) => (cover = c),
+    limit: 99,
+  });
   return { codes: notes.map((n) => n.code), cover };
 };
 

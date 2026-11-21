@@ -2,6 +2,7 @@ import type { IpcRequests } from "../../shared/ipc";
 import { isAllowedExternalUrl } from "../externalUrls";
 import type { Logger } from "../logger";
 import type { ConversationEngine } from "../ports/engine";
+import type { BuildPalettes } from "../services/buildPalettes";
 import type { BuildService } from "../services/buildService";
 import type { ClipboardService } from "../services/clipboardService";
 import type { Dialogs } from "../services/dialogs";
@@ -30,6 +31,8 @@ export interface HandlerServices {
   build: BuildService;
   exporter: ExportService;
   palettes: PaletteService;
+  /** The palettes builds compile with, which the 2D preview resolves against too. */
+  buildPalettes: Pick<BuildPalettes, "data">;
   /** Native dialogs (inert in smoke/e2e runs). */
   dialogs: Dialogs;
   openExternal: (url: string) => Promise<void>;
@@ -221,6 +224,7 @@ export function createHandlers(s: HandlerServices): Handlers {
     "palettes:list": () => s.palettes.list(),
     "palettes:reload": () => s.palettes.load(),
     "palettes:openFolder": () => s.palettes.openFolder(),
+    "palettes:resolveData": () => s.buildPalettes.data(),
 
     "shell:openExternal": async (req) => {
       if (!isAllowedExternalUrl(req.url)) {
