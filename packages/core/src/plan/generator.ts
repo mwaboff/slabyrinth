@@ -277,6 +277,10 @@ const SWITCHES = {
     4,
     "A ground-storey window stands in the wall of one volume, never across the joint where a lower one (a lean-to) meets it.",
   ),
+  quietYardZones: on(
+    4,
+    "An enclosure with no floor of its own is a plain zone with no walls field, so it raises no no_effect warning about walls the plan never set (resolve/structure.ts addEnclosureYards).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

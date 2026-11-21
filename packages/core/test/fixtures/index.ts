@@ -33,6 +33,7 @@ export type ValidPlanFixture = (typeof VALID_PLAN_FIXTURES)[number];
 export const STORED_PLANS = [
   ...VALID_PLAN_FIXTURES,
   "chimney-lineup-v1",
+  "enclosure-gates-v1",
   "heartroot-rift-v7",
   "inn-interior-v1",
   "keep-dungeon-v8",

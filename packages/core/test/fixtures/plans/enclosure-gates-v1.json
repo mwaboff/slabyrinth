@@ -1,0 +1,84 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 4,
+  "id": "6e0c7d1a-58b2-4e93-9c1f-3a2b4c5d6e01",
+  "title": "Enclosure gates",
+  "kind": "outdoor",
+  "seed": 4417,
+  "theme": "outdoor",
+  "summary": "A farm lot of four yards round a dirt track: a palisade paddock and a palisade pen with gateways of one, two and three cells on all four sides, a hedged garden and a low-walled yard whose walls have no gate piece.",
+  "levels": [
+    {
+      "id": "g",
+      "name": "Farm lot",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 36, "h": 26 },
+      "outline": "rect",
+      "base": { "type": "ground", "material": "grass" },
+      "areas": [],
+      "openings": [],
+      "walls": [],
+      "features": [
+        { "id": "trough", "type": "barrel", "at": [8, 7] },
+        { "id": "stack", "type": "crate", "at": [24, 6] },
+        { "id": "well", "type": "well", "at": [17, 12] }
+      ],
+      "labels": [],
+      "terrain": [
+        {
+          "id": "track",
+          "op": "path",
+          "points": [
+            [0, 13],
+            [35, 13]
+          ],
+          "width": 2,
+          "material": "dirt"
+        }
+      ],
+      "structures": [
+        {
+          "id": "paddock",
+          "kind": "enclosure",
+          "name": "Paddock",
+          "shape": { "type": "rect", "x": 3, "y": 3, "w": 10, "h": 7 },
+          "wall": "palisade",
+          "gates": [
+            { "side": "S", "width": 2 },
+            { "side": "E", "width": 1, "position": 0.3 }
+          ],
+          "floor": "dirt"
+        },
+        {
+          "id": "pen",
+          "kind": "enclosure",
+          "name": "Pen",
+          "shape": { "type": "rect", "x": 20, "y": 3, "w": 9, "h": 7 },
+          "wall": "palisade",
+          "gates": [
+            { "side": "N", "width": 3 },
+            { "side": "W", "width": 1, "position": 0.7 }
+          ]
+        },
+        {
+          "id": "garden",
+          "kind": "enclosure",
+          "name": "Garden",
+          "shape": { "type": "rect", "x": 4, "y": 17, "w": 8, "h": 6 },
+          "wall": "hedge",
+          "gates": [{ "side": "N", "width": 1 }]
+        },
+        {
+          "id": "yard",
+          "kind": "enclosure",
+          "name": "Yard",
+          "shape": { "type": "rect", "x": 21, "y": 17, "w": 9, "h": 6 },
+          "wall": "low_wall",
+          "gates": [{ "side": "N", "width": 2 }],
+          "floor": "gravel"
+        }
+      ]
+    }
+  ],
+  "links": []
+}

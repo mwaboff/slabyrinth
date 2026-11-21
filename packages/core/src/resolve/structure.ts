@@ -627,7 +627,8 @@ function startExpansion(
 type Expansion = ReturnType<typeof startExpansion>;
 
 /** Enclosures first (painter order: buildings and porches claim their cells on top of a yard): a yard area each. */
-function addEnclosureYards({ list, work, areas, cellsOfShape, levelTheme }: Expansion): void {
+function addEnclosureYards({ plan, list, work, areas, cellsOfShape, levelTheme }: Expansion): void {
+  const quietZones = generatorProfile(plan).quietYardZones;
   list.forEach((st, si) => {
     if (st.kind !== "enclosure") return;
     const cells = cellsOfShape(st.shape);
@@ -651,11 +652,13 @@ function addEnclosureYards({ list, work, areas, cellsOfShape, levelTheme }: Expa
       fence: st.wall === "none" ? null : (st.wall ?? "fence"),
       gates: [],
     };
+    const zone = st.floor === undefined;
+    // a zone takes no walls field (areas.ts warns that it does nothing); the fence is built from the enclosure's walls
     const yard: Area = {
       id: st.id,
-      kind: st.floor !== undefined ? "courtyard" : "zone",
+      kind: zone ? "zone" : "courtyard",
       shape: st.shape,
-      walls: "none",
+      ...(zone && quietZones ? {} : { walls: "none" as const }),
     };
     if (st.floor !== undefined) yard.floor = st.floor;
     if (st.name !== undefined) yard.name = st.name;
