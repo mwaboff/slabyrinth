@@ -67,11 +67,6 @@ function marketCellOk(
   return !features.crossingClear().has(i);
 }
 
-/** The theme a piece anchored on cell `i` carries (the one the realizer builds it with and verify checks it by). */
-function themeOfCell(work: ResolveGrid, i: number): ThemeId {
-  return work.themes[i >= 0 ? (work.theme[i] as number) : 0] ?? work.levelTheme;
-}
-
 /** Commit a market piece as a generated feature; `occupy` false keeps its cells free for other dressing (a line). */
 function commitMarket(
   work: ResolveGrid,
@@ -101,7 +96,7 @@ function commitMarket(
     rot: (p.rot ?? 0) as ResolvedFeature["rot"],
     rotFine: p.rotFine ?? p.rot ?? 0,
     baseHeight: work.featureBase(anchor, p.lift ?? 0),
-    theme: themeOfCell(work, anchor),
+    theme: work.themeAt(anchor),
     blocking: occupy && info.blocking,
   };
   if (p.variant !== undefined) rf.variant = p.variant;
@@ -150,7 +145,13 @@ export function stepMarket(
   ): void => {
     const set = stallKindInfo(kind).tableGoods;
     if (set === undefined) return;
-    const ext = work.ctx.palette.pieceSize(work.levelTheme, "stall", true, "empty");
+    // the table as the stall's own theme builds it (generator 4; the released generators asked the level's)
+    const ext = work.ctx.palette.pieceSize(
+      work.pieceTheme(work.idx(st.at[0], st.at[1])),
+      "stall",
+      true,
+      "empty",
+    );
     if (!ext) return;
     const rng = createPrng(subSeed(seedOf(stallId), "goods"));
     const cells: Array<[number, number]> = [];
@@ -189,12 +190,13 @@ export function stepMarket(
       for (let x = row.area.x; x < row.area.x + row.area.w; x++) {
         const i = work.idx(x, y);
         if (i >= 0 && ok(x, y)) {
-          const t = themeOfCell(work, i);
+          const t = work.themeAt(i);
           themes.set(t, (themes.get(t) ?? 0) + 1);
         }
       }
     const theme =
-      [...themes].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0] ?? work.levelTheme;
+      [...themes].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0] ??
+      work.themeAt(work.idx(row.area.x, row.area.y));
     return work.ctx.palette.stallForms(theme);
   };
   stallRows.forEach((row, k) => {

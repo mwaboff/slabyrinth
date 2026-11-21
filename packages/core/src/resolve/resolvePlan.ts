@@ -189,7 +189,7 @@ function resolveLinks(plan: MapPlan, byId: Map<string, ResolveGrid>, issues: Pla
       arrival: geo.arrival,
       dir,
       rise,
-      theme: lo.themes[fromIdx >= 0 ? (lo.theme[fromIdx] as number) : 0] ?? lo.levelTheme,
+      theme: lo.themeAt(fromIdx),
     };
     if (link.label !== undefined) rl.label = link.label;
     out.push(rl);

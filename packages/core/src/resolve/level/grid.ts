@@ -281,6 +281,22 @@ export class ResolveGrid {
     return [this.bx + lx, this.by + (i - lx) / this.w];
   }
 
+  /**
+   * The theme of cell `i` (the level's outside the level): the one a piece anchored there is built in and verified by.
+   * Every stage asks this, never the cell arrays.
+   */
+  themeAt(i: number): ThemeId {
+    return this.themes[i >= 0 ? (this.theme[i] as number) : 0] ?? this.levelTheme;
+  }
+
+  /**
+   * The theme the size of a piece anchored on cell `i` is asked of: its cell's theme, the one it is built in (generator
+   * 4, `piecesInCellTheme`); the released generators asked the level's theme.
+   */
+  pieceTheme(i: number): ThemeId {
+    return this.profile.piecesInCellTheme ? this.themeAt(i) : this.levelTheme;
+  }
+
   private clipMask(m: CellMask, what: string, path: string, id: string): Array<number> {
     const out: number[] = [];
     let clipped = 0;

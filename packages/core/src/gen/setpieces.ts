@@ -2058,7 +2058,9 @@ class AreaComposer {
       const part = g.parts[i] as Part;
       if (gen.supportedParts && part.on !== undefined) {
         const sup = byPart.get(part.on);
-        const ext = sup ? grid.pieceExtent?.(sup.placement.type) : undefined;
+        const ext = sup
+          ? grid.pieceExtent?.(sup.placement.type, sup.placement.at[0], sup.placement.at[1])
+          : undefined;
         if (!sup || !ext) continue;
         const sp = sup.placement;
         const mx = sp.at[0] + sp.size[0] / 2;

@@ -360,7 +360,7 @@ export function stepOpeningRimDebris(
         rot: 0,
         rotFine: (h32(`${fo.seed}:rimrot:${i}`) % 24) * 15,
         baseHeight: work.featureBase(i, 0),
-        theme: work.themes[work.theme[i] as number] ?? work.levelTheme,
+        theme: work.themeAt(i),
         blocking: info.blocking,
       };
       const ar = work.disp[i] as number;
@@ -416,7 +416,7 @@ export function stepOpeningRubble(
         rot: 0,
         rotFine: (h32(`${r.seed}:rot:${c[0]}:${c[1]}`) % 24) * 15,
         baseHeight: work.featureBase(anchor, 0),
-        theme: work.themes[anchor >= 0 ? (work.theme[anchor] as number) : 0] ?? work.levelTheme,
+        theme: work.themeAt(anchor),
         blocking: info.blocking,
       };
       const ar = anchor >= 0 ? (work.disp[anchor] as number) : 0;

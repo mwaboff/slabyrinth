@@ -123,8 +123,10 @@ export function dressWater(grid: PlacementGrid, prm: WaterParams): WaterResult {
   };
 
   // ── stepping stones where a ford joins two banks ──
-  const boulder = grid.pieceExtent?.("cliff_crest");
-  const bsize = grid.pieceSize?.("cliff_crest");
+  // one body of water, one theme: the boulder is asked of its first wet cell's
+  const [wx, wy] = water[0] as [number, number];
+  const boulder = grid.pieceExtent?.("cliff_crest", wx, wy);
+  const bsize = grid.pieceSize?.("cliff_crest", wx, wy);
   const bw = bsize ? Math.max(1, Math.round(bsize.w)) : 2;
   const bh = bsize ? Math.max(1, Math.round(bsize.d)) : 2;
   const wetBlock = (x: number, y: number): boolean => {

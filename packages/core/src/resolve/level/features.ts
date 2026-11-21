@@ -112,11 +112,8 @@ export class FeatureWork {
         rot: p.rot,
         rotFine: p.rotFine,
         // generator 2: a generated piece may stand above (or sink below) the floor, e.g. a second course of rock
-        baseHeight: work.featureBase(
-          anchor,
-          work.profile.featureLift ? ((p as { lift?: number }).lift ?? 0) : 0,
-        ),
-        theme: work.themes[anchor >= 0 ? (work.theme[anchor] as number) : 0] ?? work.levelTheme,
+        baseHeight: work.featureBase(anchor, work.profile.featureLift ? (p.lift ?? 0) : 0),
+        theme: work.themeAt(anchor),
         blocking: info.blocking,
       };
       if (p.wall !== undefined) rf.wall = p.wall;
@@ -216,12 +213,16 @@ export class FeatureWork {
       generator: work.plan.generator,
       // the band's pieces at their real size; undefined where the theme has no such piece (no band)
       ...(work.profile.realPieceSizes
-        ? { pieceSize: (t: FeatureType) => work.ctx.palette.pieceSize(work.levelTheme, t) }
+        ? {
+            pieceSize: (t: FeatureType, x: number, y: number) =>
+              work.ctx.palette.pieceSize(work.pieceTheme(work.idx(x, y)), t),
+          }
         : {}),
       // the real outline of those pieces, and the cells off the board (void or outside the bounds)
       ...(work.profile.realPieceOutlines
         ? {
-            pieceExtent: (t: FeatureType) => work.ctx.palette.pieceSize(work.levelTheme, t, true),
+            pieceExtent: (t: FeatureType, x: number, y: number) =>
+              work.ctx.palette.pieceSize(work.pieceTheme(work.idx(x, y)), t, true),
             void: (x: number, y: number) => {
               const i = work.idx(x, y);
               return i < 0 || work.state[i] === CELL.VOID;
@@ -247,7 +248,9 @@ export class FeatureWork {
       // what the room recipes need (gen/rooms4.ts)
       ...(work.profile.roomRecipes
         ? {
-            piece4: (t: FeatureType, v?: string) => work.ctx.palette.roomPiece(work.levelTheme, t, v),
+            // generator 4 only: always the anchor cell's theme
+            piece4: (t: FeatureType, x: number, y: number, v?: string) =>
+              work.ctx.palette.roomPiece(work.themeAt(work.idx(x, y)), t, v),
             wallHosted: (x: number, y: number, s: Side) => {
               const ed = work.sideEdge(x, y, s);
               if (!ed) return false;
@@ -397,7 +400,7 @@ export function stepExplicitFeatures(
       rot,
       rotFine: rot,
       baseHeight: work.featureBase(anchor, f.lift ?? 0),
-      theme: work.themes[anchor >= 0 ? (work.theme[anchor] as number) : 0] ?? work.levelTheme,
+      theme: work.themeAt(anchor),
       blocking: info.blocking,
     };
     if (wall !== undefined) rf.wall = wall;

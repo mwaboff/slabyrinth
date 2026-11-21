@@ -21,6 +21,8 @@ import { structureSignature, structureSilhouette, structureTone } from "../resol
 import { roofUnsupportedEdges, structureRuinMeasures, weatherMeasures, weatherSigns } from "../resolve/ruin";
 import { GROWTH_LEVELS, growthMeasures } from "../resolve/growth";
 import { roofProportion } from "../resolve/roof";
+import { cellTheme } from "../resolve/levelGrid";
+import { GENERIC_THEME } from "../palette/resolve";
 import { components, longestInnerStraight, outline, squareCorners } from "./metrics";
 import { forEachMaskCell } from "../gen/mask";
 import {
@@ -1355,7 +1357,7 @@ function floors(c: Ctx): DesignNote[] {
     if (((L.cells.flags[i] as number) & (CELL_FLAG.PATH | CELL_FLAG.BRIDGE)) !== 0) continue;
     if (L.areas[(L.cells.area[i] ?? 0) - 1]?.kind === "building") continue;
     const m = L.materials[(L.cells.material[i] ?? 1) - 1] ?? "";
-    const theme = L.themes[L.cells.theme[i] ?? 0] ?? "generic";
+    const theme = cellTheme(L, i, GENERIC_THEME);
     const e = count.get(m) ?? { n: 0, theme };
     e.n++;
     count.set(m, e);

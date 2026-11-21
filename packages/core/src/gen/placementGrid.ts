@@ -39,11 +39,13 @@ export interface PlacementGrid {
   /** True on cells under a vehicle already placed (by the plan or another op). Optional. */
   vehicle?(x: number, y: number): boolean;
   /**
-   * Size in tiles (w along its length, d across, h tall) of the asset a feature type resolves to here, from the
-   * palette; undefined where the theme has no such asset. Optional: without the hook the cliff band uses nominal
-   * sizes; with it, a theme that has neither cliff_face nor cliff_crest gets no band (its cliff keeps the built face).
+   * Size in tiles (w along its length, d across, h tall) of the asset a feature type resolves to when it is anchored
+   * on cell (x, y), from the palette of the theme it is built in; undefined where that theme has no such asset.
+   * Optional: without the hook the cliff band uses nominal sizes; with it, a theme that has neither cliff_face nor
+   * cliff_crest gets no band (its cliff keeps the built face). Every piece question takes the anchor cell, so a placer
+   * cannot ask a theme other than the one the piece is built in.
    */
-  pieceSize?(type: FeatureType): { w: number; d: number; h: number } | undefined;
+  pieceSize?(type: FeatureType, x: number, y: number): { w: number; d: number; h: number } | undefined;
   /**
    * True on the cells of a rock ramp (`ResolvedLevel.ramps[].cells`; they carry no path flag). Nothing generated
    * stands on them; the cliff band lines their sides from the upper ground. Optional.
@@ -57,9 +59,9 @@ export interface PlacementGrid {
   /**
    * Generator 3: the asset's real outline in tiles (w along its length at turn 0, d across, h tall; the variant a
    * piece most likely is), where `pieceSize` gives its footprint in cells. The rock band plans with it, and the
-   * review and the realizer judge cover with it. Optional.
+   * review and the realizer judge cover with it. Anchored on cell (x, y), as `pieceSize`. Optional.
    */
-  pieceExtent?(type: FeatureType): { w: number; d: number; h: number } | undefined;
+  pieceExtent?(type: FeatureType, x: number, y: number): { w: number; d: number; h: number } | undefined;
   /**
    * Generator 3: the level's water surface in tiles above the level floor (the scale of `height`; resolve/level/waterSurface.ts
    * waterSurface() minus the floor thickness). Optional: without it water dressing estimates it from the beds and banks
@@ -74,11 +76,13 @@ export interface PlacementGrid {
   void?(x: number, y: number): boolean;
   /**
    * Generator 4, room recipes (gen/rooms4.ts): the real size in tiles of the smallest variant of the piece a feature
-   * type (and variant name) resolves to in the level's theme; undefined where the theme has no such piece (the recipe
-   * leaves that item out). Absent: no room recipe runs.
+   * type (and variant name) resolves to when anchored on cell (x, y), in the theme it is built in; undefined where
+   * that theme has no such piece (the recipe leaves that item out). Absent: no room recipe runs.
    */
   piece4?(
     type: FeatureType,
+    x: number,
+    y: number,
     variant?: string,
   ):
     | {

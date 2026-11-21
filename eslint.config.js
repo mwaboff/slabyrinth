@@ -144,6 +144,49 @@ const sideEffectImport = {
     "Do not import a core module for its side effects: pass what a function needs as an argument (e.g. resolve's planRules).",
 };
 
+/**
+ * A rule that reports AST selectors, for a guard that holds in part of core only (its own files block, so it never
+ * replaces the `no-restricted-syntax` list above). Each guard names the owner the code should ask instead.
+ * test/unit/lint/coreGuards.test.ts lints a snippet with each guard through this config, so a guard cannot rot.
+ * @param {string} description
+ * @param {Array<{ selector: string; message: string }>} selectors
+ * @returns {import("eslint").Rule.RuleModule}
+ */
+function selectorRule(description, selectors) {
+  return {
+    meta: { type: "problem", schema: [], docs: { description } },
+    create(context) {
+      return Object.fromEntries(
+        selectors.map(({ selector, message }) => [
+          selector,
+          (/** @type {import("estree").Node} */ node) => context.report({ node, message }),
+        ]),
+      );
+    },
+  };
+}
+
+/**
+ * The theme of a cell has one reader while a level resolves, ResolveGrid.themeAt (and pieceTheme for what a piece is
+ * sized in). A stage that reads the level's theme or indexes the theme table works the cell's theme out again, and
+ * asks the wrong owner the day the cell's area has a theme of its own.
+ */
+const cellThemeRule = selectorRule("Resolve stages ask a cell's theme of ResolveGrid.themeAt.", [
+  {
+    selector: "MemberExpression[property.name='levelTheme']",
+    message:
+      "Ask the theme of the cell (ResolveGrid.themeAt, or pieceTheme for a piece's size), not the level's theme.",
+  },
+  {
+    selector: "MemberExpression[computed=true][object.property.name='themes']",
+    message: "Ask the theme of a cell with ResolveGrid.themeAt instead of indexing the theme table.",
+  },
+]);
+
+const slabyrinthPlugin = {
+  rules: { "core-layers": coreLayersRule, "cell-theme": cellThemeRule },
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -205,8 +248,14 @@ export default tseslint.config(
   },
   {
     files: ["packages/core/src/**/*.ts"],
-    plugins: { slabyrinth: { rules: { "core-layers": coreLayersRule } } },
+    plugins: { slabyrinth: slabyrinthPlugin },
     rules: { "slabyrinth/core-layers": "error" },
+  },
+  {
+    // the grid owns the cell's theme; the area table builds the theme table
+    files: ["packages/core/src/resolve/level/**/*.ts"],
+    ignores: ["packages/core/src/resolve/level/grid.ts", "packages/core/src/resolve/level/areas.ts"],
+    rules: { "slabyrinth/cell-theme": "error" },
   },
   {
     files: ["packages/core/src/**/*.ts"],

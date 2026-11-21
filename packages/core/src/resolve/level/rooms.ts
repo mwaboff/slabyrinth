@@ -7,13 +7,13 @@
  * Writes: room floor materials and the quarter-tile step of a room entered from a corridor (cell heights), the
  * rooms' furniture, things on it and lights (via gen/rooms4.ts), and the wall-foot rubble features (FeatureWork).
  */
-import type { AreaKind, FeatureType, Material, Side, Vec2 } from "../../contracts/plan";
+import type { AreaKind, Material, Side, Vec2 } from "../../contracts/plan";
 import { MATERIALS, PLAN_LIMITS } from "../../contracts/plan";
 import type { ResolvedFeature, ResolvedOpening } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { SIDE_STEP } from "../../gen/gridGeometry";
-import type { GeneratedPlacement, PlacementGrid } from "../../gen/placementGrid";
+import type { GeneratedPlacement } from "../../gen/placementGrid";
 import { furnishedPurpose } from "../../gen/roomPurpose";
 import { dressRoom, lightArea } from "../../gen/rooms4";
 import { isUnevenWallStyle } from "../../gen/wallStyles";
@@ -307,7 +307,7 @@ export function stepWallFootRubble(
       rot: 0,
       rotFine: (h32(`${seed}:rot:${i}`) % 24) * 15,
       baseHeight: work.featureBase(i, 0),
-      theme: work.themes[work.theme[i] as number] ?? work.levelTheme,
+      theme: work.themeAt(i),
       blocking: info[type].blocking,
     };
     const ar = work.disp[i] as number;
@@ -379,8 +379,8 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
   const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
   const dressed = new Set<string>();
   for (const op of work.level.terrain) if (op.op === "dress" && op.area !== undefined) dressed.add(op.area);
-  const baseGrid = features.placementGrid();
-  if (baseGrid.piece4 === undefined) return;
+  const grid = features.placementGrid();
+  if (grid.piece4 === undefined) return;
   for (const info of work.areas) {
     if (info.kind !== "room" && info.kind !== "corridor") continue;
     const area = info.area;
@@ -388,11 +388,6 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
     for (let i = 0; i < work.n; i++)
       if (work.disp[i] === info.index + 1 && work.isFloor(i)) cells.push(work.cellXY(i));
     if (cells.length < RECIPES.minCells) continue;
-    const theme = info.theme;
-    const grid: PlacementGrid = {
-      ...baseGrid,
-      piece4: (t: FeatureType, v?: string) => work.ctx.palette.roomPiece(theme, t, v),
-    };
     const seed = subSeed(elementSeed(work.plan.seed, `${work.level.id}~${area.id}~room`, undefined), "room");
     const own = features.all.filter(
       (f) => f.area === area.id && f.generatedBy === undefined && f.type !== "torch_wall",

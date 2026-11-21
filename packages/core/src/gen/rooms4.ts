@@ -840,8 +840,14 @@ class Room {
     return true;
   }
 
+  /** The piece a feature type (and variant) resolves to in this room's theme (asked of its first cell). */
+  piece(type: FeatureType, variant?: string): ReturnType<NonNullable<PlacementGrid["piece4"]>> {
+    const [x, y] = this.cells[0] ?? [0, 0];
+    return this.grid.piece4?.(type, x, y, variant);
+  }
+
   has(type: FeatureType, variant?: string): boolean {
-    return this.grid.piece4?.(type, variant) !== undefined;
+    return this.piece(type, variant) !== undefined;
   }
 
   /** Candidate wall-backed positions for a run of pieces of `base` size [along, depth]. */
@@ -854,7 +860,7 @@ class Room {
   ): Cand[] {
     const out: Cand[] = [];
     const blocking = featureInfo(type).blocking;
-    const ext = this.grid.piece4?.(type, variant);
+    const ext = this.piece(type, variant);
     for (const [x, y, s] of this.wallPairs) {
       const corner = this.cornerPairs.has(ckey(x, y));
       if (cornerOnly && !corner) continue;
@@ -961,7 +967,7 @@ class Room {
   commitCand(spec: Spec, c: Cand, family: Family, after: Set<number> | null): Placed[] | null {
     const info = featureInfo(spec.type);
     const placed: Placed[] = [];
-    const ext = this.grid.piece4?.(spec.type, spec.variant);
+    const ext = this.piece(spec.type, spec.variant);
     const variant = spec.variant;
     for (const pc of c.pieces) {
       // a tile (a bar counter block) stands exactly on its cell; a prop is pushed against the wall it backs onto
@@ -1030,7 +1036,7 @@ class Room {
       if (after === null) continue;
       const turn = FACE_ROT[p.side];
       const g: GeneratedPlacement = { type: seat.type, at: [x, y], size: [1, 1], rot: turn, rotFine: turn };
-      const sext = this.grid.piece4?.(seat.type);
+      const sext = this.piece(seat.type);
       const shift =
         sext && !sext.tile ? (touchShift(this.grid, [x, y], [1, 1], turn, sext) ?? [0, 0]) : [0, 0];
       g.offset = [shift[0] as number, shift[1] as number];
@@ -1045,7 +1051,7 @@ class Room {
         centre: [x + 0.5 + (shift[0] as number), y + 0.5 + (shift[1] as number)],
         side: p.side,
         family: "none",
-        height: this.grid.piece4?.(seat.type)?.h ?? 0.5,
+        height: this.piece(seat.type)?.h ?? 0.5,
         light: false,
       });
       placed++;
@@ -1054,7 +1060,7 @@ class Room {
 
   /** Small things on the top of a support, spread along its length, at its real top height. */
   addToppers(p: Placed, family: Family, rule: SurfaceLoad, stacked: boolean): void {
-    const ext = this.grid.piece4?.(p.type, p.variant);
+    const ext = this.piece(p.type, p.variant);
     if (!ext || ext.mixed) return;
     // variants of very different height (a large and a small crate): a thing lifted to one sinks into, or floats over, another
     if (ext.hMax - ext.h > 0.15) return;
@@ -1078,7 +1084,7 @@ class Room {
         });
       return;
     }
-    const fam = this.grid.piece4?.("clutter", family) ? family : null;
+    const fam = this.piece("clutter", family) ? family : null;
     if (fam === null) return;
     const n = surfaceCount(rule, (k) => this.rng.int(k));
     const alongX = p.size[0] >= p.size[1];
@@ -1281,7 +1287,7 @@ class Room {
       // a candle is the candles piece, a lantern the candelabra's lantern variant
       const lamp: FeatureType = featureInfo(q.type).topLight === "candle" ? "candles" : "candelabra";
       const variant = lamp === "candelabra" ? "lantern" : undefined;
-      const ext = this.grid.piece4?.(q.type, q.variant);
+      const ext = this.piece(q.type, q.variant);
       if (!ext || ext.mixed || ext.hMax - ext.h > 0.15 || !this.has(lamp, variant)) continue;
       const cx = clampTo(q.centre[0], q.at[0], q.size[0]);
       const cy = clampTo(q.centre[1], q.at[1], q.size[1]);
@@ -1380,7 +1386,7 @@ class Room {
     for (const [x, y] of spots.slice(0, 6)) {
       const after = this.keepsWay([[x, y]]);
       if (after === null) continue;
-      const bext = this.grid.piece4?.("brazier");
+      const bext = this.piece("brazier");
       const shift = bext && !bext.tile ? (touchShift(this.grid, [x, y], [1, 1], 0, bext) ?? [0, 0]) : [0, 0];
       const bp: GeneratedPlacement = { type: "brazier", at: [x, y], size: [1, 1], rot: 0, rotFine: 0 };
       bp.offset = [shift[0] as number, shift[1] as number];

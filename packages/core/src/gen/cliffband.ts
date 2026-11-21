@@ -235,18 +235,20 @@ function bandBase(grid: PlacementGrid, p: BandParams) {
   const between = (r: readonly [number, number]): number => r[0] + rng.next() * (r[1] - r[0]);
   const h = (x: number, y: number): number => grid.height?.(x, y) ?? 0;
   const gen = gridProfile(grid);
+  // the band is one area's rock: its pieces are asked of the area's theme (its first cell anchors the question)
+  const [ax, ay] = p.areaCells[0] ?? [0, 0];
   // the band plans with the asset's real outline (pieceExtent) where the generator knows it, else its footprint in cells
   const size = (t: Piece): Size =>
     gen.realPieceOutlines
-      ? (grid.pieceExtent?.(t) ?? grid.pieceSize?.(t) ?? NOMINAL[t])
-      : (grid.pieceSize?.(t) ?? NOMINAL[t]);
+      ? (grid.pieceExtent?.(t, ax, ay) ?? grid.pieceSize?.(t, ax, ay) ?? NOMINAL[t])
+      : (grid.pieceSize?.(t, ax, ay) ?? NOMINAL[t]);
   // pieces rest on the ground or on rock, turn and slide, skirt the board's edge (PlacementGrid.generator, SUPPORT)
   const resting = gen.restingCliffBand;
   const units = riseUnits(grid, p.areaCells, p.minRise, resting);
   const hasPieces = !(
     grid.pieceSize &&
-    grid.pieceSize("cliff_face") === undefined &&
-    grid.pieceSize("cliff_crest") === undefined
+    grid.pieceSize("cliff_face", ax, ay) === undefined &&
+    grid.pieceSize("cliff_crest", ax, ay) === undefined
   );
   const out: Array<GeneratedPlacement & { lift: number }> = [];
   const footprints: Array<Array<[number, number]>> = [];

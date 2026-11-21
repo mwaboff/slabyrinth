@@ -25,6 +25,7 @@
  */
 import type { Side, ThemeId, Material } from "../contracts/plan";
 import { CELL, CELL_FLAG, EDGE, type EdgeGrid, type ResolvedLevel } from "../contracts/resolved";
+import { GENERIC_THEME } from "../palette/resolve";
 
 /** A grid's size in cells (a ResolvedLevel's `bounds`, a ResolveGrid). */
 export interface GridSize {
@@ -130,6 +131,14 @@ export interface LevelCell {
   flags: number;
 }
 
+/**
+ * The theme of a resolved level's cell `i` (a local index; `fallback` for a cell with none): the one theme reader of a
+ * resolved level, as ResolveGrid.themeAt is while it resolves.
+ */
+export function cellTheme(level: ResolvedLevel, i: number, fallback: ThemeId): ThemeId {
+  return level.themes[(i >= 0 ? level.cells.theme[i] : 0) ?? 0] ?? fallback;
+}
+
 export class LevelGrid implements GridSize {
   /** Plan coordinates of the level's first cell. */
   readonly x0: number;
@@ -143,7 +152,7 @@ export class LevelGrid implements GridSize {
    */
   constructor(
     readonly level: ResolvedLevel,
-    readonly defaultTheme: ThemeId = "generic",
+    readonly defaultTheme: ThemeId = GENERIC_THEME,
   ) {
     this.x0 = level.bounds.x;
     this.y0 = level.bounds.y;
@@ -230,7 +239,7 @@ export class LevelGrid implements GridSize {
       floor: open && (flags & CELL_FLAG.NO_FLOOR) === 0 && mat > 0,
       height: (c.height[i] ?? 0) / 4,
       material: mat > 0 ? (L.materials[mat - 1] ?? null) : null,
-      theme: L.themes[c.theme[i] ?? 0] ?? this.defaultTheme,
+      theme: cellTheme(L, i, this.defaultTheme),
       area: c.area[i] ?? 0,
       flags,
     };

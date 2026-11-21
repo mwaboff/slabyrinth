@@ -511,7 +511,7 @@ function addToppers(
     const def = TOPPERS[s.type];
     if (!def) continue;
     if (out.length >= remaining || !rng.chance(def.chance)) continue;
-    const ext = grid.pieceExtent?.(s.type);
+    const ext = grid.pieceExtent?.(s.type, s.at[0], s.at[1]);
     if (!ext) continue;
     const total = def.on.reduce((a, [, w]) => a + w, 0);
     let r = rng.next() * total;

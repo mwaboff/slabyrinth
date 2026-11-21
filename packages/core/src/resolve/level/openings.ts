@@ -134,7 +134,7 @@ function placeOpening(
     width: idx.length,
     sides: [areaIdOf(work, work.owner(a)), areaIdOf(work, work.owner(b))],
     wallStyle: style,
-    theme: work.themes[work.theme[b >= 0 ? b : a] ?? 0] ?? work.levelTheme,
+    theme: work.themeAt(b >= 0 ? b : a),
   };
   if (o.label !== undefined) rec.label = o.label;
   if (o.gmOnly === true || isSecret(o.kind)) rec.gmOnly = true;
