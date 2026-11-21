@@ -1,6 +1,6 @@
 /** Room key (UX §6.8): filterable list of the level's rooms; the selected room expands with read-aloud, GM notes, encounter, exits; text edits create versions. Legend footer (§6.3). */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { isRoomArea } from "@slabyrinth/core";
+import { GAME_SYSTEM_LABEL, isRoomArea } from "@slabyrinth/core";
 import type { Area, DisplayList, MapPlan, ResolvedLevel, ResolvedLink } from "@slabyrinth/core";
 import { Icon } from "../../ui/Icon";
 import { emptySel, useMap } from "../../stores/map";
@@ -13,7 +13,8 @@ import { drawSwatch, legendFor, mapThemeFor } from "../../map/render";
 import { useAppliedTheme } from "../../app/theme";
 import { RoomRef, withRefs } from "../chat/RichText";
 
-const SYS: Record<string, string> = { daggerheart: "Daggerheart", dnd5e: "D&D 5e" };
+/** The system named after "Encounter": core's labels, none for "other" (its name is the GM's own). */
+const SYS: Record<string, string | undefined> = { ...GAME_SYSTEM_LABEL, other: undefined };
 
 export interface RoomEditFields {
   name: string;
