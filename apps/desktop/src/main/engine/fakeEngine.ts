@@ -12,7 +12,7 @@ import {
 } from "../ports/engine";
 import { staticDescriptors } from "../agent/provider/anthropic/models";
 import { ANTHROPIC_INFO } from "../agent/provider/anthropic/provider";
-import { FAKE_USAGE, pick, type Recording } from "./recordings";
+import { FAKE_USAGE, pick, type RecordedStep, type Recording } from "./recordings";
 
 /**
  * Fake ConversationEngine: replays recorded event streams (engine/recordings.ts) through the REAL
@@ -30,6 +30,21 @@ export interface FakeEngineOptions {
 /** Same provider info and model table as the real engine (no duplicate tables to drift). */
 const PROVIDERS: Array<ProviderInfo & { enabled: boolean }> = [{ ...ANTHROPIC_INFO, enabled: true }];
 const MODELS: ModelDescriptor[] = staticDescriptors();
+
+/** What a replayed step and the replayed turn cost (USD). */
+const FAKE_STEP_COST = 0.01;
+
+/** One replay in progress: the turn, and what it has committed and streamed so far. */
+interface ReplayRun {
+  turnId: string;
+  conversationId: string;
+  selection: ModelSelection;
+  started: number;
+  versions: number[];
+  /** Text streamed since the last assistant message (kept display-only when the turn is cancelled). */
+  streamed: string;
+  lastAssistantId: string | null;
+}
 
 export class FakeEngine implements ConversationEngine {
   private running: { turnId: string; abort: AbortController; done: Promise<void> } | null = null;
@@ -112,168 +127,202 @@ export class FakeEngine implements ConversationEngine {
     if (aborted()) throw new Error("aborted");
   }
 
+  /**
+   * Replays a recording step by step (each after its delay), then records the turn's spend and finishes it. A "fail"
+   * step ends the turn as failed; a cancel (the wait throws) keeps what was streamed, display-only.
+   */
   private async replay(
     turnId: string,
     rec: Recording,
     selection: ModelSelection,
     signal: AbortSignal,
   ): Promise<void> {
-    const conv = this.conversation();
-    const started = Date.now();
-    const versions: number[] = [];
-    let streamed = "";
-    let lastAssistantId: string | null = null;
+    const run: ReplayRun = {
+      turnId,
+      conversationId: this.conversation().id,
+      selection,
+      started: Date.now(),
+      versions: [],
+      streamed: "",
+      lastAssistantId: null,
+    };
     try {
       for (const step of rec.steps) {
         await this.wait(step.delayMs, signal);
-        switch (step.kind) {
-          case "event":
-            if (step.event.type === "text_delta") streamed += step.event.text;
-            if (step.event.type === "questions") {
-              const callId = step.event.callId;
-              this.host.updateConversation(conv.id, (c) => {
-                c.pendingQuestions = { callId, itemId: lastAssistantId ?? "" };
-              });
-            }
-            this.host.emit({ ...step.event, turnId });
-            break;
-          case "brief":
-            this.host.setBrief(step.brief);
-            this.host.emit({ type: "brief_updated", turnId, brief: step.brief, skipped: [] });
-            break;
-          case "commit": {
-            let plan: MapPlan;
-            let cause: CommitVersionInput["cause"];
-            if (step.tool === "create_plan") {
-              plan = step.plan;
-              cause = { type: "create" };
-            } else {
-              const current = this.host.getPlan();
-              const ops = current ? step.ops(current) : [];
-              const applied = current && this.opts.applyOps ? this.opts.applyOps(current, ops) : null;
-              if (!applied?.ok) {
-                this.host.emit({
-                  type: "tool_call_finished",
-                  turnId,
-                  callId: step.callId,
-                  name: step.tool,
-                  ok: false,
-                  summary: "The edit couldn't be applied.",
-                });
-                break;
-              }
-              plan = applied.plan;
-              cause = { type: "ops", ops };
-            }
-            const r = this.host.commitVersion({
-              plan,
-              author: "ai",
-              summary: step.summary,
-              changeSummary: step.changeSummary,
-              cause,
-              cost: { currency: "USD", amount: 0.01 },
-            });
-            versions.push(r.version);
-            this.host.emit({
-              type: "tool_call_finished",
-              turnId,
-              callId: step.callId,
-              name: step.tool,
-              ok: true,
-              summary: step.summary,
-              newVersion: r.version,
-            });
-            break;
-          }
-          case "assistant": {
-            const id = randomUUID();
-            lastAssistantId = id;
-            const item: ChatItem = {
-              type: "assistant",
-              id,
-              turnId,
-              parts: step.parts,
-              stopReason: step.stopReason,
-              servedBy: { providerId: selection.providerId, modelId: selection.modelId },
-              usage: FAKE_USAGE,
-              createdAt: new Date().toISOString(),
-            };
-            const meta: ChatMessageMeta = {
-              selection,
-              servedBy: item.servedBy,
-              effortUsed: selection.effort,
-              durationMs: Date.now() - started,
-              usage: FAKE_USAGE,
-              cost: { currency: "USD", amount: 0.01, estimated: true },
-              status: "complete",
-              versions: [...versions],
-            };
-            this.host.appendItems(conv.id, [item], { [id]: meta });
-            this.host.emit({ type: "item_appended", turnId, item });
-            streamed = "";
-            break;
-          }
-          case "fail":
-            this.host.emit({
-              type: "turn_failed",
-              turnId,
-              error: { code: step.code, message: step.message },
-              canRetry: true,
-            });
-            return;
-        }
+        if (this.replayStep(run, step) === "failed") return;
       }
-      const cost = { currency: "USD" as const, amount: 0.01, estimated: true };
-      this.host.addSpend(FAKE_USAGE, cost);
-      let totals = { usage: FAKE_USAGE, cost: cost as typeof cost | null };
-      this.host.updateConversation(conv.id, (c) => {
-        c.totals.turns += 1;
-        c.totals.usage = {
-          inputTokens: c.totals.usage.inputTokens + FAKE_USAGE.inputTokens,
-          outputTokens: c.totals.usage.outputTokens + FAKE_USAGE.outputTokens,
-          cacheReadTokens: c.totals.usage.cacheReadTokens + FAKE_USAGE.cacheReadTokens,
-          cacheWriteTokens: c.totals.usage.cacheWriteTokens + FAKE_USAGE.cacheWriteTokens,
-        };
-        c.totals.cost = {
-          currency: "USD",
-          amount: (c.totals.cost?.amount ?? 0) + cost.amount,
-          estimated: true,
-        };
-        totals = { usage: c.totals.usage, cost: c.totals.cost };
-      });
-      this.host.emit({ type: "usage", turnId, usage: FAKE_USAGE, cost, totals });
-      const awaitingAnswers = rec.steps.some((s) => s.kind === "event" && s.event.type === "questions");
-      this.host.emit({
-        type: "turn_finished",
-        turnId,
-        stopReason: awaitingAnswers ? "tool_use" : "end_turn",
-        canContinue: false,
-        canRetry: true,
-      });
+      this.finishReplay(run, rec);
     } catch {
-      // Cancelled: keep streamed text display-only (excludedFromContext), like the real engine.
-      if (streamed.length > 0) {
-        const item: ChatItem = {
-          type: "assistant",
-          id: randomUUID(),
-          turnId,
-          parts: [{ type: "text", text: streamed }],
-          stopReason: "cancelled",
-          servedBy: { providerId: selection.providerId, modelId: selection.modelId },
-          excludedFromContext: true,
-          createdAt: new Date().toISOString(),
-        };
-        this.host.appendItems(conv.id, [item]);
-        this.host.emit({ type: "item_appended", turnId, item });
-      }
-      this.host.emit({
-        type: "turn_finished",
-        turnId,
-        stopReason: "cancelled",
-        canContinue: false,
-        canRetry: true,
-      });
+      this.replayCancelled(run);
     }
+  }
+
+  private replayStep(run: ReplayRun, step: RecordedStep): "ok" | "failed" {
+    const { turnId } = run;
+    switch (step.kind) {
+      case "event":
+        if (step.event.type === "text_delta") run.streamed += step.event.text;
+        if (step.event.type === "questions") {
+          const callId = step.event.callId;
+          this.host.updateConversation(run.conversationId, (c) => {
+            c.pendingQuestions = { callId, itemId: run.lastAssistantId ?? "" };
+          });
+        }
+        this.host.emit({ ...step.event, turnId });
+        return "ok";
+      case "brief":
+        this.host.setBrief(step.brief);
+        this.host.emit({ type: "brief_updated", turnId, brief: step.brief, skipped: [] });
+        return "ok";
+      case "commit":
+        this.replayCommit(run, step);
+        return "ok";
+      case "assistant":
+        this.replayAssistant(run, step);
+        return "ok";
+      case "fail":
+        this.host.emit({
+          type: "turn_failed",
+          turnId,
+          error: { code: step.code, message: step.message },
+          canRetry: true,
+        });
+        return "failed";
+    }
+  }
+
+  /** A recorded create_plan or edit_plan: commits a version (an edit's ops applied to the head plan). */
+  private replayCommit(run: ReplayRun, step: Extract<RecordedStep, { kind: "commit" }>): void {
+    const { turnId } = run;
+    let plan: MapPlan;
+    let cause: CommitVersionInput["cause"];
+    if (step.tool === "create_plan") {
+      plan = step.plan;
+      cause = { type: "create" };
+    } else {
+      const current = this.host.getPlan();
+      const ops = current ? step.ops(current) : [];
+      const applied = current && this.opts.applyOps ? this.opts.applyOps(current, ops) : null;
+      if (!applied?.ok) {
+        this.host.emit({
+          type: "tool_call_finished",
+          turnId,
+          callId: step.callId,
+          name: step.tool,
+          ok: false,
+          summary: "The edit couldn't be applied.",
+        });
+        return;
+      }
+      plan = applied.plan;
+      cause = { type: "ops", ops };
+    }
+    const r = this.host.commitVersion({
+      plan,
+      author: "ai",
+      summary: step.summary,
+      changeSummary: step.changeSummary,
+      cause,
+      cost: { currency: "USD", amount: FAKE_STEP_COST },
+    });
+    run.versions.push(r.version);
+    this.host.emit({
+      type: "tool_call_finished",
+      turnId,
+      callId: step.callId,
+      name: step.tool,
+      ok: true,
+      summary: step.summary,
+      newVersion: r.version,
+    });
+  }
+
+  /** A recorded assistant message: appended with its meta; the streamed text it holds is now saved. */
+  private replayAssistant(run: ReplayRun, step: Extract<RecordedStep, { kind: "assistant" }>): void {
+    const { turnId, selection } = run;
+    const id = randomUUID();
+    run.lastAssistantId = id;
+    const item: ChatItem = {
+      type: "assistant",
+      id,
+      turnId,
+      parts: step.parts,
+      stopReason: step.stopReason,
+      servedBy: { providerId: selection.providerId, modelId: selection.modelId },
+      usage: FAKE_USAGE,
+      createdAt: new Date().toISOString(),
+    };
+    const meta: ChatMessageMeta = {
+      selection,
+      servedBy: item.servedBy,
+      effortUsed: selection.effort,
+      durationMs: Date.now() - run.started,
+      usage: FAKE_USAGE,
+      cost: { currency: "USD", amount: FAKE_STEP_COST, estimated: true },
+      status: "complete",
+      versions: [...run.versions],
+    };
+    this.host.appendItems(run.conversationId, [item], { [id]: meta });
+    this.host.emit({ type: "item_appended", turnId, item });
+    run.streamed = "";
+  }
+
+  /** The turn's spend added to the totals, then turn_finished (tool_use while a question card waits). */
+  private finishReplay(run: ReplayRun, rec: Recording): void {
+    const { turnId } = run;
+    const cost = { currency: "USD" as const, amount: FAKE_STEP_COST, estimated: true };
+    this.host.addSpend(FAKE_USAGE, cost);
+    let totals = { usage: FAKE_USAGE, cost: cost as typeof cost | null };
+    this.host.updateConversation(run.conversationId, (c) => {
+      c.totals.turns += 1;
+      c.totals.usage = {
+        inputTokens: c.totals.usage.inputTokens + FAKE_USAGE.inputTokens,
+        outputTokens: c.totals.usage.outputTokens + FAKE_USAGE.outputTokens,
+        cacheReadTokens: c.totals.usage.cacheReadTokens + FAKE_USAGE.cacheReadTokens,
+        cacheWriteTokens: c.totals.usage.cacheWriteTokens + FAKE_USAGE.cacheWriteTokens,
+      };
+      c.totals.cost = {
+        currency: "USD",
+        amount: (c.totals.cost?.amount ?? 0) + cost.amount,
+        estimated: true,
+      };
+      totals = { usage: c.totals.usage, cost: c.totals.cost };
+    });
+    this.host.emit({ type: "usage", turnId, usage: FAKE_USAGE, cost, totals });
+    const awaitingAnswers = rec.steps.some((s) => s.kind === "event" && s.event.type === "questions");
+    this.host.emit({
+      type: "turn_finished",
+      turnId,
+      stopReason: awaitingAnswers ? "tool_use" : "end_turn",
+      canContinue: false,
+      canRetry: true,
+    });
+  }
+
+  /** Cancelled: keep streamed text display-only (excludedFromContext), like the real engine. */
+  private replayCancelled(run: ReplayRun): void {
+    const { turnId, selection } = run;
+    if (run.streamed.length > 0) {
+      const item: ChatItem = {
+        type: "assistant",
+        id: randomUUID(),
+        turnId,
+        parts: [{ type: "text", text: run.streamed }],
+        stopReason: "cancelled",
+        servedBy: { providerId: selection.providerId, modelId: selection.modelId },
+        excludedFromContext: true,
+        createdAt: new Date().toISOString(),
+      };
+      this.host.appendItems(run.conversationId, [item]);
+      this.host.emit({ type: "item_appended", turnId, item });
+    }
+    this.host.emit({
+      type: "turn_finished",
+      turnId,
+      stopReason: "cancelled",
+      canContinue: false,
+      canRetry: true,
+    });
   }
 
   async cancel(turnId: string): Promise<void> {
