@@ -71,6 +71,37 @@ export const BRIEF_VALUE_SCHEMAS = {
   theme: z.string().min(1).max(64),
 } as const satisfies Record<keyof DesignBrief, z.ZodType>;
 
+/**
+ * What a SAVED brief field may hold: the same fields with their types but without today's limits, so a project saved
+ * by an older build (whose limits differed) still opens. Every field of BRIEF_VALUE_SCHEMAS has its stored form (the
+ * `satisfies` makes a missing one a compile error).
+ */
+export const BRIEF_STORED_SCHEMAS = {
+  mapType: z.string(),
+  system: z.enum(["daggerheart", "dnd5e", "other"]),
+  party: z.looseObject({
+    tier: z.number().optional(),
+    level: z.number().optional(),
+    size: z.number().optional(),
+  }),
+  footprint: z.looseObject({ preset: z.string(), widthSq: z.number(), heightSq: z.number() }),
+  levels: z.looseObject({ count: z.number(), names: z.array(z.string()) }),
+  tone: z.string(),
+  mustInclude: z.array(z.string()),
+  avoid: z.array(z.string()),
+  theme: z.string(),
+} as const satisfies Record<keyof typeof BRIEF_VALUE_SCHEMAS, z.ZodType>;
+
+/** A saved brief: each known field `{ value, source }` of its stored type; unknown fields are kept as they are. */
+export const StoredBriefSchema = z.looseObject(
+  Object.fromEntries(
+    Object.entries(BRIEF_STORED_SCHEMAS).map(([k, v]) => [
+      k,
+      z.looseObject({ value: v, source: z.enum(["user", "ai"]) }).optional(),
+    ]),
+  ),
+);
+
 const B = BRIEF_VALUE_SCHEMAS;
 
 const BriefSetSchema = z.strictObject({

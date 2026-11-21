@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import {
   approve as approveHistory,
   parseBriefPatch,
+  parsePlan,
   patchBrief,
   planGate,
   TEXT_EDIT_FIELDS,
@@ -294,7 +295,8 @@ export class ProjectService {
     const migrate = (json: unknown): unknown => this.deps.core.migrateProject(json);
     const outcome = parseProject(bytes, migrate);
     if (outcome.ok) return { project: outcome.project, migratedFrom: outcome.migratedFrom, dirty: false };
-    if (outcome.reason !== "corrupt") throw new AppFailure("validation", outcome.message);
+    if (outcome.reason !== "corrupt" && outcome.reason !== "invalid")
+      throw new AppFailure("validation", outcome.message);
 
     // Damaged file: offer the previous good copy (architecture §6.4).
     const bak = `${file}.bak`;
@@ -638,21 +640,30 @@ export class ProjectService {
       filters: [{ name: "Map plan (JSON)", extensions: ["json"] }],
     });
     if (src === null) return null;
-    let plan: MapPlan;
+    let json: unknown;
     try {
       const st = await fsp.stat(src);
       if (st.size > PLAN_FILE_MAX_BYTES) throw new Error("too large");
-      plan = JSON.parse(await fsp.readFile(src, "utf8")) as MapPlan;
+      json = JSON.parse(await fsp.readFile(src, "utf8"));
     } catch {
       throw new AppFailure("validation", "That file isn't a map plan (JSON).");
     }
     if (
-      typeof plan !== "object" ||
-      (plan as { schema?: unknown }).schema !== "slabyrinth/plan@1" ||
-      !Array.isArray(plan.levels)
-    ) {
+      typeof json !== "object" ||
+      json === null ||
+      (json as { schema?: unknown }).schema !== "slabyrinth/plan@1"
+    )
       throw new AppFailure("validation", "That file isn't a Slabyrinth map plan (slabyrinth/plan@1).");
+    // core's plan schema (parsePlan: for untrusted JSON), then the plan checks below
+    const parsed = parsePlan(json);
+    if (!parsed.ok) {
+      const first = parsed.issues[0];
+      throw new AppFailure(
+        "validation",
+        `That map plan is damaged${first ? ` (${first.path ?? ""} ${first.message})` : ""}.`,
+      );
     }
+    const plan = parsed.plan;
     // an imported plan is a new version like the model's create_plan: the edit gate decides
     const errors = planGate(this.deps.core.validatePlan(plan), "edit").blocking;
     if (errors.length > 0) {
