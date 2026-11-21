@@ -9,6 +9,7 @@
  *
  * Returns which links do not work and why (`LinkVerdicts`), which reachability reads.
  */
+import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import type { ResolvedLevel, ResolvedPlan } from "../../contracts/resolved";
 import { CELL_FLAG } from "../../contracts/resolved";
 import { OPPOSITE, SIDE_STEP } from "../../gen/gridGeometry";
@@ -27,6 +28,15 @@ import {
 import type { ObstructedCells } from "./openFloor";
 import { isRun, type StairRuns } from "./runs";
 import { fmt, round2, uniq } from "./words";
+
+/** The codes this file emits (VERIFY_CODES is the union of every check's list). */
+export const LINK_CODES = [
+  "verify_stairs_no_arrival",
+  "verify_stairs_arrival_blocked",
+  "verify_stairs_approach_blocked",
+  "verify_link_short",
+  "verify_stairwell_closed",
+] as const satisfies readonly CompileDiagnosticCode[];
 
 type Link = ResolvedPlan["links"][number];
 

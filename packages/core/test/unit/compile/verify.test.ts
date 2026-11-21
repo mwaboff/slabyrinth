@@ -1,5 +1,6 @@
 import fc from "fast-check";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { CompileDiagnosticCode, Placement, PlacementSet } from "../../../src/contracts/compiler";
@@ -40,8 +41,22 @@ describe("verify: a clean build stays clean", () => {
     const set = realize(r, cat);
     expect(verifyBuild(r, set, cat).diagnostics).toEqual([]);
   });
-  it("every documented code is covered by a test below", () => {
-    expect(VERIFY_CODES).toHaveLength(28);
+  it("VERIFY_CODES is every verify code the compiler emits and the contract declares, each once", () => {
+    const src = fileURLToPath(new URL("../../../src/", import.meta.url));
+    const sources = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? sources(join(dir, e.name)) : e.name.endsWith(".ts") ? [join(dir, e.name)] : [],
+      );
+    const emitted = new Set(
+      sources(join(src, "compile")).flatMap((f) =>
+        [...readFileSync(f, "utf8").matchAll(/code: "(verify_[a-z_]+)"/g)].map((m) => m[1]),
+      ),
+    );
+    const contract = readFileSync(join(src, "contracts", "compiler.ts"), "utf8");
+    const declared = new Set([...contract.matchAll(/\| "(verify_[a-z_]+)"/g)].map((m) => m[1]));
+    expect(new Set(VERIFY_CODES).size).toBe(VERIFY_CODES.length);
+    expect([...VERIFY_CODES].sort()).toEqual([...emitted].sort());
+    expect([...VERIFY_CODES].sort()).toEqual([...declared].sort());
   });
 });
 

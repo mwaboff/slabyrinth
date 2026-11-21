@@ -6,11 +6,15 @@
  * Emits `verify_line_unanchored` (warning) once per line that does not hold, when the prop check first asks about one of
  * its pieces (so it lands among the prop diagnostics); that line's pieces still fire `verify_prop_floating`.
  */
+import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import type { VerifyReport } from "./context";
 import type { SolidIndex } from "./grid";
 import { LINE_HEIGHT_TOLERANCE } from "./limits";
 import { fmt, round2 } from "./words";
+
+/** The codes this file emits (VERIFY_CODES is the union of every check's list). */
+export const LINE_CODES = ["verify_line_unanchored"] as const satisfies readonly CompileDiagnosticCode[];
 
 export class OverheadLines {
   private readonly holds = new Map<string, boolean>();

@@ -5,6 +5,7 @@
  * Emits, per level: `verify_floor_missing` (error; warning when realize already reported a missing floor role), then
  * `verify_wall_gap` (error). Each is one diagnostic per level naming the first cell and the count.
  */
+import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import type { Side } from "../../contracts/plan";
 import { BUILD_CONSTANTS } from "../../contracts/plan";
@@ -16,6 +17,12 @@ import type { LevelWalls, VerifyCtx } from "./context";
 import type { Solid, SolidIndex } from "./grid";
 import { ROCK_WALL_CLOSED, RUINED_WALL_STANDS, WALL_SAMPLE_INSET } from "./limits";
 import { fmt } from "./words";
+
+/** The codes this file emits (VERIFY_CODES is the union of every check's list). */
+export const WALL_CODES = [
+  "verify_floor_missing",
+  "verify_wall_gap",
+] as const satisfies readonly CompileDiagnosticCode[];
 
 /** Wall and opening pieces: what closes a wall edge (with raised fill). */
 export const wallish = (s: Solid): boolean =>

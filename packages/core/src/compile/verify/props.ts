@@ -8,6 +8,7 @@
  * and one of `verify_prop_sunk`, `verify_prop_no_floor`, `verify_prop_floating` (warnings); `verify_line_unanchored`
  * comes from the floating test (lines.ts). A nudge moves the placement and its box (the set's `placed` box too).
  */
+import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import type { ResolvedFeature, ResolvedLevel } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
 import { featureInfo, isBandRock } from "../../gen/catalog";
@@ -31,6 +32,18 @@ import {
 import { OverheadLines } from "./lines";
 import { wallish } from "./walls";
 import { elementRef, fmt, round2, round4, solidLabel } from "./words";
+
+/** The codes this file emits (VERIFY_CODES is the union of every check's list; lines.ts has its own). */
+export const PROP_CODES = [
+  "verify_props_overlap",
+  "verify_prop_outside",
+  "verify_mount_no_wall",
+  "verify_prop_nudged",
+  "verify_prop_in_wall",
+  "verify_prop_sunk",
+  "verify_prop_no_floor",
+  "verify_prop_floating",
+] as const satisfies readonly CompileDiagnosticCode[];
 
 /** What every prop check of a level reads. */
 interface PropLevel {

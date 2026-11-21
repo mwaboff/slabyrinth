@@ -4,6 +4,7 @@
  * Emits `verify_cell_obstructed` (warning), one per (asset, element) with the first cell and the count, per level.
  * Returns the obstructed cells (`ObstructedCells`), which the link checks and reachability read.
  */
+import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import { CELL_FLAG } from "../../contracts/resolved";
 import type { LevelId } from "../../contracts/plan";
 import type { LevelGrid } from "../../resolve/levelGrid";
@@ -11,6 +12,11 @@ import type { VerifyCtx } from "./context";
 import type { Solid, SolidIndex } from "./grid";
 import { HEAD, MIN_FREE_SPAN, STEP } from "./limits";
 import { elementRef, fmt, solidLabel } from "./words";
+
+/** The codes this file emits (VERIFY_CODES is the union of every check's list). */
+export const OPEN_FLOOR_CODES = [
+  "verify_cell_obstructed",
+] as const satisfies readonly CompileDiagnosticCode[];
 
 /** A placed piece that is part of the build's structure (not a prop or a marker). */
 const structural = (s: Solid): boolean => s.role !== "feature" && s.role !== "marker";

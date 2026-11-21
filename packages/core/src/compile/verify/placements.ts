@@ -2,13 +2,19 @@
  * The build's placements: the repairs made before anything is measured, the spatial index every check measures in,
  * and the set's stats after the repairs.
  */
-import type { Placement, PlacementSet } from "../../contracts/compiler";
+import type { CompileDiagnosticCode, Placement, PlacementSet } from "../../contracts/compiler";
 import { featureInfo } from "../../gen/catalog";
 import { placedBox, placedName } from "../placed";
 import type { VerifyCtx } from "./context";
 import { SolidIndex, type Solid } from "./grid";
 import { ROTATION_STEP } from "./limits";
 import { elementRef } from "./words";
+
+/** The codes this file emits (VERIFY_CODES is the union of every check's list). */
+export const PLACEMENT_CODES = [
+  "verify_bad_coordinate",
+  "verify_duplicate_removed",
+] as const satisfies readonly CompileDiagnosticCode[];
 
 /**
  * Drops placements with a bad position or rotation (error, `verify_bad_coordinate`) and, when repairing, exact

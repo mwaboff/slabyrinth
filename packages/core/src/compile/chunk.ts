@@ -13,6 +13,7 @@ import type {
   Box3,
   ChunkOptions,
   CompileDiagnostic,
+  CompileDiagnosticCode,
   ExportBundle,
   Placement,
   PlacementSet,
@@ -25,6 +26,9 @@ import { sha256Hex } from "../slab/sha256";
 import { emptyBox, finiteBox, growBox } from "./geometry";
 import { placedBox } from "./placed";
 import type { RealizedSet } from "./realize/output";
+
+/** The verify codes this stage emits (the water level note; VERIFY_CODES is the union of every check's list). */
+export const CHUNK_VERIFY_CODES = ["verify_water_level"] as const satisfies readonly CompileDiagnosticCode[];
 
 export const DEFAULT_FILL = 0.8;
 export const DEFAULT_SIDE_BY_SIDE_GAP = 10;

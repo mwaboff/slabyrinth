@@ -30,21 +30,23 @@ import type {
 import type { MapPlan, PlanIssue } from "../../contracts/plan";
 import type { ResolvedPlan } from "../../contracts/resolved";
 import { checkPlayability } from "../../resolve";
+import { CHUNK_VERIFY_CODES } from "../chunk";
 import type { RealizedSet } from "../realize/output";
-import { checkCliffBand } from "./cliffs";
+import { checkCliffBand, CLIFF_CODES } from "./cliffs";
 import { createVerifyCtx, type VerifyCtx } from "./context";
-import { checkMaterialFidelity } from "./fidelity";
-import { checkLevelAbove } from "./levelAbove";
-import { checkLinks } from "./links";
-import { checkOpenFloor } from "./openFloor";
-import { checkOpenings } from "./openings";
+import { checkMaterialFidelity, FIDELITY_CODES } from "./fidelity";
+import { checkLevelAbove, LEVEL_ABOVE_CODES } from "./levelAbove";
+import { LINE_CODES } from "./lines";
+import { checkLinks, LINK_CODES } from "./links";
+import { checkOpenFloor, OPEN_FLOOR_CODES } from "./openFloor";
+import { checkOpenings, OPENING_CODES } from "./openings";
 import type { VerifyOptions, VerifyResult } from "./options";
-import { dropBadPlacements, indexSolids, recountStats } from "./placements";
-import { checkProps } from "./props";
-import { checkReachability } from "./reachability";
+import { dropBadPlacements, indexSolids, PLACEMENT_CODES, recountStats } from "./placements";
+import { checkProps, PROP_CODES } from "./props";
+import { checkReachability, REACH_CODES } from "./reachability";
 import { StairRuns } from "./runs";
-import { checkCoveredStalls } from "./stalls";
-import { checkFloorsAndWalls } from "./walls";
+import { checkCoveredStalls, STALL_CODES } from "./stalls";
+import { checkFloorsAndWalls, WALL_CODES } from "./walls";
 
 export type { VerifyOptions, VerifyResult } from "./options";
 
@@ -124,35 +126,24 @@ function finish({ report }: VerifyCtx, t0: number): VerifyResult {
   return { diagnostics: out, counts, repairs: report.repairs, ms: Date.now() - t0 };
 }
 
+/**
+ * Every verify code, in check order: the union of the lists each check file declares beside its header (and the chunk
+ * stage's water note). A test reads the sources and the contract so a code emitted or declared but missing here fails.
+ */
 export const VERIFY_CODES: readonly CompileDiagnosticCode[] = [
-  "verify_cell_obstructed",
-  "verify_door_blocked",
-  "verify_door_no_floor",
-  "verify_door_missing",
-  "verify_door_misplaced",
-  "verify_door_buried",
-  "verify_door_leads_nowhere",
-  "verify_area_unreachable",
-  "verify_stairs_no_arrival",
-  "verify_stairs_approach_blocked",
-  "verify_stairs_arrival_blocked",
-  "verify_stairwell_closed",
-  "verify_link_short",
-  "verify_props_overlap",
-  "verify_prop_in_wall",
-  "verify_prop_nudged",
-  "verify_prop_floating",
-  "verify_prop_sunk",
-  "verify_prop_no_floor",
-  "verify_mount_no_wall",
-  "verify_prop_outside",
-  "verify_floor_missing",
-  "verify_wall_gap",
-  "verify_duplicate_removed",
-  "verify_bad_coordinate",
-  "verify_pokes_into_level_above",
-  "verify_material_substituted",
-  "verify_water_level",
+  ...PLACEMENT_CODES,
+  ...WALL_CODES,
+  ...CLIFF_CODES,
+  ...STALL_CODES,
+  ...FIDELITY_CODES,
+  ...OPEN_FLOOR_CODES,
+  ...OPENING_CODES,
+  ...LINK_CODES,
+  ...PROP_CODES,
+  ...LINE_CODES,
+  ...LEVEL_ABOVE_CODES,
+  ...REACH_CODES,
+  ...CHUNK_VERIFY_CODES,
 ];
 
 export type { RealizedSet };

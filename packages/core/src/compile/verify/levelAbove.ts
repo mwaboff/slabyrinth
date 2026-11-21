@@ -4,12 +4,18 @@
  *
  * Emits `verify_pokes_into_level_above` (warning), one per level, lowest level first.
  */
+import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import { BUILD_CONSTANTS } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import type { VerifyCtx } from "./context";
 import type { Solid, SolidIndex } from "./grid";
 import { POKE_TOLERANCE } from "./limits";
 import { elementRef, round2, solidLabel, uniq } from "./words";
+
+/** The codes this file emits (VERIFY_CODES is the union of every check's list). */
+export const LEVEL_ABOVE_CODES = [
+  "verify_pokes_into_level_above",
+] as const satisfies readonly CompileDiagnosticCode[];
 
 /** A storey needs walls, a floor and a tile of air above the walls. */
 const STOREY_NEEDS = BUILD_CONSTANTS.wallHeight + BUILD_CONSTANTS.floorThickness + 1;

@@ -7,6 +7,7 @@
  * side cell), `verify_door_leads_nowhere` (warning) and `verify_door_blocked` (error). Returns the blocked openings
  * (`BlockedOpenings`), which reachability reads.
  */
+import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import type { LevelId, Side } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import { CELL_FLAG } from "../../contracts/resolved";
@@ -24,6 +25,16 @@ import {
   WIDE_DOOR_SLACK,
 } from "./limits";
 import { fmt, planElements, solidLabel, uniq } from "./words";
+
+/** The codes this file emits (VERIFY_CODES is the union of every check's list). */
+export const OPENING_CODES = [
+  "verify_door_missing",
+  "verify_door_misplaced",
+  "verify_door_buried",
+  "verify_door_no_floor",
+  "verify_door_leads_nowhere",
+  "verify_door_blocked",
+] as const satisfies readonly CompileDiagnosticCode[];
 
 type Opening = ResolvedLevel["openings"][number];
 

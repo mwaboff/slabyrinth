@@ -8,6 +8,7 @@
  *
  * Emits `verify_area_unreachable` (error), one per area, in level and area order.
  */
+import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import type { LevelId, OpeningKind } from "../../contracts/plan";
 import type { ResolvedPlan } from "../../contracts/resolved";
 import { CELL_FLAG, EDGE } from "../../contracts/resolved";
@@ -22,6 +23,9 @@ import type { ObstructedCells } from "./openFloor";
 import { type BlockedOpenings, openingEdges } from "./openings";
 import type { StairRuns } from "./runs";
 import { fmt, planElements, solidLabel, uniq } from "./words";
+
+/** The codes this file emits (VERIFY_CODES is the union of every check's list). */
+export const REACH_CODES = ["verify_area_unreachable"] as const satisfies readonly CompileDiagnosticCode[];
 
 type Link = ResolvedPlan["links"][number];
 
@@ -334,7 +338,7 @@ function checkOwnWalkReach(ctx: VerifyCtx, { runs, obstructed, doors, links }: B
         ...(at && at.length === 2 ? { cell: [at[0] ?? 0, at[1] ?? 0] as const } : {}),
         ...(cand ? { assets: uniq(cand.solids.map((s) => s.name)) } : {}),
         message: b
-          ? `${area.name ?? area.id} on level ${L.id} cannot be reached once the build is placed: "${b.name}"${b.p.source.elementId && !b.p.source.elementId.includes(".") ? ` (${b.p.source.elementId})` : ""} blocks the way at ${cand.cell.split("|")[1] ?? "?"}.`
+          ? `${area.name ?? area.id} on level ${L.id} cannot be reached once the build is placed: ${solidLabel(b)} blocks the way at ${cand.cell.split("|")[1] ?? "?"}.`
           : `${area.name ?? area.id} on level ${L.id} cannot be reached once the build is placed, although the plan connects it.`,
         hint: b
           ? `Move ${b.p.source.elementId ?? b.name} or the opening it blocks, or add a second opening into ${area.id}.`

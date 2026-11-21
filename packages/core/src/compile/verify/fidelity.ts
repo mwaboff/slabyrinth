@@ -5,12 +5,18 @@
  * (warning for lava and water, else info), then one per (theme, wall style) (info). Water is TaleSpire's board water
  * level over a bed (`bed.*`), so no water tile is expected and water is never noted.
  */
+import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
 import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import { wallRole } from "../../palette/roles";
 import type { LevelGrid } from "../../resolve/levelGrid";
 import type { VerifyCtx } from "./context";
+
+/** The codes this file emits (VERIFY_CODES is the union of every check's list). */
+export const FIDELITY_CODES = [
+  "verify_material_substituted",
+] as const satisfies readonly CompileDiagnosticCode[];
 
 export function checkMaterialFidelity(ctx: VerifyCtx): void {
   for (const L of ctx.levels) {

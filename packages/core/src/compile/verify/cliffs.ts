@@ -4,11 +4,15 @@
  *
  * Emits `verify_cliff_gap` (warning), one per level with the first edge and the count.
  */
-import { SIDE_STEP } from "../../gen/gridGeometry";
+import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import { isBandRock } from "../../gen/catalog";
+import { SIDE_STEP } from "../../gen/gridGeometry";
 import { CLIFF_FACE_ROLE } from "../../palette/roles";
 import type { VerifyCtx } from "./context";
 import { CLIFF_COVER_MARGIN, CLIFF_GAP_RISE_Q } from "./limits";
+
+/** The codes this file emits (VERIFY_CODES is the union of every check's list). */
+export const CLIFF_CODES = ["verify_cliff_gap"] as const satisfies readonly CompileDiagnosticCode[];
 
 export function checkCliffBand(ctx: VerifyCtx): void {
   if (!ctx.profile.cliffRockBand) return;

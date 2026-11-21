@@ -6,9 +6,13 @@
  *
  * Emits `verify_stall_uncovered` (warning), one per stall.
  */
+import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import { roleProbe, stallParts } from "../../palette/stallParts";
 import type { VerifyCtx } from "./context";
 import { elementRef } from "./words";
+
+/** The codes this file emits (VERIFY_CODES is the union of every check's list). */
+export const STALL_CODES = ["verify_stall_uncovered"] as const satisfies readonly CompileDiagnosticCode[];
 
 export function checkCoveredStalls(ctx: VerifyCtx): void {
   if (!ctx.profile.coveredStalls) return;
