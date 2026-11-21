@@ -11,6 +11,8 @@ export const AUTHORED_PLAN = {
   title: "Abbey Crypt",
   kind: "dungeon",
   theme: "stone_dungeon",
+  // a fixed seed: the build is the same every run (helpers.ts newRun refuses a create_plan without one)
+  seed: 9142,
   levels: [
     {
       id: "l1",
