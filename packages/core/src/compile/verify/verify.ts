@@ -26,10 +26,12 @@ import { stallParts } from "../../palette/stallParts";
 import { checkPlayability, walkReachability } from "../../resolve";
 import { placementBoxes, placementMeta } from "../realize";
 import type { RealizedSet } from "../realize/output";
-import { LevelGrid, SolidIndex, overlap1, type Solid } from "./grid";
+import { SolidIndex, overlap1, type Solid } from "./grid";
+import { LevelGrid, sideOrient } from "../../resolve/levelGrid";
 import { areaReferenceHeights, wallSpan } from "../../resolve/wallspan";
 import { structureClaims } from "../structure";
 import { featureInfo } from "../../gen/catalog";
+import { OPPOSITE as OPP, SIDE_STEP as DIRV, SIDES } from "../../gen/gridGeometry";
 
 export interface VerifyOptions {
   /** Level the party enters on (MapPlan.entryLevel); default: the level with elevation closest to 0. */
@@ -87,9 +89,6 @@ const ORGANIC = new Set<FeatureType>([
 const CEILING_MOUNTED = new Set<string>(["stalactite", "chandelier"]);
 /** Opening kinds that are not passages (no standing-room or reachability semantics). */
 const NOT_PASSAGE = new Set(["window", "arrow_slit", "bars"]);
-const DIRV: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
-const OPP: Record<Side, Side> = { N: "S", S: "N", E: "W", W: "E" };
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
 const HEAD = 1.5; // clear height a creature needs above a floor top (medium creature with margin)
 const STEP = 0.5; // largest height difference walkable without stairs
 
@@ -258,14 +257,14 @@ export function verifyBuild(
       x1 = x + 1,
       y0 = y,
       y1 = y + 1;
-    if (g.edge(x, y, "W").hostedHere) x0 += 0.5;
-    if (g.edge(x, y, "E").hostedHere) x1 -= 0.5;
-    if (g.edge(x, y, "N").hostedHere) y0 += 0.5;
-    if (g.edge(x, y, "S").hostedHere) y1 -= 0.5;
+    if (g.hostedOn(x, y, "W")) x0 += 0.5;
+    if (g.hostedOn(x, y, "E")) x1 -= 0.5;
+    if (g.hostedOn(x, y, "N")) y0 += 0.5;
+    if (g.hostedOn(x, y, "S")) y1 -= 0.5;
     if (x1 - x0 < 0.2 || y1 - y0 < 0.2) return null;
     // an outer corner of a building diagonal to this cell (walls on both neighbours, hosted on this side) carries a
     // corner post in this cell's corner quarter: when that quarter is all that is left free, the cell is not open floor
-    const hostedBy = (cx: number, cy: number, side: Side): boolean => g.edge(cx, cy, side).hostedHere;
+    const hostedBy = (cx: number, cy: number, side: Side): boolean => g.hostedOn(cx, cy, side);
     const quarter = (qx: number, qy: number): boolean =>
       x0 >= qx - 0.01 && x1 <= qx + 0.51 && y0 >= qy - 0.01 && y1 <= qy + 0.51;
     if (
@@ -354,21 +353,23 @@ export function verifyBuild(
         if (ly === g.h - 1) checks.push(["S", x, y]);
         if (lx === g.w - 1) checks.push(["E", x, y]);
         for (const [side, cx, cy] of checks) {
-          const e = g.edge(cx, cy, side);
-          if (e.kind !== EDGE.WALL || e.index < 0) continue;
-          const grid = e.horizontal ? L.hEdges : L.vEdges;
-          const style = L.wallStyles[grid.ref[e.index] ?? 0] ?? "wall";
+          if (g.edgeKind(cx, cy, side) !== EDGE.WALL) continue;
+          const orient = sideOrient(side);
+          const grid = g.edges(orient);
+          const ei = g.edgeIndex(cx, cy, side);
+          const hostedHere = g.hostedOn(cx, cy, side);
+          const style = L.wallStyles[grid.ref[ei] ?? 0] ?? "wall";
           const [dx, dy] = DIRV[side];
           const other = g.cell(cx + dx, cy + dy);
           const here = g.cell(cx, cy);
-          const themeIdx = L.cells.theme[g.idx(here.open ? cx : cx + dx, here.open ? cy : cy + dy)] ?? 0;
+          const themeIdx = L.cells.theme[g.index(here.open ? cx : cx + dx, here.open ? cy : cy + dy)] ?? 0;
           const res = resolveRole(L.themes[themeIdx] ?? "generic", `wall.${style}`).resolution;
           if (!res) continue; // role_missing already reported by realize
           const mount = res.def.mount ?? "half-cell";
-          const hgt = (grid.height[e.index] ?? 0) > 0 ? (grid.height[e.index] ?? 2) : 2;
+          const hgt = (grid.height[ei] ?? 0) > 0 ? (grid.height[ei] ?? 2) : 2;
           // same span as realize (resolve/wallspan.ts): first cell = N/W of the edge
           const hereFirst = side === "S" || side === "E";
-          const hostFirst = hereFirst === e.hostedHere;
+          const hostFirst = hereFirst === hostedHere;
           const span = wallSpan(
             L.elevation,
             hereFirst ? here : other,
@@ -378,21 +379,22 @@ export function verifyBuild(
             refHeights,
           );
           const base = span.base;
-          const inside = e.hostedHere ? other : here; // shells host outside the footprint
-          const top = shell.has(`${e.horizontal ? "h" : "v"}${e.index}`)
+          const inside = hostedHere ? other : here; // shells host outside the footprint
+          const top = shell.has(`${orient}${ei}`)
             ? // a ruin's walls only need to stand a tile above its floor (their tops are broken)
-              claims.ruined.has(`${e.horizontal ? "h" : "v"}${e.index}`)
+              claims.ruined.has(`${orient}${ei}`)
               ? L.elevation + inside.height + 0.5 + 1
               : Math.min(span.top, L.elevation + inside.height + 0.5 + hgt)
             : span.top;
-          // a rock block whose host cell is open stands in the other cell when that one is not open (realize)
-          const hostCell = e.hostedHere ? here : other;
-          const otherCell = e.hostedHere ? other : here;
+          // a rock block whose host cell is open stands in the other cell when that one is not open (realize
+          // compile/realize/walls.ts gatherFullCells: the same host-or-flipped rule, read from the same host)
+          const hostCell = hostedHere ? here : other;
+          const otherCell = hostedHere ? other : here;
           const flipped = mount === "full-cell" && hostCell.open && !otherCell.open;
           // midpoint of the edge in plan coords, then into the host half-cell
           const mx = side === "W" ? cx : side === "E" ? cx + 1 : cx + 0.5;
           const my = side === "N" ? cy : side === "S" ? cy + 1 : cy + 0.5;
-          const hostSign = e.hostedHere !== flipped ? 1 : -1; // +1 = into (cx,cy), -1 = into the neighbour
+          const hostSign = hostedHere !== flipped ? 1 : -1; // +1 = into (cx,cy), -1 = into the neighbour
           const inward = mount === "edge-center" ? 0 : mount === "full-cell" ? 0.5 : 0.25;
           const ix = side === "W" ? inward * hostSign : side === "E" ? -inward * hostSign : 0;
           const iy = side === "N" ? inward * hostSign : side === "S" ? -inward * hostSign : 0;
@@ -439,7 +441,7 @@ export function verifyBuild(
     }
     if (missing > 0 && first) {
       const sev = floorRoleMissing.has(L.id) ? "warning" : "error";
-      const mat = L.materials[(L.cells.material[g.idx(first[0], first[1])] ?? 1) - 1] ?? "?";
+      const mat = L.materials[(L.cells.material[g.index(first[0], first[1])] ?? 1) - 1] ?? "?";
       add({
         severity: sev,
         code: "verify_floor_missing",
@@ -480,7 +482,6 @@ export function verifyBuild(
         .filter((p) => p.role === "ledge" && p.source.cell)
         .map((p) => `${p.source.cell?.[0] ?? ""},${p.source.cell?.[1] ?? ""}`),
     );
-    const step: Record<string, [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
     let holes = 0;
     let firstHole: [number, number] | null = null;
     for (const run of runs)
@@ -492,7 +493,7 @@ export function verifyBuild(
         const theme = L.themes[L.cells.theme[ly * L.bounds.w + lx] ?? 0] ?? "generic";
         if (!resolveRole(theme, "cliff.formation_face").resolution) continue;
         if (blocks.has(`${e.at[0]},${e.at[1]}`)) continue;
-        const [dx, dy] = step[e.side] ?? [0, 0];
+        const [dx, dy] = DIRV[e.side];
         const mx = e.at[0] + 0.5 + dx * 0.5;
         const my = e.at[1] + 0.5 + dy * 0.5;
         const covered = rocks.some(
@@ -568,7 +569,7 @@ export function verifyBuild(
     for (const b of L.bridges ?? [])
       b.cells.forEach((c, j) => {
         const m = b.underMaterial[j];
-        const i = g.idx(c[0], c[1]);
+        const i = g.index(c[0], c[1]);
         if (m && i >= 0) note(L.themes[L.cells.theme[i] ?? 0] ?? "generic", m, c[0], c[1]);
       });
     for (const e of mats.values()) {
@@ -703,7 +704,7 @@ export function verifyBuild(
       // pieces in the host half-cell, and not buried by wall pieces
       for (const s of pieces.filter((q) => q.role === "opening")) {
         const ok = edges.some((e) => {
-          const host = g.edge(e.b[0], e.b[1], e.sideOfB).hostedHere ? e.b : e.a;
+          const host = g.hostedOn(e.b[0], e.b[1], e.sideOfB) ? e.b : e.a;
           const sideInHost: Side = host === e.b ? e.sideOfB : OPP[e.sideOfB];
           const r = halfCellRect(host, sideInHost);
           const p0 = w(r.x0, r.y1);
@@ -779,7 +780,7 @@ export function verifyBuild(
             });
             continue;
           }
-          const hosted = g.edge(cell[0], cell[1], sideTowardEdge).hostedHere;
+          const hosted = g.hostedOn(cell[0], cell[1], sideTowardEdge);
           const d = hosted ? 0.75 : 0.25;
           const mx =
             sideTowardEdge === "W" ? cell[0] + d : sideTowardEdge === "E" ? cell[0] + 1 - d : cell[0] + 0.5;
@@ -889,7 +890,7 @@ export function verifyBuild(
           });
         }
         const ac = gu.cell(arr[0], arr[1]);
-        const wallBetween = gu.edge(c[0], c[1], lk.dir).kind === EDGE.WALL;
+        const wallBetween = gu.wallOn(c[0], c[1], lk.dir);
         const arrHits = ac.floor ? obstructed.get(`${upper.id}|${arr[0]},${arr[1]}`) : undefined;
         if (!ac.open || !ac.floor || wallBetween || arrHits) {
           ok = false;
@@ -974,7 +975,7 @@ export function verifyBuild(
       for (const c of lk.lowerCells.filter((q) => isRun(lower.id, q[0], q[1])?.k === 0)) {
         const ap: [number, number] = [c[0] - dx, c[1] - dy];
         const a = gl.cell(ap[0], ap[1]);
-        const wall = gl.edge(c[0], c[1], OPP[lk.dir]).kind === EDGE.WALL;
+        const wall = gl.wallOn(c[0], c[1], OPP[lk.dir]);
         const hits = obstructed.get(`${lower.id}|${ap[0]},${ap[1]}`);
         const featureThere = (a.flags & CELL_FLAG.FEATURE) !== 0;
         if (
@@ -1214,7 +1215,7 @@ export function verifyBuild(
         continue;
       }
       if (s.wallMounted && f?.wall) {
-        const e = g.edge(f.at[0], f.at[1], f.wall);
+        const kind = g.edgeKind(f.at[0], f.at[1], f.wall);
         const backing = index
           .near(pc.px, pc.py)
           .concat(
@@ -1228,7 +1229,7 @@ export function verifyBuild(
               boxDist(q, s.p.x, s.p.z) < 0.6 &&
               overlap1(q.box.min.y, q.box.max.y, s.box.min.y, s.box.max.y) > 0,
           );
-        if ((e.kind !== EDGE.WALL && e.kind !== EDGE.OPENING) || !backing) {
+        if ((kind !== EDGE.WALL && kind !== EDGE.OPENING) || !backing) {
           add({
             severity: "warning",
             code: "verify_mount_no_wall",
@@ -1427,7 +1428,7 @@ export function verifyBuild(
       const [lv, xy] = k.split("|") as [string, string];
       const [x, y] = xy.split(",").map(Number) as [number, number];
       const g = grids.get(lv);
-      const i = g ? g.idx(x, y) : -1;
+      const i = g ? g.index(x, y) : -1;
       if (i >= 0) (extraBlocked[lv] ??= []).push(i);
     }
     for (const lk of resolved.links) {
@@ -1435,7 +1436,7 @@ export function verifyBuild(
       const g = grids.get(lk.toLevel);
       const [dx, dy] = DIRV[lk.dir];
       for (const c of lk.lowerCells.filter((q) => isRun(lk.fromLevel, q[0], q[1])?.last)) {
-        const i = g ? g.idx(c[0] + dx, c[1] + dy) : -1;
+        const i = g ? g.index(c[0] + dx, c[1] + dy) : -1;
         if (i >= 0) (extraBlocked[lk.toLevel] ??= []).push(i);
       }
     }
@@ -1477,7 +1478,7 @@ export function verifyBuild(
           if (!g) continue;
           if (rest.includes(",")) {
             const [x, y] = rest.split(",").map(Number) as [number, number];
-            const i = g.idx(x, y);
+            const i = g.index(x, y);
             if (i >= 0 && base.get(lv)?.[i] && !real.get(lv)?.[i]) culprits.push({ cell: [x, y], solids });
           } else {
             const op = levelOf.get(lv)?.openings.find((o) => o.id === rest);
@@ -1653,9 +1654,9 @@ function reachability(
         const ny = y + dy;
         const nk = `${lv}|${nx},${ny}`;
         if (dist.has(nk)) continue;
-        const e = g.edge(x, y, side);
-        if (e.kind === EDGE.WALL) continue;
-        if (e.kind === EDGE.OPENING) {
+        const kind = g.edgeKind(x, y, side);
+        if (kind === EDGE.WALL) continue;
+        if (kind === EDGE.OPENING) {
           const op = openingAt.get(`${lv}|${x},${y}|${side}`);
           if (op && NOT_PASSAGE.has(op.kind)) continue;
           if (realized && op && blockedOpenings.has(`${lv}|${op.id}`)) {
@@ -1757,8 +1758,7 @@ function suggestDoorCell(
       const x = op.orientation === "h" ? op.start[0] + s : op.start[0];
       const y = op.orientation === "h" ? op.start[1] : op.start[1] + s;
       const side: Side = op.orientation === "h" ? "N" : "W";
-      const e = g.edge(x, y, side);
-      if (e.kind !== EDGE.WALL) continue;
+      if (!g.wallOn(x, y, side)) continue;
       const [dx, dy] = DIRV[side];
       const cells: Array<[number, number, Side]> = [
         [x, y, side],
