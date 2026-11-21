@@ -790,7 +790,7 @@ export function expandStructures(
     if (st.kind === "enclosure") continue;
     const style0 = structureStyle(st.style);
     const base0 = style0?.design;
-    // generator 3: the style's gen3 overrides (roof share, attic tops) apply
+    // generator 3: the style's buildingVariety overrides (roof share, attic tops) apply
     const space = base0 ? designSpaceFor(base0, generatorProfile(plan).buildingVariety) : undefined;
     const r = designable(st);
     if (!space || !r) continue;
@@ -1834,7 +1834,7 @@ function planBuilding(
       gableWing,
       new Set(vplans.filter((v) => v.roof.layers.length > 0).map((v) => v.id)),
       {
-        gen3: legible,
+        legibleCondition: legible,
         pitched: new Set(
           vplans
             .filter((v) => ["gable", "hip", "shed"].includes(v.roof.layers[0]?.type ?? ""))

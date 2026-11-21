@@ -190,7 +190,7 @@ export const STRUCTURE_STYLES: Readonly<Record<string, StructureStyleProfile>> =
       // generator 3: the roof is the larger part (55-65 % of the visible height in the study's cottages and inns): the
       // top storey sits inside it as a knee-walled attic more often, and the walls are lowered until the drawn share is
       // met; cross wings and lean-tos stand a tile or more below the main ridge (see balanceRoofs)
-      gen3: {
+      buildingVariety: {
         roofShare: [0.52, 0.66],
         // a twin of two narrow halves has a low roof (a roof's rise is half its span), so it is drawn less often
         archetypes: { box: 2.5, ell: 1.8, twin: 0.4, lean: 1.5, shed: 0.3 },

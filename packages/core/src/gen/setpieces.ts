@@ -76,7 +76,7 @@ export interface Part {
    */
   on?: number;
   /** A part that exists only where the generator puts things on things (`supportedParts`, from generator 3). */
-  gen3?: boolean;
+  needsSupportedParts?: boolean;
 }
 
 export interface Group {
@@ -264,7 +264,7 @@ const G = {
       p("rock", 1, 0),
       p("stalagmite", 0, 1),
       p("debris", 1, 1),
-      p("small_detail", 0, 0, { on: 0, gen3: true }),
+      p("small_detail", 0, 0, { on: 0, needsSupportedParts: true }),
     ],
   },
   bonesNook: {
@@ -345,7 +345,7 @@ const G = {
       p("chest", 1, 0),
       p("lantern", 2, 0, { on: 1 }),
       p("sack", 0, 1),
-      p("candles", 1, 0, { on: 1, gen3: true }),
+      p("candles", 1, 0, { on: 1, needsSupportedParts: true }),
     ],
   },
   woodpile: {
@@ -411,7 +411,7 @@ const G = {
       p("rock", 0, 1),
       p("debris", 1, 1),
       p("debris", 2, 2),
-      p("small_detail", 1, 0, { on: 1, gen3: true }),
+      p("small_detail", 1, 0, { on: 1, needsSupportedParts: true }),
     ],
   },
   rootSpill: {
@@ -1866,7 +1866,7 @@ export function composeArea(
     const byPart = new Map<number, Planned>();
     for (let i = 0; i < g.parts.length; i++) {
       // generator 3 parts do not exist (and draw nothing) at earlier generators
-      if ((g.parts[i] as Part).gen3 === true && !gen.supportedParts) continue;
+      if ((g.parts[i] as Part).needsSupportedParts === true && !gen.supportedParts) continue;
       // optional pieces drop out at random so repeated groups never look stamped
       if (i > 0 && keepOptional < 1 && (g.parts[i] as Part).required !== true && !rng.chance(keepOptional))
         continue;

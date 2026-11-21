@@ -98,17 +98,20 @@ export interface DesignSpace {
    * and cross wings and lean-tos stand a tile or more below the main ridge.
    */
   roofShare?: readonly [number, number];
-  /** Generator 3 only: axes replacing the ones above (shallow merge), so a style's older output stays as it was. */
-  gen3?: Partial<Omit<DesignSpace, "gen3">>;
+  /**
+   * Under the profile's `buildingVariety` switch (generator 3 on): axes replacing the ones above (shallow merge), so a
+   * style's older output stays as it was.
+   */
+  buildingVariety?: Partial<Omit<DesignSpace, "buildingVariety">>;
 }
 
 const merged = new WeakMap<DesignSpace, DesignSpace>();
-/** The design space a generator uses: generator 3 plans take the style's `gen3` overrides (one object per space). */
-export function designSpaceFor(space: DesignSpace, gen3: boolean): DesignSpace {
-  if (!gen3 || !space.gen3) return space;
+/** The design space a generator uses: with `buildingVariety` on, the style's `buildingVariety` overrides (one object per space). */
+export function designSpaceFor(space: DesignSpace, buildingVariety: boolean): DesignSpace {
+  if (!buildingVariety || !space.buildingVariety) return space;
   let m = merged.get(space);
   if (!m) {
-    m = { ...space, ...space.gen3 };
+    m = { ...space, ...space.buildingVariety };
     merged.set(space, m);
   }
   return m;

@@ -1421,10 +1421,11 @@ function buildChimneys(
     const lo = Math.min(st.storeys[0]?.floorTop ?? 0, ctx.groundTop(c.at[0], c.at[1]));
     // generator 3: the stack tops out about a tile and a half above the ridge, pot included (it was two and a half), and
     // the foot is three wide for its first two courses (a breast, not a pole)
-    const gen3 = st.valleys === true;
-    const hi = roofTop + (gen3 ? 0.5 : 1.5);
+    // (the profile's `roofValleys` switch, carried on the building as ResolvedStructure.valleys)
+    const chimneyBreast = st.valleys === true;
+    const hi = roofTop + (chimneyBreast ? 0.5 : 1.5);
     const n = Math.max(1, Math.ceil((hi - lo) / v.unitHeight - EPS));
-    if (gen3) {
+    if (chimneyBreast) {
       const [dx, dy] = STEP[c.side];
       const lat: Array<[number, number]> = [
         [c.at[0] + Math.abs(dy), c.at[1] + Math.abs(dx)],
@@ -2673,12 +2674,13 @@ function buildWallTopRubble(ctx: StructureRealizeCtx, st: ResolvedStructure, the
   const longPile = heapRole?.variants.filter((x) => longest(x) > 1.1 && longest(x) <= 1.7) ?? [];
   const listed = new Set(list.map((t) => `${t.at[0]},${t.at[1]},${t.side}`));
   if (smallBroken.length === 0) return;
-  const gen3 = st.growthLevel !== undefined;
+  // (the profile's `legibleCondition` switch: the resolver sets a growth level on a worn building only under it)
+  const legibleCondition = st.growthLevel !== undefined;
   for (const t of list) {
     const k = `${st.id}:walltop:${t.at[0]},${t.at[1]}${t.side}`;
     const [ax, ay] = t.side === "N" || t.side === "S" ? [1, 0] : [0, 1];
     const spans =
-      gen3 &&
+      legibleCondition &&
       longPile.length > 0 &&
       listed.has(`${t.at[0] - ax},${t.at[1] - ay},${t.side}`) &&
       listed.has(`${t.at[0] + ax},${t.at[1] + ay},${t.side}`) &&
@@ -2689,13 +2691,13 @@ function buildWallTopRubble(ctx: StructureRealizeCtx, st: ResolvedStructure, the
     const jit = (s: string): number => h32(`${ctx.seed}:${k}:${s}`) / 4294967296 - 0.5;
     // along the wall (a long pile lies lengthwise), 15 degree steps of yaw either side, never square to the step
     const base = (t.side === "N" || t.side === "S" ? 0 : 90) + (h32(`${k}:flip`) % 2) * 180;
-    const yaw = gen3 ? base + Math.round(jit("yaw") * 6) * 15 : (h32(k) % 4) * 90;
+    const yaw = legibleCondition ? base + Math.round(jit("yaw") * 6) * 15 : (h32(k) % 4) * 90;
     const [ux, uy] = t.side === "N" || t.side === "S" ? [1, 0] : [0, 1];
     placeProp(
       ctx,
       v,
-      t.at[0] + 0.5 + dx * (0.75 + (gen3 ? jit("out") * 0.2 : 0)) + (gen3 ? ux * jit("al") * 0.3 : 0), // the wall strip lies in the ring cell outside the face (edge pieces are hosted there)
-      t.at[1] + 0.5 + dy * (0.75 + (gen3 ? jit("out") * 0.2 : 0)) + (gen3 ? uy * jit("al") * 0.3 : 0),
+      t.at[0] + 0.5 + dx * (0.75 + (legibleCondition ? jit("out") * 0.2 : 0)) + (legibleCondition ? ux * jit("al") * 0.3 : 0), // the wall strip lies in the ring cell outside the face (edge pieces are hosted there)
+      t.at[1] + 0.5 + dy * (0.75 + (legibleCondition ? jit("out") * 0.2 : 0)) + (legibleCondition ? uy * jit("al") * 0.3 : 0),
       t.top,
       ((yaw % 360) + 360) % 360,
       `${st.id}~walltop`,
