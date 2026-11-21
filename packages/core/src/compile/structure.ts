@@ -26,6 +26,7 @@ import type { PaletteFacing, Placement, PlacementRole } from "../contracts/compi
 import type { Side, WallStyle } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "../palette/resolve";
+import type { GeneratorProfile } from "../plan/generator";
 import {
   gableRoof,
   hipRoof,
@@ -43,6 +44,8 @@ import { h32, rotateXZ } from "./geometry";
 
 export interface StructureRealizeCtx {
   L: ResolvedLevel;
+  /** What the plan's generator does (plan/generator.ts); a version-dependent rule here reads a switch of it. */
+  profile: GeneratorProfile;
   frame: WorldFrame;
   seed: number;
   /** Role lookup for this level (quiet: no role_missing warning). */
@@ -82,6 +85,14 @@ const both = (a: VariantFilter, b: VariantFilter): VariantFilter => ({
   key: `${a.key}+${b.key}`,
   test: (v) => a.test(v) && b.test(v),
 });
+
+/**
+ * A weathered or ruined building whose condition the generator makes legible (generator 3, `legibleCondition`): its
+ * porch roofs fall, its debris is of its own material and lies at its own angles, and the rubble on its broken walls
+ * lies along them. (The resolver gives exactly these buildings a growth level.)
+ */
+const legiblyWorn = (ctx: StructureRealizeCtx, st: ResolvedStructure): boolean =>
+  ctx.profile.legibleCondition && (st.condition ?? "intact") !== "intact";
 
 /** Footprint at rot 0 in plan cells [w, h]; tiles round up, props to nearest. */
 const footOf = (v: ResolvedVariant): readonly [number, number] => v.footprint;
@@ -1522,7 +1533,7 @@ function buildPorches(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: st
     const roofY = Math.max(s0.floorTop + 2, groundWallTop - 1);
     // generator 3: an attached porch takes the building's condition: a ruin's hood has fallen (one post stands), a
     // weathered one has lost a third of its roof cells
-    const worn = st.growthLevel !== undefined;
+    const worn = legiblyWorn(ctx, st);
     const gone = worn && st.condition === "ruined";
     const roofCells = gone
       ? []
@@ -2656,7 +2667,7 @@ function buildRooftopSets(
 function buildDebris(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: string): void {
   for (const d of st.debris ?? []) {
     // a theme without the role gets nothing: never a wrong object
-    const timber = st.growthLevel !== undefined && (st.design?.material ?? st.storeys[0]?.walls) === "wood";
+    const timber = legiblyWorn(ctx, st) && (st.design?.material ?? st.storeys[0]?.walls) === "wood";
     // (generator 3: fallen stone does not lie beside a timber building; its own material or nothing)
     const roles = [
       d.kind === "rubble"
@@ -2680,7 +2691,7 @@ function buildDebris(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: str
         d.at[1] + 0.5,
         ctx.groundTop(d.at[0], d.at[1]),
         // generator 3: heaps lie at their own angles, not square to the grid
-        st.growthLevel !== undefined ? (h32(k) % 24) * 15 : (h32(k) % 4) * 90,
+        legiblyWorn(ctx, st) ? (h32(k) % 24) * 15 : (h32(k) % 4) * 90,
         `${st.id}~${d.kind}`,
         undefined,
       );
@@ -2702,7 +2713,7 @@ function buildWallTopRubble(ctx: StructureRealizeCtx, st: ResolvedStructure, the
   // role has small broken ones (a brick pile), each turned at its own angle along the wall
   // timber walls (generator 3): what lies on a timber wall is timber (fallen beams, planks): the wall material's own
   // role, and nothing when the palette has none, never grey stone blocks on brown planks
-  const timber = st.growthLevel !== undefined && style === "wood";
+  const timber = legiblyWorn(ctx, st) && style === "wood";
   const blockRole = ctx.lookup(
     theme,
     timber ? [`ruin_block.${style}`] : [`ruin_block.${style}`, "ruin_block.default"],
@@ -2724,8 +2735,7 @@ function buildWallTopRubble(ctx: StructureRealizeCtx, st: ResolvedStructure, the
   const longPile = heapRole?.variants.filter((x) => longest(x) > 1.1 && longest(x) <= 1.7) ?? [];
   const listed = new Set(list.map((t) => `${t.at[0]},${t.at[1]},${t.side}`));
   if (smallBroken.length === 0) return;
-  // (the profile's `legibleCondition` switch: the resolver sets a growth level on a worn building only under it)
-  const legibleCondition = st.growthLevel !== undefined;
+  const legibleCondition = legiblyWorn(ctx, st);
   for (const t of list) {
     const k = `${st.id}:walltop:${t.at[0]},${t.at[1]}${t.side}`;
     const [ax, ay] = t.side === "N" || t.side === "S" ? [1, 0] : [0, 1];

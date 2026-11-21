@@ -10,10 +10,11 @@ import type { RealizeLevel } from "./level";
 // ── buildings and enclosures ──
 export function layStructures(lv: RealizeLevel): void {
   const { L, V, elev, topOf, emit } = lv;
-  const { seed, frame, lookup, pick, facingOf, addDiag } = lv.ctx;
+  const { seed, profile, frame, lookup, pick, facingOf, addDiag } = lv.ctx;
   if (L.structures?.length)
     realizeStructures({
       L,
+      profile,
       frame,
       seed,
       lookup: (theme, roles, filter, quiet) => lookup(L.id, theme, roles, filter, quiet),
