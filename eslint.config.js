@@ -261,16 +261,56 @@ const vocabularyCompare = (field, words, table) => {
   const message = `Ask ${table} for the trait you mean instead of comparing \`${field}\` with one of its words.`;
   return [
     {
+      field,
       selector: `BinaryExpression[operator=/^[!=]==$/][left.property.name='${field}'][right.value=${re}]`,
       message,
     },
     {
+      field,
       selector: `BinaryExpression[operator=/^[!=]==$/][right.property.name='${field}'][left.value=${re}]`,
       message,
     },
   ];
 };
-const vocabularyRule = selectorRule("Closed vocabularies are asked of their trait tables.", [
+
+/**
+ * selectorRule with an option naming which fields' selectors a files block turns on (`{ fields: [...] }`; all when
+ * absent).
+ * @param {string} description
+ * @param {Array<{ field: string; selector: string; message: string }>} selectors
+ * @returns {import("eslint").Rule.RuleModule}
+ */
+function fieldSelectorRule(description, selectors) {
+  return {
+    meta: {
+      type: "problem",
+      docs: { description },
+      schema: [
+        {
+          type: "object",
+          properties: { fields: { type: "array", items: { type: "string" } } },
+          additionalProperties: false,
+        },
+      ],
+    },
+    create(context) {
+      const fields = /** @type {{ fields?: string[] } | undefined} */ (context.options[0])?.fields;
+      return Object.fromEntries(
+        selectors
+          .filter((s) => fields === undefined || fields.includes(s.field))
+          .map(({ selector, message }) => [
+            selector,
+            (/** @type {import("estree").Node} */ node) => context.report({ node, message }),
+          ]),
+      );
+    },
+  };
+}
+/**
+ * The rule takes an optional `{ fields: [...] }`: the fields it checks in a files block (all by default). The build and
+ * the review check materials only: their link-kind and roof-type dispatch predates the rule (listed for the owner).
+ */
+const vocabularyRule = fieldSelectorRule("Closed vocabularies are asked of their trait tables.", [
   ...vocabularyCompare(
     "kind",
     [...contractWords("OPENING_KINDS"), ...contractWords("LINK_KINDS")],
@@ -278,6 +318,59 @@ const vocabularyRule = selectorRule("Closed vocabularies are asked of their trai
   ),
   ...vocabularyCompare("type", contractWords("ROOF_TYPES"), "resolve/roofTypes.ts (ROOF_TYPE_INFO)"),
   ...vocabularyCompare("wallStyle", contractWords("WALL_STYLES"), "gen/wallStyles.ts (WALL_STYLE_INFO)"),
+  ...vocabularyCompare(
+    "material",
+    contractWords("MATERIALS"),
+    "resolve/materials.ts (MATERIAL_INFO: water, liquid, hazard, natural...; isWater)",
+  ),
+]);
+
+/**
+ * The fallback theme has one name, palette/resolve.ts GENERIC_THEME (and a plan's default theme comes from the palette
+ * view, PaletteView.defaultTheme): a stage that writes "generic" works the fallback out again.
+ */
+const genericThemeRule = selectorRule("The fallback theme is GENERIC_THEME.", [
+  {
+    selector: "Literal[value='generic']",
+    message:
+      'Use palette/resolve.ts GENERIC_THEME (or PaletteView.defaultTheme for a plan\'s default) instead of writing "generic".',
+  },
+]);
+
+/**
+ * Behaviour that differs between generators is a named switch (plan/generator.ts SWITCHES, read through
+ * generatorProfile), never a comparison of the plan's generator with a version number: the switch table is the one
+ * changelog of the generators, and a number compared elsewhere is a behaviour it does not list.
+ */
+const generatorSwitchRule = selectorRule("Generator behaviour is read through SWITCHES.", [
+  ...["generator", "GENERATOR_VERSION"].flatMap((name) =>
+    ["left", "right"].flatMap((side) => {
+      const other = side === "left" ? "right" : "left";
+      return [`[${side}.property.name='${name}']`, `[${side}.name='${name}']`].map((own) => ({
+        selector: `BinaryExpression[operator=/^([<>]=?|[!=]==?)$/]${own}[${other}.type='Literal']`,
+        message:
+          "Add a switch to plan/generator.ts SWITCHES (or read an existing one through generatorProfile(plan)) instead of comparing the generator with a version.",
+      }));
+    }),
+  ),
+  {
+    selector:
+      "SwitchStatement:matches([discriminant.property.name='generator'], [discriminant.name='generator'])",
+    message:
+      "Add a switch to plan/generator.ts SWITCHES and read it through generatorProfile(plan) instead of switching on the generator.",
+  },
+]);
+
+/**
+ * A design-review note's weight is tuning, and tuning lives in one table, review/thresholds.ts REVIEW (the score is
+ * then a REVIEW weight, times how far past its threshold the measure is: `over`, `capped`).
+ */
+const reviewWeightRule = selectorRule("Review weights live in review/thresholds.ts.", [
+  {
+    selector: "Property[key.name='score'] > Literal",
+    message:
+      "Name the note's weight in review/thresholds.ts REVIEW and read it here (score: T.weight * over(...)) instead of a bare number.",
+  },
 ]);
 
 /**
@@ -383,7 +476,40 @@ const slabyrinthPlugin = {
     vocabulary: vocabularyRule,
     "feature-lists": featureListRule,
     sides: sidesRule,
+    "generic-theme": genericThemeRule,
+    "generator-switches": generatorSwitchRule,
+    "review-weights": reviewWeightRule,
   },
+};
+
+/**
+ * Core tests do not write files: the goldens are written only by their update scripts (test/golden/generator4/update.ts),
+ * so a test that "fixes" its golden on failure cannot exist. The CLI test, which runs the CLI on files, writes to a
+ * temporary directory.
+ */
+const coreTestWrites = {
+  paths: ["fs", "node:fs", "fs/promises", "node:fs/promises"].map((name) => ({
+    name,
+    importNames: [
+      "writeFileSync",
+      "writeFile",
+      "appendFileSync",
+      "appendFile",
+      "mkdirSync",
+      "mkdir",
+      "rmSync",
+      "rm",
+      "renameSync",
+      "rename",
+      "copyFileSync",
+      "copyFile",
+      "createWriteStream",
+      "unlinkSync",
+      "unlink",
+    ],
+    message:
+      "Core tests only read: a golden is rewritten by its update script (npm run test:golden:gen4:update), never by a test.",
+  })),
 };
 
 export default tseslint.config(
@@ -475,9 +601,41 @@ export default tseslint.config(
     rules: { "slabyrinth/vocabulary": "error" },
   },
   {
+    // the build and the review: materials only (their per-link-kind and roof-type dispatch predates the rule)
+    files: ["packages/core/src/{compile,review}/**/*.ts"],
+    rules: { "slabyrinth/vocabulary": ["error", { fields: ["material"] }] },
+  },
+  {
     files: ["packages/core/src/**/*.ts"],
     ignores: ["packages/core/src/gen/catalog.ts"],
     rules: { "slabyrinth/feature-lists": "error" },
+  },
+  {
+    // every stage that reads or writes a theme; the calibration slab is built of named pieces of named palettes
+    files: ["packages/core/src/{gen,resolve,plan,compile,review,render,text}/**/*.ts"],
+    ignores: ["packages/core/src/compile/calibration.ts"],
+    rules: { "slabyrinth/generic-theme": "error" },
+  },
+  {
+    // the switch table itself; tests may build plans of any generator
+    files: [
+      "packages/core/src/**/*.ts",
+      "apps/desktop/src/**/*.{ts,tsx}",
+      "packages/render-canvas/src/**/*.ts",
+    ],
+    ignores: ["packages/core/src/plan/generator.ts", "**/*.test.{ts,tsx}"],
+    plugins: { slabyrinth: slabyrinthPlugin },
+    rules: { "slabyrinth/generator-switches": "error" },
+  },
+  {
+    files: ["packages/core/src/review/**/*.ts"],
+    ignores: ["packages/core/src/review/thresholds.ts"],
+    rules: { "slabyrinth/review-weights": "error" },
+  },
+  {
+    files: ["packages/core/test/**/*.test.ts", "packages/render-canvas/test/**/*.test.ts"],
+    ignores: ["packages/core/test/unit/cli/cli.test.ts"],
+    rules: { "no-restricted-imports": ["error", coreTestWrites] },
   },
   {
     files: ["packages/core/src/**/*.ts"],

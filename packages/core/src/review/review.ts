@@ -1573,7 +1573,7 @@ function focalLights(c: Ctx): DesignNote[] {
     out.push({
       code: "focal_unlit",
       levelId: c.L.id,
-      score: 4,
+      score: T.focalUnlitWeight,
       cell: [f.at[0], f.at[1]],
       elementIds: [f.id],
       message: `the focal feature ${f.id} (${f.type}) has no light source within ${T.focalLight} cells: it sits in the dark`,

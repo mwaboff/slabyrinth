@@ -174,6 +174,109 @@ describe("core guards", () => {
         await guardHits("packages/core/src/resolve/roof.ts", 'if (layer.type === "gable") f();'),
       ).toEqual([]);
     });
+    it("reports a material compared by name, in the build and the review too (materials only there)", async () => {
+      for (const file of [
+        stage,
+        "packages/core/src/compile/verify/fidelity.ts",
+        "packages/core/src/review/x.ts",
+      ])
+        expect(await guardHits(file, 'if (cell.material === "lava") f();'), file).toEqual([
+          expect.stringContaining("resolve/materials.ts"),
+        ]);
+      expect(await guardHits("packages/core/src/compile/x.ts", 'if (lk.kind === "ladder") f();')).toEqual([]);
+      expect(
+        await guardHits("packages/core/src/compile/x.ts", "if (MATERIAL_INFO[cell.material].hazard) f();"),
+      ).toEqual([]);
+    });
+  });
+
+  describe("slabyrinth/generic-theme: the fallback theme is GENERIC_THEME", () => {
+    it('reports "generic" written in a stage', async () => {
+      expect(await guardHits("packages/core/src/review/x.ts", 'const t = theme ?? "generic";')).toEqual([
+        expect.stringContaining("GENERIC_THEME"),
+      ]);
+    });
+    it("leaves the owner, the calibration slab and the constant alone", async () => {
+      expect(
+        await guardHits("packages/core/src/palette/resolve.ts", 'export const GENERIC_THEME = "generic";'),
+      ).toEqual([]);
+      expect(
+        await guardHits("packages/core/src/compile/calibration.ts", 'byName("generic", "feature.chest");'),
+      ).toEqual([]);
+      expect(await guardHits("packages/core/src/review/x.ts", "const t = theme ?? GENERIC_THEME;")).toEqual(
+        [],
+      );
+    });
+  });
+
+  describe("slabyrinth/generator-switches: generator behaviour is a switch", () => {
+    it("reports a generator compared with a version, and a switch on the generator", async () => {
+      const cases: Array<[string, string]> = [
+        ["packages/core/src/resolve/x.ts", "if (plan.generator >= 4) f();"],
+        ["packages/core/src/compile/x.ts", "if (3 === resolved.generator) f();"],
+        ["packages/core/src/review/x.ts", "if (generator < 3) f();"],
+        ["apps/desktop/src/main/x.ts", "if (GENERATOR_VERSION === 4) f();"],
+        ["packages/core/src/gen/x.ts", "switch (grid.generator) { case 4: f(); }"],
+      ];
+      for (const [file, code] of cases)
+        expect(await guardHits(file, code), code).toEqual([expect.stringContaining("SWITCHES")]);
+    });
+    it("leaves switch reads, the switch table and tests alone", async () => {
+      expect(
+        await guardHits("packages/core/src/resolve/x.ts", "if (generatorProfile(plan).roads) f();"),
+      ).toEqual([]);
+      expect(
+        await guardHits("packages/core/src/plan/generator.ts", "const upTo = (v) => v.generator <= 4;"),
+      ).toEqual([]);
+      expect(await guardHits("packages/core/src/resolve/x.test.ts", "if (plan.generator >= 4) f();")).toEqual(
+        [],
+      );
+    });
+  });
+
+  describe("slabyrinth/review-weights: a note's weight lives in review/thresholds.ts", () => {
+    it("reports a bare number as a note's score", async () => {
+      expect(
+        await guardHits("packages/core/src/review/x.ts", 'notes.push({ code: "c", score: 4 });'),
+      ).toEqual([expect.stringContaining("review/thresholds.ts")]);
+    });
+    it("leaves weights read from REVIEW, and the table itself, alone", async () => {
+      expect(
+        await guardHits("packages/core/src/review/x.ts", 'notes.push({ code: "c", score: T.weight * 1.5 });'),
+      ).toEqual([]);
+      expect(await guardHits("packages/core/src/review/thresholds.ts", "const s = { score: 4 };")).toEqual(
+        [],
+      );
+    });
+  });
+
+  describe("no-restricted-imports: core tests only read files", () => {
+    it("reports a file write imported by a core test", async () => {
+      for (const code of [
+        'import { writeFileSync } from "node:fs";',
+        'import { mkdir } from "node:fs/promises";',
+      ])
+        expect(await guardHits("packages/core/test/unit/x.test.ts", code), code).toEqual([
+          expect.stringContaining("update script"),
+        ]);
+    });
+    it("allows reads, the CLI test's temporary files and the golden update script", async () => {
+      expect(
+        await guardHits("packages/core/test/unit/x.test.ts", 'import { readFileSync } from "node:fs";'),
+      ).toEqual([]);
+      expect(
+        await guardHits(
+          "packages/core/test/unit/cli/cli.test.ts",
+          'import { writeFileSync } from "node:fs";',
+        ),
+      ).toEqual([]);
+      expect(
+        await guardHits(
+          "packages/core/test/golden/generator4/update.ts",
+          'import { writeFileSync } from "node:fs";',
+        ),
+      ).toEqual([]);
+    });
   });
 
   describe("slabyrinth/feature-lists: a feature trait is a catalog field", () => {

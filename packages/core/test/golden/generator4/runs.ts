@@ -138,7 +138,7 @@ export function runDetail(
     for (const [k, n] of counted(L.placements.map((p) => p.layer ?? "site")))
       out.push(`${at} layer ${k} ${String(n)}`);
     const parts = L.placements
-      .map((p) => String(p.source.elementId ?? ""))
+      .map((p) => p.source.elementId ?? "")
       .filter((id) => id.includes("~") || id.startsWith("floor:"));
     for (const [k, n] of counted(parts)) out.push(`${at} part ${k} ${String(n)}`);
   }

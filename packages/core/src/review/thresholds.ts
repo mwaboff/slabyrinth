@@ -240,6 +240,8 @@ export const REVIEW = {
     run: 3,
     /** A focal feature with no light source within this many cells is unlit. */
     focalLight: 4,
+    /** Weight of the focal_unlit note. */
+    focalUnlitWeight: 4,
     /**
      * Generator 4: most solid cells that are hollow seen from the side (a gap of `hole` tiles or more between the foot of
      * the rock and its top: a cap or a course standing over nothing). The grotto v2 build: 26%; v3: 0.5%.
