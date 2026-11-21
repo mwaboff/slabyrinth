@@ -3,7 +3,7 @@
  *
  * A dungeon cut into rock reads from above as rooms in a mass with a flat cap flush with the wall tops. Generator 3
  * built the rooms and left the SOLID cells round them as nothing, so each room was a thin-walled box floating in the
- * void (outer shell 0.5 tiles, the reference interior has 2.5). This module plans the shell; compile/realize.ts lays it:
+ * void (outer shell 0.5 tiles, the reference interior has 2.5). This module plans the shell; compile/realize/solidShell.ts lays it:
  *
  *  - CAP: every SOLID cell within three cells of a room wall (a quarter of the outermost ring cut back by seeded noise,
  *    so the outline is not a ruled rectangle) takes a flat cap tile whose top is flush with the wall tops. Big tiles
@@ -27,7 +27,6 @@ import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { ValueNoise } from "../gen/noise";
 import { OWNER, dropLumps, fillNotches, ownSolid, trimTeeth, type CellGrid } from "../gen/solidMass";
 import { isNaturalWallStyle } from "../gen/wallStyles";
-import { generatorProfile } from "../plan/generator";
 import { h32 } from "../util/hash";
 import { areaReferenceHeights, wallSpan, type SpanCell } from "../resolve/wallspan";
 import { roughCells } from "../resolve/wallTops";
@@ -99,7 +98,8 @@ const DIRS: readonly Dir[] = [
 ];
 
 /**
- * Plans the shell of one level, or null when it has none: no SOLID cells, no thin wall against rock, or a generator without `solidShell`.
+ * Plans the shell of one level, or null when it has none: no SOLID cells or no thin wall against rock. Only generators
+ * with the `solidShell` switch have a shell; the realize pass that calls this checks it (compile/realize/solidShell.ts).
  * `claimed` tells which wall edges belong to buildings (their shells are their own).
  */
 export function planShell(
@@ -109,7 +109,6 @@ export function planShell(
   claimed: (orient: "h" | "v", edge: number) => boolean,
   defaultTheme: ThemeId,
 ): Shell | null {
-  if (!generatorProfile(resolved).solidShell) return null;
   const { w, h } = L.bounds;
   const at = (lx: number, ly: number): number => (lx < 0 || ly < 0 || lx >= w || ly >= h ? -1 : ly * w + lx);
   const state = (i: number): number => (i < 0 ? -1 : (L.cells.state[i] ?? CELL.VOID));
@@ -462,11 +461,4 @@ export function planShell(
     }
     return edges;
   }
-}
-
-/** Cell count by ring, for the report. */
-export function shellRings(s: Shell): Record<number, number> {
-  const out: Record<number, number> = {};
-  for (const c of s.cells.values()) out[c.ring] = (out[c.ring] ?? 0) + 1;
-  return out;
 }
