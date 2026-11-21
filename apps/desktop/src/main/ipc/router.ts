@@ -2,7 +2,7 @@ import type { z } from "zod";
 import type { AppError, IpcRequests, IpcSends, Result } from "../../shared/ipc";
 import { REQUEST_CHANNELS, SEND_CHANNELS } from "../../shared/channels";
 import { describeRequestError } from "../../shared/schemas/ipc";
-import type { Logger } from "../logger";
+import { redactString, type Logger } from "../logger";
 import { EnginePortError } from "../ports/engine";
 import { toAppError } from "../util/errors";
 
@@ -43,7 +43,15 @@ function isProviderErrorLike(err: unknown): err is { info: NonNullable<AppError[
   );
 }
 
+/** Every error that crosses IPC, with key-shaped text redacted (defence in depth: the engine redacts too). */
 export function mapError(err: unknown): AppError {
+  const e = mapErrorUnredacted(err);
+  const out: AppError = { ...e, message: redactString(e.message) };
+  if (e.provider) out.provider = { ...e.provider, message: redactString(e.provider.message) };
+  return out;
+}
+
+function mapErrorUnredacted(err: unknown): AppError {
   if (err instanceof EnginePortError) return err.error;
   if (isProviderErrorLike(err)) {
     return {

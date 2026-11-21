@@ -36,10 +36,21 @@ const SENSITIVE_KEYS = new Set([
   "markdown",
 ]);
 
-const KEY_PATTERN = /\b(sk-(?:[a-z]+-)?)[A-Za-z0-9_-]{8,}/g;
+/** Key-shaped text: provider keys (sk-…), bearer tokens, and values written after an api-key label. */
+const KEY_PATTERNS: ReadonlyArray<[RegExp, string]> = [
+  [/\b(sk-(?:[a-z]+-)?)[A-Za-z0-9_-]{8,}/g, "$1…[redacted]"],
+  [/\b(Bearer\s+)[A-Za-z0-9._~+/-]{16,}=*/gi, "$1[redacted]"],
+  [/\b((?:x-)?api[-_]?key["']?\s*[:=]\s*["']?)[A-Za-z0-9._-]{12,}/gi, "$1[redacted]"],
+];
 
+/**
+ * THE redaction of text that may carry a secret (log lines, provider error messages, anything forwarded to the
+ * renderer). Every place that passes provider or error text on uses this one function.
+ */
 export function redactString(s: string): string {
-  return s.replace(KEY_PATTERN, "$1…[redacted]");
+  let out = s;
+  for (const [pattern, mask] of KEY_PATTERNS) out = out.replace(pattern, mask);
+  return out;
 }
 
 export function redact(value: unknown, depth = 0): unknown {
