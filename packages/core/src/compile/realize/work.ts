@@ -5,12 +5,33 @@
  * registries of the context; the passes write the other fields, each field says which.
  */
 import type { Placement, PlacementRole } from "../../contracts/compiler";
+import type { Side, ThemeId } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
+import type { cliffRockKinds } from "../../gen/cover";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { axisPosition } from "../../resolve/road";
 import { emptyBox, growBox, h32, placementBox } from "../geometry";
 import type { RealizeCtx } from "./context";
 import { LevelView, type CellInfo } from "./view";
+
+export const EPS = 1e-6;
+export const opposite = (s: Side): Side => (s === "N" ? "S" : s === "S" ? "N" : s === "E" ? "W" : "E");
+
+/** Water materials: TaleSpire's water is a board-wide plane, so the slab carries the channel's bed. */
+export const WATER = new Set(["water_shallow", "water_deep"]);
+/** Natural ground whose drops of a tile or more are built as rock cliffs when the palette has no cliff.<material> role. */
+export const NATURAL_GROUND = new Set([
+  "rock",
+  "dirt",
+  "gravel",
+  "mud",
+  "sand",
+  "grass",
+  "snow",
+  "ice",
+  "swamp",
+  "lava",
+]);
 
 /** Places one asset (world tiles, rotation in degrees) and records its box and name. */
 export type Emit = (
@@ -44,6 +65,26 @@ export class LevelWork {
   readonly waterCells: Array<[number, number]> = [];
   /** Road axis of every carriageway cell ("x,y"): road tiles keep one orientation along it. */
   readonly roadAxisAt = new Map<string, "h" | "v">();
+
+  // ── rock band (cliffBand.ts) ──
+  /** Low ground in front of a tall band edge ("x,y"): natural ground there is laid as rock (floors.ts). */
+  readonly bandLow = new Set<string>();
+  /** Cells just behind a tall band edge ("x,y"): no face blocks and no hidden fill (fill.ts). */
+  readonly bandBack = new Set<string>();
+  /** Upper cells of a band edge the band left bare: they get a face block of one family. */
+  readonly bandBare = new Set<string>();
+  /** cliffKinds per theme, memoised. */
+  readonly kindMemo = new Map<ThemeId, ReturnType<typeof cliffRockKinds>>();
+  /** Cells within 3 of a band rock ("x,y"), built on first use (nearCliff). */
+  cliffCells: Set<string> | undefined = undefined;
+
+  // ── ground and fill (floors.ts, fill.ts) ──
+  /** The ground under each bridge deck cell ("x,y", relative tiles; floors.ts), for the faces round it. */
+  readonly groundUnder = new Map<string, number>();
+  /** Theme and material pairs already noted as having no cliff piece (cliffFace). */
+  readonly cliffNoted = new Set<string>();
+  /** Relative ground height outside the level bounds (generator 2 foundation; set by layRaisedFill). */
+  outsideGround = 0;
 
   /** Seeded quarter turn for square whole-cell blocks (mixes up repeated rock faces). */
   readonly blockTurn: (v: ResolvedVariant, key: string) => number;

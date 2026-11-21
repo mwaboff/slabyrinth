@@ -10,7 +10,7 @@ import type {
   PlacementRole,
   RoleName,
 } from "../contracts/compiler";
-import type { LevelId, Side, ThemeId } from "../contracts/plan";
+import type { Side, ThemeId } from "../contracts/plan";
 import { stallPieceOf } from "../gen/market";
 import { featureRoles } from "../gen/surfaces";
 import { CELL, CELL_FLAG, EDGE, type ResolvedFeature, type ResolvedLevel, type ResolvedPlan } from "../contracts/resolved";
@@ -21,30 +21,14 @@ import { realizeStructures, structureClaims } from "./structure";
 import { realizeStall } from "./stalls";
 import { SHELL, planShell } from "./shell";
 import { ValueNoise } from "../gen/noise";
-import { cliffRockKinds, edgeHidden, type RockShape } from "../gen/cover";
 import { planCaveWall, type WallFace, type WallShape } from "../gen/cavewall";
 import { roughCells } from "../resolve/wallTops";
-import { createFamilyPicker, type FloorFamily } from "../resolve/floorFamilies";
+import { cliffKinds, nearCliff, planRockBand, toneBoulders } from "./realize/cliffBand";
 import { createRealizeCtx, type PlacementMeta, type RealizeOptions } from "./realize/context";
+import { layPiers, layRaisedFill, stackFill } from "./realize/fill";
+import { layFloors, layGroundUnderDecks, layLiquidGlow, layRoadMarkings, layWaterBeds } from "./realize/floors";
 import { finishLevel, finishRealize, type RealizedSet, type RealizeOutput } from "./realize/output";
-import type { CellInfo } from "./realize/view";
-import { LevelWork } from "./realize/work";
-
-/** Rock band (generator 2, themes with cliff.formation_face): rise that gets a band, and how far it reaches. */
-const BAND = { minRiseQ: 8, out: 2, back: 2 } as const;
-
-/** Road markings (generator 2 roads): sparse drains along the kerb, data rather than code. */
-const ROAD_MARKINGS = {
-  drain: {
-    /** Cells from the start of a kerb line to the first drain (seeded within this range). */
-    first: [5, 14],
-    /** Cells between drains (seeded within this range per gap). */
-    every: [20, 30],
-    /** Kerb lines shorter than this get none; shorter than every[0], one with this chance. */
-    minLine: 8,
-    shortChance: 0.4,
-  },
-} as const;
+import { EPS, LevelWork, NATURAL_GROUND, opposite } from "./realize/work";
 
 /** World AABB of every placement made by realize (keyed by object; used by chunking for exact bounds). */
 export const placementBoxes = new WeakMap<Placement, Box3>();
@@ -55,8 +39,6 @@ export const placementMeta = new WeakMap<Placement, PlacementMeta>();
 const NONE = 0xffff;
 /** Opening roles whose asset is a full-height wall piece (no lintel above them). */
 const NO_LINTEL = new Set(["opening.archway", "opening.window", "opening.arrow_slit"]);
-const opposite = (s: Side): Side => (s === "N" ? "S" : s === "S" ? "N" : s === "E" ? "W" : "E");
-const EPS = 1e-6;
 /** Upright feature types whose assets are mixed along a run (see runPicks). */
 const RUN_MIX = new Set([
   "cluster_tall",
@@ -73,42 +55,10 @@ const RUN_MIX = new Set([
   "vehicle",
 ]);
 
-/**
- * Floor families that only grow where something causes them (owner's v6 and watchtower runs, 2026-11-20: reddish
- * leaf-litter squares scattered over open grass): under trees, along paths, at the foot of a rise, round a camp.
- */
-const CAUSED_FAMILIES = new Set(["lush"]);
 /** Natural standing pieces that must never be built from wall blocks (generator 3). */
 /** Loose rock that follows the tone of a cliff beside it (generator 3). */
 const CLIFF_DRESSING = new Set(["formation", "rock_formation", "boulder", "rock"]);
 const NATURAL_STANDING =new Set(["cluster_tall", "formation", "landmark", "rock_formation", "tall_marker"]);
-
-/** Features that cause litter and worn ground round them. */
-const CAUSE_FEATURES = new Set([
-  "cluster_tall",
-  "tree",
-  "pine_tree",
-  "dead_tree",
-  "tree_large",
-  "campfire",
-  "fire_pit",
-  "tent",
-]);
-
-/** Water materials: TaleSpire's water is a board-wide plane, so the slab carries the channel's bed. */
-const WATER = new Set(["water_shallow", "water_deep"]);
-const NATURAL_GROUND = new Set([
-  "rock",
-  "dirt",
-  "gravel",
-  "mud",
-  "sand",
-  "grass",
-  "snow",
-  "ice",
-  "swamp",
-  "lava",
-]);
 
 /** One edge strip (a wall or door piece occupying the half-cell next to an edge), for corner posts. */
 interface Strip {
@@ -127,669 +77,25 @@ export function realize(
   opts: RealizeOptions = {},
 ): RealizedSet {
   const ctx = createRealizeCtx(resolved, palettes, opts, { placementBoxes, placementMeta });
-  const { orientation, seed, frame, gen, defaultTheme, addDiag, views, lookup, pick, pickPatch, familiesOf, familyAt } =
-    ctx;
-  const { familyWarp, facingOf } = ctx;
+  const { orientation, seed, frame, gen, defaultTheme, addDiag, views, lookup, pick, facingOf } = ctx;
   const levelsWanted = opts.levels ? new Set(opts.levels) : null;
   const out: RealizeOutput = { levels: [], levelInfo: [], allBox: emptyBox() };
 
   for (const L of resolved.levels) {
     if (levelsWanted && !levelsWanted.has(L.id)) continue;
     const w = new LevelWork(ctx, L);
-    const { V, placements, runPicks, levelBox, outcropCells, waterCells, elev, roadAxisAt } = w;
+    const { V, placements, runPicks, levelBox, elev } = w;
     const { blockTurn, topOf, emit } = w;
-    const bedNoted = new Set<string>();
     let kerbNoted = false;
 
-    // ── 1. floors (greedy tiling) and 2. fill ──
-    // crossing cells take the theme's crossing tile (marking.crossing) AS their floor tile, turned by the road
-    // axis: a thick striped tile laid on top of the road would stand as a step
-    // where caused floor families may grow: within two cells of a tree, a camp, a path or the foot of a rise
-    const causeDist = new Map<string, number>();
-    {
-      const src: Array<[number, number]> = [];
-      for (const f of L.features)
-        if (CAUSE_FEATURES.has(f.type))
-          for (let y = f.at[1]; y < f.at[1] + f.size[1]; y++)
-            for (let x = f.at[0]; x < f.at[0] + f.size[0]; x++) src.push([x, y]);
-      for (let ly = 0; ly < V.h; ly++)
-        for (let lx = 0; lx < V.w; lx++) {
-          const x = L.bounds.x + lx;
-          const y = L.bounds.y + ly;
-          const c = V.cell(x, y);
-          if (!c.floor) continue;
-          const i = ly * V.w + lx;
-          if (((L.cells.flags[i] ?? 0) & CELL_FLAG.PATH) !== 0) src.push([x, y]);
-          else if (
-            [
-              [1, 0],
-              [-1, 0],
-              [0, 1],
-              [0, -1],
-            ].some(([dx, dy]) => {
-              const n = V.cell(x + (dx as number), y + (dy as number));
-              return n.floor && n.height - c.height >= 0.5;
-            })
-          )
-            src.push([x, y]);
-        }
-      for (const [sx, sy] of src)
-        for (let dy = -2; dy <= 2; dy++)
-          for (let dx = -2; dx <= 2; dx++) {
-            const k = `${sx + dx},${sy + dy}`;
-            const d = Math.max(Math.abs(dx), Math.abs(dy));
-            if ((causeDist.get(k) ?? 9) > d) causeDist.set(k, d);
-          }
-    }
-    /** The cell's floor family: caused families only near their cause, with a feathered, noisy edge. */
-    // generator 3: one dominant family, a tonally close second only in feathered patches with a cause
-    const pickFamily = gen.floorFamilies ? createFamilyPicker(L, seed) : null;
-    const famAt = (fams: FloorFamily[], x: number, y: number): string => {
-      if (pickFamily) return pickFamily(fams, x, y);
-      const caused = fams.filter((q) => CAUSED_FAMILIES.has(q.name));
-      if (caused.length === 0) return familyAt(fams, x, y);
-      const d = causeDist.get(`${x},${y}`) ?? 9;
-      const j = familyWarp.sample(x / 2.5 + 11, y / 2.5 + 3);
-      if ((d === 0 && j > 0.45) || (d === 1 && j > 0.62) || (d === 2 && j > 0.8))
-        return (caused[0] as { name: string }).name;
-      return familyAt(
-        fams.filter((q) => !CAUSED_FAMILIES.has(q.name)),
-        x,
-        y,
-      );
-    };
-    const crossingAxis = new Map<string, "h" | "v">();
-    for (const rd of L.roads ?? [])
-      for (const cr of rd.crossings) for (const [x, y] of cr.cells) crossingAxis.set(`${x},${y}`, cr.axis);
-    const used = new Set<number>();
-    // rock band (generator 2): where the theme has the formation roles, natural cliff runs of 2 tiles or more are
-    // faced by the dressing's rock band. Under the band the low ground is rock floor (about 2 cells out), the face has
-    // no 1×1 blocks and the cells behind the edge (about 2 back) no hidden fill.
-    const bandThemes = new Map<string, boolean>();
-    const hasBand = (theme: ThemeId): boolean => {
-      let b = bandThemes.get(theme);
-      if (b === undefined) {
-        b = Boolean(lookup(L.id, theme, ["cliff.formation_face"], undefined, true));
-        bandThemes.set(theme, b);
-      }
-      return b;
-    };
-    // generator 3: one rock tone per cliff (gen/cover.ts cliffRockKinds): a kind of rock with no piece in the cliff's
-    // tone is not built (its drops get the plain block face), and the dressing rock near a cliff follows the tone
-    const kindMemo = new Map<ThemeId, ReturnType<typeof cliffRockKinds>>();
-    const cliffKinds = (theme: ThemeId): ReturnType<typeof cliffRockKinds> => {
-      if (!gen.cliffToneRule) return { face: true, crest: true };
-      let k = kindMemo.get(theme);
-      if (k === undefined) {
-        const vs = (role: string): readonly ResolvedVariant[] =>
-          lookup(L.id, theme, [role], undefined, true)?.variants ?? [];
-        k = cliffRockKinds(vs("cliff.formation_face"), vs("cliff.formation_crest"));
-        kindMemo.set(theme, k);
-      }
-      return k;
-    };
-    /** Boulders of a tone the theme's boulder role lacks (role cliff.formation_crest_<tone>), for cliffs and rock beside them. */
-    const toneBoulders = (theme: ThemeId, tone: string): readonly ResolvedVariant[] =>
-      (lookup(L.id, theme, [`cliff.formation_crest_${tone}`], undefined, true)?.variants ?? []).filter(
-        (u) => u.weight > 0,
-      );
-    let cliffCells: Set<string> | undefined;
-    /** Is the cell within 3 cells of a band rock (generator 3)? */
-    const nearCliff = (x: number, y: number): boolean => {
-      if (cliffCells === undefined) {
-        cliffCells = new Set();
-        for (const q of L.features) {
-          if (q.type !== "cliff_face" && q.type !== "cliff_crest") continue;
-          for (let dy = -3; dy < q.size[1] + 3; dy++)
-            for (let dx = -3; dx < q.size[0] + 3; dx++) cliffCells.add(`${q.at[0] + dx},${q.at[1] + dy}`);
-        }
-      }
-      return cliffCells.has(`${x},${y}`);
-    };
-    const bandLow = new Set<string>();
-    const bandBack = new Set<string>();
-    /** Upper cells of a band edge the band left bare: they get a face block of one family. */
-    const bandBare = new Set<string>();
-    // generator 3: the rocks as they stand (real outline, turn, slide, vertical span), to test what hides a face
-    const restingBand = gen.restingCliffBand;
-    const rockShapes: RockShape[] = [];
-    if (restingBand) {
-      const extent = (
-        theme: ThemeId,
-        role: string,
-        tall: boolean,
-      ): { w: number; d: number; h: number } | undefined => {
-        const r = lookup(L.id, theme, [role], undefined, true);
-        const vs = (r?.variants ?? []).filter((q) => q.weight > 0 && (!tall || q.geom.size.y >= 1.2));
-        const v = [...vs].sort((a, b) => b.weight - a.weight)[0];
-        return v ? { w: v.geom.size.x, d: v.geom.size.z, h: v.geom.size.y } : undefined;
-      };
-      for (const f of L.features) {
-        if (f.type !== "cliff_face" && f.type !== "cliff_crest") continue;
-        if (!cliffKinds(f.theme)[f.type === "cliff_face" ? "face" : "crest"]) continue;
-        const ext =
-          f.type === "cliff_face"
-            ? extent(f.theme, "cliff.formation_face", false)
-            : extent(f.theme, "cliff.formation_crest", true);
-        if (!ext) continue;
-        rockShapes.push({
-          cx: f.at[0] + f.size[0] / 2 + (f.offset?.[0] ?? 0),
-          cy: f.at[1] + f.size[1] / 2 + (f.offset?.[1] ?? 0),
-          rot: f.rotFine,
-          w: ext.w,
-          d: ext.d,
-          base: f.baseHeight,
-          top: f.baseHeight + ext.h,
-        });
-      }
-    }
-    if (gen.cliffRockBand)
-      for (const run of L.cliffs ?? [])
-        for (const e of run.edges) {
-          if (e.high - e.low < (restingBand ? 4 : BAND.minRiseQ)) continue;
-          const c0 = V.cell(e.at[0], e.at[1]);
-          if (!hasBand(c0.theme)) continue;
-          const [dx, dy] =
-            e.side === "N" ? [0, -1] : e.side === "S" ? [0, 1] : e.side === "E" ? [1, 0] : [-1, 0];
-          const tallEdge = e.high - e.low >= BAND.minRiseQ;
-          if (tallEdge) {
-            for (let k = 1; k <= BAND.out; k++) bandLow.add(`${e.at[0] + dx * k},${e.at[1] + dy * k}`);
-            for (let k = 0; k < BAND.back; k++) bandBack.add(`${e.at[0] - dx * k},${e.at[1] - dy * k}`);
-          }
-          // what the band actually placed: an edge with no rock over its midpoint keeps a face behind it (no hole)
-          const mx = e.at[0] + 0.5 + dx * 0.5;
-          const my = e.at[1] + 0.5 + dy * 0.5;
-          const base = L.elevation + 0.5;
-          const covered = restingBand
-            ? edgeHidden(
-                rockShapes,
-                mx,
-                my,
-                dy !== 0 ? 1 : 0,
-                dx !== 0 ? 1 : 0,
-                base + e.low / 4,
-                base + e.high / 4,
-              )
-            : L.features.some(
-                (f) =>
-                  (f.type === "cliff_face" || f.type === "cliff_crest") &&
-                  cliffKinds(f.theme)[f.type === "cliff_face" ? "face" : "crest"] &&
-                  mx >= f.at[0] - 0.3 &&
-                  mx <= f.at[0] + f.size[0] + 0.3 &&
-                  my >= f.at[1] - 0.3 &&
-                  my <= f.at[1] + f.size[1] + 0.3,
-              );
-          if (!covered) bandBare.add(`${e.at[0]},${e.at[1]}`);
-        }
-    /** Floor material as laid: natural low ground under a rock band is rock. */
-    const laidMaterial = (c: CellInfo, x: number, y: number): string | null =>
-      c.material !== null && NATURAL_GROUND.has(c.material) && bandLow.has(`${x},${y}`) ? "rock" : c.material;
-    const keyOf = (c: CellInfo, x: number, y: number): string =>
-      `${c.theme}|${laidMaterial(c, x, y) ?? ""}|${c.height}`;
-    for (let ly = 0; ly < V.h; ly++) {
-      for (let lx = 0; lx < V.w; lx++) {
-        const x = L.bounds.x + lx;
-        const y = L.bounds.y + ly;
-        const c = V.cell(x, y);
-        if (!c.floor || used.has(ly * V.w + lx)) continue;
-        // outcrops are solid rock columns (built in the cliff pass), not floor tiles
-        if (outcropCells.has(`${x},${y}`)) {
-          used.add(ly * V.w + lx);
-          continue;
-        }
-        // water: TaleSpire's water is the board's water plane; the slab carries the channel's bed (+ optional surface)
-        if (c.material !== null && WATER.has(c.material)) {
-          used.add(ly * V.w + lx);
-          waterCells.push([x, y]);
-          continue;
-        }
-        const crossAxis = crossingAxis.get(`${x},${y}`);
-        if (crossAxis !== undefined) {
-          const cr = lookup(
-            L.id,
-            c.theme,
-            ["marking.crossing"],
-            { key: "1x1", test: (q) => q.footprint[0] === 1 && q.footprint[1] === 1 },
-            true,
-          );
-          const cv = cr ? pick(cr.variants, `${L.id}:crossing:${x}:${y}`) : undefined;
-          if (cv) {
-            used.add(ly * V.w + lx);
-            const m = frame.rectMin(x, y, 1, 1);
-            emit(cv, "floor", m.x, topOf(c) - cv.geom.size.y, m.z, (crossAxis === "h" ? 0 : 90) + cv.rot, {
-              cell: [x, y],
-              elementId: "crossing",
-            });
-            continue;
-          }
-        }
-        const role = `floor.${laidMaterial(c, x, y) ?? ""}`;
-        const res = lookup(L.id, c.theme, [role]);
-        if (!res) {
-          used.add(ly * V.w + lx);
-          continue;
-        }
-        const greedy = res.def.greedyTiling !== false;
-        // families on natural ground only: built floors (flagstone, planks) keep their regular laying
-        const fams = c.material !== null && NATURAL_GROUND.has(c.material) ? familiesOf(res.variants) : [];
-        const fam = famAt(fams, x, y);
-        const inFam = (v: ResolvedVariant): boolean => fams.length <= 1 || (v.variant ?? "") === fam;
-        const fps = [
-          ...new Set(
-            res.variants
-              .filter((v) => v.weight > 0 || res.variants.every((u) => u.weight <= 0))
-              .filter((v) => inFam(v) || (v.variant ?? "") === "")
-              .map((v) => `${v.footprint[0]}x${v.footprint[1]}`),
-          ),
-        ]
-          .map((s) => s.split("x").map(Number) as [number, number])
-          .filter(([w, h]) => greedy || (w === 1 && h === 1))
-          .sort((a, b) => b[0] * b[1] - a[0] * a[1] || b[0] - a[0]);
-        // generator 3: a 1x2 piece may lie either way (turned a quarter), the way round chosen per cell from the seed, so
-        // a field of them is not all one orientation
-        if (gen.turnedFloorTiles && greedy)
-          for (const [fw0, fh0] of [...fps])
-            if (fw0 !== fh0 && !fps.some(([a, b]) => a === fh0 && b === fw0)) fps.push([fh0, fw0]);
-        if (gen.turnedFloorTiles && greedy) {
-          const flip = h32(`${seed}:${L.id}:floororient:${x}:${y}`) % 2 === 1;
-          fps.sort((a, b) => b[0] * b[1] - a[0] * a[1] || (flip ? a[0] - b[0] : b[0] - a[0]));
-        }
-        const k0 = keyOf(c, x, y);
-        // road carriageway tiles keep one orientation along the road's axis (markings on the tiles line up)
-        const roadDir = roadAxisAt.get(`${x},${y}`);
-        let placed = false;
-        for (const [fw, fh] of fps.length ? fps : [[1, 1] as [number, number]]) {
-          let fits = lx + fw <= V.w && ly + fh <= V.h;
-          for (let dy = 0; fits && dy < fh; dy++) {
-            for (let dx = 0; fits && dx < fw; dx++) {
-              const cc = V.cell(x + dx, y + dy);
-              if (!cc.floor || used.has((ly + dy) * V.w + lx + dx) || keyOf(cc, x + dx, y + dy) !== k0)
-                fits = false;
-              else if (fams.length > 1 && famAt(fams, x + dx, y + dy) !== fam) fits = false;
-            }
-          }
-          if (!fits) continue;
-          // a candidate with no variant of that footprint but one of the transposed footprint lays that piece turned
-          const ownOf = (a: number, b: number): ResolvedVariant[] =>
-            res.variants.filter(
-              (u) =>
-                u.footprint[0] === a && u.footprint[1] === b && u.weight > 0 && (inFam(u) || (u.variant ?? "") === ""),
-            );
-          const turned = gen.turnedFloorTiles && fw !== fh && ownOf(fw, fh).length === 0 && ownOf(fh, fw).length > 0;
-          const sized = res.variants.filter((u) =>
-            turned ? u.footprint[0] === fh && u.footprint[1] === fw : u.footprint[0] === fw && u.footprint[1] === fh,
-          );
-          // the cell's family. A family without a piece of this size tries its own smaller pieces first; one with
-          // nothing smaller (a meadow made only of 8×8 tiles) uses the default family's piece of this size
-          const famSized = sized.filter((u) => inFam(u) && u.weight > 0);
-          if (
-            famSized.length === 0 &&
-            fams.length > 1 &&
-            res.variants.some((u) => inFam(u) && u.weight > 0 && u.footprint[0] * u.footprint[1] < fw * fh)
-          )
-            continue;
-          const v = pickPatch(
-            famSized.length ? famSized : sized.filter((u) => (u.variant ?? "") === ""),
-            x,
-            y,
-            `${L.id}:floor:${x}:${y}`,
-          );
-          if (!v) continue;
-          for (let dy = 0; dy < fh; dy++) for (let dx = 0; dx < fw; dx++) used.add((ly + dy) * V.w + lx + dx);
-          const m = frame.rectMin(x, y, fw, fh);
-          const rule = res.def.rotation ?? "random90";
-          const r = h32(`${seed}:${L.id}:floorrot:${x}:${y}`);
-          const steps =
-            roadDir !== undefined
-              ? roadDir === "h"
-                ? 0
-                : 6
-              : rule === "fixed"
-                ? 0
-                : fw === fh
-                  ? rule === "random90" || rule === "random15"
-                    ? (r % 4) * 6
-                    : 0
-                  : (r % 2) * 12 + (turned ? 6 : 0);
-          emit(v, "floor", m.x, topOf(c) - v.geom.size.y, m.z, steps * 15 + v.rot, {
-            cell: [x, y],
-            elementId: `floor:${role}`,
-          });
-          placed = true;
-          break;
-        }
-        if (!placed) used.add(ly * V.w + lx);
-      }
-    }
-    // road markings (generator 2 roads): marking.crossing on crossing cells, an occasional marking.drain on the
-    // carriageway beside the kerb; optional roles, the road is complete without them
-    for (const rd of L.roads ?? []) {
-      const one: VariantFilter = { key: "1x1", test: (q) => q.footprint[0] === 1 && q.footprint[1] === 1 };
-      const mark = (role: string, x: number, y: number, dir: "h" | "v", tag: string): boolean => {
-        const c = V.cell(x, y);
-        const res = lookup(L.id, c.theme, [role], one, true);
-        const v = res ? pick(res.variants, `${L.id}:${tag}:${x}:${y}`) : undefined;
-        if (!v) return false;
-        const m = frame.rectMin(x, y, 1, 1);
-        emit(v, "floor", m.x, topOf(c), m.z, (dir === "h" ? 0 : 90) + v.rot, {
-          cell: [x, y],
-          elementId: tag,
-        });
-        return true;
-      };
-      // crossings are laid as floor tiles in the floor pass
-      for (const kl of rd.kerbLines) {
-        const [dx, dy] =
-          kl.side === "N" ? [0, -1] : kl.side === "S" ? [0, 1] : kl.side === "E" ? [1, 0] : [-1, 0];
-        const n = Math.max(Math.abs(kl.to[0] - kl.from[0]), Math.abs(kl.to[1] - kl.from[1])) + 1;
-        const sx = Math.sign(kl.to[0] - kl.from[0]);
-        const sy = Math.sign(kl.to[1] - kl.from[1]);
-        // sparse, irregular drains (ROAD_MARKINGS): a seeded gap from the start of the kerb line, then a jittered
-        // spacing; a line shorter than the minimum spacing gets one at most, and only sometimes
-        const D = ROAD_MARKINGS.drain;
-        let h = h32(`${seed}:${L.id}:drain:${kl.from[0]},${kl.from[1]}:${kl.side}`);
-        if (n < D.minLine || (n < D.every[0] && h % 100 >= D.shortChance * 100)) continue;
-        for (let t = D.first[0] + (h % (D.first[1] - D.first[0] + 1)); t < n - 1;) {
-          const x = kl.from[0] + sx * t + dx;
-          const y = kl.from[1] + sy * t + dy;
-          if (!mark("marking.drain", x, y, kl.side === "N" || kl.side === "S" ? "h" : "v", "drain")) break;
-          h = h32(`${h}`);
-          t += D.every[0] + (h % (D.every[1] - D.every[0] + 1));
-        }
-      }
-    }
-    // water beds: bed.<water material> → bed.default → the floor of the bank beside it (never an open void)
-    for (const [x, y] of waterCells) {
-      const c = V.cell(x, y);
-      const one: VariantFilter = { key: "1x1", test: (q) => q.footprint[0] === 1 && q.footprint[1] === 1 };
-      let res = lookup(L.id, c.theme, [`bed.${c.material ?? ""}`, "bed.default"], one, true);
-      if (!res) {
-        let bank: string | null = null;
-        for (const [nx, ny] of [
-          [x, y - 1],
-          [x + 1, y],
-          [x, y + 1],
-          [x - 1, y],
-        ] as const) {
-          const n = V.cell(nx, ny);
-          if (n.floor && n.material !== null && !WATER.has(n.material)) bank = bank ?? n.material;
-        }
-        res = lookup(L.id, c.theme, ["floor.gravel", `floor.${bank ?? "rock"}`, "fill.default"], one, true);
-        if (!bedNoted.has(`${c.theme}|${c.material}`)) {
-          bedNoted.add(`${c.theme}|${c.material}`);
-          addDiag({
-            severity: "warning",
-            code: "asset_substituted",
-            message: `No bed piece for ${c.material} in theme "${c.theme}" (bed.${c.material}, bed.default): the channel is floored with ${res?.role ?? "nothing"}`,
-            levelId: L.id,
-            role: `bed.${c.material}`,
-          });
-        }
-      }
-      const v = res ? pick(res.variants, `${L.id}:bed:${x}:${y}`) : undefined;
-      if (v) {
-        const m = frame.rectMin(x, y, 1, 1);
-        const steps = (h32(`${seed}:${L.id}:floorrot:${x}:${y}`) % 4) * 6;
-        emit(v, "floor", m.x, topOf(c) - v.geom.size.y, m.z, steps * 15 + v.rot, {
-          cell: [x, y],
-          elementId: "bed",
-        });
-      }
-      // optional surface piece, only where the palette has one (water.<material>)
-      const wr = lookup(L.id, c.theme, [`water.${c.material ?? ""}`], one, true);
-      const wv = wr ? pick(wr.variants, `${L.id}:water:${x}:${y}`) : undefined;
-      if (wv) {
-        const m = frame.rectMin(x, y, 1, 1);
-        emit(wv, "floor", m.x, topOf(c), m.z, wv.rot, { cell: [x, y], elementId: "water" });
-      }
-    }
-    // the ground under bridge decks: its floor tile, and its height for the cliff faces around it
-    const groundUnder = new Map<string, number>();
-    const cliffNoted = new Set<string>();
-    for (const b of L.bridges ?? []) {
-      b.cells.forEach(([bx, by], j) => {
-        const uq = b.under[j] ?? b.deck;
-        groundUnder.set(`${bx},${by}`, uq / 4);
-        const mat = b.underMaterial[j] ?? null;
-        if (mat === null || uq >= b.deck) return;
-        const c = V.cell(bx, by);
-        const role = `floor.${mat}`;
-        // the default family (untagged variants): patch families are for open floors
-        const res = lookup(L.id, c.theme, [role], {
-          key: "1x1plain",
-          test: (v) => v.footprint[0] === 1 && v.footprint[1] === 1 && (v.variant ?? "") === "",
-        });
-        const v = res ? pick(res.variants, `${L.id}:under:${bx}:${by}`) : undefined;
-        if (!v) return;
-        const m = frame.rectMin(bx, by, 1, 1);
-        const steps = (h32(`${seed}:${L.id}:floorrot:${bx}:${by}`) % 4) * 6;
-        emit(v, "floor", m.x, elev + uq / 4 + 0.5 - v.geom.size.y, m.z, steps * 15 + v.rot, {
-          cell: [bx, by],
-          elementId: `floor:${role}`,
-        });
-      });
-    }
-    /** Height of the ground a neighbour presents to a raised cell (open cells, floorless ones included, and the ground under decks). */
-    // Generator 2: the level stands on a solid foundation down to its lowest floor, so outside the level bounds the
-    // ground is that low and cells on the border get solid sides (raised land has thickness seen from the side).
-    let levelLowest = 0;
-    for (let i = 0; i < V.w * V.h; i++)
-      if (L.cells.state[i] === CELL.OPEN) levelLowest = Math.min(levelLowest, (L.cells.height[i] ?? 0) / 4);
-    for (const b of L.bridges ?? []) for (const q of b.under) levelLowest = Math.min(levelLowest, q / 4);
-    const outsideGround = gen.foundation ? Math.min(levelLowest, -(L.foundation ?? 0)) : 0;
-    const groundOf = (x: number, y: number): number => {
-      const g = groundUnder.get(`${x},${y}`);
-      if (g !== undefined) return g;
-      if (!V.inBounds(x, y)) return outsideGround;
-      const n = V.cell(x, y);
-      return n.open ? n.height : 0;
-    };
-    // fill under raised cells; drops of a tile or more get a cliff face (ledge role / natural rock) instead
-    for (let ly = 0; ly < V.h; ly++) {
-      for (let lx = 0; lx < V.w; lx++) {
-        const x = L.bounds.x + lx;
-        const y = L.bounds.y + ly;
-        const c = V.cell(x, y);
-        if (!c.floor || (c.flags & CELL_FLAG.BRIDGE) !== 0) continue; // decks have open air beneath
-        const minN = Math.min(groundOf(x, y - 1), groundOf(x + 1, y), groundOf(x, y + 1), groundOf(x - 1, y));
-        if (outcropCells.has(`${x},${y}`)) {
-          // a rock column from the ground around it up to its top (no floor tile): reads as rock, not a tiled box
-          if (!cliffFace(c.theme, c.material, x, y, elev + Math.min(minN, 0), elev + c.height + 0.5, true))
-            stackFill(L.id, c.theme, c.material, x, y, elev + Math.min(minN, 0), elev + c.height + 0.5);
-          continue;
-        }
-        if (c.height <= minN + EPS) continue;
-        // generator 4: a floor raised no more than its own slab (half a tile) over every neighbour abuts the neighbour's
-        // slab, so nothing shows under it and no fill course is needed (a room raised a quarter tile over its corridor
-        // costs no extra pieces); the board edge and open air beside it keep their fill
-        if (
-          gen.flushRaisedFloors &&
-          c.height - minN <= 0.5 + EPS &&
-          c.material !== null &&
-          !NATURAL_GROUND.has(c.material) &&
-          !WATER.has(c.material)
-        )
-          continue;
-        // behind a rock band: no face blocks and no hidden fill (the band covers the drop); the board's own edge keeps
-        // its solid side
-        if (bandBare.has(`${x},${y}`)) {
-          // one rock family for every such patch (the band's backing), never the mixed per-cell picks
-          if (cliffFace(c.theme, c.material, x, y, elev + minN, elev + c.height, false, `${L.id}:ledge:band`))
-            continue;
-        } else if (
-          bandBack.has(`${x},${y}`) &&
-          c.height - minN >= BAND.minRiseQ / 4 - EPS &&
-          lx > 0 &&
-          ly > 0 &&
-          lx < V.w - 1 &&
-          ly < V.h - 1
-        ) {
-          continue;
-        }
-        if (c.height - minN >= 1 - EPS && cliffFace(c.theme, c.material, x, y, elev + minN, elev + c.height))
-          continue;
-        stackFill(L.id, c.theme, c.material, x, y, elev + minN, elev + c.height);
-      }
-    }
-
-    /** Stacks cliff blocks (cliff.<material>, cliff.default, or natural rock for natural ground) under a raised cell. */
-    function cliffFace(
-      theme: ThemeId,
-      material: string | null,
-      x: number,
-      y: number,
-      from: number,
-      to: number,
-      force = false,
-      pickKey?: string,
-    ): boolean {
-      // whole-cell blocks only: 1×1 footprint and about a tile wide both ways
-      const one: VariantFilter = {
-        key: "block1x1",
-        test: (v) =>
-          v.footprint[0] === 1 &&
-          v.footprint[1] === 1 &&
-          v.geom.size.x > 0.8 &&
-          v.geom.size.z > 0.8 &&
-          v.geom.originAt === "minCorner",
-      };
-      // generator 3: natural ground shows rock where its face is bare, never earth-coloured fill (cliff.rock_block)
-      const rockFirst = gen.rockGroundFaces && material !== null && NATURAL_GROUND.has(material);
-      let res = lookup(
-        L.id,
-        theme,
-        material
-          ? [...(rockFirst ? ["cliff.rock_block"] : []), `cliff.${material}`, "cliff.default"]
-          : ["cliff.default"],
-        one,
-        true,
-      );
-      if (!res && material !== null && (force || NATURAL_GROUND.has(material)))
-        res = lookup(L.id, theme, ["cliff.natural"], one, true);
-      if (!res) {
-        if (material !== null && NATURAL_GROUND.has(material) && !cliffNoted.has(`${theme}|${material}`)) {
-          cliffNoted.add(`${theme}|${material}`);
-          addDiag({
-            severity: "info",
-            code: "asset_substituted",
-            message: `No cliff piece for ${material} in theme "${theme}" (cliff.${material}, cliff.default, cliff.natural); its drops are built with fill courses`,
-            levelId: L.id,
-            role: `cliff.${material}`,
-          });
-        }
-        return false;
-      }
-      const v = pick(res.variants, pickKey ?? `${L.id}:ledge:${x}:${y}`);
-      if (!v) return false;
-      const u = v.unitHeight;
-      // outcrops (force) are rock all the way: a part block sinks into the ground rather than becoming fill
-      const n = force ? Math.max(1, Math.ceil((to - from) / u - EPS)) : Math.floor((to - from) / u + EPS);
-      const m = frame.rectMin(x, y, 1, 1);
-      for (let k = 0; k < n; k++)
-        emit(v, "ledge", m.x, to - (k + 1) * u, m.z, v.rot + blockTurn(v, `${x}:${y}:${k}`), {
-          cell: [x, y],
-          elementId: "ledge",
-        });
-      // the rest (less than one block) in fill courses, so nothing reaches below the lower floor
-      const rest = to - n * u - from;
-      if (rest > EPS) stackFill(L.id, theme, material, x, y, from, from + rest);
-      return true;
-    }
-
-    // stone piers under bridge decks: courses of the deck's fill from the ground beneath up to the deck
-    for (const b of L.bridges ?? []) {
-      for (const [px, py] of b.piers ?? []) {
-        const j = b.cells.findIndex((c) => c[0] === px && c[1] === py);
-        if (j < 0) continue;
-        const c = V.cell(px, py);
-        const ground = (b.under[j] ?? b.deck) / 4;
-        if (c.height - ground < 0.5 - EPS) continue;
-        // pier.<material> / pier.default when the palette has a column piece, else courses of the deck's fill
-        const one: VariantFilter = { key: "1x1", test: (q) => q.footprint[0] === 1 && q.footprint[1] === 1 };
-        const roles = c.material ? [`pier.${c.material}`, "pier.default"] : ["pier.default"];
-        const pr = lookup(L.id, c.theme, roles, one, true);
-        const pv = pr ? pick(pr.variants, `${L.id}:pier:${px}:${py}`) : undefined;
-        if (pv) {
-          const m = frame.rectMin(px, py, 1, 1);
-          // whole pieces from the deck down, the remainder in fill: nothing reaches below the ground beneath
-          const n = Math.floor((c.height - ground) / pv.unitHeight + EPS);
-          for (let s = 0; s < n; s++)
-            emit(pv, "fill", m.x, elev + c.height - (s + 1) * pv.unitHeight, m.z, pv.rot, {
-              cell: [px, py],
-              elementId: "pier",
-            });
-          const rest = c.height - ground - n * pv.unitHeight;
-          if (rest > EPS)
-            stackFill(L.id, c.theme, c.material, px, py, elev + ground, elev + ground + rest, "fill", "pier");
-        } else stackFill(L.id, c.theme, c.material, px, py, elev + ground, elev + c.height, "fill", "pier");
-      }
-    }
-
-    // light props on liquid surfaces (lava glow): every third cell on a 3×3 lattice, when the palette has the role
-    for (let ly = 0; ly < V.h; ly++) {
-      for (let lx = 0; lx < V.w; lx++) {
-        const x = L.bounds.x + lx;
-        const y = L.bounds.y + ly;
-        if (((x % 3) + 3) % 3 !== 1 || ((y % 3) + 3) % 3 !== 1) continue;
-        const c = V.cell(x, y);
-        if (!c.floor || c.material === null) continue;
-        const res = lookup(
-          L.id,
-          c.theme,
-          [`glow.${c.material}`, `feature.${c.material}_glow`],
-          undefined,
-          true,
-        );
-        const v = res ? pick(res.variants, `${L.id}:glow:${x}:${y}`) : undefined;
-        if (!v) continue;
-        const ctr = frame.point(x + 0.5, y + 0.5);
-        const off =
-          v.geom.originAt === "minCorner"
-            ? { x: v.geom.size.x / 2, z: v.geom.size.z / 2 }
-            : v.geom.boundsCenter;
-        emit(v, "feature", ctr.x - off.x, topOf(c), ctr.z - off.z, v.rot, {
-          cell: [x, y],
-          elementId: `glow:${c.material}`,
-        });
-      }
-    }
-
-    function stackFill(
-      levelId: LevelId,
-      theme: ThemeId,
-      material: string | null,
-      x: number,
-      y: number,
-      from: number,
-      to: number,
-      role: PlacementRole = "fill",
-      elementId = "fill",
-    ): void {
-      // water cells sit on their bed; other cells fill with their own floor tile before the generic fill
-      const roles = !material
-        ? ["fill.default"]
-        : WATER.has(material)
-          ? [`bed.${material}`, "bed.default", "fill.default"]
-          : [
-              ...(gen.rockGroundFaces && NATURAL_GROUND.has(material) ? ["fill.rock"] : []),
-              `fill.${material}`,
-              `floor.${material}`,
-              "fill.default",
-            ];
-      // stacked courses use the default family (untagged 1×1 variants), not a patch family's tile
-      const res = lookup(levelId, theme, roles, {
-        key: "1x1plain",
-        test: (v) => v.footprint[0] === 1 && v.footprint[1] === 1 && (v.variant ?? "") === "",
-      });
-      if (!res) return;
-      const v = pick(res.variants, `${levelId}:fill:${x}:${y}`);
-      if (!v) return;
-      const u = v.unitHeight;
-      const n = Math.ceil((to - from) / u - EPS);
-      const m = frame.rectMin(x, y, 1, 1);
-      for (let k = 0; k < n; k++)
-        emit(v, role, m.x, to - (k + 1) * u, m.z, v.rot, { cell: [x, y], elementId });
-    }
+    planRockBand(w);
+    layFloors(w);
+    layRoadMarkings(w);
+    layWaterBeds(w);
+    layGroundUnderDecks(w);
+    layRaisedFill(w);
+    layPiers(w);
+    layLiquidGlow(w);
 
     // ── 3. walls, openings, posts ──
     const strips = new Map<string, Array<Strip & { dir: Side }>>(); // vertex key → strips ending there
@@ -1210,7 +516,7 @@ export function realize(
     // Generator 2: rock walls reach down to the lowest floor of the level (nothing below the room shows from outside)
     // and vary in height like a natural cave (0, 1 or 2 extra blocks from seeded value noise).
     const rockSkirt = gen.rockWallSkirt;
-    const skirt = elev + outsideGround;
+    const skirt = elev + w.outsideGround;
     const wallNoise = new ValueNoise(h32(`${seed}:${L.id}:walltops`));
     // the extra blocks never rise through the floor of a level stacked above (verify_pokes_into_level_above)
     const ceiling = resolved.levels.reduce(
@@ -1726,11 +1032,11 @@ export function realize(
           if ((kIdx + 1) * rise <= lk.rise + EPS) {
             const base = lowerTop + kIdx * rise;
             if (base > lowerTop + EPS)
-              stackFill(L.id, theme, c.material, cx, cy, lowerTop, base, "link", lk.id);
+              stackFill(w, L.id, theme, c.material, cx, cy, lowerTop, base, "link", lk.id);
             emit(v, "link", m.x, base, m.z, steps * 15 + v.rot, { cell: [cx, cy], elementId: lk.id });
           } else {
             // landing: the rest of a non-integer rise as fill courses up to the upper floor top
-            stackFill(L.id, theme, c.material, cx, cy, lowerTop, lowerTop + lk.rise, "link", lk.id);
+            stackFill(w, L.id, theme, c.material, cx, cy, lowerTop, lowerTop + lk.rise, "link", lk.id);
           }
         }
       } else {
@@ -1981,24 +1287,24 @@ export function realize(
           }
           // one rock tone per cliff: the face piece decides; boulders match it (the palette's same-tone boulder role when
           // the boulder role has none), and keep their own tone only when the palette has no piece of that tone
-          const tone = cliffKinds(theme).tone;
+          const tone = cliffKinds(w, theme).tone;
           if (tone !== undefined) {
             const same = pool.filter((u) => u.weight > 0 && u.tone === tone);
             if (same.length > 0) pool = same;
             else if (f.type === "cliff_crest") {
-              const alt = toneBoulders(theme, tone);
+              const alt = toneBoulders(w, theme, tone);
               if (alt.length > 0) pool = [...alt];
             }
           }
         }
         // generator 3: the loose rock within 3 cells of a cliff follows the cliff's tone (untagged pieces are unknown: kept)
-        if (gen.cliffToneRule && CLIFF_DRESSING.has(f.type) && nearCliff(f.at[0], f.at[1])) {
-          const tone = cliffKinds(theme).tone;
+        if (gen.cliffToneRule && CLIFF_DRESSING.has(f.type) && nearCliff(w, f.at[0], f.at[1])) {
+          const tone = cliffKinds(w, theme).tone;
           const tagged = pool.filter((u) => u.weight > 0 && u.tone !== undefined);
           if (tone !== undefined && tagged.length > 0) {
             if (tagged.some((u) => u.tone === tone)) pool = pool.filter((u) => u.tone === undefined || u.tone === tone);
             else {
-              const alt = toneBoulders(theme, tone);
+              const alt = toneBoulders(w, theme, tone);
               if (alt.length > 0) pool = [...pool.filter((u) => u.tone === undefined), ...alt];
             }
           }
