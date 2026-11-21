@@ -34,6 +34,7 @@
     "test": "vitest run",
     "test:golden:update": "vitest run --project core --update",
     "test:golden:gen4:update": "npm run test:golden:gen4:update -w @slabyrinth/core",
+    "test:sweep": "npm run test:sweep -w @slabyrinth/core --",
     "test:e2e": "npm run test:e2e -w @slabyrinth/desktop",
     "capture:site": "npm run capture:site -w @slabyrinth/desktop",
     "package": "npm run package -w @slabyrinth/desktop",
