@@ -296,8 +296,8 @@ describe("ProjectService: files", () => {
 });
 
 describe("ProjectService: plan history", () => {
-  const setup = async (applyOps = true): Promise<ProjectRig> => {
-    rig = await projectRig({ core: corePort({ applyOps }) });
+  const setup = async (): Promise<ProjectRig> => {
+    rig = await projectRig({ core: corePort() });
     await rig.projects.create({ name: "History" });
     rig.projects.commitVersion({
       plan: FIXTURE_PLAN,
@@ -365,18 +365,6 @@ describe("ProjectService: plan history", () => {
     const entry = r.projects.getVersion(2).levels[0]?.areas.find((a) => a.id === "entry");
     expect(entry).toMatchObject({ notes: "A", name: "Hall" });
     expect(() => r.projects.editText({ id: "entry", set: { shape: "x" } })).toThrow(/text field/);
-  });
-
-  // History storage (keyframes, replay) is core's (services/history.ts delegates to @slabyrinth/core/history),
-  // so it no longer depends on the injected applyOps port; only UI op edits are refused without it.
-  it("works without the core applyOps port: UI ops refused, text edits still apply and undo", async () => {
-    const r = await setup(false);
-    expect(() => r.projects.applyOps({ baseVersion: 1, label: "x", ops: [{ op: "renumber" }] })).toThrow(
-      expect.objectContaining({ code: "unsupported" }) as Error,
-    );
-    expect(r.projects.editText({ id: "tomb", set: { notes: "fallback" } })).toEqual({ head: 2 });
-    r.projects.undo();
-    expect(r.projects.snapshot().plan?.levels[0]?.areas.find((a) => a.id === "tomb")?.notes).toBeUndefined();
   });
 
   it("approval blocks on errors and unreachable areas, and passes otherwise", async () => {

@@ -28,7 +28,7 @@ import type { AssetCatalog, ChunkOptions, PaletteCatalog, SlabAsset } from "../c
 import type { MapPlan } from "../contracts/plan";
 import { calibrationAssetsFrom, calibrationSlabAssets, compileResolved, realize } from "../compile/index";
 import { buildPaletteCatalog, loadOrientation, loadPalettes } from "../palette/index";
-import { validatePlan } from "../plan/index";
+import { planGate, validatePlan } from "../plan/index";
 import { planRules, resolvePlan } from "../resolve/index";
 import {
   decodeDetailed,
@@ -136,12 +136,14 @@ function cmdCompile(a: Args, io: CliIo): number {
   if (!path) throw new UsageError("compile <plan.json> [--out <dir>] …");
   const plan = readJson(path, io) as MapPlan;
   const cat = palettesFrom(a, io);
-  const v = validatePlan(plan, planRules(cat));
-  if (!v.ok) {
-    for (const i of v.issues.filter((x) => x.severity === "error")) io.err(`error ${i.code}: ${i.message}`);
+  // the app's build gate (plan/gate.ts): structural errors refuse; playability errors are reported, as in the app
+  const gate = planGate(validatePlan(plan, planRules(cat)).issues, "build");
+  if (gate.blocking.length > 0) {
+    for (const i of gate.blocking) io.err(`error ${i.code}: ${i.message}`);
     io.err("compile refused: the plan has validation errors");
     return 1;
   }
+  for (const i of gate.checks.errors) io.err(`playability ${i.code}: ${i.message}`);
   const oPath = flag(a, "orientation");
   const orientation = loadOrientation(oPath ? readJson(oPath, io) : undefined);
   for (const i of orientation.issues) io.err(`orientation ${i.severity}: ${i.message}`);

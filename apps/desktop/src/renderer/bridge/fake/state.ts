@@ -3,8 +3,8 @@
  * settings, the key, TaleSpire and the catalog, and the helpers every handler group shares (the open project, a
  * version's plan, the snapshot, the plan-changed event). The handler groups in handlers/ read and change it.
  */
-import { applyOps, reconstruct } from "@slabyrinth/core";
-import type { MapPlan, PlanOp } from "@slabyrinth/core";
+import { reconstruct } from "@slabyrinth/core";
+import type { MapPlan } from "@slabyrinth/core";
 import { countPlanRooms } from "@slabyrinth/core";
 import type { AppError, IpcEvents, IpcRequests, ProjectSnapshot } from "../../../shared/ipc";
 import type { AppSettings, Phase, ProjectFile } from "../../../shared/project";
@@ -210,16 +210,6 @@ export class FakeState {
       skipped: update !== null && this.settings.updates.skippedVersion === update.version,
     };
   }
-}
-
-/**
- * Like main (ports/core.ts applyChecked): edits are not rejected just because the map already has playability
- * problems; structural op errors still fail.
- */
-export function applyLenient(plan: MapPlan, ops: PlanOp[]): ReturnType<typeof applyOps> {
-  const r = applyOps(plan, ops, rules());
-  if (r.ok || r.opErrors.length > 0) return r;
-  return applyOps(plan, ops, rules(), { validate: false });
 }
 
 function initialSettings(scenario: FakeScenario, recent: string[]): AppSettings {

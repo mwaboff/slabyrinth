@@ -2,7 +2,7 @@
  * The fake main's chat channels. A turn is a FakeTurn (../engine.ts) run against this project: it commits versions,
  * updates the brief and records the turn's meta through the host built here.
  */
-import { checkPlan, commitVersion, outstandingIssues, validatePlan } from "@slabyrinth/core";
+import { applyChecked, checkPlan, commitVersion, outstandingIssues, validatePlan } from "@slabyrinth/core";
 import type { ChatEvent, IpcRequests, OutstandingIssues } from "../../../../shared/ipc";
 import type { ChatItem } from "../../../../main/agent/provider/types";
 import { FakeTurn } from "../engine";
@@ -10,7 +10,7 @@ import { EXAMPLE_A, EXAMPLE_B, TOWER, type FakeProject } from "../fixtures";
 import { FAKE_MODELS } from "../models";
 import { fakeRules as rules } from "../rules";
 import type { FakeState, HandlerGroup } from "../state";
-import { applyLenient, fail } from "../state";
+import { fail } from "../state";
 
 type ChatChannels =
   | "chat:send"
@@ -157,7 +157,7 @@ function turnHost(s: FakeState, p: FakeProject): TurnHost {
     commit: (plan, _tool, messageId, summary, changes, ops) => {
       let next = plan;
       if (ops) {
-        const r = applyLenient(plan, ops);
+        const r = applyChecked(plan, ops, rules());
         if (!r.ok) throw new Error("edit rejected");
         next = r.plan;
       }

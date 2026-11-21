@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 import { createCompilePlan, estimate as coreEstimate } from "@slabyrinth/core/compile";
 import { buildPaletteCatalog, loadOrientation } from "@slabyrinth/core/palette";
-import { isBlocking } from "@slabyrinth/core";
-import { validatePlan } from "@slabyrinth/core/plan";
+import { planGate, validatePlan } from "@slabyrinth/core/plan";
 import { planRules, resolvePlan } from "@slabyrinth/core/resolve";
 import { slabCodec } from "@slabyrinth/core/slab";
 import type {
@@ -66,11 +65,11 @@ export function createCoreCompileBackend(): CompileBackend {
       progress("resolve", 0, 4);
       const compilePlan = createCompilePlan({
         resolvePlan: (plan, palettes, opts) => resolvePlan(plan, palettes, opts ?? {}),
-        // Only blocking issues refuse a build; playability findings are reported, never refused
-        // (decisions.md "Playability validation"). createCompilePlan passes the plan to verify,
-        // which then skips build findings the plan-level checks already report.
+        // What refuses a build is core's build gate (plan/gate.ts); playability findings are reported, never
+        // refused. createCompilePlan passes the plan to verify, which then skips build findings the plan-level
+        // checks already report.
         validatePlan: (plan, palettes) => {
-          const blocking = validatePlan(plan, planRules(palettes)).issues.filter(isBlocking);
+          const { blocking } = planGate(validatePlan(plan, planRules(palettes)).issues, "build");
           return { ok: blocking.length === 0, issues: blocking };
         },
         orientation: orientationFor(input),

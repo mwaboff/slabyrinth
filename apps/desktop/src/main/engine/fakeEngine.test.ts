@@ -4,7 +4,7 @@ import { bundledPalettes } from "@slabyrinth/core/palette";
 import type { ChatEvent } from "../../shared/ipc";
 import type { ConversationEngine, EngineHost } from "../ports/engine";
 import { memoryLogger } from "../logger";
-import { projectRig, testApplyOps, type ProjectRig } from "../services/testing/helpers";
+import { corePort, projectRig, type ProjectRig } from "../services/testing/helpers";
 import { FakeEngine } from "./fakeEngine";
 
 let rig: ProjectRig | null = null;
@@ -71,7 +71,7 @@ async function untilFinished(r: ProjectRig, turnId: string): Promise<ChatEvent> 
 describe("FakeEngine (recorded streams through the real host)", () => {
   it("first message draws a plan: items, version, brief, events and autosave", async () => {
     rig = await projectRig();
-    const engine = new FakeEngine(hostFor(rig), { speed: 0, applyOps: testApplyOps });
+    const engine = new FakeEngine(hostFor(rig), { speed: 0, applyOps: corePort().applyChecked });
     rig.projects.setEngineHooks({
       onClosing: () => engine.onProjectClosing(),
       onOpened: () => undefined,
@@ -111,7 +111,7 @@ describe("FakeEngine (recorded streams through the real host)", () => {
 
   it("question cards: pending questions are answered by the next send", async () => {
     rig = await projectRig();
-    const engine = new FakeEngine(hostFor(rig), { speed: 0, applyOps: testApplyOps });
+    const engine = new FakeEngine(hostFor(rig), { speed: 0, applyOps: corePort().applyChecked });
     await rig.projects.create({ name: "Ask" });
     const { turnId } = await engine.send({ text: "#ask please" });
     await untilFinished(rig, turnId);
@@ -141,14 +141,14 @@ describe("FakeEngine (recorded streams through the real host)", () => {
     expect(stopped).toBeDefined();
     expect(rig.projects.snapshot().busy).toBeNull();
 
-    const fast = new FakeEngine(hostFor(rig), { speed: 0, applyOps: testApplyOps });
+    const fast = new FakeEngine(hostFor(rig), { speed: 0, applyOps: corePort().applyChecked });
     const f = await fast.send({ text: "#fail" });
     expect(await untilFinished(rig, f.turnId)).toMatchObject({ type: "turn_failed", canRetry: true });
   });
 
   it("selection changes append a marker; providers/models/check work without a key", async () => {
     rig = await projectRig();
-    const engine = new FakeEngine(hostFor(rig), { speed: 0, applyOps: testApplyOps });
+    const engine = new FakeEngine(hostFor(rig), { speed: 0, applyOps: corePort().applyChecked });
     await rig.projects.create({ name: "Models" });
     const sel = { providerId: "anthropic", modelId: "claude-sonnet-5-5", effort: "high" as const };
     expect((await engine.previewSwitch(sel)).cacheReset).toBe(true);

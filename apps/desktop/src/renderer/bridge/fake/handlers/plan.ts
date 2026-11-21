@@ -1,18 +1,21 @@
 /** The fake main's plan channels: the GM's edits, undo/redo/restore, versions and diffs, approval, the brief. */
 import {
+  applyChecked,
   applyOps,
   approve as approveHistory,
   commitVersion,
   diffPlans,
+  planGate,
   redo as redoHistory,
   restore as restoreHistory,
   undo as undoHistory,
+  validatePlan,
 } from "@slabyrinth/core";
 import type { DesignBrief, MapPlan, PlanOp } from "@slabyrinth/core";
 import type { FakeProject } from "../fixtures";
 import { fakeRules as rules } from "../rules";
 import type { FakeState, HandlerGroup } from "../state";
-import { applyLenient, fail } from "../state";
+import { fail } from "../state";
 
 type PlanChannels =
   | "plan:applyOps"
@@ -55,7 +58,7 @@ export function planHandlers(s: FakeState): HandlerGroup<PlanChannels> {
     "plan:applyOps": ({ label, ops }) => {
       const p = s.open();
       const plan = editablePlan(p);
-      const r = applyLenient(plan, ops);
+      const r = applyChecked(plan, ops, rules());
       if (!r.ok) return r;
       commitUserOps(p, r.plan, label, ops);
       s.touch(p);
@@ -95,23 +98,24 @@ export function planHandlers(s: FakeState): HandlerGroup<PlanChannels> {
       const p = s.open();
       const plan = s.planAt(p, version);
       if (!plan) return fail("not_found", `No version v${version}.`);
-      const warnings = plan.levels.flatMap((l) =>
-        l.areas
-          .filter((a) => a.key !== undefined && (a.notes ?? "") === "")
-          .map((a) => `Room ${a.key ?? ""} ${a.name ?? ""} has no GM notes.`),
-      );
+      // main's rule (ProjectService.approve): core's approval gate
+      const gate = planGate(validatePlan(plan, rules()).issues, "approve");
+      const blocking = gate.blocking.map((i) => i.message);
+      const warnings = gate.checks.warnings.map((i) => i.message);
+      if (blocking.length > 0) return { approved: false, blocking, warnings };
       const r = approveHistory(p.history, version);
       if (!r.ok) return fail("not_found", r.error.message);
       p.history = r.history;
       s.touch(p);
       s.emit("project:changed", { dirty: false, filePath: p.path, name: p.name });
-      return { approved: true, blocking: [], warnings };
+      s.planChanged(p);
+      return { approved: true, blocking, warnings };
     },
     "plan:editText": ({ id, set }) => {
       const p = s.open();
       const plan = editablePlan(p);
       const ops: PlanOp[] = [{ op: "update", id, set }];
-      const r = applyLenient(plan, ops);
+      const r = applyChecked(plan, ops, rules());
       if (!r.ok)
         return fail("validation", r.opErrors[0]?.message ?? r.issues[0]?.message ?? "Edit rejected.");
       const area = plan.levels.flatMap((l) => l.areas).find((a) => a.id === id);

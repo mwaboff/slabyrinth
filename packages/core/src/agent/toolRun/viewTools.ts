@@ -1,6 +1,7 @@
 /** The tools that show the plan: view_plan (outline, ascii or json) and view_map_image (a PNG the app renders). */
 import type { ElementId, LevelId, MapPlan } from "../../contracts/plan";
-import { checksLine, splitIssues } from "../checks";
+import { planGate } from "../../plan/gate";
+import { checksLine } from "../checks";
 import { validateToolInput } from "../inputs";
 import { clip } from "../report";
 import type { ToolOutcome } from "../tools";
@@ -19,7 +20,7 @@ export function runViewPlan(r: ToolRunCtx, ctx: AgentToolContext, input: unknown
   const { level, format, region, ids } = v.value;
   if (level !== undefined && !plan.levels.some((l) => l.id === level))
     return unknownLevel("view_plan", ctx.head, plan, "/level", `no level "${level}"`);
-  const checks = splitIssues(r.issuesOf(plan, ctx)).checks;
+  const checks = planGate(r.issuesOf(plan, ctx), "edit").checks;
   const flagged = [...checks.errors, ...checks.warnings, ...checks.info];
   if (format === "outline") {
     const text = r.outlineOf(

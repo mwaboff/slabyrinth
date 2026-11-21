@@ -1,57 +1,13 @@
 /**
- * Playability checks as the agent sees them (decisions.md "Playability validation").
- *
- * validatePlan reports two kinds of problems:
- *  - BLOCKING: structural or geometric errors that make the plan invalid (bad ids, a door with no shared wall, a
- *    feature inside rock, …). A create/edit that produces one is rejected and changes nothing.
- *  - CHECKS: playability findings (unreachable rooms, blocked doors, stairs with no landing, furniture plugging a
- *    corridor, …) at any severity, plus every non-error warning and info note. These never reject an edit — the
- *    model fixes them in steps — but every create/edit result reports them until they are resolved.
+ * Playability checks as the agent sees them (decisions.md "Playability validation"). What blocks a create/edit and
+ * what is only reported is decided by plan/gate.ts `planGate(issues, "edit")`: structural errors reject the call and
+ * change nothing; playability findings, warnings and notes never reject it — the model fixes them in steps — but
+ * every create/edit result reports them until they are resolved.
  */
-import type { MapPlan, PlanIssue, PlanIssueCode, ValidationResult } from "../contracts/plan";
+import type { MapPlan, PlanIssue, ValidationResult } from "../contracts/plan";
+import { planGate, type CheckResults } from "../plan/gate";
 
-/** Issue codes that describe playability (walkability) rather than validity; never blocking. */
-export const PLAYABILITY_CODES: ReadonlySet<PlanIssueCode> = new Set<PlanIssueCode>([
-  "unreachable",
-  "area_sealed",
-  "opening_blocked",
-  "opening_dead_end",
-  "reachable_secret_only",
-  "link_approach_blocked",
-  "link_run_blocked",
-  "passage_blocked",
-  "feature_not_at_wall",
-  "seat_detached",
-  "route_dead_end",
-]);
-
-export function isBlocking(i: PlanIssue): boolean {
-  return i.severity === "error" && !PLAYABILITY_CODES.has(i.code);
-}
-
-export interface CheckResults {
-  errors: PlanIssue[];
-  warnings: PlanIssue[];
-  info: PlanIssue[];
-}
-
-export interface SplitIssues {
-  /** Reject the change: nothing is applied. */
-  blocking: PlanIssue[];
-  /** Reported with the applied change. */
-  checks: CheckResults;
-}
-
-export function splitIssues(issues: readonly PlanIssue[]): SplitIssues {
-  const out: SplitIssues = { blocking: [], checks: { errors: [], warnings: [], info: [] } };
-  for (const i of issues) {
-    if (isBlocking(i)) out.blocking.push(i);
-    else if (i.severity === "error") out.checks.errors.push(i);
-    else if (i.severity === "warning") out.checks.warnings.push(i);
-    else out.checks.info.push(i);
-  }
-  return out;
-}
+export type { CheckResults } from "../plan/gate";
 
 export function isClean(c: CheckResults): boolean {
   return c.errors.length === 0 && c.warnings.length === 0;
@@ -107,7 +63,7 @@ export interface OutstandingIssues {
 
 /** `validate`: validatePlan with the rules of the palettes the plan is built with. */
 export function checkPlan(plan: MapPlan, validate: (p: unknown) => ValidationResult): CheckResults {
-  return splitIssues(validate(plan).issues).checks;
+  return planGate(validate(plan).issues, "edit").checks;
 }
 
 export function outstandingIssues(version: number, c: CheckResults): OutstandingIssues {

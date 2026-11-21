@@ -1,15 +1,8 @@
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
-import type {
-  DesignBrief,
-  LevelId,
-  MapPlan,
-  PlanDiff,
-  PlanIssue,
-  PlanOp,
-  ApplyResult,
-} from "@slabyrinth/core";
+import { approve as approveHistory, planGate } from "@slabyrinth/core";
+import type { DesignBrief, LevelId, MapPlan, PlanDiff, PlanOp, ApplyResult } from "@slabyrinth/core";
 import type { ChatItem, Cost, ModelSelection, Usage } from "../agent/provider/types";
 import type { IpcRequests, ProjectSnapshot } from "../../shared/ipc";
 import type { BuildRecord, ChatMessageMeta, Conversation, ProjectFile } from "../../shared/project";
@@ -655,8 +648,8 @@ export class ProjectService {
     ) {
       throw new AppFailure("validation", "That file isn't a Slabyrinth map plan (slabyrinth/plan@1).");
     }
-    const issues = this.deps.core.validatePlan(plan);
-    const errors = issues?.filter((i) => i.severity === "error") ?? [];
+    // an imported plan is a new version like the model's create_plan: the edit gate decides
+    const errors = planGate(this.deps.core.validatePlan(plan), "edit").blocking;
     if (errors.length > 0) {
       throw new AppFailure(
         "validation",
@@ -752,13 +745,6 @@ export class ProjectService {
   applyOps(req: IpcRequests["plan:applyOps"]["req"]): ApplyResult & { version?: number } {
     this.ensureNotBusy();
     const s = this.require();
-    // Playability findings never reject an edit: only blocking issues do (PlanCorePort.applyChecked).
-    const applyOps = this.deps.core.applyChecked;
-    if (!applyOps)
-      throw new AppFailure(
-        "unsupported",
-        "Editing the map needs the plan engine, which isn't in this build yet.",
-      );
     if (req.baseVersion !== s.project.history.head) {
       throw new AppFailure(
         "validation",
@@ -767,7 +753,8 @@ export class ProjectService {
     }
     const base = this.getPlan();
     if (!base) throw new AppFailure("validation", "There's no plan to edit yet.");
-    const result = applyOps(base, req.ops);
+    // Playability findings never reject an edit: only what blocks an edit does (core's edit gate).
+    const result = this.deps.core.applyChecked(base, req.ops);
     if (!result.ok) return result;
     const { version } = this.commitVersion({
       plan: result.plan,
@@ -849,25 +836,19 @@ export class ProjectService {
     return this.deps.core.diffPlans(from === 0 ? null : this.getPlan(from), after);
   }
 
-  /** UX §7.5: blocking issues (errors, unreachable areas) prevent approval. */
+  /** UX §7.5: what blocks approval is core's `planGate(issues, "approve")`. */
   approve(version: number): { approved: boolean; blocking: string[]; warnings: string[] } {
     this.ensureNotBusy();
     const plan = this.getPlan(version);
     if (!plan) throw new AppFailure("not_found", `Version ${String(version)} doesn't exist.`);
-    const issues: PlanIssue[] | null = this.deps.core.validatePlan(plan);
-    const warnings: string[] = [];
-    const blocking: string[] = [];
-    if (issues === null) {
-      warnings.push("Plan checks aren't available in this build; the plan was approved without them.");
-    } else {
-      for (const i of issues) {
-        if (i.severity === "error" || i.code === "unreachable") blocking.push(i.message);
-        else if (i.severity === "warning") warnings.push(i.message);
-      }
-    }
+    const gate = planGate(this.deps.core.validatePlan(plan), "approve");
+    const blocking = gate.blocking.map((i) => i.message);
+    const warnings = gate.checks.warnings.map((i) => i.message);
     if (blocking.length > 0) return { approved: false, blocking, warnings };
+    const r = approveHistory(this.require().project.history, version);
+    if (!r.ok) throw new AppFailure("not_found", `Version ${String(version)} doesn't exist.`);
     this.mutate((p) => {
-      p.history.approvedVersion = version;
+      p.history = r.history;
     });
     this.emitPlanChanged();
     return { approved: true, blocking, warnings };
@@ -920,16 +901,12 @@ export class ProjectService {
   }
 
   private applyTextOp(plan: MapPlan, op: Extract<PlanOp, { op: "update" }>): MapPlan {
-    const applyOps = this.deps.core.applyChecked;
-    if (applyOps) {
-      const r = applyOps(plan, [op]);
-      if (!r.ok) {
-        const msg = r.opErrors[0]?.message ?? r.issues[0]?.message ?? "The edit was rejected.";
-        throw new AppFailure("validation", msg);
-      }
-      return r.plan;
+    const r = this.deps.core.applyChecked(plan, [op]);
+    if (!r.ok) {
+      const msg = r.opErrors[0]?.message ?? r.issues[0]?.message ?? "The edit was rejected.";
+      throw new AppFailure("validation", msg);
     }
-    return fallbackTextUpdate(plan, op.id, op.set);
+    return r.plan;
   }
 
   updateBrief(set: Partial<Record<keyof DesignBrief, unknown>>): DesignBrief {
@@ -1077,41 +1054,4 @@ export function samePath(a: string, b: string): boolean {
   const ra = path.resolve(a);
   const rb = path.resolve(b);
   return process.platform === "win32" ? ra.toLowerCase() === rb.toLowerCase() : ra === rb;
-}
-
-/** Stand-in for core's `update` op restricted to text fields (used only until core applyOps exists). */
-export function fallbackTextUpdate(plan: MapPlan, id: string, set: Record<string, unknown>): MapPlan {
-  const next = structuredClone(plan);
-  const apply = (el: Record<string, unknown>): void => {
-    for (const [k, v] of Object.entries(set)) {
-      if (v === null) Reflect.deleteProperty(el, k);
-      else el[k] = v;
-    }
-  };
-  for (const level of next.levels) {
-    if (level.id === id) {
-      apply(level as unknown as Record<string, unknown>);
-      return next;
-    }
-    for (const list of [
-      level.areas,
-      level.openings,
-      level.walls,
-      level.features,
-      level.terrain,
-      level.labels,
-    ] as Array<Array<{ id: string }>>) {
-      const el = list.find((e) => e.id === id);
-      if (el) {
-        apply(el);
-        return next;
-      }
-    }
-  }
-  const link = next.links.find((l) => l.id === id);
-  if (link) {
-    apply(link as unknown as Record<string, unknown>);
-    return next;
-  }
-  throw new AppFailure("not_found", `No element "${id}" in the plan.`);
 }

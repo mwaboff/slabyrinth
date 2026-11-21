@@ -5,7 +5,8 @@
 import { GENERATOR_VERSION, PLAN_SCHEMA, type LevelId, type MapPlan } from "../../contracts/plan";
 import { autoKeyRooms } from "../../ops/apply";
 import { listElements } from "../../plan/elements";
-import { splitIssues } from "../checks";
+import { gateApplied } from "../../ops/gate";
+import { planGate } from "../../plan/gate";
 import { validateToolInput } from "../inputs";
 import { RESULT_VIEW_BUDGET, clip, fromOpError, fromPlanIssue } from "../report";
 import type { PlanChangeReport, ToolOutcome } from "../tools";
@@ -66,7 +67,7 @@ export function runCreatePlan(r: ToolRunCtx, ctx: AgentToolContext, input: unkno
     ]);
   }
   const candidate = completeAuthoredPlan(v.value.plan, ctx.newPlanId(), ctx.newSeed());
-  const split = splitIssues(r.validateFor(ctx, candidate).issues);
+  const split = planGate(r.validateFor(ctx, candidate).issues, "edit");
   if (split.blocking.length > 0) {
     return fail(
       "create_plan",
@@ -100,7 +101,8 @@ export function runEditPlan(r: ToolRunCtx, ctx: AgentToolContext, input: unknown
   if (ctx.plan === null) return noPlan("edit_plan", "call create_plan for the first draft");
   const { baseVersion, ops, summary, changes } = v.value;
   if (baseVersion !== ctx.head) return staleVersion(r, ctx, ctx.plan, baseVersion);
-  const result = r.ports.applyOps(ctx.plan, ops, ctx.palettes);
+  // Structurally invalid results are rejected; playability findings are reported, never rejected (ops/gate.ts).
+  const result = gateApplied(r.ports.applyOps(ctx.plan, ops, ctx.palettes), (p) => r.issuesOf(p, ctx));
   if (!result.ok) {
     const errors = [
       ...result.opErrors.map(fromOpError),
@@ -109,15 +111,7 @@ export function runEditPlan(r: ToolRunCtx, ctx: AgentToolContext, input: unknown
     if (errors.length === 0) errors.push({ code: "invalid_value", msg: "the edit was rejected" });
     return fail("edit_plan", ctx.head, errors);
   }
-  // Structurally invalid results are rejected; playability findings are reported, never rejected.
-  const split = splitIssues([...result.issues, ...r.issuesOf(result.plan, ctx)]);
-  if (split.blocking.length > 0) {
-    return fail(
-      "edit_plan",
-      ctx.head,
-      split.blocking.map((i) => fromPlanIssue(i)),
-    );
-  }
+  const split = planGate(result.issues, "edit");
   const report: PlanChangeReport = {
     status: "applied",
     version: ctx.nextVersion ?? ctx.head + 1,
