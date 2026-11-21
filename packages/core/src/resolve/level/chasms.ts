@@ -1,12 +1,14 @@
 /**
  * The chasm terrain op (part of step 4, terrain "over"): rifts, chasms and river channels cut into open floor.
  * Reads: the op (course, width, depth, floor, bridges), the cells' state and heights, the plan's own features (a
- * wandering channel keeps off them). Writes: cell heights, floors and flags along the cut, `channels` (the course of a
- * long rift or river), `falls` and `upperReach` (a stepped river's falls, pools and upper reaches), and `bridgeReqs`
- * (the op's bridges, laid later by resolve/level/bridges.ts). Also the river-course helpers that path ops share.
+ * wandering channel keeps off them). Writes: cell heights, floors and flags along the cut, and its own record,
+ * ChasmRecords: `channels` (the course of a long rift or river), `falls` and `upperReach` (a stepped river's falls,
+ * pools and upper reaches) and `bridgeRequests` (the op's bridges, laid later by resolve/level/bridges.ts). Also the
+ * river-course helpers that path ops share.
  */
 import type { TerrainOp, Vec2 } from "../../contracts/plan";
 import { PLAN_LIMITS } from "../../contracts/plan";
+import type { ResolvedChannel, ResolvedFall } from "../../contracts/resolved";
 import { CELL, CELL_FLAG } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { ValueNoise } from "../../gen/noise";
@@ -16,7 +18,20 @@ import { type ChasmGeometry, type ChasmSample, chasmGeometry, chasmSampleAt } fr
 import { type ChannelCell, type ReachPlan, planReaches } from "../falls";
 import { materialOrdinal } from "../materials";
 import { STILL_WATER, riverCourse } from "../water";
+import type { BridgeRequest } from "./bridges";
 import type { ResolveGrid } from "./grid";
+
+/** What the chasm ops leave for later stages. Written only here (applyChasm); everyone else reads it. */
+export class ChasmRecords {
+  /** Generator 3: the course of each long rift or river (ResolvedLevel.channels). */
+  readonly channels: ResolvedChannel[] = [];
+  /** Generator 3: the falls of stepped rivers (ResolvedLevel.falls). */
+  readonly falls: ResolvedFall[] = [];
+  /** The cells of a stepped river's upper reaches, which lie above the board's water plane (waterSurface.ts). */
+  readonly upperReach = new Set<number>();
+  /** The bridges the ops ask for, in op order: laid by the bridge pass after the area bridges. */
+  readonly bridgeRequests: BridgeRequest[] = [];
+}
 
 /** Generator 3: a long rift or river strays from the line between its ends by about this share of its length. */
 const WANDER_SHARE = 0.2;
@@ -54,7 +69,12 @@ export function boardBox(work: ResolveGrid): { x0: number; y0: number; x1: numbe
  * Chasm op (§2.5): cuts open floor cells `depth` tiles down along a meandering course, optionally changes the
  * bottom's material, and queues its bridges for the bridge pass.
  */
-export function applyChasm(work: ResolveGrid, op: Extract<TerrainOp, { op: "chasm" }>, path: string): void {
+export function applyChasm(
+  work: ResolveGrid,
+  op: Extract<TerrainOp, { op: "chasm" }>,
+  path: string,
+  out: ChasmRecords,
+): void {
   const seed = elementSeed(work.plan.seed, op.id, op.seed);
   const clip = work.rasterClip();
   const wet0 = op.floor === "water_shallow" || op.floor === "water_deep";
@@ -82,7 +102,7 @@ export function applyChasm(work: ResolveGrid, op: Extract<TerrainOp, { op: "chas
   );
   const wet = op.floor === "water_shallow" || op.floor === "water_deep";
   if (wander && geo.samples.length > 16 && !STILL_WATER.test(op.id))
-    work.channels.push({
+    out.channels.push({
       id: op.id,
       kind: wet ? "river" : "rift",
       centre: geo.samples.filter((_, k) => k % 2 === 0).map((s) => [s.x, s.y] as Vec2),
@@ -152,7 +172,7 @@ export function applyChasm(work: ResolveGrid, op: Extract<TerrainOp, { op: "chas
     }
     const level = reaches ? (reaches.low[reaches.reachOf.get(i) ?? 0] ?? lowSide) : lowSide;
     work.height[i] = Math.max(PLAN_LIMITS.minHeight * 4, Math.min(cur, level) - depthQ);
-    if (reaches && (reaches.reachOf.get(i) ?? 0) < reaches.low.length - 1) work.upperReach.add(i);
+    if (reaches && (reaches.reachOf.get(i) ?? 0) < reaches.low.length - 1) out.upperReach.add(i);
     if (op.floor === "none") {
       work.flags[i] = ((work.flags[i] as number) | CELL_FLAG.NO_FLOOR) & ~(CELL_FLAG.WATER | CELL_FLAG.PATH);
       work.mat[i] = 0;
@@ -230,7 +250,7 @@ export function applyChasm(work: ResolveGrid, op: Extract<TerrainOp, { op: "chas
       );
       return;
     }
-    work.bridgeReqs.push({
+    out.bridgeRequests.push({
       id: bid,
       elementId: op.id,
       path: `${path}/bridges/${k}`,
@@ -246,7 +266,7 @@ export function applyChasm(work: ResolveGrid, op: Extract<TerrainOp, { op: "chas
       ...(b.arch !== undefined ? { arch: b.arch } : {}),
     });
   });
-  if (reaches) cutFalls(work, op, geo, reaches, geoSet, depthQ);
+  if (reaches) cutFalls(work, op, geo, reaches, geoSet, depthQ, out);
 }
 
 /** Cells under the plan's own features (with a one-cell margin): a wandering channel keeps off them when it can. */
@@ -271,10 +291,11 @@ function cutFalls(
   reaches: ReachPlan,
   geoSet: Set<string>,
   depthQ: number,
+  out: ChasmRecords,
 ): void {
   const n = geo.samples.length;
   const nearBridge = new Set<number>();
-  for (const req of work.bridgeReqs)
+  for (const req of out.bridgeRequests)
     if (req.elementId === op.id)
       for (const c of req.cells) {
         nearBridge.add(c);
@@ -318,9 +339,9 @@ function cutFalls(
           pool.add(i);
         }
     }
-    if (f + 1 < reaches.low.length - 1) for (const i of pool) work.upperReach.add(i);
+    if (f + 1 < reaches.low.length - 1) for (const i of pool) out.upperReach.add(i);
     const upper = reaches.low[f] as number;
-    work.falls.push({
+    out.falls.push({
       id: `${op.id}~fall${f + 1}`,
       river: op.id,
       at: fall.at,

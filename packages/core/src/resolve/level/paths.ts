@@ -3,10 +3,13 @@
  * kerbs along kerbed paths, spur trails to focal pieces and doors, and parking a vehicle in a kerb lane.
  * Pavements are laid with each terrain layer and run on to building fronts once the pads are flat (step 4); roads and
  * kerbs are recorded after the edges (step 5); vehicles are parked when the plan's features are placed (step 8).
- * Reads: `pendingRoads` and `pendingKerbs`, the cells' floors, heights and flags, the buildings' lots and porches.
- * Writes: pavement and spur cells (floor, height, PATH flag), `roads` and `kerbs` (records on the resolved level).
+ * Owns PathRecords: the path ops queue their roads and kerbed paths there as they are drawn (terrain.ts), and this
+ * module turns them into `roads` and `kerbs`. Reads: the queued roads and kerbed paths, the cells' floors, heights and
+ * flags, the buildings' lots and porches. Writes: pavement and spur cells (floor, height, PATH flag), each queued
+ * road's pavement cells, and `roads` and `kerbs` (records on the resolved level).
  */
-import type { TerrainOp, Vec2 } from "../../contracts/plan";
+import type { Material, TerrainOp, Vec2 } from "../../contracts/plan";
+import type { ResolvedLevel } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { forEachMaskCell } from "../../gen/mask";
 import { ValueNoise } from "../../gen/noise";
@@ -15,7 +18,37 @@ import { elementSeed, h32, subSeed } from "../../util/hash";
 import { isWater, materialOrdinal } from "../materials";
 import { crossingCells, kerbLinesAndCorners } from "../road";
 import { trailCells } from "../trail";
-import type { ResolveGrid } from "./grid";
+import type { ReadOnly, ResolveGrid } from "./grid";
+
+/** A path op in road form (generator 2) as drawn: its carriageway cells and the pavement cells laid beside it so far. */
+export interface PendingRoad {
+  op: Extract<TerrainOp, { op: "path" }>;
+  axis: Vec2[];
+  layer: "under" | "over";
+  cells: number[];
+  /** Pavement cells with the height each was laid at (a cell a later stage changes is no longer pavement). */
+  pave: Array<{ i: number; h: number }>;
+}
+
+/** A path op with `kerb: true` as drawn: its cells, waiting for kerbs once the edges are known. */
+export interface PendingKerb {
+  cells: Set<number>;
+  material: Material;
+  seed: number;
+  anchors: Vec2[];
+  /** Natural trails get broken kerbs (stones on the verge); straight paths a continuous line. */
+  natural: boolean;
+}
+
+/** The level's paths: queued by the path ops (terrain.ts), finished by this module, then read-only. */
+export class PathRecords {
+  readonly pendingRoads: PendingRoad[] = [];
+  readonly pendingKerbs: PendingKerb[] = [];
+  /** Roads with their carriageway, pavements, kerb lines and crossings (ResolvedLevel.roads), after the edges. */
+  readonly roads: NonNullable<ResolvedLevel["roads"]> = [];
+  /** Kerb pieces (ResolvedLevel.kerbs), after the edges. */
+  readonly kerbs: NonNullable<ResolvedLevel["kerbs"]> = [];
+}
 
 /** Landmark-class pieces a spur trail leads to (the first found), then lesser focal pieces. */
 const SPUR_PRIMARY = new Set<string>([
@@ -41,11 +74,11 @@ const SPUR_FOCAL = new Set<string>([
  * flattened, a 1-cell setback) take the pavement's height and material, so no strip at road level runs along a
  * frontage. Footprints, porches, stair and link cells and anything higher than the pavement (a plinth) keep theirs.
  */
-export function stepPavementFronts(work: ResolveGrid): void {
+export function stepPavementFronts(work: ResolveGrid, paths: PathRecords): void {
   if (!work.profile.roads || !work.structs) return;
-  type Road = (typeof work.pendingRoads)[number];
+  type Road = PendingRoad;
   const owner = new Map<number, Road>();
-  for (const r of work.pendingRoads) for (const p of r.pave) owner.set(p.i, r);
+  for (const r of paths.pendingRoads) for (const p of r.pave) owner.set(p.i, r);
   if (owner.size === 0) return;
   const footprint = work.structs.occupied();
   const keep = new Set<string>(footprint.keys());
@@ -57,7 +90,7 @@ export function stepPavementFronts(work: ResolveGrid): void {
     return false;
   };
   const carriage = new Set<number>();
-  for (const r of work.pendingRoads) for (const i of r.cells) carriage.add(i);
+  for (const r of paths.pendingRoads) for (const i of r.cells) carriage.add(i);
   const add: Array<{ i: number; h: number; r: Road }> = [];
   for (let i = 0; i < work.state.length; i++) {
     if (owner.has(i) || carriage.has(i) || work.state[i] !== CELL.OPEN) continue;
@@ -97,14 +130,14 @@ export function stepPavementFronts(work: ResolveGrid): void {
 }
 
 /** Lays the pavements of this layer's roads: beside the carriageway, never on any road's carriageway or a building. */
-export function stepPavements(work: ResolveGrid, layer: "under" | "over"): void {
+export function stepPavements(work: ResolveGrid, layer: "under" | "over", paths: PathRecords): void {
   if (!work.profile.roads) return;
   const carriage = new Set<number>();
-  for (const r of work.pendingRoads) for (const i of r.cells) carriage.add(i);
+  for (const r of paths.pendingRoads) for (const i of r.cells) carriage.add(i);
   const paved = new Set<number>();
-  for (const r of work.pendingRoads) for (const p of r.pave) paved.add(p.i);
+  for (const r of paths.pendingRoads) for (const p of r.pave) paved.add(p.i);
   const lots = work.structs?.occupied();
-  for (const r of work.pendingRoads) {
+  for (const r of paths.pendingRoads) {
     const sw = r.op.sidewalk;
     if (r.layer !== layer || !sw) continue;
     const raise = Math.round((sw.raise ?? 0.25) * 4);
@@ -158,8 +191,8 @@ export function stepPavements(work: ResolveGrid, layer: "under" | "over"): void 
 }
 
 /** Road records and their kerbs (after the edges): continuous kerb lines, gaps at crossings and junction mouths. */
-export function stepRoads(work: ResolveGrid): void {
-  if (work.pendingRoads.length === 0) return;
+export function stepRoads(work: ResolveGrid, paths: PathRecords): void {
+  if (paths.pendingRoads.length === 0) return;
   const k = (i: number): string => {
     const [x, y] = work.cellXY(i);
     return `${x},${y}`;
@@ -168,7 +201,7 @@ export function stepRoads(work: ResolveGrid): void {
   const claimed = new Set<number>();
   const pavedAll = new Set<string>();
   const crossingAll = new Set<string>();
-  const recs = work.pendingRoads.map((r) => {
+  const recs = paths.pendingRoads.map((r) => {
     const carriageway = r.cells.filter((i) => !claimed.has(i) && work.isFloor(i));
     for (const i of carriageway) claimed.add(i);
     for (const i of r.cells) carriage.add(k(i));
@@ -193,7 +226,7 @@ export function stepRoads(work: ResolveGrid): void {
     const sw = r.op.sidewalk;
     const pv = pave.map((i) => work.cellXY(i) as Vec2);
     const { kerbLines, corners } = kerbLinesAndCorners(pv, carriage, crossingAll, pavedAll);
-    work.roads.push({
+    paths.roads.push({
       id: r.op.id,
       axis: r.axis.map((p) => [p[0], p[1]] as Vec2),
       width: r.op.width,
@@ -220,19 +253,19 @@ export function stepRoads(work: ResolveGrid): void {
         if (Math.abs((work.height[j] as number) - (work.height[i] as number)) > 2) continue;
         const ed = work.sideEdge(x, y, side);
         if (!ed || (ed.e.kind[ed.i] !== EDGE.NONE && ed.e.kind[ed.i] !== EDGE.LEDGE)) continue;
-        work.kerbs.push({ at: [x, y], side, material: sw?.material ?? r.op.material });
+        paths.kerbs.push({ at: [x, y], side, material: sw?.material ?? r.op.material });
       }
     }
   }
 }
 
 /** Kerbs along kerbed paths: every edge of a path cell that meets non-path floor at (about) the same height. */
-export function stepKerbs(work: ResolveGrid): void {
-  for (const k of work.pendingKerbs) {
+export function stepKerbs(work: ResolveGrid, paths: PathRecords): void {
+  for (const k of paths.pendingKerbs) {
     const noise = new ValueNoise(subSeed(k.seed, "kerb"));
     const nearAnchor = (x: number, y: number): boolean =>
       k.anchors.some(([ax, ay]) => Math.max(Math.abs(ax - x), Math.abs(ay - y)) <= 2);
-    const before = work.kerbs.length;
+    const before = paths.kerbs.length;
     for (const i of k.cells) {
       if (!work.isFloor(i) || ((work.flags[i] as number) & CELL_FLAG.PATH) === 0) continue;
       const [x, y] = work.cellXY(i);
@@ -250,12 +283,12 @@ export function stepKerbs(work: ResolveGrid): void {
           const off = side === "N" ? 0.3 : side === "S" ? 0.6 : side === "E" ? 0.9 : 0.1;
           if (noise.sample(x / 2.5 + off, y / 2.5 + off) < 0.58) continue;
         }
-        work.kerbs.push({ at: [x, y], side, material: k.material });
+        paths.kerbs.push({ at: [x, y], side, material: k.material });
       }
     }
     if (work.profile.naturalPaths && k.natural) {
       // never both sides of the same cell (that reads as a rail); keep the one on the noisier side
-      const added = work.kerbs.splice(before);
+      const added = paths.kerbs.splice(before);
       const byCell = new Map<string, Array<(typeof added)[number]>>();
       for (const kb of added) {
         const key = `${kb.at[0]},${kb.at[1]}`;
@@ -269,7 +302,7 @@ export function stepKerbs(work: ResolveGrid): void {
         const h = h32(`${k.seed}:${at[0]},${at[1]}`) % 2;
         if (ns) drop.add(h === 0 ? "N" : "S");
         if (ew) drop.add(h === 0 ? "E" : "W");
-        for (const q of list) if (!drop.has(q.side)) work.kerbs.push(q);
+        for (const q of list) if (!drop.has(q.side)) paths.kerbs.push(q);
       }
     }
   }
@@ -279,18 +312,22 @@ export function stepKerbs(work: ResolveGrid): void {
  * A vehicle the plan put on a pavement or across a carriageway (owner's model test, 2026-11-20: taxis half on the
  * pavement, a bus across the road): park it in the nearest kerb lane, its long side along the road, one lane deep.
  * Vehicles away from roads (a car park, a yard) keep what the plan gave. Returns the new anchor and size, or null.
+ * `occupied` says whether a feature already stands on a cell (a lane must be free).
  */
 export function parkVehicle(
   work: ResolveGrid,
+  paths: ReadOnly<PathRecords>,
+  occupied: (i: number) => boolean,
   at: Vec2,
   size: readonly [number, number],
 ): { at: Vec2; size: [number, number] } | null {
-  if (!work.profile.roads || work.roads.length === 0) return null;
+  const roads = paths.roads;
+  if (!work.profile.roads || roads.length === 0) return null;
   const k = (x: number, y: number): string => `${x},${y}`;
   const cw = new Set<string>();
   const pave = new Set<string>();
   const cross = new Set<string>();
-  for (const r of work.roads) {
+  for (const r of roads) {
     for (const [x, y] of r.carriageway) cw.add(k(x, y));
     for (const [x, y] of r.pavement) pave.add(k(x, y));
     for (const c of r.crossings) for (const [x, y] of c.cells) cross.add(k(x, y));
@@ -303,7 +340,7 @@ export function parkVehicle(
   if (!onPave && !onRoad) return null;
   // on the carriageway and already lying along its road (a stalled car mid-lane): leave it
   if (!onPave) {
-    const road = work.roads.find((r) =>
+    const road = roads.find((r) =>
       cells.some(([x, y]) => r.carriageway.some((c) => c[0] === x && c[1] === y)),
     );
     const a = road?.axis;
@@ -316,7 +353,7 @@ export function parkVehicle(
   // the road it is on or beside, and whether the vehicle already lies along it in one lane against a kerb
   const len = Math.max(size[0], size[1]);
   let best: { at: Vec2; size: [number, number]; d: number } | null = null;
-  for (const r of work.roads)
+  for (const r of roads)
     for (const kl of r.kerbLines) {
       const [dx, dy] =
         kl.side === "N" ? [0, -1] : kl.side === "S" ? [0, 1] : kl.side === "E" ? [1, 0] : [-1, 0];
@@ -330,7 +367,7 @@ export function parkVehicle(
         for (let u = 0; u < len; u++)
           lane.push([kl.from[0] + sx * (t + u) + dx, kl.from[1] + sy * (t + u) + dy]);
         if (!lane.every(([x, y]) => cw.has(k(x, y)) && !cross.has(k(x, y)))) continue;
-        if (lane.some(([x, y]) => (work.occ[work.idx(x, y)] as number) > 0)) continue;
+        if (lane.some(([x, y]) => occupied(work.idx(x, y)))) continue;
         const x0 = Math.min(...lane.map((c) => c[0]));
         const y0 = Math.min(...lane.map((c) => c[1]));
         const d = Math.abs(x0 - at[0]) + Math.abs(y0 - at[1]);

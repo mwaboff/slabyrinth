@@ -1,8 +1,9 @@
 /**
  * Step 6 of a level: openings (doors, windows, arches, open gaps) in the walls.
- * Reads: the level's openings (`between` two areas or `at` an edge), the corridors drawn between areas (`routes`),
- * the edge arrays and cell owners. Writes: `openings` (one ResolvedOpening each) and the edges they take: an opening
- * edge (kind, ref, height, style) or, for kind "open", a cleared edge marked `opened`.
+ * Reads: the level's openings (`between` two areas or `at` an edge), the corridors the areas drew between them (the
+ * routes stepAreas returned), the edge arrays and cell owners. Writes: the level's openings (one ResolvedOpening each,
+ * the list it is handed; read-only to every later stage) and the edges they take: an opening edge (kind, ref, height,
+ * style) or, for kind "open", a cleared edge marked `opened`.
  */
 import type { OpeningKind } from "../../contracts/plan";
 import type { ResolvedOpening } from "../../contracts/resolved";
@@ -65,6 +66,7 @@ function pickRun<T extends { orient: "h" | "v"; idx: number[]; start: [number, n
 
 function placeOpening(
   work: ResolveGrid,
+  out: ResolvedOpening[],
   o: { id: string; kind: OpeningKind; label?: string; gmOnly?: boolean },
   orient: "h" | "v",
   idx: number[],
@@ -120,7 +122,7 @@ function placeOpening(
     );
   }
   const style = e.style[first] ?? "wall";
-  const k = work.openings.length;
+  const k = out.length;
   const rec: ResolvedOpening = {
     id: o.id,
     kind: o.kind,
@@ -133,7 +135,7 @@ function placeOpening(
   };
   if (o.label !== undefined) rec.label = o.label;
   if (o.gmOnly === true || o.kind === "secret_door") rec.gmOnly = true;
-  work.openings.push(rec);
+  out.push(rec);
   for (const i of idx) {
     const wasWall = e.kind[i] === EDGE.WALL;
     if (o.kind === "open") {
@@ -151,7 +153,11 @@ function placeOpening(
   return true;
 }
 
-export function stepOpenings(work: ResolveGrid, routes: readonly RouteRecord[]): void {
+export function stepOpenings(
+  work: ResolveGrid,
+  routes: readonly RouteRecord[],
+  out: ResolvedOpening[],
+): void {
   work.level.openings.forEach((o, k) => {
     const path = `/levels/${work.li}/openings/${k}`;
     const width0 = o.width ?? (o.kind === "double_door" ? 2 : 1);
@@ -202,7 +208,7 @@ export function stepOpenings(work: ResolveGrid, routes: readonly RouteRecord[]):
       const wd = Math.min(width0, len);
       const pos = Math.min(1, Math.max(0, o.position ?? 0.5));
       const off = Math.min(len - wd, Math.max(0, Math.floor((len - wd) * pos)));
-      placeOpening(work, o, run.orient, run.idx.slice(off, off + wd), path, false, false);
+      placeOpening(work, out, o, run.orient, run.idx.slice(off, off + wd), path, false, false);
       return;
     }
     if (o.at) {
@@ -234,7 +240,7 @@ export function stepOpenings(work: ResolveGrid, routes: readonly RouteRecord[]):
         }
         idx.push(next.i);
       }
-      placeOpening(work, o, ed.orient, idx, path, true, false);
+      placeOpening(work, out, o, ed.orient, idx, path, true, false);
     }
   });
   for (const r of routes) {
@@ -260,6 +266,7 @@ export function stepOpenings(work: ResolveGrid, routes: readonly RouteRecord[]):
       const off = Math.floor((len - wd) * 0.5);
       placeOpening(
         work,
+        out,
         { id: `${info.area.id}~${suffix}`, kind: r.kind },
         run.orient,
         run.idx.slice(off, off + wd),

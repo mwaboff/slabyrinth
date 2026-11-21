@@ -10,9 +10,10 @@ import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { canonicalJson } from "../util/canonical";
 import { h64hex } from "../util/hash";
 import { runPhase1, runPhase2 } from "./level";
-import { linkOpenings } from "./level/floorOpenings";
+import { linkFloorOpenings } from "./level/floorOpenings";
+import type { ResolveGrid } from "./level/grid";
 import { toResolved } from "./level/output";
-import { ResolveGrid } from "./level/grid";
+import { ResolveLevelState } from "./level/state";
 import { type ThemeDefaults, builtinThemeDefaults } from "./themes";
 import type { ResolvePalettes } from "../palette/resolve";
 import { resolveView } from "../palette/view";
@@ -40,9 +41,9 @@ export function resolvePlan(
   const issues: PlanIssue[] = [];
   const themeDefaults = opts.themeDefaults ?? builtinThemeDefaults;
   const palette = resolveView(plan, palettes);
-  const works: ResolveGrid[] = plan.levels.map(
+  const works: ResolveLevelState[] = plan.levels.map(
     (_, levelIndex) =>
-      new ResolveGrid({
+      new ResolveLevelState({
         plan,
         levelIndex,
         themeDefaults,
@@ -51,15 +52,12 @@ export function resolvePlan(
       }),
   );
   const byId = new Map<string, ResolveGrid>();
-  for (const w of works) if (!byId.has(w.level.id)) byId.set(w.level.id, w);
+  for (const { grid } of works) if (!byId.has(grid.level.id)) byId.set(grid.level.id, grid);
 
   for (const w of works) runPhase1(w);
   const links = resolveLinks(plan, byId, issues);
-  if (generatorProfile(plan).floorOpenings) {
-    // floor openings look into the next level down (rubble heaps and checks happen on both sides)
-    const byElev = [...works].sort((a, b) => a.level.elevation - b.level.elevation);
-    for (const w of works) linkOpenings(w, byElev.filter((o) => o.level.elevation < w.level.elevation).pop());
-  }
+  // floor openings look into the next level down (rubble heaps and checks happen on both sides)
+  linkFloorOpenings(works);
   for (const w of works) runPhase2(w);
 
   const levels = works

@@ -2,9 +2,8 @@
  * Step 9 of a level: the generated features of the plan's dress and scatter ops, after the rock band every natural
  * open-air cliff gets by default. The placement itself is gen/place.ts and gen/setpieces.ts; this module picks the
  * regions, calls them and commits what they place.
- * Reads: the level's dress and scatter ops, its areas and open ground, the placement grid (resolve/level/features.ts).
- * Writes: generated features (and the generated-feature count), plan issues for ops that placed nothing or hit the
- * level's cap.
+ * Reads: the level's dress and scatter ops, its areas and open ground, the placement grid (FeatureWork.placementGrid).
+ * Writes: generated features through FeatureWork, plan issues for ops that placed nothing or hit the level's cap.
  */
 import type { TerrainOp } from "../../contracts/plan";
 import { PLAN_LIMITS } from "../../contracts/plan";
@@ -22,15 +21,16 @@ import { defaultCliffBands } from "../../gen/setpieces";
 import { rasterizeShape } from "../../gen/shapes";
 import { elementSeed, subSeed } from "../../util/hash";
 import { isNaturalGround } from "../materials";
-import { commitGenerated, placementGrid } from "./features";
+import type { FeatureWork } from "./features";
 import type { AreaInfo, ResolveGrid } from "./grid";
 
 /** A dress op over the whole level: the open ground (no area) and each zone area, each dressed as one region. */
 function dressWholeLevel(
   work: ResolveGrid,
+  features: FeatureWork,
   op: Extract<TerrainOp, { op: "dress" }>,
   path: string,
-  grid: ReturnType<typeof placementGrid>,
+  grid: PlacementGrid,
   cap: number,
   capWarn: (id: string, path: string) => void,
 ): void {
@@ -55,9 +55,9 @@ function dressWholeLevel(
       areaCells: r.cells,
       density: op.density ?? 0.5,
       seed: subSeed(elementSeed(work.plan.seed, op.id, op.seed), `region${r.index}`),
-      remaining: cap - work.generated,
+      remaining: cap - features.generated,
     });
-    commitGenerated(work, op.id, res.placements);
+    features.commitGenerated(op.id, res.placements);
     placed += res.placements.length;
     if (res.capped) {
       capWarn(op.id, path);
@@ -72,8 +72,8 @@ function dressWholeLevel(
     });
 }
 
-export function stepGeneratedFeatures(work: ResolveGrid): void {
-  const grid = placementGrid(work);
+export function stepGeneratedFeatures(work: ResolveGrid, features: FeatureWork): void {
+  const grid = features.placementGrid();
   const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
   const ops = work.level.terrain.map((op, k) => ({ op, k }));
   const capWarn = (id: string, path: string): void => {
@@ -90,13 +90,13 @@ export function stepGeneratedFeatures(work: ResolveGrid): void {
   };
   // generator 3: the rock band of every natural cliff is laid first, over the whole level, so no zone's dressing
   // blocks a face that crosses into the next zone (the presets then only grow what follows the rock)
-  stepDefaultCliffBands(work, grid, cap);
+  stepDefaultCliffBands(work, features, grid, cap);
   for (const { op, k } of ops) {
     if (op.op !== "dress") continue;
     const path = `/levels/${work.li}/terrain/${k}`;
     if (op.area === undefined || op.area === work.level.id) {
       // generator 2: the whole level, region by region (the open ground outside areas, then each zone)
-      if (work.profile.dressWholeLevel) dressWholeLevel(work, op, path, grid, cap, capWarn);
+      if (work.profile.dressWholeLevel) dressWholeLevel(work, features, op, path, grid, cap, capWarn);
       continue;
     }
     const ai = work.areaIndexById.get(op.area);
@@ -116,10 +116,10 @@ export function stepGeneratedFeatures(work: ResolveGrid): void {
       areaCells: cells,
       density: op.density ?? 0.5,
       seed: elementSeed(work.plan.seed, op.id, op.seed),
-      remaining: cap - work.generated,
+      remaining: cap - features.generated,
       abandoned: (work.areas[ai] as AreaInfo).room.abandoned,
     });
-    commitGenerated(work, op.id, res.placements);
+    features.commitGenerated(op.id, res.placements);
     if (res.capped) capWarn(op.id, path);
     if (res.placements.length === 0 && !res.capped)
       work.issue("warning", "no_effect", `dress "${op.id}" placed nothing in "${op.area}"`, {
@@ -150,13 +150,13 @@ export function stepGeneratedFeatures(work: ResolveGrid): void {
       avoid: new Set<AvoidKind>(op.avoid ?? ["water", "walls", "features", "links"]),
       randomRotation: op.randomRotation ?? info.organic,
       seed: elementSeed(work.plan.seed, op.id, op.seed),
-      remaining: cap - work.generated,
+      remaining: cap - features.generated,
       // generator 2: natural pieces scatter in drifts and clumps, never an even lattice
       drift: work.profile.naturalScatter && info.organic,
       supported: work.profile.naturalScatter,
     };
     const res = scatterFeatures(grid, op.variants ? { ...params, variants: op.variants } : params);
-    commitGenerated(work, op.id, res.placements);
+    features.commitGenerated(op.id, res.placements);
     if (res.capped) capWarn(op.id, path);
     if (res.placements.length === 0 && !res.capped && op.density > 0)
       work.issue("warning", "no_effect", `scatter "${op.id}" placed no ${op.feature}`, {
@@ -175,7 +175,12 @@ export function stepGeneratedFeatures(work: ResolveGrid): void {
  * between natural ground, and the board's own edge where the ground stands above the base (gen/setpieces
  * `defaultCliffBands`; nothing where the theme has no formation roles). `cliffBands: false` on the level turns it off.
  */
-function stepDefaultCliffBands(work: ResolveGrid, grid: PlacementGrid, cap: number): void {
+function stepDefaultCliffBands(
+  work: ResolveGrid,
+  features: FeatureWork,
+  grid: PlacementGrid,
+  cap: number,
+): void {
   if (!work.profile.defaultCliffBands || work.level.cliffBands === false) return;
   const base = work.level.base;
   if (base.type !== "ground" || !isNaturalGround(base.material)) return;
@@ -193,7 +198,7 @@ function stepDefaultCliffBands(work: ResolveGrid, grid: PlacementGrid, cap: numb
   // every region is planned before any piece is committed: rocks of neighbouring zones overlap on purpose, and a
   // committed piece would read as a feature in the way of the next zone's band
   const planned: Array<{ id: string; placements: GeneratedPlacement[] }> = [];
-  let room = cap - work.generated;
+  let room = cap - features.generated;
   for (const [index, cells] of [...byIndex.entries()].sort((p, q) => p[0] - q[0])) {
     const res = defaultCliffBands(grid, {
       areaIndex: index,
@@ -205,5 +210,5 @@ function stepDefaultCliffBands(work: ResolveGrid, grid: PlacementGrid, cap: numb
     room -= res.placements.length;
     if (res.capped || room <= 0) break;
   }
-  for (const r of planned) commitGenerated(work, r.id, r.placements);
+  for (const r of planned) features.commitGenerated(r.id, r.placements);
 }

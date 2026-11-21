@@ -1,23 +1,24 @@
 /**
  * Step 5 of a level: the edges between cells.
- * Reads: cell owners, heights and bridge decks, the areas' wall modes and styles, the stair edges that platform and
- * stairs ops and inclined bridges recorded (`stairEdges`), and the level's explicit wall runs.
- * Writes: the edge arrays `hE` / `vE`: area walls (kind, style, height), ledges where floors differ in height, stair
- * edges (and the STEPS flag on the lower cell), and the walls a wall run adds or removes.
+ * Reads: cell owners and heights, the bridge decks (BridgeRecords), the areas' wall modes and styles, the stair edges
+ * that platform and stairs ops and inclined bridges asked for (the grid's `stairEdges`), and the level's explicit wall
+ * runs. Writes: the edge arrays `hE` / `vE`: area walls (kind, style, height), ledges where floors differ in height,
+ * stair edges (and the STEPS flag on the lower cell), and the walls a wall run adds or removes.
  */
 import type { Side, Vec2 } from "../../contracts/plan";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { isNaturalWallStyle } from "../../gen/wallStyles";
-import type { AreaInfo, EdgeArrays, ResolveGrid } from "./grid";
+import type { BridgeRecords } from "./bridges";
+import type { AreaInfo, EdgeArrays, ReadOnly, ResolveGrid } from "./grid";
 
-export function stepEdges(work: ResolveGrid): void {
+export function stepEdges(work: ResolveGrid, bridges: ReadOnly<BridgeRecords>): void {
   const one = (orient: "h" | "v", e: EdgeArrays, i: number): void => {
     const [a, b] = work.edgeCells(orient, i);
     const ra = work.region(a);
     const rb = work.region(b);
     let demand = -1; // 0 = a, 1 = b, 2 = both
     // A bridge deck never gets area walls toward open cells (it has railings, added after the edges).
-    const deckEdge = ra >= 0 && rb >= 0 && (work.bridgeOf[a] !== 0 || work.bridgeOf[b] !== 0);
+    const deckEdge = ra >= 0 && rb >= 0 && (bridges.deckOf[a] !== 0 || bridges.deckOf[b] !== 0);
     if (deckEdge) {
       /* no wall */
     } else if (ra >= 0 !== rb >= 0) {

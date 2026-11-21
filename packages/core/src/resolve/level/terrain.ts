@@ -2,10 +2,11 @@
  * Steps 2 and 4 of a level: the terrain ops, layer "under" (before the areas) and layer "over" (after them), and the
  * natural board outline of an open-air level.
  * Reads: the level's terrain ops in plan order, the cells as the areas left them. The shaping ops go to their own
- * modules (chasms, relief, floorOpenings); paint, noise, path and height are applied here.
- * Writes: cell floors, heights and PATH flags; `underTouched` (for the check that an under-layer op survived the
- * areas), `pendingRoads` and `pendingKerbs` (finished by resolve/level/paths.ts), no-effect plan issues; the board
- * outline turns open cells outside it to void.
+ * modules (chasms, relief, floorOpenings) with the record each owns (TerrainRecords); paint, noise, path and height
+ * are applied here.
+ * Writes: cell floors, heights and PATH flags; the path ops' queued roads and kerbed paths (PathRecords, finished by
+ * resolve/level/paths.ts); no-effect plan issues. Returns the cells each paint, noise, path or height op changed, for
+ * the check that an under-layer op survived the areas. The board outline turns open cells outside it to void.
  */
 import type { TerrainOp, Vec2 } from "../../contracts/plan";
 import { PLAN_LIMITS } from "../../contracts/plan";
@@ -18,13 +19,30 @@ import { isNaturalGround, isWater } from "../materials";
 import { organicTiers } from "../organic";
 import { trailCells } from "../trail";
 import { STILL_WATER, riverCourse } from "../water";
-import { applyChasm, boardBox, keepOffHighGround } from "./chasms";
-import { applyFloorOpening } from "./floorOpenings";
-import { stepPathSpurs, stepPavements } from "./paths";
-import { applyOutcrop, applyPlatform, applyStairsOp, applyUneven } from "./relief";
-import type { ResolveGrid } from "./grid";
+import { type ChasmRecords, applyChasm, boardBox, keepOffHighGround } from "./chasms";
+import { type FloorOpeningRecords, applyFloorOpening } from "./floorOpenings";
+import type { ReadOnly, ResolveGrid } from "./grid";
+import { type PathRecords, stepPathSpurs, stepPavements } from "./paths";
+import { type ReliefRecords, applyOutcrop, applyPlatform, applyStairsOp, applyUneven } from "./relief";
 
-export function stepTerrain(work: ResolveGrid, layer: "under" | "over"): void {
+/** The records the terrain ops write, each owned by the module that applies its ops. */
+export interface TerrainRecords {
+  chasms: ChasmRecords;
+  relief: ReliefRecords;
+  floorOpenings: FloorOpeningRecords;
+  paths: PathRecords;
+}
+
+/** The cells a paint, noise, path or height op changed. */
+export interface TerrainTouch {
+  op: TerrainOp;
+  path: string;
+  cells: number[];
+}
+
+/** Applies the level's terrain ops of one layer, in plan order; returns the cells each simple op changed. */
+export function stepTerrain(work: ResolveGrid, layer: "under" | "over", out: TerrainRecords): TerrainTouch[] {
+  const touches: TerrainTouch[] = [];
   work.level.terrain.forEach((op, k) => {
     if (op.op === "scatter" || op.op === "dress") return;
     const structural =
@@ -39,30 +57,31 @@ export function stepTerrain(work: ResolveGrid, layer: "under" | "over"): void {
     const path = `/levels/${work.li}/terrain/${k}`;
     switch (op.op) {
       case "chasm":
-        applyChasm(work, op, path);
+        applyChasm(work, op, path, out.chasms);
         return;
       case "platform":
         applyPlatform(work, op, path);
         return;
       case "stairs":
-        applyStairsOp(work, op, path);
+        applyStairsOp(work, op, path, out.relief);
         return;
       case "uneven":
         applyUneven(work, op, path);
         return;
       case "outcrop":
-        applyOutcrop(work, op, path);
+        applyOutcrop(work, op, path, out.relief);
         return;
       case "floor_opening":
-        applyFloorOpening(work, op, path);
+        applyFloorOpening(work, op, path, out.floorOpenings);
         return;
     }
-    const r = applyTerrain(work, op, path, layer);
-    if (layer === "under" && r.touched.length > 0) work.underTouched.push({ op, path, cells: r.touched });
+    const r = applyTerrain(work, op, path, layer, out.paths);
+    if (r.touched.length > 0) touches.push({ op, path, cells: r.touched });
     if (r.touched.length === 0 && !r.partial) reportTerrainNoEffect(work, op, path, layer, r.inShape, r.open);
   });
-  stepPavements(work, layer);
+  stepPavements(work, layer, out.paths);
   if (layer === "under") stepPathSpurs(work);
+  return touches;
 }
 
 /** Warning for a paint/noise/path/height op that changed no cell, with the reason and the fix. */
@@ -107,11 +126,11 @@ function reportTerrainNoEffect(
 }
 
 /**
- * Under-layer ops whose every touched cell was taken over by an area that sets its own value (its floor for
- * paint/noise/path, floorHeight for height), or that no area ever opened.
+ * Under-layer ops (`under`: what stepTerrain returned for that layer) whose every touched cell was taken over by an
+ * area that sets its own value (its floor for paint/noise/path, floorHeight for height), or that no area ever opened.
  */
-export function checkUnderSurvivors(work: ResolveGrid): void {
-  for (const { op, path, cells } of work.underTouched) {
+export function checkUnderSurvivors(work: ResolveGrid, under: readonly TerrainTouch[]): void {
+  for (const { op, path, cells } of under) {
     const isHeight = op.op === "height";
     let survivors = 0;
     let opened = 0;
@@ -145,6 +164,7 @@ function applyTerrain(
   >,
   path: string,
   layer: "under" | "over",
+  paths: PathRecords,
 ): { touched: number[]; inShape: number; open: number; partial: boolean } {
   // Generator 2: an under-layer height op sets the height field of every cell (rock included); the areas that open
   // those cells later inherit it unless they set floorHeight (contracts/plan.ts GENERATOR_VERSION).
@@ -226,10 +246,10 @@ function applyTerrain(
       } else {
         const pts = jitterPolyline(base, op.width, straightOnly ? 0 : (op.jitter ?? 0), seed);
         forEachMaskCell(rasterPolyline(pts, op.width, work.rasterClip()), visit);
-        if (road) work.pendingRoads.push({ op, axis: pts, layer, cells: touched.slice(), pave: [] });
+        if (road) paths.pendingRoads.push({ op, axis: pts, layer, cells: touched.slice(), pave: [] });
       }
       if (op.kerb === true && !road)
-        work.pendingKerbs.push({ cells: new Set(touched), material: op.material, seed, anchors, natural });
+        paths.pendingKerbs.push({ cells: new Set(touched), material: op.material, seed, anchors, natural });
       break;
     }
     case "height": {
@@ -337,11 +357,11 @@ function rasterCellsOf(m: CellMask, idx: (x: number, y: number) => number): numb
  * board edge. Cells outside become void. Paths, water, areas, structures and explicit features keep their cells,
  * so roads and rivers still reach the true edge. Built-up levels (buildings or roads) keep their rectangle.
  */
-export function stepOutline(work: ResolveGrid): void {
+export function stepOutline(work: ResolveGrid, paths: ReadOnly<PathRecords>): void {
   const base = work.level.base;
   if (!work.profile.naturalLevelOutline || base.type !== "ground" || work.level.outline === "rect") return;
   if (!isNaturalGround(base.material)) return;
-  if (work.pendingRoads.length > 0) return;
+  if (paths.pendingRoads.length > 0) return;
   if (
     (work.level.structures ?? []).some((st) => st.kind !== "enclosure") &&
     (work.level.structures ?? []).length >= 3
@@ -355,8 +375,10 @@ export function stepOutline(work: ResolveGrid): void {
     if ((work.struct[i] as number) > 0) return true;
     return work.structs?.reservedCell(i) === true;
   };
+  // the plan's own features keep their cells too
+  const featureCells = new Set<number>();
   for (const ft of work.level.features)
-    for (const c of work.footprint(ft.at, ft.size ?? [1, 1]).cells) work.outlineKeep.add(c);
+    for (const c of work.footprint(ft.at, ft.size ?? [1, 1]).cells) featureCells.add(c);
   // inset from each edge in 2-cell blocks: 2..6 cells, wandering with noise along the edge
   const inside = new Uint8Array(work.n);
   for (let i = 0; i < work.n; i++) {
@@ -375,7 +397,7 @@ export function stepOutline(work: ResolveGrid): void {
   // the open board: inside the outline, plus whatever must reach the edge
   for (let i = 0; i < work.n; i++) {
     if (work.state[i] !== CELL.OPEN) continue;
-    if (inside[i] || keep(i) || work.outlineKeep.has(i)) continue;
+    if (inside[i] || keep(i) || featureCells.has(i)) continue;
     work.state[i] = CELL.VOID;
   }
   // (a low apron round the outline, lowering raised ground near the void, is deferred: it cut routes on plans

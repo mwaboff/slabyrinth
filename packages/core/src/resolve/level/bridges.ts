@@ -1,10 +1,11 @@
 /**
  * Bridges: the bridge pass after the over-layer terrain (decks laid before the edges), the railings after the edges,
  * and the rubble at the ends of crumbling bridges with the features.
- * Reads: bridge areas and the chasm bridges queued in `bridgeReqs`, the floors and heights round each deck.
- * Writes: the deck cells (height along the span, material, BRIDGE flag, holes where broken or crumbled), `bridgeOf`,
- * `bridges` (one ResolvedBridge each, with piers), stair edges on inclined spans, `bridgeCrumble` and `bridgeRubble`,
- * the railing edges on every intact deck edge over a drop, and the rubble features.
+ * Owns BridgeRecords (the decks); the edges, the railings and the rubble read them. Reads: bridge areas and the chasm
+ * bridges the chasm ops asked for (ChasmRecords.bridgeRequests), the floors and heights round each deck.
+ * Writes: the deck cells (height along the span, material, BRIDGE flag, holes where broken or crumbled), the decks
+ * (one ResolvedBridge each, with piers; which deck each cell is; crumble and the rubble spots at the ends), stair edges
+ * on inclined spans, the railing edges on every intact deck edge over a drop, and the rubble features.
  */
 import type { BridgeSpan, Material, Vec2, WallStyle } from "../../contracts/plan";
 import { MATERIALS, PLAN_LIMITS } from "../../contracts/plan";
@@ -14,7 +15,57 @@ import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { elementSeed, h32, subSeed } from "../../util/hash";
 import { createPrng } from "../../util/prng";
 import { materialInfo, materialOrdinal } from "../materials";
-import { type AreaInfo, type BridgeRequest, type ResolveGrid, RAILING_HEIGHT } from "./grid";
+import type { ChasmRecords } from "./chasms";
+import type { FeatureWork } from "./features";
+import { type AreaInfo, type ReadOnly, type ResolveGrid, RAILING_HEIGHT } from "./grid";
+
+/** A bridge deck waiting for the bridge pass (area of kind "bridge" or a chasm op's bridge). */
+export interface BridgeRequest {
+  id: string;
+  elementId: string;
+  path: string;
+  cells: number[];
+  /** Deck material ordinal (materialOrdinal). */
+  floorMat: number;
+  /** Explicit deck height (quarter tiles) or null = infer from the floor it touches. */
+  deck: number | null;
+  /** Explicit railing (null = none); undefined = the span's default. */
+  railing: WallStyle | null | undefined;
+  broken: number[];
+  crumble: number;
+  seed: number;
+  span?: BridgeSpan;
+  /** Explicit rise of the middle (tiles). */
+  arch?: number;
+  /** Direction the deck runs (chasm bridges know it; areas use their longer side). */
+  axis?: "h" | "v";
+  label?: string;
+}
+
+/** The level's bridge decks. Written only by the bridge pass (stepBridges); read-only after it. */
+export class BridgeRecords {
+  /** One record per deck laid, in the order laid (ResolvedLevel.bridges). */
+  readonly decks: ResolvedBridge[] = [];
+  /** Per cell, the index + 1 of the deck on it (0 = not a deck). */
+  readonly deckOf: Int32Array;
+  /** Per deck (index + 1), how much of it crumbles and the seed it crumbles with (its parapet has the same gaps). */
+  readonly crumble = new Map<number, { crumble: number; seed: number }>();
+  /** Rubble at the ends of crumbling bridges, placed with the generated features (stepBridgeRubble). */
+  readonly rubble: Array<{ id: string; at: Vec2 }> = [];
+
+  constructor(cells: number) {
+    this.deckOf = new Int32Array(cells);
+  }
+}
+
+/** A raised deck (explicit height) laid by the bridge pass: whether anyone can get onto it is checked after all are. */
+interface RaisedDeck {
+  r: ReadOnly<BridgeRequest>;
+  cells: number[];
+  broken: ReadonlySet<number>;
+  anchors: number;
+  deck: number;
+}
 
 /** Rise of the deck's middle (quarter tiles) by span; plank bridges sag. */
 const SPAN_ARCH_Q: Record<BridgeSpan, number> = { arch: 3, flat: 0, plank: -1, natural: 1 };
@@ -30,8 +81,8 @@ const SPAN_RAILING: Record<BridgeSpan, WallStyle | null> = {
  * lies under its cells, then lays the deck: height = explicit floorHeight or the highest floor it touches, its own
  * floor material, CELL_FLAG.BRIDGE, no walls toward open cells. Broken and crumbled cells become holes.
  */
-export function stepBridges(work: ResolveGrid): void {
-  const reqs: BridgeRequest[] = [];
+export function stepBridges(work: ResolveGrid, out: BridgeRecords, chasms: ReadOnly<ChasmRecords>): void {
+  const reqs: Array<ReadOnly<BridgeRequest>> = [];
   for (const info of work.areas) {
     if (!info.isBridge) continue;
     const cells = work.areaCells(info.index);
@@ -71,17 +122,24 @@ export function stepBridges(work: ResolveGrid): void {
     if (a.name !== undefined) req.label = a.name;
     reqs.push(req);
   }
-  reqs.push(...work.bridgeReqs);
+  reqs.push(...chasms.bridgeRequests);
   // raised decks (explicit height) first, so spans that climb to them meet their real height
   const ordered = [...reqs.filter((r) => r.deck !== null), ...reqs.filter((r) => r.deck === null)];
-  for (const r of ordered) layBridge(work, r);
-  for (const check of work.deckChecks) check();
+  const raised: RaisedDeck[] = [];
+  for (const r of ordered) {
+    const d = layBridge(work, r, out);
+    if (d) raised.push(d);
+  }
+  // a raised deck may be reached by a bridge laid after it: checked once every deck is down
+  for (const d of raised)
+    if (!raisedDeckReached(work, d)) warnUnanchored(work, d.r, d.cells, d.anchors, d.deck);
 }
 
-function layBridge(work: ResolveGrid, r: BridgeRequest): void {
-  const k = work.bridges.length + 1;
-  const cells = r.cells.filter((i) => work.bridgeOf[i] === 0);
-  if (cells.length === 0) return;
+/** Lays one deck; returns it when it is a raised deck whose way on is checked after every deck is laid. */
+function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRecords): RaisedDeck | null {
+  const k = out.decks.length + 1;
+  const cells = r.cells.filter((i) => out.deckOf[i] === 0);
+  if (cells.length === 0) return null;
   const inThis = new Set(cells);
   // deck height: explicit, else the highest open floor it touches (its ends)
   let touch = -Infinity;
@@ -145,7 +203,7 @@ function layBridge(work: ResolveGrid, r: BridgeRequest): void {
       // a raised deck at the far end counts at its deck height, even before it is laid
       best = Math.max(
         best ?? -Infinity,
-        work.bridgeOf[j] === 0
+        out.deckOf[j] === 0
           ? (work.deckHeightOf(j) ?? (work.height[j] as number))
           : (work.height[j] as number),
       );
@@ -182,7 +240,7 @@ function layBridge(work: ResolveGrid, r: BridgeRequest): void {
     work.flags[i] =
       ((work.flags[i] as number) & ~(CELL_FLAG.NO_FLOOR | CELL_FLAG.WATER | CELL_FLAG.PATH)) |
       CELL_FLAG.BRIDGE;
-    work.bridgeOf[i] = k;
+    out.deckOf[i] = k;
   }
   if (inclined) {
     const stepQ = Math.abs(h1 - h0) / (len + 1);
@@ -217,7 +275,7 @@ function layBridge(work: ResolveGrid, r: BridgeRequest): void {
             !inThis.has(j) &&
             work.isFloor(j) &&
             (Math.abs((work.height[j] as number) - (work.height[i] as number)) <= 4 ||
-              work.stairEdges.has(i < j ? `${i},${j}` : `${j},${i}`)),
+              work.hasStairEdge(i, j)),
         );
       if (ok) anchorCells.push(i);
     }
@@ -284,14 +342,14 @@ function layBridge(work: ResolveGrid, r: BridgeRequest): void {
     const spots: Vec2[] = [];
     for (const i of anchorCells)
       for (const j of work.neighbours4(i))
-        if (j >= 0 && !inThis.has(j) && work.isFloor(j) && work.bridgeOf[j] === 0) spots.push(work.cellXY(j));
+        if (j >= 0 && !inThis.has(j) && work.isFloor(j) && out.deckOf[j] === 0) spots.push(work.cellXY(j));
     const pickN = Math.min(spots.length, 1 + Math.round(r.crumble * 4));
     rng
       .shuffle(spots)
       .slice(0, pickN)
-      .forEach((at, n) => work.bridgeRubble.push({ id: `${r.id}#rubble${n}`, at }));
+      .forEach((at, n) => out.rubble.push({ id: `${r.id}#rubble${n}`, at }));
   }
-  work.bridgeCrumble.set(k, { crumble: r.crumble, seed: r.seed });
+  out.crumble.set(k, { crumble: r.crumble, seed: r.seed });
   const rec: ResolvedBridge = {
     id: r.id,
     cells: sorted.map(({ i }) => work.cellXY(i)),
@@ -304,7 +362,7 @@ function layBridge(work: ResolveGrid, r: BridgeRequest): void {
   };
   if (piers.length > 0) rec.piers = piers;
   if (r.label !== undefined) rec.label = r.label;
-  work.bridges.push(rec);
+  out.decks.push(rec);
   // ends: a real bridge touches walkable floor on two sides that are not next to each other
   const groups = groupCount(work, anchorCells);
   const anchors = anchorCells.length;
@@ -316,51 +374,59 @@ function layBridge(work: ResolveGrid, r: BridgeRequest): void {
       const j = axis === "h" ? work.idx(x + step, y) : work.idx(x, y + step);
       if (j < 0 || inThis.has(j) || !work.isFloor(j)) return false;
       return (
-        Math.abs((work.height[j] as number) - (work.height[i] as number)) <= 2 ||
-        work.stairEdges.has(i < j ? `${i},${j}` : `${j},${i}`)
+        Math.abs((work.height[j] as number) - (work.height[i] as number)) <= 2 || work.hasStairEdge(i, j)
       );
     });
-  // a raised deck (explicit height) needs one way on and off: a flight of stairs, floor beside it within a step,
-  // or another bridge that climbs to it (checked after every bridge is laid)
-  const reached = (): boolean =>
-    cells.some(
-      (i) =>
-        !broken.has(i) &&
-        work
-          .neighbours4(i)
-          .some(
-            (j) =>
-              j >= 0 &&
-              !inThis.has(j) &&
-              work.isFloor(j) &&
-              (Math.abs((work.height[j] as number) - (work.height[i] as number)) <= 2 ||
-                work.stairEdges.has(i < j ? `${i},${j}` : `${j},${i}`)),
-          ),
-    );
-  const warn = (): void => {
-    const first = work.cellXY(cells[0] as number);
-    work.issue(
-      "warning",
-      "bridge_unanchored",
-      anchors === 0
-        ? `bridge "${r.id}" touches no walkable floor at deck height ${deck / 4}: nobody can get onto it`
-        : `bridge "${r.id}" reaches walkable floor at one end only`,
-      {
-        path: r.path,
-        elementId: r.elementId,
-        cell: first,
-        hint:
-          r.deck !== null
-            ? "add a stairs terrain op from the ground to its edge, or a bridge that climbs to it"
-            : "make it span from floor to floor (extend it over the whole drop), or set floorHeight to the height of the floor at its ends",
-      },
-    );
-  };
-  if (r.deck !== null)
-    work.deckChecks.push(() => {
-      if (!reached()) warn();
-    });
-  else if (!(endOk(0, -1) && endOk(len - 1, 1)) && (anchors === 0 || groups < 2)) warn();
+  // a raised deck (explicit height) needs one way on and off, which another bridge laid after it may give
+  if (r.deck !== null) return { r, cells, broken, anchors, deck };
+  if (!(endOk(0, -1) && endOk(len - 1, 1)) && (anchors === 0 || groups < 2))
+    warnUnanchored(work, r, cells, anchors, deck);
+  return null;
+}
+
+/** A raised deck is reached when floor beside an intact cell lies within a step of it, or a stair leads to it. */
+function raisedDeckReached(work: ResolveGrid, d: RaisedDeck): boolean {
+  const inThis = new Set(d.cells);
+  return d.cells.some(
+    (i) =>
+      !d.broken.has(i) &&
+      work
+        .neighbours4(i)
+        .some(
+          (j) =>
+            j >= 0 &&
+            !inThis.has(j) &&
+            work.isFloor(j) &&
+            (Math.abs((work.height[j] as number) - (work.height[i] as number)) <= 2 ||
+              work.hasStairEdge(i, j)),
+        ),
+  );
+}
+
+function warnUnanchored(
+  work: ResolveGrid,
+  r: ReadOnly<BridgeRequest>,
+  cells: readonly number[],
+  anchors: number,
+  deck: number,
+): void {
+  const first = work.cellXY(cells[0] as number);
+  work.issue(
+    "warning",
+    "bridge_unanchored",
+    anchors === 0
+      ? `bridge "${r.id}" touches no walkable floor at deck height ${deck / 4}: nobody can get onto it`
+      : `bridge "${r.id}" reaches walkable floor at one end only`,
+    {
+      path: r.path,
+      elementId: r.elementId,
+      cell: first,
+      hint:
+        r.deck !== null
+          ? "add a stairs terrain op from the ground to its edge, or a bridge that climbs to it"
+          : "make it span from floor to floor (extend it over the whole drop), or set floorHeight to the height of the floor at its ends",
+    },
+  );
 }
 
 /** Number of groups of anchor cells, where anchors within 2 cells (Chebyshev) of each other count as one group. */
@@ -390,8 +456,8 @@ function groupCount(work: ResolveGrid, anchors: number[]): number {
 }
 
 /** Railings: a WALL (the bridge's railing style, 1 tile) on every intact deck edge that faces a drop. */
-export function stepRailings(work: ResolveGrid): void {
-  work.bridges.forEach((b, bi) => {
+export function stepRailings(work: ResolveGrid, bridges: ReadOnly<BridgeRecords>): void {
+  bridges.decks.forEach((b, bi) => {
     if (b.railing === null) return;
     const k = bi + 1;
     for (const [x, y] of b.cells) {
@@ -401,13 +467,13 @@ export function stepRailings(work: ResolveGrid): void {
         const [nx, ny] =
           side === "N" ? [x, y - 1] : side === "S" ? [x, y + 1] : side === "E" ? [x + 1, y] : [x - 1, y];
         const j = work.idx(nx, ny);
-        if (j < 0 || work.state[j] !== CELL.OPEN || work.bridgeOf[j] === k) continue;
+        if (j < 0 || work.state[j] !== CELL.OPEN || bridges.deckOf[j] === k) continue;
         const drop =
           ((work.flags[j] as number) & CELL_FLAG.NO_FLOOR) !== 0 ||
           (work.height[j] as number) < Math.min(b.deck, work.height[i] as number) - 2;
         if (!drop) continue;
         // a crumbling bridge has gaps in its parapet too
-        const cr = work.bridgeCrumble.get(k);
+        const cr = bridges.crumble.get(k);
         if (cr && cr.crumble > 0 && h32(`${cr.seed}:parapet:${x}:${y}:${side}`) / 4294967296 < cr.crumble)
           continue;
         const ed = work.sideEdge(x, y, side);
@@ -423,9 +489,13 @@ export function stepRailings(work: ResolveGrid): void {
 }
 
 /** Rubble at the ends of crumbling bridges (generated features "<bridgeId>#rubble<n>"). */
-export function stepBridgeRubble(work: ResolveGrid): void {
+export function stepBridgeRubble(
+  work: ResolveGrid,
+  features: FeatureWork,
+  bridges: ReadOnly<BridgeRecords>,
+): void {
   const info = featureInfo("rubble");
-  for (const r of work.bridgeRubble) {
+  for (const r of bridges.rubble) {
     const size = rotatedSize(info.size, 0);
     if (work.featureProblem("rubble", r.at, size, undefined) !== null) continue;
     const anchor = work.idx(r.at[0], r.at[1]);
@@ -433,7 +503,7 @@ export function stepBridgeRubble(work: ResolveGrid): void {
       id: r.id,
       type: "rubble",
       generatedBy: r.id.split("#")[0] as string,
-      at: r.at,
+      at: [r.at[0], r.at[1]],
       size,
       rot: 0,
       rotFine: (h32(r.id) % 24) * 15,
@@ -443,6 +513,6 @@ export function stepBridgeRubble(work: ResolveGrid): void {
     };
     const ar = anchor >= 0 ? (work.disp[anchor] as number) : 0;
     if (ar > 0) rf.area = (work.areas[ar - 1] as AreaInfo).area.id;
-    work.addFeatureCells(rf);
+    features.addGenerated(rf);
   }
 }

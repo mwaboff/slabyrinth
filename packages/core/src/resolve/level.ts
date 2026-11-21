@@ -3,14 +3,16 @@
  *   1 base · 2 terrain "under" · 3 areas (routes last) · 4 terrain "over" · 5 edges + wall runs · 6 openings
  *   [7 links: done across levels by resolvePlan] · 8 explicit features · 9 generated features · 10 derived data.
  *
- * This file is the order; each stage lives in resolve/level/ and works on the level's working state
- * (resolve/level/grid.ts `ResolveGrid`: typed cell and edge arrays plus the records the stages fill).
+ * This file is the order and the wiring: each stage lives in resolve/level/ and gets the level's grid (`work`,
+ * resolve/level/grid.ts) plus exactly the records it uses. A stage's signature takes a record it owns as is and one it
+ * only reads as `ReadOnly<...>`, so a call below and the signature it reaches say what the stage reads and writes
+ * (ownership table: resolve/level/state.ts).
  * resolvePlan drives a plan through it:
- *   new ResolveGrid(ctx) per level → runPhase1 (steps 1–6) per level → links between levels and
- *   linkOpenings (resolve/level/floorOpenings.ts) → runPhase2 (steps 8–9) per level → toResolved
+ *   new ResolveLevelState(ctx) per level → runPhase1 (steps 1–6) per level → links between levels and
+ *   linkFloorOpenings (resolve/level/floorOpenings.ts) → runPhase2 (steps 8–9) per level → toResolved
  *   (resolve/level/output.ts, step 10 and the ResolvedLevel contract shape).
  * The structure hooks (resolve/structure.ts `StructureWork`) run between stages, where buildings need the level's
- * cells as they stand at that point.
+ * cells as they stand at that point. Every stage that depends on the generator checks its own switch.
  */
 import { checkAreaFields, stepAreas, stepBase } from "./level/areas";
 import { stepBridgeRubble, stepBridges, stepRailings } from "./level/bridges";
@@ -23,46 +25,50 @@ import { stepMarket } from "./level/market";
 import { stepOpenings } from "./level/openings";
 import { stepKerbs, stepPavementFronts, stepRoads } from "./level/paths";
 import { stepRoomFloors, stepRoomRecipes, stepWallFootRubble } from "./level/rooms";
+import type { ResolveLevelState } from "./level/state";
 import { checkUnderSurvivors, stepOutline, stepTerrain } from "./level/terrain";
-import type { ResolveGrid } from "./level/grid";
 
 /** Steps 1–6: the level's cells, terrain, edges and openings, before the links between levels. */
-export function runPhase1(work: ResolveGrid): void {
+export function runPhase1(s: ResolveLevelState): void {
+  const work = s.grid;
+  const terrain = { chasms: s.chasms, relief: s.relief, floorOpenings: s.floorOpenings, paths: s.paths };
   stepBase(work);
-  stepTerrain(work, "under");
+  const under = stepTerrain(work, "under", terrain);
   const routes = stepAreas(work);
   if (work.profile.caveOutlines) stepCaveOutlines(work);
   work.structs?.afterAreas(work);
-  checkUnderSurvivors(work);
-  stepTerrain(work, "over");
+  checkUnderSurvivors(work, under);
+  stepTerrain(work, "over", terrain);
   work.structs?.afterTerrain(work);
   if (work.profile.caveRelief) stepCaveRelief(work);
-  stepPavementFronts(work);
-  stepOutline(work);
-  stepBridges(work);
+  stepPavementFronts(work, s.paths);
+  stepOutline(work, s.paths);
+  stepBridges(work, s.bridges, s.chasms);
   if (work.profile.roomFloors) stepRoomFloors(work);
-  stepEdges(work);
+  stepEdges(work, s.bridges);
   stepStairs(work);
-  stepRailings(work);
-  stepRoads(work);
-  stepKerbs(work);
+  stepRailings(work, s.bridges);
+  stepRoads(work, s.paths);
+  stepKerbs(work, s.paths);
   stepWallRuns(work);
-  stepOpenings(work, routes);
-  stepOpeningRims(work);
+  stepOpenings(work, routes, s.openings);
+  stepOpeningRims(work, s.floorOpenings);
   work.structs?.afterOpenings(work);
   checkAreaFields(work);
 }
 
 /** Steps 8–9: the plan's features, then everything generated, once the links and floor openings are known. */
-export function runPhase2(work: ResolveGrid): void {
-  stepExplicitFeatures(work);
-  stepMarket(work);
-  stepBridgeRubble(work);
-  stepOpeningRubble(work);
-  stepOpeningRimDebris(work);
+export function runPhase2(s: ResolveLevelState): void {
+  const work = s.grid;
+  const features = s.features;
+  stepExplicitFeatures(work, features, s.paths);
+  stepMarket(work, features, s.lines, s.paths, s.openings);
+  stepBridgeRubble(work, features, s.bridges);
+  stepOpeningRubble(work, features, s.floorOpenings);
+  stepOpeningRimDebris(work, features, s.floorOpenings);
   // generator 4: rooms the plan left bare are dressed from their purpose, and every room is lit. Before the loose
   // rubble and the scatters, so those fill what the furniture leaves and never take a wall run from it.
-  if (work.profile.roomRecipes && work.level.roomDress !== false) stepRoomRecipes(work);
-  stepWallFootRubble(work);
-  stepGeneratedFeatures(work);
+  if (work.profile.roomRecipes && work.level.roomDress !== false) stepRoomRecipes(work, features);
+  stepWallFootRubble(work, features, s.floorOpenings, s.openings);
+  stepGeneratedFeatures(work, features);
 }

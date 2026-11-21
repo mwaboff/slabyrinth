@@ -2,8 +2,9 @@
  * Step 10 of a level and the output: the derived data (area outlines, anchors and bounding boxes, edge hosts, cliffs,
  * the water surface, interior wall tops) and the conversion from the typed working arrays to the plain ResolvedLevel
  * contract shape.
- * Reads: the whole working state once every stage has run, and the structures' own records (resolve/structure.ts).
- * Writes: the ResolvedLevel it returns, plus `area_empty` and water-level plan issues.
+ * Reads: the whole level state once every stage has run (the grid and every record, resolve/level/state.ts), and the
+ * structures' own records (resolve/structure.ts). Writes: the ResolvedLevel it returns, plus `area_empty` and
+ * water-level plan issues.
  */
 import type { Material, Vec2, WallStyle } from "../../contracts/plan";
 import { MATERIALS } from "../../contracts/plan";
@@ -14,10 +15,12 @@ import { cliffRuns } from "../cliffs";
 import { traceRings } from "../trace";
 import { settleWallHeights } from "../wallSettle";
 import { roughWallTops } from "../wallTops";
-import { waterSurface } from "./waterSurface";
-import type { EdgeArrays, ResolveGrid } from "./grid";
+import type { EdgeArrays } from "./grid";
+import type { ResolveLevelState } from "./state";
+import { type WaterSurface, waterSurface } from "./waterSurface";
 
-export function toResolved(work: ResolveGrid): ResolvedLevel {
+export function toResolved(s: ResolveLevelState): ResolvedLevel {
+  const work = s.grid;
   const { w, h, n } = work;
   // materials in first-appearance order (row-major)
   const materials: Material[] = [];
@@ -167,8 +170,8 @@ export function toResolved(work: ResolveGrid): ResolvedLevel {
     hEdges,
     vEdges,
     areas,
-    openings: work.openings,
-    features: work.features,
+    openings: s.openings,
+    features: s.features.all.slice(),
     labels: work.level.labels.map((l) => ({
       id: l.id,
       text: l.text,
@@ -176,22 +179,23 @@ export function toResolved(work: ResolveGrid): ResolvedLevel {
       size: l.size ?? "m",
     })),
   };
-  if (work.bridges.length > 0) lvl.bridges = work.bridges;
-  if (work.outcrops.length > 0) lvl.outcrops = work.outcrops;
-  if (work.kerbs.length > 0) lvl.kerbs = work.kerbs;
-  if (work.roads.length > 0) lvl.roads = work.roads;
-  if (work.ramps.length > 0) lvl.ramps = work.ramps;
+  if (s.bridges.decks.length > 0) lvl.bridges = s.bridges.decks;
+  if (s.relief.outcrops.length > 0) lvl.outcrops = s.relief.outcrops;
+  if (s.paths.kerbs.length > 0) lvl.kerbs = s.paths.kerbs;
+  if (s.paths.roads.length > 0) lvl.roads = s.paths.roads;
+  if (s.relief.ramps.length > 0) lvl.ramps = s.relief.ramps;
   if (work.profile.cliffRockBand) {
     const cliffs = cliffRuns(lvl);
     if (cliffs.length > 0) lvl.cliffs = cliffs;
   }
+  let water: WaterSurface | null = null;
   if (work.profile.foundation) {
     lvl.foundation = work.level.foundation ?? (work.level.base.type === "ground" ? 2 : 0);
-    const wl = waterSurface(work);
-    if (wl !== null) lvl.waterLevel = wl;
+    water = waterSurface(work, s.chasms);
+    if (water !== null) lvl.waterLevel = water.level;
   }
-  if (work.profile.floorOpenings && work.floorOpenings.length > 0)
-    lvl.floorOpenings = work.floorOpenings.map((fo) => ({
+  if (work.profile.floorOpenings && s.floorOpenings.holes.length > 0)
+    lvl.floorOpenings = s.floorOpenings.holes.map((fo) => ({
       id: fo.id,
       kind: fo.kind,
       cells: fo.cells.map((i) => work.cellXY(i) as Vec2),
@@ -201,11 +205,12 @@ export function toResolved(work: ResolveGrid): ResolvedLevel {
       edgeCells: fo.edgeCells,
     }));
   if (work.profile.wanderingChannels) {
-    if (work.channels.length > 0) lvl.channels = work.channels;
-    if (work.falls.length > 0) lvl.falls = work.falls;
-    if (work.waterRange !== null) lvl.waterRange = work.waterRange;
+    if (s.chasms.channels.length > 0) lvl.channels = s.chasms.channels;
+    if (s.chasms.falls.length > 0) lvl.falls = s.chasms.falls;
+    // (wanderingChannels comes after foundation, so the surface above was asked for)
+    if (water?.range) lvl.waterRange = water.range;
   }
-  if (work.resolvedLines.length > 0) lvl.lines = work.resolvedLines;
+  if (s.lines.length > 0) lvl.lines = s.lines;
   if (work.structs) Object.assign(lvl, work.structs.finish(work.level.elevation));
   // the walls of a built interior vary in height (resolve/wallTops.ts)
   if (work.profile.interiorWallTops && work.level.base.type === "solid") {

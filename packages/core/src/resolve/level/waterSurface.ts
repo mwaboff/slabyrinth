@@ -1,11 +1,19 @@
 /**
  * The level's water surface: where TaleSpire's one board-wide water plane should sit. Asked by the placement grid
  * (dressing sinks stones to it, without reporting) and by the output (with the plan issues).
- * Reads: water cells and the dry floor round them, the upper reaches and falls of stepped rivers.
- * Writes: `waterRange` (the range a stepped river allows) and, when reporting, `water_level` plan issues.
+ * Reads: water cells and the dry floor round them, the upper reaches and falls of stepped rivers (ChasmRecords).
+ * Returns the surface and the range a stepped river allows; writes nothing but, when reporting, `water_level` issues.
  */
 import { CELL_FLAG } from "../../contracts/resolved";
-import type { ResolveGrid } from "./grid";
+import type { ChasmRecords } from "./chasms";
+import type { ReadOnly, ResolveGrid } from "./grid";
+
+/** Where the board's water plane should sit (absolute tiles). */
+export interface WaterSurface {
+  level: number;
+  /** Generator 3, a level with falls: the lowest and highest settings that keep every reach right (or null). */
+  range: [number, number] | null;
+}
 
 /** True when a water cell lies within `r` cells (Chebyshev) of cell `i`. */
 function nearWater(work: ResolveGrid, i: number, r: number): boolean {
@@ -23,11 +31,15 @@ function nearWater(work: ResolveGrid, i: number, r: number): boolean {
  * lowest dry floor that touches water, but at least a quarter tile above the highest water bed. Warns when other dry
  * walkable floor (a dry pit, a lava rift, a cellar) lies below it, since the plane would flood it.
  */
-export function waterSurface(work: ResolveGrid, report = true): number | null {
+export function waterSurface(
+  work: ResolveGrid,
+  rivers: ReadOnly<ChasmRecords>,
+  report = true,
+): WaterSurface | null {
   const water: number[] = [];
   // the upper reaches of a stepped river lie above the board plane: they do not set it
   for (let i = 0; i < work.n; i++)
-    if (work.isFloor(i) && (work.flags[i] as number) & CELL_FLAG.WATER && !work.upperReach.has(i))
+    if (work.isFloor(i) && (work.flags[i] as number) & CELL_FLAG.WATER && !rivers.upperReach.has(i))
       water.push(i);
   if (water.length === 0) return null;
   const top = (i: number): number => work.level.elevation + (work.height[i] as number) / 4 + 0.5;
@@ -39,9 +51,10 @@ export function waterSurface(work: ResolveGrid, report = true): number | null {
       if (j >= 0 && work.isFloor(j) && ((work.flags[j] as number) & CELL_FLAG.WATER) === 0)
         bank = Math.min(bank, top(j));
   }
-  if (work.falls.length > 0) {
+  let range: [number, number] | null = null;
+  if (rivers.falls.length > 0) {
     const lo = bed + 0.25;
-    work.waterRange = [lo, Number.isFinite(bank) ? Math.max(lo, bank - 0.25) : lo];
+    range = [lo, Number.isFinite(bank) ? Math.max(lo, bank - 0.25) : lo];
   }
   // aim half a tile below the lowest bank (room for an imprecise setting either way), never below the beds
   const surface = Number.isFinite(bank) ? Math.max(bed + 0.25, bank - 0.5) : bed + 0.25;
@@ -62,7 +75,7 @@ export function waterSurface(work: ResolveGrid, report = true): number | null {
   if (checks) {
     let dry = 0;
     let first: number | null = null;
-    for (const i of work.upperReach) {
+    for (const i of rivers.upperReach) {
       if (
         work.isFloor(i) &&
         ((work.flags[i] as number) & CELL_FLAG.WATER) !== 0 &&
@@ -99,5 +112,5 @@ export function waterSurface(work: ResolveGrid, report = true): number | null {
       },
     );
   }
-  return surface;
+  return { level: surface, range };
 }

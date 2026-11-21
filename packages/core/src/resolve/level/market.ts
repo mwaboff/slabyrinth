@@ -2,13 +2,15 @@
  * Markets (generator 3 and up), placed with the features (step 8): rows of stalls, goods on bare-table stalls, loose
  * stock beside covered stalls, overhead lines between building walls or posts, and the props a trade puts outside
  * its door. The layout lives in gen/market.ts; this module asks it for placements and commits them.
- * Reads: the level's stall rows and lines, the stalls the plan placed itself, the buildings and their doors, the
- * palette's covered-stall forms and stall size, the cells nothing else holds. Writes: market features (stalls,
- * goods, stock, posts, overhead pieces, trade props), the generated-feature count, `resolvedLines`, plan issues.
+ * Reads: the level's stall rows and lines, the stalls the plan placed itself, the buildings and their doors (the
+ * level's openings, read-only), the carriageways (PathRecords, read-only), the palette's covered-stall forms and stall
+ * size, the cells nothing else holds. Writes: market features (stalls, goods, stock, posts, overhead pieces, trade
+ * props) through FeatureWork, the overhead lines that found both anchors (the list it is handed, ResolvedLevel.lines),
+ * plan issues.
  */
 import type { FeatureType, Level, Side } from "../../contracts/plan";
 import { PLAN_LIMITS } from "../../contracts/plan";
-import type { ResolvedFeature, ResolvedLine, StallBuild } from "../../contracts/resolved";
+import type { ResolvedFeature, ResolvedLine, ResolvedOpening, StallBuild } from "../../contracts/resolved";
 import { CELL, CELL_FLAG } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import {
@@ -22,11 +24,18 @@ import {
 } from "../../gen/market";
 import { elementSeed, subSeed } from "../../util/hash";
 import { createPrng } from "../../util/prng";
-import { crossingClear } from "./features";
-import type { AreaInfo, ResolveGrid } from "./grid";
+import type { FeatureWork } from "./features";
+import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
+import type { PathRecords } from "./paths";
 
 /** A cell a market piece may stand on: open floor nothing else holds (no building, feature, link, water or crossing). */
-function marketCellOk(work: ResolveGrid, x: number, y: number, reserved = true): boolean {
+function marketCellOk(
+  work: ResolveGrid,
+  features: FeatureWork,
+  x: number,
+  y: number,
+  reserved = true,
+): boolean {
   const i = work.idx(x, y);
   if (i < 0 || work.state[i] !== CELL.OPEN) return false;
   const f = work.flags[i] as number;
@@ -42,17 +51,18 @@ function marketCellOk(work: ResolveGrid, x: number, y: number, reserved = true):
     return false;
   const sa = work.struct[i] as number;
   if (
-    (work.occ[i] as number) > 0 ||
+    features.occupied(i) ||
     work.areas[sa - 1]?.kind === "building" ||
     (reserved && work.structs?.reservedCell(i))
   )
     return false;
-  return !crossingClear(work).has(i);
+  return !features.crossingClear().has(i);
 }
 
 /** Commit a market piece as a generated feature; `occupy` false keeps its cells free for other dressing (a line). */
 function commitMarket(
   work: ResolveGrid,
+  features: FeatureWork,
   id: string,
   p: {
     type: FeatureType;
@@ -87,9 +97,7 @@ function commitMarket(
     rf.offset = [Math.max(-0.5, Math.min(0.5, p.offset[0])), Math.max(-0.5, Math.min(0.5, p.offset[1]))];
   const ar = anchor >= 0 ? (work.disp[anchor] as number) : 0;
   if (ar > 0) rf.area = (work.areas[ar - 1] as AreaInfo).area.id;
-  if (occupy) work.addFeature(rf, work.footprint(p.at, p.size).cells);
-  else work.features.push(rf);
-  work.generated++;
+  features.addGenerated(rf, occupy);
 }
 
 /**
@@ -97,7 +105,13 @@ function commitMarket(
  * placed itself), overhead lines (`Level.lines`) anchored on building walls or posts, and the props a trade puts
  * outside its door. Everything stands only on cells nothing else holds.
  */
-export function stepMarket(work: ResolveGrid): void {
+export function stepMarket(
+  work: ResolveGrid,
+  features: FeatureWork,
+  lines: ResolvedLine[],
+  paths: ReadOnly<PathRecords>,
+  openings: readonly ResolvedOpening[],
+): void {
   const stallRows = work.level.stalls ?? [];
   const lineList = work.level.lines ?? [];
   if (!work.profile.stallsAndLines) {
@@ -114,7 +128,7 @@ export function stepMarket(work: ResolveGrid): void {
   }
   const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
   const seedOf = (id: string): number => elementSeed(work.plan.seed, `${work.level.id}~${id}`, undefined);
-  const ok = (x: number, y: number): boolean => marketCellOk(work, x, y);
+  const ok = (x: number, y: number): boolean => marketCellOk(work, features, x, y);
   // goods on a bare-table stall: two pieces resting on the table top (its real height; nothing floats)
   const putGoods = (
     stallId: string,
@@ -130,9 +144,10 @@ export function stepMarket(work: ResolveGrid): void {
     for (let y = st.at[1]; y < st.at[1] + st.size[1]; y++)
       for (let x = st.at[0]; x < st.at[0] + st.size[0]; x++) cells.push([x, y]);
     cells.forEach((c, n) => {
-      if (work.generated >= cap) return;
+      if (features.generated >= cap) return;
       commitMarket(
         work,
+        features,
         `${stallId}#g${n}`,
         {
           type: "goods",
@@ -147,7 +162,7 @@ export function stepMarket(work: ResolveGrid): void {
       );
     });
   };
-  for (const f of [...work.features]) {
+  for (const f of [...features.all]) {
     if (f.type === "stall" && f.generatedBy === undefined)
       putGoods(f.id, { at: [f.at[0], f.at[1]], size: [f.size[0], f.size[1]] }, f.variant ?? "empty");
   }
@@ -174,10 +189,11 @@ export function stepMarket(work: ResolveGrid): void {
         hint: "its rectangle is taken (buildings, features, water) or too small: a stall needs 2 free cells in a line",
       });
     placed.forEach((p, n) => {
-      if (work.generated >= cap) return;
+      if (features.generated >= cap) return;
       const id = `${row.id}#${n}`;
       commitMarket(
         work,
+        features,
         id,
         {
           type: "stall",
@@ -194,14 +210,15 @@ export function stepMarket(work: ResolveGrid): void {
     });
     // stock beside the stalls goes in once every stall of the row stands (it takes only cells they left free)
     placed.forEach((p, n) => {
-      if (p.build) stallClutter(work, `${row.id}#${n}`, p, p.build, cap);
+      if (p.build) stallClutter(work, features, `${row.id}#${n}`, p, p.build, cap);
     });
   });
   lineList.forEach((line, k) => {
-    stepLine(work, line, k, cap);
+    const resolved = stepLine(work, features, line, k, cap);
+    if (resolved) lines.push(resolved);
   });
   // outside a front door the lot's reserved ring is exactly where trade props stand (the door approach stays free)
-  stepTradeProps(work, cap, (x, y) => marketCellOk(work, x, y, false));
+  stepTradeProps(work, features, paths, openings, cap, (x, y) => marketCellOk(work, features, x, y, false));
 }
 
 /**
@@ -210,12 +227,13 @@ export function stepMarket(work: ResolveGrid): void {
  */
 function stallClutter(
   work: ResolveGrid,
+  features: FeatureWork,
   id: string,
   p: { at: [number, number]; size: [number, number]; kind: string },
   b: StallBuild,
   cap: number,
 ): void {
-  if (work.generated >= cap) return;
+  if (features.generated >= cap) return;
   const rng = createPrng(
     subSeed(elementSeed(work.plan.seed, `${work.level.id}~${id}`, undefined), "clutter"),
   );
@@ -226,20 +244,25 @@ function stallClutter(
   const types = stallKindInfo(p.kind).stock;
   const type = types[rng.int(types.length)] as FeatureType;
   const free = cands.filter(
-    ([x, y]) => marketCellOk(work, x, y) && work.featureProblem(type, [x, y], [1, 1], undefined) === null,
+    ([x, y]) =>
+      marketCellOk(work, features, x, y) && work.featureProblem(type, [x, y], [1, 1], undefined) === null,
   );
   const at = free[rng.int(Math.max(1, free.length))];
   if (!at) return;
-  commitMarket(work, `${id}#stock`, { type, at, size: [1, 1], rot: rng.int(4) * 90 }, true);
+  commitMarket(work, features, `${id}#stock`, { type, at, size: [1, 1], rot: rng.int(4) * 90 }, true);
 }
 
-/** One overhead line: straightness, two anchors (a building wall within 3 cells beyond the end, else a post), pieces. */
+/**
+ * One overhead line: straightness, two anchors (a building wall within 3 cells beyond the end, else a post), pieces.
+ * Returns the line when it found both anchors, null when it was dropped (with a plan issue).
+ */
 function stepLine(
   work: ResolveGrid,
+  features: FeatureWork,
   line: NonNullable<Level["lines"]>[number],
   k: number,
   cap: number,
-): void {
+): ResolvedLine | null {
   const bad = (msg: string, hint: string): void => {
     work.issue("warning", "line_unanchored", `line "${line.id}" ${msg}; it was dropped`, {
       path: `/levels/${work.li}/lines/${k}`,
@@ -251,7 +274,7 @@ function stepLine(
   const [x1, y1] = line.to;
   if (x0 !== x1 && y0 !== y1) {
     bad("is not straight", "give from and to on one row or one column of cells");
-    return;
+    return null;
   }
   const alongX = y0 === y1;
   const lane = alongX ? y0 : x0;
@@ -259,7 +282,7 @@ function stepLine(
   const hi = Math.max(alongX ? x0 : y0, alongX ? x1 : y1);
   if (hi - lo < 2) {
     bad("is shorter than 3 cells", "a line spans at least 3 cells");
-    return;
+    return null;
   }
   const cellAt = (a: number): [number, number] => (alongX ? [a, lane] : [lane, a]);
   const building = (a: number): boolean => {
@@ -272,7 +295,10 @@ function stepLine(
     for (let d = 0; d <= 1; d++) {
       const a = end - dir * d;
       const [x, y] = cellAt(a);
-      if (marketCellOk(work, x, y) && work.featureProblem("line_post", [x, y], [1, 1], undefined) === null)
+      if (
+        marketCellOk(work, features, x, y) &&
+        work.featureProblem("line_post", [x, y], [1, 1], undefined) === null
+      )
         return { kind: "post", at: a };
     }
     return null;
@@ -284,23 +310,23 @@ function stepLine(
       "has no building wall within 3 cells of an end and no free cell for a post there",
       "end it beside a building wall, or on a free cell",
     );
-    return;
+    return null;
   }
   for (let a = aLo.at + 1; a < aHi.at; a++)
     if (building(a)) {
       bad("passes through a building", "end it at the building's wall");
-      return;
+      return null;
     }
   if (aHi.at - aLo.at < 3) {
     bad("is shorter than 3 cells between its anchors", "make the span longer");
-    return;
+    return null;
   }
   // generator 4: a covered stall's canopy rises above a rope's height; the line runs along the aisle, not through it
   if (work.profile.coveredStalls)
     for (let a = aLo.at + 1; a < aHi.at; a++) {
       const [cx, cy] = cellAt(a);
       if (
-        work.features.some(
+        features.all.some(
           (f) =>
             f.stall !== undefined &&
             cx >= f.at[0] &&
@@ -313,7 +339,7 @@ function stepLine(
           "passes through a covered stall",
           "run it along the aisle or the street, clear of the stalls' footprints",
         );
-        return;
+        return null;
       }
     }
   // 2.6 clears the awnings of shop fronts (2 to 2.5 up); a wall must reach it, else the verifier says the line is not held
@@ -325,15 +351,22 @@ function stepLine(
   ];
   [aLo, aHi].forEach((an, n) => {
     if (an.kind === "post")
-      commitMarket(work, `${line.id}#post${n}`, { type: "line_post", at: cellAt(an.at), size: [1, 1] }, true);
+      commitMarket(
+        work,
+        features,
+        `${line.id}#post${n}`,
+        { type: "line_post", at: cellAt(an.at), size: [1, 1] },
+        true,
+      );
   });
   const start = aLo.kind === "wall" ? aLo.at + 1 : aLo.at + 0.65;
   const end = aHi.kind === "wall" ? aHi.at : aHi.at + 0.35;
   const pieces = layoutLine({ alongX, lane, start, end }, line.kind ?? "lanterns", line.spacing ?? 3);
   pieces.forEach((p, n) => {
-    if (work.generated >= cap) return;
+    if (features.generated >= cap) return;
     commitMarket(
       work,
+      features,
       `${line.id}#${n}`,
       {
         type: "overhead",
@@ -347,14 +380,21 @@ function stepLine(
       false,
     );
   });
-  work.resolvedLines.push({ id: line.id, a: cellAt(aLo.at), b: cellAt(aHi.at), height, anchors });
+  return { id: line.id, a: cellAt(aLo.at), b: cellAt(aHi.at), height, anchors };
 }
 
 /** Props a trade puts outside its front door (not in front of the door itself, never in the carriageway). */
-function stepTradeProps(work: ResolveGrid, cap: number, ok: (x: number, y: number) => boolean): void {
+function stepTradeProps(
+  work: ResolveGrid,
+  features: FeatureWork,
+  paths: ReadOnly<PathRecords>,
+  openings: readonly ResolvedOpening[],
+  cap: number,
+  ok: (x: number, y: number) => boolean,
+): void {
   if (!work.structs) return;
   const carriage = new Set<number>();
-  for (const r of work.pendingRoads) for (const i of r.cells) carriage.add(i);
+  for (const r of paths.pendingRoads) for (const i of r.cells) carriage.add(i);
   const STEP: Record<Side, [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
   const TURN: Record<Side, number> = { S: 0, W: 90, N: 180, E: 270 };
   for (const b of work.structs.buildings) {
@@ -365,7 +405,7 @@ function stepTradeProps(work: ResolveGrid, cap: number, ok: (x: number, y: numbe
     const cands: Array<[number, number]> = [];
     // a door (not a window) on the front edge of cell (cx, cy) or of a cell beside it along the frontage
     const doorOn = (cx: number, cy: number): boolean =>
-      work.openings.some((o) => {
+      openings.some((o) => {
         if (o.kind === "window" || o.kind === "arrow_slit" || o.kind === "bars") return false;
         const [sx, sy] = o.start;
         if (o.orientation === "h") {
@@ -399,7 +439,7 @@ function stepTradeProps(work: ResolveGrid, cap: number, ok: (x: number, y: numbe
     const total = table.reduce((a, [, w]) => a + w, 0);
     const taken: Array<[number, number]> = [];
     for (const c of cands) {
-      if (taken.length >= want || work.generated >= cap) break;
+      if (taken.length >= want || features.generated >= cap) break;
       if (taken.some((t) => Math.abs(t[0] - c[0]) + Math.abs(t[1] - c[1]) < 2)) continue;
       let r = rng.next() * total;
       let type = table[0]?.[0] as FeatureType;
@@ -422,7 +462,13 @@ function stepTradeProps(work: ResolveGrid, cap: number, ok: (x: number, y: numbe
         at = [c[0], c[1]];
       }
       if (work.featureProblem(type, at, sz, undefined) !== null) continue;
-      commitMarket(work, `${b.st.id}~trade#${taken.length}`, { type, at, size: sz, rot: TURN[side] }, true);
+      commitMarket(
+        work,
+        features,
+        `${b.st.id}~trade#${taken.length}`,
+        { type, at, size: sz, rot: TURN[side] },
+        true,
+      );
       taken.push(c);
     }
   }

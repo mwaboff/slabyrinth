@@ -2,13 +2,14 @@
  * Built interiors (generator 4): room floors and steps before the edges (step 4), and, with the features (step 9),
  * the default dressing of rooms by purpose and the rubble at the foot of rough walls.
  * Reads: the areas' room class (purpose, abandoned), interior character and rough finish, the theme's floors and the
- * palette's floor tile sizes and room pieces, which areas a corridor opens on, link cells, the walls and openings.
+ * palette's floor tile sizes and room pieces, which areas a corridor opens on, link cells, the walls, and read-only,
+ * the level's openings and the rims of its floor openings.
  * Writes: room floor materials and the quarter-tile step of a room entered from a corridor (cell heights), the
- * rooms' furniture, things on it and lights (via gen/rooms4.ts), and the wall-foot rubble features.
+ * rooms' furniture, things on it and lights (via gen/rooms4.ts), and the wall-foot rubble features (FeatureWork).
  */
 import type { AreaKind, FeatureType, Material, Side, Vec2 } from "../../contracts/plan";
 import { MATERIALS, PLAN_LIMITS } from "../../contracts/plan";
-import type { ResolvedFeature } from "../../contracts/resolved";
+import type { ResolvedFeature, ResolvedOpening } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import type { GeneratedPlacement, PlacementGrid } from "../../gen/place";
@@ -18,8 +19,9 @@ import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed, h32, subSeed } from "../../util/hash";
 import { BUILT_FLOORS, FAMILY_ROTATION, purposeFloor } from "../interiorFloors";
-import { commitGenerated, placementGrid } from "./features";
-import type { AreaInfo, ResolveGrid } from "./grid";
+import type { FeatureWork } from "./features";
+import type { FloorOpeningRecords } from "./floorOpenings";
+import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
 
 /**
  * Generator 4, built interiors (level base solid): rooms are told apart by floor and sit a step above the corridor
@@ -202,7 +204,12 @@ function roomsOpeningOnCorridors(
  * the reference interior has 1.1). Low debris mostly; blocking rubble only in a corner or at a jamb of a room, never
  * in a corridor. Never on a link, steps, a doorway cell, a cell that holds a feature, or a collapse rim.
  */
-export function stepWallFootRubble(work: ResolveGrid): void {
+export function stepWallFootRubble(
+  work: ResolveGrid,
+  features: FeatureWork,
+  floorOpenings: ReadOnly<FloorOpeningRecords>,
+  openings: readonly ResolvedOpening[],
+): void {
   if (!work.profile.wallFootRubble || work.level.base.type !== "solid" || work.structs) return;
   const seed = elementSeed(work.plan.seed, `${work.level.id}~footrubble`, undefined);
   const u = (k: string, i: number): number => h32(`${seed}:${k}:${i}`) / 4294967296;
@@ -212,7 +219,7 @@ export function stepWallFootRubble(work: ResolveGrid): void {
   };
   const sides: Side[] = ["N", "E", "S", "W"];
   const plain = (i: number): boolean => {
-    if (i < 0 || work.state[i] !== CELL.OPEN || (work.occ[i] as number) > 0) return false;
+    if (i < 0 || work.state[i] !== CELL.OPEN || features.occupied(i)) return false;
     const f = work.flags[i] as number;
     if (
       f &
@@ -237,7 +244,7 @@ export function stepWallFootRubble(work: ResolveGrid): void {
     return true;
   };
   const rims = new Set<number>();
-  for (const fo of work.floorOpenings) for (const c of fo.rimCells) rims.add(c);
+  for (const fo of floorOpenings.holes) for (const c of fo.rimCells) rims.add(c);
   const info = { debris: featureInfo("debris"), rubble: featureInfo("rubble") };
   const placed = new Set<number>();
   let n = 0;
@@ -263,7 +270,7 @@ export function stepWallFootRubble(work: ResolveGrid): void {
     };
     const ar = work.disp[i] as number;
     if (ar > 0) rf.area = (work.areas[ar - 1] as AreaInfo).area.id;
-    work.addFeatureCells(rf);
+    features.addGenerated(rf);
     placed.add(i);
     return true;
   };
@@ -283,7 +290,7 @@ export function stepWallFootRubble(work: ResolveGrid): void {
     put(i, block ? "rubble" : "debris");
   }
   // either side of about half the doorways: the cells flanking the opening along its wall
-  work.openings.forEach((op, k) => {
+  openings.forEach((op, k) => {
     if (op.kind === "open" || u("jamb", k + 7919) >= 0.5) return;
     const [sx, sy] = op.start;
     const flank: Vec2[] =
@@ -324,11 +331,11 @@ export function stepWallFootRubble(work: ResolveGrid): void {
  * gets its torches; a passage a few. Abandoned places (a crypt, cells, a ruin) stay sparse and keep one light at most.
  * `roomDress: false` on the level turns it off.
  */
-export function stepRoomRecipes(work: ResolveGrid): void {
+export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void {
   const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
   const dressed = new Set<string>();
   for (const op of work.level.terrain) if (op.op === "dress" && op.area !== undefined) dressed.add(op.area);
-  const baseGrid = placementGrid(work);
+  const baseGrid = features.placementGrid();
   if (baseGrid.piece4 === undefined) return;
   for (const info of work.areas) {
     if (info.kind !== "room" && info.kind !== "corridor") continue;
@@ -343,7 +350,7 @@ export function stepRoomRecipes(work: ResolveGrid): void {
       piece4: (t: FeatureType, v?: string) => work.ctx.palette.roomPiece(theme, t, v),
     };
     const seed = subSeed(elementSeed(work.plan.seed, `${work.level.id}~${area.id}~room`, undefined), "room");
-    const own = work.features.filter(
+    const own = features.all.filter(
       (f) => f.area === area.id && f.generatedBy === undefined && f.type !== "torch_wall",
     ).length;
     const lightly = own * 10 < 2 * cells.length;
@@ -359,8 +366,8 @@ export function stepRoomRecipes(work: ResolveGrid): void {
         areaCells: cells,
         density: 1,
         seed,
-        remaining: cap - work.generated,
-        have: work.features
+        remaining: cap - features.generated,
+        have: features.all
           .filter((f) => f.area === area.id && f.generatedBy === undefined)
           .map((f) => f.type),
       });
@@ -372,13 +379,13 @@ export function stepRoomRecipes(work: ResolveGrid): void {
         areaIndex: info.index + 1,
         areaCells: cells,
         seed,
-        remaining: cap - work.generated,
+        remaining: cap - features.generated,
         every: info.kind === "corridor" ? 18 : 12,
         abandoned,
       });
     }
     if (res === null) continue;
-    commitGenerated(work, `${area.id}~room`, res.placements);
+    features.commitGenerated(`${area.id}~room`, res.placements);
     if (res.capped) break;
   }
 }

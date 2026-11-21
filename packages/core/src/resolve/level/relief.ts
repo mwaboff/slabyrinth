@@ -2,11 +2,13 @@
  * The relief terrain ops (part of step 4, terrain "over"): platforms, stairs ops and rock ramps, uneven ground and
  * outcrops, which raise, lower and roughen floor the areas have opened.
  * Reads: each op, the cells' state, heights, floors and flags, the level base and plan kind (natural or built
- * ground). Writes: cell heights and floors, `stairEdges` (flights that resolve/level/edges.ts turns into stair edges
- * once the heights are final), `ramps` and `outcrops` (records on the resolved level).
+ * ground). Writes: cell heights and floors, the grid's stair edges (flights that resolve/level/edges.ts turns into
+ * stair edges once the heights are final), and its own record, ReliefRecords: `ramps` and `outcrops` (records on the
+ * resolved level).
  */
 import type { Material, TerrainOp, Vec2 } from "../../contracts/plan";
 import { MATERIALS, PLAN_LIMITS } from "../../contracts/plan";
+import type { ResolvedLevel } from "../../contracts/resolved";
 import { CELL, CELL_FLAG } from "../../contracts/resolved";
 import { forEachMaskCell } from "../../gen/mask";
 import { ValueNoise } from "../../gen/noise";
@@ -16,6 +18,14 @@ import { accentTop } from "../interiorFloors";
 import { isNaturalGround } from "../materials";
 import { breakStraightSteps, chamferCorners, organicTiers, roughenLumps } from "../organic";
 import type { ResolveGrid } from "./grid";
+
+/** What the relief ops leave on the resolved level. Written only here; read by feature placement and the output. */
+export class ReliefRecords {
+  /** Rock ramps laid by stairs ops in style "ramp" (generator 2). */
+  readonly ramps: NonNullable<ResolvedLevel["ramps"]> = [];
+  /** Outcrops: the cells they raised and their peak (generator 3 dresses them). */
+  readonly outcrops: NonNullable<ResolvedLevel["outcrops"]> = [];
+}
 
 /** A flight from cell `start` stepping by (dx,dy) through `cells` (in order): stair edges where heights differ. */
 function flight(work: ResolveGrid, cells: number[]): void {
@@ -173,7 +183,12 @@ export function applyPlatform(
  * rising in half-tile steps from the low end's height to the high end's, floored with rock. Walkable everywhere
  * (no step over half a tile); a warning when it climbs faster than 1 tile per 2.5 cells.
  */
-function applyRamp(work: ResolveGrid, op: Extract<TerrainOp, { op: "stairs" }>, path: string): void {
+function applyRamp(
+  work: ResolveGrid,
+  op: Extract<TerrainOp, { op: "stairs" }>,
+  path: string,
+  out: ReliefRecords,
+): void {
   const a = work.idx(op.from[0], op.from[1]);
   const b = work.idx(op.to[0], op.to[1]);
   if (a < 0 || b < 0 || work.state[a] !== CELL.OPEN || work.state[b] !== CELL.OPEN) {
@@ -212,16 +227,17 @@ function applyRamp(work: ResolveGrid, op: Extract<TerrainOp, { op: "stairs" }>, 
     work.setMaterial(i, "rock");
     cells.push([x, y]);
   });
-  if (cells.length > 0) work.ramps.push({ id: op.id, cells, from: [fx, fy], to: [tx, ty] });
+  if (cells.length > 0) out.ramps.push({ id: op.id, cells, from: [fx, fy], to: [tx, ty] });
 }
 
 export function applyStairsOp(
   work: ResolveGrid,
   op: Extract<TerrainOp, { op: "stairs" }>,
   path: string,
+  out: ReliefRecords,
 ): void {
   if (op.style === "ramp" && work.profile.ramps) {
-    applyRamp(work, op, path);
+    applyRamp(work, op, path, out);
     return;
   }
   const [fx, fy] = op.from;
@@ -372,6 +388,7 @@ export function applyOutcrop(
   work: ResolveGrid,
   op: Extract<TerrainOp, { op: "outcrop" }>,
   path: string,
+  out: ReliefRecords,
 ): void {
   let n = 0;
   const riseQ = Math.round((op.height ?? 2) * 4);
@@ -411,7 +428,7 @@ export function applyOutcrop(
     n++;
   }
   if (kept.length > 0)
-    work.outcrops.push({
+    out.outcrops.push({
       id: op.id,
       cells: kept.sort((a, b) => a - b).map((i) => work.cellXY(i)),
       peak: peak / 4,

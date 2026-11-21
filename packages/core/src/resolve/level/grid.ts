@@ -1,17 +1,18 @@
 /**
- * The working state of one level while it resolves, and the grid primitives every stage shares.
- * resolve/level.ts runs the stages in their normative order; each stage is a module beside this one in resolve/level/.
+ * The grid of one level while it resolves (ResolveGrid), and the primitives every stage shares.
+ * resolve/level.ts runs the stages in their normative order; each stage is a module beside this one in resolve/level/,
+ * and resolve/level/state.ts holds this grid together with the records the stages own.
  * Reads: the resolve context (plan, level index, theme defaults, palette view) and the plan level, expanded with its
  * structures' synthetic areas, openings and wall runs (resolve/structure.ts expandStructures).
- * Writes: nothing by itself. It holds the typed per-cell and per-edge arrays and the records the stages fill
- * (openings, features, bridges, roads, floor openings, ...); resolve/level/output.ts turns them into a ResolvedLevel.
+ * Holds: the per-cell and per-edge arrays, which every stage may write in its turn (the stage order in resolve/level.ts
+ * is what makes a value final), the area table (built once, read-only), and the stair edges the terrain and bridge
+ * passes ask for. Nothing else: a record one stage leaves for another lives in state.ts, owned by its stage.
  * The methods here are the shared vocabulary of the stages: cell and edge indexing, which area owns a cell, plan
  * issues, shape rasterising, feature footprints and the checks before a feature is placed.
  */
 import type {
   Area,
   AreaKind,
-  BridgeSpan,
   FeatureType,
   Level,
   MapPlan,
@@ -21,23 +22,13 @@ import type {
   Severity,
   Shape,
   Side,
-  TerrainOp,
   ThemeId,
   Vec2,
   WallMode,
   WallStyle,
 } from "../../contracts/plan";
 import { BUILD_CONSTANTS, MATERIALS, PLAN_LIMITS } from "../../contracts/plan";
-import type {
-  ResolvedBridge,
-  ResolvedChannel,
-  ResolvedFall,
-  ResolvedFeature,
-  ResolvedLevel,
-  ResolvedLine,
-  ResolvedOpening,
-  ThemeInterior,
-} from "../../contracts/resolved";
+import type { ThemeInterior } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
 import { type CellMask, forEachMaskCell } from "../../gen/mask";
@@ -89,28 +80,22 @@ export interface AreaInfo {
   readonly rough: boolean;
 }
 
-/** A bridge deck waiting for the bridge pass (area of kind "bridge" or a chasm op's bridge). */
-export interface BridgeRequest {
-  id: string;
-  elementId: string;
-  path: string;
-  cells: number[];
-  /** Deck material ordinal (materialOrdinal). */
-  floorMat: number;
-  /** Explicit deck height (quarter tiles) or null = infer from the floor it touches. */
-  deck: number | null;
-  /** Explicit railing (null = none); undefined = the span's default. */
-  railing: WallStyle | null | undefined;
-  broken: number[];
-  crumble: number;
-  seed: number;
-  span?: BridgeSpan;
-  /** Explicit rise of the middle (tiles). */
-  arch?: number;
-  /** Direction the deck runs (chasm bridges know it; areas use their longer side). */
-  axis?: "h" | "v";
-  label?: string;
-}
+/**
+ * A record as a stage that does not own it sees it: nothing can be added, removed or reassigned, at any depth (arrays
+ * and tuples become readonly, sets and maps their read-only views, typed arrays plain indexable reads). The owner
+ * stage is handed the writable record; resolve/level.ts decides who gets which (resolve/level/state.ts).
+ */
+export type ReadOnly<T> = T extends (...args: never[]) => unknown
+  ? T
+  : T extends ArrayLike<number> & { readonly buffer: ArrayBufferLike }
+    ? ArrayLike<number>
+    : T extends ReadonlyMap<infer K, infer V>
+      ? ReadonlyMap<K, ReadOnly<V>>
+      : T extends ReadonlySet<infer U>
+        ? ReadonlySet<U>
+        : T extends object
+          ? { readonly [K in keyof T]: ReadOnly<T[K]> }
+          : T;
 
 export interface EdgeArrays {
   kind: Uint8Array;
@@ -148,7 +133,8 @@ export class ResolveGrid {
   readonly height: Int16Array;
   readonly flags: Uint8Array;
   readonly theme: Uint16Array;
-  readonly occ: Uint16Array;
+  /** Cells whose height an area set explicitly (floorHeight), for the under-layer no-effect check. */
+  readonly heightSet: Uint8Array;
   /** The level's themes (cells and areas refer to them by index; the level theme is index 0). */
   readonly themes: readonly ThemeId[];
   /** The plan level's areas (structures' synthetic areas included), in plan order. */
@@ -158,98 +144,13 @@ export class ResolveGrid {
   private readonly ownedCells: number[];
   readonly hE: EdgeArrays;
   readonly vE: EdgeArrays;
-  readonly openings: ResolvedOpening[] = [];
-  readonly features: ResolvedFeature[] = [];
   readonly levelTheme: ThemeId;
   readonly defaultWallHeight: number;
-  generated = 0;
-  /** Bridge decks (after the bridge pass), and per cell the deck index + 1 (0 = not a deck). */
-  readonly bridges: ResolvedBridge[] = [];
-  readonly bridgeOf: Int32Array;
-  readonly bridgeReqs: BridgeRequest[] = [];
-  /** Cells whose height an area set explicitly (floorHeight), for the under-layer no-effect check. */
-  readonly heightSet: Uint8Array;
-  readonly underTouched: Array<{ op: TerrainOp; path: string; cells: number[] }> = [];
-  /** Stair edges requested by platform and stairs ops ("a,b" local cell pairs, a < b). */
-  readonly stairEdges = new Set<string>();
-  readonly outcrops: NonNullable<ResolvedLevel["outcrops"]> = [];
-  /** Generator 3: floor openings (terrain op floor_opening): the cut cells and what the level below shows. */
-  readonly floorOpenings: Array<{
-    id: string;
-    kind: "collapse" | "shaft" | "balcony";
-    rim: WallStyle | "none";
-    cells: number[];
-    rubble: boolean;
-    seed: number;
-    below?: string;
-    floorBelow: number;
-    hiddenEdge: number;
-    edgeCells: number;
-    /** Generator 4: floor cells beside the hole (the broken rim of a collapse), where low debris is dropped. */
-    rimCells: number[];
-  }> = [];
-  /** Generator 3: rubble to heap on this level's floor under a collapse in the level above (global cells). */
-  readonly rubbleUnder: Array<{ id: string; cells: Vec2[]; seed: number }> = [];
-  readonly kerbs: NonNullable<ResolvedLevel["kerbs"]> = [];
-  /** Rubble at the ends of crumbling bridges, committed with the generated features. */
-  readonly bridgeRubble: Array<{ id: string; at: Vec2 }> = [];
-  readonly bridgeCrumble = new Map<number, { crumble: number; seed: number }>();
-  readonly deckChecks: Array<() => void> = [];
+  /** Stair edges asked for by platform and stairs ops and inclined bridges ("a,b" local cell pairs, a < b). */
+  private readonly stairPairs = new Set<string>();
   readonly ctx: LevelContext;
   /** Buildings and enclosures (resolve/structure.ts); null when the level has none. */
   readonly structs: StructureWork | null;
-
-  // terrain records (resolve/level/relief.ts, resolve/level/chasms.ts)
-
-  /** Rock ramps laid by stairs ops in style "ramp" (generator 2). */
-  readonly ramps: NonNullable<ResolvedLevel["ramps"]> = [];
-  /** Generator 3: courses of long rifts and rivers, falls of stepped rivers, and the cells of their upper reaches. */
-  readonly channels: ResolvedChannel[] = [];
-  readonly falls: ResolvedFall[] = [];
-  readonly upperReach = new Set<number>();
-  waterRange: [number, number] | null = null;
-
-  // path ops waiting for their pavements and kerbs, and the finished roads (resolve/level/paths.ts)
-
-  readonly pendingKerbs: Array<{
-    cells: Set<number>;
-    material: Material;
-    seed: number;
-    anchors: Vec2[];
-    /** Natural trails get broken kerbs (stones on the verge); straight paths a continuous line. */
-    natural: boolean;
-  }> = [];
-
-  /** Roads (path ops in road form, generator 2): carriageway cells, pavement cells laid and their heights. */
-  readonly pendingRoads: Array<{
-    op: Extract<TerrainOp, { op: "path" }>;
-    axis: Vec2[];
-    layer: "under" | "over";
-    cells: number[];
-    pave: Array<{ i: number; h: number }>;
-  }> = [];
-  readonly roads: NonNullable<ResolvedLevel["roads"]> = [];
-
-  // what feature placement reads and builds (resolve/level/features.ts, market.ts, rooms.ts)
-
-  rampSet: Set<number> | null = null;
-
-  /** Generator 4: the recipe variants each purpose has drawn so far on this level (rooms of one purpose differ). */
-  readonly roomMemory = new Map<string, number[]>();
-
-  /** Road crossings and the pavement cells at their ends: generated dressing keeps off them (built lazily). */
-  crossingClearCache: Set<number> | null = null;
-
-  /** Cells under landmark pieces (great trees, landmarks, great statues): later dressing keeps an apron round them. */
-  readonly landmarkCells = new Set<number>();
-  /** Cells under vehicles: the street preset counts them toward its parking cap and keeps its own clear of them. */
-  readonly vehicleCells = new Set<number>();
-
-  /** Overhead lines that found both anchors (ResolvedLevel.lines). */
-  readonly resolvedLines: ResolvedLine[] = [];
-
-  /** Cells the natural board outline keeps open (resolve/level/terrain.ts stepOutline). */
-  readonly outlineKeep = new Set<number>();
 
   constructor(ctx: LevelContext) {
     this.ctx = ctx;
@@ -281,8 +182,6 @@ export class ResolveGrid {
     this.height = new Int16Array(this.n);
     this.flags = new Uint8Array(this.n);
     this.theme = new Uint16Array(this.n);
-    this.occ = new Uint16Array(this.n);
-    this.bridgeOf = new Int32Array(this.n);
     this.heightSet = new Uint8Array(this.n);
     this.hE = makeEdges(this.w * (this.h + 1));
     this.vE = makeEdges((this.w + 1) * this.h);
@@ -618,8 +517,17 @@ export class ResolveGrid {
   /** Records a stair edge between two 4-adjacent cells (applied after the edges, when heights are final). */
   addStairEdge(a: number, b: number): void {
     if (a < 0 || b < 0) return;
-    const key = a < b ? `${a},${b}` : `${b},${a}`;
-    this.stairEdges.add(key);
+    this.stairPairs.add(a < b ? `${a},${b}` : `${b},${a}`);
+  }
+
+  /** True when a stair edge was asked for between cells a and b. */
+  hasStairEdge(a: number, b: number): boolean {
+    return this.stairPairs.has(a < b ? `${a},${b}` : `${b},${a}`);
+  }
+
+  /** The stair edges asked for, in the order they were asked for ("a,b" local cell pairs, a < b). */
+  get stairEdges(): ReadonlySet<string> {
+    return this.stairPairs;
   }
 
   /** Explicit deck height (quarters) when the cell belongs to a bridge area with floorHeight (a raised deck), else null. */
@@ -631,25 +539,9 @@ export class ResolveGrid {
       : null;
   }
 
-  // ───────────────────────────── features ─────────────────────────────
+  // ───────────────────────────── features (the features themselves: resolve/level/features.ts FeatureWork) ─────
 
-  addFeature(f: ResolvedFeature, cells: number[]): void {
-    const landmark = f.type === "tree_large" || f.type === "landmark" || f.type === "statue_large";
-    for (const i of cells) {
-      if (landmark) this.landmarkCells.add(i);
-      if (f.type === "vehicle") this.vehicleCells.add(i);
-      this.occ[i] = (this.occ[i] as number) + 1;
-      if (f.blocking) this.flags[i] = (this.flags[i] as number) | CELL_FLAG.FEATURE;
-    }
-    this.features.push(f);
-  }
-
-  /** Adds a generated feature on its own footprint and counts it toward the level's generated-feature cap. */
-  addFeatureCells(f: ResolvedFeature): void {
-    this.addFeature(f, this.footprint(f.at, f.size).cells);
-    this.generated++;
-  }
-
+  /** Absolute height a feature anchored on cell `i` stands at, `lift` tiles above the floor. */
   featureBase(i: number, lift: number): number {
     const h =
       i >= 0 && !(this.state[i] === CELL.VOID && this.profile.voidIsBasePlane)
@@ -658,7 +550,7 @@ export class ResolveGrid {
     return this.level.elevation + BUILD_CONSTANTS.floorThickness + h + lift;
   }
 
-  footprint(at: Vec2, size: readonly [number, number]): { cells: number[]; outside: boolean } {
+  footprint(at: Readonly<Vec2>, size: readonly [number, number]): { cells: number[]; outside: boolean } {
     const cells: number[] = [];
     let outside = false;
     for (let y = at[1]; y < at[1] + size[1]; y++) {
@@ -674,7 +566,7 @@ export class ResolveGrid {
   /** Why a feature cannot stand at `at`, or null if it can. */
   featureProblem(
     type: FeatureType,
-    at: Vec2,
+    at: Readonly<Vec2>,
     size: readonly [number, number],
     wall: Side | undefined,
   ): string | null {
