@@ -219,6 +219,10 @@ const SWITCHES = {
     "Small things on surfaces (clutter, goods) share one family table over both roles (gen/surfaces.ts).",
   ),
   everyStepVerified: on(4, "Verify checks every step of a stair run, not only the last."),
+  wallNoteInFaceTheme: on(
+    4,
+    "Verify's wall-style substitution note asks each wall's own theme, not the level's first theme.",
+  ),
   naturalCaveReview: on(
     4,
     "The review measures natural caves (hollow rock mass, flat floors, square outlines).",

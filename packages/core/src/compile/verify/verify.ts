@@ -586,16 +586,19 @@ export function verifyBuild(
     }
     const styles = new Map<string, { theme: string; style: string; n: number }>();
     const faces = wallsOf.get(L.id)?.faces;
+    // the theme a wall is built in is its face's; released generators asked the level's first theme for every wall
+    const inFaceTheme = generatorProfile(resolved).wallNoteInFaceTheme;
     // in edge index order (h edges, then v edges), which orders the notes; building shells are built from
     // facade.<style> roles (compile/structure.ts), not wall.<style>
     for (const orient of ["h", "v"] as const)
       for (let e = 0; e < g.edges(orient).kind.length; e++) {
         const face = faces?.at(orient, e);
         if (!face || face.kind !== EDGE.WALL || face.claimed) continue;
-        const k = `${L.themes[0] ?? "generic"}|${face.style}`;
+        const theme = inFaceTheme ? face.theme : (L.themes[0] ?? "generic");
+        const k = `${theme}|${face.style}`;
         const x = styles.get(k);
         if (x) x.n++;
-        else styles.set(k, { theme: L.themes[0] ?? "generic", style: face.style, n: 1 });
+        else styles.set(k, { theme, style: face.style, n: 1 });
       }
     for (const st of styles.values()) {
       const want = `wall.${st.style}`;

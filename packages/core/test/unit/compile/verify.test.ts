@@ -374,6 +374,38 @@ describe("verify: one fixture per code", () => {
     expect(ok).toEqual([]);
   });
 
+  it("verify_material_substituted — a wall style is asked of the theme its wall is built in (generator 4)", () => {
+    // a cave without stone walls of its own: wall.stone falls back to wall.timber there, but not in stone_dungeon
+    const pals = loadPalettes({
+      user: [
+        {
+          source: "test",
+          data: {
+            schema: "slabyrinth/palette@1",
+            id: "cave",
+            overrides: true,
+            roles: { "wall.stone": { variants: [], fallback: "wall.timber" } },
+          },
+        },
+      ],
+    });
+    // the level's first theme is stone_dungeon; every cell (and so every wall) is the cave's
+    const lv = handLevel({ id: "l1", rows: ["#####", "#...#", "#####"], wallStyle: "stone" });
+    lv.themes = ["stone_dungeon", "cave"];
+    lv.cells.theme.fill(1);
+    const wallNotes = (generator: number) => {
+      const r = { ...handPlan([lv]), generator };
+      return verifyBuild(r, realize(r, pals), pals).diagnostics.filter(
+        (x) => x.code === "verify_material_substituted" && x.role === "wall.stone",
+      );
+    };
+    const four = wallNotes(4);
+    expect(four).toHaveLength(1);
+    expect(four[0]?.message).toMatch(/in theme "cave": it is built with wall\.timber/);
+    // released generators keep asking the level's first theme (their diagnostics are pinned)
+    expect(wallNotes(3)).toEqual([]);
+  });
+
   it("verify_duplicate_removed — exact duplicates are dropped (repair)", () => {
     const r = handPlan([room()]);
     const set = realize(r, cat);
