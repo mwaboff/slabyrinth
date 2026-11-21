@@ -10,7 +10,6 @@ import type {
   Level,
   LevelId,
   MapPlan,
-  OpeningKind,
   PlanIssue,
   Shape,
   Structure,
@@ -18,7 +17,7 @@ import type {
   Vec2,
 } from "../contracts/plan";
 import type { ResolvedArea, ResolvedLevel, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
-import { isWindow } from "../gen/openingKinds";
+import { openingTests } from "../gen/openingKinds";
 import { withWings } from "../plan/building";
 import { generatorProfile, type GeneratorProfile } from "../plan/generator";
 import { entryLevelId } from "../plan/links";
@@ -241,8 +240,8 @@ function structureLine(
   if (!rs) return `${plan.join(" ")} -> not built`;
   const ops = (lvl?.openings ?? []).filter((o) => rs.openingIds.includes(o.id));
   // generator 4 (`openingKindTraits`): an arrow slit is counted with the windows (the kind table's trait); released
-  // generators list it with the doors, as their outlines always did
-  const windowed = profile.openingKindTraits ? isWindow : (kind: OpeningKind) => kind === "window";
+  // generators list it with the doors, as their outlines always did (gen/openingKinds.ts openingTests)
+  const windowed = openingTests(profile).window;
   const doors = ops
     .filter((o) => !windowed(o.kind))
     .map((o) => `${o.id.split("~")[1] ?? o.id} ${formatOpeningEdge(o)}`);
