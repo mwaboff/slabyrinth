@@ -58,8 +58,14 @@ export function linkKindInfo(kind: LinkKind): LinkKindInfo {
   return LINK_KIND_INFO[kind];
 }
 
-/** Entry level id: plan.entryLevel, else the level with the smallest |elevation| (ties: plan order). */
-export function entryLevelId(plan: MapPlan): string | undefined {
+/**
+ * Entry level id: plan.entryLevel, else the level with the smallest |elevation| (ties: plan order). The one rule: the
+ * playability walk and verify's reachability ask it (verify of a plan-less build passes the resolved levels).
+ */
+export function entryLevelId(plan: {
+  readonly entryLevel?: string | undefined;
+  readonly levels: readonly { readonly id: string; readonly elevation: number }[];
+}): string | undefined {
   if (plan.entryLevel && plan.levels.some((l) => l.id === plan.entryLevel)) return plan.entryLevel;
   let best: { id: string; e: number } | undefined;
   for (const l of plan.levels)

@@ -249,6 +249,10 @@ const SWITCHES = {
     4,
     "Piece sizes (a rock band's pieces, the support a small thing rests on) are asked of the anchor cell's theme, the one the piece is built in, not the level's (resolve/level/grid.ts pieceTheme).",
   ),
+  reachBlamesPathBlocker: on(
+    4,
+    "Verify names, for each area the build cuts off, the first blocker on the plan's way to it, and looks for a broken link from the plan's entry level (plan/links.ts entryLevelId), not the first blocker found anywhere or the highest level.",
+  ),
   columnsCloseHighestFloor: on(
     4,
     "A rock wall column is a low stretch only where it still stands closed above the highest floor it walls in, not only the lowest (compile/realize/rockWalls.ts).",

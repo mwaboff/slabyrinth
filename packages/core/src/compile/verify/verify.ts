@@ -22,7 +22,6 @@
  * its own switch on its first line.
  */
 import type { CompileDiagnostic, CompileDiagnosticCode, PaletteCatalog } from "../../contracts/compiler";
-import type { MapPlan, PlanIssue } from "../../contracts/plan";
 import type { ResolvedPlan } from "../../contracts/resolved";
 import { checkPlayability } from "../../resolve";
 import { CHUNK_VERIFY_CODES } from "../chunk";
@@ -92,7 +91,7 @@ const COVERED_BY_PLAN: Partial<Record<CompileDiagnosticCode, readonly string[]>>
 function dropCoveredByPlan({ opts, resolved, report }: VerifyCtx): void {
   const planIssues =
     opts.planIssues ??
-    (opts.plan ? [...resolved.issues, ...safePlayability(opts.plan, resolved)] : resolved.issues);
+    (opts.plan ? [...resolved.issues, ...checkPlayability(opts.plan, resolved)] : resolved.issues);
   const planKeys = new Set(planIssues.map((i) => `${i.code}|${i.elementId ?? ""}`));
   const covered = (d: CompileDiagnostic): boolean =>
     (COVERED_BY_PLAN[d.code] ?? []).some((c) => planKeys.has(`${c}|${d.elementId ?? ""}`));
@@ -100,14 +99,6 @@ function dropCoveredByPlan({ opts, resolved, report }: VerifyCtx): void {
   for (let i = out.length - 1; i >= 0; i--) {
     const d = out[i];
     if (d && covered(d)) out.splice(i, 1);
-  }
-}
-
-function safePlayability(plan: MapPlan, resolved: ResolvedPlan): PlanIssue[] {
-  try {
-    return checkPlayability(plan, resolved);
-  } catch {
-    return [];
   }
 }
 

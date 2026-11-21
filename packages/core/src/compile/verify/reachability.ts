@@ -1,26 +1,25 @@
 /**
  * Movement: every area the plan reaches from the entry is still reached once the build is placed. What only the build
- * knows (obstructed cells, blocked doors, links that do not work) is laid over the plan's walk; an area the plan
- * reaches and the build does not is named with the first thing in the way.
+ * knows (obstructed cells, blocked doors, links that do not work) is laid over the plan's walk (the resolver's
+ * WalkGraph, resolve/playability.ts `walkPathsFrom`: one pathfinder, one entry-level rule, plan/links.ts
+ * `entryLevelId`); an area the plan reaches and the build does not is named with what stands in the way.
  *
- * With the plan (VerifyOptions.plan) the resolver's WalkGraph is reused (`walkReachability`, the plan-level
- * playability rules); without it a walk of verify's own is run twice, plan-only and realized.
+ * What is named (generator switch `reachBlamesPathBlocker`): the first blocked cell, blocked door or broken link on the
+ * plan's walk to that area. Released generators name the first blocker found anywhere, and look for a broken link from
+ * the highest level when the plan names no entry.
  *
  * Emits `verify_area_unreachable` (error), one per area, in level and area order.
  */
 import type { CompileDiagnosticCode } from "../../contracts/compiler";
-import type { LevelId, OpeningKind } from "../../contracts/plan";
+import type { LevelId } from "../../contracts/plan";
 import type { ResolvedPlan } from "../../contracts/resolved";
-import { CELL_FLAG, EDGE } from "../../contracts/resolved";
-import { OPPOSITE, SIDE_STEP, SIDES } from "../../gen/gridGeometry";
-import { isPassage } from "../../gen/openingKinds";
-import { walkReachability } from "../../resolve";
+import { entryLevelId } from "../../plan/links";
+import { walkPathsFrom, type WalkCell, type WalkPaths } from "../../resolve";
 import type { VerifyCtx } from "./context";
 import type { Solid } from "./grid";
-import { STEP } from "./limits";
 import type { LinkVerdicts } from "./links";
 import type { ObstructedCells } from "./openFloor";
-import { type BlockedOpenings, openingEdges } from "./openings";
+import { type BlockedOpening, type BlockedOpenings, openingEdges } from "./openings";
 import type { StairRuns } from "./runs";
 import { fmt, planElements, solidLabel, uniq } from "./words";
 
@@ -37,16 +36,21 @@ export interface BuildBlocks {
   readonly links: LinkVerdicts;
 }
 
-export function checkReachability(ctx: VerifyCtx, blocks: BuildBlocks): void {
-  if (ctx.opts.plan) checkWalkGraphReach(ctx, blocks);
-  else checkOwnWalkReach(ctx, blocks);
+/** What stands in the way of an area: pieces at a cell (an obstructed cell, a blocked door), or a broken link. */
+type Culprit = { cell: [number, number]; solids: readonly Solid[] } | { link: Link };
+
+/** The level the party enters on: VerifyOptions.entryLevelId, else the plan's rule over the plan's (or the built) levels. */
+function verifyEntryLevel({ opts, resolved }: VerifyCtx): LevelId | undefined {
+  return entryLevelId({
+    entryLevel: opts.entryLevelId ?? opts.plan?.entryLevel,
+    levels: opts.plan?.levels ?? resolved.levels,
+  });
 }
 
-/** The resolver's walk with the build's blocks as `extraBlocked` / `extraBlockedOpenings`. */
-function checkWalkGraphReach(ctx: VerifyCtx, { runs, obstructed, doors, links }: BuildBlocks): void {
-  const plan = ctx.opts.plan;
-  if (!plan) return;
+export function checkReachability(ctx: VerifyCtx, blocks: BuildBlocks): void {
+  const { runs, obstructed, doors, links } = blocks;
   const { resolved } = ctx;
+  const entry = verifyEntryLevel(ctx);
   const extraBlocked: Record<LevelId, number[]> = {};
   const block = (levelId: LevelId, x: number, y: number): void => {
     const g = ctx.grids.get(levelId);
@@ -65,18 +69,18 @@ function checkWalkGraphReach(ctx: VerifyCtx, { runs, obstructed, doors, links }:
       openingId: d.openingId,
       side: d.sides.size > 1 ? "both" : ([...d.sides][0] ?? "both"),
     });
-  const base = walkReachability(plan, resolved, {}, { secret: true });
-  const real = walkReachability(plan, resolved, { extraBlocked, extraBlockedOpenings }, { secret: true });
-  // what stands in the way: obstructed cells the plan reaches and the build does not, then the blocked doors
-  const culprits: Array<{ cell: [number, number]; solids: readonly Solid[] }> = [];
-  for (const o of obstructed.list()) {
-    const i = ctx.grids.get(o.levelId)?.index(o.cell[0], o.cell[1]) ?? -1;
-    if (i >= 0 && base.get(o.levelId)?.[i] && !real.get(o.levelId)?.[i])
-      culprits.push({ cell: o.cell, solids: o.solids });
-  }
-  for (const d of doors.list()) culprits.push({ cell: d.start, solids: d.solids });
+  const base = walkPathsFrom(resolved, entry, {}, { secret: true });
+  const real = walkPathsFrom(
+    resolved,
+    entry,
+    { extraBlocked, extraBlockedOpenings },
+    { secret: true },
+  ).reached;
+  const blame = ctx.profile.reachBlamesPathBlocker
+    ? pathBlame(ctx, blocks, base)
+    : firstFoundBlame(ctx, blocks, base.reached, real);
   for (const L of ctx.levels) {
-    const bm = base.get(L.id);
+    const bm = base.reached.get(L.id);
     const rm = real.get(L.id);
     if (!bm || !rm) continue;
     for (const area of L.areas) {
@@ -90,9 +94,14 @@ function checkWalkGraphReach(ctx: VerifyCtx, { runs, obstructed, doors, links }:
         if (rm[i]) inReal = true;
       }
       if (!inBase || inReal) continue;
-      const c = culprits[0];
+      const culprit = blame(L.id, ai);
+      const c = culprit && "solids" in culprit ? culprit : undefined;
       const b = c?.solids[0];
-      const viaLink = b ? undefined : brokenLinkFor(ctx, links, L.id);
+      const viaLink = b
+        ? undefined
+        : culprit && "link" in culprit
+          ? linkFailure(links, culprit.link)
+          : brokenLinkFor(ctx, links, L.id, entry);
       ctx.report.add({
         severity: "error",
         code: "verify_area_unreachable",
@@ -115,6 +124,76 @@ function checkWalkGraphReach(ctx: VerifyCtx, { runs, obstructed, doors, links }:
   }
 }
 
+/** Names the culprit for an area (level id, 1-based area index), or undefined when nothing is found in the way. */
+type Blame = (levelId: LevelId, areaIndex: number) => Culprit | undefined;
+
+/**
+ * Released generators: one culprit for every area, the first found: an obstructed cell the plan reaches and the build
+ * does not, else the first blocked door.
+ */
+function firstFoundBlame(
+  ctx: VerifyCtx,
+  { obstructed, doors }: BuildBlocks,
+  base: ReadonlyMap<LevelId, Uint8Array>,
+  real: ReadonlyMap<LevelId, Uint8Array>,
+): Blame {
+  const culprits: Culprit[] = [];
+  for (const o of obstructed.list()) {
+    const i = ctx.grids.get(o.levelId)?.index(o.cell[0], o.cell[1]) ?? -1;
+    if (i >= 0 && base.get(o.levelId)?.[i] && !real.get(o.levelId)?.[i])
+      culprits.push({ cell: o.cell, solids: o.solids });
+  }
+  for (const d of doors.list()) culprits.push({ cell: d.start, solids: d.solids });
+  return () => culprits[0];
+}
+
+/**
+ * Generator 4: the first thing in the way on the plan's walk to the area (to its nearest cell): a blocked door the walk
+ * crosses, an obstructed cell it enters, or a broken link it arrives by.
+ */
+function pathBlame(ctx: VerifyCtx, { runs, obstructed, doors, links }: BuildBlocks, base: WalkPaths): Blame {
+  const key = (a: WalkCell, b: WalkCell): string => `${a.levelId}|${a.cell.join(",")}|${b.cell.join(",")}`;
+  const doorBetween = new Map<string, BlockedOpening>();
+  for (const d of doors.list()) {
+    const op = ctx.levelOf.get(d.levelId)?.openings.find((o) => o.id === d.openingId);
+    for (const e of op ? openingEdges(op) : []) {
+      const a = { levelId: d.levelId, cell: e.a };
+      const b = { levelId: d.levelId, cell: e.b };
+      doorBetween.set(key(a, b), d);
+      doorBetween.set(key(b, a), d);
+    }
+  }
+  const brokenArrival = new Map<string, Link>();
+  for (const lk of ctx.resolved.links)
+    if (links.broken(lk.id))
+      for (const { arrival } of runs.arrivals(lk))
+        brokenArrival.set(`${lk.toLevel}|${arrival.join(",")}`, lk);
+  return (levelId, areaIndex) => {
+    const L = ctx.levelOf.get(levelId);
+    if (!L) return undefined;
+    let path: WalkCell[] = [];
+    for (let i = 0; i < L.cells.area.length; i++) {
+      if (L.cells.area[i] !== areaIndex) continue;
+      const p = base.pathTo(levelId, i);
+      if (p.length > 0 && (path.length === 0 || p.length < path.length)) path = p;
+    }
+    for (let k = 0; k < path.length; k++) {
+      const here = path[k] as WalkCell;
+      const prev = path[k - 1];
+      const door = prev && prev.levelId === here.levelId ? doorBetween.get(key(prev, here)) : undefined;
+      if (door) return { cell: door.start, solids: door.solids };
+      const solids = obstructed.at(here.levelId, here.cell[0], here.cell[1]);
+      if (solids) return { cell: [here.cell[0], here.cell[1]], solids };
+      const link =
+        prev && prev.levelId !== here.levelId
+          ? brokenArrival.get(`${here.levelId}|${here.cell.join(",")}`)
+          : undefined;
+      if (link) return { link };
+    }
+    return undefined;
+  };
+}
+
 /** One-line description of a link, with the ends spelled out: "stairs "a" (from l2 (9,26) climbing N to l1)". */
 function linkWords(lk: Link): string {
   const f = lk.lowerCells[0];
@@ -125,17 +204,31 @@ function linkWords(lk: Link): string {
   return `${lk.kind.replace("_", " ")} "${lk.id}" (from ${lk.fromLevel} ${f ? fmt([f[0], f[1]]) : ""}${run})`;
 }
 
-/** The broken link a player on level `target` would have had to use: first failing link on the way from the entry. */
+/** What a broken link says in the message and the hint. */
+function linkFailure(links: LinkVerdicts, bad: Link): { text: string; fix: string } {
+  const w = links.reason(bad.id);
+  return {
+    text: `the way there is ${linkWords(bad)}, which does not work${w ? `: ${w.why}` : ""}`,
+    fix: w?.fix ?? `check link ${bad.id}`,
+  };
+}
+
+/**
+ * The broken link a player on level `target` would have had to use: first failing link on the way from the entry level
+ * (released generators: VerifyOptions.entryLevelId or the plan's entryLevel, else the highest level).
+ */
 function brokenLinkFor(
   ctx: VerifyCtx,
   links: LinkVerdicts,
   target: LevelId,
+  planEntry: LevelId | undefined,
 ): { text: string; fix: string } | undefined {
   const { resolved } = ctx;
-  const entry =
-    ctx.opts.entryLevelId ??
-    ctx.opts.plan?.entryLevel ??
-    [...ctx.levels].sort((a, b) => b.elevation - a.elevation)[0]?.id;
+  const entry = ctx.profile.reachBlamesPathBlocker
+    ? planEntry
+    : (ctx.opts.entryLevelId ??
+      ctx.opts.plan?.entryLevel ??
+      [...ctx.levels].sort((a, b) => b.elevation - a.elevation)[0]?.id);
   if (!entry || entry === target) return undefined;
   const prev = new Map<LevelId, { from: LevelId; link: Link }>();
   const q: LevelId[] = [entry];
@@ -154,224 +247,5 @@ function brokenLinkFor(
   for (let at: LevelId | undefined = target; at !== undefined && prev.has(at); at = prev.get(at)?.from)
     path.unshift((prev.get(at) as { link: Link }).link);
   const bad = path.find((lk) => links.broken(lk.id)) ?? resolved.links.find((lk) => links.broken(lk.id));
-  if (!bad) return undefined;
-  const w = links.reason(bad.id);
-  return {
-    text: `the way there is ${linkWords(bad)}, which does not work${w ? `: ${w.why}` : ""}`,
-    fix: w?.fix ?? `check link ${bad.id}`,
-  };
-}
-
-/**
- * What the own walk steps over besides cells: the opening on each side of a cell ("level|x,y|side"), and the jumps a
- * link makes between cells ("level|x,y" → cells; a stair run from its top step to its arrival, a pit drop one way
- * down, other links between their lower and upper cells both ways).
- */
-function ownWalkGraph(
-  { levels, resolved }: VerifyCtx,
-  runs: StairRuns,
-): {
-  openingAt: Map<string, { id: string; kind: OpeningKind }>;
-  jumps: Map<string, Array<{ to: string; link: string }>>;
-} {
-  const openingAt = new Map<string, { id: string; kind: OpeningKind }>();
-  for (const L of levels)
-    for (const op of L.openings)
-      for (const e of openingEdges(op)) {
-        openingAt.set(`${L.id}|${e.b[0]},${e.b[1]}|${e.sideOfB}`, { id: op.id, kind: op.kind });
-        openingAt.set(`${L.id}|${e.a[0]},${e.a[1]}|${OPPOSITE[e.sideOfB]}`, { id: op.id, kind: op.kind });
-      }
-  const jumps = new Map<string, Array<{ to: string; link: string }>>();
-  const addJump = (a: string, b: string, link: string, both = true): void => {
-    (jumps.get(a) ?? jumps.set(a, []).get(a) ?? []).push({ to: b, link });
-    if (both) (jumps.get(b) ?? jumps.set(b, []).get(b) ?? []).push({ to: a, link });
-  };
-  for (const lk of resolved.links) {
-    if (lk.kind === "stairs" || lk.kind === "ramp") {
-      for (const { top, arrival } of runs.arrivals(lk))
-        addJump(`${lk.fromLevel}|${top[0]},${top[1]}`, `${lk.toLevel}|${arrival[0]},${arrival[1]}`, lk.id);
-    } else if (lk.kind === "pit_drop") {
-      lk.upperCells.forEach((c, i) => {
-        const lo = lk.lowerCells[i] ?? c;
-        addJump(`${lk.toLevel}|${c[0]},${c[1]}`, `${lk.fromLevel}|${lo[0]},${lo[1]}`, lk.id, false);
-      });
-    } else {
-      lk.lowerCells.forEach((c, i) => {
-        const up = lk.upperCells[i] ?? lk.arrival;
-        addJump(`${lk.fromLevel}|${c[0]},${c[1]}`, `${lk.toLevel}|${up[0]},${up[1]}`, lk.id);
-      });
-    }
-  }
-  return { openingAt, jumps };
-}
-
-/**
- * Without the plan: a breadth-first walk from the largest area of the entry level over cells, openings and links, once
- * as the plan has it and once with the build's blocks; steps the realized walk refuses are kept to name the culprit.
- */
-function checkOwnWalkReach(ctx: VerifyCtx, blocks: BuildBlocks): void {
-  const { levels } = ctx;
-  if (!levels.length) return;
-  const entry =
-    levels.find((l) => l.id === ctx.opts.entryLevelId) ??
-    [...levels].sort((a, b) => Math.abs(a.elevation) - Math.abs(b.elevation))[0];
-  if (!entry) return;
-  const graph = ownWalkGraph(ctx, blocks.runs);
-  const rejected: RejectedStep[] = [];
-  const plan = ownWalk(ctx, entry, graph, blocks, false, rejected);
-  const real = ownWalk(ctx, entry, graph, blocks, true, rejected);
-  reportOwnWalkUnreached(ctx, plan, real, rejected);
-}
-
-/** A step the realized walk refused ("level|x,y" of the cell it would have entered) and what stood in the way. */
-interface RejectedStep {
-  cell: string;
-  solids: readonly Solid[];
-}
-
-/** The cell of an own-walk key "level|x,y". */
-function walkCellOf(k: string): [LevelId, number, number] {
-  const [lv, xy] = k.split("|") as [string, string];
-  const [x, y] = xy.split(",").map(Number) as [number, number];
-  return [lv, x, y];
-}
-
-/**
- * The own walk from the largest area of the entry level: distance (steps) of every cell reached ("level|x,y"). The
- * realized walk also refuses obstructed cells, blocked doors and broken links, and records each refused step.
- */
-function ownWalk(
-  { grids }: VerifyCtx,
-  entry: ResolvedPlan["levels"][number],
-  { openingAt, jumps }: ReturnType<typeof ownWalkGraph>,
-  { runs, obstructed, doors, links }: BuildBlocks,
-  realized: boolean,
-  rejected: RejectedStep[],
-): Map<string, number> {
-  const dist = new Map<string, number>();
-  const q: string[] = [];
-  let head = 0;
-  const walkable = (lv: LevelId, x: number, y: number): boolean => {
-    const g = grids.get(lv);
-    if (!g) return false;
-    const c = g.cell(x, y);
-    if (!c.open || !c.floor || (c.flags & CELL_FLAG.FEATURE) !== 0) return false;
-    if (realized && obstructed.at(lv, x, y)) return false;
-    return true;
-  };
-  const g0 = grids.get(entry.id);
-  if (!g0) return dist;
-  // start: the largest area on the entry level
-  const counts = new Map<number, number>();
-  for (let i = 0; i < entry.cells.area.length; i++) {
-    const a = entry.cells.area[i] ?? 0;
-    if (a > 0) counts.set(a, (counts.get(a) ?? 0) + 1);
-  }
-  const startArea = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0];
-  for (let ly = 0; ly < g0.h; ly++)
-    for (let lx = 0; lx < g0.w; lx++) {
-      const x = entry.bounds.x + lx;
-      const y = entry.bounds.y + ly;
-      if ((startArea === undefined || g0.cell(x, y).area === startArea) && walkable(entry.id, x, y)) {
-        const k = `${entry.id}|${x},${y}`;
-        dist.set(k, 0);
-        q.push(k);
-      }
-    }
-  while (head < q.length) {
-    const k = q[head++] as string;
-    const d = dist.get(k) ?? 0;
-    const [lv, x, y] = walkCellOf(k);
-    const g = grids.get(lv);
-    if (!g) continue;
-    const run0 = runs.at(lv, x, y);
-    for (const side of SIDES) {
-      const [dx, dy] = SIDE_STEP[side];
-      const nx = x + dx;
-      const ny = y + dy;
-      const nk = `${lv}|${nx},${ny}`;
-      if (dist.has(nk)) continue;
-      const kind = g.edgeKind(x, y, side);
-      if (kind === EDGE.WALL) continue;
-      if (kind === EDGE.OPENING) {
-        const op = openingAt.get(`${lv}|${x},${y}|${side}`);
-        if (op && !isPassage(op.kind)) continue;
-        const blocked = realized && op ? doors.at(lv, op.id) : undefined;
-        if (blocked) {
-          rejected.push({ cell: nk, solids: blocked.solids });
-          continue;
-        }
-      }
-      const runN = runs.at(lv, nx, ny);
-      // inside a stair run you move along the run; lateral entry only at the bottom step
-      if (run0 && run0.k > 0 && !(runN && runN.linkId === run0.linkId)) continue;
-      if (runN && runN.k > 0 && !(run0 && run0.linkId === runN.linkId)) continue;
-      if (!walkable(lv, nx, ny)) {
-        const there = realized ? obstructed.at(lv, nx, ny) : undefined;
-        if (there) rejected.push({ cell: nk, solids: there });
-        continue;
-      }
-      if (!(run0 && runN) && Math.abs(g.top(x, y) - g.top(nx, ny)) > STEP + 1e-6) continue;
-      dist.set(nk, d + 1);
-      q.push(nk);
-    }
-    for (const j of jumps.get(k) ?? []) {
-      if (dist.has(j.to)) continue;
-      if (realized && links.broken(j.link)) continue;
-      const [tl, tx, ty] = walkCellOf(j.to);
-      const tg = grids.get(tl);
-      if (!tg) continue;
-      const c = tg.cell(tx, ty);
-      if (!c.open) continue;
-      if (!c.floor && !runs.at(tl, tx, ty)) continue;
-      if (realized && obstructed.at(tl, tx, ty)) continue;
-      dist.set(j.to, d + 1);
-      q.push(j.to);
-    }
-  }
-  return dist;
-}
-
-/** Every area the plan walk reaches and the realized walk does not, named with the first refused step on its way. */
-function reportOwnWalkUnreached(
-  ctx: VerifyCtx,
-  plan: ReadonlyMap<string, number>,
-  real: ReadonlyMap<string, number>,
-  rejected: readonly RejectedStep[],
-): void {
-  for (const L of ctx.levels) {
-    for (const area of L.areas) {
-      if (area.kind === "zone") continue;
-      const ai = L.areaIds.indexOf(area.id) + 1;
-      const cells: string[] = [];
-      for (let i = 0; i < L.cells.area.length; i++) {
-        if (L.cells.area[i] !== ai) continue;
-        const x = L.bounds.x + (i % L.bounds.w);
-        const y = L.bounds.y + Math.floor(i / L.bounds.w);
-        cells.push(`${L.id}|${x},${y}`);
-      }
-      if (!cells.some((c) => plan.has(c)) || cells.some((c) => real.has(c))) continue;
-      // the first rejected step that the plan-level path would have taken
-      const cand = rejected
-        .filter((r) => plan.has(r.cell) && !real.has(r.cell))
-        .sort((a, b) => (plan.get(a.cell) ?? 0) - (plan.get(b.cell) ?? 0))[0];
-      const at = cand ? (cand.cell.split("|")[1] ?? "").split(",").map(Number) : null;
-      const b = cand?.solids[0];
-      ctx.report.add({
-        severity: "error",
-        code: "verify_area_unreachable",
-        levelId: L.id,
-        elementId: area.id,
-        elementIds: planElements([area.id, ...(cand?.solids.map((s) => s.p.source.elementId) ?? [])]),
-        ...(at && at.length === 2 ? { cell: [at[0] ?? 0, at[1] ?? 0] as const } : {}),
-        ...(cand ? { assets: uniq(cand.solids.map((s) => s.name)) } : {}),
-        message: b
-          ? `${area.name ?? area.id} on level ${L.id} cannot be reached once the build is placed: ${solidLabel(b)} blocks the way at ${cand.cell.split("|")[1] ?? "?"}.`
-          : `${area.name ?? area.id} on level ${L.id} cannot be reached once the build is placed, although the plan connects it.`,
-        hint: b
-          ? `Move ${b.p.source.elementId ?? b.name} or the opening it blocks, or add a second opening into ${area.id}.`
-          : `Check the stairs and openings leading to ${area.id}; add another opening.`,
-      });
-    }
-  }
+  return bad ? linkFailure(links, bad) : undefined;
 }

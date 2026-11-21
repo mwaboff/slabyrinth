@@ -12,7 +12,10 @@ export { planRules, geometryCheck, materializeOp, GEOMETRY_CHECK_NAME } from "./
 export {
   checkPlayability,
   walkReachability,
+  walkPathsFrom,
   WalkGraph,
+  type WalkCell,
+  type WalkPaths,
   type PlayabilityOptions,
   type PlayabilityCheck,
   type WalkMode,

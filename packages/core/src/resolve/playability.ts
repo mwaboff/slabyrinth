@@ -20,6 +20,7 @@ import type {
   Side,
   Vec2,
 } from "../contracts/plan";
+import { PLAN_LIMITS } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedLink, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
@@ -300,34 +301,58 @@ export class WalkGraph {
 
   /** Breadth-first walk from the given cells; returns a reached mask per level (same order as resolved.levels). */
   flood(starts: Iterable<readonly [number, number]>, m: WalkMode): Uint8Array[] {
+    return this.walk(starts, m, null);
+  }
+
+  /**
+   * The same walk, also recording the cell each cell was first reached from: `from[li][i]` is the parent's level index
+   * times PARENT_STRIDE plus its cell index, -1 for a start or a cell not reached.
+   */
+  floodWithParents(
+    starts: Iterable<readonly [number, number]>,
+    m: WalkMode,
+  ): { reached: Uint8Array[]; from: Int32Array[] } {
+    const from = this.levels.map((d) => new Int32Array(d.w * d.h).fill(-1));
+    return { reached: this.walk(starts, m, from), from };
+  }
+
+  private walk(
+    starts: Iterable<readonly [number, number]>,
+    m: WalkMode,
+    from: Int32Array[] | null,
+  ): Uint8Array[] {
     const reached = this.levels.map((d) => new Uint8Array(d.w * d.h));
     const queue: Array<[number, number]> = [];
-    const push = (li: number, i: number): void => {
+    const push = (li: number, i: number, parent: number): void => {
       const d = this.levels[li];
       const r = reached[li];
       if (!d || !r || i < 0 || r[i] === 1 || !this.walkable(d, i, m)) return;
       r[i] = 1;
+      if (from) (from[li] as Int32Array)[i] = parent;
       queue.push([li, i]);
     };
-    for (const [li, i] of starts) push(li, i);
+    for (const [li, i] of starts) push(li, i, -1);
     for (let head = 0; head < queue.length; head++) {
       const [li, i] = queue[head] as [number, number];
       const d = this.levels[li] as LevelData;
+      const here = li * PARENT_STRIDE + i;
       for (const s of SIDES) {
         const [j, pass] = this.step(d, i, s, m);
-        if (pass) push(li, j);
+        if (pass) push(li, j, here);
       }
-      for (const [tl, ti] of this.linkMoves.get(`${li}:${i}`) ?? []) push(tl, ti);
+      for (const [tl, ti] of this.linkMoves.get(`${li}:${i}`) ?? []) push(tl, ti, here);
       if (m.trapdoorUp === true)
-        for (const [tl, ti] of this.trapdoorUpMoves.get(`${li}:${i}`) ?? []) push(tl, ti);
+        for (const [tl, ti] of this.trapdoorUpMoves.get(`${li}:${i}`) ?? []) push(tl, ti, here);
     }
     return reached;
   }
 
-  /** Entry points: the entry level's lowest-key area and the outside side of every "@outside" opening. */
-  starts(plan: MapPlan): Array<[number, number]> {
+  /**
+   * Entry points: the entry level's lowest-key area and the outside side of every "@outside" opening. `entry` is the
+   * plan's entry level (plan/links.ts `entryLevelId`, the one rule).
+   */
+  starts(entry: LevelId | undefined): Array<[number, number]> {
     const out: Array<[number, number]> = [];
-    const entry = entryLevelId(plan);
     const ed = entry !== undefined ? this.byId.get(entry) : undefined;
     if (ed) {
       const keyed = ed.l.areas
@@ -398,10 +423,59 @@ export function walkReachability(
   options: PlayabilityOptions = {},
   mode: WalkMode = { secret: true },
 ): Map<LevelId, Uint8Array> {
-  const g = new WalkGraph(resolved, options);
-  const masks = g.flood(g.starts(plan), mode);
-  return new Map(g.levels.map((d, k) => [d.l.id, masks[k] as Uint8Array]));
+  return walkPathsFrom(resolved, entryLevelId(plan), options, mode).reached;
 }
+
+/** A cell of the walk: its level id and plan cell. */
+export interface WalkCell {
+  readonly levelId: LevelId;
+  readonly cell: Vec2;
+}
+
+/** The walk from a plan's entry points, with the way the walk first reached each cell (shortest in steps). */
+export interface WalkPaths {
+  /** Reached mask per level id. */
+  readonly reached: Map<LevelId, Uint8Array>;
+  /** The cells from an entry point to a cell of the level (local index), in walking order; [] when not reached. */
+  pathTo(levelId: LevelId, index: number): WalkCell[];
+}
+
+/**
+ * The walk from the entry points of level `entry` (plan/links.ts `entryLevelId`) and the "@outside" openings, with
+ * paths: the compiler's verify stage names the first thing in the way on the path to an area the build cuts off.
+ */
+export function walkPathsFrom(
+  resolved: ResolvedPlan,
+  entry: LevelId | undefined,
+  options: PlayabilityOptions = {},
+  mode: WalkMode = { secret: true },
+): WalkPaths {
+  const g = new WalkGraph(resolved, options);
+  const { reached, from } = g.floodWithParents(g.starts(entry), mode);
+  const at = new Map(g.levels.map((d) => [d.l.id, d]));
+  return {
+    reached: new Map(g.levels.map((d, k) => [d.l.id, reached[k] as Uint8Array])),
+    pathTo(levelId, index) {
+      const d = at.get(levelId);
+      if (!d || reached[d.li]?.[index] !== 1) return [];
+      const out: WalkCell[] = [];
+      let li = d.li;
+      let i = index;
+      while (li >= 0) {
+        const dl = g.levels[li] as LevelData;
+        out.push({ levelId: dl.l.id, cell: g.xy(dl, i) });
+        const p = from[li]?.[i] ?? -1;
+        if (p < 0) break;
+        li = Math.floor(p / PARENT_STRIDE);
+        i = p % PARENT_STRIDE;
+      }
+      return out.reverse();
+    },
+  };
+}
+
+/** Parents are stored as level index * stride + cell index (a level has at most PLAN_LIMITS.levelSide² cells). */
+const PARENT_STRIDE = PLAN_LIMITS.levelSide * PLAN_LIMITS.levelSide;
 
 // ───────────────────────────── the checks ─────────────────────────────
 
@@ -485,7 +559,7 @@ type PlayCtx = ReturnType<typeof playCtx>;
 
 /** Structural reachability from the plan's starts, computed once: with and without secret doors, loose, and up trapdoors. */
 function structuralWalks({ g, plan }: PlayCtx) {
-  const starts = g.starts(plan);
+  const starts = g.starts(entryLevelId(plan));
   // deep water is swimmable for reachability (a door opening straight into it is still flagged above)
   const reached = g.flood(starts, { secret: true, ignoreWater: true });
   const reachedNoSecret = g.flood(starts, { secret: false, ignoreWater: true });
