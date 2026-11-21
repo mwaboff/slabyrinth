@@ -13,6 +13,7 @@
  */
 import { completeAuthoredPlan } from "../../src/agent/executor";
 import { compileResolved } from "../../src/compile";
+import type { CompileDiagnostic } from "../../src/contracts/compiler";
 import { GENERATOR_VERSION, type MapPlan } from "../../src/contracts/plan";
 import { bundledPalettes } from "../../src/palette";
 import { resolvePlan } from "../../src/resolve/index";
@@ -79,25 +80,44 @@ export interface SweepFailure {
   first: string;
 }
 
-/** Builds a plan; null when it has no verify (or any) error. */
-export function buildErrors(plan: MapPlan): SweepFailure | null {
-  const pal = bundledPalettes();
-  const bundle = compileResolved(resolvePlan(plan, pal), pal, slabCodec, { createdAt: "sweep", plan });
-  const errors = bundle.diagnostics.filter((d) => d.severity === "error");
-  if (errors.length === 0) return null;
-  return { codes: [...new Set(errors.map((d) => d.code))].sort(), first: errors[0]?.message ?? "" };
+/** The diagnostics of one severity a build has, as a failure (codes sorted and distinct); null when it has none. */
+function problems(
+  diagnostics: readonly CompileDiagnostic[],
+  severity: "error" | "warning",
+): SweepFailure | null {
+  const found = diagnostics.filter((d) => d.severity === severity);
+  if (found.length === 0) return null;
+  return { codes: [...new Set(found.map((d) => d.code))].sort(), first: found[0]?.message ?? "" };
 }
 
-/** Every failing build of `name` over `seeds`, as "<plan>@<seed>" -> failure. */
+/** Builds a plan; null when it has no verify (or any) error. */
+export function buildErrors(plan: MapPlan): SweepFailure | null {
+  return problems(buildDiagnostics(plan), "error");
+}
+
+function buildDiagnostics(plan: MapPlan): CompileDiagnostic[] {
+  const pal = bundledPalettes();
+  return compileResolved(resolvePlan(plan, pal), pal, slabCodec, { createdAt: "sweep", plan }).diagnostics;
+}
+
+/**
+ * Every failing build of `name` over `seeds`, as "<plan>@<seed>" -> failure. Warnings do not fail a build: stored
+ * plans still have some (prop overlaps in dense dressing, props pushed into walls, unanchored overhead lines), so
+ * `warnings`, when given, collects them the same way, for the large sweep to report.
+ */
 export function sweepFailures(
   label: string,
   seeds: readonly number[],
   planOf: (seed: number) => MapPlan,
+  warnings?: Record<string, SweepFailure>,
 ): Record<string, SweepFailure> {
   const out: Record<string, SweepFailure> = {};
   for (const seed of seeds) {
-    const f = buildErrors(planOf(seed));
+    const diagnostics = buildDiagnostics(planOf(seed));
+    const f = problems(diagnostics, "error");
     if (f) out[`${label}@${String(seed)}`] = f;
+    const w = warnings && problems(diagnostics, "warning");
+    if (w) warnings[`${label}@${String(seed)}`] = w;
   }
   return out;
 }

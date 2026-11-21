@@ -3,6 +3,10 @@
  * Builds every stored plan and the e2e plan under the newest generator with the first N sweep seeds and the seeds that
  * once failed (test/sweep/seeds.ts), prints each plan's count and time, every failure as "<plan>@<seed>: codes
  * (first message)", and exits 1 when a build fails that KNOWN_FAILURES does not list (or a listed one passes).
+ * Verify warnings are printed per plan and code (how many seeds, a few of them) but do not fail the sweep.
+ *
+ * CI runs it as its own job (.github/workflows/ci.yml `sweep`) with fewer seeds than the default, to stay well under
+ * ten minutes on a runner.
  */
 import type { MapPlan } from "../../src/contracts/plan";
 import {
@@ -14,6 +18,7 @@ import {
   sweepPlan,
   sweepSeeds,
   unexpected,
+  type SweepFailure,
 } from "./seeds";
 
 const n = Number(process.argv[2] ?? 250);
@@ -35,13 +40,21 @@ const failed: string[] = [];
 const stale: string[] = [];
 for (const r of runs) {
   const t = Date.now();
-  const failures = sweepFailures(r.label, r.seeds, r.planOf);
+  const warned: Record<string, SweepFailure> = {};
+  const failures = sweepFailures(r.label, r.seeds, r.planOf, warned);
   const u = unexpected(r.label, r.seeds, failures);
   failed.push(...u.failed);
   stale.push(...u.stale);
   const count = Object.keys(failures).length;
   console.log(`${r.label}: ${String(count)}/${String(r.seeds.length)} failed (${String(Date.now() - t)} ms)`);
   for (const line of u.failed) console.log(`  ${line}`);
+  // warnings are reported, not failed on: stored plans still have some (see sweepFailures)
+  const byCode = new Map<string, string[]>();
+  for (const [key, w] of Object.entries(warned))
+    for (const code of w.codes)
+      byCode.set(code, [...(byCode.get(code) ?? []), key.slice(key.indexOf("@") + 1)]);
+  for (const [code, at] of byCode)
+    console.log(`  warning ${code}: ${String(at.length)} seed(s), e.g. ${at.slice(0, 3).join(", ")}`);
 }
 console.log(
   `\n${String(runs.length)} plans x ${String(n)} seeds (+ once-failed) in ${String(Math.round((Date.now() - t0) / 1000))} s: ` +
