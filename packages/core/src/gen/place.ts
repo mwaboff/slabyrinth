@@ -187,9 +187,12 @@ export function scatterFeatures(grid: PlacementGrid, p: ScatterParams): ScatterR
     if (cells.some(([x, y]) => tooClose(x, y))) continue;
     if (p.supported === true && !groundCarries(cells)) continue;
     if (footprintCrossesWall(grid, [cx, cy], size)) continue;
+    const variant = variantIdx >= 0 && p.variants ? (p.variants[variantIdx] as string) : undefined;
+    // generator 4: never in front of a way in, nor reaching over it (a tree's crown spills past its cell)
+    if (grid.blocksWayIn?.(p.feature, [cx, cy], size, variant) === true) continue;
     for (const [x, y] of cells) accept(x, y);
     const placement: GeneratedPlacement = { type: p.feature, at: [cx, cy], size, rot, rotFine };
-    if (variantIdx >= 0 && p.variants) placement.variant = p.variants[variantIdx] as string;
+    if (variant !== undefined) placement.variant = variant;
     out.push(placement);
     if (clustered) addSatellites(cx, cy, size);
   }
@@ -214,10 +217,13 @@ export function scatterFeatures(grid: PlacementGrid, p: ScatterParams): ScatterR
       const cells = footprintCells([sx, sy], sz);
       if (!cells.every(([x, y]) => cellOk(x, y) && !accepted.has(cellKey(x, y)))) continue;
       if (footprintCrossesWall(grid, [sx, sy], sz)) continue;
+      // (the variant is drawn before the way-in test, so the stream does not depend on it)
+      const variant =
+        p.variants && p.variants.length > 0 ? (p.variants[crng.int(p.variants.length)] as string) : undefined;
+      if (grid.blocksWayIn?.(p.feature, [sx, sy], sz, variant) === true) continue;
       for (const [x, y] of cells) accept(x, y);
       const sat: GeneratedPlacement = { type: p.feature, at: [sx, sy], size: sz, rot, rotFine };
-      if (p.variants && p.variants.length > 0)
-        sat.variant = p.variants[crng.int(p.variants.length)] as string;
+      if (variant !== undefined) sat.variant = variant;
       out.push(sat);
       added++;
     }
@@ -428,7 +434,9 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
       footprintCells(c.at, c.size).every(([x, y]) => free(x, y, blocking)) &&
       !footprintCrossesWall(grid, c.at, c.size) &&
       // generator 3: furniture never stands half on a ledge (a counter over a one-tile step floats)
-      (!gen.levelFootprints || oneHeight(c.at, c.size));
+      (!gen.levelFootprints || oneHeight(c.at, c.size)) &&
+      // generator 4: nor in front of a way in, nor reaching over it
+      grid.blocksWayIn?.(item.type, c.at, c.size) !== true;
     const fromWall = (e: readonly [number, number, Side]): Cand => {
       const rot = SIDE_ROT[e[2]];
       const c: Cand = {

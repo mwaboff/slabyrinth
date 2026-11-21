@@ -10,9 +10,11 @@
  */
 import type { FeatureType, Side, Vec2 } from "../../contracts/plan";
 import { MATERIALS } from "../../contracts/plan";
-import type { ResolvedFeature } from "../../contracts/resolved";
+import type { ResolvedFeature, ResolvedOpening } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { LIGHT_FEATURES, featureInfo, isLandmark, rotatedSize } from "../../gen/catalog";
+import { SIDE_STEP } from "../../gen/gridGeometry";
+import { isPassage } from "../../gen/openingKinds";
 import type { GeneratedPlacement, PlacementGrid } from "../../gen/placementGrid";
 import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import type { ChasmRecords } from "./chasms";
@@ -31,6 +33,8 @@ export interface PlacementSurroundings {
   relief: ReadOnly<ReliefRecords>;
   /** Rivers: the water surface that dressing sinks stones to. */
   chasms: ReadOnly<ChasmRecords>;
+  /** The level's openings: nothing blocking stands in front of a way in (generator 4, `inWayIn`). */
+  openings: readonly ResolvedOpening[];
 }
 
 /**
@@ -52,6 +56,9 @@ export class FeatureWork {
   private readonly roomMemory = new Map<string, number[]>();
   private keepClear: Set<number> | null = null;
   private rampSet: Set<number> | null = null;
+  private passageFrontSet: Set<number> | null = null;
+  /** Generator 4: the lane before each market stall's front row (filled as the stalls are placed). */
+  private readonly stallFronts = new Set<number>();
 
   constructor(
     private readonly work: ResolveGrid,
@@ -84,7 +91,20 @@ export class FeatureWork {
       this.occ[i] = (this.occ[i] as number) + 1;
       if (f.blocking) this.work.flags[i] = (this.work.flags[i] as number) | CELL_FLAG.FEATURE;
     }
+    if (f.stall) this.addStallFront(f.at, f.size, f.stall.front);
     this.list.push(f);
+  }
+
+  /** The cells along a stall's front side, just outside its footprint: where its customers stand. */
+  private addStallFront(at: readonly [number, number], size: readonly [number, number], front: Side): void {
+    const [dx, dy] = SIDE_STEP[front];
+    const x0 = dx > 0 ? at[0] + size[0] : dx < 0 ? at[0] - 1 : at[0];
+    const y0 = dy > 0 ? at[1] + size[1] : dy < 0 ? at[1] - 1 : at[1];
+    const n = dx === 0 ? size[0] : size[1];
+    for (let k = 0; k < n; k++) {
+      const i = dx === 0 ? this.work.idx(x0 + k, y0) : this.work.idx(x0, y0 + k);
+      if (i >= 0) this.stallFronts.add(i);
+    }
   }
 
   /**
@@ -179,6 +199,67 @@ export class FeatureWork {
     return out;
   }
 
+  /**
+   * Generator 4 (`waysInKeepClear`): a cell in front of a way in, where people stand to go through: both sides of every
+   * passage (a door, an archway, a gate, an open gap; gen/openingKinds.ts `isPassage`) and the lane before a market
+   * stall's front row. Nothing blocking may stand there, nor reach over it (`blocksWayIn`). `stallLanes` false leaves
+   * the stalls' lanes out: the market lays its own pieces round its stalls (stock never in front, posts at an aisle's
+   * ends).
+   */
+  inWayIn(i: number, stallLanes = true): boolean {
+    if (!this.work.profile.waysInKeepClear || i < 0) return false;
+    return this.passageFronts().has(i) || (stallLanes && this.stallFronts.has(i));
+  }
+
+  /**
+   * Generator 4 (`waysInKeepClear`): a blocking piece of this type, anchored at `at` with this footprint, would stand in
+   * or reach over a cell in front of a way in (`inWayIn`). Its reach is its real outline round the footprint's middle:
+   * the widest variant the anchor cell's theme builds it with (a tree's crown is wider than its cell), turned any way.
+   * Every placer of generated blocking pieces asks it (scatter, dress, the composed set pieces through the placement
+   * grid); the market asks `inWayIn` cell by cell for the doors (resolve/level/market.ts `marketCellOk`).
+   */
+  blocksWayIn(
+    type: FeatureType,
+    at: readonly [number, number],
+    size: readonly [number, number],
+    variant?: string,
+  ): boolean {
+    if (!this.work.profile.waysInKeepClear) return false;
+    const info = featureInfo(type);
+    if (!info.blocking || info.wallMounted) return false;
+    const theme = this.work.pieceTheme(this.work.idx(at[0], at[1]));
+    const ext = this.work.ctx.palette.roomPiece(theme, type, variant);
+    // turned any way (a scattered piece turns in steps of 15°): half its outline's diagonal
+    const reach = Math.hypot(ext?.wMax ?? 0, ext?.dMax ?? 0) / 2;
+    const cx = at[0] + size[0] / 2;
+    const cy = at[1] + size[1] / 2;
+    const rx = Math.max(size[0] / 2, reach);
+    const ry = Math.max(size[1] / 2, reach);
+    // a cell the outline only grazes (a hundredth of a tile) does not count
+    const EPS = 0.01;
+    for (let y = Math.floor(cy - ry + EPS); y < cy + ry - EPS; y++)
+      for (let x = Math.floor(cx - rx + EPS); x < cx + rx - EPS; x++)
+        if (this.inWayIn(this.work.idx(x, y))) return true;
+    return false;
+  }
+
+  /** Both side cells of every passage of the level (built on first ask: the openings are final in phase 2). */
+  private passageFronts(): ReadonlySet<number> {
+    if (this.passageFrontSet) return this.passageFrontSet;
+    const out = new Set<number>();
+    for (const o of this.around.openings) {
+      if (!isPassage(o.kind)) continue;
+      for (let k = 0; k < o.width; k++) {
+        // the edge's two cells: north and south of an "h" edge, west and east of a "v" edge
+        const [x, y] = o.orientation === "h" ? [o.start[0] + k, o.start[1]] : [o.start[0], o.start[1] + k];
+        const [ax, ay] = o.orientation === "h" ? [x, y - 1] : [x - 1, y];
+        for (const i of [this.work.idx(ax, ay), this.work.idx(x, y)]) if (i >= 0) out.add(i);
+      }
+    }
+    this.passageFrontSet = out;
+    return out;
+  }
+
   /** Cells of the rock ramps (generator 2): they stay clear of the band and other dressing. */
   private rampCells(): ReadonlySet<number> {
     if (!this.rampSet) {
@@ -208,6 +289,10 @@ export class FeatureWork {
       landmark: (x, y) => this.landmarkCells.has(work.idx(x, y)),
       vehicle: (x, y) => this.vehicleCells.has(work.idx(x, y)),
       keepClear: (x, y) => this.crossingClear().has(work.idx(x, y)),
+      // generator 4: nothing blocking in front of a way in (a door, a stall's front)
+      ...(work.profile.waysInKeepClear
+        ? { blocksWayIn: (t: FeatureType, at, size, v?: string) => this.blocksWayIn(t, at, size, v) }
+        : {}),
       // generator 2: rock ramp cells (no path flag) stay clear of the band and other dressing
       ramp: (x, y) => work.profile.ramps && this.rampCells().has(work.idx(x, y)),
       generator: work.plan.generator,

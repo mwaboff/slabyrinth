@@ -269,6 +269,10 @@ const SWITCHES = {
     4,
     "A party wall between two buildings is hosted outside the one whose walls stand higher there (the earlier one on a tie), the wall that closes the edge's full height (resolve/structure.ts afterOpenings).",
   ),
+  waysInKeepClear: on(
+    4,
+    "No generated blocking piece stands in, or reaches with its real outline over, a cell in front of a way in: both sides of a door, archway or gap, and the lane before a stall's front (resolve/level/features.ts FeatureWork.blocksWayIn).",
+  ),
   windowsInOneVolume: on(
     4,
     "A ground-storey window stands in the wall of one volume, never across the joint where a lower one (a lean-to) meets it.",

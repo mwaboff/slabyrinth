@@ -36,6 +36,17 @@ export interface PlacementGrid {
    * crossing need them). Optional.
    */
   keepClear?(x: number, y: number): boolean;
+  /**
+   * Generator 4: a blocking piece of this type anchored at `at` with this footprint would stand in, or reach with its
+   * real outline over, a cell in front of a way in (both sides of a door, archway or gap; the lane before a stall's
+   * front). Every placer of blocking pieces asks it. Optional: absent, nothing is kept clear this way.
+   */
+  blocksWayIn?(
+    type: FeatureType,
+    at: readonly [number, number],
+    size: readonly [number, number],
+    variant?: string,
+  ): boolean;
   /** True on cells under a vehicle already placed (by the plan or another op). Optional. */
   vehicle?(x: number, y: number): boolean;
   /**

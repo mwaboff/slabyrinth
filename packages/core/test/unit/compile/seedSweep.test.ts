@@ -1,92 +1,39 @@
 /**
- * Seed sweep: every stored plan (test/fixtures/plans) and the plan the desktop e2e test builds, built under the newest
- * generator with a fixed list of other seeds, has no verify error. The goldens pin one seed per plan; a fault that
- * shows for a few seeds in a hundred (the e2e test's random seed once found one) only shows across many.
+ * Seed sweep (the fast one, part of `npm test`): every stored plan of test/fixtures/plans and the e2e plan, under the
+ * newest generator, with a few fixed seeds and the seeds that once failed, builds without verify errors (the generator
+ * test plans: seedSweepGeneratorPlans.test.ts, a file of its own so the two run side by side). The large sweep
+ * (hundreds of seeds per plan) is `npm run test:sweep` (test/sweep/run.ts); all of them read test/sweep/seeds.ts.
  *
- * The seeds are a fixed list (no randomness in the test). A plan and seed that still fail are listed in KNOWN_FAILURES
- * with the codes they fail with, so a fix shows as a stale entry and a new failure as a new one.
+ * A failure names the plan, the seed, the error codes and the first message ("<plan>@<seed>: codes (message)").
  */
 import { describe, expect, it } from "vitest";
-import { GENERATOR_VERSION, type MapPlan } from "../../../src/contracts/plan";
-import { completeAuthoredPlan } from "../../../src/agent/executor";
-import { compileResolved } from "../../../src/compile";
-import { bundledPalettes } from "../../../src/palette";
-import { resolvePlan } from "../../../src/resolve/index";
-import { slabCodec } from "../../../src/slab";
-import { loadPlan, STORED_PLANS, type StoredPlan } from "../../fixtures";
-
-/** Seeds per plan: enough to cross the rare cases, few enough for a few seconds of test time. */
-const SEEDS_PER_PLAN = 3;
-/** The i-th sweep seed: spread over the 32-bit range by Knuth's multiplicative step. */
-const sweepSeed = (i: number): number => Math.imul(i + 1, 2654435761) >>> 0;
-const SEEDS = Array.from({ length: SEEDS_PER_PLAN }, (_, i) => sweepSeed(i));
-/**
- * More seeds per plan: ones that once failed (heartroot-rift's rock column was lowered below the higher of the two
- * floors it walls in: generator switch `columnsCloseHighestFloor`; market-street's buildings met in each other's wall
- * ring: switches `buildingReach`, `lowMassesOffNeighbours`, `partyWallsOutsideTaller`, `windowsInOneVolume`) and the
- * KNOWN_FAILURES below.
- */
-const ONCE_FAILED: Partial<Record<StoredPlan, readonly number[]>> = {
-  "heartroot-rift-v7": [2471588027],
-  "market-street-v3": [1218333409, 443779575, 4203543429, 3929271828, 3049954367],
-  "outdoor-scatter": [2027808452],
-  "example-b": [1457683801],
-};
-
-/**
- * The e2e plan (apps/desktop/e2e/uiScript.ts): example-a as the model authors it (the app fills schema, generator and
- * id) with a bookshelf left in the middle of the hall. Seed 1274836067 once built a cave wall with gaps (the cave floor
- * relief rose under the level above).
- */
-function e2ePlan(seed: number): MapPlan {
-  const authored = loadPlan("example-a") as unknown as Record<string, unknown> & {
-    levels: Array<{ id: string; features: unknown[] }>;
-  };
-  for (const k of ["schema", "generator", "id", "seed"]) Reflect.deleteProperty(authored, k);
-  authored.levels
-    .find((l) => l.id === "l1")
-    ?.features.push({ id: "shelf_mid", type: "bookshelf", at: [15, 10] });
-  return completeAuthoredPlan(authored, "e2e-plan", seed) as unknown as MapPlan;
-}
-const E2E_SEEDS = [...SEEDS, 1274836067, 2676017210, 3620079018, 4028937384];
-
-/**
- * Plans and seeds that still build with errors, as "<plan>@<seed>" -> the error codes (sorted, distinct). Each is a
- * known fault of the generation side, left for its owner (docs/internal/handoff-lead.md "BUILD REVIEW FIXES"):
- * - outdoor-scatter, example-b: a scattered tree or boulder stands in front of a door.
- */
-const KNOWN_FAILURES: Readonly<Record<string, readonly string[]>> = {
-  "outdoor-scatter@2027808452": ["verify_door_blocked"],
-  "example-b@1457683801": ["verify_door_blocked"],
-};
-
-function errorCodes(plan: MapPlan): string[] {
-  const pal = bundledPalettes();
-  const resolved = resolvePlan(plan, pal);
-  const bundle = compileResolved(resolved, pal, slabCodec, { createdAt: "sweep", plan });
-  return [...new Set(bundle.diagnostics.filter((d) => d.severity === "error").map((d) => d.code))].sort();
-}
+import { STORED_PLANS, type StoredPlan } from "../../fixtures";
+import {
+  E2E_ONCE_FAILED,
+  e2ePlan,
+  FAST_SEEDS,
+  ONCE_FAILED,
+  sweepFailures,
+  sweepPlan,
+  unexpected,
+} from "../../sweep/seeds";
 
 describe("seed sweep: stored plans build without verify errors under the newest generator", () => {
   it.each(STORED_PLANS.map((name) => [name]))("%s", (name: StoredPlan) => {
-    const failures: Record<string, string[]> = {};
-    for (const seed of [...SEEDS, ...(ONCE_FAILED[name] ?? [])]) {
-      const plan = { ...loadPlan(name, { generator: GENERATOR_VERSION }), seed };
-      const codes = errorCodes(plan);
-      if (codes.length > 0) failures[`${name}@${seed}`] = codes;
-    }
-    const known = Object.fromEntries(
-      Object.entries(KNOWN_FAILURES).filter(([k]) => k.startsWith(`${name}@`)),
+    const seeds = [...FAST_SEEDS, ...(ONCE_FAILED[name] ?? [])];
+    const { failed, stale } = unexpected(
+      name,
+      seeds,
+      sweepFailures(name, seeds, (seed) => sweepPlan(name, seed)),
     );
-    expect(failures).toEqual(known);
+    expect(failed).toEqual([]);
+    expect(stale, "KNOWN_FAILURES entries that build cleanly now").toEqual([]);
   });
 
   it("the e2e plan, with the seeds that once failed", () => {
-    const failures: Record<string, string[]> = {};
-    for (const seed of E2E_SEEDS) {
-      const codes = errorCodes(e2ePlan(seed));
-      if (codes.length > 0) failures[`e2e@${seed}`] = codes;
-    }
-    expect(failures).toEqual({});
+    const seeds = [...FAST_SEEDS, ...E2E_ONCE_FAILED];
+    const { failed, stale } = unexpected("e2e", seeds, sweepFailures("e2e", seeds, e2ePlan));
+    expect(failed).toEqual([]);
+    expect(stale).toEqual([]);
   });
 });

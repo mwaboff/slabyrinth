@@ -1957,6 +1957,8 @@ class AreaComposer {
         fp.push([xx, yy]);
       }
     if (footprintCrossesWall(grid, [x0, y0], [w, h])) return null;
+    // generator 4: nothing blocking in front of a way in, nor reaching over it
+    if (blocking && grid.blocksWayIn?.(part.t, [x0, y0], [w, h]) === true) return null;
     if (this.runGuard && RUNNERS.has(part.t) && this.makesSingleFile(fp)) return null;
     // big pieces keep one cell inside the board, so crowns and rock masses never hang off the slab
     // (a wall on that side hides the overhang)

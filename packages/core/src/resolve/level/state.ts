@@ -14,7 +14,7 @@
  *   paths           terrain.ts queues path ops; paths.ts finishes them    outline, features, market, output
  *   floorOpenings   floorOpenings.ts (op, rims, link to the level below)  rooms, output
  *   bridges         bridges.ts (bridge pass)                              edges, railings, rubble, output
- *   openings        openings.ts                                           rooms, market, output
+ *   openings        openings.ts                                           rooms, market, feature placement, output
  *   features        features.ts FeatureWork (every phase-2 stage adds)    output
  *   lines           market.ts                                             output
  */
@@ -48,6 +48,7 @@ export class ResolveLevelState {
       paths: this.paths,
       relief: this.relief,
       chasms: this.chasms,
+      openings: this.openings,
     });
   }
 }

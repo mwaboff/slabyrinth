@@ -36,7 +36,10 @@ import type { FeatureWork } from "./features";
 import type { ReadOnly, ResolveGrid } from "./grid";
 import type { PathRecords } from "./paths";
 
-/** A cell a market piece may stand on: open floor nothing else holds (no building, feature, link, water or crossing). */
+/**
+ * A cell a market piece may stand on: open floor nothing else holds (no building, feature, link, water or crossing),
+ * and (generator 4) not in front of a door.
+ */
 function marketCellOk(
   work: ResolveGrid,
   features: FeatureWork,
@@ -63,7 +66,8 @@ function marketCellOk(
     (reserved && work.structs?.reservedCell(i))
   )
     return false;
-  return !features.crossingClear().has(i);
+  // generator 4: never in front of a door (the market keeps its own stalls' lanes: stallClutter, stepLine)
+  return !features.crossingClear().has(i) && !features.inWayIn(i, false);
 }
 
 /** Commit a market piece as a generated feature; `occupy` false keeps its cells free for other dressing (a line). */
