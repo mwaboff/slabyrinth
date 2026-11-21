@@ -57,7 +57,8 @@ export function realizeStall(lv: RealizeLevel, f: ResolvedFeature): boolean {
   const b = f.stall;
   if (!b) return false;
   // every lookup goes through `find`, in a fixed order: the build's substitutions are recorded in lookup order
-  const find: RoleProbe = (roles, filter) => lv.ctx.lookup(lv.L.id, f.theme, [...roles], filter, true);
+  const theme = lv.V.themeAt(f.theme, f.at[0], f.at[1]);
+  const find: RoleProbe = (roles, filter) => lv.ctx.lookup(lv.L.id, theme, [...roles], filter, true);
   const built = stallParts(find, b.form);
   if (!("base" in built))
     lv.ctx.addDiag({

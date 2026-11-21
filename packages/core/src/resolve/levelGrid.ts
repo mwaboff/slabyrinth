@@ -148,6 +148,20 @@ export function elementTheme(own: ThemeId, inherited: ThemeId): ThemeId {
   return own === "" ? inherited : own;
 }
 
+/**
+ * The theme a resolved element anchored at plan cell `at` of `level` is built in: its own, else that cell's
+ * (`elementTheme` over `cellTheme`; `fallback` for a cell with none). For readers that hold the level, not a LevelGrid.
+ */
+export function elementThemeAt(
+  own: ThemeId,
+  level: ResolvedLevel,
+  at: readonly [number, number],
+  fallback: ThemeId,
+): ThemeId {
+  const i = cellIndex(level.bounds, at[0] - level.bounds.x, at[1] - level.bounds.y);
+  return elementTheme(own, cellTheme(level, i, fallback));
+}
+
 export class LevelGrid implements GridSize {
   /** Plan coordinates of the level's first cell. */
   readonly x0: number;

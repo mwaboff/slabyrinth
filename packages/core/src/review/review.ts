@@ -28,7 +28,7 @@ import { structureSignature, structureSilhouette, structureTone } from "../resol
 import { roofUnsupportedEdges, structureRuinMeasures, weatherMeasures, weatherSigns } from "../resolve/ruin";
 import { GROWTH_LEVELS, growthMeasures } from "../resolve/growth";
 import { roofProportion } from "../resolve/roof";
-import { cellIndex, cellTheme } from "../resolve/levelGrid";
+import { cellIndex, cellTheme, elementThemeAt } from "../resolve/levelGrid";
 import { components, longestInnerStraight, outline, squareCorners } from "./metrics";
 import { forEachMaskCell } from "../gen/mask";
 import {
@@ -1769,7 +1769,12 @@ function identicalProps(c: Ctx): DesignNote[] {
   for (const f of c.L.features) {
     if (!REPEAT_WATCH.has(f.type) || c.dropped?.has(f.id)) continue;
     const k = `${f.type}|${f.variant ?? ""}|${f.hint ?? ""}`;
-    const g = groups.get(k) ?? { n: 0, ids: [], theme: f.theme, type: f.type };
+    const g = groups.get(k) ?? {
+      n: 0,
+      ids: [],
+      theme: elementThemeAt(f.theme, c.L, f.at, c.defaultTheme),
+      type: f.type,
+    };
     g.n++;
     g.ids.push(f.id);
     groups.set(k, g);
@@ -2307,8 +2312,10 @@ function rockTonesMixed(c: Ctx): DesignNote[] {
   const add = (place: string, tones: string[]): void => {
     if (tones.length > 0) where.set(place, new Set([...(where.get(place) ?? []), ...tones]));
   };
-  const faces = new Set(L.features.filter((f) => f.type === "cliff_face").map((f) => f.theme));
-  const crests = new Set(L.features.filter((f) => f.type === "cliff_crest").map((f) => f.theme));
+  const themeOf = (f: (typeof L.features)[number]): string =>
+    elementThemeAt(f.theme, L, f.at, c.defaultTheme);
+  const faces = new Set(L.features.filter((f) => f.type === "cliff_face").map(themeOf));
+  const crests = new Set(L.features.filter((f) => f.type === "cliff_crest").map(themeOf));
   for (const theme of new Set([...faces, ...crests])) {
     const k = c.rockKinds(theme);
     // the rule narrows each kind to the cliff's tone; without it every piece of the role can stand
@@ -2393,7 +2400,10 @@ function cliffBandView(c: Ctx) {
   const turned = c.gen.restingCliffBand;
   const shapes: RockShape[] = [];
   for (const f of rocks) {
-    const ext = c.rockExtent(f.theme, f.type as "cliff_face" | "cliff_crest");
+    const ext = c.rockExtent(
+      elementThemeAt(f.theme, c.L, f.at, c.defaultTheme),
+      f.type as "cliff_face" | "cliff_crest",
+    );
     if (!ext) continue;
     shapes.push({
       cx: f.at[0] + f.size[0] / 2 + (turned ? (f.offset?.[0] ?? 0) : 0),

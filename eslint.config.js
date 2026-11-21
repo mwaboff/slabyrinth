@@ -425,14 +425,60 @@ const sidesRule = selectorRule("Sides come from gen/gridGeometry.ts.", [
  * A resolved element's theme ("" = inherit) has one reader, resolve/levelGrid.ts elementTheme / LevelGrid.themeAt: a
  * `x.theme || other` at the reader works it out again, and the day one reader picks another `other`, two stages build
  * the same element in two themes.
+ *
+ * With type information (the lint run), any read of `.theme` off a resolved element that may inherit (ResolvedFeature,
+ * ResolvedLink, ResolvedOpening) is reported unless it is the `own` argument of elementTheme, elementThemeAt or
+ * themeAt: a bare read takes "" (inherit) for a theme. (A ResolvedStructure's theme is never "": the resolver writes
+ * its own, else the level's, the rule its own area follows.) Without types (a snippet), only the `||` shape is seen.
  */
-const elementThemeRule = selectorRule("A resolved element's theme is read with elementTheme.", [
-  {
-    selector: "LogicalExpression[operator='||'][left.type='MemberExpression'][left.property.name='theme']",
-    message:
-      "Ask resolve/levelGrid.ts elementTheme(own, inherited) or LevelGrid.themeAt(own, x, y) instead of `x.theme || ...`.",
+const ELEMENT_TYPES = new Set(["ResolvedFeature", "ResolvedLink", "ResolvedOpening"]);
+const ELEMENT_THEME_READERS = new Set(["elementTheme", "elementThemeAt", "themeAt"]);
+/** @type {import("eslint").Rule.RuleModule} */
+const elementThemeRule = {
+  meta: {
+    type: "problem",
+    schema: [],
+    docs: { description: "A resolved element's theme is read with elementTheme." },
   },
-]);
+  create(context) {
+    const services = /** @type {any} */ (context.sourceCode.parserServices);
+    const checker = services?.program?.getTypeChecker?.();
+    /** @param {any} t */
+    const isElement = (t) =>
+      (t.isUnion?.() ? t.types : [t]).some((/** @type {any} */ x) =>
+        ELEMENT_TYPES.has((x.aliasSymbol ?? x.getSymbol?.())?.getName?.() ?? ""),
+      );
+    return {
+      "LogicalExpression[operator='||'][left.type='MemberExpression'][left.property.name='theme']"(
+        /** @type {any} */ node,
+      ) {
+        context.report({
+          node,
+          message:
+            "Ask resolve/levelGrid.ts elementTheme(own, inherited) or LevelGrid.themeAt(own, x, y) instead of `x.theme || ...`.",
+        });
+      },
+      "MemberExpression[property.name='theme']"(/** @type {any} */ node) {
+        if (!checker) return;
+        const p = node.parent;
+        if (p.type === "LogicalExpression" && p.operator === "||" && p.left === node) return; // reported above
+        if (p.type === "AssignmentExpression" && p.left === node) return; // a write
+        if (p.type === "CallExpression" && p.arguments[0] === node) {
+          const callee = p.callee;
+          const name = callee.type === "Identifier" ? callee.name : callee.property?.name;
+          if (ELEMENT_THEME_READERS.has(name)) return;
+        }
+        const tsNode = services.esTreeNodeToTSNodeMap.get(node.object);
+        if (!isElement(checker.getTypeAtLocation(tsNode))) return;
+        context.report({
+          node,
+          message:
+            'A resolved element\'s theme may be "" (inherit): read it with resolve/levelGrid.ts elementTheme(own, inherited) or LevelGrid.themeAt(own, x, y).',
+        });
+      },
+    };
+  },
+};
 
 /**
  * A variant filter ({ key, test }) is made in palette/filters.ts, where its memo key follows from what it tests: the

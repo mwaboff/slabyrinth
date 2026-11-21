@@ -1148,6 +1148,9 @@ function planBuilding(
     st: b.st,
     si,
     profile: b.profile,
+    // the level owns a theme-less building's theme, as it owns its cells': the building's ground storey is an area of
+    // its own drawn over whatever area it stands in, and an area with no theme takes the level's (areas.ts), never
+    // that of an area under it; so the building and its cells always agree
     theme: b.st.theme ?? levelTheme,
     seed: b.seed,
     cells: fp.cells,

@@ -6,6 +6,7 @@
  */
 import { fileURLToPath } from "node:url";
 import { ESLint, Linter } from "eslint";
+import ts from "typescript";
 import tseslint from "typescript-eslint";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -28,6 +29,49 @@ async function guardHits(file: string, code: string): Promise<string[]> {
       {
         files: ["**/*.ts"],
         languageOptions: { parser: tseslint.parser },
+        plugins: config.plugins ?? {},
+        rules,
+      },
+    ],
+    { filename: filePath },
+  );
+  const fatal = messages.find((m) => m.fatal === true);
+  if (fatal) throw new Error(`${file}: ${fatal.message}`);
+  return messages.map((m) => `${m.ruleId ?? "?"}: ${m.message}`);
+}
+
+/**
+ * The guard messages of a snippet linted WITH type information: the snippet is a virtual file at `file` in a
+ * TypeScript program of its own (so it can import the real contracts), for the guards that ask types.
+ */
+async function typedGuardHits(file: string, code: string): Promise<string[]> {
+  const filePath = `${ROOT}${file}`.split("\\").join("/");
+  const config = (await eslint.calculateConfigForFile(filePath)) as Linter.Config;
+  const rules = Object.fromEntries(Object.entries(config.rules ?? {}).filter(([id]) => isGuard(id)));
+  const options: ts.CompilerOptions = {
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    strict: true,
+    noEmit: true,
+    skipLibCheck: true,
+  };
+  const real = ts.createCompilerHost(options, true);
+  const same = (f: string): boolean => f.split("\\").join("/").toLowerCase() === filePath.toLowerCase();
+  const host: ts.CompilerHost = {
+    ...real,
+    getSourceFile: (f, lang, onError, create) =>
+      same(f) ? ts.createSourceFile(f, code, lang, true) : real.getSourceFile(f, lang, onError, create),
+    fileExists: (f) => same(f) || real.fileExists(f),
+    readFile: (f) => (same(f) ? code : real.readFile(f)),
+  };
+  const program = ts.createProgram([filePath], options, host);
+  const messages = linter.verify(
+    code,
+    [
+      {
+        files: ["**/*.ts"],
+        languageOptions: { parser: tseslint.parser, parserOptions: { programs: [program] } },
         plugins: config.plugins ?? {},
         rules,
       },
@@ -372,6 +416,32 @@ describe("core guards", () => {
       expect(
         await guardHits("packages/core/src/resolve/level/features.ts", "const t = f.theme || cell.theme;"),
       ).toEqual([]);
+    });
+    const typed = (body: string): string =>
+      [
+        'import type { ResolvedFeature, ResolvedLink, ResolvedStructure } from "../contracts/resolved";',
+        "declare function themeAt(own: string, x: number, y: number): string;",
+        "declare function elementThemeAt(own: string, l: unknown, at: readonly [number, number], d: string): string;",
+        "declare const f: ResolvedFeature;",
+        "declare const lk: ResolvedLink;",
+        "declare const st: ResolvedStructure;",
+        "declare function use(t: string): void;",
+        body,
+      ].join("\n");
+    it("with types: reports a bare read of a feature's or a link's theme", async () => {
+      for (const body of ["use(f.theme);", "const t = lk.theme;", "const g = { theme: f.theme };"])
+        expect(await typedGuardHits("packages/core/src/compile/x.ts", typed(body)), body).toEqual([
+          expect.stringContaining("slabyrinth/element-theme"),
+        ]);
+    });
+    it("with types: leaves the readers' own argument, a structure's theme and a write alone", async () => {
+      for (const body of [
+        "use(themeAt(f.theme, 1, 2));",
+        'use(elementThemeAt(lk.theme, null, [1, 2], "x"));',
+        "use(st.theme);",
+        'f.theme = "x";',
+      ])
+        expect(await typedGuardHits("packages/core/src/review/x.ts", typed(body)), body).toEqual([]);
     });
   });
 

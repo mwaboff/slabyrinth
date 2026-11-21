@@ -8,7 +8,7 @@
  *   stalls_grid       four or more stalls of one size standing in one line at one gap, or every stall the same size
  */
 import type { ResolvedLevel } from "../contracts/resolved";
-import { cellIndex, cellTheme, elementTheme } from "../resolve/levelGrid";
+import { elementThemeAt } from "../resolve/levelGrid";
 import { REVIEW } from "./thresholds";
 import type { DesignNote } from "./review";
 
@@ -31,10 +31,7 @@ export function stallNotes(input: StallNoteInput): DesignNote[] {
   // a bare table counts where its own theme (its own, else its cell's) could have covered it
   const L = input.level;
   const themeOf = (f: (typeof stalls)[number]): string =>
-    elementTheme(
-      f.theme,
-      cellTheme(L, cellIndex(L.bounds, f.at[0] - L.bounds.x, f.at[1] - L.bounds.y), input.defaultTheme),
-    );
+    elementThemeAt(f.theme, L, f.at, input.defaultTheme);
   const bare = stalls.filter(
     (f) => f.stall === undefined && (input.canCoverStall ? input.canCoverStall(themeOf(f)) : true),
   );

@@ -136,7 +136,7 @@ export function planRockBand(lv: RealizeLevel, tones: CliffTones): RockBand {
         : L.features.some(
             (f) =>
               isBandRock(f.type) &&
-              tones.kinds(f.theme)[f.type === "cliff_face" ? "face" : "crest"] &&
+              tones.kinds(V.themeAt(f.theme, f.at[0], f.at[1]))[f.type === "cliff_face" ? "face" : "crest"] &&
               mx >= f.at[0] - 0.3 &&
               mx <= f.at[0] + f.size[0] + 0.3 &&
               my >= f.at[1] - 0.3 &&
@@ -164,11 +164,10 @@ function restingRocks(lv: RealizeLevel, tones: CliffTones): RockShape[] {
   const rockShapes: RockShape[] = [];
   for (const f of L.features) {
     if (!isBandRock(f.type)) continue;
-    if (!tones.kinds(f.theme)[f.type === "cliff_face" ? "face" : "crest"]) continue;
+    const theme = lv.V.themeAt(f.theme, f.at[0], f.at[1]);
+    if (!tones.kinds(theme)[f.type === "cliff_face" ? "face" : "crest"]) continue;
     const ext =
-      f.type === "cliff_face"
-        ? extent(f.theme, CLIFF_FACE_ROLE, false)
-        : extent(f.theme, CLIFF_CREST_ROLE, true);
+      f.type === "cliff_face" ? extent(theme, CLIFF_FACE_ROLE, false) : extent(theme, CLIFF_CREST_ROLE, true);
     if (!ext) continue;
     rockShapes.push({
       cx: f.at[0] + f.size[0] / 2 + (f.offset?.[0] ?? 0),
