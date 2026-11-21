@@ -98,7 +98,8 @@ export function createHandlers(s: HandlerServices): Handlers {
           error: { kind: "network", retryable: true, message: "Couldn't check the key." },
         };
       }
-      if (!check.ok && check.error.kind === "auth") {
+      // only the provider itself rejecting the key (HTTP 401) removes it
+      if (!check.ok && check.error.kind === "auth" && check.error.httpStatus === 401) {
         await s.secrets.clearApiKey(req.providerId);
         s.logger.info("api key rejected by the provider; removed", { providerId: req.providerId });
         return { stored: false, backend: res.backend, check };

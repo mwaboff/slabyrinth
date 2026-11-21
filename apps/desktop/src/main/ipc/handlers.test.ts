@@ -118,8 +118,11 @@ describe("secrets:setApiKey with verify (store, check, drop a rejected key)", ()
 
   it("a network failure (or a failing check) keeps the key; an OK check keeps it too", async () => {
     const net = { kind: "network", retryable: true, message: "Connection lost." } as const;
+    // an "auth" answer that did not come from the provider rejecting the key (no 401) keeps it too
+    const notFromProvider = { kind: "auth", retryable: false, message: "No key." } as const;
     for (const check of [
       { ok: false as const, error: net },
+      { ok: false as const, error: notFromProvider },
       new Error("engine down"),
       { ok: true as const },
     ]) {

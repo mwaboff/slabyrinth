@@ -1482,8 +1482,16 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       const res = await p.checkConnection(withDeadline(undefined, DEADLINES.providerRequestMs));
       return res.ok ? res : { ok: false, error: { ...res.error, message: redactString(res.error.message) } };
     } catch (err) {
-      if (err instanceof EnginePortError)
-        return { ok: false, error: { kind: "auth", retryable: false, message: err.message } };
+      // the engine's own refusals keep their meaning: only a missing key is "auth" (never a reason to drop a key)
+      if (err instanceof EnginePortError) {
+        const kind: ProviderErrorInfo["kind"] =
+          err.error.code === "no_api_key"
+            ? "auth"
+            : err.error.code === "unsupported"
+              ? "not_found"
+              : "invalid_request";
+        return { ok: false, error: { kind, retryable: false, message: redactString(err.message) } };
+      }
       const info = errorInfo(err);
       return {
         ok: false,

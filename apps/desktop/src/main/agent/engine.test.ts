@@ -336,7 +336,7 @@ describe("stop reasons and failures", () => {
     await engine.send({ text: "x" });
     await engine.whenIdle();
     expect(items(host).at(-1)).toMatchObject({ type: "assistant", excludedFromContext: true });
-    expect(host.eventsOf("notice").some((n) => n.kind === "refusal")).toBe(true);
+    expect(host.eventsOf("notice").filter((n) => n.kind === "refusal")).toHaveLength(1);
     expect(host.project?.history.head).toBe(0);
     expect(Object.values(host.conv().meta)[0]?.status).toBe("refused");
   });
