@@ -534,6 +534,28 @@ export function expandStructures(
 ): { level: Level; work: StructureWork | null } {
   const list = (level.structures ?? []).map(withWings);
   if (list.length === 0 || !generatorProfile(plan).buildings) return { level, work: null };
+  const x = startExpansion(plan, level, li, issues, inBounds, list);
+  addEnclosureYards(x);
+  markNeighbourPlots(x);
+  drawDesigns(x);
+  followDrawnDesigns(x.work);
+  addBuildings(x);
+  addFencesAndGates(x);
+  return expandedLevel(x);
+}
+
+/**
+ * What every expansion step reads (the plan, the level, its structures, the shape rasterizer) and the record they fill:
+ * the StructureWork and the synthetic areas, openings, wall runs and terrain, appended in step order.
+ */
+function startExpansion(
+  plan: MapPlan,
+  level: Level,
+  li: number,
+  issues: PlanIssue[],
+  inBounds: (x: number, y: number) => boolean,
+  list: Structure[],
+) {
   const work = new StructureWork(level, li, issues);
   const areas: Area[] = [];
   const openings: Opening[] = [];
@@ -553,8 +575,13 @@ export function expandStructures(
     return out.sort((a, b) => a[1] - b[1] || a[0] - b[0]);
   };
   const levelTheme = level.theme ?? plan.theme;
+  return { plan, level, inBounds, list, work, areas, openings, walls, terrain, cellsOfShape, levelTheme };
+}
 
-  // enclosures first (painter order: buildings and porches claim their cells on top of a yard)
+type Expansion = ReturnType<typeof startExpansion>;
+
+/** Enclosures first (painter order: buildings and porches claim their cells on top of a yard): a yard area each. */
+function addEnclosureYards({ list, work, areas, cellsOfShape, levelTheme }: Expansion): void {
   list.forEach((st, si) => {
     if (st.kind !== "enclosure") return;
     const cells = cellsOfShape(st.shape);
@@ -592,7 +619,10 @@ export function expandStructures(
     areas.push(yard);
     work.enclosures.push(e);
   });
+}
 
+/** Every building's plot as written (ground volumes, wings or footprint) in the neighbour map, before any is drawn. */
+function markNeighbourPlots({ list, work, cellsOfShape }: Expansion): void {
   for (const st of list) {
     if (st.kind === "enclosure") continue;
     const rects = st.volumes?.filter((v) => v.on === undefined) ?? st.wings ?? [];
@@ -602,8 +632,13 @@ export function expandStructures(
     if (rects.length === 0 && st.footprint)
       for (const [x, y] of cellsOfShape(st.footprint)) work.neighbours.set(key(x, y), st.id);
   }
-  // variety: draw a design for every building whose shape and looks the plan leaves to its style, in list order,
-  // re-rolling while it would repeat a neighbour (within two cells) on archetype + material or storey count
+}
+
+/**
+ * Variety: draw a design for every building whose shape and looks the plan leaves to its style, in list order,
+ * re-rolling while it would repeat a neighbour (within two cells) on archetype + material or storey count.
+ */
+function drawDesigns({ plan, level, list, work }: Expansion): void {
   const placed: Array<{
     r: { x: number; y: number; w: number; h: number };
     d: BuildingDesign;
@@ -681,7 +716,10 @@ export function expandStructures(
       ),
     });
   }
-  // the neighbour map follows the drawn designs (a small house leaves part of its plot open)
+}
+
+/** The neighbour map follows the drawn designs (a small house leaves part of its plot open). */
+function followDrawnDesigns(work: StructureWork): void {
   for (const [id, des] of work.designs) {
     for (const [k, o] of [...work.neighbours]) if (o === id) work.neighbours.delete(k);
     for (const v of des.building.volumes ?? [])
@@ -689,6 +727,11 @@ export function expandStructures(
         for (let y = v.y; y < v.y + v.h; y++)
           for (let x = v.x; x < v.x + v.w; x++) work.neighbours.set(key(x, y), id);
   }
+}
+
+/** Plans every building (resolve/building), and adds its area, ground openings, porches and plinth elements. */
+function addBuildings(x: Expansion): void {
+  const { plan, list, work, areas, openings, walls, terrain, cellsOfShape, levelTheme, inBounds } = x;
   list.forEach((st, si) => {
     if (st.kind === "enclosure") return;
     const b = planBuilding(plan, st, si, work, cellsOfShape, levelTheme, inBounds);
@@ -736,8 +779,10 @@ export function expandStructures(
     }
     if (b.plinth) plinthElements(b, terrain, walls, work, inBounds);
   });
+}
 
-  // fences and gates, once the buildings are known: no fence where a building's own wall stands on the yard edge
+/** Fences and gates, once the buildings are known: no fence where a building's own wall stands on the yard edge. */
+function addFencesAndGates({ work, walls, openings }: Expansion): void {
   const builtCells = new Set<string>();
   for (const b of work.buildings) for (const k of b.cellSet) builtCells.add(k);
   for (const e of work.enclosures) {
@@ -809,7 +854,13 @@ export function expandStructures(
       e.gates.push({ id, at: [c[0], c[1]], side: g.side });
     });
   }
+}
 
+/** The level with the synthetic elements appended after the plan's own (so the plan's indices are unchanged). */
+function expandedLevel({ level, work, areas, openings, walls, terrain }: Expansion): {
+  level: Level;
+  work: StructureWork | null;
+} {
   if (work.empty) return { level, work };
   return {
     level: {
