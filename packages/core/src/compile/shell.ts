@@ -30,10 +30,10 @@ import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { NEIGHBOURS4 as STEPS4, SIDES, SIDE_STEP } from "../gen/gridGeometry";
 import { ValueNoise } from "../gen/noise";
 import { OWNER, dropLumps, fillNotches, ownSolid, trimTeeth, type CellGrid } from "../gen/solidMass";
-import { isNaturalWallStyle } from "../gen/wallStyles";
 import { h32 } from "../util/hash";
 import { cellIndex, sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
-import { areaReferenceHeights, spanCellAt, wallSpan } from "../resolve/wallspan";
+import type { WallFaces } from "../resolve/wallFaces";
+import { spanCellAt } from "../resolve/wallspan";
 import { roughCells } from "../resolve/wallTops";
 
 export const SHELL = {
@@ -134,18 +134,18 @@ function shellGrid(L: ResolvedLevel, defaultTheme: ThemeId): ShellGrid {
 /**
  * Plans the shell of one level, or null when it has none: no SOLID cells or no thin wall against rock. Only generators
  * with the `solidShell` switch have a shell; the realize pass that calls this checks it (compile/realize/solidShell.ts).
- * `claimed` tells which wall edges belong to buildings (their shells are their own).
+ * `walls` are the level's wall faces (resolve/wallFaces.ts); the ones a building claims are its own shell's.
  */
 export function planShell(
   resolved: ResolvedPlan,
   L: ResolvedLevel,
   seed: number,
-  claimed: (orient: "h" | "v", edge: number) => boolean,
+  walls: WallFaces,
   defaultTheme: ThemeId,
 ): Shell | null {
   const g = shellGrid(L, defaultTheme);
   if (!L.cells.state.some((s, i) => i < g.w * g.h && s === CELL.SOLID)) return null;
-  const faces = wallFaces(g, claimed);
+  const faces = shellFaces(g, walls);
   if (faces.seeds.size === 0 && faces.tidy.size === 0) return null;
   // the solid cells are shared with the cave rock mass (gen/solidMass.ts): each belongs to the dresser of the nearest
   // wall, so the cap and the rock meet with no gutter between them and no cell is dressed twice
@@ -199,18 +199,18 @@ export function planShell(
 // ── wall faces ──
 
 /** The tallest thin wall a solid cell backs onto: its room's theme, its style and its top. */
-interface WallFace {
+interface BackedWall {
   theme: ThemeId;
   style: string;
   top: number;
 }
 
 /** What the thin walls round a level's rooms say about the solid cells behind them (local indices). */
-interface WallFaces {
+interface ShellFaces {
   /** Solid cells against a thin wall of a rough room. */
-  seeds: Map<number, WallFace>;
+  seeds: Map<number, BackedWall>;
   /** Solid cells against a thin wall of a tidy room: the tallest such wall's top, style and room theme. */
-  tidy: Map<number, WallFace>;
+  tidy: Map<number, BackedWall>;
   /** Solid cells touching an open cell with no wall between (left uncapped). */
   bare: Set<number>;
   /** Solid cells behind a natural rock wall (the cave work owns them), once per face. */
@@ -222,18 +222,14 @@ interface WallFaces {
 }
 
 /**
- * The shell's own way of finding wall faces: every OPEN cell's sides that are a WALL or an OPENING edge to an in-bounds
- * SOLID cell, unless a building claims the edge. Natural rock (the wall-style trait, gen/wallStyles.ts) is the cave
- * work's; the rest keep the tallest wall top per solid cell.
- *
- * The rock wall pass finds its faces differently on purpose (compile/realize/walls.ts `gatherFullCells`: WALL edges
- * only, chosen by the palette's full-cell mount, the face cell flipped across an open host and possibly VOID or out of
- * bounds, spans merged as lowest base and highest top), so the two are not one routine.
+ * The level's wall faces (resolve/wallFaces.ts) as the shell reads them: the faces of WALL and OPENING edges between a
+ * room and a SOLID mass cell that no building claims. Natural rock (the wall-style trait) is the cave work's; the rest
+ * keep, per solid cell, the tallest wall it backs onto (the cap sits flush with it), in the faces' line order.
+ * Also the bare cells (solid beside a room with no wall between) and the lowest floor, read from the cells.
  */
-function wallFaces(g: ShellGrid, claimed: (orient: "h" | "v", edge: number) => boolean): WallFaces {
-  const { L, w, h, defaultTheme } = g;
-  const ref = areaReferenceHeights(L);
-  const faces: WallFaces = {
+function shellFaces(g: ShellGrid, walls: WallFaces): ShellFaces {
+  const { L, w, h } = g;
+  const faces: ShellFaces = {
     seeds: new Map(),
     tidy: new Map(),
     bare: new Set(),
@@ -251,37 +247,26 @@ function wallFaces(g: ShellGrid, claimed: (orient: "h" | "v", edge: number) => b
       for (const [dx, dy, side] of DIRS) {
         const j = g.at(lx + dx, ly + dy);
         if (g.state(j) !== CELL.SOLID) continue;
-        const orient = sideOrient(side);
-        const e = sideEdgeIndex(g, lx, ly, side);
-        const grid = orient === "h" ? L.hEdges : L.vEdges;
-        const kind = grid.kind[e] ?? EDGE.NONE;
-        if (kind !== EDGE.WALL && kind !== EDGE.OPENING) {
-          bare.add(j);
-          continue;
-        }
-        if (claimed(orient, e)) continue;
-        const style =
-          kind === EDGE.WALL
-            ? (L.wallStyles[grid.ref[e] ?? 0] ?? "wall")
-            : (L.openings[grid.ref[e] ?? -1]?.wallStyle ?? "wall");
-        // natural rock (gen/wallStyles.ts): the cave work owns the solid cells behind it
-        if (isNaturalWallStyle(style)) {
-          rockFace.push(j);
-          continue;
-        }
-        const first = side === "S" || side === "E" ? sc : spanCellAt(L, j);
-        const second = side === "S" || side === "E" ? spanCellAt(L, j) : sc;
-        const hostFirst = (grid.host[e] ?? 1) === 0;
-        const hgt = (grid.height[e] ?? 0) > 0 ? (grid.height[e] ?? 2) : 2;
-        const span = wallSpan(L.elevation, first, second, hostFirst, hgt, ref);
-        const theme = L.themes[L.cells.theme[i] ?? 0] ?? defaultTheme;
-        // the cap sits flush with the tallest wall it backs onto; a tidy interior (ResolvedArea.finish, read through
-        // resolve/wallTops.ts roughCells) gets no cap and no skirt, only the strips, which are that wall's top
-        const faced = rough[i] === 1 ? seeds : tidy;
-        const prev = faced.get(j);
-        if (!prev || span.top > prev.top) faced.set(j, { theme, style, top: span.top });
+        const kind = (sideOrient(side) === "h" ? L.hEdges : L.vEdges).kind[sideEdgeIndex(g, lx, ly, side)];
+        if (kind !== EDGE.WALL && kind !== EDGE.OPENING) bare.add(j);
       }
     }
+  for (const f of walls.list) {
+    const mass = f.mass;
+    if (f.claimed || !mass?.solid) continue;
+    const room = mass === f.host ? f.other : f.host;
+    if (!room.open) continue;
+    // natural rock (gen/wallStyles.ts): the cave work owns the solid cells behind it
+    if (f.natural) {
+      rockFace.push(mass.index);
+      continue;
+    }
+    // the cap sits flush with the tallest wall it backs onto; a tidy interior (ResolvedArea.finish, read through
+    // resolve/wallTops.ts roughCells) gets no cap and no skirt, only the strips, which are that wall's top
+    const faced = rough[room.index] === 1 ? seeds : tidy;
+    const prev = faced.get(mass.index);
+    if (!prev || f.top > prev.top) faced.set(mass.index, { theme: f.theme, style: f.style, top: f.top });
+  }
   return faces;
 }
 
@@ -290,7 +275,7 @@ function wallFaces(g: ShellGrid, claimed: (orient: "h" | "v", edge: number) => b
 /** Everything the cap steps share. */
 interface CapPlan {
   g: ShellGrid;
-  faces: WallFaces;
+  faces: ShellFaces;
   /** The cave rock mass owns this solid cell (gen/solidMass.ts ownSolid): the shell leaves it. */
   rockOwns: (k: number) => boolean;
   /** The tidy strips (stripCells): tops of shared walls, never capped. */
@@ -307,7 +292,7 @@ interface CapPlan {
 }
 
 /** May the shell dress this solid cell (not bare, not the rock's)? */
-const dressable = (g: ShellGrid, faces: WallFaces, rockOwns: (k: number) => boolean, k: number): boolean =>
+const dressable = (g: ShellGrid, faces: ShellFaces, rockOwns: (k: number) => boolean, k: number): boolean =>
   k >= 0 && g.state(k) === CELL.SOLID && !faces.bare.has(k) && !rockOwns(k);
 
 /** May the cap take this solid cell (dressable and not a strip)? */
@@ -315,7 +300,7 @@ const cappable = (cap: CapPlan, k: number): boolean =>
   dressable(cap.g, cap.faces, cap.rockOwns, k) && !cap.strip.has(k);
 
 /** The cap top: the most common wall top among the seeds (ties: the higher), so a lowered run sits below the cap. */
-function capTop(faces: WallFaces, strip: ReadonlySet<number>): { flat: number; top: number; style: string } {
+function capTop(faces: ShellFaces, strip: ReadonlySet<number>): { flat: number; top: number; style: string } {
   const tally = new Map<number, number>();
   const styles = new Map<string, number>();
   for (const [j, s] of faces.seeds) {
@@ -510,7 +495,7 @@ function stackedLevels(resolved: ResolvedPlan, L: ResolvedLevel): StackedLevels 
  * (rough) room beside a tidy one does not turn the wall they share into the earth cap of a carved dungeon. Two rough
  * rooms keep the cap between them (the rock mass of a carved level).
  */
-function stripCells(g: ShellGrid, faces: WallFaces, rockOwns: (k: number) => boolean): Set<number> {
+function stripCells(g: ShellGrid, faces: ShellFaces, rockOwns: (k: number) => boolean): Set<number> {
   const { w, h } = g;
   const { rough } = faces;
   const open = (k: number): boolean => k >= 0 && g.state(k) === CELL.OPEN;
@@ -541,9 +526,9 @@ function tidyStrips(cap: CapPlan, cells: Shell["cells"]): Shell["strips"] {
   const { g, faces, stacked, strip } = cap;
   const { L, w, defaultTheme } = g;
   const { tidy, seeds } = faces;
-  const taller = (a: WallFace | undefined, b: WallFace | undefined): WallFace | undefined =>
+  const taller = (a: BackedWall | undefined, b: BackedWall | undefined): BackedWall | undefined =>
     b && (!a || b.top > a.top) ? b : a;
-  const fallback: WallFace = [...tidy.values()].reduce<WallFace | undefined>(taller, undefined) ?? {
+  const fallback: BackedWall = [...tidy.values()].reduce<BackedWall | undefined>(taller, undefined) ?? {
     theme: defaultTheme,
     style: "wall",
     top: 0,

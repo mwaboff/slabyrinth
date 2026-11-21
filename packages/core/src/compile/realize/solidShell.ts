@@ -2,7 +2,7 @@
  * Realize, solid shell (generator 4, `solidShell`): a built interior is carved into a solid mass. planSolidShell runs
  * before the wall runs (its skirt edges join them); layShellCap lays the flat cap and the strips between rooms after
  * them. The shell itself is planned by compile/shell.ts.
- * Reads: the level's cells and structures, `claimed`, the palette's cap and wall roles and the floor role of a wall's
+ * Reads: the level's cells and structures, its wall faces (`faces`), the palette's cap and wall roles and the floor role of a wall's
  * top (palette/wallTop.ts). Writes: the `SolidShellPlan`
  * it returns (read by the wall, cap and rock wall passes); fill placements (layShellCap).
  */
@@ -32,10 +32,10 @@ const NO_SHELL: SolidShellPlan = { shell: null, capRes: null, capVariants: [], s
  * with no cap tile in any palette the shell is left out whole.
  */
 export function planSolidShell(lv: RealizeLevel): SolidShellPlan {
-  const { L, V, claimed } = lv;
+  const { L, V, faces } = lv;
   const { resolved, seed, profile, defaultTheme, lookup } = lv.ctx;
   if (!profile.solidShell || !isCarvedLevel(L)) return NO_SHELL;
-  let shell = planShell(resolved, L, seed, (o, e) => claimed.edges.has(`${o}${e}`), defaultTheme);
+  let shell = planShell(resolved, L, seed, faces, defaultTheme);
   const capRes = shell ? lookup(L.id, shell.theme, ["cap.solid"], undefined, true) : null;
   const capVariants = (capRes?.variants ?? []).filter(
     (v) => v.weight > 0 && v.footprint[0] === v.footprint[1],

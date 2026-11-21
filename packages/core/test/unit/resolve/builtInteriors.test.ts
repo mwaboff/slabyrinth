@@ -5,9 +5,10 @@
  */
 import { describe, expect, it } from "vitest";
 import { compileResolved, realize } from "../../../src/compile";
-import { SHELL, planShell } from "../../../src/compile/shell";
+import { SHELL, planShell, type Shell } from "../../../src/compile/shell";
 import type { MapPlan } from "../../../src/contracts/plan";
-import { CELL, EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
+import { CELL, EDGE, type ResolvedLevel, type ResolvedPlan } from "../../../src/contracts/resolved";
+import { findWallFaces } from "../../../src/resolve/wallFaces";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { classifyRoom } from "../../../src/gen/roomPurpose";
@@ -23,6 +24,9 @@ import { loadPlan } from "../../fixtures";
 import { dungeonPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
+/** The shell of one level as the realizer plans it (no building claims any wall here). */
+const shellOf = (R: ResolvedPlan, L: ResolvedLevel, theme: string): Shell | null =>
+  planShell(R, L, h32(R.planId), findWallFaces(new LevelGrid(L, theme), { boardEdgeIsExit: true }), theme);
 const keep = (generator: 3 | 4 = 4): MapPlan => loadPlan("keep-dungeon-v8", { generator });
 /** The inn interior, optionally in another theme. */
 const inn = (theme?: string): MapPlan => {
@@ -343,7 +347,7 @@ describe("generator 4 solid shell", () => {
     const plan = keep();
     const R = resolvePlan(plan, bundledPalettes());
     const L = R.levels.find((l) => l.id === "l1") as ResolvedLevel;
-    const shell = planShell(R, L, h32(R.planId), () => false, "generic");
+    const shell = shellOf(R, L, "generic");
     expect(shell).not.toBeNull();
     if (!shell) return;
     expect(shell.cells.size).toBeGreaterThan(100);
@@ -368,7 +372,7 @@ describe("generator 4 solid shell", () => {
     const R = resolvePlan(keep(), bundledPalettes());
     const upper = R.levels.find((l) => l.id === "l1") as ResolvedLevel;
     const lower = R.levels.find((l) => l.id === "l2") as ResolvedLevel;
-    const shell = planShell(R, upper, h32(R.planId), () => false, "generic");
+    const shell = shellOf(R, upper, "generic");
     for (const c of shell?.cells.values() ?? []) {
       const lx = c.x - lower.bounds.x;
       const ly = c.y - lower.bounds.y;
@@ -400,7 +404,7 @@ describe("generator 4 shell: tidy buildings, outline", () => {
   it("a tidy timber inn gets no cap and no skirt, only flush strips between its rooms", () => {
     const R = resolvePlan(inn("wood_town"), bundledPalettes());
     const L = R.levels[0] as ResolvedLevel;
-    const shell = planShell(R, L, h32(R.planId), () => false, "wood_town");
+    const shell = shellOf(R, L, "wood_town");
     expect(shell?.cells.size ?? 0).toBe(0);
     expect(shell?.edges.length ?? 0).toBe(0);
     expect(shell?.strips.length ?? 0).toBeGreaterThan(10);
@@ -427,7 +431,7 @@ describe("generator 4 shell: tidy buildings, outline", () => {
       const G = new LevelGrid(L, "generic");
       const pieces = realize(R, palettes, {}).levels[0]?.placements ?? [];
       const out: Array<{ x: number; y: number; asset: string; floors: string[] }> = [];
-      for (const s of planShell(R, L, h32(R.planId), () => false, "generic")?.strips ?? []) {
+      for (const s of shellOf(R, L, "generic")?.strips ?? []) {
         const p = pieces.find(
           (q) => q.source.elementId === "shell" && q.source.cell?.[0] === s.x && q.source.cell[1] === s.y,
         );
@@ -473,7 +477,7 @@ describe("generator 4 shell: tidy buildings, outline", () => {
       const R = resolvePlan(loadPlan("purpose-lineup-v1"), palettes);
       const L = R.levels[0] as ResolvedLevel;
       const G = new LevelGrid(L, "generic");
-      const shell = planShell(R, L, h32(R.planId), () => false, "generic");
+      const shell = shellOf(R, L, "generic");
       const finish = (x: number, y: number): string | undefined => {
         const c = G.cell(x, y);
         return c.open ? L.areas.find((a) => a.id === L.areaIds[c.area - 1])?.finish : undefined;
@@ -493,14 +497,14 @@ describe("generator 4 shell: tidy buildings, outline", () => {
   });
   it("the same plan in a stone dungeon keeps the cap and skirt", () => {
     const R = resolvePlan(inn("stone_dungeon"), bundledPalettes());
-    const shell = planShell(R, R.levels[0] as ResolvedLevel, h32(R.planId), () => false, "stone_dungeon");
+    const shell = shellOf(R, R.levels[0] as ResolvedLevel, "stone_dungeon");
     expect(shell?.cells.size ?? 0).toBeGreaterThan(50);
     expect(shell?.strips.length ?? 0).toBe(0);
   });
   it("the outline has no one-cell notches or holes, no lumps and no cell floating away from its rooms", () => {
     const R = resolvePlan(keep(), bundledPalettes());
     for (const L of R.levels) {
-      const shell = planShell(R, L, h32(R.planId), () => false, "stone_dungeon");
+      const shell = shellOf(R, L, "stone_dungeon");
       if (!shell) continue;
       // capped cells by plan coordinates ("x,y")
       const capped = new Set([...shell.cells.values()].map((c) => `${c.x},${c.y}`));
