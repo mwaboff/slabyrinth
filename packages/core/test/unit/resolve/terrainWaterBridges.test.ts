@@ -4,7 +4,7 @@
  * and the review judges a map with no real depth.
  */
 import { describe, expect, it } from "vitest";
-import { placementMeta, realize, verifyBuild } from "../../../src/compile";
+import { placedName, realize, verifyBuild } from "../../../src/compile";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
@@ -86,7 +86,7 @@ describe("a passage that reaches the board edge is an exit (generator 3)", () =>
     const r = resolvePlan(p, bundledPalettes());
     const set = realize(r, cat);
     const outside = must(set.levels[0]).placements.filter(
-      (q) => q.x < -0.01 && /Cave Wall/.test(placementMeta.get(q)?.name ?? ""),
+      (q) => q.x < -0.01 && /Cave Wall/.test(placedName(set, q)),
     );
     expect(outside.length).toBeGreaterThan(0);
   });
@@ -111,8 +111,7 @@ describe("floors vary orientation (generator 3)", () => {
     const set = realize(resolvePlan(p, bundledPalettes()), cat);
     const rots = new Set<number>();
     for (const q of must(set.levels[0]).placements)
-      if (q.role === "floor" && /Cave Floor - Rock 04/.test(placementMeta.get(q)?.name ?? ""))
-        rots.add(q.rot);
+      if (q.role === "floor" && /Cave Floor - Rock 04/.test(placedName(set, q))) rots.add(q.rot);
     expect([...rots].some((x) => x === 90 || x === 270)).toBe(true);
     expect([...rots].some((x) => x === 0 || x === 180)).toBe(true);
   });

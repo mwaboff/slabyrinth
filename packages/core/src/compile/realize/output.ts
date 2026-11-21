@@ -3,7 +3,7 @@
  * Reads: a level's placements and box (finishLevel); the collected levels, diagnostics and substitutions
  * (finishRealize). Writes: the output accumulator; finishRealize adds the substitution diagnostics and returns the set.
  */
-import type { Box3, PlacementRole, PlacementSet } from "../../contracts/compiler";
+import type { Box3, PlacedAsset, Placement, PlacementRole, PlacementSet } from "../../contracts/compiler";
 import type { LevelId } from "../../contracts/plan";
 import { CELL, CELL_FLAG, type ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
@@ -25,6 +25,8 @@ export const ROLE_ORDER: readonly PlacementRole[] = [
 
 /** PlacementSet plus what the chunk/bundle stage needs (structurally a PlacementSet). */
 export interface RealizedSet extends PlacementSet {
+  /** Always present on a realized set (the contract's field is optional for sets built elsewhere). */
+  placed: Map<Placement, PlacedAsset>;
   substitutions: BundleSubstitution[];
   assetSource: "install" | "builtin";
   /** Alignment marker asset (marker.alignment), null when the palettes have none. */
@@ -103,7 +105,7 @@ export function finishLevel(lv: RealizeLevel, out: RealizeOutput): void {
 
 /** The alignment marker, the statistics and the substitution diagnostics: the finished set. */
 export function finishRealize(ctx: RealizeCtx, out: RealizeOutput): RealizedSet {
-  const { resolved, palettes, defaultTheme, lookup, addDiag, diag, subs } = ctx;
+  const { resolved, palettes, defaultTheme, lookup, addDiag, diag, subs, placed } = ctx;
   const { levels: outLevels, levelInfo, allBox } = out;
   // alignment marker asset
   const mres = lookup(resolved.levels[0]?.id ?? "", defaultTheme, ["marker.alignment"], undefined, true);
@@ -140,6 +142,7 @@ export function finishRealize(ctx: RealizeCtx, out: RealizeOutput): RealizedSet 
     bounds: finiteBox(allBox),
     diagnostics,
     stats: { byRole, total, distinctAssets: assets.size },
+    placed,
     substitutions: [...subs.values()],
     assetSource:
       palettes.availability.status("00000000-0000-0000-0000-000000000000") === null ? "builtin" : "install",

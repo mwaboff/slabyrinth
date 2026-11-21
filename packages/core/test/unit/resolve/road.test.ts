@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { Level, MapPlan, TerrainOp } from "../../../src/contracts/plan";
 import { CELL_FLAG, type ResolvedLevel } from "../../../src/contracts/resolved";
-import { compileResolved, placementMeta, realize } from "../../../src/compile";
+import { compileResolved, placedName, realize } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { checkPlayability, resolvePlan } from "../../../src/resolve";
 import { slabCodec } from "../../../src/slab";
@@ -270,7 +270,7 @@ describe("roads: path op in road form (generator 2)", () => {
     const r = resolvePlan(p, bundledPalettes());
     const set = realize(r, city);
     const pl = set.levels[0]?.placements ?? [];
-    const named = (n: string): typeof pl => pl.filter((q) => placementMeta.get(q)?.name === n);
+    const named = (n: string): typeof pl => pl.filter((q) => placedName(set, q) === n);
     const l = r.levels[0] as ResolvedLevel;
     const main0 = l.roads?.[0];
     // every main-road tile has one rotation (along the axis); the side street's are a quarter turn off

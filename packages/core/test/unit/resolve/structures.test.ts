@@ -7,8 +7,7 @@
 import { describe, expect, it } from "vitest";
 import type { Building, Level, MapPlan, Structure } from "../../../src/contracts/plan";
 import { CELL_FLAG, EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
-import { compileResolved, realize, verifyBuild } from "../../../src/compile";
-import { placementMeta } from "../../../src/compile/realize";
+import { compileResolved, placedName, realize, verifyBuild } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve/index";
@@ -179,7 +178,7 @@ describe("structures: build", () => {
   const resolved = resolvePlan(p, bundledPalettes());
   const set = realize(resolved, palettes);
   const pl = set.levels[0]?.placements ?? [];
-  const named = (s: string) => pl.filter((x) => placementMeta.get(x)?.name === s);
+  const named = (s: string) => pl.filter((x) => placedName(set, x) === s);
 
   it("stacks the courses as in the in-game shack: footing, timber storey, attic deck, roof on the deck", () => {
     const footing = pl.filter((x) => x.source.elementId === "shack~footing");

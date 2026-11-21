@@ -2,14 +2,15 @@
  * Realize, plan-wide context: what every pass on every level shares, built once per realize() call.
  * Reads: the resolved plan, the palettes, the options and the orientation calibration.
  * Writes: through `lookup` and `addDiag`, the build's diagnostics (`diag`) and asset substitutions (`subs`); through
- * the registries, each placement's world box and asset name (written by `RealizeLevel.emit`, realize/level.ts).
+ * `placed`, each placement's name, geometry and world box (written by `RealizeLevel.emit`, realize/level.ts, and handed
+ * on as the set's `PlacementSet.placed`).
  */
 import type {
-  Box3,
   CompileDiagnostic,
   OrientationCalibration,
   PaletteCatalog,
   PaletteFacing,
+  PlacedAsset,
   Placement,
   RoleName,
 } from "../../contracts/compiler";
@@ -48,18 +49,6 @@ export interface BundleSubstitution {
   count: number;
 }
 
-/** Asset name and geometry of a placement (the verify stage reads them). */
-export interface PlacementMeta {
-  name: string;
-  geom: ResolvedVariant["geom"];
-}
-
-/** The side registries realize keeps per placement (compile/realize.ts owns them; chunking and verify read them). */
-export interface PlacementRegistries {
-  placementBoxes: WeakMap<Placement, Box3>;
-  placementMeta: WeakMap<Placement, PlacementMeta>;
-}
-
 export type AddDiag = (
   d: Omit<CompileDiagnostic, "count" | "stage"> & { stage?: CompileDiagnostic["stage"] },
   n?: number,
@@ -74,7 +63,7 @@ export type Lookup = (
   quiet?: boolean,
 ) => ResolveOutcome["resolution"];
 
-export interface RealizeCtx extends PlacementRegistries {
+export interface RealizeCtx {
   readonly resolved: ResolvedPlan;
   readonly palettes: PaletteCatalog;
   readonly opts: RealizeOptions;
@@ -92,6 +81,8 @@ export interface RealizeCtx extends PlacementRegistries {
   readonly addDiag: AddDiag;
   /** Asset substitutions the palette made, counted per role, wanted and used asset. */
   readonly subs: Map<string, BundleSubstitution>;
+  /** Name, geometry and world box of every placement of this call (`RealizeLevel.emit` writes; the set carries it). */
+  readonly placed: Map<Placement, PlacedAsset>;
   /** A read-only grid of every level of the plan (resolve/levelGrid.ts; links read the level above). */
   readonly views: Map<LevelId, LevelGrid>;
   readonly lookup: Lookup;
@@ -118,7 +109,6 @@ export function createRealizeCtx(
   resolved: ResolvedPlan,
   palettes: PaletteCatalog,
   opts: RealizeOptions,
-  registries: PlacementRegistries,
 ): RealizeCtx {
   const orientation = opts.orientation ?? loadOrientation().orientation;
   const seed = opts.seed ?? h32(resolved.planId);
@@ -263,7 +253,6 @@ export function createRealizeCtx(
   };
 
   return {
-    ...registries,
     resolved,
     palettes,
     opts,
@@ -275,6 +264,7 @@ export function createRealizeCtx(
     diag,
     addDiag,
     subs,
+    placed: new Map(),
     views,
     lookup,
     pick,

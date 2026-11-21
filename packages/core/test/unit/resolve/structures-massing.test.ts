@@ -7,8 +7,7 @@
 import { describe, expect, it } from "vitest";
 import type { Building, Level, MapPlan, Structure } from "../../../src/contracts/plan";
 import type { ResolvedLevel } from "../../../src/contracts/resolved";
-import { compileResolved, realize, verifyBuild } from "../../../src/compile";
-import { placementMeta } from "../../../src/compile/realize";
+import { compileResolved, placedName, realize, verifyBuild } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve/index";
@@ -244,10 +243,10 @@ describe("roof furniture and lights", () => {
   });
 
   it("a wizard tower's lit windows glow (crystals on the floor inside the window)", () => {
-    const { pl } = build(plan([tower({ lighting: { windows: "glow" } })]));
+    const { set, pl } = build(plan([tower({ lighting: { windows: "glow" } })]));
     const lit = pl.filter((q) => q.source.elementId === "tower~lit");
     expect(lit.length).toBeGreaterThan(0);
-    expect(lit.every((q) => /crystal/i.test(placementMeta.get(q)?.name ?? ""))).toBe(true);
+    expect(lit.every((q) => /crystal/i.test(placedName(set, q)))).toBe(true);
   });
 });
 

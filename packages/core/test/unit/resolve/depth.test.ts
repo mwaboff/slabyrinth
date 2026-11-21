@@ -6,14 +6,13 @@
 import { describe, expect, it } from "vitest";
 import type { Area, Level, MapPlan, PlanIssue, TerrainOp } from "../../../src/contracts/plan";
 import { CELL, CELL_FLAG, EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
-import { compileResolved, placementMeta, realize, verifyBuild } from "../../../src/compile";
+import { compileResolved, placedName, realize, verifyBuild } from "../../../src/compile";
 import { bundledPalettes, createRoleResolver, loadPalettes } from "../../../src/palette";
 import { checkPlayability, resolvePlan } from "../../../src/resolve";
 import { asciiView } from "../../../src/text";
 import { buildDisplayList, DEFAULT_DISPLAY_OPTIONS, legendEntries } from "../../../src/render";
 import { slabCodec } from "../../../src/slab";
 import { boxFill, longestStraight, squareCorners } from "./shapeMetrics";
-import { placementBoxes } from "../../../src/compile";
 import { validatePlan } from "../../../src/plan";
 
 const cat = loadPalettes();
@@ -370,7 +369,7 @@ describe("build: cliffs, decks, lava, cave walls at the bounds", () => {
     expect(
       Math.min(...[...ledges, ...pl.filter((q) => q.role === "fill")].map((q) => q.y)),
     ).toBeGreaterThanOrEqual(-3);
-    expect(ledges.every((q) => /Cave Wall/.test(placementMeta.get(q)?.name ?? ""))).toBe(true);
+    expect(ledges.every((q) => /Cave Wall/.test(placedName(set, q)))).toBe(true);
   });
   it("bridge cells: deck tile at 0, lava below at -3, nothing in between", () => {
     const cells = l.bridges?.[0]?.cells ?? [];
@@ -504,7 +503,7 @@ describe("structure: platforms, stairs, uneven ground, outcrops", () => {
     const steps = (set.levels[0]?.placements ?? []).filter((q) => q.source.elementId === "steps");
     // the terrace's 1-tile rise gets a stair piece; the dais's 0.5 rises get half-height step pieces (step.*)
     // natural ground climbs on rock or earth steps (link.stairs.natural: bg_stairs_01 in a cave), named in lower case
-    const stairs = steps.filter((q) => /stairs/i.test(placementMeta.get(q)?.name ?? ""));
+    const stairs = steps.filter((q) => /stairs/i.test(placedName(set, q)));
     expect(stairs.length).toBe(2);
     for (const q of stairs) expect(q.y).toBeCloseTo(0.5);
     expect(steps.length).toBeGreaterThan(stairs.length);
@@ -724,7 +723,7 @@ describe("water, mouths, paths, raised decks, risers", () => {
       const here = pl.filter((q) => q.source.cell?.[0] === x && q.source.cell[1] === y && q.role === "floor");
       expect(here.some((q) => q.source.elementId === "bed")).toBe(true);
     }
-    const tempWater = pl.filter((q) => /tempWater/i.test(placementMeta.get(q)?.name ?? ""));
+    const tempWater = pl.filter((q) => /tempWater/i.test(placedName(set, q)));
     expect(tempWater).toEqual([]);
   });
   it("every open cell with a floor has a floor surface in the build", () => {
@@ -921,7 +920,7 @@ describe("winding paths, intermittent kerbs, ragged ground, watchtower stairs", 
     const kerbs = (set.levels[0]?.placements ?? []).filter((q) => q.source.elementId === "kerb");
     const hg = 20;
     for (const q of kerbs) {
-      const b = placementBoxes.get(q);
+      const b = set.placed.get(q)?.box;
       if (!b) continue;
       const cx = Math.floor((b.min.x + b.max.x) / 2);
       const cy = Math.floor(hg - (b.min.z + b.max.z) / 2);
@@ -1197,7 +1196,8 @@ describe("winding trails, organic tiers, fitting steps, cracked rifts", () => {
     ]);
     const r = resolvePlan(p, bundledPalettes());
     const l = r.levels[0] as ResolvedLevel;
-    const steps = (realize(r, cat).levels[0]?.placements ?? []).filter((q) => q.source.elementId === "steps");
+    const set = realize(r, cat);
+    const steps = (set.levels[0]?.placements ?? []).filter((q) => q.source.elementId === "steps");
     for (const q of steps) {
       const [x, y] = q.source.cell ?? [0, 0];
       const upper = Math.max(
@@ -1209,7 +1209,7 @@ describe("winding trails, organic tiers, fitting steps, cracked rifts", () => {
         ].map(([nx, ny]) => (l.cells.height[at(l, nx as number, ny as number)] as number) / 4),
       );
       // the step's top never stands above the floor it climbs to
-      expect(q.y + (placementMeta.get(q)?.geom.size.y ?? 0)).toBeLessThanOrEqual(upper + 0.5 + 0.01);
+      expect(q.y + (set.placed.get(q)?.geom.size.y ?? 0)).toBeLessThanOrEqual(upper + 0.5 + 0.01);
     }
   });
   it("a default rift reads as a crack: width 2..6+, pinched ends, ledges part-way down", () => {

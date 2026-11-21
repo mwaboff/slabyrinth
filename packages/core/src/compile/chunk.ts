@@ -23,7 +23,7 @@ import type {
 import type { LevelId } from "../contracts/plan";
 import { sha256Hex } from "../slab/sha256";
 import { emptyBox, finiteBox, growBox } from "./geometry";
-import { placementBoxes } from "./realize";
+import { placedBox } from "./placed";
 import type { RealizedSet } from "./realize/output";
 
 export const DEFAULT_FILL = 0.8;
@@ -418,7 +418,7 @@ function layoutBuild(
     const elev = elevOf.get(l.levelId) ?? 0;
     if (layout === "side_by_side") {
       const b = emptyBox();
-      for (const p of l.placements) growBox(b, boxOf(p));
+      for (const p of l.placements) growBox(b, placedBox(set, p));
       const minX = Number.isFinite(b.min.x) ? Math.floor(b.min.x) : 0;
       const width = Number.isFinite(b.max.x) ? Math.ceil(b.max.x) - minX : 0;
       const dx = i === 0 ? 0 : cursorX - minX;
@@ -441,7 +441,7 @@ function layoutBuild(
     const s = shift.get(l.levelId) ?? { dx: 0, dy: 0 };
     const items: Item[] = l.placements.map((p0) => {
       const p = s.dx || s.dy ? { ...p0, x: p0.x + s.dx, y: p0.y + s.dy } : p0;
-      const b0 = boxOf(p0);
+      const b0 = placedBox(set, p0);
       const box = {
         min: { x: b0.min.x + s.dx, y: b0.min.y + s.dy, z: b0.min.z },
         max: { x: b0.max.x + s.dx, y: b0.max.y + s.dy, z: b0.max.z },
@@ -489,10 +489,6 @@ export function extentDiagnostic(
   opts: Pick<ChunkEncodeOptions, "levels" | "levelLayout" | "sideBySideGap"> = {},
 ): CompileDiagnostic | null {
   return layoutBuild(set, opts, codec).overflow;
-}
-
-function boxOf(p: Placement): Box3 {
-  return placementBoxes.get(p) ?? { min: { x: p.x, y: p.y, z: p.z }, max: { x: p.x, y: p.y, z: p.z } };
 }
 
 const round4 = (v: number): number => Math.round(v * 10000) / 10000 || 0;

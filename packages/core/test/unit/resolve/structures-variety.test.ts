@@ -7,8 +7,7 @@
 import { describe, expect, it } from "vitest";
 import type { Building, MapPlan, Structure } from "../../../src/contracts/plan";
 import { CELL, type ResolvedLevel, type ResolvedStructure } from "../../../src/contracts/resolved";
-import { realize, verifyBuild } from "../../../src/compile";
-import { placementMeta } from "../../../src/compile/realize";
+import { placedName, realize, verifyBuild } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve/index";
@@ -202,7 +201,7 @@ describe("city street faults (street v1 repro)", () => {
       /castle|haunted|rural|tavern|candle|lantern|stone wall|dungeon|peasant|moorgoth|md_|abandoned|pole support/i;
     const bad = (set.levels[0]?.placements ?? [])
       .filter((q) => ids.has((q.source.elementId ?? "").split("~")[0] ?? ""))
-      .map((q) => placementMeta.get(q)?.name ?? "")
+      .map((q) => placedName(set, q))
       .filter((n) => medieval.test(n));
     expect([...new Set(bad)]).toEqual([]);
   });

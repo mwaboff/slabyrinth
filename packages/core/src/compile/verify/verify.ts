@@ -24,7 +24,7 @@ import { createRoleResolver } from "../../palette/resolve";
 import { generatorProfile } from "../../plan/generator";
 import { stallParts } from "../../palette/stallParts";
 import { checkPlayability, walkReachability } from "../../resolve";
-import { placementBoxes, placementMeta } from "../realize";
+import { placedBox, placedName } from "../placed";
 import type { RealizedSet } from "../realize/output";
 import { SolidIndex, overlap1, type Solid } from "./grid";
 import { LevelGrid, sideOrient } from "../../resolve/levelGrid";
@@ -179,13 +179,13 @@ export function verifyBuild(
     for (const p of lv.placements) {
       const f =
         p.role === "feature" ? featureById.get(`${lv.levelId}|${p.source.elementId ?? ""}`) : undefined;
-      const meta = placementMeta.get(p);
+      const meta = set.placed?.get(p);
       const s: Solid = {
         p,
-        box: placementBoxes.get(p) ?? { min: { x: p.x, y: p.y, z: p.z }, max: { x: p.x, y: p.y, z: p.z } },
+        box: placedBox(set, p),
         levelId: lv.levelId,
         role: p.role,
-        name: meta?.name ?? p.asset,
+        name: placedName(set, p),
         blocking: p.role !== "feature" || (f?.blocking ?? true),
         organic: f !== undefined && (ORGANIC.has(f.type) || featureInfo(f.type).organic),
         wallMounted: f?.wall !== undefined,
@@ -1271,7 +1271,8 @@ export function verifyBuild(
                 max: { ...s.box.max, z: s.box.max.z + dir * pen },
               };
             }
-            placementBoxes.set(s.p, s.box);
+            const known = set.placed?.get(s.p);
+            if (known) known.box = s.box;
             index.add(s);
             repairs++;
             const compass = alongX ? (dir > 0 ? "east" : "west") : dir > 0 ? "north" : "south";
@@ -1533,7 +1534,7 @@ export function verifyBuild(
   return { diagnostics: out, counts, repairs, ms: Date.now() - t0 };
 
   function nameOf(p: Placement): string {
-    return placementMeta.get(p)?.name ?? p.asset;
+    return placedName(set, p);
   }
   function planOf(s: Solid): [number, number] {
     const pc = index.toPlan((s.box.min.x + s.box.max.x) / 2, (s.box.min.z + s.box.max.z) / 2);

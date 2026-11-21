@@ -3,8 +3,7 @@
  * tan desert rock outside a desert, water's-edge and path-verge dressing, ground cover breaks the floor grid.
  */
 import { describe, expect, it } from "vitest";
-import { realize } from "../../../src/compile";
-import { placementMeta } from "../../../src/compile/realize";
+import { placedName, realize } from "../../../src/compile";
 import { loadPalettes, resolveRole } from "../../../src/palette";
 import { dressArea, type PlacementGrid } from "../../../src/gen";
 import { handLevel, handPlan } from "../compile/handResolved";
@@ -158,7 +157,7 @@ describe("floor variety", () => {
       cat,
     );
     const floors = (set.levels[0]?.placements ?? []).filter((q) => q.role === "floor");
-    const names = new Set(floors.map((q) => placementMeta.get(q)?.name));
+    const names = new Set(floors.map((q) => placedName(set, q)));
     expect(names.size).toBeGreaterThan(1);
   });
 });

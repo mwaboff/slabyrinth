@@ -5,10 +5,12 @@
  * pins that).
  */
 import { describe, expect, it } from "vitest";
+import type { Box3 } from "../../../src/contracts/compiler";
 import type { MapPlan } from "../../../src/contracts/plan";
 import type { ResolvedLevel } from "../../../src/contracts/resolved";
 import { layoutStalls4, layoutStalls, stallCell } from "../../../src/gen/market";
-import { realize, placementBoxes, placementMeta } from "../../../src/compile/realize";
+import { realize } from "../../../src/compile/realize";
+import { placedBox, placedName } from "../../../src/compile/placed";
 import { verifyBuild } from "../../../src/compile/verify";
 import { bundledPalettes, loadPalettes } from "../../../src/palette/load";
 import { createPaletteView, resolveView } from "../../../src/palette/view";
@@ -207,15 +209,10 @@ describe("the realized stall", () => {
   const set = realize(resolved, catalog, {});
   const L = resolved.levels[0] as ResolvedLevel;
   const built = L.features.filter((f) => f.type === "stall" && f.stall !== undefined);
-  const parts = (
-    id: string,
-  ): Array<{ name: string; box: NonNullable<ReturnType<typeof placementBoxes.get>> }> =>
+  const parts = (id: string): Array<{ name: string; box: Box3 }> =>
     (set.levels[0]?.placements ?? [])
       .filter((p) => p.source.elementId === id)
-      .map((p) => ({
-        name: placementMeta.get(p)?.name ?? "",
-        box: placementBoxes.get(p) as NonNullable<ReturnType<typeof placementBoxes.get>>,
-      }));
+      .map((p) => ({ name: placedName(set, p), box: placedBox(set, p) }));
 
   it("is made of a base, counters, four posts and a canopy, stacked from the floor up", () => {
     expect(built.length).toBeGreaterThan(4);
@@ -276,7 +273,7 @@ describe("the realized stall", () => {
     const first = built[0] as (typeof built)[number];
     const names = (out.levels[0]?.placements ?? [])
       .filter((p) => p.source.elementId === first.id)
-      .map((p) => placementMeta.get(p)?.name ?? "");
+      .map((p) => placedName(out, p));
     expect(names.some((n) => /^Harbor Beam 0[12]$/.test(n))).toBe(false);
   });
 
@@ -286,7 +283,7 @@ describe("the realized stall", () => {
     expect(stalls.length).toBeGreaterThan(3);
     expect(stalls.every((f) => f.stall?.form === "flat")).toBe(true);
     const out = realize(city, catalog, {});
-    const names = new Set((out.levels[0]?.placements ?? []).map((p) => placementMeta.get(p)?.name ?? ""));
+    const names = new Set((out.levels[0]?.placements ?? []).map((p) => placedName(out, p)));
     expect(names.has("scifi Caged tunnel ceiling 02") || names.has("scifi Caged tunnel ceiling 01")).toBe(
       true,
     );
@@ -411,7 +408,7 @@ describe("one palette view, one stall capability", () => {
     const names = (id: string): string[] =>
       (set.levels[0]?.placements ?? [])
         .filter((p) => p.source.elementId === id)
-        .map((p) => placementMeta.get(p)?.name ?? "");
+        .map((p) => placedName(set, p));
     // a table on the footprint and the goods of a kind that sells something; no beam, no canopy
     const b = bare as NonNullable<typeof bare>;
     expect(names(b.id).some((n) => /Stall/.test(n))).toBe(true);

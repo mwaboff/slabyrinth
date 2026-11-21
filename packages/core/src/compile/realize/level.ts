@@ -2,7 +2,7 @@
  * Realize, one level as every pass sees it: the resolved level (read through its view), the facts the passes derive
  * from it once, and the one way to place an asset (`emit`), which collects the level's placements and box.
  * Reads: the plan-wide context and the resolved level. Writes: `placements` and `levelBox`, only through `emit` and
- * `rebox`, and the context's per-placement registries.
+ * `rebox`, and the context's `placed` (each placement's name, geometry and box; the set carries it).
  *
  * What one pass leaves for a later one is not stored here: the pass returns it and compile/realize.ts hands it to the
  * passes that read it (the ownership table is at the top of compile/realize.ts).
@@ -69,7 +69,7 @@ export class RealizeLevel {
     readonly ctx: RealizeCtx,
     readonly L: ResolvedLevel,
   ) {
-    const { views, defaultTheme, seed, orientation, palettes, profile, placementBoxes, placementMeta } = ctx;
+    const { views, defaultTheme, seed, orientation, palettes, profile, placed } = ctx;
     const placements: Placement[] = [];
     const levelBox = emptyBox();
     this.placements = placements;
@@ -117,13 +117,13 @@ export class RealizeLevel {
       };
       if (layer !== undefined) p.layer = layer;
       const box = placementBox(v.geom, p.x, p.y, p.z, rot * orientation.rotSense);
-      placementBoxes.set(p, box);
-      placementMeta.set(p, { name: v.name ?? palettes.availability.name(v.uuid) ?? v.uuid, geom: v.geom });
+      placed.set(p, { name: v.name ?? palettes.availability.name(v.uuid) ?? v.uuid, geom: v.geom, box });
       growBox(levelBox, box);
       placements.push(p);
     };
     this.rebox = (p: Placement, box: Box3): void => {
-      placementBoxes.set(p, box);
+      const known = placed.get(p);
+      if (known) known.box = box;
       growBox(levelBox, box);
     };
   }

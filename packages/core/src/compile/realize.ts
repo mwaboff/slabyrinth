@@ -24,11 +24,11 @@
  * A pass that only runs for some generators checks its own switch on its first line and names it in its doc comment,
  * so this file stays a plain list.
  */
-import type { Box3, PaletteCatalog, Placement } from "../contracts/compiler";
+import type { PaletteCatalog } from "../contracts/compiler";
 import type { ResolvedPlan } from "../contracts/resolved";
 import { emptyBox } from "./geometry";
 import { CliffTones, planRockBand } from "./realize/cliffBand";
-import { createRealizeCtx, type PlacementMeta, type RealizeOptions } from "./realize/context";
+import { createRealizeCtx, type RealizeOptions } from "./realize/context";
 import { CornerStrips } from "./realize/edges";
 import { dressOutcrops, layFeatures } from "./realize/features";
 import { layPiers, layRaisedFill } from "./realize/fill";
@@ -49,18 +49,13 @@ import { layShellCap, planSolidShell } from "./realize/solidShell";
 import { layStructures } from "./realize/structures";
 import { layCornerPosts, layWalls } from "./realize/walls";
 
-/** World AABB of every placement made by realize (keyed by object; used by chunking for exact bounds). */
-export const placementBoxes = new WeakMap<Placement, Box3>();
-
-/** Asset name and geometry of every placement made by realize (used by the verify stage). */
-export const placementMeta = new WeakMap<Placement, PlacementMeta>();
-
+/** The plan's placements, with what realize knows about each of them on the set (`placed`: name, geometry, box). */
 export function realize(
   resolved: ResolvedPlan,
   palettes: PaletteCatalog,
   opts: RealizeOptions = {},
 ): RealizedSet {
-  const ctx = createRealizeCtx(resolved, palettes, opts, { placementBoxes, placementMeta });
+  const ctx = createRealizeCtx(resolved, palettes, opts);
   const levelsWanted = opts.levels ? new Set(opts.levels) : null;
   const out: RealizeOutput = { levels: [], levelInfo: [], allBox: emptyBox() };
 

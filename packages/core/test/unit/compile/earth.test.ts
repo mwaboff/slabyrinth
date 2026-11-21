@@ -4,7 +4,7 @@
  * of a rise. Measured on realized floor placements of the dressed test maps.
  */
 import { describe, expect, it } from "vitest";
-import { realize, placementMeta } from "../../../src/compile";
+import { realize } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
@@ -67,7 +67,7 @@ describe("caused floor families", () => {
         let caused = 0;
         for (const p of level?.placements ?? []) {
           if (p.role !== "floor" || !lushAssets.has(p.asset) || !p.source.cell) continue;
-          const g = placementMeta.get(p)?.geom;
+          const g = set.placed.get(p)?.geom;
           const w = Math.round(g?.size.x ?? 1);
           const h = Math.round(g?.size.z ?? 1);
           for (let dy = 0; dy < h; dy++)

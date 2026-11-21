@@ -2,7 +2,8 @@
  * Compiler (WP3): realize (placements), chunk (k-d split measured by real gzip, corner alignment markers), bundle,
  * estimate, and the calibration probe. Pure TypeScript: no electron, DOM or node:* imports here.
  */
-export { placementBoxes, realize } from "./realize";
+export { realize } from "./realize";
+export { placedBox, placedName } from "./placed";
 export { ROLE_ORDER } from "./realize/output";
 export type { RealizedSet } from "./realize/output";
 export type { BundleSubstitution, RealizeOptions } from "./realize/context";
@@ -19,7 +20,6 @@ export { ESTIMATE_BYTES_PER_ASSET, compileResolved, createCompilePlan, estimate 
 export type { CompileDeps, CompileOptions } from "./compile";
 export { VERIFY_CODES, verifyBuild } from "./verify";
 export type { VerifyOptions, VerifyResult } from "./verify";
-export { placementMeta } from "./realize";
 export { calibrationAssetsFrom, calibrationSlabAssets } from "./calibration";
 export type { CalibrationAssets } from "./calibration";
 export { DIRS, WorldFrame, placementBox, rotateDir, rotateXZ, turnQuarters } from "./geometry";
