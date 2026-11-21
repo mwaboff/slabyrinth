@@ -9,7 +9,7 @@ import type { ResolvedLink, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { canonicalJson } from "../util/canonical";
 import { h64hex } from "../util/hash";
-import { LevelWork } from "./level";
+import { LevelSteps } from "./level";
 import { type ThemeDefaults, builtinThemeDefaults } from "./themes";
 import { type PaletteView, bundledPaletteView } from "../palette/view";
 
@@ -32,9 +32,9 @@ export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedP
   const issues: PlanIssue[] = [];
   const themeDefaults = opts.themeDefaults ?? builtinThemeDefaults;
   const palette = opts.palette ?? bundledPaletteView();
-  const works: LevelWork[] = plan.levels.map(
+  const works: LevelSteps[] = plan.levels.map(
     (_, levelIndex) =>
-      new LevelWork({
+      new LevelSteps({
         plan,
         levelIndex,
         themeDefaults,
@@ -42,7 +42,7 @@ export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedP
         palette,
       }),
   );
-  const byId = new Map<string, LevelWork>();
+  const byId = new Map<string, LevelSteps>();
   for (const w of works) if (!byId.has(w.level.id)) byId.set(w.level.id, w);
 
   for (const w of works) w.runPhase1();
@@ -84,7 +84,7 @@ export function canonicalResolved(r: ResolvedPlan): string {
   return canonicalJson(r);
 }
 
-function resolveLinks(plan: MapPlan, byId: Map<string, LevelWork>, issues: PlanIssue[]): ResolvedLink[] {
+function resolveLinks(plan: MapPlan, byId: Map<string, LevelSteps>, issues: PlanIssue[]): ResolvedLink[] {
   const out: ResolvedLink[] = [];
   plan.links.forEach((link, k) => {
     const path = `/links/${k}`;
