@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import type { Box3 } from "../../../src/contracts/compiler";
 import type { MapPlan } from "../../../src/contracts/plan";
 import type { ResolvedLevel } from "../../../src/contracts/resolved";
+import { SIDE_ROT } from "../../../src/gen/gridGeometry";
 import { layoutStalls4, layoutStalls, stallCell } from "../../../src/gen/market";
 import { realize } from "../../../src/compile/realize";
 import { placedBox, placedName } from "../../../src/compile/placed";
@@ -297,8 +298,15 @@ describe("the 2D preview", () => {
     const g4 = buildPlanDisplayList(resolvePlan(marketPlan(4), bundledPalettes()), "g", opts);
     const g3 = buildPlanDisplayList(resolvePlan(marketPlan(3), bundledPalettes()), "g", opts);
     if (!g4 || !g3) throw new Error("no display list");
-    const ids = g4.items.filter((i) => i.symbol?.id.startsWith("feat-stall")).map((i) => i.symbol?.id);
-    expect(ids.some((id) => /^feat-stall_cover_[NESW]$/.test(id ?? ""))).toBe(true);
+    const covers = g4.items.filter((i) => i.symbol?.id === "feat-stall_cover");
+    expect(covers.length).toBeGreaterThan(0);
+    // turned to its front (the symbol is drawn front-up): rot is the front side's SIDE_ROT
+    const stalls =
+      resolvePlan(marketPlan(4), bundledPalettes()).levels[0]?.features.filter((f) => f.stall) ?? [];
+    for (const item of covers) {
+      const f = stalls.find((s) => s.id === item.ref);
+      expect(item.symbol?.rot).toBe(f?.stall ? SIDE_ROT[f.stall.front] : -1);
+    }
     expect(
       g3.items
         .filter((i) => i.symbol?.id.startsWith("feat-stall"))

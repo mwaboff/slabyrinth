@@ -2,7 +2,7 @@
  * Markets and settlements (generator 3): rows of market stalls, goods standing on them, lines strung overhead and the
  * props a trade puts outside its door. Pure layout: the resolver (resolve/level/market.ts `stepMarket`) asks for placements
  * and commits the ones whose cells are free; the realizer turns the feature types (`stall`, `goods`, `overhead`,
- * `line_post`) into palette pieces. See docs/internal/handoff-settlement.md.
+ * `line_post`) into palette pieces.
  */
 import type { FeatureType, Side, StallKind, StallRow } from "../contracts/plan";
 import type { StallBuild, StallForm } from "../contracts/resolved";

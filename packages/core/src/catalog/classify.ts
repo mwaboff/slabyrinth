@@ -1,5 +1,5 @@
 /**
- * Data-driven asset classification (2026-11-19): lets the app use assets that arrive with a game update without a
+ * Data-driven asset classification: lets the app use assets that arrive with a game update without a
  * code or palette change.
  *
  * - `sizeClass` / `footprintOf` measure an asset from catalog geometry (never hand-entered numbers).
@@ -380,8 +380,8 @@ export interface CatalogQuery {
   kind?: "prop" | "tile";
   limit?: number;
   /**
-   * Strict matching for custom features (round 5, 2026-11-20: "car" became a cardboard Carton, "fire hydrant" a
-   * fireplace bellows, "bus stop" a Stop sign). Whole words only (a plural s/es and a trailing number allowed:
+   * Strict matching for custom features, because loose matching picked unrelated assets ("car" became a cardboard
+   * Carton, "fire hydrant" a fireplace bellows, "bus stop" a Stop sign). Whole words only (a plural s/es and a trailing number allowed:
    * "light" matches "Light01", "car" never matches "Carton"), and the head noun — the last word of the hint —
    * must be in the name: a hit on an adjective alone ("fire", "stop") is no hit.
    */

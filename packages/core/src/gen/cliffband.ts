@@ -1,5 +1,6 @@
 /**
- * Cliffs as rock bands (docs/internal/cliffs-lessons-reference.md, 2026-11-20). A natural rise of 2 tiles or more
+ * Cliffs as rock bands, the way hand-built TaleSpire cliffs are made (a built face reads as a wall, so a natural
+ * rise is dressed in overlapping rock instead). A natural rise of 2 tiles or more
  * is faced by courses of long low face rocks (`cliff_face` → palette role cliff.formation_face) that rest on the
  * low ground and step back as they climb, finished by crest boulders (`cliff_crest` → cliff.formation_crest) standing
  * on the upper ground at the lip so the edge never shows. Pieces lie along the edge, overlap their neighbours, turn

@@ -1,5 +1,5 @@
 /**
- * Composed set pieces (dress presets added 2026-11-19): authored groups of features instead of weighted scatter.
+ * Composed set pieces (dress presets): authored groups of features instead of weighted scatter.
  *
  * A set piece is
  *   - an optional FOCAL group (ritual ring, great tree, rockfall, camp fire), placed once, at the area's centre
@@ -373,7 +373,7 @@ const G = {
     anchor: "wall",
     parts: [p("log", 0, 0, { variant: "pile" }), p("stump", 2, 0), p("crate", 2, 1)],
   },
-  // ── round 2: tall pieces and skyline ──
+  // ── tall pieces and skyline ──
   columnCluster: {
     name: "rock columns",
     anchor: "corner",
@@ -697,7 +697,7 @@ const G = {
 } satisfies Record<string, Group>;
 
 /** Natural focal: a landmark (great tree, statue, rock spire…) with a stand of tall growth round it. */
-// ── built places (city street, 2026-11-20): the same slots in a medieval lane, a modern street, a concourse ──
+// ── built places (a city street): the same slots in a medieval lane, a modern street, a concourse ──
 const BUILT = {
   // a shopfront: a sign on the wall, goods or a bin by the door, a little litter
   frontage: {
@@ -897,7 +897,7 @@ function ritualRing(areaCells: number, radius?: number): Group {
 }
 
 /**
- * Great tree against a wall (round 5: it read as a dark tangle on dark rock). The tree stands proud with a cleared
+ * Great tree against a wall (pressed against it, it read as a dark tangle on dark rock). The tree stands proud with a cleared
  * apron in front of it: light pools at its base (two accent lights, a glow either side of the trunk), roots run
  * up the wall beside it, and the smaller pieces keep their distance — mushrooms and crystals at the apron's edge,
  * columns framing it — so nothing clutters the trunk.
@@ -1992,11 +1992,10 @@ class AreaComposer {
     // (a wall on that side hides the overhang)
     if (BIG.has(part.t))
       for (const [xx, yy] of fp)
-        for (const sd of SIDES)
-          for (let d = 1; d <= 1; d++) {
-            const [nx, ny] = step(xx, yy, sd);
-            if (!grid.inBounds(nx, ny) && grid.edge(xx, yy, sd) !== EDGE_WALL) return null;
-          }
+        for (const sd of SIDES) {
+          const [nx, ny] = step(xx, yy, sd);
+          if (!grid.inBounds(nx, ny) && grid.edge(xx, yy, sd) !== EDGE_WALL) return null;
+        }
     // landmarks (statement pieces) keep a clear ring round structures and yard pieces already on the map
     if (isLandmark(part.t))
       for (let yy = y0 - 1; yy <= y0 + h; yy++)

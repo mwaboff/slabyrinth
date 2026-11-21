@@ -44,7 +44,7 @@ interface FeaturePass {
   lv: RealizeLevel;
   tones: CliffTones;
   /**
-   * Upright pieces already realized per role, for the run mix (round 5): along a row or column, a piece does not take
+   * Upright pieces already realized per role, for the run mix: along a row or column, a piece does not take
    * an asset a neighbour within three cells already shows (a row of identical cypresses read as a planted hedge), when
    * its role has another weighted asset.
    */
@@ -120,7 +120,7 @@ function buildCoveredStall(lv: RealizeLevel, f: ResolvedFeature): boolean {
 
 /**
  * A custom feature's asset: a real match only (strict name search), and a plausible size for the thing asked: a wrong
- * object is worse than none (round 5: "car" once became a cardboard carton). Footprint area within 9× either way.
+ * object is worse than none ("car" once became a cardboard carton). Footprint area within 9× either way.
  */
 function customAsset(lv: RealizeLevel, f: ResolvedFeature): FeatureAsset | null {
   const { L } = lv;

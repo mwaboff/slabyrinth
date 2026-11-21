@@ -95,7 +95,7 @@ export function parseScenario(search: string): FakeScenario {
 }
 
 /**
- * Like main after the 2026-11-18 fix: edits are not rejected just because the map already has playability
+ * Like main (ports/core.ts applyChecked): edits are not rejected just because the map already has playability
  * problems; structural op errors still fail.
  */
 function applyLenient(plan: MapPlan, ops: PlanOp[]): ReturnType<typeof applyOps> {

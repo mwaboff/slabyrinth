@@ -1,5 +1,6 @@
 /**
- * The 2D preview, the agent and the build resolve a plan against the same palettes (code review M1): a generator-4
+ * The 2D preview, the agent and the build resolve a plan against the same palettes, so what the GM and the model see
+ * is what gets built: a generator-4
  * plan with a user palette that changes its layout gives one resolved hash through each entry point.
  *  - build: the compile worker's backend (ports/compile.ts), from the raw user palette files;
  *  - agent: the executor's resolve port with the palettes the engine puts in every tool context

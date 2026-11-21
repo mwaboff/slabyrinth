@@ -505,21 +505,15 @@ export function buildDisplayList(
   for (const f of ordered) {
     const info = featureInfo(f.type);
     const rot = info.wallMounted && f.wall ? SIDE_ROT[f.wall] : f.rotFine;
-    // generator 4: a covered stall is drawn as its canopy, upright, with the front eave on the side the customer stands
-    const covered = f.stall !== undefined;
+    // generator 4: a covered stall is drawn as its canopy, turned so the front eave is on the side the customer stands
+    // (the symbol is drawn front-up; only covered stalls carry `stall`)
+    const symbol = f.stall
+      ? { id: "feat-stall_cover", rot: SIDE_ROT[f.stall.front] }
+      : { id: `feat-${f.type}`, rot };
     items.push({
       layer: "feature",
       style: f.gmOnly ? "feat-gm" : "feat",
-      symbol: covered
-        ? {
-            id: `feat-stall_cover_${f.stall?.front ?? "S"}`,
-            x: f.at[0],
-            y: f.at[1],
-            w: f.size[0],
-            h: f.size[1],
-            rot: 0,
-          }
-        : { id: `feat-${f.type}`, x: f.at[0], y: f.at[1], w: f.size[0], h: f.size[1], rot },
+      symbol: { id: symbol.id, x: f.at[0], y: f.at[1], w: f.size[0], h: f.size[1], rot: symbol.rot },
       ref: f.id,
     });
   }

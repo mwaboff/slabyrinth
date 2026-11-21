@@ -1,5 +1,5 @@
 /**
- * Roof strategies (2026-11-20): pure geometry in plan cells, shared by the compiler (pieces) and the 2D overlay
+ * Roof strategies: pure geometry in plan cells, shared by the compiler (pieces) and the 2D overlay
  * (outline, ridge). Built today: gable; flat and none need no geometry here. New strategies (hip, shed, cone, dome)
  * add a function with the same output shape.
  *
@@ -165,7 +165,7 @@ export function defaultRidge(w: number, h: number): "ew" | "ns" {
   return h > w ? "ns" : "ew";
 }
 
-// ───────────────────────────── more strategies (phase 2, 2026-11-20) ─────────────────────────────
+// ───────────────────────────── more strategies (hip, shed, ring layers, spire) ─────────────────────────────
 
 export interface Rect {
   x: number;

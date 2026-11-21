@@ -213,8 +213,8 @@ export const REVIEW = {
   /** Rock of more than one tone family in a cliff or a cave (advisory; gen/cover.ts cliffRockKinds). */
   rockTones: { weight: 3 },
   /**
-   * Cave rock mass as built (review/caveMass.ts, needs the realized pieces). Reference: good community builds close the
-   * rock behind a face with about 6 overlapping neighbours per piece (docs/internal/talestavern-lessons-strata-caves.md).
+   * Cave rock mass as built (review/caveMass.ts, needs the realized pieces). Reference: good community cave builds
+   * close the rock behind a face with about 6 overlapping neighbours per piece, so no gap shows through.
    */
   caveMass: {
     weight: 6,
@@ -258,7 +258,7 @@ export const REVIEW = {
     longest: 10,
     minEdges: 30,
   },
-  /** Cliff checks (docs/internal/cliffs-lessons-reference.md §4; reference values in the comments). */
+  /** Cliff checks (rock bands as gen/cliffband.ts builds them; reference values in the comments). */
   cliffs: {
     weight: 6,
     /** Judge only with at least this many edge units / rock pieces. */

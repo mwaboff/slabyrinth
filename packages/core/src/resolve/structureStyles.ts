@@ -1,5 +1,5 @@
 /**
- * Building style profiles (data, 2026-11-20). A profile holds the rules a kind of building follows — wall courses,
+ * Building style profiles (data). A profile holds the rules a kind of building follows — wall courses,
  * storey height, window rhythm, roof strategy and kit, door lights — and the palette roles (facade.<style>,
  * roof.<kit>.*, chimney.*, wall_light.*…) supply the assets. A new kind of building is a new entry here plus palette
  * roles; the resolver and compiler read only these fields. Every field can be overridden per building in the plan.
@@ -245,7 +245,7 @@ export const STRUCTURE_STYLES: Readonly<Record<string, StructureStyleProfile>> =
   },
   keep: {
     id: "keep",
-    // variety (2026-11-20): a frontier keep, a gatehouse block, a tower-house on a curtain base
+    // variety: a frontier keep, a gatehouse block, a tower-house on a curtain base
     design: {
       archetypes: { box: 3, setback: 1.5, podium: 1, ell: 1, twin: 0.7 },
       storeys: [2, 4],

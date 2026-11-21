@@ -196,7 +196,7 @@ export function createRealizeCtx(
   };
 
   /**
-   * Floor variants in organic patches (2026-11-19): a value-noise field (about 5 cells across) picks the variant by
+   * Floor variants in organic patches: a value-noise field (about 5 cells across) picks the variant by
    * its weight band, with a little per-tile jitter, so variants form patches instead of a salt-and-pepper grid.
    */
   const patchNoise = new ValueNoise(h32(`${seed}:floorpatches`));
@@ -219,7 +219,7 @@ export function createRealizeCtx(
   };
 
   /**
-   * Floor families (round 5, 2026-11-20): a floor role's weighted variants that carry a `variant` name form a family
+   * Floor families: a floor role's weighted variants that carry a `variant` name form a family
    * each (untagged variants are the default family) — rock slab, dark rock, packed earth, gravel; short and lush
    * grass. A coarse value-noise field (about 7 cells across, stretched so every family shows) gives each cell one
    * family, so the floor reads as large irregular patches of different ground instead of one tile on a grid. Each

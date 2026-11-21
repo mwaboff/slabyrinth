@@ -1,5 +1,5 @@
 /**
- * Structures (generator 2, 2026-11-20): buildings and enclosures.
+ * Structures (generator 2): buildings and enclosures.
  *
  * A building's GROUND STOREY becomes an ordinary area of kind "building" (id = the building's id) with its doors and
  * windows as ordinary openings, so walkability, playability checks, the 2D view, the room key and hit-testing treat

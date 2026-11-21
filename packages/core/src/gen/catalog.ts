@@ -124,7 +124,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   signpost: F("Signpost", "outdoor"),
   standing_stone: F("Standing stone", "outdoor", { organic: true }),
   grave: F("Grave", "outdoor", { size: [1, 2] }),
-  // caves and set dressing (2026-11-19)
+  // caves and set dressing
   stalagmite: F("Stalagmite", "outdoor", { organic: true, glyph: "rock" }),
   stalactite: F("Stalactite", "outdoor", { organic: true, blocking: false, glyph: "debris" }),
   rock_formation: F("Rock formation", "outdoor", { size: [2, 2], organic: true, glyph: "boulder" }),
@@ -145,7 +145,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   magic_fire: F("Magic fire", "architecture", { light: true, glyph: "campfire" }),
   lava_glow: F("Lava glow", "hazard", { blocking: false, light: true, glyph: "brazier" }),
   fire_pit: F("Fire pit", "outdoor", { light: true, glyph: "campfire" }),
-  // tall pieces, mining and hanging dressing (round 2)
+  // tall pieces, mining and hanging dressing
   monolith: F("Monolith", "architecture", { glyph: "standing_stone" }),
   cave_column: F("Rock column", "outdoor", { organic: true, glyph: "pillar" }),
   statue_large: F("Great statue", "architecture", { size: [2, 2], landmark: true, glyph: "statue" }),

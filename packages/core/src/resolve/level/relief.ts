@@ -409,7 +409,7 @@ export function applyUneven(work: ResolveGrid, op: Extract<TerrainOp, { op: "une
   for (const i of cells) {
     const [x, y] = work.cellXY(i);
     const taper = Math.min(1, ((dist.get(i) ?? 1) - 1) / UNEVEN.taperCells);
-    // whole half tiles: a quarter-tile step only reads as a crack in game (round 3); generator 2 rounds the band
+    // whole half tiles: a quarter-tile step only reads as a crack in game; generator 2 rounds the band
     // outlines below so they read as gentle banks, not square stair-steps
     delta.set(i, 2 * Math.round((noise.sample(x / scale, y / scale) - 0.5) * amountQ * taper));
   }

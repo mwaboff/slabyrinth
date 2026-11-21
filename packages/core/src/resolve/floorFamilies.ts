@@ -1,5 +1,5 @@
 /**
- * Floor families of natural ground, generator 3 (terrain round, 2026-11-20). A floor role's weighted variants that carry
+ * Floor families of natural ground, generator 3. A floor role's weighted variants that carry
  * a `variant` name form one family each (untagged variants are the default family). Generator 2 lets a coarse noise
  * field give each cell one family, which in a cave read as a quilt of hard-edged patches (dark cobble, pale slab, peach
  * sand, white gravel). Generator 3 reads like real ground instead:

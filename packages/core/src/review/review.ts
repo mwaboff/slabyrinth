@@ -2277,7 +2277,7 @@ function reachFocus(c: Ctx): DesignNote[] {
   ];
 }
 
-// ───────────────────────── cliffs (docs/internal/cliffs-lessons-reference.md §4) ─────────────────────────
+// ───────────────────────── cliffs (judged as gen/cliffband.ts builds them) ─────────────────────────
 
 /**
  * Rock of more than one tone family in a cliff (generator 3). Cliffs are judged as the realizer builds them (one tone

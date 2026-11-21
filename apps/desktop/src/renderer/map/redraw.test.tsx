@@ -1,4 +1,4 @@
-/** Streaming chat tokens must not redraw the map (review finding B). */
+/** Streaming chat tokens must not redraw the map (each token would repaint the whole canvas). */
 import { beforeAll, describe, expect, it } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import type { MapPlan } from "@slabyrinth/core";

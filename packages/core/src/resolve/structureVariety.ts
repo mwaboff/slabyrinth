@@ -1,5 +1,5 @@
 /**
- * Building variety (2026-11-20, owner: "all the buildings look the same"). A style profile may declare a DESIGN SPACE:
+ * Building variety (without it "all the buildings look the same"). A style profile may declare a DESIGN SPACE:
  * weighted choices on independent axes — massing archetype, storeys and storey heights, wall material (and a base
  * storey in another one), roof, parapet, rooftop sets, window pattern, base treatment, top treatment — and a map from
  * a building's `use` (shop, apartments, warehouse …) to weight multipliers. When the plan leaves a building's shape
