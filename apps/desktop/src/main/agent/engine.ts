@@ -19,6 +19,7 @@ import {
   createToolExecutor,
   defaultExecutorPorts,
   sessionStartText,
+  briefLine,
   systemPromptFor,
   toolsForConversation,
   type AgentExecuteTool,
@@ -43,6 +44,7 @@ import { DEADLINES, withDeadline } from "../util/deadline";
 import { ZERO_USAGE, addCost, addUsage, costOf, promptTokens, ratesFor } from "./cost";
 import { errorInfo, isRetryableKind } from "./provider/errors";
 import { createDefaultRegistry } from "./provider/registry";
+import { EFFORT_LEVELS } from "./provider/types";
 import type {
   AssistantPart,
   ChatItem,
@@ -110,10 +112,10 @@ export function snapEffort(effort: EffortLevel | null, d: ModelDescriptor | unde
   return d.effort.default;
 }
 
-const EFFORT_ORDER: readonly EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 export function capEffort(effort: EffortLevel | null, cap: EffortLevel): EffortLevel | null {
   if (effort === null) return null;
-  return EFFORT_ORDER.indexOf(effort) > EFFORT_ORDER.indexOf(cap) ? cap : effort;
+  // EFFORT_LEVELS is ordered lowest first (the provider contract)
+  return EFFORT_LEVELS.indexOf(effort) > EFFORT_LEVELS.indexOf(cap) ? cap : effort;
 }
 
 /** The effort last put into effect for `modelId` by a marker in the transcript (null = none yet). */
@@ -220,7 +222,11 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
           host.logger.debug(m, d);
         },
       });
-    this.execute = opts.executor ?? createToolExecutor(opts.executorPorts);
+    this.execute =
+      opts.executor ??
+      createToolExecutor(opts.executorPorts, (what, err) => {
+        host.logger.warn(what, { error: err });
+      });
     const vp = opts.executorPorts?.validatePlan ?? defaultExecutorPorts.validatePlan;
     this.validate = (p) => vp(p, { palettes: host.getBuildPalettes() });
     this.newId = opts.newId ?? randomUUID;
@@ -372,7 +378,9 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         resolvePlan(plan, this.host.getBuildPalettes(), { planVersion: version }),
         levels ? { version, levels } : { version },
       );
-    } catch {
+    } catch (err) {
+      // the model still gets the outline, without resolved facts; the resolver bug behind it is logged
+      this.host.logger.warn("resolving the plan for the outline failed", { error: err });
       return outlineView(plan, null, levels ? { version, levels } : { version });
     }
   }
@@ -568,7 +576,8 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         type: "context",
         id: this.newId(),
         reason: "brief_changed",
-        text: `The GM edited the brief. Current brief: ${sessionStartText({ themes: [], builtInAssetsOnly: false, scannedAt: null, brief: project.brief, plan: null, head: 0 }).split("\n")[2] ?? ""}`,
+        // released wording: the line repeats "Current brief:" (kept byte for byte)
+        text: `The GM edited the brief. Current brief: ${briefLine(project.brief)}`,
         createdAt: now,
       });
     }
@@ -626,7 +635,9 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       .finally(() => {
         this.running = null;
         this.host.setBusy(null);
-        void this.host.flush();
+        this.host.flush().catch((err: unknown) => {
+          this.host.logger.error("saving after the turn failed", { error: err });
+        });
       });
     this.running = { turnId: args.turnId, abort, done };
     return Promise.resolve({ turnId: args.turnId });
@@ -1396,9 +1407,13 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
 
   selectAlternative(req: IpcRequests["chat:selectAlternative"]["req"]): Promise<void> {
     const conv = this.conversation();
+    const m = conv.meta[req.messageId];
+    // index 0..n: one of the n earlier attempts, or the latest one
+    if (m && req.index > (m.alternatives?.length ?? 0))
+      throw new EnginePortError({ code: "validation", message: "That reply has no such alternative." });
     this.host.updateConversation(conv.id, (c) => {
-      const m = c.meta[req.messageId];
-      if (m) m.activeAlternative = req.index;
+      const mm = c.meta[req.messageId];
+      if (mm) mm.activeAlternative = req.index;
     });
     return Promise.resolve();
   }

@@ -482,6 +482,11 @@ export function briefJson(brief: DesignBrief): string {
 }
 
 /** Text of the `session_start` context item. */
+/** The brief line of the session-start text; the engine repeats it when the GM edits the brief. */
+export function briefLine(brief: DesignBrief): string {
+  return `Current brief: ${briefJson(brief)}.`;
+}
+
 export function sessionStartText(input: SessionStartInput): string {
   const themes = input.themes
     .map((t) => `${t.id} "${t.name}"${t.description ? ` (${t.description})` : ""}`)
@@ -492,7 +497,7 @@ export function sessionStartText(input: SessionStartInput): string {
   const lines = [
     `Installed themes: ${themes.length > 0 ? themes : "none"}.`,
     `Asset library: ${library}.`,
-    `Current brief: ${briefJson(input.brief)}.`,
+    briefLine(input.brief),
   ];
   if (input.plan === null) lines.push("Plan: none yet.");
   else {

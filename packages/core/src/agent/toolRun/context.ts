@@ -12,14 +12,22 @@ export class ToolRunCtx {
   /** The design review last shown for each plan (by plan id). */
   readonly lastReview = new Map<string, DesignNote[]>();
 
-  constructor(readonly ports: ExecutorPorts) {}
+  /**
+   * `onError`: told of a failure a tool run falls back from (a resolver exception: the outline goes without resolved
+   * facts, the ascii view is unavailable). Core cannot log; the host's logger can, so the bug behind it is visible.
+   */
+  constructor(
+    readonly ports: ExecutorPorts,
+    private readonly onError?: (what: string, err: unknown) => void,
+  ) {}
 
   /** The plan resolved against the palettes it is built with; null when the resolver is missing or fails. */
   resolve(palettes: PaletteCatalog, plan: MapPlan, version: number): ResolvedPlan | null {
     if (!this.ports.resolvePlan) return null;
     try {
       return this.ports.resolvePlan(plan, palettes, version);
-    } catch {
+    } catch (err) {
+      this.onError?.("resolving the plan for a tool failed", err);
       return null;
     }
   }

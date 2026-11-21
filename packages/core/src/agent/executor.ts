@@ -46,8 +46,12 @@ const TOOL_RUNS: Record<ToolName, ToolRun> = {
   list_catalog: (_r, ctx, input) => runListCatalog(ctx, input),
 };
 
-export function createToolExecutor(ports: ExecutorPorts = defaultExecutorPorts): AgentExecuteTool {
-  const r = new ToolRunCtx(ports);
+/** `onError`: told of failures a tool run falls back from (ToolRunCtx), for the host's log. */
+export function createToolExecutor(
+  ports: ExecutorPorts = defaultExecutorPorts,
+  onError?: (what: string, err: unknown) => void,
+): AgentExecuteTool {
+  const r = new ToolRunCtx(ports, onError);
   return async (ctx, name, input) => {
     if (!isToolName(name)) return unknownTool(ctx, name);
     const raw = invalidJsonRaw(input);
