@@ -421,7 +421,9 @@ export function stepOpeningRubble(
       };
       const shown = work.areaAt(anchor);
       if (shown) rf.area = shown.area.id;
-      features.addGenerated(rf);
+      // the heap lies where the plan's collapse brought the floor above down, doorway or not (a buried door is the
+      // collapse's story, and the playability check reports it)
+      features.addGenerated(rf, { wayIn: { mayStand: "the heap under the plan's collapse" } });
       return true;
     };
     // the heap: a cave-in at the centre, rubble round it, debris and the odd rock at the skirt (thinning with distance)

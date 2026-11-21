@@ -3,7 +3,7 @@ plans/cave@4 gen=4 resolved=9768f90aa61b55e1 assets=870 diag=0e/0w/1i slab=0b694
 plans/chimney-lineup-v1 gen=4 resolved=938e06399d751bae assets=1771 diag=0e/0w/0i slab=ed99827a8395f37b diagnostics=4f53cda18c2baa0c review=43852246abb1199b reviewNoBuild=43852246abb1199b
 plans/enclosure-gates-v1 gen=4 resolved=d1683b5274735c1c assets=667 diag=0e/0w/5i slab=079a084ebd3afccf diagnostics=755d91c80dfa6df1 review=d48b01d0122b69cb reviewNoBuild=b6ca47545d8d66b3
 plans/example-a gen=1 resolved=3c82f0f5b11be01b assets=445 diag=0e/0w/4i slab=4b593e34f1b59291 diagnostics=2860bdde9bc2975c review=4e781701b5e49cd9 reviewNoBuild=4e781701b5e49cd9
-plans/example-a@4 gen=4 resolved=8eb6a8ff7312563b assets=966 diag=0e/0w/9i slab=a7a984159ddd8d56 diagnostics=8bf0ff69e33499fc review=6a1e13c89e704b6c reviewNoBuild=6a1e13c89e704b6c
+plans/example-a@4 gen=4 resolved=520c73074bd55344 assets=966 diag=0e/0w/9i slab=ff9d7428b3f9e50c diagnostics=8bf0ff69e33499fc review=6a1e13c89e704b6c reviewNoBuild=6a1e13c89e704b6c
 plans/example-b gen=1 resolved=41a5f54f8d0bdc97 assets=1534 diag=0e/0w/8i slab=867f22918fe7269e diagnostics=5dca1eaf3b5e9726 review=dbf4c073efd27263 reviewNoBuild=dbf4c073efd27263
 plans/example-b@4 gen=4 resolved=8deb320fb138a58b assets=1065 diag=0e/0w/9i slab=15dad90ae39dc06f diagnostics=9f751c89f243ea74 review=dc90ecc834be9df1 reviewNoBuild=dc90ecc834be9df1
 plans/heartroot-rift-v7 gen=3 resolved=40c66133bade6eb1 assets=1954 diag=0e/2w/12i slab=6d984741759f8a5e diagnostics=d714677e7ee77aad review=316583868c761ee9 reviewNoBuild=2c4358fbf273ffc2

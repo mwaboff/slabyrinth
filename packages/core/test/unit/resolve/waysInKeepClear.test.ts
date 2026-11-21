@@ -8,6 +8,7 @@ import type { MapPlan, TerrainOp } from "../../../src/contracts/plan";
 import type { ResolvedLevel } from "../../../src/contracts/resolved";
 import { compileResolved } from "../../../src/compile";
 import { SIDE_STEP } from "../../../src/gen/gridGeometry";
+import { isPassage } from "../../../src/gen/openingKinds";
 import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import { slabCodec } from "../../../src/slab";
@@ -38,6 +39,43 @@ describe("ways in keep clear (generator 4)", () => {
         `seed ${seed}`,
       ).toEqual([]);
     }
+  });
+
+  it("rubble at a doorway's jamb never reaches over the doorway's front (refused where it enters the level)", () => {
+    // a 1-cell blocking piece reaches at least half its diagonal round its middle: over every cell round its own, so
+    // a blocking pile may not stand on or next to a cell in front of a passage
+    const pal = bundledPalettes();
+    let piles = 0;
+    for (const seed of SEEDS) {
+      const plan = { ...loadPlan("example-a", { generator: 4 }), seed };
+      for (const L of resolvePlan(plan, pal).levels) {
+        const fronts = new Set<string>();
+        for (const o of L.openings) {
+          if (!isPassage(o.kind)) continue;
+          for (let k = 0; k < o.width; k++)
+            for (const c of o.orientation === "h"
+              ? [
+                  [o.start[0] + k, o.start[1] - 1],
+                  [o.start[0] + k, o.start[1]],
+                ]
+              : [
+                  [o.start[0] - 1, o.start[1] + k],
+                  [o.start[0], o.start[1] + k],
+                ])
+              fronts.add(`${c[0]},${c[1]}`);
+        }
+        for (const f of L.features) {
+          if (f.generatedBy !== "walls") continue;
+          piles++;
+          if (!f.blocking) continue;
+          const [x, y] = f.at;
+          for (let dy = -1; dy <= 1; dy++)
+            for (let dx = -1; dx <= 1; dx++)
+              expect(fronts.has(`${x + dx},${y + dy}`), `seed ${seed}: ${f.id} at ${x},${y}`).toBe(false);
+        }
+      }
+    }
+    expect(piles).toBeGreaterThan(0);
   });
 
   it("trees and boulders scattered over a stall row keep every stall's front lane clear", () => {

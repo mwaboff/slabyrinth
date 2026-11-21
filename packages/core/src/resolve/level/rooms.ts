@@ -245,8 +245,9 @@ function roomsOpeningOnCorridors(
  * Generator 4 (switch `wallFootRubble`), rough interiors (level base solid, no structures, dungeon wall styles):
  * rubble at the foot of the walls and either side of about half the doorways, so the join of wall and floor is soft
  * (about 1 pile per 10 floor tiles of a room, the reference interior has 1.1). Low debris mostly; blocking rubble only
- * in a corner or at a jamb of a room, never in a corridor. Never on a link, steps, a doorway cell, a cell that holds a
- * feature, or a collapse rim.
+ * in a corner or at a jamb of a room, never in a corridor, and never reaching over the cells in front of a doorway
+ * (FeatureWork.addGenerated refuses it; a jamb then gets debris). Never on a link, steps, a doorway cell, a cell that
+ * holds a feature, or a collapse rim.
  */
 export function stepWallFootRubble(
   work: ResolveGrid,
@@ -300,7 +301,7 @@ export function stepWallFootRubble(
     const c: Vec2 = [x, y];
     if (work.featureProblem(type, c, size, undefined) !== null) return false;
     const rf: ResolvedFeature = {
-      id: `walls#foot${n++}`,
+      id: `walls#foot${n}`,
       type,
       generatedBy: "walls",
       at: c,
@@ -313,7 +314,9 @@ export function stepWallFootRubble(
     };
     const shown = work.areaAt(i);
     if (shown) rf.area = shown.area.id;
-    features.addGenerated(rf);
+    // a jamb pile stands beside the doorway, never in front of it or reaching over it (refused there, generator 4)
+    if (!features.addGenerated(rf)) return false;
+    n++;
     placed.add(i);
     return true;
   };
@@ -359,7 +362,10 @@ export function stepWallFootRubble(
     for (const { c, j } of picks) {
       const i = work.idx(c[0], c[1]);
       if (i < 0) continue;
-      put(i, !inCorridor(i) && j % 2 === 0 ? "rubble" : "debris");
+      // blocking rubble whose outline would reach over the doorway's front is refused: low debris softens the jamb
+      if (!inCorridor(i) && j % 2 === 0) {
+        if (!put(i, "rubble")) put(i, "debris");
+      } else put(i, "debris");
     }
   });
 }

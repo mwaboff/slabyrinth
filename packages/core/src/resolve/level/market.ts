@@ -108,7 +108,10 @@ function commitMarket(
     rf.offset = [Math.max(-0.5, Math.min(0.5, p.offset[0])), Math.max(-0.5, Math.min(0.5, p.offset[1]))];
   const shown = work.areaAt(anchor);
   if (shown) rf.area = shown.area.id;
-  features.addGenerated(rf, occupy);
+  // the market may let a piece reach over a door front: it keeps the doors clear cell by cell itself (`marketCellOk`)
+  // and lays its own pieces round its stalls' lanes, and a stall or table refused here would leave its goods standing
+  // on nothing
+  features.addGenerated(rf, { occupy, wayIn: { mayStand: "market layout keeps its own ways in" } });
 }
 
 /**

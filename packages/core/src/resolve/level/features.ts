@@ -108,19 +108,33 @@ export class FeatureWork {
   }
 
   /**
-   * Places a generated feature and counts it toward the level's cap. `occupy` false lists it without taking its cells
-   * (goods on a table, the pieces of an overhead line), so other dressing may still use them.
+   * Places a generated feature and counts it toward the level's cap; false when it is refused. `occupy` false lists it
+   * without taking its cells (goods on a table, the pieces of an overhead line), so other dressing may still use them.
+   *
+   * Generator 4 (`waysInKeepClear`): this is the one way a generated feature enters the level, so this is where a
+   * blocking piece that would stand in, or reach over, a cell in front of a way in (`blocksWayIn`) is refused: every
+   * placer is held to it, whether it asked first (and chose another spot) or not. `wayIn.mayStand` is the exception of
+   * a placer whose pieces may stand there, with the reason, written at the call site.
    */
-  addGenerated(f: ResolvedFeature, occupy = true): void {
-    if (occupy) this.add(f);
+  addGenerated(f: ResolvedFeature, opts: { occupy?: boolean; wayIn?: { mayStand: string } } = {}): boolean {
+    if (opts.wayIn === undefined && f.blocking && this.blocksWayIn(f.type, f.at, f.size, f.variant))
+      return false;
+    if (opts.occupy ?? true) this.add(f);
     else this.list.push(f);
     this.count++;
+    return true;
   }
 
-  /** Commits a generator's placements as features "<opId>#<n>", counted toward the level's generated-feature cap. */
+  /**
+   * Commits a generator's placements as features "<opId>#<n>", counted toward the level's generated-feature cap. A
+   * placement refused at a way in (`addGenerated`) takes the pieces lifted onto its cells with it (a thing on a table
+   * is not left floating where the table was refused); its number stays unused.
+   */
   commitGenerated(opId: string, placements: GeneratedPlacement[]): void {
     const work = this.work;
+    const refusedCells = new Set<number>();
     placements.forEach((p, n) => {
+      if ((p.lift ?? 0) > 0 && refusedCells.has(work.idx(p.at[0], p.at[1]))) return;
       const info = featureInfo(p.type);
       const anchor = work.idx(p.at[0], p.at[1]);
       const rf: ResolvedFeature = {
@@ -168,7 +182,7 @@ export class FeatureWork {
       const shown = work.areaAt(anchor);
       if (shown) rf.area = shown.area.id;
       if (info.gmOnly) rf.gmOnly = true;
-      this.addGenerated(rf);
+      if (!this.addGenerated(rf)) for (const i of work.footprint(rf.at, rf.size).cells) refusedCells.add(i);
     });
   }
 
@@ -215,8 +229,10 @@ export class FeatureWork {
    * Generator 4 (`waysInKeepClear`): a blocking piece of this type, anchored at `at` with this footprint, would stand in
    * or reach over a cell in front of a way in (`inWayIn`). Its reach is its real outline round the footprint's middle:
    * the widest variant the anchor cell's theme builds it with (a tree's crown is wider than its cell), turned any way.
-   * Every placer of generated blocking pieces asks it (scatter, dress, the composed set pieces through the placement
-   * grid); the market asks `inWayIn` cell by cell for the doors (resolve/level/market.ts `marketCellOk`).
+   * `addGenerated`, the one entry of every generated feature, refuses a piece it answers true for; the placers that
+   * choose among spots (scatter, dress, the composed set pieces, through the placement grid) ask it first so they pick
+   * another. The exceptions say why at their call: the market (it keeps the doors clear cell by cell, `marketCellOk`,
+   * and its stalls carry goods a refusal would leave standing on nothing) and the heap under a collapse.
    */
   blocksWayIn(
     type: FeatureType,

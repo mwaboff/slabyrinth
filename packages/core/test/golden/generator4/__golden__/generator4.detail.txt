@@ -337,7 +337,7 @@ plans/example-a@4 l2 feature bench 6
 plans/example-a@4 l2 feature candelabra 3
 plans/example-a@4 l2 feature chest 7
 plans/example-a@4 l2 feature clutter 8
-plans/example-a@4 l2 feature rubble 1
+plans/example-a@4 l2 feature debris 1
 plans/example-a@4 l2 feature rug 1
 plans/example-a@4 l2 feature shelf_line 3
 plans/example-a@4 l2 feature statue 1

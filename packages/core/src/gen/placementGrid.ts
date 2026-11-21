@@ -39,7 +39,9 @@ export interface PlacementGrid {
   /**
    * Generator 4: a blocking piece of this type anchored at `at` with this footprint would stand in, or reach with its
    * real outline over, a cell in front of a way in (both sides of a door, archway or gap; the lane before a stall's
-   * front). Every placer of blocking pieces asks it. Optional: absent, nothing is kept clear this way.
+   * front). A placer that chooses among spots asks it to pick another; whatever a placer proposes there is refused
+   * when it is committed (resolve/level/features.ts FeatureWork.addGenerated). Optional: absent, nothing is kept clear
+   * this way.
    */
   blocksWayIn?(
     type: FeatureType,
