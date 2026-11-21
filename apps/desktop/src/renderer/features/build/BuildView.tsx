@@ -13,13 +13,13 @@ import { latestBuild, levelShort, orderedLevels, useProject } from "../../stores
 import { displayOptions, useMap } from "../../stores/map";
 import { useSettings } from "../../stores/settings";
 import { useApp } from "../../stores/app";
-import { call, errorMessage } from "../../bridge/client";
+import { call } from "../../bridge/client";
 import { useResolved } from "../../map/resolveClient";
 import { drawLevel, mapThemeFor } from "../../map/render";
 import { contentViewBox } from "@slabyrinth/core/render";
 import { useAppliedTheme, cssVar } from "../../app/theme";
 import { clock, kb } from "../../lib/format";
-import { approve } from "../../app/actions";
+import { approve, run } from "../../app/actions";
 import { buildModel, levelsLabel, sizeState, type BuildModel, type SlabRow } from "./model";
 import { currentStep, nextSlab } from "./pasteMachine";
 import { IssueList, askToFix, issueWhere, showIssue, type ListItem } from "../stage/Issues";
@@ -32,7 +32,7 @@ function usePlanAt(version: number | null): MapPlan | null {
   const atHead = version !== null && snap?.head === version && snap.plan !== null;
   useEffect(() => {
     if (version === null || atHead) return;
-    void call("plan:getVersion", { version }).then((p) => {
+    void run("plan:getVersion", { version }, `Couldn't load v${version}.`, (p) => {
       setFetched({ v: version, plan: p });
     });
   }, [version, atHead]);
@@ -211,14 +211,9 @@ function SlabMenu({ slab, buildId }: { slab: SlabRow; buildId: string }) {
             className="menu__item"
             onClick={() => {
               setOpen(false);
-              void call("build:saveChunk", { buildId, chunkId: slab.id }).then(
-                (r) => {
-                  if (r) toast({ lead: "Saved.", body: r.path });
-                },
-                (e: unknown) => {
-                  toast({ lead: "Couldn't save the file.", body: errorMessage(e), tone: "error" });
-                },
-              );
+              void run("build:saveChunk", { buildId, chunkId: slab.id }, "Couldn't save the file.", (r) => {
+                if (r) toast({ lead: "Saved.", body: r.path });
+              });
             }}
           >
             Save as .txt…
@@ -699,7 +694,13 @@ function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
             {!notFound && (
               <button
                 className="btn btn--sm guide__open"
-                onClick={() => void call("talespire:openUrl", { url: "steam://rungameid/720620" })}
+                onClick={() =>
+                  void run(
+                    "talespire:openUrl",
+                    { url: "steam://rungameid/720620" },
+                    "Couldn't start TaleSpire.",
+                  )
+                }
               >
                 <Icon name="ext" size="sm" />
                 Open TaleSpire
@@ -871,7 +872,10 @@ function Building() {
           <span>{progress ? STAGE_LABEL[progress.stage] : "Starting"}</span>
         </div>
         <p className="muted">Building happens on this PC and doesn't use your API key.</p>
-        <button className="btn btn--sm btn--ghost" onClick={() => void call("compile:cancel", undefined)}>
+        <button
+          className="btn btn--sm btn--ghost"
+          onClick={() => void run("compile:cancel", undefined, "Couldn't stop the build.")}
+        >
           Cancel
         </button>
       </div>

@@ -188,3 +188,72 @@ describe("core guards", () => {
     });
   });
 });
+
+/** The app guards of the same config (apps/desktop): one rule mechanism, run the same way. */
+describe("app guards", () => {
+  describe("slabyrinth/app-layers: shared below main / renderer / preload, which do not import each other", () => {
+    it("reports shared importing main or the renderer, and the renderer, main and preload importing each other", async () => {
+      const cases: Array<[string, string]> = [
+        ["apps/desktop/src/shared/x.ts", 'import { a } from "../main/services/projectService";'],
+        ["apps/desktop/src/shared/x.ts", 'import { a } from "../renderer/stores/app";'],
+        ["apps/desktop/src/renderer/x.ts", 'import { a } from "../main/ipc/router";'],
+        ["apps/desktop/src/main/x.ts", 'import { a } from "../renderer/bridge/client";'],
+        ["apps/desktop/src/preload/x.ts", 'import { a } from "../main/ipc/router";'],
+      ];
+      for (const [file, code] of cases)
+        expect(await guardHits(file, code), `${file}: ${code}`).toEqual([
+          expect.stringContaining("slabyrinth/app-layers"),
+        ]);
+    });
+    it("allows imports downwards, within a layer, the provider contract copy, and the conformance tests", async () => {
+      const cases: Array<[string, string]> = [
+        ["apps/desktop/src/main/x.ts", 'import { a } from "../shared/schemas/ipc";'],
+        ["apps/desktop/src/renderer/x.ts", 'import { a } from "./stores/app";'],
+        ["apps/desktop/src/renderer/x.ts", 'import type { A } from "../main/agent/provider/types";'],
+        ["apps/desktop/src/shared/x.ts", 'import { EFFORT_LEVELS } from "../main/agent/provider/types";'],
+        ["apps/desktop/src/conformance/x.ts", 'import { a } from "../renderer/bridge/fake/fakeBridge";'],
+      ];
+      for (const [file, code] of cases) expect(await guardHits(file, code), `${file}: ${code}`).toEqual([]);
+    });
+  });
+
+  describe("slabyrinth/reported-calls: a renderer IPC call does not lose its failure", () => {
+    const file = "apps/desktop/src/renderer/features/x.ts";
+    it("reports void call(...) and void call(...).then(...)", async () => {
+      for (const code of [
+        'void call("plan:undo", undefined);',
+        'void call("app:getInfo", undefined).then((i) => use(i));',
+      ])
+        expect(await guardHits(file, code), code).toEqual([
+          expect.stringContaining("slabyrinth/reported-calls"),
+        ]);
+    });
+    it("leaves run, tryCall and awaited calls alone", async () => {
+      for (const code of [
+        'void run("plan:undo", undefined, "Couldn\'t undo.");',
+        'void tryCall("app:getInfo", undefined).then((r) => use(r));',
+        'async function f() { await call("plan:undo", undefined); }',
+      ])
+        expect(await guardHits(file, code), code).toEqual([]);
+    });
+  });
+
+  describe("slabyrinth/parsed-json: JSON from outside is validated, not cast", () => {
+    it("reports a cast of JSON.parse in the app and the CLI, not in tests", async () => {
+      const code = "const p = JSON.parse(text) as MapPlan;";
+      expect(await guardHits("apps/desktop/src/main/services/x.ts", code)).toEqual([
+        expect.stringContaining("slabyrinth/parsed-json"),
+      ]);
+      expect(await guardHits("packages/core/src/cli/x.ts", code)).toHaveLength(1);
+      expect(await guardHits("apps/desktop/src/main/services/x.test.ts", code)).toEqual([]);
+    });
+    it("allows parsing to unknown, and Partial<T> followed by field checks", async () => {
+      for (const code of [
+        "const p = JSON.parse(text) as unknown;",
+        "const p: unknown = JSON.parse(text);",
+        "const p = JSON.parse(text) as Partial<LockInfo>;",
+      ])
+        expect(await guardHits("apps/desktop/src/main/services/x.ts", code), code).toEqual([]);
+    });
+  });
+});

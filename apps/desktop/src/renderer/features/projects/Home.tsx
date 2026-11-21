@@ -6,10 +6,21 @@ import { Icon, Mark } from "../../ui/Icon";
 import { useDismiss } from "../../ui/dismiss";
 import { useApp } from "../../stores/app";
 import { useProject, type ProjectListEntry } from "../../stores/project";
-import { newProject, openProject } from "../../app/actions";
+import { newProject, openProject, run } from "../../app/actions";
 import { call, errorMessage } from "../../bridge/client";
 import { greeting, plural, relativeTime } from "../../lib/format";
 import { STARTERS } from "../chat/starters";
+
+/** Reloads the map list after a change; a failure is shown, not lost. */
+const reloadList = (): Promise<void> =>
+  useProject
+    .getState()
+    .loadList()
+    .catch((e: unknown) => {
+      useApp
+        .getState()
+        .toast({ lead: "Couldn't refresh the map list.", body: errorMessage(e), tone: "error" });
+    });
 
 function phaseChip(p: ProjectListEntry) {
   const label =
@@ -128,7 +139,9 @@ function confirmTrash(p: ProjectListEntry): void {
     confirm: "Move to Recycle Bin",
     danger: true,
     onConfirm: () => {
-      void call("project:trash", { path: p.path }).then(() => useProject.getState().loadList());
+      void run("project:trash", { path: p.path }, "Couldn't move the map to the bin.", () => {
+        void reloadList();
+      });
     },
   });
 }
@@ -163,7 +176,9 @@ function ProjectCard({ p }: { p: ProjectListEntry }) {
         else if (e.key === "Delete") confirmTrash(p);
         else if (e.key.toLowerCase() === "d" && e.ctrlKey) {
           e.preventDefault();
-          void call("project:duplicate", { path: p.path }).then(() => useProject.getState().loadList());
+          void run("project:duplicate", { path: p.path }, "Couldn't duplicate the map.", () => {
+            void reloadList();
+          });
         }
       }}
     >

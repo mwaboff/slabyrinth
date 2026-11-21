@@ -8,6 +8,7 @@ import { useMap } from "../../stores/map";
 import { useApp } from "../../stores/app";
 import { levelShort, orderedLevels, useProject } from "../../stores/project";
 import { call, errorMessage } from "../../bridge/client";
+import { run as runCall } from "../../app/actions";
 import { resolveAsync, useResolved } from "../../map/resolveClient";
 import { drawLevel, mapThemeFor, pngSize, printTheme, renderPng } from "../../map/render";
 import { useAppliedTheme } from "../../app/theme";
@@ -199,7 +200,7 @@ export function PngExport({
                 lead,
                 action: {
                   label: "Show in folder",
-                  run: () => void call("project:revealInFolder", { path: p0 }),
+                  run: () => void runCall("project:revealInFolder", { path: p0 }, "Couldn't show the file."),
                 },
               }
             : { lead },

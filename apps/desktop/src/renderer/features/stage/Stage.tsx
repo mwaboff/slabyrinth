@@ -14,7 +14,7 @@ import { call, tryCall } from "../../bridge/client";
 import { useResolved, type Resolved } from "../../map/resolveClient";
 import { MapView } from "../../map/MapView";
 import { relativeTime, roundCost, roundSeconds, slabEstimate, sqSize } from "../../lib/format";
-import { approve, editRoomText, restoreVersion, sendPrepared } from "../../app/actions";
+import { approve, editRoomText, restoreVersion, run, sendPrepared } from "../../app/actions";
 import { RoomKey } from "./RoomKey";
 import { IssueList, IssuesChip, askToFix, issueItems } from "./Issues";
 import { HistoryPanel } from "./HistoryPanel";
@@ -812,7 +812,7 @@ export function MapContent({ plan, version }: { plan: MapPlan; version: number }
   const [fetched, setFetched] = useState<{ v: number; plan: MapPlan } | null>(null);
   useEffect(() => {
     if (preview === null) return;
-    void call("plan:getVersion", { version: preview }).then((p) => {
+    void run("plan:getVersion", { version: preview }, `Couldn't load v${preview}.`, (p) => {
       setFetched({ v: preview, plan: p });
     });
   }, [preview]);

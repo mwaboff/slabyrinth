@@ -3,7 +3,13 @@
  * (packages/core/test/fixtures/plans) through the real history functions, so versions, undo/redo,
  * restore and diff behave exactly like main's ProjectService will.
  */
-import { applyOps, commitVersion, createHistory, approve as approveHistory } from "@slabyrinth/core";
+import {
+  applyOps,
+  commitVersion,
+  createHistory,
+  parsePlan,
+  approve as approveHistory,
+} from "@slabyrinth/core";
 import type { DesignBrief, MapPlan, MapSelection, PlanHistory, PlanOp } from "@slabyrinth/core";
 import type { ChatItem, ModelSelection, Usage } from "../../../main/agent/provider/types";
 import type { BuildRecord, ChatMessageMeta } from "../../../shared/project";
@@ -47,7 +53,12 @@ export interface FakeProject {
   slabs: Record<string, Record<string, string>>;
 }
 
-export const loadFixturePlan = (raw: string): MapPlan => JSON.parse(raw) as MapPlan;
+/** A fixture plan of the repository, checked with core's plan schema like any plan from outside. */
+export const loadFixturePlan = (raw: string): MapPlan => {
+  const r = parsePlan(JSON.parse(raw));
+  if (!r.ok) throw new Error(`fixture plan invalid: ${r.issues[0]?.message ?? ""}`);
+  return r.plan;
+};
 export const EXAMPLE_A = (): MapPlan => loadFixturePlan(exampleARaw);
 export const EXAMPLE_B = (): MapPlan => loadFixturePlan(exampleBRaw);
 export const TOWER = (): MapPlan => loadFixturePlan(towerRaw);

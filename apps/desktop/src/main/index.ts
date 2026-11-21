@@ -39,9 +39,9 @@ const paths = makeAppPaths({
 /** The main-only `debugLogging` feature flag (settings.json "x-featureFlags"), read before the logger exists. */
 function debugLoggingFlag(): boolean {
   try {
-    const raw = JSON.parse(fs.readFileSync(paths.settingsFile, "utf8")) as {
-      "x-featureFlags"?: { debugLogging?: unknown };
-    };
+    const raw = JSON.parse(fs.readFileSync(paths.settingsFile, "utf8")) as Partial<
+      Record<"x-featureFlags", Partial<Record<"debugLogging", unknown>> | null>
+    >;
     return raw["x-featureFlags"]?.debugLogging === true;
   } catch {
     return false;

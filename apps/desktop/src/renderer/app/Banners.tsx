@@ -3,7 +3,8 @@ import { useState } from "react";
 import { Icon } from "../ui/Icon";
 import { useApp } from "../stores/app";
 import { useSettings } from "../stores/settings";
-import { call, errorMessage } from "../bridge/client";
+import { errorMessage } from "../bridge/client";
+import { run } from "./actions";
 import { pickTaleSpireFolder } from "./folders";
 
 export function Banners() {
@@ -42,7 +43,10 @@ export function Banners() {
             work is kept in memory — choose another location.
           </span>
           <span className="banner__actions">
-            <button className="btn btn--sm" onClick={() => void call("project:saveCopyAs", undefined)}>
+            <button
+              className="btn btn--sm"
+              onClick={() => void run("project:saveCopyAs", undefined, "Couldn't save a copy.")}
+            >
               Save a copy as…
             </button>
             <button

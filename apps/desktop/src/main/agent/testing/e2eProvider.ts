@@ -40,8 +40,11 @@ export async function createScriptedEngineFactory(
   scriptFile: string,
   logFile?: string,
 ): Promise<EngineFactory> {
-  const steps = JSON.parse(await fsp.readFile(scriptFile, "utf8")) as ScriptedStep[];
-  if (!Array.isArray(steps)) throw new Error(`${TEST_ONLY_MARKER}: the script must be a JSON array of steps`);
+  const parsed: unknown = JSON.parse(await fsp.readFile(scriptFile, "utf8"));
+  if (!Array.isArray(parsed))
+    throw new Error(`${TEST_ONLY_MARKER}: the script must be a JSON array of steps`);
+  // a test script the test itself wrote; the scripted provider reports a step it can't serve
+  const steps = parsed as ScriptedStep[];
   // A restarted app continues the script where the previous run stopped (one log line per step served).
   const start = logFile
     ? await fsp.readFile(logFile, "utf8").then(

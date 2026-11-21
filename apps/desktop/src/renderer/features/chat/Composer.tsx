@@ -6,7 +6,7 @@ import { useChat } from "../../stores/chat";
 import { phaseOf, useProject } from "../../stores/project";
 import { EFFORT_LABEL, shortModelName, useSettings } from "../../stores/settings";
 import { useApp } from "../../stores/app";
-import { call, errorMessage } from "../../bridge/client";
+import { call, errorMessage, tryCall } from "../../bridge/client";
 import { roundCost, roundSeconds, money } from "../../lib/format";
 import { EffortControl, ModelList, capsOf, snapEffort } from "./ModelControls";
 import { findRoomByKey } from "../stage/selectRoom";
@@ -157,18 +157,14 @@ export function Composer() {
   useEffect(() => {
     if (!sel) return;
     const t = setTimeout(() => {
-      void call("chat:estimate", {
+      // no estimate is shown when one can't be made (a quiet fallback, not an error)
+      void tryCall("chat:estimate", {
         text: draft,
         selection: sel,
         intent: phase === "brief" ? "chat" : "auto",
-      }).then(
-        (r) => {
-          setEstimate({ costUsd: r.costUsd, seconds: r.seconds });
-        },
-        () => {
-          setEstimate(null);
-        },
-      );
+      }).then((r) => {
+        setEstimate(r.ok ? { costUsd: r.value.costUsd, seconds: r.value.seconds } : null);
+      });
     }, 350);
     return () => {
       clearTimeout(t);

@@ -1,6 +1,6 @@
 /** Cross-store user actions (each one IPC call + store updates). Components call these, never IPC directly. */
-import type { ProjectSnapshot } from "../../shared/ipc";
-import { call, errorMessage, tryCall } from "../bridge/client";
+import type { IpcRequests, ProjectSnapshot } from "../../shared/ipc";
+import { call, errorMessage, tryCall, type Req, type Res } from "../bridge/client";
 import { useApp } from "../stores/app";
 import { useBuild } from "../stores/build";
 import { useChat } from "../stores/chat";
@@ -9,6 +9,33 @@ import { orderedLevels, phaseOf, useProject } from "../stores/project";
 
 function fail(lead: string, e: unknown): void {
   useApp.getState().toast({ lead, body: errorMessage(e), tone: "error", ms: 6000 });
+}
+
+/**
+ * An IPC call fired from a click or an effect: `then` gets the value; a failure is shown to the GM as a toast led by
+ * `failLead` and never becomes an unhandled rejection. The renderer lint refuses `void call(...)`: use this (or
+ * `tryCall`, which returns a Result) instead.
+ */
+export function run<C extends keyof IpcRequests>(
+  channel: C,
+  req: Req<C>,
+  failLead: string,
+  then?: (value: Res<C>) => void,
+): Promise<void> {
+  return call(channel, req).then(
+    (value) => {
+      then?.(value);
+    },
+    (e: unknown) => {
+      fail(failLead, e);
+    },
+  );
+}
+
+/** Whatever rejects without a handler is logged and shown, never silent (installed once by app/boot.ts). */
+export function reportUnhandled(e: unknown): void {
+  console.error("[slabyrinth] unhandled failure", e);
+  fail("Something didn't work.", e);
 }
 
 export function openSnapshot(snap: ProjectSnapshot): void {

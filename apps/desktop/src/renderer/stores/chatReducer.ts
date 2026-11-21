@@ -200,8 +200,20 @@ export function answersFor(
       const t = r.content.find((c) => c.type === "text");
       if (!t) return [];
       try {
-        const parsed = JSON.parse(t.text) as { answers?: Array<{ id: string; answer: string | null }> };
-        return parsed.answers ?? [];
+        const parsed: unknown = JSON.parse(t.text);
+        const answers =
+          typeof parsed === "object" && parsed !== null
+            ? (parsed as { answers?: unknown }).answers
+            : undefined;
+        return Array.isArray(answers)
+          ? answers.filter(
+              (a): a is { id: string; answer: string | null } =>
+                typeof a === "object" &&
+                a !== null &&
+                typeof (a as { id?: unknown }).id === "string" &&
+                ["string", "object"].includes(typeof (a as { answer?: unknown }).answer),
+            )
+          : [];
       } catch {
         return [];
       }

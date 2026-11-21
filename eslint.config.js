@@ -50,69 +50,106 @@ const CORE_LAYERS = [
   ["agent"], // the model's tools, prompts and checks
   ["cli"], // the command line
 ];
-const CORE_SRC = path.join(import.meta.dirname, "packages", "core", "src");
-const CORE_ENTRY = "index.ts";
-/** @type {Map<string, number>} */
-const coreRank = new Map(
-  CORE_LAYERS.flatMap((row, i) => row.map((dir) => /** @type {[string, number]} */ ([dir, i]))),
-);
-coreRank.set(CORE_ENTRY, CORE_LAYERS.length);
-
-/** The core layer of an absolute path (a directory under src, or the entry), or null outside packages/core/src. */
-function coreLayerOf(/** @type {string} */ file) {
-  const rel = path.relative(CORE_SRC, file);
-  if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
-  const parts = rel.split(path.sep);
-  if (parts.length > 1 || coreRank.has(parts[0] ?? "")) return parts[0] ?? "";
-  return parts[0] === "" || /^index(\.ts)?$/.test(parts[0] ?? "") ? CORE_ENTRY : (parts[0] ?? "");
+/**
+ * A layer-order rule over the directories of one source root: a module may import its own directory and any
+ * directory in an earlier row; directories in one row are independent; a directory missing from the table is
+ * reported. `entry` (optional) is a root file above every row. `contracts` are files (relative to the root) any layer
+ * may import: verbatim contract copies whose location the contract fixes.
+ * @param {{ table: string; label: string; srcLabel: string; root: string; layers: string[][]; entry?: string; entryLabel?: string; contracts?: string[] }} o
+ * @returns {import("eslint").Rule.RuleModule}
+ */
+function layersRule(o) {
+  /** @type {Map<string, number>} */
+  const rank = new Map(
+    o.layers.flatMap((row, i) => row.map((dir) => /** @type {[string, number]} */ ([dir, i]))),
+  );
+  if (o.entry !== undefined) rank.set(o.entry, o.layers.length);
+  const contracts = new Set((o.contracts ?? []).map((c) => path.join(o.root, c).replace(/\.ts$/, "")));
+  /** The layer of an absolute path (a directory under the root, or the entry), or null outside the root. */
+  const layerOf = (/** @type {string} */ file) => {
+    const rel = path.relative(o.root, file);
+    if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
+    const parts = rel.split(path.sep);
+    if (parts.length > 1 || rank.has(parts[0] ?? "")) return parts[0] ?? "";
+    return o.entry !== undefined && (parts[0] === "" || /^index(\.ts)?$/.test(parts[0] ?? ""))
+      ? o.entry
+      : (parts[0] ?? "");
+  };
+  return {
+    meta: {
+      type: "problem",
+      schema: [],
+      docs: { description: `Imports follow ${o.table} (eslint.config.js).` },
+    },
+    create(context) {
+      const from = layerOf(context.filename);
+      if (from === null) return {};
+      const fromRank = rank.get(from);
+      /** @param {any} node */
+      const check = (node) => {
+        const spec = node.source?.value;
+        if (typeof spec !== "string" || !spec.startsWith(".")) return;
+        const target = path.resolve(path.dirname(context.filename), spec);
+        if (contracts.has(target.replace(/\.ts$/, ""))) return;
+        const to = layerOf(target);
+        if (to === null || to === from) return;
+        const toRank = rank.get(to);
+        if (fromRank === undefined || toRank === undefined) {
+          const missing = fromRank === undefined ? from : to;
+          context.report({
+            node,
+            message: `${o.srcLabel}/${missing} is not in ${o.table} (eslint.config.js): place it in the layer order.`,
+          });
+        } else if (toRank >= fromRank) {
+          const what = to === o.entry ? `the ${o.entryLabel ?? "entry"} (${to})` : `${to}/`;
+          const why =
+            to === o.entry
+              ? "it sits above every row"
+              : toRank === fromRank
+                ? "they are in the same row"
+                : "it is in a later row";
+          context.report({
+            node,
+            message: `${o.label}: ${from}/ may not import ${what}; ${why} of ${o.table} (eslint.config.js).`,
+          });
+        }
+      };
+      return {
+        ImportDeclaration: check,
+        ExportAllDeclaration: check,
+        ExportNamedDeclaration: check,
+        ImportExpression: check,
+      };
+    },
+  };
 }
 
-/** @type {import("eslint").Rule.RuleModule} */
-const coreLayersRule = {
-  meta: {
-    type: "problem",
-    schema: [],
-    docs: { description: "Core imports follow CORE_LAYERS (eslint.config.js)." },
-  },
-  create(context) {
-    const from = coreLayerOf(context.filename);
-    if (from === null) return {};
-    const fromRank = coreRank.get(from);
-    /** @param {any} node */
-    const check = (node) => {
-      const spec = node.source?.value;
-      if (typeof spec !== "string" || !spec.startsWith(".")) return;
-      const to = coreLayerOf(path.resolve(path.dirname(context.filename), spec));
-      if (to === null || to === from) return;
-      const toRank = coreRank.get(to);
-      if (fromRank === undefined || toRank === undefined) {
-        const missing = fromRank === undefined ? from : to;
-        context.report({
-          node,
-          message: `packages/core/src/${missing} is not in CORE_LAYERS (eslint.config.js): place it in the layer order.`,
-        });
-      } else if (toRank >= fromRank) {
-        const target = to === CORE_ENTRY ? "the core entry (index.ts)" : `${to}/`;
-        const why =
-          to === CORE_ENTRY
-            ? "it sits above every row"
-            : toRank === fromRank
-              ? "they are in the same row"
-              : "it is in a later row";
-        context.report({
-          node,
-          message: `Core layers: ${from}/ may not import ${target}; ${why} of CORE_LAYERS (eslint.config.js).`,
-        });
-      }
-    };
-    return {
-      ImportDeclaration: check,
-      ExportAllDeclaration: check,
-      ExportNamedDeclaration: check,
-      ImportExpression: check,
-    };
-  },
-};
+const CORE_SRC = path.join(import.meta.dirname, "packages", "core", "src");
+const coreLayersRule = layersRule({
+  table: "CORE_LAYERS",
+  label: "Core layers",
+  srcLabel: "packages/core/src",
+  root: CORE_SRC,
+  layers: CORE_LAYERS,
+  entry: "index.ts",
+  entryLabel: "core entry",
+});
+
+/**
+ * The layer order of apps/desktop/src, same rule as CORE_LAYERS. `shared` (IPC contract, schemas, pure helpers) is
+ * the bottom; main, the renderer and the preload are independent of each other (they meet only through shared and
+ * IPC); `conformance` holds tests that run main and the renderer's fake side by side. The one file every layer may
+ * import is the provider contract copy, whose location docs/contracts/provider.ts fixes.
+ */
+const APP_LAYERS = [["shared"], ["main", "renderer", "preload"], ["conformance"]];
+const appLayersRule = layersRule({
+  table: "APP_LAYERS",
+  label: "App layers",
+  srcLabel: "apps/desktop/src",
+  root: path.join(import.meta.dirname, "apps", "desktop", "src"),
+  layers: APP_LAYERS,
+  contracts: ["main/agent/provider/types.ts"],
+});
 
 /**
  * Edge kinds and cell flags come from the resolved contract (EDGE, CELL_FLAG; gen/gridGeometry.ts re-exports them by
@@ -300,8 +337,44 @@ const variantFilterRule = selectorRule("Variant filters are made in palette/filt
   },
 ]);
 
+/**
+ * A renderer IPC call fired without waiting (`void call(...)`, also with `.then`) turns a failure into an unhandled
+ * rejection the GM never sees. app/actions.ts `run(channel, req, failLead, then?)` shows the failure; `tryCall`
+ * returns a Result to handle.
+ */
+const reportedCallsRule = selectorRule("Renderer IPC calls report their failures.", [
+  {
+    selector: "UnaryExpression[operator='void'] > CallExpression[callee.name='call']",
+    message:
+      "A `void call(...)` loses its failure: use run(channel, req, failLead) from app/actions.ts, or tryCall.",
+  },
+  {
+    selector:
+      "UnaryExpression[operator='void'] > CallExpression > MemberExpression.callee > CallExpression.object[callee.name='call']",
+    message:
+      "A `void call(...).then(...)` loses its failure: use run(channel, req, failLead, then) from app/actions.ts.",
+  },
+]);
+
+/**
+ * JSON from outside (a file, IPC, the command line) is checked by a schema where it enters typed code; `JSON.parse(x)
+ * as T` skips that. Parse to `unknown` and validate (core parsePlan, the shared/schemas, a zod schema). `as
+ * Partial<T>` stays allowed: it says every field may be missing, and the code then checks each field it reads.
+ */
+const parsedJsonRule = selectorRule("Parsed JSON is validated, not cast.", [
+  {
+    selector:
+      "TSAsExpression:not([typeAnnotation.type='TSUnknownKeyword'], [typeAnnotation.typeName.name='Partial']) > CallExpression[callee.object.name='JSON'][callee.property.name='parse']",
+    message:
+      "Don't cast JSON.parse: parse to unknown and validate it with a schema (core parsePlan, shared/schemas, zod).",
+  },
+]);
+
 const slabyrinthPlugin = {
   rules: {
+    "app-layers": appLayersRule,
+    "reported-calls": reportedCallsRule,
+    "parsed-json": parsedJsonRule,
     "element-theme": elementThemeRule,
     "variant-filters": variantFilterRule,
     "core-layers": coreLayersRule,
@@ -439,6 +512,22 @@ export default tseslint.config(
   {
     files: ["apps/desktop/src/renderer/**/*.{ts,tsx}"],
     ...reactHooks.configs.flat["recommended-latest"],
+  },
+  {
+    files: ["apps/desktop/src/**/*.{ts,tsx}"],
+    plugins: { slabyrinth: slabyrinthPlugin },
+    rules: { "slabyrinth/app-layers": "error" },
+  },
+  {
+    files: ["apps/desktop/src/renderer/**/*.{ts,tsx}"],
+    rules: { "slabyrinth/reported-calls": "error" },
+  },
+  {
+    // where outside JSON enters typed code; tests build their own JSON and may cast it
+    files: ["apps/desktop/src/**/*.{ts,tsx}", "packages/core/src/cli/**/*.ts"],
+    ignores: ["**/*.test.{ts,tsx}"],
+    plugins: { slabyrinth: slabyrinthPlugin },
+    rules: { "slabyrinth/parsed-json": "error" },
   },
   prettier,
 );

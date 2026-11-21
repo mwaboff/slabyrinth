@@ -15,7 +15,7 @@ import { useProject } from "../stores/project";
 import { useSettings } from "../stores/settings";
 import { useBuild } from "../stores/build";
 import { useUpdates } from "../stores/updates";
-import { openSnapshot } from "./actions";
+import { openSnapshot, reportUnhandled } from "./actions";
 import { runMenuCommand } from "./commands";
 
 export async function installBridge(): Promise<"real" | "fake"> {
@@ -120,8 +120,18 @@ export function subscribeEvents(): void {
   const online = (): void => {
     useApp.getState().setBanner({ offline: !navigator.onLine });
   };
+  // anything that still rejects unhandled is logged and shown, never silent
+  const unhandled = (e: PromiseRejectionEvent): void => {
+    reportUnhandled(e.reason);
+  };
   window.addEventListener("online", online);
   window.addEventListener("offline", online);
+  window.addEventListener("unhandledrejection", unhandled);
+  unsubs.push(() => {
+    window.removeEventListener("online", online);
+    window.removeEventListener("offline", online);
+    window.removeEventListener("unhandledrejection", unhandled);
+  });
   online();
 }
 
