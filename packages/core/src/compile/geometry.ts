@@ -72,6 +72,9 @@ export class WorldFrame {
   }
 }
 
+/** A rotation snapped to the nearest quarter turn, 0..270 (a tile stays square to the grid). */
+export const quarterTurn = (deg: number): number => (((Math.round(deg / 90) % 4) + 4) % 4) * 90;
+
 /** Rotates (x, z) clockwise (seen from above) by `deg` degrees of game rotation (after rotSense). */
 export function rotateXZ(x: number, z: number, cwDeg: number): { x: number; z: number } {
   const t = (cwDeg * Math.PI) / 180;

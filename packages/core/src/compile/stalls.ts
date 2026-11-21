@@ -21,7 +21,7 @@
  * stall is uncovered (verify_stall_uncovered). Everything is built from the roles above, so a palette changes the stall
  * by changing the roles.
  */
-import type { PaletteFacing, Placement, PlacementRole } from "../contracts/compiler";
+import type { Placement } from "../contracts/compiler";
 import type { Side } from "../contracts/plan";
 import type { ResolvedFeature } from "../contracts/resolved";
 import { OPPOSITE as OPP } from "../gen/gridGeometry";
@@ -33,36 +33,17 @@ import {
   type SmallFamily,
   type SurfaceLoad,
 } from "../gen/surfaces";
-import type { ResolvedVariant, RoleResolution, VariantFilter } from "../palette/resolve";
+import type { ResolvedVariant, RoleResolution } from "../palette/resolve";
 import { STALL_PIECE_ROLE, STALL_ROLES, featureRole } from "../palette/roles";
 import { NOT_TILE, ONE_CELL_TILE, both, variantNamed } from "../palette/filters";
 import { stallParts, type RoleProbe } from "../palette/stallParts";
 import { h32Utf16, subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
 import type { WorldFrame } from "./geometry";
-import { rotateXZ } from "./geometry";
+import { quarterTurn, rotateXZ } from "./geometry";
+import type { RealizeLevel } from "./realize/level";
 
-export interface StallRealizeCtx {
-  frame: WorldFrame;
-  seed: number | string;
-  lookup: (theme: string, roles: string[], filter?: VariantFilter, quiet?: boolean) => RoleResolution | null;
-  pick: (vs: ResolvedVariant[], key: string) => ResolvedVariant | undefined;
-  facingOf: (v: ResolvedVariant, rolePrefix: string, role: string) => PaletteFacing;
-  emit: (
-    v: ResolvedVariant,
-    role: PlacementRole,
-    x: number,
-    y: number,
-    z: number,
-    rotDeg: number,
-    source: Placement["source"],
-    layer?: string,
-  ) => void;
-  info: (code: string, message: string, role?: string) => void;
-}
-
-const oneCell: VariantFilter = ONE_CELL_TILE;
-const quarter = (deg: number): number => (((Math.round(deg / 90) % 4) + 4) % 4) * 90;
+const oneCell = ONE_CELL_TILE;
 
 type PlanRect = { x: number; y: number; w: number; h: number };
 type StallBuild = NonNullable<ResolvedFeature["stall"]>;
@@ -72,18 +53,20 @@ type CoveredParts = Extract<ReturnType<typeof stallParts>, { base: RoleResolutio
  * Builds the stall on its footprint. False only for a feature that is not a covered stall (nothing placed). A covered
  * stall whose palette lacks a part is built as the kind's table-and-goods stall (see the header), never dropped.
  */
-export function realizeStall(ctx: StallRealizeCtx, f: ResolvedFeature): boolean {
+export function realizeStall(lv: RealizeLevel, f: ResolvedFeature): boolean {
   const b = f.stall;
   if (!b) return false;
   // every lookup goes through `find`, in a fixed order: the build's substitutions are recorded in lookup order
-  const find: RoleProbe = (roles, filter) => ctx.lookup(f.theme, [...roles], filter, true);
+  const find: RoleProbe = (roles, filter) => lv.ctx.lookup(lv.L.id, f.theme, [...roles], filter, true);
   const built = stallParts(find, b.form);
   if (!("base" in built))
-    ctx.info(
-      "asset_substituted",
-      `stall ${f.id}: the theme has no ${built.missing} piece for a covered stall; its table stands on the footprint instead`,
-    );
-  const s = new Stall(ctx, f, b, find);
+    lv.ctx.addDiag({
+      severity: "info",
+      code: "asset_substituted",
+      message: `stall ${f.id}: the theme has no ${built.missing} piece for a covered stall; its table stands on the footprint instead`,
+      levelId: lv.L.id,
+    });
+  const s = new Stall(lv, f, b, find);
   if (!("base" in built)) return s.tableStall();
   const top = s.base(built.base);
   s.counters(built.counter, top);
@@ -115,14 +98,14 @@ class Stall {
   private readonly frontRow: number[] = [];
 
   constructor(
-    private readonly ctx: StallRealizeCtx,
+    private readonly lv: RealizeLevel,
     private readonly f: ResolvedFeature,
     private readonly b: StallBuild,
     private readonly find: RoleProbe,
   ) {
     this.info = stallKindInfo(f.variant);
-    this.fr = ctx.frame;
-    this.rng = createPrng(subSeed(h32Utf16(`${ctx.seed}:stall:${f.id}`), "parts"));
+    this.fr = lv.ctx.frame;
+    this.rng = createPrng(subSeed(h32Utf16(`${lv.ctx.seed}:stall:${f.id}`), "parts"));
     this.src = { cell: [f.at[0], f.at[1]], elementId: f.id };
     this.y0 = f.baseHeight;
     [this.X0, this.Y0] = f.at;
@@ -170,20 +153,20 @@ class Stall {
 
   private turn(side: Side, v: ResolvedVariant, role: string): number {
     const { fr } = this;
-    const fct = this.ctx.facingOf(v, "feature", role);
+    const fct = this.lv.ctx.facingOf(v, "feature", role);
     return fr.stepsToFace(fct.front ?? "N", fr.worldSide(side)) * 15 + v.rot;
   }
 
   private tile(v: ResolvedVariant, r: PlanRect, y: number, deg: number): void {
     const m = this.fr.rectMin(r.x, r.y, r.w, r.h);
-    this.ctx.emit(v, "feature", m.x, y, m.z, quarter(deg), this.src);
+    this.lv.emit(v, "feature", m.x, y, m.z, quarterTurn(deg), this.src);
   }
 
   private prop(v: ResolvedVariant, px: number, py: number, y: number, deg: number): void {
     const { fr } = this;
     const c = fr.point(px, py);
     const off = rotateXZ(v.geom.boundsCenter.x, v.geom.boundsCenter.z, deg * fr.o.rotSense);
-    this.ctx.emit(v, "feature", c.x - off.x, y, c.z - off.z, deg, this.src);
+    this.lv.emit(v, "feature", c.x - off.x, y, c.z - off.z, deg, this.src);
   }
 
   private choose(
@@ -191,7 +174,7 @@ class Stall {
     key: string,
     filter?: (v: ResolvedVariant) => boolean,
   ): ResolvedVariant | undefined {
-    return this.ctx.pick(filter ? res.variants.filter(filter) : res.variants, `${this.f.id}:${key}`);
+    return this.lv.ctx.pick(filter ? res.variants.filter(filter) : res.variants, `${this.f.id}:${key}`);
   }
 
   /** Small things from the shared table (gen/surfaces.ts), by the kind's family; none for a bare or built-in-goods kind. */
@@ -357,7 +340,8 @@ class Stall {
 
   /** Step 4, flat form: cloth pieces of the largest size that fits (2x2, 2x1, 1x2, 1x1) on the post tops at `yc`. */
   flatCanopy(canopyRes: CoveredParts["canopy"], yc: number): void {
-    const { b, f, ctx } = this;
+    const { b, f } = this;
+    const { pick } = this.lv.ctx;
     const used = new Set<string>();
     const free = (lx: number, ly: number): boolean => lx < b.w && ly < b.d && !used.has(`${lx},${ly}`);
     const fits = (
@@ -394,7 +378,7 @@ class Stall {
               ((v.footprint[0] === r.w && v.footprint[1] === r.h) ||
                 (v.footprint[1] === r.w && v.footprint[0] === r.h)),
           );
-          const pickV = ctx.pick(pool, `${f.id}:canopy:${lx}:${ly}`);
+          const pickV = pick(pool, `${f.id}:canopy:${lx}:${ly}`);
           const fit = pickV
             ? { v: pickV, deg: pickV.footprint[0] === r.w && pickV.footprint[1] === r.h ? 0 : 90 }
             : fits(lx, ly, lw, ld);
@@ -411,7 +395,8 @@ class Stall {
    * `yc`; a beam along the ridge, tied on top of the cloth.
    */
   gableCanopy(canopyRes: CoveredParts["canopy"], yc: number): void {
-    const { b, f, ctx, fr } = this;
+    const { b, f, fr } = this;
+    const { pick } = this.lv.ctx;
     let ridgeY = yc;
     const df = Math.floor(b.d / 2);
     const halves: Array<{ r0: number; n: number; low: Side }> = [
@@ -431,7 +416,7 @@ class Stall {
           w * depth === 2
             ? pool.filter((v) => Math.max(...v.footprint) === 2 && Math.min(...v.footprint) === 1)
             : pool;
-        const v = ctx.pick(want.length > 0 ? want : pool, `${f.id}:canopy:${half.r0}:${px}`);
+        const v = pick(want.length > 0 ? want : pool, `${f.id}:canopy:${half.r0}:${px}`);
         if (!v) return;
         this.tile(v, r, yc, this.turn(half.low, v, STALL_ROLES.canopy));
         ridgeY = Math.max(ridgeY, yc + v.geom.size.y);
@@ -443,7 +428,7 @@ class Stall {
           const pool = canopyRes.variants.filter(
             (v) => v.weight > 0 && v.footprint[0] * v.footprint[1] === 1,
           );
-          const v = ctx.pick(pool, `${f.id}:canopy:${half.r0}:${lx}:${j}`);
+          const v = pick(pool, `${f.id}:canopy:${half.r0}:${lx}:${j}`);
           if (v) {
             this.tile(v, r, yc, this.turn(half.low, v, STALL_ROLES.canopy));
             ridgeY = Math.max(ridgeY, yc + v.geom.size.y);

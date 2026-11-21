@@ -5,7 +5,7 @@
  * Reads: the level's features, outcrops, edges and cells; the cliff tones (cliffBand.ts). Writes: feature placements;
  * custom, vehicle, variant, footprint and landmark diagnostics.
  */
-import type { CompileDiagnostic, Placement, RoleName } from "../../contracts/compiler";
+import type { Placement, RoleName } from "../../contracts/compiler";
 import type { Side, ThemeId } from "../../contracts/plan";
 import { EDGE, type ResolvedFeature } from "../../contracts/resolved";
 import { featureInfo, isBandRock, isLandmark } from "../../gen/catalog";
@@ -14,7 +14,7 @@ import { featureRoles } from "../../gen/surfaces";
 import { footprintFromGeom, type ResolvedVariant, type RoleResolution } from "../../palette/resolve";
 import { featureRole } from "../../palette/roles";
 import { variantNamed } from "../../palette/filters";
-import { rotateDir, rotateXZ } from "../geometry";
+import { quarterTurn, rotateDir, rotateXZ } from "../geometry";
 import { h32Utf16 } from "../../util/hash";
 import { realizeStall } from "../stalls";
 import type { CliffTones } from "./cliffBand";
@@ -75,29 +75,8 @@ function placeFeature(pass: FeaturePass, f: ResolvedFeature): void {
  * compile/stalls.ts. False when the feature is not one or the palette lacks the parts (then the table is placed).
  */
 function buildCoveredStall(lv: RealizeLevel, f: ResolvedFeature): boolean {
-  const { L, emit } = lv;
-  const { seed, profile, frame, lookup, pick, facingOf, addDiag } = lv.ctx;
-  if (!profile.coveredStalls || f.type !== "stall" || f.stall === undefined) return false;
-  return realizeStall(
-    {
-      frame,
-      seed,
-      lookup: (t, roles, filter, quiet) => lookup(L.id, t, roles, filter, quiet),
-      pick,
-      facingOf,
-      emit,
-      info: (code, message, role) => {
-        addDiag({
-          severity: "info",
-          code: code as CompileDiagnostic["code"],
-          message,
-          levelId: L.id,
-          ...(role ? { role } : {}),
-        });
-      },
-    },
-    f,
-  );
+  if (!lv.ctx.profile.coveredStalls || f.type !== "stall" || f.stall === undefined) return false;
+  return realizeStall(lv, f);
 }
 
 /**
@@ -276,7 +255,7 @@ function placeStallTiles(
   const fct = facingOf(v, "feature", role);
   const wantPlan = rotateDir("S", Math.round(f.rot / 90));
   const degRaw = frame.stepsToFace(fct.front ?? "N", frame.worldSide(wantPlan)) * 15 + v.rot;
-  const degT = (((Math.round(degRaw / 90) % 4) + 4) % 4) * 90;
+  const degT = quarterTurn(degRaw);
   for (let yy = f.at[1]; yy < f.at[1] + f.size[1]; yy++)
     for (let xx = f.at[0]; xx < f.at[0] + f.size[0]; xx++) {
       const vt = pick(pool, `${L.id}:feature:${f.id}:${xx}:${yy}`) ?? v;
