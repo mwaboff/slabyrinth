@@ -1,7 +1,14 @@
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
-import { approve as approveHistory, parseBriefPatch, patchBrief, planGate } from "@slabyrinth/core";
+import {
+  approve as approveHistory,
+  parseBriefPatch,
+  patchBrief,
+  planGate,
+  TEXT_EDIT_FIELDS,
+  textEditPlan,
+} from "@slabyrinth/core";
 import type { ApplyResult, DesignBrief, LevelId, MapPlan, PlanDiff, PlanOp } from "@slabyrinth/core";
 import type { ChatItem, Cost, ModelSelection, Usage } from "../agent/provider/types";
 import type { IpcRequests, ProjectSnapshot } from "../../shared/ipc";
@@ -42,8 +49,6 @@ import type { SettingsStore } from "./settingsStore";
 export const PROJECT_EXT = ".slabyrinth";
 /** Largest plan JSON file accepted by Import plan. */
 const PLAN_FILE_MAX_BYTES = 16 * 1024 * 1024;
-const TEXT_FIELDS = new Set(["name", "notes", "readAloud", "encounter", "label", "text", "description"]);
-const TEXT_MERGE_WINDOW_MS = 2 * 60 * 1000;
 
 export interface ProjectServiceDeps {
   settings: SettingsStore;
@@ -854,50 +859,47 @@ export class ProjectService {
     return { approved: true, blocking, warnings };
   }
 
-  /** Direct text edits; consecutive edits of the same element within 2 min merge into one version. */
+  /**
+   * Direct text edits. Consecutive edits of the same element within 2 minutes join into one version (core
+   * textEditPlan), which takes a NEW number: a version is never rewritten under its number. Versions something outside
+   * history refers to (the model's last seen version, a build) are never joined.
+   */
   editText(req: IpcRequests["plan:editText"]["req"]): { head: number } {
     this.ensureNotBusy();
     for (const k of Object.keys(req.set)) {
-      if (!TEXT_FIELDS.has(k)) throw new AppFailure("validation", `"${k}" isn't a text field.`);
+      if (!TEXT_EDIT_FIELDS.has(k)) throw new AppFailure("validation", `"${k}" isn't a text field.`);
     }
     const s = this.require();
-    const h = s.project.history;
-    const base = this.getPlan();
-    if (!base) throw new AppFailure("validation", "There's no plan to edit yet.");
-    const head = h.head === 0 ? undefined : history.findVersion(h, h.head);
-    const latest = history.nextNumber(h) - 1;
-    const prevOp = head?.cause.type === "ops" && head.cause.ops.length === 1 ? head.cause.ops[0] : undefined;
-    const merge =
-      head !== undefined &&
-      head.author === "user" &&
-      head.number === latest &&
-      h.approvedVersion !== head.number &&
-      prevOp?.op === "update" &&
-      prevOp.id === req.id &&
-      this.now().getTime() - Date.parse(head.createdAt) <= TEXT_MERGE_WINDOW_MS;
-
-    const set: Record<string, unknown> = merge ? { ...prevOp.set, ...req.set } : { ...req.set };
-    const op: PlanOp = { op: "update", id: req.id, set };
-    const parentPlan = merge ? this.getPlan(head.parentNumber) : base;
-    if (!parentPlan) throw new AppFailure("validation", "There's no plan to edit yet.");
-    const plan = this.applyTextOp(parentPlan, op);
-    const summary = `You edited ${Object.keys(set).join(", ")} of ${req.id}`;
-
-    if (merge) {
-      this.mutate((p) => {
-        head.cause = { type: "ops", ops: [op] };
-        head.summary = summary;
-        head.createdAt = this.now().toISOString();
-        if (head.snapshot) head.snapshot = structuredClone(plan);
-        p.plan = structuredClone(plan);
-      });
-      s.planCache.clear();
-      s.planCache.set(head.number, plan);
-      this.emitPlanChanged();
-      return { head: head.number };
-    }
-    const r = this.commitVersion({ plan, author: "user", summary, cause: { type: "ops", ops: [op] } });
-    return { head: r.version };
+    if (!this.getPlan()) throw new AppFailure("validation", "There's no plan to edit yet.");
+    const project = s.project;
+    const pinned = new Set<number>([
+      ...project.conversations.map((c) => c.modelSeen.head),
+      ...project.builds.map((b) => b.versionNumber),
+    ]);
+    const edit = textEditPlan(project.history, req, this.now().getTime(), pinned);
+    const basePlan = this.getPlan(edit.base);
+    if (!basePlan) throw new AppFailure("validation", "There's no plan to edit yet.");
+    const plan = this.applyTextOp(basePlan, edit.op);
+    const input: CommitVersionInput = {
+      plan,
+      author: "user",
+      summary: `You edited ${Object.keys(edit.op.set).join(", ")} of ${req.id}`,
+      cause: { type: "ops", ops: [edit.op] },
+    };
+    if (edit.supersedes === null) return { head: this.commitVersion(input).version };
+    const version = this.mutate((p) => {
+      const v = history.supersede(
+        p.history,
+        { ...input, createdAt: this.now().toISOString() },
+        this.deps.core.rules(),
+        s.planCache,
+      );
+      p.plan = structuredClone(plan);
+      return v.number;
+    });
+    s.planCache.set(version, s.project.plan as MapPlan);
+    this.emitPlanChanged();
+    return { head: version };
   }
 
   private applyTextOp(plan: MapPlan, op: Extract<PlanOp, { op: "update" }>): MapPlan {

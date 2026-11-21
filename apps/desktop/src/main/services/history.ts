@@ -42,13 +42,7 @@ function assign(h: PlanHistory, next: PlanHistory): void {
   h.approvedVersion = next.approvedVersion;
 }
 
-/** Appends a version (mutates `h`), moves head to it. Returns the new version. */
-export function commit(
-  h: PlanHistory,
-  input: NewVersionInput,
-  rules: PlanRules,
-  cache?: Map<number, MapPlan>,
-): PlanVersion {
+function commitInput(input: NewVersionInput): core.CommitInput {
   const ci: core.CommitInput = {
     plan: input.plan,
     author: input.author,
@@ -59,7 +53,29 @@ export function commit(
   if (input.changeSummary !== undefined) ci.changeSummary = input.changeSummary;
   if (input.messageId !== undefined) ci.messageId = input.messageId;
   if (input.cost !== undefined) ci.cost = input.cost;
-  const r = core.commitVersion(h, ci, rules, cache);
+  return ci;
+}
+
+/** Appends a version (mutates `h`), moves head to it. Returns the new version. */
+export function commit(
+  h: PlanHistory,
+  input: NewVersionInput,
+  rules: PlanRules,
+  cache?: Map<number, MapPlan>,
+): PlanVersion {
+  const r = core.commitVersion(h, commitInput(input), rules, cache);
+  assign(h, r.history);
+  return r.version;
+}
+
+/** Commits in place of the head version under a new number (core supersedeHead; mutates `h`). */
+export function supersede(
+  h: PlanHistory,
+  input: NewVersionInput,
+  rules: PlanRules,
+  cache?: Map<number, MapPlan>,
+): PlanVersion {
+  const r = core.supersedeHead(h, commitInput(input), rules, cache);
   assign(h, r.history);
   return r.version;
 }

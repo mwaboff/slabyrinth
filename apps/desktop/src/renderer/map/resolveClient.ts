@@ -1,13 +1,13 @@
 /**
  * Resolves plans in resolve.worker (falls back to the UI thread where Worker is unavailable) and caches
- * results per (palettes, plan id, version, display options) — architecture §5.4.
+ * results per (palettes, plan content, version, display options) — architecture §5.4.
  *
  * Plans are resolved against the palettes builds compile with, which main sends as data ("palettes:resolveData");
  * they are fetched once and again whenever main announces a change ("palettes:changed"), and every preview then
  * resolves again, so the 2D view always shows the map the build produces.
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
-import type { DisplayOptions, MapPlan } from "@slabyrinth/core";
+import { h64hex, type DisplayOptions, type MapPlan } from "@slabyrinth/core";
 import type { ResolvePalettesData } from "@slabyrinth/core/palette";
 import { call, on } from "../bridge/client";
 import type { ResolveWorkerMessage } from "../workers/resolve.worker";
@@ -95,8 +95,23 @@ function usePalettesKey(): string | null {
 const optKey = (o: DisplayOptions): string =>
   [o.grid, o.roomNumbers, o.roomNames, o.furniture, o.gmLayer].map((b) => (b ? 1 : 0)).join("");
 
+/** Content hash per plan object (plans from main are never mutated in the renderer). */
+const contentKeys = new WeakMap<MapPlan, string>();
+function contentKey(plan: MapPlan): string {
+  let k = contentKeys.get(plan);
+  if (k === undefined) {
+    k = h64hex(JSON.stringify(plan));
+    contentKeys.set(plan, k);
+  }
+  return k;
+}
+
+/**
+ * The cache key of a resolved preview: the plan's CONTENT (not its id: an imported or duplicated plan keeps its id,
+ * and two projects can hold different plans under one id and version), the version it is shown as, and the options.
+ */
 export function resolveKey(plan: MapPlan, version: number, options: DisplayOptions): string {
-  return `${plan.id}@${version}:${optKey(options)}`;
+  return `${contentKey(plan)}@${version}:${optKey(options)}`;
 }
 
 function run(req: ResolveRequest, data: ResolvePalettesData): Promise<ResolveResult> {

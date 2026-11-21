@@ -283,29 +283,44 @@ describe("IPC conformance: main and the fake bridge answer alike", () => {
     });
   });
 
-  it("plan:editText: a text edit makes a version; another field of the same room merges into it", async () => {
+  it("plan:editText: edits of one room join into one version under a NEW number; numbers are never reused", async () => {
     const [m, f] = await onBoth(async (h) => {
       const first = ok(await h.invoke("plan:editText", { id: "tomb", set: { name: "Crypt" } }));
-      const second = ok(await h.invoke("plan:editText", { id: "tomb", set: { notes: "Cold." } }));
+      const firstPlan = ok(await h.invoke("plan:getVersion", { version: first.head }));
+      const second = ok(
+        await h.invoke("plan:editText", { id: "tomb", set: { name: "Ossuary", notes: "Cold." } }),
+      );
       const snap = ok(await h.invoke("project:snapshot", undefined));
       const shown = ok(await h.invoke("plan:getVersion", { version: second.head }));
+      const old = await h.invoke("plan:getVersion", { version: first.head });
       const bad = await h.invokeRaw("plan:editText", { id: "tomb", set: { shape: 3 } });
+      const notText = await h.invokeRaw("plan:editText", { id: "tomb", set: { shape: "x" } });
       return {
-        sameEntryInHistory: snap.versions.filter((v) => v.author === "user").length,
-        firstIsNotSecond: first.head !== second.head,
+        heads: [first.head, second.head],
+        versions: snap.versions.map((v) => [v.number, v.parentNumber, v.author]),
+        firstName: areaOf(firstPlan, "tomb")?.name,
         name: areaOf(shown, "tomb")?.name,
         notes: areaOf(shown, "tomb")?.notes,
         headPlanName: areaOf(snap.plan, "tomb")?.name,
+        old: old.ok ? "found" : old.error.code,
         bad: bad.ok ? "accepted" : bad.error.code,
+        notText: notText.ok ? "accepted" : notText.error.code,
       };
     });
     expect(m).toEqual(f);
-    expect(m).toMatchObject({
-      sameEntryInHistory: 1,
-      name: "Crypt",
+    expect(m).toEqual({
+      heads: [2, 3],
+      versions: [
+        [1, 0, "ai"],
+        [3, 1, "user"],
+      ],
+      firstName: "Crypt",
+      name: "Ossuary",
       notes: "Cold.",
-      headPlanName: "Crypt",
+      headPlanName: "Ossuary",
+      old: "not_found",
       bad: "validation",
+      notText: "validation",
     });
   });
 

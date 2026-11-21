@@ -48,9 +48,9 @@ describe("user edits and playability checks (real core)", () => {
     expect(res.ok).toBe(true);
     expect(res.version).toBe(2);
     expect(codes(res.issues)).toContain("opening_blocked"); // reported, not rejected
-    // Same element within 2 min: merged into v2 (UX text-edit rule); another element: new v3.
-    expect(r.projects.editText({ id: "hall", set: { notes: "Echoes." } })).toEqual({ head: 2 });
-    expect(r.projects.editText({ id: "entry", set: { name: "Porch" } })).toEqual({ head: 3 });
+    // Same element within 2 min: joins v2 as v3 (v2 is dropped; UX text-edit rule); another element: new v4.
+    expect(r.projects.editText({ id: "hall", set: { notes: "Echoes." } })).toEqual({ head: 3 });
+    expect(r.projects.editText({ id: "entry", set: { name: "Porch" } })).toEqual({ head: 4 });
     const hall = r.projects.snapshot().plan?.levels[0]?.areas.find((a) => a.id === "hall");
     expect(hall).toMatchObject({ name: "Great Hall", notes: "Echoes." });
   });

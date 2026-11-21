@@ -238,6 +238,87 @@ export function commitOps(
   return commitVersion(history, { ...meta, plan, cause: { type: "ops", ops } }, rules, cache);
 }
 
+// ───────────────────────────── the GM's text edits ─────────────────────────────
+
+/** UX §6.8: a text edit of the same element within this long joins the one before it. */
+export const TEXT_EDIT_MERGE_MS = 2 * 60 * 1000;
+
+/** The fields a GM text edit (plan:editText) may set. */
+export const TEXT_EDIT_FIELDS: ReadonlySet<string> = new Set([
+  "name",
+  "notes",
+  "readAloud",
+  "encounter",
+  "label",
+  "text",
+  "description",
+]);
+
+type UpdateOp = Extract<PlanOp, { op: "update" }>;
+
+export interface TextEditPlan {
+  /** The one op to apply to the plan of `base`. */
+  op: UpdateOp;
+  /** The version the op applies to: head, or head's parent when the edit joins the head. */
+  base: number;
+  /** The version the edit replaces (commit with `supersedeHead`), or null for a plain new version. */
+  supersedes: number | null;
+}
+
+/**
+ * How a GM text edit (`set` of text fields on element `id`) is committed. It joins the head when the head is the GM's
+ * own single-element text edit of the same element, is the latest version, is not approved, was made within
+ * TEXT_EDIT_MERGE_MS of `nowMs`, and is not `pinned` (versions something outside history already refers to by number:
+ * the version the model last saw, a build). Joined edits become one op on the head's parent, committed under a NEW
+ * number by `supersedeHead`: a version number is never given to two different plans, so (plan id, version) stays an
+ * identity for every cache, the thumbnail and the model's "last seen".
+ */
+export function textEditPlan(
+  history: PlanHistory,
+  edit: { id: string; set: Record<string, unknown> },
+  nowMs: number,
+  pinned: ReadonlySet<number>,
+): TextEditPlan {
+  const head = history.head === 0 ? undefined : getVersion(history, history.head);
+  const prev = head?.cause.type === "ops" && head.cause.ops.length === 1 ? head.cause.ops[0] : undefined;
+  const joins =
+    head !== undefined &&
+    head.author === "user" &&
+    head.number === latestNumber(history) &&
+    history.approvedVersion !== head.number &&
+    !pinned.has(head.number) &&
+    prev?.op === "update" &&
+    prev.id === edit.id &&
+    nowMs - Date.parse(head.createdAt) <= TEXT_EDIT_MERGE_MS;
+  if (!joins)
+    return { op: { op: "update", id: edit.id, set: { ...edit.set } }, base: history.head, supersedes: null };
+  return {
+    op: { op: "update", id: edit.id, set: { ...prev.set, ...edit.set } },
+    base: head.parentNumber,
+    supersedes: head.number,
+  };
+}
+
+/**
+ * Commits `input` in place of the head version: the new version takes the next number and the head's parent, and the
+ * old head (the latest version, which no other version descends from) is dropped. Nothing is renumbered or rewritten.
+ */
+export function supersedeHead(
+  history: PlanHistory,
+  input: CommitInput,
+  rules: PlanRules,
+  cache?: PlanCache,
+): CommitResult {
+  const old = getVersion(history, history.head);
+  if (old === undefined) return commitVersion(history, input, rules, cache);
+  const r = commitVersion({ ...history, head: old.parentNumber }, input, rules, cache);
+  cache?.delete(old.number);
+  return {
+    history: { ...r.history, versions: r.history.versions.filter((v) => v.number !== old.number) },
+    version: r.version,
+  };
+}
+
 // ───────────────────────────── pointers ─────────────────────────────
 
 export type PointerResult =

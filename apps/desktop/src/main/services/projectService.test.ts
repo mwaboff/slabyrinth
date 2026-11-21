@@ -357,14 +357,68 @@ describe("ProjectService: plan history", () => {
     expect(() => r.projects.undo()).toThrow(/first version/);
   });
 
-  it("merges text edits of the same element within 2 minutes into one version", async () => {
+  it("joins text edits of the same element within 2 minutes into one version, under a new number", async () => {
     const r = await setup();
     expect(r.projects.editText({ id: "entry", set: { notes: "A" } })).toEqual({ head: 2 });
-    expect(r.projects.editText({ id: "entry", set: { name: "Hall" } })).toEqual({ head: 2 });
-    expect(r.projects.editText({ id: "tomb", set: { notes: "B" } })).toEqual({ head: 3 });
-    const entry = r.projects.getVersion(2).levels[0]?.areas.find((a) => a.id === "entry");
+    expect(r.projects.editText({ id: "entry", set: { name: "Hall" } })).toEqual({ head: 3 });
+    expect(r.projects.editText({ id: "tomb", set: { notes: "B" } })).toEqual({ head: 4 });
+    const entry = r.projects.getVersion(3).levels[0]?.areas.find((a) => a.id === "entry");
     expect(entry).toMatchObject({ notes: "A", name: "Hall" });
+    expect(r.projects.snapshot().versions.map((v) => [v.number, v.parentNumber])).toEqual([
+      [1, 0],
+      [3, 1],
+      [4, 3],
+    ]);
+    expect(() => r.projects.getVersion(2)).toThrow(/doesn't exist/);
     expect(() => r.projects.editText({ id: "entry", set: { shape: "x" } })).toThrow(/text field/);
+    // every content change is announced under a number the renderer has not seen before
+    const heads = r.emit.events
+      .filter((e) => e.channel === "plan:changed")
+      .map((e) => (e.payload as { head: number }).head);
+    expect(new Set(heads).size).toBe(heads.length);
+  });
+
+  it("loads files saved before and after versions stopped being rewritten (contiguous numbers, and gaps)", async () => {
+    const r = await setup();
+    r.projects.editText({ id: "entry", set: { notes: "A" } });
+    r.projects.editText({ id: "entry", set: { name: "Hall" } }); // joins: v3 in place of v2
+    const file = r.projects.filePath as string;
+    await r.projects.close({});
+    // a file with a gap in its numbers (this version's shape) opens as it was saved
+    const withGap = await r.projects.open({ path: file });
+    expect(withGap?.head).toBe(3);
+    expect(withGap?.versions.map((v) => v.number)).toEqual([1, 3]);
+    expect(withGap?.plan?.levels[0]?.areas.find((a) => a.id === "entry")).toMatchObject({
+      notes: "A",
+      name: "Hall",
+    });
+    await r.projects.close({});
+    // the older shape: the joined edit stored under the edited version's own number (v2, edited in place)
+    const json = await read(file);
+    const hist = json["history"] as { head: number; versions: Array<{ number: number; createdAt: string }> };
+    for (const v of hist.versions) if (v.number === 3) v.number = 2;
+    hist.head = 2;
+    for (const v of hist.versions) v.createdAt = "2026-01-01T00:00:00.000Z";
+    await fsp.writeFile(file, JSON.stringify(json));
+    const old = await r.projects.open({ path: file });
+    expect(old?.head).toBe(2);
+    expect(r.projects.getVersion(2).levels[0]?.areas.find((a) => a.id === "entry")).toMatchObject({
+      name: "Hall",
+    });
+    // the next edit gets the next number after the old ones
+    expect(r.projects.editText({ id: "tomb", set: { notes: "B" } })).toEqual({ head: 3 });
+  });
+
+  it("never joins an edit into a version the model has seen or a build was made of", async () => {
+    const r = await setup();
+    expect(r.projects.editText({ id: "entry", set: { notes: "A" } })).toEqual({ head: 2 });
+    const conv = r.projects.getProject()?.activeConversationId ?? "";
+    r.projects.updateConversation(conv, (c) => {
+      c.modelSeen.head = 2;
+    });
+    expect(r.projects.editText({ id: "entry", set: { notes: "B" } })).toEqual({ head: 3 });
+    expect(r.projects.getVersion(2).levels[0]?.areas.find((a) => a.id === "entry")?.notes).toBe("A");
+    expect(r.projects.snapshot().versions.find((v) => v.number === 3)?.parentNumber).toBe(2);
   });
 
   it("approval blocks on errors and unreachable areas, and passes otherwise", async () => {

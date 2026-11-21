@@ -1,7 +1,6 @@
 /** The fake main's plan channels: the GM's edits, undo/redo/restore, versions and diffs, approval, the brief. */
 import {
   applyChecked,
-  applyOps,
   approve as approveHistory,
   commitVersion,
   diffPlans,
@@ -10,6 +9,9 @@ import {
   planGate,
   redo as redoHistory,
   restore as restoreHistory,
+  supersedeHead,
+  TEXT_EDIT_FIELDS,
+  textEditPlan,
   undo as undoHistory,
   validatePlan,
 } from "@slabyrinth/core";
@@ -30,9 +32,6 @@ type PlanChannels =
   | "plan:editText"
   | "brief:update";
 
-/** Edits of the same element within this long are merged into one version (UX §6.8). */
-const TEXT_EDIT_MERGE_MS = 120_000;
-
 export function planHandlers(s: FakeState): HandlerGroup<PlanChannels> {
   /** Commits the GM's ops as a new version (the caller touches the project and announces the change). */
   const commitUserOps = (p: FakeProject, plan: MapPlan, summary: string, ops: PlanOp[]): void => {
@@ -46,7 +45,7 @@ export function planHandlers(s: FakeState): HandlerGroup<PlanChannels> {
   const editablePlan = (p: FakeProject): MapPlan => {
     if (s.turn) return fail("busy", "Wait for the current reply to finish.");
     const plan = s.planAt(p, p.history.head);
-    if (!plan) return fail("no_project", "There is no plan yet.");
+    if (!plan) return fail("validation", "There's no plan to edit yet.");
     return plan;
   };
   /** After undo, redo or restore: the new history is current and announced. */
@@ -57,9 +56,11 @@ export function planHandlers(s: FakeState): HandlerGroup<PlanChannels> {
     return { head: p.history.head };
   };
   return {
-    "plan:applyOps": ({ label, ops }) => {
+    "plan:applyOps": ({ baseVersion, label, ops }) => {
       const p = s.open();
       const plan = editablePlan(p);
+      if (baseVersion !== p.history.head)
+        return fail("validation", `The map changed (now v${p.history.head}). Try again.`);
       const r = applyChecked(plan, ops, rules());
       if (!r.ok) return r;
       commitUserOps(p, r.plan, label, ops);
@@ -113,35 +114,31 @@ export function planHandlers(s: FakeState): HandlerGroup<PlanChannels> {
       s.planChanged(p);
       return { approved: true, blocking, warnings };
     },
+    // main's rule (ProjectService.editText): core textEditPlan, joined edits superseding the head under a new number
     "plan:editText": ({ id, set }) => {
       const p = s.open();
-      const plan = editablePlan(p);
-      const ops: PlanOp[] = [{ op: "update", id, set }];
-      const r = applyChecked(plan, ops, rules());
+      for (const k of Object.keys(set))
+        if (!TEXT_EDIT_FIELDS.has(k)) return fail("validation", `"${k}" isn't a text field.`);
+      editablePlan(p);
+      const pinned = new Set(p.builds.map((b) => b.versionNumber));
+      const edit = textEditPlan(p.history, { id, set }, Date.now(), pinned);
+      const base = s.planAt(p, edit.base);
+      if (!base) return fail("validation", "There's no plan to edit yet.");
+      const r = applyChecked(base, [edit.op], rules());
       if (!r.ok)
-        return fail("validation", r.opErrors[0]?.message ?? r.issues[0]?.message ?? "Edit rejected.");
-      const area = plan.levels.flatMap((l) => l.areas).find((a) => a.id === id);
-      const what = Object.keys(set).includes("name") ? "name" : "notes";
-      const label = area?.key !== undefined ? `You edited ${what} for ${area.key}` : `You edited ${id}`;
-      // Merge edits of the same element within 2 minutes into one version (UX §6.8).
-      const head = p.history.versions.find((v) => v.number === p.history.head);
-      const latest = p.history.versions.at(-1);
-      if (
-        head &&
-        latest === head &&
-        head.author === "user" &&
-        head.cause.type === "ops" &&
-        head.cause.ops.every((o) => o.op === "update" && o.id === id) &&
-        Date.now() - new Date(head.createdAt).getTime() < TEXT_EDIT_MERGE_MS
-      ) {
-        const parentPlan = s.planAt(p, head.parentNumber);
-        const prevOps = head.cause.ops;
-        p.history = { ...p.history, head: head.parentNumber, versions: p.history.versions.slice(0, -1) };
-        const merged = parentPlan ? applyOps(parentPlan, [...prevOps, ...ops], rules()) : r;
-        if (merged.ok) commitUserOps(p, merged.plan, label, [...prevOps, ...ops]);
-      } else {
-        commitUserOps(p, r.plan, label, ops);
-      }
+        return fail("validation", r.opErrors[0]?.message ?? r.issues[0]?.message ?? "The edit was rejected.");
+      const input = {
+        plan: r.plan,
+        author: "user" as const,
+        createdAt: new Date().toISOString(),
+        summary: `You edited ${Object.keys(edit.op.set).join(", ")} of ${id}`,
+        cause: { type: "ops" as const, ops: [edit.op] },
+      };
+      p.history = (edit.supersedes === null ? commitVersion : supersedeHead)(
+        p.history,
+        input,
+        rules(),
+      ).history;
       s.touch(p);
       s.planChanged(p);
       return { head: p.history.head };
