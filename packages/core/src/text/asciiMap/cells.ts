@@ -6,6 +6,7 @@ import type { ResolvedPlan } from "../../contracts/resolved";
 import { CELL, CELL_FLAG } from "../../contracts/resolved";
 import type { Vec2 } from "../../contracts/plan";
 import { featureInfo } from "../../gen/catalog";
+import { materialHas } from "../../resolve/materials";
 import type { AsciiCtx, AsciiSeen } from "./context";
 
 /** Letters a feature type may take (its own initials first); the ones the map uses for other things are left out. */
@@ -99,9 +100,9 @@ export function cellViewer(
   seen: AsciiSeen,
 ): (gx: number, gy: number) => CellView {
   const { lvl } = c;
-  // the map draws deep water and lava with their own characters (a legend line each)
+  // the map draws deep water ("W", its own look) and a hazard floor (the hazard trait: lava) with their own characters
   const deepIdx = lvl.materials.indexOf("water_deep") + 1;
-  const lavaIdx = lvl.materials.indexOf("lava") + 1;
+  const hazardIdx = lvl.materials.findIndex((m) => materialHas(m, (info) => info.hazard)) + 1;
   return (gx, gy) => {
     const i = c.cellI(gx, gy);
     if (i < 0) return { base: "", feat: null, featId: null };
@@ -115,7 +116,7 @@ export function cellViewer(
     else if (fl & CELL_FLAG.NO_FLOOR) base = "O";
     else if (fl & CELL_FLAG.BRIDGE) base = "=";
     else if (fl & CELL_FLAG.WATER) base = deepIdx > 0 && lvl.cells.material[i] === deepIdx ? "W" : "~";
-    else if (lavaIdx > 0 && lvl.cells.material[i] === lavaIdx) base = "%";
+    else if (hazardIdx > 0 && lvl.cells.material[i] === hazardIdx) base = "%";
     else if (fl & CELL_FLAG.PATH) base = ",";
     else {
       const q = lvl.cells.height[i] as number;

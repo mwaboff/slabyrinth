@@ -2,7 +2,9 @@
  * Symbols (painted by their painter, turned and scaled to their box), far-zoom dots that stand in for feature symbols,
  * and text (room badges, link badges, names and labels with a halo).
  */
+import { FEATURE_TYPES } from "@slabyrinth/core/contracts/plan";
 import type { DisplayItem } from "@slabyrinth/core/contracts/resolved";
+import { featureInfo } from "@slabyrinth/core/gen";
 import { painterFor } from "../painters";
 import { circlePath, polyPath, roundRectPath, withAlpha } from "../prims";
 import type { DrawCtx } from "./context";
@@ -10,16 +12,13 @@ import type { DrawCtx } from "./context";
 type SymbolMark = NonNullable<DisplayItem["symbol"]>;
 type TextMark = NonNullable<DisplayItem["text"]>;
 
-/** Feature symbols drawn as forest-green dots when zoomed far out (everything else is an ink dot). */
-const LOD_FOREST = new Set([
-  "feat-tree",
-  "feat-pine_tree",
-  "feat-bush",
-  "feat-dead_tree",
-  "feat-reeds",
-  "feat-tall_grass",
-  "feat-flowers",
-]);
+/**
+ * Feature symbols drawn as forest-green dots when zoomed far out (everything else is an ink dot): the plants, asked of
+ * core's `growth` trait, so a new plant feature is green without a list to update here.
+ */
+const LOD_FOREST: ReadonlySet<string> = new Set(
+  FEATURE_TYPES.filter((t) => featureInfo(t).growth).map((t) => `feat-${t}`),
+);
 /** Below this scale (px per cell) room names are not drawn. */
 const ROOM_NAME_MIN_SCALE = 16;
 

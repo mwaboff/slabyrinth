@@ -3,6 +3,7 @@
  * bridges, low steps), the grid, walls, area outlines (roofs, zones) and selection. The look of each display token
  * (a texture per floor material, a pattern per wall style) is the renderer's own table below.
  */
+import { MATERIALS, type Material, type WallStyle } from "@slabyrinth/core/contracts/plan";
 import type { DisplayItem, DisplayLayer } from "@slabyrinth/core/contracts/resolved";
 import { withAlpha } from "../prims";
 import type { Box, DrawCtx } from "./context";
@@ -11,35 +12,67 @@ import { hatch, texture, waves, type TextureKind } from "./fills";
 type Geom = NonNullable<DisplayItem["geom"]>;
 type GeomPainter = (d: DrawCtx, style: string, geom: Geom, b: Box) => void;
 
-/** Floor tokens drawn with texture marks: the kind of mark and its alpha. */
-const MAT_TEXTURE: Readonly<Record<string, readonly [TextureKind, number]>> = {
-  "mat-wood_plank": ["planks", 0.35],
-  "mat-bridge_wood": ["planks", 0.5],
-  "mat-gravel": ["stipple", 0.35],
-  "mat-cobble": ["cracks", 0.35],
-  "mat-sand": ["stipple", 0.22],
-  "mat-dirt": ["stipple", 0.25],
-  "mat-mud": ["stipple", 0.3],
-  "mat-grass": ["tufts", 0.3],
-  "mat-swamp": ["tufts", 0.35],
-  "mat-rock": ["cracks", 0.2],
-  "mat-snow": ["stipple", 0.15],
-  "mat-ice": ["cracks", 0.3],
-  "mat-lava": ["cracks", 0.6],
+/**
+ * The texture marks of each floor material (the kind of mark and its alpha), or null for a plain fill. Keyed by every
+ * material of core's vocabulary: a new material is a compile error here until its look is chosen.
+ */
+export const MATERIAL_TEXTURE: Readonly<Record<Material, readonly [TextureKind, number] | null>> = {
+  flagstone: null,
+  stone_tile: null,
+  marble: null,
+  brick: null,
+  cobble: ["cracks", 0.35],
+  wood_plank: ["planks", 0.35],
+  carpet: null,
+  rock: ["cracks", 0.2],
+  dirt: ["stipple", 0.25],
+  grass: ["tufts", 0.3],
+  sand: ["stipple", 0.22],
+  gravel: ["stipple", 0.35],
+  mud: ["stipple", 0.3],
+  snow: ["stipple", 0.15],
+  ice: ["cracks", 0.3],
+  swamp: ["tufts", 0.35],
+  water_shallow: null,
+  water_deep: null,
+  lava: ["cracks", 0.6],
+  bridge_wood: ["planks", 0.5],
+  asphalt: null,
+  concrete: null,
 };
+/** The same, by display token ("mat-<material>"). */
+const MAT_TEXTURE: ReadonlyMap<string, readonly [TextureKind, number] | null> = new Map(
+  MATERIALS.map((m) => [`mat-${m}`, MATERIAL_TEXTURE[m]] as const),
+);
 
 /** How a wall style's strip looks over its fill: faded, hatched (ruined), dashed (fences, rails, bars) or edged. */
 type WallLook = { alpha: number; pattern?: "hatch" | "dashed" | "edged" };
-const WALL_LOOK: Readonly<Record<string, WallLook>> = {
-  low_wall: { alpha: 0.7 },
-  ruined: { alpha: 0.8, pattern: "hatch" },
-  fence: { alpha: 1, pattern: "dashed" },
+const PLAIN_WALL: WallLook = { alpha: 1 };
+/** Every wall style of core's vocabulary has its look (a new style is a compile error here). */
+export const WALL_LOOK: Readonly<Record<WallStyle, WallLook>> = {
+  wall: PLAIN_WALL,
+  stone: PLAIN_WALL,
+  brick: PLAIN_WALL,
+  wood: PLAIN_WALL,
+  cave_rock: PLAIN_WALL,
+  plaster: PLAIN_WALL,
   palisade: { alpha: 1, pattern: "dashed" },
+  fence: { alpha: 1, pattern: "dashed" },
+  hedge: { alpha: 1, pattern: "edged" },
+  low_wall: { alpha: 0.7 },
   railing: { alpha: 1, pattern: "dashed" },
   iron_bars: { alpha: 1, pattern: "dashed" },
-  hedge: { alpha: 1, pattern: "edged" },
+  ruined: { alpha: 0.8, pattern: "hatch" },
+  railing_stone: PLAIN_WALL,
+  concrete: PLAIN_WALL,
+  metal: PLAIN_WALL,
+  panel: PLAIN_WALL,
+  marble: PLAIN_WALL,
+  dark_stone: PLAIN_WALL,
+  timber: PLAIN_WALL,
 };
-const PLAIN_WALL: WallLook = { alpha: 1 };
+const wallLook = (style: string): WallLook =>
+  Object.hasOwn(WALL_LOOK, style) ? WALL_LOOK[style as WallStyle] : PLAIN_WALL;
 
 /** Below this scale (px per cell) the grid is not drawn. */
 const GRID_MIN_SCALE = 6;
@@ -115,7 +148,7 @@ const drawFloor =
     }
     ctx.fillStyle = col(st);
     ctx.fill();
-    const tex = MAT_TEXTURE[st];
+    const tex = MAT_TEXTURE.get(st);
     if (tex)
       clipped(d, rings, () => {
         texture(d, b, tex[0], st.length);
@@ -222,7 +255,7 @@ const drawWall: GeomPainter = (d, st, { rings }, b) => {
   const { ctx, col, u } = d;
   d.ringsPath(rings, true);
   ctx.fillStyle = col(st);
-  const look = WALL_LOOK[st.startsWith("wall-") ? st.slice(5) : "wall"] ?? PLAIN_WALL;
+  const look = wallLook(st.startsWith("wall-") ? st.slice(5) : "wall");
   withAlpha(ctx, look.alpha, () => {
     ctx.fill();
   });

@@ -4,7 +4,7 @@ import type { DisplayItem } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
 import { SIDE_ROT } from "../../gen/gridGeometry";
-import { isSecret } from "../../gen/openingKinds";
+import { isGap, isSecret } from "../../gen/openingKinds";
 import { hEdgeIndex, vEdgeIndex } from "../../resolve/levelGrid";
 import type { DisplayCtx } from "./context";
 
@@ -19,7 +19,7 @@ export function openingItems(c: DisplayCtx): DisplayItem[] {
   const { bx, by, level, opts } = c;
   const items: DisplayItem[] = [];
   for (const o of level.openings) {
-    if (o.kind === "open") continue;
+    if (isGap(o.kind)) continue;
     if (!opts.gmLayer && (o.gmOnly === true || isSecret(o.kind))) continue;
     const g = o.orientation === "h" ? level.hEdges : level.vEdges;
     const lx = o.start[0] - bx;
