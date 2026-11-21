@@ -12,9 +12,8 @@
  */
 import type { Side } from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
+import { SIDE_STEP as STEP } from "../gen/gridGeometry";
 import { h32 } from "../util/hash";
-
-const STEP: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
 
 /** Shaded faces grow more (the sun is taken from the south). */
 const SHADE: Record<Side, number> = { N: 1.35, W: 1.15, E: 0.9, S: 0.65 };

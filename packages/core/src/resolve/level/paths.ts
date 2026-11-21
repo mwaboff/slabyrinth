@@ -11,6 +11,7 @@
 import type { Material, TerrainOp, Vec2 } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
+import { SIDE_STEP } from "../../gen/gridGeometry";
 import { forEachMaskCell } from "../../gen/mask";
 import { ValueNoise } from "../../gen/noise";
 import { rasterPolyline } from "../../gen/shapes";
@@ -428,10 +429,10 @@ export function stepPathSpurs(work: ResolveGrid): void {
         )
       : undefined;
     if (doorOpening?.at) {
-      const d = { N: [0, -1], S: [0, 1], W: [-1, 0], E: [1, 0] }[doorOpening.at.side];
+      const d = SIDE_STEP[doorOpening.at.side];
       targets.push({
         id: st.id,
-        at: [doorOpening.at.x + (d[0] as number), doorOpening.at.y + (d[1] as number)],
+        at: [doorOpening.at.x + d[0], doorOpening.at.y + d[1]],
         exact: true,
       });
       continue;

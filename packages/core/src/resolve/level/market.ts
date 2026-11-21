@@ -8,11 +8,12 @@
  * props) through FeatureWork, the overhead lines that found both anchors (the list it is handed, ResolvedLevel.lines),
  * plan issues.
  */
-import type { FeatureType, Level, Side } from "../../contracts/plan";
+import type { FeatureType, Level } from "../../contracts/plan";
 import { PLAN_LIMITS } from "../../contracts/plan";
 import type { ResolvedFeature, ResolvedLine, ResolvedOpening, StallBuild } from "../../contracts/resolved";
 import { CELL, CELL_FLAG } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
+import { FACE_ROT as TURN, SIDE_STEP as STEP } from "../../gen/gridGeometry";
 import {
   TRADE_PROPS,
   stallKindInfo,
@@ -395,8 +396,6 @@ function stepTradeProps(
   if (!work.structs) return;
   const carriage = new Set<number>();
   for (const r of paths.pendingRoads) for (const i of r.cells) carriage.add(i);
-  const STEP: Record<Side, [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
-  const TURN: Record<Side, number> = { S: 0, W: 90, N: 180, E: 270 };
   for (const b of work.structs.buildings) {
     const trade = tradeOf(b.st.use);
     if (!trade || (b.st.style ?? "cottage") === "modern") continue;

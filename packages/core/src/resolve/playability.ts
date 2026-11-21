@@ -23,6 +23,7 @@ import type {
 import type { ResolvedLevel, ResolvedLink, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
+import { SIDE_STEP as DIRS } from "../gen/gridGeometry";
 import { sideEdgeIndex } from "./levelGrid";
 import { entryLevelId } from "./validate";
 
@@ -63,7 +64,6 @@ const MAX_STEP_QUARTERS = 2; // a 0.5-tile step can be walked; more needs stairs
 const SEATS = new Set(["chair", "stool", "bench"]);
 const TABLES = new Set(["table", "round_table", "desk", "counter", "bar_counter"]);
 const WALL_HUGGERS = new Set(["bookshelf", "shelf", "wardrobe", "weapon_rack"]);
-const DIRS: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
 
 interface LevelData {
   l: ResolvedLevel;

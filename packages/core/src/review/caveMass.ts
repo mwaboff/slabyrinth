@@ -14,6 +14,7 @@ import type { PaletteCatalog, PlacementSet } from "../contracts/compiler";
 import type { MapPlan } from "../contracts/plan";
 import { CELL, type ResolvedLevel, type ResolvedPlan } from "../contracts/resolved";
 import { placementBox, rotateXZ } from "../compile/geometry";
+import { NEIGHBOURS4 as D4 } from "../gen/gridGeometry";
 import { hasNaturalWallStyle } from "../gen/wallStyles";
 import { massDepth, massFoot } from "../gen/solidMass";
 import { generatorProfile } from "../plan/generator";
@@ -70,13 +71,6 @@ export interface MassMeasures {
    */
   hollow: number;
 }
-
-const D4: ReadonlyArray<readonly [number, number]> = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
 
 /** Rock family of an asset name (thresholds.ts ROCK_FAMILIES). */
 export function rockFamily(name: string): string {

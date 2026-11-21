@@ -24,6 +24,7 @@
 import type { PaletteFacing, Placement, PlacementRole } from "../contracts/compiler";
 import type { Side } from "../contracts/plan";
 import type { ResolvedFeature } from "../contracts/resolved";
+import { OPPOSITE as OPP } from "../gen/gridGeometry";
 import { stallCell, stallKindInfo } from "../gen/market";
 import {
   SMALL_THINGS_ROLES,
@@ -58,7 +59,6 @@ export interface StallRealizeCtx {
   info: (code: string, message: string, role?: string) => void;
 }
 
-const OPP: Record<Side, Side> = { N: "S", S: "N", E: "W", W: "E" };
 const oneCell: VariantFilter = ONE_CELL_TILE;
 const quarter = (deg: number): number => (((Math.round(deg / 90) % 4) + 4) % 4) * 90;
 

@@ -39,6 +39,7 @@ import type {
 import { BUILD_CONSTANTS } from "../contracts/plan";
 import type { BuiltRoofType, ResolvedLevel, ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
+import { SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
 import { forEachMaskCell } from "../gen/mask";
 import { generatorProfile } from "../plan/generator";
 import { withWings } from "../plan/building";
@@ -77,8 +78,6 @@ const DOOR_KINDS = new Set<OpeningKind>([
   "open",
   "portcullis",
 ]);
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
-const STEP: Record<Side, [number, number]> = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 const key = (x: number, y: number): string => `${x},${y}`;
 
 /** A straight run of outside edges of a footprint on one face: cells along it, in increasing x (N/S) or y (E/W). */

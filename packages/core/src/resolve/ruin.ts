@@ -12,10 +12,8 @@
  */
 import type { Side } from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
+import { SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
 import { h32 } from "../util/hash";
-
-const STEP: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
 
 export interface RuinVolumeIn {
   id: string;

@@ -5,8 +5,10 @@
  */
 import type { Box3, OrientationCalibration, PaletteVariant } from "../contracts/compiler";
 import type { Side } from "../contracts/plan";
+import { SIDES } from "../gen/gridGeometry";
 
-export const DIRS: readonly Side[] = ["N", "E", "S", "W"];
+/** The four sides clockwise from north (gen/gridGeometry.ts SIDES), the order the quarter turns count in. */
+export const DIRS: readonly Side[] = SIDES;
 const idx = (d: Side): number => DIRS.indexOf(d);
 
 /** Turns `d` clockwise by `quarters` quarter turns (compass terms). */

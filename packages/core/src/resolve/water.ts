@@ -3,7 +3,8 @@
  * points keep off the border so it runs through the play space instead of along it. Ponds, lakes and springs (by
  * the op's id) are left as drawn.
  */
-import type { Vec2 } from "../contracts/plan";
+import type { Side, Vec2 } from "../contracts/plan";
+import { OPPOSITE } from "../gen/gridGeometry";
 
 type P = [number, number];
 
@@ -16,8 +17,6 @@ interface Box {
   x1: number;
   y1: number;
 }
-
-type Side = "N" | "E" | "S" | "W";
 
 const onEdge = (p: P, b: Box): Side | null =>
   p[1] <= b.y0 + 1 ? "N" : p[1] >= b.y1 - 1 ? "S" : p[0] <= b.x0 + 1 ? "W" : p[0] >= b.x1 - 1 ? "E" : null;
@@ -40,8 +39,6 @@ function snap(p: P, side: Side, b: Box): P {
   const cy = Math.max(b.y0, Math.min(b.y1, Math.round(p[1])));
   return side === "N" ? [cx, b.y0] : side === "S" ? [cx, b.y1] : side === "W" ? [b.x0, cy] : [b.x1, cy];
 }
-
-const OPPOSITE: Record<Side, Side> = { N: "S", S: "N", E: "W", W: "E" };
 
 /**
  * A river's course: ends extended to the board edges (two different edges), inner points held `margin` cells off
