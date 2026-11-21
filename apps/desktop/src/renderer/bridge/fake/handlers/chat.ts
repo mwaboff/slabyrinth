@@ -2,7 +2,7 @@
  * The fake main's chat channels. A turn is a FakeTurn (../engine.ts) run against this project: it commits versions,
  * updates the brief and records the turn's meta through the host built here.
  */
-import { commitVersion, validatePlan } from "@slabyrinth/core";
+import { checkPlan, commitVersion, outstandingIssues, validatePlan } from "@slabyrinth/core";
 import type { ChatEvent, IpcRequests, OutstandingIssues } from "../../../../shared/ipc";
 import type { ChatItem } from "../../../../main/agent/provider/types";
 import { FakeTurn } from "../engine";
@@ -26,8 +26,6 @@ type ChatChannels =
 
 type TurnHost = ConstructorParameters<typeof FakeTurn>[0];
 
-/** The outstanding-issues notice lists at most this many issues. */
-const OUTSTANDING_LIMIT = 20;
 /** What a fake AI version costs (USD). */
 const FAKE_VERSION_COST = 0.05;
 
@@ -232,36 +230,18 @@ function turnHost(s: FakeState, p: FakeProject): TurnHost {
       return { ...plan, id: crypto.randomUUID() };
     },
     sleep: s.sleep,
-    outstanding: () => outstandingIssues(s, p),
+    outstanding: () => outstandingNotice(s, p),
   };
 }
 
-/** The notice of issues left on the head plan: set only when error-level issues remain (warnings listed alongside). */
-function outstandingIssues(s: FakeState, p: FakeProject): OutstandingIssues | undefined {
+/**
+ * The notice of issues left on the head plan, as main's engine guard builds it (core checkPlan + outstandingIssues):
+ * set only when error-level playability issues remain (warnings listed alongside).
+ */
+function outstandingNotice(s: FakeState, p: FakeProject): OutstandingIssues | undefined {
   const plan = s.planAt(p, p.history.head);
   if (!plan) return undefined;
-  const issues = validatePlan(plan, rules()).issues.filter((i) => i.severity !== "info");
-  if (!issues.some((i) => i.severity === "error")) return undefined;
-  const rank = { error: 0, warning: 1, info: 2 } as const;
-  const items = [...issues]
-    .sort((x, y) => rank[x.severity] - rank[y.severity])
-    .slice(0, OUTSTANDING_LIMIT)
-    .map((i) => {
-      const it: OutstandingIssues["items"][number] = {
-        severity: i.severity,
-        code: i.code,
-        message: i.message,
-      };
-      if (i.hint !== undefined) it.hint = i.hint;
-      if (i.elementId !== undefined) it.elementId = i.elementId;
-      if (i.levelId !== undefined) it.levelId = i.levelId;
-      if (i.cell !== undefined) it.cell = i.cell;
-      return it;
-    });
-  return {
-    version: p.history.head,
-    errors: issues.filter((i) => i.severity === "error").length,
-    warnings: issues.filter((i) => i.severity === "warning").length,
-    items,
-  };
+  const checks = checkPlan(plan, (x) => validatePlan(x, rules()));
+  if (checks.errors.length === 0) return undefined;
+  return outstandingIssues(p.history.head, checks);
 }
