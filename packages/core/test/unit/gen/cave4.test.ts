@@ -4,7 +4,6 @@
  * rectangles get ragged outlines. Generator 3 output stays as it was (test/golden/generator3 pins it); these tests
  * compare the same plans at generators 3 and 4.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { CELL, CELL_FLAG, type ResolvedLevel } from "../../../src/contracts/resolved";
@@ -23,10 +22,10 @@ import { reviewDesign } from "../../../src/review";
 import { reviewBuild } from "../../../src/review/reviewBuild";
 import { checkPlayability, resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
+import { loadPlan } from "../../fixtures";
+import { dungeonPlan } from "../../fixtures/planBuilder";
 
-const fixture = JSON.parse(
-  readFileSync(new URL("fixtures/sea-grotto.json", import.meta.url), "utf8"),
-) as MapPlan;
+const fixture = loadPlan("sea-grotto");
 const palettes = loadPalettes();
 
 const D4 = [
@@ -215,48 +214,30 @@ describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", ()
 });
 
 describe("generator 4: rectangular cave chambers and a corridor", () => {
+  // two rectangular chambers joined by a straight corridor, with a side chamber and a nook
   const plan = (generator: 3 | 4): MapPlan =>
-    ({
-      schema: "slabyrinth/plan@1",
+    dungeonPlan({
       generator,
       id: "6b0e2f4c-1d3a-4c5b-9e8f-7a6b5c4d3e2f",
-      title: "Box caves",
       kind: "cave",
       seed: 991,
       theme: "cave",
-      summary: "Two rectangular chambers joined by a straight corridor, with a side chamber.",
-      levels: [
+      levelId: "l1",
+      w: 44,
+      h: 34,
+      areas: [
+        { id: "hall", kind: "cave", name: "Hall", shape: { type: "rect", x: 5, y: 6, w: 14, h: 12 } },
         {
-          id: "l1",
-          name: "Caves",
-          elevation: 0,
-          bounds: { x: 0, y: 0, w: 44, h: 34 },
-          base: { type: "solid" },
-          areas: [
-            { id: "hall", kind: "cave", name: "Hall", shape: { type: "rect", x: 5, y: 6, w: 14, h: 12 } },
-            {
-              id: "corridor",
-              kind: "cave",
-              name: "Corridor",
-              shape: { type: "rect", x: 19, y: 10, w: 10, h: 3 },
-            },
-            {
-              id: "side",
-              kind: "cave",
-              name: "Side chamber",
-              shape: { type: "rect", x: 29, y: 6, w: 9, h: 10 },
-            },
-            { id: "nook", kind: "cave", name: "Nook", shape: { type: "rect", x: 10, y: 18, w: 4, h: 9 } },
-          ],
-          openings: [],
-          walls: [],
-          labels: [],
-          features: [{ id: "statue", type: "statue", at: [11, 11] }],
-          terrain: [],
+          id: "corridor",
+          kind: "cave",
+          name: "Corridor",
+          shape: { type: "rect", x: 19, y: 10, w: 10, h: 3 },
         },
+        { id: "side", kind: "cave", name: "Side chamber", shape: { type: "rect", x: 29, y: 6, w: 9, h: 10 } },
+        { id: "nook", kind: "cave", name: "Nook", shape: { type: "rect", x: 10, y: 18, w: 4, h: 9 } },
       ],
-      links: [],
-    }) as unknown as MapPlan;
+      level: { features: [{ id: "statue", type: "statue", at: [11, 11] }] },
+    });
   const r3 = resolvePlan(plan(3));
   const r4 = resolvePlan(plan(4));
 

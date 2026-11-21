@@ -26,11 +26,10 @@ import { reviewDesign } from "../../../src/review";
 import { reviewBuild } from "../../../src/review/reviewBuild";
 import "../../../src/resolve/autoregister";
 import * as realizeModule from "../../../src/compile/realize";
-import { readFileSync } from "node:fs";
+import { loadPlan } from "../../fixtures";
+import { dungeonPlan } from "../../fixtures/planBuilder";
 
-const fixtureKeep = JSON.parse(
-  readFileSync(new URL("../../fixtures/plans/keep-dungeon-v5.json", import.meta.url), "utf8"),
-) as MapPlan;
+const fixtureKeep = loadPlan("keep-dungeon-v8");
 
 vi.mock("../../../src/compile/realize", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../../../src/compile/realize")>();
@@ -182,41 +181,24 @@ describe("link cells", () => {
 
 describe("a level of rooms and a cave (generator 4)", () => {
   const plan = (generator: 3 | 4): MapPlan =>
-    ({
-      schema: "slabyrinth/plan@1",
+    dungeonPlan({
       generator,
       id: "mixed-mass",
-      title: "Mixed mass",
-      kind: "dungeon",
       seed: 31,
-      theme: "stone_dungeon",
-      summary: "A built room and a cave in one block of rock.",
-      levels: [
+      levelId: "l1",
+      w: 56,
+      h: 26,
+      areas: [
+        { id: "hall", kind: "room", name: "Hall", shape: { type: "rect", x: 5, y: 6, w: 12, h: 12 } },
         {
-          id: "l1",
-          name: "l1",
-          elevation: 0,
-          bounds: { x: 0, y: 0, w: 56, h: 26 },
-          base: { type: "solid" },
-          areas: [
-            { id: "hall", kind: "room", name: "Hall", shape: { type: "rect", x: 5, y: 6, w: 12, h: 12 } },
-            {
-              id: "grotto",
-              kind: "cave",
-              name: "Grotto",
-              theme: "cave",
-              shape: { type: "rect", x: 32, y: 5, w: 18, h: 14 },
-            },
-          ],
-          openings: [],
-          walls: [],
-          labels: [],
-          features: [],
-          terrain: [],
+          id: "grotto",
+          kind: "cave",
+          name: "Grotto",
+          theme: "cave",
+          shape: { type: "rect", x: 32, y: 5, w: 18, h: 14 },
         },
       ],
-      links: [],
-    }) as unknown as MapPlan;
+    });
 
   it("never dresses a solid cell twice and leaves no gutter between cap and rock", () => {
     const set = realizeModule.realize(resolvePlan(plan(4)), palettes, {});

@@ -3,18 +3,15 @@
  * the board edge is an exit, the plane height and dry upper reaches are reported, floors lay 1x2 pieces both ways,
  * and the review judges a map with no real depth.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { placementMeta, realize, verifyBuild } from "../../../src/compile";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
+import { loadPlan } from "../../fixtures";
 
-const load = (name: string): MapPlan =>
-  JSON.parse(readFileSync(new URL(`../../fixtures/plans/${name}`, import.meta.url), "utf8")) as MapPlan;
-
-const rift = (generator: 2 | 3): MapPlan => ({ ...load("heartroot-rift-v7.json"), generator });
+const rift = (generator: 2 | 3): MapPlan => loadPlan("heartroot-rift-v7", { generator });
 const cat = loadPalettes();
 const must = <T>(v: T | undefined): T => {
   if (v === undefined) throw new Error("expected a value");
@@ -94,7 +91,7 @@ describe("a passage that reaches the board edge is an exit (generator 3)", () =>
 });
 
 describe("water is one plane (generator 3)", () => {
-  const p = load("three-step-glen-v1.json");
+  const p = loadPlan("three-step-glen-v1");
   const r = resolvePlan(p);
   it("a stepped brook warns that its upper reaches stay dry, and no trail ford is called flooded", () => {
     const w = r.issues.filter((i) => i.code === "water_level");
@@ -123,7 +120,7 @@ describe("flat_map judges real depth (generator 3)", () => {
   it("fires on the heartroot cave (88% within a tile of one height), quiet on the stepped glen", () => {
     const cave = rift(3);
     expect(reviewDesign(cave, resolvePlan(cave), { limit: 99 }).map((n) => n.code)).toContain("flat_map");
-    const glen = load("three-step-glen-v1.json");
+    const glen = loadPlan("three-step-glen-v1");
     expect(reviewDesign(glen, resolvePlan(glen), { limit: 99 }).map((n) => n.code)).not.toContain("flat_map");
   });
 });

@@ -13,37 +13,21 @@ import { reviewDesign } from "../../../src/review";
 import { roofCoverOf, uncoveredRoofCells } from "../../../src/review/roofGaps";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
+import { townPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
 
-function plan(structures: Structure[], generator: 3 | 4, theme = "wood_town"): MapPlan {
-  return {
-    schema: "slabyrinth/plan@1",
+const plan = (structures: Structure[], generator: 3 | 4, theme = "wood_town"): MapPlan =>
+  townPlan({
     generator,
     id: "roofgap",
-    title: "roofgap",
-    kind: "outdoor",
     seed: 3,
     theme,
-    links: [],
-    levels: [
-      {
-        id: "g",
-        name: "g",
-        elevation: 0,
-        bounds: { x: 0, y: 0, w: 60, h: 20 },
-        base: { type: "ground", material: "grass" },
-        areas: [{ id: "lot", kind: "zone", shape: { type: "rect", x: 0, y: 0, w: 60, h: 20 } }],
-        openings: [],
-        walls: [],
-        features: [{ id: "f", type: "statue", at: [1, 1] }],
-        terrain: [],
-        labels: [],
-        structures,
-      },
-    ],
-  };
-}
+    w: 60,
+    h: 20,
+    structures,
+    level: { features: [{ id: "f", type: "statue", at: [1, 1] }] },
+  });
 
 /** Houses 5 to 9 cells wide with a stack at the middle of a gable end, so an odd span puts it on the ridge row. */
 const houses = (roof?: Building["roof"]): Structure[] =>

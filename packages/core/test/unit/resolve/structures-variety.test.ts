@@ -21,37 +21,21 @@ import {
   structureTone,
   weatherMeasures,
 } from "../../../src/resolve";
+import { townPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
 
-function plan(structures: Structure[], w = 60, h = 24, theme = "city"): MapPlan {
-  return {
-    schema: "slabyrinth/plan@1",
+const plan = (structures: Structure[], w = 60, h = 24, theme = "city"): MapPlan =>
+  townPlan({
     generator: 2,
     id: "variety",
-    title: "variety",
-    kind: "outdoor",
     seed: 5,
     theme,
-    links: [],
-    levels: [
-      {
-        id: "g",
-        name: "g",
-        elevation: 0,
-        bounds: { x: 0, y: 0, w, h },
-        base: { type: "ground", material: "concrete" },
-        areas: [{ id: "lot", kind: "zone", shape: { type: "rect", x: 0, y: 0, w, h } }],
-        openings: [],
-        walls: [],
-        features: [],
-        terrain: [],
-        labels: [],
-        structures,
-      },
-    ],
-  };
-}
+    w,
+    h,
+    base: { type: "ground", material: "concrete" },
+    structures,
+  });
 const structuresOf = (p: MapPlan): ResolvedStructure[] =>
   (resolvePlan(p).levels[0] as ResolvedLevel).structures ?? [];
 const sig = (s: ResolvedStructure): string => {

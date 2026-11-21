@@ -3,7 +3,6 @@
  * ring of 2-tall wall stubs. Collapse: no wall, low debris on the rim, a mound of rubble below. Shaft: a low kerb.
  * Balcony: a railing. Stairs climb the whole rise with no gap. Generator 3 keeps its 2-tall ruined rim.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { compileResolved, realize } from "../../../src/compile";
 import type { MapPlan, TerrainOp } from "../../../src/contracts/plan";
@@ -12,16 +11,14 @@ import { loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
 import { slabCodec } from "../../../src/slab";
+import { loadPlan } from "../../fixtures";
 
 const palettes = loadPalettes();
 const RUINED = "6ac43c67-e43d-455c-826d-e013745bdfbc";
 const IRON_BARS = "894cf316-b8c5-4559-923d-7ea4c79280aa";
 const LOW_WALL = "4e8c2ded-fd67-4c63-890e-8c655d445d1d";
 
-const keep = (): MapPlan =>
-  JSON.parse(
-    readFileSync(new URL("../../fixtures/plans/keep-dungeon-v5.json", import.meta.url), "utf8"),
-  ) as MapPlan;
+const keep = (): MapPlan => loadPlan("keep-dungeon-v8");
 
 function withOpening(patch: Partial<Extract<TerrainOp, { op: "floor_opening" }>>, generator: 3 | 4): MapPlan {
   const plan = keep();

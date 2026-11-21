@@ -13,6 +13,7 @@ import "../../../src/resolve/autoregister";
 import { mergeRoofs, roofOwners, roofProportion } from "../../../src/resolve";
 import { gableRoof, type RoofOwner } from "../../../src/resolve/roof";
 import { reviewDesign } from "../../../src/review";
+import { townPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
 const SIZES: Array<[number, number]> = [
@@ -25,43 +26,19 @@ const SIZES: Array<[number, number]> = [
   [10, 8],
 ];
 
-function plan(seed: number, use: string | undefined, w: number, h: number, generator: 2 | 3 = 3): MapPlan {
-  return {
-    schema: "slabyrinth/plan@1",
+/** One cottage (or inn, by `use`) of the given seed and footprint on a 22x22 lot. */
+const plan = (seed: number, use: string | undefined, w: number, h: number, generator: 2 | 3 = 3): MapPlan =>
+  townPlan({
     generator,
     id: "roofs",
-    title: "roofs",
-    kind: "outdoor",
     seed: 3,
-    theme: "outdoor",
-    links: [],
-    levels: [
-      {
-        id: "g",
-        name: "g",
-        elevation: 0,
-        bounds: { x: 0, y: 0, w: 22, h: 22 },
-        base: { type: "ground", material: "grass" },
-        areas: [{ id: "lot", kind: "zone", shape: { type: "rect", x: 0, y: 0, w: 22, h: 22 } }],
-        openings: [],
-        walls: [],
-        features: [{ id: "f", type: "statue", at: [1, 1] }],
-        terrain: [],
-        labels: [],
-        structures: [
-          {
-            id: "b",
-            style: "cottage",
-            seed,
-            ...(use ? { use } : {}),
-            wings: [{ x: 5, y: 5, w, h }],
-            front: "S",
-          },
-        ],
-      },
+    w: 22,
+    h: 22,
+    structures: [
+      { id: "b", style: "cottage", seed, ...(use ? { use } : {}), wings: [{ x: 5, y: 5, w, h }], front: "S" },
     ],
-  };
-}
+    level: { features: [{ id: "f", type: "statue", at: [1, 1] }] },
+  });
 const build = (p: MapPlan): ResolvedStructure =>
   ((resolvePlan(p).levels[0] as ResolvedLevel).structures ?? [])[0] as ResolvedStructure;
 

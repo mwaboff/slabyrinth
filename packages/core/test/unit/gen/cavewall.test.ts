@@ -5,9 +5,7 @@
  * generator 2; the four design-review measures (review/caveMass.ts) on a hand-made copy of the first generator-3 try
  * (a palisade of posts with a thin ring of separate lumps outside, three tones) and on what the planner builds.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { MapPlan } from "../../../src/contracts/plan";
 import { CELL } from "../../../src/contracts/resolved";
 import { realize } from "../../../src/compile";
 import { verifyBuild } from "../../../src/compile/verify/verify";
@@ -25,6 +23,7 @@ import {
 import { caveWallChecks, caveWallThickness } from "../../../src/review/caveWall";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
+import { loadPlan } from "../../fixtures";
 
 const D4 = [
   [1, 0],
@@ -282,9 +281,7 @@ describe("cave wall review measures: the first try fails them, the planner passe
 });
 
 describe("cave wall mass: the whole build on a sea cave", () => {
-  const fixture = JSON.parse(
-    readFileSync(new URL("fixtures/sea-grotto.json", import.meta.url), "utf8"),
-  ) as MapPlan;
+  const fixture = loadPlan("sea-grotto");
   const palettes = loadPalettes();
   const build = (generator: 2 | 3) => {
     const plan = { ...fixture, generator };
@@ -345,9 +342,7 @@ describe("cave wall mass: the whole build on a sea cave", () => {
 });
 
 describe("cave wall review note (thin rock)", () => {
-  const fixture = JSON.parse(
-    readFileSync(new URL("fixtures/sea-grotto.json", import.meta.url), "utf8"),
-  ) as MapPlan;
+  const fixture = loadPlan("sea-grotto");
   it("measures wall thickness from the resolved level and fires only on thin walls at generator 3", () => {
     const r = resolvePlan(fixture);
     const L = r.levels[0];

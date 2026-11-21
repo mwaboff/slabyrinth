@@ -3,23 +3,24 @@
  * only reads the golden) and update.ts (the one thing that writes it). See the header of generator4.test.ts.
  */
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { compileResolved, realize } from "../../../src/compile";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { loadPalettes, paletteOptionsFor } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import { designReviewText, reviewDesign } from "../../../src/review";
 import { slabCodec } from "../../../src/slab";
+import { GENERATOR_TEST_PLANS, loadPlan, STORED_PLANS, type StoredPlan } from "../../fixtures";
 
 /** The generator this golden follows while it is open. When it ships, see the header of generator4.test.ts. */
 export const OPEN_GENERATOR = 4;
 
 export const GOLDEN_FILE = new URL("__golden__/generator4.txt", import.meta.url);
 
-/** Plan fixture directories, by the short name a run is called after. Every `.json` file in them is a run. */
-const FIXTURE_DIRS: ReadonlyArray<readonly [string, URL]> = [
-  ["plans", new URL("../../fixtures/plans/", import.meta.url)],
-  ["gen", new URL("../../unit/gen/fixtures/", import.meta.url)],
+/** The stored plans, by the short name of their directory, which a run is called after. */
+const STORED: ReadonlyArray<readonly [string, readonly StoredPlan[]]> = [
+  ["plans", STORED_PLANS],
+  ["gen", GENERATOR_TEST_PLANS],
 ];
 
 export interface Run {
@@ -34,17 +35,15 @@ export interface Run {
  */
 export function goldenRuns(): Run[] {
   const runs: Run[] = [];
-  for (const [dirName, dir] of FIXTURE_DIRS)
-    for (const file of readdirSync(dir)
-      .filter((f) => f.endsWith(".json"))
-      .sort()) {
-      const plan = JSON.parse(readFileSync(new URL(file, dir), "utf8")) as MapPlan;
-      const name = `${dirName}/${file.replace(/\.json$/, "")}`;
+  for (const [dirName, names] of STORED)
+    for (const stored of [...names].sort()) {
+      const plan = loadPlan(stored);
+      const name = `${dirName}/${stored}`;
       runs.push({ name, plan });
       if (plan.generator !== OPEN_GENERATOR)
         runs.push({
           name: `${name}@${String(OPEN_GENERATOR)}`,
-          plan: { ...structuredClone(plan), generator: OPEN_GENERATOR },
+          plan: loadPlan(stored, { generator: OPEN_GENERATOR }),
         });
     }
   return runs;

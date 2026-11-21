@@ -3,13 +3,13 @@
  * the cover, the board-edge skirt is one course inside the board's bounds, and a role's pieces are narrowed to one
  * rock tone. Also the review's even-spacing measure (review/rockSpacing.ts).
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { MapPlan, Side } from "../../../src/contracts/plan";
 import { cliffBand, matchTone, terraceRockShare, type PlacementGrid } from "../../../src/gen/index";
 import { resolvePlan } from "../../../src/resolve/index";
 import { reviewDesign } from "../../../src/review/index";
 import { FENCE, fenceShare, type FenceRule } from "../../../src/review/rockSpacing";
+import { loadPlan } from "../../fixtures";
 
 const W = 44;
 const H = 30;
@@ -93,8 +93,7 @@ describe("even spacing measure (the v3 fence)", () => {
 });
 
 describe("review: cliff_even_spacing", () => {
-  const load = (): MapPlan =>
-    JSON.parse(readFileSync(new URL("./fixtures/terraced-hill.json", import.meta.url), "utf8")) as MapPlan;
+  const load = (): MapPlan => loadPlan("terraced-hill");
 
   it("the default band passes; the same level with its boulders in an even row fails", () => {
     const plan = load();

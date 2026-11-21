@@ -14,38 +14,12 @@ import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
 import { canonicalJson } from "../../../src/util/canonical";
+import { townPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
 
-function plan(structures: Structure[], extra: Partial<Level> = {}): MapPlan {
-  return {
-    schema: "slabyrinth/plan@1",
-    generator: 2,
-    id: "phase2",
-    title: "phase2",
-    kind: "outdoor",
-    seed: 17,
-    theme: "outdoor",
-    links: [],
-    levels: [
-      {
-        id: "g",
-        name: "g",
-        elevation: 0,
-        bounds: { x: 0, y: 0, w: 36, h: 30 },
-        base: { type: "ground", material: "grass" },
-        areas: [{ id: "land", kind: "zone", shape: { type: "rect", x: 0, y: 0, w: 36, h: 30 } }],
-        openings: [],
-        walls: [],
-        features: [],
-        terrain: [],
-        labels: [],
-        structures,
-        ...extra,
-      },
-    ],
-  };
-}
+const plan = (structures: Structure[], extra: Partial<Level> = {}): MapPlan =>
+  townPlan({ generator: 2, id: "phase2", seed: 17, w: 36, h: 30, lot: "land", structures, level: extra });
 
 const level0 = (p: MapPlan): ResolvedLevel => resolvePlan(p).levels[0] as ResolvedLevel;
 const build = (p: MapPlan) => {

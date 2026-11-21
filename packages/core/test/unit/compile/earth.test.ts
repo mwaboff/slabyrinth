@@ -3,13 +3,12 @@
  * open grass). Floor tiles of a caused family ("lush") stand within two cells of a tree, a camp, a path or the foot
  * of a rise. Measured on realized floor placements of the dressed test maps.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { MapPlan } from "../../../src/contracts/plan";
 import { realize, placementMeta } from "../../../src/compile";
 import { loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
+import { loadPlan } from "../../fixtures";
 
 const pal = loadPalettes();
 const lushAssets = new Set<string>();
@@ -30,11 +29,9 @@ const CAUSES = new Set([
 ]);
 
 describe("caused floor families", () => {
-  for (const name of ["dressed-forest-v4.json", "hillside-v5.json"])
+  for (const name of ["dressed-forest-v4", "hillside-v5"] as const)
     it(`${name}: every litter tile has a cause within two cells`, () => {
-      const plan = JSON.parse(
-        readFileSync(new URL(`../gen/fixtures/${name}`, import.meta.url), "utf8"),
-      ) as MapPlan;
+      const plan = loadPlan(name);
       const r = resolvePlan(plan);
       const set = realize(r, pal, {});
       for (const L of r.levels) {

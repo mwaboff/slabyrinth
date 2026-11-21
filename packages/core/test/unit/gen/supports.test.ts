@@ -3,15 +3,15 @@
  * on a boulder) at the support's real top height, instead of standing on the floor beside it; verify accepts them.
  * Generator 2 output is untouched. Ground cover drifts in clusters with bare ground between.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { MapPlan, Side } from "../../../src/contracts/plan";
+import type { Side } from "../../../src/contracts/plan";
 import { realize } from "../../../src/compile";
 import { verifyBuild } from "../../../src/compile/verify/verify";
 import { dressArea, type GeneratedPlacement, type PlacementGrid } from "../../../src/gen/index";
 import { loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
+import { loadPlan } from "../../fixtures";
 
 const W = 30;
 const H = 20;
@@ -124,9 +124,7 @@ describe("props rest on props", () => {
 });
 
 describe("props rest on props: the whole build", () => {
-  const fixture = JSON.parse(
-    readFileSync(new URL("fixtures/sea-grotto.json", import.meta.url), "utf8"),
-  ) as MapPlan;
+  const fixture = loadPlan("sea-grotto");
   const palettes = loadPalettes();
   const build = (generator: 2 | 3) => {
     const plan = { ...fixture, generator };

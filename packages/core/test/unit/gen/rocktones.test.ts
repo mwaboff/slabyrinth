@@ -3,22 +3,16 @@
  * grey, as seen in the owner's screenshots), the face piece decides the cliff's tone and keeps every face, boulders and
  * loose rock beside the cliff match it, and the review note rock_tones_mixed fires where the rule is off.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { realize } from "../../../src/compile/index";
-import type { MapPlan } from "../../../src/contracts/plan";
+import type { GeneratorVersion, MapPlan } from "../../../src/contracts/plan";
 import { cliffRockKinds } from "../../../src/gen/index";
 import { loadPalettes } from "../../../src/palette/load";
 import { resolvePlan } from "../../../src/resolve/index";
 import { reviewDesign } from "../../../src/review/index";
+import { loadPlan } from "../../fixtures";
 
-const fixture = (generator = 3): MapPlan => {
-  const plan = JSON.parse(
-    readFileSync(new URL("./fixtures/terraced-hill.json", import.meta.url), "utf8"),
-  ) as MapPlan;
-  plan.generator = generator as MapPlan["generator"];
-  return plan;
-};
+const fixture = (generator: GeneratorVersion = 3): MapPlan => loadPlan("terraced-hill", { generator });
 
 const v = (
   tone: "dark" | "mid" | "light" | undefined,

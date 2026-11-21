@@ -3,7 +3,6 @@
  * mass with a flat cap, a floor of its own for each room with a step at the door, rough walls with uneven tops and
  * rubble at the feet. Generators 1-3 keep their output (golden); these tests pin the generator-4 rules.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { compileResolved, realize } from "../../../src/compile";
 import { SHELL, planShell } from "../../../src/compile/shell";
@@ -18,13 +17,15 @@ import { createPaletteView } from "../../../src/palette/view";
 import { reviewDesign } from "../../../src/review";
 import { slabCodec } from "../../../src/slab";
 import { h32 } from "../../../src/util/hash";
+import { loadPlan } from "../../fixtures";
+import { dungeonPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
-const keep = (generator: 3 | 4 = 4): MapPlan => {
-  const p = JSON.parse(
-    readFileSync(new URL("../../fixtures/plans/keep-dungeon-v5.json", import.meta.url), "utf8"),
-  ) as MapPlan;
-  p.generator = generator;
+const keep = (generator: 3 | 4 = 4): MapPlan => loadPlan("keep-dungeon-v8", { generator });
+/** The inn interior, optionally in another theme. */
+const inn = (theme?: string): MapPlan => {
+  const p = loadPlan("inn-interior-v1");
+  if (theme !== undefined) p.theme = theme;
   return p;
 };
 const lvl = (plan: MapPlan, id: string): ResolvedLevel => {
@@ -99,9 +100,7 @@ describe("generator 4 room floors", () => {
     }
   });
   it("an inhabited timber inn takes wood for bedrooms and common rooms, tile or stone for kitchen, wash and store", () => {
-    const p = JSON.parse(
-      readFileSync(new URL("../../fixtures/plans/inn-interior-v1.json", import.meta.url), "utf8"),
-    ) as MapPlan;
+    const p = inn();
     for (const a of p.levels[0]?.areas ?? []) if (a.kind === "room") delete a.floor; // every room on the default floor
     const L = lvl(p, "l1");
     for (const a of L.areas) {
@@ -238,11 +237,8 @@ describe("generator 4 rough walls", () => {
     expect(lvl(keep(3), "l1").features.filter((f) => f.generatedBy === "walls")).toHaveLength(0);
   });
   describe("a tidy timber interior keeps clean walls", () => {
-    const inn = (theme: string, rename?: string): MapPlan => {
-      const p = JSON.parse(
-        readFileSync(new URL("../../fixtures/plans/inn-interior-v1.json", import.meta.url), "utf8"),
-      ) as MapPlan;
-      p.theme = theme;
+    const innRenamed = (theme: string, rename?: string): MapPlan => {
+      const p = inn(theme);
       if (rename) {
         const guard = p.levels[0]?.areas.find((a) => a.id === "guard");
         if (guard) guard.name = rename;
@@ -270,7 +266,7 @@ describe("generator 4 rough walls", () => {
       expect(distinctTops(L).has(1.5)).toBe(true);
     });
     it("an abandoned room in the timber inn is rough, the rest stays clean", () => {
-      const L = lvl(inn("wood_town", "Ruined guard room"), "l1");
+      const L = lvl(innRenamed("wood_town", "Ruined guard room"), "l1");
       const piles = L.features.filter((f) => f.generatedBy === "walls");
       expect(piles.length).toBeGreaterThan(0);
       for (const f of piles) expect(f.area).toBe("guard");
@@ -283,59 +279,29 @@ describe("generator 4 rough walls", () => {
   });
 
   it("only a room a corridor opens on is raised, not one that touches it across a wall (finding 17b)", () => {
-    const plan = {
-      schema: "slabyrinth/plan@1",
+    const plan = dungeonPlan({
       generator: 4,
       id: "0b7c2d4e-1f3a-4c5b-8d6e-9f0a1b2c3d4e",
-      title: "Two rooms",
-      kind: "dungeon",
       seed: 77,
-      theme: "stone_dungeon",
-      summary: "Two rooms over a passage; only one has a door to it.",
-      entryLevel: "l1",
-      levels: [
-        {
-          id: "l1",
-          name: "One",
-          elevation: 0,
-          bounds: { x: 0, y: 0, w: 16, h: 13 },
-          base: { type: "solid" },
-          areas: [
-            {
-              id: "pass",
-              kind: "corridor",
-              name: "Passage",
-              shape: { type: "rect", x: 1, y: 8, w: 13, h: 3 },
-            },
-            { id: "a", kind: "room", name: "Study", shape: { type: "rect", x: 1, y: 2, w: 6, h: 6 } },
-            { id: "b", kind: "room", name: "Library", shape: { type: "rect", x: 7, y: 2, w: 6, h: 6 } },
-          ],
-          openings: [
-            { id: "d1", kind: "door", between: ["a", "pass"] },
-            { id: "d2", kind: "door", between: ["a", "b"] },
-          ],
-          walls: [],
-          features: [],
-          terrain: [],
-          labels: [],
-          structures: [],
-        },
+      levelId: "l1",
+      w: 16,
+      h: 13,
+      areas: [
+        { id: "pass", kind: "corridor", name: "Passage", shape: { type: "rect", x: 1, y: 8, w: 13, h: 3 } },
+        { id: "a", kind: "room", name: "Study", shape: { type: "rect", x: 1, y: 2, w: 6, h: 6 } },
+        { id: "b", kind: "room", name: "Library", shape: { type: "rect", x: 7, y: 2, w: 6, h: 6 } },
       ],
-      links: [],
-    } as unknown as MapPlan;
+      openings: [
+        { id: "d1", kind: "door", between: ["a", "pass"] },
+        { id: "d2", kind: "door", between: ["a", "b"] },
+      ],
+    });
     const L = lvl(plan, "l1");
     expect(areaHeight(L, "a")).toBe(0.25);
     expect(areaHeight(L, "b")).toBe(0);
   });
 
   describe("interior character is data on the theme, not a list of theme names (finding 1)", () => {
-    const inn = (theme: string): MapPlan => {
-      const p = JSON.parse(
-        readFileSync(new URL("../../fixtures/plans/inn-interior-v1.json", import.meta.url), "utf8"),
-      ) as MapPlan;
-      p.theme = theme;
-      return p;
-    };
     const finishes = (L: ResolvedLevel): Set<string | undefined> => new Set(L.areas.map((a) => a.finish));
     it("the built-in timber themes (tavern, town, wood_town, city) are tidy and floored in timber: no rubble", () => {
       for (const theme of ["tavern", "town", "wood_town", "city"]) {
@@ -439,13 +405,6 @@ describe("generator 4 solid shell", () => {
 });
 
 describe("generator 4 shell: tidy buildings, outline", () => {
-  const inn = (theme: string): MapPlan => {
-    const p = JSON.parse(
-      readFileSync(new URL("../../fixtures/plans/inn-interior-v1.json", import.meta.url), "utf8"),
-    ) as MapPlan;
-    p.theme = theme;
-    return p;
-  };
   it("a tidy timber inn gets no cap and no skirt, only flush strips between its rooms", () => {
     const R = resolvePlan(inn("wood_town"));
     const L = R.levels[0] as ResolvedLevel;
@@ -538,12 +497,7 @@ describe("generator 4 shell: tidy buildings, outline", () => {
 });
 
 describe("generator 4 secret door plug", () => {
-  const fixture = (): MapPlan => {
-    const p = JSON.parse(
-      readFileSync(new URL("../../fixtures/plans/keep-dungeon-v7.json", import.meta.url), "utf8"),
-    ) as MapPlan;
-    return p;
-  };
+  const fixture = (): MapPlan => keep();
   it("is one removable wall piece in the wall line, with a GM note naming it", () => {
     const R = resolvePlan(fixture());
     const set = realize(R, palettes, {});

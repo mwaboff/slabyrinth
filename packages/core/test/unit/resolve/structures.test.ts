@@ -14,38 +14,22 @@ import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
 import { canonicalJson } from "../../../src/util/canonical";
+import { townPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
 
-function plan(structures: Structure[], extra: Partial<Level> = {}, generator: 1 | 2 = 2): MapPlan {
-  return {
-    schema: "slabyrinth/plan@1",
+const plan = (structures: Structure[], extra: Partial<Level> = {}, generator: 1 | 2 = 2): MapPlan =>
+  townPlan({
     generator,
     id: "structures",
-    title: "structures",
-    kind: "outdoor",
     seed: 11,
     theme: "forest",
-    links: [],
-    levels: [
-      {
-        id: "g",
-        name: "g",
-        elevation: 0,
-        bounds: { x: 0, y: 0, w: 24, h: 20 },
-        base: { type: "ground", material: "grass" },
-        areas: [{ id: "woods", kind: "zone", shape: { type: "rect", x: 0, y: 0, w: 24, h: 20 } }],
-        openings: [],
-        walls: [],
-        features: [],
-        terrain: [],
-        labels: [],
-        structures,
-        ...extra,
-      },
-    ],
-  };
-}
+    w: 24,
+    h: 20,
+    lot: "woods",
+    structures,
+    level: extra,
+  });
 
 const shack = (more: Partial<Building> = {}): Building => ({
   id: "shack",

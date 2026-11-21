@@ -3,7 +3,6 @@
  * focal_unlit note works from the resolved level (a focal feature with no light source within a few cells), and the
  * dressing places a light by a generated landmark at generator 3.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { realize } from "../../../src/compile";
@@ -12,10 +11,9 @@ import { loadPalettes } from "../../../src/palette";
 import { reviewDesign } from "../../../src/review";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
+import { loadPlan } from "../../fixtures";
 
-const fixture = JSON.parse(
-  readFileSync(new URL("../gen/fixtures/sea-grotto.json", import.meta.url), "utf8"),
-) as MapPlan;
+const fixture = loadPlan("sea-grotto");
 const palettes = loadPalettes();
 
 describe("cave rock mass notes in the review", () => {
@@ -61,9 +59,7 @@ describe("focal_unlit", () => {
 });
 
 describe("a landmark is lit by the dressing at generator 3", () => {
-  const glade = JSON.parse(
-    readFileSync(new URL("../../fixtures/plans/old-stones-glade-v6.json", import.meta.url), "utf8"),
-  ) as MapPlan;
+  const glade = loadPlan("old-stones-glade-v6");
   it("no generated landmark stands without a light within four cells", () => {
     const plan = { ...glade, generator: 3 as const };
     const r = resolvePlan(plan);

@@ -21,10 +21,13 @@ for (const name of new Set([...before.keys(), ...after.keys()])) {
   const now = after.get(name);
   if (was === now) continue;
   changed++;
-  const what = was === undefined ? "ADDED" : now === undefined ? "REMOVED" : "CHANGED";
-  console.log(`${what} ${name}`);
-  for (const d of lineDiff(was, now)) console.log(`    ${d}`);
-  if (was !== undefined && now !== undefined && changesReleasedOutput(was, now)) frozen.push(name);
+  if (was === undefined) console.log(`ADDED   ${now ?? ""}`);
+  else if (now === undefined) console.log(`REMOVED ${was}`);
+  else {
+    console.log(`CHANGED ${name}`);
+    for (const d of lineDiff(was, now)) console.log(`    ${d}`);
+    if (changesReleasedOutput(was, now)) frozen.push(name);
+  }
 }
 
 if (frozen.length) {

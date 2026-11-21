@@ -2,11 +2,11 @@
  * Generator 3 cliffs: no rock hangs in the air (every piece rests on the ground or on rock under most of its
  * footprint), and a natural region is never left without a band, even where no dress op asked for one.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { MapPlan, Side } from "../../../src/contracts/plan";
+import type { Side } from "../../../src/contracts/plan";
 import { cliffBand, defaultCliffBands, type PlacementGrid } from "../../../src/gen/index";
 import { resolvePlan } from "../../../src/resolve/index";
+import { loadPlan } from "../../fixtures";
 
 const W = 44;
 const H = 30;
@@ -168,9 +168,7 @@ describe("generator 3 default cliff bands", () => {
 
 describe("terraced hill at generator 3 (resolved plan)", () => {
   it("no hanging rock, and under 10% of the cliff edge bare", () => {
-    const plan = JSON.parse(
-      readFileSync(new URL("./fixtures/terraced-hill.json", import.meta.url), "utf8"),
-    ) as MapPlan;
+    const plan = loadPlan("terraced-hill");
     expect(plan.generator).toBe(3);
     {
       const resolved = resolvePlan(plan);

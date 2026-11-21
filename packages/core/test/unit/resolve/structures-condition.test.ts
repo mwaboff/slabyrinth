@@ -11,37 +11,21 @@ import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
 import { WEATHER_MINIMUMS, structureRuinMeasures, weatherMeasures, weatherSigns } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
+import { townPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
 
-function plan(structures: Structure[], generator: 2 | 3 = 3, theme = "forest"): MapPlan {
-  return {
-    schema: "slabyrinth/plan@1",
+const plan = (structures: Structure[], generator: 2 | 3 = 3, theme = "forest"): MapPlan =>
+  townPlan({
     generator,
     id: "cond",
-    title: "cond",
-    kind: "outdoor",
     seed: 5,
     theme,
-    links: [],
-    levels: [
-      {
-        id: "g",
-        name: "g",
-        elevation: 0,
-        bounds: { x: 0, y: 0, w: 30, h: 30 },
-        base: { type: "ground", material: "grass" },
-        areas: [{ id: "lot", kind: "zone", shape: { type: "rect", x: 0, y: 0, w: 30, h: 30 } }],
-        openings: [],
-        walls: [],
-        features: [{ id: "f", type: "statue", at: [2, 2] }],
-        terrain: [],
-        labels: [],
-        structures,
-      },
-    ],
-  };
-}
+    w: 30,
+    h: 30,
+    structures,
+    level: { features: [{ id: "f", type: "statue", at: [2, 2] }] },
+  });
 const first = (p: MapPlan): ResolvedStructure =>
   ((resolvePlan(p).levels[0] as ResolvedLevel).structures ?? [])[0] as ResolvedStructure;
 const b = (style: string, seed: number, w: number, h: number, extra: Partial<Building> = {}): Building => ({

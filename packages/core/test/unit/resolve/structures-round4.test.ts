@@ -10,37 +10,21 @@ import { realize } from "../../../src/compile";
 import { loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
+import { townPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
 
-function plan(structures: Structure[], generator: 2 | 3 = 3, seed = 5): MapPlan {
-  return {
-    schema: "slabyrinth/plan@1",
+const plan = (structures: Structure[], generator: 2 | 3 = 3, seed = 5): MapPlan =>
+  townPlan({
     generator,
     id: "r4",
-    title: "r4",
-    kind: "outdoor",
     seed,
     theme: "forest",
-    links: [],
-    levels: [
-      {
-        id: "g",
-        name: "g",
-        elevation: 0,
-        bounds: { x: 0, y: 0, w: 70, h: 20 },
-        base: { type: "ground", material: "grass" },
-        areas: [{ id: "lot", kind: "zone", shape: { type: "rect", x: 0, y: 0, w: 70, h: 20 } }],
-        openings: [],
-        walls: [],
-        features: [{ id: "f", type: "statue", at: [1, 1] }],
-        terrain: [],
-        labels: [],
-        structures,
-      },
-    ],
-  };
-}
+    w: 70,
+    h: 20,
+    structures,
+    level: { features: [{ id: "f", type: "statue", at: [1, 1] }] },
+  });
 const all = (p: MapPlan): ResolvedStructure[] => (resolvePlan(p).levels[0] as ResolvedLevel).structures ?? [];
 const street = (seed: number): MapPlan =>
   plan(
