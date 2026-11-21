@@ -16,9 +16,11 @@ import type {
   TerrainOp,
   Vec2,
 } from "../contracts/plan";
-import type { ResolvedLevel, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
-import { entryLevelId } from "../plan/links";
+import type { ResolvedArea, ResolvedLevel, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
 import { withWings } from "../plan/building";
+import { generatorProfile, type GeneratorProfile } from "../plan/generator";
+import { entryLevelId } from "../plan/links";
+import { isRoomArea } from "../plan/validate";
 
 export interface OutlineOptions {
   version?: number;
@@ -70,7 +72,29 @@ export function formatOpeningEdge(o: Pick<ResolvedOpening, "orientation" | "star
   return o.orientation === "h" ? `edge h ${x}..${x + o.width},${y}` : `edge v ${x},${y}..${y + o.width}`;
 }
 
-function areaLine(a: Area, lvl: ResolvedLevel | undefined, noteChars: number): string {
+/**
+ * How the resolver read a room (generator 4: gen/roomPurpose.ts classifyRoom, stored on the resolved area): its
+ * purpose, stated by the plan or read from its words, and whether it is abandoned. Shown so the model can see a wrong
+ * reading and state `purpose` (or rename the room) to correct it. Empty for an area that is no room and has no reading.
+ */
+function roomReading(a: Area, ra: ResolvedArea): string {
+  const read =
+    ra.purpose === undefined
+      ? isRoomArea(a)
+        ? "reads as no purpose"
+        : ""
+      : a.purpose === undefined
+        ? `reads as ${ra.purpose}`
+        : "";
+  return [read, ra.abandoned === true ? "abandoned" : ""].filter((s) => s !== "").join(", ");
+}
+
+function areaLine(
+  a: Area,
+  lvl: ResolvedLevel | undefined,
+  noteChars: number,
+  profile: GeneratorProfile,
+): string {
   const parts = [`AREA ${a.id} ${a.kind}`];
   if (a.key !== undefined) parts.push(`#${a.key}`);
   if (a.name !== undefined) parts.push(q(a.name));
@@ -86,19 +110,24 @@ function areaLine(a: Area, lvl: ResolvedLevel | undefined, noteChars: number): s
   if (a.theme !== undefined) parts.push(`theme=${a.theme}`);
   if (a.labelAt !== undefined) parts.push(`labelAt=${xy(a.labelAt)}`);
   if (a.tags && a.tags.length > 0) parts.push(`tags=${a.tags.join(",")}`);
+  if (profile.outlineRoomReading && a.purpose !== undefined) parts.push(`purpose=${a.purpose}`);
   const ra = lvl?.areas.find((r) => r.id === a.id);
   if (ra) {
     const generated = a.shape.type === "route" || a.shape.type === "blob" || a.shape.type === "cave";
-    if (ra.cellCount === 0) parts.push("-> EMPTY");
+    const facts: string[] = [];
+    if (ra.cellCount === 0) facts.push("EMPTY");
     else if (generated) {
       const b = ra.bbox;
-      let extra = `-> ${ra.cellCount} cells x${b.x}-${b.x + b.w - 1} y${b.y}-${b.y + b.h - 1}`;
+      let extra = `${ra.cellCount} cells x${b.x}-${b.x + b.w - 1} y${b.y}-${b.y + b.h - 1}`;
       if (a.shape.type === "route" && lvl) {
         const autos = lvl.openings.filter((o) => o.id === `${a.id}~a` || o.id === `${a.id}~b`);
         if (autos.length > 0) extra += `; ${autos.map((o) => `${o.id} ${formatOpeningEdge(o)}`).join(", ")}`;
       }
-      parts.push(extra);
+      facts.push(extra);
     }
+    const reading = profile.outlineRoomReading ? roomReading(a, ra) : "";
+    if (reading !== "") facts.push(reading);
+    if (facts.length > 0) parts.push(`-> ${facts.join("; ")}`);
   }
   const texts: string[] = [];
   if (a.notes) texts.push(`notes ${q(truncate(a.notes, noteChars))}`);
@@ -249,7 +278,12 @@ function structureLine(st: Structure, lvl: ResolvedLevel | undefined, noteChars:
   return `${plan.join(" ")} -> ${built.join(", ")}${notes}`;
 }
 
-function levelLines(level: Level, lvl: ResolvedLevel | undefined, noteChars: number): string[] {
+function levelLines(
+  level: Level,
+  lvl: ResolvedLevel | undefined,
+  noteChars: number,
+  profile: GeneratorProfile,
+): string[] {
   const out: string[] = [];
   const base = level.base.type === "ground" ? `ground:${level.base.material}` : level.base.type;
   const b = level.bounds;
@@ -257,7 +291,7 @@ function levelLines(level: Level, lvl: ResolvedLevel | undefined, noteChars: num
     `LEVEL ${level.id} ${q(level.name)} elev=${n(level.elevation)} bounds=${b.x},${b.y} ${b.w}x${b.h} base=${base}${level.theme ? ` theme=${level.theme}` : ""}${level.wallHeight !== undefined ? ` wallH=${n(level.wallHeight)}` : ""}`,
   );
   if (level.notes) out.push(`  notes ${q(truncate(level.notes, noteChars))}`);
-  for (const a of level.areas) out.push(areaLine(a, lvl, noteChars));
+  for (const a of level.areas) out.push(areaLine(a, lvl, noteChars, profile));
   for (const st of level.structures ?? []) out.push(structureLine(st, lvl, noteChars));
   for (const o of level.openings) {
     const where = o.between
@@ -299,6 +333,7 @@ export function outlineView(plan: MapPlan, resolved: ResolvedPlan | null, opts: 
   );
   if (plan.summary) lines.push(`  summary ${q(truncate(plan.summary, 120))}`);
   const keep = opts.levels ? new Set(opts.levels) : null;
+  const profile = generatorProfile(plan);
   for (const level of plan.levels) {
     if (keep && !keep.has(level.id)) continue;
     lines.push(
@@ -306,6 +341,7 @@ export function outlineView(plan: MapPlan, resolved: ResolvedPlan | null, opts: 
         level,
         resolved?.levels.find((l) => l.id === level.id),
         noteChars,
+        profile,
       ),
     );
   }
