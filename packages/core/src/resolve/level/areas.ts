@@ -11,8 +11,9 @@ import { CELL } from "../../contracts/resolved";
 import { classifyRoom } from "../../gen/roomPurpose";
 import { bandOffsets, routeCenterline } from "../../gen/shapes";
 import { NATURAL_WALL_STYLE, isNaturalWallStyle } from "../../gen/wallStyles";
+import { materialOrdinal } from "../materials";
 import { themeInterior } from "../themes";
-import { type AreaInfo, type LevelWork, materialOrdinal } from "./work";
+import type { AreaInfo, LevelWork } from "./work";
 
 const DEFAULT_MODE: Record<AreaKind, WallMode> = {
   room: "auto",

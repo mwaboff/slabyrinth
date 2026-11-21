@@ -21,8 +21,9 @@ import {
 import { defaultCliffBands } from "../../gen/setpieces";
 import { rasterizeShape } from "../../gen/shapes";
 import { elementSeed, subSeed } from "../../util/hash";
+import { isNaturalGround } from "../materials";
 import { commitGenerated, placementGrid } from "./features";
-import { type AreaInfo, type LevelWork, NATURAL_PATH } from "./work";
+import type { AreaInfo, LevelWork } from "./work";
 
 /** A dress op over the whole level: the open ground (no area) and each zone area, each dressed as one region. */
 function dressWholeLevel(
@@ -177,7 +178,7 @@ export function stepGeneratedFeatures(work: LevelWork): void {
 function stepDefaultCliffBands(work: LevelWork, grid: PlacementGrid, cap: number): void {
   if (!work.gen.defaultCliffBands || work.level.cliffBands === false) return;
   const base = work.level.base;
-  if (base.type !== "ground" || !NATURAL_PATH.has(base.material)) return;
+  if (base.type !== "ground" || !isNaturalGround(base.material)) return;
   if ((work.level.structures ?? []).some((st) => st.kind !== "enclosure")) return;
   const byIndex = new Map<number, Array<[number, number]>>();
   for (let i = 0; i < work.n; i++) {

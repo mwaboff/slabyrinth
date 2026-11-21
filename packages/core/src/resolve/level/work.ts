@@ -46,6 +46,7 @@ import type { RoomClass } from "../../gen/roomPurpose";
 import { type ClipBox, rasterizeShape } from "../../gen/shapes";
 import type { PaletteView } from "../../palette/view";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
+import { isWater, materialOrdinal } from "../materials";
 import type { ThemeDefaults } from "../themes";
 import { type StructureWork, expandStructures } from "../structure";
 
@@ -133,26 +134,10 @@ export interface RouteRecord {
   orientB: "h" | "v" | null;
 }
 
-/** Ground materials whose paths wind and whose platforms get ragged contours by default (generator 2). */
-export const NATURAL_PATH = new Set<Material>([
-  "dirt",
-  "gravel",
-  "grass",
-  "sand",
-  "mud",
-  "snow",
-  "rock",
-  "swamp",
-  "ice",
-]);
 /** Railing height above the deck (tiles). */
 export const RAILING_HEIGHT = 1;
-export const WATER_MATS = new Set<Material>(["water_shallow", "water_deep"]);
-// wall style traits (low rims, whole-cell natural rock, styles that may stand uneven): gen/wallStyles.ts
-
-export function materialOrdinal(m: Material): number {
-  return MATERIALS.indexOf(m) + 1;
-}
+// material traits (water, natural ground, deck spans): resolve/materials.ts; wall style traits (low rims, whole-cell
+// natural rock, styles that may stand uneven): gen/wallStyles.ts
 
 export class LevelWork {
   readonly plan: MapPlan;
@@ -447,7 +432,7 @@ export class LevelWork {
   setMaterial(i: number, m: Material): void {
     this.mat[i] = materialOrdinal(m);
     let f = (this.flags[i] as number) & ~CELL_FLAG.WATER;
-    if (WATER_MATS.has(m)) f |= CELL_FLAG.WATER;
+    if (isWater(m)) f |= CELL_FLAG.WATER;
     this.flags[i] = f;
   }
 
@@ -548,7 +533,7 @@ export class LevelWork {
       this.mat[i] = 0;
     } else {
       this.mat[i] = info.floorMat;
-      if (WATER_MATS.has(MATERIALS[info.floorMat - 1] as Material)) f |= CELL_FLAG.WATER;
+      if (isWater(MATERIALS[info.floorMat - 1] as Material)) f |= CELL_FLAG.WATER;
     }
     this.flags[i] = f;
     if (info.area.floorHeight !== undefined && !info.isBridge) {

@@ -13,8 +13,9 @@ import { ValueNoise } from "../../gen/noise";
 import { bandOffsets, rasterPolyline, rasterizeShape } from "../../gen/shapes";
 import { elementSeed, subSeed } from "../../util/hash";
 import { accentTop } from "../interiorFloors";
+import { isNaturalGround } from "../materials";
 import { breakStraightSteps, chamferCorners, organicTiers, roughenLumps } from "../organic";
-import { type LevelWork, NATURAL_PATH } from "./work";
+import type { LevelWork } from "./work";
 
 /** A flight from cell `start` stepping by (dx,dy) through `cells` (in order): stair edges where heights differ. */
 function flight(work: LevelWork, cells: number[]): void {
@@ -47,10 +48,10 @@ export function applyPlatform(
   // generator 3: in a natural or cave level a platform is rock with a ragged outline unless the plan asks for worked
   // stone (a built material, or an explicit clean edge)
   const wild = work.gen.wildPlatforms && (work.level.base.type === "ground" || work.plan.kind === "cave");
-  const worked = [op.material, op.topMaterial].some((m) => m !== undefined && !NATURAL_PATH.has(m));
+  const worked = [op.material, op.topMaterial].some((m) => m !== undefined && !isNaturalGround(m));
   const rockDefault = wild && !worked && work.plan.kind === "cave" && op.material === undefined;
   const material: Material | undefined = rockDefault ? "rock" : op.material;
-  const natural = material !== undefined && NATURAL_PATH.has(material);
+  const natural = material !== undefined && isNaturalGround(material);
   const ragged =
     work.gen.raggedTerrainEdges &&
     (op.edge ??

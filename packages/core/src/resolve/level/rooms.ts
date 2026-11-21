@@ -18,8 +18,9 @@ import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed, h32, subSeed } from "../../util/hash";
 import { BUILT_FLOORS, FAMILY_ROTATION, purposeFloor } from "../interiorFloors";
+import { materialOrdinal } from "../materials";
 import { commitGenerated, placementGrid } from "./features";
-import { type AreaInfo, type LevelWork, materialOrdinal } from "./work";
+import type { AreaInfo, LevelWork } from "./work";
 
 /**
  * Generator 4, built interiors (level base solid): rooms are told apart by floor and sit a step above the corridor

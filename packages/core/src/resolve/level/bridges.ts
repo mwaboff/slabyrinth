@@ -13,10 +13,9 @@ import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { elementSeed, h32, subSeed } from "../../util/hash";
 import { createPrng } from "../../util/prng";
-import { type AreaInfo, type BridgeRequest, type LevelWork, RAILING_HEIGHT, materialOrdinal } from "./work";
+import { materialInfo, materialOrdinal } from "../materials";
+import { type AreaInfo, type BridgeRequest, type LevelWork, RAILING_HEIGHT } from "./work";
 
-const WOOD_DECKS = new Set<Material>(["bridge_wood", "wood_plank"]);
-const NATURAL_DECKS = new Set<Material>(["rock", "dirt", "gravel", "mud", "sand", "grass", "snow", "ice"]);
 /** Rise of the deck's middle (quarter tiles) by span; plank bridges sag. */
 const SPAN_ARCH_Q: Record<BridgeSpan, number> = { arch: 3, flat: 0, plank: -1, natural: 1 };
 const SPAN_RAILING: Record<BridgeSpan, WallStyle | null> = {
@@ -122,8 +121,7 @@ function layBridge(work: LevelWork, r: BridgeRequest): void {
   }
   // span: arched / sagging deck along its axis, in 0.25 steps no more than 0.5 apart (walkable)
   const deckMat = MATERIALS[r.floorMat - 1] as Material;
-  const span: BridgeSpan =
-    r.span ?? (WOOD_DECKS.has(deckMat) ? "plank" : NATURAL_DECKS.has(deckMat) ? "natural" : "arch");
+  const span: BridgeSpan = r.span ?? materialInfo(deckMat).deckSpan;
   const cxy = cells.map((i) => work.cellXY(i));
   const bx0 = Math.min(...cxy.map((c) => c[0]));
   const bx1 = Math.max(...cxy.map((c) => c[0]));

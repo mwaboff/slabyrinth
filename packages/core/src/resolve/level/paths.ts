@@ -12,9 +12,10 @@ import { forEachMaskCell } from "../../gen/mask";
 import { ValueNoise } from "../../gen/noise";
 import { rasterPolyline } from "../../gen/shapes";
 import { elementSeed, h32, subSeed } from "../../util/hash";
+import { isWater, materialOrdinal } from "../materials";
 import { crossingCells, kerbLinesAndCorners } from "../road";
 import { trailCells } from "../trail";
-import { type LevelWork, WATER_MATS, materialOrdinal } from "./work";
+import type { LevelWork } from "./work";
 
 /** Landmark-class pieces a spur trail leads to (the first found), then lesser focal pieces. */
 const SPUR_PRIMARY = new Set<string>([
@@ -351,7 +352,7 @@ export function stepPathSpurs(work: LevelWork): void {
   if (!work.gen.naturalPaths) return;
   const trails = work.level.terrain.filter(
     (t): t is Extract<TerrainOp, { op: "path" }> =>
-      t.op === "path" && !WATER_MATS.has(t.material) && t.sidewalk === undefined && t.crossings === undefined,
+      t.op === "path" && !isWater(t.material) && t.sidewalk === undefined && t.crossings === undefined,
   );
   if (trails.length === 0) return;
   const material = (trails[0] as Extract<TerrainOp, { op: "path" }>).material;

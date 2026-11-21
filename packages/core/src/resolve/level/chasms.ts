@@ -14,8 +14,9 @@ import { bandOffsets } from "../../gen/shapes";
 import { elementSeed, subSeed } from "../../util/hash";
 import { type ChasmGeometry, type ChasmSample, chasmGeometry, chasmSampleAt } from "../chasm";
 import { type ChannelCell, type ReachPlan, planReaches } from "../falls";
+import { materialOrdinal } from "../materials";
 import { STILL_WATER, riverCourse } from "../water";
-import { type LevelWork, materialOrdinal } from "./work";
+import type { LevelWork } from "./work";
 
 /** Generator 3: a long rift or river strays from the line between its ends by about this share of its length. */
 const WANDER_SHARE = 0.2;

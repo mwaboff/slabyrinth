@@ -14,6 +14,7 @@ import { type CellMask, forEachMaskCell } from "../../gen/mask";
 import { ValueNoise } from "../../gen/noise";
 import { jitterPolyline, rasterPolyline, rasterizeShape } from "../../gen/shapes";
 import { elementSeed, subSeed } from "../../util/hash";
+import { isNaturalGround, isWater } from "../materials";
 import { organicTiers } from "../organic";
 import { trailCells } from "../trail";
 import { STILL_WATER, riverCourse } from "../water";
@@ -21,7 +22,7 @@ import { applyChasm, boardBox, keepOffHighGround } from "./chasms";
 import { applyFloorOpening } from "./floorOpenings";
 import { stepPathSpurs, stepPavements } from "./paths";
 import { applyOutcrop, applyPlatform, applyStairsOp, applyUneven } from "./relief";
-import { type LevelWork, NATURAL_PATH, WATER_MATS } from "./work";
+import type { LevelWork } from "./work";
 
 export function stepTerrain(work: LevelWork, layer: "under" | "over"): void {
   work.level.terrain.forEach((op, k) => {
@@ -187,11 +188,11 @@ function applyTerrain(
       // generator 2 road form (resolve/road.ts): sidewalk and/or crossings; always straight
       const road = work.gen.roads && (op.sidewalk !== undefined || op.crossings !== undefined);
       // generator 2: water winds like a trail unless told to run straight
-      const wetPath = WATER_MATS.has(op.material);
+      const wetPath = isWater(op.material);
       const natural0 =
         work.gen.naturalPaths &&
         !road &&
-        (op.style ?? (NATURAL_PATH.has(op.material) || wetPath ? "natural" : "straight")) === "natural";
+        (op.style ?? (isNaturalGround(op.material) || wetPath ? "natural" : "straight")) === "natural";
       const drawn = op.points ?? connectPoints(work, op.connect ?? [], path, op.id, !natural0);
       // a river or brook crosses the map: from one board edge to another, off the border in between
       const base =
@@ -339,7 +340,7 @@ function rasterCellsOf(m: CellMask, idx: (x: number, y: number) => number): numb
 export function stepOutline(work: LevelWork): void {
   const base = work.level.base;
   if (!work.gen.naturalLevelOutline || base.type !== "ground" || work.level.outline === "rect") return;
-  if (!NATURAL_PATH.has(base.material)) return;
+  if (!isNaturalGround(base.material)) return;
   if (work.pendingRoads.length > 0) return;
   if (
     (work.level.structures ?? []).some((st) => st.kind !== "enclosure") &&
