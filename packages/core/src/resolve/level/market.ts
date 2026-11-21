@@ -8,9 +8,15 @@
  * props) through FeatureWork, the overhead lines that found both anchors (the list it is handed, ResolvedLevel.lines),
  * plan issues.
  */
-import type { FeatureType, Level } from "../../contracts/plan";
+import type { FeatureType, Level, StallRow, ThemeId } from "../../contracts/plan";
 import { PLAN_LIMITS } from "../../contracts/plan";
-import type { ResolvedFeature, ResolvedLine, ResolvedOpening, StallBuild } from "../../contracts/resolved";
+import type {
+  ResolvedFeature,
+  ResolvedLine,
+  ResolvedOpening,
+  StallBuild,
+  StallForm,
+} from "../../contracts/resolved";
 import { CELL, CELL_FLAG } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { FACE_ROT as TURN, SIDE_STEP as STEP } from "../../gen/gridGeometry";
@@ -60,6 +66,11 @@ function marketCellOk(
   return !features.crossingClear().has(i);
 }
 
+/** The theme a piece anchored on cell `i` carries (the one the realizer builds it with and verify checks it by). */
+function themeOfCell(work: ResolveGrid, i: number): ThemeId {
+  return work.themes[i >= 0 ? (work.theme[i] as number) : 0] ?? work.levelTheme;
+}
+
 /** Commit a market piece as a generated feature; `occupy` false keeps its cells free for other dressing (a line). */
 function commitMarket(
   work: ResolveGrid,
@@ -89,7 +100,7 @@ function commitMarket(
     rot: (p.rot ?? 0) as ResolvedFeature["rot"],
     rotFine: p.rotFine ?? p.rot ?? 0,
     baseHeight: work.featureBase(anchor, p.lift ?? 0),
-    theme: work.themes[anchor >= 0 ? (work.theme[anchor] as number) : 0] ?? work.levelTheme,
+    theme: themeOfCell(work, anchor),
     blocking: occupy && info.blocking,
   };
   if (p.variant !== undefined) rf.variant = p.variant;
@@ -168,9 +179,26 @@ export function stepMarket(
       putGoods(f.id, { at: [f.at[0], f.at[1]], size: [f.size[0], f.size[1]] }, f.variant ?? "empty");
   }
   // generator 4: covered stalls when the theme's palette has the parts (else the table stall of generator 3)
-  const forms = work.profile.coveredStalls ? work.ctx.palette.stallForms(work.levelTheme) : [];
+  // The theme is the stall's own, as the realizer builds it and verify checks it (a row in an area of another theme
+  // than its level): the most common theme of the row's free cells, like the height below.
+  const rowForms = (row: StallRow): StallForm[] => {
+    if (!work.profile.coveredStalls) return [];
+    const themes = new Map<ThemeId, number>();
+    for (let y = row.area.y; y < row.area.y + row.area.h; y++)
+      for (let x = row.area.x; x < row.area.x + row.area.w; x++) {
+        const i = work.idx(x, y);
+        if (i >= 0 && ok(x, y)) {
+          const t = themeOfCell(work, i);
+          themes.set(t, (themes.get(t) ?? 0) + 1);
+        }
+      }
+    const theme =
+      [...themes].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0] ?? work.levelTheme;
+    return work.ctx.palette.stallForms(theme);
+  };
   stallRows.forEach((row, k) => {
     let placed;
+    const forms = rowForms(row);
     if (forms.length > 0) {
       // a stall stands on one level of ground: only the most common floor height of the rectangle takes one
       const heights = new Map<number, number>();

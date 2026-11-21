@@ -366,6 +366,40 @@ describe("one palette view, one stall capability", () => {
     );
   });
 
+  it("a stall row asks the capability of its own theme, as the build does, not of the level's", () => {
+    // the generic palette loses its canopy (wood town inherits that); the sci-fi city palette has its own (flat)
+    const noCityCanopy = { ...catalog, palettes: structuredClone(catalog.palettes) };
+    Reflect.deleteProperty((noCityCanopy.palettes.generic as { roles: object }).roles, "stall.canopy");
+    const view = createPaletteView(noCityCanopy);
+    expect(view.stallForms("wood_town")).toEqual([]);
+    expect(view.stallForms("city")).toEqual(["flat"]);
+    const inArea = (levelTheme: string, areaTheme: string): MapPlan => {
+      const plan = marketPlan(4, levelTheme);
+      const area = plan.levels[0]?.areas[0];
+      if (area) area.theme = areaTheme;
+      return plan;
+    };
+    const stallsOf = (plan: MapPlan) => {
+      const r = resolvePlan(plan, noCityCanopy);
+      const stalls = r.levels[0]?.features.filter((f) => f.type === "stall") ?? [];
+      return { r, stalls };
+    };
+    // a level that cannot cover its stalls, a row in an area that can: covered
+    const up = stallsOf(inArea("wood_town", "city"));
+    expect(up.stalls.length).toBeGreaterThan(3);
+    expect(up.stalls.every((f) => f.theme === "city" && f.stall !== undefined)).toBe(true);
+    // a level that can, a row in an area that cannot: tables, and verify has nothing to say
+    const down = stallsOf(inArea("city", "wood_town"));
+    expect(down.stalls.length).toBeGreaterThan(3);
+    expect(down.stalls.every((f) => f.theme === "wood_town" && f.stall === undefined)).toBe(true);
+    for (const { r } of [up, down]) {
+      const set = realize(r, noCityCanopy, {});
+      expect(
+        verifyBuild(r, set, noCityCanopy).diagnostics.some((d) => d.code === "verify_stall_uncovered"),
+      ).toBe(false);
+    }
+  });
+
   it("when a caller resolved against other palettes, the footprint still gets its table and goods, and verify says so", () => {
     const resolved = resolvePlan(marketPlan(4), bundledPalettes());
     const c = strip("stall.post");
