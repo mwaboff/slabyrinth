@@ -5,12 +5,13 @@
  * (cliffBand.ts), `outcropCells`, `outsideGround`. Writes: fill and ledge placements.
  */
 import type { PlacementRole } from "../../contracts/compiler";
-import type { ThemeId } from "../../contracts/plan";
+import type { Material, ThemeId } from "../../contracts/plan";
 import { CELL_FLAG } from "../../contracts/resolved";
 import type { VariantFilter } from "../../palette/resolve";
+import { isWater } from "../../resolve/materials";
 import { BAND, type RockBand } from "./cliffBand";
 import type { GroundUnderDecks } from "./floors";
-import { EPS, NATURAL_GROUND, WATER, type RealizeLevel } from "./level";
+import { EPS, isCliffGround, type RealizeLevel } from "./level";
 
 // fill under raised cells; drops of a tile or more get a cliff face (ledge role / natural rock) instead
 export function layRaisedFill(lv: RealizeLevel, band: RockBand, groundUnder: GroundUnderDecks): void {
@@ -48,8 +49,8 @@ export function layRaisedFill(lv: RealizeLevel, band: RockBand, groundUnder: Gro
         profile.flushRaisedFloors &&
         c.height - minN <= 0.5 + EPS &&
         c.material !== null &&
-        !NATURAL_GROUND.has(c.material) &&
-        !WATER.has(c.material)
+        !isCliffGround(c.material) &&
+        !isWater(c.material)
       )
         continue;
       // behind a rock band: no face blocks and no hidden fill (the band covers the drop); the board's own edge keeps
@@ -87,7 +88,7 @@ function cliffFace(
   lv: RealizeLevel,
   noted: Set<string>,
   theme: ThemeId,
-  material: string | null,
+  material: Material | null,
   x: number,
   y: number,
   from: number,
@@ -108,7 +109,7 @@ function cliffFace(
       v.geom.originAt === "minCorner",
   };
   // generator 3: natural ground shows rock where its face is bare, never earth-coloured fill (cliff.rock_block)
-  const rockFirst = profile.rockGroundFaces && material !== null && NATURAL_GROUND.has(material);
+  const rockFirst = profile.rockGroundFaces && material !== null && isCliffGround(material);
   let res = lookup(
     L.id,
     theme,
@@ -118,10 +119,10 @@ function cliffFace(
     one,
     true,
   );
-  if (!res && material !== null && (force || NATURAL_GROUND.has(material)))
+  if (!res && material !== null && (force || isCliffGround(material)))
     res = lookup(L.id, theme, ["cliff.natural"], one, true);
   if (!res) {
-    if (material !== null && NATURAL_GROUND.has(material) && !noted.has(`${theme}|${material}`)) {
+    if (material !== null && isCliffGround(material) && !noted.has(`${theme}|${material}`)) {
       noted.add(`${theme}|${material}`);
       addDiag({
         severity: "info",
@@ -187,7 +188,7 @@ export function layPiers(lv: RealizeLevel): void {
 export function stackFill(
   lv: RealizeLevel,
   theme: ThemeId,
-  material: string | null,
+  material: Material | null,
   x: number,
   y: number,
   from: number,
@@ -201,10 +202,10 @@ export function stackFill(
   // water cells sit on their bed; other cells fill with their own floor tile before the generic fill
   const roles = !material
     ? ["fill.default"]
-    : WATER.has(material)
+    : isWater(material)
       ? [`bed.${material}`, "bed.default", "fill.default"]
       : [
-          ...(profile.rockGroundFaces && NATURAL_GROUND.has(material) ? ["fill.rock"] : []),
+          ...(profile.rockGroundFaces && isCliffGround(material) ? ["fill.rock"] : []),
           `fill.${material}`,
           `floor.${material}`,
           "fill.default",

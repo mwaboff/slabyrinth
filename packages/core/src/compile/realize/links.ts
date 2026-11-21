@@ -9,7 +9,7 @@ import type { Side } from "../../contracts/plan";
 import { EDGE, type ResolvedPlan } from "../../contracts/resolved";
 import { rotateXZ } from "../geometry";
 import { stackFill } from "./fill";
-import { EPS, NATURAL_GROUND, type RealizeLevel } from "./level";
+import { EPS, isCliffGround, type RealizeLevel } from "./level";
 
 // stairs (EDGE.STAIR): a stair piece in the lower cell climbing toward the higher one
 export function layStairEdges(lv: RealizeLevel): void {
@@ -31,11 +31,11 @@ export function layStairEdges(lv: RealizeLevel): void {
     const roles =
       rise >= 0.75 - EPS && rise <= 1.25 + EPS
         ? // natural ground may have its own stair piece (earth or rock steps) before the built one
-          cl.material && NATURAL_GROUND.has(cl.material)
+          cl.material && isCliffGround(cl.material)
           ? [`link.stairs.${cl.material}`, "link.stairs.natural", "link.stairs"]
           : ["link.stairs"]
         : cl.material
-          ? NATURAL_GROUND.has(cl.material)
+          ? isCliffGround(cl.material)
             ? [`step.${cl.material}`]
             : [`step.${cl.material}`, "step.default"]
           : ["step.default"];

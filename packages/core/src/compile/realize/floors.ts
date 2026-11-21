@@ -5,13 +5,15 @@
  * Writes: floor placements (and glow features). Returns the water cells (layFloors, read by layWaterBeds) and the
  * ground under bridge decks (layGroundUnderDecks, read by fill.ts).
  */
+import type { Material } from "../../contracts/plan";
 import { CELL_FLAG } from "../../contracts/resolved";
 import type { ResolvedVariant, VariantFilter } from "../../palette/resolve";
 import { createFamilyPicker, type FloorFamily } from "../../resolve/floorFamilies";
+import { isWater } from "../../resolve/materials";
 import { axisPosition } from "../../resolve/road";
 import { h32 } from "../geometry";
 import type { RockBand } from "./cliffBand";
-import { NATURAL_GROUND, WATER, type RealizeLevel } from "./level";
+import { isCliffGround, type RealizeLevel } from "./level";
 import type { CellInfo } from "./view";
 
 /** Water cells ([x, y]) the floor pass leaves for the bed pass, in the order it met them. */
@@ -120,8 +122,8 @@ export function layFloors(lv: RealizeLevel, band: RockBand): WaterCells {
     for (const cr of rd.crossings) for (const [x, y] of cr.cells) crossingAxis.set(`${x},${y}`, cr.axis);
   const used = new Set<number>();
   /** Floor material as laid: natural low ground under a rock band is rock. */
-  const laidMaterial = (c: CellInfo, x: number, y: number): string | null =>
-    c.material !== null && NATURAL_GROUND.has(c.material) && band.low.has(`${x},${y}`) ? "rock" : c.material;
+  const laidMaterial = (c: CellInfo, x: number, y: number): Material | null =>
+    c.material !== null && isCliffGround(c.material) && band.low.has(`${x},${y}`) ? "rock" : c.material;
   const keyOf = (c: CellInfo, x: number, y: number): string =>
     `${c.theme}|${laidMaterial(c, x, y) ?? ""}|${c.height}`;
   for (let ly = 0; ly < V.h; ly++) {
@@ -136,7 +138,7 @@ export function layFloors(lv: RealizeLevel, band: RockBand): WaterCells {
         continue;
       }
       // water: TaleSpire's water is the board's water plane; the slab carries the channel's bed (+ optional surface)
-      if (c.material !== null && WATER.has(c.material)) {
+      if (c.material !== null && isWater(c.material)) {
         used.add(ly * V.w + lx);
         waterCells.push([x, y]);
         continue;
@@ -169,7 +171,7 @@ export function layFloors(lv: RealizeLevel, band: RockBand): WaterCells {
       }
       const greedy = res.def.greedyTiling !== false;
       // families on natural ground only: built floors (flagstone, planks) keep their regular laying
-      const fams = c.material !== null && NATURAL_GROUND.has(c.material) ? familiesOf(res.variants) : [];
+      const fams = c.material !== null && isCliffGround(c.material) ? familiesOf(res.variants) : [];
       const fam = famAt(fams, x, y);
       const inFam = (v: ResolvedVariant): boolean => fams.length <= 1 || (v.variant ?? "") === fam;
       const fps = [
@@ -319,7 +321,7 @@ export function layWaterBeds(lv: RealizeLevel, waterCells: WaterCells): void {
     const one: VariantFilter = { key: "1x1", test: (q) => q.footprint[0] === 1 && q.footprint[1] === 1 };
     let res = lookup(L.id, c.theme, [`bed.${c.material ?? ""}`, "bed.default"], one, true);
     if (!res) {
-      let bank: string | null = null;
+      let bank: Material | null = null;
       for (const [nx, ny] of [
         [x, y - 1],
         [x + 1, y],
@@ -327,7 +329,7 @@ export function layWaterBeds(lv: RealizeLevel, waterCells: WaterCells): void {
         [x - 1, y],
       ] as const) {
         const n = V.cell(nx, ny);
-        if (n.floor && n.material !== null && !WATER.has(n.material)) bank = bank ?? n.material;
+        if (n.floor && n.material !== null && !isWater(n.material)) bank = bank ?? n.material;
       }
       res = lookup(L.id, c.theme, ["floor.gravel", `floor.${bank ?? "rock"}`, "fill.default"], one, true);
       if (!bedNoted.has(`${c.theme}|${c.material}`)) {

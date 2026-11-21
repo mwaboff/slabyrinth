@@ -8,9 +8,10 @@
  * passes that read it (the ownership table is at the top of compile/realize.ts).
  */
 import type { Box3, Placement, PlacementRole } from "../../contracts/compiler";
-import type { Side } from "../../contracts/plan";
+import type { Material, Side } from "../../contracts/plan";
 import { CELL, type ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
+import { materialInfo } from "../../resolve/materials";
 import { areaReferenceHeights } from "../../resolve/wallspan";
 import { emptyBox, growBox, h32, placementBox } from "../geometry";
 import { structureClaims } from "../structure";
@@ -20,21 +21,12 @@ import { LevelView, type CellInfo } from "./view";
 export const EPS = 1e-6;
 export const opposite = (s: Side): Side => (s === "N" ? "S" : s === "S" ? "N" : s === "E" ? "W" : "E");
 
-/** Water materials: TaleSpire's water is a board-wide plane, so the slab carries the channel's bed. */
-export const WATER = new Set(["water_shallow", "water_deep"]);
-/** Natural ground whose drops of a tile or more are built as rock cliffs when the palette has no cliff.<material> role. */
-export const NATURAL_GROUND = new Set([
-  "rock",
-  "dirt",
-  "gravel",
-  "mud",
-  "sand",
-  "grass",
-  "snow",
-  "ice",
-  "swamp",
-  "lava",
-]);
+/**
+ * Ground whose drops of a tile or more are built as rock cliffs when the palette has no cliff.<material> role, whose
+ * bare faces show rock and whose floors take floor families: the material table's `cliffGround` (natural ground and
+ * lava, resolve/materials.ts). Water is the table's `isWater`.
+ */
+export const isCliffGround = (m: Material): boolean => materialInfo(m).cliffGround;
 
 /** Places one asset (world tiles, rotation in degrees) and records its box and name. */
 export type Emit = (
