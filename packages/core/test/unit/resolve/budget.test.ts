@@ -54,7 +54,7 @@ const room = (id: string, x: number, y: number, w: number, h: number): Area => (
 });
 
 describe("resolve budgets", () => {
-  it("dresses a 158×158 storeroom at density 1 in well under 1 s (was ~29 s)", () => {
+  it("dresses a 158×158 storeroom at density 1 in well under 1 s", () => {
     const terrain: TerrainOp[] = [{ id: "d", op: "dress", area: "a", preset: "storeroom", density: 1 }];
     const p = plan({ areas: [room("a", 1, 1, 158, 158)], terrain });
     expect(resolvePlan(p, bundledPalettes()).levels[0]?.features.length).toBeGreaterThan(3000);

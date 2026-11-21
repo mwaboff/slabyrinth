@@ -40,5 +40,5 @@ gen/hillside-v5 gen=2 resolved=fb8298339acad932 assets=1010 diag=0e/0w/9i slab=a
 gen/hillside-v5@4 gen=4 resolved=2f0efb0a230ff6b4 assets=878 diag=0e/0w/9i slab=38c23effdb920501 diagnostics=f44c96140809a52b review=f191c4ed8788d02d reviewNoBuild=f191c4ed8788d02d
 gen/sea-grotto gen=3 resolved=0d1b82c7fc8ff186 assets=1541 diag=0e/0w/9i slab=12192953ed8dd65a diagnostics=31fb1846b21148b6 review=f127bda63ec6fb5c reviewNoBuild=f127bda63ec6fb5c
 gen/sea-grotto@4 gen=4 resolved=8071fbbffc0e78e5 assets=1788 diag=0e/0w/8i slab=b6f7aab20ef84af5 diagnostics=968c1e3c9c89103f review=0f90710507a60df3 reviewNoBuild=0f90710507a60df3
-gen/terraced-hill gen=3 resolved=0fdb2fab587c60b1 assets=1225 diag=0e/0w/10i slab=c7ec0e84e3d983c2 diagnostics=def055b4fc0c308c review=631327693d9c2ad2 reviewNoBuild=631327693d9c2ad2
-gen/terraced-hill@4 gen=4 resolved=3a8b5d3b47978f64 assets=1225 diag=0e/0w/10i slab=c7ec0e84e3d983c2 diagnostics=def055b4fc0c308c review=631327693d9c2ad2 reviewNoBuild=631327693d9c2ad2
+gen/terraced-hill gen=3 resolved=0fdb2fab587c60b1 assets=1225 diag=0e/0w/10i slab=c7ec0e84e3d983c2 diagnostics=def055b4fc0c308c review=933d362e3e02c6ea reviewNoBuild=933d362e3e02c6ea
+gen/terraced-hill@4 gen=4 resolved=3a8b5d3b47978f64 assets=1225 diag=0e/0w/10i slab=c7ec0e84e3d983c2 diagnostics=def055b4fc0c308c review=933d362e3e02c6ea reviewNoBuild=933d362e3e02c6ea

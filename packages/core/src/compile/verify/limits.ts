@@ -8,8 +8,8 @@ import { HEADROOM } from "../../plan/levels";
 export const HEAD = HEADROOM;
 /** Largest height difference walkable without stairs. */
 export const STEP = 0.5;
-/** The step of a placement's rotation (degrees): TaleSpire turns assets in 15° steps. */
-export const ROTATION_STEP = 15;
+/** The step of a placement's rotation (degrees): TaleSpire's, from the slab codec. */
+export { ROTATION_STEP } from "../../slab/codec";
 
 /** A cell whose unhosted part is narrower than this (either way) has no free centre to test. */
 export const MIN_FREE_SPAN = 0.2;

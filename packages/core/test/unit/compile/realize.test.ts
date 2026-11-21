@@ -132,7 +132,7 @@ describe("realize: doors pick the rotation that puts the handle at the preferred
     ).toBe("info");
   });
 
-  it("Fix 3: west/south-edge doors get the documented handle end (rot 6 → N end, rot 0 → W end)", () => {
+  it("west/south-edge doors get the documented handle end (rot 6 → N end, rot 0 → W end)", () => {
     const set = realize(
       handPlan([
         room({

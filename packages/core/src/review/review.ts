@@ -888,7 +888,7 @@ function channels(c: Ctx): DesignNote[] {
       elementIds: [ch.id],
       message: `the ${ch.kind === "river" ? "river" : "rift"} "${ch.id}" runs almost straight: it strays ${shape.deviation.toFixed(1)} cells (${Math.round(share * 100)}% of its ${Math.round(shape.chord)} cells) from the line between its ends, ${shape.bends} bend${shape.bends === 1 ? "" : "s"}`,
       action:
-        "let it wander: points that bend about a fifth of its length off the straight line, at least two bends, a cell wider here and narrower there (generator 3 does this unless meander is 0)",
+        "let it wander: points that bend about a fifth of its length off the straight line, at least two bends, a cell wider here and narrower there (leave meander out or above 0: 0 keeps it straight)",
     });
   }
   return out;
@@ -1005,7 +1005,7 @@ function riverTrench(c: Ctx): DesignNote[] {
       cell: [L.bounds.x + (at % W), L.bounds.y + Math.floor(at / W)],
       message: `a water course of ${first.size} cells is cut to one level down a slope: its bed lies ${(lo[1] / 4).toFixed(1)} tiles below the ground beside it in one place and ${(hi[1] / 4).toFixed(1)} in another, with no fall between: it reads as a trench`,
       action:
-        "step it down the slope: reaches at different levels with a fall of 1 to 3 tiles between them and a wider pool at each foot (generator 3 does this for a chasm op with a water floor), or run it along the contour",
+        "step it down the slope: reaches at different levels with a fall of 1 to 3 tiles between them and a wider pool at each foot (draw it as a chasm op with a water floor, which steps down by itself), or run it along the contour",
     });
   }
   return out;
@@ -2112,7 +2112,7 @@ function terraces(c: Ctx): DesignNote[] {
         elementIds: [op.id],
         message: `the rise of ${op.id} is built from ${hs.length} thin plates (steps under a tile, ${sq} square corners): it reads as stacked contour layers`,
         action:
-          "make it one rounded mound: fewer, larger steps (a tile or more each) on a ragged outline; generator 3 does this for a ragged natural platform",
+          "make it one rounded mound: fewer, larger steps (a tile or more each) on a ragged outline; a platform op of natural ground with a ragged outline is built this way",
       });
       continue;
     }

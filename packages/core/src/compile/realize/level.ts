@@ -10,6 +10,7 @@
 import type { Box3, Placement, PlacementRole } from "../../contracts/compiler";
 import { CELL, type ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
+import { ROTATION_STEP } from "../../slab/codec";
 import type { LevelFacts } from "../buildFacts";
 import { emptyBox, growBox, placementBox } from "../geometry";
 import { h32Utf16 } from "../../util/hash";
@@ -101,7 +102,7 @@ export class RealizeLevel {
       source: Placement["source"],
       layer?: string,
     ): void => {
-      const rot = (((Math.round(rotDeg / 15) * 15) % 360) + 360) % 360;
+      const rot = (((Math.round(rotDeg / ROTATION_STEP) * ROTATION_STEP) % 360) + 360) % 360;
       const p: Placement = {
         asset: v.uuid,
         x: x + v.offset.x,

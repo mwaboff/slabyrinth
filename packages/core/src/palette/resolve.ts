@@ -20,6 +20,7 @@ import type {
 } from "../contracts/compiler";
 import type { ThemeId } from "../contracts/plan";
 import { own } from "../util/own";
+import { footprintOf } from "../catalog/classify";
 
 export const GENERIC_THEME = "generic";
 
@@ -101,13 +102,10 @@ export function themeChain(palettes: Record<ThemeId, Palette>, theme: ThemeId): 
   return out;
 }
 
-const round = (v: number): number => Math.max(1, Math.round(v));
-
 /** Default rot-0 footprint from geometry: tiles round up (ceil − 0.01), props round to nearest. */
 export function footprintFromGeom(g: PaletteVariant["geom"]): [number, number] {
-  if (g.originAt === "minCorner")
-    return [Math.max(1, Math.ceil(g.size.x - 0.01)), Math.max(1, Math.ceil(g.size.z - 0.01))];
-  return [round(g.size.x), round(g.size.z)];
+  // the catalog's rule (catalog/classify.ts), so a role's footprint and its asset's agree
+  return footprintOf(g);
 }
 
 function variantGeomFor(v: PaletteVariant, uuid: string): PaletteVariant["geom"] | undefined {
