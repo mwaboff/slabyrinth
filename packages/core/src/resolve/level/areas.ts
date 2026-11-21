@@ -14,6 +14,7 @@ import { bandOffsets, routeCenterline } from "../../gen/shapes";
 import { NATURAL_WALL_STYLE, THEME_WALL_STYLE, isNaturalWallStyle } from "../../gen/wallStyles";
 import type { GeneratorProfile } from "../../plan/generator";
 import { materialOrdinal } from "../materials";
+import { isRoughDressed } from "../themes";
 import type { AreaInfo, LevelContext, ResolveGrid } from "./grid";
 
 const DEFAULT_MODE: Record<AreaKind, WallMode> = {
@@ -85,7 +86,7 @@ export function areaTable(
       isBridge: area.kind === "bridge",
       room,
       interior,
-      rough: interior.finish === "rough" || room.abandoned,
+      rough: isRoughDressed(interior.finish, room.abandoned),
     });
     if (!byId.has(area.id)) byId.set(area.id, index);
   });

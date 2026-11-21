@@ -183,8 +183,16 @@ const cellThemeRule = selectorRule("Resolve stages ask a cell's theme of Resolve
   },
 ]);
 
+/** A draw in [0, 1) from a hash is util/hash.ts hashUnit (or TWO_32 beside a hash of its own), never 2^32 by hand. */
+const hashUnitRule = selectorRule("Draws from a hash go through util/hash.ts.", [
+  {
+    selector: "Literal[value=4294967296]",
+    message: "Draw from a hash with util/hash.ts hashUnit(seed, ...parts) (or divide by its TWO_32).",
+  },
+]);
+
 const slabyrinthPlugin = {
-  rules: { "core-layers": coreLayersRule, "cell-theme": cellThemeRule },
+  rules: { "core-layers": coreLayersRule, "cell-theme": cellThemeRule, "hash-unit": hashUnitRule },
 };
 
 export default tseslint.config(
@@ -256,6 +264,12 @@ export default tseslint.config(
     files: ["packages/core/src/resolve/level/**/*.ts"],
     ignores: ["packages/core/src/resolve/level/grid.ts", "packages/core/src/resolve/level/areas.ts"],
     rules: { "slabyrinth/cell-theme": "error" },
+  },
+  {
+    files: ["packages/core/src/**/*.ts"],
+    // util owns the hashes; the slab codec's SHA-256 splits a 64-bit length, it draws nothing
+    ignores: ["packages/core/src/util/**", "packages/core/src/slab/**"],
+    rules: { "slabyrinth/hash-unit": "error" },
   },
   {
     files: ["packages/core/src/**/*.ts"],

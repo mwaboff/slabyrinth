@@ -176,10 +176,7 @@ export function stepPavements(work: ResolveGrid, layer: "under" | "over", paths:
     // a building's lot: its footprint and the ring of cells around it (its walls and pad)
     const inLot = (x: number, y: number): boolean => {
       const i = work.idx(x, y);
-      return (
-        i >= 0 &&
-        (lots?.has(`${x},${y}`) === true || work.areas[(work.struct[i] as number) - 1]?.kind === "building")
-      );
+      return i >= 0 && (lots?.has(`${x},${y}`) === true || work.ownerAt(i)?.kind === "building");
     };
     const lot = (x: number, y: number): boolean => {
       for (let dy = -1; dy <= 1; dy++)
@@ -490,7 +487,7 @@ export function stepPathSpurs(work: ResolveGrid): void {
       const i = work.idx(x, y);
       if (i < 0 || work.state[i] !== CELL.OPEN) continue;
       if (((work.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.PATH)) !== 0) continue;
-      if (work.areas[(work.struct[i] as number) - 1]?.kind === "building") continue;
+      if (work.ownerAt(i)?.kind === "building") continue;
       work.setMaterial(i, material);
       work.flags[i] = (work.flags[i] as number) | CELL_FLAG.PATH;
       pathCells.push([x, y]);
@@ -501,7 +498,7 @@ export function stepPathSpurs(work: ResolveGrid): void {
         i >= 0 &&
         work.state[i] === CELL.OPEN &&
         ((work.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.PATH)) === 0 &&
-        work.areas[(work.struct[i] as number) - 1]?.kind !== "building"
+        work.ownerAt(i)?.kind !== "building"
       ) {
         work.setMaterial(i, material);
         work.flags[i] = (work.flags[i] as number) | CELL_FLAG.PATH;

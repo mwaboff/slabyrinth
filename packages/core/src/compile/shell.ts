@@ -31,7 +31,7 @@ import { NEIGHBOURS4 as STEPS4, SIDES, SIDE_STEP } from "../gen/gridGeometry";
 import { ValueNoise } from "../gen/noise";
 import { OWNER, dropLumps, fillNotches, ownSolid, trimTeeth, type CellGrid } from "../gen/solidMass";
 import { THEME_WALL_STYLE } from "../gen/wallStyles";
-import { h32 } from "../util/hash";
+import { h32, hashUnit } from "../util/hash";
 import { cellIndex, sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
 import type { WallFaces } from "../resolve/wallFaces";
 import { spanCellAt } from "../resolve/wallspan";
@@ -345,9 +345,7 @@ function reachRings(cap: CapPlan, seed: number): Map<number, number> {
           if (ring.has(k) || !cappable(cap, k)) continue;
           const kx = k % w;
           const ky = (k - kx) / w;
-          const n =
-            noise.sample(kx / 2.5, ky / 2.5) * 0.7 +
-            (h32(`${seed}:${L.id}:shellcell:${k}`) / 4294967296) * 0.3;
+          const n = noise.sample(kx / 2.5, ky / 2.5) * 0.7 + hashUnit(seed, L.id, "shellcell", k) * 0.3;
           if (n >= 1 - (SHELL.keep[r - 2] ?? 0.5)) add.push([k, theme.get(i) ?? defaultTheme]);
         }
     }

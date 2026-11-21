@@ -13,7 +13,7 @@
 import type { Side } from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
 import { SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
-import { h32 } from "../util/hash";
+import { h32, hashUnit } from "../util/hash";
 
 export interface RuinVolumeIn {
   id: string;
@@ -87,7 +87,7 @@ export function ruinProfile(
   roofed: ReadonlySet<string> = new Set(),
   opts: RuinOptions = { legibleCondition: false },
 ): RuinProfile {
-  const u = (s: string): number => h32(`${seed}:ruin:${s}`) / 4294967296;
+  const u = (s: string): number => hashUnit(seed, "ruin", s);
   const cols = wallColumns(vols);
   const list = [...cols.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   if (list.length === 0) return { columns: [], holes: [], anchor: [0, 0], loss: 0 };
@@ -501,7 +501,7 @@ function floorHoles(r: RuinFall, byKey: ReadonlyMap<string, RuinColumn>): RuinPr
  * holds their "x,y,side" keys), never on a crest that a battlement remnant may take.
  */
 export function scatterTopRubble(profile: RuinProfile, blocked: ReadonlySet<string>, seed: number): void {
-  const u = (s: string): number => h32(`${seed}:wallrubble:${s}`) / 4294967296;
+  const u = (s: string): number => hashUnit(seed, "wallrubble", s);
   const [ax, ay] = profile.anchor;
   const dist = (c: { at: [number, number] }): number => Math.hypot(c.at[0] - ax, c.at[1] - ay);
   const D = Math.max(1, ...profile.columns.map(dist));

@@ -33,7 +33,7 @@ import {
 import { elementSeed, subSeed } from "../../util/hash";
 import { createPrng } from "../../util/prng";
 import type { FeatureWork } from "./features";
-import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
+import type { ReadOnly, ResolveGrid } from "./grid";
 import type { PathRecords } from "./paths";
 
 /** A cell a market piece may stand on: open floor nothing else holds (no building, feature, link, water or crossing). */
@@ -57,10 +57,9 @@ function marketCellOk(
       CELL_FLAG.BRIDGE)
   )
     return false;
-  const sa = work.struct[i] as number;
   if (
     features.occupied(i) ||
-    work.areas[sa - 1]?.kind === "building" ||
+    work.ownerAt(i)?.kind === "building" ||
     (reserved && work.structs?.reservedCell(i))
   )
     return false;
@@ -103,8 +102,8 @@ function commitMarket(
   if (p.stall !== undefined) rf.stall = p.stall;
   if (p.offset !== undefined)
     rf.offset = [Math.max(-0.5, Math.min(0.5, p.offset[0])), Math.max(-0.5, Math.min(0.5, p.offset[1]))];
-  const ar = anchor >= 0 ? (work.disp[anchor] as number) : 0;
-  if (ar > 0) rf.area = (work.areas[ar - 1] as AreaInfo).area.id;
+  const shown = work.areaAt(anchor);
+  if (shown) rf.area = shown.area.id;
   features.addGenerated(rf, occupy);
 }
 

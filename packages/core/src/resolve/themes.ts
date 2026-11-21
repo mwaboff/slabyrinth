@@ -32,6 +32,18 @@ export const DEFAULT_INTERIOR: ThemeInterior = { finish: "rough", floorFamily: "
 /** A kept-up timber or plaster building: clean walls, wood floors with tiled kitchens and wash rooms. */
 const TIDY_TIMBER: ThemeInterior = { finish: "tidy", floorFamily: "timber" };
 
+/**
+ * Is a room dressed rough (rubble at the wall foot, broken and uneven tops)? When it is not built tidy (its theme's
+ * finish; a resolved area of a released generator carries none) or nobody keeps it up. The resolver (AreaInfo.rough)
+ * and the compiler (resolve/wallTops.ts roughCells) both ask this.
+ */
+export function isRoughDressed(
+  finish: ThemeInterior["finish"] | undefined,
+  abandoned: boolean | undefined,
+): boolean {
+  return finish !== "tidy" || abandoned === true;
+}
+
 type TableRow = Omit<ThemeDefaults, "interior"> & { interior?: ThemeInterior };
 
 const FALLBACK: TableRow = { floor: "flagstone", caveFloor: "rock", courtyardFloor: "cobble" };

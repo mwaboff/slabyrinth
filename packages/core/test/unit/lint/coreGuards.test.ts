@@ -56,8 +56,26 @@ describe("core guards", () => {
     });
     it("leaves the reader itself, and the owner's files, alone", async () => {
       expect(await guardHits(stage, "const t = work.themeAt(i);")).toEqual([]);
-      expect(await guardHits("packages/core/src/resolve/level/grid.ts", "const t = this.levelTheme;")).toEqual([]);
-      expect(await guardHits("packages/core/src/resolve/structure.ts", "const t = x.levelTheme;")).toEqual([]);
+      expect(
+        await guardHits("packages/core/src/resolve/level/grid.ts", "const t = this.levelTheme;"),
+      ).toEqual([]);
+      expect(await guardHits("packages/core/src/resolve/structure.ts", "const t = x.levelTheme;")).toEqual(
+        [],
+      );
+    });
+  });
+
+  describe("slabyrinth/hash-unit: a draw from a hash goes through util/hash.ts", () => {
+    it("reports 2^32 written by hand anywhere in core but util", async () => {
+      const code = "const u = h32(`${seed}:k`) / 4294967296;";
+      expect(await guardHits("packages/core/src/resolve/ruin.ts", code)).toEqual([
+        expect.stringContaining("slabyrinth/hash-unit"),
+      ]);
+      expect(await guardHits("packages/core/src/compile/shell.ts", code)).toHaveLength(1);
+      expect(await guardHits("packages/core/src/util/hash.ts", "const TWO_32 = 4294967296;")).toEqual([]);
+      expect(await guardHits("packages/core/src/resolve/ruin.ts", 'const u = hashUnit(seed, "k");')).toEqual(
+        [],
+      );
     });
   });
 });

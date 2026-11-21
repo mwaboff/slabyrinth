@@ -15,10 +15,10 @@ import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { ValueNoise } from "../../gen/noise";
 import { isLowWallStyle } from "../../gen/wallStyles";
-import { elementSeed, h32, subSeed } from "../../util/hash";
+import { elementSeed, h32, hashUnit, subSeed } from "../../util/hash";
 import { roughenLumps } from "../organic";
 import type { FeatureWork } from "./features";
-import { type AreaInfo, type ReadOnly, type ResolveGrid, RAILING_HEIGHT } from "./grid";
+import { type ReadOnly, type ResolveGrid, RAILING_HEIGHT } from "./grid";
 import type { ResolveLevelState } from "./state";
 
 /** The shape of a collapse (applyFloorOpening); the rest of its outline is the profile's `openingOutline` tuning. */
@@ -224,8 +224,7 @@ export function stepOpeningRims(work: ResolveGrid, out: FloorOpeningRecords): vo
         if (low && fo.kind === "collapse" && !fo.rimCells.includes(j)) fo.rimCells.push(j);
         if (fo.rim === "none") continue;
         // a broken rim has gaps: where people walk to the edge, and rubble spilled over it
-        if (fo.kind === "collapse" && h32(`${fo.seed}:rim:${x}:${y}:${side}`) / 4294967296 < RIM_GAP_SHARE)
-          continue;
+        if (fo.kind === "collapse" && hashUnit(fo.seed, "rim", x, y, side) < RIM_GAP_SHARE) continue;
         ed.e.kind[ed.i] = EDGE.WALL;
         ed.e.style[ed.i] = fo.rim;
         ed.e.height[ed.i] = RAILING_HEIGHT;
@@ -344,7 +343,7 @@ export function stepOpeningRimDebris(
   for (const fo of openings.holes) {
     if (fo.kind !== "collapse" || fo.rim !== "none" || fo.rimCells.length === 0) continue;
     const holes = new Set(fo.cells);
-    const u = (i: number, k: string): number => h32(`${fo.seed}:rimdebris:${k}:${i}`) / 4294967296;
+    const u = (i: number, k: string): number => hashUnit(fo.seed, "rimdebris", k, i);
     const info = featureInfo("debris");
     const size = rotatedSize(info.size, 0);
     let n = 0;
@@ -363,8 +362,8 @@ export function stepOpeningRimDebris(
         theme: work.themeAt(i),
         blocking: info.blocking,
       };
-      const ar = work.disp[i] as number;
-      if (ar > 0) rf.area = (work.areas[ar - 1] as AreaInfo).area.id;
+      const shown = work.areaAt(i);
+      if (shown) rf.area = shown.area.id;
       features.addGenerated(rf);
     };
     const rim = [...new Set(fo.rimCells)].sort((a, b) => a - b);
@@ -400,7 +399,7 @@ export function stepOpeningRubble(
     const dist = (c: Vec2): number => Math.hypot(c[0] + 0.5 - cx, c[1] + 0.5 - cy);
     const maxD = Math.max(1, ...cells.map(dist));
     const order = [...cells].sort((a, b) => dist(a) - dist(b) || a[1] - b[1] || a[0] - b[0]);
-    const u = (c: Vec2, k: string): number => h32(`${r.seed}:rubble:${k}:${c[0]}:${c[1]}`) / 4294967296;
+    const u = (c: Vec2, k: string): number => hashUnit(r.seed, "rubble", k, c[0], c[1]);
     let n = 0;
     const put = (type: "cave_in" | "rubble" | "debris" | "rock", c: Vec2): boolean => {
       const info = featureInfo(type);
@@ -419,8 +418,8 @@ export function stepOpeningRubble(
         theme: work.themeAt(anchor),
         blocking: info.blocking,
       };
-      const ar = anchor >= 0 ? (work.disp[anchor] as number) : 0;
-      if (ar > 0) rf.area = (work.areas[ar - 1] as AreaInfo).area.id;
+      const shown = work.areaAt(anchor);
+      if (shown) rf.area = shown.area.id;
       features.addGenerated(rf);
       return true;
     };

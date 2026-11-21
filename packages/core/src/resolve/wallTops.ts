@@ -23,6 +23,7 @@ import { cellIndex, edgeLineLength, edgeLines, edgeOnLine } from "./levelGrid";
 import { areaReferenceHeights, edgeWallHeight, spanCellOf, wallRise } from "./wallspan";
 import { h32 } from "../util/hash";
 import { THEME_WALL_STYLE, isUnevenWallStyle } from "../gen/wallStyles";
+import { isRoughDressed } from "./themes";
 
 /**
  * Is each cell of a resolved level part of a rough-dressed interior (wall-foot rubble, broken wall tops, uneven tops)?
@@ -30,7 +31,7 @@ import { THEME_WALL_STYLE, isUnevenWallStyle } from "../gen/wallStyles";
  * changes the dressing. A cell outside every area is not a room and is not rough. Row-major, local index.
  */
 export function roughCells(L: ResolvedLevel): Uint8Array {
-  return areaCells(L, (a) => a.finish !== "tidy" || a.abandoned === true);
+  return areaCells(L, (a) => isRoughDressed(a.finish, a.abandoned));
 }
 
 /**

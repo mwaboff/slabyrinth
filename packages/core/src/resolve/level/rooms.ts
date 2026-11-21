@@ -18,11 +18,11 @@ import { furnishedPurpose } from "../../gen/roomPurpose";
 import { dressRoom, lightArea } from "../../gen/rooms4";
 import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
-import { elementSeed, h32, subSeed } from "../../util/hash";
+import { elementSeed, h32, hashUnit, subSeed } from "../../util/hash";
 import { BUILT_FLOORS, FAMILY_ROTATION, purposeFloor } from "../interiorFloors";
 import type { FeatureWork } from "./features";
 import type { FloorOpeningRecords } from "./floorOpenings";
-import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
+import type { ReadOnly, ResolveGrid } from "./grid";
 
 /** Room floors and the step above the corridor (stepRoomFloors). */
 const ROOM_FLOORS = {
@@ -254,7 +254,7 @@ export function stepWallFootRubble(
 ): void {
   if (!work.profile.wallFootRubble || work.level.base.type !== "solid" || work.structs) return;
   const seed = elementSeed(work.plan.seed, `${work.level.id}~footrubble`, undefined);
-  const u = (k: string, i: number): number => h32(`${seed}:${k}:${i}`) / 4294967296;
+  const u = (k: string, i: number): number => hashUnit(seed, k, i);
   const roughSide = (x: number, y: number, s: Side): boolean => {
     const se = work.sideEdge(x, y, s);
     return se !== null && se.e.kind[se.i] === EDGE.WALL && isUnevenWallStyle(se.e.style[se.i]);
@@ -276,8 +276,7 @@ export function stepWallFootRubble(
       return false;
     // only a rough interior has rubble at the wall foot: not a kept-up timber or plaster room (unless abandoned), and
     // not a cell outside every room (the same rule the compiler reads back, resolve/wallTops.ts roughCells)
-    const ar = work.disp[i] as number;
-    if (ar <= 0 || !(work.areas[ar - 1] as AreaInfo).rough) return false;
+    if (work.areaAt(i)?.rough !== true) return false;
     const [x, y] = work.cellXY(i);
     for (const s of sides) {
       const k = work.edgeKindAt(x, y, s);
@@ -310,16 +309,13 @@ export function stepWallFootRubble(
       theme: work.themeAt(i),
       blocking: info[type].blocking,
     };
-    const ar = work.disp[i] as number;
-    if (ar > 0) rf.area = (work.areas[ar - 1] as AreaInfo).area.id;
+    const shown = work.areaAt(i);
+    if (shown) rf.area = shown.area.id;
     features.addGenerated(rf);
     placed.add(i);
     return true;
   };
-  const inCorridor = (i: number): boolean => {
-    const s = work.struct[i] as number;
-    return s > 0 && (work.areas[s - 1] as AreaInfo).kind === "corridor";
-  };
+  const inCorridor = (i: number): boolean => work.ownerAt(i)?.kind === "corridor";
   // the foot of the walls
   for (let i = 0; i < work.n; i++) {
     if (!plain(i)) continue;
@@ -384,9 +380,10 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
   for (const info of work.areas) {
     if (info.kind !== "room" && info.kind !== "corridor") continue;
     const area = info.area;
-    const cells: Array<[number, number]> = [];
-    for (let i = 0; i < work.n; i++)
-      if (work.disp[i] === info.index + 1 && work.isFloor(i)) cells.push(work.cellXY(i));
+    const cells = work
+      .shownCells(info.index)
+      .filter((i) => work.isFloor(i))
+      .map((i) => work.cellXY(i));
     if (cells.length < RECIPES.minCells) continue;
     const seed = subSeed(elementSeed(work.plan.seed, `${work.level.id}~${area.id}~room`, undefined), "room");
     const own = features.all.filter(

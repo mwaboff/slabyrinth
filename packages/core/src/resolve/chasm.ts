@@ -14,7 +14,7 @@
  */
 import type { Vec2 } from "../contracts/plan";
 import { ValueNoise } from "../gen/noise";
-import { h32, subSeed } from "../util/hash";
+import { h32, hashUnit, subSeed } from "../util/hash";
 
 export interface ChasmSample {
   /** Centre of the trench (cell-centre coordinates: cell (x,y) has centre x+0.5, y+0.5). */
@@ -196,9 +196,8 @@ function buildCourse(
       const uy = cdy / chord;
       const px = -uy;
       const py = ux;
-      const phase =
-        h32(`${seed}:wander:phase`) / 4294967296 + (variant >> 1) * 0.29 + (variant & 1 ? 0.5 : 0);
-      const freq = 1.5 + (h32(`${seed}:wander:freq`) / 4294967296) * 0.75; // 1.5 .. 2.25 waves
+      const phase = hashUnit(seed, "wander", "phase") + (variant >> 1) * 0.29 + (variant & 1 ? 0.5 : 0);
+      const freq = 1.5 + hashUnit(seed, "wander", "freq") * 0.75; // 1.5 .. 2.25 waves
       const grain = new ValueNoise(subSeed(seed, "wander"));
       const target = opts.wander * chord;
       const edge = 1.5;

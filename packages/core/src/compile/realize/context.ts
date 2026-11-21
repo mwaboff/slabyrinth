@@ -28,7 +28,7 @@ import {
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
 import { familiesOfVariants, type FloorFamily } from "../../resolve/floorFamilies";
 import { OBSERVED_TONES } from "../../palette/tones";
-import { WorldFrame, h32 } from "../geometry";
+import { WorldFrame, h32, unitHash } from "../geometry";
 import { LevelGrid } from "../../resolve/levelGrid";
 
 export interface RealizeOptions {
@@ -187,7 +187,7 @@ export function createRealizeCtx(
     const pool = weighted.length ? weighted : vs.slice(0, 1);
     const total = pool.reduce((s, v) => s + v.weight, 0);
     if (pool.length <= 1 || total <= 0) return pool[0];
-    let r = (h32(`${seed}:${key}`) / 0x100000000) * total;
+    let r = unitHash(seed, key) * total;
     for (const v of pool) {
       r -= v.weight;
       if (r < 0) return v;
@@ -209,7 +209,7 @@ export function createRealizeCtx(
     const weighted = vs.filter((v) => v.weight > 0);
     if (weighted.length <= 1) return pick(vs, key);
     const total = weighted.reduce((sum, v) => sum + v.weight, 0);
-    const jitter = (h32(`${seed}:${key}:j`) / 0x100000000 - 0.5) * 0.15;
+    const jitter = (unitHash(seed, key, "j") - 0.5) * 0.15;
     let r = Math.min(0.9999, Math.max(0, patchNoise.sample(x / 5, y / 5) + jitter)) * total;
     for (const v of weighted) {
       r -= v.weight;

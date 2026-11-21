@@ -326,7 +326,7 @@ function cutFalls(
           const fl = work.flags[i] as number;
           if ((fl & (CELL_FLAG.NO_FLOOR | CELL_FLAG.WATER | CELL_FLAG.PATH | CELL_FLAG.BRIDGE)) !== 0)
             continue;
-          if (work.areas[(work.struct[i] as number) - 1]?.kind === "building") continue;
+          if (work.ownerAt(i)?.kind === "building") continue;
           const cur = work.height[i] as number;
           // a bank much higher than the pool would leave a tall bare face, and a pool must not eat into the bank of
           // another reach where the course doubles back: keep both

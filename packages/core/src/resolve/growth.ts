@@ -13,7 +13,7 @@
 import type { Side } from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
 import { SIDE_STEP as STEP } from "../gen/gridGeometry";
-import { h32 } from "../util/hash";
+import { hashUnit } from "../util/hash";
 
 /** Shaded faces grow more (the sun is taken from the south). */
 const SHADE: Record<Side, number> = { N: 1.35, W: 1.15, E: 0.9, S: 0.65 };
@@ -77,7 +77,7 @@ export function climbingGrowth(inp: GrowthInput): GrowthItem[] {
   const P = GROWTH_LEVELS[inp.level];
   const out: GrowthItem[] = [];
   if (inp.level === "none") return out;
-  const u = (s: string): number => h32(`${inp.seed}:grow:${s}`) / 4294967296;
+  const u = (s: string): number => hashUnit(inp.seed, "grow", s);
   const key = (c: { at: readonly [number, number]; side: Side }): string => `${c.at[0]},${c.at[1]},${c.side}`;
   const dist = (c: { at: readonly [number, number] }): number =>
     Math.hypot(c.at[0] - inp.anchor[0], c.at[1] - inp.anchor[1]);

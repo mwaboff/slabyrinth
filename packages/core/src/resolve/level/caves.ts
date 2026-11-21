@@ -14,7 +14,7 @@ import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed } from "../../util/hash";
 import { raggedCaveOutline } from "../caveOutline";
 import { CAVE_RELIEF, caveShelves } from "../caveRelief";
-import type { AreaInfo, ResolveGrid } from "./grid";
+import type { ResolveGrid } from "./grid";
 
 /**
  * Generator 4: cells the natural cave passes (ragged outlines, floor shelves) must leave as the plan drew them:
@@ -66,10 +66,7 @@ function caveKeep(work: ResolveGrid, ring: number): Set<number> {
 export function stepCaveOutlines(work: ResolveGrid): void {
   if (!work.profile.caveOutlines) return;
   const keep = caveKeep(work, 1);
-  const zoneAt = (i: number): boolean => {
-    const d = work.disp[i] as number;
-    return d > 0 && (work.areas[d - 1] as AreaInfo).isZone;
-  };
+  const zoneAt = (i: number): boolean => work.areaAt(i)?.isZone === true;
   for (const info of work.areas) {
     if (info.isZone || info.isBridge || !isNaturalWallStyle(info.wallStyle) || info.mode === "none") continue;
     const cells = work.areaCells(info.index);
@@ -110,9 +107,8 @@ export function stepCaveOutlines(work: ResolveGrid): void {
 export function stepCaveRelief(work: ResolveGrid): void {
   if (!work.profile.caveRelief) return;
   const cave = (i: number): boolean => {
-    const s = work.struct[i] as number;
-    if (s <= 0 || work.state[i] !== CELL.OPEN) return false;
-    const info = work.areas[s - 1] as AreaInfo;
+    const info = work.ownerAt(i);
+    if (!info || work.state[i] !== CELL.OPEN) return false;
     return isNaturalWallStyle(info.wallStyle) && !info.isBridge;
   };
   const dry = (i: number): boolean =>
@@ -144,10 +140,7 @@ export function stepCaveRelief(work: ResolveGrid): void {
       }
     return false;
   };
-  const bridgeArea = (j: number): boolean => {
-    const s = work.struct[j] as number;
-    return s > 0 && (work.areas[s - 1] as AreaInfo).isBridge;
-  };
+  const bridgeArea = (j: number): boolean => work.ownerAt(j)?.isBridge === true;
   const cells = floor.filter(
     (i) =>
       work.height[i] === flat &&

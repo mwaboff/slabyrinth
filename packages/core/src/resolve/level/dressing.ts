@@ -7,7 +7,6 @@
  */
 import type { TerrainOp } from "../../contracts/plan";
 import { PLAN_LIMITS } from "../../contracts/plan";
-import { CELL } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
 import { forEachMaskCell } from "../../gen/mask";
 import { type AvoidKind, dressArea, scatterFeatures } from "../../gen/place";
@@ -17,7 +16,7 @@ import { rasterizeShape } from "../../gen/shapes";
 import { elementSeed, subSeed } from "../../util/hash";
 import { isNaturalGround } from "../materials";
 import type { FeatureWork } from "./features";
-import type { AreaInfo, ResolveGrid } from "./grid";
+import type { ResolveGrid } from "./grid";
 
 /** A dress op over the whole level: the open ground (no area) and each zone area, each dressed as one region. */
 function dressWholeLevel(
@@ -29,19 +28,7 @@ function dressWholeLevel(
   cap: number,
   capWarn: (id: string, path: string) => void,
 ): void {
-  const regions: Array<{ index: number; cells: Array<[number, number]> }> = [];
-  const byIndex = new Map<number, Array<[number, number]>>();
-  for (let i = 0; i < work.n; i++) {
-    if (work.state[i] !== CELL.OPEN) continue;
-    const d = work.disp[i] as number;
-    const a = d > 0 ? work.areas[d - 1] : undefined;
-    if (d > 0 && a?.kind !== "zone") continue;
-    const list = byIndex.get(d) ?? [];
-    list.push(work.cellXY(i));
-    byIndex.set(d, list);
-  }
-  for (const [index, cells] of [...byIndex.entries()].sort((p, q) => p[0] - q[0]))
-    regions.push({ index, cells });
+  const regions = work.openRegions();
   let placed = 0;
   for (const r of regions) {
     const res = dressArea(grid, {
@@ -103,8 +90,7 @@ export function stepGeneratedFeatures(work: ResolveGrid, features: FeatureWork):
       });
       continue;
     }
-    const cells: Array<[number, number]> = [];
-    for (let i = 0; i < work.n; i++) if (work.disp[i] === ai + 1) cells.push(work.cellXY(i));
+    const cells = work.shownCells(ai).map((i) => work.cellXY(i));
     const res = dressArea(grid, {
       preset: op.preset,
       areaIndex: ai + 1,
@@ -112,7 +98,7 @@ export function stepGeneratedFeatures(work: ResolveGrid, features: FeatureWork):
       density: op.density ?? 0.5,
       seed: elementSeed(work.plan.seed, op.id, op.seed),
       remaining: cap - features.generated,
-      abandoned: (work.areas[ai] as AreaInfo).room.abandoned,
+      abandoned: work.areas[ai]?.room.abandoned === true,
     });
     features.commitGenerated(op.id, res.placements);
     if (res.capped) capWarn(op.id, path);
@@ -180,21 +166,11 @@ function stepDefaultCliffBands(
   const base = work.level.base;
   if (base.type !== "ground" || !isNaturalGround(base.material)) return;
   if ((work.level.structures ?? []).some((st) => st.kind !== "enclosure")) return;
-  const byIndex = new Map<number, Array<[number, number]>>();
-  for (let i = 0; i < work.n; i++) {
-    if (work.state[i] !== CELL.OPEN) continue;
-    const d = work.disp[i] as number;
-    const a = d > 0 ? work.areas[d - 1] : undefined;
-    if (d > 0 && a?.kind !== "zone") continue;
-    const list = byIndex.get(d) ?? [];
-    list.push(work.cellXY(i));
-    byIndex.set(d, list);
-  }
   // every region is planned before any piece is committed: rocks of neighbouring zones overlap on purpose, and a
   // committed piece would read as a feature in the way of the next zone's band
   const planned: Array<{ id: string; placements: GeneratedPlacement[] }> = [];
   let room = cap - features.generated;
-  for (const [index, cells] of [...byIndex.entries()].sort((p, q) => p[0] - q[0])) {
+  for (const { index, cells } of work.openRegions()) {
     const res = defaultCliffBands(grid, {
       areaIndex: index,
       areaCells: cells,

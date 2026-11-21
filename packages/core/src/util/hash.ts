@@ -83,7 +83,16 @@ export function h32(str: string): number {
   return h >>> 0;
 }
 
-const TWO_32 = 4294967296;
+/** 2^32: an unsigned 32-bit hash divided by it is a uniform draw in [0, 1). */
+export const TWO_32 = 4294967296;
+
+/**
+ * A uniform draw in [0, 1) named by its parts: the hash of the parts joined with ":" (`hashUnit(seed, "rim", x, y)` is
+ * the draw `h32("<seed>:rim:<x>:<y>")` / 2^32). The one way a stage draws a number from a hash instead of a stream.
+ */
+export function hashUnit(...parts: ReadonlyArray<string | number>): number {
+  return h32(parts.join(":")) / TWO_32;
+}
 
 /**
  * FNV-1a 64 over the UTF-8 bytes of `str`, as 16 lowercase hex digits.

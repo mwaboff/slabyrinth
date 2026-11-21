@@ -16,7 +16,7 @@ import { LIGHT_FEATURES, featureInfo, isLandmark, rotatedSize } from "../../gen/
 import type { GeneratedPlacement, PlacementGrid } from "../../gen/placementGrid";
 import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import type { ChasmRecords } from "./chasms";
-import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
+import type { ReadOnly, ResolveGrid } from "./grid";
 import { type PathRecords, parkVehicle } from "./paths";
 import type { ReliefRecords } from "./relief";
 import { waterSurface } from "./waterSurface";
@@ -145,8 +145,8 @@ export class FeatureWork {
         }
         if (ox !== 0 || oy !== 0) rf.offset = [ox, oy];
       }
-      const ar = anchor >= 0 ? (work.disp[anchor] as number) : 0;
-      if (ar > 0) rf.area = (work.areas[ar - 1] as AreaInfo).area.id;
+      const shown = work.areaAt(anchor);
+      if (shown) rf.area = shown.area.id;
       if (info.gmOnly) rf.gmOnly = true;
       this.addGenerated(rf);
     });
@@ -407,8 +407,8 @@ export function stepExplicitFeatures(
     if (f.variant !== undefined) rf.variant = f.variant;
     if (f.hint !== undefined) rf.hint = f.hint;
     if (f.label !== undefined) rf.label = f.label;
-    const ar = anchor >= 0 ? (work.disp[anchor] as number) : 0;
-    if (ar > 0) rf.area = (work.areas[ar - 1] as AreaInfo).area.id;
+    const shown = work.areaAt(anchor);
+    if (shown) rf.area = shown.area.id;
     if (f.gmOnly ?? info.gmOnly) rf.gmOnly = true;
     features.add(rf);
   });

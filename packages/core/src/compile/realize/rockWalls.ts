@@ -12,7 +12,7 @@ import { planCaveWall, type WallFace, type WallShape } from "../../gen/cavewall"
 import { ValueNoise } from "../../gen/noise";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE, NATURAL_WALL_ROLE } from "../../palette/roles";
-import { h32, placementBox, rotateXZ } from "../geometry";
+import { h32, placementBox, rotateXZ, unitHash } from "../geometry";
 import { EPS, type RealizeLevel } from "./level";
 import type { SolidShellPlan } from "./solidShell";
 import type { FullCellColumn, FullCellColumns } from "./walls";
@@ -77,8 +77,7 @@ function planColumn(
     base = Math.min(base, elev + lv.outsideGround);
     // clustered: broad noise picks masses (up to 3 blocks taller) and a few lower stretches (1 block down, never
     // below a tile above the floor), a per-cell hash breaks up runs of equal columns
-    const nz =
-      wallNoise.sample(c.x / 4, c.y / 4) * 0.8 + (h32(`${seed}:${c.x}:${c.y}:wt`) / 4294967296) * 0.2;
+    const nz = wallNoise.sample(c.x / 4, c.y / 4) * 0.8 + unitHash(seed, c.x, c.y, "wt") * 0.2;
     let extra = nz < 0.22 ? -1 : nz < 0.45 ? 0 : nz < 0.62 ? 1 : nz < 0.8 ? 2 : 3;
     // generator 3: the column is the closing skin of a wall of rock mass (gen/cavewall.ts): lower, in uneven runs
     if (profile.caveRockMass && c.roleName === NATURAL_WALL_ROLE) extra = nz < 0.3 ? -1 : nz < 0.72 ? 0 : 1;

@@ -46,7 +46,7 @@ import { isPlankWallStyle, THEME_WALL_STYLE } from "../gen/wallStyles";
 import { THEME_WALL_ROLE, wallRole } from "../palette/roles";
 import { sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
 import type { WorldFrame } from "./geometry";
-import { h32, rotateXZ } from "./geometry";
+import { h32, rotateXZ, unitHash } from "./geometry";
 
 export interface StructureRealizeCtx {
   L: ResolvedLevel;
@@ -373,7 +373,7 @@ function rectCellsOf(r: Rect): Array<[number, number]> {
 }
 
 /** Deterministic 0..1 from a key (build-time choices: lit windows, clutter). */
-const unit01 = (ctx: StructureRealizeCtx, k: string): number => h32(`${ctx.seed}:${k}`) / 4294967296;
+const unit01 = (ctx: StructureRealizeCtx, k: string): number => unitHash(ctx.seed, k);
 
 /**
  * A building: volume by volume, storey by storey (walls, openings, posts, upper floors, the seam a set-in storey
@@ -1959,7 +1959,7 @@ function placeRoofPiece(
     const holes = st.ruin.roofHoles;
     if (holes.some(([x, y]) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h)) return;
   }
-  const wantBroken = !ring && st.roof.broken > 0 && h32(`${pkey}:broken`) / 4294967296 < st.roof.broken;
+  const wantBroken = !ring && st.roof.broken > 0 && unitHash(pkey, "broken") < st.roof.broken;
   const tryPlace = (
     kind: RoofPiece["kind"],
     x: number,
@@ -2759,7 +2759,7 @@ function buildWallTopRubble(ctx: StructureRealizeCtx, st: ResolvedStructure, the
     const v = ctx.pick(spans ? longPile : smallBroken, `${ctx.L.id}:${k}`);
     if (!v) continue;
     const [dx, dy] = STEP[t.side];
-    const jit = (s: string): number => h32(`${ctx.seed}:${k}:${s}`) / 4294967296 - 0.5;
+    const jit = (s: string): number => unitHash(ctx.seed, k, s) - 0.5;
     // along the wall (a long pile lies lengthwise), 15 degree steps of yaw either side, never square to the step
     const base = (t.side === "N" || t.side === "S" ? 0 : 90) + (h32(`${k}:flip`) % 2) * 180;
     const yaw = legibleCondition ? base + Math.round(jit("yaw") * 6) * 15 : (h32(k) % 4) * 90;
@@ -2828,7 +2828,7 @@ function buildGrowth(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: str
   );
   for (const g of list) {
     const k = `${st.id}:grow:${g.kind}:${g.at[0]},${g.at[1]}${g.side ?? ""}`;
-    const rnd = (s: string): number => h32(`${ctx.seed}:${k}:${s}`) / 4294967296;
+    const rnd = (s: string): number => unitHash(ctx.seed, k, s);
     if ((g.kind === "vine" || g.kind === "root") && g.side) {
       const r = g.kind === "vine" ? climber : rooter;
       if (!r) continue;

@@ -13,12 +13,12 @@ import type { ResolvedBridge, ResolvedFeature } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { SIDES, stepSide } from "../../gen/gridGeometry";
-import { elementSeed, h32, subSeed } from "../../util/hash";
+import { elementSeed, h32, hashUnit, subSeed } from "../../util/hash";
 import { createPrng } from "../../util/prng";
 import { materialInfo, materialOrdinal } from "../materials";
 import type { ChasmRecords } from "./chasms";
 import type { FeatureWork } from "./features";
-import { type AreaInfo, type ReadOnly, type ResolveGrid, RAILING_HEIGHT } from "./grid";
+import { type ReadOnly, type ResolveGrid, RAILING_HEIGHT } from "./grid";
 
 /** A bridge deck waiting for the bridge pass (area of kind "bridge" or a chasm op's bridge). */
 export interface BridgeRequest {
@@ -504,8 +504,7 @@ export function stepRailings(work: ResolveGrid, bridges: ReadOnly<BridgeRecords>
         if (!drop) continue;
         // a crumbling bridge has gaps in its parapet too
         const cr = bridges.crumble.get(k);
-        if (cr && cr.crumble > 0 && h32(`${cr.seed}:parapet:${x}:${y}:${side}`) / 4294967296 < cr.crumble)
-          continue;
+        if (cr && cr.crumble > 0 && hashUnit(cr.seed, "parapet", x, y, side) < cr.crumble) continue;
         const ed = work.sideEdge(x, y, side);
         if (!ed) continue;
         ed.e.kind[ed.i] = EDGE.WALL;
@@ -541,8 +540,8 @@ export function stepBridgeRubble(
       theme: work.themeAt(anchor),
       blocking: info.blocking,
     };
-    const ar = anchor >= 0 ? (work.disp[anchor] as number) : 0;
-    if (ar > 0) rf.area = (work.areas[ar - 1] as AreaInfo).area.id;
+    const shown = work.areaAt(anchor);
+    if (shown) rf.area = shown.area.id;
     features.addGenerated(rf);
   }
 }

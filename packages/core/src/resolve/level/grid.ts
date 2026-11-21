@@ -408,8 +408,7 @@ export class ResolveGrid {
 
   /** True when the cell has open floor (used by the level above to check what lies under its floor openings). */
   hasFloorAt(gx: number, gy: number): boolean {
-    const i = this.idx(gx, gy);
-    return i >= 0 && this.state[i] === CELL.OPEN && ((this.flags[i] as number) & CELL_FLAG.NO_FLOOR) === 0;
+    return this.isFloor(this.idx(gx, gy));
   }
 
   // ───────────────────────────── areas ─────────────────────────────
@@ -464,6 +463,45 @@ export class ResolveGrid {
     const out: number[] = [];
     for (let i = 0; i < this.n; i++) if (arr[i] === ai + 1) out.push(i);
     return out;
+  }
+
+  /** Cells (local indices) that show as area `ai` (its display cells: a zone's, or a room's not under a zone). */
+  shownCells(ai: number): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < this.n; i++) if (this.disp[i] === ai + 1) out.push(i);
+    return out;
+  }
+
+  /**
+   * The area a cell shows as (its display owner: a zone over a room shows the zone; ResolvedLevel.cells.area), or
+   * undefined outside every area or the level.
+   */
+  areaAt(i: number): AreaInfo | undefined {
+    const d = i >= 0 ? (this.disp[i] as number) : 0;
+    return d > 0 ? this.areas[d - 1] : undefined;
+  }
+
+  /** The area that owns a cell structurally (its walls, floor and theme; never a zone), or undefined (@ground). */
+  ownerAt(i: number): AreaInfo | undefined {
+    const s = i >= 0 ? (this.struct[i] as number) : 0;
+    return s > 0 ? this.areas[s - 1] : undefined;
+  }
+
+  /**
+   * The level's open ground as regions, in display-index order: @ground (index 0) and each zone, with their open cells
+   * in index order. Areas that are not zones are left out: they are dressed and banded as areas of their own.
+   */
+  openRegions(): Array<{ index: number; cells: Array<[number, number]> }> {
+    const byIndex = new Map<number, Array<[number, number]>>();
+    for (let i = 0; i < this.n; i++) {
+      if (this.state[i] !== CELL.OPEN) continue;
+      const d = this.disp[i] as number;
+      if (d > 0 && this.areas[d - 1]?.kind !== "zone") continue;
+      const list = byIndex.get(d) ?? [];
+      list.push(this.cellXY(i));
+      byIndex.set(d, list);
+    }
+    return [...byIndex.entries()].sort((p, q) => p[0] - q[0]).map(([index, cells]) => ({ index, cells }));
   }
 
   /** Anchor (§2.4 step 10): cell nearest the bbox centre by squared distance; ties → smallest y, then x. */
