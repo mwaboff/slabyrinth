@@ -19,6 +19,7 @@ export type { RawCatalogRecord } from "./derive";
 export { VdfError, parseAppManifest, parseLibraryFolders, parseVdf, vdfGet } from "./vdf";
 export type { AppManifest, SteamLibrary, VdfObject, VdfValue } from "./vdf";
 export {
+  STEAM_LAUNCH_URL,
   TALESPIRE_APP_ID,
   joinPath,
   listPackDirs,

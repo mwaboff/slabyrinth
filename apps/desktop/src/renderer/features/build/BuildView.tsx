@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./build.css";
-import type { CompileDiagnostic, MapPlan } from "@slabyrinth/core";
+import { STEAM_LAUNCH_URL, type CompileDiagnostic, type MapPlan } from "@slabyrinth/core";
 import { Icon } from "../../ui/Icon";
 import { useDismiss } from "../../ui/dismiss";
 import { useBuild } from "../../stores/build";
@@ -695,11 +695,7 @@ function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
               <button
                 className="btn btn--sm guide__open"
                 onClick={() =>
-                  void run(
-                    "talespire:openUrl",
-                    { url: "steam://rungameid/720620" },
-                    "Couldn't start TaleSpire.",
-                  )
+                  void run("talespire:openUrl", { url: STEAM_LAUNCH_URL }, "Couldn't start TaleSpire.")
                 }
               >
                 <Icon name="ext" size="sm" />

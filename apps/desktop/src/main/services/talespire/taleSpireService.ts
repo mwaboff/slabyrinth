@@ -3,7 +3,8 @@ import type { IpcRequests } from "../../../shared/ipc";
 import type { Logger } from "../../logger";
 import type { ClipboardService } from "../clipboardService";
 import type { SettingsStore } from "../settingsStore";
-import { locateTaleSpireViaSteam, TALESPIRE_APP_ID, validateInstall, type LocatorEnv } from "./steamLocator";
+import { STEAM_LAUNCH_URL } from "@slabyrinth/core";
+import { locateTaleSpireViaSteam, validateInstall, type LocatorEnv } from "./steamLocator";
 
 /**
  * TaleSpireService (architecture §6.6, talespire-assets.md §10): locate the install, detect whether
@@ -14,7 +15,7 @@ import { locateTaleSpireViaSteam, TALESPIRE_APP_ID, validateInstall, type Locato
  *   3. not running → launch through Steam (steam://rungameid/720620) — never the exe directly,
  *      never a talespire:// URL.
  */
-export const STEAM_LAUNCH_URL = `steam://rungameid/${TALESPIRE_APP_ID}`;
+export { STEAM_LAUNCH_URL };
 const TALESPIRE_ASSET_URL =
   /^talespire:\/\/asset\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
