@@ -1,8 +1,9 @@
 /**
  * What a room is for, and whether anyone keeps it up (generator 4). The ONE classifier of a room: the resolver calls
- * `classifyRoom` once per area and writes the result on the resolved area (`ResolvedArea.purpose`, `.abandoned`,
- * `.finish`); its floor, dressing, lights, rubble and wall tops, the compiler's shell and broken tops, and the review
- * all read that, and never parse words again. A room whose plan and words say nothing gets no purpose (we never
+ * `classifyRoom` once per area and writes the result on the resolved area (`ResolvedArea.purpose`, `.abandoned`);
+ * its floor, dressing, lights, rubble and wall tops, the compiler's broken tops, and the review all read that, and
+ * never parse words again. Being abandoned never changes what a room's walls are made of (`ResolvedArea.finish` is
+ * the theme's, and the compiler's shell reads that alone). A room whose plan and words say nothing gets no purpose (we never
  * invent one).
  *
  * Where the purpose comes from, first match wins:

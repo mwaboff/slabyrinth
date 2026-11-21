@@ -25,16 +25,29 @@ import { h32 } from "../util/hash";
 import { THEME_WALL_STYLE, isUnevenWallStyle } from "../gen/wallStyles";
 
 /**
- * Is each cell of a resolved level part of a rough interior (wall-foot rubble, broken wall tops, uneven tops)? Read
- * from the finish the resolver gave its area (ResolvedArea.finish: the theme's interior character, rough when the room
- * is abandoned). A cell outside every area is not a room and is not rough. Row-major, local index.
+ * Is each cell of a resolved level part of a rough-dressed interior (wall-foot rubble, broken wall tops, uneven tops)?
+ * Rough when its area is built rough (ResolvedArea.finish) or nobody keeps it up (ResolvedArea.abandoned): condition
+ * changes the dressing. A cell outside every area is not a room and is not rough. Row-major, local index.
  */
 export function roughCells(L: ResolvedLevel): Uint8Array {
+  return areaCells(L, (a) => a.finish !== "tidy" || a.abandoned === true);
+}
+
+/**
+ * Is each cell of a resolved level a room built rough, carved into a mass (ResolvedArea.finish: the theme's interior
+ * character)? What the solid behind its walls is (the earth cap and skirt of compile/shell.ts) follows this, never the
+ * room's condition: an abandoned room in a timber building is still walled in timber. Row-major, local index.
+ */
+export function carvedCells(L: ResolvedLevel): Uint8Array {
+  return areaCells(L, (a) => a.finish !== "tidy");
+}
+
+function areaCells(L: ResolvedLevel, test: (a: ResolvedLevel["areas"][number]) => boolean): Uint8Array {
   const out = new Uint8Array(L.bounds.w * L.bounds.h);
-  const rough = L.areas.map((a) => a.finish !== "tidy");
+  const hit = L.areas.map(test);
   for (let i = 0; i < out.length; i++) {
     const aid = L.cells.area[i] ?? 0;
-    out[i] = aid > 0 && rough[aid - 1] === true ? 1 : 0;
+    out[i] = aid > 0 && hit[aid - 1] === true ? 1 : 0;
   }
   return out;
 }

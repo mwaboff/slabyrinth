@@ -88,7 +88,10 @@ export interface AreaInfo {
   readonly room: RoomClass;
   /** The theme's interior character (resolve/themes.ts themeInterior). */
   readonly interior: ThemeInterior;
-  /** A rough interior: the theme's finish is rough, or nobody keeps the room up (ResolvedArea.finish). */
+  /**
+   * Dressed rough: the theme's finish is rough, or nobody keeps the room up (resolve/wallTops.ts roughCells reads the
+   * same back from ResolvedArea.finish and .abandoned). Dressing only: what the walls are built of is `interior`.
+   */
   readonly rough: boolean;
 }
 

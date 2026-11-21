@@ -478,14 +478,15 @@ describe("generator 4 shell: tidy buildings, outline", () => {
       const L = R.levels[0] as ResolvedLevel;
       const G = new LevelGrid(L, "generic");
       const shell = shellOf(R, L, "generic");
-      const finish = (x: number, y: number): string | undefined => {
+      const kept = (x: number, y: number): string | undefined => {
         const c = G.cell(x, y);
-        return c.open ? L.areas.find((a) => a.id === L.areaIds[c.area - 1])?.finish : undefined;
+        if (!c.open) return undefined;
+        return L.areas.find((a) => a.id === L.areaIds[c.area - 1])?.abandoned === true ? "abandoned" : "kept";
       };
-      // the gap between the tidy kitchen and the ruined (rough) cellar
+      // the gap between the kept-up kitchen and the ruined cellar
       const between = (shell?.strips ?? []).filter((s) => {
-        const sides = [finish(s.x - 1, s.y), finish(s.x + 1, s.y)];
-        return sides.includes("tidy") && sides.includes("rough");
+        const sides = [kept(s.x - 1, s.y), kept(s.x + 1, s.y)];
+        return sides.includes("kept") && sides.includes("abandoned");
       });
       expect(between.length).toBeGreaterThan(3);
       for (const s of between) expect(shell?.cells.has(G.index(s.x, s.y))).toBe(false);
@@ -493,6 +494,43 @@ describe("generator 4 shell: tidy buildings, outline", () => {
       const capped = caps(loadPlan("purpose-lineup-v1"));
       for (const s of between)
         expect(plank.has(capped.find((c) => c.x === s.x && c.y === s.y)?.asset ?? "")).toBe(true);
+    });
+  });
+  describe("a room's condition does not decide what its walls are made of", () => {
+    /** The inn with every room abandoned (a ruin word on each), in a theme. */
+    const ruinedInn = (theme: string): MapPlan => {
+      const plan = inn(theme);
+      for (const lv of plan.levels)
+        for (const a of lv.areas) if (a.kind === "room") a.tags = [...(a.tags ?? []), "ruined"];
+      return plan;
+    };
+    it("abandoned rooms of a timber building get their walls' tops between them, no earth cap and no skirt", () => {
+      const R = resolvePlan(ruinedInn("wood_town"), bundledPalettes());
+      const L = R.levels[0] as ResolvedLevel;
+      expect(L.areas.filter((a) => a.abandoned === true).length).toBeGreaterThan(3);
+      for (const a of L.areas) expect(a.finish).toBe("tidy");
+      const shell = shellOf(R, L, "wood_town");
+      expect(shell?.cells.size ?? 0).toBe(0);
+      expect(shell?.edges.length ?? 0).toBe(0);
+      expect(shell?.strips.length ?? 0).toBeGreaterThan(10);
+      // still dressed as abandoned: rubble at the wall foot
+      expect(L.features.filter((f) => f.generatedBy === "walls").length).toBeGreaterThan(0);
+    });
+    it("abandoned rooms of a stone dungeon keep the cap and skirt of the rock they are cut into", () => {
+      const R = resolvePlan(ruinedInn("stone_dungeon"), bundledPalettes());
+      const L = R.levels[0] as ResolvedLevel;
+      for (const a of L.areas) expect(a.finish).toBe("rough");
+      const shell = shellOf(R, L, "stone_dungeon");
+      expect(shell?.cells.size ?? 0).toBeGreaterThan(50);
+      expect(shell?.edges.length ?? 0).toBeGreaterThan(0);
+      expect(shell?.strips.length ?? 0).toBe(0);
+    });
+    it("the ruined cellar of the purpose line-up has no cap and no skirt on its outer sides", () => {
+      const R = resolvePlan(loadPlan("purpose-lineup-v1"), palettes);
+      const L = R.levels[0] as ResolvedLevel;
+      const shell = shellOf(R, L, "generic");
+      expect(shell?.cells.size ?? 0).toBe(0);
+      expect(shell?.edges.length ?? 0).toBe(0);
     });
   });
   it("the same plan in a stone dungeon keeps the cap and skirt", () => {

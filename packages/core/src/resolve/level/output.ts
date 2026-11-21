@@ -146,7 +146,8 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
     if (work.profile.roomClassification) {
       if (info.room.purpose !== undefined) ra.purpose = info.room.purpose;
       if (info.room.abandoned) ra.abandoned = true;
-      ra.finish = info.rough ? "rough" : "tidy";
+      // what the room is built as (the theme's character); its condition is `abandoned`, never its finish
+      ra.finish = info.interior.finish;
     }
     return ra;
   });

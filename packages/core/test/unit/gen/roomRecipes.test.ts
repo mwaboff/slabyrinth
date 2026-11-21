@@ -168,12 +168,13 @@ describe("room purpose from words (gen/roomPurpose.ts classifyRoom, the one clas
     const L = level(building(names));
     expect(L.areas.find((a) => a.id === "r0")).toMatchObject({ purpose: "kitchen", finish: "tidy" });
     expect(L.areas.find((a) => a.id === "r0")?.abandoned).toBeUndefined();
-    // a tag-only "ruined" makes a timber room rough for the resolver, the compiler and the review alike (the review used
-    // to read the name and notes only, the wall tops the name and notes of the resolved area)
+    // a tag-only "ruined" makes a timber room abandoned for the resolver, the compiler and the review alike (the review
+    // used to read the name and notes only, the wall tops the name and notes of the resolved area); it is still built
+    // of timber (its finish is the theme's), only dressed rough
     expect(L.areas.find((a) => a.id === "r1")).toMatchObject({
       purpose: "ruin",
       abandoned: true,
-      finish: "rough",
+      finish: "tidy",
     });
     expect(roomStats(L).find((s) => s.id === "r1")?.abandoned).toBe(true);
     // generator 3 resolves no classification

@@ -3,9 +3,9 @@
  * of style names. A new style gets one row here, and every rule that asks "is it
  * rock", "can you see over it" or "may it be weathered" answers for it.
  *
- * The table says nothing about themes. Whether a room is kept up or abandoned is decided per theme and per room
- * (`ResolvedArea.finish`: the theme's interior character, rough when gen/roomPurpose.ts finds the room abandoned); this
- * table only says whether the STYLE can carry the weathering at all.
+ * The table says nothing about themes. Whether a room is built rough (`ResolvedArea.finish`: the theme's interior
+ * character) and whether it is kept up (`ResolvedArea.abandoned`, gen/roomPurpose.ts) are decided per theme and per
+ * room; this table only says whether the STYLE can carry the weathering at all.
  */
 import type { Material, WallStyle } from "../contracts/plan";
 import { WALL_STYLES } from "../contracts/plan";

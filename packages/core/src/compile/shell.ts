@@ -35,7 +35,7 @@ import { h32 } from "../util/hash";
 import { cellIndex, sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
 import type { WallFaces } from "../resolve/wallFaces";
 import { spanCellAt } from "../resolve/wallspan";
-import { roughCells } from "../resolve/wallTops";
+import { carvedCells } from "../resolve/wallTops";
 
 export const SHELL = {
   /** Rings of solid cells that may be capped (1 = the cells touching a wall). Generator 4: two, 2x2 blocks may add a third. */
@@ -208,7 +208,7 @@ interface BackedWall {
 
 /** What the thin walls round a level's rooms say about the solid cells behind them (local indices). */
 interface ShellFaces {
-  /** Solid cells against a thin wall of a rough room. */
+  /** Solid cells against a thin wall of a room carved into the mass (built rough). */
   seeds: Map<number, BackedWall>;
   /** Solid cells against a thin wall of a tidy room: the tallest such wall's top, style and room theme. */
   tidy: Map<number, BackedWall>;
@@ -218,8 +218,11 @@ interface ShellFaces {
   rockFace: number[];
   /** The lowest floor of the level (relative tiles, at most 0). */
   floorLow: number;
-  /** Rough interior cells (1; resolve/wallTops.ts roughCells). */
-  rough: Uint8Array;
+  /**
+   * Cells of rooms carved into the mass (1; resolve/wallTops.ts carvedCells: what the room is built as, never its
+   * condition, so an abandoned room in a timber building is walled like its neighbours).
+   */
+  carved: Uint8Array;
 }
 
 /**
@@ -236,9 +239,9 @@ function shellFaces(g: ShellGrid, walls: WallFaces): ShellFaces {
     bare: new Set(),
     rockFace: [],
     floorLow: 0,
-    rough: roughCells(L),
+    carved: carvedCells(L),
   };
-  const { seeds, tidy, bare, rockFace, rough } = faces;
+  const { seeds, tidy, bare, rockFace, carved } = faces;
   for (let ly = 0; ly < h; ly++)
     for (let lx = 0; lx < w; lx++) {
       const i = ly * w + lx;
@@ -262,9 +265,9 @@ function shellFaces(g: ShellGrid, walls: WallFaces): ShellFaces {
       rockFace.push(mass.index);
       continue;
     }
-    // the cap sits flush with the tallest wall it backs onto; a tidy interior (ResolvedArea.finish, read through
-    // resolve/wallTops.ts roughCells) gets no cap and no skirt, only the strips, which are that wall's top
-    const faced = rough[room.index] === 1 ? seeds : tidy;
+    // the cap sits flush with the tallest wall it backs onto; a built (tidy) interior (ResolvedArea.finish, read
+    // through resolve/wallTops.ts carvedCells) gets no cap and no skirt, only the strips, which are that wall's top
+    const faced = carved[room.index] === 1 ? seeds : tidy;
     const prev = faced.get(mass.index);
     if (!prev || f.top > prev.top) faced.set(mass.index, { theme: f.theme, style: f.style, top: f.top });
   }
@@ -492,15 +495,15 @@ function stackedLevels(resolved: ResolvedPlan, L: ResolvedLevel): StackedLevels 
 
 /**
  * The one-cell solid strips of a kept-up building: a cell between two rooms (or a room and the corridor) where at least
- * one of them is tidy, then the cells that join such strips. It is the top of the two rooms' shared wall: an abandoned
- * (rough) room beside a tidy one does not turn the wall they share into the earth cap of a carved dungeon. Two rough
- * rooms keep the cap between them (the rock mass of a carved level).
+ * one of them is built tidy, then the cells that join such strips. It is the top of the two rooms' shared wall. Two
+ * carved rooms keep the cap between them (the rock mass of a carved level). Condition plays no part: an abandoned room
+ * of a timber building is a tidy-built room (carvedCells).
  */
 function stripCells(g: ShellGrid, faces: ShellFaces, rockOwns: (k: number) => boolean): Set<number> {
   const { w, h } = g;
-  const { rough } = faces;
+  const { carved } = faces;
   const open = (k: number): boolean => k >= 0 && g.state(k) === CELL.OPEN;
-  const tidyOpen = (k: number): boolean => open(k) && rough[k] !== 1;
+  const tidyOpen = (k: number): boolean => open(k) && carved[k] !== 1;
   const strip = new Set<number>();
   for (let pass = 0; pass < 4; pass++) {
     for (let k = 0; k < w * h; k++) {
