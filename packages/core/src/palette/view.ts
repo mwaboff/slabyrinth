@@ -17,8 +17,8 @@ import type { StallForm, ThemeInterior } from "../contracts/resolved";
 import { featureRoles } from "../gen/surfaces";
 import { generatorProfile } from "../plan/generator";
 import { bundledPalettes } from "./load";
-import { createRoleResolver, themeChain, type ResolvePalettes, type VariantFilter } from "./resolve";
-import { coveredStallForms, type RoleProbe } from "./stallParts";
+import { createRoleResolver, themeChain, type ResolvePalettes } from "./resolve";
+import { coveredStallForms, roleProbe, type RoleProbe } from "./stallParts";
 
 export type PieceSizeFn = (
   theme: ThemeId,
@@ -98,15 +98,7 @@ export function createPaletteView(
   generator: number = GENERATOR_VERSION,
 ): PaletteView {
   const resolver = createRoleResolver(catalog, generator);
-  const probe =
-    (theme: ThemeId): RoleProbe =>
-    (roles, filter?: VariantFilter) => {
-      for (const role of roles) {
-        const r = resolver(theme, role, filter).resolution;
-        if (r) return r;
-      }
-      return null;
-    };
+  const probe = (theme: ThemeId): RoleProbe => roleProbe(resolver, theme);
   const variantsOf = (theme: ThemeId, roles: readonly string[], variant: string | undefined) => {
     for (const role of roles) {
       const vs = (resolver(theme, role).resolution?.variants ?? []).filter(

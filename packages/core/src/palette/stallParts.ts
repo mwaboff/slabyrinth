@@ -8,11 +8,26 @@
  * with a `RoleProbe` over the palettes they hold, and `resolve/` is handed the compiler's palettes through its
  * `PaletteView` (palette/view.ts), so they ask the same question of the same palettes.
  */
+import type { ThemeId } from "../contracts/plan";
 import type { StallForm } from "../contracts/resolved";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "./resolve";
 
 /** Resolves the first of `roles` the theme can supply (variants passing `filter`), or null. The theme is bound by the caller. */
 export type RoleProbe = (roles: readonly string[], filter?: VariantFilter) => RoleResolution | null;
+
+/** The probe over a role resolver (palette/resolve.ts `createRoleResolver`) for one theme. */
+export function roleProbe(
+  resolve: (theme: ThemeId, role: string, filter?: VariantFilter) => { resolution: RoleResolution | null },
+  theme: ThemeId,
+): RoleProbe {
+  return (roles, filter) => {
+    for (const role of roles) {
+      const r = resolve(theme, role, filter).resolution;
+      if (r) return r;
+    }
+    return null;
+  };
+}
 
 /** A 1x1 tile standing on its cell (the platform and the counter blocks). */
 export const ONE_CELL_TILE: VariantFilter = {
