@@ -36,6 +36,17 @@ import type { RoomClass } from "../../gen/roomPurpose";
 import { type ClipBox, rasterizeShape } from "../../gen/shapes";
 import type { PaletteView } from "../../palette/view";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
+import {
+  cellIndex,
+  edgeCol,
+  edgeFirstCell,
+  edgeRow,
+  edgeSecondCell,
+  hEdgeIndex,
+  sideEdgeIndex,
+  sideOrient,
+  vEdgeIndex,
+} from "../levelGrid";
 import { isWater, materialOrdinal } from "../materials";
 import type { ThemeDefaults } from "../themes";
 import { type StructureWork, expandStructures } from "../structure";
@@ -196,11 +207,10 @@ export class ResolveGrid {
 
   // ───────────────────────────── cells and edges ─────────────────────────────
 
+  // The index arithmetic is the level grid's (resolve/levelGrid.ts), shared with every reader of a resolved level.
+
   idx(gx: number, gy: number): number {
-    const lx = gx - this.bx;
-    const ly = gy - this.by;
-    if (lx < 0 || ly < 0 || lx >= this.w || ly >= this.h) return -1;
-    return ly * this.w + lx;
+    return cellIndex(this, gx - this.bx, gy - this.by);
   }
 
   isFloor(i: number): boolean {
@@ -238,42 +248,28 @@ export class ResolveGrid {
   }
 
   hIndex(lx: number, ly: number): { e: EdgeArrays; i: number; orient: "h" } | null {
-    if (lx < 0 || lx >= this.w || ly < 0 || ly > this.h) return null;
-    return { e: this.hE, i: ly * this.w + lx, orient: "h" };
+    const i = hEdgeIndex(this, lx, ly);
+    return i < 0 ? null : { e: this.hE, i, orient: "h" };
   }
 
   vIndex(lx: number, ly: number): { e: EdgeArrays; i: number; orient: "v" } | null {
-    if (lx < 0 || lx > this.w || ly < 0 || ly >= this.h) return null;
-    return { e: this.vE, i: ly * (this.w + 1) + lx, orient: "v" };
+    const i = vEdgeIndex(this, lx, ly);
+    return i < 0 ? null : { e: this.vE, i, orient: "v" };
   }
 
   edgeKindAt(gx: number, gy: number, side: Side): number {
-    const s = this.sideEdge(gx, gy, side);
-    return s ? (s.e.kind[s.i] as number) : EDGE.NONE;
+    const i = sideEdgeIndex(this, gx - this.bx, gy - this.by, side);
+    return i < 0 ? EDGE.NONE : ((sideOrient(side) === "h" ? this.hE : this.vE).kind[i] as number);
   }
 
   /** The two cells (local index or -1 when out of bounds) on either side of an edge: [first (N/W), second (S/E)]. */
   edgeCells(orient: "h" | "v", i: number): [number, number] {
-    if (orient === "h") {
-      const lx = i % this.w;
-      const ly = (i - lx) / this.w;
-      return [ly > 0 ? (ly - 1) * this.w + lx : -1, ly < this.h ? ly * this.w + lx : -1];
-    }
-    const W1 = this.w + 1;
-    const lx = i % W1;
-    const ly = (i - lx) / W1;
-    return [lx > 0 ? ly * this.w + lx - 1 : -1, lx < this.w ? ly * this.w + lx : -1];
+    return [edgeFirstCell(this, orient, i), edgeSecondCell(this, orient, i)];
   }
 
   /** Global vertex at the start of an edge. */
   edgeStart(orient: "h" | "v", i: number): [number, number] {
-    if (orient === "h") {
-      const lx = i % this.w;
-      return [this.bx + lx, this.by + (i - lx) / this.w];
-    }
-    const W1 = this.w + 1;
-    const lx = i % W1;
-    return [this.bx + lx, this.by + (i - lx) / W1];
+    return [this.bx + edgeCol(this, orient, i), this.by + edgeRow(this, orient, i)];
   }
 
   cellXY(i: number): [number, number] {

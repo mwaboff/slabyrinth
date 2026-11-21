@@ -8,6 +8,7 @@
 import type { OpeningKind } from "../../contracts/plan";
 import type { ResolvedOpening } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
+import { edgeCol, edgeRow } from "../levelGrid";
 import type { RouteRecord } from "./areas";
 import type { AreaInfo, ResolveGrid } from "./grid";
 
@@ -221,11 +222,10 @@ export function stepOpenings(
         return;
       }
       const idx: number[] = [];
+      const col = edgeCol(work, ed.orient, ed.i);
+      const row = edgeRow(work, ed.orient, ed.i);
       for (let j = 0; j < width0; j++) {
-        const next =
-          ed.orient === "h"
-            ? work.hIndex((ed.i % work.w) + j, Math.floor(ed.i / work.w))
-            : work.vIndex(ed.i % (work.w + 1), Math.floor(ed.i / (work.w + 1)) + j);
+        const next = ed.orient === "h" ? work.hIndex(col + j, row) : work.vIndex(col, row + j);
         if (!next) {
           work.issue(
             "error",
