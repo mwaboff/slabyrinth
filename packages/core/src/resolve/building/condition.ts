@@ -102,7 +102,7 @@ export function applyCondition(
       for (let k = 0; k < g.width; k++) openKeys.add(faceKey(...alongFace(g.at, g.side, k), g.side));
     scatterTopRubble(ruin, openKeys, subSeed(seed, "ruin"));
   }
-  const blocked = doorPaths(faces.ground);
+  const blocked = doorPaths(faces.ground, doorwayTest(b));
   scatterFootDebris(d, blocked);
   if (legible && !ruined) footGrowth(d, blocked);
   if (ruined) insideRubble(d, blocked);
@@ -354,6 +354,7 @@ function onFace(
 function breachGroundStorey(d: DecayWork): void {
   const { b, fp, vplans, faces, ruin, legible, prng4 } = d;
   const ground = faces.ground;
+  const doorway = doorwayTest(b);
   const breaches = RUINED.breachesMin + prng4.int(RUINED.breachesExtra);
   // the walls of the kept, roofed volume are not breached
   const whole = new Set<string>();
@@ -371,8 +372,8 @@ function breachGroundStorey(d: DecayWork): void {
     for (let k = -1; k <= width && free; k++) {
       const c = run.cells[a0 + k];
       if (!c) continue;
-      // doorways and their neighbours stay; windows inside the breach go
-      if (ground.some((g) => g.kind !== "window" && onFace(g, c, side))) free = false;
+      // doorways and their neighbours stay; windows (and slits and bars) inside the breach go
+      if (ground.some((g) => doorway(g.kind) && onFace(g, c, side))) free = false;
       if (whole.has(faceKey(c[0], c[1], side))) free = false;
       // nor a standing arch (generator 3) and its jambs
       if (ruin.arches?.some((q) => onFace(q, c, side))) free = false;
@@ -387,7 +388,7 @@ function breachGroundStorey(d: DecayWork): void {
     const cells = run.cells.slice(a0, a0 + width);
     for (let i = ground.length - 1; i >= 0; i--) {
       const g = ground[i];
-      if (g && g.kind === "window" && cells.some((c) => onFace(g, c, side))) ground.splice(i, 1);
+      if (g && !doorway(g.kind) && cells.some((c) => onFace(g, c, side))) ground.splice(i, 1);
     }
     for (const cc of cells) faces.take(GROUND_FACES, 0, faceKey(cc[0], cc[1], side));
     // generator 3: collapse goes top-down, so no upper wall hangs over a breach (the column ends at the storey's top)
@@ -403,11 +404,23 @@ function breachGroundStorey(d: DecayWork): void {
   }
 }
 
+/**
+ * Is a ground opening of this kind a doorway (or a breach): a way in that rubble keeps clear of and a breach spares?
+ * Generator 4 (`openingKindTraits`) asks the kind table (a passage); earlier generators took every kind but "window"
+ * for a doorway, so an arrow slit or bars counted as one.
+ */
+function doorwayTest(b: BuildingCtx): (kind: GroundOpening["kind"]) => boolean {
+  return b.gen.openingKindTraits ? isPassage : (kind) => kind !== "window";
+}
+
 /** Cells in a doorway's or breach's path (three cells out, one in, a cell either side): no heap lies there. */
-function doorPaths(ground: readonly GroundOpening[]): Set<string> {
+function doorPaths(
+  ground: readonly GroundOpening[],
+  doorway: (kind: GroundOpening["kind"]) => boolean,
+): Set<string> {
   const blocked = new Set<string>();
   for (const g of ground) {
-    if (g.kind === "window") continue;
+    if (!doorway(g.kind)) continue;
     const [dx, dy] = STEP[g.side];
     for (let k = -1; k <= g.width; k++)
       for (let dd = -1; dd <= 3; dd++) {

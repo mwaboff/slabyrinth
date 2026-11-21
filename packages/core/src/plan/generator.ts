@@ -237,6 +237,10 @@ const SWITCHES = {
     4,
     "The resolver decides from the palettes the plan is compiled with (palette/view.ts resolveView).",
   ),
+  openingKindTraits: on(
+    4,
+    "Opening tests read the opening-kind table's traits (a passage, a window) where they named one kind (gen/openingKinds.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

@@ -3,7 +3,7 @@
  * tops carry broken blocks and rubble, and a ruin keeps some doorway and window arches standing alone.
  */
 import { describe, expect, it } from "vitest";
-import type { Building, MapPlan, Structure } from "../../../src/contracts/plan";
+import type { Building, MapPlan, Structure, StructureOpening } from "../../../src/contracts/plan";
 import type { ResolvedLevel, ResolvedStructure } from "../../../src/contracts/resolved";
 import { realize, verifyBuild } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
@@ -244,5 +244,60 @@ describe("ruins at generator 3", () => {
     const a = first(plan([b("keep", 4, 9, 9, { condition: "ruined" })])).ruin?.topRubble ?? [];
     const c = first(plan([b("keep", 5, 9, 9, { condition: "ruined" })])).ruin?.topRubble ?? [];
     expect(JSON.stringify(a)).not.toBe(JSON.stringify(c));
+  });
+});
+
+describe("a ruin's arrow slits are windows, not doorways (generator 4, openingKindTraits)", () => {
+  const slits: StructureOpening[] = [
+    ...(["N", "E", "S", "W"] as const).flatMap((side) =>
+      [0.2, 0.4, 0.6, 0.8].map((position): StructureOpening => ({ kind: "arrow_slit", side, position })),
+    ),
+    { kind: "door", side: "S", position: 0.5 },
+  ];
+  /** The ground openings of a ruined keep slit on every face, by id: the face cells each one covers. */
+  const openingsOf = (generator: 3 | 4, seed: number): Map<string, { kind: string; cells: string[] }> => {
+    const p = townPlan({
+      generator,
+      id: "slits",
+      seed,
+      theme: "forest",
+      w: 30,
+      h: 30,
+      structures: [b("keep", seed, 10, 10, { condition: "ruined", openings: slits })],
+      level: {},
+    });
+    const L = resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
+    const st = (L.structures ?? [])[0] as ResolvedStructure;
+    const out = new Map<string, { kind: string; cells: string[] }>();
+    for (const o of L.openings.filter((q) => st.openingIds.includes(q.id))) {
+      const cells: string[] = [];
+      for (let k = 0; k < o.width; k++)
+        cells.push(
+          o.orientation === "h" ? `h${o.start[0] + k},${o.start[1]}` : `v${o.start[0]},${o.start[1] + k}`,
+        );
+      out.set(o.id, { kind: o.kind, cells });
+    }
+    return out;
+  };
+  const breachCells = (ops: Map<string, { kind: string; cells: string[] }>): Set<string> =>
+    new Set([...ops].filter(([id]) => id.includes("~breach")).flatMap(([, o]) => o.cells));
+
+  it("a breach may tear a slit out of the wall; generator 3 spares slits like doorways", () => {
+    let torn = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const g3 = openingsOf(3, seed);
+      const g4 = openingsOf(4, seed);
+      // generator 3: no breach ever covers a slit's face cell
+      const b3 = breachCells(g3);
+      for (const [, o] of g3)
+        if (o.kind === "arrow_slit") for (const c of o.cells) expect(b3.has(c)).toBe(false);
+      // generator 4: no slit is left inside a breach, and some slit of the generator-3 ruin is torn out by one
+      const b4 = breachCells(g4);
+      for (const [, o] of g4)
+        if (o.kind === "arrow_slit") for (const c of o.cells) expect(b4.has(c)).toBe(false);
+      for (const [id, o] of g3)
+        if (o.kind === "arrow_slit" && !g4.has(id) && o.cells.some((c) => b4.has(c))) torn++;
+    }
+    expect(torn).toBeGreaterThan(0);
   });
 });
