@@ -8,10 +8,10 @@ import type { PlacementRole } from "../../contracts/compiler";
 import type { Material, ThemeId } from "../../contracts/plan";
 import { CELL_FLAG } from "../../contracts/resolved";
 import type { VariantFilter } from "../../palette/resolve";
-import { isWater } from "../../resolve/materials";
+import { isCliffGround, isWater } from "../../resolve/materials";
 import { BAND, type RockBand } from "./cliffBand";
 import type { GroundUnderDecks } from "./floors";
-import { EPS, isCliffGround, type RealizeLevel } from "./level";
+import { EPS, type RealizeLevel } from "./level";
 
 // fill under raised cells; drops of a tile or more get a cliff face (ledge role / natural rock) instead
 export function layRaisedFill(lv: RealizeLevel, band: RockBand, groundUnder: GroundUnderDecks): void {

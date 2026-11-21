@@ -12,7 +12,8 @@ import { SIDES } from "../../gen/gridGeometry";
 import type { EdgeOrient } from "../../resolve/levelGrid";
 import { rotateXZ } from "../geometry";
 import { stackFill } from "./fill";
-import { EPS, isCliffGround, type RealizeLevel } from "./level";
+import { isCliffGround } from "../../resolve/materials";
+import { EPS, type RealizeLevel } from "./level";
 
 // stairs (EDGE.STAIR): a stair piece in the lower cell climbing toward the higher one
 export function layStairEdges(lv: RealizeLevel): void {

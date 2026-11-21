@@ -76,6 +76,14 @@ export function isNaturalGround(m: Material): boolean {
   return MATERIAL_INFO[m].natural;
 }
 
+/**
+ * Ground whose drops of a tile or more are built as rock cliffs when the palette has no cliff.<material> role, whose
+ * bare faces show rock and whose floors take floor families (the realize passes): natural ground and lava.
+ */
+export function isCliffGround(m: Material): boolean {
+  return MATERIAL_INFO[m].cliffGround;
+}
+
 /** A material as the resolver's cell arrays store it: its index in MATERIALS plus one (0 = no floor). */
 export function materialOrdinal(m: Material): number {
   return MATERIALS.indexOf(m) + 1;

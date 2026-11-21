@@ -9,11 +9,11 @@ import type { Material } from "../../contracts/plan";
 import { CELL_FLAG } from "../../contracts/resolved";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "../../palette/resolve";
 import { createFamilyPicker, type FloorFamily } from "../../resolve/floorFamilies";
-import { isWater } from "../../resolve/materials";
+import { isCliffGround, isWater } from "../../resolve/materials";
 import { axisPosition } from "../../resolve/road";
 import { h32 } from "../geometry";
 import type { RockBand } from "./cliffBand";
-import { isCliffGround, type RealizeLevel } from "./level";
+import type { RealizeLevel } from "./level";
 import type { LevelCell } from "../../resolve/levelGrid";
 
 /** Water cells ([x, y]) the floor pass leaves for the bed pass, in the order it met them. */
