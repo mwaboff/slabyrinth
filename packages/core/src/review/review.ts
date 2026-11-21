@@ -2323,10 +2323,38 @@ function rockTonesMixed(c: Ctx): DesignNote[] {
   return out;
 }
 
+/** The cliff notes of a level, in note order: bare faces, the band's shape, timid rises, a rectangular natural board. */
 function cliffChecks(c: Ctx): DesignNote[] {
-  const T = REVIEW.cliffs;
-  const { L } = c;
+  const band = cliffBandView(c);
+  reportCliffCoverage(c, band);
   const out: DesignNote[] = [];
+  bareFaceNotes(c, band, out);
+  bandShapeNotes(c, band, out);
+  timidRiseNotes(c, out);
+  boardFillNotes(c, out);
+  return out;
+}
+
+/** A cliff edge unit: the middle of the edge, the low cell, the outward step and the rise (tiles). */
+interface Unit {
+  mid: [number, number];
+  low: [number, number];
+  out: [number, number];
+  rise: number;
+}
+
+/** Edge units with the ground heights on either side (tiles above the base plane), judged by what hides the face. */
+interface Face extends Unit {
+  lo: number;
+  hi: number;
+}
+
+/**
+ * The level's rock band as the checks see it: its pieces and their shapes as the build lays them, the cliff edge units,
+ * the faces judged by what hides them (inner cliffs and, generator 3, the board's own edge), and the share helpers.
+ */
+function cliffBandView(c: Ctx) {
+  const { L } = c;
   // (the band as planned: where the realizer drops a kind of rock for tone, it clads those drops with its plain block
   // face instead, which the plan cannot change, so these notes judge the plan)
   const rocks = L.features.filter((f) => isBandRock(f.type));
@@ -2336,12 +2364,6 @@ function cliffChecks(c: Ctx): DesignNote[] {
     py >= f.at[1] - pad &&
     py <= f.at[1] + f.size[1] + pad;
   const STEPV: Record<string, [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
-  interface Unit {
-    mid: [number, number];
-    low: [number, number];
-    out: [number, number];
-    rise: number;
-  }
   const units: Unit[] = [];
   for (const run of L.cliffs ?? [])
     for (const e of run.edges) {
@@ -2367,11 +2389,6 @@ function cliffChecks(c: Ctx): DesignNote[] {
     });
   }
   const ground = L.elevation + 0.5;
-  /** Edge units with the ground heights on either side (tiles above the base plane), judged by what hides the face. */
-  interface Face extends Unit {
-    lo: number;
-    hi: number;
-  }
   const faceOf = (u: Unit, lo: number, hi: number): Face => ({ ...u, lo, hi });
   const hides = (u: Face): boolean =>
     edgeHidden(
@@ -2457,6 +2474,14 @@ function cliffChecks(c: Ctx): DesignNote[] {
   const clad = (u: Unit): boolean => rocks.some((f) => covers(f, u.mid[0], u.mid[1], 0.3));
   const share = (list: Unit[], pred: (u: Unit) => boolean): number =>
     list.length === 0 ? 0 : list.filter(pred).length / list.length;
+  return { rocks, covers, units, turned, shapes, hides, edgeFaces, high, faceHigh, faceLow, clad, share };
+}
+
+type CliffBandView = ReturnType<typeof cliffBandView>;
+
+/** The coverage the band leaves (tall, low and board-edge faces: how many, and where bare) for the caller's measures. */
+function reportCliffCoverage(c: Ctx, { hides, faceHigh, faceLow, edgeFaces }: CliffBandView): void {
+  const { L } = c;
   c.onCoverage?.({
     levelId: L.id,
     tall: { edges: faceHigh.length, bare: faceHigh.filter((u) => !hides(u)).length },
@@ -2468,6 +2493,16 @@ function cliffChecks(c: Ctx): DesignNote[] {
       board: edgeFaces.filter((u) => !hides(u)).map((u) => u.mid),
     },
   });
+}
+
+/**
+ * Bare faces: the board's edge, the tall cliffs (unclad, sheer, thin band, no crest) and the one-tile banks. The band
+ * measures (reach, width, crest) look at where pieces stand; only bare face uses `hides`.
+ */
+function bareFaceNotes(c: Ctx, band: CliffBandView, out: DesignNote[]): void {
+  const T = REVIEW.cliffs;
+  const { L } = c;
+  const { rocks, covers, hides, edgeFaces, high, faceHigh, faceLow, clad, share } = band;
   const bareShare = (list: Face[]): number =>
     list.length === 0 ? 0 : list.filter((u) => !hides(u)).length / list.length;
   if (edgeFaces.length >= T.minUnits) {
@@ -2554,7 +2589,15 @@ function cliffChecks(c: Ctx): DesignNote[] {
           "set loose boulders along about half of each bank, or merge small steps into fewer, bolder rises",
       });
   }
-  // the band's outer boundary should wander
+}
+
+/**
+ * The band's shape: its outer boundary should wander, its pieces vary in piece and turn, stand unevenly spaced, leave
+ * the terraces walkable and rest on something.
+ */
+function bandShapeNotes(c: Ctx, { rocks, turned, shapes }: CliffBandView, out: DesignNote[]): void {
+  const T = REVIEW.cliffs;
+  const { L } = c;
   if (rocks.length >= T.minPieces) {
     const cells: Array<[number, number]> = [];
     const seen = new Set<string>();
@@ -2672,7 +2715,12 @@ function cliffChecks(c: Ctx): DesignNote[] {
           "rest every rock on the ground or on the rock below it (the base course sits on the low ground)",
       });
   }
-  // few, bold rises: most steps a single tile is timid
+}
+
+/** Few, bold rises: most steps a single tile is timid. */
+function timidRiseNotes(c: Ctx, out: DesignNote[]): void {
+  const T = REVIEW.cliffs;
+  const { L } = c;
   const natural = (L.cliffs ?? []).flatMap((r) => r.edges);
   const bands = new Set<number>();
   for (let i = 0; i < c.W * c.H; i++)
@@ -2689,7 +2737,12 @@ function cliffChecks(c: Ctx): DesignNote[] {
           "shape the hill as two or three terraces 2–3 tiles apart (a ragged platform with tiers and rise 2.5)",
       });
   }
-  // a natural map should not fill its rectangle
+}
+
+/** A natural map should not fill its rectangle. */
+function boardFillNotes(c: Ctx, out: DesignNote[]): void {
+  const T = REVIEW.cliffs;
+  const { L } = c;
   const lv = c.plan.levels.find((l) => l.id === L.id);
   const naturalMap =
     lv?.base.type === "ground" &&
@@ -2711,7 +2764,6 @@ function cliffChecks(c: Ctx): DesignNote[] {
           'leave the level outline natural (the default; outline "rect" turns it off) and keep a strip of low ground at the edge',
       });
   }
-  return out;
 }
 
 // ───────────────────────── ruins (the building engineer's measures) ─────────────────────────
