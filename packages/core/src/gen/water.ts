@@ -68,7 +68,7 @@ export function dressWater(grid: PlacementGrid, prm: WaterParams): WaterResult {
   if (water.length < WATER_DRESS.minWater) return res;
 
   // the board's water surface (tiles above the level floor, the scale of grid.height): half a tile below the lowest bank
-  // and at least a quarter tile above the highest bed (resolve/level.ts waterSurface); an optional hook wins
+  // and at least a quarter tile above the highest bed (resolve/level/waterSurface.ts); an optional hook wins
   let bed = -Infinity;
   let bank = Infinity;
   for (const [x, y] of water) {

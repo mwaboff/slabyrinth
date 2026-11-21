@@ -9,8 +9,10 @@ import type { ResolvedLink, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { canonicalJson } from "../util/canonical";
 import { h64hex } from "../util/hash";
-import { LevelSteps } from "./level";
+import { runPhase1, runPhase2 } from "./level";
 import { linkOpenings } from "./level/floorOpenings";
+import { toResolved } from "./level/output";
+import { LevelWork } from "./level/work";
 import { type ThemeDefaults, builtinThemeDefaults } from "./themes";
 import { type PaletteView, bundledPaletteView } from "../palette/view";
 
@@ -33,9 +35,9 @@ export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedP
   const issues: PlanIssue[] = [];
   const themeDefaults = opts.themeDefaults ?? builtinThemeDefaults;
   const palette = opts.palette ?? bundledPaletteView();
-  const works: LevelSteps[] = plan.levels.map(
+  const works: LevelWork[] = plan.levels.map(
     (_, levelIndex) =>
-      new LevelSteps({
+      new LevelWork({
         plan,
         levelIndex,
         themeDefaults,
@@ -43,10 +45,10 @@ export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedP
         palette,
       }),
   );
-  const byId = new Map<string, LevelSteps>();
+  const byId = new Map<string, LevelWork>();
   for (const w of works) if (!byId.has(w.level.id)) byId.set(w.level.id, w);
 
-  for (const w of works) w.runPhase1();
+  for (const w of works) runPhase1(w);
   const links = resolveLinks(plan, byId, issues);
   if (generatorProfile(plan).floorOpenings) {
     // floor openings look into the next level down (rubble heaps and checks happen on both sides)
@@ -54,10 +56,10 @@ export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedP
     for (const w of works)
       linkOpenings(w, byElev.filter((o) => o.level.elevation < w.level.elevation).pop());
   }
-  for (const w of works) w.runPhase2();
+  for (const w of works) runPhase2(w);
 
   const levels = works
-    .map((w, i) => ({ r: w.toResolved(), i }))
+    .map((w, i) => ({ r: toResolved(w), i }))
     .sort((a, b) => a.r.elevation - b.r.elevation || a.i - b.i)
     .map((x) => x.r);
 
@@ -85,7 +87,7 @@ export function canonicalResolved(r: ResolvedPlan): string {
   return canonicalJson(r);
 }
 
-function resolveLinks(plan: MapPlan, byId: Map<string, LevelSteps>, issues: PlanIssue[]): ResolvedLink[] {
+function resolveLinks(plan: MapPlan, byId: Map<string, LevelWork>, issues: PlanIssue[]): ResolvedLink[] {
   const out: ResolvedLink[] = [];
   plan.links.forEach((link, k) => {
     const path = `/links/${k}`;

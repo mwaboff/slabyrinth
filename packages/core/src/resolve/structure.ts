@@ -11,7 +11,7 @@
  * drawn from the profile's ranges with the building's seed, so two buildings of one style differ and the same plan
  * always builds the same building.
  *
- * Hooks in level.ts: `expandStructures` (constructor), `StructureWork.afterAreas` / `afterTerrain` (flatten the
+ * Hooks in the level resolver (resolve/level.ts, resolve/level/*): `expandStructures` (LevelWork constructor), `StructureWork.afterAreas` / `afterTerrain` (flatten the
  * pad), `afterOpenings` (force hosts outside, reserve cells, build the records), `reservedCell` (dressing),
  * `finish` (records + issue paths) — nothing else in the resolver knows about structures.
  */

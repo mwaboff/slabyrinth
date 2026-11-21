@@ -78,7 +78,7 @@ export interface PlacementGrid {
    */
   pieceExtent?(type: FeatureType): { w: number; d: number; h: number } | undefined;
   /**
-   * Generator 3: the level's water surface in tiles above the level floor (the scale of `height`; resolve/level.ts
+   * Generator 3: the level's water surface in tiles above the level floor (the scale of `height`; resolve/level/waterSurface.ts
    * waterSurface() minus the floor thickness). Optional: without it water dressing estimates it from the beds and banks
    * of the area it dresses (half a tile below the lowest bank, a quarter above the highest bed).
    */

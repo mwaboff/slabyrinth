@@ -1,6 +1,6 @@
 /**
  * Roads (generator 2): the geometry half of a path op in road form (`sidewalk` / `crossings`). The resolver
- * (level.ts) lays the cells; these helpers measure along the axis and describe the result for the build and dressing:
+ * (resolve/level/terrain.ts and paths.ts) lays the cells; these helpers measure along the axis and describe the result for the build and dressing:
  * crossings, kerb lines and pavement corners. Theme-neutral: nothing here knows what the road is made of.
  */
 import type { Side, Vec2 } from "../contracts/plan";

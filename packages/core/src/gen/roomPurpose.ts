@@ -32,7 +32,7 @@ export interface PurposeInfo {
   /** The generator dresses it from its recipe (gen/rooms4.ts ROOM_RECIPES_4); also a dress preset of the same name. */
   furnished: boolean;
   /**
-   * The room's floor in each floor family (resolve LevelWork.stepRoomFloors), null = no floor of its own (the rotation
+   * The room's floor in each floor family (resolve/level/rooms.ts stepRoomFloors), null = no floor of its own (the rotation
    * decides). "keep" = a corridor in all but name: it keeps the floor and height of the corridors it joins.
    */
   floor: Readonly<Record<FloorFamily, Material | null>> | "keep";
