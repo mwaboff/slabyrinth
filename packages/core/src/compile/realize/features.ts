@@ -13,7 +13,8 @@ import { stallPieceOf } from "../../gen/market";
 import { featureRoles } from "../../gen/surfaces";
 import { footprintFromGeom, type ResolvedVariant, type RoleResolution } from "../../palette/resolve";
 import { featureRole } from "../../palette/roles";
-import { h32, rotateDir, rotateXZ } from "../geometry";
+import { rotateDir, rotateXZ } from "../geometry";
+import { h32Utf16 } from "../../util/hash";
 import { realizeStall } from "../stalls";
 import type { CliffTones } from "./cliffBand";
 import { OPPOSITE } from "../../gen/gridGeometry";
@@ -360,10 +361,10 @@ function featureTurn(pass: FeaturePass, f: ResolvedFeature, asset: FeatureAsset)
   const facing = facingOf(v, "feature", asset.role);
   let deg: number;
   if (rule === "inherit" || rule === "random15") {
-    const fine = rule === "inherit" ? f.rotFine : (h32(`${seed}:${f.id}:r15`) % 24) * 15;
+    const fine = rule === "inherit" ? f.rotFine : (h32Utf16(`${seed}:${f.id}:r15`) % 24) * 15;
     deg = frame.planDegreesToWorld(fine) + v.rot;
   } else if (rule === "random90") {
-    deg = frame.stepsForQuarters(h32(`${seed}:${f.id}:r90`) % 4) * 15 + v.rot;
+    deg = frame.stepsForQuarters(h32Utf16(`${seed}:${f.id}:r90`) % 4) * 15 + v.rot;
   } else if (rule === "fixed") {
     deg = v.rot;
   } else if (f.wall) {
@@ -541,7 +542,7 @@ export function dressOutcrops(lv: RealizeLevel): void {
       const v = res ? pick(res.variants, `${L.id}:outcrop:${oc.id}:${key}`) : undefined;
       if (!v) return;
       const src: Placement["source"] = { cell: [x, y], elementId: `outcrop:${oc.id}` };
-      const turn = h32(`${seed}:${oc.id}:${key}:rot`);
+      const turn = h32Utf16(`${seed}:${oc.id}:${key}:rot`);
       if (v.geom.originAt === "minCorner") {
         const m = frame.rectMin(x, y, v.footprint[0], v.footprint[1]);
         emit(v, "feature", m.x, topOf(c), m.z, (turn % 4) * 90 + v.rot, src);
@@ -571,7 +572,7 @@ export function dressOutcrops(lv: RealizeLevel): void {
     [...foot.values()]
       .sort((a, b) => a[1] - b[1] || a[0] - b[0])
       .forEach(([x, y], i) => {
-        const r = h32(`${seed}:${oc.id}:${x}:${y}:foot`) % 3;
+        const r = h32Utf16(`${seed}:${oc.id}:${x}:${y}:foot`) % 3;
         if (r === 0)
           placeDressing(featureRole(i % 2 === 0 ? "formation" : "edge_dressing"), x, y, `${x}:${y}`);
       });

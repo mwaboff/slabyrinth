@@ -20,7 +20,7 @@ import {
 import { CAUSED_FAMILY_NAMES, createFamilyPicker, type FloorFamily } from "../../resolve/floorFamilies";
 import { BARE_ROCK, BED_FALLBACK_FLOOR, isCliffGround, isWater } from "../../resolve/materials";
 import { axisPosition } from "../../resolve/road";
-import { h32 } from "../geometry";
+import { h32Utf16 } from "../../util/hash";
 import type { RockBand } from "./cliffBand";
 import type { RealizeLevel } from "./level";
 import type { LevelCell } from "../../resolve/levelGrid";
@@ -260,7 +260,7 @@ function layFloorTile(pass: FloorPass, c: LevelCell, lx: number, ly: number): bo
     for (let dy = 0; dy < fh; dy++) for (let dx = 0; dx < fw; dx++) used.add((ly + dy) * V.w + lx + dx);
     const m = frame.rectMin(x, y, fw, fh);
     const rule = res.def.rotation ?? "random90";
-    const r = h32(`${seed}:${L.id}:floorrot:${x}:${y}`);
+    const r = h32Utf16(`${seed}:${L.id}:floorrot:${x}:${y}`);
     // road carriageway tiles keep one orientation along the road's axis (markings on the tiles line up)
     const steps =
       roadDir !== undefined
@@ -312,7 +312,7 @@ function floorFootprints(
   if (profile.turnedFloorTiles && greedy) {
     for (const [fw0, fh0] of [...fps])
       if (fw0 !== fh0 && !fps.some(([a, b]) => a === fh0 && b === fw0)) fps.push([fh0, fw0]);
-    const flip = h32(`${seed}:${L.id}:floororient:${x}:${y}`) % 2 === 1;
+    const flip = h32Utf16(`${seed}:${L.id}:floororient:${x}:${y}`) % 2 === 1;
     fps.sort((a, b) => b[0] * b[1] - a[0] * a[1] || (flip ? a[0] - b[0] : b[0] - a[0]));
   }
   return fps.length ? fps : [[1, 1]];
@@ -347,13 +347,13 @@ export function layRoadMarkings(lv: RealizeLevel): void {
       // sparse, irregular drains (ROAD_MARKINGS): a seeded gap from the start of the kerb line, then a jittered
       // spacing; a line shorter than the minimum spacing gets one at most, and only sometimes
       const D = ROAD_MARKINGS.drain;
-      let h = h32(`${seed}:${L.id}:drain:${kl.from[0]},${kl.from[1]}:${kl.side}`);
+      let h = h32Utf16(`${seed}:${L.id}:drain:${kl.from[0]},${kl.from[1]}:${kl.side}`);
       if (n < D.minLine || (n < D.every[0] && h % 100 >= D.shortChance * 100)) continue;
       for (let t = D.first[0] + (h % (D.first[1] - D.first[0] + 1)); t < n - 1;) {
         const x = kl.from[0] + sx * t + dx;
         const y = kl.from[1] + sy * t + dy;
         if (!mark("marking.drain", x, y, kl.side === "N" || kl.side === "S" ? "h" : "v", "drain")) break;
-        h = h32(`${h}`);
+        h = h32Utf16(`${h}`);
         t += D.every[0] + (h % (D.every[1] - D.every[0] + 1));
       }
     }
@@ -401,7 +401,7 @@ export function layWaterBeds(lv: RealizeLevel, waterCells: WaterCells): void {
     const v = res ? pick(res.variants, `${L.id}:bed:${x}:${y}`) : undefined;
     if (v) {
       const m = frame.rectMin(x, y, 1, 1);
-      const steps = (h32(`${seed}:${L.id}:floorrot:${x}:${y}`) % 4) * 6;
+      const steps = (h32Utf16(`${seed}:${L.id}:floorrot:${x}:${y}`) % 4) * 6;
       emit(v, "floor", m.x, topOf(c) - v.geom.size.y, m.z, steps * 15 + v.rot, {
         cell: [x, y],
         elementId: "bed",
@@ -438,7 +438,7 @@ export function layGroundUnderDecks(lv: RealizeLevel): GroundUnderDecks {
       const v = res ? pick(res.variants, `${L.id}:under:${bx}:${by}`) : undefined;
       if (!v) return;
       const m = frame.rectMin(bx, by, 1, 1);
-      const steps = (h32(`${seed}:${L.id}:floorrot:${bx}:${by}`) % 4) * 6;
+      const steps = (h32Utf16(`${seed}:${L.id}:floorrot:${bx}:${by}`) % 4) * 6;
       emit(v, "floor", m.x, elev + uq / 4 + 0.5 - v.geom.size.y, m.z, steps * 15 + v.rot, {
         cell: [bx, by],
         elementId: `floor:${role}`,

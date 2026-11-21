@@ -20,7 +20,8 @@ import {
   NATURAL_WALL_ROLE,
   featureRole,
 } from "../../palette/roles";
-import { h32, placementBox, rotateXZ, unitHash } from "../geometry";
+import { placementBox, rotateXZ } from "../geometry";
+import { h32Utf16, hashUnitUtf16 } from "../../util/hash";
 import { ROCK_WALL_CLOSED } from "../verify/limits";
 import { EPS, type RealizeLevel } from "./level";
 import type { SolidShellPlan } from "./solidShell";
@@ -34,7 +35,7 @@ export function layRockWalls(lv: RealizeLevel, fullCells: FullCellColumns, shell
   const { resolved, seed, profile } = lv.ctx;
   // the extra blocks never rise through the floor of a level stacked above (verify_pokes_into_level_above)
   const ceiling = levelCeiling(resolved.levels, elev);
-  const wallNoise = new ValueNoise(h32(`${seed}:${L.id}:walltops`));
+  const wallNoise = new ValueNoise(h32Utf16(`${seed}:${L.id}:walltops`));
   const massFaces: MassFace[] = [];
   /** The columns of the mass faces, built after the mass where no mass piece closes the face cell. */
   const columnLater = new Map<string, () => void>();
@@ -85,7 +86,7 @@ function planColumn(
     base = Math.min(base, elev + lv.outsideGround);
     // clustered: broad noise picks masses (up to 3 blocks taller) and a few lower stretches (1 block down, never
     // below a tile above the floor), a per-cell hash breaks up runs of equal columns
-    const nz = wallNoise.sample(c.x / 4, c.y / 4) * 0.8 + unitHash(seed, c.x, c.y, "wt") * 0.2;
+    const nz = wallNoise.sample(c.x / 4, c.y / 4) * 0.8 + hashUnitUtf16(seed, c.x, c.y, "wt") * 0.2;
     let extra = nz < 0.22 ? -1 : nz < 0.45 ? 0 : nz < 0.62 ? 1 : nz < 0.8 ? 2 : 3;
     // generator 3: the column is the closing skin of a wall of rock mass (gen/cavewall.ts): lower, in uneven runs
     if (profile.caveRockMass && c.roleName === NATURAL_WALL_ROLE) extra = nz < 0.3 ? -1 : nz < 0.72 ? 0 : 1;
@@ -137,7 +138,7 @@ function layRockMass(
     if (!shapes.some((s) => s.family !== "toe")) continue;
     const faces = massFaces.filter((f) => f.theme === theme);
     const plan = planCaveWall({
-      seed: h32(`${seed}:${L.id}:cavemass`),
+      seed: h32Utf16(`${seed}:${L.id}:cavemass`),
       faces,
       bounds: { x: L.bounds.x, y: L.bounds.y, w: V.w, h: V.h },
       // (a level of rooms and caves: the cells the shell owns are not the rock's, gen/solidMass.ts)

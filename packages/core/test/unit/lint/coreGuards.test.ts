@@ -160,5 +160,16 @@ describe("core guards", () => {
         [],
       );
     });
+    it("reports a second definition of a string hash outside util/hash.ts", async () => {
+      const code = "export function h32(s: string): number { return s.length; }";
+      expect(await guardHits("packages/core/src/compile/geometry.ts", code)).toEqual([
+        expect.stringContaining("slabyrinth/hash-unit"),
+      ]);
+      expect(
+        await guardHits("packages/core/src/compile/geometry.ts", "const unitHash = (s: string) => s.length;"),
+      ).toHaveLength(1);
+      expect(await guardHits("packages/core/src/util/hash.ts", code)).toEqual([]);
+      expect(await guardHits("packages/core/src/compile/geometry.ts", "const n = h32Utf16(k);")).toEqual([]);
+    });
   });
 });

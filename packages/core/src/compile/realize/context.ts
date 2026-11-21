@@ -25,7 +25,8 @@ import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
 import { familiesOfVariants, type FloorFamily } from "../../resolve/floorFamilies";
 import { OBSERVED_TONES } from "../../palette/tones";
 import { BuildFacts } from "../buildFacts";
-import { WorldFrame, h32, unitHash } from "../geometry";
+import { WorldFrame } from "../geometry";
+import { h32Utf16, hashUnitUtf16 } from "../../util/hash";
 
 export interface RealizeOptions {
   levels?: LevelId[];
@@ -112,7 +113,7 @@ export function createRealizeCtx(
   opts: RealizeOptions,
 ): RealizeCtx {
   const orientation = opts.orientation ?? loadOrientation().orientation;
-  const seed = opts.seed ?? h32(resolved.planId);
+  const seed = opts.seed ?? h32Utf16(resolved.planId);
   const hg = resolved.levels.reduce((m, l) => Math.max(m, l.bounds.y + l.bounds.h), 0);
   const frame = new WorldFrame(orientation, hg);
   const profile = generatorProfile(resolved);
@@ -182,7 +183,7 @@ export function createRealizeCtx(
     const pool = weighted.length ? weighted : vs.slice(0, 1);
     const total = pool.reduce((s, v) => s + v.weight, 0);
     if (pool.length <= 1 || total <= 0) return pool[0];
-    let r = unitHash(seed, key) * total;
+    let r = hashUnitUtf16(seed, key) * total;
     for (const v of pool) {
       r -= v.weight;
       if (r < 0) return v;
@@ -194,7 +195,7 @@ export function createRealizeCtx(
    * Floor variants in organic patches: a value-noise field (about 5 cells across) picks the variant by
    * its weight band, with a little per-tile jitter, so variants form patches instead of a salt-and-pepper grid.
    */
-  const patchNoise = new ValueNoise(h32(`${seed}:floorpatches`));
+  const patchNoise = new ValueNoise(h32Utf16(`${seed}:floorpatches`));
   const pickPatch = (
     vs: ResolvedVariant[],
     x: number,
@@ -204,7 +205,7 @@ export function createRealizeCtx(
     const weighted = vs.filter((v) => v.weight > 0);
     if (weighted.length <= 1) return pick(vs, key);
     const total = weighted.reduce((sum, v) => sum + v.weight, 0);
-    const jitter = (unitHash(seed, key, "j") - 0.5) * 0.15;
+    const jitter = (hashUnitUtf16(seed, key, "j") - 0.5) * 0.15;
     let r = Math.min(0.9999, Math.max(0, patchNoise.sample(x / 5, y / 5) + jitter)) * total;
     for (const v of weighted) {
       r -= v.weight;
@@ -220,8 +221,8 @@ export function createRealizeCtx(
    * family, so the floor reads as large irregular patches of different ground instead of one tile on a grid. Each
    * family's share is its heaviest variant's weight. Roles without tagged variants behave as before.
    */
-  const familyNoise = new ValueNoise(h32(`${seed}:floorfamilies`));
-  const familyWarp = new ValueNoise(h32(`${seed}:floorfamilies:warp`));
+  const familyNoise = new ValueNoise(h32Utf16(`${seed}:floorfamilies`));
+  const familyWarp = new ValueNoise(h32Utf16(`${seed}:floorfamilies:warp`));
   const familiesOf = (vs: ResolvedVariant[]): FloorFamily[] =>
     familiesOfVariants(vs, (uuid) => OBSERVED_TONES[uuid]?.tone);
   const familyAt = (fams: Array<{ name: string; share: number }>, x: number, y: number): string => {

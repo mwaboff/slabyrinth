@@ -11,7 +11,8 @@ import type { Box3, Placement, PlacementRole } from "../../contracts/compiler";
 import { CELL, type ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
 import type { LevelFacts } from "../buildFacts";
-import { emptyBox, growBox, h32, placementBox } from "../geometry";
+import { emptyBox, growBox, placementBox } from "../geometry";
+import { h32Utf16 } from "../../util/hash";
 import type { RealizeCtx } from "./context";
 import type { LevelCell, LevelGrid } from "../../resolve/levelGrid";
 import type { WallFaces } from "../../resolve/wallFaces";
@@ -80,7 +81,7 @@ export class RealizeLevel {
       (L.outcrops ?? []).flatMap((o) => o.cells.map(([x, y]) => V.index(x, y)).filter((i) => i >= 0)),
     );
     this.blockTurn = (v: ResolvedVariant, key: string): number =>
-      Math.abs(v.geom.size.x - v.geom.size.z) < 0.05 ? (h32(`${seed}:${L.id}:turn:${key}`) % 4) * 90 : 0;
+      Math.abs(v.geom.size.x - v.geom.size.z) < 0.05 ? (h32Utf16(`${seed}:${L.id}:turn:${key}`) % 4) * 90 : 0;
     const elev = L.elevation;
     this.elev = elev;
     this.topOf = (c: LevelCell): number => elev + c.height + 0.5;

@@ -36,10 +36,10 @@ import {
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "../palette/resolve";
 import { STALL_PIECE_ROLE, STALL_ROLES, featureRole } from "../palette/roles";
 import { ONE_CELL_TILE, stallParts, type RoleProbe } from "../palette/stallParts";
-import { subSeed } from "../util/hash";
+import { h32Utf16, subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
 import type { WorldFrame } from "./geometry";
-import { h32, rotateXZ } from "./geometry";
+import { rotateXZ } from "./geometry";
 
 export interface StallRealizeCtx {
   frame: WorldFrame;
@@ -121,7 +121,7 @@ class Stall {
   ) {
     this.info = stallKindInfo(f.variant);
     this.fr = ctx.frame;
-    this.rng = createPrng(subSeed(h32(`${ctx.seed}:stall:${f.id}`), "parts"));
+    this.rng = createPrng(subSeed(h32Utf16(`${ctx.seed}:stall:${f.id}`), "parts"));
     this.src = { cell: [f.at[0], f.at[1]], elementId: f.id };
     this.y0 = f.baseHeight;
     [this.X0, this.Y0] = f.at;

@@ -83,8 +83,28 @@ export function h32(str: string): number {
   return h >>> 0;
 }
 
+/**
+ * FNV-1a 32 over the UTF-16 code units of `str` (not its UTF-8 bytes). FROZEN: the compiler's draws (piece picks, block
+ * turns, noise seeds in compile/realize and compile/structure.ts) have been made with it since generator 1, so the slabs
+ * of every released generator depend on it. It agrees with `h32` on ASCII and differs on any other character (a plan id
+ * with an accent), so the two are never swapped. New code uses `h32`.
+ */
+export function h32Utf16(str: string): number {
+  let h = FNV32_OFFSET;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, FNV32_PRIME) >>> 0;
+  }
+  return h >>> 0;
+}
+
 /** 2^32: an unsigned 32-bit hash divided by it is a uniform draw in [0, 1). */
 export const TWO_32 = 4294967296;
+
+/** A uniform draw in [0, 1) over the frozen `h32Utf16` (the compiler's released draws; new code uses `hashUnit`). */
+export function hashUnitUtf16(...parts: ReadonlyArray<string | number>): number {
+  return h32Utf16(parts.join(":")) / TWO_32;
+}
 
 /**
  * A uniform draw in [0, 1) named by its parts: the hash of the parts joined with ":" (`hashUnit(seed, "rim", x, y)` is

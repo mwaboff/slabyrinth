@@ -6,7 +6,6 @@
 import type { Box3, OrientationCalibration, PaletteVariant } from "../contracts/compiler";
 import type { Side } from "../contracts/plan";
 import { SIDES } from "../gen/gridGeometry";
-import { TWO_32 } from "../util/hash";
 
 /** The four sides clockwise from north (gen/gridGeometry.ts SIDES), the order the quarter turns count in. */
 export const DIRS: readonly Side[] = SIDES;
@@ -20,24 +19,6 @@ export function rotateDir(d: Side, quarters: number): Side {
 /** Clockwise quarter turns from `from` to `to` (0..3). */
 export function turnQuarters(from: Side, to: Side): number {
   return (((idx(to) - idx(from)) % 4) + 4) % 4;
-}
-
-/** FNV-1a 32-bit over the UTF-16 code units of a string (deterministic picks; not a cryptographic hash). */
-export function h32(s: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h >>> 0;
-}
-
-/**
- * A uniform draw in [0, 1) named by its parts joined with ":", over this module's h32 (UTF-16 code units; the build's
- * released draws use it, so it is not util/hash.ts hashUnit, which hashes UTF-8 bytes and differs on non-ASCII ids).
- */
-export function unitHash(...parts: ReadonlyArray<string | number>): number {
-  return h32(parts.join(":")) / TWO_32;
 }
 
 export class WorldFrame {

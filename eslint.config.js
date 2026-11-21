@@ -184,11 +184,20 @@ const cellThemeRule = selectorRule("Resolve stages ask a cell's theme of Resolve
   },
 ]);
 
-/** A draw in [0, 1) from a hash is util/hash.ts hashUnit (or TWO_32 beside a hash of its own), never 2^32 by hand. */
+/**
+ * A draw in [0, 1) from a hash is util/hash.ts hashUnit (or TWO_32 beside a hash of its own), never 2^32 by hand; and
+ * the string hashes are defined once, in util/hash.ts (h32 over UTF-8 bytes, the frozen h32Utf16 the compiler's
+ * released draws use), so which one a file gets is its call's name, not its import line.
+ */
 const hashUnitRule = selectorRule("Draws from a hash go through util/hash.ts.", [
   {
     selector: "Literal[value=4294967296]",
     message: "Draw from a hash with util/hash.ts hashUnit(seed, ...parts) (or divide by its TWO_32).",
+  },
+  {
+    selector:
+      ":matches(FunctionDeclaration, VariableDeclarator)[id.name=/^(h32|h32Utf16|hashUnit|hashUnitUtf16|unitHash)$/]",
+    message: "The string hashes live in util/hash.ts (h32, h32Utf16, hashUnit, hashUnitUtf16): import them.",
   },
 ]);
 

@@ -11,7 +11,7 @@ import { EDGE } from "../../contracts/resolved";
 import type { ResolvedVariant, RoleResolution } from "../../palette/resolve";
 import { RUINED_WALL_ROLE, THEME_POST_ROLE, postRole, wallRole } from "../../palette/roles";
 import { roughCells } from "../../resolve/wallTops";
-import { h32 } from "../geometry";
+import { h32Utf16 } from "../../util/hash";
 import { isCarvedLevel } from "../shell";
 import {
   faceEdgeCtx,
@@ -267,7 +267,7 @@ function brokenTop(
   if (rough === null || !c.hostOpen) return null;
   const host = V.index(c.hostX, c.hostY);
   const roughHost = host >= 0 && rough[host] === 1;
-  if (!roughHost || h32(`${seed}:${L.id}:brokentop:${orient}:${c.x}:${c.y}`) % 5 !== 0) return null;
+  if (!roughHost || h32Utf16(`${seed}:${L.id}:brokentop:${orient}:${c.x}:${c.y}`) % 5 !== 0) return null;
   const rr = lookup(L.id, theme, [RUINED_WALL_ROLE], lenFilter(n), true);
   const rv = rr ? pick(rr.variants, `${L.id}:${orient}broken:${c.x}:${c.y}`) : undefined;
   return rr && rv && (rr.def.mount ?? "half-cell") === "half-cell" ? { r: rr, v: rv } : null;

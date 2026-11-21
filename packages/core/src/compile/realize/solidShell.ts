@@ -9,7 +9,7 @@
 import type { ResolvedVariant, RoleResolution } from "../../palette/resolve";
 import { SOLID_CAP_ROLE, wallRole } from "../../palette/roles";
 import { wallTopRoles } from "../../palette/wallTop";
-import { h32 } from "../geometry";
+import { h32Utf16 } from "../../util/hash";
 import { SHELL, isCarvedLevel, planShell, type Shell } from "../shell";
 import type { EdgeCtx } from "./edges";
 import type { RealizeLevel } from "./level";
@@ -114,7 +114,7 @@ function layCap(lv: RealizeLevel, shell: Shell, capVariants: readonly ResolvedVa
       if (!v) continue;
       for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) capUsed.add(`${c.x + dx},${c.y + dy}`);
       const m = frame.rectMin(c.x, c.y, s, s);
-      const steps = (h32(`${seed}:${L.id}:caprot:${c.x}:${c.y}`) % 4) * 6;
+      const steps = (h32Utf16(`${seed}:${L.id}:caprot:${c.x}:${c.y}`) % 4) * 6;
       emit(v, "fill", m.x, c.top - v.geom.size.y, m.z, steps * 15 + v.rot, {
         cell: [c.x, c.y],
         elementId: "shell",

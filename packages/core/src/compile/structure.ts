@@ -46,7 +46,8 @@ import { isPlankWallStyle, THEME_WALL_STYLE } from "../gen/wallStyles";
 import { THEME_WALL_ROLE, wallRole } from "../palette/roles";
 import { sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
 import type { WorldFrame } from "./geometry";
-import { h32, rotateXZ, unitHash } from "./geometry";
+import { rotateXZ } from "./geometry";
+import { h32Utf16, hashUnitUtf16 } from "../util/hash";
 
 export interface StructureRealizeCtx {
   L: ResolvedLevel;
@@ -373,7 +374,7 @@ function rectCellsOf(r: Rect): Array<[number, number]> {
 }
 
 /** Deterministic 0..1 from a key (build-time choices: lit windows, clutter). */
-const unit01 = (ctx: StructureRealizeCtx, k: string): number => unitHash(ctx.seed, k);
+const unit01 = (ctx: StructureRealizeCtx, k: string): number => hashUnitUtf16(ctx.seed, k);
 
 /**
  * A building: volume by volume, storey by storey (walls, openings, posts, upper floors, the seam a set-in storey
@@ -1068,7 +1069,7 @@ function buildRoof(
             if (st.furniture?.dormers && p.kind === "slope2x2" && p.course === 0) {
               const along = r.w.ridge === "ew" ? p.x - r.g.outline.x : p.y - r.g.outline.y;
               if (along >= dormerNext && placeDormer(ctx, theme, kit, p, base, tag)) {
-                dormerNext = along + 3 + (h32(`${ctx.seed}:${tag}:dormer:${along}`) % 3);
+                dormerNext = along + 3 + (h32Utf16(`${ctx.seed}:${tag}:dormer:${along}`) % 3);
                 continue;
               }
             }
@@ -1539,7 +1540,7 @@ function buildPorches(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: st
     const roofCells = gone
       ? []
       : worn
-        ? p.cells.filter((_, i) => p.cells.length < 2 || h32(`${st.id}:porch${pi}:${i}`) % 3 !== 0)
+        ? p.cells.filter((_, i) => p.cells.length < 2 || h32Utf16(`${st.id}:porch${pi}:${i}`) % 3 !== 0)
         : p.cells;
     if (roofCells.length > 0)
       placeFloor(
@@ -1693,7 +1694,7 @@ function buildWindowLights(
     const v = ctx.pick(r.variants, `${ctx.L.id}:${k}`);
     if (!v) continue;
     // in the middle of the cell behind the window (clear of the wall, seen through the glass)
-    placeProp(ctx, v, w.x + 0.5, w.y + 0.5, w.floorTop, (h32(k) % 4) * 90, `${st.id}~lit`, w.layer);
+    placeProp(ctx, v, w.x + 0.5, w.y + 0.5, w.floorTop, (h32Utf16(k) % 4) * 90, `${st.id}~lit`, w.layer);
   }
 }
 
@@ -1863,7 +1864,7 @@ function buildRoofFurniture(
       // keep pieces a cell apart (overlapping props read as a heap)
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) taken.add(key(x + dx, y + dy));
       // square to the building
-      const deg = (h32(`${st.id}:${k}:r`) % 4) * 90;
+      const deg = (h32Utf16(`${st.id}:${k}:r`) % 4) * 90;
       placeProp(ctx, v, x + 0.5, y + 0.5, t.y, deg, `${st.id}~clutter`, "roof");
     }
   }
@@ -1912,7 +1913,7 @@ function placeFloor(
         m.x,
         y,
         m.z,
-        bv.rot + (h32(`${ctx.seed}:${sourceId}:${x},${y0}`) % 4) * 90,
+        bv.rot + (h32Utf16(`${ctx.seed}:${sourceId}:${x},${y0}`) % 4) * 90,
         { cell: [x, y0], elementId: sourceId },
         layer,
       );
@@ -1943,7 +1944,7 @@ function placeRoofPiece(
     const holes = st.ruin.roofHoles;
     if (holes.some(([x, y]) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h)) return;
   }
-  const wantBroken = !ring && st.roof.broken > 0 && unitHash(pkey, "broken") < st.roof.broken;
+  const wantBroken = !ring && st.roof.broken > 0 && hashUnitUtf16(pkey, "broken") < st.roof.broken;
   const tryPlace = (
     kind: RoofPiece["kind"],
     x: number,
@@ -2165,7 +2166,7 @@ function buildRoofHut(
   const r = t.rect;
   const w = r.w >= 8 ? 3 : 2; // a bigger stair hut on a big roof
   const h = r.h >= 6 ? 2 : 1;
-  const corner = h32(`${ctx.seed}:${st.id}:hut`) % 4;
+  const corner = h32Utf16(`${ctx.seed}:${st.id}:hut`) % 4;
   const x0 = corner % 2 === 0 ? r.x + 1 : r.x + r.w - 1 - w;
   const y0 = corner < 2 ? r.y + 1 : r.y + r.h - 1 - h;
   const cells = new Set<string>();
@@ -2506,7 +2507,7 @@ function buildDetails(
       }
       for (const ff of faces) {
         if (doorCells.has(`${ff.x},${ff.y},${ff.face}`)) continue;
-        if (h32(`${st.id}:vine:${ff.x},${ff.y}${ff.face}`) % 4 !== 0) continue;
+        if (h32Utf16(`${st.id}:vine:${ff.x},${ff.y}${ff.face}`) % 4 !== 0) continue;
         const v = ctx.pick(r.variants, `${ctx.L.id}:${st.id}:vine:${ff.x},${ff.y}`);
         const [dx, dy] = STEP[ff.face];
         if (v)
@@ -2610,7 +2611,7 @@ function buildRooftopSets(
   // the size of a set follows the roof: a quarter of a big roof, a few cells of a small one
   const side = Math.max(2, Math.min(5, Math.round(Math.sqrt(area) / 2)));
   sets.forEach((set, si) => {
-    const corner = (h32(`${ctx.seed}:${st.id}:set${si}`) + si * 3) % 4;
+    const corner = (h32Utf16(`${ctx.seed}:${st.id}:set${si}`) + si * 3) % 4;
     const cells = block(set === "storage" ? 2 : side, set === "storage" ? 1 : Math.max(2, side - 1), corner);
     if (!cells) return;
     for (const [x, y] of cells)
@@ -2637,7 +2638,7 @@ function buildRooftopSets(
             c[0] + 0.5,
             c[1] + 0.5,
             t.y + 0.5,
-            (h32(`${st.id}:seat${i}`) % 4) * 90,
+            (h32Utf16(`${st.id}:seat${i}`) % 4) * 90,
             tag,
             "roof",
           );
@@ -2652,7 +2653,7 @@ function buildRooftopSets(
     const family = set === "plant" ? "equipment" : "storage";
     for (const [x, y] of cells) {
       const v = one([`roof_clutter.${family}`], small, `${set}:${x},${y}`);
-      if (v) placeProp(ctx, v, x + 0.5, y + 0.5, t.y, (h32(`${st.id}:${x},${y}`) % 2) * 90, tag, "roof");
+      if (v) placeProp(ctx, v, x + 0.5, y + 0.5, t.y, (h32Utf16(`${st.id}:${x},${y}`) % 2) * 90, tag, "roof");
     }
   });
 }
@@ -2686,7 +2687,7 @@ function buildDebris(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: str
         d.at[1] + 0.5,
         ctx.groundTop(d.at[0], d.at[1]),
         // generator 3: heaps lie at their own angles, not square to the grid
-        legiblyWorn(ctx, st) ? (h32(k) % 24) * 15 : (h32(k) % 4) * 90,
+        legiblyWorn(ctx, st) ? (h32Utf16(k) % 24) * 15 : (h32Utf16(k) % 4) * 90,
         `${st.id}~${d.kind}`,
         undefined,
       );
@@ -2739,14 +2740,14 @@ function buildWallTopRubble(ctx: StructureRealizeCtx, st: ResolvedStructure, the
       longPile.length > 0 &&
       listed.has(`${t.at[0] - ax},${t.at[1] - ay},${t.side}`) &&
       listed.has(`${t.at[0] + ax},${t.at[1] + ay},${t.side}`) &&
-      h32(`${k}:long`) % 2 === 0;
+      h32Utf16(`${k}:long`) % 2 === 0;
     const v = ctx.pick(spans ? longPile : smallBroken, `${ctx.L.id}:${k}`);
     if (!v) continue;
     const [dx, dy] = STEP[t.side];
-    const jit = (s: string): number => unitHash(ctx.seed, k, s) - 0.5;
+    const jit = (s: string): number => hashUnitUtf16(ctx.seed, k, s) - 0.5;
     // along the wall (a long pile lies lengthwise), 15 degree steps of yaw either side, never square to the step
-    const base = (t.side === "N" || t.side === "S" ? 0 : 90) + (h32(`${k}:flip`) % 2) * 180;
-    const yaw = legibleCondition ? base + Math.round(jit("yaw") * 6) * 15 : (h32(k) % 4) * 90;
+    const base = (t.side === "N" || t.side === "S" ? 0 : 90) + (h32Utf16(`${k}:flip`) % 2) * 180;
+    const yaw = legibleCondition ? base + Math.round(jit("yaw") * 6) * 15 : (h32Utf16(k) % 4) * 90;
     const [ux, uy] = t.side === "N" || t.side === "S" ? [1, 0] : [0, 1];
     placeProp(
       ctx,
@@ -2812,7 +2813,7 @@ function buildGrowth(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: str
   );
   for (const g of list) {
     const k = `${st.id}:grow:${g.kind}:${g.at[0]},${g.at[1]}${g.side ?? ""}`;
-    const rnd = (s: string): number => unitHash(ctx.seed, k, s);
+    const rnd = (s: string): number => hashUnitUtf16(ctx.seed, k, s);
     if ((g.kind === "vine" || g.kind === "root") && g.side) {
       const r = g.kind === "vine" ? climber : rooter;
       if (!r) continue;
@@ -2865,7 +2866,7 @@ function buildGrowth(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: str
         g.at[0] + 0.5 + dx * 0.75,
         g.at[1] + 0.5 + dy * 0.75,
         g.from,
-        (h32(k) % 4) * 90,
+        (h32Utf16(k) % 4) * 90,
         `${st.id}~topgrowth`,
         "roof",
         "wall",
@@ -2879,7 +2880,7 @@ function buildGrowth(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: str
         g.at[0] + 0.5,
         g.at[1] + 0.5,
         ctx.groundTop(g.at[0], g.at[1]),
-        (h32(k) % 4) * 90,
+        (h32Utf16(k) % 4) * 90,
         `${st.id}~tree`,
         undefined,
       );
@@ -2905,7 +2906,7 @@ function buildRuinFragments(ctx: StructureRealizeCtx, st: ResolvedStructure, the
     const q = at.get(`${c.at[0] + ax},${c.at[1] + ay},${c.side}`);
     if (!p || !q || p.top >= c.top || q.top >= c.top) continue;
     const k = `${st.id}:remnant:${c.at[0]},${c.at[1]}${c.side}`;
-    if (h32(`${ctx.seed}:${k}`) % 3 !== 0) continue;
+    if (h32Utf16(`${ctx.seed}:${k}`) % 3 !== 0) continue;
     const v = ctx.pick(r.variants, `${ctx.L.id}:${k}`);
     if (v) edgePiece(ctx, v, "wall", c.at[0], c.at[1], c.side, 1, c.top, `${st.id}~remnant`, "roof");
   }
