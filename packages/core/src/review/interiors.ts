@@ -47,12 +47,6 @@ export interface RoomStat {
   cell: [number, number];
 }
 
-/**
- * Loose litter (wall-foot rubble, bones, webs): it is neither furniture nor a thing on it, so it does not make a room
- * dressed, and two rooms differing only in their litter are still copies.
- */
-const LITTER: ReadonlySet<string> = new Set(["debris", "rubble", "bones", "web", "skull_pile", "cave_in"]);
-
 /** A resolved area's classification as the resolver wrote it (generator 4). */
 export const resolvedRoomClass = (a: ResolvedArea): RoomClass =>
   a.purpose === undefined
@@ -77,7 +71,11 @@ export function roomStats(
       cells.push([L.bounds.x + (i % W), L.bounds.y + Math.floor(i / W)]);
     }
     if (cells.length < T.minFloor) return;
-    const mine = L.features.filter((f) => f.area === a.id && f.gmOnly !== true && !LITTER.has(f.type));
+    // loose litter (wall-foot rubble, bones, webs: `strewn`) is neither furniture nor a thing on it, so it does not make
+    // a room dressed, and two rooms differing only in their litter are still copies
+    const mine = L.features.filter(
+      (f) => f.area === a.id && f.gmOnly !== true && featureInfo(f.type).strewn !== true,
+    );
     const own = new Set(cells.map(([x, y]) => `${x},${y}`));
     // furniture: blocking pieces that are not mounted on a wall; "near a wall" = a wall within one cell of any of its cells
     const near = (x: number, y: number): boolean => {

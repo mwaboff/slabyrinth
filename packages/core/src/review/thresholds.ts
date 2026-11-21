@@ -512,6 +512,3 @@ export const COVER_FEATURES: ReadonlySet<string> = new Set([
   "stalagmite",
   "bush",
 ]);
-
-/** Rock-band pieces (the dressing's cliff band) the cliff checks measure. */
-export const BAND_ROCK: ReadonlySet<string> = new Set(["cliff_face", "cliff_crest"]);

@@ -10,7 +10,7 @@
  */
 import type { ResolvedFeature, ResolvedLevel } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
-import { featureInfo } from "../../gen/catalog";
+import { featureInfo, isBandRock } from "../../gen/catalog";
 import { SIDE_STEP } from "../../gen/gridGeometry";
 import type { LevelGrid } from "../../resolve/levelGrid";
 import type { VerifyCtx } from "./context";
@@ -111,7 +111,7 @@ function checkProp(lv: PropLevel, s: Solid): void {
   const f = ctx.featureOf(L.id, s.p.source.elementId);
   // generator 3: the rock band skirts the board's edge from the base plane, partly outside the level and over no floor
   // by design (cliffband.ts checks every piece rests on something)
-  if (ctx.profile.restingCliffBand && (f?.type === "cliff_face" || f?.type === "cliff_crest")) return;
+  if (ctx.profile.restingCliffBand && f !== undefined && isBandRock(f.type)) return;
   // the prop's centre before any nudge: the support tests below measure there
   const cx = (s.box.min.x + s.box.max.x) / 2;
   const cz = (s.box.min.z + s.box.max.z) / 2;

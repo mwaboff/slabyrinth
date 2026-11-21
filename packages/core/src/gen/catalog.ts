@@ -37,6 +37,19 @@ export interface FeatureInfo {
   topLight?: "candle" | "lantern";
   /** Hung from the ceiling: raised on purpose, so verify never calls it floating (compile/verify/props.ts). */
   ceilingMounted?: boolean;
+  /**
+   * A piece of a cliff's rock band (generator 2): placed along a rise by gen/cliffband.ts, built and rested by the
+   * band passes, measured by verify's and the review's cliff checks.
+   */
+  bandRock?: boolean;
+  /**
+   * Litters or wears the ground round it, so a caused floor family (leaf litter, worn earth) grows there: "litter" for
+   * trees and camps (every generator with caused families), "wear" for the places people gather round (generator 3's
+   * floor families, resolve/floorFamilies.ts).
+   */
+  groundCause?: "litter" | "wear";
+  /** Strewn on the floor (debris, bones, webs): mess, not what furnishes a room (review/interiors.ts). */
+  strewn?: boolean;
 }
 
 const F = (
@@ -49,6 +62,9 @@ const F = (
   ...(opts.landmark ? { landmark: true } : {}),
   ...(opts.topLight ? { topLight: opts.topLight } : {}),
   ...(opts.ceilingMounted ? { ceilingMounted: true } : {}),
+  ...(opts.bandRock ? { bandRock: true } : {}),
+  ...(opts.groundCause ? { groundCause: opts.groundCause } : {}),
+  ...(opts.strewn ? { strewn: true } : {}),
   size: opts.size ?? [1, 1],
   blocking: opts.blocking ?? true,
   organic: opts.organic ?? false,
@@ -86,10 +102,10 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   cage: F("Cage", "furniture"),
   stocks: F("Stocks", "furniture"),
   pillar: F("Pillar", "architecture"),
-  statue: F("Statue", "architecture"),
-  altar: F("Altar", "architecture", { size: [2, 1], topLight: "candle" }),
-  fountain: F("Fountain", "architecture", { size: [2, 2] }),
-  well: F("Well", "architecture"),
+  statue: F("Statue", "architecture", { groundCause: "wear" }),
+  altar: F("Altar", "architecture", { size: [2, 1], topLight: "candle", groundCause: "wear" }),
+  fountain: F("Fountain", "architecture", { size: [2, 2], groundCause: "wear" }),
+  well: F("Well", "architecture", { groundCause: "wear" }),
   brazier: F("Brazier", "architecture", { light: true }),
   torch_wall: F("Wall torch", "architecture", { blocking: false, wallMounted: true, light: true }),
   candelabra: F("Candelabra", "furniture", { light: true }),
@@ -98,18 +114,18 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   sarcophagus: F("Sarcophagus", "architecture", { size: [1, 2] }),
   coffin: F("Coffin", "furniture", { size: [1, 2] }),
   tomb: F("Tomb", "architecture", { size: [1, 2] }),
-  bones: F("Bones", "other", { blocking: false, organic: true }),
-  rubble: F("Rubble", "other", { organic: true }),
-  web: F("Web", "other", { blocking: false, organic: true }),
-  debris: F("Debris", "other", { blocking: false, organic: true }),
+  bones: F("Bones", "other", { blocking: false, organic: true, strewn: true }),
+  rubble: F("Rubble", "other", { organic: true, strewn: true }),
+  web: F("Web", "other", { blocking: false, organic: true, strewn: true }),
+  debris: F("Debris", "other", { blocking: false, organic: true, strewn: true }),
   pool: F("Pool", "architecture", { size: [2, 2] }),
   lever: F("Lever", "hazard", { blocking: false }),
   trap: F("Trap", "hazard", { blocking: false, gmOnly: true }),
   trap_plate: F("Pressure plate", "hazard", { blocking: false, gmOnly: true }),
   chandelier: F("Chandelier", "furniture", { blocking: false, light: true, ceilingMounted: true }),
-  tree: F("Tree", "outdoor", { organic: true }),
-  dead_tree: F("Dead tree", "outdoor", { organic: true }),
-  pine_tree: F("Pine", "outdoor", { organic: true }),
+  tree: F("Tree", "outdoor", { organic: true, groundCause: "litter" }),
+  dead_tree: F("Dead tree", "outdoor", { organic: true, groundCause: "litter" }),
+  pine_tree: F("Pine", "outdoor", { organic: true, groundCause: "litter" }),
   bush: F("Bush", "outdoor", { organic: true }),
   rock: F("Rock", "outdoor", { organic: true }),
   boulder: F("Boulder", "outdoor", { organic: true }),
@@ -119,8 +135,8 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   flowers: F("Flowers", "outdoor", { blocking: false, organic: true }),
   tall_grass: F("Tall grass", "outdoor", { blocking: false, organic: true }),
   reeds: F("Reeds", "outdoor", { blocking: false, organic: true }),
-  campfire: F("Campfire", "outdoor", { light: true }),
-  tent: F("Tent", "outdoor", { size: [2, 2] }),
+  campfire: F("Campfire", "outdoor", { light: true, groundCause: "litter" }),
+  tent: F("Tent", "outdoor", { size: [2, 2], groundCause: "litter" }),
   cart: F("Cart", "outdoor", { size: [2, 1] }),
   wagon: F("Wagon", "outdoor", { size: [3, 2] }),
   fence_post: F("Fence post", "outdoor"),
@@ -136,25 +152,31 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
     glyph: "debris",
   }),
   rock_formation: F("Rock formation", "outdoor", { size: [2, 2], organic: true, glyph: "boulder" }),
-  cave_in: F("Cave-in", "hazard", { size: [2, 2], organic: true, glyph: "rubble" }),
+  cave_in: F("Cave-in", "hazard", { size: [2, 2], organic: true, strewn: true, glyph: "rubble" }),
   crystal: F("Crystals", "outdoor", { organic: true, light: true, glyph: "rock" }),
   giant_mushroom: F("Giant mushroom", "outdoor", { organic: true, glyph: "mushroom" }),
   root: F("Roots", "outdoor", { organic: true, blocking: false, glyph: "dead_tree" }),
   root_large: F("Great root", "outdoor", { size: [2, 1], organic: true, glyph: "log" }),
   roots_wall: F("Wall roots", "outdoor", { blocking: false, wallMounted: true, glyph: "dead_tree" }),
   vines: F("Vines", "outdoor", { blocking: false, wallMounted: true, glyph: "tall_grass" }),
-  tree_large: F("Great tree", "outdoor", { size: [3, 3], organic: true, landmark: true, glyph: "dead_tree" }),
+  tree_large: F("Great tree", "outdoor", {
+    size: [3, 3],
+    organic: true,
+    landmark: true,
+    groundCause: "litter",
+    glyph: "dead_tree",
+  }),
   // ritual, encounter and lights
   candles: F("Candles", "furniture", { blocking: false, light: true, glyph: "candelabra" }),
-  skull_pile: F("Skulls", "other", { blocking: false, organic: true, glyph: "bones" }),
+  skull_pile: F("Skulls", "other", { blocking: false, organic: true, strewn: true, glyph: "bones" }),
   spawn_point: F("Spawn point", "hazard", { blocking: false, gmOnly: true, glyph: "trap_plate" }),
   torch_floor: F("Floor torch", "architecture", { light: true, glyph: "brazier" }),
   lantern: F("Lantern", "architecture", { light: true, glyph: "brazier" }),
   magic_fire: F("Magic fire", "architecture", { light: true, glyph: "campfire" }),
   lava_glow: F("Lava glow", "hazard", { blocking: false, light: true, glyph: "brazier" }),
-  fire_pit: F("Fire pit", "outdoor", { light: true, glyph: "campfire" }),
+  fire_pit: F("Fire pit", "outdoor", { light: true, groundCause: "litter", glyph: "campfire" }),
   // tall pieces, mining and hanging dressing
-  monolith: F("Monolith", "architecture", { glyph: "standing_stone" }),
+  monolith: F("Monolith", "architecture", { groundCause: "wear", glyph: "standing_stone" }),
   cave_column: F("Rock column", "outdoor", { organic: true, glyph: "pillar" }),
   statue_large: F("Great statue", "architecture", { size: [2, 2], landmark: true, glyph: "statue" }),
   mine_cart: F("Mine cart", "furniture", { glyph: "crate" }),
@@ -166,7 +188,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   landmark: F("Landmark", "architecture", { size: [2, 2], landmark: true, glyph: "statue" }),
   tall_marker: F("Tall marker", "architecture", { glyph: "standing_stone" }),
   formation: F("Formation", "outdoor", { size: [2, 2], organic: true, glyph: "boulder" }),
-  cluster_tall: F("Tall growth", "outdoor", { organic: true, glyph: "pine_tree" }),
+  cluster_tall: F("Tall growth", "outdoor", { organic: true, groundCause: "litter", glyph: "pine_tree" }),
   undergrowth: F("Undergrowth", "outdoor", { organic: true, blocking: false, glyph: "bush" }),
   ground_cover: F("Ground cover", "outdoor", { organic: true, blocking: false, glyph: "tall_grass" }),
   accent_light: F("Accent light", "architecture", { light: true, glyph: "brazier" }),
@@ -182,8 +204,13 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   signage: F("Signage", "architecture", { blocking: false, wallMounted: true, glyph: "banner_wall" }),
   // cliffs as rock bands: pieces of the band along a rise (sizes here are the cell footprint; the palette's asset
   // sets the real size)
-  cliff_face: F("Cliff rock", "outdoor", { size: [4, 2], organic: true, glyph: "boulder" }),
-  cliff_crest: F("Crest boulder", "outdoor", { size: [2, 2], organic: true, glyph: "boulder" }),
+  cliff_face: F("Cliff rock", "outdoor", { size: [4, 2], organic: true, bandRock: true, glyph: "boulder" }),
+  cliff_crest: F("Crest boulder", "outdoor", {
+    size: [2, 2],
+    organic: true,
+    bandRock: true,
+    glyph: "boulder",
+  }),
   // markets (generator 3): a stall (2 wide by default), goods standing on it, the pieces of an overhead line
   stall: F("Market stall", "furniture", { size: [2, 1], glyph: "counter" }),
   goods: F("Goods", "other", { blocking: false, glyph: "sack" }),
@@ -203,6 +230,11 @@ export const LIGHT_FEATURES: ReadonlySet<FeatureType> = new Set<FeatureType>(
 /** Is the type a landmark (`landmark` in the table)? */
 export function isLandmark(type: FeatureType): boolean {
   return FEATURE_INFO[type].landmark === true;
+}
+
+/** Is the type a piece of a cliff's rock band (`bandRock` in the table)? */
+export function isBandRock(type: FeatureType): boolean {
+  return FEATURE_INFO[type].bandRock === true;
 }
 
 /** The feature type whose 2D glyph draws `type`: itself, unless the catalog names a stand-in. */

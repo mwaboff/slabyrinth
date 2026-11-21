@@ -5,6 +5,7 @@
  * Emits `verify_cliff_gap` (warning), one per level with the first edge and the count.
  */
 import { SIDE_STEP } from "../../gen/gridGeometry";
+import { isBandRock } from "../../gen/catalog";
 import { CLIFF_FACE_ROLE } from "../../palette/roles";
 import type { VerifyCtx } from "./context";
 import { CLIFF_COVER_MARGIN, CLIFF_GAP_RISE_Q } from "./limits";
@@ -15,7 +16,7 @@ export function checkCliffBand(ctx: VerifyCtx): void {
     const runs = L.cliffs ?? [];
     const g = ctx.grids.get(L.id);
     if (runs.length === 0 || !g) continue;
-    const rocks = L.features.filter((f) => f.type === "cliff_face" || f.type === "cliff_crest");
+    const rocks = L.features.filter((f) => isBandRock(f.type));
     const placed = ctx.set.levels.find((s) => s.levelId === L.id)?.placements ?? [];
     // cells realize stood a rock block (a ledge piece) in
     const blocks = new Set(

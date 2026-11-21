@@ -7,9 +7,10 @@
  */
 import type { Material } from "../../contracts/plan";
 import { CELL_FLAG } from "../../contracts/resolved";
+import { featureInfo } from "../../gen/catalog";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "../../palette/resolve";
 import { FILL_ROLE } from "../../palette/roles";
-import { createFamilyPicker, type FloorFamily } from "../../resolve/floorFamilies";
+import { CAUSED_FAMILY_NAMES, createFamilyPicker, type FloorFamily } from "../../resolve/floorFamilies";
 import { isCliffGround, isWater } from "../../resolve/materials";
 import { axisPosition } from "../../resolve/road";
 import { h32 } from "../geometry";
@@ -34,24 +35,6 @@ const ROAD_MARKINGS = {
     shortChance: 0.4,
   },
 } as const;
-
-/**
- * Floor families that only grow where something causes them (owner's v6 and watchtower runs, 2026-11-20: reddish
- * leaf-litter squares scattered over open grass): under trees, along paths, at the foot of a rise, round a camp.
- */
-const CAUSED_FAMILIES = new Set(["lush"]);
-
-/** Features that cause litter and worn ground round them. */
-const CAUSE_FEATURES = new Set([
-  "cluster_tall",
-  "tree",
-  "pine_tree",
-  "dead_tree",
-  "tree_large",
-  "campfire",
-  "fire_pit",
-  "tent",
-]);
 
 /** The floor family a cell takes, from the families of its floor role. */
 type FamilyAt = (fams: FloorFamily[], x: number, y: number) => string;
@@ -118,14 +101,14 @@ function floorFamilyAt(lv: RealizeLevel): FamilyAt {
   if (profile.floorFamilies) return createFamilyPicker(L, seed);
   const causeDist = causeDistances(lv);
   return (fams, x, y) => {
-    const caused = fams.filter((q) => CAUSED_FAMILIES.has(q.name));
+    const caused = fams.filter((q) => CAUSED_FAMILY_NAMES.has(q.name));
     if (caused.length === 0) return familyAt(fams, x, y);
     const d = causeDist.get(`${x},${y}`) ?? 9;
     const j = familyWarp.sample(x / 2.5 + 11, y / 2.5 + 3);
     if ((d === 0 && j > 0.45) || (d === 1 && j > 0.62) || (d === 2 && j > 0.8))
       return (caused[0] as { name: string }).name;
     return familyAt(
-      fams.filter((q) => !CAUSED_FAMILIES.has(q.name)),
+      fams.filter((q) => !CAUSED_FAMILY_NAMES.has(q.name)),
       x,
       y,
     );
@@ -138,7 +121,7 @@ function causeDistances(lv: RealizeLevel): Map<string, number> {
   const causeDist = new Map<string, number>();
   const src: Array<[number, number]> = [];
   for (const f of L.features)
-    if (CAUSE_FEATURES.has(f.type))
+    if (featureInfo(f.type).groundCause === "litter")
       for (let y = f.at[1]; y < f.at[1] + f.size[1]; y++)
         for (let x = f.at[0]; x < f.at[0] + f.size[0]; x++) src.push([x, y]);
   for (let ly = 0; ly < V.h; ly++)

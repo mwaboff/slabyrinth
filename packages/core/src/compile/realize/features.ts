@@ -8,7 +8,7 @@
 import type { CompileDiagnostic, Placement, RoleName } from "../../contracts/compiler";
 import type { Side, ThemeId } from "../../contracts/plan";
 import { EDGE, type ResolvedFeature } from "../../contracts/resolved";
-import { isLandmark } from "../../gen/catalog";
+import { isBandRock, isLandmark } from "../../gen/catalog";
 import { stallPieceOf } from "../../gen/market";
 import { featureRoles } from "../../gen/surfaces";
 import { footprintFromGeom, type ResolvedVariant, type RoleResolution } from "../../palette/resolve";
@@ -196,7 +196,8 @@ function paletteAsset(pass: FeaturePass, f: ResolvedFeature, theme: ThemeId): Fe
         )
       : null) ?? lookup(L.id, theme, [...roles]);
   if (!res) return null;
-  const rule = profile.restingCliffBand && isBandRock(f) ? "inherit" : (res.def.rotation ?? "facing");
+  // (generator 3 turns the band's rocks as the generator set them)
+  const rule = profile.restingCliffBand && isBandRock(f.type) ? "inherit" : (res.def.rotation ?? "facing");
   const pool = featurePool(pass, f, theme, res);
   let v = pick(pool, `${L.id}:feature:${f.id}`);
   if (!v) return null;
@@ -215,9 +216,6 @@ function paletteAsset(pass: FeaturePass, f: ResolvedFeature, theme: ThemeId): Fe
   return { v, rule, role: res.role };
 }
 
-/** The band's rocks (generator 3 turns them as the generator set them). */
-const isBandRock = (f: ResolvedFeature): boolean => f.type === "cliff_face" || f.type === "cliff_crest";
-
 /** The variants a feature may take: its role's, narrowed by the cliff tone, natural standing and variant rules. */
 function featurePool(
   pass: FeaturePass,
@@ -231,7 +229,7 @@ function featurePool(
   let pool = res.variants;
   // generator 3: the band's rocks turn as the generator set them (the palette's role says "fixed", which left every
   // rock at one turn; see paletteAsset), and a boulder is a tall one (Moss Rock 01 is knee-high and hides no face)
-  if (profile.restingCliffBand && isBandRock(f)) {
+  if (profile.restingCliffBand && isBandRock(f.type)) {
     if (f.type === "cliff_crest") {
       const tallOnes = pool.filter((u) => u.geom.size.y >= 1.2);
       if (tallOnes.length > 0) pool = tallOnes;

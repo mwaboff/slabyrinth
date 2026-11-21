@@ -51,11 +51,10 @@ import { roofGapNotes } from "./roofGaps";
 import { reviewBuild } from "./reviewBuild";
 import { stallNotes } from "./stalls";
 import { floorAccentNotes } from "./floorTone";
-import { LIGHT_FEATURES } from "../gen/catalog";
+import { LIGHT_FEATURES, isBandRock } from "../gen/catalog";
 import {
   FORMAL_THEMES,
   REPEAT_WATCH,
-  BAND_ROCK,
   COVER_FEATURES,
   SMALL_FEATURES,
   GROWTH_FEATURES,
@@ -1792,7 +1791,7 @@ function symmetry(c: Ctx): DesignNote[] {
   for (const st of L.structures ?? [])
     if (st.kind === "building") for (const [x, y] of st.cells) occ.add(`${x},${y}`);
   for (const f of L.features)
-    if (!NATURAL_FEATURES.has(f.type) && !BAND_ROCK.has(f.type))
+    if (!NATURAL_FEATURES.has(f.type) && !isBandRock(f.type))
       for (let dy = 0; dy < f.size[1]; dy++)
         for (let dx = 0; dx < f.size[0]; dx++) occ.add(`${f.at[0] + dx},${f.at[1] + dy}`);
   if (occ.size < T.minCells) return [];
@@ -2330,7 +2329,7 @@ function cliffChecks(c: Ctx): DesignNote[] {
   const out: DesignNote[] = [];
   // (the band as planned: where the realizer drops a kind of rock for tone, it clads those drops with its plain block
   // face instead, which the plan cannot change, so these notes judge the plan)
-  const rocks = L.features.filter((f) => BAND_ROCK.has(f.type));
+  const rocks = L.features.filter((f) => isBandRock(f.type));
   const covers = (f: (typeof rocks)[number], px: number, py: number, pad: number): boolean =>
     px >= f.at[0] - pad &&
     px <= f.at[0] + f.size[0] + pad &&

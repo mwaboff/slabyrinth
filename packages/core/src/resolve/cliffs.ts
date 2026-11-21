@@ -5,6 +5,7 @@
 import type { Material, Side, Vec2 } from "../contracts/plan";
 import { CELL, CELL_FLAG, EDGE, type ResolvedCliffRun, type ResolvedLevel } from "../contracts/resolved";
 import { cellIndex, hEdgeIndex, vEdgeIndex } from "./levelGrid";
+import { isNaturalGround } from "./materials";
 
 export interface CliffEdge {
   /** The upper cell (the edge lies on its `side`). */
@@ -49,8 +50,6 @@ export function cliffEdges(level: ResolvedLevel, minDrop = 1): CliffEdge[] {
   return out.sort((p, q) => p.at[1] - q.at[1] || p.at[0] - q.at[0]);
 }
 
-const NATURAL = new Set(["grass", "dirt", "gravel", "rock", "sand", "mud", "snow", "swamp", "ice"]);
-
 /**
  * Natural cliff runs (generator 2): every LEDGE edge where natural ground rises at least `minRise` quarter tiles,
  * chained into runs along the lattice (the upper ground on the right), with stair edges kept in the chain as
@@ -59,7 +58,7 @@ const NATURAL = new Set(["grass", "dirt", "gravel", "rock", "sand", "mud", "snow
 export function cliffRuns(level: ResolvedLevel, minRise = 4): ResolvedCliffRun[] {
   const { x: bx, y: by, w, h } = level.bounds;
   const at = (x: number, y: number): number => cellIndex(level.bounds, x, y);
-  const mat = (i: number): string | null => level.materials[(level.cells.material[i] ?? 1) - 1] ?? null;
+  const mat = (i: number): Material | null => level.materials[(level.cells.material[i] ?? 1) - 1] ?? null;
   const usable = (i: number): boolean =>
     i >= 0 &&
     level.cells.state[i] === CELL.OPEN &&
@@ -81,7 +80,7 @@ export function cliffRuns(level: ResolvedLevel, minRise = 4): ResolvedCliffRun[]
     if (!stair && (level.cells.height[u] ?? 0) - (level.cells.height[l] ?? 0) < minRise) return;
     const mu = mat(u);
     const ml = mat(l);
-    if (!stair && !(mu !== null && NATURAL.has(mu)) && !(ml !== null && NATURAL.has(ml))) return;
+    if (!stair && !(mu !== null && isNaturalGround(mu)) && !(ml !== null && isNaturalGround(ml))) return;
     const x = bx + (u % w);
     const y = by + Math.floor(u / w);
     // clockwise round the upper cell: the upper ground is on the right of the segment
@@ -172,9 +171,7 @@ export function cliffRuns(level: ResolvedLevel, minRise = 4): ResolvedCliffRun[]
         closed,
         minRise: Math.min(...rises),
         maxRise: Math.max(...rises),
-        material: chain[0]
-          ? (mat(at(chain[0].edge.at[0] - bx, chain[0].edge.at[1] - by)) as Material | null)
-          : null,
+        material: chain[0] ? mat(at(chain[0].edge.at[0] - bx, chain[0].edge.at[1] - by)) : null,
         crossings: chain.flatMap((c, k) => (c.stair ? [k] : [])),
       });
     }

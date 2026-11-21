@@ -36,6 +36,27 @@ describe("feature traits are table fields", () => {
     ]);
   });
 
+  it("the rock band, ground causes and strewn litter once listed by hand are rows", () => {
+    const sorted = (f: (t: FeatureType) => boolean): FeatureType[] => types.filter(f).sort();
+    expect(sorted((t) => FEATURE_INFO[t].bandRock === true)).toEqual(["cliff_crest", "cliff_face"]);
+    // compile/realize/floors.ts CAUSE_FEATURES (generator 2)
+    expect(sorted((t) => FEATURE_INFO[t].groundCause === "litter")).toEqual(
+      ["campfire", "cluster_tall", "dead_tree", "fire_pit", "pine_tree", "tent", "tree", "tree_large"].sort(),
+    );
+    // resolve/floorFamilies.ts GROUND_CAUSE_FEATURES added these (generator 3)
+    expect(sorted((t) => FEATURE_INFO[t].groundCause === "wear")).toEqual([
+      "altar",
+      "fountain",
+      "monolith",
+      "statue",
+      "well",
+    ]);
+    // review/interiors.ts LITTER
+    expect(sorted((t) => FEATURE_INFO[t].strewn === true)).toEqual(
+      ["bones", "cave_in", "debris", "rubble", "skull_pile", "web"].sort(),
+    );
+  });
+
   it("the organic dressing verify once listed by hand carries `organic`", () => {
     for (const t of [
       "tree",

@@ -8,6 +8,7 @@
 import type { ThemeId } from "../../contracts/plan";
 import { cliffRockKinds, edgeHidden, type RockShape } from "../../gen/cover";
 import { SIDE_STEP } from "../../gen/gridGeometry";
+import { isBandRock } from "../../gen/catalog";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE } from "../../palette/roles";
 import type { RealizeLevel } from "./level";
@@ -68,7 +69,7 @@ export class CliffTones {
     if (this.nearCells === undefined) {
       const cells = new Set<string>();
       for (const q of this.lv.L.features) {
-        if (q.type !== "cliff_face" && q.type !== "cliff_crest") continue;
+        if (!isBandRock(q.type)) continue;
         for (let dy = -3; dy < q.size[1] + 3; dy++)
           for (let dx = -3; dx < q.size[0] + 3; dx++) cells.add(`${q.at[0] + dx},${q.at[1] + dy}`);
       }
@@ -134,7 +135,7 @@ export function planRockBand(lv: RealizeLevel, tones: CliffTones): RockBand {
           )
         : L.features.some(
             (f) =>
-              (f.type === "cliff_face" || f.type === "cliff_crest") &&
+              isBandRock(f.type) &&
               tones.kinds(f.theme)[f.type === "cliff_face" ? "face" : "crest"] &&
               mx >= f.at[0] - 0.3 &&
               mx <= f.at[0] + f.size[0] + 0.3 &&
@@ -162,7 +163,7 @@ function restingRocks(lv: RealizeLevel, tones: CliffTones): RockShape[] {
   };
   const rockShapes: RockShape[] = [];
   for (const f of L.features) {
-    if (f.type !== "cliff_face" && f.type !== "cliff_crest") continue;
+    if (!isBandRock(f.type)) continue;
     if (!tones.kinds(f.theme)[f.type === "cliff_face" ? "face" : "crest"]) continue;
     const ext =
       f.type === "cliff_face"
