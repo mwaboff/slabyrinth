@@ -10,8 +10,18 @@
  *    (which left a hole above it), and a room's wall beside a sunken pit keeps the room's wall line.
  *  - Railings: an edge hosted on a bridge deck stands on the deck: base = deck top, top = base + height.
  */
-import { CELL, CELL_FLAG, type ResolvedLevel } from "../contracts/resolved";
+import { BUILD_CONSTANTS } from "../contracts/plan";
+import { CELL, CELL_FLAG, type EdgeGrid, type ResolvedLevel } from "../contracts/resolved";
 import { cellIndex } from "./levelGrid";
+
+/**
+ * The wall height of edge `e` (tiles above its floor top, `EdgeGrid.height`): the stored height, or the default wall
+ * height (`BUILD_CONSTANTS.wallHeight`) when the edge stores none (0). Every stage that spans a wall reads it here.
+ */
+export function edgeWallHeight(grid: Pick<EdgeGrid, "height">, e: number): number {
+  const h = grid.height[e] ?? 0;
+  return h > 0 ? h : BUILD_CONSTANTS.wallHeight;
+}
 
 export interface SpanCell {
   open: boolean;

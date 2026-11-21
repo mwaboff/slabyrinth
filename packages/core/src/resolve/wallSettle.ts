@@ -13,7 +13,7 @@
 import type { ResolvedLevel } from "../contracts/resolved";
 import { CELL_FLAG, EDGE } from "../contracts/resolved";
 import { edgeLineLength, edgeLines, edgeOnLine } from "./levelGrid";
-import { areaReferenceHeights, spanCellOf, wallRise } from "./wallspan";
+import { areaReferenceHeights, edgeWallHeight, spanCellOf, wallRise } from "./wallspan";
 
 const EPS = 1e-6;
 
@@ -30,7 +30,7 @@ export function settleWallHeights(L: ResolvedLevel): number {
         const idx = edgeOnLine(L.bounds, orient, line, pos);
         const kind = grid.kind[idx];
         if (kind !== EDGE.WALL && kind !== EDGE.OPENING) continue;
-        const h0 = (grid.height[idx] ?? 0) > 0 ? (grid.height[idx] ?? 2) : 2;
+        const h0 = edgeWallHeight(grid, idx);
         if (h0 > 2.5 + EPS) continue;
         const a = orient === "h" ? cellAt(pos, line - 1) : cellAt(line - 1, pos);
         const b = orient === "h" ? cellAt(pos, line) : cellAt(line, pos);

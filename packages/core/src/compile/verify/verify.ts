@@ -29,7 +29,7 @@ import type { RealizedSet } from "../realize/output";
 import { SolidIndex, overlap1, type Solid } from "./grid";
 import { LevelGrid, sideOrient } from "../../resolve/levelGrid";
 import { findWallFaces } from "../../resolve/wallFaces";
-import { areaReferenceHeights } from "../../resolve/wallspan";
+import { areaReferenceHeights, edgeWallHeight } from "../../resolve/wallspan";
 import { structureClaims } from "../structure";
 import { featureInfo } from "../../gen/catalog";
 import { OPPOSITE as OPP, SIDE_STEP as DIRV, SIDES } from "../../gen/gridGeometry";
@@ -112,6 +112,19 @@ export function verifyBuild(
   const index = new SolidIndex(hg, opts.flipZ ?? true);
   const levels = resolved.levels.filter((l) => set.levels.some((s) => s.levelId === l.id));
   const grids = new Map(levels.map((l) => [l.id, new LevelGrid(l)]));
+  // edges a building builds itself (compile/structure.ts), and the walls as realize finds them (resolve/wallFaces.ts):
+  // the wall check and the wall-style note read the same faces
+  const wallsOf = new Map(
+    levels.map((l) => {
+      const claims = structureClaims(l);
+      const faces = findWallFaces(grids.get(l.id) ?? new LevelGrid(l), {
+        claimed: claims.edges,
+        refHeights: areaReferenceHeights(l),
+        boardEdgeIsExit: generatorProfile(resolved).boardEdgeExits,
+      });
+      return [l.id, { claims, faces }] as const;
+    }),
+  );
   const featureById = new Map<string, ResolvedFeature>();
   for (const l of levels) for (const f of l.features) featureById.set(`${l.id}|${f.id}`, f);
   const levelOf = new Map(levels.map((l) => [l.id, l]));
@@ -310,7 +323,8 @@ export function verifyBuild(
   const resolveRole = createRoleResolver(palettes);
   for (const L of levels) {
     const g = grids.get(L.id);
-    if (!g) continue;
+    const walls = wallsOf.get(L.id);
+    if (!g || !walls) continue;
     let missing = 0;
     let first: [number, number] | null = null;
     let gaps = 0;
@@ -321,16 +335,7 @@ export function verifyBuild(
       blockBetweenOpen: boolean;
       mount: string;
     } | null = null;
-    const refHeights = areaReferenceHeights(L);
-    // a building's shell edge (compile/structure.ts) stands on the building's own floor: its storey height is
-    // measured from there, not from higher ground outside
-    const claims = structureClaims(L);
-    const shell = claims.edges;
-    const faces = findWallFaces(g, {
-      claimed: shell,
-      refHeights,
-      boardEdgeIsExit: generatorProfile(resolved).boardEdgeExits,
-    });
+    const { claims, faces } = walls;
     for (let ly = 0; ly < g.h; ly++) {
       for (let lx = 0; lx < g.w; lx++) {
         const x = L.bounds.x + lx;
@@ -364,7 +369,6 @@ export function verifyBuild(
           // the wall as realize builds it (resolve/wallFaces.ts): style, theme, span, and the cell its mass stands in
           const face = faces.at(orient, ei);
           if (!face || face.kind !== EDGE.WALL) continue;
-          const grid = g.edges(orient);
           const hostedHere = face.host.x === cx && face.host.y === cy;
           const { style } = face;
           const [dx, dy] = DIRV[side];
@@ -374,10 +378,12 @@ export function verifyBuild(
           const res = resolveRole(face.theme, `wall.${style}`).resolution;
           if (!res) continue; // role_missing already reported by realize
           const mount = res.def.mount ?? "half-cell";
-          const hgt = (grid.height[ei] ?? 0) > 0 ? (grid.height[ei] ?? 2) : 2;
+          const hgt = edgeWallHeight(g.edges(orient), ei);
           const base = face.base;
           const inside = hostedHere ? other : here; // shells host outside the footprint
-          const top = shell.has(`${orient}${ei}`)
+          // a building's shell edge (compile/structure.ts) stands on the building's own floor: its storey height is
+          // measured from there, not from higher ground outside
+          const top = face.claimed
             ? // a ruin's walls only need to stand a tile above its floor (their tops are broken)
               claims.ruined.has(`${orient}${ei}`)
               ? L.elevation + inside.height + 0.5 + 1
@@ -579,17 +585,17 @@ export function verifyBuild(
       });
     }
     const styles = new Map<string, { theme: string; style: string; n: number }>();
-    // building shells are built from facade.<style> roles (compile/structure.ts), not wall.<style>
-    const claimed = structureClaims(L).edges;
-    for (const grid of [L.hEdges, L.vEdges])
-      for (let e = 0; e < grid.kind.length; e++) {
-        if (grid.kind[e] !== EDGE.WALL) continue;
-        if (claimed.has(`${grid === L.hEdges ? "h" : "v"}${e}`)) continue;
-        const style = L.wallStyles[grid.ref[e] ?? 0] ?? "wall";
-        const k = `${L.themes[0] ?? "generic"}|${style}`;
+    const faces = wallsOf.get(L.id)?.faces;
+    // in edge index order (h edges, then v edges), which orders the notes; building shells are built from
+    // facade.<style> roles (compile/structure.ts), not wall.<style>
+    for (const orient of ["h", "v"] as const)
+      for (let e = 0; e < g.edges(orient).kind.length; e++) {
+        const face = faces?.at(orient, e);
+        if (!face || face.kind !== EDGE.WALL || face.claimed) continue;
+        const k = `${L.themes[0] ?? "generic"}|${face.style}`;
         const x = styles.get(k);
         if (x) x.n++;
-        else styles.set(k, { theme: L.themes[0] ?? "generic", style, n: 1 });
+        else styles.set(k, { theme: L.themes[0] ?? "generic", style: face.style, n: 1 });
       }
     for (const st of styles.values()) {
       const want = `wall.${st.style}`;

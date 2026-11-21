@@ -20,7 +20,7 @@
 import type { ResolvedLevel } from "../contracts/resolved";
 import { CELL_FLAG, EDGE } from "../contracts/resolved";
 import { cellIndex, edgeLineLength, edgeLines, edgeOnLine } from "./levelGrid";
-import { areaReferenceHeights, spanCellOf, wallRise } from "./wallspan";
+import { areaReferenceHeights, edgeWallHeight, spanCellOf, wallRise } from "./wallspan";
 import { h32 } from "../util/hash";
 import { isUnevenWallStyle } from "../gen/wallStyles";
 
@@ -129,7 +129,7 @@ export function roughWallTops(L: ResolvedLevel, seedKey: string): number {
           continue;
         }
         const style = kind === EDGE.WALL ? (L.wallStyles[grid.ref[idx] ?? 0] ?? "wall") : "";
-        const h0 = (grid.height[idx] ?? 0) > 0 ? (grid.height[idx] ?? 2) : 2;
+        const h0 = edgeWallHeight(grid, idx);
         const a = orient === "h" ? cellAt(pos, line - 1) : cellAt(line - 1, pos);
         const b = orient === "h" ? cellAt(pos, line) : cellAt(line, pos);
         const host = grid.host[idx] ?? 1;

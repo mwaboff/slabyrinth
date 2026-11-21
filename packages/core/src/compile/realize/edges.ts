@@ -1,14 +1,12 @@
 /**
  * Realize, edge primitives: how a piece standing on a cell edge is placed, and the strips such pieces leave at the
  * vertices for the corner posts. Shared by the wall, kerb and opening passes; places only what a pass asks for.
- * Reads: the level's cells and wall spans (`refHeights`). Writes: placements (through `emit`); `CornerStrips`.
+ * Reads: the edge as the caller describes it (`EdgeCtx`). Writes: placements (through `emit`); `CornerStrips`.
  */
 import type { Placement, PlacementRole, RoleName } from "../../contracts/compiler";
 import type { Side, ThemeId } from "../../contracts/plan";
-import type { ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant, VariantFilter } from "../../palette/resolve";
 import type { WallFace } from "../../resolve/wallFaces";
-import { wallSpan } from "../../resolve/wallspan";
 import { rotateXZ } from "../geometry";
 import type { RealizeLevel } from "./level";
 
@@ -24,8 +22,8 @@ export interface Strip {
 }
 
 /**
- * One wall edge as a piece standing on it sees it (`faceEdgeCtx` for a wall face, `edgeCtx` for an opening with its own
- * host; the shell's skirt and kerbs build their own).
+ * One wall edge as a piece standing on it sees it (`faceEdgeCtx` for a wall or opening face; the shell's skirt and kerbs
+ * build their own).
  */
 export interface EdgeCtx {
   orient: "h" | "v";
@@ -93,48 +91,6 @@ export function faceEdgeCtx(f: WallFace): EdgeCtx {
     top: f.top,
     theme: f.theme,
     hostOpen: f.host.open,
-  };
-}
-
-/** Edge (x,y) = north edge of cell (x,y) for h, west edge for v. */
-export function edgeCtx(
-  lv: RealizeLevel,
-  orient: "h" | "v",
-  x: number,
-  y: number,
-  grid: ResolvedLevel["hEdges"],
-  e: number,
-  wallHeight: number,
-): EdgeCtx {
-  const { V, elev, refHeights } = lv;
-  const { defaultTheme } = lv.ctx;
-  const a = orient === "h" ? V.cell(x, y - 1) : V.cell(x - 1, y);
-  const b = V.cell(x, y);
-  const hostFirst = (grid.host[e] ?? 1) === 0;
-  const host = hostFirst ? a : b;
-  const other = hostFirst ? b : a;
-  const { base, top } = wallSpan(elev, a, b, hostFirst, wallHeight, refHeights);
-  const theme = (other.open ? other.theme : host.open ? host.theme : other.theme) || defaultTheme;
-  const hostX = orient === "h" ? x : hostFirst ? x - 1 : x;
-  const hostY = orient === "h" ? (hostFirst ? y - 1 : y) : y;
-  const otherX = orient === "h" ? x : hostFirst ? x : x - 1;
-  const otherY = orient === "h" ? (hostFirst ? y : y - 1) : y;
-  const planSide: Side = orient === "h" ? (hostFirst ? "S" : "N") : hostFirst ? "E" : "W";
-  return {
-    orient,
-    x,
-    y,
-    hostFirst,
-    hostX,
-    hostY,
-    otherX,
-    otherY,
-    otherOpen: other.open,
-    planSide,
-    base,
-    top,
-    theme,
-    hostOpen: host.open,
   };
 }
 

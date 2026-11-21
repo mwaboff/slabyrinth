@@ -1,12 +1,13 @@
 /**
  * Realize, opening pass: doors, arches, windows and secret doors in their wall line, the wall pieces or lintel above
  * a door shorter than its wall, and the strips the corner posts need.
- * Reads: the level's openings and edges, `claimed` (openings a building builds itself). Writes: opening and wall
- * placements, `CornerStrips`; secret-door and missing-piece diagnostics.
+ * Reads: the level's openings, their wall faces (`faces`), `claimed` (openings a building builds itself).
+ * Writes: opening and wall placements, `CornerStrips`; secret-door and missing-piece diagnostics.
  */
 import type { ResolvedOpening } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
-import { edgeCtx, lenFilter, lengthOf, placeEdgePiece, type CornerStrips, type EdgeCtx } from "./edges";
+import type { WallFace } from "../../resolve/wallFaces";
+import { faceEdgeCtx, lenFilter, lengthOf, placeEdgePiece, type CornerStrips, type EdgeCtx } from "./edges";
 import { OPPOSITE } from "../../gen/gridGeometry";
 import { EPS, type RealizeLevel } from "./level";
 
@@ -99,32 +100,22 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
 }
 
 /**
- * The opening's edges as pieces standing on them see them, all with the first edge's host side (each keeps its own
- * wall height).
+ * The opening's edges (its wall faces, resolve/wallFaces.ts) as pieces standing on them see them, all hosted on the
+ * first edge's side: one piece spans several edges, so it stands on one side of all of them (each edge keeps its own
+ * wall height and span).
  */
 function openingEdges(lv: RealizeLevel, op: ResolvedOpening): EdgeCtx[] {
-  const { V } = lv;
+  const { V, faces } = lv;
   const orient = op.orientation;
-  const grid = V.edges(orient);
-  const ctxs: EdgeCtx[] = [];
+  const found: WallFace[] = [];
   for (let k = 0; k < op.width; k++) {
     const x = orient === "h" ? op.start[0] + k : op.start[0];
     const y = orient === "h" ? op.start[1] : op.start[1] + k;
-    const e = orient === "h" ? V.hEdge(x, y) : V.vEdge(x, y);
-    if (e < 0) continue;
-    ctxs.push(edgeCtx(lv, orient, x, y, grid, e, (grid.height[e] ?? 0) > 0 ? (grid.height[e] ?? 2) : 2));
+    const f = faces.at(orient, orient === "h" ? V.hEdge(x, y) : V.vEdge(x, y));
+    if (f) found.push(f);
   }
-  const first = ctxs[0];
-  if (!first) return ctxs;
-  for (const c of ctxs) {
-    if (c.hostFirst === first.hostFirst) continue;
-    const e = orient === "h" ? V.hEdge(c.x, c.y) : V.vEdge(c.x, c.y);
-    // keep the edge's real wall height (was hard-coded to 2, leaving a gap above doors in taller walls)
-    const h = (grid.height[e] ?? 0) > 0 ? (grid.height[e] ?? 2) : 2;
-    const host = grid.host.map(() => (first.hostFirst ? 0 : 1));
-    Object.assign(c, edgeCtx(lv, orient, c.x, c.y, { ...grid, host }, e, h));
-  }
-  return ctxs;
+  const hostFirst = found[0]?.hostFirst ?? true;
+  return found.map((f) => faceEdgeCtx(faces.hostedOn(f, hostFirst)));
 }
 
 /**

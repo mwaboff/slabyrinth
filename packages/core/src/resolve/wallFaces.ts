@@ -24,7 +24,8 @@
  * Order: `list` walks the edges line by line (resolve/levelGrid.ts `edgeLines`/`edgeOnLine`): rows of horizontal edges
  * north to south, each west to east, then columns of vertical edges west to east, each north to south. That is the
  * order the wall runs tile them in, so a reader that keeps the first face of a cell, or seeds noise in list order,
- * sees the walls as the build lays them. `at` finds the face of one edge.
+ * sees the walls as the build lays them. `at` finds the face of one edge; `hostedOn` describes it from its other side
+ * (the opening pass stands a wide opening on one side of all its edges).
  */
 import type { Side, ThemeId } from "../contracts/plan";
 import { CELL, EDGE } from "../contracts/resolved";
@@ -37,7 +38,7 @@ import {
   type EdgeOrient,
   type LevelGrid,
 } from "./levelGrid";
-import { areaReferenceHeights, wallSpan } from "./wallspan";
+import { areaReferenceHeights, edgeWallHeight, wallSpan } from "./wallspan";
 
 /** One cell beside a wall edge, in plan coordinates. */
 export interface FaceCell {
@@ -92,6 +93,9 @@ export interface WallFaceOptions {
   readonly boardEdgeIsExit: boolean;
 }
 
+/** Describes the face on edge `e` (start vertex x, y) with its host on the given side. */
+type DescribeFace = (orient: EdgeOrient, e: number, x: number, y: number, hostFirst: boolean) => WallFace;
+
 /** The wall faces of one level: `list` in line order (see the file header), `at` by edge. */
 export class WallFaces {
   private readonly byEdge: Record<EdgeOrient, Int32Array>;
@@ -99,6 +103,7 @@ export class WallFaces {
   constructor(
     readonly list: readonly WallFace[],
     size: { w: number; h: number },
+    private readonly describe: DescribeFace,
   ) {
     this.byEdge = {
       h: new Int32Array(edgeCount(size, "h")).fill(-1),
@@ -114,6 +119,15 @@ export class WallFaces {
     const i = edge < 0 ? -1 : (this.byEdge[orient][edge] ?? -1);
     return i < 0 ? undefined : this.list[i];
   }
+
+  /**
+   * The same face hosted on the given side: host and other swapped, with the span, theme, side and mass that follow
+   * from the host. A piece wider than one edge stands on one side of all its edges (realize/openings.ts: an opening keeps
+   * its first edge's host).
+   */
+  hostedOn(f: WallFace, hostFirst: boolean): WallFace {
+    return f.hostFirst === hostFirst ? f : this.describe(f.orient, f.edge, f.x, f.y, hostFirst);
+  }
 }
 
 /** Finds the wall faces of the level `V` reads. */
@@ -125,6 +139,46 @@ export function findWallFaces(V: LevelGrid, opts: WallFaceOptions): WallFaces {
     const index = V.index(x, y);
     const state = index < 0 ? -1 : (L.cells.state[index] ?? CELL.VOID);
     return { x, y, index, open: state === CELL.OPEN, solid: state === CELL.SOLID };
+  };
+  const describe: DescribeFace = (orient, e, x, y, hostFirst) => {
+    const grid = V.edges(orient);
+    const kind = grid.kind[e] ?? EDGE.NONE;
+    // the edge's first cell (north / west) and second cell (x, y)
+    const ax = orient === "h" ? x : x - 1;
+    const ay = orient === "h" ? y - 1 : y;
+    const a = V.cell(ax, ay);
+    const b = V.cell(x, y);
+    const host = hostFirst ? faceCell(ax, ay) : faceCell(x, y);
+    const other = hostFirst ? faceCell(x, y) : faceCell(ax, ay);
+    const style =
+      kind === EDGE.WALL
+        ? (L.wallStyles[grid.ref[e] ?? 0] ?? "wall")
+        : (L.openings[grid.ref[e] ?? -1]?.wallStyle ?? "wall");
+    const span = wallSpan(L.elevation, a, b, hostFirst, edgeWallHeight(grid, e), ref);
+    const hostCell = hostFirst ? a : b;
+    const otherCell = hostFirst ? b : a;
+    const theme =
+      (otherCell.open ? otherCell.theme : hostCell.open ? hostCell.theme : otherCell.theme) || V.defaultTheme;
+    let mass: FaceCell | null = host.open && other.open ? null : host.open ? other : host;
+    if (mass && opts.boardEdgeIsExit && mass.index < 0) mass = null;
+    return {
+      orient,
+      edge: e,
+      x,
+      y,
+      kind,
+      style,
+      natural: isNaturalWallStyle(style),
+      claimed: claimed?.has(`${orient}${e}`) ?? false,
+      hostFirst,
+      host,
+      other,
+      hostSide: orient === "h" ? (hostFirst ? "S" : "N") : hostFirst ? "E" : "W",
+      mass,
+      theme,
+      base: span.base,
+      top: span.top,
+    };
   };
   const list: WallFace[] = [];
   for (const orient of ["h", "v"] as const) {
@@ -138,46 +192,8 @@ export function findWallFaces(V: LevelGrid, opts: WallFaceOptions): WallFaces {
         if (kind !== EDGE.WALL && kind !== EDGE.OPENING) continue;
         const x = V.x0 + (orient === "h" ? pos : line);
         const y = V.y0 + (orient === "h" ? line : pos);
-        // the edge's first cell (north / west) and second cell (x, y)
-        const ax = orient === "h" ? x : x - 1;
-        const ay = orient === "h" ? y - 1 : y;
-        const a = V.cell(ax, ay);
-        const b = V.cell(x, y);
-        const hostFirst = (grid.host[e] ?? 1) === 0;
-        const host = hostFirst ? faceCell(ax, ay) : faceCell(x, y);
-        const other = hostFirst ? faceCell(x, y) : faceCell(ax, ay);
-        const style =
-          kind === EDGE.WALL
-            ? (L.wallStyles[grid.ref[e] ?? 0] ?? "wall")
-            : (L.openings[grid.ref[e] ?? -1]?.wallStyle ?? "wall");
-        const height = (grid.height[e] ?? 0) > 0 ? (grid.height[e] ?? 2) : 2;
-        const span = wallSpan(L.elevation, a, b, hostFirst, height, ref);
-        const hostCell = hostFirst ? a : b;
-        const otherCell = hostFirst ? b : a;
-        const theme =
-          (otherCell.open ? otherCell.theme : hostCell.open ? hostCell.theme : otherCell.theme) ||
-          V.defaultTheme;
-        let mass: FaceCell | null = host.open && other.open ? null : host.open ? other : host;
-        if (mass && opts.boardEdgeIsExit && mass.index < 0) mass = null;
-        list.push({
-          orient,
-          edge: e,
-          x,
-          y,
-          kind,
-          style,
-          natural: isNaturalWallStyle(style),
-          claimed: claimed?.has(`${orient}${e}`) ?? false,
-          hostFirst,
-          host,
-          other,
-          hostSide: orient === "h" ? (hostFirst ? "S" : "N") : hostFirst ? "E" : "W",
-          mass,
-          theme,
-          base: span.base,
-          top: span.top,
-        });
+        list.push(describe(orient, e, x, y, (grid.host[e] ?? 1) === 0));
       }
   }
-  return new WallFaces(list, V);
+  return new WallFaces(list, V, describe);
 }

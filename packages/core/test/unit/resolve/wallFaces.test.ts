@@ -98,6 +98,26 @@ describe("wall faces", () => {
     expect(Math.max(...byMass.map((f) => f.top))).toBe(3.5);
   });
 
+  it("a face hosted on its other side swaps its cells, side and theme, and keeps its edge", () => {
+    // a door between two rooms of different themes, hosted by the west room
+    const L = handLevel({ id: "a", rows: ["####", "#..#", "####"], doors: [{ x: 1, y: 1, side: "E" }] });
+    L.themes.push("forest");
+    L.cells.theme[1 * L.bounds.w + 2] = L.themes.length - 1;
+    const F = faces(L);
+    const f = faceOn(F, L, 1, 1, "E");
+    if (!f) throw new Error("fixture: no door face");
+    expect(F.hostedOn(f, f.hostFirst)).toBe(f);
+    const g = F.hostedOn(f, !f.hostFirst);
+    expect(g).toMatchObject({ orient: f.orient, edge: f.edge, x: f.x, y: f.y, kind: f.kind, style: f.style });
+    expect(g.host).toEqual(f.other);
+    expect(g.other).toEqual(f.host);
+    expect(g.hostSide).toBe(f.hostSide === "E" ? "W" : "E");
+    // the theme is the open side's away from the host: both sides open, so the other cell's
+    expect(new Set([f.theme, g.theme]).size).toBe(2);
+    // the face list is not changed by asking
+    expect(faceOn(F, L, 1, 1, "E")).toBe(f);
+  });
+
   it("lists faces line by line: rows of horizontal edges, then columns of vertical edges", () => {
     const L = handLevel({ id: "a", rows: ["#..", "#.#"] });
     const order = faces(L).list.map((f) => `${f.orient}${f.x},${f.y}`);

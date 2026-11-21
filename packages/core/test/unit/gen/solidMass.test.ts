@@ -22,7 +22,7 @@ import { linkCellsOnLevel } from "../../../src/plan/links";
 import { raggedCaveOutline, windowKeepsJoined } from "../../../src/resolve/caveOutline";
 import { resolvePlan } from "../../../src/resolve/index";
 import { edgeLineLength, edgeLines, edgeOnLine } from "../../../src/resolve/levelGrid";
-import { areaReferenceHeights, spanCellOf, wallRise } from "../../../src/resolve/wallspan";
+import { areaReferenceHeights, edgeWallHeight, spanCellOf, wallRise } from "../../../src/resolve/wallspan";
 import { reviewDesign } from "../../../src/review";
 import { reviewBuild } from "../../../src/review/reviewBuild";
 import "../../../src/resolve/autoregister";
@@ -430,7 +430,7 @@ describe("wall heights beside raised floors", () => {
           for (let pos = 0; pos < along; pos++) {
             const idx = edgeOnLine(L.bounds, orient, line, pos);
             if (grid.kind[idx] !== EDGE.WALL) continue;
-            const h0 = (grid.height[idx] ?? 0) > 0 ? (grid.height[idx] as number) : 2;
+            const h0 = edgeWallHeight(grid, idx);
             const a = orient === "h" ? cellAt(pos, line - 1) : cellAt(line - 1, pos);
             const b = orient === "h" ? cellAt(pos, line) : cellAt(line, pos);
             const rise = wallRise(L.elevation, a, b, (grid.host[idx] ?? 1) === 0, h0, ref);
