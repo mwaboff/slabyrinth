@@ -18,6 +18,7 @@ import { featureRoles } from "../gen/surfaces";
 import { generatorProfile } from "../plan/generator";
 import { bundledPalettes } from "./load";
 import { createRoleResolver, themeChain, type ResolvePalettes } from "./resolve";
+import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE } from "./roles";
 import { coveredStallForms, roleProbe, type RoleProbe } from "./stallParts";
 
 export type PieceSizeFn = (
@@ -70,8 +71,8 @@ export interface PaletteView {
 
 /** Feature types whose size comes from a palette role. */
 const ROLE_OF: Partial<Record<FeatureType, string>> = {
-  cliff_face: "cliff.formation_face",
-  cliff_crest: "cliff.formation_crest",
+  cliff_face: CLIFF_FACE_ROLE,
+  cliff_crest: CLIFF_CREST_ROLE,
 };
 
 /**

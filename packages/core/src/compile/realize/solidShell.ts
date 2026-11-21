@@ -7,6 +7,7 @@
  * it returns (read by the wall, cap and rock wall passes); fill placements (layShellCap).
  */
 import type { ResolvedVariant, RoleResolution } from "../../palette/resolve";
+import { SOLID_CAP_ROLE } from "../../palette/roles";
 import { wallTopRoles } from "../../palette/wallTop";
 import { h32 } from "../geometry";
 import { SHELL, isCarvedLevel, planShell, type Shell } from "../shell";
@@ -36,7 +37,7 @@ export function planSolidShell(lv: RealizeLevel): SolidShellPlan {
   const { resolved, seed, profile, defaultTheme, lookup } = lv.ctx;
   if (!profile.solidShell || !isCarvedLevel(L)) return NO_SHELL;
   let shell = planShell(resolved, L, seed, faces, defaultTheme);
-  const capRes = shell ? lookup(L.id, shell.theme, ["cap.solid"], undefined, true) : null;
+  const capRes = shell ? lookup(L.id, shell.theme, [SOLID_CAP_ROLE], undefined, true) : null;
   const capVariants = (capRes?.variants ?? []).filter(
     (v) => v.weight > 0 && v.footprint[0] === v.footprint[1],
   );

@@ -11,6 +11,7 @@ import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { planCaveWall, type WallFace, type WallShape } from "../../gen/cavewall";
 import { ValueNoise } from "../../gen/noise";
 import type { ResolvedVariant } from "../../palette/resolve";
+import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE, NATURAL_WALL_ROLE } from "../../palette/roles";
 import { h32, placementBox, rotateXZ } from "../geometry";
 import { EPS, type RealizeLevel } from "./level";
 import type { SolidShellPlan } from "./solidShell";
@@ -36,7 +37,7 @@ export function layRockWalls(lv: RealizeLevel, fullCells: FullCellColumns, shell
     if (!col) continue;
     // generator 3: the column is only the fill of a wall of rock mass (gen/cavewall.ts); it is built below, where no
     // mass piece closes the face cell
-    if (profile.caveRockMass && c.roleName === "wall.cave_rock") {
+    if (profile.caveRockMass && c.roleName === NATURAL_WALL_ROLE) {
       massFaces.push({ x: c.x, y: c.y, base: col.base, top: col.top, edgeBase: c.base, theme: c.theme });
       columnLater.set(`${c.x},${c.y}`, col.build);
     } else col.build();
@@ -80,7 +81,7 @@ function planColumn(
       wallNoise.sample(c.x / 4, c.y / 4) * 0.8 + (h32(`${seed}:${c.x}:${c.y}:wt`) / 4294967296) * 0.2;
     let extra = nz < 0.22 ? -1 : nz < 0.45 ? 0 : nz < 0.62 ? 1 : nz < 0.8 ? 2 : 3;
     // generator 3: the column is the closing skin of a wall of rock mass (gen/cavewall.ts): lower, in uneven runs
-    if (profile.caveRockMass && c.roleName === "wall.cave_rock") extra = nz < 0.3 ? -1 : nz < 0.72 ? 0 : 1;
+    if (profile.caveRockMass && c.roleName === NATURAL_WALL_ROLE) extra = nz < 0.3 ? -1 : nz < 0.72 ? 0 : 1;
     if (extra < 0 && top - v.unitHeight < floorTop + 1.5) extra = 0;
     // a column that closes the mouth of a chasm or pit (its wall reaches below the floor) is never one of the low
     // stretches, and stands at least a block taller, so nothing glows over it from inside
@@ -233,8 +234,8 @@ function massShapes(lv: RealizeLevel, theme: ThemeId): { vars: ResolvedVariant[]
   add("cliff.cave_mass", "A", () => true);
   const kit = shapes.length > 0;
   if (!kit) {
-    add("cliff.formation_crest", "A", (q) => q.geom.size.y >= 1.2);
-    add("cliff.formation_face", "A", () => true);
+    add(CLIFF_CREST_ROLE, "A", (q) => q.geom.size.y >= 1.2);
+    add(CLIFF_FACE_ROLE, "A", () => true);
   }
   // flat sheets close the far part of a deep band
   if (kit) add("cliff.cave_cap", "cap", () => true);

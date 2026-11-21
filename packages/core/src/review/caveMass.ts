@@ -19,6 +19,7 @@ import { hasNaturalWallStyle } from "../gen/wallStyles";
 import { massDepth, massFoot } from "../gen/solidMass";
 import { generatorProfile } from "../plan/generator";
 import { loadOrientation } from "../palette/load";
+import { NATURAL_WALL_ROLE } from "../palette/roles";
 import type { DesignNote } from "./review";
 import type { ReviewBuild } from "./reviewBuild";
 import { REVIEW, ROCK_FAMILIES, ROCK_TONE_GROUPS } from "./thresholds";
@@ -357,7 +358,7 @@ export function massMeasures(input: MassInput): MassMeasures {
 // ───────────────────────── from a realized build ─────────────────────────
 
 const ROLE_OF: Record<string, MassRole> = {
-  "wall.cave_rock": "column",
+  [NATURAL_WALL_ROLE]: "column",
   cave_mass: "mass",
   cave_cap: "cap",
   cave_foot: "toe",

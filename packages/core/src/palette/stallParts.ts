@@ -11,6 +11,7 @@
 import type { ThemeId } from "../contracts/plan";
 import type { StallForm } from "../contracts/resolved";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "./resolve";
+import { STALL_ROLES } from "./roles";
 
 /** Resolves the first of `roles` the theme can supply (variants passing `filter`), or null. The theme is bound by the caller. */
 export type RoleProbe = (roles: readonly string[], filter?: VariantFilter) => RoleResolution | null;
@@ -39,11 +40,11 @@ export const STALL_FORMS: readonly StallForm[] = ["gable", "flat"];
 
 /** Where each part of a stall comes from: the roles tried in order, and the variants that qualify. */
 export const STALL_PART_SPECS = {
-  base: { roles: ["stall.base", "floor.wood_plank"], filter: ONE_CELL_TILE },
-  counter: { roles: ["stall.counter"], filter: ONE_CELL_TILE },
-  post: { roles: ["stall.post"], filter: undefined },
+  base: { roles: [STALL_ROLES.base, "floor.wood_plank"], filter: ONE_CELL_TILE },
+  counter: { roles: [STALL_ROLES.counter], filter: ONE_CELL_TILE },
+  post: { roles: [STALL_ROLES.post], filter: undefined },
   canopy: (form: StallForm): { roles: string[]; filter: VariantFilter } => ({
-    roles: ["stall.canopy"],
+    roles: [STALL_ROLES.canopy],
     filter: { key: `form:${form}`, test: (v: ResolvedVariant) => v.variant === form },
   }),
 } as const;

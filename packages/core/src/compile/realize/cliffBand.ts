@@ -9,6 +9,7 @@ import type { ThemeId } from "../../contracts/plan";
 import { cliffRockKinds, edgeHidden, type RockShape } from "../../gen/cover";
 import { SIDE_STEP } from "../../gen/gridGeometry";
 import type { ResolvedVariant } from "../../palette/resolve";
+import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE } from "../../palette/roles";
 import type { RealizeLevel } from "./level";
 
 /** Rock band (generator 2, themes with cliff.formation_face): rise that gets a band, and how far it reaches. */
@@ -47,7 +48,7 @@ export class CliffTones {
     if (k === undefined) {
       const vs = (role: string): readonly ResolvedVariant[] =>
         lookup(L.id, theme, [role], undefined, true)?.variants ?? [];
-      k = cliffRockKinds(vs("cliff.formation_face"), vs("cliff.formation_crest"));
+      k = cliffRockKinds(vs(CLIFF_FACE_ROLE), vs(CLIFF_CREST_ROLE));
       this.kindMemo.set(theme, k);
     }
     return k;
@@ -99,7 +100,7 @@ export function planRockBand(lv: RealizeLevel, tones: CliffTones): RockBand {
   const hasBand = (theme: ThemeId): boolean => {
     let b = bandThemes.get(theme);
     if (b === undefined) {
-      b = Boolean(lookup(L.id, theme, ["cliff.formation_face"], undefined, true));
+      b = Boolean(lookup(L.id, theme, [CLIFF_FACE_ROLE], undefined, true));
       bandThemes.set(theme, b);
     }
     return b;
@@ -165,8 +166,8 @@ function restingRocks(lv: RealizeLevel, tones: CliffTones): RockShape[] {
     if (!tones.kinds(f.theme)[f.type === "cliff_face" ? "face" : "crest"]) continue;
     const ext =
       f.type === "cliff_face"
-        ? extent(f.theme, "cliff.formation_face", false)
-        : extent(f.theme, "cliff.formation_crest", true);
+        ? extent(f.theme, CLIFF_FACE_ROLE, false)
+        : extent(f.theme, CLIFF_CREST_ROLE, true);
     if (!ext) continue;
     rockShapes.push({
       cx: f.at[0] + f.size[0] / 2 + (f.offset?.[0] ?? 0),

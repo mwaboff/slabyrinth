@@ -14,6 +14,7 @@ import type { Material, ThemeId } from "../contracts/plan";
 import { wallStyleInfo } from "../gen/wallStyles";
 import { own } from "../util/own";
 import type { RoleResolution } from "./resolve";
+import { SOLID_CAP_ROLE } from "./roles";
 
 /** The material of a wall's top, or undefined when neither the wall nor its palette names one. */
 export function wallTopMaterial(
@@ -35,5 +36,5 @@ export function wallTopRoles(
   wall: RoleResolution | null,
 ): RoleName[] {
   const material = wallTopMaterial(palettes, style, wall);
-  return material === undefined ? ["cap.solid"] : [`floor.${material}`, "cap.solid"];
+  return material === undefined ? [SOLID_CAP_ROLE] : [`floor.${material}`, SOLID_CAP_ROLE];
 }

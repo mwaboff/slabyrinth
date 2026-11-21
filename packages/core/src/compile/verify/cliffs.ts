@@ -5,6 +5,7 @@
  * Emits `verify_cliff_gap` (warning), one per level with the first edge and the count.
  */
 import { SIDE_STEP } from "../../gen/gridGeometry";
+import { CLIFF_FACE_ROLE } from "../../palette/roles";
 import type { VerifyCtx } from "./context";
 import { CLIFF_COVER_MARGIN, CLIFF_GAP_RISE_Q } from "./limits";
 
@@ -31,7 +32,7 @@ export function checkCliffBand(ctx: VerifyCtx): void {
         const lx = e.at[0] - L.bounds.x;
         const ly = e.at[1] - L.bounds.y;
         if (lx <= 0 || ly <= 0 || lx >= L.bounds.w - 1 || ly >= L.bounds.h - 1) continue;
-        if (!ctx.resolveRole(g.cell(e.at[0], e.at[1]).theme, "cliff.formation_face").resolution) continue;
+        if (!ctx.resolveRole(g.cell(e.at[0], e.at[1]).theme, CLIFF_FACE_ROLE).resolution) continue;
         if (blocks.has(`${e.at[0]},${e.at[1]}`)) continue;
         const [dx, dy] = SIDE_STEP[e.side];
         const mx = e.at[0] + 0.5 + dx * 0.5;

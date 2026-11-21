@@ -15,6 +15,7 @@ import {
 import type { CompileDiagnostic, PaletteCatalog, PlacementSet } from "../contracts/compiler";
 import { generatorProfile, type GeneratorProfile } from "../plan/generator";
 import type { ResolvedVariant } from "../palette/resolve";
+import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE } from "../palette/roles";
 import { paletteView } from "../palette/view";
 import { structureSignature, structureSilhouette, structureTone } from "../resolve/structureVariety";
 import { roofUnsupportedEdges, structureRuinMeasures, weatherMeasures, weatherSigns } from "../resolve/ruin";
@@ -309,10 +310,9 @@ export function reviewDesign(
     const k = `${theme}|${type}`;
     let e = extentMemo.get(k);
     if (e === undefined) {
-      const vs = variants(
-        theme,
-        type === "cliff_face" ? "cliff.formation_face" : "cliff.formation_crest",
-      ).filter((v) => v.weight > 0 && (type === "cliff_face" || v.geom.size.y >= 1.2));
+      const vs = variants(theme, type === "cliff_face" ? CLIFF_FACE_ROLE : CLIFF_CREST_ROLE).filter(
+        (v) => v.weight > 0 && (type === "cliff_face" || v.geom.size.y >= 1.2),
+      );
       const v = [...vs].sort((a, b) => b.weight - a.weight)[0];
       e = v ? { w: v.geom.size.x, d: v.geom.size.z, h: v.geom.size.y } : null;
       extentMemo.set(k, e);
@@ -324,7 +324,7 @@ export function reviewDesign(
   const rockKinds: Ctx["rockKinds"] = (theme) => {
     if (opts.oneToneRule === false || !gen.cliffToneRule) return { face: true, crest: true };
     const vs = (n: string): readonly ToneVariant[] => variants(theme, n);
-    return cliffRockKinds(vs("cliff.formation_face"), vs("cliff.formation_crest"));
+    return cliffRockKinds(vs(CLIFF_FACE_ROLE), vs(CLIFF_CREST_ROLE));
   };
   for (const L of resolved.levels) {
     const W = L.bounds.w;
@@ -2297,17 +2297,14 @@ function rockTonesMixed(c: Ctx): DesignNote[] {
     const k = c.rockKinds(theme);
     // the rule narrows each kind to the cliff's tone; without it every piece of the role can stand
     const narrow = k.tone;
-    if (faces.has(theme) && k.face) add("the cliffs", c.roleTones(theme, "cliff.formation_face", narrow));
+    if (faces.has(theme) && k.face) add("the cliffs", c.roleTones(theme, CLIFF_FACE_ROLE, narrow));
     if (crests.has(theme) && k.crest) {
       // boulders of the face's tone (the boulder role's, else the palette's same-tone boulder role), else the other
       // tone as they are: that is the mixed case
-      const same = c.roleTones(theme, "cliff.formation_crest", narrow);
+      const same = c.roleTones(theme, CLIFF_CREST_ROLE, narrow);
       const alt =
-        narrow === undefined || same.length > 0 ? [] : c.roleTones(theme, `cliff.formation_crest_${narrow}`);
-      add(
-        "the cliffs",
-        same.length > 0 ? same : alt.length > 0 ? alt : c.roleTones(theme, "cliff.formation_crest"),
-      );
+        narrow === undefined || same.length > 0 ? [] : c.roleTones(theme, `${CLIFF_CREST_ROLE}_${narrow}`);
+      add("the cliffs", same.length > 0 ? same : alt.length > 0 ? alt : c.roleTones(theme, CLIFF_CREST_ROLE));
     }
   }
   // cave walls: the tone count of the built wall is review/caveMass.ts (`cave_rock_tones`, measured on the realized

@@ -8,6 +8,7 @@ import type { PlacementRole } from "../../contracts/compiler";
 import type { Material, ThemeId } from "../../contracts/plan";
 import { CELL_FLAG } from "../../contracts/resolved";
 import type { VariantFilter } from "../../palette/resolve";
+import { FILL_ROLE } from "../../palette/roles";
 import { isCliffGround, isWater } from "../../resolve/materials";
 import { BAND, type RockBand } from "./cliffBand";
 import type { GroundUnderDecks } from "./floors";
@@ -203,14 +204,14 @@ export function stackFill(
   const levelId = L.id;
   // water cells sit on their bed; other cells fill with their own floor tile before the generic fill
   const roles = !material
-    ? ["fill.default"]
+    ? [FILL_ROLE]
     : isWater(material)
-      ? [`bed.${material}`, "bed.default", "fill.default"]
+      ? [`bed.${material}`, "bed.default", FILL_ROLE]
       : [
           ...(profile.rockGroundFaces && isCliffGround(material) ? ["fill.rock"] : []),
           `fill.${material}`,
           `floor.${material}`,
-          "fill.default",
+          FILL_ROLE,
         ];
   // stacked courses use the default family (untagged 1×1 variants), not a patch family's tile
   const res = lookup(levelId, theme, roles, {

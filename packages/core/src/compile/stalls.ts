@@ -34,6 +34,7 @@ import {
   type SurfaceLoad,
 } from "../gen/surfaces";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "../palette/resolve";
+import { STALL_ROLES } from "../palette/roles";
 import { ONE_CELL_TILE, stallParts, type RoleProbe } from "../palette/stallParts";
 import { subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
@@ -334,7 +335,7 @@ class Stall {
     for (const [lx, ly, face] of plain) {
       const v = this.choose(counterRes, `counter:${lx}:${ly}`);
       const [cx, cy] = this.cell(lx, ly);
-      if (v) this.tile(v, { x: cx, y: cy, w: 1, h: 1 }, top0, this.turn(face, v, "stall.counter"));
+      if (v) this.tile(v, { x: cx, y: cy, w: 1, h: 1 }, top0, this.turn(face, v, STALL_ROLES.counter));
       this.smallThings(goods, cx, cy, top0 + (v?.geom.size.y ?? counterH), lx, ly);
     }
   }
@@ -446,7 +447,7 @@ class Stall {
             : pool;
         const v = ctx.pick(want.length > 0 ? want : pool, `${f.id}:canopy:${half.r0}:${px}`);
         if (!v) return;
-        this.tile(v, r, yc, this.turn(half.low, v, "stall.canopy"));
+        this.tile(v, r, yc, this.turn(half.low, v, STALL_ROLES.canopy));
         ridgeY = Math.max(ridgeY, yc + v.geom.size.y);
       };
       for (; lx + 2 <= b.w; lx += 2) placePiece(lx, 2, half.n);
@@ -458,12 +459,12 @@ class Stall {
           );
           const v = ctx.pick(pool, `${f.id}:canopy:${half.r0}:${lx}:${j}`);
           if (v) {
-            this.tile(v, r, yc, this.turn(half.low, v, "stall.canopy"));
+            this.tile(v, r, yc, this.turn(half.low, v, STALL_ROLES.canopy));
             ridgeY = Math.max(ridgeY, yc + v.geom.size.y);
           }
         }
     }
-    const ridgeRes = this.find(["stall.ridge"]);
+    const ridgeRes = this.find([STALL_ROLES.ridge]);
     if (ridgeRes) {
       const nb = Math.max(1, Math.ceil(b.w / 2));
       const alongX = b.front === "S" || b.front === "N";
@@ -481,7 +482,7 @@ class Stall {
   lightAndSeat(yc: number, top0: number): void {
     const { b, rng } = this;
     if (b.light) {
-      const lr = this.find(["stall.light"]);
+      const lr = this.find([STALL_ROLES.light]);
       const v = lr ? this.choose(lr, "light") : undefined;
       if (v) {
         const [px, py] = this.point(b.w / 2 + (rng.next() - 0.5) * 0.6, 0.35);
@@ -489,7 +490,7 @@ class Stall {
       }
     }
     if (b.seat) {
-      const sr = this.find(["stall.seat", "feature.stool"]);
+      const sr = this.find([STALL_ROLES.seat, "feature.stool"]);
       const v = sr ? this.choose(sr, "seat") : undefined;
       if (v) {
         const [lx, ly] = b.seat;

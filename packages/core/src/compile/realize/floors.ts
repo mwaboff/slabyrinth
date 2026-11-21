@@ -8,6 +8,7 @@
 import type { Material } from "../../contracts/plan";
 import { CELL_FLAG } from "../../contracts/resolved";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "../../palette/resolve";
+import { FILL_ROLE } from "../../palette/roles";
 import { createFamilyPicker, type FloorFamily } from "../../resolve/floorFamilies";
 import { isCliffGround, isWater } from "../../resolve/materials";
 import { axisPosition } from "../../resolve/road";
@@ -389,7 +390,7 @@ export function layWaterBeds(lv: RealizeLevel, waterCells: WaterCells): void {
         const n = V.cell(nx, ny);
         if (n.floor && n.material !== null && !isWater(n.material)) bank = bank ?? n.material;
       }
-      res = lookup(L.id, c.theme, ["floor.gravel", `floor.${bank ?? "rock"}`, "fill.default"], one, true);
+      res = lookup(L.id, c.theme, ["floor.gravel", `floor.${bank ?? "rock"}`, FILL_ROLE], one, true);
       if (!bedNoted.has(`${c.theme}|${c.material}`)) {
         bedNoted.add(`${c.theme}|${c.material}`);
         addDiag({
