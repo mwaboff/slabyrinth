@@ -64,7 +64,6 @@ async function mainHost(plan: MapPlan): Promise<Host> {
   });
   const compiler = new CompileService({
     spawn: () => inProcessWorker(createCoreCompileBackend()),
-    backend: "core",
     emit: rig.emit,
     logger,
   });

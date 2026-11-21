@@ -7,7 +7,6 @@ import type { Logger } from "../logger";
 import type { ConversationEngine, EngineHost } from "../ports/engine";
 import type { BuildPalettes } from "../services/buildPalettes";
 import type { BuildService } from "../services/buildService";
-import type { CompileService } from "../services/compileService";
 import type { EmitEvent } from "../services/events";
 import type { ImageBridge } from "../services/imageBridge";
 import type { PaletteService } from "../services/paletteService";
@@ -27,7 +26,6 @@ export interface EngineDeps {
   palettes: PaletteService;
   buildPalettes: BuildPalettes;
   catalog: CatalogService;
-  compiler: CompileService;
   build: BuildService;
   imageBridge: ImageBridge;
 }
@@ -67,7 +65,7 @@ export async function startEngine(d: EngineDeps): Promise<StartedEngine> {
 }
 
 function engineHost(d: EngineDeps): EngineHost {
-  const { projects, settings, compiler, build, catalog, palettes, buildPalettes, imageBridge, secrets } = d;
+  const { projects, settings, build, catalog, palettes, buildPalettes, imageBridge, secrets } = d;
   return {
     getProject: () => projects.getProject(),
     getPlan: (v) => (projects.isOpen ? projects.getPlan(v) : null),
@@ -101,8 +99,7 @@ function engineHost(d: EngineDeps): EngineHost {
         env: process.env,
       }),
     getSettings: () => settings.get(),
-    estimateCompile: async (plan, levels) =>
-      compiler.backend === "none" ? null : build.estimate(plan, levels),
+    estimateCompile: (plan, levels, signal) => build.estimate(plan, levels, signal),
     getAssetCatalog: () => catalog.current(),
     getPalettes: () => palettes.palettes(),
     getBuildPalettes: () => buildPalettes.current(),

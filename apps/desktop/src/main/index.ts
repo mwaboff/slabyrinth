@@ -161,10 +161,10 @@ if (!app.requestSingleInstanceLock()) {
       if (smoke) {
         runSmoke(win, [
           () => {
-            const line = `engine=${s.engineKind} compile=${s.compiler.backend}`;
-            // A packaged build must run the real conversation engine and the real compiler.
-            if (app.isPackaged && (s.engineKind !== "real" || s.compiler.backend !== "core"))
-              throw new Error(`packaged build is not wired to the real engine/compiler (${line})`);
+            // the compiler is always core's (the only backend); the engine must be the real one
+            const line = `engine=${s.engineKind} compile=core`;
+            if (app.isPackaged && s.engineKind !== "real")
+              throw new Error(`packaged build is not wired to the real engine (${line})`);
             return Promise.resolve(line);
           },
           () => {
@@ -211,7 +211,6 @@ if (!app.requestSingleInstanceLock()) {
           },
           async () => {
             // Proves the compile worker loads from the packaged app (asar).
-            if (s.compiler.backend === "none") return "worker=skipped (no compiler)";
             const est = await s.build.estimate(FIXTURE_PLAN);
             return `worker=ok estimate.levels=${String(est.perLevel.length)}`;
           },

@@ -92,8 +92,15 @@ export interface EngineHost {
   /** MAIN ONLY: decrypted API key (null if none). Never log, emit or persist it. */
   getApiKey(providerId: ProviderId): Promise<string | null>;
   getSettings(): AppSettings;
-  /** Cheap compile estimate for compile_preview (null when the compiler is unavailable). */
-  estimateCompile(plan: MapPlan, levels?: LevelId[]): Promise<CompileEstimate | null>;
+  /**
+   * Compile estimate for compile_preview. `signal`: the turn's; when it aborts (Stop) the estimate is abandoned and its
+   * worker ended. The host also gives every estimate a deadline, so a looping compile can never hold a turn.
+   */
+  estimateCompile(
+    plan: MapPlan,
+    levels: LevelId[] | undefined,
+    signal: AbortSignal,
+  ): Promise<CompileEstimate>;
   /** Cached asset catalog from the user's install (null = built-in asset set only). */
   getAssetCatalog(): AssetCatalog | null;
   /** Palettes visible to the app (bundled + user). */

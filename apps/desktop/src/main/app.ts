@@ -293,13 +293,9 @@ function startBuildWork(
   outside: OutsideWorld,
 ): BuildWork {
   const { logger } = ctx;
-  // The fake compiler is a dev aid only: packaged builds ignore the flag.
-  const compileBackend: "core" | "fake" = ctx.isDev && settings.flag("fakeCompile") ? "fake" : "core";
-  logger.info("compile backend", { backend: compileBackend });
   const workerUrl = new URL("./compile.worker.js", import.meta.url);
   const compiler = new CompileService({
     spawn: () => new Worker(workerUrl),
-    backend: compileBackend,
     emit,
     logger: logger.child("compile"),
   });

@@ -39,6 +39,7 @@ import type { AppError, ChatEvent, IpcRequests } from "../../shared/ipc";
 import type { ChatMessageMeta, Conversation, ProjectFile } from "../../shared/project";
 import { redactString } from "../logger";
 import { EnginePortError, type ConversationEngine, type EngineHost } from "../ports/engine";
+import { DEADLINES, withDeadline } from "../util/deadline";
 import { ZERO_USAGE, addCost, addUsage, costOf, promptTokens, ratesFor } from "./cost";
 import { errorInfo, isRetryableKind } from "./provider/errors";
 import { createDefaultRegistry } from "./provider/registry";
@@ -278,8 +279,11 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
   ): Promise<ModelDescriptor | undefined> {
     const cached = this.cachedDescriptor(sel);
     if (cached) return cached;
-    const list = await provider.listModels(new AbortController().signal);
-    this.models.set(sel.providerId, { at: Date.now(), list });
+    // A turn never waits long on the network for the model list: past the deadline the provider answers with its
+    // bundled table, which is used for this turn but not cached (the next turn asks again).
+    const signal = withDeadline(undefined, DEADLINES.modelListForTurnMs);
+    const list = await provider.listModels(signal);
+    if (!signal.aborted) this.models.set(sel.providerId, { at: Date.now(), list });
     return list.find((d) => d.modelId === sel.modelId);
   }
 
@@ -963,7 +967,12 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
             return new Uint8Array(Buffer.from(b64, "base64"));
           }
         : null,
-      estimate: (plan, levels) => this.host.estimateCompile(plan, levels),
+      // the turn's signal: Stop ends a running estimate too; a failed or timed-out one is "not available right now"
+      estimate: (plan, levels) =>
+        this.host.estimateCompile(plan, levels, signal).catch((err: unknown) => {
+          this.host.logger.warn("compile estimate failed", { error: err });
+          return null;
+        }),
       catalog: { themes: this.themes(), featureCoverage: (theme) => this.featureCoverage(theme) },
       newSeed: () => this.random32() >>> 0,
       newPlanId: () => randomUUID(),
@@ -1470,7 +1479,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
   ): Promise<{ ok: true } | { ok: false; error: ProviderErrorInfo }> {
     try {
       const p = await this.configured(providerId);
-      const res = await p.checkConnection(AbortSignal.timeout(20_000));
+      const res = await p.checkConnection(withDeadline(undefined, DEADLINES.providerRequestMs));
       return res.ok ? res : { ok: false, error: { ...res.error, message: redactString(res.error.message) } };
     } catch (err) {
       if (err instanceof EnginePortError)
@@ -1494,7 +1503,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     } catch {
       // No key yet: the provider falls back to its bundled table.
     }
-    const list = await provider.listModels(AbortSignal.timeout(20_000));
+    const list = await provider.listModels(withDeadline(undefined, DEADLINES.providerRequestMs));
     this.models.set(providerId, { at: Date.now(), list });
     return list;
   }

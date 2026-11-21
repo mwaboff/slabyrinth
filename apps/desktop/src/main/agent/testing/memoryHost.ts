@@ -87,7 +87,11 @@ export interface MemoryHostOptions {
   palettes?: Palette[];
   /** The palettes builds compile with (default: the bundled palettes alone). */
   buildPalettes?: PaletteCatalog;
-  estimate?: (plan: MapPlan, levels?: LevelId[]) => CompileEstimate | null;
+  estimate?: (
+    plan: MapPlan,
+    levels: LevelId[] | undefined,
+    signal: AbortSignal,
+  ) => CompileEstimate | null | Promise<CompileEstimate | null>;
   image?: (req: ImageRequest) => string;
 }
 
@@ -201,17 +205,21 @@ export class MemoryHost implements EngineHost {
     return this.opts.settings ?? defaultSettings();
   }
 
-  estimateCompile(plan: MapPlan, levels?: LevelId[]): Promise<CompileEstimate | null> {
-    return Promise.resolve(
-      this.opts.estimate
-        ? this.opts.estimate(plan, levels)
-        : {
-            perLevel: plan.levels.map((l) => ({ levelId: l.id, assets: 10, estimatedChunks: 1 })),
-            totalAssets: 10 * plan.levels.length,
-            estimatedChunks: 1,
-            diagnostics: [],
-          },
-    );
+  async estimateCompile(
+    plan: MapPlan,
+    levels: LevelId[] | undefined,
+    signal: AbortSignal,
+  ): Promise<CompileEstimate> {
+    const est = this.opts.estimate
+      ? await this.opts.estimate(plan, levels, signal)
+      : {
+          perLevel: plan.levels.map((l) => ({ levelId: l.id, assets: 10, estimatedChunks: 1 })),
+          totalAssets: 10 * plan.levels.length,
+          estimatedChunks: 1,
+          diagnostics: [],
+        };
+    if (est === null) throw new Error("no compiler");
+    return est;
   }
 
   getAssetCatalog(): null {

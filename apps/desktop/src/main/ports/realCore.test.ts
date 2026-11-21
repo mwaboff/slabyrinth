@@ -28,7 +28,6 @@ describe("real core wiring", () => {
 
   it("compile backend: FIXTURE_PLAN compiles to slabs that decode", () => {
     const backend = createCoreCompileBackend();
-    expect(backend.kind).toBe("core");
     const input: CompileInput = {
       plan: FIXTURE_PLAN,
       options: { alignment: "multi-chunk" },

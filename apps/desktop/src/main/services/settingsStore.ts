@@ -23,8 +23,6 @@ function stripKeyedBaseUrls(s: AppSettings): AppSettings {
 }
 
 export const FEATURE_FLAGS = {
-  /** Use the fake compiler even when core's compilePlan exists. */
-  fakeCompile: false,
   /** Watch the Taleweaver folder for game updates while the app runs. */
   watchTaleSpire: true,
   /** Debug logging (prompts are still never logged by WP5 code). */
