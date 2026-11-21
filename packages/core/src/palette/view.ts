@@ -3,9 +3,9 @@
  *
  * The resolver lays things out before any asset exists, so it needs a few facts the palette owns: how big a rock
  * band's pieces really are (`pieceSize`), how tall the piece a room recipe stands on is (`roomPiece`), whether a theme can
- * build a covered stall (`stallForms`), and how large a floor tile is (`floorTileArea`). They used to live in three
- * modules with three lazily created resolvers over the bundled palettes, so the resolver could never see a user's
- * palette and could disagree with the compiler.
+ * build a covered stall (`stallForms`), how large a floor tile is (`floorTileArea`), and what a theme's floor, wall
+ * style and interior character default to (`themeDefaults`). Asking them here, of the palettes the plan is compiled
+ * with, is what keeps the resolver and the compiler on one answer, a user's palette included.
  *
  * Every caller hands `resolvePlan` the palettes the plan is compiled with; `resolveView` picks the view the plan's
  * generator decides from, and `paletteView` builds one view per catalog, so the resolver and the design review of
@@ -63,10 +63,19 @@ export interface PaletteView {
   /** The role probe the stall capability check uses, bound to a theme. */
   probe: (theme: ThemeId) => RoleProbe;
   /**
-   * Generator 4: the interior character a theme's palette declares (`defaults.interior`, its own or the nearest along
-   * `extends`); undefined for a theme with no palette of its own (resolve/themes.ts then has it).
+   * The defaults a theme's palette declares (`Palette.defaults`): its floor and wall style, and its cave floor and
+   * interior character, each its own or the nearest along `extends`. Undefined for a theme with no palette of its own
+   * (resolve/themes.ts then has them).
    */
-  interior: (theme: ThemeId) => ThemeInterior | undefined;
+  themeDefaults: (theme: ThemeId) => PaletteThemeDefaults | undefined;
+}
+
+/** What a palette says about its theme (Palette.defaults, the optional fields read along `extends`). */
+export interface PaletteThemeDefaults {
+  readonly floor: string;
+  readonly wallStyle: string;
+  readonly caveFloor?: string;
+  readonly interior?: ThemeInterior;
 }
 
 /** Feature types whose size comes from a palette role. */
@@ -159,16 +168,21 @@ export function createPaletteView(
     return area;
   };
 
-  const interior = (theme: ThemeId): ThemeInterior | undefined => {
-    if (!Object.hasOwn(catalog.palettes, theme)) return undefined;
-    for (const id of themeChain(catalog.palettes, theme)) {
-      const d = catalog.palettes[id]?.defaults.interior;
-      if (d !== undefined) return d;
-    }
-    return undefined;
+  const themeDefaults = (theme: ThemeId): PaletteThemeDefaults | undefined => {
+    const own = Object.hasOwn(catalog.palettes, theme) ? catalog.palettes[theme] : undefined;
+    if (own === undefined) return undefined;
+    const chain = themeChain(catalog.palettes, theme).map((id) => catalog.palettes[id]?.defaults);
+    const caveFloor = chain.find((d) => d?.caveFloor !== undefined)?.caveFloor;
+    const interior = chain.find((d) => d?.interior !== undefined)?.interior;
+    return {
+      floor: own.defaults.floor,
+      wallStyle: own.defaults.wallStyle,
+      ...(caveFloor === undefined ? {} : { caveFloor }),
+      ...(interior === undefined ? {} : { interior }),
+    };
   };
 
-  return { pieceSize, roomPiece, stallForms, floorTileArea, probe, interior };
+  return { pieceSize, roomPiece, stallForms, floorTileArea, probe, themeDefaults };
 }
 
 const views = new WeakMap<ResolvePalettes, PaletteView>();

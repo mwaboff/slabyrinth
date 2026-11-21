@@ -241,6 +241,10 @@ const SWITCHES = {
     4,
     "Opening tests read the opening-kind table's traits (a passage, a window) where they named one kind (gen/openingKinds.ts).",
   ),
+  paletteThemeDefaults: on(
+    4,
+    "A theme's default floors and wall style come from the palette that supplies it, a user theme's included (resolve/themes.ts themeDefaults).",
+  ),
   piecesInCellTheme: on(
     4,
     "Piece sizes (a rock band's pieces, the support a small thing rests on) are asked of the anchor cell's theme, the one the piece is built in, not the level's (resolve/level/grid.ts pieceTheme).",

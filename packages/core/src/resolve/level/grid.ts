@@ -86,7 +86,7 @@ export interface AreaInfo {
   readonly isBridge: boolean;
   /** What the area is for and whether it is abandoned: read once from its words (gen/roomPurpose.ts classifyRoom). */
   readonly room: RoomClass;
-  /** The theme's interior character (resolve/themes.ts themeInterior). */
+  /** The theme's interior character (resolve/themes.ts themeDefaults). */
   readonly interior: ThemeInterior;
   /**
    * Dressed rough: the theme's finish is rough, or nobody keeps the room up (resolve/wallTops.ts roughCells reads the

@@ -6,7 +6,7 @@
 export { resolvePlan, resolvedHash, canonicalResolved, type ResolveOptions } from "./resolvePlan";
 export { geometryChecks, reachableCells, type GeometryCheckContext } from "./validate";
 export { traceRings, ringArea, type Ring } from "./trace";
-export { BUILTIN_THEME_DEFAULTS, builtinThemeDefaults, type ThemeDefaults } from "./themes";
+export { themeDefaults, type ThemeDefaults } from "./themes";
 // The rules plan validation and applyOps take as an argument (geometry check, materialize generator).
 export { planRules, geometryCheck, materializeOp, GEOMETRY_CHECK_NAME } from "./rules";
 export {

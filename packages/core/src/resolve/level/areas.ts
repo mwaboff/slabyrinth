@@ -14,7 +14,6 @@ import { bandOffsets, routeCenterline } from "../../gen/shapes";
 import { NATURAL_WALL_STYLE, THEME_WALL_STYLE, isNaturalWallStyle } from "../../gen/wallStyles";
 import type { GeneratorProfile } from "../../plan/generator";
 import { materialOrdinal } from "../materials";
-import { themeInterior } from "../themes";
 import type { AreaInfo, LevelContext, ResolveGrid } from "./grid";
 
 const DEFAULT_MODE: Record<AreaKind, WallMode> = {
@@ -63,7 +62,7 @@ export function areaTable(
     // generator 4 reads these (rooms dressed, floored, finished by purpose); they are cheap and pure, so every
     // generator computes them, and only generator 4 writes them on the resolved area
     const room = classifyRoom(area);
-    const interior = themeInterior(ctx.palette.interior(theme), td);
+    const interior = td.interior;
     areas.push({
       area,
       index,

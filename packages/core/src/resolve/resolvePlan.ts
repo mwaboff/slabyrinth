@@ -14,7 +14,7 @@ import { linkFloorOpenings } from "./level/floorOpenings";
 import type { ResolveGrid } from "./level/grid";
 import { toResolved } from "./level/output";
 import { ResolveLevelState } from "./level/state";
-import { type ThemeDefaults, builtinThemeDefaults } from "./themes";
+import { type ThemeDefaults, themeDefaults as themeDefaultsOf } from "./themes";
 import type { ResolvePalettes } from "../palette/resolve";
 import { resolveView } from "../palette/view";
 
@@ -23,8 +23,6 @@ export interface ResolveOptions {
   levels?: LevelId[];
   /** Version number recorded in ResolvedPlan.planVersion (default 0). */
   planVersion?: number;
-  /** Theme defaults lookup (default: the built-in table mirroring the bundled palettes). */
-  themeDefaults?: (theme: ThemeId) => ThemeDefaults;
 }
 
 /**
@@ -39,8 +37,18 @@ export function resolvePlan(
   opts: ResolveOptions = {},
 ): ResolvedPlan {
   const issues: PlanIssue[] = [];
-  const themeDefaults = opts.themeDefaults ?? builtinThemeDefaults;
   const palette = resolveView(plan, palettes);
+  const profile = generatorProfile(plan);
+  // what each theme defaults to, asked of the palette that supplies it (resolve/themes.ts), once per theme
+  const defaults = new Map<ThemeId, ThemeDefaults>();
+  const themeDefaults = (theme: ThemeId): ThemeDefaults => {
+    let td = defaults.get(theme);
+    if (!td) {
+      td = themeDefaultsOf(theme, palette, profile);
+      defaults.set(theme, td);
+    }
+    return td;
+  };
   const works: ResolveLevelState[] = plan.levels.map(
     (_, levelIndex) =>
       new ResolveLevelState({

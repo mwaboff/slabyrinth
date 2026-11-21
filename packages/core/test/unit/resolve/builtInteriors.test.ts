@@ -14,7 +14,8 @@ import { resolvePlan } from "../../../src/resolve";
 import { classifyRoom } from "../../../src/gen/roomPurpose";
 import { accentTop, purposeFloor } from "../../../src/resolve/interiorFloors";
 import { LevelGrid, sideOrient } from "../../../src/resolve/levelGrid";
-import { builtinThemeDefaults, themeInterior } from "../../../src/resolve/themes";
+import { DEFAULT_INTERIOR, themeDefaults } from "../../../src/resolve/themes";
+import { generatorProfile } from "../../../src/plan/generator";
 import { createPaletteView } from "../../../src/palette/view";
 import { resolveRole } from "../../../src/palette/resolve";
 import { reviewDesign } from "../../../src/review";
@@ -334,10 +335,34 @@ describe("generator 4 rough walls", () => {
       // without its palette the same theme name is an unknown theme: rough stone
       expect(finishes(lvl(inn("elf_hall"), "l1"))).toEqual(new Set(["rough"]));
     });
-    it("the built-in table mirrors what the bundled palettes declare", () => {
+    it("generator 4 resolves a theme with what its palette declares, every field, a user theme's included", () => {
+      const user = {
+        schema: "slabyrinth/palette@1",
+        id: "moss_hall",
+        name: "Moss hall",
+        extends: "cave",
+        defaults: { floor: "mud", wallStyle: "hedge" },
+        roles: {},
+      };
+      const catalog = loadPalettes({ user: [{ source: "moss_hall.json", data: user }] });
+      const view = createPaletteView(catalog);
+      const gen4 = generatorProfile(4);
+      for (const [theme, p] of Object.entries(catalog.palettes)) {
+        const td = themeDefaults(theme, view, gen4);
+        const declared = view.themeDefaults(theme);
+        expect(declared?.floor, theme).toBe(p.defaults.floor);
+        expect(td.floor, theme).toBe(p.defaults.floor);
+        expect(td.wallStyle, theme).toBe(p.defaults.wallStyle);
+        if (declared?.caveFloor !== undefined) expect(td.caveFloor, theme).toBe(declared.caveFloor);
+        expect(td.interior, theme).toEqual(declared?.interior ?? DEFAULT_INTERIOR);
+      }
+      // the user theme inherits its cave floor and its interior along `extends`
+      expect(themeDefaults("moss_hall", view, gen4)).toMatchObject({ floor: "mud", caveFloor: "rock" });
+    });
+    it("the released generators keep the frozen table (generator 3 floors wood_town in flagstone)", () => {
       const view = createPaletteView(palettes);
-      for (const theme of Object.keys(palettes.palettes))
-        expect(themeInterior(undefined, builtinThemeDefaults(theme)), theme).toEqual(view.interior(theme));
+      expect(themeDefaults("wood_town", view, generatorProfile(3)).floor).toBe("flagstone");
+      expect(themeDefaults("wood_town", view, generatorProfile(4)).floor).toBe("wood_plank");
     });
   });
 });

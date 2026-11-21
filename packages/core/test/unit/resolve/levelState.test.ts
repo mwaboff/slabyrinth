@@ -13,7 +13,8 @@ import type { FloorOpeningRecords } from "../../../src/resolve/level/floorOpenin
 import type { AreaInfo, ReadOnly } from "../../../src/resolve/level/grid";
 import type { PathRecords } from "../../../src/resolve/level/paths";
 import { ResolveLevelState } from "../../../src/resolve/level/state";
-import { builtinThemeDefaults } from "../../../src/resolve/themes";
+import { generatorProfile } from "../../../src/plan/generator";
+import { themeDefaults } from "../../../src/resolve/themes";
 import { loadPlan } from "../../fixtures";
 
 /* eslint-disable @typescript-eslint/no-unsafe-call -- each write below is a compile error on purpose */
@@ -47,14 +48,16 @@ export function ownersWrite(paths: PathRecords, bridges: BridgeRecords): void {
 }
 
 describe("the level state", () => {
-  const stateOf = (plan: MapPlan): ResolveLevelState =>
-    new ResolveLevelState({
+  const stateOf = (plan: MapPlan): ResolveLevelState => {
+    const palette = resolveView(plan, bundledPalettes());
+    return new ResolveLevelState({
       plan,
       levelIndex: 0,
-      themeDefaults: builtinThemeDefaults,
+      themeDefaults: (theme) => themeDefaults(theme, palette, generatorProfile(plan)),
       issues: [],
-      palette: resolveView(plan, bundledPalettes()),
+      palette,
     });
+  };
 
   it("describes every area and the theme table when it is built, before any stage runs", () => {
     const plan = loadPlan("two-rooms-door");
