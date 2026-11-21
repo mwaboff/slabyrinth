@@ -14,7 +14,8 @@ const eslint = new ESLint({ cwd: ROOT });
 const linter = new Linter({ configType: "flat" });
 
 /** Rules a guard test runs (the type-checked rules of the config need a program and say nothing about guards). */
-const isGuard = (id: string): boolean => id === "no-restricted-syntax" || id.startsWith("slabyrinth/");
+const isGuard = (id: string): boolean =>
+  id === "no-restricted-syntax" || id === "no-restricted-imports" || id.startsWith("slabyrinth/");
 
 /** The guard messages a snippet gets at `file` (a path relative to the repository root). */
 async function guardHits(file: string, code: string): Promise<string[]> {
@@ -44,6 +45,87 @@ beforeAll(async () => {
 }, 30_000);
 
 describe("core guards", () => {
+  describe("slabyrinth/core-layers: a core directory imports only lower rows of CORE_LAYERS", () => {
+    it("reports an import of a later row, of the same row, and from a directory not in the table", async () => {
+      const cases: Array<[string, string]> = [
+        ["packages/core/src/compile/x.ts", 'import { reviewDesign } from "../review";'],
+        ["packages/core/src/compile/x.ts", 'import { buildDisplayList } from "../render/display";'],
+        ["packages/core/src/gen/x.ts", 'import { resolvePlan } from "../resolve";'],
+        ["packages/core/src/newdir/x.ts", 'import { h32 } from "../util/hash";'],
+      ];
+      for (const [file, code] of cases)
+        expect(await guardHits(file, code), `${file}: ${code}`).toEqual([
+          expect.stringContaining("slabyrinth/core-layers"),
+        ]);
+    });
+    it("allows imports downwards and within a directory", async () => {
+      const cases: Array<[string, string]> = [
+        ["packages/core/src/compile/x.ts", 'import { LevelGrid } from "../resolve/levelGrid";'],
+        ["packages/core/src/review/x.ts", 'import { realize } from "../compile";'],
+        ["packages/core/src/compile/realize/x.ts", 'import { emit } from "./level";'],
+      ];
+      for (const [file, code] of cases) expect(await guardHits(file, code), `${file}: ${code}`).toEqual([]);
+    });
+  });
+
+  describe("no-restricted-imports: core is pure TypeScript outside src/cli", () => {
+    it("reports Node built-ins, electron and react in core", async () => {
+      for (const code of [
+        'import { readFileSync } from "node:fs";',
+        'import path from "path";',
+        'import { app } from "electron";',
+        'import { useState } from "react";',
+      ])
+        expect(await guardHits("packages/core/src/resolve/x.ts", code), code).toEqual([
+          expect.stringContaining("no-restricted-imports"),
+        ]);
+    });
+    it("allows Node built-ins in the CLI", async () => {
+      expect(
+        await guardHits("packages/core/src/cli/x.ts", 'import { readFileSync } from "node:fs";'),
+      ).toEqual([]);
+    });
+  });
+
+  describe("no-restricted-syntax: edge kinds and flags are imported, not numbered", () => {
+    it("reports a local EDGE_/FLAG_ constant with a number", async () => {
+      for (const code of ["const EDGE_WALL = 1;", "const FLAG_WATER = 4;"])
+        expect(await guardHits("packages/core/src/compile/x.ts", code), code).toEqual([
+          expect.stringContaining("Import edge kinds and cell flags"),
+        ]);
+    });
+    it("allows naming the contract's value", async () => {
+      expect(await guardHits("packages/core/src/compile/x.ts", "const EDGE_WALL = EDGE.WALL;")).toEqual([]);
+    });
+  });
+
+  describe("no-restricted-syntax: a level's edges are indexed by resolve/levelGrid.ts", () => {
+    it("reports the vertical-edge stride written by hand", async () => {
+      for (const code of ["const i = y * (w + 1) + x;", "const i = y * (L.bounds.w + 1) + x;"])
+        expect(await guardHits("packages/core/src/resolve/x.ts", code), code).toEqual([
+          expect.stringContaining("resolve/levelGrid.ts"),
+        ]);
+    });
+    it("allows it in levelGrid.ts and allows the readers", async () => {
+      expect(await guardHits("packages/core/src/resolve/levelGrid.ts", "const i = y * (w + 1) + x;")).toEqual(
+        [],
+      );
+      expect(await guardHits("packages/core/src/resolve/x.ts", "const i = vEdgeIndex(b, x, y);")).toEqual([]);
+    });
+  });
+
+  describe("no-restricted-syntax: no core module is imported for its side effects", () => {
+    it("reports a bare import", async () => {
+      expect(await guardHits("packages/core/src/agent/x.ts", 'import "./registerChecks";')).toEqual([
+        expect.stringContaining("side effects"),
+      ]);
+    });
+    it("allows imports with bindings and type-only imports", async () => {
+      for (const code of ['import { check } from "./checks";', 'import type { Check } from "./checks";'])
+        expect(await guardHits("packages/core/src/agent/x.ts", code), code).toEqual([]);
+    });
+  });
+
   describe("slabyrinth/cell-theme: a resolve stage asks ResolveGrid.themeAt", () => {
     const stage = "packages/core/src/resolve/level/dressing.ts";
     it("reports the level theme and an index into the theme table", async () => {
