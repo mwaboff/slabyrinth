@@ -54,6 +54,26 @@ const coreLayers = [
   },
 }));
 
+/**
+ * Edge kinds and cell flags come from the resolved contract (EDGE, CELL_FLAG; gen/gridGeometry.ts re-exports them by
+ * name). A local `const EDGE_WALL = 1` silently drifts when the contract changes.
+ */
+const numberedEdgeKinds = {
+  selector: "VariableDeclarator[id.name=/^(EDGE|FLAG)_[A-Z_]+$/][init.type='Literal']",
+  message:
+    "Import edge kinds and cell flags (gen/gridGeometry.ts or EDGE/CELL_FLAG in contracts/resolved) instead of redeclaring them by number.",
+};
+/**
+ * A level's edges are indexed in one place, resolve/levelGrid.ts. The vertical-edge stride `(w + 1)` is the mark of an
+ * edge index written by hand (a horizontal edge index looks like a cell index, so the stride is what can be seen).
+ */
+const handEdgeIndex = {
+  selector:
+    "BinaryExpression[operator=/^[*%/]$/] > BinaryExpression[operator='+'][right.value=1]:matches([left.name=/^[wW]$/], [left.property.name='w'])",
+  message:
+    "Index a level's edges with resolve/levelGrid.ts (hEdgeIndex, vEdgeIndex, sideEdgeIndex, edgeOnLine, edgeCol/edgeRow, LevelGrid) instead of by hand.",
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -115,19 +135,13 @@ export default tseslint.config(
   },
   ...coreLayers,
   {
-    // Edge kinds and cell flags come from the resolved contract (EDGE, CELL_FLAG; gen/gridGeometry.ts re-exports
-    // them by name). A local `const EDGE_WALL = 1` silently drifts when the contract changes.
     files: ["packages/core/src/**/*.ts"],
-    rules: {
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: "VariableDeclarator[id.name=/^(EDGE|FLAG)_[A-Z_]+$/][init.type='Literal']",
-          message:
-            "Import edge kinds and cell flags (gen/gridGeometry.ts or EDGE/CELL_FLAG in contracts/resolved) instead of redeclaring them by number.",
-        },
-      ],
-    },
+    rules: { "no-restricted-syntax": ["error", numberedEdgeKinds, handEdgeIndex] },
+  },
+  {
+    // the one module that owns the edge layout
+    files: ["packages/core/src/resolve/levelGrid.ts"],
+    rules: { "no-restricted-syntax": ["error", numberedEdgeKinds] },
   },
   {
     files: ["apps/desktop/src/renderer/**/*.{ts,tsx}", "packages/render-canvas/src/**/*.ts"],

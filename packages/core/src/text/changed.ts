@@ -5,6 +5,7 @@
  */
 import type { LevelId } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
+import { edgeCol, edgeRow } from "../resolve/levelGrid";
 import { asciiLevel } from "./ascii";
 
 export interface CellRect {
@@ -56,15 +57,15 @@ export function changedBBox(before: ResolvedLevel | undefined, after: ResolvedLe
   }
   for (let i = 0; i < after.hEdges.kind.length; i++) {
     if (before.hEdges.kind[i] !== after.hEdges.kind[i] || before.hEdges.host[i] !== after.hEdges.host[i]) {
-      const gx = B.x + (i % w);
-      const gy = B.y + Math.floor(i / w);
+      const gx = B.x + edgeCol(B, "h", i);
+      const gy = B.y + edgeRow(B, "h", i);
       hit(gx, gy - 1, gx, gy);
     }
   }
   for (let i = 0; i < after.vEdges.kind.length; i++) {
     if (before.vEdges.kind[i] !== after.vEdges.kind[i] || before.vEdges.host[i] !== after.vEdges.host[i]) {
-      const gx = B.x + (i % (w + 1));
-      const gy = B.y + Math.floor(i / (w + 1));
+      const gx = B.x + edgeCol(B, "v", i);
+      const gy = B.y + edgeRow(B, "v", i);
       hit(gx - 1, gy, gx, gy);
     }
   }

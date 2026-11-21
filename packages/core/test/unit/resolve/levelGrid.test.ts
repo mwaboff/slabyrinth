@@ -7,6 +7,7 @@ import {
   LevelGrid,
   cellIndex,
   edgeCol,
+  edgeCount,
   edgeFirstCell,
   edgeLineLength,
   edgeLines,
@@ -61,6 +62,7 @@ describe("level grid arithmetic", () => {
           );
         }
       expect(seen.size).toBe(orient === "h" ? 5 * 4 : 6 * 3);
+      expect(edgeCount(G, orient)).toBe(seen.size);
     }
   });
 

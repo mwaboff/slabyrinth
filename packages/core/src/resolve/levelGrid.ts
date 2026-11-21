@@ -40,6 +40,10 @@ export const sideOrient = (side: Side): EdgeOrient => (side === "N" || side === 
 
 // ───────────────────────────── index arithmetic (local coordinates) ─────────────────────────────
 
+/** How many edges one orientation has: w x (h+1) horizontal, (w+1) x h vertical. */
+export const edgeCount = (g: GridSize, orient: EdgeOrient): number =>
+  orient === "h" ? g.w * (g.h + 1) : (g.w + 1) * g.h;
+
 /** Index of cell (lx, ly), -1 outside the grid. */
 export function cellIndex(g: GridSize, lx: number, ly: number): number {
   return lx < 0 || ly < 0 || lx >= g.w || ly >= g.h ? -1 : ly * g.w + lx;

@@ -39,6 +39,7 @@ import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
 import {
   cellIndex,
   edgeCol,
+  edgeCount,
   edgeFirstCell,
   edgeRow,
   edgeSecondCell,
@@ -194,8 +195,8 @@ export class ResolveGrid {
     this.flags = new Uint8Array(this.n);
     this.theme = new Uint16Array(this.n);
     this.heightSet = new Uint8Array(this.n);
-    this.hE = makeEdges(this.w * (this.h + 1));
-    this.vE = makeEdges((this.w + 1) * this.h);
+    this.hE = makeEdges(edgeCount(this, "h"));
+    this.vE = makeEdges(edgeCount(this, "v"));
     this.levelTheme = level.theme ?? ctx.plan.theme;
     this.defaultWallHeight = level.wallHeight ?? BUILD_CONSTANTS.wallHeight;
     const table = areaTable(level, ctx, this.profile, this.levelTheme, this.defaultWallHeight);
