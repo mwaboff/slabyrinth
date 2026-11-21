@@ -8,6 +8,7 @@ import { type FeatureType, OPENING_KINDS, type OpeningKind } from "../../../src/
 import { FEATURE_INFO, LIGHT_FEATURES, isLandmark } from "../../../src/gen/catalog";
 import { OPENING_KIND_INFO } from "../../../src/gen/openingKinds";
 import { ROOM_PURPOSE_INFO, type RoomPurpose } from "../../../src/gen/roomPurpose";
+import { NATURAL_MATERIALS } from "../../../src/review";
 
 const types = Object.keys(FEATURE_INFO) as FeatureType[];
 
@@ -105,6 +106,14 @@ describe("opening-kind traits are table fields", () => {
     // window || arrow_slit, the display list's WALL_LIKE_OPENINGS
     expect(having("window")).toEqual(["arrow_slit", "window"]);
     expect(having("secret")).toEqual(["secret_door"]);
+  });
+});
+
+describe("material traits are table fields", () => {
+  it("the review's natural ground is the material table's natural trait (ice counts like snow)", () => {
+    expect([...NATURAL_MATERIALS].sort()).toEqual(
+      ["dirt", "grass", "gravel", "ice", "mud", "rock", "sand", "snow", "swamp"].sort(),
+    );
   });
 });
 

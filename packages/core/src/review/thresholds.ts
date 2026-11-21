@@ -2,6 +2,9 @@
  * Design review thresholds (data, not code). Each note fires when its measure crosses the threshold; `weight` ranks
  * notes against each other (higher = shown first). Tuned on the team's proof history (docs/decisions.md).
  */
+import { MATERIALS } from "../contracts/plan";
+import { isNaturalGround } from "../resolve/materials";
+
 export const REVIEW = {
   /** Notes shown at most (the rest are dropped, lowest rank first). */
   maxNotes: 6,
@@ -356,17 +359,11 @@ export const REVIEW = {
   },
 } as const;
 
-/** Ground that should read as natural (meandering, irregular) rather than built. */
-export const NATURAL_MATERIALS: ReadonlySet<string> = new Set([
-  "grass",
-  "dirt",
-  "gravel",
-  "rock",
-  "sand",
-  "mud",
-  "snow",
-  "swamp",
-]);
+/**
+ * Ground that should read as natural (meandering, irregular) rather than built: the material table's `natural` trait
+ * (resolve/materials.ts), so ice counts like snow.
+ */
+export const NATURAL_MATERIALS: ReadonlySet<string> = new Set(MATERIALS.filter(isNaturalGround));
 
 /** Feature types that are natural growth or rock (they should cluster, never stand in rows). */
 export const NATURAL_FEATURES: ReadonlySet<string> = new Set([
