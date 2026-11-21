@@ -22,7 +22,7 @@ import { CELL_FLAG, EDGE } from "../contracts/resolved";
 import { cellIndex, edgeLineLength, edgeLines, edgeOnLine } from "./levelGrid";
 import { areaReferenceHeights, edgeWallHeight, spanCellOf, wallRise } from "./wallspan";
 import { h32 } from "../util/hash";
-import { isUnevenWallStyle } from "../gen/wallStyles";
+import { THEME_WALL_STYLE, isUnevenWallStyle } from "../gen/wallStyles";
 
 /**
  * Is each cell of a resolved level part of a rough interior (wall-foot rubble, broken wall tops, uneven tops)? Read
@@ -128,7 +128,7 @@ export function roughWallTops(L: ResolvedLevel, seedKey: string): number {
           flush();
           continue;
         }
-        const style = kind === EDGE.WALL ? (L.wallStyles[grid.ref[idx] ?? 0] ?? "wall") : "";
+        const style = kind === EDGE.WALL ? (L.wallStyles[grid.ref[idx] ?? 0] ?? THEME_WALL_STYLE) : "";
         const h0 = edgeWallHeight(grid, idx);
         const a = orient === "h" ? cellAt(pos, line - 1) : cellAt(line - 1, pos);
         const b = orient === "h" ? cellAt(pos, line) : cellAt(line, pos);

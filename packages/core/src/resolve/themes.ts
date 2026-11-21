@@ -16,7 +16,7 @@ export interface ThemeDefaults {
   floor: Material;
   caveFloor: Material;
   courtyardFloor: Material;
-  /** Default wall style of non-cave areas (generator 2); absent = "wall". */
+  /** Default wall style of non-cave areas (generator 2); absent = the theme's own wall (THEME_WALL_STYLE). */
   wallStyle?: WallStyle;
   /** Interior character (generator 4); absent = DEFAULT_INTERIOR. */
   interior?: ThemeInterior;

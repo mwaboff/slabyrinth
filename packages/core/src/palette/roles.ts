@@ -5,7 +5,7 @@
  * vocabulary (`feature.<type>`, `opening.<kind>`, `floor.<material>`) are spelled where they are built.
  */
 import type { RoleName } from "../contracts/compiler";
-import { NATURAL_WALL_STYLE } from "../gen/wallStyles";
+import { NATURAL_WALL_STYLE, THEME_WALL_STYLE } from "../gen/wallStyles";
 
 /** The long low face rocks of a natural cliff's rock band (generator 2); a theme that has them builds rock bands. */
 export const CLIFF_FACE_ROLE: RoleName = "cliff.formation_face";
@@ -18,6 +18,8 @@ export const FILL_ROLE: RoleName = "fill.default";
 
 /** The wall role of a wall style: `wall.<style>`. */
 export const wallRole = (style: string): RoleName => `wall.${style}`;
+/** The wall role of the theme's own wall, the last link of every wall chain. */
+export const THEME_WALL_ROLE: RoleName = wallRole(THEME_WALL_STYLE);
 /** The wall role of natural rock (whole-cell blocks; generator 4 builds them as a cave mass). */
 export const NATURAL_WALL_ROLE: RoleName = wallRole(NATURAL_WALL_STYLE);
 

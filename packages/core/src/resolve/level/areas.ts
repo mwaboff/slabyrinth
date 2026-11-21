@@ -11,7 +11,7 @@ import type { AreaKind, Level, OpeningKind, ThemeId, Vec2, WallMode } from "../.
 import { CELL } from "../../contracts/resolved";
 import { classifyRoom } from "../../gen/roomPurpose";
 import { bandOffsets, routeCenterline } from "../../gen/shapes";
-import { NATURAL_WALL_STYLE, isNaturalWallStyle } from "../../gen/wallStyles";
+import { NATURAL_WALL_STYLE, THEME_WALL_STYLE, isNaturalWallStyle } from "../../gen/wallStyles";
 import type { GeneratorProfile } from "../../plan/generator";
 import { materialOrdinal } from "../materials";
 import { themeInterior } from "../themes";
@@ -75,7 +75,7 @@ export function areaTable(
         area.wallStyle ??
         (area.kind === "cave" || (profile.naturalThemeWalls && isNaturalWallStyle(td.wallStyle))
           ? NATURAL_WALL_STYLE
-          : "wall"),
+          : THEME_WALL_STYLE),
       wallHeight: area.wallHeight ?? defaultWallHeight,
       themeIdx: themeIndex(theme),
       theme,

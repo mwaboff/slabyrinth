@@ -10,6 +10,7 @@ import type { Material, Vec2, WallStyle } from "../../contracts/plan";
 import { MATERIALS } from "../../contracts/plan";
 import type { ResolvedArea, ResolvedLevel } from "../../contracts/resolved";
 import { CELL, EDGE } from "../../contracts/resolved";
+import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import { elementSeed } from "../../util/hash";
 import { cliffRuns } from "../cliffs";
 import { traceRings } from "../trace";
@@ -61,7 +62,7 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
       const k = e.kind[i] as number;
       kind[i] = k;
       hgt[i] = k === EDGE.NONE ? 0 : (e.height[i] as number);
-      if (k === EDGE.WALL) ref[i] = styleIdx(e.style[i] ?? "wall");
+      if (k === EDGE.WALL) ref[i] = styleIdx(e.style[i] ?? THEME_WALL_STYLE);
       else if (k === EDGE.OPENING) ref[i] = e.ref[i] as number;
       else ref[i] = 0xffff;
       if (k === EDGE.WALL || k === EDGE.OPENING) {

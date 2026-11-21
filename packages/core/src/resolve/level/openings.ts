@@ -9,6 +9,7 @@ import type { OpeningKind } from "../../contracts/plan";
 import type { ResolvedOpening } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
 import { isSecret } from "../../gen/openingKinds";
+import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import { edgeCol, edgeRow } from "../levelGrid";
 import type { RouteRecord } from "./areas";
 import type { AreaInfo, ResolveGrid } from "./grid";
@@ -123,7 +124,7 @@ function placeOpening(
       },
     );
   }
-  const style = e.style[first] ?? "wall";
+  const style = e.style[first] ?? THEME_WALL_STYLE;
   const k = out.length;
   const rec: ResolvedOpening = {
     id: o.id,

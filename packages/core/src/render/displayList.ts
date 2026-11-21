@@ -21,6 +21,7 @@ import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
 import { SIDE_ROT } from "../gen/gridGeometry";
 import { isSecret, isWindow } from "../gen/openingKinds";
+import { THEME_WALL_STYLE } from "../gen/wallStyles";
 import { cellIndex, hEdgeIndex, vEdgeIndex } from "../resolve/levelGrid";
 import { gableRoof, hipRoof, ringLayer, shedRoof, spireShell } from "../resolve/roof";
 import { traceRings } from "../resolve/trace";
@@ -325,7 +326,7 @@ export function buildDisplayList(
     (isWindow(o.kind) || (!opts.gmLayer && (o.gmOnly === true || isSecret(o.kind))));
   const styleKeys: string[] = [""];
   const styleKey = (style: string): number => {
-    const tok = style === "wall" ? "wall" : `wall-${style}`;
+    const tok = style === THEME_WALL_STYLE ? "wall" : `wall-${style}`;
     let k = styleKeys.indexOf(tok);
     if (k < 0) {
       k = styleKeys.length;
@@ -343,10 +344,10 @@ export function buildDisplayList(
   /** Style key if the edge is drawn as wall (0 if not); `posts` also counts real openings. */
   const edgeWall = (g: ResolvedLevel["hEdges"], e: number, posts: boolean): number => {
     const kind = g.kind[e];
-    if (kind === EDGE.WALL) return styleKey(level.wallStyles[g.ref[e] as number] ?? "wall");
+    if (kind === EDGE.WALL) return styleKey(level.wallStyles[g.ref[e] as number] ?? THEME_WALL_STYLE);
     if (kind === EDGE.OPENING) {
       const o = openings[g.ref[e] as number];
-      if (openingAsWall(o) || (posts && o)) return styleKey(o?.wallStyle ?? "wall");
+      if (openingAsWall(o) || (posts && o)) return styleKey(o?.wallStyle ?? THEME_WALL_STYLE);
     }
     return 0;
   };

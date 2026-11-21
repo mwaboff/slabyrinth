@@ -29,7 +29,7 @@
  */
 import type { Side, ThemeId } from "../contracts/plan";
 import { CELL, EDGE } from "../contracts/resolved";
-import { isNaturalWallStyle } from "../gen/wallStyles";
+import { THEME_WALL_STYLE, isNaturalWallStyle } from "../gen/wallStyles";
 import {
   edgeCount,
   edgeLineLength,
@@ -152,8 +152,8 @@ export function findWallFaces(V: LevelGrid, opts: WallFaceOptions): WallFaces {
     const other = hostFirst ? faceCell(x, y) : faceCell(ax, ay);
     const style =
       kind === EDGE.WALL
-        ? (L.wallStyles[grid.ref[e] ?? 0] ?? "wall")
-        : (L.openings[grid.ref[e] ?? -1]?.wallStyle ?? "wall");
+        ? (L.wallStyles[grid.ref[e] ?? 0] ?? THEME_WALL_STYLE)
+        : (L.openings[grid.ref[e] ?? -1]?.wallStyle ?? THEME_WALL_STYLE);
     const span = wallSpan(L.elevation, a, b, hostFirst, edgeWallHeight(grid, e), ref);
     const hostCell = hostFirst ? a : b;
     const otherCell = hostFirst ? b : a;

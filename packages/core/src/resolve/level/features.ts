@@ -14,6 +14,7 @@ import type { ResolvedFeature } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { LIGHT_FEATURES, featureInfo, isLandmark, rotatedSize } from "../../gen/catalog";
 import type { GeneratedPlacement, PlacementGrid } from "../../gen/placementGrid";
+import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import type { ChasmRecords } from "./chasms";
 import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
 import { type PathRecords, parkVehicle } from "./paths";
@@ -261,7 +262,7 @@ export class FeatureWork {
             },
             wallStyle: (x: number, y: number, s: Side) => {
               const ed = work.sideEdge(x, y, s);
-              return ed && ed.e.kind[ed.i] === EDGE.WALL ? (ed.e.style[ed.i] ?? "wall") : undefined;
+              return ed && ed.e.kind[ed.i] === EDGE.WALL ? (ed.e.style[ed.i] ?? THEME_WALL_STYLE) : undefined;
             },
             lightCells: () =>
               this.list.filter((f) => LIGHT_FEATURES.has(f.type)).map((f) => [f.at[0], f.at[1]] as const),

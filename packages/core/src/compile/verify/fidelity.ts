@@ -7,6 +7,8 @@
  */
 import type { ResolvedLevel } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
+import { THEME_WALL_STYLE } from "../../gen/wallStyles";
+import { wallRole } from "../../palette/roles";
 import type { LevelGrid } from "../../resolve/levelGrid";
 import type { VerifyCtx } from "./context";
 
@@ -80,9 +82,9 @@ function noteWallStyles(ctx: VerifyCtx, L: ResolvedLevel, g: LevelGrid): void {
       else styles.set(k, { theme, style: face.style, n: 1 });
     }
   for (const st of styles.values()) {
-    const want = `wall.${st.style}`;
+    const want = wallRole(st.style);
     const res = ctx.resolveRole(st.theme, want).resolution;
-    if (!res || res.role === want || st.style === "wall") continue;
+    if (!res || res.role === want || st.style === THEME_WALL_STYLE) continue;
     ctx.report.add({
       severity: "info",
       code: "verify_material_substituted",

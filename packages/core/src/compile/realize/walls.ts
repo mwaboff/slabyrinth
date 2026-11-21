@@ -9,6 +9,7 @@
 import type { ThemeId } from "../../contracts/plan";
 import { EDGE } from "../../contracts/resolved";
 import type { ResolvedVariant, RoleResolution } from "../../palette/resolve";
+import { wallRole } from "../../palette/roles";
 import { roughCells } from "../../resolve/wallTops";
 import { h32 } from "../geometry";
 import { isCarvedLevel } from "../shell";
@@ -23,6 +24,7 @@ import {
   type Strip,
 } from "./edges";
 import { OPPOSITE, cellKey } from "../../gen/gridGeometry";
+import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import { edgeLineLength, edgeLines, edgeOnLine } from "../../resolve/levelGrid";
 import { EPS, type RealizeLevel } from "./level";
 import type { SolidShellPlan } from "./solidShell";
@@ -106,7 +108,7 @@ function wallRunsAlong(lv: RealizeLevel, shellPlan: SolidShellPlan, orient: "h" 
       if (skirt) {
         // the skirt stands on the cap cell it closes
         edge = { ...skirt, mass: { x: skirt.hostX, y: skirt.hostY } };
-        style = shell?.style ?? "wall";
+        style = shell?.style ?? THEME_WALL_STYLE;
       } else if (face && face.kind === EDGE.WALL && !face.claimed) {
         edge = { ...faceEdgeCtx(face), mass: face.mass };
         style = face.style;
@@ -132,7 +134,7 @@ function placeWallRun(pass: WallPass, run: WallRun): void {
   const { lookup } = pass.lv.ctx;
   const first = run.edges[0];
   if (!first) return;
-  const roleName = `wall.${run.style}`;
+  const roleName = wallRole(run.style);
   const res = lookup(L.id, first.theme, [roleName]);
   if (!res) return;
   const mount = res.def.mount ?? "half-cell";
@@ -217,7 +219,7 @@ function tileWallRun(
       let v = r ? pick(r.variants, pickKey(edges[i])) : undefined;
       const c = edges[i];
       if (!v || !c) continue;
-      const broken = style === "wall" && n >= 2 ? brokenTop(pass, orient, c, n, theme) : null;
+      const broken = style === THEME_WALL_STYLE && n >= 2 ? brokenTop(pass, orient, c, n, theme) : null;
       if (broken) ({ r, v } = broken);
       if (edgeCenter)
         placeEdgeCenterPiece(lv, v, "wall", c, n, { cell: [c.hostX, c.hostY], elementId: roleName });

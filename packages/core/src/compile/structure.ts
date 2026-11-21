@@ -41,6 +41,8 @@ import {
 import { structureStyle } from "../resolve/structureStyles";
 import { OPPOSITE as OPP, SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
 import { hasLeaf, isWindow } from "../gen/openingKinds";
+import { THEME_WALL_STYLE } from "../gen/wallStyles";
+import { THEME_WALL_ROLE, wallRole } from "../palette/roles";
 import { sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
 import type { WorldFrame } from "./geometry";
 import { h32, rotateXZ } from "./geometry";
@@ -615,7 +617,7 @@ function buildCourses(ctx: StructureRealizeCtx, theme: string, a: CourseArgs): v
   const { s, faces, ops, floorTop, top, footing, layer, chimneyWall, tag } = a;
   const style = a.walls;
   const mainBase = floorTop + (footing?.height ?? 0);
-  const mainRoles = [`facade.${style}`, `wall.${style}`, "wall.wall"];
+  const mainRoles = [`facade.${style}`, wallRole(style), THEME_WALL_ROLE];
   const capAt = (x: number, y: number, face: Side): number => a.caps?.get(`${x},${y},${face}`) ?? Infinity;
   const along = (f: FaceCell, k: number): [number, number, Side] =>
     f.face === "N" || f.face === "S" ? [f.x + k, f.y, f.face] : [f.x, f.y + k, f.face];
@@ -1717,7 +1719,7 @@ function buildShopfront(ctx: StructureRealizeCtx, st: ResolvedStructure, theme: 
   if (!fr?.shopfront || !s0) return;
   const r = ctx.lookup(
     theme,
-    [`sign_band.${s0.walls ?? "wall"}`, "feature.signage", "sign_band.default"],
+    [`sign_band.${s0.walls ?? THEME_WALL_STYLE}`, "feature.signage", "sign_band.default"],
     undefined,
     true,
   );
@@ -2157,7 +2159,7 @@ function buildRoofHut(
   t: FlatTop,
   ring: Set<string>,
 ): void {
-  const walls = t.walls ?? "wall";
+  const walls = t.walls ?? THEME_WALL_STYLE;
   const r = t.rect;
   const w = r.w >= 8 ? 3 : 2; // a bigger stair hut on a big roof
   const h = r.h >= 6 ? 2 : 1;
@@ -2203,7 +2205,7 @@ function buildRoofHut(
     stackEdge(
       ctx,
       theme,
-      [`facade.${walls}`, `wall.${walls}`, "wall.wall"],
+      [`facade.${walls}`, wallRole(walls), THEME_WALL_ROLE],
       "wall",
       f.x,
       f.y,
@@ -2264,7 +2266,7 @@ function buildDetails(
   if (!d || d.details.length === 0 || !s0) return;
   const front = st.frontage?.side ?? "S";
   const cells = setOf(st.cells);
-  const walls = s0.walls ?? "wall";
+  const walls = s0.walls ?? THEME_WALL_STYLE;
   const free = (f: FaceCell): boolean => {
     const [dx, dy] = STEP[f.face];
     return !foreign.has(key(f.x + dx, f.y + dy));

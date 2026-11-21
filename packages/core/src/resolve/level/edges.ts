@@ -7,7 +7,7 @@
  */
 import type { Side, Vec2 } from "../../contracts/plan";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
-import { isNaturalWallStyle } from "../../gen/wallStyles";
+import { THEME_WALL_STYLE, isNaturalWallStyle } from "../../gen/wallStyles";
 import type { BridgeRecords } from "./bridges";
 import type { AreaInfo, EdgeArrays, ReadOnly, ResolveGrid } from "./grid";
 
@@ -115,11 +115,15 @@ export function stepWallRuns(work: ResolveGrid): void {
         }
         if (run.op === "add") {
           const [ca, cb] = work.edgeCells(ed.orient, ed.i);
-          if (isNaturalWallStyle(run.style ?? "wall") && work.region(ca) >= 0 && work.region(cb) >= 0) {
+          if (
+            isNaturalWallStyle(run.style ?? THEME_WALL_STYLE) &&
+            work.region(ca) >= 0 &&
+            work.region(cb) >= 0
+          ) {
             thinRock.push(work.edgeStart(ed.orient, ed.i));
           }
           ed.e.kind[ed.i] = EDGE.WALL;
-          ed.e.style[ed.i] = run.style ?? "wall";
+          ed.e.style[ed.i] = run.style ?? THEME_WALL_STYLE;
           ed.e.height[ed.i] = run.height ?? work.defaultWallHeight;
           ed.e.run[ed.i] = 1;
         } else if (ed.e.kind[ed.i] === EDGE.WALL) {
@@ -147,7 +151,7 @@ export function stepWallRuns(work: ResolveGrid): void {
       work.issue(
         "error",
         "shape_invalid",
-        `wall run "${run.id}" asks for a ${run.style ?? "wall"} wall between two open cells at ${firstThin[0]},${firstThin[1]} (${thinRock.length} edges); natural rock is built as whole cells, so it cannot stand there as a thin wall`,
+        `wall run "${run.id}" asks for a ${run.style ?? THEME_WALL_STYLE} wall between two open cells at ${firstThin[0]},${firstThin[1]} (${thinRock.length} edges); natural rock is built as whole cells, so it cannot stand there as a thin wall`,
         {
           path: `${path}/style`,
           elementId: run.id,

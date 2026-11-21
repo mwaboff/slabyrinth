@@ -30,6 +30,7 @@ import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { NEIGHBOURS4 as STEPS4, SIDES, SIDE_STEP } from "../gen/gridGeometry";
 import { ValueNoise } from "../gen/noise";
 import { OWNER, dropLumps, fillNotches, ownSolid, trimTeeth, type CellGrid } from "../gen/solidMass";
+import { THEME_WALL_STYLE } from "../gen/wallStyles";
 import { h32 } from "../util/hash";
 import { cellIndex, sideEdgeIndex, sideOrient } from "../resolve/levelGrid";
 import type { WallFaces } from "../resolve/wallFaces";
@@ -311,7 +312,7 @@ function capTop(faces: ShellFaces, strip: ReadonlySet<number>): { flat: number; 
   let flat = -Infinity;
   let best = -1;
   for (const [t, c] of tally) if (c > best || (c === best && t > flat)) [flat, best] = [t, c];
-  let style = "wall";
+  let style: string = THEME_WALL_STYLE;
   let sBest = -1;
   for (const [s, c] of [...styles].sort((a, b) => (a[0] < b[0] ? -1 : 1)))
     if (c > sBest) [style, sBest] = [s, c];
@@ -530,7 +531,7 @@ function tidyStrips(cap: CapPlan, cells: Shell["cells"]): Shell["strips"] {
     b && (!a || b.top > a.top) ? b : a;
   const fallback: BackedWall = [...tidy.values()].reduce<BackedWall | undefined>(taller, undefined) ?? {
     theme: defaultTheme,
-    style: "wall",
+    style: THEME_WALL_STYLE,
     top: 0,
   };
   const strips: Shell["strips"] = [];

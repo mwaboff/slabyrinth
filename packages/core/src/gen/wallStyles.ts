@@ -12,7 +12,7 @@ import { WALL_STYLES } from "../contracts/plan";
 
 /** What a wall style is made of; a consumer that needs a material (a skirt, a cap, a floor to match) reads this. */
 export type WallFamily =
-  | "theme" // "wall": whatever the theme's default wall is made of; the palette decides
+  | "theme" // THEME_WALL_STYLE: whatever the theme's default wall is made of; the palette decides
   | "stone"
   | "brick"
   | "timber"
@@ -91,6 +91,12 @@ export const WALL_STYLE_INFO: Record<WallStyle, WallStyleInfo> = {
   timber: row("timber"),
 };
 
+/**
+ * The theme's own wall: whatever wall the theme's palette supplies (`wall.wall`). The style of an edge or a storey that
+ * names none, and the default of an area that is not natural rock.
+ */
+export const THEME_WALL_STYLE: WallStyle = "wall";
+
 /** The style an area with natural walls gets by default (a cave area, a theme whose walls are rock). */
 export const NATURAL_WALL_STYLE: WallStyle = "cave_rock";
 
@@ -115,7 +121,7 @@ export function isLowWallStyle(style: string | null | undefined): boolean {
 
 /** May stand uneven (shortened runs, broken tops, rubble at the foot); a missing style is the theme's default wall. */
 export function isUnevenWallStyle(style: string | null | undefined): boolean {
-  return wallStyleInfo(style ?? "wall")?.uneven === true;
+  return wallStyleInfo(style ?? THEME_WALL_STYLE)?.uneven === true;
 }
 
 /** Does a level's style table (`ResolvedLevel.wallStyles`) hold natural rock? */
