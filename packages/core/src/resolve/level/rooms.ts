@@ -20,7 +20,7 @@ import { elementSeed, h32, subSeed } from "../../util/hash";
 import { BUILT_FLOORS, FAMILY_ROTATION, purposeFloor } from "../interiorFloors";
 import { materialOrdinal } from "../materials";
 import { commitGenerated, placementGrid } from "./features";
-import type { AreaInfo, LevelWork } from "./work";
+import type { AreaInfo, ResolveGrid } from "./grid";
 
 /**
  * Generator 4, built interiors (level base solid): rooms are told apart by floor and sit a step above the corridor
@@ -35,7 +35,7 @@ import type { AreaInfo, LevelWork } from "./work";
  *      always walkable, and walls take their height from the lower floor (resolve/wallspan.ts), so tops stay put.
  * Rooms that hold a link end (stairs, ladder) keep their floor height: the climb lands on the level's own floor top.
  */
-export function stepRoomFloors(work: LevelWork): void {
+export function stepRoomFloors(work: ResolveGrid): void {
   if (work.level.base.type !== "solid") return;
   const rooms = work.areas.filter(
     (a) =>
@@ -155,7 +155,7 @@ export function stepRoomFloors(work: LevelWork): void {
  * Runs before the openings are placed, so it reads the plan's openings, not the edges.
  */
 function roomsOpeningOnCorridors(
-  work: LevelWork,
+  work: ResolveGrid,
   nbrs: ReadonlyMap<number, ReadonlySet<number>>,
 ): Set<number> {
   const out = new Set<number>();
@@ -204,8 +204,8 @@ function roomsOpeningOnCorridors(
  * the reference interior has 1.1). Low debris mostly; blocking rubble only in a corner or at a jamb of a room, never
  * in a corridor. Never on a link, steps, a doorway cell, a cell that holds a feature, or a collapse rim.
  */
-export function stepWallFootRubble(work: LevelWork): void {
-  if (!work.gen.wallFootRubble || work.level.base.type !== "solid" || work.structs) return;
+export function stepWallFootRubble(work: ResolveGrid): void {
+  if (!work.profile.wallFootRubble || work.level.base.type !== "solid" || work.structs) return;
   const seed = elementSeed(work.plan.seed, `${work.level.id}~footrubble`, undefined);
   const u = (k: string, i: number): number => h32(`${seed}:${k}:${i}`) / 4294967296;
   const roughSide = (x: number, y: number, s: Side): boolean => {
@@ -326,7 +326,7 @@ export function stepWallFootRubble(work: LevelWork): void {
  * gets its torches; a passage a few. Abandoned places (a crypt, cells, a ruin) stay sparse and keep one light at most.
  * `roomDress: false` on the level turns it off.
  */
-export function stepRoomRecipes(work: LevelWork): void {
+export function stepRoomRecipes(work: ResolveGrid): void {
   const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
   const dressed = new Set<string>();
   for (const op of work.level.terrain) if (op.op === "dress" && op.area !== undefined) dressed.add(op.area);

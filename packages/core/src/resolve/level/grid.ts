@@ -139,10 +139,10 @@ export const RAILING_HEIGHT = 1;
 // material traits (water, natural ground, deck spans): resolve/materials.ts; wall style traits (low rims, whole-cell
 // natural rock, styles that may stand uneven): gen/wallStyles.ts
 
-export class LevelWork {
+export class ResolveGrid {
   readonly plan: MapPlan;
   /** What the plan's generator does (plan/generator.ts): every version-dependent rule below reads a switch of it. */
-  readonly gen: GeneratorProfile;
+  readonly profile: GeneratorProfile;
   readonly level: Level;
   readonly li: number;
   readonly bx: number;
@@ -260,7 +260,7 @@ export class LevelWork {
   constructor(ctx: LevelContext) {
     this.ctx = ctx;
     this.plan = ctx.plan;
-    this.gen = generatorProfile(ctx.plan);
+    this.profile = generatorProfile(ctx.plan);
     this.li = ctx.levelIndex;
     const planLevel = ctx.plan.levels[ctx.levelIndex] as Level;
     const lb = planLevel.bounds;
@@ -661,7 +661,7 @@ export class LevelWork {
 
   featureBase(i: number, lift: number): number {
     const h =
-      i >= 0 && !(this.state[i] === CELL.VOID && this.gen.voidIsBasePlane)
+      i >= 0 && !(this.state[i] === CELL.VOID && this.profile.voidIsBasePlane)
         ? (this.height[i] as number) / 4
         : 0;
     return this.level.elevation + BUILD_CONSTANTS.floorThickness + h + lift;

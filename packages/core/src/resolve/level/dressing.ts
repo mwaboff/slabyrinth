@@ -23,11 +23,11 @@ import { rasterizeShape } from "../../gen/shapes";
 import { elementSeed, subSeed } from "../../util/hash";
 import { isNaturalGround } from "../materials";
 import { commitGenerated, placementGrid } from "./features";
-import type { AreaInfo, LevelWork } from "./work";
+import type { AreaInfo, ResolveGrid } from "./grid";
 
 /** A dress op over the whole level: the open ground (no area) and each zone area, each dressed as one region. */
 function dressWholeLevel(
-  work: LevelWork,
+  work: ResolveGrid,
   op: Extract<TerrainOp, { op: "dress" }>,
   path: string,
   grid: ReturnType<typeof placementGrid>,
@@ -72,7 +72,7 @@ function dressWholeLevel(
     });
 }
 
-export function stepGeneratedFeatures(work: LevelWork): void {
+export function stepGeneratedFeatures(work: ResolveGrid): void {
   const grid = placementGrid(work);
   const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
   const ops = work.level.terrain.map((op, k) => ({ op, k }));
@@ -96,7 +96,7 @@ export function stepGeneratedFeatures(work: LevelWork): void {
     const path = `/levels/${work.li}/terrain/${k}`;
     if (op.area === undefined || op.area === work.level.id) {
       // generator 2: the whole level, region by region (the open ground outside areas, then each zone)
-      if (work.gen.dressWholeLevel) dressWholeLevel(work, op, path, grid, cap, capWarn);
+      if (work.profile.dressWholeLevel) dressWholeLevel(work, op, path, grid, cap, capWarn);
       continue;
     }
     const ai = work.areaIndexById.get(op.area);
@@ -152,8 +152,8 @@ export function stepGeneratedFeatures(work: LevelWork): void {
       seed: elementSeed(work.plan.seed, op.id, op.seed),
       remaining: cap - work.generated,
       // generator 2: natural pieces scatter in drifts and clumps, never an even lattice
-      drift: work.gen.naturalScatter && info.organic,
-      supported: work.gen.naturalScatter,
+      drift: work.profile.naturalScatter && info.organic,
+      supported: work.profile.naturalScatter,
     };
     const res = scatterFeatures(grid, op.variants ? { ...params, variants: op.variants } : params);
     commitGenerated(work, op.id, res.placements);
@@ -175,8 +175,8 @@ export function stepGeneratedFeatures(work: LevelWork): void {
  * between natural ground, and the board's own edge where the ground stands above the base (gen/setpieces
  * `defaultCliffBands`; nothing where the theme has no formation roles). `cliffBands: false` on the level turns it off.
  */
-function stepDefaultCliffBands(work: LevelWork, grid: PlacementGrid, cap: number): void {
-  if (!work.gen.defaultCliffBands || work.level.cliffBands === false) return;
+function stepDefaultCliffBands(work: ResolveGrid, grid: PlacementGrid, cap: number): void {
+  if (!work.profile.defaultCliffBands || work.level.cliffBands === false) return;
   const base = work.level.base;
   if (base.type !== "ground" || !isNaturalGround(base.material)) return;
   if ((work.level.structures ?? []).some((st) => st.kind !== "enclosure")) return;

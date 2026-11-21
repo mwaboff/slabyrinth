@@ -7,15 +7,15 @@
 import type { OpeningKind } from "../../contracts/plan";
 import type { ResolvedOpening } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
-import type { AreaInfo, LevelWork } from "./work";
+import type { AreaInfo, ResolveGrid } from "./grid";
 
-function areaIdOf(work: LevelWork, region: number): string | null {
+function areaIdOf(work: ResolveGrid, region: number): string | null {
   return region > 0 ? (work.areas[region - 1] as AreaInfo).area.id : null;
 }
 
 /** Maximal straight runs of the given edges. */
 function runsOf(
-  work: LevelWork,
+  work: ResolveGrid,
   edges: Array<{ orient: "h" | "v"; i: number }>,
 ): Array<{ orient: "h" | "v"; idx: number[]; start: [number, number] }> {
   const runs: Array<{ orient: "h" | "v"; idx: number[]; start: [number, number] }> = [];
@@ -63,7 +63,7 @@ function pickRun<T extends { orient: "h" | "v"; idx: number[]; start: [number, n
 }
 
 function placeOpening(
-  work: LevelWork,
+  work: ResolveGrid,
   o: { id: string; kind: OpeningKind; label?: string; gmOnly?: boolean },
   orient: "h" | "v",
   idx: number[],
@@ -150,7 +150,7 @@ function placeOpening(
   return true;
 }
 
-export function stepOpenings(work: LevelWork): void {
+export function stepOpenings(work: ResolveGrid): void {
   work.level.openings.forEach((o, k) => {
     const path = `/levels/${work.li}/openings/${k}`;
     const width0 = o.width ?? (o.kind === "double_door" ? 2 : 1);
@@ -273,7 +273,7 @@ export function stepOpenings(work: LevelWork): void {
 }
 
 function meetingEdges(
-  work: LevelWork,
+  work: ResolveGrid,
   routeRegion: number,
   targetRegion: number,
   only: Set<number> | null,
@@ -292,7 +292,7 @@ function meetingEdges(
   return out;
 }
 
-function nearestHint(work: LevelWork, ra: number, rb: number): string {
+function nearestHint(work: ResolveGrid, ra: number, rb: number): string {
   const cellsOf = (r: number): number[] => {
     const out: number[] = [];
     for (let i = 0; i < work.n; i++) {

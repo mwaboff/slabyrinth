@@ -15,7 +15,7 @@ import { elementSeed, h32, subSeed } from "../../util/hash";
 import { isWater, materialOrdinal } from "../materials";
 import { crossingCells, kerbLinesAndCorners } from "../road";
 import { trailCells } from "../trail";
-import type { LevelWork } from "./work";
+import type { ResolveGrid } from "./grid";
 
 /** Landmark-class pieces a spur trail leads to (the first found), then lesser focal pieces. */
 const SPUR_PRIMARY = new Set<string>([
@@ -41,8 +41,8 @@ const SPUR_FOCAL = new Set<string>([
  * flattened, a 1-cell setback) take the pavement's height and material, so no strip at road level runs along a
  * frontage. Footprints, porches, stair and link cells and anything higher than the pavement (a plinth) keep theirs.
  */
-export function stepPavementFronts(work: LevelWork): void {
-  if (!work.gen.roads || !work.structs) return;
+export function stepPavementFronts(work: ResolveGrid): void {
+  if (!work.profile.roads || !work.structs) return;
   type Road = (typeof work.pendingRoads)[number];
   const owner = new Map<number, Road>();
   for (const r of work.pendingRoads) for (const p of r.pave) owner.set(p.i, r);
@@ -97,8 +97,8 @@ export function stepPavementFronts(work: LevelWork): void {
 }
 
 /** Lays the pavements of this layer's roads: beside the carriageway, never on any road's carriageway or a building. */
-export function stepPavements(work: LevelWork, layer: "under" | "over"): void {
-  if (!work.gen.roads) return;
+export function stepPavements(work: ResolveGrid, layer: "under" | "over"): void {
+  if (!work.profile.roads) return;
   const carriage = new Set<number>();
   for (const r of work.pendingRoads) for (const i of r.cells) carriage.add(i);
   const paved = new Set<number>();
@@ -158,7 +158,7 @@ export function stepPavements(work: LevelWork, layer: "under" | "over"): void {
 }
 
 /** Road records and their kerbs (after the edges): continuous kerb lines, gaps at crossings and junction mouths. */
-export function stepRoads(work: LevelWork): void {
+export function stepRoads(work: ResolveGrid): void {
   if (work.pendingRoads.length === 0) return;
   const k = (i: number): string => {
     const [x, y] = work.cellXY(i);
@@ -227,7 +227,7 @@ export function stepRoads(work: LevelWork): void {
 }
 
 /** Kerbs along kerbed paths: every edge of a path cell that meets non-path floor at (about) the same height. */
-export function stepKerbs(work: LevelWork): void {
+export function stepKerbs(work: ResolveGrid): void {
   for (const k of work.pendingKerbs) {
     const noise = new ValueNoise(subSeed(k.seed, "kerb"));
     const nearAnchor = (x: number, y: number): boolean =>
@@ -244,7 +244,7 @@ export function stepKerbs(work: LevelWork): void {
         if (Math.abs((work.height[j] as number) - (work.height[i] as number)) > 1) continue;
         const ed = work.sideEdge(x, y, side);
         if (!ed || ed.e.kind[ed.i] !== EDGE.NONE) continue;
-        if (work.gen.naturalPaths && k.natural) {
+        if (work.profile.naturalPaths && k.natural) {
           // broken runs (about 40% of the edge), none at junctions or where the path meets what it joins
           if (nearAnchor(x, y)) continue;
           const off = side === "N" ? 0.3 : side === "S" ? 0.6 : side === "E" ? 0.9 : 0.1;
@@ -253,7 +253,7 @@ export function stepKerbs(work: LevelWork): void {
         work.kerbs.push({ at: [x, y], side, material: k.material });
       }
     }
-    if (work.gen.naturalPaths && k.natural) {
+    if (work.profile.naturalPaths && k.natural) {
       // never both sides of the same cell (that reads as a rail); keep the one on the noisier side
       const added = work.kerbs.splice(before);
       const byCell = new Map<string, Array<(typeof added)[number]>>();
@@ -281,11 +281,11 @@ export function stepKerbs(work: LevelWork): void {
  * Vehicles away from roads (a car park, a yard) keep what the plan gave. Returns the new anchor and size, or null.
  */
 export function parkVehicle(
-  work: LevelWork,
+  work: ResolveGrid,
   at: Vec2,
   size: readonly [number, number],
 ): { at: Vec2; size: [number, number] } | null {
-  if (!work.gen.roads || work.roads.length === 0) return null;
+  if (!work.profile.roads || work.roads.length === 0) return null;
   const k = (x: number, y: number): string => `${x},${y}`;
   const cw = new Set<string>();
   const pave = new Set<string>();
@@ -348,8 +348,8 @@ export function parkVehicle(
  * feature) and the front of each building get a spur trail from the nearest path cell unless a path already passes
  * within 3 cells. The spur is a 1-cell winding trail of the same material.
  */
-export function stepPathSpurs(work: LevelWork): void {
-  if (!work.gen.naturalPaths) return;
+export function stepPathSpurs(work: ResolveGrid): void {
+  if (!work.profile.naturalPaths) return;
   const trails = work.level.terrain.filter(
     (t): t is Extract<TerrainOp, { op: "path" }> =>
       t.op === "path" && !isWater(t.material) && t.sidewalk === undefined && t.crossings === undefined,
@@ -368,7 +368,7 @@ export function stepPathSpurs(work: LevelWork): void {
     targets.push({
       id: focal.id,
       at: focal.at,
-      ...(work.gen.spursReachTargets ? { exact: true } : {}),
+      ...(work.profile.spursReachTargets ? { exact: true } : {}),
     });
   for (const st of work.level.structures ?? []) {
     if (st.kind === "enclosure") continue;
@@ -382,7 +382,7 @@ export function stepPathSpurs(work: LevelWork): void {
         : undefined);
     if (!w0) continue;
     // generator 3: the trail ends at the cell outside the building's door
-    const doorOpening = work.gen.spursReachTargets
+    const doorOpening = work.profile.spursReachTargets
       ? work.level.openings.find(
           (o) =>
             o.id.startsWith(`${st.id}~`) &&

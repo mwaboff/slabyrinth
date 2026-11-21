@@ -15,9 +15,9 @@ import { traceRings } from "../trace";
 import { settleWallHeights } from "../wallSettle";
 import { roughWallTops } from "../wallTops";
 import { waterSurface } from "./waterSurface";
-import type { EdgeArrays, LevelWork } from "./work";
+import type { EdgeArrays, ResolveGrid } from "./grid";
 
-export function toResolved(work: LevelWork): ResolvedLevel {
+export function toResolved(work: ResolveGrid): ResolvedLevel {
   const { w, h, n } = work;
   // materials in first-appearance order (row-major)
   const materials: Material[] = [];
@@ -139,7 +139,7 @@ export function toResolved(work: LevelWork): ResolvedLevel {
     if (info.area.notes !== undefined) ra.notes = info.area.notes;
     if (info.area.labelAt !== undefined) ra.labelAt = [info.area.labelAt[0], info.area.labelAt[1]];
     // generator 4: the area's one classification, for the compiler and the review (they never parse words)
-    if (work.gen.roomClassification) {
+    if (work.profile.roomClassification) {
       if (info.room.purpose !== undefined) ra.purpose = info.room.purpose;
       if (info.room.abandoned) ra.abandoned = true;
       ra.finish = info.rough ? "rough" : "tidy";
@@ -181,16 +181,16 @@ export function toResolved(work: LevelWork): ResolvedLevel {
   if (work.kerbs.length > 0) lvl.kerbs = work.kerbs;
   if (work.roads.length > 0) lvl.roads = work.roads;
   if (work.ramps.length > 0) lvl.ramps = work.ramps;
-  if (work.gen.cliffRockBand) {
+  if (work.profile.cliffRockBand) {
     const cliffs = cliffRuns(lvl);
     if (cliffs.length > 0) lvl.cliffs = cliffs;
   }
-  if (work.gen.foundation) {
+  if (work.profile.foundation) {
     lvl.foundation = work.level.foundation ?? (work.level.base.type === "ground" ? 2 : 0);
     const wl = waterSurface(work);
     if (wl !== null) lvl.waterLevel = wl;
   }
-  if (work.gen.floorOpenings && work.floorOpenings.length > 0)
+  if (work.profile.floorOpenings && work.floorOpenings.length > 0)
     lvl.floorOpenings = work.floorOpenings.map((fo) => ({
       id: fo.id,
       kind: fo.kind,
@@ -200,7 +200,7 @@ export function toResolved(work: LevelWork): ResolvedLevel {
       hiddenEdge: fo.hiddenEdge,
       edgeCells: fo.edgeCells,
     }));
-  if (work.gen.wanderingChannels) {
+  if (work.profile.wanderingChannels) {
     if (work.channels.length > 0) lvl.channels = work.channels;
     if (work.falls.length > 0) lvl.falls = work.falls;
     if (work.waterRange !== null) lvl.waterRange = work.waterRange;
@@ -208,7 +208,7 @@ export function toResolved(work: LevelWork): ResolvedLevel {
   if (work.resolvedLines.length > 0) lvl.lines = work.resolvedLines;
   if (work.structs) Object.assign(lvl, work.structs.finish(work.level.elevation));
   // the walls of a built interior vary in height (resolve/wallTops.ts)
-  if (work.gen.interiorWallTops && work.level.base.type === "solid") {
+  if (work.profile.interiorWallTops && work.level.base.type === "solid") {
     if (!work.structs)
       roughWallTops(lvl, String(elementSeed(work.plan.seed, `${work.level.id}~walltops`, undefined)));
     // stepRoomFloors raises rooms in every solid-based level: the walls beside them are shortened by the step

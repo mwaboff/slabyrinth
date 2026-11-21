@@ -13,7 +13,7 @@ import { bandOffsets, routeCenterline } from "../../gen/shapes";
 import { NATURAL_WALL_STYLE, isNaturalWallStyle } from "../../gen/wallStyles";
 import { materialOrdinal } from "../materials";
 import { themeInterior } from "../themes";
-import type { AreaInfo, LevelWork } from "./work";
+import type { AreaInfo, ResolveGrid } from "./grid";
 
 const DEFAULT_MODE: Record<AreaKind, WallMode> = {
   room: "auto",
@@ -25,7 +25,7 @@ const DEFAULT_MODE: Record<AreaKind, WallMode> = {
   bridge: "none",
 };
 
-export function initAreas(work: LevelWork): void {
+export function initAreas(work: ResolveGrid): void {
   work.themeIndex(work.levelTheme);
   work.level.areas.forEach((area, index) => {
     const theme = area.theme ?? work.levelTheme;
@@ -46,7 +46,7 @@ export function initAreas(work: LevelWork): void {
       // into a cave is rock, not a brick box
       wallStyle:
         area.wallStyle ??
-        (area.kind === "cave" || (work.gen.naturalThemeWalls && isNaturalWallStyle(td.wallStyle))
+        (area.kind === "cave" || (work.profile.naturalThemeWalls && isNaturalWallStyle(td.wallStyle))
           ? NATURAL_WALL_STYLE
           : "wall"),
       wallHeight: area.wallHeight ?? work.defaultWallHeight,
@@ -66,7 +66,7 @@ export function initAreas(work: LevelWork): void {
   });
 }
 
-export function stepBase(work: LevelWork): void {
+export function stepBase(work: ResolveGrid): void {
   const base = work.level.base;
   if (base.type === "solid") work.state.fill(CELL.SOLID);
   else if (base.type === "void") work.state.fill(CELL.VOID);
@@ -77,7 +77,7 @@ export function stepBase(work: LevelWork): void {
   work.theme.fill(0);
 }
 
-export function stepAreas(work: LevelWork): void {
+export function stepAreas(work: ResolveGrid): void {
   for (const info of work.areas) {
     if (info.isRoute) continue;
     const cells = work.shapeCells(
@@ -92,7 +92,7 @@ export function stepAreas(work: LevelWork): void {
   work.recountStruct();
 }
 
-function routeArea(work: LevelWork, info: AreaInfo): void {
+function routeArea(work: ResolveGrid, info: AreaInfo): void {
   const shape = info.area.shape;
   if (shape.type !== "route") return;
   const path = `/levels/${work.li}/areas/${info.index}/shape`;
@@ -151,7 +151,7 @@ function routeArea(work: LevelWork, info: AreaInfo): void {
   });
 }
 
-function ownerIs(work: LevelWork, c: readonly [number, number], ai: number): boolean {
+function ownerIs(work: ResolveGrid, c: readonly [number, number], ai: number): boolean {
   const i = work.idx(c[0], c[1]);
   if (i < 0) return false;
   const info = work.areas[ai] as AreaInfo;
@@ -159,7 +159,7 @@ function ownerIs(work: LevelWork, c: readonly [number, number], ai: number): boo
 }
 
 /** Fields that do nothing for an area of this kind (zone floor/height/walls, bridge-only fields elsewhere). */
-export function checkAreaFields(work: LevelWork): void {
+export function checkAreaFields(work: ResolveGrid): void {
   for (const info of work.areas) {
     const a = info.area;
     const path = `/levels/${work.li}/areas/${info.index}`;

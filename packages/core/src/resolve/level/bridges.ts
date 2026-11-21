@@ -14,7 +14,7 @@ import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { elementSeed, h32, subSeed } from "../../util/hash";
 import { createPrng } from "../../util/prng";
 import { materialInfo, materialOrdinal } from "../materials";
-import { type AreaInfo, type BridgeRequest, type LevelWork, RAILING_HEIGHT } from "./work";
+import { type AreaInfo, type BridgeRequest, type ResolveGrid, RAILING_HEIGHT } from "./grid";
 
 /** Rise of the deck's middle (quarter tiles) by span; plank bridges sag. */
 const SPAN_ARCH_Q: Record<BridgeSpan, number> = { arch: 3, flat: 0, plank: -1, natural: 1 };
@@ -30,7 +30,7 @@ const SPAN_RAILING: Record<BridgeSpan, WallStyle | null> = {
  * lies under its cells, then lays the deck: height = explicit floorHeight or the highest floor it touches, its own
  * floor material, CELL_FLAG.BRIDGE, no walls toward open cells. Broken and crumbled cells become holes.
  */
-export function stepBridges(work: LevelWork): void {
+export function stepBridges(work: ResolveGrid): void {
   const reqs: BridgeRequest[] = [];
   for (const info of work.areas) {
     if (!info.isBridge) continue;
@@ -78,7 +78,7 @@ export function stepBridges(work: LevelWork): void {
   for (const check of work.deckChecks) check();
 }
 
-function layBridge(work: LevelWork, r: BridgeRequest): void {
+function layBridge(work: ResolveGrid, r: BridgeRequest): void {
   const k = work.bridges.length + 1;
   const cells = r.cells.filter((i) => work.bridgeOf[i] === 0);
   if (cells.length === 0) return;
@@ -364,7 +364,7 @@ function layBridge(work: LevelWork, r: BridgeRequest): void {
 }
 
 /** Number of groups of anchor cells, where anchors within 2 cells (Chebyshev) of each other count as one group. */
-function groupCount(work: LevelWork, anchors: number[]): number {
+function groupCount(work: ResolveGrid, anchors: number[]): number {
   const xy = anchors.map((i) => work.cellXY(i));
   const group = new Int32Array(xy.length).fill(-1);
   let g = 0;
@@ -390,7 +390,7 @@ function groupCount(work: LevelWork, anchors: number[]): number {
 }
 
 /** Railings: a WALL (the bridge's railing style, 1 tile) on every intact deck edge that faces a drop. */
-export function stepRailings(work: LevelWork): void {
+export function stepRailings(work: ResolveGrid): void {
   work.bridges.forEach((b, bi) => {
     if (b.railing === null) return;
     const k = bi + 1;
@@ -423,7 +423,7 @@ export function stepRailings(work: LevelWork): void {
 }
 
 /** Rubble at the ends of crumbling bridges (generated features "<bridgeId>#rubble<n>"). */
-export function stepBridgeRubble(work: LevelWork): void {
+export function stepBridgeRubble(work: ResolveGrid): void {
   const info = featureInfo("rubble");
   for (const r of work.bridgeRubble) {
     const size = rotatedSize(info.size, 0);

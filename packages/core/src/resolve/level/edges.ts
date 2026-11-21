@@ -8,9 +8,9 @@
 import type { Side, Vec2 } from "../../contracts/plan";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { isNaturalWallStyle } from "../../gen/wallStyles";
-import type { AreaInfo, EdgeArrays, LevelWork } from "./work";
+import type { AreaInfo, EdgeArrays, ResolveGrid } from "./grid";
 
-export function stepEdges(work: LevelWork): void {
+export function stepEdges(work: ResolveGrid): void {
   const one = (orient: "h" | "v", e: EdgeArrays, i: number): void => {
     const [a, b] = work.edgeCells(orient, i);
     const ra = work.region(a);
@@ -64,7 +64,7 @@ export function stepEdges(work: LevelWork): void {
 }
 
 /** Stair edges become EDGE.STAIR (walkable whatever the height); the lower cell holds the stair asset. */
-export function stepStairs(work: LevelWork): void {
+export function stepStairs(work: ResolveGrid): void {
   for (const key of work.stairEdges) {
     const [a, b] = key.split(",").map(Number) as [number, number];
     if (work.state[a] !== CELL.OPEN || work.state[b] !== CELL.OPEN) continue;
@@ -83,7 +83,7 @@ export function stepStairs(work: LevelWork): void {
   }
 }
 
-export function stepWallRuns(work: LevelWork): void {
+export function stepWallRuns(work: ResolveGrid): void {
   work.level.walls.forEach((run, k) => {
     const path = `/levels/${work.li}/walls/${k}`;
     let clipped = 0;

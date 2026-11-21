@@ -23,10 +23,10 @@ import {
 import { elementSeed, subSeed } from "../../util/hash";
 import { createPrng } from "../../util/prng";
 import { crossingClear } from "./features";
-import type { AreaInfo, LevelWork } from "./work";
+import type { AreaInfo, ResolveGrid } from "./grid";
 
 /** A cell a market piece may stand on: open floor nothing else holds (no building, feature, link, water or crossing). */
-function marketCellOk(work: LevelWork, x: number, y: number, reserved = true): boolean {
+function marketCellOk(work: ResolveGrid, x: number, y: number, reserved = true): boolean {
   const i = work.idx(x, y);
   if (i < 0 || work.state[i] !== CELL.OPEN) return false;
   const f = work.flags[i] as number;
@@ -52,7 +52,7 @@ function marketCellOk(work: LevelWork, x: number, y: number, reserved = true): b
 
 /** Commit a market piece as a generated feature; `occupy` false keeps its cells free for other dressing (a line). */
 function commitMarket(
-  work: LevelWork,
+  work: ResolveGrid,
   id: string,
   p: {
     type: FeatureType;
@@ -97,10 +97,10 @@ function commitMarket(
  * placed itself), overhead lines (`Level.lines`) anchored on building walls or posts, and the props a trade puts
  * outside its door. Everything stands only on cells nothing else holds.
  */
-export function stepMarket(work: LevelWork): void {
+export function stepMarket(work: ResolveGrid): void {
   const stallRows = work.level.stalls ?? [];
   const lineList = work.level.lines ?? [];
-  if (!work.gen.stallsAndLines) {
+  if (!work.profile.stallsAndLines) {
     if (stallRows.length + lineList.length > 0)
       work.issue(
         "warning",
@@ -152,7 +152,7 @@ export function stepMarket(work: LevelWork): void {
       putGoods(f.id, { at: [f.at[0], f.at[1]], size: [f.size[0], f.size[1]] }, f.variant ?? "empty");
   }
   // generator 4: covered stalls when the theme's palette has the parts (else the table stall of generator 3)
-  const forms = work.gen.coveredStalls ? work.ctx.palette.stallForms(work.levelTheme) : [];
+  const forms = work.profile.coveredStalls ? work.ctx.palette.stallForms(work.levelTheme) : [];
   stallRows.forEach((row, k) => {
     let placed;
     if (forms.length > 0) {
@@ -209,7 +209,7 @@ export function stepMarket(work: LevelWork): void {
  * on about half of them. Never in front: the lane stays clear.
  */
 function stallClutter(
-  work: LevelWork,
+  work: ResolveGrid,
   id: string,
   p: { at: [number, number]; size: [number, number]; kind: string },
   b: StallBuild,
@@ -234,7 +234,12 @@ function stallClutter(
 }
 
 /** One overhead line: straightness, two anchors (a building wall within 3 cells beyond the end, else a post), pieces. */
-function stepLine(work: LevelWork, line: NonNullable<Level["lines"]>[number], k: number, cap: number): void {
+function stepLine(
+  work: ResolveGrid,
+  line: NonNullable<Level["lines"]>[number],
+  k: number,
+  cap: number,
+): void {
   const bad = (msg: string, hint: string): void => {
     work.issue("warning", "line_unanchored", `line "${line.id}" ${msg}; it was dropped`, {
       path: `/levels/${work.li}/lines/${k}`,
@@ -291,7 +296,7 @@ function stepLine(work: LevelWork, line: NonNullable<Level["lines"]>[number], k:
     return;
   }
   // generator 4: a covered stall's canopy rises above a rope's height; the line runs along the aisle, not through it
-  if (work.gen.coveredStalls)
+  if (work.profile.coveredStalls)
     for (let a = aLo.at + 1; a < aHi.at; a++) {
       const [cx, cy] = cellAt(a);
       if (
@@ -346,7 +351,7 @@ function stepLine(work: LevelWork, line: NonNullable<Level["lines"]>[number], k:
 }
 
 /** Props a trade puts outside its front door (not in front of the door itself, never in the carriageway). */
-function stepTradeProps(work: LevelWork, cap: number, ok: (x: number, y: number) => boolean): void {
+function stepTradeProps(work: ResolveGrid, cap: number, ok: (x: number, y: number) => boolean): void {
   if (!work.structs) return;
   const carriage = new Set<number>();
   for (const r of work.pendingRoads) for (const i of r.cells) carriage.add(i);

@@ -22,9 +22,9 @@ import { applyChasm, boardBox, keepOffHighGround } from "./chasms";
 import { applyFloorOpening } from "./floorOpenings";
 import { stepPathSpurs, stepPavements } from "./paths";
 import { applyOutcrop, applyPlatform, applyStairsOp, applyUneven } from "./relief";
-import type { LevelWork } from "./work";
+import type { ResolveGrid } from "./grid";
 
-export function stepTerrain(work: LevelWork, layer: "under" | "over"): void {
+export function stepTerrain(work: ResolveGrid, layer: "under" | "over"): void {
   work.level.terrain.forEach((op, k) => {
     if (op.op === "scatter" || op.op === "dress") return;
     const structural =
@@ -67,7 +67,7 @@ export function stepTerrain(work: LevelWork, layer: "under" | "over"): void {
 
 /** Warning for a paint/noise/path/height op that changed no cell, with the reason and the fix. */
 function reportTerrainNoEffect(
-  work: LevelWork,
+  work: ResolveGrid,
   op: Exclude<
     TerrainOp,
     { op: "scatter" | "dress" | "chasm" | "platform" | "stairs" | "uneven" | "outcrop" | "floor_opening" }
@@ -110,7 +110,7 @@ function reportTerrainNoEffect(
  * Under-layer ops whose every touched cell was taken over by an area that sets its own value (its floor for
  * paint/noise/path, floorHeight for height), or that no area ever opened.
  */
-export function checkUnderSurvivors(work: LevelWork): void {
+export function checkUnderSurvivors(work: ResolveGrid): void {
   for (const { op, path, cells } of work.underTouched) {
     const isHeight = op.op === "height";
     let survivors = 0;
@@ -138,7 +138,7 @@ export function checkUnderSurvivors(work: LevelWork): void {
 }
 
 function applyTerrain(
-  work: LevelWork,
+  work: ResolveGrid,
   op: Exclude<
     TerrainOp,
     { op: "scatter" | "dress" | "chasm" | "platform" | "stairs" | "uneven" | "outcrop" | "floor_opening" }
@@ -148,7 +148,7 @@ function applyTerrain(
 ): { touched: number[]; inShape: number; open: number; partial: boolean } {
   // Generator 2: an under-layer height op sets the height field of every cell (rock included); the areas that open
   // those cells later inherit it unless they set floorHeight (contracts/plan.ts GENERATOR_VERSION).
-  const field = op.op === "height" && layer === "under" && work.gen.underHeightField;
+  const field = op.op === "height" && layer === "under" && work.profile.underHeightField;
   const open = (i: number): boolean => field || work.state[i] === CELL.OPEN;
   const touched: number[] = [];
   let inShape = 0;
@@ -186,22 +186,22 @@ function applyTerrain(
     case "path": {
       const seed = elementSeed(work.plan.seed, op.id, op.seed);
       // generator 2 road form (resolve/road.ts): sidewalk and/or crossings; always straight
-      const road = work.gen.roads && (op.sidewalk !== undefined || op.crossings !== undefined);
+      const road = work.profile.roads && (op.sidewalk !== undefined || op.crossings !== undefined);
       // generator 2: water winds like a trail unless told to run straight
       const wetPath = isWater(op.material);
       const natural0 =
-        work.gen.naturalPaths &&
+        work.profile.naturalPaths &&
         !road &&
         (op.style ?? (isNaturalGround(op.material) || wetPath ? "natural" : "straight")) === "natural";
       const drawn = op.points ?? connectPoints(work, op.connect ?? [], path, op.id, !natural0);
       // a river or brook crosses the map: from one board edge to another, off the border in between
       const base =
-        work.gen.riverCourses && wetPath && op.points !== undefined && !STILL_WATER.test(op.id)
+        work.profile.riverCourses && wetPath && op.points !== undefined && !STILL_WATER.test(op.id)
           ? keepOffHighGround(work, drawn, riverCourse(drawn, boardBox(work), op.width))
           : drawn;
       const natural = natural0;
       // a straight road never wobbles: jitter only for paths that do not ask for straight
-      const straightOnly = road || (work.gen.naturalPaths && op.style === "straight");
+      const straightOnly = road || (work.profile.naturalPaths && op.style === "straight");
       const visit = (x: number, y: number): void => {
         const i = work.idx(x, y);
         if (i < 0) return;
@@ -235,7 +235,7 @@ function applyTerrain(
     case "height": {
       let cells = work.shapeCells(op.shape, "terrain", path, op.id);
       if (
-        work.gen.raggedTerrainEdges &&
+        work.profile.raggedTerrainEdges &&
         (op.edge ?? (work.level.base.type === "ground" ? "ragged" : "clean")) === "ragged"
       ) {
         // natural ground: a rounded, wandering outline (resolve/organic.ts)
@@ -274,7 +274,7 @@ function applyTerrain(
 
 /** Cells of `connect` (area anchors, feature cells, explicit cells) joined by L-shaped legs. */
 function connectPoints(
-  work: LevelWork,
+  work: ResolveGrid,
   connect: ReadonlyArray<string | Vec2>,
   path: string,
   id: string,
@@ -337,9 +337,9 @@ function rasterCellsOf(m: CellMask, idx: (x: number, y: number) => number): numb
  * board edge. Cells outside become void. Paths, water, areas, structures and explicit features keep their cells,
  * so roads and rivers still reach the true edge. Built-up levels (buildings or roads) keep their rectangle.
  */
-export function stepOutline(work: LevelWork): void {
+export function stepOutline(work: ResolveGrid): void {
   const base = work.level.base;
-  if (!work.gen.naturalLevelOutline || base.type !== "ground" || work.level.outline === "rect") return;
+  if (!work.profile.naturalLevelOutline || base.type !== "ground" || work.level.outline === "rect") return;
   if (!isNaturalGround(base.material)) return;
   if (work.pendingRoads.length > 0) return;
   if (

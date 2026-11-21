@@ -16,7 +16,7 @@ import { ValueNoise } from "../../gen/noise";
 import { isLowWallStyle } from "../../gen/wallStyles";
 import { elementSeed, h32, subSeed } from "../../util/hash";
 import { roughenLumps } from "../organic";
-import { type AreaInfo, type LevelWork, RAILING_HEIGHT } from "./work";
+import { type AreaInfo, type ResolveGrid, RAILING_HEIGHT } from "./grid";
 
 /**
  * Generator 3: the floor_opening op. Open floor cells of the shape lose their floor but stay part of their area, so no
@@ -24,11 +24,11 @@ import { type AreaInfo, type LevelWork, RAILING_HEIGHT } from "./work";
  * lobes bulging out where noise says so, never into a wall's cell.
  */
 export function applyFloorOpening(
-  work: LevelWork,
+  work: ResolveGrid,
   op: Extract<TerrainOp, { op: "floor_opening" }>,
   path: string,
 ): void {
-  if (!work.gen.floorOpenings) {
+  if (!work.profile.floorOpenings) {
     work.issue(
       "warning",
       "no_effect",
@@ -46,7 +46,7 @@ export function applyFloorOpening(
       0;
   let cells = work.shapeCells(op.shape, "terrain", path, op.id).filter(free);
   const seed = subSeed(elementSeed(work.plan.seed, op.id), "floor-opening");
-  const outline = work.gen.openingOutline;
+  const outline = work.profile.openingOutline;
   if ((op.edge ?? (kind === "collapse" ? "ragged" : "clean")) === "ragged" && cells.length >= 6) {
     const tiers = new Map<number, number>(cells.map((i) => [i, 1]));
     roughenLumps(tiers, work.organicGrid(), seed);
@@ -115,7 +115,7 @@ export function applyFloorOpening(
     kind,
     rim:
       op.rim ??
-      (work.gen.lowOpeningRims
+      (work.profile.lowOpeningRims
         ? // generator 4: a collapse has no wall at all (stepOpeningRims drops rubble on its edge instead); a shaft has a
           // low kerb, a balcony a railing: nothing 2 tall hides the hole
           kind === "collapse"
@@ -141,8 +141,8 @@ export function applyFloorOpening(
  * on each edge between a hole cell and the floor beside it, standing on that floor. Also counts the edge cells and the
  * ones a full-height wall already hides (the walls of the area itself), for the review.
  */
-export function stepOpeningRims(work: LevelWork): void {
-  const low = work.gen.lowOpeningRims;
+export function stepOpeningRims(work: ResolveGrid): void {
+  const low = work.profile.lowOpeningRims;
   for (const fo of work.floorOpenings) {
     const set = new Set(fo.cells);
     for (const i of fo.cells) {
@@ -181,7 +181,7 @@ export function stepOpeningRims(work: LevelWork): void {
  * Generator 3, after the links: what lies under each floor opening of this level (the next level down), a plan issue
  * when it is not open floor, and the rubble the lower level heaps under a collapse (placed with its generated features).
  */
-export function linkOpenings(work: LevelWork, below: LevelWork | undefined): void {
+export function linkOpenings(work: ResolveGrid, below: ResolveGrid | undefined): void {
   for (const fo of work.floorOpenings) {
     const xy = fo.cells.map((i) => work.cellXY(i) as Vec2);
     const path = `/levels/${work.li}/terrain`;
@@ -215,7 +215,7 @@ export function linkOpenings(work: LevelWork, below: LevelWork | undefined): voi
       );
     }
     if (fo.rubble) below.rubbleUnder.push({ id: fo.id, cells: xy, seed: fo.seed });
-    if (fo.rubble && work.gen.rubbleMounds) moundUnder(below, xy, fo.seed);
+    if (fo.rubble && work.profile.rubbleMounds) moundUnder(below, xy, fo.seed);
   }
 }
 
@@ -225,7 +225,7 @@ export function linkOpenings(work: LevelWork, below: LevelWork | undefined): voi
  * never more than half a tile between neighbours, so it can be walked. Runs before the features of the level so
  * everything standing in the heap rides on it.
  */
-function moundUnder(work: LevelWork, xy: Vec2[], seed: number): void {
+function moundUnder(work: ResolveGrid, xy: Vec2[], seed: number): void {
   const wanted = new Set<number>();
   for (const [x, y] of xy) {
     const i = work.idx(x, y);
@@ -256,8 +256,8 @@ function moundUnder(work: LevelWork, xy: Vec2[], seed: number): void {
  * Generator 4: low broken pieces dropped on the floor along the edge of a collapse: debris (nothing taller than half a
  * tile, never blocking) on most rim cells, thinning one cell further back. The hole itself stays open.
  */
-export function stepOpeningRimDebris(work: LevelWork): void {
-  if (!work.gen.lowOpeningRims) return;
+export function stepOpeningRimDebris(work: ResolveGrid): void {
+  if (!work.profile.lowOpeningRims) return;
   for (const fo of work.floorOpenings) {
     if (fo.kind !== "collapse" || fo.rim !== "none" || fo.rimCells.length === 0) continue;
     const holes = new Set(fo.cells);
@@ -304,7 +304,7 @@ export function stepOpeningRimDebris(work: LevelWork): void {
 }
 
 /** Generator 3: rubble heaped on the floor under a collapse of the level above: densest and biggest at the centre. */
-export function stepOpeningRubble(work: LevelWork): void {
+export function stepOpeningRubble(work: ResolveGrid): void {
   for (const r of work.rubbleUnder) {
     const cells = r.cells.filter(([x, y]) => work.hasFloorAt(x, y));
     if (cells.length === 0) continue;

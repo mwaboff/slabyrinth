@@ -14,14 +14,14 @@ import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed } from "../../util/hash";
 import { raggedCaveOutline } from "../caveOutline";
 import { CAVE_RELIEF, caveShelves } from "../caveRelief";
-import type { AreaInfo, LevelWork } from "./work";
+import type { AreaInfo, ResolveGrid } from "./grid";
 
 /**
  * Generator 4: cells the natural cave passes (ragged outlines, floor shelves) must leave as the plan drew them:
  * explicit features, openings, link ends, stairs runs and the shapes of shaping terrain ops, each with a ring of
  * `ring` cells.
  */
-function caveKeep(work: LevelWork, ring: number): Set<number> {
+function caveKeep(work: ResolveGrid, ring: number): Set<number> {
   const keep = new Set<number>();
   const addRing = (gx: number, gy: number, r: number): void => {
     for (let dy = -r; dy <= r; dy++)
@@ -62,7 +62,7 @@ function caveKeep(work: LevelWork, ring: number): Set<number> {
  * Generator 4: chambers and corridors with natural rock walls get ragged, bulging outlines (resolve/caveOutline.ts),
  * passages at least two cells wide, every connection kept. Runs right after the areas are claimed.
  */
-export function stepCaveOutlines(work: LevelWork): void {
+export function stepCaveOutlines(work: ResolveGrid): void {
   const keep = caveKeep(work, 1);
   const zoneAt = (i: number): boolean => {
     const d = work.disp[i] as number;
@@ -105,7 +105,7 @@ export function stepCaveOutlines(work: LevelWork): void {
  * few half-tile shelves (resolve/caveRelief.ts): low by the water, rising toward the back of side chambers. Never
  * under explicit features, bridges, links, openings or the pool edge, never beside another step.
  */
-export function stepCaveRelief(work: LevelWork): void {
+export function stepCaveRelief(work: ResolveGrid): void {
   const cave = (i: number): boolean => {
     const s = work.struct[i] as number;
     if (s <= 0 || work.state[i] !== CELL.OPEN) return false;

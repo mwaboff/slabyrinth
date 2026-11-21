@@ -5,10 +5,10 @@
  * Writes: `waterRange` (the range a stepped river allows) and, when reporting, `water_level` plan issues.
  */
 import { CELL_FLAG } from "../../contracts/resolved";
-import type { LevelWork } from "./work";
+import type { ResolveGrid } from "./grid";
 
 /** True when a water cell lies within `r` cells (Chebyshev) of cell `i`. */
-function nearWater(work: LevelWork, i: number, r: number): boolean {
+function nearWater(work: ResolveGrid, i: number, r: number): boolean {
   const [x, y] = work.cellXY(i);
   for (let dy = -r; dy <= r; dy++)
     for (let dx = -r; dx <= r; dx++) {
@@ -23,7 +23,7 @@ function nearWater(work: LevelWork, i: number, r: number): boolean {
  * lowest dry floor that touches water, but at least a quarter tile above the highest water bed. Warns when other dry
  * walkable floor (a dry pit, a lava rift, a cellar) lies below it, since the plane would flood it.
  */
-export function waterSurface(work: LevelWork, report = true): number | null {
+export function waterSurface(work: ResolveGrid, report = true): number | null {
   const water: number[] = [];
   // the upper reaches of a stepped river lie above the board plane: they do not set it
   for (let i = 0; i < work.n; i++)
@@ -47,7 +47,7 @@ export function waterSurface(work: LevelWork, report = true): number | null {
   const surface = Number.isFinite(bank) ? Math.max(bed + 0.25, bank - 0.5) : bed + 0.25;
   let low: number | null = null;
   let lowCount = 0;
-  const checks = work.gen.waterLevelChecks;
+  const checks = work.profile.waterLevelChecks;
   for (let i = 0; i < work.n; i++) {
     if (!work.isFloor(i) || (work.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.BRIDGE)) continue;
     if (top(i) < surface) {

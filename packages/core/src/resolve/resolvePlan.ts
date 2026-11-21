@@ -12,7 +12,7 @@ import { h64hex } from "../util/hash";
 import { runPhase1, runPhase2 } from "./level";
 import { linkOpenings } from "./level/floorOpenings";
 import { toResolved } from "./level/output";
-import { LevelWork } from "./level/work";
+import { ResolveGrid } from "./level/grid";
 import { type ThemeDefaults, builtinThemeDefaults } from "./themes";
 import type { ResolvePalettes } from "../palette/resolve";
 import { resolveView } from "../palette/view";
@@ -40,9 +40,9 @@ export function resolvePlan(
   const issues: PlanIssue[] = [];
   const themeDefaults = opts.themeDefaults ?? builtinThemeDefaults;
   const palette = resolveView(plan, palettes);
-  const works: LevelWork[] = plan.levels.map(
+  const works: ResolveGrid[] = plan.levels.map(
     (_, levelIndex) =>
-      new LevelWork({
+      new ResolveGrid({
         plan,
         levelIndex,
         themeDefaults,
@@ -50,7 +50,7 @@ export function resolvePlan(
         palette,
       }),
   );
-  const byId = new Map<string, LevelWork>();
+  const byId = new Map<string, ResolveGrid>();
   for (const w of works) if (!byId.has(w.level.id)) byId.set(w.level.id, w);
 
   for (const w of works) runPhase1(w);
@@ -91,7 +91,7 @@ export function canonicalResolved(r: ResolvedPlan): string {
   return canonicalJson(r);
 }
 
-function resolveLinks(plan: MapPlan, byId: Map<string, LevelWork>, issues: PlanIssue[]): ResolvedLink[] {
+function resolveLinks(plan: MapPlan, byId: Map<string, ResolveGrid>, issues: PlanIssue[]): ResolvedLink[] {
   const out: ResolvedLink[] = [];
   plan.links.forEach((link, k) => {
     const path = `/links/${k}`;

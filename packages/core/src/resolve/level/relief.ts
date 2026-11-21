@@ -15,15 +15,15 @@ import { elementSeed, subSeed } from "../../util/hash";
 import { accentTop } from "../interiorFloors";
 import { isNaturalGround } from "../materials";
 import { breakStraightSteps, chamferCorners, organicTiers, roughenLumps } from "../organic";
-import type { LevelWork } from "./work";
+import type { ResolveGrid } from "./grid";
 
 /** A flight from cell `start` stepping by (dx,dy) through `cells` (in order): stair edges where heights differ. */
-function flight(work: LevelWork, cells: number[]): void {
+function flight(work: ResolveGrid, cells: number[]): void {
   for (let k = 1; k < cells.length; k++) work.addStairEdge(cells[k - 1] as number, cells[k] as number);
 }
 
 export function applyPlatform(
-  work: LevelWork,
+  work: ResolveGrid,
   op: Extract<TerrainOp, { op: "platform" }>,
   path: string,
 ): void {
@@ -47,13 +47,13 @@ export function applyPlatform(
   // never differ by more than one tier
   // generator 3: in a natural or cave level a platform is rock with a ragged outline unless the plan asks for worked
   // stone (a built material, or an explicit clean edge)
-  const wild = work.gen.wildPlatforms && (work.level.base.type === "ground" || work.plan.kind === "cave");
+  const wild = work.profile.wildPlatforms && (work.level.base.type === "ground" || work.plan.kind === "cave");
   const worked = [op.material, op.topMaterial].some((m) => m !== undefined && !isNaturalGround(m));
   const rockDefault = wild && !worked && work.plan.kind === "cave" && op.material === undefined;
   const material: Material | undefined = rockDefault ? "rock" : op.material;
   const natural = material !== undefined && isNaturalGround(material);
   const ragged =
-    work.gen.raggedTerrainEdges &&
+    work.profile.raggedTerrainEdges &&
     (op.edge ??
       ((work.level.base.type === "ground" && natural) || (wild && !worked) ? "ragged" : "clean")) ===
       "ragged";
@@ -65,7 +65,7 @@ export function applyPlatform(
   let inset = op.inset ?? (bold ? 3 : 1);
   // generator 3: a gentle rise on natural ground reads as one rounded mound, not stacked half-tile plates with
   // square, stair-stepped outlines: fewer, larger steps (a tile or more each), outline rounded by the organic pass
-  if (work.gen.roundedRises && ragged && natural && riseQ > 0 && riseQ < 4 && tiers > 1) {
+  if (work.profile.roundedRises && ragged && natural && riseQ > 0 && riseQ < 4 && tiers > 1) {
     const total = tiers * riseQ;
     if (total >= 4) {
       tiers = Math.max(1, Math.floor(total / 4));
@@ -112,7 +112,7 @@ export function applyPlatform(
     let m = t === tiers ? (op.topMaterial ?? material) : material;
     // generator 4: a top much paler than the room's floor (marble over flagstone) is a stark slab: it takes the tier's
     // own material, or the room's floor (resolve/interiorFloors.ts accentTop)
-    if (m !== undefined && t === tiers && op.topMaterial !== undefined && work.gen.accentTops) {
+    if (m !== undefined && t === tiers && op.topMaterial !== undefined && work.profile.accentTops) {
       const ord = work.mat[i] as number;
       m = accentTop(m, ord > 0 ? MATERIALS[ord - 1] : undefined, material);
     }
@@ -173,7 +173,7 @@ export function applyPlatform(
  * rising in half-tile steps from the low end's height to the high end's, floored with rock. Walkable everywhere
  * (no step over half a tile); a warning when it climbs faster than 1 tile per 2.5 cells.
  */
-function applyRamp(work: LevelWork, op: Extract<TerrainOp, { op: "stairs" }>, path: string): void {
+function applyRamp(work: ResolveGrid, op: Extract<TerrainOp, { op: "stairs" }>, path: string): void {
   const a = work.idx(op.from[0], op.from[1]);
   const b = work.idx(op.to[0], op.to[1]);
   if (a < 0 || b < 0 || work.state[a] !== CELL.OPEN || work.state[b] !== CELL.OPEN) {
@@ -215,8 +215,12 @@ function applyRamp(work: LevelWork, op: Extract<TerrainOp, { op: "stairs" }>, pa
   if (cells.length > 0) work.ramps.push({ id: op.id, cells, from: [fx, fy], to: [tx, ty] });
 }
 
-export function applyStairsOp(work: LevelWork, op: Extract<TerrainOp, { op: "stairs" }>, path: string): void {
-  if (op.style === "ramp" && work.gen.ramps) {
+export function applyStairsOp(
+  work: ResolveGrid,
+  op: Extract<TerrainOp, { op: "stairs" }>,
+  path: string,
+): void {
+  if (op.style === "ramp" && work.profile.ramps) {
     applyRamp(work, op, path);
     return;
   }
@@ -288,7 +292,7 @@ export function applyStairsOp(work: LevelWork, op: Extract<TerrainOp, { op: "sta
     );
 }
 
-export function applyUneven(work: LevelWork, op: Extract<TerrainOp, { op: "uneven" }>, path: string): void {
+export function applyUneven(work: ResolveGrid, op: Extract<TerrainOp, { op: "uneven" }>, path: string): void {
   const region = op.shape
     ? work.shapeCells(op.shape, "terrain", path, op.id)
     : Array.from({ length: work.n }, (_, i) => i);
@@ -328,13 +332,13 @@ export function applyUneven(work: LevelWork, op: Extract<TerrainOp, { op: "uneve
     delta.set(i, 2 * Math.round((noise.sample(x / scale, y / scale) - 0.5) * amountQ * taper));
   }
   // generator 2: the band edges wander like an organic outline (no straight or square stair-steps)
-  if (work.gen.organicBands) {
+  if (work.profile.organicBands) {
     const tiers = new Map<number, number>();
     for (const i of cells) tiers.set(i, Math.round((delta.get(i) as number) / 2));
     breakStraightSteps(tiers, work.organicGrid(), subSeed(seed, "bands"));
     chamferCorners(tiers, work.organicGrid());
     // generator 3: small lumps lose their square corners and their straight sides are bitten
-    if (work.gen.roughenedLumps) roughenLumps(tiers, work.organicGrid(), subSeed(seed, "lumps"));
+    if (work.profile.roughenedLumps) roughenLumps(tiers, work.organicGrid(), subSeed(seed, "lumps"));
     for (const i of cells) delta.set(i, 2 * (tiers.get(i) ?? 0));
   }
   // walkable: neighbours in the region never differ by more than 2 quarters (relaxation, then applied)
@@ -364,7 +368,11 @@ export function applyUneven(work: LevelWork, op: Extract<TerrainOp, { op: "uneve
   for (const i of cells) work.height[i] = (work.height[i] as number) + (delta.get(i) as number);
 }
 
-export function applyOutcrop(work: LevelWork, op: Extract<TerrainOp, { op: "outcrop" }>, path: string): void {
+export function applyOutcrop(
+  work: ResolveGrid,
+  op: Extract<TerrainOp, { op: "outcrop" }>,
+  path: string,
+): void {
   let n = 0;
   const riseQ = Math.round((op.height ?? 2) * 4);
   let cells = work
@@ -376,7 +384,7 @@ export function applyOutcrop(work: LevelWork, op: Extract<TerrainOp, { op: "outc
     );
   // generator 3: a small natural rise is not a rectangle: its corners are cut (twice on larger ones) and its sides
   // bitten. Only ever removes cells, so no route is closed that the shape did not already close.
-  if (work.gen.roughenedLumps && cells.length >= 6) {
+  if (work.profile.roughenedLumps && cells.length >= 6) {
     const tiers = new Map<number, number>(cells.map((i) => [i, 1]));
     const lumpSeed = subSeed(elementSeed(work.plan.seed, op.id), "outcrop-lumps");
     roughenLumps(tiers, work.organicGrid(), lumpSeed);

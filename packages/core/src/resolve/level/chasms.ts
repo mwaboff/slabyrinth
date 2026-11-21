@@ -16,7 +16,7 @@ import { type ChasmGeometry, type ChasmSample, chasmGeometry, chasmSampleAt } fr
 import { type ChannelCell, type ReachPlan, planReaches } from "../falls";
 import { materialOrdinal } from "../materials";
 import { STILL_WATER, riverCourse } from "../water";
-import type { LevelWork } from "./work";
+import type { ResolveGrid } from "./grid";
 
 /** Generator 3: a long rift or river strays from the line between its ends by about this share of its length. */
 const WANDER_SHARE = 0.2;
@@ -29,7 +29,7 @@ const POOL_MAX_BANK_Q = 4;
  * A river's inner points are drawn off the border, but never onto higher ground than the plan put them on (a brook at
  * the foot of a terrace stays at its foot): a moved point that would climb goes back where it was drawn.
  */
-export function keepOffHighGround(work: LevelWork, drawn: readonly Vec2[], course: Vec2[]): Vec2[] {
+export function keepOffHighGround(work: ResolveGrid, drawn: readonly Vec2[], course: Vec2[]): Vec2[] {
   const hAt = (p: Vec2): number => {
     const i = work.idx(Math.round(p[0]), Math.round(p[1]));
     return i < 0 ? 0 : (work.height[i] as number);
@@ -46,7 +46,7 @@ export function keepOffHighGround(work: LevelWork, drawn: readonly Vec2[], cours
 }
 
 /** The level's cells as a box (inclusive), for courses that run to the board edge. */
-export function boardBox(work: LevelWork): { x0: number; y0: number; x1: number; y1: number } {
+export function boardBox(work: ResolveGrid): { x0: number; y0: number; x1: number; y1: number } {
   return { x0: work.bx, y0: work.by, x1: work.bx + work.w - 1, y1: work.by + work.h - 1 };
 }
 
@@ -54,16 +54,16 @@ export function boardBox(work: LevelWork): { x0: number; y0: number; x1: number;
  * Chasm op (§2.5): cuts open floor cells `depth` tiles down along a meandering course, optionally changes the
  * bottom's material, and queues its bridges for the bridge pass.
  */
-export function applyChasm(work: LevelWork, op: Extract<TerrainOp, { op: "chasm" }>, path: string): void {
+export function applyChasm(work: ResolveGrid, op: Extract<TerrainOp, { op: "chasm" }>, path: string): void {
   const seed = elementSeed(work.plan.seed, op.id, op.seed);
   const clip = work.rasterClip();
   const wet0 = op.floor === "water_shallow" || op.floor === "water_deep";
   // a river channel crosses the map from one board edge to another (generator 2; still water keeps its course)
   const course =
-    work.gen.riverCourses && wet0 && !STILL_WATER.test(op.id)
+    work.profile.riverCourses && wet0 && !STILL_WATER.test(op.id)
       ? keepOffHighGround(work, op.points, riverCourse(op.points, boardBox(work), op.width))
       : op.points;
-  const wander = work.gen.wanderingChannels;
+  const wander = work.profile.wanderingChannels;
   // generator 3: a long rift, chasm or river strays visibly from the line between its ends (a fifth of its length)
   const geo = chasmGeometry(
     course,
@@ -250,7 +250,7 @@ export function applyChasm(work: LevelWork, op: Extract<TerrainOp, { op: "chasm"
 }
 
 /** Cells under the plan's own features (with a one-cell margin): a wandering channel keeps off them when it can. */
-function explicitFeatureCells(work: LevelWork): Set<string> {
+function explicitFeatureCells(work: ResolveGrid): Set<string> {
   const out = new Set<string>();
   for (const f of work.level.features) {
     const [w, h] = rotatedSize(f.size ?? featureInfo(f.type).size, f.rot ?? 0);
@@ -265,7 +265,7 @@ function explicitFeatureCells(work: LevelWork): Set<string> {
  * the resolved level (position, direction, width, surfaces and beds, lip and pool cells).
  */
 function cutFalls(
-  work: LevelWork,
+  work: ResolveGrid,
   op: Extract<TerrainOp, { op: "chasm" }>,
   geo: ChasmGeometry,
   reaches: ReachPlan,

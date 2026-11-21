@@ -15,7 +15,7 @@ import { LIGHT_FEATURES, featureInfo, rotatedSize } from "../../gen/catalog";
 import type { GeneratedPlacement, PlacementGrid } from "../../gen/place";
 import { parkVehicle } from "./paths";
 import { waterSurface } from "./waterSurface";
-import type { AreaInfo, LevelWork } from "./work";
+import type { AreaInfo, ResolveGrid } from "./grid";
 
 const LAVA_ORDINAL = MATERIALS.indexOf("lava") + 1;
 
@@ -23,9 +23,9 @@ const LAVA_ORDINAL = MATERIALS.indexOf("lava") + 1;
  * Floor that scatter/dress may furnish. Generator 2 also keeps generated props off lava and off bridge decks
  * (a deck must stay walkable, and its railings are not walls to hang torches on).
  */
-function placeable(work: LevelWork, i: number): boolean {
+function placeable(work: ResolveGrid, i: number): boolean {
   if (!work.isFloor(i)) return false;
-  if (!work.gen.scatterKeepsClear) return true;
+  if (!work.profile.scatterKeepsClear) return true;
   if (work.structs?.reservedCell(i)) return false;
   if ((work.flags[i] as number) & (CELL_FLAG.BRIDGE | CELL_FLAG.STEPS)) return false;
   // keep the approach to bridges and stairs clear: no generated props on a cell beside a deck or a flight
@@ -38,7 +38,7 @@ function placeable(work: LevelWork, i: number): boolean {
   return work.mat[i] !== LAVA_ORDINAL;
 }
 
-function rampCells(work: LevelWork): Set<number> {
+function rampCells(work: ResolveGrid): Set<number> {
   if (!work.rampSet) {
     work.rampSet = new Set<number>();
     for (const r of work.ramps) for (const [x, y] of r.cells) work.rampSet.add(work.idx(x, y));
@@ -50,7 +50,7 @@ function rampCells(work: LevelWork): Set<number> {
  * The level as the placement generators see it (gen/place.ts PlacementGrid). (Was the method `grid()`; renamed on the
  * move because its callers keep a local `grid`.)
  */
-export function placementGrid(work: LevelWork): PlacementGrid {
+export function placementGrid(work: ResolveGrid): PlacementGrid {
   return {
     inBounds: (x, y) => work.idx(x, y) >= 0,
     isFloor: (x, y) => placeable(work, work.idx(x, y)),
@@ -71,14 +71,14 @@ export function placementGrid(work: LevelWork): PlacementGrid {
     vehicle: (x, y) => work.vehicleCells.has(work.idx(x, y)),
     keepClear: (x, y) => crossingClear(work).has(work.idx(x, y)),
     // generator 2: rock ramp cells (no path flag) stay clear of the band and other dressing
-    ramp: (x, y) => work.gen.ramps && rampCells(work).has(work.idx(x, y)),
+    ramp: (x, y) => work.profile.ramps && rampCells(work).has(work.idx(x, y)),
     generator: work.plan.generator,
     // the band's pieces at their real size; undefined where the theme has no such piece (no band)
-    ...(work.gen.realPieceSizes
+    ...(work.profile.realPieceSizes
       ? { pieceSize: (t: FeatureType) => work.ctx.palette.pieceSize(work.levelTheme, t) }
       : {}),
     // the real outline of those pieces, and the cells off the board (void or outside the bounds)
-    ...(work.gen.realPieceOutlines
+    ...(work.profile.realPieceOutlines
       ? {
           pieceExtent: (t: FeatureType) => work.ctx.palette.pieceSize(work.levelTheme, t, true),
           void: (x: number, y: number) => {
@@ -88,7 +88,7 @@ export function placementGrid(work: LevelWork): PlacementGrid {
         }
       : {}),
     // the board's water plane in tiles above the level floor (the scale of `height`): dressing sinks stones to it
-    ...(work.gen.waterBody
+    ...(work.profile.waterBody
       ? {
           waterSurface: () => {
             const s = waterSurface(work, false);
@@ -100,11 +100,11 @@ export function placementGrid(work: LevelWork): PlacementGrid {
     height: (x, y) => {
       const i = work.idx(x, y);
       // a void cell (cut away by the outline) keeps a stale height; the ground there is the base plane
-      if (i < 0 || (work.state[i] === CELL.VOID && work.gen.voidIsBasePlane)) return 0;
+      if (i < 0 || (work.state[i] === CELL.VOID && work.profile.voidIsBasePlane)) return 0;
       return (work.height[i] as number) / 4;
     },
     // what the room recipes need (gen/rooms4.ts)
-    ...(work.gen.roomRecipes
+    ...(work.profile.roomRecipes
       ? {
           piece4: (t: FeatureType, v?: string) => work.ctx.palette.roomPiece(work.levelTheme, t, v),
           wallHosted: (x: number, y: number, s: Side) => {
@@ -132,7 +132,7 @@ export function placementGrid(work: LevelWork): PlacementGrid {
 }
 
 /** Road crossings and the pavement cells at their ends: generated dressing keeps off them (built lazily). */
-export function crossingClear(work: LevelWork): Set<number> {
+export function crossingClear(work: ResolveGrid): Set<number> {
   if (work.crossingClearCache) return work.crossingClearCache;
   const out = new Set<number>();
   for (const r of work.roads)
@@ -158,7 +158,7 @@ export function crossingClear(work: LevelWork): Set<number> {
 }
 
 function nearestFree(
-  work: LevelWork,
+  work: ResolveGrid,
   type: FeatureType,
   at: Vec2,
   size: readonly [number, number],
@@ -176,7 +176,7 @@ function nearestFree(
   return null;
 }
 
-export function stepExplicitFeatures(work: LevelWork): void {
+export function stepExplicitFeatures(work: ResolveGrid): void {
   work.level.features.forEach((f, k) => {
     const info = featureInfo(f.type);
     const rot = f.rot ?? 0;
@@ -199,7 +199,7 @@ export function stepExplicitFeatures(work: LevelWork): void {
     // one cell (same side first, then the other sides), instead of failing
     if (
       info.wallMounted &&
-      work.gen.wallMountSnap &&
+      work.profile.wallMountSnap &&
       work.featureProblem(f.type, f.at, size, wall) !== null
     ) {
       let snapped: { at: Vec2; wall: Side } | null = null;
@@ -272,7 +272,7 @@ export function stepExplicitFeatures(work: LevelWork): void {
 }
 
 /** Commits a generator's placements as features "<opId>#<n>", counted toward the level's generated-feature cap. */
-export function commitGenerated(work: LevelWork, opId: string, list: GeneratedPlacement[]): void {
+export function commitGenerated(work: ResolveGrid, opId: string, list: GeneratedPlacement[]): void {
   list.forEach((p, n) => {
     const info = featureInfo(p.type);
     const anchor = work.idx(p.at[0], p.at[1]);
@@ -285,19 +285,22 @@ export function commitGenerated(work: LevelWork, opId: string, list: GeneratedPl
       rot: p.rot,
       rotFine: p.rotFine,
       // generator 2: a generated piece may stand above (or sink below) the floor, e.g. a second course of rock
-      baseHeight: work.featureBase(anchor, work.gen.featureLift ? ((p as { lift?: number }).lift ?? 0) : 0),
+      baseHeight: work.featureBase(
+        anchor,
+        work.profile.featureLift ? ((p as { lift?: number }).lift ?? 0) : 0,
+      ),
       theme: work.themes[anchor >= 0 ? (work.theme[anchor] as number) : 0] ?? work.levelTheme,
       blocking: info.blocking,
     };
     if (p.wall !== undefined) rf.wall = p.wall;
     if (p.variant !== undefined) rf.variant = p.variant;
     // generator 3: a sub-cell shift (each axis within half a tile)
-    if (p.offset !== undefined && work.gen.subCellOffsets)
+    if (p.offset !== undefined && work.profile.subCellOffsets)
       rf.offset = [Math.max(-0.5, Math.min(0.5, p.offset[0])), Math.max(-0.5, Math.min(0.5, p.offset[1]))];
     // generator 3: a furnishing set against a wall stands clear of it (a preset's bed, coffin or brazier is a little
     // wider than its cell and would sink into the wall, verify_prop_in_wall): shifted 0.45 tile off each wall it touches
     if (
-      work.gen.furnitureOffWalls &&
+      work.profile.furnitureOffWalls &&
       rf.offset === undefined &&
       !info.wallMounted &&
       !info.organic &&
