@@ -6,6 +6,8 @@
 import type { Placement, PlacementRole, RoleName } from "../../contracts/compiler";
 import type { Side, ThemeId } from "../../contracts/plan";
 import type { ResolvedVariant } from "../../palette/resolve";
+import { OPPOSITE, SIDE_STEP } from "../../gen/gridGeometry";
+import { sideOrient } from "../../resolve/levelGrid";
 import type { WallFace } from "../../resolve/wallFaces";
 import { rotateXZ } from "../geometry";
 import type { RealizeLevel } from "./level";
@@ -97,18 +99,55 @@ export function faceEdgeCtx(f: WallFace): EdgeCtx {
 /** A piece's length in edges, and the filter of pieces of one length (palette/filters.ts owns them). */
 export { lengthOf, lenFilter } from "../../palette/filters";
 
-/** Places one half-cell edge piece covering `len` edges starting at the run's first edge ctx. */
+/**
+ * Where a half-cell edge piece stands: the edge's orientation, the cell that hosts the piece (it stands in that cell's
+ * half next to the edge) and the side of the host cell the edge is on. A wall face's `EdgeCtx` is one; a building's
+ * face cell gives one too (compile/realize/structures/pieces.ts `faceHost`).
+ */
+export type EdgeHost = Pick<EdgeCtx, "orient" | "hostX" | "hostY" | "planSide">;
+
+/** Where a piece centred over edges stands: the first vertex of the edge line, its orientation and the floor under it. */
+export type EdgeLine = Pick<EdgeCtx, "orient" | "x" | "y" | "base">;
+
+/**
+ * The host of a piece standing outside cell (x, y) on its `side`: the neighbour across that edge holds it, in its half
+ * next to the edge (a kerb on the verge beside a path cell, a building's wall outside its footprint).
+ */
+export function outsideHost(x: number, y: number, side: Side): EdgeHost {
+  const [dx, dy] = SIDE_STEP[side];
+  return { orient: sideOrient(side), hostX: x + dx, hostY: y + dy, planSide: OPPOSITE[side] };
+}
+
+/** The line of the edge on `side` of cell (x, y) as a centred piece sees it, the floor under it at `base`. */
+export function sideLine(x: number, y: number, side: Side, base: number): EdgeLine {
+  return {
+    orient: sideOrient(side),
+    x: side === "E" ? x + 1 : x,
+    y: side === "S" ? y + 1 : y,
+    base,
+  };
+}
+
+/** How many pieces of an edge piece stand where, and what they belong to. */
+export interface EdgePieceAt {
+  /** Bottom of the first piece; `count` pieces stack up from it, one unit height apart. */
+  yBase: number;
+  count: number;
+  source: Placement["source"];
+  /** A door leaf: the role that supplied it, whose facing names the handle end the leaf is turned by. */
+  door?: RoleName;
+  /** Paste layer of the pieces (Placement.layer: a building's "storey:<n>" or "roof"); absent = the site. */
+  layer?: string;
+}
+
+/** Places a half-cell edge piece covering `len` edges from the run's first edge, stacked `at.count` high. */
 export function placeEdgePiece(
   lv: RealizeLevel,
   v: ResolvedVariant,
   role: PlacementRole,
-  roleName: RoleName,
-  first: EdgeCtx,
+  first: EdgeHost,
   len: number,
-  yBase: number,
-  count: number,
-  source: Placement["source"],
-  isDoor: boolean,
+  at: EdgePieceAt,
 ): void {
   const { emit } = lv;
   const { frame, facingOf } = lv.ctx;
@@ -120,8 +159,8 @@ export function placeEdgePiece(
   const m = frame.rectMin(hx, hy, 1, 1);
   const axisFix = v.geom.lengthAxis === "z" ? 6 : 0;
   let steps = (ep.rotSteps[0] + axisFix) % 24;
-  if (isDoor) {
-    const f = facingOf(v, "opening", roleName);
+  if (at.door !== undefined) {
+    const f = facingOf(v, "opening", at.door);
     if (f.handleEnd) {
       const pref = frame.o.doorHandlePreference;
       const want: Side =
@@ -131,17 +170,26 @@ export function placeEdgePiece(
     }
   }
   const unit = v.unitHeight;
-  for (let k = 0; k < count; k++) {
-    emit(v, role, m.x + ep.offset.x, yBase + k * unit, m.z + ep.offset.z, steps * 15 + v.rot, source);
+  for (let k = 0; k < at.count; k++) {
+    emit(
+      v,
+      role,
+      m.x + ep.offset.x,
+      at.yBase + k * unit,
+      m.z + ep.offset.z,
+      steps * 15 + v.rot,
+      at.source,
+      at.layer,
+    );
   }
 }
 
-/** Places one piece centred over `len` edges (free-standing low walls, fences, railings). */
+/** Places one piece centred over `len` edges (free-standing low walls, fences, railings, gates). */
 export function placeEdgeCenterPiece(
   lv: RealizeLevel,
   v: ResolvedVariant,
   role: PlacementRole,
-  first: EdgeCtx,
+  first: EdgeLine,
   len: number,
   source: Placement["source"],
 ): void {

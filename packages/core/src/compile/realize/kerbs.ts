@@ -2,8 +2,7 @@
  * Realize, kerb pass: kerb pieces along kerbed paths, a half-cell piece on the verge side of the edge.
  * Reads: the level's kerbs and cells. Writes: ledge placements; one info diagnostic when the palette has no kerb.
  */
-import { lenFilter, placeEdgePiece, type EdgeCtx } from "./edges";
-import { OPPOSITE } from "../../gen/gridGeometry";
+import { lenFilter, outsideHost, placeEdgePiece } from "./edges";
 import { KERB_DEFAULT_ROLE, kerbRole } from "../../palette/roles";
 import type { RealizeLevel } from "./level";
 
@@ -29,38 +28,11 @@ export function layKerbs(lv: RealizeLevel): void {
       }
       continue;
     }
-    const s = kb.side;
-    const ex = s === "E" ? kb.at[0] + 1 : kb.at[0];
-    const ey = s === "S" ? kb.at[1] + 1 : kb.at[1];
-    const orient: "h" | "v" = s === "N" || s === "S" ? "h" : "v";
-    const ctx: EdgeCtx = {
-      orient,
-      x: ex,
-      y: ey,
-      // the kerb stands on the verge, beside the path, never on the path cell itself
-      hostFirst: s === "N" || s === "W",
-      hostX: s === "E" ? kb.at[0] + 1 : s === "W" ? kb.at[0] - 1 : kb.at[0],
-      hostY: s === "S" ? kb.at[1] + 1 : s === "N" ? kb.at[1] - 1 : kb.at[1],
-      otherX: kb.at[0],
-      otherY: kb.at[1],
-      otherOpen: true,
-      planSide: OPPOSITE[s],
-      base: topOf(c),
-      top: topOf(c) + v.unitHeight,
-      theme: c.theme,
-      hostOpen: true,
-    };
-    placeEdgePiece(
-      lv,
-      v,
-      "ledge",
-      res.role,
-      ctx,
-      1,
-      topOf(c),
-      1,
-      { cell: [kb.at[0], kb.at[1]], elementId: "kerb" },
-      false,
-    );
+    // the kerb stands on the verge, beside the path, never on the path cell itself
+    placeEdgePiece(lv, v, "ledge", outsideHost(kb.at[0], kb.at[1], kb.side), 1, {
+      yBase: topOf(c),
+      count: 1,
+      source: { cell: [kb.at[0], kb.at[1]], elementId: "kerb" },
+    });
   }
 }

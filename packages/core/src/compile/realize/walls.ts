@@ -220,12 +220,12 @@ function tileWallRun(
     }
     let done = false;
     for (const n of [...cands, 1]) {
-      let r = lookup(L.id, theme, [roleName], lenFilter(n), n !== 1);
+      const r = lookup(L.id, theme, [roleName], lenFilter(n), n !== 1);
       let v = r ? pick(r.variants, pickKey(edges[i])) : undefined;
       const c = edges[i];
       if (!v || !c) continue;
       const broken = style === THEME_WALL_STYLE && n >= 2 ? brokenTop(pass, orient, c, n, theme) : null;
-      if (broken) ({ r, v } = broken);
+      if (broken) v = broken;
       if (edgeCenter)
         placeEdgeCenterPiece(lv, v, "wall", c, n, { cell: [c.hostX, c.hostY], elementId: roleName });
       else {
@@ -236,7 +236,7 @@ function tileWallRun(
           ? Math.max(c.base - 0.5, Math.min(c.base, c.top - count * v.unitHeight))
           : c.base;
         const source = { cell: [c.hostX, c.hostY] as [number, number], elementId: roleName };
-        placeEdgePiece(lv, v, "wall", r?.role ?? roleName, c, n, yBase, count, source, false);
+        placeEdgePiece(lv, v, "wall", c, n, { yBase, count, source });
         for (let k = 0; k < n; k++) {
           const ck = edges[i + k];
           if (ck) strips.register(orient, ck.x, ck.y, stripOf(ck, style));
@@ -260,7 +260,7 @@ function brokenTop(
   c: EdgeCtx,
   n: number,
   theme: ThemeId,
-): { r: RoleResolution; v: ResolvedVariant } | null {
+): ResolvedVariant | null {
   const { lv, rough } = pass;
   const { L, V } = lv;
   const { seed, lookup, pick } = lv.ctx;
@@ -270,7 +270,7 @@ function brokenTop(
   if (!roughHost || h32Utf16(`${seed}:${L.id}:brokentop:${orient}:${c.x}:${c.y}`) % 5 !== 0) return null;
   const rr = lookup(L.id, theme, [RUINED_WALL_ROLE], lenFilter(n), true);
   const rv = rr ? pick(rr.variants, `${L.id}:${orient}broken:${c.x}:${c.y}`) : undefined;
-  return rr && rv && (rr.def.mount ?? "half-cell") === "half-cell" ? { r: rr, v: rv } : null;
+  return rr && rv && (rr.def.mount ?? "half-cell") === "half-cell" ? rv : null;
 }
 
 /** The strip a wall piece leaves on its edge, for the corner posts. */

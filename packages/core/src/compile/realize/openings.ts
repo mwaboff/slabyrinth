@@ -58,18 +58,12 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
       const family = roleFamily(r.role);
       const isDoor = family === roleFamily(roleName);
       const source = { cell: [c.hostX, c.hostY] as [number, number], elementId: op.id };
-      placeEdgePiece(
-        lv,
-        v,
-        family === roleFamily(THEME_WALL_ROLE) ? "wall" : "opening",
-        r.role,
-        c,
-        n,
-        c.base,
-        1,
+      placeEdgePiece(lv, v, family === roleFamily(THEME_WALL_ROLE) ? "wall" : "opening", c, n, {
+        yBase: c.base,
+        count: 1,
         source,
-        isDoor,
-      );
+        ...(isDoor ? { door: r.role } : {}),
+      });
       if (isSecret(op.kind) && i === 0) noteSecretDoorPlug(lv, op, c, v, r.role);
       // wall pieces above a door shorter than the wall
       const leafTop = c.base + v.unitHeight;
@@ -175,7 +169,7 @@ function closeAboveLeaf(
     const wv = wr ? pick(wr.variants, `${L.id}:lintel:${ck.x}:${ck.y}`) : undefined;
     if (wv && (wr?.def.mount ?? "half-cell") === "half-cell") {
       const cnt = Math.ceil((wallTop - leafTop) / wv.unitHeight - EPS);
-      placeEdgePiece(lv, wv, "wall", wallRole(op.wallStyle), ck, 1, leafTop, cnt, source, false);
+      placeEdgePiece(lv, wv, "wall", ck, 1, { yBase: leafTop, count: cnt, source });
     }
   } else if (takesLintel) {
     // Kit walls are visually taller than their doors (in-game 2026-11-18): close the notch with the kit's lintel piece
@@ -188,7 +182,6 @@ function closeAboveLeaf(
       true,
     );
     const lintel = lr ? pick(lr.variants, `${L.id}:lintel:${ck.x}:${ck.y}`) : undefined;
-    if (lintel)
-      placeEdgePiece(lv, lintel, "opening", lr?.role ?? THEME_LINTEL_ROLE, ck, 1, leafTop, 1, source, false);
+    if (lintel) placeEdgePiece(lv, lintel, "opening", ck, 1, { yBase: leafTop, count: 1, source });
   }
 }
