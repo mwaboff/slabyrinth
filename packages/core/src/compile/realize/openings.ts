@@ -9,11 +9,8 @@ import type { ResolvedVariant } from "../../palette/resolve";
 import type { WallFace } from "../../resolve/wallFaces";
 import { faceEdgeCtx, lenFilter, lengthOf, placeEdgePiece, type CornerStrips, type EdgeCtx } from "./edges";
 import { OPPOSITE } from "../../gen/gridGeometry";
-import { isSecret } from "../../gen/openingKinds";
+import { isFullHeightOpeningRole, isSecret } from "../../gen/openingKinds";
 import { EPS, type RealizeLevel } from "./level";
-
-/** Opening roles whose asset is a full-height wall piece (no lintel above them). */
-const NO_LINTEL = new Set(["opening.archway", "opening.window", "opening.arrow_slit"]);
 
 // openings
 export function layOpenings(lv: RealizeLevel, strips: CornerStrips): void {
@@ -76,7 +73,8 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
           base: ck.base,
           top: wallTop,
         });
-        closeAboveLeaf(lv, op, ck, leafTop, wallTop, isDoor && !NO_LINTEL.has(r.role));
+        // a whole-wall piece (an arch, a window) has nothing above it (gen/openingKinds.ts `fullHeight`)
+        closeAboveLeaf(lv, op, ck, leafTop, wallTop, isDoor && !isFullHeightOpeningRole(r.role));
       }
       placed = n;
       break;

@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { type FeatureType, OPENING_KINDS, type OpeningKind } from "../../../src/contracts/plan";
 import { FEATURE_INFO, LIGHT_FEATURES, isLandmark } from "../../../src/gen/catalog";
-import { OPENING_KIND_INFO } from "../../../src/gen/openingKinds";
+import { OPENING_KIND_INFO, isFullHeightOpeningRole } from "../../../src/gen/openingKinds";
 import { ROOM_PURPOSE_INFO, type RoomPurpose } from "../../../src/gen/roomPurpose";
 import { NATURAL_MATERIALS } from "../../../src/review";
 
@@ -106,6 +106,12 @@ describe("opening-kind traits are table fields", () => {
     // window || arrow_slit, the display list's WALL_LIKE_OPENINGS
     expect(having("window")).toEqual(["arrow_slit", "window"]);
     expect(having("secret")).toEqual(["secret_door"]);
+    // the opening pass's NO_LINTEL role names
+    expect(having("fullHeight")).toEqual(["archway", "arrow_slit", "window"]);
+    expect(isFullHeightOpeningRole("opening.archway")).toBe(true);
+    expect(isFullHeightOpeningRole("opening.door")).toBe(false);
+    expect(isFullHeightOpeningRole("opening.default")).toBe(false);
+    expect(isFullHeightOpeningRole("wall.window")).toBe(false);
   });
 });
 
