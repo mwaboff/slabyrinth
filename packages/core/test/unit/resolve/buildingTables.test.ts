@@ -6,6 +6,14 @@
 import { describe, expect, it } from "vitest";
 import { ROOF_TYPES, type RoofType, type WallStyle } from "../../../src/contracts/plan";
 import { WALL_STYLE_INFO } from "../../../src/gen/wallStyles";
+import {
+  OPEN_STOREY_WALLS,
+  PART_FALLBACK_FLOORS,
+  PART_FALLBACK_KITS,
+  USE_DOOR_FAMILY,
+  designDoorFamily,
+  partWalls,
+} from "../../../src/resolve/building/parts";
 import { DESIGN_DETAIL_INFO, firstHungDetail } from "../../../src/resolve/designDetails";
 import { ROOF_TYPE_INFO } from "../../../src/resolve/roofTypes";
 import { STRUCTURE_STYLES } from "../../../src/resolve/structureStyles";
@@ -68,5 +76,48 @@ describe("wall-style traits are table fields", () => {
   it('only plank walls ruin as their own planks (the timber test `walls === "wood"`)', () => {
     const planks = (Object.keys(WALL_STYLE_INFO) as WallStyle[]).filter((s) => WALL_STYLE_INFO[s].planks);
     expect(planks).toEqual(["wood"]);
+  });
+});
+
+describe("what a building's parts are built of (resolve/building/parts.ts)", () => {
+  it("the frozen defaults keep the answers released builds asked for", () => {
+    // once eight literals in compile/structure.ts; released slabs depend on every row
+    expect(OPEN_STOREY_WALLS).toEqual({
+      seam: "stone",
+      lip: "stone",
+      chimney: "stone",
+      ruin: "stone",
+      porch: "wood",
+      doorLight: "wood",
+      terraceLamp: "brick",
+      signBand: "wall",
+      details: "wall",
+    });
+    expect(PART_FALLBACK_FLOORS).toEqual({ stone: "flagstone", tile: "stone_tile" });
+    expect(PART_FALLBACK_KITS).toEqual({ pitched: "slate", flat: "city", terrace: "durable" });
+    expect(partWalls(null, "porch")).toBe("wood");
+    expect(partWalls("brick", "porch")).toBe("brick");
+  });
+
+  it("a designed building's doors: its use's family, an era style's home door, else none", () => {
+    expect(USE_DOOR_FAMILY).toEqual({
+      shop: "shop",
+      diner: "shop",
+      office: "office",
+      civic: "office",
+      apartments: "home",
+      townhouse: "home",
+      warehouse: "works",
+      garage: "works",
+      workshop: "works",
+    });
+    const designed = (style: string, use: string): Parameters<typeof designDoorFamily>[0] =>
+      ({ style, design: { use } }) as unknown as Parameters<typeof designDoorFamily>[0];
+    expect(designDoorFamily(designed("modern_block", "garage"))).toBe("works");
+    expect(designDoorFamily(designed("modern_block", "bakery"))).toBe("home");
+    expect(designDoorFamily(designed("cottage", "bakery"))).toBeUndefined();
+    expect(
+      designDoorFamily({ style: "modern_block" } as Parameters<typeof designDoorFamily>[0]),
+    ).toBeUndefined();
   });
 });
