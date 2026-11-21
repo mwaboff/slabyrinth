@@ -4,6 +4,7 @@
  */
 import { lenFilter, placeEdgePiece, type EdgeCtx } from "./edges";
 import { OPPOSITE } from "../../gen/gridGeometry";
+import { KERB_DEFAULT_ROLE, kerbRole } from "../../palette/roles";
 import type { RealizeLevel } from "./level";
 
 // kerbs along kerbed paths: kerb.<material> / kerb.default, a half-cell piece on the path side of the edge
@@ -13,7 +14,7 @@ export function layKerbs(lv: RealizeLevel): void {
   let kerbNoted = false;
   for (const kb of L.kerbs ?? []) {
     const c = V.cell(kb.at[0], kb.at[1]);
-    const res = lookup(L.id, c.theme, [`kerb.${kb.material}`, "kerb.default"], lenFilter(1), true);
+    const res = lookup(L.id, c.theme, [kerbRole(kb.material), KERB_DEFAULT_ROLE], lenFilter(1), true);
     const v = res ? pick(res.variants, `${L.id}:kerb:${kb.at[0]}:${kb.at[1]}:${kb.side}`) : undefined;
     if (!v || !res) {
       if (!kerbNoted) {
@@ -21,9 +22,9 @@ export function layKerbs(lv: RealizeLevel): void {
         addDiag({
           severity: "info",
           code: "role_missing",
-          message: `No kerb piece (kerb.${kb.material}, kerb.default) in theme "${c.theme}"; paths are built without kerbs`,
+          message: `No kerb piece (${kerbRole(kb.material)}, ${KERB_DEFAULT_ROLE}) in theme "${c.theme}"; paths are built without kerbs`,
           levelId: L.id,
-          role: `kerb.${kb.material}`,
+          role: kerbRole(kb.material),
         });
       }
       continue;

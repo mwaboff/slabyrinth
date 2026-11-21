@@ -9,7 +9,7 @@
 import type { ThemeId } from "../../contracts/plan";
 import { EDGE } from "../../contracts/resolved";
 import type { ResolvedVariant, RoleResolution } from "../../palette/resolve";
-import { wallRole } from "../../palette/roles";
+import { RUINED_WALL_ROLE, THEME_POST_ROLE, postRole, wallRole } from "../../palette/roles";
 import { roughCells } from "../../resolve/wallTops";
 import { h32 } from "../geometry";
 import { isCarvedLevel } from "../shell";
@@ -268,7 +268,7 @@ function brokenTop(
   const host = V.index(c.hostX, c.hostY);
   const roughHost = host >= 0 && rough[host] === 1;
   if (!roughHost || h32(`${seed}:${L.id}:brokentop:${orient}:${c.x}:${c.y}`) % 5 !== 0) return null;
-  const rr = lookup(L.id, theme, ["wall.ruined"], lenFilter(n), true);
+  const rr = lookup(L.id, theme, [RUINED_WALL_ROLE], lenFilter(n), true);
   const rv = rr ? pick(rr.variants, `${L.id}:${orient}broken:${c.x}:${c.y}`) : undefined;
   return rr && rv && (rr.def.mount ?? "half-cell") === "half-cell" ? { r: rr, v: rv } : null;
 }
@@ -303,7 +303,7 @@ export function layCornerPosts(lv: RealizeLevel, strips: CornerStrips): void {
       const qy = q[0] as "N" | "S";
       const qx = q[1] as "W" | "E";
       const style = a.style;
-      const res = lookup(L.id, a.theme, [`wall_post.${style}`, "wall_post.wall"]);
+      const res = lookup(L.id, a.theme, [postRole(style), THEME_POST_ROLE]);
       const v = res ? pick(res.variants, `${L.id}:post:${k}:${q}`) : undefined;
       if (!v) continue;
       const px = qx === "W" ? vx - 0.5 : vx;

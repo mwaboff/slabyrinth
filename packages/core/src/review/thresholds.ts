@@ -4,6 +4,7 @@
  */
 import { MATERIALS } from "../contracts/plan";
 import { isNaturalGround } from "../resolve/materials";
+import { typesWith, type FeatureInfo } from "../gen/catalog";
 
 export const REVIEW = {
   /** Notes shown at most (the rest are dropped, lowest rank first). */
@@ -365,31 +366,12 @@ export const REVIEW = {
  */
 export const NATURAL_MATERIALS: ReadonlySet<string> = new Set(MATERIALS.filter(isNaturalGround));
 
-/** Feature types that are natural growth or rock (they should cluster, never stand in rows). */
-export const NATURAL_FEATURES: ReadonlySet<string> = new Set([
-  "tree",
-  "dead_tree",
-  "pine_tree",
-  "tree_large",
-  "bush",
-  "rock",
-  "boulder",
-  "stump",
-  "log",
-  "mushroom",
-  "giant_mushroom",
-  "flowers",
-  "tall_grass",
-  "reeds",
-  "stalagmite",
-  "crystal",
-  "rock_formation",
-  "standing_stone",
-  "cluster_tall",
-  "undergrowth",
-  "ground_cover",
-  "formation",
-]);
+/** The feature types with a trait of the feature table (gen/catalog.ts), as the review's checks ask them. */
+const featuresWith = (test: (f: FeatureInfo) => boolean): ReadonlySet<string> =>
+  new Set<string>(typesWith(test));
+
+/** Feature types that are natural growth or rock (they should cluster, never stand in rows): the `natural` trait. */
+export const NATURAL_FEATURES = featuresWith((f) => f.natural === true);
 
 /**
  * Rock families by asset name, for the cave tone check (review/caveMass.ts). Names are the catalog's; each family is
@@ -411,34 +393,14 @@ export const ROCK_FAMILIES: ReadonlyArray<readonly [RegExp, string]> = [
 /** Families that read as one tone (the first is the group's name). Anything else is its own tone. */
 export const ROCK_TONE_GROUPS: ReadonlyArray<ReadonlyArray<string>> = [["cavern"]];
 
-/** Features that can be a focal point. */
-export const FOCAL_FEATURES: ReadonlySet<string> = new Set([
-  "landmark",
-  "statue",
-  "statue_large",
-  "altar",
-  "fountain",
-  "well",
-  "monolith",
-  "tree_large",
-  "throne",
-  "standing_stone",
-  "tall_marker",
-  "magic_fire",
-  "fire_pit",
-  "campfire",
-  "giant_mushroom",
-  "cave_column",
-]);
+/** Features that can be a focal point: the `focusPiece` trait. */
+export const FOCAL_FEATURES = featuresWith((f) => f.focusPiece === true);
 
-/** Big landmark pieces: one primary group per map, the rest supporting. */
-export const PRIMARY_FEATURES: ReadonlySet<string> = new Set([
-  "landmark",
-  "statue_large",
-  "monolith",
-  "tree_large",
-  "giant_mushroom",
-]);
+/** Big landmark pieces: one primary group per map, the rest supporting: the primary `focal` pieces. */
+export const PRIMARY_FEATURES = featuresWith((f) => f.focal === "primary");
+
+/** Focal pieces that should have a light near them: the `wantsLight` trait. */
+export const LIT_FOCALS = featuresWith((f) => f.wantsLight === true);
 
 /** Build diagnostics summarised as one "pieces substituted" note. */
 export const SUBSTITUTION_CODES: ReadonlySet<string> = new Set([
@@ -448,64 +410,17 @@ export const SUBSTITUTION_CODES: ReadonlySet<string> = new Set([
   "verify_material_substituted",
 ]);
 
-/** Props whose repetition shows: vehicles, statues, landmark-class pieces, signs and seats. */
-export const REPEAT_WATCH: ReadonlySet<string> = new Set([
-  "vehicle",
-  "cart",
-  "wagon",
-  "statue",
-  "statue_large",
-  "landmark",
-  "monolith",
-  "tree_large",
-  "fountain",
-  "well",
-  "signage",
-  "tent",
-  "giant_mushroom",
-]);
+/** Props whose repetition shows (vehicles, statues, landmark-class pieces, signs): the `repeatShows` trait. */
+export const REPEAT_WATCH = featuresWith((f) => f.repeatShows === true);
 
-/** Themes whose places may be laid out in mirror symmetry (formal halls, palaces, temples). */
-export const FORMAL_THEMES: ReadonlySet<string> = new Set(["castle", "palace", "temple"]);
+/** Props that belong in the carriageway (parked along its edge), never on the pavement or a crossing: `road`. */
+export const ROAD_FEATURES = featuresWith((f) => f.road === true);
 
-/** Props that belong in the carriageway (parked along its edge), never on the pavement or a crossing. */
-export const ROAD_FEATURES: ReadonlySet<string> = new Set(["vehicle", "cart", "wagon"]);
+/** Growing things, what relieves a built place: the `growth` trait. */
+export const GROWTH_FEATURES = featuresWith((f) => f.growth === true);
 
-/** Growing things: what relieves a built place. */
-export const GROWTH_FEATURES: ReadonlySet<string> = new Set([
-  "tree",
-  "dead_tree",
-  "pine_tree",
-  "tree_large",
-  "bush",
-  "flowers",
-  "tall_grass",
-  "reeds",
-  "undergrowth",
-  "cluster_tall",
-  "vines",
-]);
+/** Small ground pieces (rows of them must be longer to count): the `groundSmall` trait. */
+export const SMALL_FEATURES = featuresWith((f) => f.groundSmall === true);
 
-/** Small ground pieces: on a dense lattice they line up by chance, so their rows must be longer to count. */
-export const SMALL_FEATURES: ReadonlySet<string> = new Set([
-  "ground_cover",
-  "flowers",
-  "mushroom",
-  "tall_grass",
-  "reeds",
-]);
-
-/** Pieces that make natural ground read as covered from above: trees, tall growth, rock formations. */
-export const COVER_FEATURES: ReadonlySet<string> = new Set([
-  "tree",
-  "dead_tree",
-  "pine_tree",
-  "tree_large",
-  "cluster_tall",
-  "giant_mushroom",
-  "rock_formation",
-  "formation",
-  "boulder",
-  "stalagmite",
-  "bush",
-]);
+/** Pieces that make natural ground read as covered from above: the `cover` trait. */
+export const COVER_FEATURES = featuresWith((f) => f.cover === true);

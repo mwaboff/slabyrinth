@@ -8,36 +8,16 @@
 import type { CompileDiagnostic, Placement, RoleName } from "../../contracts/compiler";
 import type { Side, ThemeId } from "../../contracts/plan";
 import { EDGE, type ResolvedFeature } from "../../contracts/resolved";
-import { isBandRock, isLandmark } from "../../gen/catalog";
+import { featureInfo, isBandRock, isLandmark } from "../../gen/catalog";
 import { stallPieceOf } from "../../gen/market";
 import { featureRoles } from "../../gen/surfaces";
 import { footprintFromGeom, type ResolvedVariant, type RoleResolution } from "../../palette/resolve";
+import { featureRole } from "../../palette/roles";
 import { h32, rotateDir, rotateXZ } from "../geometry";
 import { realizeStall } from "../stalls";
 import type { CliffTones } from "./cliffBand";
 import { OPPOSITE } from "../../gen/gridGeometry";
 import { EPS, type RealizeLevel } from "./level";
-
-/** Upright feature types whose assets are mixed along a run (see `FeaturePass.runPicks`). */
-const RUN_MIX = new Set([
-  "cluster_tall",
-  "formation",
-  "boulder",
-  "tree",
-  "pine_tree",
-  "dead_tree",
-  "stalagmite",
-  "edge_dressing",
-  "undergrowth",
-  "standing_stone",
-  "monolith",
-  "vehicle",
-]);
-
-/** Loose rock that follows the tone of a cliff beside it (generator 3). */
-const CLIFF_DRESSING = new Set(["formation", "rock_formation", "boulder", "rock"]);
-/** Natural standing pieces that must never be built from wall blocks (generator 3). */
-const NATURAL_STANDING = new Set(["cluster_tall", "formation", "landmark", "rock_formation", "tall_marker"]);
 
 /** What every feature of one layFeatures call shares. */
 interface FeaturePass {
@@ -168,7 +148,7 @@ function customAsset(lv: RealizeLevel, f: ResolvedFeature): FeatureAsset | null 
     unitHeight: g.size.y,
     facing: undefined,
   };
-  return { v, rule: "facing", role: `feature.${f.type}` };
+  return { v, rule: "facing", role: featureRole(f.type) };
 }
 
 /**
@@ -180,7 +160,7 @@ function paletteAsset(pass: FeaturePass, f: ResolvedFeature, theme: ThemeId): Fe
   const { lv } = pass;
   const { L } = lv;
   const { profile, lookup, pick } = lv.ctx;
-  const roleName = `feature.${f.type}`;
+  const roleName = featureRole(f.type);
   // generator 4: small things on a surface (clutter, goods) are one family table over two roles (gen/surfaces.ts): the
   // first role that has the asked family wins, else the first role there is (the variant note below applies)
   const roles = profile.sharedSmallThings ? featureRoles(f.type) : [roleName];
@@ -211,7 +191,8 @@ function paletteAsset(pass: FeaturePass, f: ResolvedFeature, theme: ThemeId): Fe
     placeStallTiles(lv, f, pool, v, res.role);
     return null;
   }
-  if (RUN_MIX.has(f.type)) v = mixAlongRun(pass, f, pool, v, res.role);
+  // upright pieces whose assets are mixed along a run (feature trait `runMix`; see `FeaturePass.runPicks`)
+  if (featureInfo(f.type).runMix === true) v = mixAlongRun(pass, f, pool, v, res.role);
   if (f.type === "vehicle" && !vehicleFits(lv, f, v)) return null;
   return { v, rule, role: res.role };
 }
@@ -247,7 +228,7 @@ function featurePool(
     }
   }
   // generator 3: the loose rock within 3 cells of a cliff follows the cliff's tone (untagged pieces are unknown: kept)
-  if (profile.cliffToneRule && CLIFF_DRESSING.has(f.type) && tones.near(f.at[0], f.at[1])) {
+  if (profile.cliffToneRule && featureInfo(f.type).cliffDressing === true && tones.near(f.at[0], f.at[1])) {
     const tone = tones.kinds(theme).tone;
     const tagged = pool.filter((u) => u.weight > 0 && u.tone !== undefined);
     if (tone !== undefined && tagged.length > 0) {
@@ -261,7 +242,7 @@ function featurePool(
   }
   // generator 3: a wall block (a tile, minCorner) is not a natural standing piece: a cave's stone columns are
   // stalagmites, never a row of Cave Wall stubs that read as a brick maze
-  if (profile.naturalStanding && NATURAL_STANDING.has(f.type)) {
+  if (profile.naturalStanding && featureInfo(f.type).naturalStanding === true) {
     const notTiles = pool.filter((u) => u.geom.originAt !== "minCorner");
     if (notTiles.length > 0) pool = notTiles;
   }
@@ -279,7 +260,7 @@ function featurePool(
         code: "variant_unknown",
         message: `Variant "${f.variant}" not in "${res.role}"; default used`,
         levelId: L.id,
-        role: `feature.${f.type}`,
+        role: featureRole(f.type),
         elementId: f.id,
       });
   }
@@ -455,7 +436,7 @@ function noteFootprint(lv: RealizeLevel, f: ResolvedFeature, v: ResolvedVariant,
       code: "footprint_mismatch",
       message: `"${v.name ?? v.uuid}" covers ${afp[0]}×${afp[1]} cells, feature is ${fp[0]}×${fp[1]}; centred on the feature`,
       levelId: lv.L.id,
-      role: `feature.${f.type}`,
+      role: featureRole(f.type),
     });
   }
 }
@@ -492,7 +473,7 @@ function noteShortLandmark(lv: RealizeLevel, f: ResolvedFeature, v: ResolvedVari
       code: "landmark_short",
       message: `"${v.name ?? v.uuid}" for ${f.type} ${f.id} is only ${Math.round(top * 10) / 10} tiles tall; a landmark should stand 3 or more (use an assembly or a taller asset)`,
       levelId: lv.L.id,
-      role: `feature.${f.type}`,
+      role: featureRole(f.type),
       elementId: f.id,
     });
 }
@@ -574,7 +555,7 @@ export function dressOutcrops(lv: RealizeLevel): void {
     const crown = [...oc.cells].sort(
       (a, b) => V.cell(b[0], b[1]).height - V.cell(a[0], a[1]).height || a[1] - b[1] || a[0] - b[0],
     )[0];
-    if (crown) placeDressing("feature.formation", crown[0], crown[1], "crown");
+    if (crown) placeDressing(featureRole("formation"), crown[0], crown[1], "crown");
     const foot = new Map<string, [number, number]>();
     for (const [x, y] of oc.cells)
       for (const [dx, dy] of [
@@ -592,7 +573,7 @@ export function dressOutcrops(lv: RealizeLevel): void {
       .forEach(([x, y], i) => {
         const r = h32(`${seed}:${oc.id}:${x}:${y}:foot`) % 3;
         if (r === 0)
-          placeDressing(i % 2 === 0 ? "feature.formation" : "feature.edge_dressing", x, y, `${x}:${y}`);
+          placeDressing(featureRole(i % 2 === 0 ? "formation" : "edge_dressing"), x, y, `${x}:${y}`);
       });
   }
 }

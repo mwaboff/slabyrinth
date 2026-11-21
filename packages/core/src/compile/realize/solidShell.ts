@@ -7,7 +7,7 @@
  * it returns (read by the wall, cap and rock wall passes); fill placements (layShellCap).
  */
 import type { ResolvedVariant, RoleResolution } from "../../palette/resolve";
-import { SOLID_CAP_ROLE } from "../../palette/roles";
+import { SOLID_CAP_ROLE, wallRole } from "../../palette/roles";
 import { wallTopRoles } from "../../palette/wallTop";
 import { h32 } from "../geometry";
 import { SHELL, isCarvedLevel, planShell, type Shell } from "../shell";
@@ -130,7 +130,7 @@ function layStrips(lv: RealizeLevel, shell: Shell): void {
   const { L, emit } = lv;
   const { frame, lookup, pick, palettes } = lv.ctx;
   for (const s of shell.strips) {
-    const wall = lookup(L.id, s.theme, [`wall.${s.style}`], undefined, true);
+    const wall = lookup(L.id, s.theme, [wallRole(s.style)], undefined, true);
     const sr = lookup(
       L.id,
       s.theme,

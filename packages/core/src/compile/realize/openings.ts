@@ -9,13 +9,21 @@ import type { ResolvedVariant } from "../../palette/resolve";
 import type { WallFace } from "../../resolve/wallFaces";
 import { faceEdgeCtx, lenFilter, lengthOf, placeEdgePiece, type CornerStrips, type EdgeCtx } from "./edges";
 import { OPPOSITE } from "../../gen/gridGeometry";
-import { isFullHeightOpeningRole, isSecret } from "../../gen/openingKinds";
+import { isFullHeightOpeningRole, isGap, isOpenWithoutPiece, isSecret } from "../../gen/openingKinds";
+import {
+  THEME_LINTEL_ROLE,
+  THEME_WALL_ROLE,
+  lintelRole,
+  openingRole,
+  roleFamily,
+  wallRole,
+} from "../../palette/roles";
 import { EPS, type RealizeLevel } from "./level";
 
 // openings
 export function layOpenings(lv: RealizeLevel, strips: CornerStrips): void {
   for (const op of lv.L.openings) {
-    if (op.kind === "open" || lv.claimed.openings.has(op.id)) continue;
+    if (isGap(op.kind) || lv.claimed.openings.has(op.id)) continue;
     layOpening(lv, strips, op);
   }
 }
@@ -27,7 +35,7 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
   const ctxs = openingEdges(lv, op);
   const first = ctxs[0];
   if (!first) return;
-  const roleName = `opening.${op.kind}`;
+  const roleName = openingRole(op.kind);
   const res = lookup(L.id, op.theme || first.theme, [roleName]);
   if (!res) return;
   const lengths = [
@@ -44,12 +52,14 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
       const pool = r ? r.variants.filter((v) => v.weight > 0) : [];
       const v = r ? (pool.length ? pick(pool, `${L.id}:opening:${op.id}:${i}`) : r.variants[0]) : undefined;
       if (!v || !r) continue;
-      const isDoor = r.role.startsWith("opening.");
+      // the role that supplied the piece: an opening's own, or (a kit without one) its wall style's
+      const family = roleFamily(r.role);
+      const isDoor = family === roleFamily(roleName);
       const source = { cell: [c.hostX, c.hostY] as [number, number], elementId: op.id };
       placeEdgePiece(
         lv,
         v,
-        r.role.startsWith("wall.") ? "wall" : "opening",
+        family === roleFamily(THEME_WALL_ROLE) ? "wall" : "opening",
         r.role,
         c,
         n,
@@ -80,8 +90,8 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
       break;
     }
     if (!placed) {
-      // An archway left as a plain gap is still a correct, passable opening: info, not a warning.
-      const isArch = op.kind === "archway";
+      // A passage with no leaf (an archway) left as a plain gap is still a correct, passable opening: info, not a warning.
+      const isArch = isOpenWithoutPiece(op.kind);
       addDiag({
         severity: isArch ? "info" : "warning",
         code: "role_missing",
@@ -159,11 +169,11 @@ function closeAboveLeaf(
   const { lookup, pick } = lv.ctx;
   const source = { cell: [ck.hostX, ck.hostY] as [number, number], elementId: op.id };
   if (wallTop > leafTop + 0.25 - EPS) {
-    const wr = lookup(L.id, ck.theme, [`wall.${op.wallStyle}`], lenFilter(1), true);
+    const wr = lookup(L.id, ck.theme, [wallRole(op.wallStyle)], lenFilter(1), true);
     const wv = wr ? pick(wr.variants, `${L.id}:lintel:${ck.x}:${ck.y}`) : undefined;
     if (wv && (wr?.def.mount ?? "half-cell") === "half-cell") {
       const cnt = Math.ceil((wallTop - leafTop) / wv.unitHeight - EPS);
-      placeEdgePiece(lv, wv, "wall", `wall.${op.wallStyle}`, ck, 1, leafTop, cnt, source, false);
+      placeEdgePiece(lv, wv, "wall", wallRole(op.wallStyle), ck, 1, leafTop, cnt, source, false);
     }
   } else if (takesLintel) {
     // Kit walls are visually taller than their doors (in-game 2026-11-18): close the notch with the kit's lintel piece
@@ -171,12 +181,12 @@ function closeAboveLeaf(
     const lr = lookup(
       L.id,
       op.theme || ck.theme,
-      [`lintel.${op.wallStyle}`, "lintel.wall"],
+      [lintelRole(op.wallStyle), THEME_LINTEL_ROLE],
       lenFilter(1),
       true,
     );
     const lintel = lr ? pick(lr.variants, `${L.id}:lintel:${ck.x}:${ck.y}`) : undefined;
     if (lintel)
-      placeEdgePiece(lv, lintel, "opening", lr?.role ?? "lintel.wall", ck, 1, leafTop, 1, source, false);
+      placeEdgePiece(lv, lintel, "opening", lr?.role ?? THEME_LINTEL_ROLE, ck, 1, leafTop, 1, source, false);
   }
 }

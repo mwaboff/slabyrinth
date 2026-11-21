@@ -11,6 +11,7 @@ import type { Side } from "../../contracts/plan";
 import { BUILD_CONSTANTS } from "../../contracts/plan";
 import { EDGE } from "../../contracts/resolved";
 import { SIDE_STEP } from "../../gen/gridGeometry";
+import { wallRole } from "../../palette/roles";
 import { sideOrient, type LevelGrid } from "../../resolve/levelGrid";
 import { edgeWallHeight } from "../../resolve/wallspan";
 import type { LevelWalls, VerifyCtx } from "./context";
@@ -116,7 +117,7 @@ function checkWallCoverage(
         const other = g.cell(x + dx, y + dy);
         const here = g.cell(x, y);
         // the theme realize builds the wall in (its mount decides how the wall is measured)
-        const res = ctx.resolveRole(face.theme, `wall.${style}`).resolution;
+        const res = ctx.resolveRole(face.theme, wallRole(style)).resolution;
         if (!res) continue; // role_missing already reported by realize
         const mount = res.def.mount ?? "half-cell";
         const base = face.base;

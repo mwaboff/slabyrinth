@@ -12,6 +12,13 @@ export interface MaterialInfo {
   /** Water: TaleSpire's board-wide water plane covers it, so the slab carries only the channel's bed. */
   water: boolean;
   /**
+   * A liquid (water, lava): built with a floor piece it is only a picture of ordinary floor, so a theme without its own
+   * tile for it is warned about (verify's material fidelity note).
+   */
+  liquid: boolean;
+  /** Deadly to stand in (lava): no ground to stand on, and the floor of a rift it fills (the review). */
+  hazard: boolean;
+  /**
    * Natural ground (generator 2): a path of it winds, a platform of it gets ragged contours, a level based on it gets a
    * natural board outline and a rock band on its cliffs.
    */
@@ -37,6 +44,8 @@ export interface MaterialInfo {
 
 const row = (flags: Partial<MaterialInfo> = {}): MaterialInfo => ({
   water: false,
+  liquid: false,
+  hazard: false,
   natural: false,
   cliffGround: false,
   deckSpan: "arch",
@@ -65,9 +74,9 @@ export const MATERIAL_INFO: Record<Material, MaterialInfo> = {
   ice: ground({ tone: "light" }),
   // a swamp deck reads as built, not as a natural land bridge
   swamp: ground({ deckSpan: "arch", tone: "mid" }),
-  water_shallow: row({ water: true }),
-  water_deep: row({ water: true }),
-  lava: row({ cliffGround: true, tone: "dark" }),
+  water_shallow: row({ water: true, liquid: true }),
+  water_deep: row({ water: true, liquid: true }),
+  lava: row({ liquid: true, hazard: true, cliffGround: true, tone: "dark" }),
   bridge_wood: row({ deckSpan: "plank", tone: "mid" }),
   asphalt: row({ tone: "dark" }),
   concrete: row({ tone: "mid" }),
@@ -87,6 +96,33 @@ export function materialInfo(m: Material): MaterialInfo {
 export function isWater(m: Material): boolean {
   return MATERIAL_INFO[m].water;
 }
+
+/** A liquid (water, lava): a floor piece of another material only pictures it. */
+export function isLiquid(m: Material): boolean {
+  return MATERIAL_INFO[m].liquid;
+}
+
+/** Deadly to stand in (lava). */
+export function isHazard(m: Material): boolean {
+  return MATERIAL_INFO[m].hazard;
+}
+
+/**
+ * Is the material name one of the table's, with the trait? For readers holding a level's material table as strings
+ * (an unknown name has no trait).
+ */
+export function materialHas(name: string, trait: (info: MaterialInfo) => boolean): boolean {
+  return Object.hasOwn(MATERIAL_INFO, name) && trait(MATERIAL_INFO[name as Material]);
+}
+
+/**
+ * Bare rock (compile/realize/floors.ts): what natural low ground under a cliff's rock band is laid as, and the floor a
+ * water bed falls back to last.
+ */
+export const BARE_ROCK: Material = "rock";
+
+/** The floor a water bed is laid with when the theme has no `bed.*` role, before the bank's own floor. */
+export const BED_FALLBACK_FLOOR: Material = "gravel";
 
 /** Natural ground (paths wind, platforms are ragged, the board gets a natural outline). */
 export function isNaturalGround(m: Material): boolean {

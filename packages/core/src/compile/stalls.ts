@@ -34,7 +34,7 @@ import {
   type SurfaceLoad,
 } from "../gen/surfaces";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "../palette/resolve";
-import { STALL_ROLES } from "../palette/roles";
+import { STALL_PIECE_ROLE, STALL_ROLES, featureRole } from "../palette/roles";
 import { ONE_CELL_TILE, stallParts, type RoleProbe } from "../palette/stallParts";
 import { subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
@@ -232,7 +232,7 @@ class Stall {
    */
   tableStall(): boolean {
     const { b, info, y0, frontRow } = this;
-    const piece = this.find(["feature.stall"], {
+    const piece = this.find([STALL_PIECE_ROLE], {
       key: `stall:${info.piece}`,
       test: (v) => v.variant === info.piece,
     });
@@ -259,11 +259,11 @@ class Stall {
       if (!v) continue;
       if (run.length === 1) {
         const [cx, cy] = this.cell(lx, 0);
-        this.tile(v, { x: cx, y: cy, w: 1, h: 1 }, y0, this.turn(b.front, v, "feature.stall"));
+        this.tile(v, { x: cx, y: cy, w: 1, h: 1 }, y0, this.turn(b.front, v, STALL_PIECE_ROLE));
         this.smallThings(onTable, cx, cy, y0 + v.geom.size.y, lx, 0);
       } else {
         const [px, py] = this.point(lx + 1, 0.5);
-        this.prop(v, px, py, y0, this.turn(b.front, v, "feature.stall"));
+        this.prop(v, px, py, y0, this.turn(b.front, v, STALL_PIECE_ROLE));
         for (const l of run) {
           const [cx, cy] = this.cell(l, 0);
           this.smallThings(onTable, cx, cy, y0 + v.geom.size.y, l, 0);
@@ -295,14 +295,14 @@ class Stall {
     const counterH = counterRes.variants[0]?.geom.size.y ?? 0.5;
     const trays =
       info.front === "tray"
-        ? this.find(["feature.stall"], {
+        ? this.find([STALL_PIECE_ROLE], {
             key: `tray:${info.piece}`,
             test: (v) => v.variant === info.piece && oneCell.test(v),
           })
         : null;
     const wide =
       info.front === "wide"
-        ? this.find(["feature.stall"], {
+        ? this.find([STALL_PIECE_ROLE], {
             key: `wide:${info.piece}`,
             test: (v) => v.variant === info.piece && v.geom.originAt !== "minCorner",
           })
@@ -315,7 +315,7 @@ class Stall {
       const v = this.choose(wide, "wide");
       if (v) {
         const [px, py] = this.point(pair + 1, 0.5);
-        this.prop(v, px, py, top0, this.turn(b.front, v, "feature.stall"));
+        this.prop(v, px, py, top0, this.turn(b.front, v, STALL_PIECE_ROLE));
       }
     }
     for (const lx of frontCells) {
@@ -323,7 +323,7 @@ class Stall {
       if (trays) {
         const v = this.choose(trays, `tray:${lx}`);
         const [cx, cy] = this.cell(lx, 0);
-        if (v) this.tile(v, { x: cx, y: cy, w: 1, h: 1 }, top0, this.turn(b.front, v, "feature.stall"));
+        if (v) this.tile(v, { x: cx, y: cy, w: 1, h: 1 }, top0, this.turn(b.front, v, STALL_PIECE_ROLE));
       } else plain.push([lx, 0, b.front]);
     }
     if (b.sides)
@@ -490,7 +490,7 @@ class Stall {
       }
     }
     if (b.seat) {
-      const sr = this.find([STALL_ROLES.seat, "feature.stool"]);
+      const sr = this.find([STALL_ROLES.seat, featureRole("stool")]);
       const v = sr ? this.choose(sr, "seat") : undefined;
       if (v) {
         const [lx, ly] = b.seat;

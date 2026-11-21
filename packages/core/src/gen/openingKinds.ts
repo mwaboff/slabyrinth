@@ -74,6 +74,15 @@ export function openingWidth(o: { readonly kind: OpeningKind; readonly width?: n
   return o.width ?? OPENING_KIND_INFO[o.kind].defaultWidth;
 }
 
+/**
+ * Is an opening of this kind still what the plan asks for when no piece is built in it (a passage with no leaf: an
+ * archway, a gap)? The compiler then leaves a plain gap and says so as info, not a warning.
+ */
+export function isOpenWithoutPiece(kind: OpeningKind): boolean {
+  const k = OPENING_KIND_INFO[kind];
+  return k.passage && !k.leaf;
+}
+
 /** Is an opening of this kind a gap (nothing stands in the edge; the wall there is cleared)? */
 export function isGap(kind: OpeningKind): boolean {
   return OPENING_KIND_INFO[kind].gap;

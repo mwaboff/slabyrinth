@@ -9,7 +9,8 @@ import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
 import { THEME_WALL_STYLE } from "../../gen/wallStyles";
-import { wallRole } from "../../palette/roles";
+import { floorRole, wallRole } from "../../palette/roles";
+import { materialHas } from "../../resolve/materials";
 import type { LevelGrid } from "../../resolve/levelGrid";
 import type { VerifyCtx } from "./context";
 
@@ -47,11 +48,12 @@ function noteFloorMaterials(ctx: VerifyCtx, L: ResolvedLevel, g: LevelGrid): voi
       if (m && g.inBounds(c[0], c[1])) note(g.cell(c[0], c[1]).theme, m, c[0], c[1]);
     });
   for (const e of mats.values()) {
-    if (e.material.startsWith("water")) continue;
-    const want = `floor.${e.material}`;
+    if (materialHas(e.material, (m) => m.water)) continue;
+    const want = floorRole(e.material);
     const res = ctx.resolveRole(e.theme, want).resolution;
     if (!res || res.role === want) continue;
-    const liquid = e.material === "lava" || e.material.startsWith("water");
+    // a liquid built with a floor piece only pictures ordinary floor (resolve/materials.ts `liquid`)
+    const liquid = materialHas(e.material, (m) => m.liquid);
     const asset = res.variants[0]?.name;
     ctx.report.add({
       severity: liquid ? "warning" : "info",

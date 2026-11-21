@@ -7,6 +7,7 @@ import type { CompileDiagnostic, PaletteCatalog, PlacementSet } from "../../cont
 import type { LevelId } from "../../contracts/plan";
 import type { ResolvedFeature, ResolvedLevel, ResolvedPlan } from "../../contracts/resolved";
 import { createPlanRoles, type PlanRoles } from "../../palette/planRoles";
+import { FLOOR_FAMILY, roleFamily } from "../../palette/roles";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
 import type { LevelGrid } from "../../resolve/levelGrid";
 import type { WallFaces } from "../../resolve/wallFaces";
@@ -111,7 +112,7 @@ export function createVerifyCtx(
     resolveRole: (theme, role, filter) => facts.roles.resolve(theme, role, filter),
     reportedMissing: new Set(missing.map((d) => `${d.levelId ?? ""}|${d.elementId ?? ""}|${d.role ?? ""}`)),
     floorRoleMissing: new Set(
-      missing.filter((d) => (d.role ?? "").startsWith("floor.")).map((d) => d.levelId ?? ""),
+      missing.filter((d) => roleFamily(d.role ?? "") === FLOOR_FAMILY).map((d) => d.levelId ?? ""),
     ),
     report: new VerifyReport(),
     featureOf: (levelId, elementId) => featureById.get(`${levelId}|${elementId ?? ""}`),

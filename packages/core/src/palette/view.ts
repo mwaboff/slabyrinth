@@ -78,7 +78,18 @@ export interface PaletteView {
    * what was observed of its asset, palette/tones.ts); undefined when none of its pieces has a known tone.
    */
   floorTone: (theme: ThemeId, material: Material) => Tone | undefined;
+  /**
+   * Is a place of this theme formal (halls, palaces, temples), so mirror symmetry is meant? A palette has no field
+   * for it yet (Palette.defaults): until it has, the answer is FORMAL_THEME_FALLBACK's, by theme id.
+   */
+  formalLayout: (theme: ThemeId) => boolean;
 }
+
+/**
+ * Code fallback for PaletteView.formalLayout: theme ids that mean a formal place. No bundled theme has one of these ids
+ * (a user palette may); the owner's call is a palette field (e.g. `defaults.layout: "formal"`) to replace it.
+ */
+const FORMAL_THEME_FALLBACK: ReadonlySet<ThemeId> = new Set(["castle", "palace", "temple"]);
 
 /** What a palette says about its theme (Palette.defaults, the optional fields read along `extends`). */
 export interface PaletteThemeDefaults {
@@ -205,6 +216,7 @@ export function createPaletteView(
     probe,
     themeDefaults,
     floorTone,
+    formalLayout: (theme) => FORMAL_THEME_FALLBACK.has(theme),
   };
 }
 

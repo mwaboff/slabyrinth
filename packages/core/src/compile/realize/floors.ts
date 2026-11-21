@@ -9,9 +9,16 @@ import type { Material } from "../../contracts/plan";
 import { CELL_FLAG } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "../../palette/resolve";
-import { FILL_ROLE } from "../../palette/roles";
+import {
+  BED_DEFAULT_ROLE,
+  FILL_ROLE,
+  bedRole,
+  floorRole,
+  glowFeatureRole,
+  glowRole,
+} from "../../palette/roles";
 import { CAUSED_FAMILY_NAMES, createFamilyPicker, type FloorFamily } from "../../resolve/floorFamilies";
-import { isCliffGround, isWater } from "../../resolve/materials";
+import { BARE_ROCK, BED_FALLBACK_FLOOR, isCliffGround, isWater } from "../../resolve/materials";
 import { axisPosition } from "../../resolve/road";
 import { h32 } from "../geometry";
 import type { RockBand } from "./cliffBand";
@@ -182,7 +189,7 @@ function layCrossing(lv: RealizeLevel, c: LevelCell, x: number, y: number, axis:
 /** Floor material as laid: natural low ground under a rock band is rock. */
 const laidMaterial = (pass: FloorPass, c: LevelCell, x: number, y: number): Material | null =>
   c.material !== null && isCliffGround(c.material) && pass.band.low.has(pass.lv.V.index(x, y))
-    ? "rock"
+    ? BARE_ROCK
     : c.material;
 /** Cells one floor piece may cover share this key. */
 const tileKey = (pass: FloorPass, c: LevelCell, x: number, y: number): string =>
@@ -198,7 +205,7 @@ function layFloorTile(pass: FloorPass, c: LevelCell, lx: number, ly: number): bo
   const { seed, profile, frame, lookup, pickPatch, familiesOf } = lv.ctx;
   const x = L.bounds.x + lx;
   const y = L.bounds.y + ly;
-  const role = `floor.${laidMaterial(pass, c, x, y) ?? ""}`;
+  const role = floorRole(laidMaterial(pass, c, x, y) ?? "");
   const res = lookup(L.id, c.theme, [role]);
   if (!res) return false;
   // families on natural ground only: built floors (flagstone, planks) keep their regular laying
@@ -361,7 +368,7 @@ export function layWaterBeds(lv: RealizeLevel, waterCells: WaterCells): void {
   for (const [x, y] of waterCells) {
     const c = V.cell(x, y);
     const one: VariantFilter = { key: "1x1", test: (q) => q.footprint[0] === 1 && q.footprint[1] === 1 };
-    let res = lookup(L.id, c.theme, [`bed.${c.material ?? ""}`, "bed.default"], one, true);
+    let res = lookup(L.id, c.theme, [bedRole(c.material ?? ""), BED_DEFAULT_ROLE], one, true);
     if (!res) {
       let bank: Material | null = null;
       for (const [nx, ny] of [
@@ -373,15 +380,21 @@ export function layWaterBeds(lv: RealizeLevel, waterCells: WaterCells): void {
         const n = V.cell(nx, ny);
         if (n.floor && n.material !== null && !isWater(n.material)) bank = bank ?? n.material;
       }
-      res = lookup(L.id, c.theme, ["floor.gravel", `floor.${bank ?? "rock"}`, FILL_ROLE], one, true);
+      res = lookup(
+        L.id,
+        c.theme,
+        [floorRole(BED_FALLBACK_FLOOR), floorRole(bank ?? BARE_ROCK), FILL_ROLE],
+        one,
+        true,
+      );
       if (!bedNoted.has(`${c.theme}|${c.material}`)) {
         bedNoted.add(`${c.theme}|${c.material}`);
         addDiag({
           severity: "warning",
           code: "asset_substituted",
-          message: `No bed piece for ${c.material} in theme "${c.theme}" (bed.${c.material}, bed.default): the channel is floored with ${res?.role ?? "nothing"}`,
+          message: `No bed piece for ${c.material} in theme "${c.theme}" (${bedRole(`${c.material}`)}, ${BED_DEFAULT_ROLE}): the channel is floored with ${res?.role ?? "nothing"}`,
           levelId: L.id,
-          role: `bed.${c.material}`,
+          role: bedRole(`${c.material}`),
         });
       }
     }
@@ -416,7 +429,7 @@ export function layGroundUnderDecks(lv: RealizeLevel): GroundUnderDecks {
       const mat = b.underMaterial[j] ?? null;
       if (mat === null || uq >= b.deck) return;
       const c = V.cell(bx, by);
-      const role = `floor.${mat}`;
+      const role = floorRole(mat);
       // the default family (untagged variants): patch families are for open floors
       const res = lookup(L.id, c.theme, [role], {
         key: "1x1plain",
@@ -446,13 +459,7 @@ export function layLiquidGlow(lv: RealizeLevel): void {
       if (((x % 3) + 3) % 3 !== 1 || ((y % 3) + 3) % 3 !== 1) continue;
       const c = V.cell(x, y);
       if (!c.floor || c.material === null) continue;
-      const res = lookup(
-        L.id,
-        c.theme,
-        [`glow.${c.material}`, `feature.${c.material}_glow`],
-        undefined,
-        true,
-      );
+      const res = lookup(L.id, c.theme, [glowRole(c.material), glowFeatureRole(c.material)], undefined, true);
       const v = res ? pick(res.variants, `${L.id}:glow:${x}:${y}`) : undefined;
       if (!v) continue;
       const ctr = frame.point(x + 0.5, y + 0.5);

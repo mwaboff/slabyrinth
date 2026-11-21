@@ -7,6 +7,7 @@ import type { Box3, PlacedAsset, Placement, PlacementRole, PlacementSet } from "
 import type { LevelId } from "../../contracts/plan";
 import { CELL, CELL_FLAG, type ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
+import { MARKER_ROLE } from "../../palette/roles";
 import type { BuildFacts } from "../buildFacts";
 import { finiteBox, growBox } from "../geometry";
 import type { BundleSubstitution, RealizeCtx } from "./context";
@@ -111,7 +112,7 @@ export function finishRealize(ctx: RealizeCtx, out: RealizeOutput): RealizedSet 
   const { resolved, palettes, defaultTheme, lookup, addDiag, diag, subs, placed, facts } = ctx;
   const { levels: outLevels, levelInfo, allBox } = out;
   // alignment marker asset
-  const mres = lookup(resolved.levels[0]?.id ?? "", defaultTheme, ["marker.alignment"], undefined, true);
+  const mres = lookup(resolved.levels[0]?.id ?? "", defaultTheme, [MARKER_ROLE], undefined, true);
   const mv = mres?.variants[0];
 
   const byRole = Object.fromEntries(ROLE_ORDER.map((r) => [r, 0])) as Record<PlacementRole, number>;

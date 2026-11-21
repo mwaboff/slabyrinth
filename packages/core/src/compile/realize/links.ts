@@ -9,6 +9,16 @@ import type { Side, ThemeId } from "../../contracts/plan";
 import { EDGE, type ResolvedPlan } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { SIDES } from "../../gen/gridGeometry";
+import {
+  NATURAL_STAIRS_ROLE,
+  STAIRS_ROLE,
+  STEP_DEFAULT_ROLE,
+  isStairsRole,
+  linkRole,
+  stairsRole,
+  stepRole,
+} from "../../palette/roles";
+import { linkKindInfo } from "../../plan/links";
 import type { EdgeOrient } from "../../resolve/levelGrid";
 import { rotateXZ } from "../geometry";
 import { stackFill } from "./fill";
@@ -36,19 +46,19 @@ export function layStairEdges(lv: RealizeLevel): void {
       rise >= 0.75 - EPS && rise <= 1.25 + EPS
         ? // natural ground may have its own stair piece (earth or rock steps) before the built one
           cl.material && isCliffGround(cl.material)
-          ? [`link.stairs.${cl.material}`, "link.stairs.natural", "link.stairs"]
-          : ["link.stairs"]
+          ? [stairsRole(cl.material), NATURAL_STAIRS_ROLE, STAIRS_ROLE]
+          : [STAIRS_ROLE]
         : cl.material
           ? isCliffGround(cl.material)
-            ? [`step.${cl.material}`]
-            : [`step.${cl.material}`, "step.default"]
-          : ["step.default"];
+            ? [stepRole(cl.material)]
+            : [stepRole(cl.material), STEP_DEFAULT_ROLE]
+          : [STEP_DEFAULT_ROLE];
     const res = lookup(L.id, cl.theme, roles, undefined, true);
     const v = res ? pick(res.variants, `${L.id}:step:${lo.x}:${lo.y}`) : undefined;
     if (!v || !res) return;
     // a step piece must fit under the step it climbs: one taller than the rise would stand as a block on the lower
     // floor (the riser is built anyway, from the cell's own floor or fill)
-    if (!res.role.startsWith("link.stairs") && v.geom.size.y > rise + 0.05) return;
+    if (!isStairsRole(res.role) && v.geom.size.y > rise + 0.05) return;
     const f = facingOf(v, "link", res.role);
     const steps = f.ascendsToward ? frame.stepsToFace(f.ascendsToward, frame.worldSide(dir)) : 0;
     const deg = steps * 15 + v.rot;
@@ -71,14 +81,15 @@ export function layLinks(lv: RealizeLevel): void {
   const { L, V } = lv;
   const { resolved, frame, lookup, pick, facingOf } = lv.ctx;
   for (const lk of resolved.links) {
-    if (lk.kind === "trapdoor") {
+    if (linkKindInfo(lk.kind).hatch) {
       // the hatch lies on the UPPER level's floor (the resolver keeps that floor for trapdoors)
       if (lk.toLevel === L.id) placeHatch(lv, lk);
       continue;
     }
     if (lk.fromLevel !== L.id) continue;
-    if (lk.kind === "pit_drop") continue;
-    const roleName = `link.${lk.kind}`;
+    // a pit drop builds nothing: it only lands below
+    if (linkKindInfo(lk.kind).arrival === "none") continue;
+    const roleName = linkRole(lk.kind);
     const firstCell = lk.lowerCells[0];
     if (!firstCell) continue;
     const theme = lk.theme || V.cell(firstCell[0], firstCell[1]).theme;
@@ -137,7 +148,7 @@ function layFlight(lv: RealizeLevel, lk: Link, v: ResolvedVariant, theme: ThemeI
 function layVerticalLink(lv: RealizeLevel, lk: Link, v: ResolvedVariant, role: string, deg: number): void {
   const { L, V, elev, topOf, emit } = lv;
   const { frame, facts, addDiag } = lv.ctx;
-  const roleName = `link.${lk.kind}`;
+  const roleName = linkRole(lk.kind);
   const xs = lk.lowerCells.map((c) => c[0]);
   const ys = lk.lowerCells.map((c) => c[1]);
   const rx = Math.min(...xs);
@@ -185,7 +196,7 @@ function placeHatch(lv: RealizeLevel, lk: ResolvedPlan["links"][number]): void {
   const { frame, lookup, pick } = lv.ctx;
   const cell = lk.upperCells[0] ?? lk.arrival;
   const c = V.cell(cell[0], cell[1]);
-  const res = lookup(L.id, lk.theme || c.theme, ["link.trapdoor"]);
+  const res = lookup(L.id, lk.theme || c.theme, [linkRole(lk.kind)]);
   const pool = res ? res.variants.filter((u) => u.weight > 0) : [];
   const v = res ? pick(pool.length ? pool : res.variants, `${L.id}:hatch:${lk.id}`) : undefined;
   if (!v) return;

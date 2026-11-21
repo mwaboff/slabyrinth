@@ -4,7 +4,14 @@
  * moving a trait cannot quietly change which types carry it.
  */
 import { describe, expect, it } from "vitest";
-import { type FeatureType, OPENING_KINDS, type OpeningKind } from "../../../src/contracts/plan";
+import {
+  type FeatureType,
+  MATERIALS,
+  type Material,
+  OPENING_KINDS,
+  type OpeningKind,
+} from "../../../src/contracts/plan";
+import { MATERIAL_INFO } from "../../../src/resolve/materials";
 import { FEATURE_INFO, LIGHT_FEATURES, isLandmark } from "../../../src/gen/catalog";
 import { OPENING_KIND_INFO, isFullHeightOpeningRole } from "../../../src/gen/openingKinds";
 import { CLUSTERED_TYPES } from "../../../src/gen/place";
@@ -26,6 +33,53 @@ describe("feature traits are table fields", () => {
       if (f.wallHugger === true || f.seat === true) expect(f.wallMounted, t).toBe(false);
       if (f.light === true && f.focal !== undefined) expect(f.groundCause, t).toBe("litter");
     }
+  });
+
+  it("the realize traits released generators read keep their rows (runMix, cliffDressing, naturalStanding)", () => {
+    const withTrait = (k: "runMix" | "cliffDressing" | "naturalStanding"): FeatureType[] =>
+      types.filter((t) => FEATURE_INFO[t][k] === true).sort();
+    expect(withTrait("runMix")).toEqual(
+      [
+        "cluster_tall",
+        "formation",
+        "boulder",
+        "tree",
+        "pine_tree",
+        "dead_tree",
+        "stalagmite",
+        "edge_dressing",
+        "undergrowth",
+        "standing_stone",
+        "monolith",
+        "vehicle",
+      ].sort(),
+    );
+    expect(withTrait("cliffDressing")).toEqual(["boulder", "formation", "rock", "rock_formation"]);
+    expect(withTrait("naturalStanding")).toEqual([
+      "cluster_tall",
+      "formation",
+      "landmark",
+      "rock_formation",
+      "tall_marker",
+    ]);
+  });
+
+  it("the review's feature traits agree with each other", () => {
+    for (const t of types) {
+      const f = FEATURE_INFO[t];
+      // a focal piece that wants a light can be a focal point; small ground pieces and cover are natural
+      if (f.wantsLight === true) expect(f.focusPiece, t).toBe(true);
+      if (f.focal !== undefined) expect(f.focusPiece, t).toBe(true);
+      if (f.groundSmall === true || f.cover === true) expect(f.natural, t).toBe(true);
+      if (f.road === true) expect(f.repeatShows, t).toBe(true);
+    }
+  });
+
+  it("liquids are the waters and lava, and lava alone is a hazard (verify's fidelity note, the review)", () => {
+    const withTrait = (k: "liquid" | "hazard"): Material[] => MATERIALS.filter((m) => MATERIAL_INFO[m][k]);
+    expect(withTrait("liquid").sort()).toEqual(["lava", "water_deep", "water_shallow"]);
+    expect(withTrait("hazard")).toEqual(["lava"]);
+    for (const m of MATERIALS) if (MATERIAL_INFO[m].water) expect(MATERIAL_INFO[m].liquid, m).toBe(true);
   });
 
   it("landmarks are the great tree, the great statue and the landmark slot", () => {

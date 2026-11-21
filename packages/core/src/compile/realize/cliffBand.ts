@@ -10,7 +10,7 @@ import { cliffRockKinds, edgeHidden, type RockShape } from "../../gen/cover";
 import { SIDE_STEP } from "../../gen/gridGeometry";
 import { isBandRock } from "../../gen/catalog";
 import type { ResolvedVariant } from "../../palette/resolve";
-import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE } from "../../palette/roles";
+import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE, crestToneRole } from "../../palette/roles";
 import type { RealizeLevel } from "./level";
 
 /** Rock band (generator 2, themes with cliff.formation_face): rise that gets a band, and how far it reaches. */
@@ -59,7 +59,7 @@ export class CliffTones {
   boulders(theme: ThemeId, tone: string): readonly ResolvedVariant[] {
     const { L } = this.lv;
     const { lookup } = this.lv.ctx;
-    return (lookup(L.id, theme, [`cliff.formation_crest_${tone}`], undefined, true)?.variants ?? []).filter(
+    return (lookup(L.id, theme, [crestToneRole(tone)], undefined, true)?.variants ?? []).filter(
       (u) => u.weight > 0,
     );
   }

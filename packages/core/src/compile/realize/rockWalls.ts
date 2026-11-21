@@ -12,7 +12,14 @@ import { planCaveWall, type WallFace, type WallShape } from "../../gen/cavewall"
 import { ValueNoise } from "../../gen/noise";
 import { levelCeiling } from "../../plan/levels";
 import type { ResolvedVariant } from "../../palette/resolve";
-import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE, NATURAL_WALL_ROLE } from "../../palette/roles";
+import {
+  CAVE_CAP_ROLE,
+  CAVE_MASS_ROLE,
+  CLIFF_CREST_ROLE,
+  CLIFF_FACE_ROLE,
+  NATURAL_WALL_ROLE,
+  featureRole,
+} from "../../palette/roles";
 import { h32, placementBox, rotateXZ, unitHash } from "../geometry";
 import { ROCK_WALL_CLOSED } from "../verify/limits";
 import { EPS, type RealizeLevel } from "./level";
@@ -231,31 +238,31 @@ function massShapes(lv: RealizeLevel, theme: ThemeId): { vars: ResolvedVariant[]
   };
   // one rock family per cave: the Cavern kit (cliff.cave_mass), the tone of the wall columns; themes without it build
   // the mass from their own cliff band rock (crest boulders and faces)
-  add("cliff.cave_mass", "A", () => true);
+  add(CAVE_MASS_ROLE, "A", () => true);
   const kit = shapes.length > 0;
   if (!kit) {
     add(CLIFF_CREST_ROLE, "A", (q) => q.geom.size.y >= 1.2);
     add(CLIFF_FACE_ROLE, "A", () => true);
   }
   // flat sheets close the far part of a deep band
-  if (kit) add("cliff.cave_cap", "cap", () => true);
+  if (kit) add(CAVE_CAP_ROLE, "cap", () => true);
   // foot stones: the kit's low stone, else small rocks and rubble
   if (kit)
     add(
-      "cliff.cave_mass",
+      CAVE_MASS_ROLE,
       "toe",
       (q) => q.geom.size.y <= 1.05,
       () => 0,
     );
   else {
     add(
-      "feature.rock",
+      featureRole("rock"),
       "toe",
       (q) => q.geom.size.y <= 0.8 && q.geom.size.x >= 0.9,
       () => 0,
     );
     add(
-      "feature.rubble",
+      featureRole("rubble"),
       "toe",
       (q) => q.geom.size.y <= 0.8 && q.geom.size.x >= 0.8,
       () => 0,

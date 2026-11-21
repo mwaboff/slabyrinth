@@ -4,7 +4,7 @@
  * Deterministic and cheap (one pass per measure over the cells); thresholds are data (review/thresholds.ts).
  * The principles it measures are the product text in agent/designPrinciples.ts.
  */
-import type { DesignBrief, MapPlan, Vec2 } from "../contracts/plan";
+import type { DesignBrief, FeatureType, MapPlan, Vec2 } from "../contracts/plan";
 import {
   CELL,
   CELL_FLAG,
@@ -15,13 +15,20 @@ import {
 import type { CompileDiagnostic, PaletteCatalog, PlacementSet } from "../contracts/compiler";
 import { generatorProfile, type GeneratorProfile } from "../plan/generator";
 import type { ResolvedVariant } from "../palette/resolve";
-import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE } from "../palette/roles";
+import {
+  CLIFF_CREST_ROLE,
+  CLIFF_FACE_ROLE,
+  RUIN_CLIMBER_ROLE,
+  featureRole,
+  floorRole,
+} from "../palette/roles";
+import { isWater, materialHas } from "../resolve/materials";
 import { paletteView } from "../palette/view";
 import { structureSignature, structureSilhouette, structureTone } from "../resolve/structureVariety";
 import { roofUnsupportedEdges, structureRuinMeasures, weatherMeasures, weatherSigns } from "../resolve/ruin";
 import { GROWTH_LEVELS, growthMeasures } from "../resolve/growth";
 import { roofProportion } from "../resolve/roof";
-import { cellTheme } from "../resolve/levelGrid";
+import { cellIndex, cellTheme } from "../resolve/levelGrid";
 import { components, longestInnerStraight, outline, squareCorners } from "./metrics";
 import { forEachMaskCell } from "../gen/mask";
 import {
@@ -54,7 +61,7 @@ import { stallNotes } from "./stalls";
 import { floorAccentNotes } from "./floorTone";
 import { LIGHT_FEATURES, isBandRock } from "../gen/catalog";
 import {
-  FORMAL_THEMES,
+  LIT_FOCALS,
   REPEAT_WATCH,
   COVER_FEATURES,
   SMALL_FEATURES,
@@ -198,7 +205,7 @@ interface Ctx {
   /** The floor role's families with their pick weights and tones (generator 3 measures the laid floor). */
   familyList: (theme: string, material: string) => FloorFamily[];
   /** Distinct assets the theme has for a feature type (feature.<type>). */
-  pieceKinds: (theme: string, type: string) => number;
+  pieceKinds: (theme: string, type: FeatureType) => number;
   /** Does the theme have a role (with at least one variant)? Absent in tests that build a context by hand. */
   hasRole?: (theme: string, role: string) => boolean;
   /** Can the theme build a covered stall? The one capability check (palette/stallParts.ts) the resolver and compiler use. */
@@ -214,6 +221,8 @@ interface Ctx {
   roleTones: (theme: string, roleName: string, only?: string) => string[];
   /** The theme a cell with no theme reads as, the one the build falls back to (palette/planRoles.ts). */
   defaultTheme: string;
+  /** Is a theme's place formal, so mirror symmetry is meant (PaletteView.formalLayout)? */
+  formalLayout: (theme: string) => boolean;
   L: ResolvedLevel;
   /** The whole resolved plan (all levels and links); absent in tests that build a context by hand. */
   resolved?: ResolvedPlan;
@@ -225,6 +234,15 @@ interface Ctx {
 }
 
 const over = (value: number, threshold: number): number => Math.min(3, value / Math.max(1e-9, threshold));
+
+/** The level's material ordinals (cells.material) of hazard materials (resolve/materials.ts `hazard`: lava). */
+function hazardOrdinals(L: ResolvedLevel): ReadonlySet<number> {
+  const out = new Set<number>();
+  L.materials.forEach((m, k) => {
+    if (materialHas(m, (info) => info.hazard)) out.add(k + 1);
+  });
+  return out;
+}
 
 /**
  * Review every level of a resolved plan, against the palettes it is built with (tones, piece kinds and sizes, what a
@@ -250,7 +268,7 @@ export function reviewDesign(
     let t = toneMemo.get(k);
     if (!t) {
       t = new Set<string>();
-      for (const v of variants(theme, `floor.${material}`))
+      for (const v of variants(theme, floorRole(material)))
         if (v.weight > 0) {
           const tone = v.tone ?? OBSERVED_TONES[v.uuid]?.tone;
           if (tone !== undefined) t.add(tone);
@@ -269,7 +287,7 @@ export function reviewDesign(
     let f = famMemo.get(k);
     if (!f) {
       const w = new Map<string, number>();
-      for (const v of variants(theme, `floor.${material}`))
+      for (const v of variants(theme, floorRole(material)))
         if (v.weight > 0) w.set(v.variant ?? "", (w.get(v.variant ?? "") ?? 0) + v.weight);
       const total = [...w.values()].reduce((a, b) => a + b, 0);
       f = {
@@ -287,18 +305,18 @@ export function reviewDesign(
     const k = `${theme}|${material}`;
     let l = listMemo.get(k);
     if (!l) {
-      l = familiesOfVariants(variants(theme, `floor.${material}`), (u) => OBSERVED_TONES[u]?.tone);
+      l = familiesOfVariants(variants(theme, floorRole(material)), (u) => OBSERVED_TONES[u]?.tone);
       listMemo.set(k, l);
     }
     return l;
   };
   const kindMemo = new Map<string, number>();
-  const pieceKinds = (theme: string, type: string): number => {
+  const pieceKinds = (theme: string, type: FeatureType): number => {
     const k = `${theme}|${type}`;
     let n = kindMemo.get(k);
     if (n === undefined) {
       n = new Set(
-        variants(theme, `feature.${type}`)
+        variants(theme, featureRole(type))
           .filter((v) => v.weight > 0)
           .map((v) => v.uuid),
       ).size;
@@ -361,6 +379,7 @@ export function reviewDesign(
       rockKinds,
       roleTones,
       defaultTheme: view.defaultTheme,
+      formalLayout: view.formalLayout,
       L,
       resolved,
       W,
@@ -513,13 +532,13 @@ function riftBroken(c: Ctx): DesignNote[] {
   const T = REVIEW.channels;
   const { L, W, H } = c;
   if (!c.gen.wanderingChannels || (L.channels ?? []).length === 0) return [];
-  const lava = L.materials.indexOf("lava") + 1;
+  const hazard = hazardOrdinals(L);
   const cells: Array<[number, number]> = [];
   for (let i = 0; i < W * H; i++) {
     if (L.cells.state[i] !== CELL.OPEN) continue;
     const f = L.cells.flags[i] as number;
     const wet = (f & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) !== 0;
-    if (wet || (lava > 0 && L.cells.material[i] === lava))
+    if (wet || hazard.has(L.cells.material[i] ?? 0))
       cells.push([L.bounds.x + (i % W), L.bounds.y + Math.floor(i / W)]);
   }
   const bodies = components(cells)
@@ -668,10 +687,9 @@ function flat(c: Ctx): DesignNote[] {
     // tile of one height, no part of the map is a tile or more above or below the rest
     if (!c.gen.depthInTiles) return [];
     const tiles = new Map<number, number>();
-    // ground to stand on: not a lava rift or a pit's floor
-    const lava = c.L.materials.indexOf("lava") + 1;
-    const ground = (i: number): boolean =>
-      c.walkable[i] === 1 && (lava === 0 || c.L.cells.material[i] !== lava);
+    // ground to stand on: not a lava rift (a hazard material) or a pit's floor
+    const hazard = hazardOrdinals(c.L);
+    const ground = (i: number): boolean => c.walkable[i] === 1 && !hazard.has(c.L.cells.material[i] ?? 0);
     let groundN = 0;
     for (let i = 0; i < c.W * c.H; i++) {
       if (!ground(i)) continue;
@@ -1213,7 +1231,7 @@ function pathEnds(c: Ctx): DesignNote[] {
   for (const op of lv.terrain) {
     if (op.op !== "path" || !op.points || op.points.length < 2) continue;
     // water courses are judged as water (they run to the board edge by default)
-    if (op.material === "water_shallow" || op.material === "water_deep") continue;
+    if (isWater(op.material)) continue;
     const pts = op.points;
     ends.push({ id: op.id, p: pts[0] as Vec2 }, { id: op.id, p: pts[pts.length - 1] as Vec2 });
     const own = new Set<string>();
@@ -1539,20 +1557,6 @@ function blankLot(c: Ctx): DesignNote[] {
 
 // ───────────────────────── focus and routes ─────────────────────────
 
-/** Focal features the review wants a light beside (a lit place has its lights at the focal points). */
-const LIT_FOCALS: ReadonlySet<string> = new Set([
-  "landmark",
-  "statue",
-  "statue_large",
-  "altar",
-  "fountain",
-  "well",
-  "monolith",
-  "standing_stone",
-  "tall_marker",
-  "throne",
-]);
-
 function focalLights(c: Ctx): DesignNote[] {
   if (!c.gen.litLandmarks) return [];
   const T = REVIEW.caveMass;
@@ -1760,7 +1764,7 @@ export function substitutionNotes(diags: readonly CompileDiagnostic[], levelId =
 
 function identicalProps(c: Ctx): DesignNote[] {
   const T = REVIEW.identical;
-  const groups = new Map<string, { n: number; ids: string[]; theme: string; type: string }>();
+  const groups = new Map<string, { n: number; ids: string[]; theme: string; type: FeatureType }>();
   for (const f of c.L.features) {
     if (!REPEAT_WATCH.has(f.type) || c.dropped?.has(f.id)) continue;
     const k = `${f.type}|${f.variant ?? ""}|${f.hint ?? ""}`;
@@ -1790,15 +1794,22 @@ function identicalProps(c: Ctx): DesignNote[] {
 function symmetry(c: Ctx): DesignNote[] {
   const T = REVIEW.symmetry;
   const { L } = c;
-  if (FORMAL_THEMES.has(L.themes[0] ?? "")) return [];
+  // a place of a formal theme may be laid out in mirror symmetry: its cells are not judged (each cell's own theme)
+  const formal = (x: number, y: number): boolean => {
+    const i = cellIndex(L.bounds, x - L.bounds.x, y - L.bounds.y);
+    return i >= 0 && c.formalLayout(cellTheme(L, i, c.defaultTheme));
+  };
   // occupied cells: building footprints and blocking features
   const occ = new Set<string>();
+  const occupy = (x: number, y: number): void => {
+    if (!formal(x, y)) occ.add(`${x},${y}`);
+  };
   for (const st of L.structures ?? [])
-    if (st.kind === "building") for (const [x, y] of st.cells) occ.add(`${x},${y}`);
+    if (st.kind === "building") for (const [x, y] of st.cells) occupy(x, y);
   for (const f of L.features)
     if (!NATURAL_FEATURES.has(f.type) && !isBandRock(f.type))
       for (let dy = 0; dy < f.size[1]; dy++)
-        for (let dx = 0; dx < f.size[0]; dx++) occ.add(`${f.at[0] + dx},${f.at[1] + dy}`);
+        for (let dx = 0; dx < f.size[0]; dx++) occupy(f.at[0] + dx, f.at[1] + dy);
   if (occ.size < T.minCells) return [];
   const cells = [...occ].map((k) => k.split(",").map(Number) as [number, number]);
   // mirror lines: the level's centre lines and every straight road axis
@@ -2795,7 +2806,7 @@ function ruins(c: Ctx): DesignNote[] {
     // generator 3: a weathered or ruined building in a theme with climbing growth must not be bare of it
     if (st.condition && st.condition !== "intact" && c.gen.legibleCondition && c.hasRole) {
       const has = (n: string): boolean => c.hasRole?.(st.theme, n) === true;
-      if (has("ruin_climber.default") || has("feature.vines")) {
+      if (has(RUIN_CLIMBER_ROLE) || has(featureRole("vines"))) {
         const g = growthMeasures(st);
         const level = st.growthLevel ?? (st.condition === "ruined" ? "medium" : "light");
         const min = GROWTH_LEVELS[level].min;

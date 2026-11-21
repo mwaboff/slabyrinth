@@ -22,6 +22,7 @@ import type {
   SlabCodec,
 } from "../contracts/compiler";
 import type { LevelId } from "../contracts/plan";
+import { MARKER_ROLE } from "../palette/roles";
 import { sha256Hex } from "../slab/sha256";
 import { emptyBox, finiteBox, growBox } from "./geometry";
 import { placedBox } from "./placed";
@@ -272,8 +273,8 @@ function packRegions(
       severity: "warning",
       code: "role_missing",
       stage: "chunk",
-      role: "marker.alignment",
-      message: "No marker.alignment asset in the palettes; chunks carry no alignment markers",
+      role: MARKER_ROLE,
+      message: `No ${MARKER_ROLE} asset in the palettes; chunks carry no alignment markers`,
     });
     withMarkers = false;
   }

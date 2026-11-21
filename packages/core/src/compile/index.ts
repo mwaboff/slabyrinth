@@ -25,12 +25,13 @@ export type { CalibrationAssets } from "./calibration";
 export { DIRS, WorldFrame, placementBox, rotateDir, rotateXZ, turnQuarters } from "./geometry";
 
 import type { RoleKeys } from "../contracts/compiler";
-/** Role-name mapping used by the realizer (contract `RoleKeys`). */
+import { featureRole, floorRole, linkRole, openingRole, wallRole } from "../palette/roles";
+/** Role-name mapping of the contract (`RoleKeys`): the builders of the role registry the realizer uses (palette/roles.ts). */
 export const roleKeys: RoleKeys = {
-  floor: (m) => `floor.${m}`,
-  wall: (s) => `wall.${s}`,
-  opening: (k) => `opening.${k}`,
-  link: (k) => `link.${k}`,
-  feature: (t) => `feature.${t}`,
+  floor: floorRole,
+  wall: wallRole,
+  opening: openingRole,
+  link: linkRole,
+  feature: featureRole,
   edgeSideRotation: (side) => ({ N: 0, E: 90, S: 180, W: 270 })[side],
 };

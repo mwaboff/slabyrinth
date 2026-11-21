@@ -8,8 +8,18 @@ import type { PlacementRole } from "../../contracts/compiler";
 import type { Material, ThemeId } from "../../contracts/plan";
 import { CELL_FLAG } from "../../contracts/resolved";
 import type { VariantFilter } from "../../palette/resolve";
-import { FILL_ROLE } from "../../palette/roles";
-import { isCliffGround, isWater } from "../../resolve/materials";
+import {
+  BED_DEFAULT_ROLE,
+  CLIFF_DEFAULT_ROLE,
+  CLIFF_NATURAL_ROLE,
+  CLIFF_ROCK_BLOCK_ROLE,
+  FILL_ROLE,
+  bedRole,
+  cliffRole,
+  fillRole,
+  floorRole,
+} from "../../palette/roles";
+import { BARE_ROCK, isCliffGround, isWater } from "../../resolve/materials";
 import { BAND, type RockBand } from "./cliffBand";
 import type { GroundUnderDecks } from "./floors";
 import { EPS, type RealizeLevel } from "./level";
@@ -117,22 +127,22 @@ function cliffFace(
     L.id,
     theme,
     material
-      ? [...(rockFirst ? ["cliff.rock_block"] : []), `cliff.${material}`, "cliff.default"]
-      : ["cliff.default"],
+      ? [...(rockFirst ? [CLIFF_ROCK_BLOCK_ROLE] : []), cliffRole(material), CLIFF_DEFAULT_ROLE]
+      : [CLIFF_DEFAULT_ROLE],
     one,
     true,
   );
   if (!res && material !== null && (force || isCliffGround(material)))
-    res = lookup(L.id, theme, ["cliff.natural"], one, true);
+    res = lookup(L.id, theme, [CLIFF_NATURAL_ROLE], one, true);
   if (!res) {
     if (material !== null && isCliffGround(material) && !noted.has(`${theme}|${material}`)) {
       noted.add(`${theme}|${material}`);
       addDiag({
         severity: "info",
         code: "asset_substituted",
-        message: `No cliff piece for ${material} in theme "${theme}" (cliff.${material}, cliff.default, cliff.natural); its drops are built with fill courses`,
+        message: `No cliff piece for ${material} in theme "${theme}" (${cliffRole(material)}, ${CLIFF_DEFAULT_ROLE}, ${CLIFF_NATURAL_ROLE}); its drops are built with fill courses`,
         levelId: L.id,
-        role: `cliff.${material}`,
+        role: cliffRole(material),
       });
     }
     return false;
@@ -206,11 +216,11 @@ export function stackFill(
   const roles = !material
     ? [FILL_ROLE]
     : isWater(material)
-      ? [`bed.${material}`, "bed.default", FILL_ROLE]
+      ? [bedRole(material), BED_DEFAULT_ROLE, FILL_ROLE]
       : [
-          ...(profile.rockGroundFaces && isCliffGround(material) ? ["fill.rock"] : []),
-          `fill.${material}`,
-          `floor.${material}`,
+          ...(profile.rockGroundFaces && isCliffGround(material) ? [fillRole(BARE_ROCK)] : []),
+          fillRole(material),
+          floorRole(material),
           FILL_ROLE,
         ];
   // stacked courses use the default family (untagged 1×1 variants), not a patch family's tile

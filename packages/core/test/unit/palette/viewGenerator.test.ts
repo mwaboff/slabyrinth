@@ -35,6 +35,13 @@ describe("the palette view is keyed by generator", () => {
     expect(paletteView(later, 4)).toBe(paletteView(later, 4));
   });
 
+  it("a formal place is asked of the view (code fallback by theme id until palettes carry it); no bundled theme is one", () => {
+    const view = paletteView(bundledPalettes());
+    expect(view.formalLayout("temple")).toBe(true);
+    for (const theme of Object.keys(bundledPalettes().palettes))
+      expect(view.formalLayout(theme), theme).toBe(false);
+  });
+
   it("a role for generator 5 leaves a generator-4 resolve byte-identical", () => {
     const plan = loadPlan("inn-interior-v1");
     expect(plan.generator).toBe(4);
