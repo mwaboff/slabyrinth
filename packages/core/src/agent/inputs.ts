@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { FEATURE_TYPES, type DesignBrief } from "../contracts/plan";
 import type { PlanOp } from "../contracts/ops";
+import { GAME_SYSTEM_IDS } from "../plan/gameSystems";
 import { PlanOpSchema } from "../plan/schema";
 import { zodIssueToPlanIssue } from "../plan/zodIssues";
 import type {
@@ -53,7 +54,7 @@ const rect = z.strictObject({ x: z.int(), y: z.int(), w: z.int().min(1), h: z.in
  */
 export const BRIEF_VALUE_SCHEMAS = {
   mapType: z.string().min(1).max(80),
-  system: z.enum(["daggerheart", "dnd5e", "other"]),
+  system: z.enum(GAME_SYSTEM_IDS),
   party: z.strictObject({
     tier: z.int().min(1).max(10).optional(),
     level: z.int().min(1).max(30).optional(),
@@ -78,7 +79,7 @@ export const BRIEF_VALUE_SCHEMAS = {
  */
 export const BRIEF_STORED_SCHEMAS = {
   mapType: z.string(),
-  system: z.enum(["daggerheart", "dnd5e", "other"]),
+  system: z.enum(GAME_SYSTEM_IDS),
   party: z.looseObject({
     tier: z.number().optional(),
     level: z.number().optional(),

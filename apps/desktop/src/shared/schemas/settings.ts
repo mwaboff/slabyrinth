@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { GAME_SYSTEM_IDS } from "@slabyrinth/core/plan";
 import { costSchema, modelSelectionSchema, pathSchema, providerIdSchema, usageSchema } from "./common";
 
 /**
@@ -26,7 +27,7 @@ const providerSettingsSchema = z.object({
 
 const themeSchema = z.enum(["dark", "light", "system"]);
 const defaultSystemSchema = z.strictObject({
-  system: z.enum(["daggerheart", "dnd5e", "other"]),
+  system: z.enum(GAME_SYSTEM_IDS),
   otherName: z.string().trim().min(1).max(60).optional(),
 });
 const warnUsd = z.number().min(0).max(100_000).nullable();

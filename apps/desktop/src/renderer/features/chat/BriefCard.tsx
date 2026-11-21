@@ -1,19 +1,16 @@
 /** Brief card pinned at the top of chat (UX §5.1): expanded form in the brief phase, two-line summary later. */
 import { useState } from "react";
-import type { DesignBrief, MapPlan } from "@slabyrinth/core";
+import { GAME_SYSTEM_IDS, GAME_SYSTEM_LABEL, type DesignBrief, type MapPlan } from "@slabyrinth/core";
 import { Icon } from "../../ui/Icon";
 import { useApp } from "../../stores/app";
 import { phaseOf, useProject } from "../../stores/project";
 import { useChat } from "../../stores/chat";
 import { call, errorMessage } from "../../bridge/client";
 
-const SYSTEMS = [
-  ["daggerheart", "Daggerheart"],
-  ["dnd5e", "D&D 5e"],
-  ["other", "Other"],
-] as const;
+const SYSTEMS = GAME_SYSTEM_IDS.map((id) => [id, GAME_SYSTEM_LABEL[id]] as const);
 const PRESETS = { small: [20, 20], medium: [40, 30], large: [80, 60] } as const;
-const SYS_NAME: Record<string, string> = { daggerheart: "Daggerheart", dnd5e: "D&D 5e", other: "" };
+/** The name in the summary line ("Other" reads as nothing there). */
+const SYS_NAME: Record<string, string> = { ...GAME_SYSTEM_LABEL, other: "" };
 
 /**
  * Two summary lines. Once a plan exists, its level count and size come from the plan (the brief only records what

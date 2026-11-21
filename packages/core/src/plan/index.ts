@@ -10,5 +10,6 @@ export * from "./shapes";
 export * from "./zodIssues";
 export * from "./validate";
 export * from "./gate";
+export * from "./gameSystems";
 export * from "./migrate";
 export * from "./generator";

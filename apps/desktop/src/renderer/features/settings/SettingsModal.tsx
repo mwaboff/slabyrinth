@@ -9,6 +9,7 @@ import { useSettings } from "../../stores/settings";
 import { useProject } from "../../stores/project";
 import { call, errorMessage } from "../../bridge/client";
 import { run } from "../../app/actions";
+import { GAME_SYSTEM_IDS, GAME_SYSTEM_LABEL } from "@slabyrinth/core/plan";
 import { ApiKeyField, KeyStorageNote, UnreadableKeyNote } from "../setup/Setup";
 
 /** Re-reads the key status after a change; a failure is shown, not lost. */
@@ -490,12 +491,8 @@ export function SystemPicker({
   return (
     <div className="inline">
       <div className="segctl" role="radiogroup" aria-label="Game system">
-        {(
-          [
-            ["daggerheart", "Daggerheart"],
-            ["dnd5e", "D&D 5e"],
-            ["other", "Other / none"],
-          ] as const
+        {GAME_SYSTEM_IDS.map(
+          (id) => [id, id === "other" ? "Other / none" : GAME_SYSTEM_LABEL[id]] as const,
         ).map(([v, l]) => (
           <button
             key={v}
