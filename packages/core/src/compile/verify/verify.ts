@@ -28,7 +28,8 @@ import { placementBoxes, placementMeta } from "../realize";
 import type { RealizedSet } from "../realize/output";
 import { SolidIndex, overlap1, type Solid } from "./grid";
 import { LevelGrid, sideOrient } from "../../resolve/levelGrid";
-import { areaReferenceHeights, wallSpan } from "../../resolve/wallspan";
+import { findWallFaces } from "../../resolve/wallFaces";
+import { areaReferenceHeights } from "../../resolve/wallspan";
 import { structureClaims } from "../structure";
 import { featureInfo } from "../../gen/catalog";
 import { OPPOSITE as OPP, SIDE_STEP as DIRV, SIDES } from "../../gen/gridGeometry";
@@ -325,6 +326,11 @@ export function verifyBuild(
     // measured from there, not from higher ground outside
     const claims = structureClaims(L);
     const shell = claims.edges;
+    const faces = findWallFaces(g, {
+      claimed: shell,
+      refHeights,
+      boardEdgeIsExit: generatorProfile(resolved).boardEdgeExits,
+    });
     for (let ly = 0; ly < g.h; ly++) {
       for (let lx = 0; lx < g.w; lx++) {
         const x = L.bounds.x + lx;
@@ -353,48 +359,39 @@ export function verifyBuild(
         if (ly === g.h - 1) checks.push(["S", x, y]);
         if (lx === g.w - 1) checks.push(["E", x, y]);
         for (const [side, cx, cy] of checks) {
-          if (g.edgeKind(cx, cy, side) !== EDGE.WALL) continue;
           const orient = sideOrient(side);
-          const grid = g.edges(orient);
           const ei = g.edgeIndex(cx, cy, side);
-          const hostedHere = g.hostedOn(cx, cy, side);
-          const style = L.wallStyles[grid.ref[ei] ?? 0] ?? "wall";
+          // the wall as realize builds it (resolve/wallFaces.ts): style, theme, span, and the cell its mass stands in
+          const face = faces.at(orient, ei);
+          if (!face || face.kind !== EDGE.WALL) continue;
+          const grid = g.edges(orient);
+          const hostedHere = face.host.x === cx && face.host.y === cy;
+          const { style } = face;
           const [dx, dy] = DIRV[side];
           const other = g.cell(cx + dx, cy + dy);
           const here = g.cell(cx, cy);
-          const themeIdx = L.cells.theme[g.index(here.open ? cx : cx + dx, here.open ? cy : cy + dy)] ?? 0;
-          const res = resolveRole(L.themes[themeIdx] ?? "generic", `wall.${style}`).resolution;
+          // the theme realize builds the wall in (its mount decides how the wall is measured)
+          const res = resolveRole(face.theme, `wall.${style}`).resolution;
           if (!res) continue; // role_missing already reported by realize
           const mount = res.def.mount ?? "half-cell";
           const hgt = (grid.height[ei] ?? 0) > 0 ? (grid.height[ei] ?? 2) : 2;
-          // same span as realize (resolve/wallspan.ts): first cell = N/W of the edge
-          const hereFirst = side === "S" || side === "E";
-          const hostFirst = hereFirst === hostedHere;
-          const span = wallSpan(
-            L.elevation,
-            hereFirst ? here : other,
-            hereFirst ? other : here,
-            hostFirst,
-            hgt,
-            refHeights,
-          );
-          const base = span.base;
+          const base = face.base;
           const inside = hostedHere ? other : here; // shells host outside the footprint
           const top = shell.has(`${orient}${ei}`)
             ? // a ruin's walls only need to stand a tile above its floor (their tops are broken)
               claims.ruined.has(`${orient}${ei}`)
               ? L.elevation + inside.height + 0.5 + 1
-              : Math.min(span.top, L.elevation + inside.height + 0.5 + hgt)
-            : span.top;
-          // a rock block whose host cell is open stands in the other cell when that one is not open (realize
-          // compile/realize/walls.ts gatherFullCells: the same host-or-flipped rule, read from the same host)
-          const hostCell = hostedHere ? here : other;
-          const otherCell = hostedHere ? other : here;
-          const flipped = mount === "full-cell" && hostCell.open && !otherCell.open;
-          // midpoint of the edge in plan coords, then into the host half-cell
+              : Math.min(face.top, L.elevation + inside.height + 0.5 + hgt)
+            : face.top;
+          // a rock block stands in the face's mass cell (realize: compile/realize/walls.ts gatherFullCells); with no
+          // mass cell past the board edge (an exit) nothing stands there and the edge is not a gap
+          if (mount === "full-cell" && !face.mass && !(face.host.open && face.other.open)) continue;
+          const massHere = face.mass !== null && face.mass.x === cx && face.mass.y === cy;
+          const intoHere = mount === "full-cell" && face.mass ? massHere : hostedHere;
+          // midpoint of the edge in plan coords, then into the host half-cell (a block: into its mass cell)
           const mx = side === "W" ? cx : side === "E" ? cx + 1 : cx + 0.5;
           const my = side === "N" ? cy : side === "S" ? cy + 1 : cy + 0.5;
-          const hostSign = hostedHere !== flipped ? 1 : -1; // +1 = into (cx,cy), -1 = into the neighbour
+          const hostSign = intoHere ? 1 : -1; // +1 = into (cx,cy), -1 = into the neighbour
           const inward = mount === "edge-center" ? 0 : mount === "full-cell" ? 0.5 : 0.25;
           const ix = side === "W" ? inward * hostSign : side === "E" ? -inward * hostSign : 0;
           const iy = side === "N" ? inward * hostSign : side === "S" ? -inward * hostSign : 0;
@@ -411,21 +408,6 @@ export function verifyBuild(
               .at(pt.x, pt.z, yy - 0.01, yy + 0.01, 0.005)
               .some((s) => s.levelId === L.id && (wallish(s) || s.role === "fill")),
           );
-          // generator 3: slabs are tiled beside other slabs, so a cave passage that reaches the board edge is an exit:
-          // its rock-block wall edge lies outside the level bounds, nothing stands there and it is not a gap
-          const onBoardEdge =
-            cx + dx < L.bounds.x ||
-            cx + dx >= L.bounds.x + L.bounds.w ||
-            cy + dy < L.bounds.y ||
-            cy + dy >= L.bounds.y + L.bounds.h;
-          if (
-            !covered &&
-            generatorProfile(resolved).boardEdgeExits &&
-            mount === "full-cell" &&
-            here.open &&
-            onBoardEdge
-          )
-            continue;
           if (!covered) {
             gaps++;
             firstGap ??= {
