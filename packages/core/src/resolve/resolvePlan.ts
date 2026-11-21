@@ -10,6 +10,7 @@ import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { canonicalJson } from "../util/canonical";
 import { h64hex } from "../util/hash";
 import { LevelSteps } from "./level";
+import { linkOpenings } from "./level/floorOpenings";
 import { type ThemeDefaults, builtinThemeDefaults } from "./themes";
 import { type PaletteView, bundledPaletteView } from "../palette/view";
 
@@ -51,7 +52,7 @@ export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedP
     // floor openings look into the next level down (rubble heaps and checks happen on both sides)
     const byElev = [...works].sort((a, b) => a.level.elevation - b.level.elevation);
     for (const w of works)
-      w.linkOpenings(byElev.filter((o) => o.level.elevation < w.level.elevation).pop());
+      linkOpenings(w, byElev.filter((o) => o.level.elevation < w.level.elevation).pop());
   }
   for (const w of works) w.runPhase2();
 
