@@ -149,19 +149,23 @@ describe("generator profiles", () => {
       expect([
         ...GENERATOR_PROFILES[v].vocabulary.featureTypes,
         ...GENERATOR_PROFILES[v].vocabulary.levelFields,
+        ...GENERATOR_PROFILES[v].vocabulary.areaFields,
       ]).toEqual([]);
     }
   });
 
   it("VOCABULARY_SINCE names the first generator whose profile understands the word", () => {
-    for (const [type, since] of Object.entries(VOCABULARY_SINCE.featureTypes))
-      for (const v of GENERATOR_VERSIONS)
-        expect(GENERATOR_PROFILES[v].vocabulary.featureTypes.has(type), `${type} at ${v}`).toBe(v >= since);
-    for (const [field, since] of Object.entries(VOCABULARY_SINCE.levelFields))
-      for (const v of GENERATOR_VERSIONS)
-        expect(GENERATOR_PROFILES[v].vocabulary.levelFields.has(field), `${field} at ${v}`).toBe(v >= since);
-    expect(VOCABULARY_SINCE.featureTypes).toEqual({ clutter: 4, shelf_line: 4 });
-    expect(VOCABULARY_SINCE.levelFields).toEqual({ roomDress: 4 });
+    for (const kind of ["featureTypes", "levelFields", "areaFields"] as const)
+      for (const [word, since] of Object.entries(VOCABULARY_SINCE[kind]))
+        for (const v of GENERATOR_VERSIONS)
+          expect(GENERATOR_PROFILES[v].vocabulary[kind].has(word), `${kind} ${word} at ${v}`).toBe(
+            v >= since,
+          );
+    expect(VOCABULARY_SINCE).toEqual({
+      featureTypes: { clutter: 4, shelf_line: 4 },
+      levelFields: { roomDress: 4 },
+      areaFields: { purpose: 4 },
+    });
   });
 
   it("a feature type's palette role appears in the same generator as the word (minGenerator matches the profile)", () => {

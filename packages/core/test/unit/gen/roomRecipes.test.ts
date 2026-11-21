@@ -6,21 +6,23 @@
  */
 import { describe, expect, it } from "vitest";
 import { compileResolved } from "../../../src/compile";
-import type { Area, MapPlan, Opening } from "../../../src/contracts/plan";
+import type { Area, MapPlan, Opening, RoomPurpose } from "../../../src/contracts/plan";
 import { EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
 import { LIGHT_FEATURES, featureInfo } from "../../../src/gen/catalog";
 import { classifyRoom } from "../../../src/gen/roomPurpose";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
+import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
 import { interiorNotes, roomStats } from "../../../src/review/interiors";
 import { slabCodec } from "../../../src/slab";
+import { loadPlan } from "../../fixtures";
 
 const palettes = loadPalettes();
 
 /** Rooms off one passage: a name (and optional extra fields) per room, north row then south row. */
 function building(
-  names: ReadonlyArray<string | { name: string; notes?: string; tags?: string[] }>,
+  names: ReadonlyArray<string | { name: string; notes?: string; tags?: string[]; purpose?: RoomPurpose }>,
   opts: { generator?: 3 | 4; theme?: string; roomDress?: false } = {},
 ): MapPlan {
   const areas: Area[] = [
@@ -192,6 +194,85 @@ describe("room purpose from words (gen/roomPurpose.ts classifyRoom, the one clas
     const p4 = building(["Kitchen", "Library"], { roomDress: false });
     const unlit4 = interiorNotes(p4, resolvePlan(p4, bundledPalettes())).find((n) => n.code === "room_unlit");
     expect(unlit4?.action).toMatch(/naming a room for its purpose lights it/);
+  });
+});
+
+describe("an explicit purpose (Area.purpose) wins over the words", () => {
+  it("the plan's purpose beats the name, tags and notes; without it the words decide as before", () => {
+    expect(classifyRoom({ name: "Shrine antechamber" }).purpose).toBe("passage");
+    expect(classifyRoom({ name: "Shrine antechamber", purpose: "shrine" }).purpose).toBe("shrine");
+    expect(classifyRoom({ name: "Sala de guardia", purpose: "barracks" }).purpose).toBe("barracks");
+    expect(classifyRoom({ name: "Kitchen", tags: ["library"], purpose: "forge" }).purpose).toBe("forge");
+  });
+
+  it("a word of wreckage still marks it abandoned but never replaces the stated purpose", () => {
+    expect(classifyRoom({ name: "Ruined chapel" })).toEqual({ purpose: "ruin", abandoned: true });
+    expect(classifyRoom({ name: "Ruined chapel", purpose: "shrine" })).toEqual({
+      purpose: "shrine",
+      abandoned: true,
+    });
+    // the stated purpose decides abandonment by purpose: a crypt kept as a shrine is kept up
+    expect(classifyRoom({ name: "Crypt", purpose: "shrine" })).toEqual({
+      purpose: "shrine",
+      abandoned: false,
+    });
+  });
+
+  it("the notes are read in whole words: a word cut by the 160-character limit names nothing", () => {
+    const filler = "x".repeat(156);
+    // "barracks" cut to "bar" would have read as a tavern
+    expect(classifyRoom({ name: "Room 9", notes: `${filler} barracks` }).purpose).toBeUndefined();
+    expect(classifyRoom({ name: "Room 9", notes: `${filler.slice(5)} barracks` }).purpose).toBe("barracks");
+  });
+
+  it("the resolver writes the stated purpose and dresses the room for it", () => {
+    const L = level(building([{ name: "Shrine antechamber", purpose: "shrine" }, "Shrine antechamber"]));
+    expect(L.areas.find((a) => a.id === "r0")?.purpose).toBe("shrine");
+    expect(L.areas.find((a) => a.id === "r1")?.purpose).toBe("passage");
+    expect(roomFeatures(L, "r0").some((f) => f.type === "altar")).toBe(true);
+    expect(roomFeatures(L, "r1").some((f) => f.type === "altar")).toBe(false);
+  });
+
+  it("is rejected below generator 4, so plans for released generators validate as before", () => {
+    const names = [{ name: "Shrine antechamber", purpose: "shrine" as const }];
+    const v3 = validatePlan(building(names, { generator: 3 }));
+    expect(v3.ok).toBe(false);
+    expect(v3.issues.filter((i) => i.severity === "error")).toMatchObject([
+      { code: "schema", path: "/levels/0/areas/1/purpose", elementId: "r0" },
+    ]);
+    expect(v3.issues[0]?.message).toMatch(/purpose needs generator 4; this plan is generator 3/);
+    expect(validatePlan(building(["Shrine antechamber"], { generator: 3 })).ok).toBe(true);
+    expect(validatePlan(building(names)).ok).toBe(true);
+  });
+
+  it("the stored purpose line-up resolves every room to its stated purpose (the golden builds it)", () => {
+    const plan = loadPlan("purpose-lineup-v1");
+    expect(validatePlan(plan).ok).toBe(true);
+    const L = level(plan);
+    const by = (id: string) => L.areas.find((a) => a.id === id);
+    expect(
+      Object.fromEntries(
+        ["antechamber", "oaths", "armas", "mess", "kitchen", "cellar"].map((id) => [id, by(id)?.purpose]),
+      ),
+    ).toEqual({
+      antechamber: "shrine",
+      oaths: "throne_room",
+      armas: "armoury",
+      mess: "barracks",
+      kitchen: "kitchen",
+      cellar: "storeroom",
+    });
+    // "Ruined cellar": the stated purpose stands, the word of wreckage still marks it abandoned
+    expect(by("cellar")?.abandoned).toBe(true);
+  });
+
+  it("an unknown purpose is rejected with the valid values and the nearest one", () => {
+    const plan = building([{ name: "Cookhouse", purpose: "kitchens" as RoomPurpose }]);
+    const bad = validatePlan(plan).issues.filter((i) => i.severity === "error");
+    expect(bad).toHaveLength(1);
+    expect(bad[0]).toMatchObject({ code: "schema", path: "/levels/0/areas/1/purpose" });
+    expect(bad[0]?.message).toMatch(/"kitchens" is not a valid value/);
+    expect(bad[0]?.hint).toMatch(/did you mean "kitchen"\? valid: .*throne_room/);
   });
 });
 

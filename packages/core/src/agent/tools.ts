@@ -26,6 +26,7 @@ import {
   ROOF_TYPES,
   ATTACHMENT_TYPES,
   STALL_KINDS,
+  ROOM_PURPOSES,
 } from "../contracts/plan";
 
 // ───────────────────────────── neutral tool types ─────────────────────────────
@@ -342,6 +343,12 @@ const areaSchema: JsonSchema = {
     readAloud: { type: "string", description: "Boxed text read to players on entry." },
     encounter: { type: "string", description: "Encounter line(s) in the brief's game system." },
     tags: { type: "array", items: str },
+    purpose: {
+      type: "string",
+      enum: [...ROOM_PURPOSES],
+      description:
+        "Generator 4: set it only when the name does not say what the room is for; it wins over the name, tags and notes.",
+    },
     railing: {
       type: "string",
       enum: [...WALL_STYLES, "none"],

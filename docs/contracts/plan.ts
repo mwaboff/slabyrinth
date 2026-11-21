@@ -151,6 +151,16 @@ export const DRESS_PRESETS = [
 ] as const;
 export type DressPreset = (typeof DRESS_PRESETS)[number];
 
+/**
+ * What a room is for (generator 4): Area.purpose, else read from its words; ResolvedArea.purpose carries the result.
+ * gen/roomPurpose.ts holds what each purpose implies (floor, dressing, lights, whether it is a passage).
+ */
+export const ROOM_PURPOSES = [
+  "tavern", "dining", "kitchen", "library", "study", "armoury", "barracks", "bedroom", "storeroom", "shrine",
+  "crypt", "prison", "forge", "laboratory", "treasury", "washroom", "throne_room", "ruin", "passage",
+] as const;
+export type RoomPurpose = (typeof ROOM_PURPOSES)[number];
+
 export type AreaKind =
   | "room"        // built interior: floor + walls (default walls "auto")
   | "corridor"    // built interior passage (default walls "auto")
@@ -241,6 +251,14 @@ export interface Area {
   readAloud?: string;         // boxed text for players; ≤ 1500 chars
   encounter?: string;         // system-flavoured encounter line(s); ≤ 1000 chars
   tags?: string[];            // ≤ 8 tags, each ≤ 24 chars
+  /**
+   * Generator 4: what the room is for, when its name does not say ("The Grey Hall of Oaths" used as a dining hall).
+   * Wins over the purpose read from the name, tags and notes; omitted = read from them. It sets the room's default
+   * floor, furniture and lights; "passage" keeps the floor and height of the corridors it joins, "ruin" has nothing
+   * to furnish. Words of neglect or wreckage in the name or tags ("Derelict chapel") still mark it abandoned.
+   * Below generator 4 it is an error (validation), so plans for released generators validate as before.
+   */
+  purpose?: RoomPurpose;
   /** kind "bridge" only: wall style of the railings on the edges that face a drop (default "low_wall"); "none" = no railings. */
   railing?: WallStyle | "none";
   /** kind "bridge" only: deck cells that have fallen away (holes; the floor below shows through). ≤ 64. */

@@ -39,6 +39,7 @@ export const STORED_PLANS = [
   "market-street-v3",
   "night-market-v1",
   "old-stones-glade-v6",
+  "purpose-lineup-v1",
   "smugglers-grotto-v3",
   "stall-lineup-v1",
   "three-step-glen-v1",

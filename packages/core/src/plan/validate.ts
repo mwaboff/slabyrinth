@@ -403,6 +403,21 @@ function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: Issue
         `set the plan generator to ${since} (new plans have it), or remove ${field}`,
         { elementId: level.id, levelId: level.id },
       );
+  // an area field states what the area is, which an earlier generator cannot read: refused, as before it existed
+  level.areas.forEach((a, ai) => {
+    for (const [field, since] of Object.entries(VOCABULARY_SINCE.areaFields))
+      if (
+        !gen.vocabulary.areaFields.has(field) &&
+        (a as unknown as Record<string, unknown>)[field] !== undefined
+      )
+        sink.error(
+          "schema",
+          `${base}/areas/${ai}/${field}`,
+          `area "${a.id}": ${field} needs generator ${since}; this plan is generator ${plan.generator}`,
+          `set the plan generator to ${since} (new plans have it), or remove ${field}`,
+          { elementId: a.id, levelId: level.id },
+        );
+  });
   level.features.forEach((f, fi) => {
     const since = own(VOCABULARY_SINCE.featureTypes, f.type);
     if (since !== undefined && !gen.vocabulary.featureTypes.has(f.type))

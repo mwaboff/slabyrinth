@@ -257,23 +257,30 @@ const TUNINGS = {
   ],
 } as const satisfies Record<string, readonly [TuningStep<unknown>, ...TuningStep<unknown>[]]>;
 
-/** Plan vocabulary a generator adds to what the one before understood (validation warns `no_effect` below it). */
+/**
+ * Plan vocabulary a generator adds to what the one before understood. Below it, validation (plan/validate.ts) warns
+ * `no_effect` for a feature type (a stand-in piece is used) or a level field (an opt-out that changes nothing), and
+ * rejects an area field: it states what the area is, which an earlier generator cannot read, so the plan is refused
+ * as it was before the field existed.
+ */
 interface VocabularyDeclaration {
   readonly featureTypes: readonly string[];
   readonly levelFields: readonly string[];
+  readonly areaFields: readonly string[];
 }
 
 const VOCABULARY: Readonly<Record<GeneratorVersion, VocabularyDeclaration>> = {
-  1: { featureTypes: [], levelFields: [] },
-  2: { featureTypes: [], levelFields: [] },
-  3: { featureTypes: [], levelFields: [] },
-  4: { featureTypes: ["clutter", "shelf_line"], levelFields: ["roomDress"] },
+  1: { featureTypes: [], levelFields: [], areaFields: [] },
+  2: { featureTypes: [], levelFields: [], areaFields: [] },
+  3: { featureTypes: [], levelFields: [], areaFields: [] },
+  4: { featureTypes: ["clutter", "shelf_line"], levelFields: ["roomDress"], areaFields: ["purpose"] },
 };
 
 /** The plan vocabulary one generator understands (what it added and what the generators before it did). */
 export interface GeneratorVocabulary {
   readonly featureTypes: ReadonlySet<string>;
   readonly levelFields: ReadonlySet<string>;
+  readonly areaFields: ReadonlySet<string>;
 }
 
 export type GeneratorProfile = {
@@ -304,7 +311,11 @@ function profileFor(version: GeneratorVersion): GeneratorProfile {
     version,
     ...switches,
     ...tunings,
-    vocabulary: { featureTypes: words("featureTypes"), levelFields: words("levelFields") },
+    vocabulary: {
+      featureTypes: words("featureTypes"),
+      levelFields: words("levelFields"),
+      areaFields: words("areaFields"),
+    },
   } as GeneratorProfile;
 }
 
@@ -327,19 +338,19 @@ export function generatorProfile(subject: { readonly generator: number } | numbe
 
 /**
  * Plan vocabulary that exists only from a generator on, with that generator: derived from the profiles' `vocabulary`.
- * The schema accepts these names for every generator (a plan can be re-pointed at another generator without being
- * rejected), so a plan that uses one below its generator is warned: the generator would ignore the field or
- * substitute the piece, and the model should hear that instead of seeing nothing.
+ * The schema accepts these names for every generator (one schema serves every plan), so validation checks a plan's
+ * use of them against its generator: a feature type or level field below its generator is warned (the generator would
+ * ignore the field or substitute the piece, and the model should hear that instead of seeing nothing), an area field
+ * is rejected (see VocabularyDeclaration).
  */
 export const VOCABULARY_SINCE: {
-  readonly featureTypes: Readonly<Record<string, GeneratorVersion>>;
-  readonly levelFields: Readonly<Record<string, GeneratorVersion>>;
+  readonly [K in keyof GeneratorVocabulary]: Readonly<Record<string, GeneratorVersion>>;
 } = (() => {
-  const featureTypes: Record<string, GeneratorVersion> = {};
-  const levelFields: Record<string, GeneratorVersion> = {};
-  for (const v of [...GENERATOR_VERSIONS].reverse()) {
-    for (const t of GENERATOR_PROFILES[v].vocabulary.featureTypes) featureTypes[t] = v;
-    for (const f of GENERATOR_PROFILES[v].vocabulary.levelFields) levelFields[f] = v;
-  }
-  return { featureTypes, levelFields };
+  const since = { featureTypes: {}, levelFields: {}, areaFields: {} } as {
+    [K in keyof GeneratorVocabulary]: Record<string, GeneratorVersion>;
+  };
+  for (const v of [...GENERATOR_VERSIONS].reverse())
+    for (const kind of Object.keys(since) as Array<keyof GeneratorVocabulary>)
+      for (const word of GENERATOR_PROFILES[v].vocabulary[kind]) since[kind][word] = v;
+  return since;
 })();

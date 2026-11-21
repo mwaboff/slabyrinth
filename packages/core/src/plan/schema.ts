@@ -22,6 +22,7 @@ import {
   OPENING_KINDS,
   PLAN_LIMITS,
   PLAN_SCHEMA,
+  ROOM_PURPOSES,
   STALL_KINDS,
   WALL_STYLES,
 } from "../contracts/plan";
@@ -197,6 +198,8 @@ export const AreaSchema = z.strictObject({
   readAloud: text(1500).exactOptional(),
   encounter: text(1000).exactOptional(),
   tags: z.array(z.string().min(1).max(24)).max(8).exactOptional(),
+  // generator 4 vocabulary (plan/generator.ts VOCABULARY.areaFields): validation rejects it below
+  purpose: z.enum(ROOM_PURPOSES).exactOptional(),
   railing: z.union([WallStyleSchema, z.literal("none")]).exactOptional(),
   broken: z.array(Vec2Schema).max(64).exactOptional(),
   crumble: z.number().min(0).max(0.6).exactOptional(),
