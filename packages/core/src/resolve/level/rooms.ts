@@ -12,6 +12,7 @@ import { MATERIALS, PLAN_LIMITS } from "../../contracts/plan";
 import type { ResolvedFeature, ResolvedOpening } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
+import { SIDE_STEP } from "../../gen/gridGeometry";
 import type { GeneratedPlacement, PlacementGrid } from "../../gen/place";
 import { furnishedPurpose } from "../../gen/roomPurpose";
 import { dressRoom, lightArea } from "../../gen/rooms4";
@@ -207,11 +208,10 @@ function roomsOpeningOnCorridors(
     if (kindOf(a) === "room" && kindOf(b) === "corridor") out.add(a);
     if (kindOf(b) === "room" && kindOf(a) === "corridor") out.add(b);
   };
-  const step: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
   for (const o of work.level.openings) {
     if (o.between) pair(work.areaIndexById.get(o.between[0]), work.areaIndexById.get(o.between[1]));
     else if (o.at) {
-      const [dx, dy] = step[o.at.side];
+      const [dx, dy] = SIDE_STEP[o.at.side];
       const width = o.width ?? (o.kind === "double_door" ? 2 : 1);
       // the run extends east along a horizontal edge (N/S side), south along a vertical one
       for (let k = 0; k < width; k++) {

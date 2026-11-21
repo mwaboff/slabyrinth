@@ -115,6 +115,21 @@ export default tseslint.config(
   },
   ...coreLayers,
   {
+    // Edge kinds and cell flags come from the resolved contract (EDGE, CELL_FLAG; gen/gridGeometry.ts re-exports
+    // them by name). A local `const EDGE_WALL = 1` silently drifts when the contract changes.
+    files: ["packages/core/src/**/*.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "VariableDeclarator[id.name=/^(EDGE|FLAG)_[A-Z_]+$/][init.type='Literal']",
+          message:
+            "Import edge kinds and cell flags (gen/gridGeometry.ts or EDGE/CELL_FLAG in contracts/resolved) instead of redeclaring them by number.",
+        },
+      ],
+    },
+  },
+  {
     files: ["apps/desktop/src/renderer/**/*.{ts,tsx}", "packages/render-canvas/src/**/*.ts"],
     languageOptions: { globals: globals.browser },
   },

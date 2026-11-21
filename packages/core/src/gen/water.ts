@@ -17,17 +17,14 @@ import { gridProfile, type GeneratedPlacement, type PlacementGrid } from "./plac
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
 
-const FLAG_NO_FLOOR = 1;
-const FLAG_WATER = 4;
-const FLAG_PATH = 8;
-const FLAG_LINK = 16;
-const D4: ReadonlyArray<readonly [number, number]> = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
-const key = (x: number, y: number): number => (x + 16384) * 32768 + (y + 16384);
+import {
+  FLAG_LINK,
+  FLAG_NO_FLOOR,
+  FLAG_PATH,
+  FLAG_WATER,
+  NEIGHBOURS4 as D4,
+  cellKey as key,
+} from "./gridGeometry";
 
 /** Pieces per water-edge tile (a water cell with a dry neighbour, or a dry cell beside water). */
 export const WATER_DRESS = {

@@ -24,6 +24,23 @@ import { dressWater } from "./water";
 import { cliffBand, riseUnits, type BandResult } from "./cliffband";
 import { featureInfo, LIGHT_FEATURES } from "./catalog";
 import {
+  EDGE_LEDGE,
+  EDGE_OPENING,
+  EDGE_STAIR,
+  EDGE_WALL,
+  FLAG_BRIDGE,
+  FLAG_LINK,
+  FLAG_PATH,
+  FLAG_STEPS,
+  FLAG_WATER,
+  INWARD,
+  SIDES,
+  SIDE_ROT,
+  cellKey as key,
+  stepSide as step,
+  wallSides,
+} from "./gridGeometry";
+import {
   footprintCrossesWall,
   gridProfile,
   type GeneratedPlacement,
@@ -1359,18 +1376,6 @@ export const SET_PIECES: Record<ComposedPreset, SetPieceDef> = {
 
 // ───────────────────────────── placement ─────────────────────────────
 
-const EDGE_WALL = 1;
-const EDGE_OPENING = 2;
-const EDGE_LEDGE = 3;
-const FLAG_LINK = 16;
-const FLAG_WATER = 4;
-const FLAG_PATH = 8;
-const FLAG_BRIDGE = 64;
-const FLAG_STEPS = 128;
-const EDGE_STAIR = 4;
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
-const SIDE_ROT: Record<Side, Rotation> = { N: 0, E: 90, S: 180, W: 270 };
-const INWARD: Record<Side, [number, number]> = { N: [0, 1], E: [-1, 0], S: [0, -1], W: [1, 0] };
 const sq = (v: number): number => v * v;
 const NEIGHBOURS8: ReadonlyArray<readonly [number, number]> = [
   [1, 0],
@@ -1420,7 +1425,6 @@ const LINE_SWAP: readonly FeatureType[] = [
   "root_large",
   "edge_dressing",
 ];
-const key = (x: number, y: number): number => (x + 16384) * 32768 + (y + 16384);
 /** Anchors of two groups keep at least this Chebyshev distance (clear ground between vignettes). */
 const GROUP_GAP = 5;
 /** Candidate anchors tried per group before it is dropped. */
@@ -1539,8 +1543,7 @@ export function composeArea(
     for (const sd of SIDES) {
       // a wall, or a cliff (nobody walks across it), is no join
       if (grid.edge(x, y, sd) === EDGE_WALL) continue;
-      const nx = x + (sd === "E" ? 1 : sd === "W" ? -1 : 0);
-      const ny = y + (sd === "S" ? 1 : sd === "N" ? -1 : 0);
+      const [nx, ny] = step(x, y, sd);
       if (
         grid.edge(x, y, sd) !== EDGE_STAIR &&
         Math.abs((grid.height?.(nx, ny) ?? 0) - (grid.height?.(x, y) ?? 0)) > 0.5
@@ -1563,8 +1566,7 @@ export function composeArea(
       SIDES.some((s0) => {
         if (grid.edge(x, y, s0) === EDGE_STAIR) return true;
         if (grid.edge(x, y, s0) === EDGE_WALL) return false;
-        const nx = x + (s0 === "E" ? 1 : s0 === "W" ? -1 : 0);
-        const ny = y + (s0 === "S" ? 1 : s0 === "N" ? -1 : 0);
+        const [nx, ny] = step(x, y, s0);
         return grid.inBounds(nx, ny) && (grid.flags(nx, ny) & (FLAG_BRIDGE | FLAG_STEPS)) !== 0;
       })
     )
@@ -1577,18 +1579,12 @@ export function composeArea(
   for (const [ex, ey] of entries)
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) doorZone.add(key(ex + dx, ey + dy));
 
-  const wallSides = (x: number, y: number): Side[] => SIDES.filter((s) => grid.edge(x, y, s) === EDGE_WALL);
   const thinWallOn = (x: number, y: number, s: Side): boolean => {
     if (grid.edge(x, y, s) !== EDGE_WALL) return false;
-    const nx = x + (s === "E" ? 1 : s === "W" ? -1 : 0);
-    const ny = y + (s === "S" ? 1 : s === "N" ? -1 : 0);
+    const [nx, ny] = step(x, y, s);
     return grid.inBounds(nx, ny) && grid.isFloor(nx, ny);
   };
   const hOf = (x: number, y: number): number => grid.height?.(x, y) ?? 0;
-  const step = (x: number, y: number, s: Side): [number, number] => [
-    x + (s === "E" ? 1 : s === "W" ? -1 : 0),
-    y + (s === "S" ? 1 : s === "N" ? -1 : 0),
-  ];
   const wallCands: Array<[number, number, Side]> = [];
   const cornerCands: Array<[number, number, Side]> = [];
   const openCands: Array<[number, number]> = [];
@@ -1625,7 +1621,7 @@ export function composeArea(
     }
   }
   for (const [x, y] of cells) {
-    const ws = wallSides(x, y);
+    const ws = wallSides(grid, x, y);
     for (const s of ws) wallCands.push([x, y, s]);
     for (let i = 0; i < 4; i++) {
       const a = SIDES[i] as Side;
@@ -1660,8 +1656,7 @@ export function composeArea(
         for (const s of SIDES) {
           const e = grid.edge(x, y, s);
           if (e === EDGE_WALL) continue;
-          const nx = x + (s === "E" ? 1 : s === "W" ? -1 : 0);
-          const ny = y + (s === "S" ? 1 : s === "N" ? -1 : 0);
+          const [nx, ny] = step(x, y, s);
           const k = key(nx, ny);
           if (seen.has(k) || blocked.has(k) || !inArea(nx, ny)) continue;
           if (grid.height !== undefined && e !== EDGE_STAIR && Math.abs(hOf(nx, ny) - hOf(x, y)) > 0.5)

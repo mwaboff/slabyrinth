@@ -23,6 +23,7 @@
  */
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
+import { NEIGHBOURS4 as D4, cellKey as key } from "./gridGeometry";
 import { ValueNoise } from "./noise";
 import { massDepth, massFoot } from "./solidMass";
 
@@ -141,13 +142,6 @@ export const CAVE_WALL = {
   overshoot: 0.6,
 } as const;
 
-const key = (x: number, y: number): number => (x + 16384) * 32768 + (y + 16384);
-const D4: ReadonlyArray<readonly [number, number]> = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
 const D8: ReadonlyArray<readonly [number, number]> = [...D4, [1, 1], [-1, 1], [1, -1], [-1, -1]];
 const SUB = 4;
 

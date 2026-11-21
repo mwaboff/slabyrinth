@@ -8,6 +8,7 @@ import type { FeatureType, Side, StallKind, StallRow } from "../contracts/plan";
 import type { StallBuild, StallForm } from "../contracts/resolved";
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
+import { FACE_ROT } from "./gridGeometry";
 import type { SmallFamily } from "./surfaces";
 
 /** The palette variants of `feature.stall`: the real stall pieces, and the bare table the other kinds stand on. */
@@ -76,7 +77,8 @@ export const DEFAULT_STALL_GOODS: readonly StallKind[] = [
   "spices",
 ];
 
-const TURN: Record<Side, number> = { S: 0, W: 90, N: 180, E: 270 };
+/** A stall or line piece turns to face the side named by its `faces`. */
+const TURN = FACE_ROT;
 
 export interface StallPlacement {
   at: [number, number];

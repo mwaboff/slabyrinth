@@ -31,10 +31,17 @@ import {
   FLAG_FEATURE,
   FLAG_LINK,
   FLAG_NO_FLOOR,
+  FACE_ROT,
+  INWARD,
+  OPPOSITE,
   SIDES,
+  SIDE_ROT,
+  SIDE_STEP,
   cellKey,
   footprintCells,
+  stepSide,
   wallFootprint,
+  wallSides,
 } from "./gridGeometry";
 import { SURFACE_LOAD, surfaceCount, type SmallFamily, type SurfaceLoad } from "./surfaces";
 import { isNaturalWallStyle } from "./wallStyles";
@@ -573,12 +580,6 @@ const LANTERN_ON: ReadonlySet<FeatureType> = new Set<FeatureType>(["counter", "c
 
 // ───────────────────────────── geometry helpers ─────────────────────────────
 
-const DIR: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
-const OPP: Record<Side, Side> = { N: "S", E: "W", S: "N", W: "E" };
-const SIDE_ROT: Record<Side, Rotation> = { N: 0, E: 90, S: 180, W: 270 };
-/** Rotation of a piece that faces the given side (rot 0 faces south, as the realizer turns it). */
-const FACE_ROT: Record<Side, Rotation> = { S: 0, W: 90, N: 180, E: 270 };
-
 const ckey = cellKey;
 
 /**
@@ -734,7 +735,7 @@ class Room {
     for (const [x, y] of this.cells) {
       sx += x + 0.5;
       sy += y + 0.5;
-      const walls = SIDES.filter((s) => grid.edge(x, y, s) === EDGE_WALL);
+      const walls = wallSides(grid, x, y);
       for (const s of walls) this.wallPairs.push([x, y, s]);
       if (SIDES.some((s, i) => walls.includes(s) && walls.includes(SIDES[(i + 1) % 4] as Side)))
         this.cornerPairs.add(ckey(x, y));
@@ -770,8 +771,7 @@ class Room {
     for (const [x, y] of this.cells) {
       for (const s of SIDES) {
         const e = g.edge(x, y, s);
-        const nx = x + DIR[s][0];
-        const ny = y + DIR[s][1];
+        const [nx, ny] = stepSide(x, y, s);
         let door = e === EDGE_OPENING || e === EDGE_STAIR;
         if (!door && e === 0 && g.inBounds(nx, ny) && !this.inRoom.has(ckey(nx, ny)))
           door = g.isFloor(nx, ny) || (g.flags(nx, ny) & FLAG_LINK) !== 0;
@@ -787,7 +787,7 @@ class Room {
           seen.add(ckey(x, y));
           this.thresholds.push([x, y]);
         }
-        const inward = DIR[OPP[s]];
+        const inward = INWARD[s];
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) this.zone.add(ckey(x + dx, y + dy));
         this.zone.add(ckey(x + inward[0] * 2, y + inward[1] * 2));
       }
@@ -820,8 +820,7 @@ class Room {
       const [x, y] = queue[h] as [number, number];
       for (const s of SIDES) {
         if (this.grid.edge(x, y, s) === EDGE_WALL) continue;
-        const nx = x + DIR[s][0];
-        const ny = y + DIR[s][1];
+        const [nx, ny] = stepSide(x, y, s);
         if (!open(nx, ny) || seen.has(ckey(nx, ny))) continue;
         seen.add(ckey(nx, ny));
         queue.push([nx, ny]);
@@ -928,7 +927,7 @@ class Room {
 
   /** Is the cell on the wall side `s` close to a placed piece (a run of furniture along the wall). */
   nextToPlaced(c: Cand): boolean {
-    return c.cells.some(([x, y]) => SIDES.some((s) => this.taken.has(ckey(x + DIR[s][0], y + DIR[s][1]))));
+    return c.cells.some(([x, y]) => SIDES.some((s) => this.taken.has(ckey(...stepSide(x, y, s)))));
   }
 
   /** Choose and place one wall item of the spec; returns the pieces placed or null. */
@@ -1034,7 +1033,7 @@ class Room {
   /** Seats on the open side of a piece, facing it. */
   addSeats(p: Placed, seat: { type: FeatureType; n: number }): void {
     if (!this.has(seat.type)) return;
-    const open = OPP[p.side];
+    const open = OPPOSITE[p.side];
     const cells: Array<[number, number]> = [];
     const [x0, y0] = p.at;
     const [w, h] = p.size;
@@ -1199,8 +1198,9 @@ class Room {
       const kinds = this.rng.chance(0.85) ? 1 + this.rng.int(2) : 0;
       for (let i = 0; i < kinds; i++) {
         const along = (this.rng.next() - 0.5) * 0.7;
-        const ox = DIR[s][0] !== 0 ? DIR[s][0] * toward : along;
-        const oy = DIR[s][1] !== 0 ? DIR[s][1] * toward : along;
+        const [dx, dy] = SIDE_STEP[s];
+        const ox = dx !== 0 ? dx * toward : along;
+        const oy = dy !== 0 ? dy * toward : along;
         if (
           !this.push({
             type: "clutter",

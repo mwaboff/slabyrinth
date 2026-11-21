@@ -18,16 +18,17 @@ import type { Rotation, Side } from "../contracts/plan";
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
 import { edgeHidden, terraceRockShare, type RockShape } from "./cover";
+import {
+  EDGE_LEDGE,
+  EDGE_STAIR,
+  FLAG_LINK,
+  FLAG_PATH,
+  FLAG_WATER,
+  SIDES,
+  SIDE_STEP as STEP,
+  cellKey as key,
+} from "./gridGeometry";
 import { gridProfile, type GeneratedPlacement, type PlacementGrid } from "./place";
-
-const EDGE_LEDGE = 3;
-const EDGE_STAIR = 4;
-const FLAG_WATER = 4;
-const FLAG_PATH = 8;
-const FLAG_LINK = 16;
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
-const STEP: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
-const key = (x: number, y: number): number => (x + 16384) * 32768 + (y + 16384);
 
 type Piece = "cliff_face" | "cliff_crest";
 interface Size {

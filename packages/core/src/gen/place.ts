@@ -15,10 +15,13 @@ import {
   FLAG_NO_FLOOR,
   FLAG_PATH,
   FLAG_WATER,
+  NEIGHBOURS4,
   SIDES,
+  SIDE_ROT,
   cellKey,
   footprintCells,
   wallFootprint,
+  wallSides,
 } from "./gridGeometry";
 import { ValueNoise } from "./noise";
 import { ROOM_PURPOSE_INFO, presetPurpose } from "./roomPurpose";
@@ -463,7 +466,6 @@ export interface DressParams {
   abandoned?: boolean;
 }
 
-const SIDE_ROT: Record<Side, Rotation> = { N: 0, E: 90, S: 180, W: 270 };
 /** Random candidates tried per dress item before it is dropped. */
 const SAMPLE_TRIES = 24;
 
@@ -503,21 +505,13 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   const out: GeneratedPlacement[] = [];
   let capped = false;
 
-  const wallSides = (x: number, y: number): Side[] => SIDES.filter((s) => grid.edge(x, y, s) === EDGE_WALL);
   const atOpening = (x: number, y: number): boolean => SIDES.some((s) => grid.edge(x, y, s) === EDGE_OPENING);
   // generator 4: a blocking piece (rubble, a crate) keeps one more cell back from a doorway too: pieces are wider than
   // a cell, and one standing beside the cell in front of a door spills into it (verify_door_blocked)
   const nearOpening = (x: number, y: number): boolean =>
     atOpening(x, y) ||
     (gen.doorwaysKeepClear &&
-      (
-        [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ] as const
-      ).some(([dx, dy]) => grid.inBounds(x + dx, y + dy) && atOpening(x + dx, y + dy)));
+      NEIGHBOURS4.some(([dx, dy]) => grid.inBounds(x + dx, y + dy) && atOpening(x + dx, y + dy)));
   const free = (x: number, y: number, blocking: boolean): boolean =>
     grid.inBounds(x, y) &&
     grid.area(x, y) === p.areaIndex &&
@@ -534,7 +528,7 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   const cornerPairs: Array<[number, number, Side]> = [];
   const centerCells: Array<[number, number]> = [];
   for (const [x, y] of floorCells) {
-    const ws = wallSides(x, y);
+    const ws = wallSides(grid, x, y);
     for (const sd of ws) wallPairs.push([x, y, sd]);
     for (let i = 0; i < 4; i++) {
       const a = SIDES[i] as Side;
