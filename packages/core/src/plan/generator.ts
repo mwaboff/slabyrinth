@@ -23,7 +23,7 @@ import { GENERATOR_VERSIONS, type GeneratorVersion } from "../contracts/plan";
  * are data, generated and user-written, so they name a version rather than a switch. A test keeps the roles of the
  * vocabulary below in step with it (test/unit/plan/generatorProfile.test.ts).
  *
- * Review policy (decided 2026-11-20, code review finding 4): the design review is advice about the build, not the
+ * Review policy: the design review is advice about the build, not the
  * build, so its output is NOT frozen per generator: a new note may run on an older generator's plan when what it
  * measures is true there. Its advice must hold for the plan's own generator: a note whose action relies on newer
  * behaviour ("name the room and the generator dresses it") is gated on that behaviour's switch or words its action by

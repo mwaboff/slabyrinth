@@ -1,5 +1,5 @@
 /**
- * The solid shell of a built interior, generator 4 (interior round, item 5, 2026-11-20).
+ * The solid shell of a built interior, generator 4 (switch `solidShell`).
  *
  * A dungeon cut into rock reads from above as rooms in a mass with a flat cap flush with the wall tops. Generator 3
  * built the rooms and left the SOLID cells round them as nothing, so each room was a thin-walled box floating in the

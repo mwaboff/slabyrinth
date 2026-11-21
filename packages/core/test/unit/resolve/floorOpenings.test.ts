@@ -9,6 +9,7 @@ import type { MapPlan, TerrainOp } from "../../../src/contracts/plan";
 import { EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
+import { hEdgeIndex, vEdgeIndex } from "../../../src/resolve/levelGrid";
 import { reviewDesign } from "../../../src/review";
 import { slabCodec } from "../../../src/slab";
 import { loadPlan } from "../../fixtures";
@@ -54,13 +55,13 @@ function rimWallHeights(plan: MapPlan): number[] {
   const out: number[] = [];
   for (let y = 0; y <= L.bounds.h; y++)
     for (let x = 0; x < w; x++) {
-      const i = y * w + x;
+      const i = hEdgeIndex(L.bounds, x, y);
       if (L.hEdges.kind[i] === EDGE.WALL && (at(x, y - 1) || at(x, y)))
         out.push(L.hEdges.height[i] as number);
     }
   for (let y = 0; y < L.bounds.h; y++)
     for (let x = 0; x <= w; x++) {
-      const i = y * (w + 1) + x;
+      const i = vEdgeIndex(L.bounds, x, y);
       if (L.vEdges.kind[i] === EDGE.WALL && (at(x - 1, y) || at(x, y)))
         out.push(L.vEdges.height[i] as number);
     }

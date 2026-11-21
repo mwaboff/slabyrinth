@@ -1,6 +1,6 @@
 /**
  * What each floor material IS, as data: one table of traits that the resolver (and the compiler) read instead of
- * keeping their own literal sets of material names (generator 4 code review, finding S12). A new material gets one row
+ * keeping their own literal sets of material names. A new material gets one row
  * here, and every rule that asks "is it water", "is it natural ground" or "what bridge is it" answers for it. Wall
  * styles have the same kind of table (gen/wallStyles.ts).
  */

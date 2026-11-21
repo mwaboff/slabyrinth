@@ -27,6 +27,71 @@ export class ReliefRecords {
   readonly outcrops: NonNullable<ResolvedLevel["outcrops"]> = [];
 }
 
+/** Platform defaults and shaping (applyPlatform). Rises are in tiles, heights in quarter tiles. */
+const PLATFORM = {
+  /** A natural hill (ragged outline, natural material): few bold rises, a few cells deep. */
+  bold: { tiers: 2, rise: 2.5, inset: 3 },
+  /** A dais or built terrace: small steps. */
+  small: { tiers: 3, rise: 0.5, inset: 1 },
+  /** Generator 3 rounded rises: a gentle rise of at least this many quarters in all becomes steps of about a tile. */
+  roundedStepQ: 4,
+  /** ... and its tiers lie at least this many cells apart. */
+  roundedInset: 3,
+  /** Passes that relax ragged tiers until neighbours differ by at most one tier. */
+  relaxPasses: 6,
+  /** A rise per tier over this (quarters) is too steep for the platform's stairs (warned). */
+  stairRiseQ: 4,
+  /** Width of a stair flight up a side (cells), and the most cells one flight is walked. */
+  flightWidth: 2,
+  flightMaxCells: 200,
+} as const;
+
+/** Rock ramps (applyRamp). */
+const RAMP = {
+  /** Cells of run per tile of climb; a steeper ramp is warned about. */
+  cellsPerTile: 2.5,
+  /** Width (cells): the op's, clamped, or the default. */
+  minWidth: 3,
+  maxWidth: 6,
+  defaultWidth: 4,
+} as const;
+
+/** Uneven ground (applyUneven). Heights are in quarter tiles. */
+const UNEVEN = {
+  /** Noise scale (cells) and amount (tiles) when the op gives none. */
+  defaultScale: 8,
+  defaultAmount: 0.5,
+  /** The unevenness tapers to nothing over this many cells at the edge of the region. */
+  taperCells: 3,
+  /** Neighbours never differ by more than this (half a tile, walkable); a bigger existing step is left alone. */
+  walkStepQ: 2,
+  /** Most relaxation passes. */
+  relaxPasses: 8,
+} as const;
+
+/** Outcrops (applyOutcrop). Heights are in quarter tiles. */
+const OUTCROP = {
+  /** Height (tiles) when the op gives none. */
+  defaultHeight: 2,
+  /** Generator 3: a shape of at least this many cells is roughened, twice from `roughenTwiceCells`. */
+  roughenCells: 6,
+  roughenTwiceCells: 30,
+  /** Roughening is kept only when it leaves at least this share of the cells. */
+  roughenKeepShare: 0.55,
+  /** Cells per noise unit. */
+  noiseScale: 1.7,
+  /** A rim cell stays floor where the noise is below this, on outcrops of more than `raggedRimCells` cells. */
+  rimGap: 0.35,
+  raggedRimCells: 4,
+  /** Height tapers from the core to the rim: full at (distance + taperOffset) >= taperCells. */
+  taperOffset: 0.5,
+  taperCells: 2.5,
+  /** Noise varies a cell's height by up to half this either way (quarters). */
+  jitterQ: 4,
+  /** Lowest rise of a kept cell (quarters). */
+  minRiseQ: 2,
+} as const;
+
 /** A flight from cell `start` stepping by (dx,dy) through `cells` (in order): stair edges where heights differ. */
 function flight(work: ResolveGrid, cells: number[]): void {
   for (let k = 1; k < cells.length; k++) work.addStairEdge(cells[k - 1] as number, cells[k] as number);
@@ -69,18 +134,19 @@ export function applyPlatform(
       "ragged";
   // natural hills default to few bold rises (two terraces 2.5 tiles apart, a few cells deep), not many small steps;
   // a dais or built terrace keeps the small defaults
-  const bold = ragged && natural;
-  let tiers = op.tiers ?? (bold ? 2 : 3);
-  let riseQ = Math.round((op.rise ?? (bold ? 2.5 : 0.5)) * 4);
-  let inset = op.inset ?? (bold ? 3 : 1);
+  const shape = ragged && natural ? PLATFORM.bold : PLATFORM.small;
+  let tiers = op.tiers ?? shape.tiers;
+  let riseQ = Math.round((op.rise ?? shape.rise) * 4);
+  let inset = op.inset ?? shape.inset;
   // generator 3: a gentle rise on natural ground reads as one rounded mound, not stacked half-tile plates with
   // square, stair-stepped outlines: fewer, larger steps (a tile or more each), outline rounded by the organic pass
-  if (work.profile.roundedRises && ragged && natural && riseQ > 0 && riseQ < 4 && tiers > 1) {
+  const stepQ = PLATFORM.roundedStepQ;
+  if (work.profile.roundedRises && ragged && natural && riseQ > 0 && riseQ < stepQ && tiers > 1) {
     const total = tiers * riseQ;
-    if (total >= 4) {
-      tiers = Math.max(1, Math.floor(total / 4));
+    if (total >= stepQ) {
+      tiers = Math.max(1, Math.floor(total / stepQ));
       riseQ = Math.round(total / tiers);
-      inset = Math.max(inset, 3);
+      inset = Math.max(inset, PLATFORM.roundedInset);
     }
   }
   // the level bounds do not count as an edge: a plateau against the map edge stays high there
@@ -106,7 +172,7 @@ export function applyPlatform(
       tierOf.set(i, Math.max(0, Math.min(tiers, Math.floor((dn - 1) / inset) + 1)));
     }
   if (ragged)
-    for (let pass = 0; pass < 6; pass++)
+    for (let pass = 0; pass < PLATFORM.relaxPasses; pass++)
       for (const i of cells)
         for (const j of work.neighbours4(i)) {
           const tj = j >= 0 ? tierOf.get(j) : undefined;
@@ -136,7 +202,7 @@ export function applyPlatform(
       `platform "${op.id}" only has room for ${top} of its ${tiers} tiers (the shape is too small for inset ${inset})`,
       { path, elementId: op.id, hint: "enlarge the shape, or lower tiers or inset" },
     );
-  if (Math.abs(riseQ) > 4 && (op.stairs ?? []).length > 0)
+  if (Math.abs(riseQ) > PLATFORM.stairRiseQ && (op.stairs ?? []).length > 0)
     work.issue(
       "warning",
       "stairs_invalid",
@@ -156,7 +222,7 @@ export function applyPlatform(
   const y1 = Math.max(...xy.map((c) => c[1]));
   const cx = Math.floor((x0 + x1) / 2);
   const cy = Math.floor((y0 + y1) / 2);
-  const [lo, hi] = bandOffsets(2);
+  const [lo, hi] = bandOffsets(PLATFORM.flightWidth);
   for (const side of op.stairs ?? []) {
     for (let o = lo; o <= hi; o++) {
       const seq: number[] = [];
@@ -164,7 +230,7 @@ export function applyPlatform(
       const step = side === "N" || side === "W" ? 1 : -1;
       let x = vertical ? cx + o : side === "W" ? x0 - 1 : x1 + 1;
       let y = vertical ? (side === "N" ? y0 - 1 : y1 + 1) : cy + o;
-      for (let n = 0; n < 200; n++) {
+      for (let n = 0; n < PLATFORM.flightMaxCells; n++) {
         const i = work.idx(x, y);
         if (i >= 0 && (set.has(i) || seq.length === 0)) {
           if (set.has(i) || work.state[i] === CELL.OPEN) seq.push(i);
@@ -204,18 +270,18 @@ function applyRamp(
   const [fx, fy] = op.from;
   const [tx, ty] = op.to;
   const len = Math.hypot(tx - fx, ty - fy);
-  if (len > 0 && Math.abs(h1 - h0) / 4 > len / 2.5)
+  if (len > 0 && Math.abs(h1 - h0) / 4 > len / RAMP.cellsPerTile)
     work.issue(
       "warning",
       "stairs_invalid",
-      `ramp "${op.id}" climbs ${Math.abs(h1 - h0) / 4} tiles over ${Math.round(len)} cells: steeper than 1 tile per 2.5 cells`,
+      `ramp "${op.id}" climbs ${Math.abs(h1 - h0) / 4} tiles over ${Math.round(len)} cells: steeper than 1 tile per ${RAMP.cellsPerTile} cells`,
       {
         path,
         elementId: op.id,
-        hint: `make it at least ${Math.ceil((Math.abs(h1 - h0) / 4) * 2.5)} cells long, diagonal to the cliff`,
+        hint: `make it at least ${Math.ceil((Math.abs(h1 - h0) / 4) * RAMP.cellsPerTile)} cells long, diagonal to the cliff`,
       },
     );
-  const width = Math.max(3, Math.min(6, op.width ?? 4));
+  const width = Math.max(RAMP.minWidth, Math.min(RAMP.maxWidth, op.width ?? RAMP.defaultWidth));
   const cells: Vec2[] = [];
   forEachMaskCell(rasterPolyline([op.from, op.to], width, work.rasterClip()), (x, y) => {
     const i = work.idx(x, y);
@@ -334,15 +400,15 @@ export function applyUneven(work: ResolveGrid, op: Extract<TerrainOp, { op: "une
   }
   const seed = elementSeed(work.plan.seed, op.id, op.seed);
   const noise = new ValueNoise(subSeed(seed, "uneven"));
-  const scale = op.scale ?? 8;
-  const amountQ = Math.round((op.amount ?? 0.5) * 4);
+  const scale = op.scale ?? UNEVEN.defaultScale;
+  const amountQ = Math.round((op.amount ?? UNEVEN.defaultAmount) * 4);
   const set = new Set(cells);
-  // taper to nothing over 3 cells at the edge of the region, so it meets the floor around it smoothly
+  // taper to nothing at the edge of the region, so it meets the floor around it smoothly
   const dist = work.innerDistance(cells);
   const delta = new Map<number, number>();
   for (const i of cells) {
     const [x, y] = work.cellXY(i);
-    const taper = Math.min(1, ((dist.get(i) ?? 1) - 1) / 3);
+    const taper = Math.min(1, ((dist.get(i) ?? 1) - 1) / UNEVEN.taperCells);
     // whole half tiles: a quarter-tile step only reads as a crack in game (round 3); generator 2 rounds the band
     // outlines below so they read as gentle banks, not square stair-steps
     delta.set(i, 2 * Math.round((noise.sample(x / scale, y / scale) - 0.5) * amountQ * taper));
@@ -357,8 +423,9 @@ export function applyUneven(work: ResolveGrid, op: Extract<TerrainOp, { op: "une
     if (work.profile.roughenedLumps) roughenLumps(tiers, work.organicGrid(), subSeed(seed, "lumps"));
     for (const i of cells) delta.set(i, 2 * (tiers.get(i) ?? 0));
   }
-  // walkable: neighbours in the region never differ by more than 2 quarters (relaxation, then applied)
-  for (let pass = 0; pass < 8; pass++) {
+  // walkable: neighbours in the region never differ by more than a walkable step (relaxation, then applied)
+  const walk = UNEVEN.walkStepQ;
+  for (let pass = 0; pass < UNEVEN.relaxPasses; pass++) {
     let changed = false;
     for (const i of cells) {
       let lo2 = -Infinity;
@@ -367,10 +434,10 @@ export function applyUneven(work: ResolveGrid, op: Extract<TerrainOp, { op: "une
         if (j < 0 || !set.has(j)) continue;
         // an existing step (a cliff or a riser the plan built) stays as it is: smoothing across it would drag the
         // low ground up into a ramp that ends in a straight wall at the edge of the shape
-        if (Math.abs((work.height[j] as number) - (work.height[i] as number)) > 2) continue;
+        if (Math.abs((work.height[j] as number) - (work.height[i] as number)) > walk) continue;
         const base = (work.height[j] as number) + (delta.get(j) as number) - (work.height[i] as number);
-        lo2 = Math.max(lo2, base - 2);
-        hi2 = Math.min(hi2, base + 2);
+        lo2 = Math.max(lo2, base - walk);
+        hi2 = Math.min(hi2, base + walk);
       }
       const d = delta.get(i) as number;
       const c = Math.max(lo2, Math.min(hi2, d));
@@ -391,7 +458,7 @@ export function applyOutcrop(
   out: ReliefRecords,
 ): void {
   let n = 0;
-  const riseQ = Math.round((op.height ?? 2) * 4);
+  const riseQ = Math.round((op.height ?? OUTCROP.defaultHeight) * 4);
   let cells = work
     .shapeCells(op.shape, "terrain", path, op.id)
     .filter(
@@ -401,13 +468,14 @@ export function applyOutcrop(
     );
   // generator 3: a small natural rise is not a rectangle: its corners are cut (twice on larger ones) and its sides
   // bitten. Only ever removes cells, so no route is closed that the shape did not already close.
-  if (work.profile.roughenedLumps && cells.length >= 6) {
+  if (work.profile.roughenedLumps && cells.length >= OUTCROP.roughenCells) {
     const tiers = new Map<number, number>(cells.map((i) => [i, 1]));
     const lumpSeed = subSeed(elementSeed(work.plan.seed, op.id), "outcrop-lumps");
     roughenLumps(tiers, work.organicGrid(), lumpSeed);
-    if (cells.length >= 30) roughenLumps(tiers, work.organicGrid(), subSeed(lumpSeed, "again"));
+    if (cells.length >= OUTCROP.roughenTwiceCells)
+      roughenLumps(tiers, work.organicGrid(), subSeed(lumpSeed, "again"));
     const kept = cells.filter((i) => (tiers.get(i) ?? 0) > 0);
-    if (kept.length >= Math.ceil(cells.length * 0.55)) cells = kept;
+    if (kept.length >= Math.ceil(cells.length * OUTCROP.roughenKeepShare)) cells = kept;
   }
   const dist = work.innerDistance(cells);
   const noise = new ValueNoise(subSeed(elementSeed(work.plan.seed, op.id), "outcrop"));
@@ -415,12 +483,12 @@ export function applyOutcrop(
   let peak = 0;
   for (const i of cells) {
     const [x, y] = work.cellXY(i);
-    const nz = noise.sample(x / 1.7, y / 1.7);
+    const nz = noise.sample(x / OUTCROP.noiseScale, y / OUTCROP.noiseScale);
     const d = dist.get(i) ?? 1;
     // ragged edge: some rim cells stay floor; heights taper from the core to the rim and vary by ±0.5
-    if (d === 1 && nz < 0.35 && cells.length > 4) continue;
-    const taper = Math.min(1, (d + 0.5) / 2.5);
-    const q = Math.max(2, 2 * Math.round((riseQ * taper + (nz - 0.5) * 4) / 2));
+    if (d === 1 && nz < OUTCROP.rimGap && cells.length > OUTCROP.raggedRimCells) continue;
+    const taper = Math.min(1, (d + OUTCROP.taperOffset) / OUTCROP.taperCells);
+    const q = Math.max(OUTCROP.minRiseQ, 2 * Math.round((riseQ * taper + (nz - 0.5) * OUTCROP.jitterQ) / 2));
     work.height[i] = Math.min(PLAN_LIMITS.maxHeight * 4, (work.height[i] as number) + q);
     work.setMaterial(i, op.material ?? "rock");
     kept.push(i);

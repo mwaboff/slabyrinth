@@ -1,5 +1,5 @@
 /**
- * Interior floors, generator 4 (interior round, items 5-6, 2026-11-20). Pure helpers for the resolver
+ * Interior floors, generator 4 (switches `roomFloors`, `accentTops`). Pure helpers for the resolver
  * (resolve/level/rooms.ts `stepRoomFloors`) and the review (`floor_accent_tone`).
  *
  * A built interior reads as separate rooms when each room has its own floor and sits a step above the corridor. The

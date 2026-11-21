@@ -1,5 +1,5 @@
 /**
- * Rough wall tops, generator 4 (interior round, item 8, 2026-11-20). A built dungeon or cellar has every wall at one
+ * Rough wall tops, generator 4 (switch `interiorWallTops`). A built dungeon or cellar has every wall at one
  * height, a ruled line from above. The reference interior's wall bases sit a quarter tile apart, so its tops vary
  * (2.0 / 2.25 / 2.5 above the floor, 41 / 16 / 32%) and runs break into shorter stubs at openings.
  *

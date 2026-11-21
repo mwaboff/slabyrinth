@@ -1,6 +1,6 @@
 /**
  * What each wall style IS, as data: one table of traits that every stage reads instead of keeping its own literal set
- * of style names (generator 4 code review, finding 5). A new style gets one row here, and every rule that asks "is it
+ * of style names. A new style gets one row here, and every rule that asks "is it
  * rock", "can you see over it" or "may it be weathered" answers for it.
  *
  * The table says nothing about themes. Whether a room is kept up or abandoned is decided per theme and per room

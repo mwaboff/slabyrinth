@@ -4,8 +4,8 @@
  * `generator: 2` explicitly (terrain, dressing, buildings): the resolved hash, the canonical resolved form, every
  * compiled slab chunk and the diagnostics.
  *
- * If this test fails you changed what generator 2 produces. Do not update the golden. Put the change behind
- * `generatorAtLeast(plan, 3)` (src/plan/generator.ts) so it only applies to generator-3 plans.
+ * If this test fails you changed what generator 2 produces. Do not update the golden. Put the change behind a switch
+ * of the open generator's profile (src/plan/generator.ts), off in the released profiles.
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";

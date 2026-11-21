@@ -11,7 +11,7 @@
 import type { Material, TerrainOp, Vec2 } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
-import { SIDE_STEP } from "../../gen/gridGeometry";
+import { SIDES, SIDE_STEP, stepSide } from "../../gen/gridGeometry";
 import { forEachMaskCell } from "../../gen/mask";
 import { ValueNoise } from "../../gen/noise";
 import { rasterPolyline } from "../../gen/shapes";
@@ -50,6 +50,41 @@ export class PathRecords {
   /** Kerb pieces (ResolvedLevel.kerbs), after the edges. */
   readonly kerbs: NonNullable<ResolvedLevel["kerbs"]> = [];
 }
+
+/** Pavements beside roads (stepPavements, stepRoads). Heights are in quarter tiles. */
+const PAVEMENT = {
+  /** A sidewalk's raise (tiles) when the path op gives none. */
+  defaultRaise: 0.25,
+  /** A building front (its wall ring included) at most this many cells beyond a pavement draws the pavement on to it. */
+  reachToFront: 3,
+} as const;
+
+/** Kerb pieces along roads (stepRoads) and along kerbed paths (stepKerbs). */
+const KERB = {
+  /** Most height difference (quarter tiles) between a carriageway cell and the pavement it kerbs. */
+  roadStepQ: 2,
+  /** Most height difference (quarter tiles) between a kerbed path cell and the floor beside it. */
+  pathStepQ: 1,
+  /** A natural trail has no kerb within this many cells (Chebyshev) of what it joins. */
+  anchorClear: 2,
+  /** Cells per noise unit of a natural trail's broken kerbs. */
+  noiseScale: 2.5,
+  /** A natural trail keeps a kerb where the noise is at least this (about 40% of the edges). */
+  keepFrom: 0.58,
+  /** Noise offset per side, so the four sides of one cell draw apart. */
+  sideOffset: { N: 0.3, S: 0.6, E: 0.9, W: 0.1 },
+} as const;
+
+/** Spur trails to focal pieces and doors (stepPathSpurs). */
+const SPUR = {
+  /** No spur when a path already passes within this many cells (Chebyshev) of the target. */
+  nearPath: 3,
+  /** The same for an exact target (generator 3: a door cell, the focal piece): the path must touch it. */
+  nearPathExact: 1,
+  /** Trail width (cells) and wander (trailCells). */
+  width: 1,
+  wander: 0.4,
+} as const;
 
 /** Landmark-class pieces a spur trail leads to (the first found), then lesser focal pieces. */
 const SPUR_PRIMARY = new Set<string>([
@@ -105,12 +140,8 @@ export function stepPavementFronts(work: ResolveGrid, paths: PathRecords): void 
       continue;
     // the highest pavement beside it (a pavement height is current only while the cell still holds it)
     let best: { h: number; r: Road } | null = null;
-    for (const [dx, dy] of [
-      [0, -1],
-      [1, 0],
-      [0, 1],
-      [-1, 0],
-    ] as const) {
+    for (const side of SIDES) {
+      const [dx, dy] = SIDE_STEP[side];
       const j = work.idx(x + dx, y + dy);
       const r = j >= 0 ? owner.get(j) : undefined;
       if (!r || j < 0) continue;
@@ -141,7 +172,7 @@ export function stepPavements(work: ResolveGrid, layer: "under" | "over", paths:
   for (const r of paths.pendingRoads) {
     const sw = r.op.sidewalk;
     if (r.layer !== layer || !sw) continue;
-    const raise = Math.round((sw.raise ?? 0.25) * 4);
+    const raise = Math.round((sw.raise ?? PAVEMENT.defaultRaise) * 4);
     // a building's lot: its footprint and the ring of cells around it (its walls and pad)
     const inLot = (x: number, y: number): boolean => {
       const i = work.idx(x, y);
@@ -168,17 +199,13 @@ export function stepPavements(work: ResolveGrid, layer: "under" | "over", paths:
       r.pave.push({ i, h });
     };
     forEachMaskCell(rasterPolyline(r.axis, r.op.width + 2 * sw.width, work.rasterClip()), lay);
-    // the pavement runs on up to a building front that stands up to three cells beyond it (its wall ring included):
+    // the pavement runs on up to a building front that stands a few cells beyond it (its wall ring included):
     // no strip of bare ground between the pavement and the lot
     for (const { i } of r.pave.slice()) {
       const [x, y] = work.cellXY(i);
-      for (const [dx, dy] of [
-        [0, -1],
-        [1, 0],
-        [0, 1],
-        [-1, 0],
-      ] as const) {
-        for (let k = 1; k <= 3; k++) {
+      for (const side of SIDES) {
+        const [dx, dy] = SIDE_STEP[side];
+        for (let k = 1; k <= PAVEMENT.reachToFront; k++) {
           const j = work.idx(x + dx * k, y + dy * k);
           if (j < 0 || carriage.has(j)) break;
           if (lot(x + dx * k, y + dy * k)) {
@@ -234,7 +261,7 @@ export function stepRoads(work: ResolveGrid, paths: PathRecords): void {
       carriageway: cw,
       pavement: pv,
       pavementMaterial: sw?.material ?? null,
-      pavementRaise: sw ? Math.round((sw.raise ?? 0.25) * 4) : 0,
+      pavementRaise: sw ? Math.round((sw.raise ?? PAVEMENT.defaultRaise) * 4) : 0,
       kerbLines,
       corners,
       crossings,
@@ -245,13 +272,12 @@ export function stepRoads(work: ResolveGrid, paths: PathRecords): void {
     for (const i of carriageway) {
       const [x, y] = work.cellXY(i);
       if (crossingAll.has(`${x},${y}`)) continue;
-      for (const side of ["N", "E", "S", "W"] as const) {
-        const [nx, ny] =
-          side === "N" ? [x, y - 1] : side === "S" ? [x, y + 1] : side === "E" ? [x + 1, y] : [x - 1, y];
+      for (const side of SIDES) {
+        const [nx, ny] = stepSide(x, y, side);
         const j = work.idx(nx, ny);
         if (j < 0 || carriage.has(`${nx},${ny}`) || !work.isFloor(j)) continue;
         if (sw && !pavedAll.has(`${nx},${ny}`)) continue;
-        if (Math.abs((work.height[j] as number) - (work.height[i] as number)) > 2) continue;
+        if (Math.abs((work.height[j] as number) - (work.height[i] as number)) > KERB.roadStepQ) continue;
         const ed = work.sideEdge(x, y, side);
         if (!ed || (ed.e.kind[ed.i] !== EDGE.NONE && ed.e.kind[ed.i] !== EDGE.LEDGE)) continue;
         paths.kerbs.push({ at: [x, y], side, material: sw?.material ?? r.op.material });
@@ -265,24 +291,23 @@ export function stepKerbs(work: ResolveGrid, paths: PathRecords): void {
   for (const k of paths.pendingKerbs) {
     const noise = new ValueNoise(subSeed(k.seed, "kerb"));
     const nearAnchor = (x: number, y: number): boolean =>
-      k.anchors.some(([ax, ay]) => Math.max(Math.abs(ax - x), Math.abs(ay - y)) <= 2);
+      k.anchors.some(([ax, ay]) => Math.max(Math.abs(ax - x), Math.abs(ay - y)) <= KERB.anchorClear);
     const before = paths.kerbs.length;
     for (const i of k.cells) {
       if (!work.isFloor(i) || ((work.flags[i] as number) & CELL_FLAG.PATH) === 0) continue;
       const [x, y] = work.cellXY(i);
-      for (const side of ["N", "E", "S", "W"] as const) {
-        const [nx, ny] =
-          side === "N" ? [x, y - 1] : side === "S" ? [x, y + 1] : side === "E" ? [x + 1, y] : [x - 1, y];
+      for (const side of SIDES) {
+        const [nx, ny] = stepSide(x, y, side);
         const j = work.idx(nx, ny);
         if (j < 0 || k.cells.has(j) || !work.isFloor(j)) continue;
-        if (Math.abs((work.height[j] as number) - (work.height[i] as number)) > 1) continue;
+        if (Math.abs((work.height[j] as number) - (work.height[i] as number)) > KERB.pathStepQ) continue;
         const ed = work.sideEdge(x, y, side);
         if (!ed || ed.e.kind[ed.i] !== EDGE.NONE) continue;
         if (work.profile.naturalPaths && k.natural) {
-          // broken runs (about 40% of the edge), none at junctions or where the path meets what it joins
+          // broken runs, none at junctions or where the path meets what it joins
           if (nearAnchor(x, y)) continue;
-          const off = side === "N" ? 0.3 : side === "S" ? 0.6 : side === "E" ? 0.9 : 0.1;
-          if (noise.sample(x / 2.5 + off, y / 2.5 + off) < 0.58) continue;
+          const off = KERB.sideOffset[side];
+          if (noise.sample(x / KERB.noiseScale + off, y / KERB.noiseScale + off) < KERB.keepFrom) continue;
         }
         paths.kerbs.push({ at: [x, y], side, material: k.material });
       }
@@ -356,8 +381,7 @@ export function parkVehicle(
   let best: { at: Vec2; size: [number, number]; d: number } | null = null;
   for (const r of roads)
     for (const kl of r.kerbLines) {
-      const [dx, dy] =
-        kl.side === "N" ? [0, -1] : kl.side === "S" ? [0, 1] : kl.side === "E" ? [1, 0] : [-1, 0];
+      const [dx, dy] = SIDE_STEP[kl.side];
       const horiz = kl.side === "N" || kl.side === "S";
       const n = Math.max(Math.abs(kl.to[0] - kl.from[0]), Math.abs(kl.to[1] - kl.from[1])) + 1;
       const sx = Math.sign(kl.to[0] - kl.from[0]);
@@ -384,7 +408,7 @@ export function parkVehicle(
 /**
  * Generator 2: paths lead somewhere. When a level has natural paths, the focal piece (the first landmark-class
  * feature) and the front of each building get a spur trail from the nearest path cell unless a path already passes
- * within 3 cells. The spur is a 1-cell winding trail of the same material.
+ * near (`SPUR`). The spur is a 1-cell winding trail of the same material.
  */
 export function stepPathSpurs(work: ResolveGrid): void {
   if (!work.profile.naturalPaths) return;
@@ -460,9 +484,9 @@ export function stepPathSpurs(work: ResolveGrid): void {
       }
     }
     // generator 3 (exact targets): a path must touch the door cell or the focal piece, not merely pass near
-    if (!best || bestD <= (t.exact ? 1 : 3)) continue;
+    if (!best || bestD <= (t.exact ? SPUR.nearPathExact : SPUR.nearPath)) continue;
     const seed = subSeed(elementSeed(work.plan.seed, t.id), "spur");
-    for (const [x, y] of trailCells([best, t.at], 1, 0.4, seed, clip)) {
+    for (const [x, y] of trailCells([best, t.at], SPUR.width, SPUR.wander, seed, clip)) {
       const i = work.idx(x, y);
       if (i < 0 || work.state[i] !== CELL.OPEN) continue;
       if (((work.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.PATH)) !== 0) continue;

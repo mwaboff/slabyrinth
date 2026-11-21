@@ -1,5 +1,5 @@
 /**
- * Solid mass, shared (generator 4 code review, finding 8). Two systems fill the solid cells behind a wall so nothing
+ * Solid mass, shared. Two systems fill the solid cells behind a wall so nothing
  * reads hollow: the interior shell (compile/shell.ts: a flat cap and a skirt behind built walls) and the cave rock mass
  * (gen/cavewall.ts: stacked rock behind natural walls). They answer the same questions, so the answers live here and
  * both ask:

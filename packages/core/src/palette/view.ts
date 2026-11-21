@@ -5,7 +5,7 @@
  * band's pieces really are (`pieceSize`), how tall the piece a room recipe stands on is (`roomPiece`), whether a theme can
  * build a covered stall (`stallForms`), and how large a floor tile is (`floorTileArea`). They used to live in three
  * modules with three lazily created resolvers over the bundled palettes, so the resolver could never see a user's
- * palette and could disagree with the compiler (finding 9 and 7 of the generator-4 review).
+ * palette and could disagree with the compiler.
  *
  * Every caller hands `resolvePlan` the palettes the plan is compiled with; `resolveView` picks the view the plan's
  * generator decides from, and `paletteView` builds one view per catalog, so the resolver and the design review of

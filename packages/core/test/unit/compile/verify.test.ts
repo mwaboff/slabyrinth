@@ -14,6 +14,7 @@ import {
 } from "../../../src/compile";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { checkPlayability, resolvePlan } from "../../../src/resolve";
+import { vEdgeIndex } from "../../../src/resolve/levelGrid";
 import { slabCodec } from "../../../src/slab";
 import { loadPlan } from "../../fixtures";
 import { handLevel, handPlan } from "./handResolved";
@@ -347,7 +348,7 @@ describe("verify: one fixture per code", () => {
       material: "rock",
       wallStyle: "cave_rock",
     });
-    const e = (cave.bounds.w + 1) * 1 + 2; // vertical edge west of (2,1)
+    const e = vEdgeIndex(cave.bounds, 2, 1); // vertical edge west of (2,1)
     cave.vEdges.kind[e] = 1;
     cave.vEdges.ref[e] = 0;
     cave.vEdges.host[e] = 1;

@@ -21,6 +21,7 @@ import {
 import { linkCellsOnLevel } from "../../../src/plan/links";
 import { raggedCaveOutline, windowKeepsJoined } from "../../../src/resolve/caveOutline";
 import { resolvePlan } from "../../../src/resolve/index";
+import { edgeLineLength, edgeLines, edgeOnLine } from "../../../src/resolve/levelGrid";
 import { areaReferenceHeights, spanCellOf, wallRise } from "../../../src/resolve/wallspan";
 import { reviewDesign } from "../../../src/review";
 import { reviewBuild } from "../../../src/review/reviewBuild";
@@ -421,14 +422,13 @@ describe("wall heights beside raised floors", () => {
       if (L.cells.state.every((s) => s !== CELL.SOLID)) continue;
       const ref = areaReferenceHeights(L);
       const cellAt = spanCellOf(L);
-      const { w, h } = L.bounds;
       for (const orient of ["h", "v"] as const) {
         const grid = orient === "h" ? L.hEdges : L.vEdges;
-        const lines = orient === "h" ? h + 1 : w + 1;
-        const along = orient === "h" ? w : h;
+        const lines = edgeLines(L.bounds, orient);
+        const along = edgeLineLength(L.bounds, orient);
         for (let line = 0; line < lines; line++)
           for (let pos = 0; pos < along; pos++) {
-            const idx = orient === "h" ? line * w + pos : pos * (w + 1) + line;
+            const idx = edgeOnLine(L.bounds, orient, line, pos);
             if (grid.kind[idx] !== EDGE.WALL) continue;
             const h0 = (grid.height[idx] ?? 0) > 0 ? (grid.height[idx] as number) : 2;
             const a = orient === "h" ? cellAt(pos, line - 1) : cellAt(line - 1, pos);

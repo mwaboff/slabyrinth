@@ -12,6 +12,7 @@ import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { classifyRoom } from "../../../src/gen/roomPurpose";
 import { accentTop, purposeFloor } from "../../../src/resolve/interiorFloors";
+import { LevelGrid, sideOrient } from "../../../src/resolve/levelGrid";
 import { builtinThemeDefaults, themeInterior } from "../../../src/resolve/themes";
 import { createPaletteView } from "../../../src/palette/view";
 import { reviewDesign } from "../../../src/review";
@@ -183,13 +184,12 @@ describe("generator 4 rough walls", () => {
   });
   it("walls beside a doorway keep their full height", () => {
     const L = lvl(keep(), "l2");
-    const w = L.bounds.w;
+    const grid = new LevelGrid(L);
     for (const op of L.openings) {
-      const lx = op.start[0] - L.bounds.x;
-      const ly = op.start[1] - L.bounds.y;
+      const [x, y] = op.start;
       for (const k of [-1, op.width]) {
-        const i = op.orientation === "h" ? ly * w + lx + k : (ly + k) * (w + 1) + lx;
-        const g = op.orientation === "h" ? L.hEdges : L.vEdges;
+        const i = op.orientation === "h" ? grid.hEdge(x + k, y) : grid.vEdge(x, y + k);
+        const g = grid.edges(op.orientation);
         // full height, or a quarter less where the room is raised a quarter tile over the corridor (the top stays at base + 2)
         if (g.kind[i] === EDGE.WALL) expect(g.height[i]).toBeGreaterThanOrEqual(1.75);
       }
@@ -197,22 +197,13 @@ describe("generator 4 rough walls", () => {
   });
   it("a wall that carries a wall-mounted feature keeps its height", () => {
     const L = lvl(keep(), "l1");
-    const w = L.bounds.w;
+    const grid = new LevelGrid(L);
     const torches = L.features.filter((f) => f.wall !== undefined);
     expect(torches.length).toBeGreaterThan(3);
     for (const f of torches) {
-      const lx = f.at[0] - L.bounds.x;
-      const ly = f.at[1] - L.bounds.y;
-      const i =
-        f.wall === "N"
-          ? ly * w + lx
-          : f.wall === "S"
-            ? (ly + 1) * w + lx
-            : f.wall === "W"
-              ? ly * (w + 1) + lx
-              : ly * (w + 1) + lx + 1;
-      const g = f.wall === "N" || f.wall === "S" ? L.hEdges : L.vEdges;
-      expect(g.height[i]).toBeGreaterThanOrEqual(1.75);
+      if (f.wall === undefined) continue;
+      const i = grid.edgeIndex(f.at[0], f.at[1], f.wall);
+      expect(grid.edges(sideOrient(f.wall)).height[i]).toBeGreaterThanOrEqual(1.75);
     }
   });
   it("wall-foot rubble: about one pile per 10 floor tiles, never on a link, steps or a doorway cell", () => {

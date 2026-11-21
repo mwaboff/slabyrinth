@@ -12,6 +12,7 @@ import { MATERIALS, PLAN_LIMITS } from "../../contracts/plan";
 import type { ResolvedBridge, ResolvedFeature } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
+import { SIDES, stepSide } from "../../gen/gridGeometry";
 import { elementSeed, h32, subSeed } from "../../util/hash";
 import { createPrng } from "../../util/prng";
 import { materialInfo, materialOrdinal } from "../materials";
@@ -66,6 +67,28 @@ interface RaisedDeck {
   anchors: number;
   deck: number;
 }
+
+/** Deck geometry (layBridge, raisedDeckReached, stepRailings). Heights are in quarter tiles. */
+const DECK = {
+  /** A step a miniature walks (half a tile): deck to floor where you get on, between cells of the deck's profile. */
+  walkStepQ: 2,
+  /** On an inclined span, floor up to a tile from a deck cell (or a stair edge) is still a way on. */
+  inclinedClimbQ: 4,
+  /** An inclined span that climbs more than this per cell is steeper than a stair (warned). */
+  stairRiseQ: 4,
+  /** A span shorter than this keeps a level deck unless the plan gives an arch. */
+  archMinLen: 4,
+  /** Most of a deck's cells that may crumble. */
+  maxCrumble: 0.6,
+  /** Anchor cells within this many cells (Chebyshev) of each other are one end of the deck. */
+  endReach: 2,
+  /** A raised deck at least this far above the ground beneath stands on posts at its corners. */
+  postClearQ: 4,
+  /** Arch and flat spans this long or longer stand on piers at a third and two thirds of the way across. */
+  pierMinLen: 5,
+  /** Rubble pieces at a crumbling bridge's ends: 1 + round(crumble x this), as many as there are spots. */
+  rubblePerCrumble: 4,
+} as const;
 
 /** Rise of the deck's middle (quarter tiles) by span; plank bridges sag. */
 const SPAN_ARCH_Q: Record<BridgeSpan, number> = { arch: 3, flat: 0, plank: -1, natural: 1 };
@@ -164,7 +187,7 @@ function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRec
           !inThis.has(j) &&
           work.state[j] === CELL.OPEN &&
           ((work.flags[j] as number) & CELL_FLAG.NO_FLOOR) === 0 &&
-          Math.abs((work.height[j] as number) - deck) <= 2,
+          Math.abs((work.height[j] as number) - deck) <= DECK.walkStepQ,
       );
     if (ok) anchorCells.push(i);
   }
@@ -219,7 +242,8 @@ function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRec
     deck = h0;
     for (let p = 0; p < len; p++) prof.push(Math.round(((h1 - h0) * (len > 1 ? p + 1 : 1)) / (len + 1)));
   } else {
-    const archQ = r.arch !== undefined ? Math.round(r.arch * 4) : len >= 4 ? SPAN_ARCH_Q[span] : 0;
+    const archQ =
+      r.arch !== undefined ? Math.round(r.arch * 4) : len >= DECK.archMinLen ? SPAN_ARCH_Q[span] : 0;
     for (let p = 0; p < len; p++) {
       const t = len > 1 ? p / (len - 1) : 0.5;
       const u = 2 * t - 1;
@@ -229,8 +253,8 @@ function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRec
       for (let p = 1; p < len; p++) {
         const a = prof[p - 1] as number;
         const b = prof[p] as number;
-        if (b - a > 2) prof[p] = a + 2;
-        if (a - b > 2) prof[p - 1] = b + 2;
+        if (b - a > DECK.walkStepQ) prof[p] = a + DECK.walkStepQ;
+        if (a - b > DECK.walkStepQ) prof[p - 1] = b + DECK.walkStepQ;
       }
   }
   for (const i of cells) {
@@ -244,7 +268,7 @@ function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRec
   }
   if (inclined) {
     const stepQ = Math.abs(h1 - h0) / (len + 1);
-    if (stepQ > 4)
+    if (stepQ > DECK.stairRiseQ)
       work.issue(
         "warning",
         "stairs_invalid",
@@ -262,7 +286,8 @@ function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRec
         const [ix, iy] = work.cellXY(i);
         const [jx, jy] = work.cellXY(j);
         if (axis === "h" ? jy !== iy : jx !== ix) continue; // only along the span
-        if (Math.abs((work.height[j] as number) - (work.height[i] as number)) > 2) work.addStairEdge(i, j);
+        if (Math.abs((work.height[j] as number) - (work.height[i] as number)) > DECK.walkStepQ)
+          work.addStairEdge(i, j);
       }
     // anchors are where the deck meets floor at its own height or one step from it
     anchorCells.splice(0, anchorCells.length);
@@ -274,7 +299,7 @@ function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRec
             j >= 0 &&
             !inThis.has(j) &&
             work.isFloor(j) &&
-            (Math.abs((work.height[j] as number) - (work.height[i] as number)) <= 4 ||
+            (Math.abs((work.height[j] as number) - (work.height[i] as number)) <= DECK.inclinedClimbQ ||
               work.hasStairEdge(i, j)),
         );
       if (ok) anchorCells.push(i);
@@ -298,7 +323,7 @@ function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRec
     }
     return live.every((i) => seen.has(i));
   };
-  const target = Math.round(Math.min(0.6, Math.max(0, r.crumble)) * cells.length);
+  const target = Math.round(Math.min(DECK.maxCrumble, Math.max(0, r.crumble)) * cells.length);
   if (target > 0) {
     const rng = createPrng(r.seed);
     // outer cells (next to the drop) crumble first, then the rest
@@ -320,17 +345,22 @@ function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRec
     work.mat[i] = 0;
   }
   const sorted = cells.map((i, j) => ({ i, j })).sort((a, b) => a.i - b.i);
-  // piers: arch and flat spans of 5+ cells stand on stone piers at a third and two thirds of the way across
+  // piers: long arch and flat spans stand on stone piers at a third and two thirds of the way across
   const piers: Vec2[] = [];
-  // a raised deck on supports (watchtower, gallows, scaffold, pier): explicit height, a tile or more above the
-  // ground beneath it: posts at its corners
+  // a raised deck on supports (watchtower, gallows, scaffold, pier): explicit height, well above the ground beneath
+  // it: posts at its corners
   if (r.deck !== null) {
     const corners = new Set([work.idx(bx0, by0), work.idx(bx1, by0), work.idx(bx0, by1), work.idx(bx1, by1)]);
     sorted.forEach(({ i, j }) => {
-      if (corners.has(i) && underMaterial[j] !== null && deck - (under[j] as number) >= 4 && !broken.has(i))
+      if (
+        corners.has(i) &&
+        underMaterial[j] !== null &&
+        deck - (under[j] as number) >= DECK.postClearQ &&
+        !broken.has(i)
+      )
         piers.push(work.cellXY(i));
     });
-  } else if ((span === "arch" || span === "flat") && len >= 5) {
+  } else if ((span === "arch" || span === "flat") && len >= DECK.pierMinLen) {
     const at = new Set([Math.round((len - 1) / 3), Math.round((2 * (len - 1)) / 3)]);
     sorted.forEach(({ i, j }) => {
       if (at.has(along(i)) && underMaterial[j] !== null && !broken.has(i)) piers.push(work.cellXY(i));
@@ -343,7 +373,7 @@ function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRec
     for (const i of anchorCells)
       for (const j of work.neighbours4(i))
         if (j >= 0 && !inThis.has(j) && work.isFloor(j) && out.deckOf[j] === 0) spots.push(work.cellXY(j));
-    const pickN = Math.min(spots.length, 1 + Math.round(r.crumble * 4));
+    const pickN = Math.min(spots.length, 1 + Math.round(r.crumble * DECK.rubblePerCrumble));
     rng
       .shuffle(spots)
       .slice(0, pickN)
@@ -374,7 +404,8 @@ function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRec
       const j = axis === "h" ? work.idx(x + step, y) : work.idx(x, y + step);
       if (j < 0 || inThis.has(j) || !work.isFloor(j)) return false;
       return (
-        Math.abs((work.height[j] as number) - (work.height[i] as number)) <= 2 || work.hasStairEdge(i, j)
+        Math.abs((work.height[j] as number) - (work.height[i] as number)) <= DECK.walkStepQ ||
+        work.hasStairEdge(i, j)
       );
     });
   // a raised deck (explicit height) needs one way on and off, which another bridge laid after it may give
@@ -397,7 +428,7 @@ function raisedDeckReached(work: ResolveGrid, d: RaisedDeck): boolean {
             j >= 0 &&
             !inThis.has(j) &&
             work.isFloor(j) &&
-            (Math.abs((work.height[j] as number) - (work.height[i] as number)) <= 2 ||
+            (Math.abs((work.height[j] as number) - (work.height[i] as number)) <= DECK.walkStepQ ||
               work.hasStairEdge(i, j)),
         ),
   );
@@ -429,7 +460,7 @@ function warnUnanchored(
   );
 }
 
-/** Number of groups of anchor cells, where anchors within 2 cells (Chebyshev) of each other count as one group. */
+/** Number of groups of anchor cells, where anchors within `DECK.endReach` of each other count as one group. */
 function groupCount(work: ResolveGrid, anchors: number[]): number {
   const xy = anchors.map((i) => work.cellXY(i));
   const group = new Int32Array(xy.length).fill(-1);
@@ -444,7 +475,7 @@ function groupCount(work: ResolveGrid, anchors: number[]): number {
       for (let b = 0; b < xy.length; b++) {
         if (group[b] !== -1) continue;
         const pb = xy[b] as [number, number];
-        if (Math.max(Math.abs(pa[0] - pb[0]), Math.abs(pa[1] - pb[1])) <= 2) {
+        if (Math.max(Math.abs(pa[0] - pb[0]), Math.abs(pa[1] - pb[1])) <= DECK.endReach) {
           group[b] = g;
           q.push(b);
         }
@@ -463,14 +494,13 @@ export function stepRailings(work: ResolveGrid, bridges: ReadOnly<BridgeRecords>
     for (const [x, y] of b.cells) {
       const i = work.idx(x, y);
       if (i < 0 || (work.flags[i] as number) & CELL_FLAG.NO_FLOOR) continue;
-      for (const side of ["N", "E", "S", "W"] as const) {
-        const [nx, ny] =
-          side === "N" ? [x, y - 1] : side === "S" ? [x, y + 1] : side === "E" ? [x + 1, y] : [x - 1, y];
+      for (const side of SIDES) {
+        const [nx, ny] = stepSide(x, y, side);
         const j = work.idx(nx, ny);
         if (j < 0 || work.state[j] !== CELL.OPEN || bridges.deckOf[j] === k) continue;
         const drop =
           ((work.flags[j] as number) & CELL_FLAG.NO_FLOOR) !== 0 ||
-          (work.height[j] as number) < Math.min(b.deck, work.height[i] as number) - 2;
+          (work.height[j] as number) < Math.min(b.deck, work.height[i] as number) - DECK.walkStepQ;
         if (!drop) continue;
         // a crumbling bridge has gaps in its parapet too
         const cr = bridges.crumble.get(k);
