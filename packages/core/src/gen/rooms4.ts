@@ -1221,184 +1221,196 @@ class Room {
     for (const [x, y] of best) this.used.add(ckey(x, y));
   }
 
-  /** Lights: candles and lanterns on furniture, torches on the walls, a brazier in a big room. */
-  light(opts: {
-    target: number;
-    radius: number;
-    torchOnly: boolean;
-    floor: "brazier" | "candles" | null;
-  }): void {
-    const g = this.grid;
+  /**
+   * Lights the room until every cell is within `radius` of a light and it has `target` lights. Each round finds the
+   * darkest cell and lights it with the first of these that works: a flame on furniture near it (every second light),
+   * a floor light when no wall is near enough for a torch, a wall torch, and a floor light after all.
+   */
+  light(opts: LightOpts): void {
     const torch = this.has("torch_wall");
-    const dist = (x: number, y: number): number => {
-      let d = Infinity;
-      for (const [lx, ly] of this.lights) d = Math.min(d, Math.hypot(lx - x, ly - y));
-      return d;
-    };
-    const wallSpot = (x: number, y: number, s: Side): boolean => {
-      if (g.edge(x, y, s) !== EDGE_WALL || (g.wallHeight?.(x, y, s) ?? 2) < 1.5) return false;
-      if (this.hung.has(ckey(x, y) * 4 + SIDES.indexOf(s))) return false;
-      if (this.torched.has(ckey(x, y) * 4 + SIDES.indexOf(s))) return false;
-      const k = ckey(x, y);
-      if (g.occupied(x, y) && !this.taken.has(k)) return false;
-      const under = this.placed.find(
-        (q) =>
-          x >= q.at[0] &&
-          x < q.at[0] + q.size[0] &&
-          y >= q.at[1] &&
-          y < q.at[1] + q.size[1] &&
-          q.type !== "clutter",
-      );
-      return under === undefined || under.height <= 1.1;
-    };
     for (let guard = 0; guard < 40; guard++) {
       if (this.out.length >= this.remaining) {
         this.capped = true;
         return;
       }
-      // the cell farthest from every light: the one the next light must reach
-      let worst: [number, number] | null = null;
-      let worstD = -1;
-      for (const [x, y] of this.cells) {
-        const d = dist(x + 0.5, y + 0.5) + this.rng.next() * 0.01;
-        if (d > worstD) {
-          worstD = d;
-          worst = [x, y];
-        }
-      }
-      if (worst === null) return;
-      const dark = worstD > opts.radius;
-      if (this.lights.length >= opts.target && !dark) return;
-      const [wx, wy] = worst;
-      const near = (x: number, y: number): number => Math.hypot(x - wx, y - wy);
-      // 1. a flame on furniture near the dark cell (every second light, and the first when the anchor is a table)
-      let done = false;
-      if (!opts.torchOnly && this.lights.length % 2 === 0) {
-        const sups = this.placed
-          .filter(
-            (q) =>
-              !q.light &&
-              featureInfo(q.type).topLight !== undefined &&
-              near(q.centre[0], q.centre[1]) <= 3.4 &&
-              !this.nearPost(q.centre[0], q.centre[1]),
-          )
-          .sort((a, b) => near(a.centre[0], a.centre[1]) - near(b.centre[0], b.centre[1]));
-        for (const q of sups) {
-          // a candle is the candles piece, a lantern the candelabra's lantern variant
-          const lamp: FeatureType = featureInfo(q.type).topLight === "candle" ? "candles" : "candelabra";
-          const variant = lamp === "candelabra" ? "lantern" : undefined;
-          const ext = g.piece4?.(q.type, q.variant);
-          if (!ext || ext.mixed || ext.hMax - ext.h > 0.15 || !this.has(lamp, variant)) continue;
-          const cx = Math.min(Math.max(Math.floor(q.centre[0]), q.at[0]), q.at[0] + q.size[0] - 1);
-          const cy = Math.min(Math.max(Math.floor(q.centre[1]), q.at[1]), q.at[1] + q.size[1] - 1);
-          const placement: GeneratedPlacement = {
-            type: lamp,
-            at: [cx, cy],
-            size: [1, 1],
-            rot: 0,
-            rotFine: this.rng.int(24) * 15,
-            lift: ext.hMax,
-            offset: [
-              q.centre[0] - (cx + 0.5) + (this.rng.next() - 0.5) * 0.3,
-              q.centre[1] - (cy + 0.5) + (this.rng.next() - 0.5) * 0.3,
-            ],
-          };
-          if (variant !== undefined) placement.variant = variant;
-          if (!this.push(placement)) return;
-          q.light = true;
-          this.lights.push([cx, cy]);
-          done = true;
-          break;
-        }
-      }
-      // the wall spot nearest the dark cell
-      let best: [number, number, Side] | null = null;
-      let bestScore = Infinity;
-      let bestDist = Infinity;
-      if (torch)
-        for (const [x, y, s] of this.wallPairs) {
-          if (!wallSpot(x, y, s)) continue;
-          const sc = near(x, y) + this.rng.next() * 0.6 + (this.zone.has(ckey(x, y)) ? 0.8 : 0);
-          if (sc < bestScore) {
-            bestScore = sc;
-            bestDist = near(x, y);
-            best = [x, y, s];
-          }
-        }
-      // 2. a floor brazier where the dark cell is too far from any wall for a torch to reach (the middle of a big room)
-      const brazier = (): boolean | null => {
-        if (opts.floor === null || !this.has(opts.floor)) return false;
-        const spots = this.cells
-          .filter(([x, y]) => this.free(x, y) && !this.zone.has(ckey(x, y)) && near(x, y) <= 3)
-          .sort((a, b) => near(a[0], a[1]) - near(b[0], b[1]));
-        // where fire does not belong (a library, a bedroom, a store) the floor light is a stand of candles: it blocks nothing
-        if (opts.floor === "candles") {
-          const at = spots[0];
-          if (!at) return false;
-          if (
-            !this.push({
-              type: "candles",
-              at: [at[0], at[1]],
-              size: [1, 1],
-              rot: 0,
-              rotFine: this.rng.int(24) * 15,
-            })
-          )
-            return null;
-          this.used.add(ckey(at[0], at[1]));
-          this.lights.push([at[0], at[1]]);
-          return true;
-        }
-        for (const [x, y] of spots.slice(0, 6)) {
-          const after = this.keepsWay([[x, y]]);
-          if (after === null) continue;
-          const bext = g.piece4?.("brazier");
-          const shift = bext && !bext.tile ? (touchShift(g, [x, y], [1, 1], 0, bext) ?? [0, 0]) : [0, 0];
-          const bp: GeneratedPlacement = { type: "brazier", at: [x, y], size: [1, 1], rot: 0, rotFine: 0 };
-          bp.offset = [shift[0] as number, shift[1] as number];
-          if (!this.push(bp)) return null;
-          this.taken.add(ckey(x, y));
-          this.blockCells++;
-          this.reach = after;
-          this.lights.push([x, y]);
-          return true;
-        }
-        return false;
-      };
-      if (!done && (best === null || bestDist > 3.2)) {
-        const r = brazier();
-        if (r === null) return;
-        done = r;
-      }
-      // 3. a wall torch on the wall nearest the dark cell
-      if (!done && best) {
-        const [x, y, s] = best;
-        if (
-          !this.push({
-            type: "torch_wall",
-            at: [x, y],
-            size: [1, 1],
-            rot: SIDE_ROT[s],
-            rotFine: SIDE_ROT[s],
-            wall: s,
-          })
-        )
-          return;
-        this.torched.add(ckey(x, y) * 4 + SIDES.indexOf(s));
-        this.lights.push([x, y]);
-        done = true;
-      }
-      if (!done) {
-        const r = brazier();
-        if (r === null) return;
-        done = r;
-      }
-      if (!done) return;
+      const dark = this.darkestCell();
+      if (dark === null) return;
+      if (this.lights.length >= opts.target && dark.dist <= opts.radius) return;
+      const [wx, wy] = dark.at;
+      let r: LightStep = "none";
+      if (!opts.torchOnly && this.lights.length % 2 === 0) r = this.lampOnFurniture(wx, wy);
+      if (r === "full") return;
+      // the wall spot is chosen every round (its draw keeps the seeded sequence), used only if nothing is lit yet
+      const wall = torch ? this.nearestTorchSpot(wx, wy) : null;
+      if (r === "none" && (wall === null || wall.dist > 3.2)) r = this.floorLight(wx, wy, opts.floor);
+      if (r === "none" && wall !== null) r = this.wallTorch(wall.at);
+      if (r === "none") r = this.floorLight(wx, wy, opts.floor);
+      if (r !== "lit") return;
     }
+  }
+
+  /** The cell farthest from every light (the one the next light must reach), and that distance. */
+  private darkestCell(): { at: [number, number]; dist: number } | null {
+    let worst: [number, number] | null = null;
+    let worstD = -1;
+    for (const [x, y] of this.cells) {
+      let d = Infinity;
+      for (const [lx, ly] of this.lights) d = Math.min(d, Math.hypot(lx - (x + 0.5), ly - (y + 0.5)));
+      d += this.rng.next() * 0.01;
+      if (d > worstD) {
+        worstD = d;
+        worst = [x, y];
+      }
+    }
+    return worst === null ? null : { at: worst, dist: worstD };
+  }
+
+  /** A candle or a small lantern on the nearest piece of furniture within 3.4 of (wx, wy) whose top takes one. */
+  private lampOnFurniture(wx: number, wy: number): LightStep {
+    const near = (q: Placed): number => Math.hypot(q.centre[0] - wx, q.centre[1] - wy);
+    const sups = this.placed
+      .filter(
+        (q) =>
+          !q.light &&
+          featureInfo(q.type).topLight !== undefined &&
+          near(q) <= 3.4 &&
+          !this.nearPost(q.centre[0], q.centre[1]),
+      )
+      .sort((a, b) => near(a) - near(b));
+    for (const q of sups) {
+      // a candle is the candles piece, a lantern the candelabra's lantern variant
+      const lamp: FeatureType = featureInfo(q.type).topLight === "candle" ? "candles" : "candelabra";
+      const variant = lamp === "candelabra" ? "lantern" : undefined;
+      const ext = this.grid.piece4?.(q.type, q.variant);
+      if (!ext || ext.mixed || ext.hMax - ext.h > 0.15 || !this.has(lamp, variant)) continue;
+      const cx = clampTo(q.centre[0], q.at[0], q.size[0]);
+      const cy = clampTo(q.centre[1], q.at[1], q.size[1]);
+      const placement: GeneratedPlacement = {
+        type: lamp,
+        at: [cx, cy],
+        size: [1, 1],
+        rot: 0,
+        rotFine: this.rng.int(24) * 15,
+        lift: ext.hMax,
+        offset: [
+          q.centre[0] - (cx + 0.5) + (this.rng.next() - 0.5) * 0.3,
+          q.centre[1] - (cy + 0.5) + (this.rng.next() - 0.5) * 0.3,
+        ],
+      };
+      if (variant !== undefined) placement.variant = variant;
+      if (!this.push(placement)) return "full";
+      q.light = true;
+      this.lights.push([cx, cy]);
+      return "lit";
+    }
+    return "none";
+  }
+
+  /** May a wall torch hang on side `s` of (x, y): a tall wall, nothing hung there yet, nothing tall in front. */
+  private torchFits(x: number, y: number, s: Side): boolean {
+    const g = this.grid;
+    if (g.edge(x, y, s) !== EDGE_WALL || (g.wallHeight?.(x, y, s) ?? 2) < 1.5) return false;
+    const spot = ckey(x, y) * 4 + SIDES.indexOf(s);
+    if (this.hung.has(spot) || this.torched.has(spot)) return false;
+    if (g.occupied(x, y) && !this.taken.has(ckey(x, y))) return false;
+    const under = this.placed.find(
+      (q) =>
+        x >= q.at[0] &&
+        x < q.at[0] + q.size[0] &&
+        y >= q.at[1] &&
+        y < q.at[1] + q.size[1] &&
+        q.type !== "clutter",
+    );
+    return under === undefined || under.height <= 1.1;
+  }
+
+  /** The wall spot for a torch nearest (wx, wy), door zones a little less welcome; with its distance. */
+  private nearestTorchSpot(wx: number, wy: number): { at: [number, number, Side]; dist: number } | null {
+    let best: [number, number, Side] | null = null;
+    let bestScore = Infinity;
+    let bestDist = Infinity;
+    for (const [x, y, s] of this.wallPairs) {
+      if (!this.torchFits(x, y, s)) continue;
+      const d = Math.hypot(x - wx, y - wy);
+      const sc = d + this.rng.next() * 0.6 + (this.zone.has(ckey(x, y)) ? 0.8 : 0);
+      if (sc < bestScore) {
+        bestScore = sc;
+        bestDist = d;
+        best = [x, y, s];
+      }
+    }
+    return best === null ? null : { at: best, dist: bestDist };
+  }
+
+  /** A wall torch on the given spot. */
+  private wallTorch([x, y, s]: [number, number, Side]): LightStep {
+    const turn = SIDE_ROT[s];
+    if (!this.push({ type: "torch_wall", at: [x, y], size: [1, 1], rot: turn, rotFine: turn, wall: s }))
+      return "full";
+    this.torched.add(ckey(x, y) * 4 + SIDES.indexOf(s));
+    this.lights.push([x, y]);
+    return "lit";
+  }
+
+  /**
+   * A floor light within 3 of (wx, wy), for the middle of a big room a torch cannot reach: a brazier that keeps the way
+   * clear, or, where fire does not belong (a library, a bedroom, a store), a stand of candles that blocks nothing.
+   */
+  private floorLight(wx: number, wy: number, kind: LightOpts["floor"]): LightStep {
+    if (kind === null || !this.has(kind)) return "none";
+    const near = ([x, y]: readonly [number, number]): number => Math.hypot(x - wx, y - wy);
+    const spots = this.cells
+      .filter((c) => this.free(c[0], c[1]) && !this.zone.has(ckey(c[0], c[1])) && near(c) <= 3)
+      .sort((a, b) => near(a) - near(b));
+    if (kind === "candles") {
+      const at = spots[0];
+      if (!at) return "none";
+      const candles: GeneratedPlacement = {
+        type: "candles",
+        at: [at[0], at[1]],
+        size: [1, 1],
+        rot: 0,
+        rotFine: this.rng.int(24) * 15,
+      };
+      if (!this.push(candles)) return "full";
+      this.used.add(ckey(at[0], at[1]));
+      this.lights.push([at[0], at[1]]);
+      return "lit";
+    }
+    for (const [x, y] of spots.slice(0, 6)) {
+      const after = this.keepsWay([[x, y]]);
+      if (after === null) continue;
+      const bext = this.grid.piece4?.("brazier");
+      const shift = bext && !bext.tile ? (touchShift(this.grid, [x, y], [1, 1], 0, bext) ?? [0, 0]) : [0, 0];
+      const bp: GeneratedPlacement = { type: "brazier", at: [x, y], size: [1, 1], rot: 0, rotFine: 0 };
+      bp.offset = [shift[0] as number, shift[1] as number];
+      if (!this.push(bp)) return "full";
+      this.taken.add(ckey(x, y));
+      this.blockCells++;
+      this.reach = after;
+      this.lights.push([x, y]);
+      return "lit";
+    }
+    return "none";
   }
 
   readonly torched = new Set<number>();
 }
+
+/** What `Room.light` asks for. */
+interface LightOpts {
+  /** Lights the room wants (lightTarget). */
+  target: number;
+  /** No cell farther than this from a light (Infinity: an abandoned place keeps its dark pockets). */
+  radius: number;
+  /** Wall torches and floor lights only, nothing on the furniture. */
+  torchOnly: boolean;
+  /** The floor light of a big room, or none. */
+  floor: "brazier" | "candles" | null;
+}
+
+/** One lighting step: it lit the cell, it found nowhere to, or the level's feature cap is reached (stop). */
+type LightStep = "lit" | "none" | "full";
 
 /** Height (tiles) of the top of the shelf plank above the floor; the palette's shelf_line variants lift to the same. */
 export const SHELF_TOP = 1.66;
