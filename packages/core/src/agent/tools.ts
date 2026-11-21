@@ -326,12 +326,12 @@ const areaSchema: JsonSchema = {
       type: "string",
       enum: [...MATERIALS, "none"],
       description:
-        "Omitted = the theme default. In a built interior (base solid) a room on the default floor (omitted, or named as the default) takes the floor of its purpose (plank for quarters, tile for a hall or cell, cobble for a crypt) that differs from its neighbours, and sits a quarter tile above the corridor it opens on; name a floor only to choose one.",
+        "Omitted = the theme default. Generator 4, a room on a solid-base level: leave it off and the room takes a floor from its purpose in the theme's floor family, unlike its neighbours' where it can; a passage or an abandoned room keeps the default. Name a floor only to choose one (naming the theme default counts as leaving it off).",
     },
     floorHeight: {
       type: "number",
       description:
-        "Tiles relative to the level, multiple of 0.25, -4..4 (dais 0.5, pit -1). Omitted = keep the height underneath (e.g. from a height op).",
+        "Tiles relative to the level, multiple of 0.25, -4..4 (dais 0.5, pit -1). Omitted = keep the height underneath (e.g. from a height op). Generator 4: a room on a solid-base level that a corridor opens into (an opening, a route ending on it, or no wall between) sits a quarter tile above it when this is omitted; 0 keeps it level.",
     },
     walls: { type: "string", enum: ["auto", "perimeter", "none"] },
     wallStyle: { type: "string", enum: [...WALL_STYLES] },
@@ -373,7 +373,7 @@ const openingSchema: JsonSchema = {
   required: ["id", "kind"],
   additionalProperties: false,
   description:
-    "Give EITHER between (preferred) OR at. secret_door is a wall that looks solid to players and opens only for the GM (set gmOnly): use it for a hidden shrine, vault or escape, with the room behind reached some other way too if players must be able to find it.",
+    "Give EITHER between (preferred) OR at. secret_door is a wall that looks solid to players and opens only for the GM (always gmOnly): use it for a hidden shrine, vault or escape, with the room behind reached some other way too if players must be able to find it. Generator 4 builds it as one wall piece standing in the doorway; the build notes tell the GM which piece to delete in TaleSpire to open the way.",
   properties: {
     id,
     kind: { type: "string", enum: [...OPENING_KINDS] },
@@ -417,7 +417,12 @@ const featureSchema: JsonSchema = {
   additionalProperties: false,
   properties: {
     id,
-    type: { type: "string", enum: [...FEATURE_TYPES] },
+    type: {
+      type: "string",
+      enum: [...FEATURE_TYPES],
+      description:
+        "Generator 4: clutter is the small things a room's dressing stands on its furniture (variant table, study, store, tools or shelf) and shelf_line a wall shelf plank for them (needs wall); a room dressed by default or by a preset already has both.",
+    },
     at: vec2,
     rot: { type: "integer", enum: [0, 90, 180, 270] },
     size: { type: "array", items: int, minItems: 2, maxItems: 2 },
@@ -566,7 +571,7 @@ const terrainSchema: JsonSchema = {
           type: "string",
           enum: [...DRESS_PRESETS],
           description:
-            "Generator 4: the room presets (tavern, library, barracks, bedroom, kitchen, storeroom, throne_room, shrine, crypt, prison, forge, laboratory, treasury) furnish the room from its purpose: an anchor piece against a wall, furniture along the walls, small things on the furniture and a shelf, a rug, lights. A room named for its purpose gets this without a dress op; add one to choose the purpose or raise the density.",
+            "Generator 4: a room preset (tavern to treasury in this list) furnishes and lights the room as that purpose, the way a room named for it is dressed by default (density 0.5 is the default amount); use one to choose the purpose or the amount.",
         },
         density: num,
         seed: int,
@@ -1112,7 +1117,7 @@ const levelSchema: JsonSchema = {
     roomDress: {
       const: false,
       description:
-        "Generator 4. false turns off the default dressing of rooms (an area of kind room whose name, tags or notes name a purpose, with no dress op over it and little furniture of its own, is furnished from that purpose and lit). Leave it out.",
+        "Generator 4. false turns off the default dressing of rooms (a room whose name, tags or notes say its purpose, with no dress op over it and little furniture of its own, is furnished and lit from that purpose). Leave it out.",
     },
     base: {
       oneOf: [
@@ -1152,7 +1157,7 @@ const levelSchema: JsonSchema = {
       type: "array",
       maxItems: 8,
       description:
-        "Generator 3. Rows or clusters of market stalls, laid out for you in a rectangle: the long side is the row; deep enough (aisle + 2 cells) two rows face each other across a clear aisle, else one row faces `facing`. Stalls are 2 cells wide, spaced irregularly, kinds from `goods` in shuffled order, built from the theme's real stall pieces (fruit, vegetables, spices, magic, weapons; the rest stand on a bare table with bread, dairy, fish, potions or grain on it). Cells already taken (a well, a building) are skipped. Generator 4: stalls are covered and differ: small 2x3, medium 3x3, large 4x4 (and 4x3, 3x2, 2x2), a raised base, skirted counters with a walk-in gap or goods trays, corner posts, a gable or flat cloth canopy, a stool and a lantern, an empty one when `goods` has \"empty\", a few open tables, loose gaps and the odd turned stall; a theme without canopy pieces keeps the table stall. Each row's band is as deep as the rectangle allows (up to 4): give depth >= 2*3 + aisle for two rows of full-size stalls, less and the stalls are small. Keep overhead lines along the aisle or street: a line through a covered stall is dropped. Example: {\"id\": \"market\", \"area\": {\"x\": 17, \"y\": 6, \"w\": 14, \"h\": 7}, \"goods\": [\"fruit\", \"bread\", \"potions\", \"vegetables\"]}. A single stall: a feature of type stall with variant = the kind. Do not dress the same square with the plaza preset: it plants trees and seats in the aisle (it never builds on a taken cell).",
+        "Generator 3. Rows or clusters of market stalls, laid out for you in a rectangle whose long side is the row, kinds from `goods` in shuffled order; cells already taken (a well, a building) are skipped. Generator 4: covered stalls that differ: small 2x3, medium 3x3, large 4x4 (and 4x3, 3x2, 2x2), a raised base, skirted counters with a walk-in gap or goods trays, corner posts, a gable or flat cloth canopy, a stool and a lantern, an empty one when `goods` has \"empty\", a few open tables, loose gaps and the odd turned stall. Two rows face each other across the aisle when the rectangle is at least aisle + 4 deep (aisle + 6 for full-size stalls), else one row up to 4 deep faces `facing`. A theme without canopy pieces builds generator 3's stalls. Keep overhead lines along the aisle or street: a line through a covered stall is dropped. Generator 3: tables 2 cells wide, spaced irregularly, two rows from aisle + 2 deep; fruit, vegetables, spices, magic and weapons use the theme's stall pieces, the rest a bare table with bread, dairy, fish, potions or grain on it. Example: {\"id\": \"market\", \"area\": {\"x\": 17, \"y\": 6, \"w\": 14, \"h\": 7}, \"goods\": [\"fruit\", \"bread\", \"potions\", \"vegetables\"]}. A single stall: a feature of type stall with variant = the kind. Do not dress the same square with the plaza preset: it plants trees and seats in the aisle.",
       items: {
         type: "object",
         additionalProperties: false,
