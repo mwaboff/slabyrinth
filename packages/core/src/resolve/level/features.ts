@@ -30,9 +30,9 @@ function placeable(work: LevelWork, i: number): boolean {
   if ((work.flags[i] as number) & (CELL_FLAG.BRIDGE | CELL_FLAG.STEPS)) return false;
   // keep the approach to bridges and stairs clear: no generated props on a cell beside a deck or a flight
   if (
-    work.neighbours4(i).some(
-      (j) => j >= 0 && ((work.flags[j] as number) & (CELL_FLAG.BRIDGE | CELL_FLAG.STEPS)) !== 0,
-    )
+    work
+      .neighbours4(i)
+      .some((j) => j >= 0 && ((work.flags[j] as number) & (CELL_FLAG.BRIDGE | CELL_FLAG.STEPS)) !== 0)
   )
     return false;
   return work.mat[i] !== LAVA_ORDINAL;
@@ -197,10 +197,26 @@ export function stepExplicitFeatures(work: LevelWork): void {
     let wall = info.wallMounted ? (f.wall ?? "N") : f.wall;
     // generator 3: a wall-mounted piece asked for a cell or side without a wall snaps to the nearest wall face within
     // one cell (same side first, then the other sides), instead of failing
-    if (info.wallMounted && work.gen.wallMountSnap && work.featureProblem(f.type, f.at, size, wall) !== null) {
+    if (
+      info.wallMounted &&
+      work.gen.wallMountSnap &&
+      work.featureProblem(f.type, f.at, size, wall) !== null
+    ) {
       let snapped: { at: Vec2; wall: Side } | null = null;
-      const sides: Side[] = [wall as Side, "N", "E", "S", "W"].filter((s, n, a) => a.indexOf(s) === n) as Side[];
-      const offs: Array<[number, number]> = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+      const sides: Side[] = [wall as Side, "N", "E", "S", "W"].filter(
+        (s, n, a) => a.indexOf(s) === n,
+      ) as Side[];
+      const offs: Array<[number, number]> = [
+        [0, 0],
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+        [1, 1],
+        [-1, 1],
+        [1, -1],
+        [-1, -1],
+      ];
       search: for (const [dx, dy] of offs) {
         for (const s of sides) {
           const p: Vec2 = [f.at[0] + dx, f.at[1] + dy];
@@ -269,10 +285,7 @@ export function commitGenerated(work: LevelWork, opId: string, list: GeneratedPl
       rot: p.rot,
       rotFine: p.rotFine,
       // generator 2: a generated piece may stand above (or sink below) the floor, e.g. a second course of rock
-      baseHeight: work.featureBase(
-        anchor,
-        work.gen.featureLift ? ((p as { lift?: number }).lift ?? 0) : 0,
-      ),
+      baseHeight: work.featureBase(anchor, work.gen.featureLift ? ((p as { lift?: number }).lift ?? 0) : 0),
       theme: work.themes[anchor >= 0 ? (work.theme[anchor] as number) : 0] ?? work.levelTheme,
       blocking: info.blocking,
     };
@@ -283,7 +296,13 @@ export function commitGenerated(work: LevelWork, opId: string, list: GeneratedPl
       rf.offset = [Math.max(-0.5, Math.min(0.5, p.offset[0])), Math.max(-0.5, Math.min(0.5, p.offset[1]))];
     // generator 3: a furnishing set against a wall stands clear of it (a preset's bed, coffin or brazier is a little
     // wider than its cell and would sink into the wall, verify_prop_in_wall): shifted 0.45 tile off each wall it touches
-    if (work.gen.furnitureOffWalls && rf.offset === undefined && !info.wallMounted && !info.organic && info.blocking) {
+    if (
+      work.gen.furnitureOffWalls &&
+      rf.offset === undefined &&
+      !info.wallMounted &&
+      !info.organic &&
+      info.blocking
+    ) {
       const [x0, y0] = p.at;
       const [x1, y1] = [p.at[0] + p.size[0] - 1, p.at[1] + p.size[1] - 1];
       let ox = 0;

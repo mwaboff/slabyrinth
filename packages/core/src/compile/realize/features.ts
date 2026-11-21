@@ -35,7 +35,7 @@ const RUN_MIX = new Set([
 /** Loose rock that follows the tone of a cliff beside it (generator 3). */
 const CLIFF_DRESSING = new Set(["formation", "rock_formation", "boulder", "rock"]);
 /** Natural standing pieces that must never be built from wall blocks (generator 3). */
-const NATURAL_STANDING =new Set(["cluster_tall", "formation", "landmark", "rock_formation", "tall_marker"]);
+const NATURAL_STANDING = new Set(["cluster_tall", "formation", "landmark", "rock_formation", "tall_marker"]);
 
 // ── 5. features ──
 export function layFeatures(w: LevelWork): void {
@@ -149,7 +149,13 @@ export function layFeatures(w: LevelWork): void {
       const wantFamily = f.variant;
       const res =
         (roles.length > 1 && wantFamily !== undefined
-          ? lookup(L.id, theme, [...roles], { key: `variant:${wantFamily}`, test: (u) => u.variant === wantFamily }, true)
+          ? lookup(
+              L.id,
+              theme,
+              [...roles],
+              { key: `variant:${wantFamily}`, test: (u) => u.variant === wantFamily },
+              true,
+            )
           : null) ?? lookup(L.id, theme, [...roles]);
       if (!res) return;
       resolvedRole = res.role;
@@ -180,7 +186,8 @@ export function layFeatures(w: LevelWork): void {
         const tone = cliffKinds(w, theme).tone;
         const tagged = pool.filter((u) => u.weight > 0 && u.tone !== undefined);
         if (tone !== undefined && tagged.length > 0) {
-          if (tagged.some((u) => u.tone === tone)) pool = pool.filter((u) => u.tone === undefined || u.tone === tone);
+          if (tagged.some((u) => u.tone === tone))
+            pool = pool.filter((u) => u.tone === undefined || u.tone === tone);
           else {
             const alt = toneBoulders(w, theme, tone);
             if (alt.length > 0) pool = [...pool.filter((u) => u.tone === undefined), ...alt];
@@ -252,16 +259,13 @@ export function layFeatures(w: LevelWork): void {
         const featLong = Math.max(f.size[0], f.size[1]);
         const assetLong = Math.max(v.geom.size.x, v.geom.size.z);
         const label = (f.label ?? "").toLowerCase();
-        const kind =
-          /\b(bus|coach|van|truck|lorry|tram|cart|wagon|carriage|car|taxi|cab|jeep|pickup)\b/.exec(
-            label,
-          )?.[1];
+        const kind = /\b(bus|coach|van|truck|lorry|tram|cart|wagon|carriage|car|taxi|cab|jeep|pickup)\b/.exec(
+          label,
+        )?.[1];
         const CARS = new Set(["car", "taxi", "cab"]);
         const nameLc = (v.name ?? "").toLowerCase();
         const sameKind =
-          kind === undefined ||
-          nameLc.includes(kind) ||
-          (CARS.has(kind) && /\b(car|taxi|cab)/.test(nameLc));
+          kind === undefined || nameLc.includes(kind) || (CARS.has(kind) && /\b(car|taxi|cab)/.test(nameLc));
         if (Math.abs(featLong - assetLong) > 1.2) {
           addDiag({
             severity: "info",
@@ -367,10 +371,7 @@ export function layFeatures(w: LevelWork): void {
     }
     // landmarks must give the map a skyline
     if (f.type === "landmark" || f.type === "tree_large" || f.type === "statue_large") {
-      const top = Math.max(
-        v.geom.size.y,
-        ...(v.parts ?? []).map((q) => (q.offset?.y ?? 0) + q.geom.size.y),
-      );
+      const top = Math.max(v.geom.size.y, ...(v.parts ?? []).map((q) => (q.offset?.y ?? 0) + q.geom.size.y));
       if (top < 3 - EPS)
         addDiag({
           severity: "info",

@@ -73,7 +73,10 @@ describe("a street of one style (generator 3)", () => {
           const a = ds[i];
           const b = ds[j];
           // within ten cells (each plot is 7-9 wide, 12 apart): the same walls, base and roof kit never repeat
-          if (j - i === 1) expect(`${a?.material}|${a?.baseMaterial}|${a?.roofKit}`, `seed ${s} ${i}/${j}`).not.toBe(`${b?.material}|${b?.baseMaterial}|${b?.roofKit}`);
+          if (j - i === 1)
+            expect(`${a?.material}|${a?.baseMaterial}|${a?.roofKit}`, `seed ${s} ${i}/${j}`).not.toBe(
+              `${b?.material}|${b?.baseMaterial}|${b?.roofKit}`,
+            );
         }
     }
     expect(mats.size).toBeGreaterThanOrEqual(3);
@@ -84,7 +87,8 @@ describe("a street of one style (generator 3)", () => {
     for (const s of SEEDS)
       for (const st of all(street(s))) {
         expect(st.design?.roof).not.toBe("hip");
-        for (const v of st.volumes ?? []) if (v.roof.layers[0]?.type === "hip") expect(st.chimneys.length).toBe(0);
+        for (const v of st.volumes ?? [])
+          if (v.roof.layers[0]?.type === "hip") expect(st.chimneys.length).toBe(0);
       }
   });
 
@@ -104,14 +108,30 @@ describe("a street of one style (generator 3)", () => {
 
   it("windows follow the wall: every face of three cells or more has an opening, gaps at most three cells", () => {
     for (const s of SEEDS) {
-      const p = plan([{ id: "b", style: "cottage", seed: s, wings: [{ x: 10, y: 4, w: 10, h: 8 }], front: "S" }] as Structure[], 3, s);
+      const p = plan(
+        [
+          { id: "b", style: "cottage", seed: s, wings: [{ x: 10, y: 4, w: 10, h: 8 }], front: "S" },
+        ] as Structure[],
+        3,
+        s,
+      );
       const st = all(p)[0] as ResolvedStructure;
       const level = resolvePlan(p).levels[0] as ResolvedLevel;
-      const wins = level.openings.filter((o) => st.openingIds.includes(o.id) && o.kind === "window").length + st.upperOpenings.filter((o) => o.kind === "window").length;
-      const old = plan([{ id: "b", style: "cottage", seed: s, wings: [{ x: 10, y: 4, w: 10, h: 8 }], front: "S" }] as Structure[], 2, s);
+      const wins =
+        level.openings.filter((o) => st.openingIds.includes(o.id) && o.kind === "window").length +
+        st.upperOpenings.filter((o) => o.kind === "window").length;
+      const old = plan(
+        [
+          { id: "b", style: "cottage", seed: s, wings: [{ x: 10, y: 4, w: 10, h: 8 }], front: "S" },
+        ] as Structure[],
+        2,
+        s,
+      );
       const st2 = all(old)[0] as ResolvedStructure;
       const level2 = resolvePlan(old).levels[0] as ResolvedLevel;
-      const wins2 = level2.openings.filter((o) => st2.openingIds.includes(o.id) && o.kind === "window").length + st2.upperOpenings.filter((o) => o.kind === "window").length;
+      const wins2 =
+        level2.openings.filter((o) => st2.openingIds.includes(o.id) && o.kind === "window").length +
+        st2.upperOpenings.filter((o) => o.kind === "window").length;
       expect(wins, `seed ${s}`).toBeGreaterThan(0);
       expect(wins).toBeGreaterThanOrEqual(Math.min(wins2, 1));
     }
@@ -119,7 +139,15 @@ describe("a street of one style (generator 3)", () => {
 });
 
 const house = (seed: number, condition: Building["condition"], extra: Partial<Building> = {}): Structure =>
-  ({ id: "b", style: "cottage", seed, condition, wings: [{ x: 12, y: 5, w: 9, h: 7, ridge: "ew" }], front: "S", ...extra }) as Structure;
+  ({
+    id: "b",
+    style: "cottage",
+    seed,
+    condition,
+    wings: [{ x: 12, y: 5, w: 9, h: 7, ridge: "ew" }],
+    front: "S",
+    ...extra,
+  }) as Structure;
 
 describe("weathered and ruined buildings (generator 3, round four)", () => {
   it("a weathered roof loses a ragged patch at an eave or a corner, not a square in the middle", () => {
@@ -132,7 +160,17 @@ describe("weathered and ruined buildings (generator 3, round four)", () => {
       if (holes.length === 0) continue;
       n++;
       const cells = new Set(st.cells.map(([x, y]) => `${x},${y}`));
-      if (holes.some(([x, y]) => [[0, 1], [0, -1], [1, 0], [-1, 0]].some(([dx, dy]) => !cells.has(`${x + (dx ?? 0)},${y + (dy ?? 0)}`)))) edge++;
+      if (
+        holes.some(([x, y]) =>
+          [
+            [0, 1],
+            [0, -1],
+            [1, 0],
+            [-1, 0],
+          ].some(([dx, dy]) => !cells.has(`${x + (dx ?? 0)},${y + (dy ?? 0)}`)),
+        )
+      )
+        edge++;
       if (holes.length !== 9 && holes.length !== 4) ragged++;
     }
     expect(n).toBeGreaterThan(4);
@@ -144,8 +182,14 @@ describe("weathered and ruined buildings (generator 3, round four)", () => {
     const roofs = (condition: Building["condition"]): number => {
       let n = 0;
       for (const s of SEEDS) {
-        const p = plan([house(s, condition, { attachments: [{ type: "porch", side: "S", width: 3, depth: 2 }] })], 3, s);
-        n += (realize(resolvePlan(p), palettes).levels[0]?.placements ?? []).filter((q) => String(q.source.elementId) === "b~porchroof0").length;
+        const p = plan(
+          [house(s, condition, { attachments: [{ type: "porch", side: "S", width: 3, depth: 2 }] })],
+          3,
+          s,
+        );
+        n += (realize(resolvePlan(p), palettes).levels[0]?.placements ?? []).filter(
+          (q) => String(q.source.elementId) === "b~porchroof0",
+        ).length;
       }
       return n;
     };
@@ -157,7 +201,16 @@ describe("weathered and ruined buildings (generator 3, round four)", () => {
 
   it("a timber ruin uses timber logic: no lone stepped gable, no grey stone rubble on the planks", () => {
     for (const s of SEEDS) {
-      const p = plan([house(s, "ruined", { wings: [{ x: 12, y: 5, w: 9, h: 7, ridge: "ew" }], storeys: [{ walls: "wood", height: 3 }] })], 3, s);
+      const p = plan(
+        [
+          house(s, "ruined", {
+            wings: [{ x: 12, y: 5, w: 9, h: 7, ridge: "ew" }],
+            storeys: [{ walls: "wood", height: 3 }],
+          }),
+        ],
+        3,
+        s,
+      );
       const st = all(p)[0] as ResolvedStructure;
       expect((st.volumes ?? []).every((v) => v.roof.gableOnly === undefined)).toBe(true);
       const pl = realize(resolvePlan(p), palettes).levels[0]?.placements ?? [];

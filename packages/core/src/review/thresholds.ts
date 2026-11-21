@@ -249,7 +249,15 @@ export const REVIEW = {
    * straight-sided when over `straightShare` of the wall lies in straight runs longer than `run` cells, or one run is
    * longer than `longest` (v2: 46% / 11, v3: 12% / 8).
    */
-  caveNatural: { weight: 4, flatShare: 0.8, minCells: 40, run: 5, straightShare: 0.3, longest: 10, minEdges: 30 },
+  caveNatural: {
+    weight: 4,
+    flatShare: 0.8,
+    minCells: 40,
+    run: 5,
+    straightShare: 0.3,
+    longest: 10,
+    minEdges: 30,
+  },
   /** Cliff checks (docs/internal/cliffs-lessons-reference.md §4; reference values in the comments). */
   cliffs: {
     weight: 6,
@@ -397,7 +405,10 @@ export const ROCK_FAMILIES: ReadonlyArray<readonly [RegExp, string]> = [
   [/^burrow_/i, "burrow"],
   [/flowstone/i, "flowstone"],
   [/stalagmite|stalactite/i, "stalagmite"],
-  [/^Boulder - Large|^rock_large|^rock_mossy|^Moss Rock|^Cliff Face|Cliff \d|Rock - Small|Rubble|Rockpile/i, "grey_rock"],
+  [
+    /^Boulder - Large|^rock_large|^rock_mossy|^Moss Rock|^Cliff Face|Cliff \d|Rock - Small|Rubble|Rockpile/i,
+    "grey_rock",
+  ],
 ];
 
 /** Families that read as one tone (the first is the group's name). Anything else is its own tone. */

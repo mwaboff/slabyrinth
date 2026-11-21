@@ -26,12 +26,18 @@ export function footprintCells(
   size: readonly [number, number],
 ): Array<[number, number]> {
   const out: Array<[number, number]> = [];
-  for (let y = at[1]; y < at[1] + size[1]; y++) for (let x = at[0]; x < at[0] + size[0]; x++) out.push([x, y]);
+  for (let y = at[1]; y < at[1] + size[1]; y++)
+    for (let x = at[0]; x < at[0] + size[0]; x++) out.push([x, y]);
   return out;
 }
 
 /** Footprint top-left for an item of unrotated size [along the wall, depth] backed onto `side` of (cx, cy). */
-export function wallFootprint(cx: number, cy: number, side: Side, size: readonly [number, number]): [number, number] {
+export function wallFootprint(
+  cx: number,
+  cy: number,
+  side: Side,
+  size: readonly [number, number],
+): [number, number] {
   const d = size[1];
   switch (side) {
     case "N":

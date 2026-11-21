@@ -43,7 +43,14 @@ export function stallNotes(input: StallNoteInput): DesignNote[] {
   const lineKey = (f: (typeof stalls)[number]): string => {
     const front = f.stall?.front ?? (f.rot === 0 ? "S" : f.rot === 90 ? "W" : f.rot === 180 ? "N" : "E");
     const across = front === "S" || front === "N";
-    const edge = front === "S" ? f.at[1] + f.size[1] : front === "N" ? f.at[1] : front === "E" ? f.at[0] + f.size[0] : f.at[0];
+    const edge =
+      front === "S"
+        ? f.at[1] + f.size[1]
+        : front === "N"
+          ? f.at[1]
+          : front === "E"
+            ? f.at[0] + f.size[0]
+            : f.at[0];
     return `${front}${across ? "y" : "x"}${edge}`;
   };
   const lines = new Map<string, Array<(typeof stalls)[number]>>();
@@ -51,7 +58,9 @@ export function stallNotes(input: StallNoteInput): DesignNote[] {
   let regular: Array<(typeof stalls)[number]> | undefined;
   for (const row of lines.values()) {
     if (row.length < 4 || new Set(row.map(size)).size > 1) continue;
-    const across = row[0]?.stall ? row[0].stall.front === "S" || row[0].stall.front === "N" : row[0]?.rot === 0 || row[0]?.rot === 180;
+    const across = row[0]?.stall
+      ? row[0].stall.front === "S" || row[0].stall.front === "N"
+      : row[0]?.rot === 0 || row[0]?.rot === 180;
     const sorted = [...row].sort((a, b) => (across ? a.at[0] - b.at[0] : a.at[1] - b.at[1]));
     const gaps = sorted.slice(1).map((f, i) => {
       const p = sorted[i] as (typeof sorted)[number];

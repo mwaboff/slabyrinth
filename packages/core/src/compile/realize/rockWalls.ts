@@ -47,7 +47,7 @@ export function layRockWalls(w: LevelWork): void {
         wallNoise.sample(c.x / 4, c.y / 4) * 0.8 + (h32(`${seed}:${c.x}:${c.y}:wt`) / 4294967296) * 0.2;
       let extra = nz < 0.22 ? -1 : nz < 0.45 ? 0 : nz < 0.62 ? 1 : nz < 0.8 ? 2 : 3;
       // generator 3: the column is the closing skin of a wall of rock mass (gen/cavewall.ts): lower, in uneven runs
-      if (gen.caveRockMass && c.roleName === "wall.cave_rock") extra =nz < 0.3 ? -1 : nz < 0.72 ? 0 : 1;
+      if (gen.caveRockMass && c.roleName === "wall.cave_rock") extra = nz < 0.3 ? -1 : nz < 0.72 ? 0 : 1;
       if (extra < 0 && top - v.unitHeight < floorTop + 1.5) extra = 0;
       // a column that closes the mouth of a chasm or pit (its wall reaches below the floor) is never one of the
       // low stretches, and stands at least a block taller, so nothing glows over it from inside
@@ -74,7 +74,14 @@ export function layRockWalls(w: LevelWork): void {
     // generator 3: the column is only the fill of a wall of rock mass (gen/cavewall.ts); it is built below, where
     // no mass piece closes the face cell
     if (gen.caveRockMass && c.roleName === "wall.cave_rock") {
-      massFaces.push({ x: c.x, y: c.y, base, top: base + n * v.unitHeight, edgeBase: floorTop, theme: c.theme });
+      massFaces.push({
+        x: c.x,
+        y: c.y,
+        base,
+        top: base + n * v.unitHeight,
+        edgeBase: floorTop,
+        theme: c.theme,
+      });
       columnLater.set(`${c.x},${c.y}`, buildColumn);
     } else buildColumn();
   }
@@ -132,10 +139,26 @@ export function layRockWalls(w: LevelWork): void {
       // flat sheets close the far part of a deep band
       if (kit) add("cliff.cave_cap", "cap", () => true);
       // foot stones: the kit's low stone, else small rocks and rubble
-      if (kit) add("cliff.cave_mass", "toe", (q) => q.geom.size.y <= 1.05, () => 0);
+      if (kit)
+        add(
+          "cliff.cave_mass",
+          "toe",
+          (q) => q.geom.size.y <= 1.05,
+          () => 0,
+        );
       else {
-        add("feature.rock", "toe", (q) => q.geom.size.y <= 0.8 && q.geom.size.x >= 0.9, () => 0);
-        add("feature.rubble", "toe", (q) => q.geom.size.y <= 0.8 && q.geom.size.x >= 0.8, () => 0);
+        add(
+          "feature.rock",
+          "toe",
+          (q) => q.geom.size.y <= 0.8 && q.geom.size.x >= 0.9,
+          () => 0,
+        );
+        add(
+          "feature.rubble",
+          "toe",
+          (q) => q.geom.size.y <= 0.8 && q.geom.size.x >= 0.8,
+          () => 0,
+        );
       }
       if (!shapes.some((s) => s.family !== "toe")) continue;
       const faces = massFaces.filter((f) => f.theme === theme);

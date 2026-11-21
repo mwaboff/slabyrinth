@@ -23,7 +23,15 @@ function building(
   names: ReadonlyArray<string | { name: string; notes?: string; tags?: string[] }>,
   opts: { generator?: 3 | 4; theme?: string; roomDress?: false } = {},
 ): MapPlan {
-  const areas: Area[] = [{ id: "passage", kind: "corridor", name: "Passage", shape: { type: "rect", x: 1, y: 8, w: 7 * Math.ceil(names.length / 2) - 1, h: 3 }, floor: "wood_plank" }];
+  const areas: Area[] = [
+    {
+      id: "passage",
+      kind: "corridor",
+      name: "Passage",
+      shape: { type: "rect", x: 1, y: 8, w: 7 * Math.ceil(names.length / 2) - 1, h: 3 },
+      floor: "wood_plank",
+    },
+  ];
   const openings: Opening[] = [];
   names.forEach((n, i) => {
     const spec = typeof n === "string" ? { name: n } : n;
@@ -71,16 +79,31 @@ function building(
   } as unknown as MapPlan;
 }
 
-const NAMES = ["Tavern common room", "Kitchen", "Library", "Armoury", "Guard room", "Guest bedroom", "Guest bedroom", "Store room", "Shrine", "Study", "Washroom", "Cells"];
+const NAMES = [
+  "Tavern common room",
+  "Kitchen",
+  "Library",
+  "Armoury",
+  "Guard room",
+  "Guest bedroom",
+  "Guest bedroom",
+  "Store room",
+  "Shrine",
+  "Study",
+  "Washroom",
+  "Cells",
+];
 
 function level(plan: MapPlan): ResolvedLevel {
   return resolvePlan(plan).levels[0] as ResolvedLevel;
 }
 
 /** Features other than the loose wall-foot rubble of the wall pass (not part of the room recipes). */
-const own = (L: ResolvedLevel): ResolvedLevel["features"] => L.features.filter((f) => f.generatedBy !== "walls");
+const own = (L: ResolvedLevel): ResolvedLevel["features"] =>
+  L.features.filter((f) => f.generatedBy !== "walls");
 
-const roomFeatures = (L: ResolvedLevel, id: string): ResolvedLevel["features"] => own(L).filter((f) => f.area === id);
+const roomFeatures = (L: ResolvedLevel, id: string): ResolvedLevel["features"] =>
+  own(L).filter((f) => f.area === id);
 
 describe("room purpose from words (gen/roomPurpose.ts classifyRoom, the one classifier)", () => {
   const purpose = (w: Parameters<typeof classifyRoom>[0]) => classifyRoom(w).purpose;
@@ -94,7 +117,12 @@ describe("room purpose from words (gen/roomPurpose.ts classifyRoom, the one clas
     expect(purpose({ name: "Store room" })).toBe("storeroom");
     expect(purpose({ name: "Guest bedroom" })).toBe("bedroom");
     expect(purpose({ name: "Room 4", tags: ["library"] })).toBe("library");
-    expect(purpose({ name: "Room 4", notes: "Off-duty guards, a dice game; the keys to the cell block hang by the door." })).toBe("barracks");
+    expect(
+      purpose({
+        name: "Room 4",
+        notes: "Off-duty guards, a dice game; the keys to the cell block hang by the door.",
+      }),
+    ).toBe("barracks");
     expect(purpose({ name: "Chamber" })).toBeUndefined(); // never invent a purpose
   });
 
@@ -109,7 +137,9 @@ describe("room purpose from words (gen/roomPurpose.ts classifyRoom, the one clas
 
   it("the notes give a use, never a passage or a ruin (they mention neighbours and debris)", () => {
     expect(purpose({ name: "Room 7", notes: "The keys hang by the stair door." })).toBeUndefined();
-    expect(purpose({ name: "Room 7", notes: "Rubble by the north wall; the kitchen is next door." })).toBe("kitchen");
+    expect(purpose({ name: "Room 7", notes: "Rubble by the north wall; the kitchen is next door." })).toBe(
+      "kitchen",
+    );
   });
 
   it("abandoned: a place nobody keeps, a word of neglect, or a passage of such a place", () => {
@@ -121,7 +151,10 @@ describe("room purpose from words (gen/roomPurpose.ts classifyRoom, the one clas
     expect(classifyRoom({ name: "Ruined chapel" })).toEqual({ purpose: "ruin", abandoned: true });
     expect(classifyRoom({ name: "Abandoned chamber" })).toEqual({ purpose: "ruin", abandoned: true });
     expect(classifyRoom({ name: "Hall", tags: ["ruined"] })).toEqual({ purpose: "ruin", abandoned: true });
-    expect(classifyRoom({ name: "Collapsed tunnel passage" })).toEqual({ purpose: "passage", abandoned: true });
+    expect(classifyRoom({ name: "Collapsed tunnel passage" })).toEqual({
+      purpose: "passage",
+      abandoned: true,
+    });
     expect(classifyRoom({ name: "Crypt passage" })).toEqual({ purpose: "passage", abandoned: true });
     expect(classifyRoom({ name: "Cell block corridor" })).toEqual({ purpose: "passage", abandoned: true });
     expect(classifyRoom({ name: "Hall passage" })).toEqual({ purpose: "passage", abandoned: false });
@@ -135,11 +168,16 @@ describe("room purpose from words (gen/roomPurpose.ts classifyRoom, the one clas
     expect(L.areas.find((a) => a.id === "r0")?.abandoned).toBeUndefined();
     // a tag-only "ruined" makes a timber room rough for the resolver, the compiler and the review alike (the review used
     // to read the name and notes only, the wall tops the name and notes of the resolved area)
-    expect(L.areas.find((a) => a.id === "r1")).toMatchObject({ purpose: "ruin", abandoned: true, finish: "rough" });
+    expect(L.areas.find((a) => a.id === "r1")).toMatchObject({
+      purpose: "ruin",
+      abandoned: true,
+      finish: "rough",
+    });
     expect(roomStats(L).find((s) => s.id === "r1")?.abandoned).toBe(true);
     // generator 3 resolves no classification
     const g3 = level(building(names, { generator: 3 }));
-    for (const a of g3.areas) expect([a.purpose, a.abandoned, a.finish]).toEqual([undefined, undefined, undefined]);
+    for (const a of g3.areas)
+      expect([a.purpose, a.abandoned, a.finish]).toEqual([undefined, undefined, undefined]);
     // ... and its review classifies from the plan with the same classifier: the ruined hall is not judged unlit
     const p3 = building(names, { generator: 3 });
     const unlit3 = interiorNotes(p3, resolvePlan(p3)).find((n) => n.code === "room_unlit");
@@ -173,7 +211,8 @@ describe("generator 4 dresses rooms by default", () => {
     for (const r of stats.filter((s) => !s.abandoned)) {
       expect(r.lights, `${r.name} lit`).toBeGreaterThanOrEqual(1);
       expect((r.props * 10) / r.floor, `${r.name} props per 10 tiles`).toBeGreaterThanOrEqual(4);
-      if (r.blockers >= 4) expect(r.nearWall / r.blockers, `${r.name} near walls`).toBeGreaterThanOrEqual(0.8);
+      if (r.blockers >= 4)
+        expect(r.nearWall / r.blockers, `${r.name} near walls`).toBeGreaterThanOrEqual(0.8);
     }
     // things rest on things: a third of the props of a dressed room stand on another piece
     const onProps = L.features.filter((f) => f.type === "clutter" || f.type === "candles").length;
@@ -184,7 +223,8 @@ describe("generator 4 dresses rooms by default", () => {
   it("every light and every small thing has a lift that rests on a support in its own room", () => {
     const L = level(building(NAMES));
     for (const f of L.features.filter((q) => q.type === "clutter" && q.variant !== "shelf")) {
-      const floorTop = 0.5 + ((L.cells.height[(f.at[1] - L.bounds.y) * L.bounds.w + (f.at[0] - L.bounds.x)] as number) / 4);
+      const floorTop =
+        0.5 + (L.cells.height[(f.at[1] - L.bounds.y) * L.bounds.w + (f.at[0] - L.bounds.x)] as number) / 4;
       expect(f.baseHeight - floorTop, f.id).toBeGreaterThan(0.1);
     }
   });
@@ -197,10 +237,12 @@ describe("generator 4 dresses rooms by default", () => {
       const ai = L.areas.indexOf(area) + 1;
       const blocked = new Set<number>();
       for (const f of L.features.filter((q) => q.blocking))
-        for (let y = f.at[1]; y < f.at[1] + f.size[1]; y++) for (let x = f.at[0]; x < f.at[0] + f.size[0]; x++) blocked.add(idx(x, y));
+        for (let y = f.at[1]; y < f.at[1] + f.size[1]; y++)
+          for (let x = f.at[0]; x < f.at[0] + f.size[0]; x++) blocked.add(idx(x, y));
       const cells: Array<[number, number]> = [];
       for (let y = L.bounds.y; y < L.bounds.y + L.bounds.h; y++)
-        for (let x = L.bounds.x; x < L.bounds.x + W; x++) if (L.cells.area[idx(x, y)] === ai) cells.push([x, y]);
+        for (let x = L.bounds.x; x < L.bounds.x + W; x++)
+          if (L.cells.area[idx(x, y)] === ai) cells.push([x, y]);
       const free = cells.filter(([x, y]) => !blocked.has(idx(x, y)));
       // start at a cell beside the door (an OPENING edge)
       const doorCell = free.find(([x, y]) =>
@@ -211,12 +253,19 @@ describe("generator 4 dresses rooms by default", () => {
         }),
       );
       expect(doorCell, `${area.id} has a free cell at its door`).toBeDefined();
-      const seen = new Set<number>([idx((doorCell as [number, number])[0], (doorCell as [number, number])[1])]);
+      const seen = new Set<number>([
+        idx((doorCell as [number, number])[0], (doorCell as [number, number])[1]),
+      ]);
       const queue = [doorCell as [number, number]];
       const freeSet = new Set(free.map(([x, y]) => idx(x, y)));
       for (let h = 0; h < queue.length; h++) {
         const [x, y] = queue[h] as [number, number];
-        for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]] as const) {
+        for (const [dx, dy] of [
+          [0, -1],
+          [1, 0],
+          [0, 1],
+          [-1, 0],
+        ] as const) {
           const k = idx(x + dx, y + dy);
           if (!freeSet.has(k) || seen.has(k)) continue;
           seen.add(k);
@@ -240,9 +289,15 @@ describe("generator 4 dresses rooms by default", () => {
     const b = stats.find((s) => s.id === "r6");
     expect(a?.signature).not.toBe(b?.signature);
     // not even the same layout shifted: positions relative to the room differ
-    const rel = (id: string, dx: number): string => sig(id).split(" ").map((t) => t.replace(/@(\d+),(\d+)/, (_m, x, y) => `@${Number(x) - dx},${y}`)).join(" ");
+    const rel = (id: string, dx: number): string =>
+      sig(id)
+        .split(" ")
+        .map((t) => t.replace(/@(\d+),(\d+)/, (_m, x, y) => `@${Number(x) - dx},${y}`))
+        .join(" ");
     expect(rel("r5", 7 * 2 + 1)).not.toBe(rel("r6", 7 * 3 + 1));
-    expect(new Set(stats.filter((s) => !s.abandoned).map((s) => s.signature)).size).toBe(stats.filter((s) => !s.abandoned).length);
+    expect(new Set(stats.filter((s) => !s.abandoned).map((s) => s.signature)).size).toBe(
+      stats.filter((s) => !s.abandoned).length,
+    );
   });
 
   it("abandoned rooms stay sparse and dark: a crypt and cells keep one light at most per 50 tiles", () => {
@@ -278,7 +333,10 @@ describe("generator 4 dresses rooms by default", () => {
     for (const theme of ["wood_town", "stone_dungeon", "city"]) {
       const plan = building(NAMES, { theme });
       const bundle = compileResolved(resolvePlan(plan), palettes, slabCodec, { plan });
-      expect(bundle.diagnostics.filter((d) => d.severity !== "info"), theme).toEqual([]);
+      expect(
+        bundle.diagnostics.filter((d) => d.severity !== "info"),
+        theme,
+      ).toEqual([]);
     }
   }, 30000);
 
@@ -298,11 +356,13 @@ describe("generator 4 dresses rooms by default", () => {
 });
 
 describe("interior review notes", () => {
-  const codes = (plan: MapPlan): string[] => reviewDesign(plan, resolvePlan(plan), { limit: 99 }).map((n) => n.code);
+  const codes = (plan: MapPlan): string[] =>
+    reviewDesign(plan, resolvePlan(plan), { limit: 99 }).map((n) => n.code);
 
   it("silent on a dressed building", () => {
     const c = codes(building(NAMES));
-    for (const code of ["room_bare", "rooms_alike", "room_unlit", "furniture_adrift"]) expect(c).not.toContain(code);
+    for (const code of ["room_bare", "rooms_alike", "room_unlit", "furniture_adrift"])
+      expect(c).not.toContain(code);
   });
 
   it("room_bare, rooms_alike and room_unlit fire on the same building with the default dressing off", () => {
@@ -324,7 +384,12 @@ describe("interior review notes", () => {
   it("furniture_adrift: a room whose furniture stands in the middle", () => {
     const plan = building(["Hall of statues", "Kitchen"], { roomDress: false });
     const l1 = plan.levels[0] as unknown as { features: unknown[] };
-    for (const [i, at] of [[0, [3, 4]], [1, [4, 4]], [2, [3, 5]], [3, [4, 5]]] as const)
+    for (const [i, at] of [
+      [0, [3, 4]],
+      [1, [4, 4]],
+      [2, [3, 5]],
+      [3, [4, 5]],
+    ] as const)
       l1.features.push({ id: `p${i}`, type: "barrel", at: [at[0], at[1]] });
     const notes = interiorNotes(plan, resolvePlan(plan));
     expect(notes.map((n) => n.code)).toContain("furniture_adrift");

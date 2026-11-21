@@ -80,7 +80,8 @@ export function roughWallTops(L: ResolvedLevel, seedKey: string): number {
   for (const ln of L.lines ?? []) for (const an of ln.anchors) aroundCell(an.at[0], an.at[1]);
 
   const rough = roughCells(L);
-  const roughAt = (lx: number, ly: number): boolean => lx >= 0 && ly >= 0 && lx < w && ly < h && rough[ly * w + lx] === 1;
+  const roughAt = (lx: number, ly: number): boolean =>
+    lx >= 0 && ly >= 0 && lx < w && ly < h && rough[ly * w + lx] === 1;
 
   let changed = 0;
   for (const orient of ["h", "v"] as const) {

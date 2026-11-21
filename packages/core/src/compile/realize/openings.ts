@@ -63,11 +63,7 @@ export function layOpenings(w: LevelWork): void {
       for (const n of lengths.filter((l) => l <= remaining)) {
         const r = lookup(L.id, op.theme || first.theme, [roleName], lenFilter(n), true);
         const pool = r ? r.variants.filter((v) => v.weight > 0) : [];
-        const v = r
-          ? pool.length
-            ? pick(pool, `${L.id}:opening:${op.id}:${i}`)
-            : r.variants[0]
-          : undefined;
+        const v = r ? (pool.length ? pick(pool, `${L.id}:opening:${op.id}:${i}`) : r.variants[0]) : undefined;
         if (!v || !r) continue;
         const isDoor = r.role.startsWith("opening.");
         placeEdgePiece(

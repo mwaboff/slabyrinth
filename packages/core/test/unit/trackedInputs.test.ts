@@ -34,9 +34,11 @@ const IGNORED_PATH = /["'`][^"'`\n]*docs\/internal\//;
 
 describe("tests and code read only tracked files", () => {
   it("no source or test names a path under the git-ignored internal docs", () => {
-    const offenders = roots
-      .flatMap(sources)
-      .filter((f) => readFileSync(f, "utf8").split("\n").some((line) => IGNORED_PATH.test(line) && !/^\s*(\*|\/\/)/.test(line)));
+    const offenders = roots.flatMap(sources).filter((f) =>
+      readFileSync(f, "utf8")
+        .split("\n")
+        .some((line) => IGNORED_PATH.test(line) && !/^\s*(\*|\/\/)/.test(line)),
+    );
     expect(offenders).toEqual([]);
   });
 });

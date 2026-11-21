@@ -199,11 +199,17 @@ export function layFloors(w: LevelWork): void {
         const ownOf = (a: number, b: number): ResolvedVariant[] =>
           res.variants.filter(
             (u) =>
-              u.footprint[0] === a && u.footprint[1] === b && u.weight > 0 && (inFam(u) || (u.variant ?? "") === ""),
+              u.footprint[0] === a &&
+              u.footprint[1] === b &&
+              u.weight > 0 &&
+              (inFam(u) || (u.variant ?? "") === ""),
           );
-        const turned = gen.turnedFloorTiles && fw !== fh && ownOf(fw, fh).length === 0 && ownOf(fh, fw).length > 0;
+        const turned =
+          gen.turnedFloorTiles && fw !== fh && ownOf(fw, fh).length === 0 && ownOf(fh, fw).length > 0;
         const sized = res.variants.filter((u) =>
-          turned ? u.footprint[0] === fh && u.footprint[1] === fw : u.footprint[0] === fw && u.footprint[1] === fh,
+          turned
+            ? u.footprint[0] === fh && u.footprint[1] === fw
+            : u.footprint[0] === fw && u.footprint[1] === fh,
         );
         // the cell's family. A family without a piece of this size tries its own smaller pieces first; one with
         // nothing smaller (a meadow made only of 8×8 tiles) uses the default family's piece of this size

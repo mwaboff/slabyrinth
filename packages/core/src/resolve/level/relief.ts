@@ -21,10 +21,14 @@ function flight(work: LevelWork, cells: number[]): void {
   for (let k = 1; k < cells.length; k++) work.addStairEdge(cells[k - 1] as number, cells[k] as number);
 }
 
-export function applyPlatform(work: LevelWork, op: Extract<TerrainOp, { op: "platform" }>, path: string): void {
-  const cells = work.shapeCells(op.shape, "terrain", path, op.id).filter(
-    (i) => work.state[i] === CELL.OPEN && ((work.flags[i] as number) & CELL_FLAG.BRIDGE) === 0,
-  );
+export function applyPlatform(
+  work: LevelWork,
+  op: Extract<TerrainOp, { op: "platform" }>,
+  path: string,
+): void {
+  const cells = work
+    .shapeCells(op.shape, "terrain", path, op.id)
+    .filter((i) => work.state[i] === CELL.OPEN && ((work.flags[i] as number) & CELL_FLAG.BRIDGE) === 0);
   if (cells.length === 0) {
     work.issue(
       "warning",
@@ -300,16 +304,11 @@ export function applyUneven(work: LevelWork, op: Extract<TerrainOp, { op: "uneve
       ((work.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE | CELL_FLAG.WATER)) === 0,
   );
   if (cells.length === 0) {
-    work.issue(
-      "warning",
-      "no_effect",
-      `uneven "${op.id}" changed nothing: no open dry floor in its shape`,
-      {
-        path,
-        elementId: op.id,
-        hint: "give it a shape inside an area, or shrink exclude",
-      },
-    );
+    work.issue("warning", "no_effect", `uneven "${op.id}" changed nothing: no open dry floor in its shape`, {
+      path,
+      elementId: op.id,
+      hint: "give it a shape inside an area, or shrink exclude",
+    });
     return;
   }
   const seed = elementSeed(work.plan.seed, op.id, op.seed);
@@ -367,11 +366,13 @@ export function applyUneven(work: LevelWork, op: Extract<TerrainOp, { op: "uneve
 export function applyOutcrop(work: LevelWork, op: Extract<TerrainOp, { op: "outcrop" }>, path: string): void {
   let n = 0;
   const riseQ = Math.round((op.height ?? 2) * 4);
-  let cells = work.shapeCells(op.shape, "terrain", path, op.id).filter(
-    (i) =>
-      work.state[i] === CELL.OPEN &&
-      ((work.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) === 0,
-  );
+  let cells = work
+    .shapeCells(op.shape, "terrain", path, op.id)
+    .filter(
+      (i) =>
+        work.state[i] === CELL.OPEN &&
+        ((work.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) === 0,
+    );
   // generator 3: a small natural rise is not a rectangle: its corners are cut (twice on larger ones) and its sides
   // bitten. Only ever removes cells, so no route is closed that the shape did not already close.
   if (work.gen.roughenedLumps && cells.length >= 6) {
@@ -407,14 +408,9 @@ export function applyOutcrop(work: LevelWork, op: Extract<TerrainOp, { op: "outc
       peak: peak / 4,
     });
   if (n === 0)
-    work.issue(
-      "warning",
-      "no_effect",
-      `outcrop "${op.id}" changed nothing: its shape covers no open floor`,
-      {
-        path,
-        elementId: op.id,
-        hint: "place it on open floor (inside an area, or on ground)",
-      },
-    );
+    work.issue("warning", "no_effect", `outcrop "${op.id}" changed nothing: its shape covers no open floor`, {
+      path,
+      elementId: op.id,
+      hint: "place it on open floor (inside an area, or on ground)",
+    });
 }

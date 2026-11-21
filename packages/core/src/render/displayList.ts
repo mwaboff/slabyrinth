@@ -507,7 +507,14 @@ export function buildDisplayList(
       layer: "feature",
       style: f.gmOnly ? "feat-gm" : "feat",
       symbol: covered
-        ? { id: `feat-stall_cover_${f.stall?.front ?? "S"}`, x: f.at[0], y: f.at[1], w: f.size[0], h: f.size[1], rot: 0 }
+        ? {
+            id: `feat-stall_cover_${f.stall?.front ?? "S"}`,
+            x: f.at[0],
+            y: f.at[1],
+            w: f.size[0],
+            h: f.size[1],
+            rot: 0,
+          }
         : { id: `feat-${f.type}`, x: f.at[0], y: f.at[1], w: f.size[0], h: f.size[1], rot },
       ref: f.id,
     });

@@ -37,7 +37,13 @@ import { type AreaInfo, type LevelWork, materialOrdinal } from "./work";
 export function stepRoomFloors(work: LevelWork): void {
   if (work.level.base.type !== "solid") return;
   const rooms = work.areas.filter(
-    (a) => a.kind === "room" && !a.isZone && !a.isRoute && !a.isBridge && !a.floorNone && a.area.shape.type !== "route",
+    (a) =>
+      a.kind === "room" &&
+      !a.isZone &&
+      !a.isRoute &&
+      !a.isBridge &&
+      !a.floorNone &&
+      a.area.shape.type !== "route",
   );
   if (rooms.length === 0) return;
   // cells that hold a link end on this level (lower run, the well above it, the landing)
@@ -56,7 +62,12 @@ export function stepRoomFloors(work: LevelWork): void {
     const set = new Set<number>();
     for (const i of cells) {
       const [x, y] = work.cellXY(i);
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
         const j = work.idx(x + dx, y + dy);
         if (j < 0 || work.state[j] !== CELL.OPEN) continue;
         const o = (work.struct[j] as number) - 1;
@@ -89,7 +100,8 @@ export function stepRoomFloors(work: LevelWork): void {
     const ns = [...(nbrs.get(info.index) ?? [])];
     const used = new Set<Material>(ns.map(famOf).filter((m): m is Material => m !== undefined));
     const rotation = FAMILY_ROTATION[family];
-    const start = elementSeed(work.plan.seed, `${work.level.id}~${info.area.id}~floorfam`, undefined) % rotation.length;
+    const start =
+      elementSeed(work.plan.seed, `${work.level.id}~${info.area.id}~floorfam`, undefined) % rotation.length;
     // a timber building keeps a room's purpose floor even when its neighbours share it (wood beside wood is one building);
     // the difference rule only picks among the rest
     const cand: Material[] = [
@@ -122,7 +134,12 @@ export function stepRoomFloors(work: LevelWork): void {
         work.height[i] === 0 &&
         !linkCells.has(i) &&
         ((work.flags[i] as number) &
-          (CELL_FLAG.NO_FLOOR | CELL_FLAG.LINK | CELL_FLAG.STEPS | CELL_FLAG.BRIDGE | CELL_FLAG.WATER | CELL_FLAG.STAIRWELL)) ===
+          (CELL_FLAG.NO_FLOOR |
+            CELL_FLAG.LINK |
+            CELL_FLAG.STEPS |
+            CELL_FLAG.BRIDGE |
+            CELL_FLAG.WATER |
+            CELL_FLAG.STAIRWELL)) ===
           0,
     );
     if (!clean) continue;
@@ -136,7 +153,10 @@ export function stepRoomFloors(work: LevelWork): void {
  * (neither area builds walls, as in stepEdges). A room that only touches a corridor across a solid wall is not one.
  * Runs before the openings are placed, so it reads the plan's openings, not the edges.
  */
-function roomsOpeningOnCorridors(work: LevelWork, nbrs: ReadonlyMap<number, ReadonlySet<number>>): Set<number> {
+function roomsOpeningOnCorridors(
+  work: LevelWork,
+  nbrs: ReadonlyMap<number, ReadonlySet<number>>,
+): Set<number> {
   const out = new Set<number>();
   const kindOf = (ai: number | undefined): AreaKind | undefined =>
     ai === undefined || ai < 0 ? undefined : work.areas[ai]?.kind;
@@ -171,7 +191,8 @@ function roomsOpeningOnCorridors(work: LevelWork, nbrs: ReadonlyMap<number, Read
   for (const [ai, set] of nbrs) {
     if (kindOf(ai) !== "room") continue;
     for (const o of set)
-      if (kindOf(o) === "corridor" && work.modeOf(ai + 1) !== "auto" && work.modeOf(o + 1) !== "auto") out.add(ai);
+      if (kindOf(o) === "corridor" && work.modeOf(ai + 1) !== "auto" && work.modeOf(o + 1) !== "auto")
+        out.add(ai);
   }
   return out;
 }
@@ -194,7 +215,16 @@ export function stepWallFootRubble(work: LevelWork): void {
   const plain = (i: number): boolean => {
     if (i < 0 || work.state[i] !== CELL.OPEN || (work.occ[i] as number) > 0) return false;
     const f = work.flags[i] as number;
-    if (f & (CELL_FLAG.NO_FLOOR | CELL_FLAG.LINK | CELL_FLAG.STEPS | CELL_FLAG.FEATURE | CELL_FLAG.STAIRWELL | CELL_FLAG.BRIDGE | CELL_FLAG.WATER))
+    if (
+      f &
+      (CELL_FLAG.NO_FLOOR |
+        CELL_FLAG.LINK |
+        CELL_FLAG.STEPS |
+        CELL_FLAG.FEATURE |
+        CELL_FLAG.STAIRWELL |
+        CELL_FLAG.BRIDGE |
+        CELL_FLAG.WATER)
+    )
       return false;
     // only a rough interior has rubble at the wall foot: not a kept-up timber or plaster room (unless abandoned), and
     // not a cell outside every room (the same rule the compiler reads back, resolve/wallTops.ts roughCells)
@@ -215,7 +245,8 @@ export function stepWallFootRubble(work: LevelWork): void {
   const put = (i: number, type: "debris" | "rubble"): boolean => {
     if (placed.has(i) || rims.has(i) || !plain(i)) return false;
     const [x, y] = work.cellXY(i);
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (placed.has(work.idx(x + dx, y + dy))) return false;
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++) if (placed.has(work.idx(x + dx, y + dy))) return false;
     const size = rotatedSize(info[type].size, 0);
     const c: Vec2 = [x, y];
     if (work.featureProblem(type, c, size, undefined) !== null) return false;
@@ -258,8 +289,18 @@ export function stepWallFootRubble(work: LevelWork): void {
     const [sx, sy] = op.start;
     const flank: Vec2[] =
       op.orientation === "h"
-        ? [[sx - 1, sy - 1], [sx - 1, sy], [sx + op.width, sy - 1], [sx + op.width, sy]]
-        : [[sx - 1, sy - 1], [sx, sy - 1], [sx - 1, sy + op.width], [sx, sy + op.width]];
+        ? [
+            [sx - 1, sy - 1],
+            [sx - 1, sy],
+            [sx + op.width, sy - 1],
+            [sx + op.width, sy],
+          ]
+        : [
+            [sx - 1, sy - 1],
+            [sx, sy - 1],
+            [sx - 1, sy + op.width],
+            [sx, sy + op.width],
+          ];
     const picks = flank
       .map((c, j) => ({ c, j, r: u("jc", k * 4 + j) }))
       .filter(({ c, j }) => {
@@ -294,7 +335,8 @@ export function stepRoomRecipes(work: LevelWork): void {
     if (info.kind !== "room" && info.kind !== "corridor") continue;
     const area = info.area;
     const cells: Array<[number, number]> = [];
-    for (let i = 0; i < work.n; i++) if (work.disp[i] === info.index + 1 && work.isFloor(i)) cells.push(work.cellXY(i));
+    for (let i = 0; i < work.n; i++)
+      if (work.disp[i] === info.index + 1 && work.isFloor(i)) cells.push(work.cellXY(i));
     if (cells.length < 6) continue;
     const theme = info.theme;
     const grid: PlacementGrid = {
@@ -302,7 +344,9 @@ export function stepRoomRecipes(work: LevelWork): void {
       piece4: (t: FeatureType, v?: string) => work.ctx.palette.roomPiece(theme, t, v),
     };
     const seed = subSeed(elementSeed(work.plan.seed, `${work.level.id}~${area.id}~room`, undefined), "room");
-    const own = work.features.filter((f) => f.area === area.id && f.generatedBy === undefined && f.type !== "torch_wall").length;
+    const own = work.features.filter(
+      (f) => f.area === area.id && f.generatedBy === undefined && f.type !== "torch_wall",
+    ).length;
     const lightly = own * 10 < 2 * cells.length;
     // a corridor is never furnished, but its name still says whether it is kept up ("Crypt passage" stays dark)
     const { purpose, abandoned } = info.room;
@@ -317,7 +361,9 @@ export function stepRoomRecipes(work: LevelWork): void {
         density: 1,
         seed,
         remaining: cap - work.generated,
-        have: work.features.filter((f) => f.area === area.id && f.generatedBy === undefined).map((f) => f.type),
+        have: work.features
+          .filter((f) => f.area === area.id && f.generatedBy === undefined)
+          .map((f) => f.type),
       });
     }
     // no recipe (no purpose, the plan's own furnishing, or no pieces to dress with): torches only, never in a ruin or

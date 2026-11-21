@@ -18,7 +18,10 @@ import type { DesignNote } from "./review";
 import type { ReviewBuild } from "./reviewBuild";
 
 /** Roof cells of a building that have no roof piece. `covered` is a set of "x,y" keys the realized pieces fill. */
-export function uncoveredRoofCells(st: ResolvedStructure, covered: ReadonlySet<string>): Array<[number, number]> {
+export function uncoveredRoofCells(
+  st: ResolvedStructure,
+  covered: ReadonlySet<string>,
+): Array<[number, number]> {
   const holes = new Set(st.chimneys.map((c) => `${c.at[0]},${c.at[1]}`));
   const out: Array<[number, number]> = [];
   const seen = new Set<string>();
@@ -63,7 +66,12 @@ export function roofCoverOf(
     if (lv.levelId !== levelId) continue;
     for (const q of lv.placements) {
       const id = q.source.elementId ?? "";
-      if (q.layer !== "roof" || !id.startsWith(`${buildingId}~`) || !/(roof|dormer)$/.test(id) || /porch|attach/.test(id))
+      if (
+        q.layer !== "roof" ||
+        !id.startsWith(`${buildingId}~`) ||
+        !/(roof|dormer)$/.test(id) ||
+        /porch|attach/.test(id)
+      )
         continue;
       if (!q.source.cell) continue;
       const f = feet.get(q.asset) ?? [1, 1];

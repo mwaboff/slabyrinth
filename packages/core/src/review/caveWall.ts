@@ -105,7 +105,8 @@ export function caveNaturalMeasures(L: ResolvedLevel): CaveNaturalMeasures {
         longest = run;
         const fixed = Number(k.slice(1, -1));
         const along = l[start] as number;
-        longestAt = k[0] === "h" ? [L.bounds.x + along, L.bounds.y + fixed] : [L.bounds.x + fixed, L.bounds.y + along];
+        longestAt =
+          k[0] === "h" ? [L.bounds.x + along, L.bounds.y + fixed] : [L.bounds.x + fixed, L.bounds.y + along];
       }
       start = i;
     }
@@ -114,7 +115,8 @@ export function caveNaturalMeasures(L: ResolvedLevel): CaveNaturalMeasures {
   let floorCells = 0;
   for (let i = 0; i < w * h; i++) {
     if (L.cells.state[i] !== CELL.OPEN || !caveAreas.has(L.cells.area[i] ?? 0)) continue;
-    if (((L.cells.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) !== 0) continue;
+    if (((L.cells.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) !== 0)
+      continue;
     floorCells++;
     const hq = L.cells.height[i] as number;
     count.set(hq, (count.get(hq) ?? 0) + 1);

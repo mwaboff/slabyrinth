@@ -60,7 +60,9 @@ export function layRaisedFill(w: LevelWork): void {
       // its solid side
       if (bandBare.has(`${x},${y}`)) {
         // one rock family for every such patch (the band's backing), never the mixed per-cell picks
-        if (cliffFace(w, c.theme, c.material, x, y, elev + minN, elev + c.height, false, `${L.id}:ledge:band`))
+        if (
+          cliffFace(w, c.theme, c.material, x, y, elev + minN, elev + c.height, false, `${L.id}:ledge:band`)
+        )
           continue;
       } else if (
         bandBack.has(`${x},${y}`) &&
@@ -173,7 +175,18 @@ export function layPiers(w: LevelWork): void {
           });
         const rest = c.height - ground - n * pv.unitHeight;
         if (rest > EPS)
-          stackFill(w, L.id, c.theme, c.material, px, py, elev + ground, elev + ground + rest, "fill", "pier");
+          stackFill(
+            w,
+            L.id,
+            c.theme,
+            c.material,
+            px,
+            py,
+            elev + ground,
+            elev + ground + rest,
+            "fill",
+            "pier",
+          );
       } else stackFill(w, L.id, c.theme, c.material, px, py, elev + ground, elev + c.height, "fill", "pier");
     }
   }
@@ -216,6 +229,5 @@ export function stackFill(
   const u = v.unitHeight;
   const n = Math.ceil((to - from) / u - EPS);
   const m = frame.rectMin(x, y, 1, 1);
-  for (let k = 0; k < n; k++)
-    emit(v, role, m.x, to - (k + 1) * u, m.z, v.rot, { cell: [x, y], elementId });
+  for (let k = 0; k < n; k++) emit(v, role, m.x, to - (k + 1) * u, m.z, v.rot, { cell: [x, y], elementId });
 }

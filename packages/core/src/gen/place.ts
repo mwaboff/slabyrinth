@@ -97,7 +97,18 @@ export interface PlacementGrid {
   piece4?(
     type: FeatureType,
     variant?: string,
-  ): { w: number; d: number; h: number; wMax: number; dMax: number; hMax: number; tile: boolean; mixed: boolean } | undefined;
+  ):
+    | {
+        w: number;
+        d: number;
+        h: number;
+        wMax: number;
+        dMax: number;
+        hMax: number;
+        tile: boolean;
+        mixed: boolean;
+      }
+    | undefined;
   /** Generator 4: does this cell host the wall strip on its `side` (a piece mounted there stands half a cell in)? */
   wallHosted?(x: number, y: number, side: Side): boolean;
   /** Generator 4: height in tiles of the wall on the cell's `side` (0 where there is none). */
@@ -484,7 +495,7 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   const count = Math.round((p.density * floorCells.length) / 6);
   const totalWeight = table.reduce((a, i) => a + i.weight, 0);
   const taken = new Set<number>();
-  const oneHeight =(at: readonly [number, number], size: readonly [number, number]): boolean => {
+  const oneHeight = (at: readonly [number, number], size: readonly [number, number]): boolean => {
     if (!grid.height) return true;
     const h0 = grid.height(at[0], at[1]);
     return footprintCells(at, size).every(([x, y]) => grid.height?.(x, y) === h0);
@@ -608,10 +619,24 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
  * standing on the floor beside it. In the studied market 95% of small props sat on furniture. Only where the theme has
  * both pieces; the support's own cell carries the topper.
  */
-const TOPPERS: Partial<Record<FeatureType, { chance: number; on: ReadonlyArray<readonly [FeatureType, number]> }>> = {
-  table: { chance: 0.8, on: [["candles", 3], ["sack", 1]] },
+const TOPPERS: Partial<
+  Record<FeatureType, { chance: number; on: ReadonlyArray<readonly [FeatureType, number]> }>
+> = {
+  table: {
+    chance: 0.8,
+    on: [
+      ["candles", 3],
+      ["sack", 1],
+    ],
+  },
   round_table: { chance: 0.8, on: [["candles", 1]] },
-  counter: { chance: 0.9, on: [["sack", 2], ["candles", 1]] },
+  counter: {
+    chance: 0.9,
+    on: [
+      ["sack", 2],
+      ["candles", 1],
+    ],
+  },
   desk: { chance: 0.7, on: [["candles", 1]] },
   chest: { chance: 0.25, on: [["candles", 1]] },
 };

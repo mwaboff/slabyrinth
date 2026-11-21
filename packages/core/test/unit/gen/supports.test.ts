@@ -29,7 +29,10 @@ function room(generator: number): PlacementGrid {
     area: () => 1,
     occupied: () => false,
     edge: (x, y, s: Side) =>
-      (s === "N" && y === 0) || (s === "S" && y === H - 1) || (s === "W" && x === 0) || (s === "E" && x === W - 1)
+      (s === "N" && y === 0) ||
+      (s === "S" && y === H - 1) ||
+      (s === "W" && x === 0) ||
+      (s === "E" && x === W - 1)
         ? 1
         : 0,
     height: () => 0,
@@ -52,7 +55,8 @@ const dress = (preset: "tavern" | "campsite" | "natural_clusters", generator: nu
     remaining: 5000,
   }).placements;
 
-const supports = (ps: GeneratedPlacement[], t: string): GeneratedPlacement[] => ps.filter((p) => p.type === t);
+const supports = (ps: GeneratedPlacement[], t: string): GeneratedPlacement[] =>
+  ps.filter((p) => p.type === t);
 const rests = (top: GeneratedPlacement, sup: GeneratedPlacement): boolean => {
   const mx = sup.at[0] + sup.size[0] / 2;
   const my = sup.at[1] + sup.size[1] / 2;
@@ -80,7 +84,9 @@ describe("props rest on props", () => {
     let lifted = 0;
     for (let seed = 1; seed <= 40; seed++) {
       const ps = dress("campsite", 3, seed);
-      for (const top of ps.filter((p) => p.lift !== undefined && (p.type === "lantern" || p.type === "candles"))) {
+      for (const top of ps.filter(
+        (p) => p.lift !== undefined && (p.type === "lantern" || p.type === "candles"),
+      )) {
         const chest = supports(ps, "chest").find((c) => rests(top, c));
         expect(chest).toBeDefined();
         expect(top.lift).toBeCloseTo(0.42, 5);
@@ -101,7 +107,8 @@ describe("props rest on props", () => {
     const bare = (ps: GeneratedPlacement[]): number => {
       const cover = ps.filter((p) => p.type === "ground_cover" || p.type === "small_detail");
       let far = 0;
-      for (const [x, y] of cells()) if (!cover.some((c) => Math.hypot(c.at[0] - x, c.at[1] - y) <= 1.5)) far++;
+      for (const [x, y] of cells())
+        if (!cover.some((c) => Math.hypot(c.at[0] - x, c.at[1] - y) <= 1.5)) far++;
       return far / (W * H);
     };
     let b2 = 0;
@@ -133,7 +140,7 @@ describe("props rest on props: the whole build", () => {
     const L = g3.r.levels[0];
     const lifted = (L?.features ?? []).filter((f) => {
       const i = (f.at[1] - (L?.bounds.y ?? 0)) * (L?.bounds.w ?? 1) + (f.at[0] - (L?.bounds.x ?? 0));
-      return f.baseHeight > (L?.elevation ?? 0) + 0.5 + ((L?.cells.height[i] ?? 0) / 4) + 0.2;
+      return f.baseHeight > (L?.elevation ?? 0) + 0.5 + (L?.cells.height[i] ?? 0) / 4 + 0.2;
     });
     expect(lifted.length).toBeGreaterThan(0);
     const bad = g3.set.diagnostics.filter((d) => /verify_prop_floating|verify_prop_sunk/.test(d.code));

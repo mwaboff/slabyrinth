@@ -587,14 +587,17 @@ async function main(): Promise<void> {
   };
   // Curated assets beyond the draft (catalog-copied geometry), added first so they are each role's preferred variant.
   const extras = [
-    ...(JSON.parse(readFileSync(join(here, "palette-extra-assets.json"), "utf8")) as { entries: ExtraEntry[] })
-      .entries,
+    ...(
+      JSON.parse(readFileSync(join(here, "palette-extra-assets.json"), "utf8")) as { entries: ExtraEntry[] }
+    ).entries,
     // market and settlement pieces (generator 3): stalls by kind, goods, overhead line pieces and posts
-    ...(JSON.parse(readFileSync(join(here, "palette-market-assets.json"), "utf8")) as { entries: ExtraEntry[] })
-      .entries,
+    ...(
+      JSON.parse(readFileSync(join(here, "palette-market-assets.json"), "utf8")) as { entries: ExtraEntry[] }
+    ).entries,
     // covered market stall parts (generator 4)
-    ...(JSON.parse(readFileSync(join(here, "palette-stall-assets.json"), "utf8")) as { entries: ExtraEntry[] })
-      .entries,
+    ...(
+      JSON.parse(readFileSync(join(here, "palette-stall-assets.json"), "utf8")) as { entries: ExtraEntry[] }
+    ).entries,
     // room dressing (generator 4): clutter families and the shelf plank
     ...(JSON.parse(readFileSync(join(here, "palette-room-assets.json"), "utf8")) as { entries: ExtraEntry[] })
       .entries,

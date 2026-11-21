@@ -7,7 +7,14 @@
  */
 import { EDGE } from "../../contracts/resolved";
 import { h32 } from "../geometry";
-import { edgeCtx, lenFilter, lengthOf, placeEdgeCenterPiece, placeEdgePiece, registerEdgeStrip } from "./edges";
+import {
+  edgeCtx,
+  lenFilter,
+  lengthOf,
+  placeEdgeCenterPiece,
+  placeEdgePiece,
+  registerEdgeStrip,
+} from "./edges";
 import { EPS, opposite, type EdgeCtx, type LevelWork, type Strip } from "./work";
 
 const NONE = 0xffff;
@@ -40,7 +47,10 @@ export function layWalls(w: LevelWork): void {
         const y = orient === "h" ? L.bounds.y + o : L.bounds.y + i;
         const e = orient === "h" ? V.hEdge(x, y) : V.vEdge(x, y);
         const skirt = e >= 0 ? shellEdges.get(`${orient}${e}`) : undefined;
-        if (skirt === undefined && (e < 0 || grid.kind[e] !== EDGE.WALL || claimed.edges.has(`${orient}${e}`))) {
+        if (
+          skirt === undefined &&
+          (e < 0 || grid.kind[e] !== EDGE.WALL || claimed.edges.has(`${orient}${e}`))
+        ) {
           flush();
           continue;
         }
@@ -74,7 +84,10 @@ export function layWalls(w: LevelWork): void {
           // generator 3: a passage that reaches the board edge is an exit; no rock column stands outside the bounds
           if (
             gen.boardEdgeExits &&
-            (bx < L.bounds.x || bx >= L.bounds.x + L.bounds.w || by < L.bounds.y || by >= L.bounds.y + L.bounds.h)
+            (bx < L.bounds.x ||
+              bx >= L.bounds.x + L.bounds.w ||
+              by < L.bounds.y ||
+              by >= L.bounds.y + L.bounds.h)
           )
             continue;
           if (c.hostOpen && !flip) {
@@ -202,9 +215,7 @@ export function layCornerPosts(w: LevelWork): void {
   const { gen, frame, lookup, pick } = w.ctx;
   for (const [k, list] of strips) {
     const [vx, vy] = k.split(",").map(Number) as [number, number];
-    const covered = new Set(
-      list.map((s) => (s.orient === "h" ? `${s.side}${s.dir}` : `${s.dir}${s.side}`)),
-    );
+    const covered = new Set(list.map((s) => (s.orient === "h" ? `${s.side}${s.dir}` : `${s.dir}${s.side}`)));
     const gaps = new Map<string, { a: Strip; b: Strip }>();
     for (const a of list.filter((s) => s.orient === "h")) {
       for (const b of list.filter((s) => s.orient === "v")) {

@@ -95,7 +95,12 @@ export interface RealizeCtx extends PlacementRegistries {
   /** Seeded weighted pick among a role's variants. */
   readonly pick: (vs: ResolvedVariant[], key: string) => ResolvedVariant | undefined;
   /** Weighted pick in organic patches (floors). */
-  readonly pickPatch: (vs: ResolvedVariant[], x: number, y: number, key: string) => ResolvedVariant | undefined;
+  readonly pickPatch: (
+    vs: ResolvedVariant[],
+    x: number,
+    y: number,
+    key: string,
+  ) => ResolvedVariant | undefined;
   /** Floor families of a role's variants. */
   readonly familiesOf: (vs: ResolvedVariant[]) => FloorFamily[];
   /** The floor family of a cell from the coarse family noise. */

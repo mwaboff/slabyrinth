@@ -153,8 +153,7 @@ export function applyChasm(work: LevelWork, op: Extract<TerrainOp, { op: "chasm"
     work.height[i] = Math.max(PLAN_LIMITS.minHeight * 4, Math.min(cur, level) - depthQ);
     if (reaches && (reaches.reachOf.get(i) ?? 0) < reaches.low.length - 1) work.upperReach.add(i);
     if (op.floor === "none") {
-      work.flags[i] =
-        ((work.flags[i] as number) | CELL_FLAG.NO_FLOOR) & ~(CELL_FLAG.WATER | CELL_FLAG.PATH);
+      work.flags[i] = ((work.flags[i] as number) | CELL_FLAG.NO_FLOOR) & ~(CELL_FLAG.WATER | CELL_FLAG.PATH);
       work.mat[i] = 0;
     } else if (op.floor !== undefined) {
       work.setMaterial(i, op.floor);
@@ -303,13 +302,15 @@ function cutFalls(
           const i = work.idx(x, y);
           if (i < 0 || pool.has(i) || nearBridge.has(i) || work.state[i] !== CELL.OPEN) continue;
           const fl = work.flags[i] as number;
-          if ((fl & (CELL_FLAG.NO_FLOOR | CELL_FLAG.WATER | CELL_FLAG.PATH | CELL_FLAG.BRIDGE)) !== 0) continue;
+          if ((fl & (CELL_FLAG.NO_FLOOR | CELL_FLAG.WATER | CELL_FLAG.PATH | CELL_FLAG.BRIDGE)) !== 0)
+            continue;
           if (work.areas[(work.struct[i] as number) - 1]?.kind === "building") continue;
           const cur = work.height[i] as number;
           // a bank much higher than the pool would leave a tall bare face, and a pool must not eat into the bank of
           // another reach where the course doubles back: keep both
           if (cur - lowQ > POOL_MAX_BANK_Q) continue;
-          if (work.neighbours4(i).some((j) => j >= 0 && (reaches.reachOf.get(j) ?? f + 1) !== f + 1)) continue;
+          if (work.neighbours4(i).some((j) => j >= 0 && (reaches.reachOf.get(j) ?? f + 1) !== f + 1))
+            continue;
           work.height[i] = Math.max(PLAN_LIMITS.minHeight * 4, Math.min(cur, lowQ) - depthQ);
           if (op.floor !== undefined && op.floor !== "none") work.setMaterial(i, op.floor);
           work.flags[i] = (work.flags[i] as number) & ~(CELL_FLAG.NO_FLOOR | CELL_FLAG.PATH);

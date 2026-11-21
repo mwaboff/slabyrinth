@@ -77,7 +77,9 @@ const KNOWN: ReadonlySet<string> = new Set(WALL_STYLES);
 
 /** The traits of a style; undefined for a name that is not a wall style (such as the rim value "none"). */
 export function wallStyleInfo(style: string | null | undefined): WallStyleInfo | undefined {
-  return style !== null && style !== undefined && KNOWN.has(style) ? WALL_STYLE_INFO[style as WallStyle] : undefined;
+  return style !== null && style !== undefined && KNOWN.has(style)
+    ? WALL_STYLE_INFO[style as WallStyle]
+    : undefined;
 }
 
 /** Natural rock walls (whole-cell blocks, solid mass behind them). */

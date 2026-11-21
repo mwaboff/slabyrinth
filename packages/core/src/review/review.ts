@@ -276,7 +276,10 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
     const k = `${theme}|${material}`;
     let l = listMemo.get(k);
     if (!l) {
-      l = familiesOfVariants(role(theme, `floor.${material}`).resolution?.variants ?? [], (u) => OBSERVED_TONES[u]?.tone);
+      l = familiesOfVariants(
+        role(theme, `floor.${material}`).resolution?.variants ?? [],
+        (u) => OBSERVED_TONES[u]?.tone,
+      );
       listMemo.set(k, l);
     }
     return l;
@@ -347,7 +350,9 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
       gen,
       // features the build dropped (unresolved or wrong size) are not on the map: repeated_prop counts what stands
       dropped: new Set(
-        (opts.diagnostics ?? []).filter((d) => d.code === "custom_unresolved").flatMap((d) => d.elementIds ?? (d.elementId !== undefined ? [d.elementId] : [])),
+        (opts.diagnostics ?? [])
+          .filter((d) => d.code === "custom_unresolved")
+          .flatMap((d) => d.elementIds ?? (d.elementId !== undefined ? [d.elementId] : [])),
       ),
       floorTones,
       floorFamilies,
@@ -432,7 +437,8 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
   // the ground and the water course are what the eye meets first: a crowded review never drops their notes (the
   // owner's cave proof showed a quilt of floor families with no floor_patchwork note in the result)
   for (const n of ranked.slice(limit)) {
-    if (!NEVER_CROWDED_OUT.has(n.code) || kept.some((k) => k.code === n.code && k.levelId === n.levelId)) continue;
+    if (!NEVER_CROWDED_OUT.has(n.code) || kept.some((k) => k.code === n.code && k.levelId === n.levelId))
+      continue;
     let at = -1;
     for (let k = kept.length - 1; k >= 0 && at < 0; k--)
       if (!NEVER_CROWDED_OUT.has((kept[k] as DesignNote).code)) at = k;
@@ -445,7 +451,11 @@ export function reviewDesign(plan: MapPlan, resolved: ResolvedPlan, opts: Review
 }
 
 /** Notes the cap on the review never drops in favour of a lower-ranked kind. */
-const NEVER_CROWDED_OUT: ReadonlySet<DesignNoteCode> = new Set(["floor_patchwork", "river_trench", "rift_broken"]);
+const NEVER_CROWDED_OUT: ReadonlySet<DesignNoteCode> = new Set([
+  "floor_patchwork",
+  "river_trench",
+  "rift_broken",
+]);
 
 /**
  * A bridge crosses a channel by the shortest span, square to its course. A deck that runs along the channel (its long
@@ -490,7 +500,8 @@ function bridgeAlong(c: Ctx): DesignNote[] {
       score: T.weight * 1.5,
       cell: [Math.round(mx), Math.round(my)],
       message: `bridge ${b.id} runs ${Math.round((Math.acos(Math.min(1, cos)) * 180) / Math.PI)} degrees off the channel's course for ${Math.max(dx, dy)} cells: it is a ribbon laid along the crack, not a crossing`,
-      action: "cross the channel by the shortest span, square to its course: move the bridge's `at` to a straighter stretch",
+      action:
+        "cross the channel by the shortest span, square to its course: move the bridge's `at` to a straighter stretch",
     });
   }
   return out;
@@ -511,7 +522,8 @@ function riftBroken(c: Ctx): DesignNote[] {
     if (L.cells.state[i] !== CELL.OPEN) continue;
     const f = L.cells.flags[i] as number;
     const wet = (f & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) !== 0;
-    if (wet || (lava > 0 && L.cells.material[i] === lava)) cells.push([L.bounds.x + (i % W), L.bounds.y + Math.floor(i / W)]);
+    if (wet || (lava > 0 && L.cells.material[i] === lava))
+      cells.push([L.bounds.x + (i % W), L.bounds.y + Math.floor(i / W)]);
   }
   const bodies = components(cells)
     .filter((b) => b.length >= T.brokenMinCells)
@@ -520,7 +532,9 @@ function riftBroken(c: Ctx): DesignNote[] {
   // only bodies lying on a recorded course count
   const onCourse = (b: Array<[number, number]>): boolean =>
     (L.channels ?? []).some((ch) =>
-      ch.centre.some(([cx, cy]) => b.some(([x, y]) => Math.abs(x + 0.5 - cx) <= 2.5 && Math.abs(y + 0.5 - cy) <= 2.5)),
+      ch.centre.some(([cx, cy]) =>
+        b.some(([x, y]) => Math.abs(x + 0.5 - cx) <= 2.5 && Math.abs(y + 0.5 - cy) <= 2.5),
+      ),
     );
   const on = bodies.filter(onCourse);
   if (on.length < 2) return [];
@@ -573,8 +587,7 @@ function stackedLevels(c: Ctx): DesignNote[] {
   const r = c.resolved;
   if (!r || !c.gen.levelsJudgedTogether) return [];
   const out: DesignNote[] = [];
-  const need =
-    (c.plan.levels.find((l) => l.id === c.L.id)?.wallHeight ?? 2) + 0.5 + LEVEL_AIR;
+  const need = (c.plan.levels.find((l) => l.id === c.L.id)?.wallHeight ?? 2) + 0.5 + LEVEL_AIR;
   for (const up of r.levels) {
     if (up.elevation <= c.L.elevation || up.elevation - c.L.elevation >= need - 1e-9) continue;
     // only levels that really lie over this one (open floor in both on at least a fifth of the smaller)
@@ -583,9 +596,14 @@ function stackedLevels(c: Ctx): DesignNote[] {
     for (let i = 0; i < c.W * c.H; i++) {
       const a = c.L.cells.state[i] === CELL.OPEN;
       if (a) mine++;
-      if (a && up.cells.state[i] === CELL.OPEN && ((up.cells.flags[i] ?? 0) & CELL_FLAG.NO_FLOOR) === 0) both++;
+      if (a && up.cells.state[i] === CELL.OPEN && ((up.cells.flags[i] ?? 0) & CELL_FLAG.NO_FLOOR) === 0)
+        both++;
     }
-    if (up.bounds.w !== c.W || both < 0.2 * Math.max(1, Math.min(mine, up.cells.state.filter((s) => s === CELL.OPEN).length))) continue;
+    if (
+      up.bounds.w !== c.W ||
+      both < 0.2 * Math.max(1, Math.min(mine, up.cells.state.filter((s) => s === CELL.OPEN).length))
+    )
+      continue;
     // one note per pair: on the lower level, once
     out.push({
       code: "levels_close",
@@ -611,7 +629,8 @@ function floorOpeningNotes(c: Ctx): DesignNote[] {
         elementIds: [fo.id],
         cell: fo.cells[0] as [number, number],
         message: `the floor opening ${fo.id} has open floor beneath only ${fo.floorBelow} of its ${n} cells${fo.below ? ` (level ${fo.below})` : " (there is no level below)"}: you would look into solid rock or void`,
-        action: "put a room of the level below directly under it (same cells, one storey down), or move the opening over a room",
+        action:
+          "put a room of the level below directly under it (same cells, one storey down), or move the opening over a room",
       });
     if (fo.edgeCells >= 4 && fo.hiddenEdge >= 0.4 * fo.edgeCells)
       out.push({
@@ -621,10 +640,9 @@ function floorOpeningNotes(c: Ctx): DesignNote[] {
         elementIds: [fo.id],
         cell: fo.cells[0] as [number, number],
         message: `walls hide the floor opening ${fo.id}: ${fo.hiddenEdge} of its ${fo.edgeCells} edge cells have a full-height wall between the walkway and the hole`,
-        action:
-          c.gen.lowOpeningRims
-            ? 'keep the hole inside one room with floor all round it (no area boundary or wall on its edge), and leave "rim" unset or low (low_wall, railing, none): a 2-tall wall round a hole reads as a maze of stubs from the table'
-            : "keep the hole inside one room with floor all round it (no area boundary or wall on its edge), so players can stand at the rim and look down",
+        action: c.gen.lowOpeningRims
+          ? 'keep the hole inside one room with floor all round it (no area boundary or wall on its edge), and leave "rim" unset or low (low_wall, railing, none): a 2-tall wall round a hole reads as a maze of stubs from the table'
+          : "keep the hole inside one room with floor all round it (no area boundary or wall on its edge), so players can stand at the rim and look down",
       });
   }
   return out;
@@ -655,7 +673,8 @@ function flat(c: Ctx): DesignNote[] {
     const tiles = new Map<number, number>();
     // ground to stand on: not a lava rift or a pit's floor
     const lava = c.L.materials.indexOf("lava") + 1;
-    const ground = (i: number): boolean => c.walkable[i] === 1 && (lava === 0 || c.L.cells.material[i] !== lava);
+    const ground = (i: number): boolean =>
+      c.walkable[i] === 1 && (lava === 0 || c.L.cells.material[i] !== lava);
     let groundN = 0;
     for (let i = 0; i < c.W * c.H; i++) {
       if (!ground(i)) continue;
@@ -869,7 +888,8 @@ function riverTrench(c: Ctx): DesignNote[] {
   const { L, W, H } = c;
   const wet = (i: number): boolean =>
     L.cells.state[i] === CELL.OPEN &&
-    ((L.cells.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) === CELL_FLAG.WATER;
+    ((L.cells.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) ===
+      CELL_FLAG.WATER;
   const dry = (i: number): boolean =>
     L.cells.state[i] === CELL.OPEN &&
     ((L.cells.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE)) === 0;
@@ -877,9 +897,12 @@ function riverTrench(c: Ctx): DesignNote[] {
   const out: DesignNote[] = [];
   const nb = (i: number): number[] => {
     const x = i % W;
-    return [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i >= W ? i - W : -1, i < W * (H - 1) ? i + W : -1].filter(
-      (j) => j >= 0,
-    );
+    return [
+      x > 0 ? i - 1 : -1,
+      x < W - 1 ? i + 1 : -1,
+      i >= W ? i - W : -1,
+      i < W * (H - 1) ? i + W : -1,
+    ].filter((j) => j >= 0);
   };
   const bfs = (start: number, inside: (i: number) => boolean): Map<number, number> => {
     const d = new Map<number, number>([[start, 0]]);
@@ -943,7 +966,10 @@ function riverTrench(c: Ctx): DesignNote[] {
       .map(([k, v]) => [k, [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)] as number] as const);
     // a running median of three bins (six cells): one odd bin where the course doubles back is not a trench
     const med = raw.map(([k], j) => {
-      const w = raw.slice(Math.max(0, j - 1), j + 2).map((r) => r[1]).sort((a, b) => a - b);
+      const w = raw
+        .slice(Math.max(0, j - 1), j + 2)
+        .map((r) => r[1])
+        .sort((a, b) => a - b);
       return [k, w[Math.floor(w.length / 2)] as number] as const;
     });
     if (med.length < 4) continue;
@@ -1385,7 +1411,13 @@ function floors(c: Ctx): DesignNote[] {
       const toneOf = (name: string): string | undefined => fams.find((f) => f.name === name)?.tone;
       const names = [...laid.keys()];
       const clash = names.some((a) =>
-        names.some((b) => a < b && (laid.get(a) ?? 0) / n >= 0.08 && (laid.get(b) ?? 0) / n >= 0.08 && !tonesClose(toneOf(a), toneOf(b))),
+        names.some(
+          (b) =>
+            a < b &&
+            (laid.get(a) ?? 0) / n >= 0.08 &&
+            (laid.get(b) ?? 0) / n >= 0.08 &&
+            !tonesClose(toneOf(a), toneOf(b)),
+        ),
       );
       // the second family is laid as ragged blobs round a real cause (water, a path, the foot of a rise of a tile or
       // more, a tree, camp or set piece), a few percent of the ground: single squares scattered over open grass fail
@@ -1652,7 +1684,8 @@ function routes(c: Ctx): DesignNote[] {
       const i = (y - lv.bounds.y) * lv.bounds.w + (x - lv.bounds.x);
       const a = lv.cells.area[i] ?? 0;
       const id = a > 0 ? lv.areaIds[a - 1] : undefined;
-      return id !== undefined && lv.areas.some((q) => q.id === id && q.kind !== "zone" && q.kind !== "building")
+      return id !== undefined &&
+        lv.areas.some((q) => q.id === id && q.kind !== "zone" && q.kind !== "building")
         ? `${lv.id}|${id}`
         : null;
     };
@@ -2044,7 +2077,9 @@ function terraces(c: Ctx): DesignNote[] {
   for (const op of lv?.terrain ?? []) {
     if (op.op === "platform") {
       // a knoll built as thin plates: two or more raised levels with every step under a tile, square outlines
-      const cells = opCells(c, op.shape).filter(([x, y]) => c.walkable[(y - c.L.bounds.y) * c.W + (x - c.L.bounds.x)]);
+      const cells = opCells(c, op.shape).filter(
+        ([x, y]) => c.walkable[(y - c.L.bounds.y) * c.W + (x - c.L.bounds.x)],
+      );
       const levels = new Map<number, Array<[number, number]>>();
       for (const [x, y] of cells) {
         const h = c.L.cells.height[(y - c.L.bounds.y) * c.W + (x - c.L.bounds.x)] as number;
@@ -2274,8 +2309,12 @@ function rockTonesMixed(c: Ctx): DesignNote[] {
       // boulders of the face's tone (the boulder role's, else the palette's same-tone boulder role), else the other
       // tone as they are: that is the mixed case
       const same = c.roleTones(theme, "cliff.formation_crest", narrow);
-      const alt = narrow === undefined || same.length > 0 ? [] : c.roleTones(theme, `cliff.formation_crest_${narrow}`);
-      add("the cliffs", same.length > 0 ? same : alt.length > 0 ? alt : c.roleTones(theme, "cliff.formation_crest"));
+      const alt =
+        narrow === undefined || same.length > 0 ? [] : c.roleTones(theme, `cliff.formation_crest_${narrow}`);
+      add(
+        "the cliffs",
+        same.length > 0 ? same : alt.length > 0 ? alt : c.roleTones(theme, "cliff.formation_crest"),
+      );
     }
   }
   // cave walls: the tone count of the built wall is review/caveMass.ts (`cave_rock_tones`, measured on the realized
@@ -2288,7 +2327,8 @@ function rockTonesMixed(c: Ctx): DesignNote[] {
       levelId: L.id,
       score: REVIEW.rockTones.weight,
       message: `rock of ${tones.size} tone families (${[...tones].sort().join(", ")}) in ${place}: pale and grey stones side by side read as two kinds of rock`,
-      action: "keep the cliff's rock to one family: a theme whose cliff and boulders match, or no cliff band here",
+      action:
+        "keep the cliff's rock to one family: a theme whose cliff and boulders match, or no cliff band here",
     });
   }
   return out;
@@ -2301,7 +2341,7 @@ function cliffChecks(c: Ctx): DesignNote[] {
   // (the band as planned: where the realizer drops a kind of rock for tone, it clads those drops with its plain block
   // face instead, which the plan cannot change, so these notes judge the plan)
   const rocks = L.features.filter((f) => BAND_ROCK.has(f.type));
-  const covers =(f: (typeof rocks)[number], px: number, py: number, pad: number): boolean =>
+  const covers = (f: (typeof rocks)[number], px: number, py: number, pad: number): boolean =>
     px >= f.at[0] - pad &&
     px <= f.at[0] + f.size[0] + pad &&
     py >= f.at[1] - pad &&
@@ -2601,7 +2641,11 @@ function cliffChecks(c: Ctx): DesignNote[] {
       for (let lx = 0; lx < c.W; lx++) {
         const i = ly * c.W + lx;
         if (L.cells.state[i] !== CELL.OPEN || (L.cells.material[i] ?? 0) === 0) continue;
-        walk.push({ x: L.bounds.x + lx, y: L.bounds.y + ly, ground: L.elevation + 0.5 + (L.cells.height[i] ?? 0) / 4 });
+        walk.push({
+          x: L.bounds.x + lx,
+          y: L.bounds.y + ly,
+          ground: L.elevation + 0.5 + (L.cells.height[i] ?? 0) / 4,
+        });
       }
     const buried = terraceRockShare(shapes, walk).filter((t) => t.share > T.terraceShare);
     const worst = buried.sort((a, b) => b.share - a.share)[0];
@@ -2718,7 +2762,7 @@ function ruins(c: Ctx): DesignNote[] {
             elementIds: [st.id],
             message: `the ${st.condition} building ${st.id} is not ${level === "heavy" ? "overgrown" : "grown over"}: vines and roots cover ${Math.round(g.coverage * 100)}% of its ${g.columns} wall cells, a ${level} level wants ${Math.round(min * 100)}% or more`,
             action:
-              "give it free ground at the wall foot (leave a ring of open cells round it) so vines and roots can climb it, set growth: \"heavy\" for an overgrown place, or build it intact",
+              'give it free ground at the wall foot (leave a ring of open cells round it) so vines and roots can climb it, set growth: "heavy" for an overgrown place, or build it intact',
           });
       }
     }
@@ -2749,7 +2793,8 @@ function ruins(c: Ctx): DesignNote[] {
         code: "ruin_flat_top",
         levelId: c.L.id,
         score:
-          T.weight * Math.max(over(flat, T.flatTop), legible ? over(T.runShort, Math.max(0.1, m.runShort)) : 0),
+          T.weight *
+          Math.max(over(flat, T.flatTop), legible ? over(T.runShort, Math.max(0.1, m.runShort)) : 0),
         elementIds: [st.id],
         message: legible
           ? `the ruin ${st.id} has clean-cut wall tops (${Math.round(m.runShort * 100)}% of its runs of equal height are short; ${Math.round(flat * 100)}% of neighbouring cut tops are level)`

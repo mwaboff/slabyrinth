@@ -31,7 +31,10 @@ export const BUILT_FLOORS: ReadonlySet<Material> = new Set<Material>([
  * The floor a room of `purpose` takes in a level of `family`: a material, "keep" for a corridor in all but name (it
  * keeps the corridor's floor and height), null when the purpose asks for none (the rotation decides).
  */
-export function purposeFloor(purpose: RoomPurpose | undefined, family: FloorFamily): Material | "keep" | null {
+export function purposeFloor(
+  purpose: RoomPurpose | undefined,
+  family: FloorFamily,
+): Material | "keep" | null {
   if (purpose === undefined) return null;
   const f = ROOM_PURPOSE_INFO[purpose].floor;
   return f === "keep" ? "keep" : f[family];

@@ -170,14 +170,16 @@ describe("generator 4 rough walls", () => {
   };
   it("wall heights vary along the runs, most at the full height", () => {
     const m = new Map<number, number>();
-    for (const id of ["l1", "l2", "l3"]) for (const [h, c] of tops(lvl(keep(), id))) m.set(h, (m.get(h) ?? 0) + c);
+    for (const id of ["l1", "l2", "l3"])
+      for (const [h, c] of tops(lvl(keep(), id))) m.set(h, (m.get(h) ?? 0) + c);
     const total = [...m.values()].reduce((s, c) => s + c, 0);
     expect(m.size).toBeGreaterThanOrEqual(3);
     expect(Math.max(...m.values()) / total).toBeLessThanOrEqual(0.7);
     expect(Math.min(...m.keys())).toBeGreaterThanOrEqual(1.25);
     // generator 3: the plan's own heights only (2, plus the odd rim wall), nothing lowered
     const m3 = new Map<number, number>();
-    for (const id of ["l1", "l2", "l3"]) for (const [h, c] of tops(lvl(keep(3), id))) m3.set(h, (m3.get(h) ?? 0) + c);
+    for (const id of ["l1", "l2", "l3"])
+      for (const [h, c] of tops(lvl(keep(3), id))) m3.set(h, (m3.get(h) ?? 0) + c);
     expect((m3.get(2) ?? 0) / [...m3.values()].reduce((s, c) => s + c, 0)).toBeGreaterThan(0.9);
   });
   it("walls beside a doorway keep their full height", () => {
@@ -203,7 +205,13 @@ describe("generator 4 rough walls", () => {
       const lx = f.at[0] - L.bounds.x;
       const ly = f.at[1] - L.bounds.y;
       const i =
-        f.wall === "N" ? ly * w + lx : f.wall === "S" ? (ly + 1) * w + lx : f.wall === "W" ? ly * (w + 1) + lx : ly * (w + 1) + lx + 1;
+        f.wall === "N"
+          ? ly * w + lx
+          : f.wall === "S"
+            ? (ly + 1) * w + lx
+            : f.wall === "W"
+              ? ly * (w + 1) + lx
+              : ly * (w + 1) + lx + 1;
       const g = f.wall === "N" || f.wall === "S" ? L.hEdges : L.vEdges;
       expect(g.height[i]).toBeGreaterThanOrEqual(1.75);
     }
@@ -243,7 +251,8 @@ describe("generator 4 rough walls", () => {
     };
     const distinctTops = (L: ResolvedLevel): Set<number> => {
       const s = new Set<number>();
-      for (const g of [L.hEdges, L.vEdges]) for (let i = 0; i < g.kind.length; i++) if (g.kind[i] === EDGE.WALL) s.add(g.height[i] ?? 0);
+      for (const g of [L.hEdges, L.vEdges])
+        for (let i = 0; i < g.kind.length; i++) if (g.kind[i] === EDGE.WALL) s.add(g.height[i] ?? 0);
       return s;
     };
     // (a room raised a step above the passage settles its wall to one more height in either theme; the rough drops add more)
@@ -292,7 +301,12 @@ describe("generator 4 rough walls", () => {
           bounds: { x: 0, y: 0, w: 16, h: 13 },
           base: { type: "solid" },
           areas: [
-            { id: "pass", kind: "corridor", name: "Passage", shape: { type: "rect", x: 1, y: 8, w: 13, h: 3 } },
+            {
+              id: "pass",
+              kind: "corridor",
+              name: "Passage",
+              shape: { type: "rect", x: 1, y: 8, w: 13, h: 3 },
+            },
             { id: "a", kind: "room", name: "Study", shape: { type: "rect", x: 1, y: 2, w: 6, h: 6 } },
             { id: "b", kind: "room", name: "Library", shape: { type: "rect", x: 7, y: 2, w: 6, h: 6 } },
           ],
@@ -327,7 +341,10 @@ describe("generator 4 rough walls", () => {
       for (const theme of ["tavern", "town", "wood_town", "city"]) {
         const L = lvl(inn(theme), "l1");
         expect(finishes(L), theme).toEqual(new Set(["tidy"]));
-        expect(L.features.filter((f) => f.generatedBy === "walls"), theme).toHaveLength(0);
+        expect(
+          L.features.filter((f) => f.generatedBy === "walls"),
+          theme,
+        ).toHaveLength(0);
       }
     });
     it("a theme that declares nothing is rough stone", () => {
@@ -340,7 +357,11 @@ describe("generator 4 rough walls", () => {
         id: "elf_hall",
         name: "Elf hall",
         extends: "generic",
-        defaults: { floor: "wood_plank", wallStyle: "wall", interior: { finish: "tidy", floorFamily: "timber" } },
+        defaults: {
+          floor: "wood_plank",
+          wallStyle: "wall",
+          interior: { finish: "tidy", floorFamily: "timber" },
+        },
         roles: {},
       };
       const catalog = loadPalettes({ user: [{ source: "elf_hall.json", data: user }] });
@@ -400,7 +421,8 @@ describe("generator 4 solid shell", () => {
   it("generators 1-3 build no shell", () => {
     const plan = keep(3);
     const set = realize(resolvePlan(plan), palettes, {});
-    for (const lv of set.levels) expect(lv.placements.filter((p) => p.source.elementId === "shell")).toHaveLength(0);
+    for (const lv of set.levels)
+      expect(lv.placements.filter((p) => p.source.elementId === "shell")).toHaveLength(0);
   });
   it("the shell stays within its budget: under 260 cap tiles on each level", () => {
     const set = realize(resolvePlan(keep()), palettes, {});
@@ -408,7 +430,10 @@ describe("generator 4 solid shell", () => {
       const cap = lv.placements.filter((p) => p.source.elementId === "shell").length;
       expect(cap).toBeLessThan(260);
     }
-    const total = set.levels.reduce((s, l) => s + l.placements.filter((p) => p.source.elementId === "shell").length, 0);
+    const total = set.levels.reduce(
+      (s, l) => s + l.placements.filter((p) => p.source.elementId === "shell").length,
+      0,
+    );
     expect(total).toBeGreaterThan(100);
   });
 });
@@ -453,14 +478,26 @@ describe("generator 4 shell: tidy buildings, outline", () => {
       const solid = (x: number, y: number): boolean => {
         const lx = x - L.bounds.x;
         const ly = y - L.bounds.y;
-        return lx >= 0 && ly >= 0 && lx < L.bounds.w && ly < L.bounds.h && L.cells.state[ly * L.bounds.w + lx] === CELL.SOLID;
+        return (
+          lx >= 0 &&
+          ly >= 0 &&
+          lx < L.bounds.w &&
+          ly < L.bounds.h &&
+          L.cells.state[ly * L.bounds.w + lx] === CELL.SOLID
+        );
       };
       const higher = (x: number, y: number): boolean =>
         R.levels.some((o) => {
           if (o.id === L.id) return false;
           const lx = x - o.bounds.x;
           const ly = y - o.bounds.y;
-          return lx >= 0 && ly >= 0 && lx < o.bounds.w && ly < o.bounds.h && o.cells.state[ly * o.bounds.w + lx] === CELL.OPEN;
+          return (
+            lx >= 0 &&
+            ly >= 0 &&
+            lx < o.bounds.w &&
+            ly < o.bounds.h &&
+            o.cells.state[ly * o.bounds.w + lx] === CELL.OPEN
+          );
         });
       for (const c of shell.cells.values()) {
         // a thin shell: the cap stands at most three cells from a room
@@ -535,7 +572,13 @@ describe("generator 4 review", () => {
   it("floor_accent_tone fires for a pale patch in a dark room, silent once the dais is toned", () => {
     const plan = keep();
     const l1 = plan.levels.find((l) => l.id === "l1");
-    l1?.terrain.push({ id: "pale", op: "paint", shape: { type: "rect", x: 20, y: 14, w: 4, h: 3 }, material: "marble", layer: "over" } as never);
+    l1?.terrain.push({
+      id: "pale",
+      op: "paint",
+      shape: { type: "rect", x: 20, y: 14, w: 4, h: 3 },
+      material: "marble",
+      layer: "over",
+    } as never);
     const codes = reviewDesign(plan, resolvePlan(plan)).map((n) => n.code);
     expect(codes).toContain("floor_accent_tone");
     expect(reviewDesign(keep(), resolvePlan(keep())).map((n) => n.code)).not.toContain("floor_accent_tone");

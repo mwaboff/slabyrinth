@@ -77,7 +77,12 @@ describe("even spacing measure (the v3 fence)", () => {
   it("boulders piled on one spot count once", () => {
     const pts = along([2.2, 2.2, 2.2]).flatMap((p) => [p, { x: p.x + 0.1, y: p.y }]);
     expect(fenceShare(pts, rule).runs).toHaveLength(0);
-    expect(fenceShare(along([2.2, 2.2, 2.2, 2.2]).flatMap((p) => [p, { x: p.x + 0.1, y: p.y }]), rule).runs).toHaveLength(1);
+    expect(
+      fenceShare(
+        along([2.2, 2.2, 2.2, 2.2]).flatMap((p) => [p, { x: p.x + 0.1, y: p.y }]),
+        rule,
+      ).runs,
+    ).toHaveLength(1);
   });
 
   it("long pieces laid at one constant step fail, an irregular step passes", () => {

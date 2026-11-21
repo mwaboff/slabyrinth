@@ -288,7 +288,9 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
   const groundAt = (x: number, y: number): number => {
     if (!solid || !inLevel(x, y)) return faceGround(x, y);
     if (!solidGround)
-      solidGround = massFoot(grid, depth, (i) => faceGround(bounds.x + (i % bounds.w), bounds.y + Math.floor(i / bounds.w)));
+      solidGround = massFoot(grid, depth, (i) =>
+        faceGround(bounds.x + (i % bounds.w), bounds.y + Math.floor(i / bounds.w)),
+      );
     return (depth[idx(x, y)] as number) > 0 ? (solidGround[idx(x, y)] as number) : faceGround(x, y);
   };
   const wallAngle = (x: number, y: number): number => {
@@ -305,7 +307,8 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
       // generator 4: broad swells, not per-cell wander, and lower toward the level's edge (the mass thins out there)
       const e = edgeDist(Math.floor(x), Math.floor(y));
       const keep = e < CAVE_WALL.edgeRise.length ? (CAVE_WALL.edgeRise[e] as number) : 1;
-      const swell = (swellNoise.sample(x / CAVE_WALL.swellScale, y / CAVE_WALL.swellScale) - 0.5) * 2 * CAVE_WALL.swell;
+      const swell =
+        (swellNoise.sample(x / CAVE_WALL.swellScale, y / CAVE_WALL.swellScale) - 0.5) * 2 * CAVE_WALL.swell;
       return floorAt(Math.floor(x), Math.floor(y)) + Math.max(CAVE_WALL.minCourse0, (rise + swell) * keep);
     }
     const wander = (noise.sample(x / 3.5, y / 3.5) - 0.5) * CAVE_WALL.skyline;
@@ -364,7 +367,7 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
     }
     return list[list.length - 1] as WallShape;
   };
-  const snap = (deg: number): number => ((Math.round(deg / 15) * 15) % 360 + 360) % 360;
+  const snap = (deg: number): number => (((Math.round(deg / 15) * 15) % 360) + 360) % 360;
 
   const course0 = mass.filter((s) => s.h >= CAVE_WALL.minCourse0);
   const small = mass.filter((s) => s.h >= CAVE_WALL.minCourse0 && s.w * s.d <= 2.2);
@@ -375,10 +378,7 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
     Math.min(x - bounds.x, y - bounds.y, bounds.x + bounds.w - 1 - x, bounds.y + bounds.h - 1 - y);
   // (generator 4 builds no cap: a cap sheet over empty rock is see-through from the side)
   const capCell = (x: number, y: number): boolean =>
-    !solid &&
-    caps.length > 0 &&
-    depthOf(x, y) >= CAVE_WALL.capDepth &&
-    edgeDist(x, y) >= CAVE_WALL.capEdge;
+    !solid && caps.length > 0 && depthOf(x, y) >= CAVE_WALL.capDepth && edgeDist(x, y) >= CAVE_WALL.capEdge;
 
   // ── course 0: cover the band, face first ──
   const order: Array<[number, number, number]> = []; // cell, sub-point, depth
@@ -413,7 +413,11 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
       let rot: number;
       if (d <= 2) {
         const broad = rng.chance(CAVE_WALL.broadside);
-        rot = snap(wallAngle(cellX, cellY) + rng.range(-CAVE_WALL.turnSteps, CAVE_WALL.turnSteps) * 15 + (broad ? 90 : 0));
+        rot = snap(
+          wallAngle(cellX, cellY) +
+            rng.range(-CAVE_WALL.turnSteps, CAVE_WALL.turnSteps) * 15 +
+            (broad ? 90 : 0),
+        );
       } else rot = rng.range(0, 11) * 15;
       // the point lies near the piece's upper-left (the sweep has covered what lies above and to the left); a piece
       // closing a face cell may lie any way round it
@@ -499,10 +503,13 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
       let placed = false;
       for (let attempt = 0; attempt < 7 && !placed; attempt++) {
         const shape = weightedPick(mass);
-        const lift = cur.shape.h * (CAVE_WALL.courseLift[0] + rng.next() * (CAVE_WALL.courseLift[1] - CAVE_WALL.courseLift[0]));
+        const lift =
+          cur.shape.h *
+          (CAVE_WALL.courseLift[0] + rng.next() * (CAVE_WALL.courseLift[1] - CAVE_WALL.courseLift[0]));
         const nb = cur.base + lift;
         if (!ceilingOk(nb, shape.h)) continue;
-        const shift = CAVE_WALL.courseShift[0] + rng.next() * (CAVE_WALL.courseShift[1] - CAVE_WALL.courseShift[0]);
+        const shift =
+          CAVE_WALL.courseShift[0] + rng.next() * (CAVE_WALL.courseShift[1] - CAVE_WALL.courseShift[0]);
         const ang = rng.next() * Math.PI * 2;
         const r: Rect = {
           cx: cur.cx + Math.cos(ang) * shift,
@@ -598,7 +605,8 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
       const dir: [number, number] =
         Math.abs(raw[0]) >= Math.abs(raw[1]) ? [Math.sign(raw[0]), 0] : [0, Math.sign(raw[1])];
       if (!input.open(f.x - dir[0], f.y - dir[1])) continue;
-      if (toeNoise.sample(f.x / 4.5, f.y / 4.5) < CAVE_WALL.toeCluster || !rng.chance(CAVE_WALL.toeChance)) continue;
+      if (toeNoise.sample(f.x / 4.5, f.y / 4.5) < CAVE_WALL.toeCluster || !rng.chance(CAVE_WALL.toeChance))
+        continue;
       const sh = weightedPick(toes);
       if (!runOut(f, dir, CAVE_WALL.toeRun)) continue;
       const tx = -dir[1];
@@ -695,8 +703,20 @@ export function planCaveWall(input: CaveWallInput): CaveWallPlan {
         const [hx, hy] = extent(rot, shape.w, shape.d);
         // a piece closing a face cell may lie any way round its middle; the sweep's lie near the point's upper left
         const r: Rect = at
-          ? { cx: px + (rng.next() - 0.5) * hx * 1.6, cy: py + (rng.next() - 0.5) * hy * 1.6, rot, w: shape.w, d: shape.d }
-          : { cx: px + hx * (0.15 + rng.next() * 0.75), cy: py + hy * (0.15 + rng.next() * 0.75), rot, w: shape.w, d: shape.d };
+          ? {
+              cx: px + (rng.next() - 0.5) * hx * 1.6,
+              cy: py + (rng.next() - 0.5) * hy * 1.6,
+              rot,
+              w: shape.w,
+              d: shape.d,
+            }
+          : {
+              cx: px + hx * (0.15 + rng.next() * 0.75),
+              cy: py + hy * (0.15 + rng.next() * 0.75),
+              rot,
+              w: shape.w,
+              d: shape.d,
+            };
         if (!inRect(r, px, py, -CAVE_WALL.overlap) || !outlineFits(input.rock, r)) continue;
         const pts0 = under(r);
         let base = Infinity;

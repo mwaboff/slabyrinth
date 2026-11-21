@@ -1499,7 +1499,7 @@ export function composeArea(
   const def = defOverride ?? SET_PIECES[prm.preset];
   const rng = createPrng(subSeed(prm.seed, `compose:${prm.preset}`));
   const gen = gridProfile(grid);
-  const inArea =(x: number, y: number): boolean =>
+  const inArea = (x: number, y: number): boolean =>
     grid.inBounds(x, y) && grid.area(x, y) === prm.areaIndex && grid.isFloor(x, y);
   const cells = prm.areaCells.filter(([x, y]) => inArea(x, y)).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
   const out: GeneratedPlacement[] = [];
@@ -2535,22 +2535,52 @@ export function composeArea(
   // ── 3b. generator 3: a landmark is lit: a floor light a cell or two off its footprint when none stands within four
   //    cells (the review's focal_unlit check; the lights of a lit place stand at the focal points, not only at walls) ──
   if (gen.litLandmarks) {
-    const FOCAL_LIT = new Set<FeatureType>(["landmark", "statue", "statue_large", "altar", "fountain", "well", "monolith", "standing_stone", "tall_marker", "throne"]);
+    const FOCAL_LIT = new Set<FeatureType>([
+      "landmark",
+      "statue",
+      "statue_large",
+      "altar",
+      "fountain",
+      "well",
+      "monolith",
+      "standing_stone",
+      "tall_marker",
+      "throne",
+    ]);
     for (const f of out.filter((q) => FOCAL_LIT.has(q.type))) {
       if (st.capped) break;
       const cx = f.at[0] + f.size[0] / 2;
       const cy = f.at[1] + f.size[1] / 2;
-      if (lights.some(([lx, ly]) => Math.max(Math.abs(lx + 0.5 - cx), Math.abs(ly + 0.5 - cy)) < 4 + Math.max(f.size[0], f.size[1]) / 2)) continue;
+      if (
+        lights.some(
+          ([lx, ly]) =>
+            Math.max(Math.abs(lx + 0.5 - cx), Math.abs(ly + 0.5 - cy)) <
+            4 + Math.max(f.size[0], f.size[1]) / 2,
+        )
+      )
+        continue;
       // the nearest free ground ring around the footprint, off the paths
       const ring = cells
         .filter(([x, y]) => {
           const dx = Math.max(f.at[0] - x, 0, x - (f.at[0] + f.size[0] - 1));
           const dy = Math.max(f.at[1] - y, 0, y - (f.at[1] + f.size[1] - 1));
-          return Math.max(dx, dy) >= 1 && Math.max(dx, dy) <= 2 && !taken.has(key(x, y)) && !doorZone.has(key(x, y));
+          return (
+            Math.max(dx, dy) >= 1 &&
+            Math.max(dx, dy) <= 2 &&
+            !taken.has(key(x, y)) &&
+            !doorZone.has(key(x, y))
+          );
         })
-        .sort((a, b) => Math.hypot(a[0] - cx, a[1] - cy) - Math.hypot(b[0] - cx, b[1] - cy) || a[0] - b[0] || a[1] - b[1]);
+        .sort(
+          (a, b) =>
+            Math.hypot(a[0] - cx, a[1] - cy) - Math.hypot(b[0] - cx, b[1] - cy) || a[0] - b[0] || a[1] - b[1],
+        );
       for (const [x, y] of ring.slice(0, 8)) {
-        const planned = tryGroup(frameFor(x, y, null, false), { name: "focal light", anchor: "open", parts: [p("torch_floor", 0, 0)] });
+        const planned = tryGroup(frameFor(x, y, null, false), {
+          name: "focal light",
+          anchor: "open",
+          parts: [p("torch_floor", 0, 0)],
+        });
         if (!planned) continue;
         commit(planned, x, y);
         lights.push([x, y]);
@@ -2606,7 +2636,16 @@ export function composeArea(
     const field = new ValueNoise(subSeed(prm.seed, "groundcover"));
     const types: FeatureType[] = ["ground_cover", "ground_cover", "small_detail"];
     const coverCells = new Set<number>();
-    const CAUSES = new Set<FeatureType>(["campfire", "fire_pit", "tent", "tree_large", "landmark", "tree", "dead_tree", "pine_tree"]);
+    const CAUSES = new Set<FeatureType>([
+      "campfire",
+      "fire_pit",
+      "tent",
+      "tree_large",
+      "landmark",
+      "tree",
+      "dead_tree",
+      "pine_tree",
+    ]);
     const causes = out.filter((q) => CAUSES.has(q.type)).map((q) => [q.at[0], q.at[1]] as const);
     for (const [x, y] of cells) {
       if (st.capped) break;
@@ -2661,7 +2700,11 @@ export function composeArea(
             }
       }
       const pr = gen.causedGroundCover
-        ? 0.4 * def.groundCover * (patch > 0.64 ? 3.6 : patch > 0.58 ? 1.0 : 0) * (1 + near * 0.6) * (tied ? 1.6 : 0.15)
+        ? 0.4 *
+          def.groundCover *
+          (patch > 0.64 ? 3.6 : patch > 0.58 ? 1.0 : 0) *
+          (1 + near * 0.6) *
+          (tied ? 1.6 : 0.15)
         : 0.4 * def.groundCover * (patch > 0.55 ? 2.2 : patch > 0.45 ? 0.6 : 0) * (1 + near * 0.6);
       if (r >= pr) continue;
       let crowded = false;

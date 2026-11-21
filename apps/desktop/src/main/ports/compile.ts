@@ -91,7 +91,10 @@ export function createCoreCompileBackend(): CompileBackend {
     estimate(input, levels) {
       // generator 4: resolve against the palettes the build will use (covered stalls only where they can be built)
       const palettes = palettesFor(input);
-      const resolved = resolvePlan(input.plan, { ...(levels === undefined ? {} : { levels }), ...paletteOptionsFor(input.plan, palettes) });
+      const resolved = resolvePlan(input.plan, {
+        ...(levels === undefined ? {} : { levels }),
+        ...paletteOptionsFor(input.plan, palettes),
+      });
       // The plan lets verify skip findings the plan-level playability pass already reports.
       const opts: Parameters<typeof coreEstimate>[2] = {
         orientation: orientationFor(input),

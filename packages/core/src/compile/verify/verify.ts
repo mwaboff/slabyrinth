@@ -215,14 +215,24 @@ export function verifyBuild(
     y = L.features.find((f) => f.id.startsWith(`${ln.id}#`) && f.type === "overhead")?.baseHeight ?? y;
     const holds = ln.anchors.every((an) => {
       // the wall stands on the cell's edge, hosted in this cell or the one beside it: look at the cell and its neighbours
-      const near = [-1, 0, 1].flatMap((dx) => [-1, 0, 1].flatMap((dy) => index.near(an.at[0] + dx + 0.5, an.at[1] + dy + 0.5)));
+      const near = [-1, 0, 1].flatMap((dx) =>
+        [-1, 0, 1].flatMap((dy) => index.near(an.at[0] + dx + 0.5, an.at[1] + dy + 0.5)),
+      );
       return near.some((q) => {
         if (q.levelId !== L.id) return false;
         if (an.kind === "post")
-          return q.role === "feature" && (q.p.source.elementId ?? "").startsWith(`${ln.id}#post`) && q.box.max.y >= y - 0.05;
+          return (
+            q.role === "feature" &&
+            (q.p.source.elementId ?? "").startsWith(`${ln.id}#post`) &&
+            q.box.max.y >= y - 0.05
+          );
         return (
-          q.role !== "floor" && q.role !== "fill" && q.role !== "feature" && q.role !== "link" &&
-          q.box.max.y >= y - 0.05 && q.box.min.y <= y + 0.05
+          q.role !== "floor" &&
+          q.role !== "fill" &&
+          q.role !== "feature" &&
+          q.role !== "link" &&
+          q.box.max.y >= y - 0.05 &&
+          q.box.min.y <= y + 0.05
         );
       });
     });
@@ -406,7 +416,14 @@ export function verifyBuild(
             cx + dx >= L.bounds.x + L.bounds.w ||
             cy + dy < L.bounds.y ||
             cy + dy >= L.bounds.y + L.bounds.h;
-          if (!covered && generatorProfile(resolved).boardEdgeExits && mount === "full-cell" && here.open && onBoardEdge) continue;
+          if (
+            !covered &&
+            generatorProfile(resolved).boardEdgeExits &&
+            mount === "full-cell" &&
+            here.open &&
+            onBoardEdge
+          )
+            continue;
           if (!covered) {
             gaps++;
             firstGap ??= {
@@ -509,16 +526,13 @@ export function verifyBuild(
         const lx = f.at[0] - L.bounds.x;
         const ly = f.at[1] - L.bounds.y;
         const theme = f.theme || (L.themes[L.cells.theme[ly * L.bounds.w + lx] ?? 0] ?? "generic");
-        const parts = stallParts(
-          (roles, filter) => {
-            for (const role of roles) {
-              const r = resolveRole(theme, role, filter).resolution;
-              if (r) return r;
-            }
-            return null;
-          },
-          f.stall.form,
-        );
+        const parts = stallParts((roles, filter) => {
+          for (const role of roles) {
+            const r = resolveRole(theme, role, filter).resolution;
+            if (r) return r;
+          }
+          return null;
+        }, f.stall.form);
         if ("missing" in parts)
           add({
             severity: "warning",
@@ -899,12 +913,14 @@ export function verifyBuild(
       // generator 4: every step of the run, not only the last: each cell's top stands above the one behind it by no
       // more than a step (1 tile), so no gap or drop breaks the climb (a missing piece, a step of another height)
       if (generatorProfile(resolved).everyStepVerified) {
-        const topAt =(c: readonly [number, number]): number => {
+        const topAt = (c: readonly [number, number]): number => {
           const pc = w(c[0] + 0.5, c[1] + 0.5);
           return Math.max(
             -Infinity,
             ...parts
-              .filter((s) => s.box.min.x < pc.x && s.box.max.x > pc.x && s.box.min.z < pc.z && s.box.max.z > pc.z)
+              .filter(
+                (s) => s.box.min.x < pc.x && s.box.max.x > pc.x && s.box.min.z < pc.z && s.box.max.z > pc.z,
+              )
               .map((s) => s.box.max.y),
           );
         };
@@ -917,9 +933,16 @@ export function verifyBuild(
           const behindCell: [number, number] = [c[0] - dx, c[1] - dy];
           const behindRun = isRun(lower.id, behindCell[0], behindCell[1]);
           const behind =
-            behindRun?.linkId === lk.id ? topAt(behindCell) : run.k === 0 ? gl.top(behindCell[0], behindCell[1]) : -Infinity;
+            behindRun?.linkId === lk.id
+              ? topAt(behindCell)
+              : run.k === 0
+                ? gl.top(behindCell[0], behindCell[1])
+                : -Infinity;
           if (!Number.isFinite(top)) {
-            bad = { c, text: `step ${run.k + 1} of ${lk.lowerCells.length} at ${fmt(c)} has no piece, so the climb has a gap` };
+            bad = {
+              c,
+              text: `step ${run.k + 1} of ${lk.lowerCells.length} at ${fmt(c)} has no piece, so the climb has a gap`,
+            };
             break;
           }
           if (Number.isFinite(behind) && (top - behind > MAX_STEP || top - behind < 0.05)) {
@@ -932,7 +955,11 @@ export function verifyBuild(
         }
         if (bad) {
           ok = false;
-          whyLink(lk.id, `its climb is broken: ${bad.text}`, `check that link ${lk.id} has a stairs asset in its theme and that the run of ${lk.lowerCells.length} cells fits the rise of ${lk.rise}`);
+          whyLink(
+            lk.id,
+            `its climb is broken: ${bad.text}`,
+            `check that link ${lk.id} has a stairs asset in its theme and that the run of ${lk.lowerCells.length} cells fits the rise of ${lk.rise}`,
+          );
           add({
             severity: "error",
             code: "verify_stairs_no_arrival",
@@ -1079,7 +1106,10 @@ export function verifyBuild(
   };
   /** The broken link a player on level `target` would have had to use: first failing link on the way from the entry. */
   const brokenLinkFor = (target: LevelId): { text: string; fix: string } | undefined => {
-    const entry = opts.entryLevelId ?? opts.plan?.entryLevel ?? [...levels].sort((a, b) => b.elevation - a.elevation)[0]?.id;
+    const entry =
+      opts.entryLevelId ??
+      opts.plan?.entryLevel ??
+      [...levels].sort((a, b) => b.elevation - a.elevation)[0]?.id;
     if (!entry || entry === target) return undefined;
     const prev = new Map<LevelId, { from: LevelId; link: (typeof resolved.links)[number] }>();
     const q: LevelId[] = [entry];
@@ -1097,7 +1127,9 @@ export function verifyBuild(
     const path: Array<(typeof resolved.links)[number]> = [];
     for (let at: LevelId | undefined = target; at !== undefined && prev.has(at); at = prev.get(at)?.from)
       path.unshift((prev.get(at) as { link: (typeof resolved.links)[number] }).link);
-    const bad = path.find((lk) => linkOk.get(lk.id) === false) ?? resolved.links.find((lk) => linkOk.get(lk.id) === false);
+    const bad =
+      path.find((lk) => linkOk.get(lk.id) === false) ??
+      resolved.links.find((lk) => linkOk.get(lk.id) === false);
     if (!bad) return undefined;
     const w = linkWhy.get(bad.id);
     return {
@@ -1161,7 +1193,11 @@ export function verifyBuild(
       const f = featureById.get(`${L.id}|${s.p.source.elementId ?? ""}`);
       // generator 3: the rock band skirts the board's edge from the base plane, partly outside the level and over no floor
       // by design (cliffband.ts checks every piece rests on something)
-      if (generatorProfile(resolved).restingCliffBand && (f?.type === "cliff_face" || f?.type === "cliff_crest")) continue;
+      if (
+        generatorProfile(resolved).restingCliffBand &&
+        (f?.type === "cliff_face" || f?.type === "cliff_crest")
+      )
+        continue;
       const cx = (s.box.min.x + s.box.max.x) / 2;
       const cz = (s.box.min.z + s.box.max.z) / 2;
       const pc = index.toPlan(cx, cz);

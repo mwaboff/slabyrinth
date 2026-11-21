@@ -223,7 +223,11 @@ function cmdReview(a: Args, io: CliIo): number {
   const diagnostics = noBuild ? [] : compileResolved(resolved, palettes, slabCodec, { plan }).diagnostics;
   // the realized pieces too (the cave rock mass is measured on them)
   const placements = noBuild ? undefined : realize(resolved, palettes, {});
-  const notes = reviewDesign(plan, resolved, { palettes, diagnostics, ...(placements ? { placements } : {}) });
+  const notes = reviewDesign(plan, resolved, {
+    palettes,
+    diagnostics,
+    ...(placements ? { placements } : {}),
+  });
   if (a.flags["json"]) io.out(JSON.stringify(notes, null, 2));
   else io.out(designReviewText(notes) || "design review: nothing to note");
   return 0;

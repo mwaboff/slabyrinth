@@ -24,7 +24,9 @@ import { reviewBuild } from "../../../src/review/reviewBuild";
 import { checkPlayability, resolvePlan } from "../../../src/resolve/index";
 import "../../../src/resolve/autoregister";
 
-const fixture = JSON.parse(readFileSync(new URL("fixtures/sea-grotto.json", import.meta.url), "utf8")) as MapPlan;
+const fixture = JSON.parse(
+  readFileSync(new URL("fixtures/sea-grotto.json", import.meta.url), "utf8"),
+) as MapPlan;
 const palettes = loadPalettes();
 
 const D4 = [
@@ -72,7 +74,8 @@ function openPieces(L: ResolvedLevel): number {
 /** Open cells in no 2×2 block of open cells (a passage one cell wide). */
 function narrowCells(L: ResolvedLevel): number {
   const { w, h } = L.bounds;
-  const open = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < w && y < h && L.cells.state[y * w + x] === CELL.OPEN;
+  const open = (x: number, y: number): boolean =>
+    x >= 0 && y >= 0 && x < w && y < h && L.cells.state[y * w + x] === CELL.OPEN;
   let n = 0;
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
@@ -84,7 +87,13 @@ function narrowCells(L: ResolvedLevel): number {
           [0, -1],
           [-1, -1],
         ] as const
-      ).some(([ox, oy]) => open(x + ox, y + oy) && open(x + ox + 1, y + oy) && open(x + ox, y + oy + 1) && open(x + ox + 1, y + oy + 1));
+      ).some(
+        ([ox, oy]) =>
+          open(x + ox, y + oy) &&
+          open(x + ox + 1, y + oy) &&
+          open(x + ox, y + oy + 1) &&
+          open(x + ox + 1, y + oy + 1),
+      );
       if (!block) n++;
     }
   return n;
@@ -110,7 +119,9 @@ describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", ()
   it("fills the rock from its foot: no cap over empty rock, no see-through gap", { timeout: 30000 }, () => {
     expect(m3.hollow).toBeGreaterThan(0.15);
     expect(m4.hollow).toBeLessThan(0.04);
-    expect(g4.set.levels.flatMap((l) => l.placements).some((p) => p.source.elementId === "cave_cap")).toBe(false);
+    expect(g4.set.levels.flatMap((l) => l.placements).some((p) => p.source.elementId === "cave_cap")).toBe(
+      false,
+    );
     expect(m4.uncovered).toBeLessThan(0.08);
     expect(m4.separated).toBeLessThan(0.25);
     expect(m4.longestRun).toBeLessThanOrEqual(3);
@@ -119,7 +130,9 @@ describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", ()
 
   it("keeps the rock-mass piece count near generator 3's (mass and cap)", { timeout: 30000 }, () => {
     const mass = (b: typeof g3): number =>
-      b.set.levels.flatMap((l) => l.placements).filter((p) => p.source.elementId === "cave_mass" || p.source.elementId === "cave_cap").length;
+      b.set.levels
+        .flatMap((l) => l.placements)
+        .filter((p) => p.source.elementId === "cave_mass" || p.source.elementId === "cave_cap").length;
     expect(mass(g4)).toBeLessThanOrEqual(mass(g3) * 1.15);
   });
 
@@ -138,7 +151,8 @@ describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", ()
     const L = level(g4.r);
     const { w, h } = L.bounds;
     const dry = (i: number): boolean =>
-      L.cells.state[i] === CELL.OPEN && ((L.cells.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR)) === 0;
+      L.cells.state[i] === CELL.OPEN &&
+      ((L.cells.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.NO_FLOOR)) === 0;
     const heights = new Set<number>();
     for (let i = 0; i < w * h; i++) if (dry(i)) heights.add(L.cells.height[i] as number);
     // at least two shelves above the main floor
@@ -153,7 +167,9 @@ describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", ()
         ] as Array<[number, number]>) {
           if (!dry(a) || !dry(b) || L3.cells.height[a] !== L3.cells.height[b]) continue;
           if (L3.cells.state[a] !== CELL.OPEN || L3.cells.state[b] !== CELL.OPEN) continue;
-          expect(Math.abs((L.cells.height[a] as number) - (L.cells.height[b] as number))).toBeLessThanOrEqual(2);
+          expect(Math.abs((L.cells.height[a] as number) - (L.cells.height[b] as number))).toBeLessThanOrEqual(
+            2,
+          );
         }
     // the explicit lantern and water cells keep their generator-3 height
     for (const f of fixture.levels[0]?.features ?? []) {
@@ -185,17 +201,21 @@ describe("generator 4 sea grotto: solid rock, shelved floor, ragged outline", ()
     expect(caveHollowNotesOf("l1", m4)).toEqual([]);
   });
 
-  it("the mass notes run without a build at generator 4 (the in-app review) and stay off at generator 3", { timeout: 30000 }, () => {
-    const built = caveMassReviewNotes(g4.plan, g4.r, reviewBuild(g4.r, palettes, g4.set), palettes);
-    const unbuilt = caveMassReviewNotes(g4.plan, g4.r, reviewBuild(g4.r, palettes), palettes);
-    expect(unbuilt).toEqual(built);
-    expect(caveMassReviewNotes(g3.plan, g3.r, reviewBuild(g3.r, palettes), palettes)).toEqual([]);
-    // the whole review with no build given: the generator-4 grotto is neither hollow, flat nor straight-sided
-    const codes = reviewDesign(g4.plan, g4.r, { palettes, limit: 99 }).map((n) => n.code);
-    expect(codes).not.toContain("cave_mass_hollow");
-    expect(codes).not.toContain("cave_floor_flat");
-    expect(codes).not.toContain("cave_outline_straight");
-  });
+  it(
+    "the mass notes run without a build at generator 4 (the in-app review) and stay off at generator 3",
+    { timeout: 30000 },
+    () => {
+      const built = caveMassReviewNotes(g4.plan, g4.r, reviewBuild(g4.r, palettes, g4.set), palettes);
+      const unbuilt = caveMassReviewNotes(g4.plan, g4.r, reviewBuild(g4.r, palettes), palettes);
+      expect(unbuilt).toEqual(built);
+      expect(caveMassReviewNotes(g3.plan, g3.r, reviewBuild(g3.r, palettes), palettes)).toEqual([]);
+      // the whole review with no build given: the generator-4 grotto is neither hollow, flat nor straight-sided
+      const codes = reviewDesign(g4.plan, g4.r, { palettes, limit: 99 }).map((n) => n.code);
+      expect(codes).not.toContain("cave_mass_hollow");
+      expect(codes).not.toContain("cave_floor_flat");
+      expect(codes).not.toContain("cave_outline_straight");
+    },
+  );
 });
 
 describe("generator 4: rectangular cave chambers and a corridor", () => {
@@ -218,8 +238,18 @@ describe("generator 4: rectangular cave chambers and a corridor", () => {
           base: { type: "solid" },
           areas: [
             { id: "hall", kind: "cave", name: "Hall", shape: { type: "rect", x: 5, y: 6, w: 14, h: 12 } },
-            { id: "corridor", kind: "cave", name: "Corridor", shape: { type: "rect", x: 19, y: 10, w: 10, h: 3 } },
-            { id: "side", kind: "cave", name: "Side chamber", shape: { type: "rect", x: 29, y: 6, w: 9, h: 10 } },
+            {
+              id: "corridor",
+              kind: "cave",
+              name: "Corridor",
+              shape: { type: "rect", x: 19, y: 10, w: 10, h: 3 },
+            },
+            {
+              id: "side",
+              kind: "cave",
+              name: "Side chamber",
+              shape: { type: "rect", x: 29, y: 6, w: 9, h: 10 },
+            },
             { id: "nook", kind: "cave", name: "Nook", shape: { type: "rect", x: 10, y: 18, w: 4, h: 9 } },
           ],
           openings: [],
@@ -269,7 +299,9 @@ describe("generator 4: rectangular cave chambers and a corridor", () => {
         const nx = x + dx;
         const ny = y + dy;
         if (nx < 0 || ny < 0 || nx >= w || ny >= h || L.cells.state[ny * w + nx] !== CELL.OPEN) continue;
-        expect(Math.abs((L.cells.height[i] as number) - (L.cells.height[ny * w + nx] as number))).toBeLessThanOrEqual(2);
+        expect(
+          Math.abs((L.cells.height[i] as number) - (L.cells.height[ny * w + nx] as number)),
+        ).toBeLessThanOrEqual(2);
       }
     }
     // the statue stands on the main floor

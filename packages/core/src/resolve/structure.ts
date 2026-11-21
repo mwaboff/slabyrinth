@@ -1709,7 +1709,10 @@ function planBuilding(
   // ── porches ──
   const porches: BuildingPlan["porches"] = [];
   const firstDoor = ground.find((g) => DOOR_KINDS.has(g.kind));
-  const drawnPorch = st.attachments === undefined && firstDoor !== undefined ? prng.chance(profile.variety.porchChance) : false;
+  const drawnPorch =
+    st.attachments === undefined && firstDoor !== undefined
+      ? prng.chance(profile.variety.porchChance)
+      : false;
   let attachIn: Array<Attachment & { seeded?: true }> =
     st.attachments ??
     (firstDoor && drawnPorch
@@ -1725,9 +1728,19 @@ function planBuilding(
       : []);
   // generator 3: the entrance varies (none, a hood on two posts, a full-width porch, steps and a landing), drawn per
   // building and never the same as the building drawn before it (own stream; styles with no porches keep none)
-  if (generatorProfile(plan).buildingVariety && st.attachments === undefined && firstDoor && profile.variety.porchChance > 0) {
+  if (
+    generatorProfile(plan).buildingVariety &&
+    st.attachments === undefined &&
+    firstDoor &&
+    profile.variety.porchChance > 0
+  ) {
     const ep = createPrng(subSeed(seed, "entrance3"));
-    const kinds: Array<[string, number]> = [["none", 0.2], ["hood", 0.3], ["porch", 0.25], ["landing", 0.25]];
+    const kinds: Array<[string, number]> = [
+      ["none", 0.2],
+      ["hood", 0.3],
+      ["porch", 0.25],
+      ["landing", 0.25],
+    ];
     const last = work.entrances[work.entrances.length - 1];
     let kind = "hood";
     for (let t = 0; t < 8; t++) {
@@ -1745,7 +1758,9 @@ function planBuilding(
               type: "porch" as const,
               side: firstDoor.side,
               width:
-                kind === "porch" ? Math.min(frontRun?.cells.length ?? 5, Math.max(firstDoor.width + 4, 5)) : firstDoor.width + 2,
+                kind === "porch"
+                  ? Math.min(frontRun?.cells.length ?? 5, Math.max(firstDoor.width + 4, 5))
+                  : firstDoor.width + 2,
               depth: kind === "landing" ? 1 : 2,
               ...(kind === "landing" ? { roof: "none" as const } : {}),
               seeded: true as const,
@@ -1826,7 +1841,8 @@ function planBuilding(
     // its standing corner, its slopes fallen in
     // (generator 3: not on timber walls: a lone stepped gable of planks is masonry logic)
     const timberWalls = legible && vplans.some((v) => v.on === null && v.storeys[0]?.walls === "wood");
-    const gableWing = ruined && !timberWalls && main.roof.layers[0]?.type === "gable" ? main.rects[0] : undefined;
+    const gableWing =
+      ruined && !timberWalls && main.roof.layers[0]?.type === "gable" ? main.rects[0] : undefined;
     ruin = ruinProfile(
       vplans,
       condition,
@@ -1884,7 +1900,8 @@ function planBuilding(
         if (ts && ruin.roofHoles && ts.cells.length >= 9) {
           const rp = createPrng(subSeed(seed, "roofhole3"));
           const own = new Set(ts.cells.map(([x, y]) => key(x, y)));
-          const onEdge = (x: number, y: number): boolean => SIDES.some((sd) => !own.has(key(x + STEP[sd][0], y + STEP[sd][1])));
+          const onEdge = (x: number, y: number): boolean =>
+            SIDES.some((sd) => !own.has(key(x + STEP[sd][0], y + STEP[sd][1])));
           const corners: Array<[number, number]> = [
             [ts.rect.x, ts.rect.y],
             [ts.rect.x + ts.rect.w - 1, ts.rect.y],
@@ -1902,7 +1919,8 @@ function planBuilding(
               for (const sd of SIDES) {
                 const nx = x + STEP[sd][0];
                 const ny = y + STEP[sd][1];
-                if (own.has(key(nx, ny)) && !blob.has(key(nx, ny))) front.push([nx, ny, (onEdge(nx, ny) ? 3 : 1) * (0.4 + rp.next())]);
+                if (own.has(key(nx, ny)) && !blob.has(key(nx, ny)))
+                  front.push([nx, ny, (onEdge(nx, ny) ? 3 : 1) * (0.4 + rp.next())]);
               }
             }
             if (front.length === 0) break;
@@ -1910,7 +1928,8 @@ function planBuilding(
             const pick = front[0] as [number, number, number];
             blob.add(key(pick[0], pick[1]));
           }
-          if (blob.size >= 3) ruin.roofHoles = [...blob].map((k) => k.split(",").map(Number) as [number, number]);
+          if (blob.size >= 3)
+            ruin.roofHoles = [...blob].map((k) => k.split(",").map(Number) as [number, number]);
         }
         // a second fallen patch elsewhere on the same roof
         if (ts && ruin.roofHoles && ts.rect.w >= 5 && ts.rect.h >= 3) {
@@ -1941,7 +1960,11 @@ function planBuilding(
         for (const list of [ground, upper])
           for (let i = list.length - 1; i >= 0; i--) {
             const g = list[i];
-            if (g && (g.kind === "window" || g.kind === "arrow_slit") && board.has(`${g.at[0]},${g.at[1]},${g.side}`))
+            if (
+              g &&
+              (g.kind === "window" || g.kind === "arrow_slit") &&
+              board.has(`${g.at[0]},${g.at[1]},${g.side}`)
+            )
               list.splice(i, 1);
           }
         // a flat roof's parapet is bitten in places (a pitched roof hides its wall tops)
@@ -2005,7 +2028,8 @@ function planBuilding(
       // the walls of the kept, roofed volume are not breached
       const whole = new Set<string>();
       if (ruin.keep !== undefined)
-        for (const c of ruin.columns) if (c.top >= c.full - 1e-6) whole.add(`${c.at[0]},${c.at[1]},${c.side}`);
+        for (const c of ruin.columns)
+          if (c.top >= c.full - 1e-6) whole.add(`${c.at[0]},${c.at[1]},${c.side}`);
       let made = 0;
       for (let attempt = 0; attempt < 12 && made < breaches; attempt++) {
         const side = SIDES[prng4.int(4)] as Side;
@@ -2084,7 +2108,10 @@ function planBuilding(
     const near = (x: number, y: number): boolean =>
       debris.some((d) => Math.abs(d.at[0] - x) <= 1 && Math.abs(d.at[1] - y) <= 1);
     for (const k of outside) {
-      if (!prng4.chance(heavyGrowth ? (ruined ? 0.12 + 0.2 * loss : 0.3) : ruined ? 0.06 + 0.15 * loss : 0.15)) continue;
+      if (
+        !prng4.chance(heavyGrowth ? (ruined ? 0.12 + 0.2 * loss : 0.3) : ruined ? 0.06 + 0.15 * loss : 0.15)
+      )
+        continue;
       const [x, y] = k.split(",").map(Number) as [number, number];
       if (near(x, y)) continue;
       debris.push({
@@ -2168,7 +2195,8 @@ function planBuilding(
         const [dx, dy] = STEP[c.side];
         const [lx, ly] = [Math.abs(dy), Math.abs(dx)];
         const spots: Array<[number, number]> = [];
-        for (const d of [-1, 0, 2, 3]) for (const l of [-1, 0, 1]) spots.push([c.at[0] + dx * d + lx * l, c.at[1] + dy * d + ly * l]);
+        for (const d of [-1, 0, 2, 3])
+          for (const l of [-1, 0, 1]) spots.push([c.at[0] + dx * d + lx * l, c.at[1] + dy * d + ly * l]);
         const n = Math.min(4, 1 + Math.round((c.full - c.top) / 2) + fp.int(2));
         let made = 0;
         for (const [x, y] of fp.shuffle(spots)) {
@@ -2194,7 +2222,8 @@ function planBuilding(
       };
       // (heavy growth frames the windows: ivy runs up to a window's edge, never across it)
       for (const g of ground)
-        if (heavyGrowth && (g.kind === "window" || g.kind === "arrow_slit")) around(g.at, g.side, 0, g.width - 1);
+        if (heavyGrowth && (g.kind === "window" || g.kind === "arrow_slit"))
+          around(g.at, g.side, 0, g.width - 1);
         else around(g.at, g.side, -1, g.width);
       for (const q of ruin.arches ?? []) around(q.at, q.side, -1, q.width);
       for (const c of chimneys) around(c.wall, c.side, -1, 1);

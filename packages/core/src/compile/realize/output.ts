@@ -100,7 +100,9 @@ export function finishLevel(w: LevelWork, out: RealizeOutput): void {
     elevation: elev,
     bounds: finiteBox(levelBox),
     cellBounds: { ...L.bounds },
-    ...(L.waterLevel !== undefined ? { waterLevel: L.waterLevel, waterRange: L.waterRange ?? waterRangeOf(L) } : {}),
+    ...(L.waterLevel !== undefined
+      ? { waterLevel: L.waterLevel, waterRange: L.waterRange ?? waterRangeOf(L) }
+      : {}),
   });
 }
 

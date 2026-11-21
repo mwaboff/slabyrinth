@@ -17,3 +17,10 @@ packages/core/src/agent/tools.ts
 apps/desktop/src/shared/ipc.ts
 apps/desktop/src/shared/project.ts
 apps/desktop/src/main/agent/provider/types.ts
+
+# Golden snapshots and the tests that pin them: compared byte for byte, so they must not be re-laid-out.
+packages/core/test/golden/
+# Recorded plan and generator fixtures plus palette importer inputs: JSON data kept as authored/recorded.
+packages/core/test/fixtures/**/*.json
+packages/core/test/unit/gen/fixtures/*.json
+packages/core/scripts/*.json

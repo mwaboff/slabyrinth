@@ -160,16 +160,11 @@ export function stepOpenings(work: LevelWork): void {
       const [ra, rb] = res as [number, number];
       const unknown = ids.filter((id, j) => id !== "@outside" && (res[j] as number) === 0);
       if (unknown.length > 0) {
-        work.issue(
-          "error",
-          "ref_unknown",
-          `opening "${o.id}" names unknown area(s) ${unknown.join(", ")}`,
-          {
-            path: `${path}/between`,
-            elementId: o.id,
-            hint: `areas on ${work.level.id}: ${work.level.areas.map((a) => a.id).join(", ")}`,
-          },
-        );
+        work.issue("error", "ref_unknown", `opening "${o.id}" names unknown area(s) ${unknown.join(", ")}`, {
+          path: `${path}/between`,
+          elementId: o.id,
+          hint: `areas on ${work.level.id}: ${work.level.areas.map((a) => a.id).join(", ")}`,
+        });
         return;
       }
       if (ra === rb) {

@@ -132,7 +132,17 @@ export function ruinProfile(
     const columns = list.map(([k, c]) => {
       const r = roofed.has(c.topVol) ? 1 : u(`chip:${k}`);
       // generator 3: a third of the open tops are bitten, so a weathered wall reads as neglected from the game camera
-      const chip = opts.legibleCondition ? (r < 0.2 ? 0.5 : r < 0.35 ? 1 : 0) : r < 0.12 ? 0.5 : r < 0.2 ? 1 : 0;
+      const chip = opts.legibleCondition
+        ? r < 0.2
+          ? 0.5
+          : r < 0.35
+            ? 1
+            : 0
+        : r < 0.12
+          ? 0.5
+          : r < 0.2
+            ? 1
+            : 0;
       return {
         at: c.at,
         side: c.side,
@@ -170,8 +180,9 @@ export function ruinProfile(
     for (const v of vols) {
       if (!roofed.has(v.id) || hosts.has(v.id) || v.on !== null) continue;
       const d =
-        Math.min(...v.storeys.flatMap((s) => s.cells.map(([x, y]) => Math.hypot(x - anchor[0], y - anchor[1])))) -
-        (opts.pitched?.has(v.id) ? 6 : 0);
+        Math.min(
+          ...v.storeys.flatMap((s) => s.cells.map(([x, y]) => Math.hypot(x - anchor[0], y - anchor[1]))),
+        ) - (opts.pitched?.has(v.id) ? 6 : 0);
       if (d < best - 1e-9) {
         best = d;
         keep = v.id;
@@ -245,9 +256,13 @@ export function ruinProfile(
     const along = c.side === "N" || c.side === "S" ? c.at[0] : c.at[1];
     const line = c.side === "N" || c.side === "S" ? c.at[1] : c.at[0];
     const [ux, uy] = c.side === "N" || c.side === "S" ? [1, 0] : [0, 1];
-    const notch = u(`notch:${c.side}:${line}:${Math.floor(along / 3)}`) < 0.3 ? 1 + 1.5 * u(`notchH:${c.side}:${line}:${Math.floor(along / 3)}`) : 0;
+    const notch =
+      u(`notch:${c.side}:${line}:${Math.floor(along / 3)}`) < 0.3
+        ? 1 + 1.5 * u(`notchH:${c.side}:${line}:${Math.floor(along / 3)}`)
+        : 0;
     const end =
-      (!cols.has(`${c.at[0] - ux},${c.at[1] - uy},${c.side}`) || !cols.has(`${c.at[0] + ux},${c.at[1] + uy},${c.side}`)) &&
+      (!cols.has(`${c.at[0] - ux},${c.at[1] - uy},${c.side}`) ||
+        !cols.has(`${c.at[0] + ux},${c.at[1] + uy},${c.side}`)) &&
       u(`end:${k}`) < 0.4
         ? 0.5 + u(`endH:${k}`)
         : 0;
@@ -270,10 +285,22 @@ export function ruinProfile(
       let top = Math.round((env + proud - noiseOf(k, c) - rag(k, c)) * 2) / 2;
       // a ground wall keeps a stub a tile tall; a mass standing on another may be gone to its floor
       // (generator 3: the lowest stubs are a tile or a tile and a half, so they are not one level line)
-      const least = onGround.has(c.vol) ? Math.min(full, floor + (opts.legibleCondition && u(`least:${c.side}:${c.side === "N" || c.side === "S" ? c.at[1] : c.at[0]}:${Math.floor((c.side === "N" || c.side === "S" ? c.at[0] : c.at[1]) / 2)}`) < 0.4 ? 1.5 : 1)) : floor;
+      const least = onGround.has(c.vol)
+        ? Math.min(
+            full,
+            floor +
+              (opts.legibleCondition &&
+              u(
+                `least:${c.side}:${c.side === "N" || c.side === "S" ? c.at[1] : c.at[0]}:${Math.floor((c.side === "N" || c.side === "S" ? c.at[0] : c.at[1]) / 2)}`,
+              ) < 0.4
+                ? 1.5
+                : 1),
+          )
+        : floor;
       top = Math.max(least, Math.min(full, top));
       // generator 3: where the fall reached the lowest stubs, some are a half tile proud (no long level line at the foot)
-      if (opts.legibleCondition && top <= least + 1e-6 && u(`stubup:${k}`) < 0.3) top = Math.min(full, top + 0.5);
+      if (opts.legibleCondition && top <= least + 1e-6 && u(`stubup:${k}`) < 0.3)
+        top = Math.min(full, top + 0.5);
       return { at: c.at, side: c.side, full, top };
     });
   const lows = list.map(([, c]) => c.low);
@@ -392,7 +419,10 @@ export function scatterTopRubble(profile: RuinProfile, blocked: ReadonlySet<stri
     if (c.top >= c.full - 1e-6 || blocked.has(k)) continue;
     const [ux, uy] = c.side === "N" || c.side === "S" ? [1, 0] : [0, 1];
     // a piece turned across its column is wider than the column: none beside an opening either
-    if (blocked.has(`${c.at[0] - ux},${c.at[1] - uy},${c.side}`) || blocked.has(`${c.at[0] + ux},${c.at[1] + uy},${c.side}`))
+    if (
+      blocked.has(`${c.at[0] - ux},${c.at[1] - uy},${c.side}`) ||
+      blocked.has(`${c.at[0] + ux},${c.at[1] + uy},${c.side}`)
+    )
       continue;
     const p = at.get(`${c.at[0] - ux},${c.at[1] - uy},${c.side}`);
     const q = at.get(`${c.at[0] + ux},${c.at[1] + uy},${c.side}`);

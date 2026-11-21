@@ -23,7 +23,11 @@ export interface ReviewBuild {
   readonly built: number;
 }
 
-export function reviewBuild(resolved: ResolvedPlan, palettes: PaletteCatalog, given?: PlacementSet): ReviewBuild {
+export function reviewBuild(
+  resolved: ResolvedPlan,
+  palettes: PaletteCatalog,
+  given?: PlacementSet,
+): ReviewBuild {
   let set = given;
   let built = 0;
   return {

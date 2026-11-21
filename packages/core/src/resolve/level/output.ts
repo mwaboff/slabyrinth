@@ -209,7 +209,8 @@ export function toResolved(work: LevelWork): ResolvedLevel {
   if (work.structs) Object.assign(lvl, work.structs.finish(work.level.elevation));
   // the walls of a built interior vary in height (resolve/wallTops.ts)
   if (work.gen.interiorWallTops && work.level.base.type === "solid") {
-    if (!work.structs) roughWallTops(lvl, String(elementSeed(work.plan.seed, `${work.level.id}~walltops`, undefined)));
+    if (!work.structs)
+      roughWallTops(lvl, String(elementSeed(work.plan.seed, `${work.level.id}~walltops`, undefined)));
     // stepRoomFloors raises rooms in every solid-based level: the walls beside them are shortened by the step
     settleWallHeights(lvl);
   }

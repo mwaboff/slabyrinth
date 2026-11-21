@@ -19,7 +19,9 @@ const IRON_BARS = "894cf316-b8c5-4559-923d-7ea4c79280aa";
 const LOW_WALL = "4e8c2ded-fd67-4c63-890e-8c655d445d1d";
 
 const keep = (): MapPlan =>
-  JSON.parse(readFileSync(new URL("../../fixtures/plans/keep-dungeon-v5.json", import.meta.url), "utf8")) as MapPlan;
+  JSON.parse(
+    readFileSync(new URL("../../fixtures/plans/keep-dungeon-v5.json", import.meta.url), "utf8"),
+  ) as MapPlan;
 
 function withOpening(patch: Partial<Extract<TerrainOp, { op: "floor_opening" }>>, generator: 3 | 4): MapPlan {
   const plan = keep();
@@ -53,12 +55,14 @@ function rimWallHeights(plan: MapPlan): number[] {
   for (let y = 0; y <= L.bounds.h; y++)
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
-      if (L.hEdges.kind[i] === EDGE.WALL && (at(x, y - 1) || at(x, y))) out.push(L.hEdges.height[i] as number);
+      if (L.hEdges.kind[i] === EDGE.WALL && (at(x, y - 1) || at(x, y)))
+        out.push(L.hEdges.height[i] as number);
     }
   for (let y = 0; y < L.bounds.h; y++)
     for (let x = 0; x <= w; x++) {
       const i = y * (w + 1) + x;
-      if (L.vEdges.kind[i] === EDGE.WALL && (at(x - 1, y) || at(x, y))) out.push(L.vEdges.height[i] as number);
+      if (L.vEdges.kind[i] === EDGE.WALL && (at(x - 1, y) || at(x, y)))
+        out.push(L.vEdges.height[i] as number);
     }
   return out;
 }
@@ -75,7 +79,9 @@ describe("floor_opening, generator 4", () => {
     const hole = new Set((L.floorOpenings?.[0]?.cells ?? []).map((c) => `${c[0]},${c[1]}`));
     expect(debris.some((f) => hole.has(`${f.at[0]},${f.at[1]}`))).toBe(false);
     // and all of it is placed
-    const placed = placementsOf(plan, "l1").filter((p) => (p.source.elementId ?? "").startsWith("hall_hole#rim"));
+    const placed = placementsOf(plan, "l1").filter((p) =>
+      (p.source.elementId ?? "").startsWith("hall_hole#rim"),
+    );
     expect(placed.length).toBe(debris.length);
   });
 
@@ -89,7 +95,10 @@ describe("floor_opening, generator 4", () => {
       const inHole = new Set(hole.map((c) => `${c[0]},${c[1]}`));
       const steps: number[] = [];
       for (const [x, y] of hole)
-        for (const [dx, dy] of [[1, 0], [0, 1]] as const)
+        for (const [dx, dy] of [
+          [1, 0],
+          [0, 1],
+        ] as const)
           if (inHole.has(`${x + dx},${y + dy}`)) steps.push(Math.abs(at(x, y) - at(x + dx, y + dy)));
       return { hs: hole.map(([x, y]) => at(x, y)), steps };
     };

@@ -437,7 +437,9 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
         return fail("validation", "That doesn't look like an Anthropic key.");
       hasKey = true;
       keyHint = `sk-ant-…${apiKey.slice(-4)}`;
-      return verify === true ? { stored: true, backend: "os", check: { ok: true } } : { stored: true, backend: "os" };
+      return verify === true
+        ? { stored: true, backend: "os", check: { ok: true } }
+        : { stored: true, backend: "os" };
     },
     "secrets:storeWeak": () => ({ stored: hasKey, backend: hasKey ? "os" : "memory_only" }),
     "secrets:clearApiKey": () => {

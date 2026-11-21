@@ -121,7 +121,12 @@ export const DEFAULT_STRUCTURE_STYLE = "cottage";
  * smithy a low twin-roofed workshop. Multipliers act on the near-zero weights of `bases:shopfront` and `details:awning`.
  */
 const SHOP = { "bases:shopfront": 30000, "details:awning": 30000, "bases:stoop": 0, "sizes:small": 0.5 };
-const SMITH = { "archetypes:twin": 3, "archetypes:lean": 2, "bases:shopfront": 15000, "details:awning": 15000 };
+const SMITH = {
+  "archetypes:twin": 3,
+  "archetypes:lean": 2,
+  "bases:shopfront": 15000,
+  "details:awning": 15000,
+};
 const TRADE_USES: Record<string, Record<string, number>> = {
   baker: { ...SHOP, "sizes:compact": 2 },
   bakery: { ...SHOP, "sizes:compact": 2 },
@@ -137,7 +142,13 @@ const TRADE_USES: Record<string, Record<string, number>> = {
   smith: SMITH,
   smithy: SMITH,
   blacksmith: SMITH,
-  inn: { "sizes:full": 3, "archetypes:ell": 2.5, "roofs:gable_cross": 2, "tops:same": 1.5, "details:awning": 15000 },
+  inn: {
+    "sizes:full": 3,
+    "archetypes:ell": 2.5,
+    "roofs:gable_cross": 2,
+    "tops:same": 1.5,
+    "details:awning": 15000,
+  },
 };
 
 export const STRUCTURE_STYLES: Readonly<Record<string, StructureStyleProfile>> = {
@@ -221,7 +232,13 @@ export const STRUCTURE_STYLES: Readonly<Record<string, StructureStyleProfile>> =
           },
           farmhouse: { "sizes:full": 4, "archetypes:ell": 2, "archetypes:lean": 1.5, "tops:attic": 2 },
           workshop: { "archetypes:twin": 3, "archetypes:lean": 2, "roofs:hip": 0.5 },
-          tavern: { "sizes:full": 3, "archetypes:ell": 2.5, "roofs:hip": 1.5, "roofs:gable_cross": 2, "tops:same": 1.5 },
+          tavern: {
+            "sizes:full": 3,
+            "archetypes:ell": 2.5,
+            "roofs:hip": 1.5,
+            "roofs:gable_cross": 2,
+            "tops:same": 1.5,
+          },
         },
       },
     },

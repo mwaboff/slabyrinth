@@ -58,8 +58,7 @@ export function stepTerrain(work: LevelWork, layer: "under" | "over"): void {
     }
     const r = applyTerrain(work, op, path, layer);
     if (layer === "under" && r.touched.length > 0) work.underTouched.push({ op, path, cells: r.touched });
-    if (r.touched.length === 0 && !r.partial)
-      reportTerrainNoEffect(work, op, path, layer, r.inShape, r.open);
+    if (r.touched.length === 0 && !r.partial) reportTerrainNoEffect(work, op, path, layer, r.inShape, r.open);
   });
   stepPavements(work, layer);
   if (layer === "under") stepPathSpurs(work);

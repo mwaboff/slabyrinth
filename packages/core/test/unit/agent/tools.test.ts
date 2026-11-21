@@ -136,8 +136,12 @@ describe("system prompt", () => {
     const released = systemPromptFor("sp-1.12.0") ?? "";
     expect(released).not.toBe(old);
     // the building sentences: things attach to the structure; the roof is the larger half of a cottage or inn
-    expect(SYSTEM_PROMPT).toContain("- Attach things. Vines climb upper walls and rubble lies at wall feet; little stands alone on open floor.");
-    expect(SYSTEM_PROMPT).toContain("On cottages and inns the roof is the larger half; the top storey can sit inside it.");
+    expect(SYSTEM_PROMPT).toContain(
+      "- Attach things. Vines climb upper walls and rubble lies at wall feet; little stands alone on open floor.",
+    );
+    expect(SYSTEM_PROMPT).toContain(
+      "On cottages and inns the roof is the larger half; the top storey can sit inside it.",
+    );
     expect(released.length - old.length).toBeLessThan(500);
   });
   it("sp-1.11.0: current principles, streets with junctions and green, plot sizes by kind, condition and character honoured", () => {

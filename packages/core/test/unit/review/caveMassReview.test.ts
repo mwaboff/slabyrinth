@@ -23,7 +23,8 @@ describe("cave rock mass notes in the review", () => {
     const r = resolvePlan(fixture);
     const set = realize(r, palettes, {});
     const codes = reviewDesign(fixture, r, { palettes, placements: set, limit: 99 }).map((n) => n.code);
-    for (const c of ["cave_rock_uncovered", "cave_mass_gaps", "cave_rock_tones", "cave_wall_row"]) expect(codes).not.toContain(c);
+    for (const c of ["cave_rock_uncovered", "cave_mass_gaps", "cave_rock_tones", "cave_wall_row"])
+      expect(codes).not.toContain(c);
   });
 });
 
@@ -31,7 +32,11 @@ describe("focal_unlit", () => {
   const withFeatures = (features: MapPlan["levels"][number]["features"]): MapPlan => ({
     ...fixture,
     // no dress ops: only the features given stand on the level
-    levels: fixture.levels.map((l) => ({ ...l, features, terrain: l.terrain.filter((t) => t.op !== "dress") })),
+    levels: fixture.levels.map((l) => ({
+      ...l,
+      features,
+      terrain: l.terrain.filter((t) => t.op !== "dress"),
+    })),
   });
   const codes = (plan: MapPlan): string[] =>
     reviewDesign(plan, resolvePlan(plan), { palettes, limit: 99 }).map((n) => n.code);
@@ -47,7 +52,10 @@ describe("focal_unlit", () => {
   });
 
   it("is silent for generator 2 plans (their notes are frozen)", () => {
-    const dark = { ...withFeatures([{ id: "stone", type: "landmark", at: [8, 24], label: "Standing stone" }]), generator: 2 as const };
+    const dark = {
+      ...withFeatures([{ id: "stone", type: "landmark", at: [8, 24], label: "Standing stone" }]),
+      generator: 2 as const,
+    };
     expect(codes(dark)).not.toContain("focal_unlit");
   });
 });
@@ -62,8 +70,12 @@ describe("a landmark is lit by the dressing at generator 3", () => {
     const L = r.levels[0];
     if (!L) throw new Error("no level");
     const lights = L.features.filter((f) => LIGHT_FEATURES.has(f.type));
-    for (const f of L.features.filter((q) => q.type === "landmark" || q.type === "statue" || q.type === "altar")) {
-      const near = lights.some((l) => Math.max(Math.abs(l.at[0] - f.at[0]), Math.abs(l.at[1] - f.at[1])) <= 5 + f.size[0]);
+    for (const f of L.features.filter(
+      (q) => q.type === "landmark" || q.type === "statue" || q.type === "altar",
+    )) {
+      const near = lights.some(
+        (l) => Math.max(Math.abs(l.at[0] - f.at[0]), Math.abs(l.at[1] - f.at[1])) <= 5 + f.size[0],
+      );
       expect(near, `${f.type} at ${f.at.join(",")}`).toBe(true);
     }
   });

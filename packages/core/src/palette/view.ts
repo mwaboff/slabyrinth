@@ -35,7 +35,18 @@ export type RoomPieceFn = (
   theme: ThemeId,
   type: FeatureType,
   variant?: string,
-) => { w: number; d: number; h: number; wMax: number; dMax: number; hMax: number; tile: boolean; mixed: boolean } | undefined;
+) =>
+  | {
+      w: number;
+      d: number;
+      h: number;
+      wMax: number;
+      dMax: number;
+      hMax: number;
+      tile: boolean;
+      mixed: boolean;
+    }
+  | undefined;
 
 /** The canopy forms a theme can build a covered stall in (generator 4; none = the table stall of generator 3). */
 export type StallFormsFn = (theme: ThemeId) => StallForm[];
@@ -83,15 +94,20 @@ const SUPPORT_ROLE: Partial<Record<FeatureType, string>> = {
  * A view of `catalog`. `generator` hides roles introduced after it (default: the newest generator, which hides none
  * the resolver asks about: the older generators' answers do not depend on it).
  */
-export function createPaletteView(catalog: PaletteCatalog, generator: number = GENERATOR_VERSION): PaletteView {
+export function createPaletteView(
+  catalog: PaletteCatalog,
+  generator: number = GENERATOR_VERSION,
+): PaletteView {
   const resolver = createRoleResolver(catalog, generator);
-  const probe = (theme: ThemeId): RoleProbe => (roles, filter?: VariantFilter) => {
-    for (const role of roles) {
-      const r = resolver(theme, role, filter).resolution;
-      if (r) return r;
-    }
-    return null;
-  };
+  const probe =
+    (theme: ThemeId): RoleProbe =>
+    (roles, filter?: VariantFilter) => {
+      for (const role of roles) {
+        const r = resolver(theme, role, filter).resolution;
+        if (r) return r;
+      }
+      return null;
+    };
   const variantsOf = (theme: ThemeId, roles: readonly string[], variant: string | undefined) => {
     for (const role of roles) {
       const vs = (resolver(theme, role).resolution?.variants ?? []).filter(
@@ -176,6 +192,9 @@ export function bundledPaletteView(): PaletteView {
  * compiler's palettes (user palettes, game availability), so a covered stall is only laid out where the compiler can
  * build it. Older generators keep the bundled view (their output is frozen).
  */
-export function paletteOptionsFor(plan: Pick<MapPlan, "generator">, catalog: PaletteCatalog): { palette?: PaletteView } {
+export function paletteOptionsFor(
+  plan: Pick<MapPlan, "generator">,
+  catalog: PaletteCatalog,
+): { palette?: PaletteView } {
   return generatorProfile(plan).resolveWithCompilePalettes ? { palette: createPaletteView(catalog) } : {};
 }

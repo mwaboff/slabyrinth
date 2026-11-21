@@ -25,7 +25,13 @@ import type { PaletteFacing, Placement, PlacementRole } from "../contracts/compi
 import type { Side } from "../contracts/plan";
 import type { ResolvedFeature } from "../contracts/resolved";
 import { stallCell, stallKindInfo } from "../gen/market";
-import { SMALL_THINGS_ROLES, SURFACE_LOAD, surfaceCount, type SmallFamily, type SurfaceLoad } from "../gen/surfaces";
+import {
+  SMALL_THINGS_ROLES,
+  SURFACE_LOAD,
+  surfaceCount,
+  type SmallFamily,
+  type SurfaceLoad,
+} from "../gen/surfaces";
 import type { ResolvedVariant, RoleResolution, VariantFilter } from "../palette/resolve";
 import { ONE_CELL_TILE, stallParts, type RoleProbe } from "../palette/stallParts";
 import { subSeed } from "../util/hash";
@@ -54,7 +60,7 @@ export interface StallRealizeCtx {
 
 const OPP: Record<Side, Side> = { N: "S", S: "N", E: "W", W: "E" };
 const oneCell: VariantFilter = ONE_CELL_TILE;
-const quarter = (deg: number): number => ((Math.round(deg / 90) % 4) + 4) % 4 * 90;
+const quarter = (deg: number): number => (((Math.round(deg / 90) % 4) + 4) % 4) * 90;
 
 /**
  * Builds the stall on its footprint. False only for a feature that is not a covered stall (nothing placed). A covered
@@ -64,7 +70,8 @@ export function realizeStall(ctx: StallRealizeCtx, f: ResolvedFeature): boolean 
   const b = f.stall;
   if (!b) return false;
   const theme = f.theme;
-  const find = (roles: readonly string[], filter?: VariantFilter): RoleResolution | null => ctx.lookup(theme, [...roles], filter, true);
+  const find = (roles: readonly string[], filter?: VariantFilter): RoleResolution | null =>
+    ctx.lookup(theme, [...roles], filter, true);
   const probe: RoleProbe = (roles, filter) => find(roles, filter);
   const built = stallParts(probe, b.form);
   const covered = "base" in built;
@@ -85,12 +92,28 @@ export function realizeStall(ctx: StallRealizeCtx, f: ResolvedFeature): boolean 
   const Y1 = Y0 + f.size[1];
   /** Plan point of a float position in the stall's frame (lx along the front, ly from the front edge inward). */
   const point = (lx: number, ly: number): [number, number] =>
-    b.front === "S" ? [X0 + lx, Y1 - ly] : b.front === "N" ? [X0 + lx, Y0 + ly] : b.front === "E" ? [X1 - ly, Y0 + lx] : [X0 + ly, Y0 + lx];
+    b.front === "S"
+      ? [X0 + lx, Y1 - ly]
+      : b.front === "N"
+        ? [X0 + lx, Y0 + ly]
+        : b.front === "E"
+          ? [X1 - ly, Y0 + lx]
+          : [X0 + ly, Y0 + lx];
   /** Plan rect of a block of local cells. */
-  const rectOf = (lx: number, ly: number, lw: number, ld: number): { x: number; y: number; w: number; h: number } => {
+  const rectOf = (
+    lx: number,
+    ly: number,
+    lw: number,
+    ld: number,
+  ): { x: number; y: number; w: number; h: number } => {
     const a = cell(lx, ly);
     const c = cell(lx + lw - 1, ly + ld - 1);
-    return { x: Math.min(a[0], c[0]), y: Math.min(a[1], c[1]), w: Math.abs(a[0] - c[0]) + 1, h: Math.abs(a[1] - c[1]) + 1 };
+    return {
+      x: Math.min(a[0], c[0]),
+      y: Math.min(a[1], c[1]),
+      w: Math.abs(a[0] - c[0]) + 1,
+      h: Math.abs(a[1] - c[1]) + 1,
+    };
   };
   const sideOfStep = (dx: number, dy: number): Side => (dx > 0 ? "E" : dx < 0 ? "W" : dy > 0 ? "S" : "N");
   /** Plan side that local side `lx` low/high faces outward (0 = the low end of the front row, 1 = the high end). */
@@ -103,7 +126,12 @@ export function realizeStall(ctx: StallRealizeCtx, f: ResolvedFeature): boolean 
     const fct = ctx.facingOf(v, "feature", role);
     return fr.stepsToFace(fct.front ?? "N", fr.worldSide(side)) * 15 + v.rot;
   };
-  const tile = (v: ResolvedVariant, r: { x: number; y: number; w: number; h: number }, y: number, deg: number): void => {
+  const tile = (
+    v: ResolvedVariant,
+    r: { x: number; y: number; w: number; h: number },
+    y: number,
+    deg: number,
+  ): void => {
     const m = fr.rectMin(r.x, r.y, r.w, r.h);
     ctx.emit(v, "feature", m.x, y, m.z, quarter(deg), src);
   };
@@ -112,7 +140,11 @@ export function realizeStall(ctx: StallRealizeCtx, f: ResolvedFeature): boolean 
     const off = rotateXZ(v.geom.boundsCenter.x, v.geom.boundsCenter.z, deg * fr.o.rotSense);
     ctx.emit(v, "feature", c.x - off.x, y, c.z - off.z, deg, src);
   };
-  const choose = (res: RoleResolution, key: string, filter?: (v: ResolvedVariant) => boolean): ResolvedVariant | undefined =>
+  const choose = (
+    res: RoleResolution,
+    key: string,
+    filter?: (v: ResolvedVariant) => boolean,
+  ): ResolvedVariant | undefined =>
     ctx.pick(filter ? res.variants.filter(filter) : res.variants, `${f.id}:${key}`);
 
   // small things from the shared table (gen/surfaces.ts), by the kind's family; none for a bare or built-in-goods kind
@@ -120,12 +152,26 @@ export function realizeStall(ctx: StallRealizeCtx, f: ResolvedFeature): boolean 
     family ? find(SMALL_THINGS_ROLES, { key: `goods:${family}`, test: (v) => v.variant === family }) : null;
   const goods = thingsOf(info.goods);
   /** The small things of one support: a seeded count from SURFACE_LOAD, spread over the cell [cx, cy], on top at `topY`. */
-  const smallThings = (goods: RoleResolution | null, cx: number, cy: number, topY: number, lx: number, ly: number): void => {
+  const smallThings = (
+    goods: RoleResolution | null,
+    cx: number,
+    cy: number,
+    topY: number,
+    lx: number,
+    ly: number,
+  ): void => {
     if (!goods) return;
     const n = surfaceCount(SURFACE_LOAD.stall_counter as SurfaceLoad, (k) => rng.int(k));
     for (let k = 0; k < n; k++) {
       const g = choose(goods, `goods:${lx}:${ly}:${k}`);
-      if (g) prop(g, cx + 0.5 + (rng.next() - 0.5) * 0.4, cy + 0.5 + (rng.next() - 0.5) * 0.4, topY, rng.int(24) * 15);
+      if (g)
+        prop(
+          g,
+          cx + 0.5 + (rng.next() - 0.5) * 0.4,
+          cy + 0.5 + (rng.next() - 0.5) * 0.4,
+          topY,
+          rng.int(24) * 15,
+        );
     }
   };
   const frontRow: number[] = [];
@@ -135,14 +181,17 @@ export function realizeStall(ctx: StallRealizeCtx, f: ResolvedFeature): boolean 
   // footprint. The front row as the kind's piece at ground level (tiles one per cell, a two-cell piece per pair of
   // cells), the goods on its top. verify_stall_uncovered tells the author.
   if (!("base" in built)) {
-    const piece = find(["feature.stall"], { key: `stall:${info.piece}`, test: (v) => v.variant === info.piece });
+    const piece = find(["feature.stall"], {
+      key: `stall:${info.piece}`,
+      test: (v) => v.variant === info.piece,
+    });
     if (!piece) return false;
     // the kinds with a real stall piece have their goods built in; a bare table gets its goods on top
     const onTable = thingsOf(info.tableGoods);
     const tiles = piece.variants.filter((v) => oneCell.test(v));
     const runs = tiles.length > 0 ? frontRow.map((lx) => [lx]) : [];
     if (tiles.length === 0)
-      for (let i = 0; i < frontRow.length; ) {
+      for (let i = 0; i < frontRow.length;) {
         const lx = frontRow[i] as number;
         if (frontRow[i + 1] === lx + 1) {
           runs.push([lx, lx + 1]);
@@ -151,7 +200,11 @@ export function realizeStall(ctx: StallRealizeCtx, f: ResolvedFeature): boolean 
       }
     for (const run of runs) {
       const lx = run[0] as number;
-      const v = choose(piece, `table:${lx}`, tiles.length > 0 ? (q) => oneCell.test(q) : (q) => !oneCell.test(q));
+      const v = choose(
+        piece,
+        `table:${lx}`,
+        tiles.length > 0 ? (q) => oneCell.test(q) : (q) => !oneCell.test(q),
+      );
       if (!v) continue;
       if (run.length === 1) {
         const [cx, cy] = cell(lx, 0);
@@ -182,8 +235,20 @@ export function realizeStall(ctx: StallRealizeCtx, f: ResolvedFeature): boolean 
 
   // 2. counters and goods
   const counterH = counterRes.variants[0]?.geom.size.y ?? 0.5;
-  const trays = info.front === "tray" ? find(["feature.stall"], { key: `tray:${info.piece}`, test: (v) => v.variant === info.piece && oneCell.test(v) }) : null;
-  const wide = info.front === "wide" ? find(["feature.stall"], { key: `wide:${info.piece}`, test: (v) => v.variant === info.piece && v.geom.originAt !== "minCorner" }) : null;
+  const trays =
+    info.front === "tray"
+      ? find(["feature.stall"], {
+          key: `tray:${info.piece}`,
+          test: (v) => v.variant === info.piece && oneCell.test(v),
+        })
+      : null;
+  const wide =
+    info.front === "wide"
+      ? find(["feature.stall"], {
+          key: `wide:${info.piece}`,
+          test: (v) => v.variant === info.piece && v.geom.originAt !== "minCorner",
+        })
+      : null;
   const plain: Array<[number, number, Side]> = [];
   const frontCells: number[] = [];
   for (let lx = 0; lx < b.w; lx++) if (lx !== b.gap) frontCells.push(lx);
@@ -241,14 +306,23 @@ export function realizeStall(ctx: StallRealizeCtx, f: ResolvedFeature): boolean 
   const yc = top0 + postH;
 
   // 4. canopy on the post tops
-  const canopyAt = (v: ResolvedVariant, r: { x: number; y: number; w: number; h: number }, deg: number): void => {
+  const canopyAt = (
+    v: ResolvedVariant,
+    r: { x: number; y: number; w: number; h: number },
+    deg: number,
+  ): void => {
     tile(v, r, yc, deg);
   };
   let ridgeY = yc;
   if (b.form === "flat") {
     const used = new Set<string>();
     const free = (lx: number, ly: number): boolean => lx < b.w && ly < b.d && !used.has(`${lx},${ly}`);
-    const fits = (lx: number, ly: number, lw: number, ld: number): { v: ResolvedVariant; deg: number } | null => {
+    const fits = (
+      lx: number,
+      ly: number,
+      lw: number,
+      ld: number,
+    ): { v: ResolvedVariant; deg: number } | null => {
       const r = rectOf(lx, ly, lw, ld);
       for (const v of canopyRes.variants) {
         if (v.weight <= 0) continue;
@@ -271,9 +345,16 @@ export function realizeStall(ctx: StallRealizeCtx, f: ResolvedFeature): boolean 
           for (let j = 0; j < ld; j++) for (let i = 0; i < lw; i++) if (!free(lx + i, ly + j)) all = false;
           if (!all) continue;
           const r = rectOf(lx, ly, lw, ld);
-          const pool = canopyRes.variants.filter((v) => v.weight > 0 && ((v.footprint[0] === r.w && v.footprint[1] === r.h) || (v.footprint[1] === r.w && v.footprint[0] === r.h)));
+          const pool = canopyRes.variants.filter(
+            (v) =>
+              v.weight > 0 &&
+              ((v.footprint[0] === r.w && v.footprint[1] === r.h) ||
+                (v.footprint[1] === r.w && v.footprint[0] === r.h)),
+          );
           const pickV = ctx.pick(pool, `${f.id}:canopy:${lx}:${ly}`);
-          const fit = pickV ? { v: pickV, deg: pickV.footprint[0] === r.w && pickV.footprint[1] === r.h ? 0 : 90 } : fits(lx, ly, lw, ld);
+          const fit = pickV
+            ? { v: pickV, deg: pickV.footprint[0] === r.w && pickV.footprint[1] === r.h ? 0 : 90 }
+            : fits(lx, ly, lw, ld);
           if (!fit) continue;
           canopyAt(fit.v, r, fit.deg);
           for (let j = 0; j < ld; j++) for (let i = 0; i < lw; i++) used.add(`${lx + i},${ly + j}`);
@@ -293,24 +374,32 @@ export function realizeStall(ctx: StallRealizeCtx, f: ResolvedFeature): boolean 
       let lx = 0;
       const placePiece = (px: number, w: number, depth: number): void => {
         const r = rectOf(px, half.r0, w, depth);
-        const pool = canopyRes.variants.filter((v) => v.weight > 0 && (v.footprint[0] * v.footprint[1] === w * depth));
+        const pool = canopyRes.variants.filter(
+          (v) => v.weight > 0 && v.footprint[0] * v.footprint[1] === w * depth,
+        );
         // a 2x1 run is the long strip turned across (it slopes over its short side); a 2x2 or 1x1 is the same piece
-        const want = w * depth === 2 ? pool.filter((v) => Math.max(...v.footprint) === 2 && Math.min(...v.footprint) === 1) : pool;
+        const want =
+          w * depth === 2
+            ? pool.filter((v) => Math.max(...v.footprint) === 2 && Math.min(...v.footprint) === 1)
+            : pool;
         const v = ctx.pick(want.length > 0 ? want : pool, `${f.id}:canopy:${half.r0}:${px}`);
         if (!v) return;
         canopyAt(v, r, turn(half.low, v, "stall.canopy"));
         ridgeY = Math.max(ridgeY, yc + v.geom.size.y);
       };
       for (; lx + 2 <= b.w; lx += 2) placePiece(lx, 2, half.n);
-      if (lx < b.w) for (let j = 0; j < half.n; j++) {
-        const r = rectOf(lx, half.r0 + j, 1, 1);
-        const pool = canopyRes.variants.filter((v) => v.weight > 0 && v.footprint[0] * v.footprint[1] === 1);
-        const v = ctx.pick(pool, `${f.id}:canopy:${half.r0}:${lx}:${j}`);
-        if (v) {
-          canopyAt(v, r, turn(half.low, v, "stall.canopy"));
-          ridgeY = Math.max(ridgeY, yc + v.geom.size.y);
+      if (lx < b.w)
+        for (let j = 0; j < half.n; j++) {
+          const r = rectOf(lx, half.r0 + j, 1, 1);
+          const pool = canopyRes.variants.filter(
+            (v) => v.weight > 0 && v.footprint[0] * v.footprint[1] === 1,
+          );
+          const v = ctx.pick(pool, `${f.id}:canopy:${half.r0}:${lx}:${j}`);
+          if (v) {
+            canopyAt(v, r, turn(half.low, v, "stall.canopy"));
+            ridgeY = Math.max(ridgeY, yc + v.geom.size.y);
+          }
         }
-      }
     }
     // a beam along the ridge, tied on top of the cloth
     const ridgeRes = find(["stall.ridge"]);

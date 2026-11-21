@@ -32,11 +32,20 @@ function marketCellOk(work: LevelWork, x: number, y: number, reserved = true): b
   const f = work.flags[i] as number;
   if (
     f &
-    (CELL_FLAG.NO_FLOOR | CELL_FLAG.LINK | CELL_FLAG.STEPS | CELL_FLAG.FEATURE | CELL_FLAG.WATER | CELL_FLAG.BRIDGE)
+    (CELL_FLAG.NO_FLOOR |
+      CELL_FLAG.LINK |
+      CELL_FLAG.STEPS |
+      CELL_FLAG.FEATURE |
+      CELL_FLAG.WATER |
+      CELL_FLAG.BRIDGE)
   )
     return false;
   const sa = work.struct[i] as number;
-  if ((work.occ[i] as number) > 0 || work.areas[sa - 1]?.kind === "building" || (reserved && work.structs?.reservedCell(i)))
+  if (
+    (work.occ[i] as number) > 0 ||
+    work.areas[sa - 1]?.kind === "building" ||
+    (reserved && work.structs?.reservedCell(i))
+  )
     return false;
   return !crossingClear(work).has(i);
 }
@@ -93,16 +102,25 @@ export function stepMarket(work: LevelWork): void {
   const lineList = work.level.lines ?? [];
   if (!work.gen.stallsAndLines) {
     if (stallRows.length + lineList.length > 0)
-      work.issue("warning", "no_effect", `stalls and lines need generator 3; this plan is generator ${work.plan.generator}`, {
-        hint: 'set "generator": 3 on the plan',
-      });
+      work.issue(
+        "warning",
+        "no_effect",
+        `stalls and lines need generator 3; this plan is generator ${work.plan.generator}`,
+        {
+          hint: 'set "generator": 3 on the plan',
+        },
+      );
     return;
   }
   const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
   const seedOf = (id: string): number => elementSeed(work.plan.seed, `${work.level.id}~${id}`, undefined);
   const ok = (x: number, y: number): boolean => marketCellOk(work, x, y);
   // goods on a bare-table stall: two pieces resting on the table top (its real height; nothing floats)
-  const putGoods = (stallId: string, st: { at: [number, number]; size: [number, number] }, kind: string): void => {
+  const putGoods = (
+    stallId: string,
+    st: { at: [number, number]; size: [number, number] },
+    kind: string,
+  ): void => {
     const set = stallKindInfo(kind).tableGoods;
     if (set === undefined) return;
     const ext = work.ctx.palette.pieceSize(work.levelTheme, "stall", true, "empty");
@@ -130,7 +148,8 @@ export function stepMarket(work: LevelWork): void {
     });
   };
   for (const f of [...work.features]) {
-    if (f.type === "stall" && f.generatedBy === undefined) putGoods(f.id, { at: [f.at[0], f.at[1]], size: [f.size[0], f.size[1]] }, f.variant ?? "empty");
+    if (f.type === "stall" && f.generatedBy === undefined)
+      putGoods(f.id, { at: [f.at[0], f.at[1]], size: [f.size[0], f.size[1]] }, f.variant ?? "empty");
   }
   // generator 4: covered stalls when the theme's palette has the parts (else the table stall of generator 3)
   const forms = work.gen.coveredStalls ? work.ctx.palette.stallForms(work.levelTheme) : [];
@@ -142,7 +161,8 @@ export function stepMarket(work: LevelWork): void {
       for (let y = row.area.y; y < row.area.y + row.area.h; y++)
         for (let x = row.area.x; x < row.area.x + row.area.w; x++) {
           const i = work.idx(x, y);
-          if (i >= 0 && ok(x, y)) heights.set(work.height[i] as number, (heights.get(work.height[i] as number) ?? 0) + 1);
+          if (i >= 0 && ok(x, y))
+            heights.set(work.height[i] as number, (heights.get(work.height[i] as number) ?? 0) + 1);
         }
       const level = [...heights].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0];
       const flat = (x: number, y: number): boolean => ok(x, y) && work.height[work.idx(x, y)] === level;
@@ -159,7 +179,14 @@ export function stepMarket(work: LevelWork): void {
       commitMarket(
         work,
         id,
-        { type: "stall", at: p.at, size: p.size, rot: p.rot, variant: p.kind, ...(p.build ? { stall: p.build } : {}) },
+        {
+          type: "stall",
+          at: p.at,
+          size: p.size,
+          rot: p.rot,
+          variant: p.kind,
+          ...(p.build ? { stall: p.build } : {}),
+        },
         true,
       );
       // a covered stall carries its own goods (the realizer puts them on its counters); a table gets them here
@@ -181,16 +208,26 @@ export function stepMarket(work: LevelWork): void {
  * Generator 4: loose stock behind or beside a covered stall (a crate, barrel or sack on a free cell touching it),
  * on about half of them. Never in front: the lane stays clear.
  */
-function stallClutter(work: LevelWork, id: string, p: { at: [number, number]; size: [number, number]; kind: string }, b: StallBuild, cap: number): void {
+function stallClutter(
+  work: LevelWork,
+  id: string,
+  p: { at: [number, number]; size: [number, number]; kind: string },
+  b: StallBuild,
+  cap: number,
+): void {
   if (work.generated >= cap) return;
-  const rng = createPrng(subSeed(elementSeed(work.plan.seed, `${work.level.id}~${id}`, undefined), "clutter"));
+  const rng = createPrng(
+    subSeed(elementSeed(work.plan.seed, `${work.level.id}~${id}`, undefined), "clutter"),
+  );
   if (rng.next() > 0.5) return;
   const cands: Array<[number, number]> = [];
   for (let lx = 0; lx < b.w; lx++) cands.push(stallCell(b.front, p.at, p.size, lx, b.d));
   cands.push(stallCell(b.front, p.at, p.size, -1, b.d - 1), stallCell(b.front, p.at, p.size, b.w, b.d - 1));
   const types = stallKindInfo(p.kind).stock;
   const type = types[rng.int(types.length)] as FeatureType;
-  const free = cands.filter(([x, y]) => marketCellOk(work, x, y) && work.featureProblem(type, [x, y], [1, 1], undefined) === null);
+  const free = cands.filter(
+    ([x, y]) => marketCellOk(work, x, y) && work.featureProblem(type, [x, y], [1, 1], undefined) === null,
+  );
   const at = free[rng.int(Math.max(1, free.length))];
   if (!at) return;
   commitMarket(work, `${id}#stock`, { type, at, size: [1, 1], rot: rng.int(4) * 90 }, true);
@@ -267,7 +304,10 @@ function stepLine(work: LevelWork, line: NonNullable<Level["lines"]>[number], k:
             cy < f.at[1] + f.size[1],
         )
       ) {
-        bad("passes through a covered stall", "run it along the aisle or the street, clear of the stalls' footprints");
+        bad(
+          "passes through a covered stall",
+          "run it along the aisle or the street, clear of the stalls' footprints",
+        );
         return;
       }
     }
@@ -279,7 +319,8 @@ function stepLine(work: LevelWork, line: NonNullable<Level["lines"]>[number], k:
     { kind: aHi.kind, at: cellAt(aHi.at) },
   ];
   [aLo, aHi].forEach((an, n) => {
-    if (an.kind === "post") commitMarket(work, `${line.id}#post${n}`, { type: "line_post", at: cellAt(an.at), size: [1, 1] }, true);
+    if (an.kind === "post")
+      commitMarket(work, `${line.id}#post${n}`, { type: "line_post", at: cellAt(an.at), size: [1, 1] }, true);
   });
   const start = aLo.kind === "wall" ? aLo.at + 1 : aLo.at + 0.65;
   const end = aHi.kind === "wall" ? aHi.at : aHi.at + 0.35;
@@ -289,7 +330,15 @@ function stepLine(work: LevelWork, line: NonNullable<Level["lines"]>[number], k:
     commitMarket(
       work,
       `${line.id}#${n}`,
-      { type: "overhead", at: p.at, size: p.size, rotFine: p.rotFine, variant: p.variant, lift: height, offset: p.offset },
+      {
+        type: "overhead",
+        at: p.at,
+        size: p.size,
+        rotFine: p.rotFine,
+        variant: p.variant,
+        lift: height,
+        offset: p.offset,
+      },
       false,
     );
   });
@@ -333,7 +382,9 @@ function stepTradeProps(work: LevelWork, cap: number, ok: (x: number, y: number)
       if (doorNear(cx, cy)) continue;
       cands.push([ox, oy]);
     }
-    const rng = createPrng(subSeed(elementSeed(work.plan.seed, `${work.level.id}~${b.st.id}`, undefined), "trade"));
+    const rng = createPrng(
+      subSeed(elementSeed(work.plan.seed, `${work.level.id}~${b.st.id}`, undefined), "trade"),
+    );
     for (let i = cands.length - 1; i > 0; i--) {
       const j = rng.int(i + 1);
       [cands[i], cands[j]] = [cands[j] as [number, number], cands[i] as [number, number]];
@@ -360,7 +411,8 @@ function stepTradeProps(work: LevelWork, cap: number, ok: (x: number, y: number)
       if (sz[0] * sz[1] > 1) {
         const along: [number, number] = dy === 0 ? [0, 1] : [1, 0];
         const cells: Array<[number, number]> = [];
-        for (let a = 0; a < Math.max(sz[0], sz[1]); a++) cells.push([c[0] + along[0] * a, c[1] + along[1] * a]);
+        for (let a = 0; a < Math.max(sz[0], sz[1]); a++)
+          cells.push([c[0] + along[0] * a, c[1] + along[1] * a]);
         if (!cells.every(([x, y]) => ok(x, y) && cands.some((q) => q[0] === x && q[1] === y))) continue;
         at = [c[0], c[1]];
       }

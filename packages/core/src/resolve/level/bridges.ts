@@ -99,14 +99,16 @@ function layBridge(work: LevelWork, r: BridgeRequest): void {
   // anchor cells: deck cells next to walkable floor within a 0.5 step of the deck (where you get on and off)
   const anchorCells: number[] = [];
   for (const i of cells) {
-    const ok = work.neighbours4(i).some(
-      (j) =>
-        j >= 0 &&
-        !inThis.has(j) &&
-        work.state[j] === CELL.OPEN &&
-        ((work.flags[j] as number) & CELL_FLAG.NO_FLOOR) === 0 &&
-        Math.abs((work.height[j] as number) - deck) <= 2,
-    );
+    const ok = work
+      .neighbours4(i)
+      .some(
+        (j) =>
+          j >= 0 &&
+          !inThis.has(j) &&
+          work.state[j] === CELL.OPEN &&
+          ((work.flags[j] as number) & CELL_FLAG.NO_FLOOR) === 0 &&
+          Math.abs((work.height[j] as number) - deck) <= 2,
+      );
     if (ok) anchorCells.push(i);
   }
   // anchored at both ends = the anchors form at least two groups that are far apart (not one side of a pier)
@@ -209,14 +211,16 @@ function layBridge(work: LevelWork, r: BridgeRequest): void {
     // anchors are where the deck meets floor at its own height or one step from it
     anchorCells.splice(0, anchorCells.length);
     for (const i of cells) {
-      const ok = work.neighbours4(i).some(
-        (j) =>
-          j >= 0 &&
-          !inThis.has(j) &&
-          work.isFloor(j) &&
-          (Math.abs((work.height[j] as number) - (work.height[i] as number)) <= 4 ||
-            work.stairEdges.has(i < j ? `${i},${j}` : `${j},${i}`)),
-      );
+      const ok = work
+        .neighbours4(i)
+        .some(
+          (j) =>
+            j >= 0 &&
+            !inThis.has(j) &&
+            work.isFloor(j) &&
+            (Math.abs((work.height[j] as number) - (work.height[i] as number)) <= 4 ||
+              work.stairEdges.has(i < j ? `${i},${j}` : `${j},${i}`)),
+        );
       if (ok) anchorCells.push(i);
     }
   }
@@ -265,12 +269,7 @@ function layBridge(work: LevelWork, r: BridgeRequest): void {
   // a raised deck on supports (watchtower, gallows, scaffold, pier): explicit height, a tile or more above the
   // ground beneath it: posts at its corners
   if (r.deck !== null) {
-    const corners = new Set([
-      work.idx(bx0, by0),
-      work.idx(bx1, by0),
-      work.idx(bx0, by1),
-      work.idx(bx1, by1),
-    ]);
+    const corners = new Set([work.idx(bx0, by0), work.idx(bx1, by0), work.idx(bx0, by1), work.idx(bx1, by1)]);
     sorted.forEach(({ i, j }) => {
       if (corners.has(i) && underMaterial[j] !== null && deck - (under[j] as number) >= 4 && !broken.has(i))
         piers.push(work.cellXY(i));
@@ -287,8 +286,7 @@ function layBridge(work: LevelWork, r: BridgeRequest): void {
     const spots: Vec2[] = [];
     for (const i of anchorCells)
       for (const j of work.neighbours4(i))
-        if (j >= 0 && !inThis.has(j) && work.isFloor(j) && work.bridgeOf[j] === 0)
-          spots.push(work.cellXY(j));
+        if (j >= 0 && !inThis.has(j) && work.isFloor(j) && work.bridgeOf[j] === 0) spots.push(work.cellXY(j));
     const pickN = Math.min(spots.length, 1 + Math.round(r.crumble * 4));
     rng
       .shuffle(spots)
@@ -330,14 +328,16 @@ function layBridge(work: LevelWork, r: BridgeRequest): void {
     cells.some(
       (i) =>
         !broken.has(i) &&
-        work.neighbours4(i).some(
-          (j) =>
-            j >= 0 &&
-            !inThis.has(j) &&
-            work.isFloor(j) &&
-            (Math.abs((work.height[j] as number) - (work.height[i] as number)) <= 2 ||
-              work.stairEdges.has(i < j ? `${i},${j}` : `${j},${i}`)),
-        ),
+        work
+          .neighbours4(i)
+          .some(
+            (j) =>
+              j >= 0 &&
+              !inThis.has(j) &&
+              work.isFloor(j) &&
+              (Math.abs((work.height[j] as number) - (work.height[i] as number)) <= 2 ||
+                work.stairEdges.has(i < j ? `${i},${j}` : `${j},${i}`)),
+          ),
     );
   const warn = (): void => {
     const first = work.cellXY(cells[0] as number);

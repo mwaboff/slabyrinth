@@ -53,8 +53,7 @@ export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedP
   if (generatorProfile(plan).floorOpenings) {
     // floor openings look into the next level down (rubble heaps and checks happen on both sides)
     const byElev = [...works].sort((a, b) => a.level.elevation - b.level.elevation);
-    for (const w of works)
-      linkOpenings(w, byElev.filter((o) => o.level.elevation < w.level.elevation).pop());
+    for (const w of works) linkOpenings(w, byElev.filter((o) => o.level.elevation < w.level.elevation).pop());
   }
   for (const w of works) runPhase2(w);
 
@@ -140,10 +139,9 @@ function resolveLinks(plan: MapPlan, byId: Map<string, LevelWork>, issues: PlanI
           message: `${link.kind} "${link.id}" needs ${lo.level.id} cell ${c[0]},${c[1]}, which ${why}`,
           levelId: lo.level.id,
           cell: c,
-          hint:
-            !generatorProfile(plan).explainedLinkRuns
-              ? `the run covers ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; move from.at or change dir`
-              : link.kind === "stairs" || link.kind === "ramp"
+          hint: !generatorProfile(plan).explainedLinkRuns
+            ? `the run covers ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; move from.at or change dir`
+            : link.kind === "stairs" || link.kind === "ramp"
               ? `a rise of ${rise} needs a straight run of ${geo.length} cells (1 per tile of rise) from from.at ${link.from.at[0]},${link.from.at[1]} in direction ${dir}: ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; it does not fit, so move from.at to where ${geo.length} free floor cells lie in a line, change dir, or space the levels closer (not under 3.5) or use a ladder for a short link`
               : `the cells it needs: ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; move from.at`,
         });

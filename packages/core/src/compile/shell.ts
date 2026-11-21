@@ -200,7 +200,10 @@ export function planShell(
   // the solid cells are shared with the cave rock mass (gen/solidMass.ts): each belongs to the dresser of the nearest
   // wall, so the cap and the rock meet with no gutter between them and no cell is dressed twice
   const grid: CellGrid = { w, h };
-  const owner = ownSolid(grid, (i) => state(i) === CELL.SOLID, rockFace, [...seeds.keys(), ...tidyTop.keys()]);
+  const owner = ownSolid(grid, (i) => state(i) === CELL.SOLID, rockFace, [
+    ...seeds.keys(),
+    ...tidyTop.keys(),
+  ]);
   const clear = { has: (k: number): boolean => owner[k] === OWNER.rock };
 
   // the cap top: the most common wall top among the seeds (ties: the higher), so a lowered run sits below the cap
@@ -216,7 +219,8 @@ export function planShell(
   const top = flat + SHELL.lift;
   let style = "wall";
   let sBest = -1;
-  for (const [s, c] of [...styles].sort((a, b) => (a[0] < b[0] ? -1 : 1))) if (c > sBest) [style, sBest] = [s, c];
+  for (const [s, c] of [...styles].sort((a, b) => (a[0] < b[0] ? -1 : 1)))
+    if (c > sBest) [style, sBest] = [s, c];
 
   // ── rings ──
   const noise = new ValueNoise(h32(`${seed}:${L.id}:shell`));
@@ -239,7 +243,9 @@ export function planShell(
           if (k < 0 || ring.has(k) || state(k) !== CELL.SOLID || bare.has(k) || clear.has(k)) continue;
           const kx = k % w;
           const ky = (k - kx) / w;
-          const n = noise.sample(kx / 2.5, ky / 2.5) * 0.7 + (h32(`${seed}:${L.id}:shellcell:${k}`) / 4294967296) * 0.3;
+          const n =
+            noise.sample(kx / 2.5, ky / 2.5) * 0.7 +
+            (h32(`${seed}:${L.id}:shellcell:${k}`) / 4294967296) * 0.3;
           if (n >= 1 - (SHELL.keep[r - 2] ?? 0.5)) add.push([k, theme.get(i) ?? defaultTheme]);
         }
     }
@@ -282,7 +288,8 @@ export function planShell(
   const hiddenAbove = (gx: number, gy: number): boolean =>
     above.some((o) => {
       const k = otherAt(o, gx, gy);
-      if (k < 0 || o.cells.state[k] !== CELL.OPEN || ((o.cells.flags[k] ?? 0) & CELL_FLAG.NO_FLOOR) !== 0) return false;
+      if (k < 0 || o.cells.state[k] !== CELL.OPEN || ((o.cells.flags[k] ?? 0) & CELL_FLAG.NO_FLOOR) !== 0)
+        return false;
       // within four tiles: a higher floor further up still hides the cap, but a gap that big is a different map
       return o.elevation - top <= 4;
     });
@@ -336,7 +343,12 @@ export function planShell(
     // the tallest wall top among this cell's own walls, else its strip neighbours' (a junction of two strips)
     let t = tidyTop.get(k) ?? -Infinity;
     if (t === -Infinity)
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
         const q = at(x + dx, y + dy);
         if (q >= 0 && tidyTop.has(q)) t = Math.max(t, tidyTop.get(q) as number);
       }
@@ -370,7 +382,12 @@ export function planShell(
   function nearestOpen(k: number): number {
     const x = k % w;
     const y = (k - x) / w;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
       const q = at(x + dx, y + dy);
       if (q >= 0 && state(q) === CELL.OPEN) return q;
     }
@@ -426,23 +443,24 @@ export function planShell(
 
   // ── skirt: the outer edge of the cap ──
   function skirtOf(cells: Shell["cells"], hiddenNeighbour: Set<number>): ShellEdge[] {
-  const edges: ShellEdge[] = [];
-  for (const c of [...cells.values()].sort((a, b) => a.y - b.y || a.x - b.x)) {
-    const lx = c.x - L.bounds.x;
-    const ly = c.y - L.bounds.y;
-    for (const [dx, dy, side] of DIRS) {
-      const j = at(lx + dx, ly + dy);
-      if (j < 0) continue; // the board's own edge: slabs are tiled beside each other
-      if (cells.has(`${c.x + dx},${c.y + dy}`) || state(j) === CELL.OPEN || hiddenNeighbour.has(j)) continue;
-      const hostFirst = side === "S" || side === "E";
-      const e = { hostX: c.x, hostY: c.y, hostFirst, planSide: side, top: c.top };
-      if (side === "N") edges.push({ orient: "h", x: c.x, y: c.y, ...e });
-      else if (side === "S") edges.push({ orient: "h", x: c.x, y: c.y + 1, ...e });
-      else if (side === "W") edges.push({ orient: "v", x: c.x, y: c.y, ...e });
-      else edges.push({ orient: "v", x: c.x + 1, y: c.y, ...e });
+    const edges: ShellEdge[] = [];
+    for (const c of [...cells.values()].sort((a, b) => a.y - b.y || a.x - b.x)) {
+      const lx = c.x - L.bounds.x;
+      const ly = c.y - L.bounds.y;
+      for (const [dx, dy, side] of DIRS) {
+        const j = at(lx + dx, ly + dy);
+        if (j < 0) continue; // the board's own edge: slabs are tiled beside each other
+        if (cells.has(`${c.x + dx},${c.y + dy}`) || state(j) === CELL.OPEN || hiddenNeighbour.has(j))
+          continue;
+        const hostFirst = side === "S" || side === "E";
+        const e = { hostX: c.x, hostY: c.y, hostFirst, planSide: side, top: c.top };
+        if (side === "N") edges.push({ orient: "h", x: c.x, y: c.y, ...e });
+        else if (side === "S") edges.push({ orient: "h", x: c.x, y: c.y + 1, ...e });
+        else if (side === "W") edges.push({ orient: "v", x: c.x, y: c.y, ...e });
+        else edges.push({ orient: "v", x: c.x + 1, y: c.y, ...e });
+      }
     }
-  }
-  return edges;
+    return edges;
   }
 }
 

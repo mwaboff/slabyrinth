@@ -296,9 +296,7 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
     // given up, so a rock reaches right up to a gap instead of leaving the whole edge beside it bare
     const first = rng.int(BAND.maxTurnSteps * 2 + 1) - BAND.maxTurnSteps;
     const flip = rng.chance(0.5) ? 180 : 0;
-    const turns = resting
-      ? [first, ...[0, 2, -2, 1, -1].filter((q) => q !== first).slice(0, 3)]
-      : [first];
+    const turns = resting ? [first, ...[0, 2, -2, 1, -1].filter((q) => q !== first).slice(0, 3)] : [first];
     for (const q of turns) if (placeTurned(t, ax, ay, side, base, strict, q * 15 + flip)) return true;
     return false;
   };
@@ -427,7 +425,8 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
       const along = (rng.next() * 2 - 1) * slide[0];
       // mostly toward the cliff, never far off it: the rock must still stand over the edge it hides
       // (a face rock is slid up to the foot of its riser, so it reaches no more than about a tile and a half out)
-      const into = t === "cliff_face" ? 0.3 + rng.next() * 0.2 : (rng.next() * 0.45 - 0.15) * (slide[1] / 0.3);
+      const into =
+        t === "cliff_face" ? 0.3 + rng.next() * 0.2 : (rng.next() * 0.45 - 0.15) * (slide[1] / 0.3);
       const [sx, sy] = STEP[side];
       const ns = side === "N" || side === "S";
       offset = [(ns ? along : 0) + sx * into, (ns ? 0 : along) + sy * into];
@@ -498,7 +497,8 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
         // the base course reaches further out the more courses stand on it, so every course rests on rock
         // generator 3: a single course stands on the first cell of the low ground, so it reaches about a tile and a half
         // out from the foot (the deep Cliff Face piece, slid to the foot below), not three
-        const outward = 0.5 + (n - 1 - c) * between(BAND.stepBack) + rng.next() * (resting && n === 1 ? 0.45 : 0.6);
+        const outward =
+          0.5 + (n - 1 - c) * between(BAND.stepBack) + rng.next() * (resting && n === 1 ? 0.45 : 0.6);
         const jit = (rng.next() - 0.5) * 0.9;
         const [ax, ay] = cellOut(u, outward, jit);
         const spacing = face.w * (gap ?? between(BAND.faceGap));
@@ -641,7 +641,12 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
   const plugCrests: number[] = [];
   for (let round = 0; round < (resting ? 3 : 1); round++)
     for (const u of order) {
-      if ((!resting && coursesOf(u) === 0) || route(u) || (resting && noStand(u.low[0], u.low[1])) || covers(u))
+      if (
+        (!resting && coursesOf(u) === 0) ||
+        route(u) ||
+        (resting && noStand(u.low[0], u.low[1])) ||
+        covers(u)
+      )
         continue;
       // the skirt is one simple course: its gaps are not plugged
       if (u.perim) continue;
@@ -723,7 +728,8 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
         out.splice(i, 1);
         footprints.splice(i, 1);
         restsOn.splice(i, 1);
-        for (let k = 0; k < restsOn.length; k++) if ((restsOn[k] as number) > i) restsOn[k] = (restsOn[k] as number) - 1;
+        for (let k = 0; k < restsOn.length; k++)
+          if ((restsOn[k] as number) > i) restsOn[k] = (restsOn[k] as number) - 1;
         const at_ = crestAt.findIndex(([x, y]) => Math.abs(x - s.cx) < 0.7 && Math.abs(y - s.cy) < 0.7);
         if (at_ >= 0) crestAt.splice(at_, 1);
       } else shapes.splice(i, 0, s);
@@ -773,12 +779,16 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
       .filter(([x, y]) => grid.isFloor(x, y))
       .map(([x, y]) => ({ x, y, ground: h(x, y) }));
     const over = (): Set<number> =>
-      new Set(terraceRockShare(shapes, ground).filter((t) => t.share > BAND.terraceShare).map((t) => t.terrace));
+      new Set(
+        terraceRockShare(shapes, ground)
+          .filter((t) => t.share > BAND.terraceShare)
+          .map((t) => t.terrace),
+      );
     let bad = over();
     if (bad.size > 0) {
-      const boulders = rng.shuffle(
-        out.map((q, i) => [q, i] as const).filter(([q]) => q.type === "cliff_crest"),
-      ).map(([, i]) => i);
+      const boulders = rng
+        .shuffle(out.map((q, i) => [q, i] as const).filter(([q]) => q.type === "cliff_crest"))
+        .map(([, i]) => i);
       const gone: number[] = [];
       for (const i of boulders) {
         if (bad.size === 0) break;
@@ -801,7 +811,8 @@ export function cliffBand(grid: PlacementGrid, p: BandParams): BandResult {
         shapes.splice(i, 1);
         footprints.splice(i, 1);
         restsOn.splice(i, 1);
-        for (let k = 0; k < restsOn.length; k++) if ((restsOn[k] as number) > i) restsOn[k] = (restsOn[k] as number) - 1;
+        for (let k = 0; k < restsOn.length; k++)
+          if ((restsOn[k] as number) > i) restsOn[k] = (restsOn[k] as number) - 1;
       }
     }
   }

@@ -30,7 +30,12 @@ const D4: ReadonlyArray<readonly [number, number]> = [
 const key = (x: number, y: number): number => (x + 16384) * 32768 + (y + 16384);
 
 /** Pieces per water-edge tile (a water cell with a dry neighbour, or a dry cell beside water). */
-export const WATER_DRESS = { perEdge: [0.5, 0.75], minWater: 12, shareShore: 0.35, shareReeds: 0.35 } as const;
+export const WATER_DRESS = {
+  perEdge: [0.5, 0.75],
+  minWater: 12,
+  shareShore: 0.35,
+  shareReeds: 0.35,
+} as const;
 
 export interface WaterParams {
   /** The area's cells (global). */
@@ -61,7 +66,10 @@ export function dressWater(grid: PlacementGrid, prm: WaterParams): WaterResult {
   const height = (x: number, y: number): number => grid.height?.(x, y) ?? 0;
   const fl = (x: number, y: number): number => grid.flags(x, y);
   const isWater = (x: number, y: number): boolean =>
-    grid.inBounds(x, y) && grid.isFloor(x, y) && (fl(x, y) & FLAG_WATER) !== 0 && (fl(x, y) & FLAG_PATH) === 0;
+    grid.inBounds(x, y) &&
+    grid.isFloor(x, y) &&
+    (fl(x, y) & FLAG_WATER) !== 0 &&
+    (fl(x, y) & FLAG_PATH) === 0;
   const isDry = (x: number, y: number): boolean =>
     grid.inBounds(x, y) && grid.isFloor(x, y) && (fl(x, y) & (FLAG_WATER | FLAG_NO_FLOOR)) === 0;
   const water = prm.cells.filter(([x, y]) => isWater(x, y));
@@ -75,7 +83,8 @@ export function dressWater(grid: PlacementGrid, prm: WaterParams): WaterResult {
     bed = Math.max(bed, height(x, y));
     for (const [dx, dy] of D4) if (isDry(x + dx, y + dy)) bank = Math.min(bank, height(x + dx, y + dy));
   }
-  const surface = grid.waterSurface?.() ?? (Number.isFinite(bank) ? Math.max(bed + 0.25, bank - 0.5) : bed + 0.25);
+  const surface =
+    grid.waterSurface?.() ?? (Number.isFinite(bank) ? Math.max(bed + 0.25, bank - 0.5) : bed + 0.25);
 
   const rng = createPrng(subSeed(prm.seed, "waterdress"));
   const field = new ValueNoise(subSeed(prm.seed, "waterdress:field"));
@@ -85,7 +94,8 @@ export function dressWater(grid: PlacementGrid, prm: WaterParams): WaterResult {
   const nearPath = (x: number, y: number, r = 1): boolean => {
     for (let dy = -r; dy <= r; dy++)
       for (let dx = -r; dx <= r; dx++)
-        if (grid.inBounds(x + dx, y + dy) && (fl(x + dx, y + dy) & (FLAG_PATH | FLAG_LINK)) !== 0) return true;
+        if (grid.inBounds(x + dx, y + dy) && (fl(x + dx, y + dy) & (FLAG_PATH | FLAG_LINK)) !== 0)
+          return true;
     return false;
   };
 
@@ -101,9 +111,16 @@ export function dressWater(grid: PlacementGrid, prm: WaterParams): WaterResult {
   const target = Math.round(
     res.edge * (WATER_DRESS.perEdge[0] + rng.next() * (WATER_DRESS.perEdge[1] - WATER_DRESS.perEdge[0])),
   );
-  const room = (): number => Math.min(prm.remaining - out.length, target - (res.plants + res.shore + res.sunk + res.stones));
+  const room = (): number =>
+    Math.min(prm.remaining - out.length, target - (res.plants + res.shore + res.sunk + res.stones));
 
-  const add = (type: FeatureType, x: number, y: number, size: [number, number], extra: Partial<GeneratedPlacement> = {}): void => {
+  const add = (
+    type: FeatureType,
+    x: number,
+    y: number,
+    size: [number, number],
+    extra: Partial<GeneratedPlacement> = {},
+  ): void => {
     for (let yy = y; yy < y + size[1]; yy++) for (let xx = x; xx < x + size[0]; xx++) used.add(key(xx, yy));
     out.push({ type, at: [x, y], size, rot: 0, rotFine: rng.int(24) * 15, ...extra });
   };
@@ -164,7 +181,8 @@ export function dressWater(grid: PlacementGrid, prm: WaterParams): WaterResult {
       if (clump.length >= 2 + rng.int(3)) break;
       const nx = x + dx;
       const ny = y + dy;
-      if (isWater(nx, ny) && free(nx, ny) && !nearPath(nx, ny) && surface - height(nx, ny) <= 1.25) clump.push([nx, ny]);
+      if (isWater(nx, ny) && free(nx, ny) && !nearPath(nx, ny) && surface - height(nx, ny) <= 1.25)
+        clump.push([nx, ny]);
     }
     for (const [cx, cy] of clump) {
       if (want <= 0 || room() <= 0) break;
@@ -185,7 +203,12 @@ export function dressWater(grid: PlacementGrid, prm: WaterParams): WaterResult {
       if (clump.length >= 2 + rng.int(3)) break;
       const nx = x + dx;
       const ny = y + dy;
-      if (isDry(nx, ny) && free(nx, ny) && !nearPath(nx, ny, 2) && D4.some(([ax, ay]) => isWater(nx + ax, ny + ay)))
+      if (
+        isDry(nx, ny) &&
+        free(nx, ny) &&
+        !nearPath(nx, ny, 2) &&
+        D4.some(([ax, ay]) => isWater(nx + ax, ny + ay))
+      )
         clump.push([nx, ny]);
     }
     for (const [cx, cy] of clump) {
@@ -198,7 +221,9 @@ export function dressWater(grid: PlacementGrid, prm: WaterParams): WaterResult {
 
   // ── boulders sunk so their tops sit at the surface, in the water's interior, in loose pairs ──
   if (boulder) {
-    const deep = water.filter(([x, y]) => !rim.some(([rx, ry]) => Math.abs(rx - x) <= 1 && Math.abs(ry - y) <= 1));
+    const deep = water.filter(
+      ([x, y]) => !rim.some(([rx, ry]) => Math.abs(rx - x) <= 1 && Math.abs(ry - y) <= 1),
+    );
     let wantSunk = Math.max(0, target - res.plants - res.shore - res.stones);
     for (const [x, y] of rng.shuffle(deep)) {
       if (wantSunk <= 0 || room() <= 0) break;

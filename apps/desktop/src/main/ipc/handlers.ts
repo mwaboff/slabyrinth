@@ -90,7 +90,10 @@ export function createHandlers(s: HandlerServices): Handlers {
       try {
         check = await engine().checkProvider(req.providerId);
       } catch {
-        check = { ok: false, error: { kind: "network", retryable: true, message: "Couldn't check the key." } };
+        check = {
+          ok: false,
+          error: { kind: "network", retryable: true, message: "Couldn't check the key." },
+        };
       }
       if (!check.ok && check.error.kind === "auth") {
         await s.secrets.clearApiKey(req.providerId);

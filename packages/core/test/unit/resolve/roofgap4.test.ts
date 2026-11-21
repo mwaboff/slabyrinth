@@ -118,7 +118,9 @@ describe("roof_gap in the review (generator 4)", () => {
     ...set,
     levels: set.levels.map((l) => ({
       ...l,
-      placements: l.placements.filter((q) => !(q.layer === "roof" && String(q.source.elementId).startsWith(`${id}~`))),
+      placements: l.placements.filter(
+        (q) => !(q.layer === "roof" && String(q.source.elementId).startsWith(`${id}~`)),
+      ),
     })),
   });
 
@@ -126,16 +128,21 @@ describe("roof_gap in the review (generator 4)", () => {
     const p = plan(houses(), 4);
     const b = built(p);
     expect(codes(p, b.set)).not.toContain("roof_gap");
-    const notes = reviewDesign(p, resolvePlan(p), { palettes, placements: stripped(b.set, "h2"), limit: 99 }).filter(
-      (n) => n.code === "roof_gap",
-    );
+    const notes = reviewDesign(p, resolvePlan(p), {
+      palettes,
+      placements: stripped(b.set, "h2"),
+      limit: 99,
+    }).filter((n) => n.code === "roof_gap");
     expect(notes.length).toBe(1);
     expect(notes[0]?.elementIds).toEqual(["h2"]);
   });
 
   it("does not fire for a ruin or a weathered roof, which are meant to be broken", () => {
     for (const condition of ["ruined", "weathered"] as const) {
-      const p = plan(houses().map((s) => ({ ...s, condition }) as Structure), 4);
+      const p = plan(
+        houses().map((s) => ({ ...s, condition }) as Structure),
+        4,
+      );
       const b = built(p);
       expect(codes(p, stripped(b.set, "h2")), condition).not.toContain("roof_gap");
     }

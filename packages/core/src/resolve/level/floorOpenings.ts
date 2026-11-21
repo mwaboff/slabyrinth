@@ -41,7 +41,9 @@ export function applyFloorOpening(
   const free = (i: number): boolean =>
     i >= 0 &&
     work.state[i] === CELL.OPEN &&
-    ((work.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE | CELL_FLAG.LINK | CELL_FLAG.STEPS)) === 0;
+    ((work.flags[i] as number) &
+      (CELL_FLAG.NO_FLOOR | CELL_FLAG.BRIDGE | CELL_FLAG.LINK | CELL_FLAG.STEPS)) ===
+      0;
   let cells = work.shapeCells(op.shape, "terrain", path, op.id).filter(free);
   const seed = subSeed(elementSeed(work.plan.seed, op.id), "floor-opening");
   const outline = work.gen.openingOutline;
@@ -55,7 +57,9 @@ export function applyFloorOpening(
       const dist = work.innerDistance(kept);
       kept = kept.filter((i) => {
         const [x, y] = work.cellXY(i);
-        return !((dist.get(i) ?? 2) === 1 && noise.sample(x / outline.grain, y / outline.grain) < outline.cut);
+        return !(
+          (dist.get(i) ?? 2) === 1 && noise.sample(x / outline.grain, y / outline.grain) < outline.cut
+        );
       });
     }
     if (kept.length >= Math.ceil(cells.length * outline.keepShare)) {
@@ -65,12 +69,23 @@ export function applyFloorOpening(
       for (const i of cells) {
         if (!inSet.has(i)) continue;
         const [x, y] = work.cellXY(i);
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        for (const [dx, dy] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ] as const) {
           const j = work.idx(x + dx, y + dy);
-          if (!free(j) || inSet.has(j) || noise.sample((x + dx) / 1.6, (y + dy) / 1.6) < outline.lobeCut) continue;
+          if (!free(j) || inSet.has(j) || noise.sample((x + dx) / 1.6, (y + dy) / 1.6) < outline.lobeCut)
+            continue;
           const [jx, jy] = work.cellXY(j);
           const clear = (
-            [[1, 0], [-1, 0], [0, 1], [0, -1]] as const
+            [
+              [1, 0],
+              [-1, 0],
+              [0, 1],
+              [0, -1],
+            ] as const
           ).every(([ex, ey]) => free(work.idx(jx + ex, jy + ey)) && !work.hasWallAround(jx, jy));
           if (clear) inSet.add(j);
         }
@@ -83,11 +98,16 @@ export function applyFloorOpening(
     work.mat[i] = 0;
   }
   if (cells.length === 0) {
-    work.issue("warning", "no_effect", `floor_opening "${op.id}" changed nothing: its shape covers no open floor`, {
-      path,
-      elementId: op.id,
-      hint: "place it inside a room of this level (an opening only cuts floor that exists)",
-    });
+    work.issue(
+      "warning",
+      "no_effect",
+      `floor_opening "${op.id}" changed nothing: its shape covers no open floor`,
+      {
+        path,
+        elementId: op.id,
+        hint: "place it inside a room of this level (an opening only cuts floor that exists)",
+      },
+    );
     return;
   }
   work.floorOpenings.push({
@@ -166,11 +186,16 @@ export function linkOpenings(work: LevelWork, below: LevelWork | undefined): voi
     const xy = fo.cells.map((i) => work.cellXY(i) as Vec2);
     const path = `/levels/${work.li}/terrain`;
     if (!below) {
-      work.issue("warning", "opening_no_floor_below", `floor opening "${fo.id}" has no level below it to look into`, {
-        path,
-        elementId: fo.id,
-        hint: "add a level one storey (2.5) lower with a room under the opening, or use an area with floor none for an open pit",
-      });
+      work.issue(
+        "warning",
+        "opening_no_floor_below",
+        `floor opening "${fo.id}" has no level below it to look into`,
+        {
+          path,
+          elementId: fo.id,
+          hint: "add a level one storey (2.5) lower with a room under the opening, or use an area with floor none for an open pit",
+        },
+      );
       continue;
     }
     fo.below = below.level.id;
@@ -206,7 +231,10 @@ function moundUnder(work: LevelWork, xy: Vec2[], seed: number): void {
     const i = work.idx(x, y);
     if (i < 0 || !work.hasFloorAt(x, y)) continue;
     const f = work.flags[i] as number;
-    if ((f & (CELL_FLAG.LINK | CELL_FLAG.STEPS | CELL_FLAG.BRIDGE | CELL_FLAG.WATER | CELL_FLAG.STAIRWELL)) !== 0)
+    if (
+      (f & (CELL_FLAG.LINK | CELL_FLAG.STEPS | CELL_FLAG.BRIDGE | CELL_FLAG.WATER | CELL_FLAG.STAIRWELL)) !==
+      0
+    )
       continue;
     if (work.hasWallAround(x, y)) continue;
     wanted.add(i);
@@ -261,7 +289,12 @@ export function stepOpeningRimDebris(work: LevelWork): void {
     for (const i of rim) {
       if (u(i, "on") < 0.75) drop(i);
       const [x, y] = work.cellXY(i);
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
         const j = work.idx(x + dx, y + dy);
         if (j >= 0 && !holes.has(j) && !rim.includes(j) && work.hasFloorAt(x + dx, y + dy)) back.add(j);
       }

@@ -49,7 +49,8 @@ function caveKeep(work: LevelWork, ring: number): Set<number> {
       });
       continue;
     }
-    if (op.op !== "platform" && op.op !== "outcrop" && op.op !== "floor_opening" && op.op !== "height") continue;
+    if (op.op !== "platform" && op.op !== "outcrop" && op.op !== "floor_opening" && op.op !== "height")
+      continue;
     forEachMaskCell(rasterizeShape(op.shape, { planSeed: work.plan.seed, clip }), (x, y) => {
       addRing(x, y, ring);
     });
@@ -148,7 +149,11 @@ export function stepCaveRelief(work: LevelWork): void {
     (i) =>
       work.height[i] === flat &&
       !keep.has(i) &&
-      !near(i, 2, (j) => ((work.flags[j] as number) & (CELL_FLAG.WATER | CELL_FLAG.BRIDGE)) !== 0 || bridgeArea(j)) &&
+      !near(
+        i,
+        2,
+        (j) => ((work.flags[j] as number) & (CELL_FLAG.WATER | CELL_FLAG.BRIDGE)) !== 0 || bridgeArea(j),
+      ) &&
       !near(i, 1, (j) => work.state[j] === CELL.OPEN && work.height[j] !== flat),
   );
   // low ground: the water; with none, the heart of the largest cave chamber

@@ -15,7 +15,15 @@ import { gableRoof, type RoofOwner } from "../../../src/resolve/roof";
 import { reviewDesign } from "../../../src/review";
 
 const palettes = loadPalettes();
-const SIZES: Array<[number, number]> = [[6, 5], [7, 6], [8, 6], [9, 7], [10, 7], [7, 7], [10, 8]];
+const SIZES: Array<[number, number]> = [
+  [6, 5],
+  [7, 6],
+  [8, 6],
+  [9, 7],
+  [10, 7],
+  [7, 7],
+  [10, 8],
+];
 
 function plan(seed: number, use: string | undefined, w: number, h: number, generator: 2 | 3 = 3): MapPlan {
   return {
@@ -41,7 +49,14 @@ function plan(seed: number, use: string | undefined, w: number, h: number, gener
         terrain: [],
         labels: [],
         structures: [
-          { id: "b", style: "cottage", seed, ...(use ? { use } : {}), wings: [{ x: 5, y: 5, w, h }], front: "S" },
+          {
+            id: "b",
+            style: "cottage",
+            seed,
+            ...(use ? { use } : {}),
+            wings: [{ x: 5, y: 5, w, h }],
+            front: "S",
+          },
         ],
       },
     ],
@@ -50,7 +65,14 @@ function plan(seed: number, use: string | undefined, w: number, h: number, gener
 const build = (p: MapPlan): ResolvedStructure =>
   ((resolvePlan(p).levels[0] as ResolvedLevel).structures ?? [])[0] as ResolvedStructure;
 
-const SAMPLE: Array<{ use: "cottage" | "inn"; seed: number; w: number; h: number; st: ResolvedStructure; p: MapPlan }> = [];
+const SAMPLE: Array<{
+  use: "cottage" | "inn";
+  seed: number;
+  w: number;
+  h: number;
+  st: ResolvedStructure;
+  p: MapPlan;
+}> = [];
 for (const use of ["cottage", "inn"] as const)
   for (let seed = 1; seed <= 40; seed++) {
     const [w, h] = SIZES[seed % SIZES.length] as [number, number];
@@ -74,7 +96,9 @@ describe("roof proportions (generator 3)", () => {
       expect(shares[0] as number).toBeGreaterThan(0.3);
       // two buildings of one style differ by seed
       expect(new Set(shares.map((x) => x.toFixed(2))).size).toBeGreaterThan(4);
-      expect(new Set(SAMPLE.filter((s) => s.use === use).map((s) => s.st.design?.archetype)).size).toBeGreaterThan(2);
+      expect(
+        new Set(SAMPLE.filter((s) => s.use === use).map((s) => s.st.design?.archetype)).size,
+      ).toBeGreaterThan(2);
     });
   }
 
@@ -103,7 +127,10 @@ describe("roof proportions (generator 3)", () => {
       if (!rp || rp.ridges.length < 2) continue;
       multi++;
       const [main, ...others] = rp.ridges as [number, ...number[]];
-      for (const r of others) expect(main - r, `${s.use} ${s.st.design?.archetype} ${rp.ridges.join(",")}`).toBeGreaterThanOrEqual(1 - 1e-9);
+      for (const r of others)
+        expect(main - r, `${s.use} ${s.st.design?.archetype} ${rp.ridges.join(",")}`).toBeGreaterThanOrEqual(
+          1 - 1e-9,
+        );
     }
     expect(multi).toBeGreaterThan(20);
   });
@@ -156,7 +183,11 @@ describe("valleys where roofs meet (generator 3)", () => {
   it("two gables meeting at right angles leave no cell open; the higher surface owns the overlap", () => {
     const main = { x: 0, y: 0, w: 9, h: 5, ridge: "ew" as const };
     const wing = { x: 0, y: 5, w: 5, h: 5, ridge: "ns" as const };
-    const mk = (id: string, w: { x: number; y: number; w: number; h: number; ridge: "ew" | "ns" }, base: number): RoofOwner => {
+    const mk = (
+      id: string,
+      w: { x: number; y: number; w: number; h: number; ridge: "ew" | "ns" },
+      base: number,
+    ): RoofOwner => {
       const g = gableRoof(w);
       const o = g.outline;
       return {
@@ -164,7 +195,9 @@ describe("valleys where roofs meet (generator 3)", () => {
         base,
         pieces: g.pieces,
         surface: (x, y) =>
-          x < o.x || y < o.y || x >= o.x + o.w || y >= o.y + o.h ? -1 : (g.rowCourse[w.ridge === "ew" ? y - o.y : x - o.x] ?? -1),
+          x < o.x || y < o.y || x >= o.x + o.w || y >= o.y + o.h
+            ? -1
+            : (g.rowCourse[w.ridge === "ew" ? y - o.y : x - o.x] ?? -1),
       };
     };
     const owners = [mk("main#0", main, 4), mk("wing#0", wing, 3)];
@@ -180,7 +213,9 @@ describe("valleys where roofs meet (generator 3)", () => {
       for (const p of ps)
         for (let y = p.y; y < p.y + p.h; y++)
           for (let x = p.x; x < p.x + p.w; x++)
-            expect(o.base + o.surface(x, y), `${id} ${x},${y}`).toBeGreaterThanOrEqual((high.get(`${x},${y}`) ?? 0) - 1e-9);
+            expect(o.base + o.surface(x, y), `${id} ${x},${y}`).toBeGreaterThanOrEqual(
+              (high.get(`${x},${y}`) ?? 0) - 1e-9,
+            );
     }
     expect((merged.get("wing#0") ?? []).length).toBeGreaterThan(0);
     expect((merged.get("main#0") ?? []).length).toBeGreaterThan(0);
@@ -193,7 +228,8 @@ describe("valleys where roofs meet (generator 3)", () => {
       if (vols.filter((v) => v.on === null && v.roof.layers.length > 0).length < 2) continue;
       const holes = new Set(s.st.chimneys.map((c) => `${c.at[0]},${c.at[1]}`));
       const { cover, high } = covered(roofOwners(vols, holes));
-      for (const k of high.keys()) expect(cover.get(k), `${s.st.design?.archetype} ${k}`).toBeGreaterThanOrEqual(1);
+      for (const k of high.keys())
+        expect(cover.get(k), `${s.st.design?.archetype} ${k}`).toBeGreaterThanOrEqual(1);
       checked++;
     }
     expect(checked).toBeGreaterThan(30);

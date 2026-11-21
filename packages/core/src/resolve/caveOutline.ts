@@ -110,7 +110,9 @@ export function raggedCaveOutline(
   const fine = new ValueNoise(subSeed(seed, "caveoutline:fine"));
   const m = (i: number): number => {
     const [x, y] = xy(i);
-    const n = noise.sample(x / CAVE_OUTLINE.scale, y / CAVE_OUTLINE.scale) * 0.75 + fine.sample(x / 1.4, y / 1.4) * 0.25;
+    const n =
+      noise.sample(x / CAVE_OUTLINE.scale, y / CAVE_OUTLINE.scale) * 0.75 +
+      fine.sample(x / 1.4, y / 1.4) * 0.25;
     return Math.max(-1, Math.min(1, (n - 0.5) * 3.6));
   };
 
@@ -118,7 +120,8 @@ export function raggedCaveOutline(
   const opened = new Set<number>();
   const closed = new Set<number>();
   const isOpen = (i: number): boolean => i >= 0 && (opened.has(i) || (grid.open(i) && !closed.has(i)));
-  const mine = (i: number): boolean => i >= 0 && (opened.has(i) || (grid.owner(i) === area && grid.open(i) && !closed.has(i)));
+  const mine = (i: number): boolean =>
+    i >= 0 && (opened.has(i) || (grid.owner(i) === area && grid.open(i) && !closed.has(i)));
   const otherFloorNear = (i: number, r: number): boolean => {
     const [x, y] = xy(i);
     for (let dy = -r; dy <= r; dy++)
@@ -136,7 +139,12 @@ export function raggedCaveOutline(
     return !otherFloorNear(i, CAVE_OUTLINE.areaGap);
   };
   const canClose = (i: number): boolean =>
-    i >= 0 && grid.owner(i) === area && grid.open(i) && !closed.has(i) && !grid.keep(i) && !otherFloorNear(i, 1);
+    i >= 0 &&
+    grid.owner(i) === area &&
+    grid.open(i) &&
+    !closed.has(i) &&
+    !grid.keep(i) &&
+    !otherFloorNear(i, 1);
   const n4 = (i: number): number[] => {
     const [x, y] = xy(i);
     return N4.map(([dx, dy]) => at(x + dx, y + dy));

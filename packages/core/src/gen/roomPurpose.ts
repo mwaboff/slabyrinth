@@ -40,7 +40,12 @@ export interface PurposeInfo {
   inNotes: boolean;
 }
 
-const use = (words: RegExp, stone: Material | null, timber: Material | null, abandoned = false): PurposeInfo => ({
+const use = (
+  words: RegExp,
+  stone: Material | null,
+  timber: Material | null,
+  abandoned = false,
+): PurposeInfo => ({
   words,
   abandoned,
   furnished: true,
@@ -69,7 +74,11 @@ export const ROOM_PURPOSE_INFO: Readonly<Record<RoomPurpose, PurposeInfo>> = {
     floor: "keep",
     inNotes: false,
   },
-  tavern: use(/^(taverns?|inns?|taprooms?|tap|taphouse|pubs?|alehouses?|saloons?|bar)$/, "stone_tile", "wood_plank"),
+  tavern: use(
+    /^(taverns?|inns?|taprooms?|tap|taphouse|pubs?|alehouses?|saloons?|bar)$/,
+    "stone_tile",
+    "wood_plank",
+  ),
   throne_room: use(/^(throne|thrones|audience|court|courtroom)$/, "marble", "wood_plank"),
   dining: use(/^(halls?|refectory|dining|mess|banquet|feast|feasting|canteen)$/, "stone_tile", "wood_plank"),
   kitchen: use(/^(kitchens?|scullery|galley|bakery|cookhouse|cookroom)$/, "stone_tile", "stone_tile"),
@@ -118,7 +127,11 @@ export const ROOM_PURPOSE_INFO: Readonly<Record<RoomPurpose, PurposeInfo>> = {
     null,
     null,
   ),
-  treasury: use(/^(treasur(y|e|ies)|vaults?|strongroom|hoard|bank|bullion|coffers)$/, "stone_tile", "wood_plank"),
+  treasury: use(
+    /^(treasur(y|e|ies)|vaults?|strongroom|hoard|bank|bullion|coffers)$/,
+    "stone_tile",
+    "wood_plank",
+  ),
   washroom: use(
     /^(baths?|bathhouse|bathroom|wash|washroom|latrines?|privy|privies|laundry|lavatory|washhouse|garderobe|sauna)$/,
     null,
@@ -133,7 +146,8 @@ const NEGLECT = /^(abandoned|derelict|disused|forgotten|looted|deserted|ransacke
 /** Words of wreckage: the room is a ruin whatever it was for (a ruined chapel is rubble, nothing to furnish). */
 const WRECKED = /^(ruined|collapsed|wrecked|caved)$/;
 /** Words that end the head phrase of a name ("Shrine | of the Hearth", "Guard room | by the cells"). */
-const LINKING = /^(of|for|with|by|near|under|beneath|below|beside|behind|above|over|in|on|at|to|from|off|past|and)$/;
+const LINKING =
+  /^(of|for|with|by|near|under|beneath|below|beside|behind|above|over|in|on|at|to|from|off|past|and)$/;
 
 function purposeOfWord(w: string): RoomPurpose | undefined {
   for (const p of PURPOSE_ORDER) if (ROOM_PURPOSE_INFO[p].words.test(w)) return p;
@@ -143,7 +157,12 @@ function purposeOfWord(w: string): RoomPurpose | undefined {
 const wordsOf = (text: string): string[] => text.toLowerCase().match(/[a-z]+/g) ?? [];
 
 /** A name or tag: the last purpose word of the head phrase, else the first one after it; plus any other purpose named. */
-function readPhrase(text: string): { head?: RoomPurpose; named: RoomPurpose[]; neglect: boolean; wrecked: boolean } {
+function readPhrase(text: string): {
+  head?: RoomPurpose;
+  named: RoomPurpose[];
+  neglect: boolean;
+  wrecked: boolean;
+} {
   const words = wordsOf(text);
   const cut = words.findIndex((w) => LINKING.test(w));
   const headWords = cut < 0 ? words : words.slice(0, cut);

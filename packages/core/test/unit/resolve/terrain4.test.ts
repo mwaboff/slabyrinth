@@ -143,7 +143,8 @@ describe("floor families (generator 3)", () => {
     const raised = (p: MapPlan): Array<[number, number]> => {
       const l = resolvePlan(p).levels[0];
       const out: Array<[number, number]> = [];
-      for (let i = 0; i < 46 * 34; i++) if ((l?.cells.height[i] ?? 0) > 0) out.push([i % 46, Math.floor(i / 46)]);
+      for (let i = 0; i < 46 * 34; i++)
+        if ((l?.cells.height[i] ?? 0) > 0) out.push([i % 46, Math.floor(i / 46)]);
       return out;
     };
     const mat = (p: MapPlan, x: number, y: number): string | undefined => {
@@ -152,7 +153,9 @@ describe("floor families (generator 3)", () => {
     };
     const wild3 = cave(3, { terrain: [dais({})] });
     const wild2 = cave(2, { terrain: [dais({})] });
-    const worked = cave(3, { terrain: [dais({ material: "stone_tile", topMaterial: "marble", edge: "clean" })] });
+    const worked = cave(3, {
+      terrain: [dais({ material: "stone_tile", topMaterial: "marble", edge: "clean" })],
+    });
     const biggest = (p: MapPlan): number => {
       const parts = components(raised(p)).sort((a, b) => b.length - a.length);
       return parts[0] ? boxFill(parts[0]) : 0;
@@ -202,7 +205,10 @@ describe("a gentle knoll is one mound (generator 3)", () => {
 });
 
 describe("rifts and rivers wander (generator 3)", () => {
-  const rift = (generator: GeneratorVersion, extra: Partial<Extract<TerrainOp, { op: "chasm" }>> = {}): MapPlan =>
+  const rift = (
+    generator: GeneratorVersion,
+    extra: Partial<Extract<TerrainOp, { op: "chasm" }>> = {},
+  ): MapPlan =>
     cave(generator, {
       terrain: [
         {
@@ -284,7 +290,11 @@ describe("rifts and rivers wander (generator 3)", () => {
 
 describe("stepped rivers (generator 3)", () => {
   /** A hillside of three terraces falling to the south with a brook coming down it. */
-  const glen = (generator: GeneratorVersion, riseTiles = 2, brook: Partial<Extract<TerrainOp, { op: "chasm" }>> = {}): MapPlan => {
+  const glen = (
+    generator: GeneratorVersion,
+    riseTiles = 2,
+    brook: Partial<Extract<TerrainOp, { op: "chasm" }>> = {},
+  ): MapPlan => {
     const slope = (id: string, h: number): TerrainOp => ({
       id,
       op: "platform",
@@ -329,7 +339,8 @@ describe("stepped rivers (generator 3)", () => {
     const l = r.levels[0];
     const out: number[] = [];
     for (let i = 0; i < 36 * 32; i++)
-      if (l && l.cells.state[i] === CELL.OPEN && ((l.cells.flags[i] ?? 0) & CELL_FLAG.WATER) !== 0) out.push(i);
+      if (l && l.cells.state[i] === CELL.OPEN && ((l.cells.flags[i] ?? 0) & CELL_FLAG.WATER) !== 0)
+        out.push(i);
     return out;
   };
 
@@ -396,7 +407,9 @@ describe("stepped rivers (generator 3)", () => {
   });
 
   it("a crossing bridge still spans the lowest reach", () => {
-    const r = resolvePlan(glen(3, 2, { bridges: [{ at: 0.9, width: 2, floor: "bridge_wood", span: "plank" }] }));
+    const r = resolvePlan(
+      glen(3, 2, { bridges: [{ at: 0.9, width: 2, floor: "bridge_wood", span: "plank" }] }),
+    );
     expect(r.levels[0]?.bridges?.length).toBe(1);
     expect(r.issues.filter((i) => i.severity === "error")).toEqual([]);
   });

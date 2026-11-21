@@ -45,7 +45,11 @@ export interface StallParts {
  * is applied HERE, not inside the probe: a filtered lookup that finds nothing in the theme's role would go on to the
  * generic theme's definition of it and hand a city stall a gable cloth the city palette never listed (it lists flat only).
  */
-function part(probe: RoleProbe, roles: readonly string[], filter: VariantFilter | undefined): RoleResolution | null {
+function part(
+  probe: RoleProbe,
+  roles: readonly string[],
+  filter: VariantFilter | undefined,
+): RoleResolution | null {
   const r = probe(roles);
   if (!r) return null;
   const variants = filter ? r.variants.filter(filter.test) : r.variants;
@@ -53,7 +57,10 @@ function part(probe: RoleProbe, roles: readonly string[], filter: VariantFilter 
 }
 
 /** The parts of a stall of `form`, or the name of the first part the palette lacks. */
-export function stallParts(probe: RoleProbe, form: StallForm): StallParts | { missing: "base" | "counter" | "post" | "canopy" } {
+export function stallParts(
+  probe: RoleProbe,
+  form: StallForm,
+): StallParts | { missing: "base" | "counter" | "post" | "canopy" } {
   const base = part(probe, STALL_PART_SPECS.base.roles, STALL_PART_SPECS.base.filter);
   if (!base) return { missing: "base" };
   const counter = part(probe, STALL_PART_SPECS.counter.roles, STALL_PART_SPECS.counter.filter);

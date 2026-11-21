@@ -20,12 +20,16 @@ export function planSolidShell(w: LevelWork): void {
   const carvedLevel = !L.structures?.length && L.cells.state.some((s) => s === CELL.SOLID);
   // ... and only a rough interior gets broken wall tops (a kept-up timber inn keeps clean walls)
   w.roughMap = gen.interiorWallTops && carvedLevel ? roughCells(L) : null;
-  let shell = gen.solidShell && carvedLevel
-    ? planShell(resolved, L, seed, (o, e) => claimed.edges.has(`${o}${e}`), defaultTheme)
-    : null;
+  let shell =
+    gen.solidShell && carvedLevel
+      ? planShell(resolved, L, seed, (o, e) => claimed.edges.has(`${o}${e}`), defaultTheme)
+      : null;
   const capRes = shell ? lookup(L.id, shell.theme, ["cap.solid"], undefined, true) : null;
-  const capVariants = (capRes?.variants ?? []).filter((v) => v.weight > 0 && v.footprint[0] === v.footprint[1]);
-  if (shell && capVariants.length === 0) shell = shell.strips.length > 0 ? { ...shell, cells: new Map(), edges: [] } : null;
+  const capVariants = (capRes?.variants ?? []).filter(
+    (v) => v.weight > 0 && v.footprint[0] === v.footprint[1],
+  );
+  if (shell && capVariants.length === 0)
+    shell = shell.strips.length > 0 ? { ...shell, cells: new Map(), edges: [] } : null;
   const capThick = capVariants.length > 0 ? Math.min(...capVariants.map((v) => v.geom.size.y)) : 0.5;
   w.shell = shell;
   w.capRes = capRes;
@@ -78,7 +82,8 @@ export function layShellCap(w: LevelWork): void {
         for (let dy = 0; fits && dy < s; dy++)
           for (let dx = 0; fits && dx < s; dx++) {
             const cc = shell.cells.get(`${c.x + dx},${c.y + dy}`);
-            if (!cc || capUsed.has(`${c.x + dx},${c.y + dy}`) || cc.theme !== c.theme || cc.top !== c.top) fits = false;
+            if (!cc || capUsed.has(`${c.x + dx},${c.y + dy}`) || cc.theme !== c.theme || cc.top !== c.top)
+              fits = false;
           }
         if (!fits) continue;
         const v = pick(
@@ -108,7 +113,12 @@ export function layShellCap(w: LevelWork): void {
         { key: "strip1x1", test: (v) => v.footprint[0] === 1 && v.footprint[1] === 1 },
         true,
       );
-      const sv = sr ? pick(sr.variants.filter((v) => v.weight > 0), `${L.id}:strip:${s.x}:${s.y}`) : undefined;
+      const sv = sr
+        ? pick(
+            sr.variants.filter((v) => v.weight > 0),
+            `${L.id}:strip:${s.x}:${s.y}`,
+          )
+        : undefined;
       if (!sv) continue;
       const m = frame.rectMin(s.x, s.y, 1, 1);
       emit(sv, "fill", m.x, s.top - sv.geom.size.y, m.z, sv.rot, { cell: [s.x, s.y], elementId: "shell" });

@@ -236,7 +236,8 @@ export function massMeasures(input: MassInput): MassMeasures {
 
   // ── tone groups ──
   const famCount = new Map<string, number>();
-  for (const p of input.pieces) famCount.set(toneGroup(p.family), (famCount.get(toneGroup(p.family)) ?? 0) + 1);
+  for (const p of input.pieces)
+    famCount.set(toneGroup(p.family), (famCount.get(toneGroup(p.family)) ?? 0) + 1);
   const total = input.pieces.length;
   const families = [...famCount]
     .filter(([, n]) => n / Math.max(1, total) >= T.minFamilyShare)
@@ -398,9 +399,17 @@ export function massPiecesOf(
       // (compile/geometry.ts placementBox); turning it about its corner would put it on the neighbouring cell
       if (role === "column" && generatorProfile(resolved).solidCaveRock && g.geom.originAt === "minCorner") {
         const box = placementBox(g.geom, p.x, p.y, p.z, cw);
-        const corner = (wx: number, wz: number): readonly [number, number] => [wx, orientation.flipZ ? hg - wz : wz];
+        const corner = (wx: number, wz: number): readonly [number, number] => [
+          wx,
+          orientation.flipZ ? hg - wz : wz,
+        ];
         out.push({
-          poly: [corner(box.min.x, box.min.z), corner(box.max.x, box.min.z), corner(box.max.x, box.max.z), corner(box.min.x, box.max.z)],
+          poly: [
+            corner(box.min.x, box.min.z),
+            corner(box.max.x, box.min.z),
+            corner(box.max.x, box.max.z),
+            corner(box.min.x, box.max.z),
+          ],
           base: box.min.y,
           top: box.max.y,
           asset: p.asset,
@@ -495,7 +504,8 @@ export function caveMassReviewNotes(
 ): DesignNote[] {
   if (
     !build.given &&
-    (!generatorProfile(plan).naturalCaveReview || !resolved.levels.some((L) => hasNaturalWallStyle(L.wallStyles)))
+    (!generatorProfile(plan).naturalCaveReview ||
+      !resolved.levels.some((L) => hasNaturalWallStyle(L.wallStyles)))
   )
     return [];
   return caveMassNotes(plan, resolved, build.get(), palettes);

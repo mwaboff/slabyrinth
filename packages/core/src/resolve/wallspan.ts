@@ -26,7 +26,8 @@ export interface SpanCell {
 export function spanCellOf(L: ResolvedLevel): (lx: number, ly: number) => SpanCell {
   const { w, h } = L.bounds;
   return (lx, ly) => {
-    if (lx < 0 || ly < 0 || lx >= w || ly >= h) return { open: false, floor: false, height: 0, area: 0, flags: 0 };
+    if (lx < 0 || ly < 0 || lx >= w || ly >= h)
+      return { open: false, floor: false, height: 0, area: 0, flags: 0 };
     const i = ly * w + lx;
     const flags = L.cells.flags[i] ?? 0;
     const open = L.cells.state[i] === CELL.OPEN;

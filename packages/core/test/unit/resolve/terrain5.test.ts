@@ -12,9 +12,7 @@ import { resolvePlan } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
 
 const load = (name: string): MapPlan =>
-  JSON.parse(
-    readFileSync(new URL(`../../fixtures/plans/${name}`, import.meta.url), "utf8"),
-  ) as MapPlan;
+  JSON.parse(readFileSync(new URL(`../../fixtures/plans/${name}`, import.meta.url), "utf8")) as MapPlan;
 
 const rift = (generator: 2 | 3): MapPlan => ({ ...load("heartroot-rift-v7.json"), generator });
 const cat = loadPalettes();
@@ -50,7 +48,8 @@ describe("bridges cross the channel (generator 3)", () => {
     for (let j = 2; j < c0.length - 2; j++) {
       const u = must(c0[j - 2]);
       const v = must(c0[j + 2]);
-      const align = Math.max(Math.abs(v[0] - u[0]), Math.abs(v[1] - u[1])) / (Math.hypot(v[0] - u[0], v[1] - u[1]) || 1);
+      const align =
+        Math.max(Math.abs(v[0] - u[0]), Math.abs(v[1] - u[1])) / (Math.hypot(v[0] - u[0], v[1] - u[1]) || 1);
       if (align > bestAlign) {
         bestAlign = align;
         k = j;
@@ -77,7 +76,9 @@ describe("a passage that reaches the board edge is an exit (generator 3)", () =>
     const set = realize(r, cat);
     const outside = must(set.levels[0]).placements.filter((q) => q.role === "wall" && q.x < -0.01);
     expect(outside).toEqual([]);
-    const gaps = verifyBuild(r, set, cat, { plan: p }).diagnostics.filter((d) => d.code === "verify_wall_gap");
+    const gaps = verifyBuild(r, set, cat, { plan: p }).diagnostics.filter(
+      (d) => d.code === "verify_wall_gap",
+    );
     expect(gaps).toEqual([]);
   });
 
@@ -111,7 +112,8 @@ describe("floors vary orientation (generator 3)", () => {
     const set = realize(resolvePlan(p), cat);
     const rots = new Set<number>();
     for (const q of must(set.levels[0]).placements)
-      if (q.role === "floor" && /Cave Floor - Rock 04/.test(placementMeta.get(q)?.name ?? "")) rots.add(q.rot);
+      if (q.role === "floor" && /Cave Floor - Rock 04/.test(placementMeta.get(q)?.name ?? ""))
+        rots.add(q.rot);
     expect([...rots].some((x) => x === 90 || x === 270)).toBe(true);
     expect([...rots].some((x) => x === 0 || x === 180)).toBe(true);
   });

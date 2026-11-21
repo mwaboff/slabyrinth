@@ -46,9 +46,21 @@ describe("wall style traits", () => {
 
   it("stone, brick and dark stone can stand uneven like the plain and the ruined wall", () => {
     expect(sorted(having("uneven"))).toEqual(sorted(["wall", "ruined", "stone", "brick", "dark_stone"]));
-    for (const s of ["wall", "ruined", "stone", "brick", "dark_stone"]) expect(isUnevenWallStyle(s), s).toBe(true);
+    for (const s of ["wall", "ruined", "stone", "brick", "dark_stone"])
+      expect(isUnevenWallStyle(s), s).toBe(true);
     // dressed, kept-up and open styles stay clean
-    for (const s of ["marble", "plaster", "wood", "timber", "concrete", "metal", "panel", "iron_bars", "palisade", "hedge"])
+    for (const s of [
+      "marble",
+      "plaster",
+      "wood",
+      "timber",
+      "concrete",
+      "metal",
+      "panel",
+      "iron_bars",
+      "palisade",
+      "hedge",
+    ])
       expect(isUnevenWallStyle(s), s).toBe(false);
     // a style that is not set is the theme's plain wall
     expect(isUnevenWallStyle(undefined)).toBe(true);
@@ -56,7 +68,8 @@ describe("wall style traits", () => {
 
   it("natural rock is never also uneven or low (the cave work owns it)", () => {
     for (const s of WALL_STYLES)
-      if (WALL_STYLE_INFO[s].natural) expect(WALL_STYLE_INFO[s].uneven || WALL_STYLE_INFO[s].low, s).toBe(false);
+      if (WALL_STYLE_INFO[s].natural)
+        expect(WALL_STYLE_INFO[s].uneven || WALL_STYLE_INFO[s].low, s).toBe(false);
   });
 
   it("names no theme and knows nothing about a name that is not a style", () => {
@@ -94,7 +107,9 @@ describe("generator 4 vocabulary on an earlier generator", () => {
     return plan;
   };
   const noEffect = (plan: MapPlan): string[] =>
-    validatePlan(plan).issues.filter((i) => i.code === "no_effect").map((i) => `${i.severity} ${i.path ?? ""}`);
+    validatePlan(plan)
+      .issues.filter((i) => i.code === "no_effect")
+      .map((i) => `${i.severity} ${i.path ?? ""}`);
 
   it("warns on clutter, shelf_line and roomDress below generator 4", () => {
     expect(noEffect(withFeature(3, "clutter"))).toHaveLength(1);

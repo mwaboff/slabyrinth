@@ -52,7 +52,7 @@ describe("shared mass: depth, foot, ownership", () => {
     expect(depth[4 * 9 + 4]).toBe(4);
     expect(nearest[4 * 9 + 4]).toBe(4);
     // floor beside the wall steps down at x = 5: the rock behind it follows the lowest neighbour
-    const own = (i: number): number => ((i % 9) < 5 ? 1 : 0.5);
+    const own = (i: number): number => (i % 9 < 5 ? 1 : 0.5);
     const foot = massFoot(g, depth, own);
     expect(foot[9 + 6]).toBe(0.5);
     expect(foot[2 * 9 + 5]).toBe(0.5);
@@ -88,7 +88,12 @@ describe("shared mass: depth, foot, ownership", () => {
     set.delete(idx(5, 2)); // a notch in the wall line
     trimTeeth(s, set, (_i, r) => r > 1);
     expect(set.has(idx(3, 1))).toBe(false);
-    fillNotches(s, set, () => true, () => 2);
+    fillNotches(
+      s,
+      set,
+      () => true,
+      () => 2,
+    );
     expect(set.get(idx(5, 2))).toBe(2);
     set.set(idx(7, 5), 2); // an isolated lump
     dropLumps(s, set, (_i, r) => r === 1, 3);
@@ -134,7 +139,9 @@ describe("link cells", () => {
       elevation,
       bounds: { x: 0, y: 0, w: 44, h: 24 },
       base: { type: "solid" },
-      areas: [{ id: `${id}-hall`, kind: "cave", name: "Hall", shape: { type: "rect", x: 4, y: 4, w: 36, h: 14 } }],
+      areas: [
+        { id: `${id}-hall`, kind: "cave", name: "Hall", shape: { type: "rect", x: 4, y: 4, w: 36, h: 14 } },
+      ],
       openings: [],
       walls: [],
       labels: [],
@@ -166,7 +173,9 @@ describe("link cells", () => {
       const cells = linkCellsOnLevel(p, L.id);
       expect(cells.length).toBeGreaterThan(0);
       for (const [x, y] of cells)
-        expect(L.cells.state[(y - L.bounds.y) * L.bounds.w + (x - L.bounds.x)], `${L.id} ${x},${y}`).toBe(CELL.OPEN);
+        expect(L.cells.state[(y - L.bounds.y) * L.bounds.w + (x - L.bounds.x)], `${L.id} ${x},${y}`).toBe(
+          CELL.OPEN,
+        );
     }
   });
 });
@@ -191,7 +200,13 @@ describe("a level of rooms and a cave (generator 4)", () => {
           base: { type: "solid" },
           areas: [
             { id: "hall", kind: "room", name: "Hall", shape: { type: "rect", x: 5, y: 6, w: 12, h: 12 } },
-            { id: "grotto", kind: "cave", name: "Grotto", theme: "cave", shape: { type: "rect", x: 32, y: 5, w: 18, h: 14 } },
+            {
+              id: "grotto",
+              kind: "cave",
+              name: "Grotto",
+              theme: "cave",
+              shape: { type: "rect", x: 32, y: 5, w: 18, h: 14 },
+            },
           ],
           openings: [],
           walls: [],
@@ -241,7 +256,12 @@ describe("cave outline: local connectivity test", () => {
           const c = st.pop() as number;
           const x = c % N;
           const y = (c - x) / N;
-          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          for (const [dx, dy] of [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ] as const) {
             const nx = x + dx;
             const ny = y + dy;
             if (nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
@@ -291,7 +311,11 @@ describe("cave outline: local connectivity test", () => {
     area(4, 70, 30, 20, 4);
     area(5, 30, 70, 4, 20);
     const t0 = performance.now();
-    for (const [k, cells] of [[1, a], [2, b], [3, c]] as const) {
+    for (const [k, cells] of [
+      [1, a],
+      [2, b],
+      [3, c],
+    ] as const) {
       const r = raggedCaveOutline(
         {
           w: W,
@@ -367,28 +391,36 @@ describe("one build per review run", () => {
 
   const realized = (): number => vi.mocked(realizeModule.realize).mock.calls.length;
 
-  it("a generator 4 review whose cave and roof notes both need the pieces builds them once", { timeout: 60000 }, () => {
-    const p = plan(4);
-    const r = resolvePlan(p);
-    const before = realized();
-    reviewDesign(p, r, { palettes, limit: 99 });
-    expect(realized() - before).toBe(1);
-  });
+  it(
+    "a generator 4 review whose cave and roof notes both need the pieces builds them once",
+    { timeout: 60000 },
+    () => {
+      const p = plan(4);
+      const r = resolvePlan(p);
+      const before = realized();
+      reviewDesign(p, r, { palettes, limit: 99 });
+      expect(realized() - before).toBe(1);
+    },
+  );
 
-  it("a review that is given the build, or has nothing to measure, builds nothing", { timeout: 60000 }, () => {
-    const p = plan(4);
-    const r = resolvePlan(p);
-    const set = realizeModule.realize(r, palettes, {});
-    const before = realized();
-    reviewDesign(p, r, { palettes, limit: 99, placements: set });
-    expect(realized() - before).toBe(0);
-    // generator 3 keeps its released behaviour: no build, no mass or roof notes
-    const p3 = plan(3);
-    const r3 = resolvePlan(p3);
-    const b3 = realized();
-    reviewDesign(p3, r3, { palettes, limit: 99 });
-    expect(realized() - b3).toBe(0);
-  });
+  it(
+    "a review that is given the build, or has nothing to measure, builds nothing",
+    { timeout: 60000 },
+    () => {
+      const p = plan(4);
+      const r = resolvePlan(p);
+      const set = realizeModule.realize(r, palettes, {});
+      const before = realized();
+      reviewDesign(p, r, { palettes, limit: 99, placements: set });
+      expect(realized() - before).toBe(0);
+      // generator 3 keeps its released behaviour: no build, no mass or roof notes
+      const p3 = plan(3);
+      const r3 = resolvePlan(p3);
+      const b3 = realized();
+      reviewDesign(p3, r3, { palettes, limit: 99 });
+      expect(realized() - b3).toBe(0);
+    },
+  );
 
   it("the build object builds on the first ask only", { timeout: 60000 }, () => {
     const r = resolvePlan(plan(4));

@@ -42,7 +42,7 @@ const SPUR_FOCAL = new Set<string>([
  */
 export function stepPavementFronts(work: LevelWork): void {
   if (!work.gen.roads || !work.structs) return;
-  type Road =(typeof work.pendingRoads)[number];
+  type Road = (typeof work.pendingRoads)[number];
   const owner = new Map<number, Road>();
   for (const r of work.pendingRoads) for (const p of r.pave) owner.set(p.i, r);
   if (owner.size === 0) return;
@@ -351,10 +351,7 @@ export function stepPathSpurs(work: LevelWork): void {
   if (!work.gen.naturalPaths) return;
   const trails = work.level.terrain.filter(
     (t): t is Extract<TerrainOp, { op: "path" }> =>
-      t.op === "path" &&
-      !WATER_MATS.has(t.material) &&
-      t.sidewalk === undefined &&
-      t.crossings === undefined,
+      t.op === "path" && !WATER_MATS.has(t.material) && t.sidewalk === undefined && t.crossings === undefined,
   );
   if (trails.length === 0) return;
   const material = (trails[0] as Extract<TerrainOp, { op: "path" }>).material;

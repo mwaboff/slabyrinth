@@ -70,10 +70,15 @@ function wallOn(L: ResolvedLevel, x: number, y: number, side: "N" | "E" | "S" | 
 
 /** A resolved area's classification as the resolver wrote it (generator 4). */
 export const resolvedRoomClass = (a: ResolvedArea): RoomClass =>
-  a.purpose === undefined ? { abandoned: a.abandoned === true } : { purpose: a.purpose, abandoned: a.abandoned === true };
+  a.purpose === undefined
+    ? { abandoned: a.abandoned === true }
+    : { purpose: a.purpose, abandoned: a.abandoned === true };
 
 /** Per-room measures of one level (areas of kind room with floor). */
-export function roomStats(L: ResolvedLevel, classOf: (a: ResolvedArea) => RoomClass = resolvedRoomClass): RoomStat[] {
+export function roomStats(
+  L: ResolvedLevel,
+  classOf: (a: ResolvedArea) => RoomClass = resolvedRoomClass,
+): RoomStat[] {
   const T = REVIEW.interiors;
   const W = L.bounds.w;
   const out: RoomStat[] = [];
@@ -90,7 +95,12 @@ export function roomStats(L: ResolvedLevel, classOf: (a: ResolvedArea) => RoomCl
     const own = new Set(cells.map(([x, y]) => `${x},${y}`));
     // furniture: blocking pieces that are not mounted on a wall; "near a wall" = a wall within one cell of any of its cells
     const near = (x: number, y: number): boolean => {
-      for (const [dx, dy, s] of [[0, -1, "N"], [1, 0, "E"], [0, 1, "S"], [-1, 0, "W"]] as const)
+      for (const [dx, dy, s] of [
+        [0, -1, "N"],
+        [1, 0, "E"],
+        [0, 1, "S"],
+        [-1, 0, "W"],
+      ] as const)
         for (let k = 0; k < 2; k++) {
           const cx = x + dx * k;
           const cy = y + dy * k;
@@ -114,7 +124,9 @@ export function roomStats(L: ResolvedLevel, classOf: (a: ResolvedArea) => RoomCl
     const counts = new Map<string, number>();
     for (const f of mine) counts.set(f.type, (counts.get(f.type) ?? 0) + 1);
     const first = cells[0] as [number, number];
-    const mat = L.materials[(L.cells.material[(first[1] - L.bounds.y) * W + (first[0] - L.bounds.x)] as number) - 1] ?? "";
+    const mat =
+      L.materials[(L.cells.material[(first[1] - L.bounds.y) * W + (first[0] - L.bounds.x)] as number) - 1] ??
+      "";
     const sizeClass = T.sizeClasses.findIndex((m) => cells.length <= m);
     const cls = classOf(a);
     out.push({
@@ -130,9 +142,13 @@ export function roomStats(L: ResolvedLevel, classOf: (a: ResolvedArea) => RoomCl
       // named as a passage, or long and thin (a landing, a gallery): circulation, not a room to furnish
       passage:
         cls.purpose === "passage" ||
-        (Math.min(a.bbox.w, a.bbox.h) <= 4 && Math.max(a.bbox.w, a.bbox.h) >= 2.5 * Math.min(a.bbox.w, a.bbox.h)),
+        (Math.min(a.bbox.w, a.bbox.h) <= 4 &&
+          Math.max(a.bbox.w, a.bbox.h) >= 2.5 * Math.min(a.bbox.w, a.bbox.h)),
       sizeClass: sizeClass < 0 ? T.sizeClasses.length : sizeClass,
-      signature: `${mat}|${[...counts.entries()].sort((p, q) => (p[0] < q[0] ? -1 : 1)).map(([k, v]) => `${k}${v}`).join(",")}`,
+      signature: `${mat}|${[...counts.entries()]
+        .sort((p, q) => (p[0] < q[0] ? -1 : 1))
+        .map(([k, v]) => `${k}${v}`)
+        .join(",")}`,
       cell: first,
     });
   });
@@ -153,7 +169,9 @@ export function interiorNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote
   const gen = generatorProfile(plan);
   // a generator that resolves no classification: read the plan's area with the same classifier the resolver uses
   const planClass = (levelId: string) => {
-    const byId = new Map<string, Area>((plan.levels.find((l) => l.id === levelId)?.areas ?? []).map((a) => [a.id, a]));
+    const byId = new Map<string, Area>(
+      (plan.levels.find((l) => l.id === levelId)?.areas ?? []).map((a) => [a.id, a]),
+    );
     return (a: ResolvedArea): RoomClass => classifyRoom(byId.get(a.id) ?? a);
   };
   const rooms = resolved.levels.flatMap((L) =>
@@ -181,8 +199,11 @@ export function interiorNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote
 
   // alike: copies of one room (same size class, floor and furniture)
   const groups = new Map<string, RoomStat[]>();
-  for (const r of rooms) groups.set(`${r.sizeClass}|${r.signature}`, [...(groups.get(`${r.sizeClass}|${r.signature}`) ?? []), r]);
-  const alike = [...groups.values()].filter((g) => g.length >= T.alike).sort((p, q) => q.length - p.length)[0];
+  for (const r of rooms)
+    groups.set(`${r.sizeClass}|${r.signature}`, [...(groups.get(`${r.sizeClass}|${r.signature}`) ?? []), r]);
+  const alike = [...groups.values()]
+    .filter((g) => g.length >= T.alike)
+    .sort((p, q) => q.length - p.length)[0];
   if (alike)
     out.push({
       code: "rooms_alike",

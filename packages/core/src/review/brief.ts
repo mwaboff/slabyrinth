@@ -132,10 +132,14 @@ export const BRIEF_WORDS: ReadonlyArray<{ words: readonly string[]; measure: Mea
   {
     words: ["overgrown", "ivy", "reclaimed", "abandoned", "vines", "vine"],
     measure: (_p, r) => {
-      const worn = r.levels.flatMap((L) => L.structures ?? []).filter((s) => s.condition && s.condition !== "intact");
+      const worn = r.levels
+        .flatMap((L) => L.structures ?? [])
+        .filter((s) => s.condition && s.condition !== "intact");
       if (worn.length === 0)
         return "the brief says overgrown, ivy-covered, reclaimed or abandoned but no building is weathered or ruined, so nothing is overgrown";
-      return worn.some((s) => s.growthLevel === "heavy" && growthMeasures(s).coverage >= GROWTH_LEVELS.heavy.min)
+      return worn.some(
+        (s) => s.growthLevel === "heavy" && growthMeasures(s).coverage >= GROWTH_LEVELS.heavy.min,
+      )
         ? null
         : "the brief says overgrown, ivy-covered, reclaimed or abandoned but no building has heavy growth: vines and creepers on a third or more of its walls";
     },

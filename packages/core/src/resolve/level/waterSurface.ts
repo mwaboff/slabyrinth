@@ -52,12 +52,7 @@ export function waterSurface(work: LevelWork, report = true): number | null {
     if (!work.isFloor(i) || (work.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.BRIDGE)) continue;
     if (top(i) < surface) {
       // generator 3: a trail cell on a channel's bed beside water is a ford; it is meant to be wet
-      if (
-        checks &&
-        ((work.flags[i] as number) & CELL_FLAG.PATH) !== 0 &&
-        nearWater(work, i, 2)
-      )
-        continue;
+      if (checks && ((work.flags[i] as number) & CELL_FLAG.PATH) !== 0 && nearWater(work, i, 2)) continue;
       lowCount++;
       low ??= i;
     }
@@ -68,7 +63,11 @@ export function waterSurface(work: LevelWork, report = true): number | null {
     let dry = 0;
     let first: number | null = null;
     for (const i of work.upperReach) {
-      if (work.isFloor(i) && ((work.flags[i] as number) & CELL_FLAG.WATER) !== 0 && top(i) >= surface + 0.25 - 1e-6) {
+      if (
+        work.isFloor(i) &&
+        ((work.flags[i] as number) & CELL_FLAG.WATER) !== 0 &&
+        top(i) >= surface + 0.25 - 1e-6
+      ) {
         dry++;
         first ??= i;
       }

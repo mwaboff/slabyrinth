@@ -657,11 +657,7 @@ export function expandDesign(
  *    top storey is lowered, and when it cannot go lower the main walls rise by half a tile (at most a tile).
  * The heights are those of the resolver (footing course, floor thickness, deck), the roof rise the roof module's own.
  */
-function balanceRoofs(
-  volumes: Volume[],
-  d: BuildingDesign,
-  opts: { footing: number; deck: boolean },
-): void {
+function balanceRoofs(volumes: Volume[], d: BuildingDesign, opts: { footing: number; deck: boolean }): void {
   const FLOOR = 0.5;
   const list = (v: Volume): Storey[] => (Array.isArray(v.storeys) ? v.storeys : []);
   const wallOf = (v: Volume): number => {
