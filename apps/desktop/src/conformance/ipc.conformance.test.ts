@@ -161,6 +161,24 @@ const SEALED: MapPlan = {
   levels: FIXTURE_PLAN.levels.map((l) => ({ ...l, areas: l.areas.filter((a) => a.id !== "c1") })),
 };
 
+/**
+ * Two unkeyed rooms joined to each other but not to the entrance: their only findings are `unreachable` WARNINGS,
+ * which the approve gate blocks at any severity (the renderer's approve popover asks the same gate).
+ */
+const UNREACHABLE_WARNING: MapPlan = {
+  ...FIXTURE_PLAN,
+  levels: FIXTURE_PLAN.levels.map((l) => ({
+    ...l,
+    areas: [
+      ...l.areas
+        .filter((a) => a.id !== "c1")
+        .map((a) => (a.id === "tomb" ? { id: a.id, kind: a.kind, name: "Tomb", shape: a.shape } : a)),
+      { id: "vault", kind: "room", name: "Vault", shape: { type: "rect", x: 11, y: 11, w: 7, h: 3 } },
+    ],
+    openings: [{ id: "dv", kind: "door", between: ["tomb", "vault"] }],
+  })),
+};
+
 describe("IPC conformance: main and the fake bridge answer alike", () => {
   it("plan:applyOps: a structural error refuses the edit; a playability finding does not", async () => {
     const [m, f] = await onBoth(async (h) => {
@@ -223,6 +241,20 @@ describe("IPC conformance: main and the fake bridge answer alike", () => {
     });
     expect(m2).toEqual(f2);
     expect(m2).toMatchObject({ approved: true, approvedVersion: 1, phase: "build" });
+  });
+
+  it("plan:approve: an unreachable warning alone blocks approval", async () => {
+    const [m, f] = await onBoth(async (h) => {
+      const r = ok(await h.invoke("plan:approve", { version: 1 }));
+      const snap = ok(await h.invoke("project:snapshot", undefined));
+      return { approved: r.approved, blocking: r.blocking, approvedVersion: snap.approvedVersion };
+    }, UNREACHABLE_WARNING);
+    expect(m).toEqual(f);
+    expect(m).toEqual({
+      approved: false,
+      blocking: [expect.any(String), expect.any(String)],
+      approvedVersion: null,
+    });
   });
 
   it("brief:update: a value is the GM's, null clears it, a bad value is refused", async () => {

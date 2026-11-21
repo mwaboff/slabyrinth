@@ -41,28 +41,34 @@ export type GatePurpose = "edit" | "approve" | "build";
 /** Issue codes approval refuses at any severity (on top of every error). */
 const APPROVE_BLOCKS_ANY_SEVERITY: ReadonlySet<PlanIssueCode> = new Set<PlanIssueCode>(["unreachable"]);
 
+/**
+ * What the gate reads of an issue: its severity and code. A caller holding a slimmer copy of the issues (the app's
+ * renderer gets them without hints) asks the same gate with what it has.
+ */
+export type GatedIssue = Pick<PlanIssue, "severity" | "code">;
+
 /** Whether one issue stops a plan going on for `purpose`. */
-export function isBlocking(i: PlanIssue, purpose: GatePurpose): boolean {
+export function isBlocking(i: GatedIssue, purpose: GatePurpose): boolean {
   if (purpose === "approve") return i.severity === "error" || APPROVE_BLOCKS_ANY_SEVERITY.has(i.code);
   return i.severity === "error" && !PLAYABILITY_CODES.has(i.code);
 }
 
-export interface CheckResults {
-  errors: PlanIssue[];
-  warnings: PlanIssue[];
-  info: PlanIssue[];
+export interface CheckResults<I extends GatedIssue = PlanIssue> {
+  errors: I[];
+  warnings: I[];
+  info: I[];
 }
 
-export interface PlanGate {
+export interface PlanGate<I extends GatedIssue = PlanIssue> {
   /** Stop: the change is not applied, the plan is not approved, the build does not run. */
-  blocking: PlanIssue[];
+  blocking: I[];
   /** Everything else, by severity: reported with the plan that went on. */
-  checks: CheckResults;
+  checks: CheckResults<I>;
 }
 
 /** Splits a plan's issues into what blocks `purpose` and what is only reported. Order is kept. */
-export function planGate(issues: readonly PlanIssue[], purpose: GatePurpose): PlanGate {
-  const out: PlanGate = { blocking: [], checks: { errors: [], warnings: [], info: [] } };
+export function planGate<I extends GatedIssue>(issues: readonly I[], purpose: GatePurpose): PlanGate<I> {
+  const out: PlanGate<I> = { blocking: [], checks: { errors: [], warnings: [], info: [] } };
   for (const i of issues) {
     if (isBlocking(i, purpose)) out.blocking.push(i);
     else if (i.severity === "error") out.checks.errors.push(i);
