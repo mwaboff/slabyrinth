@@ -205,7 +205,9 @@ export interface ToolInputs {
   list_catalog: ListCatalogInput;
 }
 
-const SCHEMAS: { [K in ToolName]: z.ZodType } = {
+/** Each tool's input schema (what the executor holds a call to; test/unit/agent/toolSchemas.test.ts ties it to the
+ * JSON Schema the model is shown). */
+export const TOOL_INPUT_SCHEMAS: { readonly [K in ToolName]: z.ZodType } = {
   update_brief: UpdateBriefSchema,
   ask_questions: AskQuestionsSchema,
   create_plan: CreatePlanEnvelopeSchema,
@@ -234,7 +236,7 @@ export function validateToolInput<K extends ToolName>(name: K, input: unknown): 
       ],
     };
   }
-  const schema = SCHEMAS[name];
+  const schema = TOOL_INPUT_SCHEMAS[name];
   const parsed = schema.safeParse(input);
   if (parsed.success) return { ok: true, value: parsed.data as ToolInputs[K] };
   const errors: ReportError[] = parsed.error.issues.map((issue) => {
