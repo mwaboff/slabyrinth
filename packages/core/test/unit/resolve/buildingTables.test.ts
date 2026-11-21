@@ -19,19 +19,28 @@ describe("roof-type traits are table fields", () => {
     expect([...roofs].sort()).toEqual([...ROOF_TYPES].sort());
   });
 
-  it("the lists the building planner kept by hand are the rows", () => {
-    // BUILT_ROOFS
+  it("the traits agree with each other", () => {
+    for (const r of roofs) {
+      const t = ROOF_TYPE_INFO[r];
+      // a sloped roof needs a rectangle and closes the volume; nothing stands on a slope
+      if (t.pitched) expect(t.rect && t.closing && !t.deck, r).toBe(true);
+      // only a sloped roof has ridge ends; a flat roof is a closing deck
+      if (t.ends !== null) expect(t.pitched, r).toBe(true);
+      if (t.flat) expect(t.deck && t.closing, r).toBe(true);
+      // a type built as another is not built itself
+      if (t.as !== undefined) expect(t.built, r).toBe(false);
+    }
+  });
+
+  it("the rows the released generators read keep the answers they shipped with", () => {
+    // generators 2 and 3 plan buildings with these traits; their output is frozen
     expect(roofsWith("built")).toEqual(["flat", "gable", "hip", "none", "shed", "skirt", "spire", "stepped"]);
-    // CLOSING
     expect(roofsWith("closing")).toEqual(["flat", "gable", "hip", "none", "shed", "spire"]);
-    // DECK_ROOFS
     expect(roofsWith("deck")).toEqual(["flat", "none", "skirt", "stepped"]);
-    // RECT_ROOFS
     expect(roofsWith("rect")).toEqual(["gable", "hip", "shed", "skirt", "spire", "stepped"]);
-    // ["gable", "hip", "shed"] in condition, roof geometry and the compiler
     expect(roofsWith("pitched")).toEqual(["gable", "hip", "shed"]);
-    // the cone the planner turned into a spire by name
-    expect(roofs.filter((r) => ROOF_TYPE_INFO[r].as !== undefined)).toEqual(["cone"]);
+    expect(roofs.filter((r) => ROOF_TYPE_INFO[r].ends !== null).sort()).toEqual(["gable", "hip"]);
+    expect(roofs.filter((r) => ROOF_TYPE_INFO[r].flat)).toEqual(["flat"]);
     expect(ROOF_TYPE_INFO.cone.as).toBe("spire");
   });
 });

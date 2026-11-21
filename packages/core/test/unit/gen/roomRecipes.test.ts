@@ -17,6 +17,7 @@ import { reviewDesign } from "../../../src/review";
 import { interiorNotes, roomStats } from "../../../src/review/interiors";
 import { slabCodec } from "../../../src/slab";
 import { loadPlan } from "../../fixtures";
+import { dungeonPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
 
@@ -49,36 +50,26 @@ function building(
     });
     openings.push({ id: `d${i}`, kind: "door", between: [id, "passage"], position: 0.5 });
   });
-  const w = 7 * Math.ceil(names.length / 2) + 2;
-  return {
-    schema: "slabyrinth/plan@1",
+  const plan = dungeonPlan({
     generator: opts.generator ?? 4,
+    w: 7 * Math.ceil(names.length / 2) + 2,
+    h: 19,
     id: "5a1f0c9e-3b7d-4a6e-9c21-7e8d1b2c3f40",
     title: "Inn test",
     kind: "building",
     seed: 4242,
     theme: opts.theme ?? "wood_town",
     summary: "A row of rooms off a passage.",
-    entryLevel: "l1",
-    levels: [
-      {
-        id: "l1",
-        name: "Ground",
-        elevation: 0,
-        bounds: { x: 0, y: 0, w, h: 19 },
-        base: { type: "solid" },
-        ...(opts.roomDress === false ? { roomDress: false as const } : {}),
-        areas,
-        openings,
-        walls: [],
-        features: [],
-        terrain: [],
-        labels: [],
-        structures: [],
-      },
-    ],
-    links: [],
-  } as unknown as MapPlan;
+    levelId: "l1",
+    areas,
+    openings,
+    level: {
+      name: "Ground",
+      structures: [],
+      ...(opts.roomDress === false ? { roomDress: false as const } : {}),
+    },
+  });
+  return { ...plan, entryLevel: "l1" };
 }
 
 const NAMES = [

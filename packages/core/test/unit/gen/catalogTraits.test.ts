@@ -15,6 +15,19 @@ import { NATURAL_MATERIALS } from "../../../src/review";
 const types = Object.keys(FEATURE_INFO) as FeatureType[];
 
 describe("feature traits are table fields", () => {
+  it("the traits agree with each other", () => {
+    for (const t of types) {
+      const f = FEATURE_INFO[t];
+      if (f.bandRock === true || f.strewn === true) expect(f.organic, t).toBe(true);
+      // what things rest on, and what takes a light on its top, stands in the way
+      if (f.support === true || f.topLight !== undefined) expect(f.blocking, t).toBe(true);
+      // a small thing on a surface never blocks; a piece against a wall stands on the floor, not on the wall
+      if (f.smallThing === true) expect(f.blocking, t).toBe(false);
+      if (f.wallHugger === true || f.seat === true) expect(f.wallMounted, t).toBe(false);
+      if (f.light === true && f.focal !== undefined) expect(f.groundCause, t).toBe("litter");
+    }
+  });
+
   it("landmarks are the great tree, the great statue and the landmark slot", () => {
     expect(types.filter(isLandmark).sort()).toEqual(["landmark", "statue_large", "tree_large"]);
   });
@@ -42,11 +55,11 @@ describe("feature traits are table fields", () => {
   it("the rock band, ground causes and strewn litter once listed by hand are rows", () => {
     const sorted = (f: (t: FeatureType) => boolean): FeatureType[] => types.filter(f).sort();
     expect(sorted((t) => FEATURE_INFO[t].bandRock === true)).toEqual(["cliff_crest", "cliff_face"]);
-    // compile/realize/floors.ts CAUSE_FEATURES (generator 2)
+    // generator 2 grows litter round these (frozen)
     expect(sorted((t) => FEATURE_INFO[t].groundCause === "litter")).toEqual(
       ["campfire", "cluster_tall", "dead_tree", "fire_pit", "pine_tree", "tent", "tree", "tree_large"].sort(),
     );
-    // resolve/floorFamilies.ts GROUND_CAUSE_FEATURES added these (generator 3)
+    // generator 3 wears the ground round these (frozen)
     expect(sorted((t) => FEATURE_INFO[t].groundCause === "wear")).toEqual([
       "altar",
       "fountain",
@@ -54,7 +67,7 @@ describe("feature traits are table fields", () => {
       "statue",
       "well",
     ]);
-    // review/interiors.ts LITTER
+    // what the review counts as mess, not furnishing
     expect(sorted((t) => FEATURE_INFO[t].strewn === true)).toEqual(
       ["bones", "cave_in", "debris", "rubble", "skull_pile", "web"].sort(),
     );
@@ -169,24 +182,34 @@ describe("opening-kind traits are table fields", () => {
     expect([...kinds].sort()).toEqual([...OPENING_KINDS].sort());
   });
 
-  it("the lists the stages kept by hand are the rows", () => {
-    // verify NOT_PASSAGE, playability NON_PASSABLE_OPENINGS, validate BLOCKING_OPENINGS
+  it("the traits agree with each other", () => {
+    for (const k of kinds) {
+      const t = OPENING_KIND_INFO[k];
+      // a leaf closes a way through; a window lets no one through and is a whole wall section
+      if (t.leaf) expect(t.passage, k).toBe(true);
+      if (t.window) expect(t.fullHeight && !t.passage, k).toBe(true);
+      // a gap is a way through with nothing in it; a front door is a plain door with a leaf
+      if (t.gap) expect(t.passage && !t.leaf && !t.fullHeight, k).toBe(true);
+      if (t.frontDoor) expect(t.leaf && !t.secret, k).toBe(true);
+      if (t.secret) expect(t.passage, k).toBe(true);
+      expect(t.defaultWidth, k).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("the rows every generator reads keep the answers they shipped with", () => {
+    // released generators walk, build and verify with these (their output is frozen)
     expect(kinds.filter((k) => !OPENING_KIND_INFO[k].passage).sort()).toEqual([
       "arrow_slit",
       "bars",
       "window",
     ]);
-    // the building planner's DOOR_KINDS
-    expect(having("passage")).toEqual(
-      ["archway", "door", "double_door", "locked_door", "open", "portcullis", "secret_door"].sort(),
-    );
-    // the compiler's DOORISH
     expect(having("leaf")).toEqual(["door", "double_door", "locked_door", "portcullis", "secret_door"]);
-    // window || arrow_slit, the display list's WALL_LIKE_OPENINGS
     expect(having("window")).toEqual(["arrow_slit", "window"]);
     expect(having("secret")).toEqual(["secret_door"]);
-    // the opening pass's NO_LINTEL role names
     expect(having("fullHeight")).toEqual(["archway", "arrow_slit", "window"]);
+    expect(having("gap")).toEqual(["open"]);
+    expect(having("frontDoor")).toEqual(["door", "double_door", "locked_door"]);
+    expect(kinds.filter((k) => OPENING_KIND_INFO[k].defaultWidth > 1)).toEqual(["double_door"]);
     expect(isFullHeightOpeningRole("opening.archway")).toBe(true);
     expect(isFullHeightOpeningRole("opening.door")).toBe(false);
     expect(isFullHeightOpeningRole("opening.default")).toBe(false);
