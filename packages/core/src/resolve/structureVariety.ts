@@ -12,8 +12,18 @@
  * Everything here is generic: archetype names are geometric (box, setback, podium, twin, ell, stepped, shed, gabled,
  * tall), never tied to a theme; the style's data says which apply and how often.
  */
-import type { Building, Roof, RoofType, Side, Storey, Volume, WallStyle } from "../contracts/plan";
+import type {
+  Building,
+  OpeningKind,
+  Roof,
+  RoofType,
+  Side,
+  Storey,
+  Volume,
+  WallStyle,
+} from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
+import { isPassage, isSecret } from "../gen/openingKinds";
 import { createPrng, type Prng } from "../util/prng";
 import { defaultRidge, gableRoof, hipRoof, shedRoof } from "./roof";
 import { structureStyle } from "./structureStyles";
@@ -388,6 +398,14 @@ const roofOf = (
   }
 };
 
+/** The kinds generators 2 and 3 took for a building's main door (no locked door, no plain gap). */
+const LEGACY_ENTRANCE_KINDS: ReadonlySet<OpeningKind> = new Set([
+  "door",
+  "double_door",
+  "archway",
+  "portcullis",
+]);
+
 /**
  * Expand a design into plan fields on the building (volumes with storeys and roofs, windows, plinth, openings,
  * furniture). `front` is the street face; masses step back from it, never toward it.
@@ -406,9 +424,16 @@ export function expandDesign(
     turret?: boolean;
     /** Generator 3: heights the roof-share balance needs from the style (footing course, attic deck). */
     roofBalance?: { footing: number; deck: boolean };
+    /** Generator 4: the main-door test reads the opening-kind table (switch `openingKindTraits`). */
+    openingKindTraits?: boolean;
   } = {},
 ): Building {
   const pat = windowPattern(d.windows);
+  // a way in (generator 4, `openingKindTraits`: the kind table's passages that are not hidden, so a locked door or a
+  // gap counts too); earlier generators took this list of kinds
+  const entrance = opts.openingKindTraits
+    ? (kind: OpeningKind): boolean => isPassage(kind) && !isSecret(kind)
+    : (kind: OpeningKind): boolean => LEGACY_ENTRANCE_KINDS.has(kind);
   const own = d.parapet === "walls" ? (opts.parapetFor?.[d.material] ?? d.material) : d.parapet;
   const parapet = own === "none" ? null : own;
   const storeyList = (n: number, first: boolean, roofStorey: boolean): Storey[] =>
@@ -631,8 +656,7 @@ export function expandDesign(
     const list = out.openings ?? st.openings ?? [];
     // the main entrance is always on the street face: a service door must never stand in for it (the resolver
     // only adds a door when the building has none)
-    const DOORS = new Set(["door", "double_door", "archway", "portcullis"]);
-    const mainDoor = list.some((o) => (o.storey ?? 0) === 0 && DOORS.has(o.kind));
+    const mainDoor = list.some((o) => (o.storey ?? 0) === 0 && entrance(o.kind));
     out.openings = [
       ...(mainDoor ? [] : [{ kind: "door" as const, side: front }]),
       ...list,

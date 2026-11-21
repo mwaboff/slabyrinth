@@ -329,4 +329,40 @@ describe("a building's arrow slits are windows, not doorways (generator 4, openi
     // generator 3 kept the cells round every slit clear, as round a door
     expect(tower(3, "arrow_slit")).toBeLessThan(windows);
   });
+
+  it("a locked door is a main door: a service door at the back adds no second street door (structureVariety)", () => {
+    /** The passages of a city block whose plan gives it only a locked street door. */
+    const passages = (generator: 3 | 4, seed: number): string[] => {
+      const p = townPlan({
+        generator,
+        id: "md",
+        seed,
+        theme: "city",
+        w: 30,
+        h: 30,
+        structures: [
+          {
+            id: "b",
+            style: "modern_block",
+            seed,
+            front: "S",
+            wings: [{ x: 10, y: 10, w: 8, h: 8 }],
+            openings: [{ kind: "locked_door", side: "S", position: 0.5 }],
+          },
+        ],
+        level: {},
+      });
+      const L = resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
+      const st = (L.structures ?? [])[0] as ResolvedStructure;
+      return L.openings.filter((o) => st.openingIds.includes(o.id) && o.kind !== "window").map((o) => o.kind);
+    };
+    let extra3 = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const g4 = passages(4, seed);
+      expect(g4).toContain("locked_door");
+      expect(g4.length).toBeLessThanOrEqual(2);
+      if (passages(3, seed).length > g4.length || !passages(3, seed).includes("locked_door")) extra3++;
+    }
+    expect(extra3).toBeGreaterThan(0);
+  });
 });

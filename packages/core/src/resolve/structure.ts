@@ -712,6 +712,7 @@ function drawDesigns({ plan, level, list, work }: Expansion): void {
             ? { roofBalance: { footing: style0.footing ? style0.footingHeight : 0, deck: style0.roof.deck } }
             : {}),
           rearOpen: openDepth(level, r, back, st.id, work.neighbours, 3) >= 2.5,
+          openingKindTraits: generatorProfile(plan).openingKindTraits,
         },
       ),
     });
