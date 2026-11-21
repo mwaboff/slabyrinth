@@ -247,7 +247,7 @@ describe("ruins at generator 3", () => {
   });
 });
 
-describe("a ruin's arrow slits are windows, not doorways (generator 4, openingKindTraits)", () => {
+describe("a building's arrow slits are windows, not doorways (generator 4, openingKindTraits)", () => {
   const slits: StructureOpening[] = [
     ...(["N", "E", "S", "W"] as const).flatMap((side) =>
       [0.2, 0.4, 0.6, 0.8].map((position): StructureOpening => ({ kind: "arrow_slit", side, position })),
@@ -299,5 +299,34 @@ describe("a ruin's arrow slits are windows, not doorways (generator 4, openingKi
         if (o.kind === "arrow_slit" && !g4.has(id) && o.cells.some((c) => b4.has(c))) torn++;
     }
     expect(torn).toBeGreaterThan(0);
+  });
+
+  it("vines climb past a slit as past a window, never in front of the door (compile/structure.ts)", () => {
+    const tower = (generator: 3 | 4, kind: "arrow_slit" | "window"): number => {
+      const openings: StructureOpening[] = [
+        ...(["N", "E", "S", "W"] as const).flatMap((side) =>
+          [0.25, 0.75].map((position): StructureOpening => ({ kind, side, position })),
+        ),
+        { kind: "door", side: "S", position: 0.5 },
+      ];
+      const p = townPlan({
+        generator,
+        id: "v",
+        seed: 7,
+        theme: "forest",
+        w: 30,
+        h: 30,
+        structures: [
+          { id: "b", style: "wizard_tower", seed: 7, wings: [{ x: 10, y: 10, w: 5, h: 5 }], openings },
+        ],
+        level: {},
+      });
+      return placementsOf(p).filter((q) => String(q.source.elementId).includes("vines")).length;
+    };
+    const windows = tower(4, "window");
+    expect(windows).toBeGreaterThan(1);
+    expect(tower(4, "arrow_slit")).toBe(windows);
+    // generator 3 kept the cells round every slit clear, as round a door
+    expect(tower(3, "arrow_slit")).toBeLessThan(windows);
   });
 });
