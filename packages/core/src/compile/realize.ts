@@ -5,35 +5,17 @@
 import type {
   Box3,
   CompileDiagnostic,
-  OrientationCalibration,
   PaletteCatalog,
-  PaletteFacing,
   Placement,
   PlacementRole,
-  PlacementSet,
   RoleName,
 } from "../contracts/compiler";
 import type { LevelId, Side, ThemeId } from "../contracts/plan";
 import { stallPieceOf } from "../gen/market";
 import { featureRoles } from "../gen/surfaces";
-import {
-  CELL,
-  CELL_FLAG,
-  EDGE,
-  type ResolvedFeature,
-  type ResolvedLevel,
-  type ResolvedPlan,
-} from "../contracts/resolved";
-import { loadOrientation } from "../palette/load";
-import { own } from "../palette/own";
-import {
-  createRoleResolver,
-  footprintFromGeom,
-  type ResolvedVariant,
-  type ResolveOutcome,
-  type VariantFilter,
-} from "../palette/resolve";
-import { WorldFrame, emptyBox, finiteBox, growBox, h32, placementBox, rotateDir, rotateXZ } from "./geometry";
+import { CELL, CELL_FLAG, EDGE, type ResolvedFeature, type ResolvedLevel, type ResolvedPlan } from "../contracts/resolved";
+import { footprintFromGeom, type ResolvedVariant, type VariantFilter } from "../palette/resolve";
+import { emptyBox, growBox, h32, placementBox, rotateDir, rotateXZ } from "./geometry";
 import { areaReferenceHeights, wallSpan } from "../resolve/wallspan";
 import { realizeStructures, structureClaims } from "./structure";
 import { realizeStall } from "./stalls";
@@ -41,11 +23,12 @@ import { SHELL, planShell } from "./shell";
 import { ValueNoise } from "../gen/noise";
 import { cliffRockKinds, edgeHidden, type RockShape } from "../gen/cover";
 import { planCaveWall, type WallFace, type WallShape } from "../gen/cavewall";
-import { axisPosition } from "../resolve/road";
 import { roughCells } from "../resolve/wallTops";
-import { createFamilyPicker, familiesOfVariants, type FloorFamily } from "../resolve/floorFamilies";
-import { OBSERVED_TONES } from "../review/tones";
-import { generatorProfile } from "../plan/generator";
+import { createFamilyPicker, type FloorFamily } from "../resolve/floorFamilies";
+import { createRealizeCtx, type PlacementMeta, type RealizeOptions } from "./realize/context";
+import { finishLevel, finishRealize, type RealizedSet, type RealizeOutput } from "./realize/output";
+import type { CellInfo } from "./realize/view";
+import { LevelWork } from "./realize/work";
 
 /** Rock band (generator 2, themes with cliff.formation_face): rise that gets a band, and how far it reaches. */
 const BAND = { minRiseQ: 8, out: 2, back: 2 } as const;
@@ -63,87 +46,17 @@ const ROAD_MARKINGS = {
   },
 } as const;
 
-export const ROLE_ORDER: readonly PlacementRole[] = [
-  "floor",
-  "fill",
-  "wall",
-  "wall_post",
-  "opening",
-  "link",
-  "feature",
-  "ledge",
-  "marker",
-];
-
 /** World AABB of every placement made by realize (keyed by object; used by chunking for exact bounds). */
 export const placementBoxes = new WeakMap<Placement, Box3>();
 
 /** Asset name and geometry of every placement made by realize (used by the verify stage). */
-export const placementMeta = new WeakMap<Placement, { name: string; geom: ResolvedVariant["geom"] }>();
-
-export interface RealizeOptions {
-  levels?: LevelId[];
-  seed?: number;
-  orientation?: OrientationCalibration;
-  /**
-   * Paste layers to leave out (Placement.layer): "roof" drops roofs, attic decks, gable fill and attachment roofs
-   * (a see-inside build); "storey:2" drops one storey. Absent = everything.
-   */
-  omitLayers?: string[];
-}
-
-export interface BundleSubstitution {
-  role: RoleName;
-  wanted: { uuid: string; name?: string };
-  used: { uuid: string; name?: string } | null;
-  count: number;
-}
-
-/** PlacementSet plus what the chunk/bundle stage needs (structurally a PlacementSet). */
-export interface RealizedSet extends PlacementSet {
-  substitutions: BundleSubstitution[];
-  assetSource: "install" | "builtin";
-  /** Alignment marker asset (marker.alignment), null when the palettes have none. */
-  marker: { uuid: string; geom: ResolvedVariant["geom"] } | null;
-  levelInfo: Array<{
-    levelId: LevelId;
-    elevation: number;
-    bounds: Box3;
-    cellBounds: { x: number; y: number; w: number; h: number };
-    /** Intended water surface (absolute tiles), when the level has water (ResolvedLevel.waterLevel). */
-    waterLevel?: number;
-    /** Range the surface may be set in: a quarter above the highest bed to a quarter below the lowest bank (absolute tiles). */
-    waterRange?: [number, number];
-  }>;
-  resolvedHash: string;
-}
+export const placementMeta = new WeakMap<Placement, PlacementMeta>();
 
 const NONE = 0xffff;
 /** Opening roles whose asset is a full-height wall piece (no lintel above them). */
 const NO_LINTEL = new Set(["opening.archway", "opening.window", "opening.arrow_slit"]);
 const opposite = (s: Side): Side => (s === "N" ? "S" : s === "S" ? "N" : s === "E" ? "W" : "E");
 const EPS = 1e-6;
-/** Natural ground whose drops of a tile or more are built as rock cliffs when the palette has no cliff.<material> role. */
-/** Water surface range of a level: a quarter tile above its highest water bed to a quarter below its lowest dry bank. */
-function waterRangeOf(L: ResolvedLevel): [number, number] {
-  const { w, h } = L.bounds;
-  const top = (i: number): number => L.elevation + (L.cells.height[i] ?? 0) / 4 + 0.5;
-  const floor = (i: number): boolean =>
-    L.cells.state[i] === CELL.OPEN && ((L.cells.flags[i] ?? 0) & CELL_FLAG.NO_FLOOR) === 0;
-  const wet = (i: number): boolean => ((L.cells.flags[i] ?? 0) & CELL_FLAG.WATER) !== 0;
-  let bed = -Infinity;
-  let bank = Infinity;
-  for (let i = 0; i < w * h; i++) {
-    if (!floor(i) || !wet(i)) continue;
-    bed = Math.max(bed, top(i));
-    const x = i % w;
-    for (const j of [i - w, i + w, x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1])
-      if (j >= 0 && j < w * h && floor(j) && !wet(j)) bank = Math.min(bank, top(j));
-  }
-  const lo = bed + 0.25;
-  return [lo, Number.isFinite(bank) ? Math.max(lo, bank - 0.25) : lo];
-}
-
 /** Upright feature types whose assets are mixed along a run (see runPicks). */
 const RUN_MIX = new Set([
   "cluster_tall",
@@ -197,75 +110,6 @@ const NATURAL_GROUND = new Set([
   "lava",
 ]);
 
-interface CellInfo {
-  open: boolean;
-  floor: boolean;
-  /** Relative floor height in tiles. */
-  height: number;
-  material: string | null;
-  theme: ThemeId;
-  area: number;
-  flags: number;
-}
-
-class LevelView {
-  readonly w: number;
-  readonly h: number;
-  constructor(
-    readonly L: ResolvedLevel,
-    readonly defaultTheme: ThemeId,
-  ) {
-    this.w = L.bounds.w;
-    this.h = L.bounds.h;
-  }
-  inBounds(x: number, y: number): boolean {
-    const lx = x - this.L.bounds.x;
-    const ly = y - this.L.bounds.y;
-    return lx >= 0 && ly >= 0 && lx < this.w && ly < this.h;
-  }
-  cell(x: number, y: number): CellInfo {
-    if (!this.inBounds(x, y))
-      return {
-        open: false,
-        floor: false,
-        height: 0,
-        material: null,
-        theme: this.defaultTheme,
-        area: 0,
-        flags: 0,
-      };
-    const i = (y - this.L.bounds.y) * this.w + (x - this.L.bounds.x);
-    const c = this.L.cells;
-    const state = c.state[i] ?? CELL.VOID;
-    const flags = c.flags[i] ?? 0;
-    const mat = c.material[i] ?? 0;
-    const open = state === CELL.OPEN;
-    return {
-      open,
-      floor: open && (flags & CELL_FLAG.NO_FLOOR) === 0 && mat > 0,
-      height: (c.height[i] ?? 0) / 4,
-      material: mat > 0 ? (this.L.materials[mat - 1] ?? null) : null,
-      theme: this.L.themes[c.theme[i] ?? 0] ?? this.defaultTheme,
-      area: c.area[i] ?? 0,
-      flags,
-    };
-  }
-  /** Horizontal edge = NORTH edge of cell (x, y); y may equal bounds.y + h (south border). */
-  hEdge(x: number, y: number): number {
-    const lx = x - this.L.bounds.x;
-    const ly = y - this.L.bounds.y;
-    if (lx < 0 || lx >= this.w || ly < 0 || ly > this.h) return -1;
-    return ly * this.w + lx;
-  }
-  /** Vertical edge = WEST edge of cell (x, y); x may equal bounds.x + w (east border). */
-  vEdge(x: number, y: number): number {
-    const lx = x - this.L.bounds.x;
-    const ly = y - this.L.bounds.y;
-    if (lx < 0 || lx > this.w || ly < 0 || ly >= this.h) return -1;
-    return ly * (this.w + 1) + lx;
-  }
-}
-
 /** One edge strip (a wall or door piece occupying the half-cell next to an edge), for corner posts. */
 interface Strip {
   orient: "h" | "v";
@@ -282,205 +126,20 @@ export function realize(
   palettes: PaletteCatalog,
   opts: RealizeOptions = {},
 ): RealizedSet {
-  const orientation = opts.orientation ?? loadOrientation().orientation;
-  const seed = opts.seed ?? h32(resolved.planId);
-  const hg = resolved.levels.reduce((m, l) => Math.max(m, l.bounds.y + l.bounds.h), 0);
-  const frame = new WorldFrame(orientation, hg);
-  // what the plan's generator does (plan/generator.ts); palette roles carry their own first generator (minGenerator)
-  const gen = generatorProfile(resolved);
-  const resolveRole = createRoleResolver(palettes, resolved.generator);
-  const defaultTheme = Object.keys(palettes.palettes).includes("generic")
-    ? "generic"
-    : (Object.keys(palettes.palettes)[0] ?? "generic");
-
-  const diag = new Map<string, CompileDiagnostic>();
-  const addDiag = (
-    d: Omit<CompileDiagnostic, "count" | "stage"> & { stage?: CompileDiagnostic["stage"] },
-    n = 1,
-  ): void => {
-    const key = [d.severity, d.code, d.levelId ?? "", d.role ?? "", d.elementId ?? ""].join("|");
-    const prev = diag.get(key);
-    if (prev) prev.count = (prev.count ?? 1) + n;
-    else diag.set(key, { ...d, stage: d.stage ?? "realize", count: n });
-  };
-  const subs = new Map<string, BundleSubstitution>();
-  const themeWarned = new Set<string>();
-
+  const ctx = createRealizeCtx(resolved, palettes, opts, { placementBoxes, placementMeta });
+  const { orientation, seed, frame, gen, defaultTheme, addDiag, views, lookup, pick, pickPatch, familiesOf, familyAt } =
+    ctx;
+  const { familyWarp, facingOf } = ctx;
   const levelsWanted = opts.levels ? new Set(opts.levels) : null;
-  const outLevels: PlacementSet["levels"] = [];
-  const levelInfo: RealizedSet["levelInfo"] = [];
-  const allBox = emptyBox();
-  const views = new Map<LevelId, LevelView>();
-  for (const L of resolved.levels) views.set(L.id, new LevelView(L, defaultTheme));
-
-  // ── role lookup with diagnostics ──
-  const lookup = (
-    levelId: LevelId,
-    theme: ThemeId,
-    roles: RoleName[],
-    filter?: VariantFilter,
-    quiet = false,
-  ): ResolveOutcome["resolution"] => {
-    let t = theme;
-    if (!own(palettes.palettes, t)) {
-      if (!themeWarned.has(t)) {
-        themeWarned.add(t);
-        addDiag({
-          severity: "warning",
-          code: "theme_fallback",
-          message: `Theme "${t}" has no palette; using "${defaultTheme}"`,
-          levelId,
-        });
-      }
-      t = defaultTheme;
-    }
-    for (const role of roles) {
-      const out = resolveRole(t, role, filter);
-      if (out.resolution) {
-        for (const s of out.substitutions) {
-          const k = `${s.role}|${s.wanted.uuid}|${s.used?.uuid ?? ""}`;
-          const e = subs.get(k);
-          if (e) e.count++;
-          else subs.set(k, { ...s, count: 1 });
-        }
-        return out.resolution;
-      }
-    }
-    if (!quiet) {
-      const role = roles[0] ?? "?";
-      addDiag({
-        severity: "warning",
-        code: "role_missing",
-        message: `No usable palette asset for role "${role}"${filter ? ` (${filter.key})` : ""} in theme "${t}"; placements dropped`,
-        levelId,
-        role,
-      });
-    }
-    return null;
-  };
-
-  const pick = (vs: ResolvedVariant[], key: string): ResolvedVariant | undefined => {
-    const weighted = vs.filter((v) => v.weight > 0);
-    const pool = weighted.length ? weighted : vs.slice(0, 1);
-    const total = pool.reduce((s, v) => s + v.weight, 0);
-    if (pool.length <= 1 || total <= 0) return pool[0];
-    let r = (h32(`${seed}:${key}`) / 0x100000000) * total;
-    for (const v of pool) {
-      r -= v.weight;
-      if (r < 0) return v;
-    }
-    return pool[pool.length - 1];
-  };
-
-  /**
-   * Floor variants in organic patches (2026-11-19): a value-noise field (about 5 cells across) picks the variant by
-   * its weight band, with a little per-tile jitter, so variants form patches instead of a salt-and-pepper grid.
-   */
-  const patchNoise = new ValueNoise(h32(`${seed}:floorpatches`));
-  const pickPatch = (
-    vs: ResolvedVariant[],
-    x: number,
-    y: number,
-    key: string,
-  ): ResolvedVariant | undefined => {
-    const weighted = vs.filter((v) => v.weight > 0);
-    if (weighted.length <= 1) return pick(vs, key);
-    const total = weighted.reduce((sum, v) => sum + v.weight, 0);
-    const jitter = (h32(`${seed}:${key}:j`) / 0x100000000 - 0.5) * 0.15;
-    let r = Math.min(0.9999, Math.max(0, patchNoise.sample(x / 5, y / 5) + jitter)) * total;
-    for (const v of weighted) {
-      r -= v.weight;
-      if (r < 0) return v;
-    }
-    return weighted[weighted.length - 1];
-  };
-
-  /**
-   * Floor families (round 5, 2026-11-20): a floor role's weighted variants that carry a `variant` name form a family
-   * each (untagged variants are the default family) — rock slab, dark rock, packed earth, gravel; short and lush
-   * grass. A coarse value-noise field (about 7 cells across, stretched so every family shows) gives each cell one
-   * family, so the floor reads as large irregular patches of different ground instead of one tile on a grid. Each
-   * family's share is its heaviest variant's weight. Roles without tagged variants behave as before.
-   */
-  const familyNoise = new ValueNoise(h32(`${seed}:floorfamilies`));
-  const familyWarp = new ValueNoise(h32(`${seed}:floorfamilies:warp`));
-  const familiesOf = (vs: ResolvedVariant[]): FloorFamily[] =>
-    familiesOfVariants(vs, (uuid) => OBSERVED_TONES[uuid]?.tone);
-  const familyAt = (fams: Array<{ name: string; share: number }>, x: number, y: number): string => {
-    if (fams.length <= 1) return fams[0]?.name ?? "";
-    const total = fams.reduce((t, q) => t + q.share, 0);
-    const wx = (familyWarp.sample(x / 4, y / 4) - 0.5) * 3;
-    const raw = familyNoise.sample((x + wx) / 7, (y - wx) / 7);
-    let r = Math.min(0.9999, Math.max(0, (raw - 0.5) * 1.9 + 0.5)) * total;
-    for (const q of fams) {
-      r -= q.share;
-      if (r < 0) return q.name;
-    }
-    return fams[fams.length - 1]?.name ?? "";
-  };
-
-  const facingOf = (v: ResolvedVariant, rolePrefix: string, role: RoleName): PaletteFacing => {
-    const d = orientation.defaultFacing;
-    return {
-      ...(own(d, "*") ?? {}),
-      ...(own(d, rolePrefix) ?? {}),
-      ...(own(d, role) ?? {}),
-      ...(v.facing ?? {}),
-    };
-  };
+  const out: RealizeOutput = { levels: [], levelInfo: [], allBox: emptyBox() };
 
   for (const L of resolved.levels) {
     if (levelsWanted && !levelsWanted.has(L.id)) continue;
-    const V = views.get(L.id) ?? new LevelView(L, defaultTheme);
-    const placements: Placement[] = [];
-    /**
-     * Upright pieces already realized per role, for the run mix (round 5): along a row or column, a piece does not
-     * take an asset a neighbour within three cells already shows (a row of identical cypresses read
-     * as a planted hedge), when its role has another weighted asset.
-     */
-    const runPicks = new Map<string, Array<{ x: number; y: number; uuid: string }>>();
-    const levelBox = emptyBox();
-    const outcropCells = new Set((L.outcrops ?? []).flatMap((o) => o.cells.map(([x, y]) => `${x},${y}`)));
-    const waterCells: Array<[number, number]> = [];
+    const w = new LevelWork(ctx, L);
+    const { V, placements, runPicks, levelBox, outcropCells, waterCells, elev, roadAxisAt } = w;
+    const { blockTurn, topOf, emit } = w;
     const bedNoted = new Set<string>();
     let kerbNoted = false;
-    /** Seeded quarter turn for square whole-cell blocks (mixes up repeated rock faces). */
-    const blockTurn = (v: ResolvedVariant, key: string): number =>
-      Math.abs(v.geom.size.x - v.geom.size.z) < 0.05 ? (h32(`${seed}:${L.id}:turn:${key}`) % 4) * 90 : 0;
-    const elev = L.elevation;
-    const topOf = (c: CellInfo): number => elev + c.height + 0.5;
-    const roadAxisAt = new Map<string, "h" | "v">();
-    for (const rd of L.roads ?? [])
-      for (const [x, y] of rd.carriageway) roadAxisAt.set(`${x},${y}`, axisPosition(rd.axis, x, y).dir);
-
-    const emit = (
-      v: ResolvedVariant,
-      role: PlacementRole,
-      x: number,
-      y: number,
-      z: number,
-      rotDeg: number,
-      source: Placement["source"],
-      layer?: string,
-    ): void => {
-      const rot = (((Math.round(rotDeg / 15) * 15) % 360) + 360) % 360;
-      const p: Placement = {
-        asset: v.uuid,
-        x: x + v.offset.x,
-        y: y + v.offset.y,
-        z: z + v.offset.z,
-        rot,
-        role,
-        levelId: L.id,
-        source,
-      };
-      if (layer !== undefined) p.layer = layer;
-      const box = placementBox(v.geom, p.x, p.y, p.z, rot * orientation.rotSense);
-      placementBoxes.set(p, box);
-      placementMeta.set(p, { name: v.name ?? palettes.availability.name(v.uuid) ?? v.uuid, geom: v.geom });
-      growBox(levelBox, box);
-      placements.push(p);
-    };
 
     // ── 1. floors (greedy tiling) and 2. fill ──
     // crossing cells take the theme's crossing tile (marking.crossing) AS their floor tile, turned by the road
@@ -2604,75 +2263,8 @@ export function realize(
           });
         },
       });
-    if (opts.omitLayers?.length) {
-      const drop = new Set(opts.omitLayers);
-      for (let i = placements.length - 1; i >= 0; i--) {
-        const ly = placements[i]?.layer;
-        if (ly !== undefined && drop.has(ly)) placements.splice(i, 1);
-      }
-    }
-
-    // deterministic order: role, then source cell (y, x), then emission order
-    const order = new Map(ROLE_ORDER.map((r, i) => [r, i]));
-    const indexed = placements.map((p, i) => ({ p, i }));
-    indexed.sort(
-      (a, b) =>
-        (order.get(a.p.role) ?? 99) - (order.get(b.p.role) ?? 99) ||
-        (a.p.source.cell?.[1] ?? 0) - (b.p.source.cell?.[1] ?? 0) ||
-        (a.p.source.cell?.[0] ?? 0) - (b.p.source.cell?.[0] ?? 0) ||
-        a.i - b.i,
-    );
-    outLevels.push({ levelId: L.id, placements: indexed.map((x) => x.p) });
-    growBox(allBox, levelBox);
-    levelInfo.push({
-      levelId: L.id,
-      elevation: elev,
-      bounds: finiteBox(levelBox),
-      cellBounds: { ...L.bounds },
-      ...(L.waterLevel !== undefined ? { waterLevel: L.waterLevel, waterRange: L.waterRange ?? waterRangeOf(L) } : {}),
-    });
+    finishLevel(w, out);
   }
 
-  // alignment marker asset
-  const mres = lookup(resolved.levels[0]?.id ?? "", defaultTheme, ["marker.alignment"], undefined, true);
-  const mv = mres?.variants[0];
-
-  const byRole = Object.fromEntries(ROLE_ORDER.map((r) => [r, 0])) as Record<PlacementRole, number>;
-  const assets = new Set<string>();
-  let total = 0;
-  for (const l of outLevels) {
-    for (const p of l.placements) {
-      byRole[p.role]++;
-      assets.add(p.asset);
-      total++;
-    }
-  }
-  for (const s of subs.values()) {
-    addDiag(
-      {
-        severity: s.used ? "info" : "warning",
-        code: s.used ? "asset_substituted" : "asset_unknown",
-        message: s.used
-          ? `"${s.wanted.name ?? s.wanted.uuid}" is not available in your TaleSpire; "${s.used.name ?? s.used.uuid}" used instead`
-          : `"${s.wanted.name ?? s.wanted.uuid}" is not available in your TaleSpire and has no substitute`,
-        role: s.role,
-      },
-      s.count,
-    );
-  }
-  const diagnostics = [...diag.values()];
-  return {
-    planId: resolved.planId,
-    planVersion: resolved.planVersion,
-    levels: outLevels,
-    bounds: finiteBox(allBox),
-    diagnostics,
-    stats: { byRole, total, distinctAssets: assets.size },
-    substitutions: [...subs.values()],
-    assetSource:
-      palettes.availability.status("00000000-0000-0000-0000-000000000000") === null ? "builtin" : "install",
-    marker: mv ? { uuid: mv.uuid, geom: mv.geom } : null,
-    levelInfo,
-    resolvedHash: resolved.hash,
-  };
+  return finishRealize(ctx, out);
 }

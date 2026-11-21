@@ -2,8 +2,10 @@
  * Compiler (WP3): realize (placements), chunk (k-d split measured by real gzip, corner alignment markers), bundle,
  * estimate, and the calibration probe. Pure TypeScript: no electron, DOM or node:* imports here.
  */
-export { ROLE_ORDER, placementBoxes, realize } from "./realize";
-export type { BundleSubstitution, RealizeOptions, RealizedSet } from "./realize";
+export { placementBoxes, realize } from "./realize";
+export { ROLE_ORDER } from "./realize/output";
+export type { RealizedSet } from "./realize/output";
+export type { BundleSubstitution, RealizeOptions } from "./realize/context";
 export {
   DEFAULT_FILL,
   DEFAULT_SIDE_BY_SIDE_GAP,

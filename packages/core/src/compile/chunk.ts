@@ -23,7 +23,8 @@ import type {
 import type { LevelId } from "../contracts/plan";
 import { sha256Hex } from "../slab/sha256";
 import { emptyBox, finiteBox, growBox } from "./geometry";
-import { placementBoxes, type RealizedSet } from "./realize";
+import { placementBoxes } from "./realize";
+import type { RealizedSet } from "./realize/output";
 
 export const DEFAULT_FILL = 0.8;
 export const DEFAULT_SIDE_BY_SIDE_GAP = 10;

@@ -14,7 +14,8 @@ import type { ResolvedPlan } from "../contracts/resolved";
 import { paletteOptionsFor, type PaletteView } from "../palette/view";
 import { slabCodec } from "../slab/codec";
 import { DEFAULT_FILL, chunkAndEncode, extentDiagnostic, type ChunkEncodeOptions } from "./chunk";
-import { realize, type RealizedSet } from "./realize";
+import { realize } from "./realize";
+import type { RealizedSet } from "./realize/output";
 import { verifyBuild, type VerifyOptions } from "./verify/verify";
 
 /** Compressed bytes per instance used by the estimate (format research §1: real slabs compress to ~3.4 B/asset). */
