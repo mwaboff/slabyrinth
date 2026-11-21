@@ -13,7 +13,9 @@
  * per area of main (app, projects, plan, chat, build, TaleSpire). The type of `handlers` below checks every
  * channel has exactly one answer.
  */
+import type { z } from "zod";
 import type { IpcEvents, IpcRequests, Result, SlabyrinthApi } from "../../../shared/ipc";
+import { describeRequestError, requestSchemas } from "../../../shared/schemas/ipc";
 import type { FakeProject } from "./fixtures";
 import { appHandlers } from "./handlers/app";
 import { buildHandlers } from "./handlers/build";
@@ -68,11 +70,15 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
       req: IpcRequests[C]["req"],
     ): Promise<Result<IpcRequests[C]["res"]>> {
       await s.sleep(INVOKE_DELAY_MS);
+      // main's request schemas: the fake refuses what main's router would refuse
+      const parsed = (requestSchemas[channel] as z.ZodType).safeParse(req);
+      if (!parsed.success)
+        return { ok: false, error: { code: "validation", message: describeRequestError(parsed.error) } };
       try {
         const h = handlers[channel] as (
           r: IpcRequests[C]["req"],
         ) => IpcRequests[C]["res"] | Promise<IpcRequests[C]["res"]>;
-        const value = await h(req);
+        const value = await h(parsed.data ?? undefined);
         return { ok: true, value };
       } catch (e) {
         if (e instanceof FakeFailure) return { ok: false, error: e.appError };

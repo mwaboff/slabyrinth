@@ -3,7 +3,7 @@
  * functions; nothing touches disk, Electron or the renderer.
  */
 import { randomUUID } from "node:crypto";
-import { commitVersion, createHistory, getVersion, reconstruct } from "@slabyrinth/core/history";
+import { commitVersion, createHistory, moveHeadBack, reconstruct } from "@slabyrinth/core/history";
 import { BUNDLED_PALETTES, bundledPalettes, parsePalette } from "@slabyrinth/core/palette";
 import { planRules } from "@slabyrinth/core/resolve";
 import type { CompileEstimate, Palette, PaletteCatalog } from "@slabyrinth/core/contracts/compiler";
@@ -156,21 +156,9 @@ export class MemoryHost implements EngineHost {
 
   moveHead(version: number): { head: number } {
     const p = this.p();
-    // Same semantics as the shell's moveHeadBack: every version between head and `version` (0 = no plan) is undone.
-    const path: number[] = [];
-    let n = p.history.head;
-    while (n !== version) {
-      const cur = n === 0 ? undefined : getVersion(p.history, n);
-      if (!cur) throw new Error(`moveHead: v${version} is not an earlier version of the current plan`);
-      path.push(cur.number);
-      n = cur.parentNumber;
-    }
-    const gone = new Set(path);
-    p.history = {
-      ...p.history,
-      head: version,
-      undone: [...p.history.undone.filter((x) => !gone.has(x)), ...path],
-    };
+    const r = moveHeadBack(p.history, version);
+    if (!r.ok) throw new Error(`moveHead: ${r.error.message}`);
+    p.history = r.history;
     p.plan = this.getPlan(version);
     return { head: version };
   }

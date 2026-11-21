@@ -3,10 +3,8 @@
  * (architecture §3.2, §8.2). WP4 imports ONLY this file (plus the contracts); WP5 implements
  * `EngineHost` and constructs the engine with it.
  *
- * Wiring: `apps/desktop/src/main/agent/index.ts` should export
- *     export const createConversationEngine: EngineFactory = (host) => new ConversationEngine(host);
- * The shell detects that export at startup. Until it exists (or with the `fakeEngine` flag, or in
- * e2e runs) the shell uses the recorded-stream fake engine (main/engine/fakeEngine.ts).
+ * Wiring: `apps/desktop/src/main/agent/index.ts` exports `createConversationEngine: EngineFactory`, which
+ * main/engineWiring.ts builds the one engine with (test runs register a scripted provider in it instead of Anthropic).
  *
  * Rules for the engine:
  *  - Mutate project state ONLY through the host (commitVersion, appendItems, updateConversation,

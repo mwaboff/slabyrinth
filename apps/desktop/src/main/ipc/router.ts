@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { AppError, IpcRequests, IpcSends, Result } from "../../shared/ipc";
 import { REQUEST_CHANNELS, SEND_CHANNELS } from "../../shared/channels";
+import { describeRequestError } from "../../shared/schemas/ipc";
 import type { Logger } from "../logger";
 import { EnginePortError } from "../ports/engine";
 import { toAppError } from "../util/errors";
@@ -54,13 +55,6 @@ export function mapError(err: unknown): AppError {
   return toAppError(err);
 }
 
-function describeZod(error: z.ZodError): string {
-  const first = error.issues[0];
-  if (!first) return "Invalid request.";
-  const where = first.path.length > 0 ? ` at ${first.path.join(".")}` : "";
-  return `Invalid request${where}: ${first.message}`;
-}
-
 export type Dispatch = (
   channel: string,
   senderUrl: string | undefined,
@@ -85,7 +79,7 @@ export function createDispatcher(
     const parsed = schemas[c].safeParse(payload);
     if (!parsed.success) {
       logger.info("ipc payload rejected", { channel, issues: parsed.error.issues.length });
-      return { ok: false, error: { code: "validation", message: describeZod(parsed.error) } };
+      return { ok: false, error: { code: "validation", message: describeRequestError(parsed.error) } };
     }
     try {
       const handler = handlers[c] as (req: unknown) => unknown;

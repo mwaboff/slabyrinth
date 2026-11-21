@@ -33,7 +33,6 @@ async function launch(run: Run): Promise<{ app: ElectronApplication; page: Page 
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
   delete env["ANTHROPIC_API_KEY"]; // belt and braces: safe mode ignores it anyway
-  delete env["SLABYRINTH_FAKE_ENGINE"];
   const app = await electron.launch({
     args: [mainEntry],
     env: {

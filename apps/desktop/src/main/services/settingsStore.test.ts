@@ -3,7 +3,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { nullLogger } from "../logger";
-import { settingsPatchSchema, SettingsStore } from "./settingsStore";
+import { settingsPatchSchema } from "../../shared/schemas/settings";
+import { SettingsStore } from "./settingsStore";
 
 let dir: string;
 let file: string;
@@ -119,11 +120,11 @@ describe("SettingsStore", () => {
     const recent = store.get().projects.recent;
     expect(recent).toHaveLength(10);
     expect(recent[0]).toBe(path.join(dir, "5.slabyrinth"));
-    expect(store.flag("fakeEngine")).toBe(false);
-    await store.setFlag("fakeEngine", true);
+    expect(store.flag("debugLogging")).toBe(false);
+    await store.setFlag("debugLogging", true);
     const again = make();
     await again.load();
-    expect(again.flag("fakeEngine")).toBe(true);
+    expect(again.flag("debugLogging")).toBe(true);
     expect(JSON.stringify(again.get())).not.toContain("x-featureFlags");
   });
 

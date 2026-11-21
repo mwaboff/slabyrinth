@@ -1,7 +1,10 @@
 import { z } from "zod";
-import { EFFORT_LEVELS, type Usage } from "../agent/provider/types";
+import { EFFORT_LEVELS, type Usage } from "../../main/agent/provider/types";
 
-/** Shared Zod building blocks for IPC payloads and persisted files. */
+/**
+ * Shared Zod building blocks for IPC payloads and persisted files. Pure (zod and the contracts only), so main's
+ * router and the renderer's fake bridge validate with the same schemas.
+ */
 
 export const providerIdSchema = z
   .string()

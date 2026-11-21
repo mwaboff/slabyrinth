@@ -21,7 +21,7 @@ export function findVersion(h: PlanHistory, n: number): PlanVersion {
 }
 
 export function nextNumber(h: PlanHistory): number {
-  return core.latestNumber(h) + 1;
+  return core.nextVersionNumber(h);
 }
 
 export interface NewVersionInput {
@@ -87,20 +87,10 @@ export function redo(h: PlanHistory): number {
  * §3.2): an undo of every version in between, each recorded in `undone` so redo still works.
  */
 export function moveHeadBack(h: PlanHistory, target: number): number {
-  if (target === h.head) return h.head;
-  // target 0 = before the first version (no plan): Retry of the turn that drew the first plan.
-  const path: number[] = [];
-  let n = h.head;
-  while (n !== target) {
-    const cur = n === 0 ? undefined : core.getVersion(h, n);
-    if (!cur)
-      throw new AppFailure("validation", `v${String(target)} is not an earlier version of the current plan.`);
-    path.push(cur.number);
-    n = cur.parentNumber;
-  }
-  const gone = new Set(path);
-  h.undone = [...h.undone.filter((n) => !gone.has(n)), ...path];
-  h.head = target;
+  const r = core.moveHeadBack(h, target);
+  if (!r.ok)
+    throw new AppFailure("validation", `v${String(target)} is not an earlier version of the current plan.`);
+  assign(h, r.history);
   return h.head;
 }
 

@@ -40,7 +40,7 @@ export function buildHandlers(s: FakeState): HandlerGroup<BuildChannels> {
       const p = s.open();
       const v = version ?? p.history.approvedVersion ?? p.history.head;
       const plan = s.planAt(p, v);
-      if (!plan) return fail("not_found", "Nothing approved to build.");
+      if (!plan) return fail("validation", "Approve a plan to build it for TaleSpire.");
       const total = COMPILE_STAGES.length * STEPS_PER_STAGE;
       for (const [i, stage] of COMPILE_STAGES.entries()) {
         for (let k = 1; k <= STEPS_PER_STAGE; k++) {

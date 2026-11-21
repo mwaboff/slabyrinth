@@ -5,7 +5,7 @@
  * tool input is held to exactly the rules a stored plan is.
  */
 import { z } from "zod";
-import { FEATURE_TYPES } from "../contracts/plan";
+import { FEATURE_TYPES, type DesignBrief } from "../contracts/plan";
 import type { PlanOp } from "../contracts/ops";
 import { PlanOpSchema } from "../plan/schema";
 import { zodIssueToPlanIssue } from "../plan/zodIssues";
@@ -47,28 +47,55 @@ export function invalidJsonRaw(input: unknown): string | null {
 const text = (max: number) => z.string().max(max);
 const rect = z.strictObject({ x: z.int(), y: z.int(), w: z.int().min(1), h: z.int().min(1) });
 
+/**
+ * The value of each brief field, as anyone may set it (the model's update_brief, the GM's brief:update). One table, so
+ * the two writers cannot disagree on what a brief holds.
+ */
+export const BRIEF_VALUE_SCHEMAS = {
+  mapType: z.string().min(1).max(80),
+  system: z.enum(["daggerheart", "dnd5e", "other"]),
+  party: z.strictObject({
+    tier: z.int().min(1).max(10).optional(),
+    level: z.int().min(1).max(30).optional(),
+    size: z.int().min(1).max(12).optional(),
+  }),
+  footprint: z.strictObject({
+    preset: z.enum(["small", "medium", "large", "custom"]),
+    widthSq: z.int().min(1).max(512),
+    heightSq: z.int().min(1).max(512),
+  }),
+  levels: z.strictObject({ count: z.int().min(1).max(8), names: z.array(text(80)).max(8) }),
+  tone: text(80),
+  mustInclude: z.array(text(200)).max(20),
+  avoid: z.array(text(200)).max(20),
+  theme: z.string().min(1).max(64),
+} as const satisfies Record<keyof DesignBrief, z.ZodType>;
+
+const B = BRIEF_VALUE_SCHEMAS;
+
 const BriefSetSchema = z.strictObject({
-  mapType: z.string().min(1).max(80).optional(),
-  system: z.enum(["daggerheart", "dnd5e", "other"]).optional(),
-  party: z
-    .strictObject({
-      tier: z.int().min(1).max(10).optional(),
-      level: z.int().min(1).max(30).optional(),
-      size: z.int().min(1).max(12).optional(),
-    })
-    .optional(),
-  footprint: z
-    .strictObject({
-      preset: z.enum(["small", "medium", "large", "custom"]),
-      widthSq: z.int().min(1).max(512),
-      heightSq: z.int().min(1).max(512),
-    })
-    .optional(),
-  levels: z.strictObject({ count: z.int().min(1).max(8), names: z.array(text(80)).max(8) }).optional(),
-  tone: text(80).optional(),
-  mustInclude: z.array(text(200)).max(20).optional(),
-  avoid: z.array(text(200)).max(20).optional(),
-  theme: z.string().min(1).max(64).optional(),
+  mapType: B.mapType.optional(),
+  system: B.system.optional(),
+  party: B.party.optional(),
+  footprint: B.footprint.optional(),
+  levels: B.levels.optional(),
+  tone: B.tone.optional(),
+  mustInclude: B.mustInclude.optional(),
+  avoid: B.avoid.optional(),
+  theme: B.theme.optional(),
+});
+
+/** The GM's brief:update: any field may be set to a value or cleared with null. */
+export const BriefPatchSchema = z.strictObject({
+  mapType: B.mapType.nullable().optional(),
+  system: B.system.nullable().optional(),
+  party: B.party.nullable().optional(),
+  footprint: B.footprint.nullable().optional(),
+  levels: B.levels.nullable().optional(),
+  tone: B.tone.nullable().optional(),
+  mustInclude: B.mustInclude.nullable().optional(),
+  avoid: B.avoid.nullable().optional(),
+  theme: B.theme.nullable().optional(),
 });
 
 const UpdateBriefSchema = z.strictObject({ set: BriefSetSchema });

@@ -42,6 +42,11 @@ export function latestNumber(history: PlanHistory): number {
   return history.versions.reduce((m, v) => Math.max(m, v.number), 0);
 }
 
+/** The number the next committed version gets (numbers are never reused). */
+export function nextVersionNumber(history: PlanHistory): number {
+  return latestNumber(history) + 1;
+}
+
 export type HistoryError =
   | { code: "no_version"; message: string; number: number }
   | { code: "nothing_to_undo"; message: string }
@@ -179,7 +184,7 @@ export function commitVersion(
   rules: PlanRules,
   cache?: PlanCache,
 ): CommitResult {
-  const number = latestNumber(history) + 1;
+  const number = nextVersionNumber(history);
   const parentNumber = history.head;
   const version: PlanVersion = {
     number,
@@ -291,6 +296,38 @@ export function redo(history: PlanHistory): PointerResult {
     from: history.head,
     to: target,
     history: { ...history, head: target, undone: history.undone.filter((n) => n !== target) },
+  };
+}
+
+/**
+ * Moves head back to `target`, an ancestor of head (0 = before the first version, no plan): Retry of a turn that made
+ * versions (architecture §3.2). Recorded as an undo of every version in between, each pushed onto `undone` (oldest
+ * last) so Redo can bring the discarded turn back.
+ */
+export function moveHeadBack(history: PlanHistory, target: number): PointerResult {
+  const path: number[] = [];
+  let n = history.head;
+  while (n !== target) {
+    const cur = n === 0 ? undefined : getVersion(history, n);
+    if (cur === undefined)
+      return {
+        ok: false,
+        error: {
+          code: "no_version",
+          message: `v${target} is not an earlier version of v${history.head}`,
+          number: target,
+        },
+      };
+    path.push(cur.number);
+    n = cur.parentNumber;
+  }
+  if (path.length === 0) return { ok: true, history, from: history.head, to: target };
+  const gone = new Set(path);
+  return {
+    ok: true,
+    from: history.head,
+    to: target,
+    history: { ...history, head: target, undone: [...history.undone.filter((u) => !gone.has(u)), ...path] },
   };
 }
 

@@ -6,7 +6,7 @@ import { app, BrowserWindow, dialog, nativeImage } from "electron";
 import { createAppServices, type AppServices } from "./app";
 import { windowIconPath } from "./appIcon";
 import { APP_ID } from "./appIdentity";
-import { FIXTURE_PLAN } from "./engine/recordings";
+import { FIXTURE_PLAN } from "./fixturePlan";
 import { createFileLogger } from "./logger";
 import { makeAppPaths } from "./paths";
 import { installSecurityPolicy } from "./security";

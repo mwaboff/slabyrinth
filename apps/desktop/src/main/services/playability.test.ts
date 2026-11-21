@@ -34,7 +34,7 @@ const codes = (issues: Array<{ code: string }>): string[] => issues.map((i) => i
 
 describe("user edits and playability checks (real core)", () => {
   it("the fixture really has a pre-existing opening_blocked error", () => {
-    const issues = realCore().validatePlan(doorPlan([7, 3])) ?? [];
+    const issues = realCore().validatePlan(doorPlan([7, 3]));
     expect(issues.find((i) => i.code === "opening_blocked")?.severity).toBe("error");
   });
 
@@ -57,7 +57,7 @@ describe("user edits and playability checks (real core)", () => {
 
   it("an op that introduces a playability error is applied and reported", async () => {
     const r = await start([10, 3]);
-    expect(codes(realCore().validatePlan(doorPlan([10, 3])) ?? [])).not.toContain("opening_blocked");
+    expect(codes(realCore().validatePlan(doorPlan([10, 3])))).not.toContain("opening_blocked");
     const res = r.projects.applyOps({
       baseVersion: 1,
       label: "Move altar",

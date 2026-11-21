@@ -4,7 +4,6 @@
  */
 import { resolveApiKey, selectEngine, type EngineKind } from "../engineWiring";
 import type { Logger } from "../logger";
-import type { PlanCorePort } from "../ports/core";
 import type { ConversationEngine, EngineHost } from "../ports/engine";
 import type { BuildPalettes } from "../services/buildPalettes";
 import type { BuildService } from "../services/buildService";
@@ -31,7 +30,6 @@ export interface EngineDeps {
   compiler: CompileService;
   build: BuildService;
   imageBridge: ImageBridge;
-  core: PlanCorePort;
 }
 
 export interface StartedEngine {
@@ -46,13 +44,7 @@ export async function startEngine(d: EngineDeps): Promise<StartedEngine> {
   let engine: ConversationEngine | null = null;
   let engineKind: StartedEngine["engineKind"] = "none";
   try {
-    const selected = await selectEngine({
-      isDev: d.isDev,
-      safeMode: d.safeMode,
-      env: process.env,
-      fakeEngineFlag: d.settings.flag("fakeEngine"),
-      applyOps: d.core.applyChecked,
-    });
+    const selected = await selectEngine({ isDev: d.isDev, safeMode: d.safeMode, env: process.env });
     engine = selected.factory(engineHost(d));
     engineKind = selected.kind;
   } catch (err) {

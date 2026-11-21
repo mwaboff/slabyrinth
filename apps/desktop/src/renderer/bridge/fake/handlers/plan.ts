@@ -5,6 +5,8 @@ import {
   approve as approveHistory,
   commitVersion,
   diffPlans,
+  parseBriefPatch,
+  patchBrief,
   planGate,
   redo as redoHistory,
   restore as restoreHistory,
@@ -146,11 +148,10 @@ export function planHandlers(s: FakeState): HandlerGroup<PlanChannels> {
     },
     "brief:update": ({ set }) => {
       const p = s.open();
-      const b = p.brief as Record<string, unknown>;
-      for (const [k, v] of Object.entries(set)) {
-        if (v === null || v === undefined) b[k] = undefined;
-        else b[k] = { value: v, source: "user" };
-      }
+      // main's rule (ProjectService.updateBrief): core parseBriefPatch + patchBrief
+      const parsed = parseBriefPatch(set);
+      if (!parsed.ok) return fail("validation", parsed.message);
+      p.brief = patchBrief(p.brief, parsed.patch);
       s.touch(p);
       return structuredClone<DesignBrief>(p.brief);
     },

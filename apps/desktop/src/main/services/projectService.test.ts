@@ -3,7 +3,7 @@ import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
-import { FIXTURE_PLAN } from "../engine/recordings";
+import { FIXTURE_PLAN } from "../fixturePlan";
 import { corePort, projectRig, type ProjectRig } from "./testing/helpers";
 import { sanitizeFileName } from "./projectService";
 

@@ -12,7 +12,7 @@ import {
   type Phase,
   type ProjectFile,
 } from "../../shared/project";
-import { emptyUsage } from "../schemas/common";
+import { emptyUsage } from "../../shared/schemas/common";
 import { AppFailure } from "../util/errors";
 import { emptyHistory } from "./history";
 

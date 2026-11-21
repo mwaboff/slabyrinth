@@ -32,7 +32,7 @@ import {
   outstandingIssues,
 } from "@slabyrinth/core/agent";
 import type { DesignBrief, MapPlan, ValidationResult } from "@slabyrinth/core/contracts/plan";
-import { describeChanges } from "@slabyrinth/core/history";
+import { describeChanges, nextVersionNumber } from "@slabyrinth/core/history";
 import { resolvePlan } from "@slabyrinth/core/resolve";
 import { outlineView } from "@slabyrinth/core/text";
 import type { AppError, ChatEvent, IpcRequests } from "../../shared/ipc";
@@ -303,8 +303,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
   }
 
   private nextVersionNumber(): number {
-    const versions = this.project().history.versions;
-    return versions.reduce((m, v) => Math.max(m, v.number), 0) + 1;
+    return nextVersionNumber(this.project().history);
   }
 
   private systemPrompt(conv: Readonly<Conversation>): string {

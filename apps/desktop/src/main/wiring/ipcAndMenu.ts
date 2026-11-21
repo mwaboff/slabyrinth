@@ -3,7 +3,7 @@ import { ipcMain, Menu, shell } from "electron";
 import type { IpcEvents } from "../../shared/ipc";
 import { createDispatcher, registerIpc, type Dispatch } from "../ipc/router";
 import { createHandlers, type HandlerServices } from "../ipc/handlers";
-import { requestSchemas, sendSchemas } from "../ipc/schemas";
+import { requestSchemas, sendSchemas } from "../../shared/schemas/ipc";
 import type { Logger } from "../logger";
 import { buildMenuTemplate } from "../menu";
 import type { AppPaths } from "../paths";

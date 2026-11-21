@@ -1,8 +1,8 @@
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
-import { approve as approveHistory, planGate } from "@slabyrinth/core";
-import type { DesignBrief, LevelId, MapPlan, PlanDiff, PlanOp, ApplyResult } from "@slabyrinth/core";
+import { approve as approveHistory, parseBriefPatch, patchBrief, planGate } from "@slabyrinth/core";
+import type { ApplyResult, DesignBrief, LevelId, MapPlan, PlanDiff, PlanOp } from "@slabyrinth/core";
 import type { ChatItem, Cost, ModelSelection, Usage } from "../agent/provider/types";
 import type { IpcRequests, ProjectSnapshot } from "../../shared/ipc";
 import type { BuildRecord, ChatMessageMeta, Conversation, ProjectFile } from "../../shared/project";
@@ -909,14 +909,12 @@ export class ProjectService {
     return r.plan;
   }
 
-  updateBrief(set: Partial<Record<keyof DesignBrief, unknown>>): DesignBrief {
+  /** brief:update: values are held to what update_brief accepts (core parseBriefPatch); null clears a field. */
+  updateBrief(set: IpcRequests["brief:update"]["req"]["set"]): DesignBrief {
+    const parsed = parseBriefPatch(set);
+    if (!parsed.ok) throw new AppFailure("validation", parsed.message);
     return this.mutate((p) => {
-      const brief = { ...p.brief } as Record<string, unknown>;
-      for (const [k, v] of Object.entries(set)) {
-        if (v === null) Reflect.deleteProperty(brief, k);
-        else if (v !== undefined) brief[k] = { value: v, source: "user" };
-      }
-      p.brief = brief;
+      p.brief = patchBrief(p.brief, parsed.patch);
       return p.brief;
     });
   }

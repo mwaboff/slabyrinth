@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import type { ChunkOptions, PngExportOptions } from "@slabyrinth/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { FIXTURE_PLAN } from "../engine/recordings";
+import { FIXTURE_PLAN } from "../fixturePlan";
 import { memoryLogger } from "../logger";
 import { fakeCompileBackend, type CompileBackend, type CompileInput } from "../ports/compile";
 import type { WorkerResponse } from "../workers/protocol";

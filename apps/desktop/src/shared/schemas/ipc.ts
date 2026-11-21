@@ -1,5 +1,7 @@
 import { z } from "zod";
-import type { IpcRequests, IpcSends } from "../../shared/ipc";
+import { BriefPatchSchema } from "@slabyrinth/core/agent";
+import { PlanOpSchema } from "@slabyrinth/core/plan";
+import type { IpcRequests, IpcSends } from "../ipc";
 import {
   effortSchema,
   levelIdSchema,
@@ -7,35 +9,22 @@ import {
   modelSelectionSchema,
   pathSchema,
   providerIdSchema,
-} from "../schemas/common";
-import { settingsPatchSchema } from "../services/settingsStore";
+} from "./common";
+import { settingsPatchSchema, type SettingsPatch } from "./settings";
 
 /**
- * Zod schema for every request channel of the IPC contract. Payloads that do not match are
- * rejected with code "validation" before any handler runs. Objects are strict (unknown keys are
- * rejected). Plan ops are checked structurally here; their semantics are validated by core
- * applyOps (same rule as for the model's edit_plan).
+ * Zod schema for every request channel of the IPC contract. Main's router validates every request with these before
+ * any handler runs (mismatch → code "validation"); the renderer's fake bridge validates with the same ones, so a
+ * renderer test cannot send what main would refuse. Objects are strict (unknown keys are rejected). Plan ops use
+ * core's op schema (the one the model's edit_plan is held to); their semantics are checked by core applyOps.
+ *
+ * Each schema's output is typed against its contract request (`RequestSchemas` below), so a schema that accepts a
+ * different shape from shared/ipc.ts fails to compile.
  */
-const voidReq = z.union([z.undefined(), z.null()]);
+const voidReq = z.union([z.undefined(), z.null()]).transform(() => undefined);
 const id = z.string().min(1).max(64);
 const version = z.number().int().min(0).max(1_000_000);
 const shortText = z.string().max(200);
-
-const planOpSchema = z.looseObject({
-  op: z.enum([
-    "add",
-    "add_features",
-    "update",
-    "remove",
-    "move",
-    "duplicate",
-    "reorder",
-    "materialize",
-    "set_meta",
-    "reshape",
-    "renumber",
-  ]),
-});
 
 const chunkOptionsSchema = z.strictObject({
   fill: z.number().min(0.1).max(1).optional(),
@@ -54,7 +43,7 @@ const displayOptionsSchema = z.strictObject({
   furniture: z.boolean(),
   gmLayer: z.boolean(),
   legend: z.boolean(),
-  ghostLevel: z.unknown().optional(),
+  // no ghostLevel: the export never draws one, and the renderer never sends it
 });
 
 const pngExportOptionsSchema = z.strictObject({
@@ -73,18 +62,6 @@ const pngBase64 = z
   .min(12)
   .max(300 * 1024 * 1024)
   .regex(/^[A-Za-z0-9+/]+={0,2}$/);
-
-const briefKeys = z.enum([
-  "mapType",
-  "system",
-  "party",
-  "footprint",
-  "levels",
-  "tone",
-  "mustInclude",
-  "avoid",
-  "theme",
-]);
 
 const chunkRefSchema = z.strictObject({
   buildId: z.string().min(1).max(64),
@@ -117,8 +94,48 @@ const uiStateSchema = z.strictObject({
     .optional(),
 });
 
-/** Every request channel → its payload schema. The mapped type makes a missing channel a compile error. */
-export const requestSchemas: { [C in keyof IpcRequests]: z.ZodType } = {
+/**
+ * A schema per channel whose parsed output is assignable to the contract's request type: a missing channel, or a
+ * schema that lets through a shape the handler is not typed for, is a compile error.
+ */
+export type RequestSchemas = {
+  [C in Exclude<keyof IpcRequests, "settings:update">]: z.ZodType<
+    OptionalMayBeUndefined<IpcRequests[C]["req"]>
+  >;
+} & {
+  /**
+   * The one declared difference: the contract types `settings:update` as `Partial<AppSettings>` (shallow), while main
+   * merges nested objects and accepts only the fields the renderer may change (SettingsPatch, a nested partial; the
+   * contract's own comment sends `{ projects: { folder } }`). The schema is typed against what main applies.
+   */
+  "settings:update": z.ZodType<SettingsPatch>;
+};
+export type SendSchemas = { [C in keyof IpcSends]: z.ZodType<OptionalMayBeUndefined<IpcSends[C]>> };
+
+/**
+ * The contract type as a Zod schema's output can match it: under exactOptionalPropertyTypes an optional key of a
+ * parsed object may hold `undefined`, which the contract's `key?: T` does not say. Everything else must match.
+ */
+type OptionalMayBeUndefined<T> = T extends readonly unknown[]
+  ? { [K in keyof T]: OptionalMayBeUndefined<T[K]> }
+  : T extends object
+    ? {
+        [K in keyof T]: undefined extends T[K]
+          ? OptionalMayBeUndefined<T[K]> | undefined
+          : OptionalMayBeUndefined<T[K]>;
+      }
+    : T;
+
+/** The "validation" message for a request its schema refused (main's router and the fake bridge). */
+export function describeRequestError(error: z.ZodError): string {
+  const first = error.issues[0];
+  if (!first) return "Invalid request.";
+  const where = first.path.length > 0 ? ` at ${first.path.join(".")}` : "";
+  return `Invalid request${where}: ${first.message}`;
+}
+
+/** Every request channel → its payload schema. */
+export const requestSchemas: RequestSchemas = {
   "app:getInfo": voidReq,
   "settings:get": voidReq,
   "settings:update": settingsPatchSchema,
@@ -176,7 +193,7 @@ export const requestSchemas: { [C in keyof IpcRequests]: z.ZodType } = {
   "plan:applyOps": z.strictObject({
     baseVersion: version,
     label: shortText.min(1),
-    ops: z.array(planOpSchema).min(1).max(500),
+    ops: z.array(PlanOpSchema).min(1).max(500),
   }),
   "plan:undo": voidReq,
   "plan:redo": voidReq,
@@ -186,7 +203,8 @@ export const requestSchemas: { [C in keyof IpcRequests]: z.ZodType } = {
   "plan:approve": z.strictObject({ version: version.min(1) }),
   "plan:editText": z.strictObject({ id, set: z.record(z.string().max(32), z.string().max(4000).nullable()) }),
 
-  "brief:update": z.strictObject({ set: z.partialRecord(briefKeys, z.unknown()) }),
+  // the values update_brief accepts, or null to clear (core BriefPatchSchema; main checks again in the service)
+  "brief:update": z.strictObject({ set: BriefPatchSchema }),
 
   "chat:send": z.strictObject({
     text: z.string().max(100_000),
@@ -283,7 +301,7 @@ export const requestSchemas: { [C in keyof IpcRequests]: z.ZodType } = {
   }),
 };
 
-export const sendSchemas: { [C in keyof IpcSends]: z.ZodType } = {
+export const sendSchemas: SendSchemas = {
   "render:imageResult": z.union([
     z.strictObject({ requestId: z.string().min(1).max(64), ok: z.literal(true), pngBase64 }),
     z.strictObject({

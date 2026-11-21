@@ -1336,10 +1336,8 @@ Separate build and release jobs avoid two matrix jobs racing to create the same 
   Anthropic provider, keyed from the API key stored in Settings (development builds also accept
   `ANTHROPIC_API_KEY` from the environment; smoke and e2e runs never do). Without a key, chat answers
   the typed `no_api_key` error and the UI asks for one. Wiring: `src/main/engineWiring.ts`.
-- **Fake engine (dev/test only).** `SLABYRINTH_FAKE_ENGINE=1` in a development or test run, or the
-  `fakeEngine` flag under `"x-featureFlags"` in `settings.json` of a development run, swaps in the
-  fake engine that replays recorded streams (`src/main/engine/recordings.ts`; send `#ask` or `#fail`
-  to see question cards and errors). Packaged builds ignore both.
+- **No second engine.** The recorded-stream fake engine was removed: tests and e2e drive the real engine
+  with a scripted provider (below), and renderer work without Electron uses the fake bridge.
 - **Smoke and e2e.** `SLABYRINTH_SMOKE=1` boots hidden, runs self-checks (including "chat answers
   `no_api_key`" and "packaged build uses the real engine and compiler"), prints `SMOKE_OK` and exits.
   `SLABYRINTH_E2E=1` is the Playwright mode. Both use a throwaway `userData` folder (or
