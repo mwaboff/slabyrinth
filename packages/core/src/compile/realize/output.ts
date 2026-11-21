@@ -7,6 +7,7 @@ import type { Box3, PlacedAsset, Placement, PlacementRole, PlacementSet } from "
 import type { LevelId } from "../../contracts/plan";
 import { CELL, CELL_FLAG, type ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
+import type { BuildFacts } from "../buildFacts";
 import { finiteBox, growBox } from "../geometry";
 import type { BundleSubstitution, RealizeCtx } from "./context";
 import type { RealizeLevel } from "./level";
@@ -27,6 +28,8 @@ export const ROLE_ORDER: readonly PlacementRole[] = [
 export interface RealizedSet extends PlacementSet {
   /** Always present on a realized set (the contract's field is optional for sets built elsewhere). */
   placed: Map<Placement, PlacedAsset>;
+  /** What realize built from (role answers, per-level grids, faces, claims): verify judges by the same (buildFacts.ts). */
+  facts: BuildFacts;
   substitutions: BundleSubstitution[];
   assetSource: "install" | "builtin";
   /** Alignment marker asset (marker.alignment), null when the palettes have none. */
@@ -105,7 +108,7 @@ export function finishLevel(lv: RealizeLevel, out: RealizeOutput): void {
 
 /** The alignment marker, the statistics and the substitution diagnostics: the finished set. */
 export function finishRealize(ctx: RealizeCtx, out: RealizeOutput): RealizedSet {
-  const { resolved, palettes, defaultTheme, lookup, addDiag, diag, subs, placed } = ctx;
+  const { resolved, palettes, defaultTheme, lookup, addDiag, diag, subs, placed, facts } = ctx;
   const { levels: outLevels, levelInfo, allBox } = out;
   // alignment marker asset
   const mres = lookup(resolved.levels[0]?.id ?? "", defaultTheme, ["marker.alignment"], undefined, true);
@@ -143,6 +146,7 @@ export function finishRealize(ctx: RealizeCtx, out: RealizeOutput): RealizedSet 
     diagnostics,
     stats: { byRole, total, distinctAssets: assets.size },
     placed,
+    facts,
     substitutions: [...subs.values()],
     assetSource:
       palettes.availability.status("00000000-0000-0000-0000-000000000000") === null ? "builtin" : "install",

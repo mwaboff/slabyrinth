@@ -19,17 +19,13 @@ import type { ResolvedPlan } from "../../contracts/resolved";
 import { ValueNoise } from "../../gen/noise";
 import { loadOrientation } from "../../palette/load";
 import { own } from "../../util/own";
-import {
-  createRoleResolver,
-  type ResolvedVariant,
-  type ResolveOutcome,
-  type VariantFilter,
-} from "../../palette/resolve";
+import { createPlanRoles } from "../../palette/planRoles";
+import { type ResolvedVariant, type ResolveOutcome, type VariantFilter } from "../../palette/resolve";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
 import { familiesOfVariants, type FloorFamily } from "../../resolve/floorFamilies";
 import { OBSERVED_TONES } from "../../palette/tones";
+import { BuildFacts } from "../buildFacts";
 import { WorldFrame, h32, unitHash } from "../geometry";
-import { LevelGrid } from "../../resolve/levelGrid";
 
 export interface RealizeOptions {
   levels?: LevelId[];
@@ -75,6 +71,7 @@ export interface RealizeCtx {
    * Palette roles carry their own first generator (minGenerator).
    */
   readonly profile: GeneratorProfile;
+  /** The theme a theme with no palette is built in (palette/planRoles.ts). */
   readonly defaultTheme: ThemeId;
   /** Diagnostics of the whole build, merged by severity, code, level, role and element. */
   readonly diag: Map<string, CompileDiagnostic>;
@@ -83,8 +80,12 @@ export interface RealizeCtx {
   readonly subs: Map<string, BundleSubstitution>;
   /** Name, geometry and world box of every placement of this call (`RealizeLevel.emit` writes; the set carries it). */
   readonly placed: Map<Placement, PlacedAsset>;
-  /** A read-only grid of every level of the plan (resolve/levelGrid.ts; links read the level above). */
-  readonly views: Map<LevelId, LevelGrid>;
+  /**
+   * The role answers and the per-level facts (grid, faces, claims) of this build, shared with verify through the set
+   * (compile/buildFacts.ts); links read the level above's grid from it.
+   */
+  readonly facts: BuildFacts;
+  /** The one way a pass asks for a role: `facts.roles` with the theme_fallback and role_missing diagnostics. */
   readonly lookup: Lookup;
   /** Seeded weighted pick among a role's variants. */
   readonly pick: (vs: ResolvedVariant[], key: string) => ResolvedVariant | undefined;
@@ -115,10 +116,10 @@ export function createRealizeCtx(
   const hg = resolved.levels.reduce((m, l) => Math.max(m, l.bounds.y + l.bounds.h), 0);
   const frame = new WorldFrame(orientation, hg);
   const profile = generatorProfile(resolved);
-  const resolveRole = createRoleResolver(palettes, resolved.generator);
-  const defaultTheme = Object.keys(palettes.palettes).includes("generic")
-    ? "generic"
-    : (Object.keys(palettes.palettes)[0] ?? "generic");
+  // the one answer realize builds from and verify judges by (the set carries it)
+  const facts = new BuildFacts(resolved, createPlanRoles(palettes, resolved.generator), profile);
+  const { roles } = facts;
+  const { defaultTheme } = roles;
 
   const diag = new Map<string, CompileDiagnostic>();
   const addDiag = (
@@ -133,32 +134,26 @@ export function createRealizeCtx(
   const subs = new Map<string, BundleSubstitution>();
   const themeWarned = new Set<string>();
 
-  const views = new Map<LevelId, LevelGrid>();
-  for (const L of resolved.levels) views.set(L.id, new LevelGrid(L, defaultTheme));
-
   // ── role lookup with diagnostics ──
   const lookup = (
     levelId: LevelId,
     theme: ThemeId,
-    roles: RoleName[],
+    roleNames: RoleName[],
     filter?: VariantFilter,
     quiet = false,
   ): ResolveOutcome["resolution"] => {
-    let t = theme;
-    if (!own(palettes.palettes, t)) {
-      if (!themeWarned.has(t)) {
-        themeWarned.add(t);
-        addDiag({
-          severity: "warning",
-          code: "theme_fallback",
-          message: `Theme "${t}" has no palette; using "${defaultTheme}"`,
-          levelId,
-        });
-      }
-      t = defaultTheme;
+    const t = roles.paletteTheme(theme);
+    if (t !== theme && !themeWarned.has(theme)) {
+      themeWarned.add(theme);
+      addDiag({
+        severity: "warning",
+        code: "theme_fallback",
+        message: `Theme "${theme}" has no palette; using "${defaultTheme}"`,
+        levelId,
+      });
     }
-    for (const role of roles) {
-      const out = resolveRole(t, role, filter);
+    for (const role of roleNames) {
+      const out = roles.resolve(t, role, filter);
       if (out.resolution) {
         for (const s of out.substitutions) {
           const k = `${s.role}|${s.wanted.uuid}|${s.used?.uuid ?? ""}`;
@@ -170,7 +165,7 @@ export function createRealizeCtx(
       }
     }
     if (!quiet) {
-      const role = roles[0] ?? "?";
+      const role = roleNames[0] ?? "?";
       addDiag({
         severity: "warning",
         code: "role_missing",
@@ -265,7 +260,7 @@ export function createRealizeCtx(
     addDiag,
     subs,
     placed: new Map(),
-    views,
+    facts,
     lookup,
     pick,
     pickPatch,

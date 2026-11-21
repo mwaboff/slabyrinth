@@ -81,7 +81,7 @@ function noteWallStyles(ctx: VerifyCtx, L: ResolvedLevel, g: LevelGrid): void {
     for (let e = 0; e < g.edges(orient).kind.length; e++) {
       const face = faces?.at(orient, e);
       if (!face || face.kind !== EDGE.WALL || face.claimed) continue;
-      const theme = inFaceTheme ? face.theme : (L.themes[0] ?? "generic");
+      const theme = inFaceTheme ? face.theme : (L.themes[0] ?? ctx.facts.roles.defaultTheme);
       const k = `${theme}|${face.style}`;
       const x = styles.get(k);
       if (x) x.n++;

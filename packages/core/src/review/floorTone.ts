@@ -9,7 +9,6 @@
  */
 import { CELL } from "../contracts/resolved";
 import type { ResolvedLevel } from "../contracts/resolved";
-import { GENERIC_THEME } from "../palette/resolve";
 import type { PaletteView } from "../palette/view";
 import { floorTone } from "../resolve/interiorFloors";
 import { cellTheme } from "../resolve/levelGrid";
@@ -23,7 +22,7 @@ const MAX_SHARE = 0.45;
 export function floorAccentNotes(
   levelId: string,
   L: ResolvedLevel,
-  view: Pick<PaletteView, "floorTone">,
+  view: Pick<PaletteView, "floorTone" | "defaultTheme">,
 ): DesignNote[] {
   if (!L.cells.state.some((s) => s === CELL.SOLID)) return [];
   const byArea = new Map<number, Map<number, number[]>>();
@@ -46,7 +45,7 @@ export function floorAccentNotes(
     if (!main) continue;
     const mainMat = L.materials[main[0] - 1];
     // the tones the resolver's accent rule asks, in the area's theme (resolve/interiorFloors.ts floorTone)
-    const toneOf = floorTone(view, cellTheme(L, main[1][0] ?? -1, GENERIC_THEME));
+    const toneOf = floorTone(view, cellTheme(L, main[1][0] ?? -1, view.defaultTheme));
     const mainTone = toneOf(mainMat);
     if (mainTone === undefined) continue;
     for (const [m, cells] of [...mats].sort((x, y) => x[0] - y[0])) {

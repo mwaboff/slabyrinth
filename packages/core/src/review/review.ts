@@ -22,7 +22,6 @@ import { roofUnsupportedEdges, structureRuinMeasures, weatherMeasures, weatherSi
 import { GROWTH_LEVELS, growthMeasures } from "../resolve/growth";
 import { roofProportion } from "../resolve/roof";
 import { cellTheme } from "../resolve/levelGrid";
-import { GENERIC_THEME } from "../palette/resolve";
 import { components, longestInnerStraight, outline, squareCorners } from "./metrics";
 import { forEachMaskCell } from "../gen/mask";
 import {
@@ -213,6 +212,8 @@ interface Ctx {
   rockKinds: (theme: string) => { tone?: string; face: boolean; crest: boolean };
   /** The tone families of a rock role's pieces (positive weights, tagged only), optionally narrowed to one tone. */
   roleTones: (theme: string, roleName: string, only?: string) => string[];
+  /** The theme a cell with no theme reads as, the one the build falls back to (palette/planRoles.ts). */
+  defaultTheme: string;
   L: ResolvedLevel;
   /** The whole resolved plan (all levels and links); absent in tests that build a context by hand. */
   resolved?: ResolvedPlan;
@@ -237,8 +238,9 @@ export function reviewDesign(
 ): DesignNote[] {
   const notes: DesignNote[] = [];
   const gen = generatorProfile(plan);
-  // the questions the resolver and the compiler ask of these palettes, with their answers (palette/view.ts)
-  const view = paletteView(palettes);
+  // the questions the resolver and the compiler ask of these palettes, with their answers (palette/view.ts), as the
+  // plan's generator sees them: a role the build cannot use (minGenerator) is not advice for this plan
+  const view = paletteView(palettes, plan.generator);
   /** The usable variants of a role in a theme (after the palette's fallbacks). */
   const variants = (theme: string, name: string): readonly ResolvedVariant[] =>
     view.probe(theme)([name])?.variants ?? [];
@@ -358,6 +360,7 @@ export function reviewDesign(
       rockExtent,
       rockKinds,
       roleTones,
+      defaultTheme: view.defaultTheme,
       L,
       resolved,
       W,
@@ -1357,7 +1360,7 @@ function floors(c: Ctx): DesignNote[] {
     if (((L.cells.flags[i] as number) & (CELL_FLAG.PATH | CELL_FLAG.BRIDGE)) !== 0) continue;
     if (L.areas[(L.cells.area[i] ?? 0) - 1]?.kind === "building") continue;
     const m = L.materials[(L.cells.material[i] ?? 1) - 1] ?? "";
-    const theme = cellTheme(L, i, GENERIC_THEME);
+    const theme = cellTheme(L, i, c.defaultTheme);
     const e = count.get(m) ?? { n: 0, theme };
     e.n++;
     count.set(m, e);

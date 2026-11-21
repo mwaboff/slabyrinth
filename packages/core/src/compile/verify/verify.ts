@@ -21,19 +21,14 @@
  * output: a new check goes where its diagnostics should appear, and a check that only runs for some generators tests
  * its own switch on its first line.
  */
-import type {
-  CompileDiagnostic,
-  CompileDiagnosticCode,
-  PaletteCatalog,
-  PlacementSet,
-} from "../../contracts/compiler";
+import type { CompileDiagnostic, CompileDiagnosticCode, PaletteCatalog } from "../../contracts/compiler";
 import type { MapPlan, PlanIssue } from "../../contracts/plan";
 import type { ResolvedPlan } from "../../contracts/resolved";
 import { checkPlayability } from "../../resolve";
 import { CHUNK_VERIFY_CODES } from "../chunk";
 import type { RealizedSet } from "../realize/output";
 import { checkCliffBand, CLIFF_CODES } from "./cliffs";
-import { createVerifyCtx, type VerifyCtx } from "./context";
+import { createVerifyCtx, type VerifiedSet, type VerifyCtx } from "./context";
 import { checkMaterialFidelity, FIDELITY_CODES } from "./fidelity";
 import { checkLevelAbove, LEVEL_ABOVE_CODES } from "./levelAbove";
 import { LINE_CODES } from "./lines";
@@ -52,7 +47,7 @@ export type { VerifyOptions, VerifyResult } from "./options";
 
 export function verifyBuild(
   resolved: ResolvedPlan,
-  set: PlacementSet,
+  set: VerifiedSet,
   palettes: PaletteCatalog,
   opts: VerifyOptions = {},
 ): VerifyResult {

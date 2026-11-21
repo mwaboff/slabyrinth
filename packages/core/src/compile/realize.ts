@@ -19,7 +19,8 @@
  *
  * The level's wall faces (`RealizeLevel.faces`, resolve/wallFaces.ts: every wall and opening edge with its host, the
  * cell its mass stands in, style, theme and span) are found once per level and read by planSolidShell and layWalls
- * (whose rock columns stand in the mass cells); verify's wall check reads the same faces.
+ * (whose rock columns stand in the mass cells). They, the level grids and the role answers (`lookup`) are the build's
+ * facts (compile/buildFacts.ts), which the realized set carries (`RealizedSet.facts`): verify judges by the same ones.
  *
  * A pass that only runs for some generators checks its own switch on its first line and names it in its doc comment,
  * so this file stays a plain list.

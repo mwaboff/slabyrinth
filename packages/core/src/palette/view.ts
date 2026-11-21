@@ -18,7 +18,8 @@ import { featureInfo } from "../gen/catalog";
 import { featureRoles } from "../gen/surfaces";
 import { generatorProfile } from "../plan/generator";
 import { bundledPalettes } from "./load";
-import { createRoleResolver, themeChain, type ResolvePalettes } from "./resolve";
+import { createPlanRoles } from "./planRoles";
+import { themeChain, type ResolveOutcome, type ResolvePalettes, type VariantFilter } from "./resolve";
 import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE } from "./roles";
 import { coveredStallForms, roleProbe, type RoleProbe } from "./stallParts";
 import { OBSERVED_TONES, TONE_RANK, type Tone } from "./tones";
@@ -54,6 +55,8 @@ export type RoomPieceFn = (
 export type StallFormsFn = (theme: ThemeId) => StallForm[];
 
 export interface PaletteView {
+  /** The theme a theme with no palette is asked as, and a cell with no theme reads as (palette/planRoles.ts). */
+  readonly defaultTheme: ThemeId;
   /** Generator 2+: real sizes of palette-shaped generated pieces (the rock band, the pieces a small prop rests on). */
   pieceSize: PieceSizeFn;
   /** Generator 4: the piece a room recipe stands (small things resolve through gen/surfaces.ts SMALL_THINGS_ROLES). */
@@ -91,12 +94,17 @@ const ROLE_OF: Partial<Record<FeatureType, string>> = {
   cliff_crest: CLIFF_CREST_ROLE,
 };
 
-/** A view of `catalog` as `generator` sees it: roles introduced after it (`minGenerator`) are hidden. */
+/**
+ * A view of `catalog` as `generator` sees it: roles introduced after it (`minGenerator`) are hidden, and a theme with no
+ * palette is asked as the catalog's default theme, the rules realize builds by (palette/planRoles.ts).
+ */
 export function createPaletteView(
   catalog: ResolvePalettes,
   generator: number = GENERATOR_VERSION,
 ): PaletteView {
-  const resolver = createRoleResolver(catalog, generator);
+  const roles = createPlanRoles(catalog, generator);
+  const resolver = (theme: ThemeId, role: string, filter?: VariantFilter): ResolveOutcome =>
+    roles.resolve(theme, role, filter);
   const probe = (theme: ThemeId): RoleProbe => roleProbe(resolver, theme);
   const variantsOf = (theme: ThemeId, roles: readonly string[], variant: string | undefined) => {
     for (const role of roles) {
@@ -188,7 +196,16 @@ export function createPaletteView(
     return tone;
   };
 
-  return { pieceSize, roomPiece, stallForms, floorTileArea, probe, themeDefaults, floorTone };
+  return {
+    defaultTheme: roles.defaultTheme,
+    pieceSize,
+    roomPiece,
+    stallForms,
+    floorTileArea,
+    probe,
+    themeDefaults,
+    floorTone,
+  };
 }
 
 const views = new WeakMap<ResolvePalettes, Map<number, PaletteView>>();

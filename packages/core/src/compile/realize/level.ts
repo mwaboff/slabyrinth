@@ -10,12 +10,11 @@
 import type { Box3, Placement, PlacementRole } from "../../contracts/compiler";
 import { CELL, type ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
-import { areaReferenceHeights } from "../../resolve/wallspan";
+import type { LevelFacts } from "../buildFacts";
 import { emptyBox, growBox, h32, placementBox } from "../geometry";
-import { structureClaims } from "../structure";
 import type { RealizeCtx } from "./context";
-import { LevelGrid, type LevelCell } from "../../resolve/levelGrid";
-import { findWallFaces, type WallFaces } from "../../resolve/wallFaces";
+import type { LevelCell, LevelGrid } from "../../resolve/levelGrid";
+import type { WallFaces } from "../../resolve/wallFaces";
 
 export const EPS = 1e-6;
 
@@ -45,7 +44,7 @@ export class RealizeLevel {
   /** Reference floor height of each area (resolve/wallspan.ts), for wall spans. */
   readonly refHeights: ReadonlyMap<number, number>;
   /** Edges and openings buildings build themselves (compile/structure.ts): the wall passes leave them alone. */
-  readonly claimed: ReturnType<typeof structureClaims>;
+  readonly claimed: LevelFacts["claims"];
   /** The level's wall faces (resolve/wallFaces.ts): the shell, the wall runs and their rock columns read them. */
   readonly faces: WallFaces;
   /**
@@ -69,12 +68,13 @@ export class RealizeLevel {
     readonly ctx: RealizeCtx,
     readonly L: ResolvedLevel,
   ) {
-    const { views, defaultTheme, seed, orientation, palettes, profile, placed } = ctx;
+    const { facts, seed, orientation, palettes, profile, placed } = ctx;
     const placements: Placement[] = [];
     const levelBox = emptyBox();
     this.placements = placements;
     this.levelBox = levelBox;
-    const V = views.get(L.id) ?? new LevelGrid(L, defaultTheme);
+    // the grid, faces and claims verify measures by (compile/buildFacts.ts)
+    const { grid: V, refHeights, claims, faces } = facts.of(L);
     this.V = V;
     this.outcropCells = new Set(
       (L.outcrops ?? []).flatMap((o) => o.cells.map(([x, y]) => V.index(x, y)).filter((i) => i >= 0)),
@@ -84,14 +84,10 @@ export class RealizeLevel {
     const elev = L.elevation;
     this.elev = elev;
     this.topOf = (c: LevelCell): number => elev + c.height + 0.5;
-    this.refHeights = areaReferenceHeights(L);
+    this.refHeights = refHeights;
     // buildings build their own shell (compile/structure.ts)
-    this.claimed = structureClaims(L);
-    this.faces = findWallFaces(V, {
-      claimed: this.claimed.edges,
-      refHeights: this.refHeights,
-      boardEdgeIsExit: profile.boardEdgeExits,
-    });
+    this.claimed = claims;
+    this.faces = faces;
     this.outsideGround = profile.foundation ? Math.min(lowestGround(L), -(L.foundation ?? 0)) : 0;
 
     this.emit = (

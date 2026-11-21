@@ -136,7 +136,7 @@ function layFlight(lv: RealizeLevel, lk: Link, v: ResolvedVariant, theme: ThemeI
  */
 function layVerticalLink(lv: RealizeLevel, lk: Link, v: ResolvedVariant, role: string, deg: number): void {
   const { L, V, elev, topOf, emit } = lv;
-  const { frame, views, addDiag } = lv.ctx;
+  const { frame, facts, addDiag } = lv.ctx;
   const roleName = `link.${lk.kind}`;
   const xs = lk.lowerCells.map((c) => c[0]);
   const ys = lk.lowerCells.map((c) => c[1]);
@@ -155,7 +155,7 @@ function layVerticalLink(lv: RealizeLevel, lk: Link, v: ResolvedVariant, role: s
   const rows = coversLink ? rh : 1;
   const c = V.cell(cx, cy);
   const base = c.floor ? topOf(c) : elev + 0.5;
-  const upView = views.get(lk.toLevel);
+  const upView = facts.grid(lk.toLevel);
   const upperTop = upView ? upView.top(cx, cy) : elev + c.height + 0.5 + lk.rise;
   const count = Math.max(1, Math.ceil((upperTop - base) / v.unitHeight - EPS));
   const src: Placement["source"] = { cell: [cx, cy], elementId: lk.id };
