@@ -387,6 +387,8 @@ describe("one palette view, one stall capability", () => {
       (d) => d.code === "verify_stall_uncovered",
     );
     expect(diags.length).toBe(covered.length);
+    // the hint says what an author can change: the stall row's theme, or the theme's palette
+    expect(diags[0]?.hint).toMatch(/^covered stalls are chosen by the level's theme: .* a stall post piece$/);
   });
 
   it("resolveView: the compiled palettes decide from generator 4 on, the bundled ones before (frozen output)", () => {
