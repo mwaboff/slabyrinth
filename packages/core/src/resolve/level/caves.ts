@@ -59,10 +59,12 @@ function caveKeep(work: ResolveGrid, ring: number): Set<number> {
 }
 
 /**
- * Generator 4: chambers and corridors with natural rock walls get ragged, bulging outlines (resolve/caveOutline.ts),
- * passages at least two cells wide, every connection kept. Runs right after the areas are claimed.
+ * Generator 4 (switch `caveOutlines`): chambers and corridors with natural rock walls get ragged, bulging outlines
+ * (resolve/caveOutline.ts), passages at least two cells wide, every connection kept. Runs right after the areas are
+ * claimed.
  */
 export function stepCaveOutlines(work: ResolveGrid): void {
+  if (!work.profile.caveOutlines) return;
   const keep = caveKeep(work, 1);
   const zoneAt = (i: number): boolean => {
     const d = work.disp[i] as number;
@@ -101,11 +103,12 @@ export function stepCaveOutlines(work: ResolveGrid): void {
 }
 
 /**
- * Generator 4: a cave floor the plan left flat (CAVE_RELIEF.flatShare of its dry cave floor at one height) gets a
- * few half-tile shelves (resolve/caveRelief.ts): low by the water, rising toward the back of side chambers. Never
- * under explicit features, bridges, links, openings or the pool edge, never beside another step.
+ * Generator 4 (switch `caveRelief`): a cave floor the plan left flat (CAVE_RELIEF.flatShare of its dry cave floor at
+ * one height) gets a few half-tile shelves (resolve/caveRelief.ts): low by the water, rising toward the back of side
+ * chambers. Never under explicit features, bridges, links, openings or the pool edge, never beside another step.
  */
 export function stepCaveRelief(work: ResolveGrid): void {
+  if (!work.profile.caveRelief) return;
   const cave = (i: number): boolean => {
     const s = work.struct[i] as number;
     if (s <= 0 || work.state[i] !== CELL.OPEN) return false;

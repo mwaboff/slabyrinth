@@ -12,7 +12,8 @@
  *   linkFloorOpenings (resolve/level/floorOpenings.ts) → runPhase2 (steps 8–9) per level → toResolved
  *   (resolve/level/output.ts, step 10 and the ResolvedLevel contract shape).
  * The structure hooks (resolve/structure.ts `StructureWork`) run between stages, where buildings need the level's
- * cells as they stand at that point. Every stage that depends on the generator checks its own switch.
+ * cells as they stand at that point. This file is a plain list: a stage that only runs for some generators (or only
+ * when the level asks for it) checks its own switch on its first line and names it in its doc comment.
  */
 import { checkAreaFields, stepAreas, stepBase } from "./level/areas";
 import { stepBridgeRubble, stepBridges, stepRailings } from "./level/bridges";
@@ -35,16 +36,16 @@ export function runPhase1(s: ResolveLevelState): void {
   stepBase(work);
   const under = stepTerrain(work, "under", terrain);
   const routes = stepAreas(work);
-  if (work.profile.caveOutlines) stepCaveOutlines(work);
+  stepCaveOutlines(work);
   work.structs?.afterAreas(work);
   checkUnderSurvivors(work, under);
   stepTerrain(work, "over", terrain);
   work.structs?.afterTerrain(work);
-  if (work.profile.caveRelief) stepCaveRelief(work);
+  stepCaveRelief(work);
   stepPavementFronts(work, s.paths);
   stepOutline(work, s.paths);
   stepBridges(work, s.bridges, s.chasms);
-  if (work.profile.roomFloors) stepRoomFloors(work);
+  stepRoomFloors(work);
   stepEdges(work, s.bridges);
   stepStairs(work);
   stepRailings(work, s.bridges);
@@ -66,9 +67,9 @@ export function runPhase2(s: ResolveLevelState): void {
   stepBridgeRubble(work, features, s.bridges);
   stepOpeningRubble(work, features, s.floorOpenings);
   stepOpeningRimDebris(work, features, s.floorOpenings);
-  // generator 4: rooms the plan left bare are dressed from their purpose, and every room is lit. Before the loose
-  // rubble and the scatters, so those fill what the furniture leaves and never take a wall run from it.
-  if (work.profile.roomRecipes && work.level.roomDress !== false) stepRoomRecipes(work, features);
+  // rooms are dressed before the loose rubble and the scatters, so those fill what the furniture leaves and never
+  // take a wall run from it
+  stepRoomRecipes(work, features);
   stepWallFootRubble(work, features, s.floorOpenings, s.openings);
   stepGeneratedFeatures(work, features);
 }

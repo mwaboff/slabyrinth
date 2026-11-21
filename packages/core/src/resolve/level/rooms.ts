@@ -24,8 +24,8 @@ import type { FloorOpeningRecords } from "./floorOpenings";
 import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
 
 /**
- * Generator 4, built interiors (level base solid): rooms are told apart by floor and sit a step above the corridor
- * (resolve/interiorFloors.ts).
+ * Generator 4 (switch `roomFloors`), built interiors (level base solid): rooms are told apart by floor and sit a step
+ * above the corridor (resolve/interiorFloors.ts).
  *  (a) a room whose floor is the theme default (the model writes `flagstone` on every room, which says nothing) takes
  *      the floor its purpose asks for in the theme's floor family (gen/roomPurpose.ts, from the purpose the room was
  *      classified with once), else the first built floor that none of the rooms or corridors beside it mostly uses;
@@ -37,7 +37,7 @@ import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
  * Rooms that hold a link end (stairs, ladder) keep their floor height: the climb lands on the level's own floor top.
  */
 export function stepRoomFloors(work: ResolveGrid): void {
-  if (work.level.base.type !== "solid") return;
+  if (!work.profile.roomFloors || work.level.base.type !== "solid") return;
   const rooms = work.areas.filter(
     (a) =>
       a.kind === "room" &&
@@ -199,10 +199,11 @@ function roomsOpeningOnCorridors(
 }
 
 /**
- * Generator 4, rough interiors (level base solid, dungeon wall styles): rubble at the foot of the walls and either
- * side of about half the doorways, so the join of wall and floor is soft (about 1 pile per 10 floor tiles of a room,
- * the reference interior has 1.1). Low debris mostly; blocking rubble only in a corner or at a jamb of a room, never
- * in a corridor. Never on a link, steps, a doorway cell, a cell that holds a feature, or a collapse rim.
+ * Generator 4 (switch `wallFootRubble`), rough interiors (level base solid, no structures, dungeon wall styles):
+ * rubble at the foot of the walls and either side of about half the doorways, so the join of wall and floor is soft
+ * (about 1 pile per 10 floor tiles of a room, the reference interior has 1.1). Low debris mostly; blocking rubble only
+ * in a corner or at a jamb of a room, never in a corridor. Never on a link, steps, a doorway cell, a cell that holds a
+ * feature, or a collapse rim.
  */
 export function stepWallFootRubble(
   work: ResolveGrid,
@@ -325,13 +326,15 @@ export function stepWallFootRubble(
 }
 
 /**
- * Generator 4: the default dressing of rooms (gen/rooms4.ts). An area of kind room whose name, tags or notes name a
- * purpose, that no dress op covers and that the plan furnished lightly (under 2 features per 10 floor tiles), gets
- * that purpose's furniture, things on it and lights. A room with no purpose, or one the plan furnished itself, still
- * gets its torches; a passage a few. Abandoned places (a crypt, cells, a ruin) stay sparse and keep one light at most.
- * `roomDress: false` on the level turns it off.
+ * Generator 4 (switch `roomRecipes`): the default dressing of rooms (gen/rooms4.ts). An area of kind room whose
+ * name, tags or notes name a purpose, that no dress op covers and that the plan furnished lightly (under 2 features
+ * per 10 floor tiles), gets that purpose's furniture, things on it and lights. A room with no purpose, or one the plan
+ * furnished itself, still gets its torches; a passage a few. Abandoned places (a crypt, cells, a ruin) stay sparse and
+ * keep one light at most. `roomDress: false` on the level turns it off. Runs before the loose rubble and the scatters,
+ * so those fill what the furniture leaves and never take a wall run from it.
  */
 export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void {
+  if (!work.profile.roomRecipes || work.level.roomDress === false) return;
   const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
   const dressed = new Set<string>();
   for (const op of work.level.terrain) if (op.op === "dress" && op.area !== undefined) dressed.add(op.area);
