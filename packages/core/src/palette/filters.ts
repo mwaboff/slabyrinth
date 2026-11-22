@@ -5,6 +5,7 @@
  * tests, never as an object literal where it is used (a lint guard keeps it so).
  */
 import type { ResolvedVariant, VariantFilter } from "./resolve";
+import { fitsShape, shapeKey, type TraitShape } from "./traits";
 
 /** A piece's length along a wall run in cells (its length axis, else its longer side), at least 1. */
 export const lengthOf = (v: ResolvedVariant): number =>
@@ -85,6 +86,14 @@ export const SMALL_TREE: VariantFilter = {
   key: "smalltree",
   test: (v) => widest(v) <= 3.2 && v.geom.size.y <= 4.2,
 };
+
+// ── shape traits (palette/traits.ts) ──
+
+/** Pieces of a shape: a trait, optionally narrowed by measures and kind (also the test of the theme-wide pool). */
+export const traitFilter = (shape: TraitShape): VariantFilter => ({
+  key: shapeKey(shape),
+  test: (v) => fitsShape(v.geom, shape),
+});
 
 /** Both filters at once. */
 export const both = (a: VariantFilter, b: VariantFilter): VariantFilter => ({

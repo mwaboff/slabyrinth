@@ -21,6 +21,7 @@ import {
   type ResolvePalettes,
   type VariantFilter,
 } from "./resolve";
+import { traitPool, traitQueryKey, type TraitPool, type TraitQuery } from "./traitPools";
 
 export interface PlanRoles {
   /** The generator whose roles are visible (`minGenerator` at most this). */
@@ -33,6 +34,8 @@ export interface PlanRoles {
   paletteTheme(theme: ThemeId): ThemeId;
   /** The role in the theme (asked as `paletteTheme(theme)`), through the palette's fallback chain; memoized. */
   resolve(theme: ThemeId, role: RoleName, filter?: VariantFilter): ResolveOutcome;
+  /** The theme's pieces of a shape across its roles (asked as `paletteTheme(theme)`; palette/traitPools.ts); memoized. */
+  pool(theme: ThemeId, query: TraitQuery): TraitPool;
 }
 
 /** The theme a catalog asks for a theme it has no palette for: `generic` when it has one, else its first palette. */
@@ -50,6 +53,7 @@ export function createPlanRoles(catalog: ResolvePalettes, generator: number): Pl
   const hasPalette = (theme: ThemeId): boolean => own(catalog.palettes, theme) !== undefined;
   const paletteTheme = (theme: ThemeId): ThemeId => (hasPalette(theme) ? theme : defaultTheme);
   const answers = new Map<string, ResolveOutcome>();
+  const pools = new Map<string, TraitPool>();
   return {
     generator,
     defaultTheme,
@@ -64,6 +68,16 @@ export function createPlanRoles(catalog: ResolvePalettes, generator: number): Pl
         answers.set(k, r);
       }
       return r;
+    },
+    pool(theme, query) {
+      const t = paletteTheme(theme);
+      const k = `${t}\u0000${traitQueryKey(query)}`;
+      let p = pools.get(k);
+      if (!p) {
+        p = traitPool(catalog, t, query, generator);
+        pools.set(k, p);
+      }
+      return p;
     },
   };
 }

@@ -118,7 +118,8 @@ function variantGeomFor(v: PaletteVariant, uuid: string): PaletteVariant["geom"]
   );
 }
 
-function usableVariants(
+/** A role definition's variants the game has (preferred asset, else an alternate), each noting what it replaced. */
+export function usableVariants(
   def: PaletteRole,
   role: RoleName,
   cat: ResolvePalettes,
