@@ -9,7 +9,12 @@ import { useSettings } from "../../stores/settings";
 import { useProject } from "../../stores/project";
 import { call, errorMessage } from "../../bridge/client";
 import { run } from "../../app/actions";
-import { GAME_SYSTEM_IDS, GAME_SYSTEM_LABEL } from "@slabyrinth/core/plan";
+import {
+  GAME_SYSTEM_IDS,
+  GAME_SYSTEM_LABEL,
+  GAME_SYSTEM_NAMED,
+  type GameSystemId,
+} from "@slabyrinth/core/plan";
 import { ApiKeyField, KeyStorageNote, UnreadableKeyNote } from "../setup/Setup";
 
 /** Re-reads the key status after a change; a failure is shown, not lost. */
@@ -488,27 +493,30 @@ export function SystemPicker({
   onChange: (v: AppSettings["defaultSystem"]) => void;
 }) {
   const [other, setOther] = useState(value?.otherName ?? "");
+  // a system whose name is the GM's own ("other") takes a free-text name
+  const ownName = (id: GameSystemId): boolean => !GAME_SYSTEM_NAMED[id];
+  const chosen = value?.system;
   return (
     <div className="inline">
       <div className="segctl" role="radiogroup" aria-label="Game system">
-        {GAME_SYSTEM_IDS.map(
-          (id) => [id, id === "other" ? "Other / none" : GAME_SYSTEM_LABEL[id]] as const,
-        ).map(([v, l]) => (
-          <button
-            key={v}
-            role="radio"
-            aria-checked={value?.system === v}
-            onClick={() => {
-              onChange(
-                v === "other" && other.trim() !== "" ? { system: v, otherName: other.trim() } : { system: v },
-              );
-            }}
-          >
-            {l}
-          </button>
-        ))}
+        {GAME_SYSTEM_IDS.map((id) => [id, ownName(id) ? "Other / none" : GAME_SYSTEM_LABEL[id]] as const).map(
+          ([v, l]) => (
+            <button
+              key={v}
+              role="radio"
+              aria-checked={chosen === v}
+              onClick={() => {
+                onChange(
+                  ownName(v) && other.trim() !== "" ? { system: v, otherName: other.trim() } : { system: v },
+                );
+              }}
+            >
+              {l}
+            </button>
+          ),
+        )}
       </div>
-      {value?.system === "other" && (
+      {chosen !== undefined && ownName(chosen) && (
         <input
           className="input sys-other"
           aria-label="Which system"
@@ -519,9 +527,7 @@ export function SystemPicker({
             setOther(e.target.value);
           }}
           onBlur={() => {
-            onChange(
-              other.trim() === "" ? { system: "other" } : { system: "other", otherName: other.trim() },
-            );
+            onChange(other.trim() === "" ? { system: chosen } : { system: chosen, otherName: other.trim() });
           }}
         />
       )}

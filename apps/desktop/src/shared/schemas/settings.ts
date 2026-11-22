@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { GAME_SYSTEM_IDS } from "@slabyrinth/core/plan";
+import { GAME_SYSTEM_IDS, type GameSystemId } from "@slabyrinth/core/plan";
+import type { AppSettings } from "../project";
 import { costSchema, modelSelectionSchema, pathSchema, providerIdSchema, usageSchema } from "./common";
 
 /**
@@ -26,6 +27,18 @@ const providerSettingsSchema = z.object({
 });
 
 const themeSchema = z.enum(["dark", "light", "system"]);
+/**
+ * The settings contract (shared/project.ts, a verbatim copy of docs/contracts/project.ts) spells the game systems out;
+ * the schema and every picker use core's GAME_SYSTEM_IDS. This fails to compile the day the two lists differ (a
+ * system added to the brief contract and not to the settings one, or the other way round): the owner then updates the
+ * contract.
+ */
+type SettingsSystem = NonNullable<AppSettings["defaultSystem"]>["system"];
+export const SETTINGS_SYSTEMS_ARE_CORES: [SettingsSystem] extends [GameSystemId]
+  ? [GameSystemId] extends [SettingsSystem]
+    ? true
+    : never
+  : never = true;
 const defaultSystemSchema = z.strictObject({
   system: z.enum(GAME_SYSTEM_IDS),
   otherName: z.string().trim().min(1).max(60).optional(),

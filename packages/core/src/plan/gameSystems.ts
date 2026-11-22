@@ -18,3 +18,20 @@ export const GAME_SYSTEM_LABEL: Readonly<Record<GameSystemId, string>> = {
   dnd5e: "D&D 5e",
   other: "Other",
 };
+
+/**
+ * How a system measures the party's strength (DesignBrief.party): a character level 1–20 (D&D 5e), or a tier 1–4
+ * (Daggerheart; also the default for a system the app does not know).
+ */
+export const GAME_SYSTEM_PARTY_MEASURE: Readonly<Record<GameSystemId, "level" | "tier">> = {
+  daggerheart: "tier",
+  dnd5e: "level",
+  other: "tier",
+};
+
+/** Does the system name itself (a label of its own), or is its name the GM's own text ("other")? */
+export const GAME_SYSTEM_NAMED: Readonly<Record<GameSystemId, boolean>> = {
+  daggerheart: true,
+  dnd5e: true,
+  other: false,
+};

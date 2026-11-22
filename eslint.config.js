@@ -355,6 +355,27 @@ const vocabularyRule = fieldSelectorRule("Closed vocabularies are asked of their
   ),
 ]);
 
+/** The game systems a brief can name, as core's table lists them (plan/gameSystems.ts GAME_SYSTEM_IDS). */
+function gameSystemWords() {
+  const src = readFileSync(path.join(CORE_SRC, "plan", "gameSystems.ts"), "utf8");
+  const m = /export const GAME_SYSTEM_IDS = \[([^\]]*)\]/.exec(src);
+  if (!m) throw new Error("eslint.config.js: GAME_SYSTEM_IDS is not a list in plan/gameSystems.ts");
+  return [...(m[1] ?? "").matchAll(/"([a-z0-9_]+)"/g)].map((w) => w[1] ?? "");
+}
+
+/**
+ * What a game system is (its label, whether it names itself, how it measures a party) is a field of core's table
+ * (plan/gameSystems.ts), never a comparison with a system's id in the app: a new system then needs a row, not a hunt.
+ */
+const GAME_SYSTEM_RE = `/^(${gameSystemWords().join("|")})$/`;
+const gameSystemsRule = selectorRule("Game systems are asked of core's table.", [
+  {
+    selector: `BinaryExpression[operator=/^[!=]==?$/]:matches([right.value=${GAME_SYSTEM_RE}], [left.value=${GAME_SYSTEM_RE}])`,
+    message:
+      "Ask core's plan/gameSystems.ts table (GAME_SYSTEM_LABEL, GAME_SYSTEM_NAMED, GAME_SYSTEM_PARTY_MEASURE) instead of comparing with a system's id.",
+  },
+]);
+
 /**
  * The fallback theme has one name, palette/resolve.ts GENERIC_THEME (and a plan's default theme comes from the palette
  * view, PaletteView.defaultTheme): a stage that writes "generic" works the fallback out again.
@@ -583,6 +604,7 @@ const slabyrinthPlugin = {
     "app-layers": appLayersRule,
     "reported-calls": reportedCallsRule,
     "project-switch": projectSwitchRule,
+    "game-systems": gameSystemsRule,
     "parsed-json": parsedJsonRule,
     "element-theme": elementThemeRule,
     "variant-filters": variantFilterRule,
@@ -801,6 +823,13 @@ export default tseslint.config(
       "**/*.test.{ts,tsx}",
     ],
     rules: { "slabyrinth/project-switch": "error" },
+  },
+  {
+    // the app's readers of a game system (the fake bridge stands in for main and tests build briefs of any system)
+    files: ["apps/desktop/src/**/*.{ts,tsx}", "packages/render-canvas/src/**/*.ts"],
+    ignores: ["apps/desktop/src/renderer/bridge/fake/**", "**/*.test.{ts,tsx}"],
+    plugins: { slabyrinth: slabyrinthPlugin },
+    rules: { "slabyrinth/game-systems": "error" },
   },
   {
     // where outside JSON enters typed code; tests build their own JSON and may cast it

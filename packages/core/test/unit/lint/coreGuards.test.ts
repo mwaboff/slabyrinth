@@ -548,6 +548,26 @@ describe("app guards", () => {
     });
   });
 
+  describe("slabyrinth/game-systems: a game system is asked of core's table", () => {
+    it("reports a comparison with a system's id in the app", async () => {
+      for (const code of ['if (sys === "dnd5e") f();', 'const own = "other" !== id;'])
+        expect(await guardHits("apps/desktop/src/renderer/features/x.ts", code), code).toEqual([
+          expect.stringContaining("slabyrinth/game-systems"),
+        ]);
+    });
+    it("leaves table reads, the fake bridge and tests alone", async () => {
+      const code = 'if (sys === "dnd5e") f();';
+      expect(
+        await guardHits(
+          "apps/desktop/src/renderer/features/x.ts",
+          'if (GAME_SYSTEM_PARTY_MEASURE[sys] === "level") f();',
+        ),
+      ).toEqual([]);
+      expect(await guardHits("apps/desktop/src/renderer/bridge/fake/x.ts", code)).toEqual([]);
+      expect(await guardHits("apps/desktop/src/renderer/features/x.test.ts", code)).toEqual([]);
+    });
+  });
+
   describe("slabyrinth/project-switch: view state follows its project", () => {
     const file = "apps/desktop/src/renderer/features/x.ts";
     it("reports view state sent past the store, and a project switch outside switchProject", async () => {
