@@ -115,6 +115,23 @@ export function hashUnit(...parts: ReadonlyArray<string | number>): number {
 }
 
 /**
+ * Like `hashUnit`, mixed: the FNV-1a hash passed through a finalizer (murmur3 fmix32) before it is scaled. FNV-1a alone
+ * barely moves its high bits when only the last characters of the parts change, so `hashUnit(seed, "x", i)` for
+ * i = 1, 2, 3 ... lies close together, and draws for neighbouring copies (a row's jitter, which of a fence's slats is
+ * the odd one) come out nearly equal: rows instead of a scatter, runs instead of odd ones. Draws that vary by an index
+ * use this (arrange/). `hashUnit` stays as it is: released generators depend on its values.
+ */
+export function hashUnitMixed(...parts: ReadonlyArray<string | number>): number {
+  let h = h32(parts.join(":"));
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h >>> 0) / TWO_32;
+}
+
+/**
  * FNV-1a 64 over the UTF-8 bytes of `str`, as 16 lowercase hex digits.
  * offset 0xcbf29ce484222325, prime 0x100000001b3 = 2^40 + 0x1b3; computed on two 32-bit halves.
  */

@@ -1,12 +1,12 @@
 /**
  * `scatter`: an area filled with copies of candidate pieces, as builders strew flat pieces, rubble or leaves: a grid of
- * slots at the density's pitch, each moved by a jitter, kept or left empty by a hash draw weighted for clusters and for
+ * slots at the density's pitch, each piece anywhere in its slot (jitter), kept or left empty by a hash draw weighted for clusters and for
  * the area's edge or middle, then thinned to a minimum spacing in slot order, each kept slot taking a candidate and a
- * turn off the grid. Every draw is `hashUnit(seed, "scatter", what, i, j)`, so the same parameters always give the same
+ * turn off the grid. Every draw is `hashUnitMixed(seed, "scatter", what, i, j)`, so the same parameters always give the same
  * arrangement.
  */
 import { ValueNoise } from "../gen/noise";
-import { h32, hashUnit } from "../util/hash";
+import { h32, hashUnitMixed } from "../util/hash";
 import { maxOf, minOf } from "../util/lists";
 import { snapYaw, type Arrangement, type Placed, type XZ } from "./piece";
 
@@ -22,7 +22,10 @@ export interface ScatterParams {
   readonly clusterSize?: number;
   /** -1..1: above 0 favours slots near the area's edge, below 0 its middle (default 0). */
   readonly edgeBias?: number;
-  /** 0..1: a slot moves up to this share of the pitch either way (default 0.8). */
+  /**
+   * 0..1: a slot's piece lands anywhere in this share of its slot (default 1: anywhere in it, a stratified sample with
+   * no lattice left to see; lower values show the grid).
+   */
   readonly jitter?: number;
   /** Largest turn either way from the candidate's own (degrees, in 15° steps; default 180: any turn). */
   readonly yawJitter?: number;
@@ -51,7 +54,7 @@ export function scatter(candidates: Arrangement, p: ScatterParams): Arrangement 
   if (candidates.length === 0 || p.density <= 0) return [];
   const region = regionOf(p.area);
   const pitch = 1 / Math.sqrt(p.density);
-  const jitter = p.jitter ?? 0.8;
+  const jitter = p.jitter ?? 1;
   const keepShare = 1 - Math.min(1, Math.max(0, p.empty ?? 0));
   const bias = Math.min(1, Math.max(-1, p.edgeBias ?? 0));
   const cluster = Math.min(1, Math.max(0, p.cluster ?? 0));
@@ -59,7 +62,7 @@ export function scatter(candidates: Arrangement, p: ScatterParams): Arrangement 
   const clusterSize = Math.max(0.5, p.clusterSize ?? 3);
   const span = Math.max(1e-9, Math.min(region.box.x1 - region.box.x0, region.box.z1 - region.box.z0) / 2);
   const yawSteps = Math.round(Math.min(180, Math.max(0, p.yawJitter ?? 180)) / 15);
-  const draw = (what: string, i: number, j: number): number => hashUnit(p.seed, "scatter", what, i, j);
+  const draw = (what: string, i: number, j: number): number => hashUnitMixed(p.seed, "scatter", what, i, j);
 
   const cols = Math.ceil((region.box.x1 - region.box.x0) / pitch);
   const rows = Math.ceil((region.box.z1 - region.box.z0) / pitch);

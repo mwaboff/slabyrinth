@@ -4,7 +4,7 @@
  * what stays keeps its original order. `ARRANGE_LIMITS` are the caps the build holds instances to
  * (resolve/level/arrangements.ts attaches within them; verify reports a level past its cap).
  */
-import { hashUnit } from "../util/hash";
+import { hashUnitMixed } from "../util/hash";
 import type { Arrangement } from "./piece";
 
 export const ARRANGE_LIMITS = {
@@ -33,7 +33,7 @@ export function thin<T extends { readonly tier?: number }>(a: readonly T[], p: T
   const seed = p.seed ?? 0;
   const keep = new Set(
     a
-      .map((q, i) => ({ i, tier: q.tier ?? 0, rank: hashUnit(seed, "thin", i) }))
+      .map((q, i) => ({ i, tier: q.tier ?? 0, rank: hashUnitMixed(seed, "thin", i) }))
       .sort((x, y) => x.tier - y.tier || x.rank - y.rank || x.i - y.i)
       .slice(0, Math.max(0, p.cap))
       .map((r) => r.i),

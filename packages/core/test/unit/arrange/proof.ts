@@ -28,6 +28,7 @@ import {
   transform,
   twin,
   vary,
+  HAND_BUILT,
   type ArrangePiece,
   type Arrangement,
 } from "../../../src/arrange";
@@ -235,7 +236,7 @@ export function proofStations(palettes: PaletteCatalog): ProofStation[] {
       "fence",
       "repeat + pick + vary",
       [31, 20],
-      "a slat fence filling 6 tiles, mixed slats, slightly uneven, one slat missing here and there",
+      "a slat fence filling 6 tiles: thin slats with one or two heavy pillars among them (the odd ones), slats visibly uneven (heights within 0.12, set within 0.08, a 15° turn now and then), a slat missing here and there",
       vary(
         pick(
           repeat(lengthwise(P.board), {
@@ -245,11 +246,11 @@ export function proofStations(palettes: PaletteCatalog): ProofStation[] {
           }),
           {
             from: [P.board, P.post],
-            policy: { kind: "odd", rate: 0.15 },
+            policy: { kind: "odd", rate: 0.1 },
             seed: "proof",
           },
         ),
-        { seed: "proof", along: 0.03, height: 0.05, yaw: 15, empty: 0.08 },
+        { seed: "proof", ...HAND_BUILT, empty: 0.1 },
       ),
     ),
   ];

@@ -5,7 +5,7 @@
  *   - conditions: the recipe's `when` at each anchor of its kind, in anchor order;
  *   - pieces: each slot filled by the slot rule (slots.ts); a slot that must skip leaves the recipe out there;
  *   - seeds: every draw of a recipe at an anchor is named by the plan seed, the level, the anchor key and the recipe
- *     (`hashUnit(seed, ...)`), so adding a recipe or an anchor never moves another's pieces;
+ *     (`hashUnitMixed(seed, ...)`), so adding a recipe or an anchor never moves another's pieces;
  *   - frames: the arrangement composed in the anchor's frame, mirrored when the frame is, set where the frame stands;
  *   - keeping clear (keepClear.ts): a piece that would stand in a door's way, on stairs, across a lane, in a feature or a
  *     building's fixtures is left out (the rest of the instance stays);

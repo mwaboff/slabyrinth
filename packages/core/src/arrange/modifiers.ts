@@ -1,9 +1,9 @@
 /**
  * Modifiers over the pieces of an arrangement, after the operators have placed them: `vary` (imperfection: shifts,
  * turns, flips, gaps, heights), `pick` (which piece each place gets) and `tier` (what a budget drops first). Every draw is
- * `hashUnit(seed, what, index)`, so the same parameters give the same result and another modifier never moves it.
+ * `hashUnitMixed(seed, what, index)`, so the same parameters give the same result and another modifier never moves it.
  */
-import { hashUnit } from "../util/hash";
+import { hashUnitMixed } from "../util/hash";
 import { rotateXZ } from "../util/turn";
 import { snapYaw, type ArrangePiece, type Arrangement, type Placed } from "./piece";
 
@@ -25,9 +25,16 @@ export interface VaryParams {
   readonly maxEmptyRun?: number;
 }
 
+/**
+ * The least imperfection that reads at table-top zoom (a tile is about an inch on screen; a shift under 0.05 or a
+ * height change under 0.1 is invisible there): shifts of 0.08 along and 0.04 across, heights within 0.12, one 15° step
+ * of turn. Recipes start from it and scale it (a tidy room less, a ruin more).
+ */
+export const HAND_BUILT = { along: 0.08, across: 0.04, height: 0.12, yaw: 15 } as const;
+
 /** Each piece moved, turned, flipped or left out a little, by its own draws (a hand-built look, never a pattern). */
 export function vary(a: Arrangement, p: VaryParams): Arrangement {
-  const draw = (what: string, i: number): number => hashUnit(p.seed, "vary", what, i);
+  const draw = (what: string, i: number): number => hashUnitMixed(p.seed, "vary", what, i);
   const signed = (what: string, i: number, max: number): number => (draw(what, i) * 2 - 1) * max;
   const out: Placed[] = [];
   let emptyRun = 0;
@@ -76,7 +83,7 @@ export interface PickParams {
 export function pick(a: Arrangement, p: PickParams): Arrangement {
   const n = p.from.length;
   if (n === 0) return a;
-  const draw = (what: string, i: number): number => hashUnit(p.seed, "pick", what, i);
+  const draw = (what: string, i: number): number => hashUnitMixed(p.seed, "pick", what, i);
   const any = (what: string, i: number): number => Math.floor(draw(what, i) * n);
   const choose = chooser(a, p, any);
   return a.map((q, i) => {
@@ -104,7 +111,7 @@ function chooser(
     }
     case "odd":
       return (i) =>
-        n > 1 && hashUnit(p.seed, "pick", "odd", i) < policy.rate ? 1 + (any("other", i) % (n - 1)) : 0;
+        n > 1 && hashUnitMixed(p.seed, "pick", "odd", i) < policy.rate ? 1 + (any("other", i) % (n - 1)) : 0;
     case "byHeight": {
       const bottom = a.reduce((m, q) => Math.min(m, q.y), Infinity);
       const top = a.reduce((m, q) => Math.max(m, q.y + q.piece.variant.geom.size.y), bottom);

@@ -15,7 +15,7 @@ import { mirror, repeat, single, stack, transform, type Arrangement, type Arrang
 import { isGap, isPassage, isSecret } from "../../gen/openingKinds";
 import { THEME_POST_ROLE, floorRole, partRole, postRole } from "../../palette/roles";
 import type { TraitQuery } from "../../palette/traitPools";
-import { hashUnit } from "../../util/hash";
+import { hashUnitMixed } from "../../util/hash";
 import { blankStretches } from "../anchors";
 import type { FilledSlot, Recipe, SlotRole } from "./types";
 
@@ -59,7 +59,7 @@ const postShape = (height: number, thick: number): TraitQuery => ({
 /** One piece of a filled slot, the same for every place this recipe uses it at the anchor (a pair stays a pair). */
 function choose(slot: FilledSlot | undefined, seed: string, what: string): ArrangePiece | undefined {
   const ps = slot?.pieces ?? [];
-  return ps[Math.floor(hashUnit(seed, what) * ps.length)];
+  return ps[Math.floor(hashUnitMixed(seed, what) * ps.length)];
 }
 
 /**
