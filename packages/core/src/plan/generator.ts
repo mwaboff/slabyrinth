@@ -400,6 +400,10 @@ const SWITCHES = {
     5,
     "A level's water surface and range stay a quarter tile under the dry floors of other levels inside its water's footprint (a ship's hold in the harbour), and a water_level warning names a floor the lowest sensible water would still flood (resolve/level/waterSurface.ts capWaterUnderOtherFloors).",
   ),
+  windowSpanClosed: on(
+    5,
+    "A window span no window piece of the theme fits (a 1-wide window where the pieces are 2 wide) is built as plain wall, not left as a hole, and the role_missing warning names the width the theme's windows come in (compile/realize/openings.ts).",
+  ),
   wallFootGrowth: on(
     5,
     "Detail recipe: growth at the foot of a worn, ramshackle or ruined building's walls with no door, more away from its doors and least on its street face (resolve/recipes/condition.ts).",

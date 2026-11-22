@@ -10,7 +10,13 @@ import { elementTheme } from "../../resolve/levelGrid";
 import type { WallFace } from "../../resolve/wallFaces";
 import { faceEdgeCtx, lenFilter, lengthOf, placeEdgePiece, type CornerStrips, type EdgeCtx } from "./edges";
 import { OPPOSITE } from "../../gen/gridGeometry";
-import { isFullHeightOpeningRole, isGap, isOpenWithoutPiece, isSecret } from "../../gen/openingKinds";
+import {
+  isFullHeightOpeningRole,
+  isGap,
+  isOpenWithoutPiece,
+  isPassage,
+  isSecret,
+} from "../../gen/openingKinds";
 import {
   THEME_LINTEL_ROLE,
   THEME_WALL_ROLE,
@@ -87,6 +93,23 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
       break;
     }
     if (!placed) {
+      // generator 5 (`windowSpanClosed`): a window no piece fits is wall, not a hole in it, and the warning says what
+      // width the theme's windows come in
+      const shortest = lengths[lengths.length - 1] ?? Infinity;
+      if (lv.ctx.profile.windowSpanClosed && !isPassage(op.kind)) {
+        closeSpan(lv, strips, op, ctxs.slice(i));
+        addDiag({
+          severity: "warning",
+          code: "role_missing",
+          message: Number.isFinite(shortest)
+            ? `Window ${op.id}: the "${roleName}" pieces of this theme are ${String(shortest)} or more edges wide, so its ${String(remaining)}-edge span is built as plain wall; give it width ${String(shortest)} to show a window there`
+            : `Window ${op.id}: this theme has no "${roleName}" piece, so its ${String(remaining)}-edge span is built as plain wall`,
+          levelId: L.id,
+          role: roleName,
+          elementId: op.id,
+        });
+        break;
+      }
       // A passage with no leaf (an archway) left as a plain gap is still a correct, passable opening: info, not a warning.
       const isArch = isOpenWithoutPiece(op.kind);
       addDiag({
@@ -102,6 +125,26 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
       break;
     }
     i += placed;
+  }
+}
+
+/** Generator 5: the edges of a window no piece fits, closed with the wall style's pieces from floor to wall top. */
+function closeSpan(
+  lv: RealizeLevel,
+  strips: CornerStrips,
+  op: ResolvedOpening,
+  edges: readonly EdgeCtx[],
+): void {
+  for (const ck of edges) {
+    strips.register(op.orientation, ck.x, ck.y, {
+      orient: op.orientation,
+      side: OPPOSITE[ck.planSide],
+      style: op.wallStyle,
+      theme: ck.theme,
+      base: ck.base,
+      top: ck.top,
+    });
+    closeAboveLeaf(lv, op, ck, ck.base, ck.top, false);
   }
 }
 
