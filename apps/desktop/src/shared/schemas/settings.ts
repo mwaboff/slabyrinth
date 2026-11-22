@@ -61,6 +61,8 @@ export const settingsSchema = z.object({
     lastScanAt: z.string().nullable(),
     levelLayout: z.enum(["stacked", "side_by_side"]),
     alignmentMarkers: z.boolean(),
+    symbiotesFolder: pathSchema.nullable().optional(),
+    addonPromptDismissed: z.string().min(1).max(32).optional(),
   }),
   projects: z.object({ folder: pathSchema, recent: z.array(pathSchema).max(10) }),
   ui: z.object({
@@ -82,7 +84,8 @@ export const settingsSchema = z.object({
 /**
  * What the renderer may change through `settings:update` (Partial<AppSettings>, nested objects
  * merged). Main-owned fields are not accepted: schema, spending.allTime, talespire.lastScanAt,
- * talespire.installPath (use talespire:setPath, which validates), projects.recent.
+ * talespire.installPath (use talespire:setPath, which validates), talespire.symbiotesFolder (addon:chooseFolder),
+ * talespire.addonPromptDismissed (addon:dismissPrompt), projects.recent.
  */
 export const settingsPatchSchema = z.strictObject({
   defaultSelection: modelSelectionSchema.optional(),

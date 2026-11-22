@@ -6,7 +6,15 @@
 import { reconstruct } from "@slabyrinth/core";
 import type { MapPlan } from "@slabyrinth/core";
 import { countPlanRooms } from "@slabyrinth/core";
-import type { AppError, IpcEvents, IpcRequests, ProjectSnapshot } from "../../../shared/ipc";
+import type {
+  AddonStatus,
+  AppError,
+  IpcEvents,
+  IpcRequests,
+  LinkStatus,
+  ProjectSnapshot,
+} from "../../../shared/ipc";
+import { fakeAddonStatus, fakeLinkStatus } from "./talespireLink";
 import type { AppSettings, Phase, ProjectFile } from "../../../shared/project";
 import type { Usage } from "../../../main/agent/provider/types";
 import type { FakeTurn } from "./engine";
@@ -20,6 +28,14 @@ export interface FakeScenario {
   empty?: boolean;
   win?: boolean;
   update?: boolean;
+  /** The TaleSpire add-on's install state (default "missing"). */
+  addon?: AddonStatus["state"];
+  /** The add-on's automatic update failed at start (with addon "outdated": the update dialog shows). */
+  addonAutoFailed?: boolean;
+  /** The add-on's connection (default "none"). */
+  helper?: LinkStatus["helper"]["state"];
+  /** A Wayland session (hotkeys may be refused). */
+  wayland?: boolean;
 }
 
 export interface FakeOptions {
@@ -85,6 +101,8 @@ export class FakeState {
   readonly uiState = new Map<string, UiState>();
   catalogState: "no_install" | "fresh";
   settings: AppSettings;
+  addon: AddonStatus;
+  link: LinkStatus;
 
   constructor(opts: FakeOptions) {
     const scenario = opts.scenario ?? {};
@@ -97,6 +115,10 @@ export class FakeState {
     this.hasKey = scenario.nokey !== true;
     this.catalogState = scenario.nots === true ? "no_install" : "fresh";
     this.settings = initialSettings(scenario, this.recent);
+    this.addon = fakeAddonStatus(scenario.addon ?? "missing", {
+      autoUpdateFailed: scenario.addonAutoFailed === true,
+    });
+    this.link = fakeLinkStatus({ helper: scenario.helper ?? "none", wayland: scenario.wayland === true });
   }
 
   readonly sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms * this.speed));

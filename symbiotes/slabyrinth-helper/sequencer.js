@@ -501,15 +501,51 @@
     return null;
   }
 
-  // ── the link to the hotkey bridge (symbiotes/link-bridge.mjs) ──
+  // ── the link to the Slabyrinth app (apps/desktop/src/main/services/talespire/link/protocol.ts) ──
+  // The app's protocol.contract.test.ts runs this code against the app's own schemas, so the two cannot drift.
 
   var LINK_PROTOCOL = "slabyrinth-link";
   var LINK_VERSION = 1;
-  var LINK_TYPES = ["next", "back", "again", "status", "load", "hotkeys-result"];
-  var LINK_MAX_CHARS = 4 * 1024 * 1024;
+  /** Every type the app sends (protocol.ts APP_MESSAGE_TYPES). */
+  var LINK_TYPES = ["load", "next", "back", "again", "status", "unload", "hotkeys-result"];
+  /** The largest message read: 500 chunks of a full 30 KB slab fit (protocol.ts LINK_MAX_CHARS). */
+  var LINK_MAX_CHARS = 24 * 1024 * 1024;
+  /** The pairing file the app writes next to this page when it installs the add-on. */
+  var LINK_CONFIG_FILE = "slabyrinth-link.json";
+  /** The close code the app uses when it refuses this add-on's pairing. */
+  var LINK_CLOSE_PAIRING = 4001;
 
   /**
-   * A message from the bridge, or null when it is malformed or of an unknown type (the page ignores those).
+   * The pairing file's content ({ port, token }), or null when it is missing or malformed (then the add-on was not
+   * installed by the app, and the app will refuse it).
+   */
+  function parseLinkConfig(text) {
+    var c;
+    try {
+      c = JSON.parse(text);
+    } catch {
+      return null;
+    }
+    if (c === null || typeof c !== "object") return null;
+    var portOk =
+      typeof c.port === "number" && Math.floor(c.port) === c.port && c.port >= 1 && c.port <= 65535;
+    var tokenOk = typeof c.token === "string" && /^[0-9a-f]{32,128}$/.test(c.token);
+    return portOk && tokenOk ? { port: c.port, token: c.token } : null;
+  }
+
+  /** The first message on the link: the pairing token and this add-on's version. */
+  function helloMessage(token, addonVersion) {
+    return {
+      protocol: LINK_PROTOCOL,
+      version: LINK_VERSION,
+      type: "hello",
+      token: token,
+      addon: typeof addonVersion === "string" ? addonVersion : null,
+    };
+  }
+
+  /**
+   * A message from the app, or null when it is malformed or of an unknown type (the page ignores those).
    * { protocol: "slabyrinth-link", version: 1, type, id?, set? } -> { type, id, set? }
    */
   function parseLinkMessage(text) {
@@ -549,6 +585,8 @@
         return { action: { type: "back" } };
       case "again":
         return { action: { type: "send" } };
+      case "unload":
+        return { action: { type: "unload" } };
       case "load": {
         var parsed = parseChunkSet(JSON.stringify(msg.set), maxBytes);
         return parsed.ok ? { action: { type: "load", set: parsed.set } } : { error: parsed.error };
@@ -558,7 +596,7 @@
     }
   }
 
-  /** The helper's answer to the bridge: where the flow stands and what the status line says. */
+  /** The helper's state for the app (after every command and every change): where the flow stands. */
   function linkReply(state, replyTo, error) {
     var p = progress(state);
     return {
@@ -576,8 +614,8 @@
     };
   }
 
-  // ── global hotkeys (registered by the bridge) ──
-  // The same rule as link-bridge.mjs `checkHotkey`; the bridge checks again and is the one that decides.
+  // ── global hotkeys (registered by the app while a map is being placed) ──
+  // The same rule as the app's protocol.ts `checkHotkey`; the app checks again and is the one that decides.
 
   var HOTKEY_ACTIONS = ["next", "back", "again"];
   var DEFAULT_HOTKEYS = { next: "Ctrl+Alt+D", back: "Ctrl+Alt+A", again: "Ctrl+Alt+S" };
@@ -639,7 +677,7 @@
     return { ok: true, combo: ordered.concat([key]).join("+") };
   }
 
-  /** The helper asks the bridge for these hotkeys (only the ones the GM set; the bridge keeps the others). */
+  /** The helper asks the app for these hotkeys (only the ones the GM set; the app keeps the others). */
   function hotkeysMessage(wanted, id) {
     var hotkeys = {};
     for (var i = 0; i < HOTKEY_ACTIONS.length; i++) {
@@ -649,7 +687,10 @@
     return { protocol: LINK_PROTOCOL, version: LINK_VERSION, type: "hotkeys", id: id, hotkeys: hotkeys };
   }
 
-  /** The `results` of a bridge "hotkeys-result" message, checked field by field; null when malformed. */
+  /**
+   * The `results` of the app's "hotkeys-result" message, checked field by field; null when malformed. "standby": the
+   * key is chosen and the app registers it once a map is loaded.
+   */
   function parseHotkeyResults(r) {
     if (r === null || typeof r !== "object" || Array.isArray(r)) return null;
     var out = {};
@@ -658,7 +699,7 @@
       var v = r[a];
       if (v === undefined) continue;
       if (v === null || typeof v !== "object") return null;
-      if (["active", "refused", "none"].indexOf(v.status) < 0) return null;
+      if (["active", "standby", "refused", "none"].indexOf(v.status) < 0) return null;
       if (v.combo !== null && (typeof v.combo !== "string" || v.combo.length > 40)) return null;
       if (
         v.wanted !== undefined &&
@@ -680,8 +721,9 @@
   // ── the state header: two lights (shape + icon + words, not colour alone) ──
 
   /**
-   * The link light. linkStatus: "off" (Link switched off), "connecting" (first try), "retrying" (a try failed: the
-   * bridge is not running or not on this port) or "connected".
+   * The link light. linkStatus: "off" (Link switched off), "connecting" (first try), "retrying" (a try failed:
+   * Slabyrinth is not running), "unpaired" (Slabyrinth refused this copy: it was not installed from this app) or
+   * "connected".
    */
   function linkLight(linkStatus) {
     if (linkStatus === "connected")
@@ -693,7 +735,14 @@
         tone: "wait",
         icon: "◌",
         label: "Not connected to Slabyrinth",
-        detail: "The bridge is not running. Retrying on its own.",
+        detail: "Start Slabyrinth on this computer. Retrying on its own.",
+      };
+    if (linkStatus === "unpaired")
+      return {
+        tone: "bad",
+        icon: "⚠",
+        label: "Not paired with Slabyrinth",
+        detail: "Install the add-on again from the Slabyrinth app.",
       };
     return { tone: "off", icon: "○", label: "Link is off", detail: "Turn it on under Link and hotkeys." };
   }
@@ -813,6 +862,13 @@
     hotkeysMessage: hotkeysMessage,
     LINK_PROTOCOL: LINK_PROTOCOL,
     LINK_VERSION: LINK_VERSION,
+    LINK_TYPES: LINK_TYPES,
+    LINK_MAX_CHARS: LINK_MAX_CHARS,
+    LINK_CONFIG_FILE: LINK_CONFIG_FILE,
+    LINK_CLOSE_PAIRING: LINK_CLOSE_PAIRING,
+    MAX_CHUNKS: MAX_CHUNKS,
+    parseLinkConfig: parseLinkConfig,
+    helloMessage: helloMessage,
     parseLinkMessage: parseLinkMessage,
     linkCommand: linkCommand,
     linkReply: linkReply,

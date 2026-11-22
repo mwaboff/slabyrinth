@@ -1,7 +1,7 @@
-# Slabyrinth Helper (experiment)
+# Slabyrinth Helper
 
-A TaleSpire symbiote that puts a big Slabyrinth map in your hand **one chunk at a time** and always says what to do
-next. It is an **experiment**. Its job is to find out how far "click the same spot for every chunk" carries.
+A TaleSpire symbiote (add-on) that puts a big Slabyrinth map in your hand **one chunk at a time** and always says what
+to do next. The Slabyrinth app ships it, installs and updates it, sends maps to it and holds its global hotkeys.
 
 How it works: TaleSpire's symbiote API cannot place a slab at a position; it can only put a slab in the GM's hand
 (`slabs.sendSlabToHand`). Every chunk Slabyrinth makes carries the same two alignment pillars, so all chunks of one
@@ -11,27 +11,26 @@ The owner's first tests showed:
 
 - Same-spot placement lines up **with the build plane raised (`G`)**; without it, later chunks land a little higher.
 - WebSocket from the symbiote to the local computer works.
-- Keys only reach the panel while it has focus, and while a slab is in hand the game hides the cursor. So the
-  recommended flow now uses a small **hotkey bridge** on your computer: system-wide hotkeys that advance the helper
-  while you keep the mouse on the spot.
+- Keys only reach the panel while it has focus, and while a slab is in hand the game hides the cursor. So the app
+  holds **system-wide hotkeys** that advance the helper while you keep the mouse on the spot.
 
 It is plain HTML, CSS and JavaScript with no build step. The helper talks only to TaleSpire's API and, when Link is on,
-to the bridge on `127.0.0.1` (this computer only).
+to the Slabyrinth app on `127.0.0.1` (this computer only). It sets every text with `textContent`.
 
 ## Install
 
 1. In TaleSpire, turn on symbiotes in the settings (the official docs show this as the first step).
-2. Copy this folder into TaleSpire's symbiotes folder. In PowerShell, from the Slabyrinth folder:
+2. In the Slabyrinth app, install the add-on (the TaleSpire part of the settings). The app finds TaleSpire's Symbiotes
+   folder, copies this folder into it as `Symbiotes/slabyrinth-helper/` and writes `slabyrinth-link.json` beside it:
+   the port and a pairing key that only this app knows. You can also choose the folder by hand, open it, or get a
+   paired copy to copy in yourself. The app updates an installed older copy by itself when it starts.
+3. Open the symbiotes panel in TaleSpire and pick **Slabyrinth Helper**. TaleSpire picks up added, changed and removed
+   add-ons while it runs (official docs), so no restart is needed.
 
-   ```powershell
-   Copy-Item -Recurse -Force symbiotes\slabyrinth-helper "$env:USERPROFILE\AppData\LocalLow\BouncyRock Entertainment\TaleSpire\Symbiotes\"
-   ```
-
-   That is the folder the official docs give as `%AppData%\..\LocalLow\BouncyRock Entertainment\TaleSpire\Symbiotes\`.
-   `manifest.json` must sit directly inside `Symbiotes\slabyrinth-helper\`.
-
-3. Open the symbiotes panel in TaleSpire and pick **Slabyrinth Helper**. TaleSpire reloads it when files in its folder
-   change.
+A copy made by hand from this repository has no `slabyrinth-link.json`, so the app refuses its link and the panel says
+"Not paired with Slabyrinth". For development, run the app from the repository (`npm run dev`; in a PowerShell that
+blocks `.ps1` scripts, `npm.cmd run dev`) and install from it: in development the app installs this folder as it is.
+There is no separate bridge or test server any more; the app is the other end of the link.
 
 Opening `index.html` from disk in an ordinary browser shows a **preview**: a yellow banner says the TaleSpire API is
 not there and nothing is sent to TaleSpire; a fake answers instead. Inside TaleSpire the helper never uses the fake:
@@ -44,7 +43,8 @@ when the API object and its init event appeared, and the namespaces.
 From the top, everything the GM needs at a glance, then closed sections:
 
 - **Two lights.** The link: "Connected to Slabyrinth", "Connecting to Slabyrinth…", "Not connected to Slabyrinth"
-  (the bridge is not running; it retries on its own) or "Link is off". The slabs: "No slabs loaded", "Slabs are ready
+  (the app is not running; it retries on its own), "Not paired with Slabyrinth" (install it again from the app) or
+  "Link is off". The slabs: "No slabs loaded", "Slabs are ready
   to paste", or "Blocked: …" naming the cause (not in GM mode, not on a board, TaleSpire's API missing). Each light
   has an icon and words as well as a colour.
 - **The map:** its name (long names are cut short; hover for the whole name), chunks, size and levels, and a progress
@@ -77,25 +77,17 @@ the add-on from Slabyrinth does not change it. A stored look that no longer exis
 - **Native**: TaleSpire's own colours (black, dark grey, TaleSpire blue buttons) and its OptimusPrinceps face, so the
   helper reads as part of the game.
 
-## Recommended flow: the hotkey bridge
+## Placing a map
 
-1. In a terminal in the Slabyrinth folder, start the bridge (it uses the Electron already installed for Slabyrinth's
-   development; no window opens):
-
-   ```
-   npx electron symbiotes/hotkey-bridge.mjs
-   ```
-
-   To have it load a chunk set into the helper as soon as they connect:
-   `npx electron symbiotes/hotkey-bridge.mjs --set=path\to\my-map.json`. Other options: `--port=48731`,
-   `--next=Ctrl+Alt+D`, `--back=Ctrl+Alt+A`, `--again=Ctrl+Alt+S`. It prints the active hotkeys, every command it
-   sends and the helper's answer. **Ctrl+C** in the terminal stops it and releases the hotkeys.
-
-2. In the helper, **Link** is on by default (port 48731): within a few seconds the top light turns to "Connected to
-   Slabyrinth". "Not connected to Slabyrinth" means the bridge is not running and the helper is retrying; "Link is
+1. Run Slabyrinth. In the helper, **Link** is on by default: within a few seconds the top light turns to "Connected
+   to Slabyrinth". "Not connected to Slabyrinth" means the app is not running and the helper is retrying; "Link is
    off" means the switch under **Link and hotkeys** is off. (Developer tools > Diagnostics > "Test local connection"
    is only a one-off test, not the link.)
-3. Load the chunks: the bridge's `--set` file, or under **Developer tools > Load**, the test pair or a pasted set.
+2. Send the map from Slabyrinth's build page (or, for testing, **Developer tools > Load**: the test pair or a pasted
+   set). While a map is being placed the app holds the hotkeys; it releases them when you finish, when the add-on
+   closes and when the app quits.
+3. If the app could not register a hotkey (another program has it, or some Linux Wayland desktops refuse or ask
+   first), the setting says so; the buttons in the panel always work.
 4. In TaleSpire, **press G to raise the build plane** first (without it, later chunks land a little higher). Point the
    camera at an empty area and do not move it again.
 5. Press **Ctrl+Alt+D** (Next): chunk 1 goes to your hand. Click one spot (hold the click briefly).
@@ -127,16 +119,17 @@ Hotkeys (left hand only, the right stays on the mouse):
 | Ctrl+Alt+S | Put the current chunk in your hand again (after the end: Start over, no send) |
 
 You can change them in the helper: click a hotkey under **Link and hotkeys** and press the new combination (Ctrl or
-Alt plus a letter, digit, F-key, Space or arrow). The helper sends it to the bridge, which answers "Active" or why it
-refused (for example "taken by another program"); a refused hotkey keeps the previous one. Hotkeys set in the helper are
-remembered and win over the bridge's command-line ones each time they connect. **Reset hotkeys to defaults** goes back
-to Ctrl+Alt+D, A and S. If the link is down, a change applies when the bridge connects.
+Alt plus a letter, digit, F-key, Space or arrow). The helper sends it to the app, which answers "Active" (or "Ready"
+while no map is being placed) or why it refused (for example "taken by another program"); a refused hotkey keeps the
+previous one. Hotkeys set in the helper are remembered and win over the defaults each time they connect. **Reset
+hotkeys to defaults** goes back to Ctrl+Alt+D, A and S. If the link is down, a change applies when the app connects.
 
-**This link is an experiment:** anything on this computer, including a web page in any browser, could connect to
-the bridge's port. A product version would add a pairing token and an `Origin` check, and would live inside the
-Slabyrinth app.
+**Trust:** the app listens on 127.0.0.1 only, accepts only a page from TaleSpire's local server (`Origin`
+`http://localhost:<port>`) that names the app's own address, and closes any connection whose first message does not
+carry the pairing key from `slabyrinth-link.json`. Everything the helper sends is checked and size-capped; a hotkey
+from the helper is only ever registered from a fixed allow-list.
 
-## Without the bridge
+## Without the app's hotkeys
 
 The buttons do the same: **Next** (puts chunk 1 in hand first, then each next chunk), **Back**, **Put in hand
 again**. The panel also has keys (Ctrl+Space Next, Ctrl+Shift+Space Back; set under Developer tools > Diagnostics),
@@ -191,9 +184,9 @@ Use a scratch board, in GM mode. Report back for each test what you saw; screens
   "TaleSpire reported an error" and the whole text is under **Developer tools > Diagnostics > Last API error** and in
   the event log.
 
-### Test G: the bridge flow
+### Test G: the hotkey flow
 
-With the bridge running and Link on, follow the recommended flow: place chunk 1, keep the mouse still, press
+With Slabyrinth running and Link on, send a map and place it: place chunk 1, keep the mouse still, press
 Ctrl+Alt+D, click again.
 Look for: do the halves line up without touching the panel or moving the mouse?
 Report: lined up or not (if not, by how many cells and which way), and anything that made you move the mouse.
@@ -208,7 +201,7 @@ Report: what was in your hand after the hotkey, and whether it stayed under the 
 ### Test I: does the hotkey fire while TaleSpire has focus?
 
 Try the hotkeys while TaleSpire is in front, in windowed mode and in fullscreen.
-Look for: the bridge's terminal prints "Sent: next" and the helper advances. Does TaleSpire itself also react to
+Look for: the helper advances (its event log shows "received next"). Does TaleSpire itself also react to
 Ctrl+Alt+D, A or S?
 Report: windowed yes or no, fullscreen yes or no, and any reaction in TaleSpire.
 
@@ -217,7 +210,7 @@ Report: windowed yes or no, fullscreen yes or no, and any reaction in TaleSpire.
 Load a larger set (several chunks) and press Ctrl+Alt+D several times quickly.
 Look for: does the status line ever say TaleSpire is limiting the helper for sending too fast? Does any chunk get
 skipped?
-Report: what the status line and the bridge's terminal showed.
+Report: what the status line and the event log showed.
 
 ### Test L: the end of the map, Start over and Back
 

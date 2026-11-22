@@ -169,7 +169,7 @@ describe("the chunk flow", () => {
   });
 });
 
-describe("the link to the bridge", () => {
+describe("the link to the Slabyrinth app", () => {
   const msg = (o) => JSON.stringify({ protocol: "slabyrinth-link", version: 1, ...o });
 
   it("accepts only well-formed messages of known types", () => {
@@ -194,6 +194,7 @@ describe("the link to the bridge", () => {
     expect(Seq.linkCommand({ type: "back" })).toEqual({ action: { type: "back" } });
     expect(Seq.linkCommand({ type: "again" })).toEqual({ action: { type: "send" } });
     expect(Seq.linkCommand({ type: "status" })).toEqual({});
+    expect(Seq.linkCommand({ type: "unload" })).toEqual({ action: { type: "unload" } });
     const set = JSON.parse(blob());
     const load = Seq.parseLinkMessage(msg({ type: "load", id: 1, set }));
     const cmd = Seq.linkCommand(load);
@@ -249,7 +250,7 @@ describe("global hotkeys (helper side)", () => {
     expect(Seq.checkHotkey("Ctrl+Ctrl+D").reason).toMatch(/repeats/);
   });
 
-  it("asks for only the hotkeys the GM set and reads the bridge's answer", () => {
+  it("asks for only the hotkeys the GM set and reads the app's answer", () => {
     expect(Seq.hotkeysMessage({ next: "Ctrl+Alt+F", junk: "x" }, 2)).toEqual({
       protocol: "slabyrinth-link",
       version: 1,
@@ -291,15 +292,22 @@ describe("the state header", () => {
     expect(Seq.linkLight("retrying")).toMatchObject({
       tone: "wait",
       label: "Not connected to Slabyrinth",
-      detail: "The bridge is not running. Retrying on its own.",
+      detail: "Start Slabyrinth on this computer. Retrying on its own.",
+    });
+    expect(Seq.linkLight("unpaired")).toMatchObject({
+      tone: "bad",
+      label: "Not paired with Slabyrinth",
+      detail: "Install the add-on again from the Slabyrinth app.",
     });
     expect(Seq.linkLight("off")).toMatchObject({
       tone: "off",
       label: "Link is off",
       detail: "Turn it on under Link and hotkeys.",
     });
-    const icons = ["connected", "connecting", "retrying", "off"].map((s) => Seq.linkLight(s).icon);
-    expect(new Set(icons).size).toBe(4);
+    const icons = ["connected", "connecting", "retrying", "unpaired", "off"].map(
+      (s) => Seq.linkLight(s).icon,
+    );
+    expect(new Set(icons).size).toBe(5);
   });
 });
 

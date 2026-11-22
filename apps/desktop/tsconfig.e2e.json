@@ -12,7 +12,13 @@
     "playwright.config.ts",
     "playwright.site.config.ts",
     "src/shared/**/*.ts",
-    "src/main/agent/provider/types.ts"
+    "src/main/agent/provider/types.ts",
+    "src/main/logger.ts",
+    "src/main/services/talespire/link/linkServer.ts",
+    "src/main/services/talespire/link/hotkeys.ts",
+    "src/main/services/talespire/link/protocol.ts",
+    "src/main/services/talespire/link/wsLite.ts",
+    "src/main/services/talespire/link/testing/*.ts"
   ],
   "references": [{ "path": "../../packages/core" }]
 }

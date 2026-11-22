@@ -12,6 +12,10 @@ export interface AppPaths {
   orientationOverride: string;
   thumbs: string;
   windowState: string;
+  /** The TaleSpire add-on link's pairing token. */
+  linkTokenFile: string;
+  /** A paired copy of the add-on, prepared for installing it by hand. */
+  addonPackage: string;
   /** Default projects folder (Documents/Slabyrinth). */
   defaultProjectsFolder: string;
 }
@@ -37,6 +41,8 @@ export function makeAppPaths(inputs: PathInputs): AppPaths {
     orientationOverride: path.join(u, "orientation.json"),
     thumbs: path.join(u, "thumbs"),
     windowState: path.join(u, "window-state.json"),
+    linkTokenFile: path.join(u, "talespire-link.json"),
+    addonPackage: path.join(u, "talespire-addon"),
     defaultProjectsFolder: inputs.projectsFolderOverride ?? path.join(inputs.documents, "Slabyrinth"),
   };
 }

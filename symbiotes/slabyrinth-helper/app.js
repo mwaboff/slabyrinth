@@ -343,7 +343,7 @@ function start() {
   renderClearSetting();
   loadLinkSettings();
   renderLink();
-  linkConnect();
+  void Promise.all([loadLinkConfig(), loadAddonVersion()]).then(linkConnect);
   renderKeys();
   render();
   apiPoll = setInterval(checkApi, 250);
@@ -355,8 +355,11 @@ function start() {
 /** Applies an action; resolves once any slab it sends has been answered by TaleSpire. */
 function dispatch(action) {
   const { state: next, effect } = Seq.reduce(state, action);
+  const changed = next !== state;
   state = next;
   render();
+  // the app follows every change (progress, finished), also the ones made with the panel's own buttons
+  if (changed) linkSend(Seq.linkReply(state, null));
   if (effect && effect.type === "send") return sendChunk(effect.index);
   if (effect && effect.type === "clearHand") return clearHand();
   return Promise.resolve();
@@ -422,27 +425,65 @@ async function sendChunk(index) {
   await dispatch({ type: "sent", index, ok: r.ok, cause: r.cause });
 }
 
-// ── link to the hotkey bridge (symbiotes/hotkey-bridge.mjs) ──
-// The bridge's global shortcuts arrive here as messages over a WebSocket on 127.0.0.1 and drive the same actions as
-// the buttons. Reconnects with backoff while Link is on; the setting is remembered in this panel.
+// ── link to the Slabyrinth app ──
+// The app sends chunk sets and its global hotkeys over a WebSocket on 127.0.0.1; they drive the same actions as the
+// buttons. The first message is the pairing token from slabyrinth-link.json, which the app wrote when it installed
+// this add-on; the app refuses a copy without it (close code 4001). Reconnects with backoff while Link is on; the
+// switch is remembered in this panel.
 
 const LINK_STORE = "slabyrinth-helper.link";
-// on by default: it only talks to 127.0.0.1 and retries quietly; `failed` = a try has failed since the last success
+// on by default: it only talks to 127.0.0.1 and retries quietly; `failed` = a try has failed since the last success;
+// `refused` = the app refused the pairing; `config` = the pairing file ({ port, token }), or null
 const link = {
   on: true,
   port: DEFAULT_PORT,
   ws: null,
   connected: false,
   failed: false,
+  refused: false,
+  config: null,
   retry: null,
   delay: 1000,
 };
 
-/** The link light's state: off, connecting (first try), retrying (the bridge did not answer) or connected. */
+/** The link light's state: off, connecting (first try), retrying (the app did not answer), unpaired or connected. */
 function linkStatus() {
   if (!link.on) return "off";
   if (link.connected) return "connected";
+  if (link.refused) return "unpaired";
   return link.failed ? "retrying" : "connecting";
+}
+
+/** Reads the pairing file from this add-on's own folder (same origin; nothing leaves this computer). */
+async function loadLinkConfig() {
+  let text = null;
+  try {
+    const res = await fetch(Seq.LINK_CONFIG_FILE, { cache: "no-store" });
+    if (res.ok) text = await res.text();
+  } catch {
+    // a plain-browser preview (file://) or no pairing file: the app will refuse the link and say so
+  }
+  link.config = text === null ? null : Seq.parseLinkConfig(text);
+  if (link.config) link.port = link.config.port;
+  setText(
+    "diag-pairing",
+    link.config
+      ? `paired (port ${link.config.port})`
+      : "no pairing file: install the add-on from the Slabyrinth app",
+  );
+  renderLink();
+}
+
+/** This add-on's version, from its manifest (for the app's "is it up to date"). */
+let addonVersion = null;
+async function loadAddonVersion() {
+  try {
+    const res = await fetch("manifest.json", { cache: "no-store" });
+    const m = res.ok ? await res.json() : null;
+    if (m && typeof m.version === "string") addonVersion = m.version.slice(0, 32);
+  } catch {
+    // a preview from disk: the app is told no version
+  }
 }
 
 function loadLinkSettings() {
@@ -481,17 +522,20 @@ function linkConnect() {
     link.failed = false;
     link.delay = 1000;
     logEvent("link", "connected", { port: link.port }, true);
+    // pairing first: the app reads nothing else from a connection until it has the token
+    linkSend(Seq.helloMessage(link.config ? link.config.token : "unpaired", addonVersion));
     renderLink();
     linkSend(Seq.linkReply(state, null));
-    sendHotkeys(); // the hotkeys set here win over the bridge's command-line ones
+    sendHotkeys(); // the hotkeys set here win over the app's defaults
   };
   ws.onmessage = (m) => void onLinkMessage(m.data);
-  ws.onclose = () => {
+  ws.onclose = (c) => {
     if (link.ws !== ws) return; // an old socket closing after Link was switched off and on
-    if (link.connected) logEvent("link", "disconnected", null, true);
+    if (link.connected) logEvent("link", "disconnected", { code: c.code }, true);
     link.ws = null;
     link.connected = false;
     link.failed = true;
+    link.refused = c.code === Seq.LINK_CLOSE_PAIRING;
     renderLink();
     linkRetry();
   };
@@ -511,6 +555,7 @@ function linkDisconnect() {
   link.ws = null;
   link.connected = false;
   link.failed = false;
+  link.refused = false;
   renderLink();
 }
 
@@ -528,7 +573,7 @@ async function onLinkMessage(text) {
   if (msg.type === "hotkeys-result") {
     hk.results = msg.results;
     hk.pending = false;
-    // a refused hotkey is not kept: the setting shows what the bridge still uses
+    // a refused hotkey is not kept: the setting shows what the app still uses
     let changed = false;
     for (const [a, r] of Object.entries(msg.results))
       if (r.status === "refused" && hk.stored[a] === r.wanted) {
@@ -550,10 +595,10 @@ async function onLinkMessage(text) {
   linkSend(Seq.linkReply(state, msg.id));
 }
 
-// ── global hotkeys: set here, registered by the bridge ──
+// ── global hotkeys: set here, registered by Slabyrinth while a map is being placed ──
 
 const HOTKEYS_STORE = "slabyrinth-helper.hotkeys";
-// stored: only the hotkeys the GM set; results: the bridge's last answer; pending: a change not yet answered
+// stored: only the hotkeys the GM set; results: Slabyrinth's last answer; pending: a change not yet answered
 const hk = { stored: loadHotkeys(), results: null, pending: false, capturing: null, note: {}, nextId: 1 };
 
 function loadHotkeys() {
@@ -576,11 +621,11 @@ function saveHotkeys() {
     if (Object.keys(hk.stored).length) window.localStorage.setItem(HOTKEYS_STORE, JSON.stringify(hk.stored));
     else window.localStorage.removeItem(HOTKEYS_STORE);
   } catch {
-    // not saved; the bridge still gets the change now
+    // not saved; Slabyrinth still gets the change now
   }
 }
 
-/** Sends the GM's hotkeys to the bridge (all three on reset, else only the ones set here). */
+/** Sends the GM's hotkeys to Slabyrinth (all three on reset, else only the ones set here). */
 function sendHotkeys(wanted = hk.stored) {
   if (!link.connected) return;
   hk.pending = true;
@@ -620,12 +665,14 @@ function renderHotkeys() {
     if (hk.note[a]) {
       text = hk.note[a];
       tone = "bad";
-    } else if (!link.connected) text = "Applies when the bridge connects.";
-    else if (hk.pending) text = "Asking the bridge…";
+    } else if (!link.connected) text = "Applies when Slabyrinth connects.";
+    else if (hk.pending) text = "Asking Slabyrinth…";
     else if (!r) text = "";
     else if (r.status === "active") {
       text = "Active";
       tone = "good";
+    } else if (r.status === "standby") {
+      text = "Ready: works while a map is being placed.";
     } else if (r.status === "refused") {
       text = `${r.wanted || "That key"} refused (${r.reason}). ${r.combo ? `Still using ${r.combo}.` : "No hotkey set."}`;
       tone = "bad";
@@ -637,15 +684,13 @@ function renderHotkeys() {
   renderNow();
 }
 
-/** The global hotkeys that work right now (the link is up and the bridge holds them), or null. */
+/** The global hotkeys that work right now (the link is up and Slabyrinth holds them), or null. */
 function activeHotkeys() {
-  if (!link.connected) return null;
+  if (!link.connected || !hk.results) return null;
   const out = {};
   for (const a of Seq.HOTKEY_ACTIONS) {
-    const r = hk.results ? hk.results[a] : null;
-    if (r) {
-      if (r.status === "active" && r.combo) out[a] = r.combo;
-    } else out[a] = hk.stored[a] || Seq.DEFAULT_HOTKEYS[a];
+    const r = hk.results[a];
+    if (r && r.status === "active" && r.combo) out[a] = r.combo;
   }
   return out;
 }
@@ -658,6 +703,7 @@ function renderLink() {
     connected: "Connected",
     connecting: "Connecting…",
     retrying: "Not connected",
+    unpaired: "Not paired",
   }[linkStatus()];
   dot.textContent = text;
   el("link-on").checked = link.on;
@@ -710,13 +756,13 @@ async function testLocal() {
   show();
   lines.push(await new Promise((resolve) => wsProbe(port, resolve)));
   lines.push(
-    "This was only a one-off test. The switch under Link and hotkeys makes the lasting connection to the bridge.",
+    "This was only a one-off test. The switch under Link and hotkeys makes the lasting connection to Slabyrinth.",
   );
   show();
 }
 
 function wsProbe(port, resolve) {
-  // the /probe path tells the bridge this is a test, not the helper's link (no chunk set is pushed)
+  // the /probe path tells Slabyrinth this is a test, not the helper's link
   const url = `ws://127.0.0.1:${port}/probe`;
   let done = false;
   const finish = (text) => {

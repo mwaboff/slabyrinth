@@ -244,6 +244,12 @@ describe("BuildService and ExportService", () => {
     const slab = await build.chunkSlab(res.buildId, res.chunks[0]?.id ?? "");
     expect(slab).toBe(res.chunks[0]?.slab);
     expect(seen[1]).toEqual({ ...seen[0], sideBySideGap: 10 }); // the recorded default gap
+    // the TaleSpire add-on's chunk set: every chunk in paste order, with its slab and asset count
+    const forSend = await build.chunksForSend(res.buildId);
+    expect(forSend.record.id).toBe(res.buildId);
+    expect(forSend.chunks.map((c) => [c.id, c.slab, c.assetCount])).toEqual(
+      res.chunks.map((c) => [c.id, c.slab, c.assetCount]),
+    );
   });
 
   it("records chunks that span several levels once, in paste order, and tracks copies", async () => {

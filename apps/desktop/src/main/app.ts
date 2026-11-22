@@ -21,6 +21,8 @@ import { SecretStore } from "./services/secretStore";
 import { SettingsStore } from "./services/settingsStore";
 import { CatalogService } from "./services/talespire/catalogService";
 import { TaleSpireService } from "./services/talespire/taleSpireService";
+import { TaleSpireLinkService } from "./services/talespire/link/linkService";
+import { DEFAULT_LINK_PORT } from "./services/talespire/link/protocol";
 import type { UpdateService } from "./services/updateService";
 import { cleanupTempFiles } from "./util/atomicWrite";
 import { startEngine } from "./wiring/engine";
@@ -44,6 +46,8 @@ export interface AppContext {
   isDev: boolean;
   safeMode: boolean;
   appVersion: string;
+  /** The bundled TaleSpire add-on (resources in a packaged app, the repo's symbiotes folder in development). */
+  addonDir: string;
 }
 
 export interface AppServices {
@@ -58,6 +62,8 @@ export interface AppServices {
   exporter: ExportService;
   imageBridge: ImageBridge;
   updates: UpdateService;
+  /** The TaleSpire add-on and its link (started in the background). */
+  link: TaleSpireLinkService;
   /** Starts the background update check when it may run (packaged, not safe mode, daily, autoCheck on). */
   startUpdateCheck(packaged: boolean): void;
   engine: ConversationEngine | null;
@@ -98,6 +104,7 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
     ...work,
   });
   link.onPlanChanged(thumbnailRefresher(projects, work.imageBridge));
+  const talespireLink = startTaleSpireLink(ctx, emit, settings, projects, work.build, outside);
   const dispatch = wireIpc(
     {
       appInfo: {
@@ -119,6 +126,7 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
       dialogs: outside.dialogs,
       openExternal: outside.openExternal,
       updates,
+      link: talespireLink,
       logger: logger.child("ipc"),
     },
     work.imageBridge,
@@ -136,14 +144,20 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
     talespire: assets.talespire,
     ...work,
     updates,
+    link: talespireLink,
     startUpdateCheck,
     engine,
     engineKind,
     dispatch,
     attachWindow(win, url) {
       link.attach(win, url);
+      // a copy of the add-on installed by hand shows up when the user comes back to the app
+      win.on("focus", () => {
+        void talespireLink.recheck();
+      });
     },
     async shutdown() {
+      await talespireLink.shutdown().catch(() => undefined);
       assets.catalog.unwatch();
       work.imageBridge.cancelAll();
       work.compiler.cancel();
@@ -274,6 +288,49 @@ function startProjects(
     trashItem: outside.trashItem,
     showItemInFolder: outside.showItemInFolder,
   });
+}
+
+/**
+ * The TaleSpire add-on and its link: listens on 127.0.0.1 (the real port; an ephemeral one in safe mode), updates an
+ * installed older add-on, and looks at its install status every few seconds. Safe mode looks only at the test folder
+ * named by SLABYRINTH_TEST_SYMBIOTES_DIR (never a real TaleSpire folder) and never registers a real hotkey.
+ */
+function startTaleSpireLink(
+  ctx: AppContext,
+  emit: EmitEvent,
+  settings: SettingsStore,
+  projects: ProjectService,
+  build: BuildService,
+  outside: OutsideWorld,
+): TaleSpireLinkService {
+  const { paths, safeMode, logger } = ctx;
+  const env = process.env;
+  const service = new TaleSpireLinkService({
+    port: safeMode ? 0 : DEFAULT_LINK_PORT,
+    tokenFile: paths.linkTokenFile,
+    bundledDir: ctx.addonDir,
+    packageDir: paths.addonPackage,
+    folderEnv: {
+      platform: outside.locator.platform,
+      homedir: outside.locator.homedir,
+      fs: outside.locator.fs,
+    },
+    testSymbiotesDir: safeMode ? (env["SLABYRINTH_TEST_SYMBIOTES_DIR"] ?? null) : null,
+    settings,
+    registrar: outside.hotkeys,
+    wayland:
+      process.platform === "linux" && (env["XDG_SESSION_TYPE"] === "wayland" || !!env["WAYLAND_DISPLAY"]),
+    build,
+    projects,
+    dialogs: outside.dialogs,
+    openPath: outside.openPath,
+    emit,
+    logger: logger.child("talespire-link"),
+  });
+  void service.start().then(() => {
+    service.watch();
+  });
+  return service;
 }
 
 interface BuildWork {

@@ -695,8 +695,9 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
-    // TaleSpire symbiotes: plain JavaScript outside every tsconfig (copied into the game as they are).
-    files: ["symbiotes/**/*.{js,mjs}"],
+    // TaleSpire symbiotes: plain JavaScript outside every tsconfig (copied into the game as they are); and the bare
+    // Electron host the add-on's page test runs in (Electron runs it as it is).
+    files: ["symbiotes/**/*.{js,mjs}", "apps/desktop/e2e/**/*.mjs"],
     languageOptions: { parserOptions: { projectService: false, project: false } },
   },
   {

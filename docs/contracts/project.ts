@@ -190,6 +190,10 @@ export interface AppSettings {
     lastScanAt: string | null;
     levelLayout: "stacked" | "side_by_side";
     alignmentMarkers: boolean;
+    /** The Symbiotes folder chosen by hand for the add-on (addon:chooseFolder); absent or null = found automatically. Main-owned. */
+    symbiotesFolder?: string | null;
+    /** The bundled add-on version whose update dialog the user dismissed ("don't ask again"). Main-owned. */
+    addonPromptDismissed?: string;
   };
   projects: { folder: string; recent: string[] };   // folder default: Documents/Slabyrinth; recent ≤ 10 absolute paths
   /** App theme. Default "dark" (user requirement); map theme follows unless overridden. */
