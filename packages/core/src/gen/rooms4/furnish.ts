@@ -39,12 +39,13 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
   });
   if (room.cells.length < SMALLEST_FURNISHED || room.wallPairs.length === 0) return null;
 
-  // 1. the anchor group: one a sibling room of this kind has not drawn first, then the others in order
+  // 1. the anchor group: the table's first that no sibling room of this kind has drawn (the first room of a kind gets
+  // the preferred group; once all are drawn, any), then the others in order
   const memo = `kind:${kind}`;
   const drawn = grid.roomMemory?.get(memo) ?? [];
   const all = t.groups.map((_, i) => i).filter((i) => t.groups[i]?.fallback !== true);
   const fresh = all.filter((i) => !drawn.includes(i));
-  const first = room.rng.pick(fresh.length > 0 ? fresh : all);
+  const first = fresh[0] ?? room.rng.pick(all);
   grid.roomMemory?.set(memo, [...drawn, first]);
   const fallbacks = t.groups.map((_, i) => i).filter((i) => t.groups[i]?.fallback === true);
   const have = new Set(p.have ?? []);

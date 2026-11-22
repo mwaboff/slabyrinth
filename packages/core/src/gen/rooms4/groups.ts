@@ -627,14 +627,16 @@ export function keepClear(room: Room, g: PlacedGroup, rows: number): XY[] {
   });
   const j0 = f.k + f.D + (seated ? 1 : 0);
   const out: XY[] = [];
-  const keep = (x: number, y: number): void => {
+  const keep = (x: number, y: number, target = true): void => {
     if (!room.inRoom.has(cellKey(x, y)) || room.blocked(x, y)) return;
     room.zone.add(cellKey(x, y));
-    out.push([x, y]);
+    if (target) out.push([x, y]);
   };
   for (let i = 0; i < f.L; i++) for (let j = j0; j < j0 + rows; j++) keep(...frameCell(f, i, j));
   // and the cells beside its open end, the side a bed is got into and a bench is reached from
   if (rows > 0) for (const i of [-1, f.L]) keep(...frameCell(f, i, f.k + f.D - 1));
+  // a free-standing anchor's staff lane behind it, and its two ends, stay open (the keeper reaches the seat behind)
+  for (let j = 0; j < f.k; j++) for (let i = -1; i <= f.L; i++) keep(...frameCell(f, i, j), false);
   return out;
 }
 
