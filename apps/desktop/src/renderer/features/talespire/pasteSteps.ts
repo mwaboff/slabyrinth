@@ -20,22 +20,11 @@ const OPPOSITE: Record<PasteAnchor["side"], PasteAnchor["side"]> = {
   south: "north",
   west: "east",
 };
-/** The near pillar stands just past the box's other end: beside the south or west edge, that is north-east. */
-const NEAR_CORNER: Record<PasteAnchor["side"], string> = {
-  south: "north-east",
-  west: "north-east",
-  north: "south-west",
-  east: "south-west",
-};
-/** The far pillar stands one cell beyond this edge of the map (core: "one cell beyond its west edge"). */
-const FAR_EDGE: Record<PasteAnchor["side"], string> = {
-  south: "west",
-  west: "south",
-  north: "east",
-  east: "north",
-};
+/** Empty cells between the map and a pillar on the sides core does not count (core compile/chunk.ts MARKER_GAP_CELLS). */
+const PILLAR_GAP_CELLS = 1;
 
 const cells = (n: number): string => `${String(n)} ${n === 1 ? "cell" : "cells"}`;
+const empty = (n: number): string => `${String(n)} empty ${n === 1 ? "cell" : "cells"}`;
 const slabs = (n: number): string => `${String(n)} ${n === 1 ? "slab" : "slabs"}`;
 
 export interface PasteWords {
@@ -99,13 +88,15 @@ export function pasteSteps(anchor: PasteAnchor | null | undefined): PasteWords {
     };
   }
   const { side, clearanceCells: gap, farMarkerCells: far } = anchor;
+  // every count is of empty cells in between, as core words it; older bundles lack the near counts (core's default 1)
+  const near = anchor.nearMarkerCells ?? { north: PILLAR_GAP_CELLS, east: PILLAR_GAP_CELLS };
   const where =
-    `one just past the map's ${NEAR_CORNER[side]} corner, and one about ${cells(far)} ${side} of the map, ` +
-    `one cell beyond its ${FAR_EDGE[side]} edge`;
+    `one beyond the map's north-east corner, raised to the top, with ${empty(near.north)} between it and the map ` +
+    `northward and ${empty(near.east)} eastward; and one at ground level beyond the map's ${side}-west corner, with ` +
+    `${empty(far)} between it and the map ${side}ward and ${empty(PILLAR_GAP_CELLS)} westward`;
   const spot =
-    `Put the cursor on bare ground just outside the middle of where the map's ${side} edge will be: ` +
-    `${cells(gap + 1)} ${side} of it, with ${String(gap)} empty ${gap === 1 ? "cell" : "cells"} between it and the map. ` +
-    `The map lands ${OPPOSITE[side]} of that spot. ` +
+    `Put the cursor on one bare cell just ${side} of the middle of where the map's ${side} edge will be, with ` +
+    `${empty(gap)} between it and the map. The map lands ${OPPOSITE[side]} of that spot. ` +
     "Click that same spot for every slab, never a pillar.";
   const pillars = `When every slab is placed, delete the two alignment pillars: ${where}.`;
   const ground =

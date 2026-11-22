@@ -7,6 +7,8 @@ import {
   type PasteEvent,
   type PasteState,
 } from "./pasteMachine";
+import type { ExportBundle } from "@slabyrinth/core";
+import { pasteSteps } from "../talespire/pasteSteps";
 import { buildModel } from "./model";
 import type { BuildRecord } from "../../../shared/project";
 
@@ -151,5 +153,19 @@ describe("build model", () => {
     expect(buildModel({ ...rec(3), pasteAnchor: anchor }, null).pasteAnchor).toEqual(anchor);
     // a build saved before the field: plain steps until the bundle is in memory
     expect(buildModel(rec(3), null).pasteAnchor).toBeNull();
+  });
+  it("core's fallback (too big to paste from beside the map) keeps the plain corner-pillar steps", () => {
+    // core then sends no pasteAnchor and says why in an info diagnostic (coord_overflow)
+    const bundle = {
+      planVersion: 7,
+      chunks: [],
+      diagnostics: [{ severity: "info", code: "coord_overflow", stage: "chunk", message: "…" }],
+    } as unknown as ExportBundle;
+    const m = buildModel(rec(3), bundle);
+    expect(m.pasteAnchor).toBeNull();
+    const w = pasteSteps(m.pasteAnchor);
+    expect(w.beside).toBe(false);
+    expect(w.firstNote).toMatch(/alignment pillars at its corners/);
+    expect(w.list.join(" ")).not.toMatch(/bare cell|south of the middle/);
   });
 });

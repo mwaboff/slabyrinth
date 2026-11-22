@@ -77,12 +77,16 @@ describe("parseChunkSet", () => {
   it("reads the optional paste anchor, refuses a malformed one, and keeps null without it", () => {
     const anchor = { side: "south", clearanceCells: 4, farMarkerCells: 31 };
     expect(Seq.parseChunkSet(blob({ anchor })).set.anchor).toEqual(anchor);
+    const near = { ...anchor, nearMarkerCells: { north: 1, east: 2 } };
+    expect(Seq.parseChunkSet(blob({ anchor: near })).set.anchor).toEqual(near);
     expect(Seq.parseChunkSet(blob()).set.anchor).toBeNull();
     for (const bad of [
       null,
       { ...anchor, side: "up" },
       { ...anchor, clearanceCells: -1 },
       { ...anchor, farMarkerCells: 1.5 },
+      { ...anchor, nearMarkerCells: null },
+      { ...anchor, nearMarkerCells: { north: 1 } },
       { side: "south" },
     ])
       expect(Seq.parseChunkSet(blob({ anchor: bad })).error).toMatch(/^"anchor" must be/);
@@ -519,7 +523,12 @@ describe("after the last chunk: the picking tool", () => {
   });
 
   it("with a paste anchor, the done texts say which pillars to delete and where they stand", () => {
-    const anchor = { side: "south", clearanceCells: 4, farMarkerCells: 31 };
+    const anchor = {
+      side: "south",
+      clearanceCells: 4,
+      farMarkerCells: 31,
+      nearMarkerCells: { north: 1, east: 2 },
+    };
     let s = Seq.reduce(Seq.initialState(), {
       type: "load",
       set: Seq.parseChunkSet(blob({ anchor })).set,
@@ -530,8 +539,9 @@ describe("after the last chunk: the picking tool", () => {
     }
     s = Seq.reduce(s, { type: "next" }).state;
     const pillars =
-      "Then delete the two alignment pillars: one just past the map's north-east corner, and one about 31 cells" +
-      " south of the map.";
+      "Then delete the two alignment pillars: one beyond the map's north-east corner, raised to the top (1 empty" +
+      " cell north of the map, 2 empty cells east), and one at ground level beyond its south-west corner (31 empty" +
+      " cells south of the map, 1 empty cell west).";
     expect(Seq.guide(s, {}).detail).toBe("If a slab is still in your hand, right-click. " + pillars);
     expect(Seq.statusLine(s).text).toBe("All 2 slabs are placed. Right-click to clear your hand. " + pillars);
   });

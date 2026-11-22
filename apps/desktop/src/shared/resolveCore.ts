@@ -5,7 +5,6 @@
  * imports only) so main's tests can hold it against the build and the agent (main/resolveParity.test.ts).
  */
 import {
-  canonicalJson,
   type DisplayList,
   type DisplayOptions,
   type MapPlan,
@@ -54,25 +53,8 @@ export function palettesFromData(data: ResolvePalettesData): ResolvePalettes {
 }
 
 /**
- * `resolved` for the plan the check is given. validatePlan hands its checks the schema's parsed copy of the plan, never
- * the object passed in, so the copy is matched by content (key order aside): a stored plan parses to the same content, and anything
- * else (a plan the schema filled in) is resolved again, as before.
- */
-export function resolvedForPlan(
-  plan: MapPlan,
-  resolved: ResolvedPlan,
-): (p: MapPlan) => ResolvedPlan | undefined {
-  let json: string | null = null;
-  return (p) => {
-    if (p === plan) return resolved;
-    json ??= canonicalJson(plan);
-    return canonicalJson(p) === json ? resolved : undefined;
-  };
-}
-
-/**
  * The plan check at `sizeTier`. `resolved`: this plan already resolved against these palettes, so the check does not
- * resolve it a second time (core planRules resolvedFor; same output).
+ * resolve it a second time (core planRules `resolved`, which matches it to the copy the check is handed; same output).
  */
 export function planIssues(
   plan: MapPlan,
@@ -83,7 +65,7 @@ export function planIssues(
   try {
     const rules = planRules(palettes, {
       ...(sizeTier !== undefined ? { sizeTier } : {}),
-      ...(resolved !== undefined ? { resolvedFor: resolvedForPlan(plan, resolved) } : {}),
+      ...(resolved !== undefined ? { resolved: { plan, palettes, resolved } } : {}),
     });
     return validatePlan(plan, rules).issues.map((i) => {
       const out: UiIssue = { severity: i.severity, code: i.code, message: i.message };

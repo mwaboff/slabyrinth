@@ -15,8 +15,7 @@ import { createCoreCompileBackend } from "./ports/compile";
 import { createPlanCorePort } from "./ports/core";
 import { SettingsStore } from "./services/settingsStore";
 import { tempDir } from "./services/testing/helpers";
-import { compute, planIssues, resolvedForPlan } from "../shared/resolveCore";
-import { parsePlan } from "@slabyrinth/core/plan";
+import { compute, planIssues } from "../shared/resolveCore";
 import { activeSizeTier, tierAboveSetting } from "../shared/sizeTier";
 import { settingsPatchSchema } from "../shared/schemas/settings";
 
@@ -89,11 +88,7 @@ describe("the tier reaches core", () => {
     expect(once.issues).toEqual(planIssues(FIXTURE_PLAN, palettes));
     const resolved = resolvePlan(FIXTURE_PLAN, palettes);
     expect(planIssues(FIXTURE_PLAN, palettes, { resolved })).toEqual(once.issues);
-    // validatePlan hands its checks the schema's parsed copy: the stored plan's copy is matched, so it is not resolved again
-    const parsed = parsePlan(FIXTURE_PLAN);
-    if (!parsed.ok) throw new Error("fixture plan does not parse");
-    expect(resolvedForPlan(FIXTURE_PLAN, resolved)(parsed.plan)).toBe(resolved);
-    expect(resolvedForPlan(FIXTURE_PLAN, resolved)(WIDE)).toBeUndefined();
+    // that the check does not resolve again is counted in resolveReuse.test.ts
   });
 });
 

@@ -283,7 +283,7 @@ test("install from the light, the build page turns Send on when the add-on conne
     });
     if (multi.pasteAnchor)
       await expect(page.locator(".build__foot").filter({ hasText: "split into" })).toContainText(
-        "bare ground just outside the middle",
+        "one bare cell just south of the middle",
       );
     await shot(page, "build-multislab-dark.png");
     await page.getByRole("button", { name: "Start paste guide" }).click();

@@ -154,7 +154,12 @@ describe("slabyrinth-link: app -> helper", () => {
   });
 
   it("the add-on reads the paste anchor the app sends and says where the cursor goes and which pillars to delete", () => {
-    const anchor = { side: "south", clearanceCells: 4, farMarkerCells: 31 } as const;
+    const anchor = {
+      side: "south",
+      clearanceCells: 4,
+      farMarkerCells: 31,
+      nearMarkerCells: { north: 1, east: 2 },
+    } as const;
     const set: ChunkSet = {
       format: "slabyrinth-chunks",
       version: 1,
@@ -178,7 +183,7 @@ describe("slabyrinth-link: app -> helper", () => {
     s = Seq.reduce(Seq.reduce(s, { type: "next" }).state, { type: "sent", index: 1, ok: true }).state;
     s = Seq.reduce(s, { type: "next" }).state;
     expect(Seq.statusLine(s).text).toMatch(
-      /one just past the map's north-east corner, and one about 31 cells south of the map\.$/,
+      /2 empty cells east\), and one at ground level beyond its south-west corner \(31 empty cells south of the map, 1 empty cell west\)\.$/,
     );
     // the app's anchor sides are the add-on's
     for (const side of ["north", "east", "south", "west"] as const)

@@ -67,6 +67,20 @@ function setShape(record: Awaited<ReturnType<BuildService["chunksForSend"]>>["re
   return w >= 1 && h >= 1 && w <= 10_000 && h <= 10_000 ? { size: { w, h }, levels } : { levels };
 }
 
+/** The add-on's anchor: the fields the protocol names, picked one by one (never whatever else the bundle carries). */
+export function anchorOf(
+  a: NonNullable<Awaited<ReturnType<BuildService["chunksForSend"]>>["pasteAnchor"]>,
+): NonNullable<ChunkSet["anchor"]> {
+  return {
+    side: a.side,
+    clearanceCells: a.clearanceCells,
+    farMarkerCells: a.farMarkerCells,
+    ...(a.nearMarkerCells
+      ? { nearMarkerCells: { north: a.nearMarkerCells.north, east: a.nearMarkerCells.east } }
+      : {}),
+  };
+}
+
 function notConnected(): AppFailure {
   return new AppFailure(
     "validation",
@@ -289,7 +303,7 @@ export class TaleSpireLinkService {
       version: 1,
       name,
       ...setShape(record),
-      ...(pasteAnchor ? { anchor: { ...pasteAnchor } } : {}),
+      ...(pasteAnchor ? { anchor: anchorOf(pasteAnchor) } : {}),
       chunks: chunks.map((c) => ({ label: `${c.label} (${c.id})`.slice(0, 200), slab: c.slab })),
     };
     if (JSON.stringify(set).length > LINK_MAX_CHARS - 1024)

@@ -109,6 +109,7 @@ const buildSchema = z.looseObject({
       side: z.enum(["north", "east", "south", "west"]),
       clearanceCells: int.nonnegative(),
       farMarkerCells: int.nonnegative(),
+      nearMarkerCells: z.looseObject({ north: int.nonnegative(), east: int.nonnegative() }).optional(),
     })
     .optional(),
 });

@@ -48,7 +48,12 @@ function record(chunks: Array<{ id: string; x1: number; y1: number }>): BuildRec
   } as unknown as BuildRecord;
 }
 
-type Anchor = { side: "north" | "east" | "south" | "west"; clearanceCells: number; farMarkerCells: number };
+type Anchor = {
+  side: "north" | "east" | "south" | "west";
+  clearanceCells: number;
+  farMarkerCells: number;
+  nearMarkerCells?: { north: number; east: number };
+};
 
 async function rig(
   opts: {
@@ -209,8 +214,12 @@ describe("send this build to the add-on", () => {
 
   it("carries the paste anchor of a map pasted from beside it, and none for one that is not", async () => {
     const anchor: Anchor = { side: "south", clearanceCells: 4, farMarkerCells: 31 };
+    const near: Anchor = { ...anchor, nearMarkerCells: { north: 1, east: 2 } };
+    // only the protocol's fields are sent, picked one by one
+    const extra = { ...near, debug: "not for the add-on" } as Anchor;
     for (const [opts, want] of [
       [{ anchor }, anchor],
+      [{ anchor: extra }, near],
       [{}, undefined],
     ] as const) {
       const r = await rig(opts);

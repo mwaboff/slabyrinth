@@ -27,6 +27,15 @@
     north: "south-west",
     east: "south-west",
   };
+  /** The corner the far pillar stands beyond (the app's paste text says the same: talespire/pasteSteps.ts). */
+  var FAR_PILLAR_CORNER = {
+    south: "south-west",
+    west: "south-west",
+    north: "north-east",
+    east: "north-east",
+  };
+  /** Empty cells between the map and a pillar where the app sends no count (core MARKER_GAP_CELLS). */
+  var PILLAR_GAP_CELLS = 1;
 
   /** The bytes a base64 string decodes to. */
   function base64Bytes(s) {
@@ -143,12 +152,19 @@
         typeof a !== "object" ||
         ANCHOR_SIDES.indexOf(a.side) < 0 ||
         !cells(a.clearanceCells) ||
-        !cells(a.farMarkerCells)
+        !cells(a.farMarkerCells) ||
+        (a.nearMarkerCells !== undefined &&
+          (a.nearMarkerCells === null ||
+            typeof a.nearMarkerCells !== "object" ||
+            !cells(a.nearMarkerCells.north) ||
+            !cells(a.nearMarkerCells.east)))
       )
         return fail(
-          '"anchor" must be { "side": "north" | "east" | "south" | "west", "clearanceCells": cells, "farMarkerCells": cells }.',
+          '"anchor" must be { "side": "north" | "east" | "south" | "west", "clearanceCells": cells, "farMarkerCells": cells, "nearMarkerCells"?: { "north": cells, "east": cells } }.',
         );
       anchor = { side: a.side, clearanceCells: a.clearanceCells, farMarkerCells: a.farMarkerCells };
+      if (a.nearMarkerCells !== undefined)
+        anchor.nearMarkerCells = { north: a.nearMarkerCells.north, east: a.nearMarkerCells.east };
     }
     if (!Array.isArray(data.chunks) || data.chunks.length === 0)
       return fail('"chunks" must be a non-empty list.');
@@ -190,6 +206,11 @@
     if (!a) return null;
     var away = a.clearanceCells + 1;
     var far = a.farMarkerCells;
+    var near = a.nearMarkerCells || { north: PILLAR_GAP_CELLS, east: PILLAR_GAP_CELLS };
+    // every count is of empty cells between the pillar and the map
+    var empty = function (n) {
+      return n + (n === 1 ? " empty cell" : " empty cells");
+    };
     return {
       // "Click just south of where the map goes"
       spotTitle: "Click just " + a.side + " of where the map goes",
@@ -201,13 +222,21 @@
         (away === 1 ? " cell" : " cells") +
         " away. Click this same spot for every slab.",
       pillars:
-        "Then delete the two alignment pillars: one just past the map's " +
+        "Then delete the two alignment pillars: one beyond the map's " +
         NEAR_PILLAR_CORNER[a.side] +
-        " corner, and one about " +
-        far +
-        (far === 1 ? " cell " : " cells ") +
+        " corner, raised to the top (" +
+        empty(near.north) +
+        " north of the map, " +
+        empty(near.east) +
+        " east), and one at ground level beyond its " +
+        FAR_PILLAR_CORNER[a.side] +
+        " corner (" +
+        empty(far) +
+        " " +
         a.side +
-        " of the map.",
+        " of the map, " +
+        empty(PILLAR_GAP_CELLS) +
+        " west).",
     };
   }
 

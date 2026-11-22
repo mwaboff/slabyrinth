@@ -34,28 +34,42 @@ const num = (text: string, re: RegExp): number => {
 
 describe("beside-the-map paste words carry core's facts", () => {
   it.each<PasteAnchor>([
-    { side: "south", clearanceCells: 5, farMarkerCells: 37 },
-    { side: "south", clearanceCells: 4, farMarkerCells: 1 },
+    { side: "south", clearanceCells: 4, farMarkerCells: 37, nearMarkerCells: { north: 1, east: 2 } },
+    { side: "south", clearanceCells: 4, farMarkerCells: 1, nearMarkerCells: { north: 1, east: 1 } },
+    // a bundle from before core counted the near pillar: core's default, 1 and 1
+    { side: "south", clearanceCells: 5, farMarkerCells: 12 },
   ])("%o", (anchor) => {
     const core = pasteInstructions(CHUNKS, true, "stacked", anchor);
     const w = pasteSteps(anchor);
-    // the cursor cell: N cells south of the middle of the south edge, N - 1 empty cells between
-    const cursor = num(core, /bare cell (\d+) cells south of the middle of the map.s south edge/);
-    const gap = num(core, /\((\d+) empty cells between it and the map\)/);
-    expect(w.spot).toContain(`${String(cursor)} cells south of it`);
-    expect(w.spot).toContain(`${String(gap)} empty ${gap === 1 ? "cell" : "cells"} between it and the map`);
-    expect(w.spot).toMatch(/middle of where the map's south edge will be/);
+    const e = (n: number): string => `${String(n)} empty ${n === 1 ? "cell" : "cells"}`;
+    // every count is of empty cells in between, read out of core's own sentence
+    const gap = num(
+      core,
+      /bare cell south of the middle of the map.s south edge, with (\d+) empty cells? between it and the map/,
+    );
+    const north = num(
+      core,
+      /north-east corner, raised to the top, with (\d+) empty cells? between it and the map northward/,
+    );
+    const east = num(core, /northward and (\d+) empty cells? eastward/);
+    const far = num(
+      core,
+      /ground level beyond the south-west corner, with (\d+) empty cells? between it and the map southward/,
+    );
+    const west = num(core, /southward and (\d+) empty cells? westward/);
+    expect(w.spot).toContain(
+      `one bare cell just south of the middle of where the map's south edge will be, with ${e(gap)} between it and the map`,
+    );
     expect(w.spot).toMatch(/same spot for every slab/);
-    // the two pillars: one beyond the north-east corner, one far south, beyond the west edge
-    expect(core).toMatch(/one clear cell beyond the north-east corner/);
-    const far = num(core, /at ground level (\d+) cells? south of the map, one cell beyond its west edge/);
     for (const s of [w.pillars, w.firstNote]) {
-      expect(s).toMatch(/just past the map's north-east corner/);
       expect(s).toContain(
-        `about ${String(far)} ${far === 1 ? "cell" : "cells"} south of the map, one cell beyond its west edge`,
+        `one beyond the map's north-east corner, raised to the top, with ${e(north)} between it and the map northward and ${e(east)} eastward`,
+      );
+      expect(s).toContain(
+        `one at ground level beyond the map's south-west corner, with ${e(far)} between it and the map southward and ${e(west)} westward`,
       );
     }
-    // the clear ground: the map and the far pillar's distance beyond it
+    // the clear ground: the map, and the far pillar's gap and cell beyond it
     expect(w.ground).toContain(`about ${String(far + 1)} cells more to its south`);
     expect(w.ground).toMatch(/twice the map's depth/);
     expect(w.plane).toMatch(/press G first/);

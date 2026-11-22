@@ -227,7 +227,7 @@ test("a map pasted from beside it: the panel says where to click and which pilla
   await expect(page.locator("#now-step")).toHaveText("Slab 2 of 2 in hand");
   await page.locator("#btn-next").click();
   await expect(page.locator("#now-detail")).toContainText(
-    "one just past the map's north-east corner, and one about 31 cells south of the map.",
+    "beyond its south-west corner (31 empty cells south of the map, 1 empty cell west).",
   );
   await page.screenshot({ path: path.join(shots, "addon-panel-anchor-done.png"), animations: "disabled" });
   link.command("unload");

@@ -223,7 +223,7 @@ describe("Send to TaleSpire", () => {
     expect(screen.getByRole("list", { name: "Hotkeys in TaleSpire" })).toHaveTextContent("Ctrl Alt D");
     expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
     expect(screen.getByRole("list", { name: "Placing a map of several slabs" })).toHaveTextContent(
-      /about 31 cells south of the map/,
+      /31 empty cells between it and the map southward/,
     );
   });
 
