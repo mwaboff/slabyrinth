@@ -472,12 +472,12 @@ function TaleSpireSection({ s }: { s: AppSettings }) {
         </div>
         <span className="muted">Either way the whole map is one slab when it fits.</span>
       </Row>
-      <Row label="Corner markers">
+      <Row label="Alignment pillars">
         <Check
           on={s.talespire.alignmentMarkers}
           onChange={(v) => void update({ talespire: { ...s.talespire, alignmentMarkers: v } })}
-          label="Add corner markers to single-slab builds"
-          help="Builds split into several parts always get two gravel markers so the parts line up."
+          label="Add alignment pillars to single-slab builds"
+          help="Builds split into several slabs always get two alignment pillars so the slabs line up."
         />
       </Row>
       <Row label="Export method">

@@ -111,11 +111,34 @@ describe("add-on dialog", () => {
     render(<AddonDialog />);
     expect(screen.getAllByText("Add-on folder not found").length).toBeGreaterThan(0);
     expect(screen.getByText("Places Slabyrinth looked")).toBeInTheDocument();
+    // TaleSpire's own setting and its folder button, by their names in TaleSpire
+    expect(screen.getByText("Game Settings > Modding Settings > Symbiotes")).toBeInTheDocument();
+    expect(screen.getByText("Enable Symbiotes")).toBeInTheDocument();
+    expect(screen.getByText(/press "Open Symbiotes Directory" in TaleSpire/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Change location…" }));
     // the fake's picker returns a folder that doesn't look like TaleSpire's: kept, with a warning
     expect(await screen.findByText(/doesn't look like TaleSpire's Symbiotes folder/)).toBeInTheDocument();
     expect(screen.getByText("Chosen by you")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Use automatic detection" })).toBeInTheDocument();
+  });
+});
+
+describe("installed by hand where Slabyrinth doesn't look", () => {
+  it("the light says connected; the dialog's Folder row says what is wrong with the folder", () => {
+    useTaleSpireLink.setState({
+      addon: fakeAddonStatus("not_found"),
+      link: fakeLinkStatus({ helper: "connected" }),
+      dialogOpen: true,
+    });
+    render(
+      <>
+        <AddonIndicator />
+        <AddonDialog />
+      </>,
+    );
+    expect(screen.getByRole("button", { name: "TaleSpire add-on: Add-on connected" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "TaleSpire add-on" });
+    expect(within(dialog).getByText(/connected, but Slabyrinth couldn't find/)).toBeInTheDocument();
   });
 });
 

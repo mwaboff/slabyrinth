@@ -81,7 +81,7 @@ export function fakeLinkStatus(opts: {
           total: p.total,
           phase,
           finished: phase === "done",
-          status: `Chunk ${String(p.chunk)} of ${String(p.total)} is in your hand.`,
+          status: `Slab ${String(p.chunk)} of ${String(p.total)} is in your hand.`,
           cause: null,
         }
       : null,

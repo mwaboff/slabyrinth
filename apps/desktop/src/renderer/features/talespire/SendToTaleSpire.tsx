@@ -3,13 +3,12 @@
  * in turn. The copy-the-slab route beside it stays as the manual way. The button turns on by itself the moment the
  * add-on connects (link:changed), even when TaleSpire is opened after this page.
  */
-import type { ExportBundle } from "@slabyrinth/core";
 import type { LinkStatus } from "../../../shared/ipc";
 import { Icon } from "../../ui/Icon";
 import { useTaleSpireLink } from "../../stores/talespireLink";
 import { sendView } from "./addonView";
 import { ActionError, HotkeyList, PrimaryButton, StatusLight } from "./AddonParts";
-import { pasteSteps } from "./pasteSteps";
+import { pasteSteps, type PasteAnchor } from "./pasteSteps";
 
 type Phase = NonNullable<LinkStatus["set"]>["phase"];
 const of = (n: number, t: number): string => `${String(n)} of ${String(t)}`;
@@ -29,13 +28,12 @@ const PLACING_DO: Record<Phase, string> = {
   done: "",
 };
 
-function PasteSteps({ anchor }: { anchor: ExportBundle["pasteAnchor"] | null }) {
-  const s = pasteSteps(anchor);
+function PasteSteps({ anchor }: { anchor: PasteAnchor | null }) {
   return (
     <ol className="tspaste" aria-label="Placing a map of several slabs">
-      <li>{s.plane}</li>
-      <li>{s.spot}</li>
-      <li>{s.pillars}</li>
+      {pasteSteps(anchor).list.map((line) => (
+        <li key={line}>{line}</li>
+      ))}
     </ol>
   );
 }
@@ -49,8 +47,8 @@ export function SendToTaleSpire({
   buildId: string;
   /** More than one slab: the paste steps matter. */
   multi: boolean;
-  /** From the bundle in memory; null when unknown (after a restart). */
-  anchor: ExportBundle["pasteAnchor"] | null;
+  /** Where the cursor goes for a map pasted from beside it (the build record's, or the bundle's); null: plain steps. */
+  anchor: PasteAnchor | null;
   emptyChunk: boolean;
 }) {
   const addon = useTaleSpireLink((s) => s.addon);

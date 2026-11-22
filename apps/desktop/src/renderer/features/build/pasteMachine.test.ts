@@ -146,4 +146,10 @@ describe("build model", () => {
     expect(m.single).toBe(false);
     expect(m.slabs.map((s) => s.step)).toEqual([1, 2, 3]);
   });
+  it("reads the paste anchor from the record, so the steps survive a restart (no bundle in memory)", () => {
+    const anchor = { side: "south" as const, clearanceCells: 5, farMarkerCells: 37 };
+    expect(buildModel({ ...rec(3), pasteAnchor: anchor }, null).pasteAnchor).toEqual(anchor);
+    // a build saved before the field: plain steps until the bundle is in memory
+    expect(buildModel(rec(3), null).pasteAnchor).toBeNull();
+  });
 });

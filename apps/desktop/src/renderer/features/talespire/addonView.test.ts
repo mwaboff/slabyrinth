@@ -7,6 +7,7 @@ import type { AddonStatus, LinkStatus } from "../../../shared/ipc";
 import { fakeAddonStatus, fakeLinkStatus } from "../../bridge/fake/talespireLink";
 import {
   addonSummary,
+  folderProblem,
   hotkeyRows,
   primaryAction,
   sendView,
@@ -14,7 +15,6 @@ import {
   type Light,
   type SummaryKey,
 } from "./addonView";
-import { pasteSteps } from "./pasteSteps";
 
 const A = fakeAddonStatus;
 const L = fakeLinkStatus;
@@ -105,6 +105,44 @@ const CASES: Array<[string, AddonStatus | null, LinkStatus | null, SummaryKey, L
   ],
   ["not installed", A("missing"), none, "missing", "action", "Install TaleSpire add-on", /in your hand/],
   ["connected", A("installed"), connected, "connected", "ok", "Add-on connected", /open in TaleSpire/],
+  // a paired connection proves a working install: it ranks above every folder problem (installed by hand elsewhere)
+  [
+    "connected, folder not found",
+    A("not_found"),
+    connected,
+    "connected",
+    "ok",
+    "Add-on connected",
+    /open in/,
+  ],
+  [
+    "connected, not in this folder",
+    A("missing"),
+    connected,
+    "connected",
+    "ok",
+    "Add-on connected",
+    /open in/,
+  ],
+  ["connected, folder taken", A("foreign"), connected, "connected", "ok", "Add-on connected", /open in/],
+  [
+    "connected, other pairing here",
+    A("mismatch"),
+    connected,
+    "connected",
+    "ok",
+    "Add-on connected",
+    /open in/,
+  ],
+  [
+    "placing, folder not found",
+    A("not_found"),
+    placing("inHand"),
+    "placing",
+    "busy",
+    "Placing map · 3 of 5",
+    /slab 3/,
+  ],
   [
     "installed, not connected",
     A("installed"),
@@ -154,6 +192,22 @@ describe("the main button", () => {
   it("installed: nothing to press; a refused connection offers Reinstall", () => {
     expect(primaryAction(A("installed"), connected)).toBeNull();
     expect(primaryAction(A("installed"), refused("token"))?.label).toBe("Reinstall");
+  });
+});
+
+describe("a folder problem while connected", () => {
+  it("is said in the Folder row, not by the light", () => {
+    expect(folderProblem(A("not_found"), connected)).toMatch(/connected, but Slabyrinth couldn't find/);
+    expect(folderProblem(A("missing"), connected)).toMatch(/isn't in this folder/);
+    expect(folderProblem(A("foreign"), connected)).toMatch(/different add-on/);
+    expect(folderProblem(A("installed"), connected)).toBeNull();
+    // not connected: the light says it already
+    expect(folderProblem(A("not_found"), none)).toBeNull();
+  });
+
+  it("the Send panel offers sending, not setup", () => {
+    expect(sendView(A("not_found"), connected, null, "b", false).kind).toBe("ready");
+    expect(sendView(A("missing"), connected, null, "b", false).kind).toBe("ready");
   });
 });
 
@@ -231,19 +285,5 @@ describe("Send to TaleSpire", () => {
       placed: 2,
       phase: "inHand",
     });
-  });
-});
-
-describe("paste steps", () => {
-  it("say where the cursor goes and where the pillars are, from the anchor", () => {
-    const s = pasteSteps({ side: "south", clearanceCells: 4, farMarkerCells: 31 });
-    expect(s.plane).toMatch(/press G/);
-    expect(s.spot).toBe(
-      "Put the cursor just outside the middle of where the map's south edge will be: the map lands north of it, about 5 cells away. Click that same spot for every slab.",
-    );
-    expect(s.pillars).toBe(
-      "When every slab is placed, delete the two alignment pillars: one just past the map's north-east corner, and one about 31 cells south of the map.",
-    );
-    expect(pasteSteps(null).spot).toMatch(/same spot/);
   });
 });

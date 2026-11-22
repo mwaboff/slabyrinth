@@ -9,7 +9,7 @@
 import type { DesignBrief, MapPlan, LevelId } from "@slabyrinth/core/contracts/plan";
 import type { PlanHistory } from "@slabyrinth/core/contracts/ops";
 import type { ChatItem, EffortLevel, ModelSelection, ProviderId, Usage, Cost } from "../main/agent/provider/types";
-import type { ChunkOptions, StampAsset } from "@slabyrinth/core/contracts/compiler";
+import type { ChunkOptions, ExportBundle, StampAsset } from "@slabyrinth/core/contracts/compiler";
 
 /** Bump the integer on any breaking change; core `migrateProject(json)` upgrades step by step (1→2→…). */
 export const PROJECT_FORMAT = "slabyrinth/project@1" as const;
@@ -118,6 +118,11 @@ export interface BuildRecord {
   /** Features/roles with no asset at all (dropped). */
   unmatchedAssets: Array<{ role: string; count: number }>;
   diagnosticsSummary: { errors: number; warnings: number };
+  /**
+   * Where the cursor goes when the build is pasted from beside the map (ExportBundle.pasteAnchor), so the paste steps
+   * read the same after a restart. Absent for a build pasted the plain way, and in builds saved before 2026-11-22.
+   */
+  pasteAnchor?: NonNullable<ExportBundle["pasteAnchor"]>;
 }
 
 export interface ProjectFile {

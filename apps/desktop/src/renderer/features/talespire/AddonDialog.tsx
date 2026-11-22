@@ -6,7 +6,7 @@ import { useRef } from "react";
 import { Icon } from "../../ui/Icon";
 import { useModal } from "../../ui/modal";
 import { useTaleSpireLink } from "../../stores/talespireLink";
-import { setupSteps, type StepState } from "./addonView";
+import { TALESPIRE_SYMBIOTES_SETTING, setupSteps, type StepState } from "./addonView";
 import {
   ActionError,
   FolderRow,
@@ -96,8 +96,9 @@ function AddonDialogBody() {
           <ol className="tssteps" aria-label="Set it up">
             <Step n={1} state={steps.enable} title="Turn on Symbiotes in TaleSpire">
               <p>
-                Do this first: TaleSpire shows add-ons only once Symbiotes are turned on in its settings. A
-                Symbiotes tab then appears on the right edge of the screen.
+                Do this first: TaleSpire shows add-ons only once Symbiotes are on. In TaleSpire, open{" "}
+                <b>{TALESPIRE_SYMBIOTES_SETTING}</b> and turn on <b>Enable Symbiotes</b>. A Symbiotes tab then
+                appears on the right edge of the screen.
               </p>
             </Step>
             <Step n={2} state={steps.install} title="Install the add-on">

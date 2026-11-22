@@ -35,6 +35,11 @@ export interface BuildModel {
   substitutions: BuildRecord["substitutions"];
   pastedCount: number;
   copiedCount: number;
+  /**
+   * Where the cursor goes for a map pasted from beside it: recorded on the build (so the paste steps survive a restart
+   * or a project switch), else the bundle in memory; null for the plain steps (talespire/pasteSteps.ts).
+   */
+  pasteAnchor: NonNullable<ExportBundle["pasteAnchor"]> | null;
 }
 
 /** Every level a bundle chunk contains, lowest first. */
@@ -108,6 +113,7 @@ export function buildModel(record: BuildRecord, bundle: ExportBundle | null): Bu
     substitutions: record.substitutions,
     pastedCount: slabs.filter((s) => s.pasted).length,
     copiedCount: slabs.filter((s) => s.copiedAt !== null || s.pasted).length,
+    pasteAnchor: record.pasteAnchor ?? bundle?.pasteAnchor ?? null,
   };
 }
 

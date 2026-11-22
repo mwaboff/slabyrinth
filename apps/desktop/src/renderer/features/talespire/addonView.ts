@@ -42,7 +42,12 @@ const REFUSED_DETAIL: Record<NonNullable<LinkStatus["helper"]["reason"]>, string
   origin: "Something other than the add-on tried to connect, so Slabyrinth refused it.",
 };
 
-/** The one state the status light shows, most urgent first. */
+/**
+ * The one state the status light shows, most urgent first. A paired connection proves a working install, so it ranks
+ * above every folder problem (not found, not installed there, taken, paired with another copy): a GM who copied the
+ * add-on by hand into a folder Slabyrinth doesn't use (likely on Linux) sees "Add-on connected". The folder problem
+ * still shows in the dialog and in Settings (`folderProblem`, the Folder row).
+ */
 export function addonSummary(addon: AddonStatus | null, link: LinkStatus | null): AddonSummary {
   if (!addon || !link)
     return {
@@ -65,14 +70,15 @@ export function addonSummary(addon: AddonStatus | null, link: LinkStatus | null)
       label: "Add-on link off",
       detail: "Slabyrinth couldn't start its link to the add-on. Restart Slabyrinth to try again.",
     };
-  if (addon.state === "not_found")
+  const connected = link.helper.state === "connected";
+  if (!connected && addon.state === "not_found")
     return {
       key: "not_found",
       light: "warn",
       label: "Add-on folder not found",
       detail: "Slabyrinth couldn't find TaleSpire's Symbiotes folder. Choose it by hand.",
     };
-  if (addon.state === "foreign")
+  if (!connected && addon.state === "foreign")
     return {
       key: "foreign",
       light: "warn",
@@ -87,14 +93,14 @@ export function addonSummary(addon: AddonStatus | null, link: LinkStatus | null)
       label: link.helper.reason === "origin" ? "Connection refused" : "Reinstall the add-on",
       detail: REFUSED_DETAIL[link.helper.reason ?? "token"],
     };
-  if (addon.state === "mismatch")
+  if (!connected && addon.state === "mismatch")
     return {
       key: "mismatch",
       light: "warn",
       label: "Reinstall the add-on",
       detail: "The installed add-on is paired with another copy of Slabyrinth.",
     };
-  const placing = link.helper.state === "connected" ? link.set : null;
+  const placing = connected ? link.set : null;
   if (placing) {
     if (placing.finished || placing.phase === "done")
       return {
@@ -124,14 +130,14 @@ export function addonSummary(addon: AddonStatus | null, link: LinkStatus | null)
       label: "Update TaleSpire add-on",
       detail: `Version ${addon.installedVersion ?? "?"} is installed; this Slabyrinth comes with ${addon.bundledVersion}.`,
     };
-  if (addon.state === "missing")
+  if (!connected && addon.state === "missing")
     return {
       key: "missing",
       light: "action",
       label: "Install TaleSpire add-on",
       detail: "It puts each slab of a big map in your hand in TaleSpire, one at a time.",
     };
-  if (link.helper.state === "connected")
+  if (connected)
     return {
       key: "connected",
       light: "ok",
@@ -144,6 +150,34 @@ export function addonSummary(addon: AddonStatus | null, link: LinkStatus | null)
     label: "Add-on not connected",
     detail: "Open Slabyrinth Helper in TaleSpire's Symbiotes panel.",
   };
+}
+
+/** Where TaleSpire itself shows its Symbiotes folder (verified against TaleSpire's own settings screen). */
+export const TALESPIRE_SYMBIOTES_SETTING = "Game Settings > Modding Settings > Symbiotes";
+export const OPEN_SYMBIOTES_DIRECTORY_HINT =
+  `To see the folder, press "Open Symbiotes Directory" in TaleSpire (${TALESPIRE_SYMBIOTES_SETTING}), ` +
+  'then pick that same folder here with "Change location…".';
+
+/**
+ * A folder problem while the add-on is connected anyway (a copy installed by hand somewhere Slabyrinth doesn't look):
+ * the light says connected, so the Folder row says this. Null when there is none, or when not connected (the light
+ * says it then).
+ */
+export function folderProblem(addon: AddonStatus | null, link: LinkStatus | null): string | null {
+  if (link?.helper.state !== "connected" || !addon) return null;
+  const update = "Choose the folder TaleSpire uses, so Slabyrinth can keep the add-on up to date.";
+  switch (addon.state) {
+    case "not_found":
+      return `The add-on is connected, but Slabyrinth couldn't find TaleSpire's Symbiotes folder. ${update}`;
+    case "missing":
+      return `The add-on is connected, but it isn't in this folder: TaleSpire runs a copy from somewhere else. ${update}`;
+    case "foreign":
+      return `The add-on is connected from somewhere else; this folder's slabyrinth-helper folder holds a different add-on. ${update}`;
+    case "mismatch":
+      return `The add-on is connected from somewhere else; the copy in this folder is paired with another Slabyrinth. ${update}`;
+    default:
+      return null;
+  }
 }
 
 /** The add-on's main button, by what the store offers (null: nothing to do). */

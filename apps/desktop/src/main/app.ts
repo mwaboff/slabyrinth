@@ -28,6 +28,7 @@ import { TaleSpireLinkService } from "./services/talespire/link/linkService";
 import { DEFAULT_LINK_PORT } from "./services/talespire/link/protocol";
 import type { UpdateService } from "./services/updateService";
 import { cleanupTempFiles } from "./util/atomicWrite";
+import { BIG_MAP_HEAP_MB, logMainHeap } from "./util/heap";
 import { startEngine } from "./wiring/engine";
 import { installMenu, wireIpc } from "./wiring/ipcAndMenu";
 import { outsideWorld, type OutsideWorld } from "./wiring/outsideWorld";
@@ -86,12 +87,20 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
   const outside = outsideWorld({ safeMode, userData: paths.userData, logger }, link.getWindow);
   void cleanupTempFiles(settings.get().projects.folder);
   // The map size tier plans are held to: the setting, raised to what the open project's plan needs (shared/sizeTier.ts).
+  // The plan port checks the head plan; a build asks with the plan it builds (an approved older version may be larger).
   const openPlan = { current: (): MapPlan | null => null };
-  const sizeTier = (): SizeTierId => activeSizeTier(settings.get().mapSize, openPlan.current());
-  const assets = await startAssets(ctx, emit, settings, outside, sizeTier);
+  const tierFor = (plan: MapPlan | null): SizeTierId => activeSizeTier(settings.get().mapSize, plan);
+  const assets = await startAssets(ctx, emit, settings, outside, () => tierFor(openPlan.current()));
   const projects = startProjects(ctx, emit, settings, assets.core, outside);
   openPlan.current = () => projects.getPlan();
-  const work = startBuildWork(ctx, emit, settings, projects, assets, outside, sizeTier);
+  // main runs the agent's plan checks and review itself: say in the log when its heap is too small for the size in use
+  let heapTier = tierFor(null);
+  logMainHeap(logger, heapTier);
+  settings.onChange(() => {
+    const tier = tierFor(null);
+    if (tier !== heapTier) logMainHeap(logger, (heapTier = tier));
+  });
+  const work = startBuildWork(ctx, emit, settings, projects, assets, outside, tierFor);
   const { updates, startUpdateCheck } = startUpdates({
     appVersion: ctx.appVersion,
     safeMode,
@@ -356,14 +365,14 @@ function startBuildWork(
   projects: ProjectService,
   assets: Assets,
   outside: OutsideWorld,
-  sizeTier: () => SizeTierId,
+  sizeTier: (plan: MapPlan) => SizeTierId,
 ): BuildWork {
   const { logger } = ctx;
   const workerUrl = new URL("./compile.worker.js", import.meta.url);
   const compiler = new CompileService({
     // a 1024 × 1024 build peaks near 2.6 GB (docs/internal/handoff-size-tiers.md): give each worker a 4 GB heap; every
     // request gets its own worker, so a resolve and a compile of one big map never share one
-    spawn: () => new Worker(workerUrl, { resourceLimits: { maxOldGenerationSizeMb: 4096 } }),
+    spawn: () => new Worker(workerUrl, { resourceLimits: { maxOldGenerationSizeMb: BIG_MAP_HEAP_MB } }),
     emit,
     logger: logger.child("compile"),
   });

@@ -82,6 +82,27 @@ describe("project files from disk are validated before anything reads them", () 
     expect(() => buildSnapshot(r.project, null, false, null)).not.toThrow();
   });
 
+  it("opens builds saved with and without a paste anchor (added 2026-11-22)", () => {
+    const build = (extra: Record<string, unknown>): Record<string, unknown> => ({
+      id: "b1",
+      versionNumber: 1,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      levels: [{ levelId: "l1", pasteOrder: 1, chunks: [{ id: "l1-01", pasted: false }] }],
+      ...extra,
+    });
+    const withBuild = (b: Record<string, unknown>): Record<string, unknown> => ({
+      ...oldShapeProject(),
+      builds: [b],
+    });
+    const old = parseProject(bytes(withBuild(build({}))), noMigration);
+    expect(old.ok && old.project.builds[0]?.pasteAnchor).toBeUndefined();
+    const anchor = { side: "south", clearanceCells: 5, farMarkerCells: 37 };
+    const now = parseProject(bytes(withBuild(build({ pasteAnchor: anchor }))), noMigration);
+    expect(now.ok && now.project.builds[0]?.pasteAnchor).toEqual(anchor);
+    const bad = parseProject(bytes(withBuild(build({ pasteAnchor: { side: "up" } }))), noMigration);
+    expect(bad.ok).toBe(false);
+  });
+
   it("refuses a damaged file with a message saying what is wrong, never by throwing", () => {
     const cases: Array<[string, (p: Record<string, unknown>) => void, RegExp]> = [
       ["empty plan", (p) => (p["plan"] = {}), /plan/],

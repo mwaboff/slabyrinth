@@ -7,7 +7,9 @@ import { Icon } from "../../ui/Icon";
 import { useApp } from "../../stores/app";
 import { useTaleSpireLink, type LinkAction } from "../../stores/talespireLink";
 import {
+  OPEN_SYMBIOTES_DIRECTORY_HINT,
   addonSummary,
+  folderProblem,
   folderSourceLabel,
   hotkeyRows,
   isInstalled,
@@ -168,9 +170,12 @@ export function FolderRow() {
   const addon = useTaleSpireLink((s) => s.addon);
   const busy = useTaleSpireLink((s) => s.busy);
   const platform = useApp((s) => s.platform);
+  const link = useTaleSpireLink((s) => s.link);
   if (!addon) return null;
   const st = useTaleSpireLink.getState();
   const notFound = addon.state === "not_found";
+  const problem = folderProblem(addon, link);
+  const linuxGuess = platform === "linux" && (notFound || addon.folderSource === "proton");
   return (
     <div className="tsrow">
       <dl className="tsfacts">
@@ -186,13 +191,22 @@ export function FolderRow() {
           <span>{addon.folderWarning}</span>
         </p>
       )}
-      {platform === "linux" && (notFound || addon.folderSource === "proton") && (
+      {problem !== null && (
+        <p className="tswarn" role="note">
+          <Icon name="warn" size="sm" />
+          <span>{problem}</span>
+        </p>
+      )}
+      {linuxGuess && (
         <p className="tsnote">
           On Linux, TaleSpire runs through Steam Proton, and Slabyrinth only guesses where its folder is. If
           TaleSpire doesn't show the add-on, choose the folder by hand: inside your Steam library,
           steamapps/compatdata/720620/pfx/ drive_c/users/steamuser/AppData/LocalLow/BouncyRock
           Entertainment/TaleSpire/Symbiotes.
         </p>
+      )}
+      {(notFound || linuxGuess || problem !== null) && (
+        <p className="tsnote">{OPEN_SYMBIOTES_DIRECTORY_HINT}</p>
       )}
       <div className="tsbtns">
         <button

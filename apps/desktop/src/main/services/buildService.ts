@@ -28,8 +28,11 @@ export interface BuildServiceDeps {
   palettes: PaletteService;
   catalog: CatalogService;
   settings: SettingsStore;
-  /** The map size tier the build gate holds plans to (app.ts; standard when absent). */
-  sizeTier?: () => SizeTierId;
+  /**
+   * The map size tier the build gate holds a plan to, asked of the plan being built or sent (an approved older version
+   * may be larger than the head plan): app.ts; standard when absent.
+   */
+  sizeTier?: (plan: MapPlan) => SizeTierId;
   dialogs: Dialogs;
   logger: Logger;
 }
@@ -51,7 +54,7 @@ export class BuildService {
       orientation,
       orientationOverride,
       availability: availabilityFromCatalog(this.deps.catalog.current()),
-      sizeTier: this.deps.sizeTier?.() ?? "standard",
+      sizeTier: this.deps.sizeTier?.(plan) ?? "standard",
     };
   }
 
@@ -197,6 +200,8 @@ export class BuildService {
         errors: bundle.diagnostics.filter((d) => d.severity === "error").length,
         warnings: bundle.diagnostics.filter((d) => d.severity === "warning").length,
       },
+      // the paste steps read it after a restart (renderer talespire/pasteSteps.ts), as the add-on gets it
+      ...(bundle.pasteAnchor ? { pasteAnchor: { ...bundle.pasteAnchor } } : {}),
     };
   }
 
@@ -231,7 +236,7 @@ export class BuildService {
   async chunkSlab(buildId: string, chunkId: string): Promise<string> {
     const bundle = await this.bundleOf(buildId);
     const chunk = bundle.chunks.find((c) => c.id === chunkId);
-    if (!chunk) throw new AppFailure("not_found", "That chunk isn't part of this build.");
+    if (!chunk) throw new AppFailure("not_found", "That slab isn't part of this build.");
     this.checkUnchanged(buildId, chunk);
     return chunk.slab;
   }
