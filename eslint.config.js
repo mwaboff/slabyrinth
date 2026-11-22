@@ -44,6 +44,7 @@ const CORE_LAYERS = [
   ["catalog", "plan"], // the game's asset catalog (reads slab layouts); the plan model, schema and validation
   ["gen"], // generation tables and algorithms: feature catalog, wall styles, room purpose, caves, rooms, noise
   ["palette", "ops"], // asset palettes per theme and role (read gen's feature and wall-style tables); plan edits
+  ["arrange"], // generator 5: the arrangement operators that compose palette pieces (trait pools) into placements
   ["history", "resolve"], // plan versions (replay ops); the resolver: plan + palettes -> resolved grid
   ["render", "text", "compile"], // what reads a resolved plan: 2D display lists, text views, the slab compiler
   ["review"], // the design review (reads what the build produced)

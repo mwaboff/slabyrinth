@@ -18,6 +18,11 @@ export interface Solid {
   organic: boolean;
   wallMounted: boolean;
   isTileFeature: boolean;
+  /**
+   * Generator 5: a piece of an arrangement instance (ResolvedLevel.arrangements), composed on purpose: it may sink into
+   * or touch what it stands against, and is never moved on its own.
+   */
+  arranged: boolean;
 }
 
 /** Spatial index keyed by plan cell "x,y"; boxes are world-space (x east, z north). */

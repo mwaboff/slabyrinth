@@ -422,6 +422,45 @@ export interface ResolvedLevel {
    * still stand there.
    */
   reserved?: number[];
+  /**
+   * Generator 5: arrangement instances, pieces composed in a local frame and set at an anchor (core arrange/). Each
+   * instance is one element, so its own pieces may overlap. Absent when there are none.
+   */
+  arrangements?: ResolvedArrangement[];
+}
+
+/**
+ * One arrangement instance. Its local frame has x east and z north before `turn`, y up from `base`; a piece stands
+ * with the centre of its collider's footprint at (x, z) and its bottom at y, turned `yaw` degrees clockwise seen from
+ * above. The build quantises it as the slab format does (0.01 tile, 15° turns).
+ */
+export interface ResolvedArrangement {
+  id: ElementId;
+  /** The recipe that made it (diagnostics and the review name it). */
+  recipe: string;
+  /** Plan point (cells, fractional) the local origin stands on. */
+  at: [number, number];
+  /** Absolute height (tiles) of the local y = 0. */
+  base: Height;
+  /** The local frame's turn, clockwise seen from above (degrees, a multiple of 15). */
+  turn: number;
+  /** Cells the instance covers (plan cells, ascending by row then column). */
+  cells: Vec2[];
+  /** Whether its pieces block the way, as a blocking feature's do. */
+  blocking: boolean;
+  pieces: ResolvedArrangementPiece[];
+}
+
+export interface ResolvedArrangementPiece {
+  /** The palette that lists the asset, the role it is listed under, and the asset as the palette names it. */
+  palette: ThemeId;
+  role: string;
+  asset: string;
+  x: number;
+  y: number;
+  z: number;
+  /** Degrees clockwise seen from above, a multiple of 15. */
+  yaw: number;
 }
 
 /**

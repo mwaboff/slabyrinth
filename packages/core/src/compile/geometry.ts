@@ -6,6 +6,7 @@
 import type { Box3, OrientationCalibration, PaletteVariant } from "../contracts/compiler";
 import type { Side } from "../contracts/plan";
 import { SIDES } from "../gen/gridGeometry";
+import { rotateXZ, turnedHalfExtents } from "../util/turn";
 
 /** The four sides clockwise from north (gen/gridGeometry.ts SIDES), the order the quarter turns count in. */
 export const DIRS: readonly Side[] = SIDES;
@@ -75,15 +76,16 @@ export class WorldFrame {
 /** A rotation snapped to the nearest quarter turn, 0..270 (a tile stays square to the grid). */
 export const quarterTurn = (deg: number): number => (((Math.round(deg / 90) % 4) + 4) % 4) * 90;
 
-/** Rotates (x, z) clockwise (seen from above) by `deg` degrees of game rotation (after rotSense). */
-export function rotateXZ(x: number, z: number, cwDeg: number): { x: number; z: number } {
-  const t = (cwDeg * Math.PI) / 180;
-  const c = Math.round(Math.cos(t) * 1e12) / 1e12;
-  const s = Math.round(Math.sin(t) * 1e12) / 1e12;
-  return { x: x * c + z * s, z: -x * s + z * c };
-}
+export { rotateXZ } from "../util/turn";
 
-/** World AABB of an asset stored at (x,y,z) with rotation `rotDeg` (game degrees; rotSense applied by caller). */
+/**
+ * World AABB of an asset stored at (x,y,z) with rotation `rotDeg` (game degrees; rotSense applied by caller).
+ *
+ * A tile (corner-origin) is stored at the min corner of its turned footprint (docs/talespire-slab-format.md §2.2,
+ * verified in game for quarter turns): its box starts at the stored point and is as wide as the footprint turned about
+ * its centre, which at a quarter turn is the footprint itself (swapped at odd ones) and at any other 15° step the
+ * larger box round the turned outline. A prop is stored at its origin; its box is the collider turned about it.
+ */
 export function placementBox(
   geom: PaletteVariant["geom"],
   x: number,
@@ -91,12 +93,9 @@ export function placementBox(
   z: number,
   cwDeg: number,
 ): Box3 {
-  const quarter = Math.round(cwDeg / 90);
-  const odd = Math.abs(quarter) % 2 === 1 && Math.abs(cwDeg - quarter * 90) < 1e-6;
   if (geom.originAt === "minCorner") {
-    const sx = odd ? geom.size.z : geom.size.x;
-    const sz = odd ? geom.size.x : geom.size.z;
-    return { min: { x, y, z }, max: { x: x + sx, y: y + geom.size.y, z: z + sz } };
+    const half = turnedHalfExtents(geom.size.x, geom.size.z, cwDeg);
+    return { min: { x, y, z }, max: { x: x + 2 * half.x, y: y + geom.size.y, z: z + 2 * half.z } };
   }
   const c = rotateXZ(geom.boundsCenter.x, geom.boundsCenter.z, cwDeg);
   const t = (cwDeg * Math.PI) / 180;
@@ -107,6 +106,25 @@ export function placementBox(
     min: { x: x + c.x - ex, y: cy - geom.size.y / 2, z: z + c.z - ez },
     max: { x: x + c.x + ex, y: cy + geom.size.y / 2, z: z + c.z + ez },
   };
+}
+
+/**
+ * Where an asset is stored so that its collider stands centred on world (cx, cz) with its bottom at `bottom`, turned
+ * `cwDeg` (game degrees, rotSense applied): the inverse of `placementBox`, by the same rule for tiles and props.
+ */
+export function storedPosition(
+  geom: PaletteVariant["geom"],
+  cx: number,
+  bottom: number,
+  cz: number,
+  cwDeg: number,
+): { x: number; y: number; z: number } {
+  if (geom.originAt === "minCorner") {
+    const half = turnedHalfExtents(geom.size.x, geom.size.z, cwDeg);
+    return { x: cx - half.x, y: bottom, z: cz - half.z };
+  }
+  const off = rotateXZ(geom.boundsCenter.x, geom.boundsCenter.z, cwDeg);
+  return { x: cx - off.x, y: bottom - geom.boundsCenter.y + geom.size.y / 2, z: cz - off.z };
 }
 
 export function emptyBox(): Box3 {

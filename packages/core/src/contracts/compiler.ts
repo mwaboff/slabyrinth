@@ -589,7 +589,8 @@ export type CompileDiagnosticCode =
   | "verify_water_level"          // info: set TaleSpire's water level to this height above the pasted slab  // warning (liquids) / info: the 2D map shows a material or wall style the theme builds with another one
   | "verify_line_unanchored"     // warning: an overhead line end has no wall or post at its height (its pieces are then judged as floating)
   | "verify_cliff_gap"           // warning: a natural cliff edge left to the rock band has no rock in front and no face behind
-  | "verify_stall_uncovered";    // warning (generator 4): a covered stall the palette cannot build (a part is missing); a table stands on its footprint
+  | "verify_stall_uncovered"     // warning (generator 4): a covered stall the palette cannot build (a part is missing); a table stands on its footprint
+  | "verify_arrangement_cap";    // warning (generator 5): a level's arrangement instances place more pieces than the per-level cap
 
 export interface CompileDiagnostic {
   severity: "error" | "warning" | "info";

@@ -79,6 +79,8 @@ export function indexSolids(ctx: VerifyCtx): SolidIndex {
   for (const lv of set.levels) {
     for (const p of lv.placements) {
       const f = p.role === "feature" ? ctx.featureOf(lv.levelId, p.source.elementId) : undefined;
+      // generator 5: a piece of an arrangement instance blocks as its instance says
+      const inst = p.role === "feature" && !f ? ctx.arrangementOf(lv.levelId, p.source.elementId) : undefined;
       const meta = set.placed?.get(p);
       const s: Solid = {
         p,
@@ -86,11 +88,12 @@ export function indexSolids(ctx: VerifyCtx): SolidIndex {
         levelId: lv.levelId,
         role: p.role,
         name: placedName(set, p),
-        blocking: p.role !== "feature" || (f?.blocking ?? true),
+        blocking: p.role !== "feature" || (f?.blocking ?? inst?.blocking ?? true),
         // organic dressing (the feature table's trait): its overlaps are expected and reported as info only
         organic: f !== undefined && featureInfo(f.type).organic,
         wallMounted: f?.wall !== undefined,
         isTileFeature: p.role === "feature" && meta?.geom.originAt === "minCorner",
+        arranged: inst !== undefined,
       };
       index.add(s);
     }

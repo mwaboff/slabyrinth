@@ -146,8 +146,9 @@ function checkProp(lv: PropLevel, s: Solid): void {
     checkWallMount(lv, s, f, f.wall, pc);
     return;
   }
-  // organic dressing (rocks, mushrooms, trees) at random 15° turns may clip a corner into rock walls: harmless
-  if (!s.isTileFeature && !s.organic) pushOutOfWall(lv, s, f, cx, cz);
+  // organic dressing (rocks, mushrooms, trees) at random 15° turns may clip a corner into rock walls: harmless. An
+  // arrangement's piece is set as part of its instance (a trim may touch a wall on purpose) and never moved alone.
+  if (!s.isTileFeature && !s.organic && !s.arranged) pushOutOfWall(lv, s, f, cx, cz);
   checkSupport(lv, s, cx, cz, pc);
 }
 
@@ -299,6 +300,8 @@ function checkSupport(
     .at(cx, cz, s.p.y + SUPPORT_SLACK, s.p.y + 0.07, 0)
     .filter((q) => q.levelId === L.id && (q.role === "floor" || q.role === "fill") && q.box.min.y < s.p.y);
   const cell: [number, number] = [Math.floor(pc.px), Math.floor(pc.py)];
+  // an arrangement's piece sunk into the floor on purpose (arrange/ `sink`) stands in what it is sunk into
+  if (inside.length && s.arranged) return;
   if (inside.length) {
     ctx.report.add({
       severity: "warning",

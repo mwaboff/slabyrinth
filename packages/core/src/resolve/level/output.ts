@@ -213,6 +213,8 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
     if (water?.range) lvl.waterRange = water.range;
   }
   if (s.lines.length > 0) lvl.lines = s.lines;
+  // generator 5: the arrangement instances the stages attached (resolve/level/arrangements.ts; empty otherwise)
+  if (s.arrangements.all.length > 0) lvl.arrangements = s.arrangements.all;
   if (work.structs) Object.assign(lvl, work.structs.finish(work.level.elevation));
   // the walls of a built interior vary in height (resolve/wallTops.ts)
   if (work.profile.interiorWallTops && work.level.base.type === "solid") {

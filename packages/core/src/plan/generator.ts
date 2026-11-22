@@ -320,6 +320,10 @@ const SWITCHES = {
   ),
 
   // ── generator 5 (open) ──
+  arrangements: on(
+    5,
+    "Arrangement instances a resolve stage attaches (ResolvedLevel.arrangements: palette pieces composed by the arrange/ operators) are built, one element each (compile/realize/arrangements.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

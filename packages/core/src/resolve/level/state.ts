@@ -17,8 +17,10 @@
  *   openings        openings.ts                                           rooms, market, feature placement, output
  *   features        features.ts FeatureWork (every phase-2 stage adds)    output
  *   lines           market.ts                                             output
+ *   arrangements    arrangements.ts ArrangementRecords (generator 5)      output
  */
 import type { ResolvedLine, ResolvedOpening } from "../../contracts/resolved";
+import { ArrangementRecords } from "./arrangements";
 import { BridgeRecords } from "./bridges";
 import { ChasmRecords } from "./chasms";
 import { FeatureWork } from "./features";
@@ -40,6 +42,8 @@ export class ResolveLevelState {
   readonly features: FeatureWork;
   /** Overhead lines that found both anchors (ResolvedLevel.lines), placed by resolve/level/market.ts. */
   readonly lines: ResolvedLine[] = [];
+  /** Generator 5: arrangement instances the stages attach (ResolvedLevel.arrangements). */
+  readonly arrangements = new ArrangementRecords();
 
   constructor(ctx: LevelContext) {
     this.grid = new ResolveGrid(ctx);
