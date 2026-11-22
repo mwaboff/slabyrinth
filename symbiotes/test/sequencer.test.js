@@ -359,9 +359,11 @@ describe("the now block", () => {
 });
 
 describe("design preview", () => {
-  it("keeps a saved design only when it is one of the three", () => {
-    expect(Seq.DESIGNS.map((d) => d.id).sort()).toEqual(["instrument", "lantern", "native"]);
+  it("keeps a saved design only when it is one of the four; Instrument stays the default", () => {
+    expect(Seq.DESIGNS.map((d) => d.id).sort()).toEqual(["instrument", "lantern", "native", "slabyrinth"]);
+    expect(Seq.DESIGNS[0].id).toBe("instrument");
     expect(Seq.pickDesign("lantern")).toBe("lantern");
+    expect(Seq.pickDesign("slabyrinth")).toBe("slabyrinth");
     expect(Seq.pickDesign("neon")).toBe(Seq.DESIGNS[0].id);
     expect(Seq.pickDesign(null)).toBe(Seq.DESIGNS[0].id);
   });

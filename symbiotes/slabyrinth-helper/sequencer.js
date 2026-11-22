@@ -642,7 +642,7 @@
     return { tone: "good", icon: "●", label: "Slabs are ready to paste" };
   }
 
-  // ── design preview (temporary: three looks over one structure, to choose between in game) ──
+  // ── design preview (temporary: four looks over one structure, to choose between in game) ──
 
   // the first is the default (the recommended one)
   var DESIGNS = [
@@ -660,6 +660,12 @@
       id: "lantern",
       name: "Lantern",
       summary: "Warm, quiet and roomy; a calm page that steps back until it is needed.",
+    },
+    {
+      id: "slabyrinth",
+      name: "Slabyrinth",
+      summary:
+        "The Slabyrinth app's own palette, gold accent and buttons, so the helper reads as the same product.",
     },
   ];
 

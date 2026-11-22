@@ -1,9 +1,9 @@
 /*
- * Slabyrinth Helper: one structure, three looks (data-theme on <html>; the Design tab under Developer tools picks one).
+ * Slabyrinth Helper: one structure, four looks (data-theme on <html>; the Design tab under Developer tools picks one).
  * TaleSpire shows symbiotes in one dark theme, so every look is dark. The "colorStyles" extra injects the --ts-* colour
- * variables and the "fonts" extra the OptimusPrinceps face; only the Native look reads them, and its fallbacks are the
- * values measured in game, so a plain-browser preview looks like the panel in TaleSpire. Instrument and Lantern set
- * every colour themselves. Colour never carries state alone: each light and step also has an icon and words.
+ * variables and the "fonts" extra the OptimusPrinceps face; only the Native look reads the colours, and its fallbacks
+ * are the values measured in game, so a plain-browser preview looks like the panel in TaleSpire. Instrument, Lantern
+ * and Slabyrinth set every colour themselves (Slabyrinth from the desktop app's tokens). Colour never carries state alone: each light and step also has an icon and words.
  *
  * Layout: a glance zone (lights, map and progress, what to do now, three controls) above closed sections (chunks,
  * link and hotkeys, developer tools).
@@ -124,6 +124,86 @@
   --now-rule: 0px;
   --flash-spread: 10px;
   --flash-time: 1.4s;
+}
+
+/*
+ * Slabyrinth: the desktop app's own look. The --sl-* values are copied from the app's dark theme in
+ * apps/desktop/src/renderer/styles/tokens.css (skin B v2), and the button, kbd, eyebrow, card and segmented-control
+ * recipes from apps/desktop/src/renderer/styles/base.css. The symbiote cannot import them, so keep these in step by
+ * hand. TaleSpire is dark only, so the app's light theme is not carried over. The app bundles Cinzel, Lora and
+ * Source Sans 3; a symbiote may not load fonts from outside, so each stack tries the app face (only if installed
+ * locally), then TaleSpire's own OptimusPrinceps (a Roman capital face close to Cinzel) for display, and the app's
+ * own fallbacks (Georgia, Segoe UI) for text and UI.
+ */
+:root[data-theme="slabyrinth"] {
+  --sl-bg: #110d0b;
+  --sl-surface: #1a1512;
+  --sl-surface-2: #221c18;
+  --sl-surface-3: #2d2520;
+  --sl-field-bg: #130f0d;
+  --sl-line: #2f2721;
+  --sl-line-strong: #807060;
+  --sl-ink: #efe4d4;
+  --sl-ink-2: #cfc2b0;
+  --sl-muted: #a89a87;
+  --sl-accent: #d4a056;
+  --sl-accent-fill: #d4a056;
+  --sl-accent-bright: #e2b46e;
+  --sl-accent-tint: rgba(212, 160, 86, 0.14);
+  --sl-on-accent: #1a1412;
+  --sl-on-accent-line: rgba(26, 20, 18, 0.4);
+  --sl-focus: #d4a056;
+  --sl-success: #7dcb94;
+  --sl-success-tint: rgba(125, 203, 148, 0.12);
+  --sl-warning: #e09a6e;
+  --sl-warning-tint: rgba(224, 154, 110, 0.12);
+  --sl-danger: #e59a8f;
+  --sl-danger-tint: rgba(229, 154, 143, 0.12);
+  --sl-r-3: 3px;
+  --sl-r-4: 4px;
+  --sl-r-6: 6px;
+  --sl-r-pill: 999px;
+  --sl-f-ui: "Source Sans 3", "Segoe UI", Ubuntu, system-ui, sans-serif;
+  --sl-f-text: "Lora", Georgia, "DejaVu Serif", serif;
+  --sl-f-display: "Cinzel", "Trajan Pro", OptimusPrinceps, "Palatino Linotype", Georgia, serif;
+  --sl-eyebrow-tracking: 0.07em;
+
+  --bg: var(--sl-bg);
+  --surface: var(--sl-surface-2); /* the app's .card */
+  --surface-2: var(--sl-surface-3);
+  --text: var(--sl-ink);
+  --text-2: var(--sl-ink-2);
+  --line: var(--sl-line);
+  --focus: var(--sl-focus);
+  --primary: var(--sl-accent-fill);
+  --primary-hover: var(--sl-accent-bright);
+  --primary-text: var(--sl-on-accent);
+  --quiet: transparent;
+  --quiet-hover: var(--sl-surface-3);
+  --action: var(--sl-accent);
+  --fill: var(--sl-accent-fill);
+  --track: var(--sl-surface-3);
+  --tick: var(--sl-surface-2);
+  --good: var(--sl-success);
+  --wait: var(--sl-warning);
+  --bad: var(--sl-danger);
+  --warn-bg: var(--sl-warning-tint);
+  --warn-text: var(--sl-warning);
+
+  --font-ui: var(--sl-f-ui);
+  --font-display: var(--sl-f-display);
+  --font-num: var(--sl-f-ui);
+
+  --radius: var(--sl-r-6);
+  --gap: 10px;
+  --pad: 14px;
+  --title-size: 18px;
+  --count-size: 22px;
+  --bar-h: 6px;
+  --tick-w: 2px;
+  --now-rule: 0px;
+  --flash-spread: 3px;
+  --flash-time: 0.9s;
 }
 
 /* ── base ── */
@@ -959,6 +1039,195 @@ button.quiet {
 }
 :root[data-theme="lantern"] .section {
   border-top-color: color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+/* ── Slabyrinth: the app's recipes (base.css): outline buttons, gold primary, kbd chips, eyebrows, cards ── */
+:root[data-theme="slabyrinth"] body {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+:root[data-theme="slabyrinth"] button {
+  border-color: var(--sl-line-strong);
+  border-radius: var(--sl-r-4);
+  font-weight: 500;
+  transition:
+    background 150ms,
+    border-color 150ms;
+}
+:root[data-theme="slabyrinth"] button:hover:not(:disabled) {
+  border-color: var(--sl-ink-2);
+}
+:root[data-theme="slabyrinth"] button:disabled {
+  opacity: 0.45;
+  color: var(--sl-ink);
+}
+:root[data-theme="slabyrinth"] button.primary:not(:disabled) {
+  font-weight: 600;
+}
+:root[data-theme="slabyrinth"] button.primary:hover:not(:disabled) {
+  border-color: var(--sl-accent-bright);
+}
+/* the app's primary button, disabled: a flat surface, not a faded gold */
+:root[data-theme="slabyrinth"] button.primary:disabled {
+  background: var(--sl-surface-3);
+  border-color: var(--sl-surface-3);
+  color: var(--sl-muted);
+  opacity: 1;
+}
+:root[data-theme="slabyrinth"] .ctl {
+  border-radius: var(--sl-r-4);
+  gap: 4px;
+}
+:root[data-theme="slabyrinth"] .ctl.primary .ctl-label {
+  font-size: 14.5px;
+}
+:root[data-theme="slabyrinth"] .ctl-key {
+  font: 500 11px/16px var(--sl-f-ui);
+  border: 1px solid var(--sl-line-strong);
+  border-radius: var(--sl-r-3);
+  padding: 0 4px;
+  color: var(--sl-ink-2);
+  opacity: 1;
+}
+:root[data-theme="slabyrinth"] .ctl.primary .ctl-key {
+  color: var(--sl-on-accent);
+  border-color: var(--sl-on-accent-line);
+}
+:root[data-theme="slabyrinth"] textarea,
+:root[data-theme="slabyrinth"] input[type="number"] {
+  background: var(--sl-field-bg);
+  border-color: var(--sl-line-strong);
+  border-radius: var(--sl-r-4);
+}
+:root[data-theme="slabyrinth"] textarea:focus,
+:root[data-theme="slabyrinth"] input[type="number"]:focus {
+  border-color: var(--sl-accent);
+  box-shadow: 0 0 0 3px var(--sl-accent-tint);
+  outline: none;
+}
+:root[data-theme="slabyrinth"] button.key {
+  background: transparent;
+  border-color: var(--sl-line-strong);
+}
+
+/* lights as the app's status pills: a tint and a coloured mark, a danger outline when blocked */
+:root[data-theme="slabyrinth"] .light {
+  background: var(--sl-surface-2);
+  align-items: center;
+}
+:root[data-theme="slabyrinth"] .light.good {
+  background: var(--sl-success-tint);
+}
+:root[data-theme="slabyrinth"] .light.wait {
+  background: var(--sl-warning-tint);
+}
+:root[data-theme="slabyrinth"] .light.bad {
+  background: var(--sl-danger-tint);
+  box-shadow: inset 0 0 0 1px var(--sl-danger);
+}
+:root[data-theme="slabyrinth"] .light.good .light-label {
+  color: var(--sl-success);
+}
+:root[data-theme="slabyrinth"] .light.wait .light-label {
+  color: var(--sl-warning);
+}
+:root[data-theme="slabyrinth"] .light-label {
+  font-weight: 600;
+}
+
+/* names in the display face, set like the app's room names and panel titles */
+/* Cinzel's lowercase are small capitals; small-caps makes a fallback face read the same way */
+:root[data-theme="slabyrinth"] .map-name {
+  font-weight: 600;
+  font-variant: small-caps;
+  letter-spacing: 0.02em;
+}
+:root[data-theme="slabyrinth"] .map-meta {
+  font-size: 12px;
+  color: var(--sl-muted);
+}
+:root[data-theme="slabyrinth"] .count-rest {
+  color: var(--sl-muted);
+}
+
+/* the now block: an eyebrow, a headline and a line of reading text, as in the app's chat */
+:root[data-theme="slabyrinth"] .now {
+  padding: 12px 14px 14px;
+}
+:root[data-theme="slabyrinth"] .now-step {
+  font: 600 11px/16px var(--sl-f-ui);
+  letter-spacing: var(--sl-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--sl-muted);
+}
+:root[data-theme="slabyrinth"] .now.action .now-step {
+  color: var(--sl-accent);
+}
+:root[data-theme="slabyrinth"] .now.done .now-step {
+  color: var(--sl-success);
+}
+:root[data-theme="slabyrinth"] .now.wait .now-step {
+  color: var(--sl-warning);
+}
+:root[data-theme="slabyrinth"] .now-title {
+  font: 600 20px/28px var(--sl-f-text);
+}
+:root[data-theme="slabyrinth"] .now-detail {
+  font: 400 14px/22px var(--sl-f-text);
+  color: var(--sl-ink-2);
+}
+:root[data-theme="slabyrinth"] .now.error {
+  background: var(--sl-danger-tint);
+  box-shadow: inset 0 0 0 1px var(--sl-danger);
+}
+
+/* sections titled like the app's eyebrows ("Brief", "Legend · this level") */
+:root[data-theme="slabyrinth"] .section-title {
+  font: 600 11px/16px var(--sl-f-ui);
+  letter-spacing: var(--sl-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--sl-ink-2);
+}
+:root[data-theme="slabyrinth"] .dev summary .section-title {
+  color: var(--sl-muted);
+}
+
+/* developer tabs and the design list as the app's segmented control and chips: tint plus a gold inset ring */
+:root[data-theme="slabyrinth"] .tabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
+  gap: 0;
+  border: 1px solid var(--sl-line-strong);
+  border-radius: var(--sl-r-4);
+  overflow: hidden;
+}
+:root[data-theme="slabyrinth"] .tabs button {
+  border: 0;
+  border-right: 1px solid var(--sl-line);
+  border-radius: 0;
+  color: var(--sl-ink-2);
+  font-size: 12.5px;
+  padding: 6px;
+  white-space: nowrap;
+}
+:root[data-theme="slabyrinth"] .tabs button:last-child {
+  border-right: 0;
+}
+:root[data-theme="slabyrinth"] .tabs button[aria-selected="true"] {
+  background: var(--sl-accent-tint);
+  color: var(--sl-ink);
+  box-shadow: inset 0 0 0 1px var(--sl-accent);
+}
+:root[data-theme="slabyrinth"] .design {
+  border-color: var(--sl-line-strong);
+  border-radius: var(--sl-r-4);
+}
+:root[data-theme="slabyrinth"] .design:has(input:checked) {
+  background: var(--sl-accent-tint);
+  border-color: var(--sl-accent);
+}
+:root[data-theme="slabyrinth"] .chunks li.current {
+  background: var(--sl-accent-tint);
 }
 
 /* ── short panels: tighten the glance zone ── */

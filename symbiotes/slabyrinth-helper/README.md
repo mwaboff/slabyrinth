@@ -63,7 +63,7 @@ TaleSpire injects its colour variables (the `colorStyles` extra) and its Optimus
 
 ### Design preview (temporary)
 
-**Developer tools > Design** switches between three looks over the same panel, so they can be judged in game next to
+**Developer tools > Design** switches between four looks over the same panel, so they can be judged in game next to
 the board. The choice is remembered in the panel.
 
 - **Instrument** (the default): high contrast, big numbers, a segmented gauge and signal colours, read from the
@@ -71,6 +71,11 @@ the board. The choice is remembered in the panel.
 - **Native**: TaleSpire's own colours (black, dark grey, TaleSpire blue buttons) and its OptimusPrinceps face, so the
   helper reads as part of the game.
 - **Lantern**: warm, quiet and roomy, with serif names; it steps back until it is needed.
+- **Slabyrinth**: the desktop app's own look, so the helper reads as the same product. Its colours, radii, outline
+  and gold primary buttons, key chips, eyebrows and status tints are copied from the app's dark theme
+  (`apps/desktop/src/renderer/styles/tokens.css` and `base.css`; keep them in step by hand). The app's bundled fonts
+  cannot be loaded here: Cinzel falls back to TaleSpire's OptimusPrinceps (set in small capitals), Lora to Georgia and
+  Source Sans 3 to Segoe UI.
 
 ## Recommended flow: the hotkey bridge
 
