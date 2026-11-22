@@ -59,6 +59,8 @@ import { roofGapNotes } from "./roofGaps";
 import { reviewBuild } from "./reviewBuild";
 import { stallNotes } from "./stalls";
 import { floorAccentNotes } from "./floorTone";
+import { centreOf, neighbourGroups } from "./neighbours";
+import { qualityNotes } from "./qualityNotes";
 import { LIGHT_FEATURES, isBandRock } from "../gen/catalog";
 import {
   LIT_FOCALS,
@@ -149,7 +151,11 @@ export type DesignNoteCode =
   | "furniture_adrift"
   | "river_trench"
   | "rift_broken"
-  | "bridge_along";
+  | "bridge_along"
+  | "lane_blocked"
+  | "doors_unlit"
+  | "silhouette_flat"
+  | "facades_alike";
 
 /** Bare face by class (gen/cover.ts: what really hides the face), for the cliff checks and for proofs and tests. */
 export interface CliffCoverage {
@@ -435,6 +441,8 @@ export function reviewDesign(
   pushAll(notes, roofGapNotes(plan, resolved, build, palettes));
   // rooms: bare, alike, unlit, furniture adrift (judged room by room, across the whole map)
   pushAll(notes, interiorNotes(plan, resolved));
+  // generator 5: what the quality meter finds that plan words can change (lanes, door lights, roofline, facades)
+  if (gen.qualityNotes) pushAll(notes, qualityNotes(plan, resolved));
   pushAll(notes, substitutionNotes(opts.diagnostics ?? [], resolved.levels[0]?.id ?? ""));
   pushAll(notes, briefNotes(opts.brief, plan, resolved, REVIEW.brief.weight));
   const ranked = notes.sort(
@@ -1274,47 +1282,8 @@ function pathEnds(c: Ctx): DesignNote[] {
 
 // ───────────────────────── buildings: tone and roofs ─────────────────────────
 
-const boxOf = (s: ResolvedStructure): { x0: number; y0: number; x1: number; y1: number } => {
-  const xs = s.cells.map((p) => p[0]);
-  const ys = s.cells.map((p) => p[1]);
-  return { x0: minOf(xs), y0: minOf(ys), x1: maxOf(xs), y1: maxOf(ys) };
-};
-const gapBetween = (a: ResolvedStructure, b: ResolvedStructure): number => {
-  const ba = boxOf(a);
-  const bb = boxOf(b);
-  const gx = Math.max(0, Math.max(ba.x0, bb.x0) - Math.min(ba.x1, bb.x1) - 1);
-  const gy = Math.max(0, Math.max(ba.y0, bb.y0) - Math.min(ba.y1, bb.y1) - 1);
-  return Math.max(gx, gy);
-};
 const buildingsOf = (c: Ctx): ResolvedStructure[] =>
   (c.L.structures ?? []).filter((s) => s.kind === "building");
-/** Groups of neighbouring buildings (footprints within `gap` cells) that share a key. */
-function neighbourGroups(
-  bs: readonly ResolvedStructure[],
-  gap: number,
-  key: (s: ResolvedStructure) => string | undefined,
-): ResolvedStructure[][] {
-  const seen = new Set<string>();
-  const out: ResolvedStructure[][] = [];
-  for (const b of bs) {
-    const k = key(b);
-    if (k === undefined || seen.has(b.id)) continue;
-    const group = [b];
-    seen.add(b.id);
-    for (let i = 0; i < group.length; i++)
-      for (const o of bs)
-        if (!seen.has(o.id) && key(o) === k && gapBetween(group[i] as ResolvedStructure, o) <= gap) {
-          seen.add(o.id);
-          group.push(o);
-        }
-    if (group.length > 1) out.push(group);
-  }
-  return out;
-}
-const centreOf = (g: readonly ResolvedStructure[]): Vec2 => {
-  const cs = g.flatMap((s) => s.cells);
-  return [cs.reduce((t, p) => t + p[0], 0) / cs.length, cs.reduce((t, p) => t + p[1], 0) / cs.length];
-};
 
 function buildingTones(c: Ctx): DesignNote[] {
   const T = REVIEW.tone;

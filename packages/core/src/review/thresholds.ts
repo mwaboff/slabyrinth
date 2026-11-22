@@ -386,6 +386,29 @@ export const REVIEW = {
   },
   /** A hole in an intact roof (review/roofGaps.ts): the score is base plus one point per `cellsPerPoint`, up to `extraMax`. */
   roofGap: { base: 2, cellsPerPoint: 8, extraMax: 2 },
+  /**
+   * Notes from the quality meter (generator 5, review/qualityNotes.ts; metrics in review/qualityMetrics.ts). Targets
+   * from the training builds: a clear lane between a room's doors, a light at every outside door, something above the
+   * roofline, contrast between neighbouring facades.
+   */
+  quality: {
+    weights: { lane: 4.5, doors: 3.5, silhouette: 3, facades: 3 },
+    /**
+     * lane_blocked: a room whose lane is more than this share under the plan's own blocking features, or that has a
+     * pair of doors with no free path round them.
+     */
+    laneShare: 0.1,
+    /** doors_unlit: a building with at least this many unlit outside doors. */
+    unlitDoors: 2,
+    /** silhouette_flat: buildings of this many storeys, or this many footprint cells, want an accent above the roof. */
+    silhouetteStoreys: 2,
+    silhouetteCells: 40,
+    /** An accent volume rises at least this far (tiles) above another volume of the building. */
+    accentRise: 1,
+    /** facades_alike: this many neighbours (chained within `gap` cells) with equal storeys and one wall style. */
+    facadesRow: 3,
+    gap: 3,
+  },
 } as const;
 
 /** The most a measure counts past its threshold when a note is ranked (a note's score is its weight times this). */

@@ -25,8 +25,20 @@ export const GOLDEN_FILE = new URL("__golden__/generator5.txt", import.meta.url)
 /** The readable sidecar: what each run built, one fact per line, each line starting with the run's name. */
 export const DETAIL_FILE = new URL("__golden__/generator5.detail.txt", import.meta.url);
 
+/**
+ * The quality meter's baseline (src/review/qualityMetrics.ts): every metric of every run at the open generator, one
+ * `<run> <metric> <value>` line each, so a package that changes how generator 5 builds shows what it moved as a diff.
+ */
+export const QUALITY_FILE = new URL("__golden__/generator5.quality.txt", import.meta.url);
+
 /** Every stored plan at its own generator, and every plan of a released generator forced to the open one too. */
 export const goldenRuns = (): Run[] => storedRuns(OPEN_GENERATOR);
+
+/** Does the run build at the open generator (so its quality meter is in the baseline)? */
+export const metered = (run: Run): boolean => run.plan.generator === OPEN_GENERATOR;
+
+/** The committed quality lines, by run name. */
+export const readQuality = (): Map<string, string[]> => readDetailFile(QUALITY_FILE);
 
 /** The committed golden lines, by run name (empty when the file does not exist yet). */
 export const readGolden = (): Map<string, string> => readGoldenFile(GOLDEN_FILE);

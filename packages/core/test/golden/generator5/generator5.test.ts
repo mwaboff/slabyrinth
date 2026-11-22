@@ -16,7 +16,10 @@
  * the slabs, the diagnostics and both reviews. Beside it, __golden__/generator5.detail.txt says what each run built,
  * one fact per line (pieces per level by role, layer and structure part; features by type; diagnostic and review codes
  * with counts: see goldenRecord.ts runDetail), so a diff of it reads "the apothecary's chimney went" rather than "the
- * slab hash changed". Runs at a released generator (RELEASED_GENERATOR in runs.ts) have frozen builds: only their
+ * slab hash changed". Third, __golden__/generator5.quality.txt is the quality meter's baseline for every run at
+ * generator 5 (src/review/qualityMetrics.ts: `<run> <metric> <value>`; the CLI's `quality` command prints the same with
+ * targets), so a package that adds a technique shows what it moved. It is computed from the same run (one more realize
+ * and verify per generator-5 run), not by a test of its own. Runs at a released generator (RELEASED_GENERATOR in runs.ts) have frozen builds: only their
  * review fields and review detail lines may move (review policy, src/plan/generator.ts).
  *
  * This test never writes. If it fails:
@@ -35,11 +38,20 @@
 import { describe, expect, it } from "vitest";
 import { GENERATOR_VERSIONS } from "../../../src/contracts/plan";
 import { detailDiff, goldenRecord, lineDiff } from "../goldenRecord";
-import { changesReleasedOutput, goldenRuns, OPEN_GENERATOR, readDetail, readGolden } from "./runs";
+import {
+  changesReleasedOutput,
+  goldenRuns,
+  metered,
+  OPEN_GENERATOR,
+  readDetail,
+  readGolden,
+  readQuality,
+} from "./runs";
 
 const RUNS = goldenRuns();
 const GOLDEN = readGolden();
 const DETAIL = readDetail();
+const QUALITY = readQuality();
 /** Detail lines shown in a failure message (the update script prints them all). */
 const SHOWN = 30;
 const UPDATE = "npm run test:golden:gen5:update";
@@ -59,13 +71,20 @@ describe("generator 5 output matches the committed golden", () => {
     expect([...DETAIL.keys()], `the detail file is out of step: run \`${UPDATE}\``).toEqual(
       RUNS.map((r) => r.name),
     );
+    expect([...QUALITY.keys()], `the quality baseline is out of step: run \`${UPDATE}\``).toEqual(
+      RUNS.filter(metered).map((r) => r.name),
+    );
   });
 
   // one test per run, so a failure names the plan and one slow build cannot time out the others
   it.each(RUNS.map((r) => [r.name, r] as const))("%s", (name, run) => {
-    const { line: now, detail } = goldenRecord(run);
+    const { line: now, detail, quality = [] } = goldenRecord(run, { quality: metered(run) });
     const was = GOLDEN.get(name);
-    const moved = detailDiff(DETAIL.get(name), detail);
+    // the quality meter's baseline moves with the build: it is a measure of it, read as part of the detail
+    const moved = [
+      ...detailDiff(DETAIL.get(name), detail),
+      ...detailDiff(QUALITY.get(name), quality).map((d) => `${d} (quality)`),
+    ];
     if (now === was && moved.length === 0) return;
     const shown = moved.slice(0, SHOWN).join("\n  ");
     const more = moved.length > SHOWN ? `\n  ... ${String(moved.length - SHOWN)} more` : "";
@@ -76,6 +95,10 @@ describe("generator 5 output matches the committed golden", () => {
           `of the open generator (src/plan/generator.ts). Do not update the golden.`
         : `generator-5 output changed (${diff}). If you meant it, run \`${UPDATE}\`, check the printed diff and ` +
           `commit the golden with the change. If this is a refactor, the change is a bug: do not update the golden.`;
-    expect([now, ...detail], advice).toEqual([was, ...(DETAIL.get(name) ?? [])]);
+    expect([now, ...detail, ...quality], advice).toEqual([
+      was,
+      ...(DETAIL.get(name) ?? []),
+      ...(QUALITY.get(name) ?? []),
+    ]);
   });
 });

@@ -12,7 +12,13 @@ import type { GeneratorVersion, MapPlan } from "../../src/contracts/plan";
 import type { ResolvedPlan } from "../../src/contracts/resolved";
 import { loadPalettes } from "../../src/palette";
 import { resolvePlan } from "../../src/resolve/index";
-import { designReviewText, reviewDesign, type DesignNote } from "../../src/review";
+import {
+  designReviewText,
+  qualityLines,
+  qualityOfBuild,
+  reviewDesign,
+  type DesignNote,
+} from "../../src/review";
 import { slabCodec } from "../../src/slab";
 import { GENERATOR_TEST_PLANS, loadPlan, STORED_PLANS, type StoredPlan } from "../fixtures";
 
@@ -60,6 +66,8 @@ let palettes: ReturnType<typeof loadPalettes> | undefined;
 export interface GoldenRecord {
   line: string;
   detail: string[];
+  /** The build's quality meter as baseline lines (src/review/qualityMap.ts qualityLines), when asked for. */
+  quality?: string[];
 }
 
 /**
@@ -67,11 +75,12 @@ export interface GoldenRecord {
  * palettes the plan is compiled with, compile (realize, verify, chunk, encode), then the design review with the build
  * and without it. The line is the run's name, then `key=value` fields; the detail says what was built (runDetail).
  */
-export function goldenRecord(run: Run): GoldenRecord {
+export function goldenRecord(run: Run, opts: { quality?: boolean } = {}): GoldenRecord {
   palettes ??= loadPalettes();
   const { plan } = run;
   const fields: Array<[string, string | number]> = [["gen", plan.generator]];
   let detail: string[];
+  let quality: string[] | undefined;
   try {
     const resolved = resolvePlan(plan, palettes);
     const bundle = compileResolved(resolved, palettes, slabCodec, { createdAt: "t", plan });
@@ -89,12 +98,20 @@ export function goldenRecord(run: Run): GoldenRecord {
       ["reviewNoBuild", sha(JSON.stringify(noBuild) + "\n" + designReviewText(noBuild))],
     );
     detail = runDetail(run.name, resolved, placements, bundle.diagnostics, withBuild);
+    // last: the meter verifies the realized set in place (as the paste is built), so it reuses this one
+    if (opts.quality)
+      quality = qualityLines(run.name, qualityOfBuild(plan, resolved, palettes, { realized: placements }));
   } catch (e) {
     // a plan that stops resolving or compiling is a change too; keep the message on one line
     fields.push(["error", JSON.stringify(e instanceof Error ? e.message : String(e))]);
     detail = [`${run.name} error`];
+    if (opts.quality) quality = [`${run.name} error`];
   }
-  return { line: [run.name, ...fields.map(([k, v]) => `${k}=${String(v)}`)].join(" "), detail };
+  return {
+    line: [run.name, ...fields.map(([k, v]) => `${k}=${String(v)}`)].join(" "),
+    detail,
+    ...(quality ? { quality } : {}),
+  };
 }
 
 /** The hash line of a run (goldenRecord's line). */
