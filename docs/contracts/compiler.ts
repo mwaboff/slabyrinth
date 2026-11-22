@@ -526,10 +526,14 @@ export interface ExportBundle {
   /**
    * Multi-chunk builds of generator 4 on: where the cursor goes. TaleSpire pastes a slab at the centre of its box; every
    * chunk shares one box, padded so that centre is the middle of a bare cell beside the map, `clearanceCells` empty cells
-   * out from the middle of its `side` edge. The far alignment pillar stands on that side too, `farMarkerCells` cells
-   * beyond the map edge. Absent for a one-chunk build.
+   * out from the middle of its `side` edge. The far alignment pillar stands on that side too, with `farMarkerCells`
+   * empty cells between it and the map edge. The near pillar stands beyond the north-east corner with
+   * `nearMarkerCells.north` and `.east` empty cells between it and the map's north and east edges (1, and 1 or 2).
+   * Every count is of empty cells in between (core always sets `nearMarkerCells`; optional so older bundles still
+   * type). Absent for a one-chunk build, and when the padded box would leave the slab format's range (the chunks then
+   * carry the plain corner pillars).
    */
-  pasteAnchor?: { side: "north" | "east" | "south" | "west"; clearanceCells: number; farMarkerCells: number };
+  pasteAnchor?: { side: "north" | "east" | "south" | "west"; clearanceCells: number; farMarkerCells: number; nearMarkerCells?: { north: number; east: number } };
   /** Per level paste placement (UX §16 builds[].levels[].placement). */
   levelPlacement: Array<{ levelId: LevelId; pasteOrder: number; kind: "ground" | "storeys-up" | "side-by-side"; storeys?: number; offsetSq?: number }>;
 }
