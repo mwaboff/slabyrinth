@@ -88,7 +88,7 @@ export interface PlacementGrid {
    */
   void?(x: number, y: number): boolean;
   /**
-   * Generator 4, room recipes (gen/rooms4.ts): the real size in tiles of the smallest variant of the piece a feature
+   * Generator 4, room recipes (gen/rooms4): the real size in tiles of the smallest variant of the piece a feature
    * type (and variant name) resolves to when anchored on cell (x, y), in the theme it is built in; undefined where
    * that theme has no such piece (the recipe leaves that item out). Absent: no room recipe runs.
    */

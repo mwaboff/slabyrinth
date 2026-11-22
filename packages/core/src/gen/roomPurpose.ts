@@ -39,7 +39,7 @@ export interface PurposeInfo {
   words: readonly string[];
   /** Nobody keeps such a place up: sparse furniture, one light at most (the dark-dungeon rule), rough finish. */
   abandoned: boolean;
-  /** The generator dresses it from its recipe (gen/rooms4.ts ROOM_RECIPES_4); also a dress preset of the same name. */
+  /** The generator dresses it from its recipe (gen/rooms4 ROOM_RECIPES_4); also a dress preset of the same name. */
   furnished: boolean;
   /**
    * The room's floor in each floor family (resolve/level/rooms.ts stepRoomFloors), null = no floor of its own (the rotation
@@ -50,7 +50,7 @@ export interface PurposeInfo {
   inNotes: boolean;
   /**
    * An open fire does not belong here (paper, cloth, straw, stored goods): a big room's floor light is a stand of
-   * candles, not a brazier (gen/rooms4.ts dressRoom).
+   * candles, not a brazier (gen/rooms4 dressRoom).
    */
   noFire: boolean;
 }
@@ -527,7 +527,7 @@ export function furnishedPurpose(p: RoomPurpose | undefined): p is FurnishedPurp
   return p !== undefined && ROOM_PURPOSE_INFO[p].furnished;
 }
 
-/** Purposes with a recipe (gen/rooms4.ts); each is also an interior dress preset of the same name. */
+/** Purposes with a recipe (gen/rooms4); each is also an interior dress preset of the same name. */
 export type FurnishedPurpose = Exclude<RoomPurpose, "ruin" | "passage">;
 
 /** The purpose an interior dress preset stands for (a dress op over a room uses that purpose's recipe). */

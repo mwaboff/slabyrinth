@@ -5,7 +5,7 @@
  * palette's floor tile sizes and room pieces, which areas a corridor opens on, link cells, the walls, and read-only,
  * the level's openings and the rims of its floor openings.
  * Writes: room floor materials and the quarter-tile step of a room entered from a corridor (cell heights), the
- * rooms' furniture, things on it and lights (via gen/rooms4.ts), and the wall-foot rubble features (FeatureWork).
+ * rooms' furniture, things on it and lights (via gen/rooms4), and the wall-foot rubble features (FeatureWork).
  */
 import type { AreaKind, Material, Side, Vec2 } from "../../contracts/plan";
 import { MATERIALS, PLAN_LIMITS } from "../../contracts/plan";
@@ -60,7 +60,7 @@ const RECIPES = {
   minCells: 6,
   /** The plan furnished a room itself when it placed at least this many features per 10 floor cells. */
   ownPer10Cells: 2,
-  /** Cells per light (gen/rooms4.ts lightArea) in a corridor and in a room. */
+  /** Cells per light (gen/rooms4 lightArea) in a corridor and in a room. */
   corridorLightEvery: 18,
   roomLightEvery: 12,
 } as const;
@@ -371,7 +371,7 @@ export function stepWallFootRubble(
 }
 
 /**
- * Generator 4 (switch `roomRecipes`): the default dressing of rooms (gen/rooms4.ts). An area of kind room whose
+ * Generator 4 (switch `roomRecipes`): the default dressing of rooms (gen/rooms4). An area of kind room whose
  * name, tags or notes name a purpose, that no dress op covers and that the plan furnished lightly (under
  * RECIPES.ownPer10Cells features per 10 floor tiles), gets that purpose's furniture, things on it and lights. A room with no purpose, or one the plan
  * furnished itself, still gets its torches; a passage a few. Abandoned places (a crypt, cells, a ruin) stay sparse and
