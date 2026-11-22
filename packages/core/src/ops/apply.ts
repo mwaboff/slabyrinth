@@ -79,6 +79,18 @@ export interface PlanRules {
 /** No resolver: structural validation only, and `materialize` fails with a message. */
 export const STRUCTURAL_RULES: PlanRules = Object.freeze({ checks: Object.freeze([]), materialize: null });
 
+/**
+ * What applyOps and applyChecked validate a plan against: the rules' checks and size tier, and the installed themes
+ * when known. Built in this one place, so an entry point cannot drop a field of the rules.
+ */
+export function validateContextOf(rules: PlanRules, themes?: readonly string[]): ValidateContext {
+  return {
+    checks: rules.checks,
+    ...(rules.limits !== undefined ? { limits: rules.limits } : {}),
+    ...(themes !== undefined ? { themes } : {}),
+  };
+}
+
 export interface ApplyOptions {
   /** Theme ids known to the installed palettes (validation warns on unknown themes). */
   themes?: readonly string[];
@@ -249,10 +261,7 @@ export function applyOps(
   const v: { ok: boolean; issues: PlanIssue[] } =
     options.validate === false
       ? { ok: true, issues: [] }
-      : validatePlan(d.plan, {
-          checks: rules.checks,
-          ...(options.themes !== undefined ? { themes: options.themes } : {}),
-        });
+      : validatePlan(d.plan, validateContextOf(rules, options.themes));
   if (!v.ok) return { ok: false, opErrors: [], issues: v.issues.filter((i) => i.severity === "error") };
 
   const dirtyLevels = [
