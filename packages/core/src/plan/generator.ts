@@ -285,6 +285,14 @@ const SWITCHES = {
     4,
     "A room recipe hangs a torch or shelf only on a wall edge a wall piece stands on: not a rock wall on the board's edge when that edge is an exit (PlacementGrid.wallBuilt).",
   ),
+  edgePiecesByBox: on(
+    4,
+    "A half-cell edge piece whose origin is not its box's min corner (palette geom boundsCenter: the palisade gate) is placed by its box, so it stands on the fence's half cell on any side (compile/realize/edges.ts placeEdgePiece).",
+  ),
+  gatesTiled: on(
+    4,
+    "An enclosure's gateway is filled with the longest gate pieces that fit, end to end, as a wide door is; a span no piece fits stays open with a note that says so (compile/realize/structures/enclosures.ts).",
+  ),
   lightsOffLandmarks: on(
     4,
     "The floor light that lights a landmark stands clear of the landmark's real outline (a tree's crown is wider than its footprint), never inside it (gen/setpieces.ts lightLandmarks).",

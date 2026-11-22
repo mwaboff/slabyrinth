@@ -170,18 +170,41 @@ export function placeEdgePiece(
     }
   }
   const unit = v.unitHeight;
+  const deg = steps * 15 + v.rot;
+  // the edge placement is calibrated for a piece whose origin is its box's min corner; a piece whose origin is
+  // elsewhere (palette geom boundsCenter, e.g. a gate whose box stands half a cell off its origin) is moved so that its
+  // box lands where a min-corner piece's would (generator 4, `edgePiecesByBox`)
+  const shift = lv.ctx.profile.edgePiecesByBox ? boxShift(v, deg * frame.o.rotSense) : NO_SHIFT;
   for (let k = 0; k < at.count; k++) {
     emit(
       v,
       role,
-      m.x + ep.offset.x,
-      at.yBase + k * unit,
-      m.z + ep.offset.z,
-      steps * 15 + v.rot,
+      m.x + ep.offset.x + shift.x,
+      at.yBase + k * unit + shift.y,
+      m.z + ep.offset.z + shift.z,
+      deg,
       at.source,
       at.layer,
     );
   }
+}
+
+const NO_SHIFT = { x: 0, y: 0, z: 0 } as const;
+
+/**
+ * How far to move a piece emitted at a point so that its world box (compile/geometry.ts placementBox) starts at that
+ * point, as a min-corner piece's does: none for a min-corner piece.
+ */
+function boxShift(v: ResolvedVariant, cwDeg: number): { x: number; y: number; z: number } {
+  const g = v.geom;
+  if (g.originAt === "minCorner") return NO_SHIFT;
+  const odd = Math.abs(Math.round(cwDeg / 90)) % 2 === 1;
+  const c = rotateXZ(g.boundsCenter.x, g.boundsCenter.z, cwDeg);
+  return {
+    x: (odd ? g.size.z : g.size.x) / 2 - c.x,
+    y: g.size.y / 2 - g.boundsCenter.y,
+    z: (odd ? g.size.x : g.size.z) / 2 - c.z,
+  };
 }
 
 /** Places one piece centred over `len` edges (free-standing low walls, fences, railings, gates). */

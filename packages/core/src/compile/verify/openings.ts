@@ -10,7 +10,7 @@
 import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import type { LevelId, Side } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
-import { CELL_FLAG } from "../../contracts/resolved";
+import { CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { OPPOSITE, SIDE_STEP } from "../../gen/gridGeometry";
 import { isGap, isPassage } from "../../gen/openingKinds";
 import type { LevelGrid } from "../../resolve/levelGrid";
@@ -176,10 +176,26 @@ function checkDoorPieces(
   }
 }
 
-/** Does door piece `s` stand in the half cell of edge `e` its wall is hosted in (a wide opening's piece may run along)? */
+/**
+ * Does door piece `s` stand in the half cell of edge `e` its wall is hosted in (a wide opening's piece may run along)?
+ * A gap's edge (an open gateway: no wall or opening on it, so nothing hosts it) has no host side: a piece hung in it
+ * (an enclosure's gate, in line with its fence) may stand in either half cell.
+ */
 function inHostHalfCell(solids: SolidIndex, g: LevelGrid, op: Opening, e: OpeningEdge, s: Solid): boolean {
-  const host = g.hostedOn(e.b[0], e.b[1], e.sideOfB) ? e.b : e.a;
-  const sideInHost: Side = host === e.b ? e.sideOfB : OPPOSITE[e.sideOfB];
+  if (g.hostedOn(e.b[0], e.b[1], e.sideOfB)) return inHalfCell(solids, op, e.b, e.sideOfB, s);
+  if (isGap(op.kind) && g.edgeKind(e.b[0], e.b[1], e.sideOfB) === EDGE.NONE)
+    return inHalfCell(solids, op, e.b, e.sideOfB, s) || inHalfCell(solids, op, e.a, OPPOSITE[e.sideOfB], s);
+  return inHalfCell(solids, op, e.a, OPPOSITE[e.sideOfB], s);
+}
+
+/** Does door piece `s` stand in the half cell on side `sideInHost` of cell `host`? */
+function inHalfCell(
+  solids: SolidIndex,
+  op: Opening,
+  host: readonly [number, number],
+  sideInHost: Side,
+  s: Solid,
+): boolean {
   const r = halfCellRect(host, sideInHost);
   const p0 = solids.toWorld(r.x0, r.y1);
   const p1 = solids.toWorld(r.x1, r.y0);

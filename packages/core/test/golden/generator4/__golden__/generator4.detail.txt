@@ -144,18 +144,21 @@ plans/chimney-lineup-v1 review symmetry 1
 plans/enclosure-gates-v1 g pieces feature 3
 plans/enclosure-gates-v1 g pieces floor 474
 plans/enclosure-gates-v1 g pieces ledge 120
-plans/enclosure-gates-v1 g pieces opening 1
-plans/enclosure-gates-v1 g pieces wall 61
+plans/enclosure-gates-v1 g pieces opening 4
+plans/enclosure-gates-v1 g pieces wall 60
 plans/enclosure-gates-v1 g pieces wall_post 8
-plans/enclosure-gates-v1 g layer site 667
+plans/enclosure-gates-v1 g layer site 669
 plans/enclosure-gates-v1 g part floor:floor.dirt 170
 plans/enclosure-gates-v1 g part floor:floor.grass 250
 plans/enclosure-gates-v1 g part floor:floor.gravel 54
 plans/enclosure-gates-v1 g part paddock~gate0 1
+plans/enclosure-gates-v1 g part paddock~gate1 1
+plans/enclosure-gates-v1 g part pen~gate0 1
+plans/enclosure-gates-v1 g part pen~gate1 1
 plans/enclosure-gates-v1 g feature barrel 1
 plans/enclosure-gates-v1 g feature crate 1
 plans/enclosure-gates-v1 g feature well 1
-plans/enclosure-gates-v1 diag info role_missing 3
+plans/enclosure-gates-v1 diag info role_missing 4
 plans/enclosure-gates-v1 diag info verify_material_substituted 2
 plans/enclosure-gates-v1 review bare_ground 1
 plans/enclosure-gates-v1 review flat_map 1

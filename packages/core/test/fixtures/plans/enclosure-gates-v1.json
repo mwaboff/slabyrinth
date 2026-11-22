@@ -45,7 +45,7 @@
           "wall": "palisade",
           "gates": [
             { "side": "S", "width": 2 },
-            { "side": "E", "width": 1, "position": 0.3 }
+            { "side": "E", "width": 2, "position": 0.3 }
           ],
           "floor": "dirt"
         },
@@ -57,7 +57,7 @@
           "wall": "palisade",
           "gates": [
             { "side": "N", "width": 3 },
-            { "side": "W", "width": 1, "position": 0.7 }
+            { "side": "W", "width": 3, "position": 0.5 }
           ]
         },
         {
