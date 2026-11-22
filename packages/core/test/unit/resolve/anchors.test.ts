@@ -4,6 +4,7 @@
  * room, bays phase-locked to openings, and determinism.
  */
 import { describe, expect, it } from "vitest";
+import { CELL_FLAG } from "../../../src/contracts/resolved";
 import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { LevelAnchors, ZONE, baysOf, framePoint, type FaceAnchor } from "../../../src/resolve/anchors";
@@ -162,5 +163,26 @@ describe("floor zones", () => {
     expect(front.classAt(1, 1) & ZONE.BAND1).toBeTruthy();
     expect(front.focalAt(6, 3)).toBe(1);
     expect(front.classAt(20, 20)).toBe(0);
+  });
+});
+
+describe("floor zones with stairs", () => {
+  it("keeps a lane from the focal point to a stair arriving in the room, and knows the room's shape", () => {
+    const r = at5("multi-level-stairs");
+    let checked = 0;
+    for (const L of r.levels) {
+      const g = new LevelAnchors(L);
+      for (const z of g.of("zone")) {
+        const ways = z.cells.filter(([x, y]) => {
+          const i = g.grid.index(x, y);
+          return ((L.cells.flags[i] ?? 0) & (CELL_FLAG.LINK | CELL_FLAG.STEPS)) !== 0;
+        });
+        if (ways.length === 0) continue;
+        checked++;
+        expect(ways.some(([x, y]) => z.classAt(x, y) & ZONE.LANE)).toBe(true);
+        expect(z.longAxis === "x" || z.longAxis === "y").toBe(true);
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });

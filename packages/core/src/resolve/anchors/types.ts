@@ -170,6 +170,9 @@ export interface ZoneAnchor extends AnchorBase {
   readonly doors: readonly ZoneDoor[];
   /** The focal feature, when the room has one. */
   readonly focalFeature: ElementId | null;
+  /** The room's centroid (plan point) and the axis its bounding box is longer along (plan x, or y). */
+  readonly centroid: readonly [number, number];
+  readonly longAxis: "x" | "y";
   /** Zone bits (ZONE) of a cell of the room, 0 for any other cell. */
   classAt(x: number, y: number): number;
   /** Focal score 0..1 of a cell (1 at a door or the focal point, falling away from them), 0 off the room. */

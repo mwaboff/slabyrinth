@@ -9,8 +9,9 @@
  *            apron: the cell at the opening and the one straight in front of it.
  *   focal    the room's focal feature (gen/catalog.ts `focusPiece`, the largest), else the floor cell farthest from its
  *            doors (the far end a visitor looks at), else its anchor.
- *   lanes    shortest walkable paths (no blocking feature on the way) from every door to the focal point and between
- *            every two doors (the first four doors), one cell wide.
+ *   lanes    shortest walkable paths (no blocking feature on the way) from every door and every stair or link cell to
+ *            the focal point, and between every two doors (the first four doors), one cell wide.
+ *   shape    the room's centroid and long axis (for rows along it, a gathering table on it).
  *   middle   room floor that is neither band, lane nor apron; END the fifth of a long room's length at each end.
  *   score    1 at a door or the focal point, falling linearly to 0 four cells from a door and five from the focal point.
  * Pure over the resolved level; breadth-first walks over the room's own cells (linear in its size per door).
@@ -69,6 +70,8 @@ export function zoneAnchors(L: ResolvedLevel, g: LevelGrid): ZoneAnchor[] {
       cells: cells.map((i) => [g.x0 + (i % g.w), g.y0 + Math.floor(i / g.w)] as Vec2),
       doors: z.doors,
       focalFeature: z.focalFeature,
+      centroid: z.centroid,
+      longAxis: z.longAxis,
       classAt: (x, y) => {
         const i = index(x, y);
         return i >= 0 && (L.cells.area[i] ?? 0) === a ? (bits[i] ?? 0) : 0;
@@ -83,6 +86,8 @@ export function zoneAnchors(L: ResolvedLevel, g: LevelGrid): ZoneAnchor[] {
 }
 
 interface RoomZones {
+  centroid: [number, number];
+  longAxis: "x" | "y";
   focal: [number, number];
   focalFeature: string | null;
   doors: ZoneDoor[];
@@ -216,7 +221,9 @@ function roomZones(
       }
     }
   };
-  if (focalIdx.length > 0) traceTo(focalIdx, doorIdx);
+  // stairs and links into the room are ways in too: door → focal point → stair
+  const ways = cells.filter((i) => ((L.cells.flags[i] ?? 0) & (CELL_FLAG.LINK | CELL_FLAG.STEPS)) !== 0);
+  if (focalIdx.length > 0) traceTo(focalIdx, [...doorIdx, ...ways]);
   const firstDoors = doors.slice(0, LANE_DOORS);
   for (let i = 0; i < firstDoors.length; i++)
     for (let j = i + 1; j < firstDoors.length; j++) {
@@ -251,7 +258,15 @@ function roomZones(
     const sf = 1 - (fromFocal.get(i) ?? Infinity) / FOCAL_REACH;
     score[i] = Math.max(0, sd, sf);
   }
-  return { focal, focalFeature: focalFeature?.id ?? null, doors };
+  const cx = cells.reduce((s, i) => s + xy(i)[0], 0) / cells.length + 0.5;
+  const cy = cells.reduce((s, i) => s + xy(i)[1], 0) / cells.length + 0.5;
+  return {
+    focal,
+    focalFeature: focalFeature?.id ?? null,
+    doors,
+    centroid: [cx, cy],
+    longAxis: area.bbox.w >= area.bbox.h ? "x" : "y",
+  };
 }
 
 /** Steps (4-neighbour) from the nearest source to every cell `ok` admits, sources at 0. */
