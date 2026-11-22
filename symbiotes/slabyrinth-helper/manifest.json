@@ -1,0 +1,39 @@
+{
+  "manifestVersion": 1,
+  "name": "Slabyrinth Helper",
+  "summary": "Experiment: puts a big Slabyrinth map's chunks in your hand one at a time and says what to do next.",
+  "entryPoint": "/index.html",
+  "version": "0.1.0",
+  "license": "MIT",
+  "about": {
+    "website": "https://slabyrinth.aboff.com/",
+    "authors": ["Slabyrinth"]
+  },
+  "controls": {
+    "reload": true
+  },
+  "api": {
+    "version": "0.1",
+    "initTimeout": 10,
+    "subscriptions": {
+      "symbiote": {
+        "onStateChangeEvent": "handleStateChange",
+        "onVisibilityEvent": "handleVisibility"
+      },
+      "slabs": {
+        "onSlabCopied": "handleSlabCopied"
+      },
+      "clients": {
+        "onClientEvent": "handleClientEvent"
+      },
+      "picking": {
+        "onPickingEvent": "handlePickingEvent"
+      }
+    }
+  },
+  "environment": {
+    "webViewBackgroundColor": "#17171b",
+    "capabilities": ["runInBackground"],
+    "extras": ["colorStyles"]
+  }
+}

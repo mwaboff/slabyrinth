@@ -695,6 +695,17 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
+    // TaleSpire symbiotes: plain JavaScript outside every tsconfig (copied into the game as they are).
+    files: ["symbiotes/**/*.{js,mjs}"],
+    languageOptions: { parserOptions: { projectService: false, project: false } },
+  },
+  {
+    // Symbiote pages are classic browser scripts: the game calls their handlers by global name.
+    files: ["symbiotes/*/**/*.js"],
+    ignores: ["symbiotes/test/**"],
+    languageOptions: { sourceType: "script", globals: globals.browser },
+  },
+  {
     // Contract copies are verbatim from docs/contracts (normative; tsc-checked). These rules flag
     // deliberate documentation-style unions (`"auto" | string`, `void` request payloads). Do not
     // edit the copies to satisfy lint: contract changes go through the lead.

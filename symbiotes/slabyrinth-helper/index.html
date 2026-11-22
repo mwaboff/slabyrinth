@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slabyrinth Helper</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="sequencer.js"></script>
+    <script src="test-pair.js"></script>
+    <script src="app.js"></script>
+  </head>
+  <body>
+    <div id="banner" class="banner">Starting…</div>
+
+    <nav class="tabs" role="tablist">
+      <button id="tab-main" role="tab" aria-selected="true">Chunks</button>
+      <button id="tab-log" role="tab" aria-selected="false">Event log</button>
+      <button id="tab-diag" role="tab" aria-selected="false">Diagnostics</button>
+    </nav>
+
+    <main id="panel-main" role="tabpanel">
+      <p id="status" class="status idle" role="status" aria-live="assertive">
+        Load a set of chunks to begin.
+      </p>
+
+      <div class="progress-row">
+        <progress id="progress" max="1" value="0"></progress>
+        <span id="progress-text">No chunks loaded</span>
+      </div>
+
+      <div class="actions">
+        <button id="btn-send" class="primary" disabled>Put in hand</button>
+        <button id="btn-next" class="primary" disabled>Next</button>
+        <button id="btn-back" disabled>Back</button>
+      </div>
+      <p class="note">
+        TaleSpire does not tell symbiotes when a slab is placed, so press Next yourself after each placement.
+      </p>
+      <p id="keys-hint" class="note"></p>
+
+      <h2 id="set-name"></h2>
+      <ol id="chunk-list" class="chunks"></ol>
+
+      <details class="loader" open>
+        <summary>Load chunks</summary>
+        <button id="btn-test-pair">Load test pair</button>
+        <label for="blob">Or paste a chunk set (JSON):</label>
+        <textarea
+          id="blob"
+          rows="5"
+          spellcheck="false"
+          placeholder='{"format": "slabyrinth-chunks", "version": 1, …}'
+        ></textarea>
+        <button id="btn-load">Load pasted set</button>
+        <p id="load-error" class="error" role="alert" hidden></p>
+      </details>
+    </main>
+
+    <section id="panel-log" role="tabpanel" hidden>
+      <p class="note">
+        Every TaleSpire event this helper subscribes to, newest first. Lines marked ▸ are the helper's own
+        calls.
+      </p>
+      <button id="btn-clear-log">Clear</button>
+      <ol id="event-log" class="log"></ol>
+    </section>
+
+    <section id="panel-diag" role="tabpanel" hidden>
+      <h2>TaleSpire API</h2>
+      <dl class="facts">
+        <dt>API version</dt>
+        <dd id="diag-api-version">-</dd>
+        <dt>Max slab size</dt>
+        <dd id="diag-max">-</dd>
+        <dt>Client mode</dt>
+        <dd id="diag-mode">-</dd>
+        <dt>API namespaces</dt>
+        <dd id="diag-namespaces">-</dd>
+        <dt>Page address</dt>
+        <dd id="diag-origin">-</dd>
+      </dl>
+
+      <h2>Keys</h2>
+      <p class="note">
+        Click a key button, then press the key you want. The last key the panel received is shown below: if
+        nothing changes when you press a key after clicking on the board, keys do not reach the helper.
+      </p>
+      <dl class="facts">
+        <dt>Next key</dt>
+        <dd><button id="key-next" class="key">Ctrl+Space</button></dd>
+        <dt>Back key</dt>
+        <dd><button id="key-back" class="key">Ctrl+Shift+Space</button></dd>
+        <dt>Last key</dt>
+        <dd id="key-last">none yet</dd>
+        <dt>At</dt>
+        <dd id="key-at">-</dd>
+        <dt>Panel had focus</dt>
+        <dd id="key-focus">-</dd>
+        <dt>What it did</dt>
+        <dd id="key-did">-</dd>
+      </dl>
+
+      <h2>Copied slab</h2>
+      <p class="note">Copy something in TaleSpire (Ctrl+C) and this updates.</p>
+      <dl class="facts">
+        <dt>Status</dt>
+        <dd id="copied-status">nothing copied yet</dd>
+        <dt>Data size</dt>
+        <dd id="copied-size">-</dd>
+        <dt>Slab string</dt>
+        <dd id="copied-length">-</dd>
+        <dt>At</dt>
+        <dd id="copied-at">-</dd>
+      </dl>
+      <textarea
+        id="copied-slab"
+        rows="3"
+        readonly
+        spellcheck="false"
+        aria-label="Copied slab string"
+      ></textarea>
+
+      <h2>Local connection test</h2>
+      <p class="note">
+        Run <code>node symbiotes/local-test-server.mjs</code> in the Slabyrinth folder first.
+      </p>
+      <div class="port-row">
+        <label for="port">Port</label>
+        <input id="port" type="number" min="1024" max="65535" />
+        <button id="btn-local">Test local connection</button>
+      </div>
+      <pre id="local-result" class="result"></pre>
+    </section>
+  </body>
+</html>
