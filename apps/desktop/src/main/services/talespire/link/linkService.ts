@@ -241,7 +241,7 @@ export class TaleSpireLinkService {
         "validation",
         "The TaleSpire add-on isn't connected. Open Slabyrinth Helper in TaleSpire.",
       );
-    const { record, chunks } = await this.d.build.chunksForSend(buildId);
+    const { record, chunks, pasteAnchor } = await this.d.build.chunksForSend(buildId);
     if (chunks.length === 0) throw new AppFailure("validation", "This build has no chunks.");
     if (chunks.length > MAX_CHUNKS)
       throw new AppFailure(
@@ -262,6 +262,7 @@ export class TaleSpireLinkService {
       version: 1,
       name,
       ...setShape(record),
+      ...(pasteAnchor ? { anchor: { ...pasteAnchor } } : {}),
       chunks: chunks.map((c) => ({ label: `${c.label} (${c.id})`.slice(0, 200), slab: c.slab })),
     };
     if (JSON.stringify(set).length > LINK_MAX_CHARS - 1024)

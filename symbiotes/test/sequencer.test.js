@@ -74,6 +74,42 @@ describe("parseChunkSet", () => {
     expect(Seq.parseChunkSet(blob({ name: "<b>x</b>" })).set.name).toBe("<b>x</b>"); // kept as text
   });
 
+  it("reads the optional paste anchor, refuses a malformed one, and keeps null without it", () => {
+    const anchor = { side: "south", clearanceCells: 4, farMarkerCells: 31 };
+    expect(Seq.parseChunkSet(blob({ anchor })).set.anchor).toEqual(anchor);
+    expect(Seq.parseChunkSet(blob()).set.anchor).toBeNull();
+    for (const bad of [
+      null,
+      { ...anchor, side: "up" },
+      { ...anchor, clearanceCells: -1 },
+      { ...anchor, farMarkerCells: 1.5 },
+      { side: "south" },
+    ])
+      expect(Seq.parseChunkSet(blob({ anchor: bad })).error).toMatch(/^"anchor" must be/);
+  });
+
+  it("with a paste anchor, chunk 1 says where the cursor goes; without one, the plain wording stays", () => {
+    const keys = { next: "Ctrl+Alt+D", back: "Ctrl+Alt+A", again: "Ctrl+Alt+S" };
+    const inHand = (over) => {
+      let s = Seq.reduce(Seq.initialState(), { type: "load", set: Seq.parseChunkSet(blob(over)).set }).state;
+      s = Seq.reduce(s, { type: "next" }).state;
+      return Seq.reduce(s, { type: "sent", index: 0, ok: true }).state;
+    };
+    const a = inHand({ anchor: { side: "south", clearanceCells: 4, farMarkerCells: 31 } });
+    expect(Seq.guide(a, { keys })).toEqual({
+      tone: "action",
+      step: "Chunk 1 of 2 in hand",
+      title: "Click just south of where the map goes",
+      detail:
+        "Hold the click briefly, then press Ctrl+Alt+D for chunk 2. The map lands north of the cursor, about 5" +
+        " cells away. Click this same spot for every chunk. Keep the camera and the mouse still.",
+    });
+    expect(Seq.statusLine(a).text).toMatch(
+      /^Chunk 1 of 2 is in your hand\. With the build plane raised \(G\), click just south of where the map goes/,
+    );
+    expect(Seq.guide(inHand({}), { keys }).title).toBe("Click one spot to place it");
+  });
+
   it.each([
     [{ size: { w: 0, h: 3 } }, /"size"/],
     [{ size: { w: 2.5, h: 3 } }, /"size"/],
@@ -415,6 +451,26 @@ describe("after the last chunk: the picking tool", () => {
       title: "Right-click to clear your hand",
       detail: "Then delete the two alignment pillars.",
     });
+  });
+
+  it("with a paste anchor, the done texts say which pillars to delete and where they stand", () => {
+    const anchor = { side: "south", clearanceCells: 4, farMarkerCells: 31 };
+    let s = Seq.reduce(Seq.initialState(), {
+      type: "load",
+      set: Seq.parseChunkSet(blob({ anchor })).set,
+    }).state;
+    for (const i of [0, 1]) {
+      s = Seq.reduce(s, { type: "next" }).state;
+      s = Seq.reduce(s, { type: "sent", index: i, ok: true }).state;
+    }
+    s = Seq.reduce(s, { type: "next" }).state;
+    const pillars =
+      "Then delete the two alignment pillars: one just past the map's north-east corner, and one about 31 cells" +
+      " south of the map.";
+    expect(Seq.guide(s, {}).detail).toBe("If a slab is still in your hand, right-click. " + pillars);
+    expect(Seq.statusLine(s).text).toBe(
+      "All 2 chunks are placed. Right-click to clear your hand. " + pillars,
+    );
   });
 
   it("the picking tool is the default; the removed empty-slab setting becomes it", () => {

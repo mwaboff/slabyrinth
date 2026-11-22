@@ -53,6 +53,12 @@ export interface ChunkSet {
   name: string;
   size?: { w: number; h: number };
   levels?: number;
+  /**
+   * A map pasted from beside it (ExportBundle.pasteAnchor): the cursor sits `clearanceCells` empty cells out from the
+   * middle of the `side` edge, the far alignment pillar `farMarkerCells` beyond that edge. The add-on then says where
+   * the cursor goes and which pillars to delete; a set without it keeps the plain wording.
+   */
+  anchor?: { side: "north" | "east" | "south" | "west"; clearanceCells: number; farMarkerCells: number };
   chunks: Array<{ label: string; slab: string }>;
 }
 

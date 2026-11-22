@@ -16,6 +16,7 @@ export interface HelperSet {
   chunks: Array<{ label: string; slab: string; bytes: number }>;
   size: { w: number; h: number } | null;
   levels: number | null;
+  anchor: { side: string; clearanceCells: number; farMarkerCells: number } | null;
 }
 export interface HelperState {
   set: HelperSet | null;
@@ -62,6 +63,11 @@ export interface Sequencer {
   checkHotkey(combo: string): { ok: boolean; combo?: string; reason?: string };
   slabHasRoomForAnAsset(slab: string): boolean;
   mapInfo(set: HelperSet): { title: string; meta: string } | null;
+  statusLine(s: HelperState): { tone: string; text: string };
+  guide(
+    s: HelperState,
+    opts: { linked?: boolean; keys?: Record<string, string> | null },
+  ): { tone: string; step: string; title: string; detail: string };
 }
 
 /** sequencer.js, loaded fresh in its own context. */

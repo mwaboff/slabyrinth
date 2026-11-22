@@ -232,16 +232,21 @@ export class BuildService {
     return chunk.slab;
   }
 
-  /** Every chunk of a build in paste order, with its slab and asset count (the TaleSpire add-on's chunk set). */
+  /**
+   * Every chunk of a build in paste order, with its slab and asset count, and where the cursor goes for a map pasted
+   * from beside it (the TaleSpire add-on's chunk set).
+   */
   async chunksForSend(buildId: string): Promise<{
     record: BuildRecord;
     chunks: Array<{ id: string; label: string; slab: string; assetCount: number }>;
+    pasteAnchor?: ExportBundle["pasteAnchor"];
   }> {
     const record = this.deps.projects.findBuild(buildId);
     const bundle = await this.bundleOf(buildId);
     for (const c of bundle.chunks) this.checkUnchanged(buildId, c);
     return {
       record,
+      ...(bundle.pasteAnchor ? { pasteAnchor: bundle.pasteAnchor } : {}),
       chunks: bundle.chunks.map((c) => ({
         id: c.id,
         label: c.label,

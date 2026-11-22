@@ -153,6 +153,38 @@ describe("slabyrinth-link: app -> helper", () => {
     expect(Seq.mapInfo(loaded.set)?.meta).toBe("1 chunk · 40 × 30 cells · 2 levels");
   });
 
+  it("the add-on reads the paste anchor the app sends and says where the cursor goes and which pillars to delete", () => {
+    const anchor = { side: "south", clearanceCells: 4, farMarkerCells: 31 } as const;
+    const set: ChunkSet = {
+      format: "slabyrinth-chunks",
+      version: 1,
+      name: "Keep",
+      anchor,
+      chunks: [
+        { label: "West (l1-01)", slab: SLAB },
+        { label: "East (l1-02)", slab: SLAB },
+      ],
+    };
+    const m = Seq.parseLinkMessage(appMessage(9, { type: "load", set }));
+    if (!m) throw new Error("the add-on refused the load message");
+    const loaded = Seq.linkCommand(m, Seq.DEFAULT_MAX_BYTES).action;
+    if (!loaded?.set) throw new Error("no set");
+    expect(loaded.set.anchor).toEqual(anchor);
+    let s = Seq.reduce(Seq.initialState(), { type: "load", set: loaded.set }).state;
+    s = Seq.reduce(s, { type: "next" }).state;
+    s = Seq.reduce(s, { type: "sent", index: 0, ok: true }).state;
+    expect(Seq.guide(s, {}).title).toBe("Click just south of where the map goes");
+    expect(Seq.guide(s, {}).detail).toMatch(/The map lands north of the cursor, about 5 cells away\./);
+    s = Seq.reduce(Seq.reduce(s, { type: "next" }).state, { type: "sent", index: 1, ok: true }).state;
+    s = Seq.reduce(s, { type: "next" }).state;
+    expect(Seq.statusLine(s).text).toMatch(
+      /one just past the map's north-east corner, and one about 31 cells south of the map\.$/,
+    );
+    // the app's anchor sides are the add-on's
+    for (const side of ["north", "east", "south", "west"] as const)
+      expect(Seq.parseChunkSet(JSON.stringify({ ...set, anchor: { ...anchor, side } })).ok).toBe(true);
+  });
+
   it("the add-on reads the app's hotkey results, standby included", () => {
     const text = appMessage(4, {
       type: "hotkeys-result",

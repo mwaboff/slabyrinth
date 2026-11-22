@@ -90,7 +90,8 @@ the add-on from Slabyrinth does not change it. A stored look that no longer exis
    first), the setting says so; the buttons in the panel always work.
 4. In TaleSpire, **press G to raise the build plane** first (without it, later chunks land a little higher). Point the
    camera at an empty area and do not move it again.
-5. Press **Ctrl+Alt+D** (Next): chunk 1 goes to your hand. Click one spot (hold the click briefly).
+5. Press **Ctrl+Alt+D** (Next): chunk 1 goes to your hand. Click one spot (hold the click briefly). For a big map
+   the panel says where: just south of where the map goes (it lands north of the cursor).
 6. Keep the mouse where it is and press **Ctrl+Alt+D** again: the next chunk goes to your hand. Click the same spot.
    Repeat until the panel says all chunks are placed, then right-click to clear your hand if a slab is still in it,
    and delete the two alignment pillars.
@@ -151,7 +152,11 @@ but they only work while the panel has the keyboard, which it loses when you cli
 }
 ```
 
-`size` (in cells) and `levels` are optional; the header shows them when present. The bundled test pair
+`size` (in cells) and `levels` are optional; the header shows them when present. `anchor`
+(`{ "side": "south", "clearanceCells": 4, "farMarkerCells": 31 }`, also optional) is sent for a map pasted from
+beside it: the cursor goes `clearanceCells` empty cells out from the middle of that edge, and the far pillar stands
+`farMarkerCells` beyond it. With it, the chunk-1 and done texts say where to click and which pillars to delete; without
+it they keep the plain wording. The bundled test pair
 (`test-pair.js`) is Slabyrinth's single-room test plan (one small walled room with a few props) split down the
 middle into a west half and an east half.
 

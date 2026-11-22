@@ -17,6 +17,16 @@
   /** TaleSpire's slab limit: bytes of gzip output, before base64 (the API reports the live value). */
   var DEFAULT_MAX_BYTES = 30720;
   var MAX_CHUNKS = 500;
+  /** The map edge the paste anchor sits beside (protocol.ts ChunkSet.anchor). */
+  var ANCHOR_SIDES = ["north", "east", "south", "west"];
+  var OPPOSITE_SIDE = { north: "south", east: "west", south: "north", west: "east" };
+  /** The corner of the near pillar (the box's other end): beside the south or west edge, the box ends north-east. */
+  var NEAR_PILLAR_CORNER = {
+    south: "north-east",
+    west: "north-east",
+    north: "south-west",
+    east: "south-west",
+  };
 
   /** The bytes a base64 string decodes to. */
   function base64Bytes(s) {
@@ -122,6 +132,24 @@
         return fail('"levels" must be a whole number from 1 to 100.');
       levels = data.levels;
     }
+    var anchor = null;
+    if (data.anchor !== undefined) {
+      var a = data.anchor;
+      var cells = function (v) {
+        return typeof v === "number" && Math.floor(v) === v && v >= 0 && v <= 10000;
+      };
+      if (
+        a === null ||
+        typeof a !== "object" ||
+        ANCHOR_SIDES.indexOf(a.side) < 0 ||
+        !cells(a.clearanceCells) ||
+        !cells(a.farMarkerCells)
+      )
+        return fail(
+          '"anchor" must be { "side": "north" | "east" | "south" | "west", "clearanceCells": cells, "farMarkerCells": cells }.',
+        );
+      anchor = { side: a.side, clearanceCells: a.clearanceCells, farMarkerCells: a.farMarkerCells };
+    }
     if (!Array.isArray(data.chunks) || data.chunks.length === 0)
       return fail('"chunks" must be a non-empty list.');
     if (data.chunks.length > MAX_CHUNKS)
@@ -145,7 +173,42 @@
         return fail(n + " has no assets. TaleSpire crashes on an empty slab, so this set cannot be used.");
       chunks.push({ label: c.label.trim(), slab: slab, bytes: bytes });
     }
-    return { ok: true, set: { name: data.name.trim(), chunks: chunks, size: size, levels: levels } };
+    return {
+      ok: true,
+      set: { name: data.name.trim(), chunks: chunks, size: size, levels: levels, anchor: anchor },
+    };
+  }
+
+  /**
+   * Where the cursor goes and where the alignment pillars stand, from the set's optional `anchor` (a map pasted from
+   * beside it: the cursor sits `clearanceCells` empty cells out from the middle of the `side` edge, and the far pillar
+   * `farMarkerCells` beyond that edge; the near pillar is just past the opposite corner). Null without an anchor: the
+   * texts then keep the plain wording. Text only.
+   */
+  function pasteAnchorText(set) {
+    var a = set && set.anchor;
+    if (!a) return null;
+    var away = a.clearanceCells + 1;
+    var far = a.farMarkerCells;
+    return {
+      // "Click just south of where the map goes"
+      spotTitle: "Click just " + a.side + " of where the map goes",
+      spot:
+        "The map lands " +
+        OPPOSITE_SIDE[a.side] +
+        " of the cursor, about " +
+        away +
+        (away === 1 ? " cell" : " cells") +
+        " away. Click this same spot for every chunk.",
+      pillars:
+        "Then delete the two alignment pillars: one just past the map's " +
+        NEAR_PILLAR_CORNER[a.side] +
+        " corner, and one about " +
+        far +
+        (far === 1 ? " cell " : " cells ") +
+        a.side +
+        " of the map.",
+    };
   }
 
   /** The map's title and a small line of facts for the header, or null with no set. Text only (never HTML). */
@@ -283,6 +346,7 @@
     var n = state.index + 1;
     var which = "Chunk " + n + " of " + total;
     var nextWord = n === total ? "Finish" : "Next";
+    var anchor = pasteAnchorText(state.set);
     switch (state.phase) {
       case "ready":
         return {
@@ -301,11 +365,20 @@
           tone: "action",
           text:
             n === 1
-              ? which +
-                " is in your hand. With the build plane raised (G), click one spot to place it (hold the click" +
-                " briefly), then press " +
-                nextWord +
-                ". Keep the camera and the mouse still from now on."
+              ? anchor
+                ? which +
+                  " is in your hand. With the build plane raised (G), " +
+                  anchor.spotTitle.toLowerCase() +
+                  " (hold the click briefly), then press " +
+                  nextWord +
+                  ". " +
+                  anchor.spot +
+                  " Keep the camera and the mouse still from now on."
+                : which +
+                  " is in your hand. With the build plane raised (G), click one spot to place it (hold the click" +
+                  " briefly), then press " +
+                  nextWord +
+                  ". Keep the camera and the mouse still from now on."
               : which +
                 " is in your hand. Click the same spot again without moving the camera, then press " +
                 nextWord +
@@ -326,7 +399,9 @@
           text:
             "All " +
             total +
-            " chunks are placed. Right-click to clear your hand, then delete the two alignment pillars.",
+            (anchor
+              ? " chunks are placed. Right-click to clear your hand. " + anchor.pillars
+              : " chunks are placed. Right-click to clear your hand, then delete the two alignment pillars."),
         };
       default:
         return { tone: "idle", text: "Load a set of chunks to begin." };
@@ -368,6 +443,7 @@
     var cap = function (s) {
       return s.charAt(0).toUpperCase() + s.slice(1);
     };
+    var anchor = pasteAnchorText(state.set);
     switch (state.phase) {
       case "ready":
         if (n === 1)
@@ -393,6 +469,18 @@
       case "sending":
         return { tone: "wait", step: which, title: "Putting chunk " + n + " in your hand…", detail: "" };
       case "inHand":
+        if (n === 1 && anchor)
+          return {
+            tone: "action",
+            step: which + " in hand",
+            title: anchor.spotTitle,
+            detail:
+              "Hold the click briefly, then " +
+              press("next") +
+              (last ? " to finish. " : " for chunk 2. ") +
+              anchor.spot +
+              " Keep the camera and the mouse still.",
+          };
         return {
           tone: "action",
           step: which + " in hand",
@@ -412,7 +500,7 @@
         };
       case "done": {
         // never "your hand is clear": the API cannot see the hand, so every wording leaves the right-click to the GM
-        var pillars = "Then delete the two alignment pillars.";
+        var pillars = anchor ? anchor.pillars : "Then delete the two alignment pillars.";
         var cl = state.clear;
         var done = { tone: "done", step: "All chunks placed" };
         if (cl && cl.status === "trying")

@@ -48,7 +48,9 @@ function record(chunks: Array<{ id: string; x1: number; y1: number }>): BuildRec
   } as unknown as BuildRecord;
 }
 
-async function rig(opts: { assets?: number[]; testDir?: boolean } = {}) {
+type Anchor = { side: "north" | "east" | "south" | "west"; clearanceCells: number; farMarkerCells: number };
+
+async function rig(opts: { assets?: number[]; testDir?: boolean; anchor?: Anchor } = {}) {
   const root = await tempDir("link-svc-");
   dirs.push(root);
   const settings = new SettingsStore({
@@ -87,6 +89,7 @@ async function rig(opts: { assets?: number[]; testDir?: boolean } = {}) {
       chunksForSend: () =>
         Promise.resolve({
           record: record(assets.map((_, i) => ({ id: `l1-0${String(i + 1)}`, x1: 30, y1: 20 }))),
+          ...(opts.anchor ? { pasteAnchor: opts.anchor } : {}),
           chunks: assets.map((n, i) => ({
             id: `l1-0${String(i + 1)}`,
             label: i ? "East" : "West",
@@ -169,6 +172,27 @@ describe("send this build to the add-on", () => {
     expect(r.emit.events.filter((e) => e.channel === "link:changed").length).toBeGreaterThan(2);
     r.service.stop();
     await addon.until((s) => s.set === null);
+  });
+
+  it("carries the paste anchor of a map pasted from beside it, and none for one that is not", async () => {
+    const anchor: Anchor = { side: "south", clearanceCells: 4, farMarkerCells: 31 };
+    for (const [opts, want] of [
+      [{ anchor }, anchor],
+      [{}, undefined],
+    ] as const) {
+      const r = await rig(opts);
+      await r.service.install();
+      const token = (
+        JSON.parse(await fsp.readFile(path.join(r.root, "talespire-link.json"), "utf8")) as { token: string }
+      ).token;
+      const addon = await connectAddon(r.service.linkStatus().server.port, token);
+      await waitFor(() => r.service.linkStatus().helper.state === "connected");
+      await r.service.send("b1");
+      await addon.until((s) => s.set !== null);
+      expect(addon.state().set?.anchor ?? undefined).toEqual(want);
+      r.service.stop();
+      await addon.until((s) => s.set === null);
+    }
   });
 
   it("never sends a chunk with no assets (an empty slab crashes TaleSpire)", async () => {
