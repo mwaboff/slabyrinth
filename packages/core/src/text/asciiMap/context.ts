@@ -10,6 +10,8 @@ export interface AsciiOptions {
   region?: { x: number; y: number; w: number; h: number };
   /** Max cells across before switching to 1 char per cell (default 60). */
   maxDoubleWidth?: number;
+  /** Most cells drawn one by one before the view becomes a block overview (default MAX_VIEW_CELLS). */
+  maxCells?: number;
   /** Print the legend (default true). */
   legend?: boolean;
   /** Level labels for link hints, e.g. { l1: "L1" }. */
