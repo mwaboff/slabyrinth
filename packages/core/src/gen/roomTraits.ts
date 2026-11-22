@@ -90,6 +90,8 @@ export interface GroupSpec {
   readonly light?: boolean;
   /** Rows kept clear in front of the group's face (standing room at a seat; a tile before a fire). */
   readonly keep: number;
+  /** Tried only where the other groups do not fit (a cot in a small cell), never drawn for variety. */
+  readonly fallback?: boolean;
 }
 
 /** A wall-lining item: a spec, with companions of its own when it is a station (a bunk and its chest). */
@@ -162,14 +164,15 @@ const G = (
   anchor: Spec,
   place: AnchorPlace,
   companions: readonly Companion[],
-  more: { light?: boolean; keep?: number } = {},
+  more: { light?: boolean; keep?: number; fallback?: boolean } = {},
 ): GroupSpec => ({
   name,
   anchor,
   place,
   companions,
   keep: more.keep ?? 1,
-  ...(more.light ? { light: true } : {}),
+  ...(more.light === true ? { light: true } : {}),
+  ...(more.fallback === true ? { fallback: true } : {}),
 });
 
 const A = (type: FeatureType, more: Omit<Spec, "type" | "weight"> = {}): Spec => ({
@@ -196,7 +199,7 @@ export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = {
         "free",
         [
           seatsFront("stool", STOOL, 0.25),
-          C("back store", STORE, "wallBehind", { facing: "away", count: 2, top: "store" }),
+          C("back store", STORE, "wallBehind", { facing: "same", count: 2, top: "store" }),
         ],
         { light: true },
       ),
@@ -259,13 +262,14 @@ export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = {
     host: "kitchen",
     layout: "workLine",
     groups: [
-      // the heat on a wall with a counter either side of it along the same wall
-      G("heat", A("cauldron"), "farWall", [
-        C("counter", [P("counter"), P("table")], "head", { facing: "same", count: 2, top: "table", gap: 0 }),
+      // the work line on a wall: the counter, the heat at one end, the water at the other (within 2 of the heat)
+      G("counter", A("counter", { run: 2, top: "table" }), "farWall", [
+        C("heat", [P("cauldron")], "head", { facing: "same", gap: 0.1 }),
+        C("water", BUCKET, "head", { facing: "same", gap: 0.1 }),
       ]),
-      G("heat", A("cauldron"), "facingDoor", [
-        C("counter", [P("counter"), P("table")], "head", { facing: "same", count: 1, top: "table", gap: 0 }),
-        C("water", BUCKET, "head", { facing: "same", count: 1, gap: 0 }),
+      G("counter", A("counter", { top: "table" }), "facingDoor", [
+        C("heat", [P("cauldron")], "head", { facing: "same", gap: 0.1 }),
+        C("store", [P("sack"), P("barrel")], "head", { facing: "same", gap: 0.1 }),
       ]),
     ],
     lining: [
@@ -281,7 +285,7 @@ export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = {
     lights: { per10: [1, 2], onSurfaces: false, doorPair: false },
     props10: [50, 75],
     fill: 0.45,
-    minimum: ["heat", "counter", "light"],
+    minimum: ["counter", "heat", "light"],
     nearWall: [0.9, 1],
     clear: [0.4, 0.63],
   },
@@ -420,6 +424,17 @@ export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = {
         C("nightstand", NIGHTSTAND, "head", { gap: 0.1, facing: "same", light: true, count: 2 }),
         C("chest", CHEST, "front", { gap: 0.2, facing: "same", top: "study" }),
       ]),
+      // the cell kit: a narrow cot where a bed does not fit between the corner posts of a small room
+      G(
+        "bed",
+        A("bed", { variant: "straw" }),
+        "farWall",
+        [
+          C("nightstand", NIGHTSTAND, "head", { gap: 0.1, facing: "same", light: true }),
+          C("chest", CHEST, "front", { gap: 0.2, facing: "same" }),
+        ],
+        { fallback: true },
+      ),
     ],
     lining: [
       S("wardrobe", 2, { max: 1, corner: true }),
@@ -553,7 +568,7 @@ export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = {
         [
           C("anvil", [P("anvil")], "front", { gap: 0.6, facing: "same", top: "tools" }),
           C("quench", BUCKET, "head", { facing: "same", gap: 0.1 }),
-          C("bench", [P("counter"), P("table")], "head", { facing: "same", gap: 0.1, top: "tools" }),
+          C("tool chest", CHEST, "head", { facing: "same", gap: 0.1, top: "tools" }),
         ],
         { keep: 1 },
       ),
@@ -589,7 +604,8 @@ export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = {
         { light: true },
       ),
       G("still", A("cauldron"), "facingDoor", [
-        C("bench", [P("table")], "head", { facing: "same", gap: 0, top: "shelf" }),
+        C("store", CHEST, "head", { facing: "same", gap: 0.1, top: "shelf" }),
+        C("water", BUCKET, "head", { facing: "same", gap: 0.1 }),
       ]),
     ],
     lining: [
@@ -613,7 +629,7 @@ export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = {
     layout: "wall",
     groups: [
       G("chests", A("chest", { run: 3, top: "table" }), "facingDoor", [
-        C("statue", STATUE, "head", { facing: "same", gap: 0.2 }),
+        C("statue", STATUE, "head", { facing: "same", gap: 0.2, count: 2 }),
       ]),
       G("statue", A("statue"), "farWall", [
         C("chest", CHEST, "head", { facing: "same", gap: 0.1, count: 2, top: "table" }),
@@ -685,8 +701,8 @@ export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = {
         A("counter", { top: "store" }),
         "free",
         [
-          C("seat", CHAIR, "back", { facing: "away", gap: 0.2 }),
-          C("goods", STORE, "wallBehind", { facing: "away", count: 2, top: "store" }),
+          C("seat", CHAIR, "back", { facing: "anchor", gap: 0.2 }),
+          C("goods", STORE, "wallBehind", { facing: "same", count: 2, top: "store" }),
         ],
         { light: true },
       ),
@@ -777,7 +793,7 @@ export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = {
         "desk",
         A("desk", { top: "study" }),
         "free",
-        [C("seat", CHAIR, "back", { facing: "away", gap: 0.2 })],
+        [C("seat", CHAIR, "back", { facing: "anchor", gap: 0.2 })],
         { light: true },
       ),
       G("desk", A("desk", { top: "study" }), "facingDoor", [seatsFront("seat", CHAIR, 0.2)], {

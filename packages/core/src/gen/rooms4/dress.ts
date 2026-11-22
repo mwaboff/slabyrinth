@@ -1,11 +1,13 @@
 /**
  * Dressing a room from its purpose's recipe (generator 4): anchor, wall run, things on the furniture, shelf, rug,
- * lights. The steps are listed in `dressRoom`, in order.
+ * lights. The steps are listed in `dressRoom`, in order. Generator 5 (switch `companionGroups`) furnishes from the
+ * room-kind table instead (gen/rooms4/furnish.ts).
  */
 import type { FeatureType } from "../../contracts/plan";
-import type { PlacementGrid, ScatterResult } from "../placementGrid";
-import { ROOM_PURPOSE_INFO, type FurnishedPurpose } from "../roomPurpose";
+import { gridProfile, type PlacementGrid, type ScatterResult } from "../placementGrid";
+import { ROOM_PURPOSE_INFO, type FurnishedPurpose, type RoomKind } from "../roomPurpose";
 import { SURFACE_LOAD } from "../surfaces";
+import { furnishRoom } from "./furnish";
 import { light, lightTarget } from "./lights";
 import { FILL_GAIN, ROOM_DRESS, ROOM_RECIPES_4, pickSpec, type Spec, type Variant } from "./recipes";
 import { Room } from "./room";
@@ -23,6 +25,8 @@ export interface RoomDressParams {
   remaining: number;
   /** Explicit features of the plan already in the area: an anchor of one of these types is not doubled. */
   have?: readonly FeatureType[];
+  /** Generator 5: what the room is furnished as (gen/roomPurpose.ts RoomClass.kind); the purpose when absent. */
+  kind?: RoomKind;
 }
 
 /**
@@ -31,6 +35,7 @@ export interface RoomDressParams {
  */
 export function dressRoom(grid: PlacementGrid, p: RoomDressParams): ScatterResult | null {
   if (grid.piece4 === undefined) return null;
+  if (gridProfile(grid).companionGroups) return furnishRoom(grid, p, p.kind ?? p.purpose);
   const recipe = ROOM_RECIPES_4[p.purpose];
   const room = new Room(grid, p.areaIndex, p.areaCells, p.seed, p.remaining);
   if (room.cells.length < 4 || room.wallPairs.length === 0) return null;

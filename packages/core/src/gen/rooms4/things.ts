@@ -55,10 +55,13 @@ export function addToppers(room: Room, p: Placed, family: Family, rule: SurfaceL
     // a thing stands 0.31 clear of the wall behind its support (it has a width of its own)
     const hosted = room.grid.wallHosted?.(p.at[0], p.at[1], p.side) === true;
     const clear = (hosted ? 0.5 : 0) + 0.31;
-    if (p.side === "N") py = Math.max(py, p.at[1] + clear);
-    else if (p.side === "S") py = Math.min(py, p.at[1] + p.size[1] - clear);
-    else if (p.side === "W") px = Math.max(px, p.at[0] + clear);
-    else px = Math.min(px, p.at[0] + p.size[0] - clear);
+    // (generator 5: a piece standing free of the wall has nothing behind it to keep clear of)
+    if (p.unbacked !== true) {
+      if (p.side === "N") py = Math.max(py, p.at[1] + clear);
+      else if (p.side === "S") py = Math.min(py, p.at[1] + p.size[1] - clear);
+      else if (p.side === "W") px = Math.max(px, p.at[0] + clear);
+      else px = Math.min(px, p.at[0] + p.size[0] - clear);
+    }
     if (tops.some(([qx, qy]) => Math.hypot(qx - px, qy - py) < 0.26)) continue;
     // nothing stands in a corner post (some themes' posts are wider than they look)
     if (room.nearPost(px, py)) continue;

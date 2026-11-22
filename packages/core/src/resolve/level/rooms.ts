@@ -16,7 +16,7 @@ import { SIDES, SIDE_STEP } from "../../gen/gridGeometry";
 import { isGap, openingWidth } from "../../gen/openingKinds";
 import type { GeneratedPlacement } from "../../gen/placementGrid";
 import { furnishedPurpose } from "../../gen/roomPurpose";
-import { dressRoom, lightArea } from "../../gen/rooms4";
+import { SMALLEST_FURNISHED, dressRoom, lightArea } from "../../gen/rooms4";
 import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed, h32, hashUnit, subSeed } from "../../util/hash";
@@ -392,19 +392,21 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
       .shownCells(info.index)
       .filter((i) => work.isFloor(i))
       .map((i) => work.cellXY(i));
-    if (cells.length < RECIPES.minCells) continue;
+    // generator 5: a room down to a cell of a cell row is furnished (its minimum set) and lit
+    if (cells.length < (work.profile.companionGroups ? SMALLEST_FURNISHED : RECIPES.minCells)) continue;
     const seed = subSeed(elementSeed(work.plan.seed, `${work.level.id}~${area.id}~room`, undefined), "room");
     const own = features.all.filter(
       (f) => f.area === area.id && f.generatedBy === undefined && f.type !== "torch_wall",
     ).length;
     const lightly = own * 10 < RECIPES.ownPer10Cells * cells.length;
     // a corridor is never furnished, but its name still says whether it is kept up ("Crypt passage" stays dark)
-    const { purpose, abandoned } = info.room;
+    const { purpose, abandoned, kind } = info.room;
     const ruin = purpose === "ruin";
     let res: { placements: GeneratedPlacement[]; capped: boolean } | null = null;
     if (info.kind === "room" && furnishedPurpose(purpose) && lightly && !dressed.has(area.id)) {
       res = dressRoom(grid, {
         purpose,
+        ...(kind !== undefined ? { kind } : {}),
         abandoned,
         areaIndex: info.index + 1,
         areaCells: cells,

@@ -105,6 +105,24 @@ export interface Placed {
   light: boolean;
   /** The variant the piece was placed as (a small crate), so its top height is the variant's. */
   variant?: string;
+  /** Generator 5: a light belongs on its top (a nightstand, a desk, a table, a bar segment: gen/roomTraits.ts). */
+  wantsLight?: boolean;
+  /**
+   * Generator 5: it stands free of the wall on `side` (a chest at a bed's foot, a free-standing counter), so the things
+   * on it are not kept off that side as they are off a wall behind.
+   */
+  unbacked?: boolean;
+}
+
+/** Generator 5's reading of a room (gen/rooms4/furnish.ts); absent, the room is read as generator 4 reads it. */
+export interface RoomOpts {
+  /** Is there a window in the wall on the cell's side? A desk may stand under it, nothing tall across it. */
+  windowOn?: (x: number, y: number, side: Side) => boolean;
+  /**
+   * A room of fewer floor cells keeps only a landing at each door (the doorway cell: a tile deep, the door's width),
+   * not the cells either side and two deep, so a small room still has floor to furnish.
+   */
+  compactDoorsBelow?: number;
 }
 
 export class Room {
@@ -124,6 +142,17 @@ export class Room {
   /** Wall spots (cell key × 4 + side) a shelf plank hangs on, and those a wall torch took. */
   readonly hung = new Set<number>();
   readonly torched = new Set<number>();
+  /** Generator 5: the room's cells with a window in the wall on a side, and the side (no wall pair: an opening). */
+  readonly windowPairs: Array<[number, number, Side]> = [];
+  /** The same as keys (cell key × 4 + side index). */
+  readonly windows = new Set<number>();
+
+  /** Is there a window in the wall on side `s` of the cell (generator 5; never at generator 4)? */
+  windowAt(x: number, y: number, s: Side): boolean {
+    return this.windows.has(cellKey(x, y) * 4 + SIDES.indexOf(s));
+  }
+  /** Generator 5: the door edges of the room (a doorway's cells and the side the opening is on). */
+  readonly doorPairs: Array<[number, number, Side]> = [];
 
   /** Is the point within 0.9 of a corner post (0.5 square from the vertex, and the width of the thing, turned)? */
   nearPost(px: number, py: number): boolean {
@@ -142,6 +171,7 @@ export class Room {
     areaCells: ReadonlyArray<readonly [number, number]>,
     seed: number,
     readonly remaining: number,
+    private readonly opts: RoomOpts = {},
   ) {
     this.rng = createPrng(subSeed(seed, "room4"));
     const sorted = areaCells.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0]);
@@ -190,10 +220,19 @@ export class Room {
   private findThresholds(): void {
     const g = this.grid;
     const seen = new Set<number>();
+    const compact = this.cells.length < (this.opts.compactDoorsBelow ?? 0);
     for (const [x, y] of this.cells) {
       for (const s of SIDES) {
         const e = g.edge(x, y, s);
         const [nx, ny] = stepSide(x, y, s);
+        // generator 5: a window is an opening in the wall but no way in: it gets no landing, and a low piece may back
+        // onto it (a desk under the light)
+        if (e === EDGE_OPENING && this.opts.windowOn?.(x, y, s) === true) {
+          this.windowPairs.push([x, y, s]);
+          this.windows.add(cellKey(x, y) * 4 + SIDES.indexOf(s));
+          continue;
+        }
+        if (e === EDGE_OPENING) this.doorPairs.push([x, y, s]);
         let door = e === EDGE_OPENING || e === EDGE_STAIR;
         if (!door && e === 0 && g.inBounds(nx, ny) && !this.inRoom.has(cellKey(nx, ny)))
           door = g.isFloor(nx, ny) || (g.flags(nx, ny) & FLAG_LINK) !== 0;
@@ -210,6 +249,11 @@ export class Room {
           this.thresholds.push([x, y]);
         }
         const inward = INWARD[s];
+        if (compact) {
+          // a landing: the doorway cell, a tile deep and the door's width
+          this.zone.add(cellKey(x, y));
+          continue;
+        }
         for (let dy = -1; dy <= 1; dy++)
           for (let dx = -1; dx <= 1; dx++) this.zone.add(cellKey(x + dx, y + dy));
         this.zone.add(cellKey(x + inward[0] * 2, y + inward[1] * 2));

@@ -48,6 +48,8 @@ export interface PlacementGrid {
     at: readonly [number, number],
     size: readonly [number, number],
     variant?: string,
+    /** Generator 5 (`exactWayInReach`): how the piece stands, so one set square reaches exactly its outline. */
+    pose?: { rotFine: number; offset?: readonly [number, number] },
   ): boolean;
   /** True on cells under a vehicle already placed (by the plan or another op). Optional. */
   vehicle?(x: number, y: number): boolean;
@@ -133,6 +135,11 @@ export interface PlacementGrid {
    * purpose draw different variants. Created per level by the resolver.
    */
   roomMemory?: Map<string, number[]>;
+  /**
+   * Generator 5 (`companionGroups`): is there a window (an opening that is no way through, gen/openingKinds.ts) in the
+   * wall on the cell's side? A room furnisher seats a desk at it and keeps tall pieces off it. Optional.
+   */
+  windowOn?(x: number, y: number, side: Side): boolean;
 }
 
 /** What the grid's generator does (plan/generator.ts); a grid that names no generator is generator 2. */

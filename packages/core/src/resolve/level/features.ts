@@ -14,7 +14,7 @@ import type { ResolvedFeature, ResolvedOpening } from "../../contracts/resolved"
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { LIGHT_FEATURES, featureInfo, isLandmark, rotatedSize } from "../../gen/catalog";
 import { SIDE_STEP } from "../../gen/gridGeometry";
-import { isPassage } from "../../gen/openingKinds";
+import { isPassage, isWindow } from "../../gen/openingKinds";
 import type { GeneratedPlacement, PlacementGrid } from "../../gen/placementGrid";
 import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import { wallRole } from "../../palette/roles";
@@ -25,6 +25,9 @@ import type { ReliefRecords } from "./relief";
 import { waterSurface } from "./waterSurface";
 
 const LAVA_ORDINAL = MATERIALS.indexOf("lava") + 1;
+
+/** A side's index in a window-edge key (FeatureWork.windowEdges). */
+const SIDE_INDEX: Readonly<Record<Side, number>> = { N: 0, E: 1, S: 2, W: 3 };
 
 /** What feature placement consults of phase 1, read-only. */
 export interface PlacementSurroundings {
@@ -58,6 +61,7 @@ export class FeatureWork {
   private keepClear: Set<number> | null = null;
   private rampSet: Set<number> | null = null;
   private passageFrontSet: Set<number> | null = null;
+  private windowEdgeSet: Set<number> | null = null;
   /** Generator 4: the lane before each market stall's front row (filled as the stalls are placed). */
   private readonly stallFronts = new Set<number>();
 
@@ -118,7 +122,14 @@ export class FeatureWork {
    * a placer whose pieces may stand there, with the reason, written at the call site.
    */
   addGenerated(f: ResolvedFeature, opts: { occupy?: boolean; wayIn?: { mayStand: string } } = {}): boolean {
-    if (opts.wayIn === undefined && f.blocking && this.blocksWayIn(f.type, f.at, f.size, f.variant))
+    if (
+      opts.wayIn === undefined &&
+      f.blocking &&
+      this.blocksWayIn(f.type, f.at, f.size, f.variant, {
+        rotFine: f.rotFine,
+        ...(f.offset !== undefined ? { offset: f.offset } : {}),
+      })
+    )
       return false;
     if (opts.occupy ?? true) this.add(f);
     else this.list.push(f);
@@ -221,6 +232,7 @@ export class FeatureWork {
     at: readonly [number, number],
     size: readonly [number, number],
     variant?: string,
+    pose?: { rotFine: number; offset?: readonly [number, number] },
   ): boolean {
     if (!this.work.profile.waysInKeepClear) return false;
     const info = featureInfo(type);
@@ -229,10 +241,23 @@ export class FeatureWork {
     const ext = this.work.ctx.palette.roomPiece(theme, type, variant);
     // turned any way (a scattered piece turns in steps of 15°): half its outline's diagonal
     const reach = Math.hypot(ext?.wMax ?? 0, ext?.dMax ?? 0) / 2;
-    const cx = at[0] + size[0] / 2;
-    const cy = at[1] + size[1] / 2;
-    const rx = Math.max(size[0] / 2, reach);
-    const ry = Math.max(size[1] / 2, reach);
+    let cx = at[0] + size[0] / 2;
+    let cy = at[1] + size[1] / 2;
+    let rx = Math.max(size[0] / 2, reach);
+    let ry = Math.max(size[1] / 2, reach);
+    // generator 5: a piece set square (a quarter turn) where it stands reaches exactly its outline there
+    if (
+      pose !== undefined &&
+      this.work.profile.exactWayInReach &&
+      pose.rotFine % 90 === 0 &&
+      ext !== undefined
+    ) {
+      const across = pose.rotFine % 180 !== 0;
+      cx += pose.offset?.[0] ?? 0;
+      cy += pose.offset?.[1] ?? 0;
+      rx = (across ? ext.dMax : ext.wMax) / 2;
+      ry = (across ? ext.wMax : ext.dMax) / 2;
+    }
     // a cell the outline only grazes (a hundredth of a tile) does not count
     const EPS = 0.01;
     for (let y = Math.floor(cy - ry + EPS); y < cy + ry - EPS; y++)
@@ -255,6 +280,30 @@ export class FeatureWork {
       }
     }
     this.passageFrontSet = out;
+    return out;
+  }
+
+  /**
+   * Generator 5: the window edges of the level, as cell index × 4 + side index (N, E, S, W) for both cells of each
+   * (built on first ask, like the passage fronts).
+   */
+  private windowEdges(): ReadonlySet<number> {
+    if (this.windowEdgeSet) return this.windowEdgeSet;
+    const out = new Set<number>();
+    for (const o of this.around.openings) {
+      if (!isWindow(o.kind)) continue;
+      for (let k = 0; k < o.width; k++) {
+        const [x, y] = o.orientation === "h" ? [o.start[0] + k, o.start[1]] : [o.start[0], o.start[1] + k];
+        // north (west) of the edge the window is on the cell's south (east) side; the other cell has it on its north (west)
+        const [ax, ay] = o.orientation === "h" ? [x, y - 1] : [x - 1, y];
+        const [sa, sb] = o.orientation === "h" ? [2, 0] : [1, 3];
+        const ia = this.work.idx(ax, ay);
+        const ib = this.work.idx(x, y);
+        if (ia >= 0) out.add(ia * 4 + sa);
+        if (ib >= 0) out.add(ib * 4 + sb);
+      }
+    }
+    this.windowEdgeSet = out;
     return out;
   }
 
@@ -286,7 +335,10 @@ export class FeatureWork {
       keepClear: (x, y) => this.crossingClear().has(work.idx(x, y)),
       // generator 4: nothing blocking in front of a way in (a door, a stall's front)
       ...(work.profile.waysInKeepClear
-        ? { blocksWayIn: (t: FeatureType, at, size, v?: string) => this.blocksWayIn(t, at, size, v) }
+        ? {
+            blocksWayIn: (t: FeatureType, at, size, v?: string, pose?) =>
+              this.blocksWayIn(t, at, size, v, pose),
+          }
         : {}),
       // generator 2: rock ramp cells (no path flag) stay clear of the band and other dressing
       ramp: (x, y) => work.profile.ramps && this.rampCells().has(work.idx(x, y)),
@@ -363,6 +415,15 @@ export class FeatureWork {
             lightCells: () =>
               this.list.filter((f) => LIGHT_FEATURES.has(f.type)).map((f) => [f.at[0], f.at[1]] as const),
             roomMemory: this.roomMemory,
+          }
+        : {}),
+      // generator 5: the room furnisher reads the windows (a desk at one, nothing tall across one)
+      ...(work.profile.companionGroups
+        ? {
+            windowOn: (x: number, y: number, s: Side) => {
+              const i = work.idx(x, y);
+              return i >= 0 && this.windowEdges().has(i * 4 + SIDE_INDEX[s]);
+            },
           }
         : {}),
     };
