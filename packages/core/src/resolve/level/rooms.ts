@@ -20,6 +20,7 @@ import { SMALLEST_FURNISHED, dressRoom, lightArea } from "../../gen/rooms4";
 import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed, h32, hashUnit, subSeed } from "../../util/hash";
+import { maxOf, minOf } from "../../util/lists";
 import { FAMILY_ROTATION, purposeFloor } from "../interiorFloors";
 import { isBuiltFloor } from "../materials";
 import type { FeatureWork } from "./features";
@@ -370,6 +371,13 @@ export function stepWallFootRubble(
   });
 }
 
+/** The length of a passage: the long side of the box round its cells (a bent passage counts its longer leg). */
+function lengthOf(cells: ReadonlyArray<readonly [number, number]>): number {
+  const xs = cells.map((c) => c[0]);
+  const ys = cells.map((c) => c[1]);
+  return Math.max(maxOf(xs) - minOf(xs), maxOf(ys) - minOf(ys)) + 1;
+}
+
 /**
  * Generator 4 (switch `roomRecipes`): the default dressing of rooms (gen/rooms4). An area of kind room whose
  * name, tags or notes name a purpose, that no dress op covers and that the plan furnished lightly (under
@@ -393,7 +401,8 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
       .filter((i) => work.isFloor(i))
       .map((i) => work.cellXY(i));
     // generator 5: a room down to a cell of a cell row is furnished (its minimum set) and lit
-    if (cells.length < (work.profile.companionGroups ? SMALLEST_FURNISHED : RECIPES.minCells)) continue;
+    const small = work.profile.companionGroups || work.profile.occupancyLights;
+    if (cells.length < (small ? SMALLEST_FURNISHED : RECIPES.minCells)) continue;
     const seed = subSeed(elementSeed(work.plan.seed, `${work.level.id}~${area.id}~room`, undefined), "room");
     const own = features.all.filter(
       (f) => f.area === area.id && f.generatedBy === undefined && f.type !== "torch_wall",
@@ -428,6 +437,10 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
         remaining: cap - features.generated,
         every: info.kind === "corridor" ? RECIPES.corridorLightEvery : RECIPES.roomLightEvery,
         abandoned,
+        // generator 5: a lived-in place down to 3 tiles is lit, a passage by its length
+        ...(work.profile.occupancyLights
+          ? { occupancy: info.kind === "corridor" ? { length: lengthOf(cells) } : {} }
+          : {}),
       });
     }
     if (res === null) continue;

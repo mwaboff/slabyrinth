@@ -20,6 +20,8 @@ export interface LightOpts {
   torchOnly: boolean;
   /** The floor light of a big room, or none. */
   floor: "brazier" | "candles" | null;
+  /** Generator 5: never more lights than this in the room (its kind's high end), dark corners or not. */
+  max?: number;
 }
 
 /** One lighting step: it lit the cell, it found nowhere to, or the level's feature cap is reached (stop). */
@@ -37,6 +39,7 @@ export function light(room: Room, opts: LightOpts): void {
       room.capped = true;
       return;
     }
+    if (opts.max !== undefined && room.lights.length >= opts.max) return;
     const dark = darkestCell(room);
     if (dark === null) return;
     if (room.lights.length >= opts.target && dark.dist <= opts.radius) return;
@@ -205,6 +208,14 @@ function floorLight(room: Room, wx: number, wy: number, kind: LightOpts["floor"]
   return "none";
 }
 
+/** Generator 5 lights by occupancy (gen/rooms4/occupancy.ts): the smallest lit place, a passage's light pitch. */
+export const OCCUPANCY = {
+  /** A lived-in room or passage of this many floor tiles or more has a light of its own. */
+  smallestLit: 3,
+  /** A passage gets one light per this many tiles of its length (the training builds: 1 per 6-10). */
+  passageEvery: 8,
+} as const;
+
 /**
  * How many lights a place asks for: one per `every` floor tiles when lived in (about 9 in a dressed room), one per 50
  * (at least one) when abandoned. The one rule for a dressed room and an area that only gets lights.
@@ -217,7 +228,8 @@ export function lightTarget(floor: number, abandoned: boolean, every = 9): numbe
 /**
  * Lights only: a room or passage nobody dressed (no purpose in its words, or the plan furnished it itself) still gets
  * its torches, as many as lightTarget asks (one per `every` floor tiles: 12 in a room, 18 in a passage; an abandoned
- * place one per 50).
+ * place one per 50). Generator 5 (`occupancy`): a lived-in place down to 3 tiles gets at least one, and a passage one
+ * per 8 tiles of its length (`length`) rather than of its floor.
  */
 export function lightArea(
   grid: PlacementGrid,
@@ -228,13 +240,22 @@ export function lightArea(
     remaining: number;
     every: number;
     abandoned: boolean;
+    occupancy?: { length?: number };
   },
 ): ScatterResult {
   const room = new Room(grid, p.areaIndex, p.areaCells, p.seed, p.remaining);
   const n = room.cells.length;
-  if (n < 6 || grid.piece4 === undefined) return { placements: [], capped: false };
+  const smallest = p.occupancy === undefined ? 6 : OCCUPANCY.smallestLit;
+  if (n < smallest || grid.piece4 === undefined) return { placements: [], capped: false };
+  const length = p.occupancy?.length;
+  const target =
+    p.occupancy === undefined || p.abandoned
+      ? lightTarget(n, p.abandoned, p.every)
+      : length !== undefined
+        ? Math.max(1, Math.ceil(length / OCCUPANCY.passageEvery))
+        : Math.max(1, Math.ceil(n / p.every));
   light(room, {
-    target: lightTarget(n, p.abandoned, p.every),
+    target,
     radius: p.abandoned ? Infinity : ROOM_DRESS.areaLightRadius,
     torchOnly: true,
     floor: n >= ROOM_DRESS.areaFloorLightCells && !p.abandoned ? "brazier" : null,

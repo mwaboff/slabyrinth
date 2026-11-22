@@ -12,13 +12,14 @@
  * A room down to SMALLEST_FURNISHED floor cells is furnished: its doors keep a landing only, not the wide clearance of a
  * big room, so the anchor (a cot, a desk) has floor to stand on.
  */
-import type { PlacementGrid, ScatterResult } from "../placementGrid";
+import { gridProfile, type PlacementGrid, type ScatterResult } from "../placementGrid";
 import { ROOM_PURPOSE_INFO, type RoomKind } from "../roomPurpose";
 import { ROOM_TRAITS } from "../roomTraits";
 import { SURFACE_LOAD } from "../surfaces";
 import type { RoomDressParams } from "./dress";
 import { keepClear, keepLane, lightOn, placeGroup, placeLining, rugUnder, type PlacedGroup } from "./groups";
 import { light, lightTarget } from "./lights";
+import { lightByOccupancy } from "./occupancy";
 import { FILL_GAIN, ROOM_DRESS, pickSpec, type Spec } from "./recipes";
 import { Room } from "./room";
 import { addRug, addShelf, addToppers } from "./things";
@@ -103,12 +104,16 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
     for (const q of [...group.anchor, ...group.companions])
       if (q.wantsLight === true && !q.light) lightOn(room, q);
   const noFire = ROOM_PURPOSE_INFO[t.host].noFire;
-  const floor = room.cells.length;
-  light(room, {
-    target: lightTarget(floor, p.abandoned),
-    radius: p.abandoned ? Infinity : ROOM_DRESS.roomLightRadius,
-    torchOnly: p.abandoned,
-    floor: floor >= ROOM_DRESS.roomFloorLightCells && !p.abandoned ? (noFire ? "candles" : "brazier") : null,
-  });
+  if (gridProfile(grid).occupancyLights) lightByOccupancy(room, t, { abandoned: p.abandoned, noFire });
+  else {
+    const floor = room.cells.length;
+    light(room, {
+      target: lightTarget(floor, p.abandoned),
+      radius: p.abandoned ? Infinity : ROOM_DRESS.roomLightRadius,
+      torchOnly: p.abandoned,
+      floor:
+        floor >= ROOM_DRESS.roomFloorLightCells && !p.abandoned ? (noFire ? "candles" : "brazier") : null,
+    });
+  }
   return { placements: room.out, capped: room.capped };
 }

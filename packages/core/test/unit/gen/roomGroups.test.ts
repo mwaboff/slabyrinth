@@ -339,3 +339,91 @@ describe("the way stays clear (generator 5)", () => {
     }
   });
 });
+
+describe("lights by occupancy (generator 5, occupancyLights)", () => {
+  const lightsIn = (L: ResolvedLevel, id: string): ResolvedFeature[] =>
+    inRoom(L, id).filter((f) => LIGHT_FEATURES.has(f.type));
+  const per10 = (L: ResolvedLevel, id: string): number => {
+    const a = L.areas.find((q) => q.id === id) as { bbox: { w: number; h: number } };
+    return (lightsIn(L, id).length * 10) / (a.bbox.w * a.bbox.h);
+  };
+
+  it("a taproom is lit like a lived-in social room, a bunk room and a store far less, the helm brightest of the rest", () => {
+    const plan = building([
+      { name: "Taproom", w: 9, h: 7 },
+      { name: "Barracks", w: 7, h: 7 },
+      { name: "Store room", w: 6, h: 6 },
+      { name: "Helm", w: 6, h: 5 },
+    ]);
+    const L5 = level(plan);
+    const L4 = level({ ...plan, generator: 4 });
+    expect(per10(L5, "r0")).toBeGreaterThanOrEqual(2.5);
+    expect(per10(L5, "r0")).toBeLessThanOrEqual(4.7);
+    // generator 4 lit every dressed room alike, about 1 per 9 tiles
+    expect(per10(L4, "r0")).toBeLessThan(2);
+    expect(per10(L5, "r1")).toBeLessThanOrEqual(1.5);
+    expect(per10(L5, "r2")).toBeLessThanOrEqual(1.2);
+    expect(per10(L5, "r3")).toBeGreaterThan(per10(L5, "r1"));
+  });
+
+  it("every table and desk of a lived-in room has a light on it", () => {
+    const L = level(building([{ name: "Taproom", w: 9, h: 7 }, "Study", "Schoolroom", "Guest bedroom"]));
+    for (const id of ["r0", "r1", "r2", "r3"]) {
+      const fs = inRoom(L, id);
+      for (const t of fs.filter((f) => f.type === "table" || f.type === "desk")) {
+        const lit = fs.some(
+          (l) =>
+            LIGHT_FEATURES.has(l.type) &&
+            l.baseHeight > t.baseHeight &&
+            l.at[0] >= t.at[0] &&
+            l.at[0] < t.at[0] + t.size[0] &&
+            l.at[1] >= t.at[1] &&
+            l.at[1] < t.at[1] + t.size[1],
+        );
+        expect(lit, `${id} ${t.type} at ${t.at.join(",")}`).toBe(true);
+      }
+    }
+  });
+
+  it("a shared room's main door has a light either side of it", () => {
+    const L = level(
+      building([
+        { name: "Taproom", w: 9, h: 7 },
+        { name: "General shop", w: 7, h: 6 },
+      ]),
+    );
+    for (const id of ["r0", "r1"]) {
+      const door = L.openings.find((o) => o.sides.includes(id) && o.kind === "door");
+      expect(door, id).toBeDefined();
+      const [dx, dy] = (door as { start: readonly [number, number] }).start;
+      const torches = inRoom(L, id).filter((f) => f.type === "torch_wall" && f.at[1] === dy - 1);
+      expect(
+        torches.some((f) => f.at[0] === dx - 1),
+        `${id} left of the door`,
+      ).toBe(true);
+      expect(
+        torches.some((f) => f.at[0] === dx + 1),
+        `${id} right of the door`,
+      ).toBe(true);
+    }
+  });
+
+  it("a room of 3 tiles has a light of its own; generator 4 left it dark", () => {
+    const plan = building([{ name: "Bedroom", w: 1, h: 3 }, { name: "Chamber", w: 1, h: 3 }, "Kitchen"]);
+    expect(lightsIn(level(plan), "r0").length).toBeGreaterThanOrEqual(1);
+    expect(lightsIn(level(plan), "r1").length).toBeGreaterThanOrEqual(1);
+    expect(lightsIn(level({ ...plan, generator: 4 }), "r0")).toEqual([]);
+  });
+
+  it("dark places stay dark: an abandoned room keeps one light at most, a crypt too", () => {
+    const L = level(building(["Looted bedroom", "Crypt", "Derelict taproom"]));
+    for (const id of ["r0", "r1", "r2"]) expect(lightsIn(L, id).length, id).toBeLessThanOrEqual(1);
+  });
+
+  it("a passage gets a light per 8 tiles of its length", () => {
+    const plan = building(["Kitchen", "Study", "Bedroom", "Store room"]);
+    const L = level(plan);
+    const passage = L.areas.find((a) => a.id === "passage") as { bbox: { w: number } };
+    expect(lightsIn(L, "passage").length).toBeGreaterThanOrEqual(Math.ceil(passage.bbox.w / 8));
+  });
+});
