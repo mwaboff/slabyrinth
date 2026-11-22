@@ -44,6 +44,7 @@ import {
 } from "./gridGeometry";
 import { SURFACE_LOAD, surfaceCount, type SmallFamily, type SurfaceLoad } from "./surfaces";
 import { isNaturalWallStyle } from "./wallStyles";
+import { pushAll } from "../util/lists";
 
 // ───────────────────────────── recipes ─────────────────────────────
 
@@ -1045,7 +1046,7 @@ class Room {
       } else this.used.add(cellKey(x, y));
     }
     if (after) this.reach = after;
-    this.placed.push(...placed);
+    pushAll(this.placed, placed);
     return placed;
   }
 

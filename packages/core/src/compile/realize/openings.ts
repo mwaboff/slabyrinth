@@ -20,6 +20,7 @@ import {
   wallRole,
 } from "../../palette/roles";
 import { EPS, type RealizeLevel } from "./level";
+import { maxOf } from "../../util/lists";
 
 // openings
 export function layOpenings(lv: RealizeLevel, strips: CornerStrips): void {
@@ -67,7 +68,7 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
       if (isSecret(op.kind) && i === 0) noteSecretDoorPlug(lv, op, c, v, r.role);
       // wall pieces above a door shorter than the wall
       const leafTop = c.base + v.unitHeight;
-      const wallTop = Math.max(...ctxs.slice(i, i + n).map((q) => q.top));
+      const wallTop = maxOf(ctxs.slice(i, i + n).map((q) => q.top));
       for (let k = 0; k < n; k++) {
         const ck = ctxs[i + k];
         if (!ck) continue;

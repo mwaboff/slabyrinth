@@ -7,7 +7,7 @@ import type { ApplyResult, PlanOp } from "../contracts/ops";
 import type { MapPlan, PlanIssue } from "../contracts/plan";
 import { planGate } from "../plan/gate";
 import { validatePlan } from "../plan/validate";
-import { applyOps, type PlanRules } from "./apply";
+import { applyOps, validateContextOf, type PlanRules } from "./apply";
 
 /**
  * Gates an unvalidated apply: `validate` gives the new plan's issues. A refused edit returns `{ ok: false }` with the
@@ -22,7 +22,10 @@ export function gateApplied(r: ApplyResult, validate: (plan: MapPlan) => readonl
   return { ...r, issues };
 }
 
-/** applyOps for an edit, gated: the rules' checks validate the result (`themes`: the installed themes, if known). */
+/**
+ * applyOps for an edit, gated: the rules' checks validate the result at the rules' size tier (`themes`: the installed
+ * themes, if known).
+ */
 export function applyChecked(
   plan: MapPlan,
   ops: readonly PlanOp[],
@@ -31,10 +34,6 @@ export function applyChecked(
 ): ApplyResult {
   return gateApplied(
     applyOps(plan, ops, rules, { validate: false }),
-    (p) =>
-      validatePlan(p, {
-        checks: rules.checks,
-        ...(options.themes !== undefined ? { themes: options.themes } : {}),
-      }).issues,
+    (p) => validatePlan(p, validateContextOf(rules, options.themes)).issues,
   );
 }

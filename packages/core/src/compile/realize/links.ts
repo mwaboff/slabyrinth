@@ -24,6 +24,7 @@ import { rotateXZ } from "../geometry";
 import { stackFill } from "./fill";
 import { isCliffGround } from "../../resolve/materials";
 import { EPS, type RealizeLevel } from "./level";
+import { maxOf, minOf } from "../../util/lists";
 
 // stairs (EDGE.STAIR): a stair piece in the lower cell climbing toward the higher one
 export function layStairEdges(lv: RealizeLevel): void {
@@ -117,10 +118,10 @@ function layFlight(lv: RealizeLevel, lk: Link, v: ResolvedVariant, theme: ThemeI
   const { frame } = lv.ctx;
   const xs = lk.lowerCells.map((c) => c[0]);
   const ys = lk.lowerCells.map((c) => c[1]);
-  const minX = Math.min(...xs),
-    maxX = Math.max(...xs),
-    minY = Math.min(...ys),
-    maxY = Math.max(...ys);
+  const minX = minOf(xs),
+    maxX = maxOf(xs),
+    minY = minOf(ys),
+    maxY = maxOf(ys);
   for (const [cx, cy] of lk.lowerCells) {
     const kIdx =
       lk.dir === "N" ? maxY - cy : lk.dir === "S" ? cy - minY : lk.dir === "E" ? cx - minX : maxX - cx;
@@ -151,10 +152,10 @@ function layVerticalLink(lv: RealizeLevel, lk: Link, v: ResolvedVariant, role: s
   const roleName = linkRole(lk.kind);
   const xs = lk.lowerCells.map((c) => c[0]);
   const ys = lk.lowerCells.map((c) => c[1]);
-  const rx = Math.min(...xs);
-  const ry = Math.min(...ys);
-  const rw = Math.max(...xs) - rx + 1;
-  const rh = Math.max(...ys) - ry + 1;
+  const rx = minOf(xs);
+  const ry = minOf(ys);
+  const rw = maxOf(xs) - rx + 1;
+  const rh = maxOf(ys) - ry + 1;
   const coversLink = v.footprint[0] * v.footprint[1] >= lk.lowerCells.length;
   const walledSide = (x: number, y: number): boolean => SIDES.some((s) => V.wallOn(x, y, s));
   const sorted = [...lk.lowerCells].sort((a, b) => a[1] - b[1] || a[0] - b[0]);

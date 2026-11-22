@@ -17,6 +17,7 @@ import { roofOwners } from "../resolve/roof";
 import type { DesignNote } from "./review";
 import type { ReviewBuild } from "./reviewBuild";
 import { REVIEW } from "./thresholds";
+import { maxOf, minOf } from "../util/lists";
 
 /** Roof cells of a building that have no roof piece. `covered` is a set of "x,y" keys the realized pieces fill. */
 export function uncoveredRoofCells(
@@ -30,10 +31,10 @@ export function uncoveredRoofCells(
     // the owner's outline is the roof's reach: scan the cells of the volumes' bounding box plus the wall ring
     const xs = (st.volumes ?? []).flatMap((v) => v.rects.map((r) => [r.x - 2, r.x + r.w + 2] as const));
     const ys = (st.volumes ?? []).flatMap((v) => v.rects.map((r) => [r.y - 2, r.y + r.h + 2] as const));
-    const x0 = Math.min(...xs.map((p) => p[0]));
-    const x1 = Math.max(...xs.map((p) => p[1]));
-    const y0 = Math.min(...ys.map((p) => p[0]));
-    const y1 = Math.max(...ys.map((p) => p[1]));
+    const x0 = minOf(xs.map((p) => p[0]));
+    const x1 = maxOf(xs.map((p) => p[1]));
+    const y0 = minOf(ys.map((p) => p[0]));
+    const y1 = maxOf(ys.map((p) => p[1]));
     for (let y = y0; y <= y1; y++)
       for (let x = x0; x <= x1; x++) {
         if (o.surface(x, y) < 0) continue;

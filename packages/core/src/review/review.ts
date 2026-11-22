@@ -76,6 +76,7 @@ import {
   capped,
   over,
 } from "./thresholds";
+import { maxOf, minOf, pushAll } from "../util/lists";
 
 export type DesignNoteCode =
   | "opening_over_nothing"
@@ -282,7 +283,7 @@ export function reviewDesign(
       const total = [...w.values()].reduce((a, b) => a + b, 0);
       f = {
         families: w.size,
-        dominant: total > 0 ? Math.max(...w.values()) / total : 1,
+        dominant: total > 0 ? maxOf(w.values()) / total : 1,
         // a family of known contrasting tone (a tagged or observed dark or light piece) among them
         toned: [...floorTones(theme, material)].some(isToneExtreme),
       };
@@ -423,19 +424,19 @@ export function reviewDesign(
             })
           : [],
     ])
-      notes.push(...fn(ctx));
+      pushAll(notes, fn(ctx));
   }
   // the cave rock mass as built (generator 3): measured on the realized pieces; generator 4 builds the cave itself when
   // the review was given no build (the in-app model review), so the mass checks run in every review
   // one build per review run (review/reviewBuild.ts): every note measured on the placed pieces shares it
   const build = reviewBuild(resolved, palettes, opts.placements);
-  notes.push(...caveMassReviewNotes(plan, resolved, build, palettes));
+  pushAll(notes, caveMassReviewNotes(plan, resolved, build, palettes));
   // generator 4: an intact roof is whole (only a chimney stack stands in it); measured on the realized roof pieces
-  notes.push(...roofGapNotes(plan, resolved, build, palettes));
+  pushAll(notes, roofGapNotes(plan, resolved, build, palettes));
   // rooms: bare, alike, unlit, furniture adrift (judged room by room, across the whole map)
-  notes.push(...interiorNotes(plan, resolved));
-  notes.push(...substitutionNotes(opts.diagnostics ?? [], resolved.levels[0]?.id ?? ""));
-  notes.push(...briefNotes(opts.brief, plan, resolved, REVIEW.brief.weight));
+  pushAll(notes, interiorNotes(plan, resolved));
+  pushAll(notes, substitutionNotes(opts.diagnostics ?? [], resolved.levels[0]?.id ?? ""));
+  pushAll(notes, briefNotes(opts.brief, plan, resolved, REVIEW.brief.weight));
   const ranked = notes.sort(
     (a, b) => b.score - a.score || a.levelId.localeCompare(b.levelId) || a.code.localeCompare(b.code),
   );
@@ -477,11 +478,11 @@ function bridgeAlong(c: Ctx): DesignNote[] {
     if (!b.id.includes("~b") || b.cells.length < 4) continue;
     const xs = b.cells.map((p) => p[0]);
     const ys = b.cells.map((p) => p[1]);
-    const dx = Math.max(...xs) - Math.min(...xs) + 1;
-    const dy = Math.max(...ys) - Math.min(...ys) + 1;
+    const dx = maxOf(xs) - minOf(xs) + 1;
+    const dy = maxOf(ys) - minOf(ys) + 1;
     if (Math.max(dx, dy) < T.alongMinLength) continue;
-    const mx = (Math.max(...xs) + Math.min(...xs)) / 2 + 0.5;
-    const my = (Math.max(...ys) + Math.min(...ys)) / 2 + 0.5;
+    const mx = (maxOf(xs) + minOf(xs)) / 2 + 0.5;
+    const my = (maxOf(ys) + minOf(ys)) / 2 + 0.5;
     const ch = (L.channels ?? []).find((q) => b.id.startsWith(`${q.id}~`));
     if (!ch || ch.centre.length < 3) continue;
     let k = 0;
@@ -670,7 +671,7 @@ function flat(c: Ctx): DesignNote[] {
     const b = Math.floor((c.L.cells.height[i] as number) / 2);
     bands.set(b, (bands.get(b) ?? 0) + 1);
   }
-  const top = Math.max(...bands.values());
+  const top = maxOf(bands.values());
   const share = top / c.walkCount;
   const levels = [...bands.values()].filter((n) => n / c.walkCount >= T.bandShare).length;
   if (share < T.maxShare && levels >= T.minBands) {
@@ -932,7 +933,7 @@ function riverTrench(c: Ctx): DesignNote[] {
     let far = s;
     for (const [i, d] of first) if (d > (first.get(far) as number)) far = i;
     const along = bfs(far, wet);
-    const reach = Math.max(...along.values());
+    const reach = maxOf(along.values());
     if (reach < T.minLength) continue;
     const bins = new Map<number, number[]>();
     const where = new Map<number, number>();
@@ -1049,7 +1050,7 @@ function scatter(c: Ctx): DesignNote[] {
     if (pts.length >= T.evenMinCount) {
       const xs = pts.map((p) => p.x);
       const ys = pts.map((p) => p.y);
-      const area = (Math.max(...xs) - Math.min(...xs) + 1) * (Math.max(...ys) - Math.min(...ys) + 1);
+      const area = (maxOf(xs) - minOf(xs) + 1) * (maxOf(ys) - minOf(ys) + 1);
       let sum = 0;
       for (const p of pts) {
         let d = Infinity;
@@ -1133,7 +1134,7 @@ function lookalikes(c: Ctx): DesignNote[] {
   const box = (s: ResolvedStructure): { x0: number; y0: number; x1: number; y1: number } => {
     const xs = s.cells.map((p) => p[0]);
     const ys = s.cells.map((p) => p[1]);
-    return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+    return { x0: minOf(xs), y0: minOf(ys), x1: maxOf(xs), y1: maxOf(ys) };
   };
   const axes = (s: ResolvedStructure): string[] => {
     const b = box(s);
@@ -1276,7 +1277,7 @@ function pathEnds(c: Ctx): DesignNote[] {
 const boxOf = (s: ResolvedStructure): { x0: number; y0: number; x1: number; y1: number } => {
   const xs = s.cells.map((p) => p[0]);
   const ys = s.cells.map((p) => p[1]);
-  return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+  return { x0: minOf(xs), y0: minOf(ys), x1: maxOf(xs), y1: maxOf(ys) };
 };
 const gapBetween = (a: ResolvedStructure, b: ResolvedStructure): number => {
   const ba = boxOf(a);
@@ -1414,7 +1415,7 @@ function floors(c: Ctx): DesignNote[] {
         laid.set(f, (laid.get(f) ?? 0) + 1);
         n++;
       }
-      const lead = n > 0 ? Math.max(...laid.values()) / n : 1;
+      const lead = n > 0 ? maxOf(laid.values()) / n : 1;
       const toneOf = (name: string): Tone | undefined => fams.find((f) => f.name === name)?.tone;
       const names = [...laid.keys()];
       const clash = names.some((a) =>
@@ -2656,7 +2657,7 @@ function bandShapeNotes(c: Ctx, { rocks, turned, shapes }: CliffBandView, out: D
       const k = `${f.type}|${f.variant ?? ""}|${f.rot}|${f.rotFine}`;
       counts.set(k, (counts.get(k) ?? 0) + 1);
     }
-    const top = Math.max(...counts.values()) / rocks.length;
+    const top = maxOf(counts.values()) / rocks.length;
     if (top > T.repetition)
       out.push({
         code: "cliff_repetition",

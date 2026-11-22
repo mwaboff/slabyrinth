@@ -33,11 +33,12 @@ export function singleCharRows(
   maxW: number,
 ): string[] {
   const { rx0, ry0, rx1, ry1, rw } = c;
-  const lines: string[] = [header1(rx0, rw)];
+  const lw = rowLabelWidth(ry0, ry1);
+  const lines: string[] = [header1(rx0, rw, lw)];
   for (let gy = ry0; gy < ry1; gy++) {
     let row = "";
     for (let gx = rx0; gx < rx1; gx++) row += marked.has(`${gx},${gy}`) ? "!" : shown(view(gx, gy));
-    lines.push(rowLabel(gy) + row);
+    lines.push(rowLabel(gy, lw) + row);
   }
   lines.push(
     `(level crop is ${rw} cells wide: 1 char per cell, walls and doors omitted; call view_plan ascii with region ≤ ${maxW} wide for walls)`,
@@ -56,17 +57,25 @@ export function overviewRows(
   marked: ReadonlySet<string>,
   maxCells: number,
   maxW: number,
+  /** Filled with the characters the blocks show (the legend lists only those). */
+  drawn: Set<string>,
 ): string[] {
   const { rx0, ry0, rx1, ry1, rw, rh } = c;
   let s = Math.max(2, Math.ceil(Math.sqrt((rw * rh) / maxCells)));
   while (Math.ceil(rw / s) * Math.ceil(rh / s) > maxCells) s++;
   const bw = Math.ceil(rw / s);
-  const lines: string[] = [blockHeader(rx0, bw, s)];
+  const labelled: number[] = [];
+  for (let by = ry0, k = 0; by < ry1; by += s, k++) if (k % 5 === 0) labelled.push(by);
+  const lw = labelWidth(labelled);
+  const lines: string[] = [blockHeader(rx0, bw, s, lw)];
   for (let by = ry0; by < ry1; by += s) {
     let row = "";
-    for (let bx = rx0; bx < rx1; bx += s)
-      row += blockChar(view, marked, bx, by, Math.min(bx + s, rx1), Math.min(by + s, ry1));
-    lines.push(blockRowLabel(by, (by - ry0) / s) + row);
+    for (let bx = rx0; bx < rx1; bx += s) {
+      const ch = blockChar(view, marked, bx, by, Math.min(bx + s, rx1), Math.min(by + s, ry1));
+      drawn.add(ch);
+      row += ch;
+    }
+    lines.push(blockRowLabel(by, (by - ry0) / s, lw) + row);
   }
   const side = Math.floor(Math.sqrt(maxCells));
   lines.push(
@@ -98,19 +107,19 @@ function blockChar(
   return best;
 }
 
-/** Row label: the block's first cell row, on every 5th block row. */
-function blockRowLabel(by: number, k: number): string {
-  return k % 5 === 0 ? String(by).padStart(3, " ") + " " : "    ";
+/** Row label: the block's first cell row, on every 5th block row, right-aligned in `lw` characters. */
+function blockRowLabel(by: number, k: number, lw: number): string {
+  return k % 5 === 0 ? String(by).padStart(lw, " ") + " " : " ".repeat(lw + 1);
 }
 
 /** Column header: the block's first cell column, on every 10th block. */
-function blockHeader(rx0: number, bw: number, s: number): string {
+function blockHeader(rx0: number, bw: number, s: number, lw: number): string {
   const chars = new Array<string>(bw).fill(" ");
   for (let b = 0; b < bw; b += 10) {
     const t = String(rx0 + b * s);
     for (let k = 0; k < t.length && b + k < bw; k++) chars[b + k] = t[k] as string;
   }
-  return "    " + chars.join("").replace(/\s+$/, "");
+  return " ".repeat(lw + 1) + chars.join("").replace(/\s+$/, "");
 }
 
 interface Edge {
@@ -205,10 +214,11 @@ export function doubleCharRows(
     const [mx, my] = k.split(",").map(Number) as [number, number];
     grid.put(2 * (my - c.ry0) + 1, 2 * (mx - c.rx0) + 1, "!");
   }
-  const lines = [header2(c.rx0, c.rw)];
+  const lw = rowLabelWidth(c.ry0, c.ry1);
+  const lines = [header2(c.rx0, c.rw, lw)];
   grid.g.forEach((row, r) => {
     const gy = c.ry0 + (r - 1) / 2;
-    lines.push((r % 2 === 1 ? rowLabel(gy) : "    ") + row.join("").replace(/\s+$/, ""));
+    lines.push((r % 2 === 1 ? rowLabel(gy, lw) : " ".repeat(lw + 1)) + row.join("").replace(/\s+$/, ""));
   });
   return lines;
 }
@@ -306,11 +316,29 @@ function drawRoomKeys(c: AsciiCtx, grid: DoubleGrid): void {
   });
 }
 
-function rowLabel(gy: number): string {
-  return gy % 5 === 0 ? String(gy).padStart(3, " ") + " " : "    ";
+/**
+ * The width of the row-label column: the widest label the view shows, at least 3 (so a view whose labels fit 3
+ * characters keeps its layout). One width for every row and the header, so each row's cells start in one column.
+ */
+function labelWidth(labels: readonly number[]): number {
+  let w = 3;
+  for (const v of labels) w = Math.max(w, String(v).length);
+  return w;
 }
 
-function header2(rx0: number, rw: number): string {
+/** The label width of rows ry0..ry1 (exclusive), labelled on every 5th coordinate. */
+function rowLabelWidth(ry0: number, ry1: number): number {
+  const labelled: number[] = [];
+  for (let gy = ry0; gy < ry1; gy++) if (gy % 5 === 0) labelled.push(gy);
+  return labelWidth(labelled);
+}
+
+/** Row label: the cell row on every 5th coordinate, right-aligned in `lw` characters. */
+function rowLabel(gy: number, lw: number): string {
+  return gy % 5 === 0 ? String(gy).padStart(lw, " ") + " " : " ".repeat(lw + 1);
+}
+
+function header2(rx0: number, rw: number, lw: number): string {
   const chars = new Array<string>(2 * rw + 1).fill(" ");
   for (let gx = rx0; gx < rx0 + rw; gx++) {
     if (gx % 5 !== 0) continue;
@@ -318,15 +346,15 @@ function header2(rx0: number, rw: number): string {
     const col = 2 * (gx - rx0) + 1;
     for (let k = 0; k < s.length && col + k < chars.length; k++) chars[col + k] = s[k] as string;
   }
-  return "    " + chars.join("").replace(/\s+$/, "");
+  return " ".repeat(lw + 1) + chars.join("").replace(/\s+$/, "");
 }
 
-function header1(rx0: number, rw: number): string {
+function header1(rx0: number, rw: number, lw: number): string {
   const chars = new Array<string>(rw).fill(" ");
   for (let gx = rx0; gx < rx0 + rw; gx++) {
     if (gx % 10 !== 0) continue;
     const s = String(gx);
     for (let k = 0; k < s.length && gx - rx0 + k < chars.length; k++) chars[gx - rx0 + k] = s[k] as string;
   }
-  return "    " + chars.join("").replace(/\s+$/, "");
+  return " ".repeat(lw + 1) + chars.join("").replace(/\s+$/, "");
 }

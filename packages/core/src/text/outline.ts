@@ -23,6 +23,7 @@ import { generatorProfile, type GeneratorProfile } from "../plan/generator";
 import { entryLevelId, isRunLink } from "../plan/links";
 import { isRoomArea } from "../plan/validate";
 import { isBareRoof } from "../resolve/roofTypes";
+import { pushAll } from "../util/lists";
 
 export interface OutlineOptions {
   version?: number;
@@ -345,8 +346,9 @@ export function outlineView(plan: MapPlan, resolved: ResolvedPlan | null, opts: 
   const profile = generatorProfile(plan);
   for (const level of plan.levels) {
     if (keep && !keep.has(level.id)) continue;
-    lines.push(
-      ...levelLines(
+    pushAll(
+      lines,
+      levelLines(
         level,
         resolved?.levels.find((l) => l.id === level.id),
         noteChars,

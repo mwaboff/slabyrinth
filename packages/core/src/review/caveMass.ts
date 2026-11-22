@@ -23,6 +23,7 @@ import { NATURAL_WALL_ROLE } from "../palette/roles";
 import type { DesignNote } from "./review";
 import type { ReviewBuild } from "./reviewBuild";
 import { REVIEW, ROCK_FAMILIES, ROCK_TONE_GROUPS, over } from "./thresholds";
+import { pushAll } from "../util/lists";
 
 export type MassRole = "column" | "mass" | "cap" | "toe";
 
@@ -480,8 +481,8 @@ export function caveMassNotes(
     const pieces = massPiecesOf(set, resolved, palettes, L.id);
     if (pieces.length === 0) continue;
     const m = massMeasures(massInputOf(L, pieces));
-    out.push(...caveMassNotesOf(L.id, m));
-    if (gen.naturalCaveReview) out.push(...caveHollowNotesOf(L.id, m));
+    pushAll(out, caveMassNotesOf(L.id, m));
+    if (gen.naturalCaveReview) pushAll(out, caveHollowNotesOf(L.id, m));
   }
   return out;
 }

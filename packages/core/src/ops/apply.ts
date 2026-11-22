@@ -48,6 +48,7 @@ import type { ValidateContext } from "../plan/validate";
 import { zodIssueToPlanIssue } from "../plan/zodIssues";
 import { across, shapeHasCell, tr, translateShape, translateStructure, translateTerrain } from "./geometry";
 import type { SizeLimits } from "../plan/sizeTiers";
+import { maxOf } from "../util/lists";
 
 // ───────────────────────────── rules (the resolver supplies them) ─────────────────────────────
 
@@ -77,6 +78,18 @@ export interface PlanRules {
 
 /** No resolver: structural validation only, and `materialize` fails with a message. */
 export const STRUCTURAL_RULES: PlanRules = Object.freeze({ checks: Object.freeze([]), materialize: null });
+
+/**
+ * What applyOps and applyChecked validate a plan against: the rules' checks and size tier, and the installed themes
+ * when known. Built in this one place, so an entry point cannot drop a field of the rules.
+ */
+export function validateContextOf(rules: PlanRules, themes?: readonly string[]): ValidateContext {
+  return {
+    checks: rules.checks,
+    ...(rules.limits !== undefined ? { limits: rules.limits } : {}),
+    ...(themes !== undefined ? { themes } : {}),
+  };
+}
 
 export interface ApplyOptions {
   /** Theme ids known to the installed palettes (validation warns on unknown themes). */
@@ -248,10 +261,7 @@ export function applyOps(
   const v: { ok: boolean; issues: PlanIssue[] } =
     options.validate === false
       ? { ok: true, issues: [] }
-      : validatePlan(d.plan, {
-          checks: rules.checks,
-          ...(options.themes !== undefined ? { themes: options.themes } : {}),
-        });
+      : validatePlan(d.plan, validateContextOf(rules, options.themes));
   if (!v.ok) return { ok: false, opErrors: [], issues: v.issues.filter((i) => i.severity === "error") };
 
   const dirtyLevels = [
@@ -1020,7 +1030,7 @@ function opDuplicate(d: Draft, op: Extract<PlanOp, { op: "duplicate" }>): void {
   for (const f of selection) {
     if (f.loc.kind === "level") {
       const src = f.level as Level;
-      const top = Math.max(...d.plan.levels.map((l) => l.elevation));
+      const top = maxOf(d.plan.levels.map((l) => l.elevation));
       const copy = cloneJson(src);
       copy.id = idMap.get(src.id) ?? src.id;
       copy.elevation = top + BUILD_CONSTANTS.storeyHeight;

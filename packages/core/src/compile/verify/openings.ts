@@ -25,6 +25,7 @@ import {
   WIDE_DOOR_SLACK,
 } from "./limits";
 import { fmt, planElements, solidLabel, uniq } from "./words";
+import { pushAll } from "../../util/lists";
 
 /** The codes this file emits (VERIFY_CODES is the union of every check's list). */
 export const OPENING_CODES = [
@@ -267,7 +268,7 @@ function checkPassage(
         .at(pt.x, pt.z, top + STEP, top + HEAD)
         .filter((s) => s.levelId === L.id && s.p.source.elementId !== op.id && s.blocking);
       if (hits.length) {
-        blockers.push(...hits);
+        pushAll(blockers, hits);
         blockedCell ??= cell;
         blocked.open(L.id, op).sides.add(cell === e.a ? 0 : 1);
       }
@@ -285,7 +286,7 @@ function checkPassage(
       hint: `Connect opening ${op.id} to an area on both sides (e.g. add a corridor behind it), use between: [area, "@outside"] only where the outside is open ground, or remove it.`,
     });
   if (!blockers.length || !blockedCell) return;
-  blocked.open(L.id, op).solids.push(...blockers);
+  pushAll(blocked.open(L.id, op).solids, blockers);
   const b = blockers[0] as Solid;
   const alt = suggestDoorCell(L, g, op, solids);
   ctx.report.add({

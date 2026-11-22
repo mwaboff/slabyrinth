@@ -158,6 +158,22 @@ describe("core guards", () => {
     });
   });
 
+  describe("slabyrinth/spread-args: no spread arguments in Math.min, Math.max or push", () => {
+    it("reports a spread in core and in render-canvas", async () => {
+      for (const [file, code] of [
+        ["packages/core/src/resolve/level/x.ts", "const m = Math.max(...d.values());"] as const,
+        ["packages/core/src/review/x.ts", "const m = Math.min(0, ...xs);"],
+        ["packages/core/src/compile/x.ts", "out.push(...more);"],
+        ["packages/render-canvas/src/x.ts", "const m = Math.max(...xs);"],
+      ])
+        expect(await guardHits(file, code), code).toEqual([expect.stringContaining("util/lists.ts")]);
+    });
+    it("allows the helpers and plain arguments", async () => {
+      for (const code of ["const m = maxOf(d.values());", "pushAll(out, more);", "const m = Math.max(a, b);"])
+        expect(await guardHits("packages/core/src/review/x.ts", code), code).toEqual([]);
+    });
+  });
+
   describe("no-restricted-syntax: no core module is imported for its side effects", () => {
     it("reports a bare import", async () => {
       expect(await guardHits("packages/core/src/agent/x.ts", 'import "./registerChecks";')).toEqual([

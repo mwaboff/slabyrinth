@@ -50,6 +50,7 @@ import {
   type PlacementGrid,
   type ScatterResult,
 } from "./placementGrid";
+import { maxOf, minOf, pushAll } from "../util/lists";
 
 export const COMPOSED_PRESETS = [
   "ritual_circle",
@@ -1527,7 +1528,7 @@ function lineRhythm(rng: Prng): {
   const nearest = (anchor: Group["anchor"], x: number, y: number): number | null => {
     const l = placed.get(anchor) ?? [];
     if (l.length === 0) return null;
-    return Math.min(...l.map(([ax, ay]) => Math.max(Math.abs(ax - x), Math.abs(ay - y))));
+    return minOf(l.map(([ax, ay]) => Math.max(Math.abs(ax - x), Math.abs(ay - y))));
   };
   return {
     spacingOk: (anchor, x, y) => {
@@ -1691,7 +1692,7 @@ class AreaComposer {
         l.push([x, y]);
         joins.set(a, l);
       }
-    for (const l of joins.values()) if (l.length <= 6) entries.push(...l);
+    for (const l of joins.values()) if (l.length <= 6) pushAll(entries, l);
     const joinEntries = entries.length;
     for (const [x, y] of cells) {
       if (SIDES.some((s0) => grid.edge(x, y, s0) === EDGE_OPENING) || (grid.flags(x, y) & FLAG_LINK) !== 0)
@@ -1979,8 +1980,8 @@ class AreaComposer {
     // and base hide it; they stand on the LOWEST cell so nothing floats)
     if (w * h > 1) {
       const hs = fp.map(([xx, yy]) => hOf(xx, yy));
-      const lo = Math.min(...hs);
-      const hi = Math.max(...hs);
+      const lo = minOf(hs);
+      const hi = maxOf(hs);
       const natural = info.organic || part.t === "landmark";
       if (hi - lo > (natural ? 0.5 : 0)) return null;
       if (hOf(x0, y0) !== lo) return null;
@@ -2112,7 +2113,7 @@ class AreaComposer {
     const { entries } = this;
     return entries.length === 0
       ? 0
-      : Math.min(...entries.map(([ex, ey]) => (ex - x) * (ex - x) + (ey - y) * (ey - y)));
+      : minOf(entries.map(([ex, ey]) => (ex - x) * (ex - x) + (ey - y) * (ey - y)));
   }
 
   /**
@@ -2205,10 +2206,10 @@ class AreaComposer {
     const { def, cells, hOf, wallCands, edgeCands, apron, anchors, tryGroup, frameFor, commit } = this;
     if (!def.focal) return;
     // a raised dais: size the focal (a ritual ring) to its top tier
-    const top = Math.max(...cells.map(([x, y]) => hOf(x, y)));
+    const top = maxOf(cells.map(([x, y]) => hOf(x, y)));
     const topCells = cells.filter(([x, y]) => hOf(x, y) === top).length;
     // a small top (a mound's crown): the ring stands round it on the tiers below, sized to the whole rise
-    const low = Math.min(...cells.map(([x, y]) => hOf(x, y)));
+    const low = minOf(cells.map(([x, y]) => hOf(x, y)));
     const raised = cells.filter(([x, y]) => hOf(x, y) > low).length;
     const tierR =
       topCells < cells.length
@@ -2289,7 +2290,10 @@ class AreaComposer {
                 if (!q.cells.some(([qx, qy]) => qx === cx + dx && qy === cy + dy))
                   apron.add(key(cx + dx, cy + dy));
       // the focal group reserves a wider clearing
-      anchors.push(...planned.map((q) => [q.placement.at[0], q.placement.at[1]] as [number, number]));
+      pushAll(
+        anchors,
+        planned.map((q) => [q.placement.at[0], q.placement.at[1]] as [number, number]),
+      );
     }
   }
 
@@ -2599,8 +2603,9 @@ class AreaComposer {
   /** Step 3: lighting, entrances first, then the lips of platforms and chasms, then along the walls. */
   lightEntrancesAndWalls(): void {
     const { grid, def, rng, cells, out, entries, wallCands, lights, tryGroup, frameFor, commit } = this;
-    lights.push(
-      ...out.filter((q) => LIGHT_FEATURES.has(q.type)).map((q): [number, number] => [q.at[0], q.at[1]]),
+    pushAll(
+      lights,
+      out.filter((q) => LIGHT_FEATURES.has(q.type)).map((q): [number, number] => [q.at[0], q.at[1]]),
     );
     for (const [ex, ey] of entries) {
       if (this.lit(ex, ey, 3)) continue;
@@ -2870,6 +2875,6 @@ class AreaComposer {
       seed: prm.seed,
       remaining: prm.remaining - out.length,
     });
-    out.push(...wd.placements);
+    pushAll(out, wd.placements);
   }
 }

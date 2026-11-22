@@ -7,6 +7,7 @@ import type { LevelId } from "../../contracts/plan";
 import type { ResolvedPlan } from "../../contracts/resolved";
 import { isRunLink } from "../../plan/links";
 import { SIDE_STEP } from "../../gen/gridGeometry";
+import { maxOf, minOf } from "../../util/lists";
 
 type Link = ResolvedPlan["links"][number];
 
@@ -25,7 +26,7 @@ export class StairRuns {
     for (const lk of links) {
       if (!isRun(lk)) continue;
       const ks = lk.lowerCells.map((c) => stepNumber(lk, c));
-      const maxK = Math.max(...ks);
+      const maxK = maxOf(ks);
       lk.lowerCells.forEach((c, i) =>
         this.cells.set(`${lk.fromLevel}|${c[0]},${c[1]}`, {
           linkId: lk.id,
@@ -60,10 +61,10 @@ function stepNumber(lk: Link, c: readonly [number, number]): number {
   const xs = lk.lowerCells.map((q) => q[0]);
   const ys = lk.lowerCells.map((q) => q[1]);
   return lk.dir === "N"
-    ? Math.max(...ys) - c[1]
+    ? maxOf(ys) - c[1]
     : lk.dir === "S"
-      ? c[1] - Math.min(...ys)
+      ? c[1] - minOf(ys)
       : lk.dir === "E"
-        ? c[0] - Math.min(...xs)
-        : Math.max(...xs) - c[0];
+        ? c[0] - minOf(xs)
+        : maxOf(xs) - c[0];
 }

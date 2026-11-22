@@ -11,6 +11,7 @@ import type { VerifyCtx } from "./context";
 import type { Solid, SolidIndex } from "./grid";
 import { POKE_TOLERANCE } from "./limits";
 import { elementRef, round2, solidLabel, uniq } from "./words";
+import { maxOf } from "../../util/lists";
 
 /** The codes this file emits (VERIFY_CODES is the union of every check's list). */
 export const LEVEL_ABOVE_CODES = [
@@ -49,7 +50,7 @@ export function checkLevelAbove(ctx: VerifyCtx, solids: SolidIndex): void {
 /** How far the tallest pieces poke through, by element (the three worst), and the two ways out. */
 function pokeHint(L: ResolvedLevel, U: ResolvedLevel, hits: readonly Solid[]): string {
   const gap = U.elevation - L.elevation;
-  const top = Math.max(...hits.map((s) => s.box.max.y));
+  const top = maxOf(hits.map((s) => s.box.max.y));
   const poke = round2(top - U.elevation);
   const by = new Map<string, { n: number; h: number }>();
   for (const s of hits) {

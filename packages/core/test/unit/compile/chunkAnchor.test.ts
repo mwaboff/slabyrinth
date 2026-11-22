@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 import type { ExportBundle, PlacementSet, SlabAsset } from "../../../src/contracts/compiler";
 import { chunkAndEncode, compileResolved, realize } from "../../../src/compile";
+import { MARKER_GAP_CELLS, besideMapBox } from "../../../src/compile/chunk";
 import type { RealizedSet } from "../../../src/compile/realize/output";
 import { loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
@@ -152,13 +153,31 @@ function expectPastedBeside(set: PlacementSet, bundle: ExportBundle): void {
       expect(Math.max(a.sx, a.sy, a.sz)).toBeLessThanOrEqual(SLAB_LIMITS.maxCoord);
   }
   // the bundle says where the cursor goes and where the far pillar stands
+  // every count is of the empty cells in between (whole cells)
+  const near = {
+    north: (r.box.z[1] - T - Math.ceil(r.map.z[1] / T) * T) / T,
+    east: (r.box.x[1] - T - Math.ceil(r.map.x[1] / T) * T) / T,
+  };
+  const far = (Math.floor(r.map.z[0] / T) * T - (r.box.z[0] + T)) / T;
   expect(bundle.pasteAnchor).toEqual({
     side: "south",
     clearanceCells: CLEARANCE,
-    // empty cells between the far pillar and the map's south edge (whole cells)
-    farMarkerCells: (Math.floor(r.map.z[0] / T) * T - (r.box.z[0] + T)) / T,
+    farMarkerCells: far,
+    nearMarkerCells: near,
   });
-  expect(bundle.instructions).toMatch(/bare cell 5 cells south of the middle of the map/);
+  expect(near.north).toBe(1);
+  expect([1, 2]).toContain(near.east);
+  // the anchor cell: CLEARANCE empty cells between it and the map's south edge
+  expect((Math.floor(r.map.z[0] / T) * T - (r.cell.z + T)) / T).toBe(CLEARANCE);
+  // and the far pillar one empty cell west of the map
+  expect((Math.floor(r.map.x[0] / T) * T - (r.box.x[0] + T)) / T).toBe(1);
+  const cells = (n: number): string => `${n} empty ${n === 1 ? "cell" : "cells"}`;
+  expect(bundle.instructions).toContain(
+    `Keep the cursor on one bare cell south of the middle of the map’s south edge, with ${cells(CLEARANCE)} between it and the map`,
+  );
+  expect(bundle.instructions).toContain(
+    `one beyond the map’s north-east corner, raised to the top, with ${cells(near.north)} between it and the map northward and ${cells(near.east)} eastward; and one at ground level beyond the south-west corner, with ${cells(far)} between it and the map southward and 1 empty cell westward.`,
+  );
 }
 
 describe("multi-chunk builds are pasted from bare ground beside the map (pasteBesideMap)", () => {
@@ -228,6 +247,72 @@ describe("multi-chunk builds are pasted from bare ground beside the map (pasteBe
       expect(on).toEqual(off);
       expect(on.pasteAnchor).toBeUndefined();
     }
+  });
+
+  it("besideMapBox, over many extents and origins: centre mid-cell in the map's columns, the clearance, the pillars", () => {
+    const easts = new Set<number>();
+    for (const ox of [-37, -1, 0, 5])
+      for (const oz of [-37, -1, 0, 5])
+        for (const w of [1, 2, 3, 4, 159, 160, 1023, 1024])
+          for (const d of [1, 2, 3, 160, 1024]) {
+            const gmin = { x: ox, z: oz };
+            const gmax = { x: ox + w, z: oz + d };
+            const b = besideMapBox(gmin, gmax);
+            const at = `${ox},${oz} ${w}x${d}`;
+            // the centre is the anchor cell's middle; both sides are odd
+            expect((b.min.x + b.max.x) / 2, at).toBe(b.anchor.x + 0.5);
+            expect((b.min.z + b.max.z) / 2, at).toBe(b.anchor.z + 0.5);
+            // the anchor column is one of the map's; CLEARANCE empty cells between the anchor cell and the map
+            expect(b.anchor.x >= gmin.x && b.anchor.x < gmax.x, at).toBe(true);
+            expect(gmin.z - (b.anchor.z + 1), at).toBe(CLEARANCE);
+            // the min pillar one empty cell west of the map and south of the anchor; the max pillar 1 empty cell
+            // north and 1 or 2 east
+            expect(gmin.x - (b.min.x + 1), at).toBe(MARKER_GAP_CELLS);
+            expect(b.min.z, at).toBeLessThan(b.anchor.z);
+            expect(b.max.z - 1 - gmax.z, at).toBe(MARKER_GAP_CELLS);
+            const east = b.max.x - 1 - gmax.x;
+            expect([1, 2], at).toContain(east);
+            easts.add(east);
+          }
+    expect([...easts].sort()).toEqual([1, 2]);
+  });
+
+  /** A small one-level generator-4 set with one copy of a piece `deep` tiles further south. */
+  function deepSet(deep: number, w = 20, h = 14): RealizedSet {
+    const set = denseSet(4, w, h);
+    const [first, ...rest] = set.levels;
+    const p = first?.placements[0];
+    if (!first || !p) throw new Error("no placement");
+    return {
+      ...set,
+      levels: [{ ...first, placements: [...first.placements, { ...p, z: p.z - deep }] }, ...rest],
+    };
+  }
+
+  it("a one-chunk build deeper than half the slab range is not refused (it never uses the padded box)", () => {
+    const set = deepSet(1400);
+    const b = chunkAndEncode(set, slabCodec, { createdAt: "t" });
+    expect(b.diagnostics.filter((d) => d.code === "coord_overflow")).toEqual([]);
+    expect(b.chunks).toHaveLength(1);
+    expect(b.pasteAnchor).toBeUndefined();
+  });
+
+  it("a multi-chunk build whose padded box would leave the range keeps the corner pillars, without an anchor", () => {
+    const set = deepSet(1400, 80, 60);
+    const b = chunkAndEncode(set, slabCodec, { fill: 0.1, createdAt: "t" });
+    expect(b.chunks.length).toBeGreaterThan(1);
+    expect(b.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+    expect(b.diagnostics.filter((d) => d.code === "coord_overflow").map((d) => d.severity)).toEqual(["info"]);
+    expect(b.pasteAnchor).toBeUndefined();
+    expect(b.instructions).toContain(
+      "Place every chunk so its south-west pillar lands exactly on the pillar already placed.",
+    );
+    // the plain pillars: one empty cell outside the build's south-west corner, in every chunk, and in range
+    const r = readBundle(set, b);
+    expect(r.pillars).toHaveLength(2);
+    expect((Math.floor(r.map.z[0] / T) * T - (r.box.z[0] + T)) / T).toBe(MARKER_GAP_CELLS);
+    for (const as of r.decoded)
+      for (const a of as) expect(Math.max(a.sx, a.sy, a.sz)).toBeLessThanOrEqual(SLAB_LIMITS.maxCoord);
   });
 
   it("compile reads the switch from the plan's generator", () => {

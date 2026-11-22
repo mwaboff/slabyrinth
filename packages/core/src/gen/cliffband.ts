@@ -31,6 +31,7 @@ import {
   cellKey as key,
 } from "./gridGeometry";
 import { gridProfile, type GeneratedPlacement, type PlacementGrid } from "./placementGrid";
+import { maxOf } from "../util/lists";
 
 type Piece = "cliff_face" | "cliff_crest";
 interface Size {
@@ -647,7 +648,7 @@ type Band = ReturnType<typeof startBand>;
 /** Face courses: the base course on the low ground, each course above a step back toward the cliff, on the rock. */
 function placeFaceCourses(band: Band, order: readonly RiseUnit[]): void {
   const { units, coursesOf, faceAt, route, between, rng, resting, cellOut, face, near, h, place } = band;
-  const maxCourses = Math.max(0, ...units.map(coursesOf));
+  const maxCourses = Math.max(0, maxOf(units.map(coursesOf)));
   for (let c = 0; c < maxCourses; c++) {
     const mine: Array<[number, number]> = [];
     faceAt.push(mine);

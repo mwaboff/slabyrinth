@@ -10,6 +10,7 @@ import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
 import { FACE_ROT } from "./gridGeometry";
 import type { SmallFamily } from "./surfaces";
+import { pushAll } from "../util/lists";
 
 /** The palette variants of `feature.stall`: the real stall pieces, and the bare table the other kinds stand on. */
 export type StallPiece = "fruit" | "vegetables" | "spices" | "magic" | "weapons" | "empty";
@@ -114,7 +115,7 @@ export function layoutStalls(
         const j = rng.int(i + 1);
         [bag[i], bag[j]] = [bag[j] as StallKind, bag[i] as StallKind];
       }
-      queue.push(...bag);
+      pushAll(queue, bag);
     }
     return queue.shift() as StallKind;
   };
@@ -244,7 +245,7 @@ export function layoutStalls4(
         const j = rng.int(i + 1);
         [bag[i], bag[j]] = [bag[j] as StallKind, bag[i] as StallKind];
       }
-      queue.push(...bag);
+      pushAll(queue, bag);
     }
     return queue.shift() as StallKind;
   };

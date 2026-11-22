@@ -28,6 +28,7 @@ import type { BuildingPlan, Chimney, GroundOpening, VolumePlan } from "./types";
 
 type GrowthLevel = NonNullable<BuildingPlan["growthLevel"]>;
 import type { GroundFootprint } from "./volumes";
+import { pushAll } from "../../util/lists";
 
 export interface Decay {
   readonly condition: BuildingPlan["condition"];
@@ -107,7 +108,7 @@ export function applyCondition(
   if (legible && !ruined) footGrowth(d, blocked);
   if (ruined) insideRubble(d, blocked);
   if (ruined && legible) fallenHeaps(d, blocked);
-  if (legible) growth.push(...climbing(d, blocked, growthLevel));
+  if (legible) pushAll(growth, climbing(d, blocked, growthLevel));
   return { condition, growthLevel, ruin, debris, growth };
 }
 

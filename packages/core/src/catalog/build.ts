@@ -20,6 +20,7 @@ import { binaryIndexSource } from "./binaryIndex";
 import { diffCatalogs } from "./diff";
 import { joinPath, listPackDirs, type ReadonlyFs } from "./discovery";
 import { indexJsonSource } from "./indexJson";
+import { pushAll } from "../util/lists";
 
 export const CATALOG_SCHEMA = "slabyrinth/asset-catalog@1" as const;
 /** Bump when extraction logic changes: forces every cache to rebuild. */
@@ -149,10 +150,13 @@ export async function buildCatalogFromInstall(
         warnings: pw,
         reparsed: true,
       });
-      warnings.push(...pw.map((w) => `${d.dirName}: ${w}`));
+      pushAll(
+        warnings,
+        pw.map((w) => `${d.dirName}: ${w}`),
+      );
       continue;
     }
-    assets.push(...got.assets);
+    pushAll(assets, got.assets);
     const src: CatalogSourceId = got.source === "cache" ? (prevPack?.source ?? "binary-index") : got.source;
     catalogPacks.push({
       packId: d.packId,
@@ -169,7 +173,10 @@ export async function buildCatalogFromInstall(
       warnings: pw,
       reparsed: packChanged,
     });
-    warnings.push(...pw.map((w) => `${got.packName || d.dirName}: ${w}`));
+    pushAll(
+      warnings,
+      pw.map((w) => `${got.packName || d.dirName}: ${w}`),
+    );
   }
   const catalog: AssetCatalog = {
     schema: CATALOG_SCHEMA,
@@ -284,7 +291,7 @@ async function readPack(
   if (d.binaryIndex) {
     try {
       const r = binaryIndexSource.read(await read(d.binaryIndex), where);
-      pw.push(...r.warnings);
+      pushAll(pw, r.warnings);
       return { ...r, source: "binary-index", stale: false };
     } catch (e) {
       pw.push(`binary index unreadable: ${(e as Error).message}`);
@@ -299,10 +306,9 @@ async function readPack(
   if (d.indexJson) {
     try {
       const r = indexJsonSource.read(await read(d.indexJson), where);
-      pw.push(
-        ...r.warnings,
+      pushAll(pw, r.warnings, [
         "using index.json, which game updates do not refresh (new assets may be missing)",
-      );
+      ]);
       return { ...r, source: "index-json", stale: true };
     } catch (e) {
       pw.push(`index.json unreadable: ${(e as Error).message}`);
@@ -339,8 +345,11 @@ export function buildCatalogFromFiles(
       }
     }
     if (!r) continue;
-    warnings.push(...r.warnings.map((w) => `${p.packId}: ${w}`));
-    assets.push(...r.assets);
+    pushAll(
+      warnings,
+      r.warnings.map((w) => `${p.packId}: ${w}`),
+    );
+    pushAll(assets, r.assets);
     packs.push({
       packId: p.packId,
       name: r.packName,

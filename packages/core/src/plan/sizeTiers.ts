@@ -8,6 +8,7 @@
  * `smallestTierFor`. Everything below the standard limits validates and builds the same whatever tier is active.
  */
 import { PLAN_LIMITS, type MapPlan } from "../contracts/plan";
+import { maxOf } from "../util/lists";
 
 export type SizeTierId = "standard" | "large-512" | "large-768" | "large-1024";
 
@@ -44,7 +45,7 @@ export const SIZE_TIERS: Readonly<Record<SizeTierId, SizeLimits>> = {
 export const SIZE_TIER_ORDER: readonly SizeTierId[] = ["standard", "large-512", "large-768", "large-1024"];
 
 /** The largest side any tier allows: the schema's own bound and the size typed arrays are built for. */
-export const MAX_LEVEL_SIDE = Math.max(...SIZE_TIER_ORDER.map((id) => SIZE_TIERS[id].levelSide));
+export const MAX_LEVEL_SIDE = maxOf(SIZE_TIER_ORDER.map((id) => SIZE_TIERS[id].levelSide));
 
 /** The limits of a tier (the standard one when none is named). */
 export function sizeLimits(id: SizeTierId = "standard"): SizeLimits {
@@ -53,7 +54,7 @@ export function sizeLimits(id: SizeTierId = "standard"): SizeLimits {
 
 /** The smallest tier a plan fits in (by its levels' bounds), or null when it is larger than every tier. */
 export function smallestTierFor(plan: Pick<MapPlan, "levels">): SizeTierId | null {
-  const side = Math.max(0, ...plan.levels.map((l) => Math.max(l.bounds.w, l.bounds.h)));
+  const side = Math.max(0, maxOf(plan.levels.map((l) => Math.max(l.bounds.w, l.bounds.h))));
   const cells = plan.levels.reduce((s, l) => s + l.bounds.w * l.bounds.h, 0);
   return (
     SIZE_TIER_ORDER.find((id) => side <= SIZE_TIERS[id].levelSide && cells <= SIZE_TIERS[id].totalCells) ??

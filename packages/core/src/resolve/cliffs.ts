@@ -6,6 +6,7 @@ import type { Material, Side, Vec2 } from "../contracts/plan";
 import { CELL, CELL_FLAG, EDGE, type ResolvedCliffRun, type ResolvedLevel } from "../contracts/resolved";
 import { cellIndex, hEdgeIndex, vEdgeIndex } from "./levelGrid";
 import { isNaturalGround } from "./materials";
+import { maxOf, minOf } from "../util/lists";
 
 export interface CliffEdge {
   /** The upper cell (the edge lies on its `side`). */
@@ -169,8 +170,8 @@ export function cliffRuns(level: ResolvedLevel, minRise = 4): ResolvedCliffRun[]
       runs.push({
         edges: chain.map((c) => c.edge),
         closed,
-        minRise: Math.min(...rises),
-        maxRise: Math.max(...rises),
+        minRise: minOf(rises),
+        maxRise: maxOf(rises),
         material: chain[0] ? mat(at(chain[0].edge.at[0] - bx, chain[0].edge.at[1] - by)) : null,
         crossings: chain.flatMap((c, k) => (c.stair ? [k] : [])),
       });
