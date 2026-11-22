@@ -10,7 +10,7 @@ import {
   validateToolInput,
 } from "../../../src/agent";
 import { h64hex } from "../../../src/util";
-import { DP_1_0_0, DP_1_1_0, DP_1_2_0 } from "../../../src/agent/designPrinciples.frozen";
+import { DP_1_0_0, DP_1_1_0, DP_1_2_0, DP_1_3_0 } from "../../../src/agent/designPrinciples.frozen";
 import { DESIGN_PRINCIPLES_VERSION } from "../../../src/agent/designPrinciples";
 import { TOOLS_VERSION } from "../../../src/agent/prompt";
 
@@ -18,8 +18,8 @@ import { TOOLS_VERSION } from "../../../src/agent/prompt";
 const SP_1_1_0_HASH = "2176e2d9b0362e06";
 
 describe("working tool list (tools-1.9.0; published versions are pinned by hash below)", () => {
-  it("working versions are open", () => {
-    // generator 4 opened sp-1.13.0, dp-1.3.0, tools-1.9.0
+  it("working versions are the ones last opened", () => {
+    // generator 4 opened sp-1.13.0, dp-1.3.0, tools-1.9.0; released in 0.3.0, so generator 5 opens the next ones
     expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.13.0");
     expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.3.0");
     expect(TOOLS_VERSION).toBe("tools-1.9.0");
@@ -82,6 +82,21 @@ describe("released in 0.2.0: sp-1.12.0, dp-1.2.0, tools-1.8.0 (frozen with gener
     const frozen = serializeTools(toolsForConversation(true, "tools-1.8.0"));
     expect(h64hex(frozen)).toBe("89e7f4b8549a4d20");
     expect(toolsForConversation(false, "tools-1.8.0").map((t) => t.name)).not.toContain("view_map_image");
+  });
+});
+
+describe("released in 0.3.0: sp-1.13.0, dp-1.3.0, tools-1.9.0 (frozen with generator 4)", () => {
+  it("sp-1.13.0 is byte-identical to the release", () => {
+    expect(h64hex(systemPromptFor("sp-1.13.0") ?? "")).toBe("3a3b40c1e0bbe663");
+  });
+  it("dp-1.3.0 is byte-identical to the release and sp-1.13.0 carries it", () => {
+    expect(h64hex(DP_1_3_0)).toBe("b742a7f442a2c475");
+    expect(systemPromptFor("sp-1.13.0")).toContain(DP_1_3_0);
+  });
+  it("tools-1.9.0 is byte-identical to the release and served from its frozen copy", () => {
+    const frozen = serializeTools(toolsForConversation(true, "tools-1.9.0"));
+    expect(h64hex(frozen)).toBe("63d3313aed2d1faa");
+    expect(toolsForConversation(false, "tools-1.9.0").map((t) => t.name)).not.toContain("view_map_image");
   });
   it("the released 0.1.2 texts did not move", () => {
     expect(h64hex(systemPromptFor("sp-1.11.0") ?? "")).toBe("d074cc244ed28a6b");

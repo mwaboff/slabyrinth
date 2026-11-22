@@ -27,9 +27,10 @@ in the same PR and say why.
 
 ## Frozen output
 
-- Generators 1–3 and the released prompt, principles and tool texts (`agent/*.frozen*.ts`, the versions marked
-  released in `agent/prompt.ts`) are byte-frozen; their goldens are never regenerated. Generator 4 and the working
-  text versions are open. (When generator 4 is released, this line moves on to generator 5.)
+- Generators 1–4 and the released prompt, principles and tool texts (`agent/*.frozen*.ts`, the versions marked
+  released in `agent/prompt.ts`) are byte-frozen; their builds are never regenerated (the generator-4 golden may
+  still move its review fields). No generator is open: the next behaviour or model-text change first opens
+  generator 5 and new text versions. (When generator 5 is released, this line moves on to generator 6.)
 - A behaviour difference between generators is a new switch in `plan/generator.ts` `SWITCHES`, read where it differs.
 - A generator-4 golden change is deliberate: commit it with one line of reason per changed plan.
 

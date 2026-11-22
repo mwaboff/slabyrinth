@@ -1,5 +1,14 @@
 /**
- * GENERATOR 4 IS OPEN (unreleased): this golden is EXPECTED to change, but only on purpose.
+ * GENERATOR 4 IS RELEASED (0.3.0) AND FROZEN. A saved plan with `generator: 4` must resolve and build to exactly the
+ * same bytes in every later version of the app: RELEASED_GENERATOR in runs.ts is 4, so every run's build (resolved
+ * hash, asset count, diagnostic counts, slabs) is frozen here, the test calls a change to it frozen and the update
+ * script refuses to write it. Only the design review and the detail lines it carries may still move (review policy,
+ * src/plan/generator.ts). The palettes generator 4 sees are pinned by test/fixtures/released-palettes-0.3.0.json
+ * (test/unit/palette/released.test.ts); sp-1.13.0, dp-1.3.0 and tools-1.9.0 by test/unit/agent/tools.test.ts.
+ * Generator 5 is not open yet: opening it (GENERATOR_VERSIONS) fails the first test below until this golden is
+ * frozen as described at the end of this header.
+ *
+ * Until 0.3.0 this was the open golden, and the text below describes it as that.
  *
  * Two kinds of golden live in test/golden/:
  * - Frozen goldens (generator2/, generator3/, resolve/, compile/, text/, gen/) pin released output. They are read,
@@ -24,7 +33,7 @@
  *   change behind a switch of the open generator (src/plan/generator.ts).
  * - You added or removed a fixture plan: run the update script; it adds or drops the plan's lines.
  *
- * When generator 4 ships: freeze this golden. Copy it to the frozen pattern (generator4/ as a read-only golden like
+ * When generator 5 opens (generator 4 shipped in 0.3.0): freeze this golden. Copy it to the frozen pattern (generator4/ as a read-only golden like
  * generator3.test.ts, its open-generator runs pinned, no update script), and open a golden like this one for
  * generator 5 by setting OPEN_GENERATOR in runs.ts to 5.
  */

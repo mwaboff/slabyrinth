@@ -9,13 +9,13 @@
  * Nothing volatile (dates, installed themes, the brief) goes into the prompt; those arrive as app context items.
  */
 import type { DesignBrief, MapPlan } from "../contracts/plan";
-import { DP_1_0_0, DP_1_1_0, DP_1_2_0 } from "./designPrinciples.frozen";
-import { DESIGN_PRINCIPLES } from "./designPrinciples";
+import { DP_1_0_0, DP_1_1_0, DP_1_2_0, DP_1_3_0 } from "./designPrinciples.frozen";
 
 /**
  * Version of the working tool list (tools.ts + serialization). Bump when TOOL_DEFINITIONS or its rendering changes.
- * tools-1.7.0 (0.1.2, tools.frozen.ts) and tools-1.8.0 (0.2.0, tools.frozen.v1_8_0.ts) are published and frozen;
- * the working TOOL_DEFINITIONS are tools-1.9.0, opened with generator 4 (unreleased, free to edit until release).
+ * tools-1.7.0 (0.1.2, tools.frozen.ts), tools-1.8.0 (0.2.0, tools.frozen.v1_8_0.ts) and tools-1.9.0 (0.3.0,
+ * tools.frozen.v1_9_0.ts) are published and frozen. The working TOOL_DEFINITIONS still equal tools-1.9.0; the next
+ * edit opens tools-1.10.0 (with generator 5).
  */
 export const TOOLS_VERSION = "tools-1.9.0";
 
@@ -409,13 +409,14 @@ const SP_1_12_0 = [[DP_1_1_0, DP_1_2_0]].reduce(
 );
 
 /**
- * sp-1.13.0 (WORKING, opened with generator 4; unreleased): sp-1.12.0 with the working principles (dp-1.3.0, the
- * live DESIGN_PRINCIPLES), the generator-4 room dressing in the set-dressing section, and the DESIGN REVIEW sentence
- * without its stale "generator-2" scope. Principles go in designPrinciples.ts, how-to here, field facts in tools.ts;
- * say each thing once. Freeze a copy of all three when 0.3.0 ships.
+ * sp-1.13.0 (RELEASED in 0.3.0 with generator 4, frozen): sp-1.12.0 with dp-1.3.0 (the frozen copy DP_1_3_0, so
+ * later edits to designPrinciples.ts cannot change it), the generator-4 room dressing in the set-dressing section,
+ * and the DESIGN REVIEW sentence without its stale "generator-2" scope. Never touch it or anything it is built from;
+ * the next prompt is sp-1.14.0, opened together with generator 5. Principles go in designPrinciples.ts, how-to here,
+ * field facts in tools.ts; say each thing once.
  */
 const SP_1_13_0 = [
-  [DP_1_2_0, DESIGN_PRINCIPLES],
+  [DP_1_2_0, DP_1_3_0],
   // interiors: how generator 4 dresses, floors and lights a room from its name (the one place this is said; the
   // principle is dp-1.3.0's "A room tells its purpose", the fields are Level.roomDress, Area.floor and the dress preset)
   [

@@ -3,9 +3,10 @@
  * (imported by agent/prompt.ts). General and theme-neutral; examples are short. Paired with the automatic design
  * review (review/), which measures several of these on each build and reports them as advice.
  *
- * This is the WORKING text, dp-1.3.0 (opened with generator 4 and sp-1.13.0; unreleased, free to edit until the
- * release). dp-1.0.0, dp-1.1.0 and dp-1.2.0 (published in 0.2.0 inside sp-1.12.0) live, frozen, in
- * designPrinciples.frozen.ts. Freeze a copy there when dp-1.3.0 ships.
+ * This is the WORKING text. It still equals dp-1.3.0, released in 0.3.0 inside sp-1.13.0 (generator 4) and frozen
+ * as DP_1_3_0 in designPrinciples.frozen.ts with dp-1.0.0, dp-1.1.0 and dp-1.2.0; sp-1.13.0 is built from that
+ * frozen copy, so an edit here reaches no released prompt. The next edit opens dp-1.4.0 (with sp-1.14.0, when
+ * generator 5 opens): bump DESIGN_PRINCIPLES_VERSION first, and freeze a copy when it ships.
  */
 export const DESIGN_PRINCIPLES_VERSION = "dp-1.3.0";
 

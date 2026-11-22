@@ -14,8 +14,14 @@ import { designReviewText, reviewDesign, type DesignNote } from "../../../src/re
 import { slabCodec } from "../../../src/slab";
 import { GENERATOR_TEST_PLANS, loadPlan, STORED_PLANS, type StoredPlan } from "../../fixtures";
 
-/** The generator this golden follows while it is open. When it ships, see the header of generator4.test.ts. */
+/** The newest generator: the one this golden follows (see the header of generator4.test.ts). */
 export const OPEN_GENERATOR = 4;
+/**
+ * The newest released generator: runs at it or below have frozen builds (FROZEN_FIELDS), which the test reports as
+ * frozen and the update script refuses to rewrite. Generator 4 was released in 0.3.0, so every run here is frozen;
+ * only the review and the detail it carries may move until generator 5 opens.
+ */
+export const RELEASED_GENERATOR = 4;
 
 export const GOLDEN_FILE = new URL("__golden__/generator4.txt", import.meta.url);
 /** The readable sidecar: what each run built, one fact per line, each line starting with the run's name. */
@@ -212,6 +218,6 @@ export function detailDiff(was: readonly string[] = [], now: readonly string[] =
 export function changesReleasedOutput(was: string, now: string): boolean {
   const a = parseLine(was).fields;
   const b = parseLine(now).fields;
-  if (Number(a.get("gen")) >= OPEN_GENERATOR) return false;
+  if (Number(a.get("gen")) > RELEASED_GENERATOR) return false;
   return a.get("error") !== b.get("error") || FROZEN_FIELDS.some((k) => a.get(k) !== b.get(k));
 }

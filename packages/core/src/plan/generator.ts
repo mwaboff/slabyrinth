@@ -13,9 +13,9 @@ import { GENERATOR_VERSIONS, type GeneratorVersion } from "../contracts/plan";
  *   - VOCABULARY: plan words a generator understands beyond the base set.
  *
  * A switch is on in its first generator and in every later one, by construction, so the SWITCHES table read top to
- * bottom is the changelog of the generators. Generators 1, 2 and 3 are released: what they turn on is frozen, and so
- * is their output (test/golden/generator2, generator3). New behaviour is a new switch that starts in the open
- * generator. A later generator never switches an old behaviour off: it adds a new switch for the new behaviour, and
+ * bottom is the changelog of the generators. Generators 1, 2, 3 and 4 are released: what they turn on is frozen, and
+ * so is their output (test/golden/generator2, generator3, generator4). New behaviour is a new switch that starts in
+ * the open generator; none is open after 0.3.0, so the next behaviour change first opens generator 5. A later generator never switches an old behaviour off: it adds a new switch for the new behaviour, and
  * the code reads the new one first. Opening generator 5 means adding a version to GENERATOR_VERSIONS
  * (contracts/plan.ts); the compiler then asks for its TUNINGS and VOCABULARY entries, and new switches start in 5.
  *
@@ -175,7 +175,7 @@ const SWITCHES = {
   levelsJudgedTogether: on(3, "The review judges levels joined by links and floor openings as one map."),
   depthInTiles: on(3, "The review counts depth in whole tiles (half-tile lumps are not depth)."),
 
-  // ── generator 4 (open) ──
+  // ── generator 4 (released in 0.3.0) ──
   caveOutlines: on(4, "Natural cave chambers and corridors get ragged outlines (resolve/caveOutline.ts)."),
   caveRelief: on(4, "A flat cave floor gets shelves (resolve/caveRelief.ts)."),
   roomFloors: on(4, "Each room of a built interior gets a floor of its own and a step above the corridor."),

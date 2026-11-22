@@ -31,7 +31,9 @@ export const PLAN_SCHEMA = "slabyrinth/plan@1" as const;
  *     Released in 0.1.2 and frozen since (golden tests in test/golden/generator2 pin it).
  *  3: cliffs, cave walls, growth, floor openings, stalls and overhead lines, trades. Released in 0.2.0 and
  *     frozen since (golden tests in test/golden/generator3 pin it).
- *  4: unreleased, open for new work.
+ *  4: ragged cave outlines and stepped cave floors, room floors and dressing by purpose, covered market stalls,
+ *     roof fills and ridge caps, secret doors. Released in 0.3.0 and frozen since (test/golden/generator4 pins it).
+ *     No generator is open: the next behaviour change first adds generator 5.
  *  What each version does is its profile in plan/generator.ts (`generatorProfile(plan)`): new behaviour is a named
  *  switch, off in the released profiles and on from the open generator; code reads the switch, never the number.
  */
