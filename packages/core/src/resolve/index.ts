@@ -8,7 +8,14 @@ export { geometryChecks, reachableCells, type GeometryCheckContext } from "./val
 export { traceRings, ringArea, type Ring } from "./trace";
 export { themeDefaults, type ThemeDefaults } from "./themes";
 // The rules plan validation and applyOps take as an argument (geometry check, materialize generator).
-export { planRules, geometryCheck, materializeOp, GEOMETRY_CHECK_NAME } from "./rules";
+export {
+  planRules,
+  geometryCheck,
+  materializeOp,
+  reusedResolve,
+  GEOMETRY_CHECK_NAME,
+  type ResolvedReuse,
+} from "./rules";
 export {
   checkPlayability,
   walkReachability,

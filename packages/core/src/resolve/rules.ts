@@ -14,6 +14,7 @@ import type { PlanCheck } from "../plan/validate";
 import { resolvePlan } from "./resolvePlan";
 import { geometryChecks } from "./validate";
 import { sizeLimits, type SizeTierId } from "../plan/sizeTiers";
+import { canonicalJson } from "../util/canonical";
 
 export const GEOMETRY_CHECK_NAME = "wp2-geometry";
 
@@ -50,7 +51,43 @@ export function materializeOp(
   return { ok: true, features };
 }
 
-/** The resolver's geometry and playability check, on the plan resolved against `palettes`. */
+/**
+ * A caller's own resolve of a plan, for the checks to reuse instead of resolving the plan again: `resolved` is
+ * `resolvePlan(plan, palettes)` with every level. It is reused only for a plan of the same content (validatePlan
+ * hands its checks the schema's parsed copy, never the object passed in, so the match is by canonical JSON: same
+ * levels, areas, seed, generator, everything a resolve reads) and only when `palettes` is the very palettes object the
+ * rules are built with; anything else is resolved again, so a stale resolve is never taken.
+ */
+export interface ResolvedReuse {
+  readonly plan: MapPlan;
+  readonly palettes: ResolvePalettes;
+  readonly resolved: ResolvedPlan;
+}
+
+/** `reuse.resolved` for a plan of `reuse.plan`'s content resolved against `palettes`; undefined for anything else. */
+export function reusedResolve(
+  palettes: ResolvePalettes,
+  reuse: ResolvedReuse,
+): (plan: MapPlan) => ResolvedPlan | undefined {
+  const usable =
+    reuse.palettes === palettes &&
+    reuse.resolved.planId === reuse.plan.id &&
+    reuse.resolved.generator === reuse.plan.generator &&
+    // a resolve of every level (resolvePlan's `levels` option leaves some out)
+    reuse.resolved.levels.length === reuse.plan.levels.length;
+  let key: string | undefined;
+  return (plan) => {
+    if (!usable) return undefined;
+    if (plan === reuse.plan) return reuse.resolved;
+    key ??= canonicalJson(reuse.plan);
+    return canonicalJson(plan) === key ? reuse.resolved : undefined;
+  };
+}
+
+/**
+ * The resolver's geometry and playability check, on the plan resolved against `palettes`; `resolvedFor` gives the
+ * caller's own resolve of the plan the check is handed, when it has one.
+ */
 export function geometryCheck(
   palettes: ResolvePalettes,
   resolvedFor?: (plan: MapPlan) => ResolvedPlan | undefined,
@@ -69,15 +106,27 @@ export function geometryCheck(
  * what applyOps checks and materializes with (`applyOps(plan, ops, planRules(p))`). Cheap to build; a caller whose
  * palettes change (the app: user palettes, the game's assets) builds them from its current palettes at each call.
  * `sizeTier`: the map size setting plans are held to (plan/sizeTiers.ts; standard when absent).
- * `resolvedFor`: the caller's own `resolvePlan(plan, palettes)` of a plan, when it has one, so validation does not
- * resolve the same plan a second time (a large map spends half an edit resolving); undefined means resolve here.
+ * `resolved`: the caller's own `resolvePlan(plan, palettes)` of a plan, so validation does not resolve the same plan a
+ * second time (a large map spends half an edit resolving); core matches it to the plan it checks (ResolvedReuse).
+ * `resolvedFor`: the same as a callback the caller matches itself (it is handed the schema's parsed copy of the plan,
+ * so a match by identity never succeeds); `resolved` is asked first. Neither, or no match: resolve here.
  */
 export function planRules(
   palettes: ResolvePalettes,
-  opts: { sizeTier?: SizeTierId; resolvedFor?: (plan: MapPlan) => ResolvedPlan | undefined } = {},
+  opts: {
+    sizeTier?: SizeTierId;
+    resolved?: ResolvedReuse;
+    resolvedFor?: (plan: MapPlan) => ResolvedPlan | undefined;
+  } = {},
 ): PlanRules {
+  const reused = opts.resolved !== undefined ? reusedResolve(palettes, opts.resolved) : undefined;
+  const { resolvedFor } = opts;
+  const lookup =
+    reused !== undefined && resolvedFor !== undefined
+      ? (plan: MapPlan) => reused(plan) ?? resolvedFor(plan)
+      : (reused ?? resolvedFor);
   return {
-    checks: [geometryCheck(palettes, opts.resolvedFor)],
+    checks: [geometryCheck(palettes, lookup)],
     materialize: (plan, levelId, opId) => materializeOp(plan, levelId, opId, palettes),
     ...(opts.sizeTier !== undefined ? { limits: sizeLimits(opts.sizeTier) } : {}),
   };
