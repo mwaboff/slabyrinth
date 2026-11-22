@@ -20,7 +20,6 @@ import type {
   Side,
   Vec2,
 } from "../contracts/plan";
-import { PLAN_LIMITS } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedLink, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
@@ -29,6 +28,7 @@ import { OPPOSITE, SIDES, SIDE_STEP as DIRS } from "../gen/gridGeometry";
 import { sideEdgeIndex } from "./levelGrid";
 import { entryLevelId, linkKindInfo } from "../plan/links";
 import { exhaustive } from "../util/never";
+import { MAX_LEVEL_SIDE } from "../plan/sizeTiers";
 
 // ───────────────────────────── options and walk modes ─────────────────────────────
 
@@ -480,8 +480,8 @@ export function walkPathsFrom(
   };
 }
 
-/** Parents are stored as level index * stride + cell index (a level has at most PLAN_LIMITS.levelSide² cells). */
-const PARENT_STRIDE = PLAN_LIMITS.levelSide * PLAN_LIMITS.levelSide;
+/** Parents are stored as level index * stride + cell index (a level has at most MAX_LEVEL_SIDE² cells; 8 levels of 1024² fit an Int32). */
+const PARENT_STRIDE = MAX_LEVEL_SIDE * MAX_LEVEL_SIDE;
 
 // ───────────────────────────── the checks ─────────────────────────────
 

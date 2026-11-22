@@ -6,12 +6,14 @@
  * and applyOps give the same answer whoever imported what.
  */
 import type { ElementId, Feature, LevelId, MapPlan } from "../contracts/plan";
+import type { ResolvedPlan } from "../contracts/resolved";
 import { featureInfo, rotatedSize } from "../gen/catalog";
 import type { PlanRules } from "../ops/apply";
 import type { ResolvePalettes } from "../palette/resolve";
 import type { PlanCheck } from "../plan/validate";
 import { resolvePlan } from "./resolvePlan";
 import { geometryChecks } from "./validate";
+import { sizeLimits, type SizeTierId } from "../plan/sizeTiers";
 
 export const GEOMETRY_CHECK_NAME = "wp2-geometry";
 
@@ -49,18 +51,34 @@ export function materializeOp(
 }
 
 /** The resolver's geometry and playability check, on the plan resolved against `palettes`. */
-export function geometryCheck(palettes: ResolvePalettes): PlanCheck {
-  return { name: GEOMETRY_CHECK_NAME, run: (plan) => geometryChecks(plan, palettes) };
+export function geometryCheck(
+  palettes: ResolvePalettes,
+  resolvedFor?: (plan: MapPlan) => ResolvedPlan | undefined,
+): PlanCheck {
+  return {
+    name: GEOMETRY_CHECK_NAME,
+    run: (plan) => {
+      const resolved = resolvedFor?.(plan);
+      return geometryChecks(plan, palettes, resolved ? { resolved } : {});
+    },
+  };
 }
 
 /**
  * The full rules for plans built with `palettes`: what validatePlan checks (`validatePlan(plan, planRules(p))`) and
  * what applyOps checks and materializes with (`applyOps(plan, ops, planRules(p))`). Cheap to build; a caller whose
  * palettes change (the app: user palettes, the game's assets) builds them from its current palettes at each call.
+ * `sizeTier`: the map size setting plans are held to (plan/sizeTiers.ts; standard when absent).
+ * `resolvedFor`: the caller's own `resolvePlan(plan, palettes)` of a plan, when it has one, so validation does not
+ * resolve the same plan a second time (a large map spends half an edit resolving); undefined means resolve here.
  */
-export function planRules(palettes: ResolvePalettes): PlanRules {
+export function planRules(
+  palettes: ResolvePalettes,
+  opts: { sizeTier?: SizeTierId; resolvedFor?: (plan: MapPlan) => ResolvedPlan | undefined } = {},
+): PlanRules {
   return {
-    checks: [geometryCheck(palettes)],
+    checks: [geometryCheck(palettes, opts.resolvedFor)],
     materialize: (plan, levelId, opId) => materializeOp(plan, levelId, opId, palettes),
+    ...(opts.sizeTier !== undefined ? { limits: sizeLimits(opts.sizeTier) } : {}),
   };
 }

@@ -35,10 +35,11 @@ export class ToolRunCtx {
   /** Validation against the palettes the plan is built with, knowing the installed themes. */
   validateFor(ctx: AgentToolContext, input: unknown): ValidationResult {
     const themes = themesOf(ctx);
-    return this.ports.validatePlan(
-      input,
-      themes ? { themes, palettes: ctx.palettes } : { palettes: ctx.palettes },
-    );
+    return this.ports.validatePlan(input, {
+      palettes: ctx.palettes,
+      ...(themes ? { themes } : {}),
+      ...(ctx.sizeTier !== undefined ? { sizeTier: ctx.sizeTier } : {}),
+    });
   }
 
   /** All issues of a plan (blocking ones, playability findings, warnings, notes). */

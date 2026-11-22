@@ -145,3 +145,45 @@ export function largeOutdoorPlan(side: number, generator: 4 = 4): MapPlan {
     ],
   };
 }
+
+/**
+ * A typical mixed map: the forest of largeOutdoorPlan with a village of 64 huts on an 8 × 8 grid round the middle
+ * (each a wooden building with a door to the outside and a fire in front), the trees and rocks kept off the village.
+ */
+export function largeMixedPlan(side: number, generator: 4 = 4): MapPlan {
+  const plan = largeOutdoorPlan(side, generator);
+  const level = plan.levels[0];
+  if (!level) return plan;
+  plan.title = `Large forest village ${side} x ${side}`;
+  const huts = 8;
+  const pitch = 10;
+  const x0 = Math.floor(side / 2 - (huts * pitch) / 2);
+  const y0 = x0;
+  const village: Area[] = [];
+  const doors: Opening[] = [];
+  const fires: Feature[] = [];
+  for (let j = 0; j < huts; j++)
+    for (let i = 0; i < huts; i++) {
+      const id = `hut${i}_${j}`;
+      const x = x0 + i * pitch + 2;
+      const y = y0 + j * pitch + 2;
+      village.push({
+        id,
+        kind: "building",
+        name: ROOM_NAMES[(i + j) % ROOM_NAMES.length] ?? "Hut",
+        shape: { type: "rect", x, y, w: 6, h: 5 },
+        floor: "wood_plank",
+        wallStyle: "wood",
+      });
+      doors.push({ id: `${id}_door`, kind: "door", between: [id, "@outside"], position: 0.5 });
+      fires.push({ id: `${id}_fire`, type: "campfire", at: [x + 3, y + 7] });
+    }
+  level.areas = village;
+  level.openings = doors;
+  level.features = fires;
+  const keepOff = { type: "rect", x: x0, y: y0, w: huts * pitch, h: huts * pitch };
+  level.terrain = level.terrain.map((op) =>
+    op.op === "scatter" ? ({ ...op, exclude: [keepOff] } as TerrainOp) : op,
+  );
+  return plan;
+}

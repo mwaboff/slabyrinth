@@ -26,6 +26,7 @@ import {
   STALL_KINDS,
   WALL_STYLES,
 } from "../contracts/plan";
+import { MAX_LEVEL_SIDE } from "./sizeTiers";
 
 /**
  * Bounds plan.ts leaves open; chosen by WP1 and accepted by the lead. Exported so tool descriptions can quote them.
@@ -80,7 +81,8 @@ export const heightSchema = (min: number, max: number) => z.number().multipleOf(
 const half = z.number().multipleOf(0.5).min(-UNSPECIFIED_LIMITS.coord).max(UNSPECIFIED_LIMITS.coord);
 const unit = z.number().min(0).max(1);
 const text = (max: number) => z.string().max(max);
-const side = z.int().min(1).max(PLAN_LIMITS.levelSide);
+// the largest tier’s side; the active tier’s own limit is a structural check (plan/validate.ts checkLevels)
+const side = z.int().min(1).max(MAX_LEVEL_SIDE);
 
 // ───────────────────────────── shapes ─────────────────────────────
 
