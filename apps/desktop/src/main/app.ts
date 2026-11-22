@@ -31,6 +31,7 @@ import { cleanupTempFiles } from "./util/atomicWrite";
 import { startEngine } from "./wiring/engine";
 import { installMenu, wireIpc } from "./wiring/ipcAndMenu";
 import { outsideWorld, type OutsideWorld } from "./wiring/outsideWorld";
+import { runShutdown } from "./wiring/shutdown";
 import { thumbnailRefresher } from "./wiring/thumbnails";
 import { startUpdates } from "./wiring/updates";
 import { WindowLink } from "./wiring/windowLink";
@@ -163,19 +164,30 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
         void talespireLink.recheck();
       });
     },
-    async shutdown() {
-      await talespireLink.shutdown().catch(() => undefined);
-      assets.catalog.unwatch();
-      work.imageBridge.cancelAll();
-      work.compiler.cancel();
-      try {
-        await projects.close({});
-      } catch (err) {
-        logger.error("final save failed", { error: err });
-        projects.releaseLockSync(fs.unlinkSync);
-      }
-      await engine?.dispose().catch(() => undefined);
-    },
+    // the final save first; every other step has a time limit (wiring/shutdown.ts)
+    shutdown: () =>
+      runShutdown({
+        halt: [
+          () => {
+            assets.catalog.unwatch();
+          },
+          () => {
+            work.imageBridge.cancelAll();
+          },
+          () => {
+            work.compiler.cancel();
+          },
+        ],
+        save: () => projects.close({}),
+        releaseLock: () => {
+          projects.releaseLockSync(fs.unlinkSync);
+        },
+        steps: [
+          { name: "talespire link", run: () => talespireLink.shutdown() },
+          { name: "engine", run: () => engine?.dispose() },
+        ],
+        logger,
+      }),
   };
 }
 

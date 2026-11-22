@@ -23,12 +23,27 @@ import {
   type ChunkSet,
   type HelperState,
 } from "./protocol";
-import { CLOSE, attachWebSocket, type WsConnection } from "./wsLite";
+import { CLOSE, attachWebSocket, type WsConnection, type WsServer } from "./wsLite";
 
 /** How long a new connection has to say hello. */
 export const HELLO_TIMEOUT_MS = 5000;
 /** How often to try the port again while another program holds it. */
 export const PORT_RETRY_MS = 15_000;
+/**
+ * How long the add-on has to answer a sent set. It only checks the set and answers (TaleSpire is not asked), so
+ * 30 seconds means it is gone or stuck; the send is then reported failed with loadTimeoutError (a late answer still
+ * settles it).
+ */
+export const LOAD_TIMEOUT_MS = 30_000;
+/** Connections that have not said hello yet, at most; more are refused (503) until those finish. */
+export const MAX_PENDING = 8;
+
+/** The `send.error` of a send the add-on did not answer in time (state "failed"). */
+export function loadTimeoutError(ms: number): string {
+  return `The add-on didn't answer within ${String(Math.round(ms / 1000))} seconds. Check Slabyrinth Helper in TaleSpire, then send again.`;
+}
+
+export type SendState = LinkStatus["send"];
 
 export interface LinkServerOptions {
   /** 0 = an ephemeral port (tests and e2e runs never bind the real one). */
@@ -40,6 +55,9 @@ export interface LinkServerOptions {
   wayland: boolean;
   logger: Logger;
   onChange: (s: LinkStatus) => void;
+  /** Tests only: shorter waits than HELLO_TIMEOUT_MS and LOAD_TIMEOUT_MS. */
+  helloTimeoutMs?: number;
+  loadTimeoutMs?: number;
 }
 
 /** A page on TaleSpire's local symbiote server (or a plain local page). */
@@ -53,8 +71,8 @@ export function allowedHost(host: string | undefined, port: number): boolean {
 }
 
 /**
- * The plain HTTP answer: /probe (the add-on's Diagnostics connection test) answers a short text, with CORS for a
- * local page origin only; anything else is 404.
+ * The plain HTTP answer: /probe (the add-on's Diagnostics connection test, over HTTP only) answers a short text, with
+ * CORS for a local page origin only; anything else is 404.
  */
 export function httpAnswer(
   method: string | undefined,
@@ -91,14 +109,16 @@ const PLACING = new Set<HelperState["phase"]>(["ready", "sending", "inHand", "fa
 
 export class LinkServer {
   private server: Server | null = null;
+  private ws: WsServer | null = null;
   private serverState: LinkStatus["server"]["state"] = "starting";
   private boundPort: number;
   private helper: WsConnection | null = null;
   private helperInfo: LinkStatus["helper"] = { state: "none", version: null, reason: null };
   private set: LinkStatus["set"] = null;
-  private sendState: LinkStatus["send"] = { state: "idle", buildId: null, chunks: 0, error: null };
-  /** The id of the load message whose answer is awaited. */
+  private sendState: SendState = { state: "idle", buildId: null, chunks: 0, error: null };
+  /** The id of the load message whose answer is awaited (kept past the deadline: a late answer still settles it). */
   private pendingLoad: number | null = null;
+  private loadTimer: ReturnType<typeof setTimeout> | null = null;
   private nextId = 1;
   private retry: ReturnType<typeof setTimeout> | null = null;
   private closed = false;
@@ -124,7 +144,7 @@ export class LinkServer {
       res.writeHead(a.status, a.headers);
       res.end(a.body);
     });
-    attachWebSocket(server, {
+    const ws = attachWebSocket(server, {
       maxMessageBytes: HELPER_MAX_BYTES,
       checkUpgrade: (req) => this.checkUpgrade(req),
       onOpen: (c) => {
@@ -153,35 +173,54 @@ export class LinkServer {
       this.serverState = inUse ? "port_in_use" : "failed";
       this.o.logger.warn("link server could not listen", { port: this.o.port, inUse });
       this.changed();
-      if (inUse)
+      if (inUse && !this.isClosed()) {
         this.retry = setTimeout(() => {
           if (!this.closed) void this.start();
         }, PORT_RETRY_MS);
+        this.retry.unref();
+      }
+      return;
+    }
+    if (this.isClosed()) {
+      // closed while it was starting
+      server.close();
       return;
     }
     const addr = server.address();
     this.boundPort = typeof addr === "object" && addr ? addr.port : this.o.port;
     this.server = server;
+    this.ws = ws;
     this.serverState = "listening";
     this.o.logger.info("link server listening", { port: this.boundPort });
     this.changed();
   }
 
-  /** Stops listening, drops the add-on and releases the hotkeys. */
+  /**
+   * Stops listening, drops every connection (the add-on, ones still waiting for hello, plain HTTP ones) and releases
+   * the hotkeys. Resolves within about CLOSE_GRACE_MS whatever the peers do; nothing is reported after it.
+   */
   async close(): Promise<void> {
     this.closed = true;
     if (this.retry) clearTimeout(this.retry);
+    this.retry = null;
+    this.clearLoadTimer();
+    for (const t of this.waiting.values()) clearTimeout(t);
+    this.waiting.clear();
     this.hotkeys.disarm();
-    this.helper?.close(CLOSE.normal);
     this.helper = null;
     const s = this.server;
+    const ws = this.ws;
     this.server = null;
-    if (s)
-      await new Promise<void>((r) => {
-        s.close(() => {
-          r();
-        });
+    this.ws = null;
+    if (!s) return;
+    const stopped = new Promise<void>((r) => {
+      s.close(() => {
+        r();
       });
+    });
+    s.closeAllConnections();
+    await ws?.closeAll(CLOSE.goingAway);
+    await stopped;
   }
 
   get port(): number {
@@ -198,18 +237,53 @@ export class LinkServer {
     };
   }
 
+  /** Read through a call: close() may run while start() awaits. */
+  private isClosed(): boolean {
+    return this.closed;
+  }
+
   get connected(): boolean {
     return this.helper !== null;
   }
 
-  /** Sends a chunk set to the add-on; its state reply settles `send`. */
-  load(set: ChunkSet, buildId: string): void {
-    const h = this.requireHelper();
+  /**
+   * Sends a chunk set to the add-on; its state reply settles `send` (loaded or failed). Without an answer within the
+   * load deadline the send is reported failed with LOAD_TIMEOUT_ERROR's text (the contract has no state of its own for
+   * it); an answer that comes later still settles it. False, and nothing sent, with no add-on connected.
+   */
+  load(set: ChunkSet, buildId: string): boolean {
+    const h = this.helper;
+    if (!h) return false;
     const id = this.nextId++;
     this.pendingLoad = id;
     this.sendState = { state: "sending", buildId, chunks: set.chunks.length, error: null };
+    this.clearLoadTimer();
+    const ms = this.o.loadTimeoutMs ?? LOAD_TIMEOUT_MS;
+    this.loadTimer = setTimeout(() => {
+      this.loadTimer = null;
+      if (this.pendingLoad !== id || this.sendState.state !== "sending") return;
+      this.o.logger.warn("the add-on did not answer a sent set in time", { ms });
+      this.sendState = { ...this.sendState, state: "failed", error: loadTimeoutError(ms) };
+      this.changed();
+    }, ms);
+    this.loadTimer.unref();
     h.send(appMessage(id, { type: "load", set }));
     this.changed();
+    return true;
+  }
+
+  /** The user stopped: a send still waiting for its answer goes back to idle (a late answer is ignored). */
+  stopSend(): void {
+    if (this.pendingLoad === null && this.sendState.state !== "sending") return;
+    this.clearLoadTimer();
+    this.pendingLoad = null;
+    this.sendState = { ...this.sendState, state: "idle", error: null };
+    this.changed();
+  }
+
+  private clearLoadTimer(): void {
+    if (this.loadTimer) clearTimeout(this.loadTimer);
+    this.loadTimer = null;
   }
 
   /** Drops the add-on's connection (it was uninstalled): the set is forgotten and the hotkeys released. */
@@ -227,19 +301,19 @@ export class LinkServer {
     return true;
   }
 
-  private requireHelper(): WsConnection {
-    if (!this.helper) throw new Error("no add-on connected");
-    return this.helper;
-  }
-
+  /** WebSocket only on /link (the add-on's connection test uses plain HTTP /probe). */
   private checkUpgrade(req: IncomingMessage): number | null {
     const path = (req.url ?? "").split("?")[0];
-    if (path !== "/link" && path !== "/probe") return 404;
+    if (path !== "/link") return 404;
     if (!allowedHost(req.headers.host, this.boundPort)) return 403;
     if (!allowedOrigin(req.headers.origin)) {
       this.o.logger.info("link refused a connection from another origin");
-      if (path === "/link") this.refused("origin");
+      this.refused("origin");
       return 403;
+    }
+    if (this.waiting.size >= MAX_PENDING) {
+      this.o.logger.info("link refused a connection: too many waiting for their hello");
+      return 503;
     }
     return null;
   }
@@ -248,22 +322,17 @@ export class LinkServer {
   private readonly waiting = new Map<WsConnection, ReturnType<typeof setTimeout>>();
 
   private onOpen(c: WsConnection): void {
-    if (c.path === "/probe") return;
-    this.waiting.set(
-      c,
-      setTimeout(() => {
-        this.waiting.delete(c);
-        this.refused("protocol");
-        c.close(CLOSE.pairing);
-      }, HELLO_TIMEOUT_MS),
-    );
+    const timer = setTimeout(() => {
+      this.waiting.delete(c);
+      if (this.closed) return;
+      this.refused("protocol");
+      c.close(CLOSE.pairing);
+    }, this.o.helloTimeoutMs ?? HELLO_TIMEOUT_MS);
+    timer.unref();
+    this.waiting.set(c, timer);
   }
 
   private onMessage(c: WsConnection, text: string): void {
-    if (c.path === "/probe") {
-      c.send("hello from Slabyrinth (connection test only; the Link switch makes the real connection)");
-      return;
-    }
     const m = parseHelperMessage(text);
     const timer = this.waiting.get(c);
     if (timer !== undefined) {
@@ -309,6 +378,7 @@ export class LinkServer {
           };
     if (this.pendingLoad !== null && m.replyTo === this.pendingLoad) {
       this.pendingLoad = null;
+      this.clearLoadTimer();
       this.sendState = m.error
         ? { ...this.sendState, state: "failed", error: m.error }
         : { ...this.sendState, state: "loaded", error: null };
@@ -337,9 +407,11 @@ export class LinkServer {
     this.helper = null;
     this.helperInfo = { state: "none", version: null, reason: null };
     this.set = null;
-    this.pendingLoad = null;
-    if (this.sendState.state === "sending")
+    // still waiting for an answer (also past the deadline): the add-on is gone, so it never comes
+    if (this.pendingLoad !== null || this.sendState.state === "sending")
       this.sendState = { ...this.sendState, state: "failed", error: "The add-on disconnected." };
+    this.pendingLoad = null;
+    this.clearLoadTimer();
     this.hotkeys.disarm();
     this.o.logger.info("add-on disconnected");
     this.changed();
@@ -353,6 +425,7 @@ export class LinkServer {
   }
 
   private changed(): void {
+    if (this.closed) return; // nothing is reported after close()
     this.o.onChange(this.status());
   }
 }

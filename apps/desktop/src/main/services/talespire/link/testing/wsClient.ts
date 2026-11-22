@@ -4,11 +4,14 @@
  */
 import { randomBytes } from "node:crypto";
 import { request } from "node:http";
+import { connect as netConnect } from "node:net";
 import type { Duplex } from "node:stream";
 import { OPCODE, encodeFrame, readFrame } from "../wsLite";
 
 export interface TestClient {
   messages: string[];
+  /** The opcode of every frame received, in order. */
+  opcodes: number[];
   /** Close code from the server, once closed. */
   closedWith: number | null;
   send(text: string): void;
@@ -19,9 +22,12 @@ export interface TestClient {
   closed(timeoutMs?: number): Promise<number | null>;
 }
 
+/**
+ * `silent`: a peer that never answers or finishes a close (its socket stays half-open), as a stuck page would.
+ */
 export async function connect(
   port: number,
-  opts: { path?: string; origin?: string | null; host?: string } = {},
+  opts: { path?: string; origin?: string | null; host?: string; silent?: boolean } = {},
 ): Promise<TestClient | { refused: number }> {
   const headers: Record<string, string> = {
     Connection: "Upgrade",
@@ -33,20 +39,28 @@ export async function connect(
   const origin = opts.origin === undefined ? "http://localhost:59998" : opts.origin;
   if (origin !== null) headers["Origin"] = origin;
   return new Promise((resolve, reject) => {
-    const req = request({ host: "127.0.0.1", port, path: opts.path ?? "/link", headers });
+    const req = request({
+      host: "127.0.0.1",
+      port,
+      path: opts.path ?? "/link",
+      headers,
+      ...(opts.silent
+        ? { createConnection: () => netConnect({ host: "127.0.0.1", port, allowHalfOpen: true }) }
+        : {}),
+    });
     req.on("response", (res) => {
       res.resume();
       resolve({ refused: res.statusCode ?? 0 });
     });
     req.on("error", reject);
     req.on("upgrade", (_res, socket: Duplex, head: Buffer) => {
-      resolve(client(socket, head));
+      resolve(client(socket, head, opts.silent === true));
     });
     req.end();
   });
 }
 
-function client(socket: Duplex, head: Buffer): TestClient {
+function client(socket: Duplex, head: Buffer, silent: boolean): TestClient {
   const waiters: Array<() => void> = [];
   const wake = (): void => {
     for (const w of waiters.splice(0)) w();
@@ -54,6 +68,7 @@ function client(socket: Duplex, head: Buffer): TestClient {
   let buf = head;
   const c: TestClient = {
     messages: [],
+    opcodes: [],
     closedWith: null,
     send: (text) => socket.write(encodeFrame(OPCODE.text, text, randomBytes(4))),
     sendRaw: (b) => socket.write(b),
@@ -108,11 +123,14 @@ function client(socket: Duplex, head: Buffer): TestClient {
       const f = readFrame(buf, 64 * 1024 * 1024);
       if (!f || f.kind !== "frame") break;
       buf = buf.subarray(f.length);
+      c.opcodes.push(f.opcode);
       if (f.opcode === OPCODE.text) c.messages.push(f.payload.toString("utf8"));
       if (f.opcode === OPCODE.close) c.closedWith = f.payload.length >= 2 ? f.payload.readUInt16BE(0) : 1005;
     }
     wake();
   };
+  // a silent peer keeps reading (so it sees the close) but never ends its side
+  if (silent) socket.on("end", () => undefined);
   socket.on("data", onData);
   socket.on("close", () => {
     if (c.closedWith === null) c.closedWith = 1006;

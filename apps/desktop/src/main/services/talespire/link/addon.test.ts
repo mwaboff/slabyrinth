@@ -7,7 +7,14 @@ import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { memoryLogger } from "../../../logger";
 import { tempDir } from "../../testing/helpers";
-import { ADDON_FOLDER_NAME, AddonService, folderWarning, plainReason } from "./addon";
+import {
+  ADDON_FOLDER_NAME,
+  AddonService,
+  folderWarning,
+  plainReason,
+  type FileOps,
+  type LinkConfig,
+} from "./addon";
 import { LINK_CONFIG_FILE } from "./protocol";
 import { HELPER_DIR } from "./testing/fakeAddon";
 
@@ -71,6 +78,32 @@ async function installOld(r: Rig, version: string, extra: Record<string, unknown
   );
   await fsp.writeFile(path.join(r.addonDir, "app.js"), "// old\n");
   await fsp.writeFile(path.join(r.addonDir, LINK_CONFIG_FILE), JSON.stringify(PAIRING));
+}
+
+/** The same rig's folders, with some file operations replaced (to make them fail). */
+function withOps(r: Rig, fileOps: Partial<FileOps>, pairing: () => LinkConfig | null = () => PAIRING) {
+  return new AddonService({
+    bundledDir: r.bundled,
+    packageDir: path.join(r.root, "package"),
+    pairing,
+    locate: () => Promise.resolve({ found: { path: r.symbiotes, source: "default" }, tried: [r.symbiotes] }),
+    dismissed: () => undefined,
+    logger: memoryLogger(),
+    fileOps,
+  });
+}
+const busy = (): Promise<never> => Promise.reject(Object.assign(new Error("busy"), { code: "EBUSY" }));
+const full = (): Promise<never> => Promise.reject(Object.assign(new Error("full"), { code: "ENOSPC" }));
+
+/** Fails the `n`th file written (1-based) with ENOSPC, as a disk filling up part way would. */
+function failingWrite(n: number): FileOps["writeFile"] {
+  let count = 0;
+  return (file, data) => (++count === n ? full() : fsp.writeFile(file, data));
+}
+
+/** Our hidden working folders left in the Symbiotes folder. */
+async function leftovers(r: Rig): Promise<string[]> {
+  return (await fsp.readdir(r.symbiotes)).filter((n) => n.startsWith(`.${ADDON_FOLDER_NAME}.`));
 }
 
 async function snapshot(dir: string): Promise<Record<string, string>> {
@@ -148,14 +181,15 @@ describe("install (the user's action)", () => {
     expect(await snapshot(r.addonDir)).toEqual({ "readme.txt": "mine" });
   });
 
-  it("a failed copy reports a plain reason and leaves the old version readable", async () => {
+  it("a failed copy reports a plain reason and leaves the old version as it was", async () => {
     const r = await rig();
     await installOld(r, "0.0.1");
-    // a folder where a file must go: the rename fails on every platform
-    await fsp.rm(path.join(r.addonDir, "app.js"));
-    await fsp.mkdir(path.join(r.addonDir, "app.js"));
-    await expect(r.service.install()).rejects.toMatchObject({ code: "io" });
-    const s = await r.service.status();
+    const before = await snapshot(r.addonDir);
+    const service = withOps(r, { writeFile: failingWrite(3) });
+    await expect(service.install()).rejects.toMatchObject({ code: "io", message: "The disk is full." });
+    expect(await snapshot(r.addonDir)).toEqual(before);
+    expect(await leftovers(r)).toEqual([]);
+    const s = await service.status();
     expect(s).toMatchObject({
       state: "outdated",
       installedVersion: "0.0.1",
@@ -177,7 +211,7 @@ describe("automatic update at start", () => {
     expect(await fsp.readdir(r.symbiotes)).toEqual([]);
   });
 
-  it("installed and older: updated, pairing file kept, other add-ons untouched", async () => {
+  it("installed and older: updated, pairing file kept, stale files gone, other add-ons untouched", async () => {
     const r = await rig();
     await installOld(r, "0.0.1");
     await fsp.writeFile(
@@ -186,7 +220,7 @@ describe("automatic update at start", () => {
     );
     await fsp.mkdir(path.join(r.symbiotes, "other-addon"));
     await fsp.writeFile(path.join(r.symbiotes, "other-addon", "manifest.json"), "{}");
-    await fsp.writeFile(path.join(r.addonDir, "my-notes.txt"), "keep me");
+    await fsp.writeFile(path.join(r.addonDir, "removed-in-this-version.js"), "// old\n");
     const s = await r.service.autoUpdate();
     expect(s.installedVersion).toBe(r.bundledVersion);
     expect(s.update).toMatchObject({
@@ -198,9 +232,10 @@ describe("automatic update at start", () => {
     expect(s.prompt.show).toBe(false);
     const files = await snapshot(r.addonDir);
     expect(JSON.parse(files[LINK_CONFIG_FILE] ?? "")).toEqual({ port: 5555, token: "e".repeat(48) });
-    expect(files["my-notes.txt"]).toBe("keep me");
+    expect(files["removed-in-this-version.js"]).toBeUndefined();
     expect(files["app.js"]).toBe(await fsp.readFile(path.join(r.bundled, "app.js"), "utf8"));
     expect(await snapshot(path.join(r.symbiotes, "other-addon"))).toEqual({ "manifest.json": "{}" });
+    expect(await leftovers(r)).toEqual([]);
   });
 
   it("installed and the same or newer: writes nothing", async () => {
@@ -225,19 +260,31 @@ describe("automatic update at start", () => {
   it("a failed copy is reported, never thrown; the prompt offers the update with the reason, once per version", async () => {
     const r = await rig();
     await installOld(r, "0.0.1");
-    await fsp.rm(path.join(r.addonDir, "app.js"));
-    await fsp.mkdir(path.join(r.addonDir, "app.js"));
-    const s = await r.service.autoUpdate();
+    // a file in use: the old folder cannot be renamed away
+    let inUse = true;
+    const service = new AddonService({
+      bundledDir: r.bundled,
+      packageDir: path.join(r.root, "package"),
+      pairing: () => PAIRING,
+      locate: () =>
+        Promise.resolve({ found: { path: r.symbiotes, source: "default" }, tried: [r.symbiotes] }),
+      dismissed: () => r.dismissed.version,
+      logger: memoryLogger(),
+      fileOps: { rename: (a, b) => (inUse ? busy() : fsp.rename(a, b)) },
+    });
+    const s = await service.autoUpdate();
     expect(s.state).toBe("outdated");
     expect(s.update).toMatchObject({ state: "failed", automatic: true, from: "0.0.1" });
+    expect(s.update.error).toMatch(/in use.*Close TaleSpire/);
     expect(s.prompt.show).toBe(true);
     expect(s.prompt.reason).toMatch(/^Updating it by itself failed: /);
+    expect(await leftovers(r)).toEqual([]);
     // "don't ask again" for this bundled version: the status stays outdated, the prompt closes
     r.dismissed.version = r.bundledVersion;
-    expect(await r.service.status()).toMatchObject({ state: "outdated", prompt: { show: false } });
+    expect(await service.status()).toMatchObject({ state: "outdated", prompt: { show: false } });
     // the one-click retry, once the cause is gone
-    await fsp.rm(path.join(r.addonDir, "app.js"), { recursive: true });
-    expect(await r.service.install()).toMatchObject({
+    inUse = false;
+    expect(await service.install()).toMatchObject({
       state: "installed",
       update: { state: "updated", automatic: false },
     });
@@ -250,6 +297,69 @@ describe("automatic update at start", () => {
     const s = await r.service.status();
     expect(s).toMatchObject({ state: "outdated", prompt: { show: true } });
     expect(s.prompt.reason).toMatch(/after Slabyrinth started/);
+  });
+});
+
+describe("install and update through a staging folder", () => {
+  it("a first install that stops part way leaves no half-copy: the next install works", async () => {
+    const r = await rig();
+    for (const n of [1, 2, 5]) {
+      const broken = withOps(r, { writeFile: failingWrite(n) });
+      await expect(broken.install()).rejects.toMatchObject({ code: "io", message: "The disk is full." });
+      // never "foreign" (which would lock install and uninstall out): there is simply nothing there
+      expect((await broken.status()).state).toBe("missing");
+      expect(await fsp.readdir(r.symbiotes)).toEqual([]);
+    }
+    expect((await r.service.install()).state).toBe("installed");
+  });
+
+  it("the app killed part way: the next run clears its hidden leftovers and installs", async () => {
+    const r = await rig();
+    await fsp.mkdir(path.join(r.symbiotes, `.${ADDON_FOLDER_NAME}.installing-0badc0de`));
+    await fsp.writeFile(path.join(r.symbiotes, `.${ADDON_FOLDER_NAME}.installing-0badc0de`, "app.js"), "//");
+    await fsp.mkdir(path.join(r.symbiotes, `.${ADDON_FOLDER_NAME}.removing-12345678`));
+    // not ours by name: kept
+    await fsp.mkdir(path.join(r.symbiotes, `.${ADDON_FOLDER_NAME}.mine`));
+    await fsp.mkdir(path.join(r.symbiotes, "other-addon"));
+    expect((await r.service.install()).state).toBe("installed");
+    expect((await fsp.readdir(r.symbiotes)).sort()).toEqual(
+      [`.${ADDON_FOLDER_NAME}.mine`, ADDON_FOLDER_NAME, "other-addon"].sort(),
+    );
+  });
+
+  it("a swap that stopped between its two renames: the old copy is put back, then updated", async () => {
+    const r = await rig();
+    await installOld(r, "0.0.1");
+    const hidden = path.join(r.symbiotes, `.${ADDON_FOLDER_NAME}.old-deadbeef`);
+    await fsp.rename(r.addonDir, hidden);
+    await fsp.mkdir(path.join(r.symbiotes, `.${ADDON_FOLDER_NAME}.installing-deadbeef`));
+    expect((await r.service.status()).state).toBe("missing");
+    const s = await r.service.autoUpdate();
+    expect(s).toMatchObject({ state: "installed", update: { state: "updated", from: "0.0.1" } });
+    // its pairing file came back with it, and was kept by the update
+    expect(JSON.parse(await fsp.readFile(path.join(r.addonDir, LINK_CONFIG_FILE), "utf8"))).toEqual(PAIRING);
+    expect(await leftovers(r)).toEqual([]);
+  });
+
+  it("the new folder cannot be moved in: the old one is put back as it was", async () => {
+    const r = await rig();
+    await installOld(r, "0.0.1");
+    const before = await snapshot(r.addonDir);
+    const service = withOps(r, {
+      rename: (a, b) => (path.basename(a).includes(".installing-") ? busy() : fsp.rename(a, b)),
+    });
+    await expect(service.install()).rejects.toMatchObject({ code: "io", message: /in use/ });
+    expect(await snapshot(r.addonDir)).toEqual(before);
+    expect(await leftovers(r)).toEqual([]);
+  });
+
+  it("a pairing not ready yet: install refuses in plain words, status says mismatch, nothing throws", async () => {
+    const r = await rig();
+    const early = withOps(r, {}, () => null);
+    await expect(early.install()).rejects.toMatchObject({ code: "io", message: /still starting/ });
+    expect(await fsp.readdir(r.symbiotes)).toEqual([]);
+    await r.service.install();
+    expect(await early.status()).toMatchObject({ state: "mismatch", mismatch: ["token", "port"] });
   });
 });
 
@@ -283,28 +393,11 @@ describe("uninstall (the user's action)", () => {
     expect((await fsp.lstat(l.addonDir)).isSymbolicLink()).toBe(true);
   });
 
-  function withRemoval(
-    r: Rig,
-    removal: NonNullable<ConstructorParameters<typeof AddonService>[0]["removal"]>,
-  ) {
-    return new AddonService({
-      bundledDir: r.bundled,
-      packageDir: path.join(r.root, "package"),
-      pairing: () => PAIRING,
-      locate: () =>
-        Promise.resolve({ found: { path: r.symbiotes, source: "default" }, tried: [r.symbiotes] }),
-      dismissed: () => undefined,
-      logger: memoryLogger(),
-      removal,
-    });
-  }
-  const busy = (): Promise<never> => Promise.reject(Object.assign(new Error("busy"), { code: "EBUSY" }));
-
   it("a file in use stops it before anything is deleted, with a plain reason", async () => {
     const r = await rig();
     await r.service.install();
     const before = await snapshot(r.addonDir);
-    const s = withRemoval(r, { rename: busy, rm: () => Promise.resolve() });
+    const s = withOps(r, { rename: busy, rm: () => Promise.resolve() });
     await expect(s.uninstall(false)).rejects.toMatchObject({ code: "io", message: /in use/ });
     expect(await snapshot(r.addonDir)).toEqual(before);
     expect((await s.status()).state).toBe("installed");
@@ -313,7 +406,7 @@ describe("uninstall (the user's action)", () => {
   it("a delete that stops half way says where the files are left, and TaleSpire no longer sees the add-on", async () => {
     const r = await rig();
     await r.service.install();
-    const s = withRemoval(r, { rename: (a, b) => fsp.rename(a, b), rm: busy });
+    const s = withOps(r, { rm: busy });
     await expect(s.uninstall(false)).rejects.toMatchObject({
       code: "io",
       message: /some files are left in .*\.slabyrinth-helper\.removing-/,
