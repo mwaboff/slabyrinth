@@ -7,7 +7,9 @@ import type { FeatureType, Side } from "../../contracts/plan";
 import { featureInfo } from "../catalog";
 import type { GeneratedPlacement, PlacementGrid, ScatterResult } from "../placementGrid";
 import { EDGE_WALL, SIDES, SIDE_ROT, cellKey } from "../gridGeometry";
+import type { LightLevel } from "../roomTraits";
 import { ROOM_DRESS } from "./recipes";
+import { lightPassage } from "./regimes";
 import { type Placed, Room, clampTo, touchShift } from "./room";
 
 /** What `light` asks for. */
@@ -260,7 +262,8 @@ export function lightArea(
     remaining: number;
     every: number;
     abandoned: boolean;
-    occupancy?: { length?: number };
+    /** `passageLevel` (generator 5, lightRegimes): a passage lit at its doors or junctions at the scene's level. */
+    occupancy?: { length?: number; passageLevel?: LightLevel };
   },
 ): ScatterResult {
   const room = new Room(
@@ -275,6 +278,11 @@ export function lightArea(
   const smallest = p.occupancy === undefined ? 6 : OCCUPANCY.smallestLit;
   if (n < smallest || grid.piece4 === undefined) return { placements: [], capped: false };
   const length = p.occupancy?.length;
+  const passageLevel = p.occupancy?.passageLevel;
+  if (length !== undefined && passageLevel !== undefined) {
+    lightPassage(room, { level: passageLevel, length, abandoned: p.abandoned });
+    return { placements: room.out, capped: room.capped };
+  }
   const target =
     p.occupancy === undefined || p.abandoned
       ? lightTarget(n, p.abandoned, p.every)

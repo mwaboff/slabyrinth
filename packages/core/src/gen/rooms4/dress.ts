@@ -7,7 +7,9 @@ import type { FeatureType } from "../../contracts/plan";
 import { gridProfile, type PlacementGrid, type ScatterResult } from "../placementGrid";
 import { ROOM_PURPOSE_INFO, type FurnishedPurpose, type RoomKind } from "../roomPurpose";
 import { SURFACE_LOAD } from "../surfaces";
+import type { SceneLight } from "../lightLevels";
 import { furnishRoom } from "./furnish";
+import type { RoomLightPlan } from "./regimes";
 import { light, lightTarget } from "./lights";
 import { FILL_GAIN, ROOM_DRESS, ROOM_RECIPES_4, pickSpec, type Spec, type Variant } from "./recipes";
 import { Room } from "./room";
@@ -27,6 +29,8 @@ export interface RoomDressParams {
   have?: readonly FeatureType[];
   /** Generator 5: what the room is furnished as (gen/roomPurpose.ts RoomClass.kind); the purpose when absent. */
   kind?: RoomKind;
+  /** Generator 5 (lightRegimes): the room's light level and regime (gen/rooms4/regimes.ts drawLighting), the scene's. */
+  lighting?: { plan: RoomLightPlan; scene: SceneLight };
 }
 
 /**

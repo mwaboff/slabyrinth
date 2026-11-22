@@ -20,7 +20,12 @@
  *   minimum    the minimum convincing set: the names of the pieces (the anchor, companions, "light") a room of the kind
  *              must show to read as its kind; a room too small for the whole group gets these first;
  *   nearWall   share of blockers within a tile of a wall (low, high), and `clear` the floor share not under a blocker:
- *              what the review by purpose (package B) and the floor groups (package D) read, through `roomTargets`.
+ *              what the review by purpose (package B) and the floor groups (package D) read, through `roomTargets`;
+ *   order      how tidily its loose things are set (package P, switch placementOrder);
+ *   floor      what stands away from its walls: floor groups, station rows, rows along the long walls, an island
+ *              (package D, switch floorGroups);
+ *   lighting   its light level in a moderate scene, the range it keeps whatever the scene, and the regimes it may draw
+ *              (switch lightRegimes).
  *
  * Pieces are feature types with stand-ins tried in order where the palettes have no role for the thing (a nightstand
  * is a small crate, then a chest, then a stool); a companion the theme has no piece for is left out, never replaced
@@ -102,6 +107,69 @@ export interface LiningSpec extends Spec {
 
 export type RoomLayout = "wall" | "floorGroups" | "stationRows" | "workLine" | "storeAisle";
 
+/**
+ * Generator 5 (switch `placementOrder`): how a room of the kind holds its things. `tidy` sets loose things square and
+ * regular (a study, a shrine, a ward); `lived`, `working` and `messy` let them lie as hands left them, more and more
+ * loosely. Structure and big furniture stay on quarter turns at every order; a building's condition never changes it.
+ */
+export type RoomOrder = "tidy" | "lived" | "working" | "messy";
+
+/** One free-standing unit of a floor plan: an anchor and its companions (a table and its seats, a bed and its stand). */
+export interface FloorUnit {
+  readonly name: string;
+  readonly anchor: Spec;
+  readonly companions: readonly Companion[];
+  /** A light belongs on the anchor's top (a candle on a table in use). */
+  readonly light?: boolean;
+  /** Draw weight among the plan's units: the first is the common one, the light ones the odd ones out. */
+  readonly weight: number;
+}
+
+/**
+ * Generator 5 (switch `floorGroups`): what stands in the room away from its walls.
+ *   groups    free-standing groups in the middle (tables with seats facing in), staggered, centres `pitch` apart, a
+ *             lane kept between groups and from every door to every group; some turned a quarter (`turned`);
+ *   rows      units in strict lines facing the room's focus (desks and their chairs facing the master's desk);
+ *   wallRows  units in a row along each long wall at `pitch` with an aisle down the middle (bunks, beds, stalls,
+ *             stacks of stock);
+ *   island    free-standing units on the room's long axis (a work table, a middle row of stock).
+ * `share` caps the floor the units and their seats take; a room under `minCells` floor tiles keeps what it has.
+ */
+export interface FloorPlan {
+  readonly mode: "groups" | "rows" | "wallRows" | "island";
+  readonly units: readonly [FloorUnit, ...FloorUnit[]];
+  readonly pitch: readonly [number, number];
+  readonly share: number;
+  readonly minCells: number;
+  readonly turned?: number;
+  /** Island only: the room must be at least this many tiles across its long axis. */
+  readonly minWidth?: number;
+}
+
+/**
+ * Generator 5 (switch `lightRegimes`): light levels on one scale, dark (0) to flooded (4). The scene has one
+ * (gen/lightLevels.ts); a room's level is its kind's default moved by the scene and held in the kind's range.
+ */
+export type LightLevel = 0 | 1 | 2 | 3 | 4;
+
+/**
+ * Where a room's lights go (one per room, drawn by weight from those its kind allows):
+ *   surfaces    on the tables, desks and nightstands in use, no wall rhythm;
+ *   threshold   a pair at the main door, little else;
+ *   focal       a standing light beside the room's focal group or hearth, the perimeter dim;
+ *   wallRhythm  wall lights at an even pitch (one option, never the default);
+ *   dimStore    one light at the door, or none.
+ */
+export type LightRegime = "surfaces" | "threshold" | "focal" | "wallRhythm" | "dimStore";
+
+export interface RoomLighting {
+  /** The kind's level in a moderate scene. */
+  readonly level: LightLevel;
+  /** The levels a room of the kind may take, whatever the scene. */
+  readonly range: readonly [LightLevel, LightLevel];
+  readonly regimes: Readonly<Partial<Record<LightRegime, number>>>;
+}
+
 export interface RoomTraits {
   readonly host: FurnishedPurpose;
   readonly layout: RoomLayout;
@@ -122,6 +190,12 @@ export interface RoomTraits {
   readonly minimum: readonly string[];
   readonly nearWall: readonly [number, number];
   readonly clear: readonly [number, number];
+  /** Generator 5: how tidily its things are set (switch placementOrder). */
+  readonly order: RoomOrder;
+  /** Generator 5: what stands away from its walls (switch floorGroups); none for a room laid along its walls. */
+  readonly floor: readonly FloorPlan[];
+  /** Generator 5: its light level and the regimes it may draw (switch lightRegimes). */
+  readonly lighting: RoomLighting;
 }
 
 // ───────────────────────────── pieces and their stand-ins ─────────────────────────────
@@ -187,7 +261,10 @@ const seatsFront = (name: string, pieces: readonly PieceChoice[], gap: number): 
 
 // ───────────────────────────── the table ─────────────────────────────
 
-export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = {
+/** The columns of packages A and C (what a room is furnished with); `ORDER_FLOOR_LIGHT` adds the rest. */
+type BaseTraits = Omit<RoomTraits, "order" | "floor" | "lighting">;
+
+const BASE_TRAITS: Readonly<Record<RoomKind, BaseTraits>> = {
   tavern: {
     host: "tavern",
     layout: "floorGroups",
@@ -872,6 +949,198 @@ export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = {
     clear: [0.4, 0.55],
   },
 };
+
+// ───────────────────────────── order, floor plans and lighting (generator 5, packages P, D and L) ─────────────────
+
+const U = (
+  name: string,
+  anchor: Spec,
+  companions: readonly Companion[],
+  weight: number,
+  light = true,
+): FloorUnit => ({ name, anchor, companions, weight, ...(light ? { light: true } : {}) });
+
+/** Seats along the anchor's back face (the far side of a table), facing it. */
+const seatsBack = (pieces: readonly PieceChoice[], chance?: number): Companion =>
+  C("seat", pieces, "back", { count: "perTile", gap: 0.2, ...(chance !== undefined ? { chance } : {}) });
+
+/** A table with seats both sides (one side some of the time): the common drinking or dining group. */
+const TABLE_GROUP = U(
+  "table",
+  A("table", { top: "table" }),
+  [seatsFront("seat", CHAIR, 0.2), seatsBack(CHAIR, 0.75)],
+  4,
+);
+/** A round table on a 2 × 2 with stools round it, ends some of the time. */
+const ROUND_GROUP = U(
+  "round table",
+  A("round_table", { size: [2, 2], top: "table" }),
+  [
+    seatsFront("seat", STOOL, 0.2),
+    seatsBack(STOOL),
+    C("seat", STOOL, "head", { gap: 0.2, count: 2, chance: 0.5 }),
+  ],
+  3,
+);
+/** The odd one out: drinkers standing at a barrel, a stool or two. */
+const BARREL_GROUP = U(
+  "standing barrel",
+  A("barrel", { top: "table" }),
+  [seatsFront("stool", STOOL, 0.25)],
+  1,
+);
+const LONG_TABLE = U(
+  "long table",
+  A("table", { run: 2, top: "table" }),
+  [seatsFront("seat", CHAIR, 0.2), seatsBack(CHAIR)],
+  3,
+);
+const LOW_TABLE = U(
+  "low table",
+  A("round_table", { size: [2, 2], top: "study" }),
+  [
+    seatsFront("seat", CHAIR, 0.3),
+    seatsBack(CHAIR, 0.8),
+    C("seat", CHAIR, "head", { gap: 0.3, chance: 0.6 }),
+  ],
+  2,
+);
+const DISPLAY = U("display", A("table", { top: "store" }), [], 3, false);
+const STOCK_BARREL = U("stock", A("barrel", { top: "store" }), [], 1, false);
+const PUPIL_DESK = U("desk", A("desk", { top: "study" }), [seatsFront("chair", CHAIR, 0.18)], 1);
+const BUNK = U(
+  "bunk",
+  A("bunk_bed"),
+  [C("chest", CHEST, "front", { gap: 0.2, facing: "same", chance: 0.35 })],
+  5,
+  false,
+);
+const ROW_CHEST = U("chest", A("chest", { top: "table" }), [], 1, false);
+const WARD_BED = U(
+  "bed",
+  A("bed"),
+  [C("nightstand", NIGHTSTAND, "head", { gap: 0.1, facing: "same", light: true, chance: 0.7 })],
+  5,
+  false,
+);
+const TROUGH = U(
+  "trough",
+  A("barrel", { run: 2 }),
+  [C("feed", [P("sack"), P("crate")], "head", { facing: "same", gap: 0.1 })],
+  3,
+  false,
+);
+const FEED = U("feed", A("sack"), [], 1, false);
+const STACK = U("stack", A("crate", { stack: true, variant: "small" }), [], 3, false);
+const STORE_BARRELS = U("barrels", A("barrel", { top: "store" }), [], 3, false);
+const SACKS = U("sacks", A("sack"), [], 1, false);
+const WORK_TABLE = U(
+  "work table",
+  A("table", { top: "table" }),
+  [seatsFront("stool", STOOL, 0.25)],
+  1,
+  false,
+);
+const LAB_BENCH = U("bench", A("table", { top: "shelf" }), [seatsFront("stool", STOOL, 0.25)], 1);
+
+const floorGroups = (
+  units: FloorPlan["units"],
+  share: number,
+  minCells: number,
+  turned: number,
+): FloorPlan => ({ mode: "groups", units, pitch: [2, 3], share, minCells, turned });
+
+const LIT = (
+  level: LightLevel,
+  range: readonly [LightLevel, LightLevel],
+  regimes: RoomLighting["regimes"],
+): RoomLighting => ({ level, range, regimes });
+
+/** Packages P, D and L: each kind's order, floor plans and lighting. */
+const ORDER_FLOOR_LIGHT: Readonly<Record<RoomKind, Pick<RoomTraits, "order" | "floor" | "lighting">>> = {
+  tavern: {
+    order: "lived",
+    floor: [floorGroups([TABLE_GROUP, ROUND_GROUP, BARREL_GROUP], 0.32, 30, 0.3)],
+    lighting: LIT(1, [1, 3], { surfaces: 3, focal: 2, threshold: 1, wallRhythm: 1 }),
+  },
+  dining: {
+    order: "lived",
+    floor: [floorGroups([LONG_TABLE, TABLE_GROUP], 0.35, 24, 0.15)],
+    lighting: LIT(2, [1, 3], { surfaces: 3, focal: 1, wallRhythm: 1 }),
+  },
+  kitchen: {
+    order: "working",
+    floor: [{ mode: "island", units: [WORK_TABLE], pitch: [2, 3], share: 0.12, minCells: 30 }],
+    lighting: LIT(2, [1, 3], { focal: 3, surfaces: 1, wallRhythm: 1 }),
+  },
+  library: { order: "tidy", floor: [], lighting: LIT(2, [2, 3], { surfaces: 3, wallRhythm: 1 }) },
+  study: { order: "tidy", floor: [], lighting: LIT(2, [1, 3], { surfaces: 3, focal: 1 }) },
+  armoury: {
+    order: "working",
+    floor: [],
+    lighting: LIT(1, [0, 2], { threshold: 2, wallRhythm: 1, dimStore: 1 }),
+  },
+  barracks: {
+    order: "lived",
+    floor: [{ mode: "wallRows", units: [BUNK, ROW_CHEST], pitch: [2, 2], share: 0.45, minCells: 20 }],
+    lighting: LIT(1, [1, 2], { threshold: 2, surfaces: 1, wallRhythm: 1 }),
+  },
+  bedroom: { order: "lived", floor: [], lighting: LIT(1, [1, 2], { surfaces: 3, focal: 1 }) },
+  storeroom: {
+    order: "messy",
+    floor: [
+      { mode: "wallRows", units: [STACK, STORE_BARRELS, SACKS], pitch: [1, 1], share: 0.5, minCells: 16 },
+      { mode: "island", units: [STACK, STORE_BARRELS], pitch: [1, 2], share: 0.2, minCells: 40, minWidth: 7 },
+    ],
+    lighting: LIT(0, [0, 1], { dimStore: 1 }),
+  },
+  shrine: { order: "tidy", floor: [], lighting: LIT(2, [1, 3], { focal: 3, threshold: 1 }) },
+  crypt: { order: "messy", floor: [], lighting: LIT(0, [0, 1], { dimStore: 1 }) },
+  prison: { order: "messy", floor: [], lighting: LIT(0, [0, 1], { threshold: 1, dimStore: 1 }) },
+  forge: { order: "working", floor: [], lighting: LIT(2, [1, 3], { focal: 3 }) },
+  laboratory: {
+    order: "working",
+    floor: [{ mode: "island", units: [LAB_BENCH], pitch: [2, 3], share: 0.12, minCells: 30 }],
+    lighting: LIT(2, [2, 3], { surfaces: 2, wallRhythm: 1 }),
+  },
+  treasury: { order: "tidy", floor: [], lighting: LIT(1, [0, 2], { threshold: 1, focal: 1 }) },
+  washroom: { order: "working", floor: [], lighting: LIT(1, [0, 2], { threshold: 1, dimStore: 1 }) },
+  throne_room: {
+    order: "tidy",
+    floor: [],
+    lighting: LIT(3, [2, 4], { focal: 2, wallRhythm: 2, threshold: 1 }),
+  },
+  shop: {
+    order: "working",
+    floor: [{ mode: "island", units: [DISPLAY, STOCK_BARREL], pitch: [2, 3], share: 0.15, minCells: 30 }],
+    lighting: LIT(2, [2, 3], { surfaces: 2, threshold: 1, wallRhythm: 1 }),
+  },
+  stable: {
+    order: "working",
+    floor: [{ mode: "wallRows", units: [TROUGH, FEED], pitch: [2, 3], share: 0.4, minCells: 20 }],
+    lighting: LIT(1, [0, 2], { threshold: 2, dimStore: 1 }),
+  },
+  lounge: {
+    order: "lived",
+    floor: [floorGroups([LOW_TABLE, TABLE_GROUP], 0.22, 30, 0.5)],
+    lighting: LIT(1, [1, 3], { focal: 2, surfaces: 2 }),
+  },
+  classroom: {
+    order: "tidy",
+    floor: [{ mode: "rows", units: [PUPIL_DESK], pitch: [2, 2], share: 0.4, minCells: 24 }],
+    lighting: LIT(3, [2, 4], { wallRhythm: 2, surfaces: 1 }),
+  },
+  command: { order: "tidy", floor: [], lighting: LIT(3, [2, 4], { surfaces: 2, wallRhythm: 1, focal: 1 }) },
+  ward: {
+    order: "tidy",
+    floor: [{ mode: "wallRows", units: [WARD_BED], pitch: [2, 2], share: 0.45, minCells: 20 }],
+    lighting: LIT(3, [2, 4], { wallRhythm: 2, surfaces: 1 }),
+  },
+};
+
+export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = Object.fromEntries(
+  (Object.keys(BASE_TRAITS) as RoomKind[]).map((k) => [k, { ...BASE_TRAITS[k], ...ORDER_FLOOR_LIGHT[k] }]),
+) as Record<RoomKind, RoomTraits>;
 
 /** The kinds the table covers, every furnished purpose first, then the new kinds. */
 export const ROOM_KINDS = Object.keys(ROOM_TRAITS) as RoomKind[];

@@ -192,6 +192,8 @@ export function commitCand(
   }
   if (after) room.reach = after;
   pushAll(room.placed, placed);
+  // generator 5: a seat or a bed keeps a free cell beside it (RoomOpts.standingRoom)
+  if (info.seat === true || spec.type === "bed" || spec.type === "bunk_bed") room.keepStanding(c.cells);
   return placed;
 }
 

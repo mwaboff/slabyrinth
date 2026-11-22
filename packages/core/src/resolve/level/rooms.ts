@@ -16,7 +16,15 @@ import { SIDES, SIDE_STEP } from "../../gen/gridGeometry";
 import { isGap, openingWidth } from "../../gen/openingKinds";
 import type { ScatterResult } from "../../gen/placementGrid";
 import { furnishedPurpose } from "../../gen/roomPurpose";
-import { SMALLEST_FURNISHED, dressRoom, lightArea } from "../../gen/rooms4";
+import { type SceneLight, sceneLight } from "../../gen/lightLevels";
+import {
+  SMALLEST_FURNISHED,
+  type LitNeighbour,
+  type RoomLightPlan,
+  drawLighting,
+  dressRoom,
+  lightArea,
+} from "../../gen/rooms4";
 import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed, h32, hashUnit, subSeed } from "../../util/hash";
@@ -393,6 +401,14 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
   for (const op of work.level.terrain) if (op.op === "dress" && op.area !== undefined) dressed.add(op.area);
   const grid = features.placementGrid();
   if (grid.piece4 === undefined) return;
+  // generator 5 (lightRegimes): the scene's light level from the plan's words, and the rooms lit so far
+  const scene = work.profile.lightRegimes
+    ? sceneLight({
+        theme: work.plan.theme,
+        texts: [work.plan.title, work.plan.summary, work.plan.kind, work.level.name],
+      })
+    : undefined;
+  const lit: LitNeighbour[] = [];
   for (const info of work.areas) {
     if (info.kind !== "room" && info.kind !== "corridor") continue;
     const area = info.area;
@@ -413,9 +429,29 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
     const ruin = purpose === "ruin";
     let res: ScatterResult | null = null;
     if (info.kind === "room" && furnishedPurpose(purpose) && lightly && !dressed.has(area.id)) {
+      // the room's light level and regime, its near rooms' regimes weighing less
+      let lighting: { plan: RoomLightPlan; scene: SceneLight } | undefined;
+      if (scene !== undefined) {
+        const at: [number, number] = [
+          cells.reduce((a, c) => a + c[0] + 0.5, 0) / cells.length,
+          cells.reduce((a, c) => a + c[1] + 0.5, 0) / cells.length,
+        ];
+        const plan = drawLighting({
+          kind: kind ?? purpose,
+          scene,
+          words: [area.name, ...(area.tags ?? []), area.notes],
+          seed,
+          at,
+          neighbours: lit,
+          abandoned,
+        });
+        if (plan.regime !== null) lit.push({ at, regime: plan.regime });
+        lighting = { plan, scene };
+      }
       res = dressRoom(grid, {
         purpose,
         ...(kind !== undefined ? { kind } : {}),
+        ...(lighting !== undefined ? { lighting } : {}),
         abandoned,
         areaIndex: info.index + 1,
         areaCells: cells,
@@ -439,7 +475,16 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
         abandoned,
         // generator 5: a lived-in place down to 3 tiles is lit, a passage by its length
         ...(work.profile.occupancyLights
-          ? { occupancy: info.kind === "corridor" ? { length: lengthOf(cells) } : {} }
+          ? {
+              occupancy:
+                info.kind === "corridor"
+                  ? {
+                      length: lengthOf(cells),
+                      // generator 5 (lightRegimes): lit at its doors or junctions by the scene's level
+                      ...(scene !== undefined ? { passageLevel: scene.level } : {}),
+                    }
+                  : {},
+            }
           : {}),
       });
     }
