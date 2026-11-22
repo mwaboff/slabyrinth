@@ -669,6 +669,8 @@ export default tseslint.config(
       "**/.tsbuild/**",
       "**/playwright-report/**",
       "**/test-results/**",
+      // Agent worktrees: separate checkouts, linted in their own tree.
+      ".claude/worktrees/**",
       "docs/**",
       "data/**",
       "tools/**",

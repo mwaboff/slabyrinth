@@ -53,6 +53,9 @@ desktop.ini
 !.vscode/extensions.json
 .idea/
 
+# Agent worktrees (each is its own checkout)
+.claude/worktrees/
+
 # Internal working notes kept local
 docs/internal/
 
