@@ -396,6 +396,10 @@ const SWITCHES = {
     5,
     "The review notes an area the party reaches by a one-way drop with no walk back (drop_trap_dead, review/layoutNotes.ts).",
   ),
+  waterUnderFloors: on(
+    5,
+    "A level's water surface and range stay a quarter tile under the dry floors of other levels inside its water's footprint (a ship's hold in the harbour), and a water_level warning names a floor the lowest sensible water would still flood (resolve/level/waterSurface.ts capWaterUnderOtherFloors).",
+  ),
   wallFootGrowth: on(
     5,
     "Detail recipe: growth at the foot of a worn, ramshackle or ruined building's walls with no door, more away from its doors and least on its street face (resolve/recipes/condition.ts).",

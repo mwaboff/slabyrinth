@@ -5,7 +5,7 @@
  */
 import type { Box3, PlacedAsset, Placement, PlacementRole, PlacementSet } from "../../contracts/compiler";
 import type { LevelId } from "../../contracts/plan";
-import { CELL, CELL_FLAG, type ResolvedLevel } from "../../contracts/resolved";
+import { waterRangeOf } from "../../resolve/level/waterSurface";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { MARKER_ROLE } from "../../palette/roles";
 import type { BuildFacts } from "../buildFacts";
@@ -54,26 +54,6 @@ export interface RealizeOutput {
   readonly levelInfo: RealizedSet["levelInfo"];
   /** World box of every level. */
   readonly allBox: Box3;
-}
-
-/** Water surface range of a level: a quarter tile above its highest water bed to a quarter below its lowest dry bank. */
-function waterRangeOf(L: ResolvedLevel): [number, number] {
-  const { w, h } = L.bounds;
-  const top = (i: number): number => L.elevation + (L.cells.height[i] ?? 0) / 4 + 0.5;
-  const floor = (i: number): boolean =>
-    L.cells.state[i] === CELL.OPEN && ((L.cells.flags[i] ?? 0) & CELL_FLAG.NO_FLOOR) === 0;
-  const wet = (i: number): boolean => ((L.cells.flags[i] ?? 0) & CELL_FLAG.WATER) !== 0;
-  let bed = -Infinity;
-  let bank = Infinity;
-  for (let i = 0; i < w * h; i++) {
-    if (!floor(i) || !wet(i)) continue;
-    bed = Math.max(bed, top(i));
-    const x = i % w;
-    for (const j of [i - w, i + w, x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1])
-      if (j >= 0 && j < w * h && floor(j) && !wet(j)) bank = Math.min(bank, top(j));
-  }
-  const lo = bed + 0.25;
-  return [lo, Number.isFinite(bank) ? Math.max(lo, bank - 0.25) : lo];
 }
 
 /** Drops omitted layers, sorts the level's placements into their deterministic order and records the level. */

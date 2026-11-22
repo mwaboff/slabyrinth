@@ -14,6 +14,7 @@ import { detailBudgets } from "./recipes/budget";
 import { linkFloorOpenings } from "./level/floorOpenings";
 import type { ResolveGrid } from "./level/grid";
 import { toResolved } from "./level/output";
+import { capWaterUnderOtherFloors } from "./level/waterSurface";
 import { ResolveLevelState } from "./level/state";
 import { type ThemeDefaults, themeDefaults as themeDefaultsOf } from "./themes";
 import type { ResolvePalettes } from "../palette/resolve";
@@ -84,6 +85,8 @@ export function resolvePlan(
     if (w) runDetail(w, r, budgets.get(r.id) ?? 0);
   }
   const levels = finished.sort((a, b) => a.r.elevation - b.r.elevation || a.i - b.i).map((x) => x.r);
+  // generator 5: the board's one water plane stays under the dry floors of other levels inside the water
+  if (profile.waterUnderFloors) capWaterUnderOtherFloors(levels, issues);
 
   const keep = opts.levels ? new Set(opts.levels) : null;
   const out: ResolvedPlan = {
