@@ -7,6 +7,29 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-22
+
+### Added
+
+- **Send to TaleSpire.** A built map now goes straight into TaleSpire through the Slabyrinth Helper add-on, on Windows and Linux. Install the add-on from the app, then turn on Symbiotes in TaleSpire under Game Settings > Modding Settings. Press Send to TaleSpire and the add-on puts each slab in your hand in turn and says what to do next. While you place a map, Ctrl+Alt+D puts the next slab in your hand, Ctrl+Alt+A goes back one and Ctrl+Alt+S puts the current slab in your hand again. The app keeps the add-on up to date and can remove it.
+- **Bigger maps.** Maps can be up to 320 × 320 tiles. An experimental setting (Settings > Experimental > Maximum map size) goes up to 1024 × 1024; very large maps take longer to build and use more memory.
+- **Caves with shape.** Cave chambers and passages get ragged outlines, flat cave floors get shelves and steps, and rock is filled in layers.
+- **Rooms that tell their purpose.** Name a room for its use (kitchen, guard room, library, barracks) and it gets its own floor, furniture, things on the furniture and lights, different in every room. A crypt or a ruined room stays sparse and dark.
+- **Covered market stalls** with posts, cloth canopies, counters and goods, in several sizes.
+- **Better floor openings, roofs and doors.** A collapsed floor has a broken rim and a heap of debris below, shafts have a kerb and balconies a railing. Roofs are filled underneath and capped along the ridge, and lean-tos slope properly. Secret doors are one piece you can lift out.
+- **More design-review notes** for stalls, caves, roofs, rooms and floors.
+
+### Changed
+
+- Maps made of several slabs are pasted from just south of the map, so the slabs line up without lining them up by hand. The build page and the add-on say where to click.
+- The light and dark toggle moved from the title bar to Settings > Appearance, and the app now follows your system's light or dark setting by default.
+- Maps you made with earlier versions rebuild unchanged. The new rules are for new maps only.
+
+### Known limits
+
+- The add-on finds TaleSpire's Symbiotes folder on Windows and Linux. On Linux this is new and has not been tried on a real install yet. If the app cannot find the folder, you can choose it yourself.
+- Sending to TaleSpire, the hotkeys and the 1024 × 1024 setting have been checked by the app's own tests but not yet in a full game session.
+
 ## [0.2.0] - 2026-11-20
 
 ### Added
@@ -103,7 +126,8 @@ The first release.
   version exists, and links to its release page. You can turn the check off in Settings ▸ About.
 - Windows installer and portable build, Linux AppImage. The builds are not code-signed yet.
 
-[Unreleased]: https://github.com/mwaboff/slabyrinth/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/mwaboff/slabyrinth/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/mwaboff/slabyrinth/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mwaboff/slabyrinth/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/mwaboff/slabyrinth/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mwaboff/slabyrinth/compare/v0.1.0...v0.1.1
