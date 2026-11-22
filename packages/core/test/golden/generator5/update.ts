@@ -1,7 +1,8 @@
 /**
  * Rewrites the generator-5 golden on purpose: `npm run test:golden:gen5:update` (from the repo root or packages/core).
  * Rebuilds every run, prints what changed per plan (hash fields `field: was -> now`, then the detail lines that went
- * `-` and came `+`), and writes __golden__/generator5.txt and generator5.detail.txt. Commit both together with the
+ * `-` and came `+`, quality meter lines marked so), and writes __golden__/generator5.txt, generator5.detail.txt and
+ * generator5.quality.txt (the quality meter's baseline of the generator-5 runs). Commit them together with the
  * change that moved them, and give one line of reason per changed plan in the commit message.
  *
  * It refuses (and writes nothing) when a run at a released generator changes its build (resolved hash, slab, asset
@@ -10,12 +11,23 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { detailDiff, goldenRecord, lineDiff } from "../goldenRecord";
-import { changesReleasedOutput, DETAIL_FILE, GOLDEN_FILE, goldenRuns, readDetail, readGolden } from "./runs";
+import {
+  changesReleasedOutput,
+  DETAIL_FILE,
+  GOLDEN_FILE,
+  goldenRuns,
+  metered,
+  QUALITY_FILE,
+  readDetail,
+  readGolden,
+  readQuality,
+} from "./runs";
 
 const before = readGolden();
 const beforeDetail = readDetail();
+const beforeQuality = readQuality();
 const runs = goldenRuns();
-const records = runs.map((r) => ({ name: r.name, ...goldenRecord(r) }));
+const records = runs.map((r) => ({ name: r.name, ...goldenRecord(r, { quality: metered(r) }) }));
 const after = new Map(records.map((r) => [r.name, r]));
 
 let changed = 0;
@@ -23,7 +35,10 @@ const frozen: string[] = [];
 for (const name of new Set([...before.keys(), ...after.keys()])) {
   const was = before.get(name);
   const now = after.get(name);
-  const moved = detailDiff(beforeDetail.get(name), now?.detail);
+  const moved = [
+    ...detailDiff(beforeDetail.get(name), now?.detail),
+    ...detailDiff(beforeQuality.get(name), now?.quality).map((d) => `${d} (quality)`),
+  ];
   if (was === now?.line && moved.length === 0) continue;
   changed++;
   if (was === undefined) console.log(`ADDED   ${now?.line ?? ""}`);
@@ -49,8 +64,10 @@ if (frozen.length) {
   mkdirSync(new URL(".", GOLDEN_FILE), { recursive: true });
   writeFileSync(GOLDEN_FILE, records.map((r) => r.line).join("\n") + "\n");
   writeFileSync(DETAIL_FILE, records.flatMap((r) => r.detail).join("\n") + "\n");
+  writeFileSync(QUALITY_FILE, records.flatMap((r) => r.quality ?? []).join("\n") + "\n");
   console.log(
-    `\n${String(changed)} of ${String(records.length)} runs changed; wrote ${fileURLToPath(GOLDEN_FILE)} and ` +
-      `${fileURLToPath(DETAIL_FILE)}. Review the diff above and commit both with the change that caused it.`,
+    `\n${String(changed)} of ${String(records.length)} runs changed; wrote ${fileURLToPath(GOLDEN_FILE)}, ` +
+      `${fileURLToPath(DETAIL_FILE)} and ${fileURLToPath(QUALITY_FILE)}. Review the diff above and commit them with ` +
+      `the change that caused it.`,
   );
 }

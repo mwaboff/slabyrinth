@@ -85,7 +85,7 @@ describe("slabyrinth CLI", () => {
   it("a plan or catalog file that is not one is refused at the boundary with what is wrong", async () => {
     const bad = join(tmp, "notaplan.json");
     writeFileSync(bad, JSON.stringify({ schema: "slabyrinth/plan@1", levels: "none" }));
-    for (const cmd of ["ascii", "compile", "review"]) {
+    for (const cmd of ["ascii", "compile", "review", "quality"]) {
       const r = await run([cmd, bad]);
       expect(r.code, cmd).toBe(1);
       expect(r.err, cmd).toMatch(/notaplan\.json is not a valid plan/);
@@ -95,6 +95,19 @@ describe("slabyrinth CLI", () => {
     const r = await run(["validate", join(plans, "two-rooms-door.json"), "--catalog", cat]);
     expect(r.code).toBe(1);
     expect(r.err).toMatch(/notacatalog\.json: not an asset catalog/);
+  });
+
+  it("quality prints the meter with its targets at the asked generator; --json is machine-readable", async () => {
+    const plan = join(plans, "two-rooms-door.json");
+    const t = await run(["quality", plan, "--generator", "5"]);
+    expect(t.code).toBe(0);
+    expect(t.out).toMatch(/at generator 5/);
+    expect(t.out).toMatch(/overlap_share\s+[\d.]+\s+≥ 0\.49/);
+    const j = await run(["quality", plan, "--json"]);
+    const doc = JSON.parse(j.out) as { metrics: Array<{ id: string; within: boolean }>; rooms: unknown[] };
+    expect(doc.metrics.map((m) => m.id)).toContain("lane_blocked");
+    expect(doc.metrics.every((m) => typeof m.within === "boolean")).toBe(true);
+    expect((await run(["quality", plan, "--generator", "9"])).code).toBe(2);
   });
 
   it("compile prints verify diagnostics with fixes, writes nothing on errors, and --force overrides", async () => {

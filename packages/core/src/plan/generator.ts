@@ -340,6 +340,10 @@ const SWITCHES = {
     5,
     "Detail recipe: a band course along every floor line of a building's outside (and its foot when it has no footing), a thin beam of the theme or the storey's own floor slab showing (resolve/recipes/walls.ts).",
   ),
+  qualityNotes: on(
+    5,
+    "The review advises from the quality meter where plan words can act: a blocked lane between a room's doors, unlit outside doors, a flat roofline, alike facades in a row (review/qualityNotes.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

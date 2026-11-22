@@ -180,7 +180,8 @@ describe("floor zones with stairs", () => {
         if (ways.length === 0) continue;
         checked++;
         expect(ways.some(([x, y]) => z.classAt(x, y) & ZONE.LANE)).toBe(true);
-        expect(z.longAxis === "x" || z.longAxis === "y").toBe(true);
+        const bb = L.areas.find((a) => a.id === z.area)?.bbox;
+        expect(z.longAxis).toBe(bb && bb.h > bb.w ? "y" : "x");
       }
     }
     expect(checked).toBeGreaterThan(0);

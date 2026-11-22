@@ -10,6 +10,36 @@ export {
   reviewDesign,
   substitutionNotes,
 } from "./review";
+// the quality meter's slab tier: callable on any decoded slab's placements (the calibration hook)
+export {
+  SLAB_METER,
+  boxesOverlap,
+  mirrorShare,
+  slabMeter,
+  stampedGroups,
+  type MeterPiece,
+  type SlabMeterValues,
+} from "./qualitySlab";
+export {
+  MAP_METER,
+  meterPieces,
+  qualityLines,
+  qualityMeter,
+  qualityOfBuild,
+  qualityTable,
+  qualityValue,
+  type QualityOptions,
+  type QualityReport,
+  type RoomQuality,
+} from "./qualityMap";
+export {
+  QUALITY_METRICS,
+  qualityMetric,
+  targetText,
+  withinTarget,
+  type QualityMetric,
+  type QualityMetricId,
+} from "./qualityMetrics";
 export { BRIEF_WORDS, briefCheckLine, briefNotes, briefWords } from "./brief";
 export { NATURAL_FEATURES, NATURAL_MATERIALS, REVIEW } from "./thresholds";
 export {
