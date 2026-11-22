@@ -38,6 +38,22 @@ describe("tool results stay within the view budget", () => {
     expect(wider).toMatch(/1 char = 4×4 cells/);
   });
 
+  it("an overview's legend lists only the characters its blocks show", () => {
+    const level = resolvePlan(largeOutdoorPlan(60), pal).levels[0] as ResolvedLevel;
+    for (const maxCells of [30 * 30, 15 * 15, 8 * 8, 3 * 3, 2 * 2]) {
+      const lines = asciiLevel(level, null, { maxCells }).split("\n");
+      const hint = lines.findIndex((l) => l.startsWith("(overview"));
+      const drawn = lines.slice(1, hint).join("");
+      const legend = lines.find((l) => l.startsWith("legend: "));
+      for (const part of (legend ?? "legend: ")
+        .slice(8)
+        .split(", ")
+        .filter((p) => p !== ""))
+        for (const ch of part.split(" ")[0] ?? "")
+          expect(drawn, `${String(maxCells)}: ${part}`).toContain(ch);
+    }
+  });
+
   it("a crop of at most MAX_VIEW_CELLS cells is drawn cell by cell, as before the limit rose", () => {
     const plan = largeOutdoorPlan(170);
     const resolved = resolvePlan(plan, pal);

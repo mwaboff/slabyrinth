@@ -48,12 +48,16 @@ export function asciiLevel(
   const marks = issueMarks(c);
   const maxW = opts.maxDoubleWidth ?? MAX_DOUBLE_WIDTH;
   const maxCells = opts.maxCells ?? MAX_VIEW_CELLS;
-  const lines =
-    c.rw * c.rh > maxCells
-      ? overviewRows(c, view, marks.marked, maxCells, maxW)
-      : c.rw > maxW
-        ? singleCharRows(c, view, marks.marked, maxW)
-        : doubleCharRows(c, view, seen, marks.marked);
-  if (opts.legend ?? true) pushAll(lines, legendLines(seen, feats.legend, links.notes, marks.notes));
+  const overview = c.rw * c.rh > maxCells;
+  // an overview block shows one of its cells' characters: the legend lists the characters the blocks show
+  const drawn = new Set<string>();
+  const lines = overview
+    ? overviewRows(c, view, marks.marked, maxCells, maxW, drawn)
+    : c.rw > maxW
+      ? singleCharRows(c, view, marks.marked, maxW)
+      : doubleCharRows(c, view, seen, marks.marked);
+  if (overview) seen.base = new Set([...seen.base].filter((ch) => drawn.has(ch)));
+  const featLegend = overview ? feats.legend.filter(([ch]) => drawn.has(ch)) : feats.legend;
+  if (opts.legend ?? true) pushAll(lines, legendLines(seen, featLegend, links.notes, marks.notes));
   return lines.join("\n");
 }

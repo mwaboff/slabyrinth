@@ -57,6 +57,8 @@ export function overviewRows(
   marked: ReadonlySet<string>,
   maxCells: number,
   maxW: number,
+  /** Filled with the characters the blocks show (the legend lists only those). */
+  drawn: Set<string>,
 ): string[] {
   const { rx0, ry0, rx1, ry1, rw, rh } = c;
   let s = Math.max(2, Math.ceil(Math.sqrt((rw * rh) / maxCells)));
@@ -68,8 +70,11 @@ export function overviewRows(
   const lines: string[] = [blockHeader(rx0, bw, s, lw)];
   for (let by = ry0; by < ry1; by += s) {
     let row = "";
-    for (let bx = rx0; bx < rx1; bx += s)
-      row += blockChar(view, marked, bx, by, Math.min(bx + s, rx1), Math.min(by + s, ry1));
+    for (let bx = rx0; bx < rx1; bx += s) {
+      const ch = blockChar(view, marked, bx, by, Math.min(bx + s, rx1), Math.min(by + s, ry1));
+      drawn.add(ch);
+      row += ch;
+    }
     lines.push(blockRowLabel(by, (by - ry0) / s, lw) + row);
   }
   const side = Math.floor(Math.sqrt(maxCells));
