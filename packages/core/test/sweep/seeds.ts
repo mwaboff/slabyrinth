@@ -95,14 +95,12 @@ export const WARNING_BASIS = 150;
  * code -> how many of the WARNING_BASIS sweep seeds (and the once-failed ones) raise it. Every other warning fails the
  * sweep, and so does a count that grows. The list only shrinks: a sweep of at least WARNING_BASIS seeds fails on a
  * count that is now lower (lower it) or an entry no seed raises (remove it). The causes, for the next round:
- * - keep-dungeon-v8 prop_in_wall: a dress op's bunk bed (1x2) in a cell whose corner holds a wall corner filler post;
- *   the bed is too wide to be pushed clear inside its footprint.
  * - market-street-v3 (overhead lines against what stands under them): prop_in_wall (a rope of lights into a wall
  *   banner, a hung lantern into a building's main roof), prop_sunk (a rope into a covered stall's tent roof),
  *   line_unanchored and prop_floating (no wall or post reaches a line's height at an end: the line and its pieces
- *   hang free), props_overlap (a stall's fish sling and beam), cliff_gap (a 2-tile cliff edge with no rock in front).
- * - heartroot-rift-v7, dressed-cave(-v2), night-market-v1 props_overlap: realize-made pieces (lava glow, outcrop columns) and dress pieces whose real outline is wider than
- *   their cells (a crystal beside a crystal, a dragon skeleton's ribs over the fire beside it, a stall's stock).
+ *   hang free), cliff_gap (a 2-tile cliff edge with no rock in front).
+ * (Gone at generator 5: props_overlap between elements is info under `layeredProps`; keep-dungeon's room pieces in a
+ * wall's corner post are kept clear by the room-kind furnisher, which asks each piece's outline against the posts.)
  * - dressed-cave, heartroot-rift-v7 mount_no_wall: a dress op's thorn vines hung on a cave wall edge with no wall
  *   piece (the room recipe's board-edge torches are fixed: `mountsOnBuiltWalls`).
  * - market-street-v3, three-step-glen-v1, terraced-hill cliff_gap: a 2-tile cliff edge with no rock in front.
@@ -113,32 +111,27 @@ export const WARNING_BASIS = 150;
  */
 export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
   "heartroot-rift-v7": {
-    verify_props_overlap: 68,
     verify_prop_no_floor: 4,
     // 2 before `channelFloorWhole` moved the rift's shelves and the lair dressing round them
     verify_mount_no_wall: 4,
     verify_prop_floating: 4,
   },
-  "keep-dungeon-v8": { verify_prop_in_wall: 128 },
   "market-street-v3": {
     verify_line_unanchored: 12,
     verify_prop_floating: 12,
-    verify_props_overlap: 3,
     verify_prop_sunk: 28,
     verify_prop_in_wall: 7,
     verify_cliff_gap: 4,
   },
-  "night-market-v1": { verify_props_overlap: 11 },
   "old-stones-glade-v6": { verify_prop_floating: 5 },
   "smugglers-grotto-v3": { verify_prop_floating: 16, verify_prop_no_floor: 1 },
   "three-step-glen-v1": { verify_cliff_gap: 1 },
   "dressed-cave": {
     verify_prop_no_floor: 11,
-    verify_props_overlap: 27,
     verify_mount_no_wall: 7,
     verify_prop_floating: 1,
   },
-  "dressed-cave-v2": { verify_props_overlap: 130, verify_prop_no_floor: 17 },
+  "dressed-cave-v2": { verify_prop_no_floor: 17 },
   "hillside-v5": { verify_prop_no_floor: 10 },
   "sea-grotto": { verify_prop_floating: 19 },
   "terraced-hill": { verify_cliff_gap: 1 },
