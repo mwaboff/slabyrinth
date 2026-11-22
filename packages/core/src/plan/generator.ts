@@ -356,6 +356,34 @@ const SWITCHES = {
     5,
     "The review advises from the quality meter where plan words can act: a blocked lane between a room's doors, unlit outside doors, a flat roofline, alike facades in a row (review/qualityNotes.ts).",
   ),
+  wallFootGrowth: on(
+    5,
+    "Detail recipe: growth at the foot of a worn, ramshackle or ruined building's walls with no door, more away from its doors and least on its street face (resolve/recipes/condition.ts).",
+  ),
+  breachRubble: on(
+    5,
+    "Detail recipe: a ruin's rubble graded by distance from each breach, big blocks near the wall, piles further, small stones furthest (resolve/recipes/condition.ts).",
+  ),
+  guardianPair: on(
+    5,
+    "Detail recipe: a mirrored guardian pair flanking a sacred or formal building's main door, 1.25-2.5 from its axis (resolve/recipes/threshold.ts).",
+  ),
+  approachLights: on(
+    5,
+    "Detail recipe: a mirrored light pair where a sacred or formal building's approach meets the ground, beside the way (resolve/recipes/threshold.ts).",
+  ),
+  ruinBays: on(
+    5,
+    "A ruined building is a sound building that lost a few whole bays (about one per 25-35 tiles of long wall): a ragged breach, the roof and upper floors open above it, a notch in the opposite wall, its other walls level, rubble graded from the breach (resolve/building/ruinBays.ts).",
+  ),
+  roofPatches: on(
+    5,
+    "A worn or ramshackle building's roof has patches re-laid in a second roof kit (its treatment draws whether and how much; resolve/building/wear.ts, compile/realize/structures/roofs.ts).",
+  ),
+  porchWear: on(
+    5,
+    "A worn or ramshackle building's porch may sag one step (0.25) at its outer edge and stand on posts of two kinds; the building's own eave never sags (resolve/building/wear.ts, compile/realize/structures/attachments.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

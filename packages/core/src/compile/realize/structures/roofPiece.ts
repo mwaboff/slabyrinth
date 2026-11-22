@@ -34,6 +34,37 @@ function roofPieceRoles(kit: string, kind: RoofPiece["kind"]): RoleName[] {
   }
 }
 
+/** Roof kits a patch may be re-laid in, in order: the first the theme has a slope of, other than the roof's own. */
+const PATCH_KITS = ["village", "slate", "shingle", "thatch", DEFAULT_PART] as const;
+
+/**
+ * Generator 5 (`roofPatches`): the kit of a roof piece with a cell in the building's patch, the first other kit of
+ * PATCH_KITS its theme has a slope of; any other piece, the roof's own kit.
+ */
+export function patchKit(
+  b: StructureCtx,
+  kit: string,
+  p: { x: number; y: number; w: number; h: number },
+): string {
+  const { st } = b;
+  if (!b.lv.ctx.profile.roofPatches || !st.roofPatch) return kit;
+  if (!st.roofPatch.some(([x, y]) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h)) return kit;
+  for (const k of PATCH_KITS) if (k !== kit && b.lookup([roofRole(k, "slope")], undefined, true)) return k;
+  return kit;
+}
+
+/** Generator 5 (`ruinBays`): a ruin's roof piece over a lost bay (any cell it covers is a roof hole). */
+export function openBay(b: StructureCtx, p: { x: number; y: number; w: number; h: number }): boolean {
+  if (!hasOpenBays(b)) return false;
+  return (b.st.ruin?.roofHoles ?? []).some(
+    ([x, y]) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h,
+  );
+}
+
+/** Generator 5 (`ruinBays`): a ruin that lost bays (its roof holes are open to the sky, eaves included). */
+export const hasOpenBays = (b: StructureCtx): boolean =>
+  b.lv.ctx.profile.ruinBays && b.st.condition === "ruined" && (b.st.ruin?.bays?.length ?? 0) > 0;
+
 /**
  * One roof piece: rotation from the kit's eave facing, position = min corner of the covered cells. A 2×2 slope the kit
  * lacks is laid as two run-2 pieces, a run-2 piece as one-cell slopes.
@@ -49,6 +80,10 @@ export function layRoofPiece(b: StructureCtx, kit: string, p: RoofPiece, base: n
     const holes = st.ruin.roofHoles;
     if (holes.some(([x, y]) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h)) return;
   }
+  // generator 5: a ruin's lost bays are open to the sky, eaves and ridge included (resolve/building/ruinBays.ts)
+  if (openBay(b, p)) return;
+  // generator 5: a worn roof's patches are re-laid in a second kit (resolve/building/wear.ts)
+  kit = patchKit(b, kit, p);
   const wantBroken = !ring && st.roof.broken > 0 && hashUnitUtf16(pkey, "broken") < st.roof.broken;
   const tryPlace = (
     kind: RoofPiece["kind"],

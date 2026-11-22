@@ -23,6 +23,7 @@ import {
   type InstanceSpec,
 } from "../../arrange";
 import type { ResolvedArrangement, ResolvedFeature, ResolvedLevel } from "../../contracts/resolved";
+import type { BuildingWords } from "../../gen/buildingCondition";
 import { isPassage, isWindow } from "../../gen/openingKinds";
 import type { PaletteView } from "../../palette/view";
 import { THEME_WALL_ROLE, partRole, postRole, wallRole } from "../../palette/roles";
@@ -57,6 +58,8 @@ export interface RecipeRunCtx {
   readonly recipes?: readonly AnyRecipe[];
   /** The treatment families to draw from (default: treatments.ts TREATMENTS). */
   readonly families?: readonly TreatmentFamily[];
+  /** What the plan says of each building (treatments.ts reads its condition state and role from them). */
+  readonly words?: ReadonlyMap<string, BuildingWords>;
 }
 
 /** What a run did, for tests and proofs. */
@@ -135,6 +138,7 @@ export function runRecipes(
       );
     },
     ...(run.families ? { families: run.families } : {}),
+    ...(run.words ? { words: run.words } : {}),
   });
   const skipped: Array<{ recipe: string; anchor: string; why: string }> = [];
   const sources = new Map<string, number>();

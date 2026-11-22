@@ -22,9 +22,23 @@
  *              style table allows (gen/wallStyles.ts FAMILY_TRIMS) that the theme has trim pieces for. A building whose
  *              walls already show two families takes its trims in one of those two (never a third material). A theme
  *              with one material has one value: its own.
+ *   condition  (generator 5, round three) a subject's state, kept / worn / ramshackle / ruined (gen/buildingCondition.ts:
+ *              the plan's condition refined by its words), shifts the weights of every family and opens a few of its
+ *              own: growth at the wall feet, graded rubble at a ruin's breaches. It never forces an option (each
+ *              family keeps a plain one) and never turns or darkens anything. Families that change a building's
+ *              structure (STRUCTURE_TREATMENTS: roof patches, porch wear, ruin events) are drawn by the same rule, once
+ *              per building, when the building is planned (resolve/building/), as `drawStructureOption`.
+ *   style      a sacred or formal building (its words) may draw a threshold option: a mirrored guardian pair flanking
+ *              its main door, a light pair at its approach, both, or plain.
  */
-import type { ThemeId } from "../../contracts/plan";
+import type { ThemeId, Vec2 } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
+import {
+  buildingState,
+  wearOfState,
+  type BuildingWords,
+  type ConditionState,
+} from "../../gen/buildingCondition";
 import {
   FAMILY_TRIMS,
   FAMILY_TRIM_STYLE,
@@ -62,6 +76,12 @@ export interface Subject {
   readonly natural: boolean;
   /** 0 kept up, 1 worn (a rough interior, a weathered building), 2 abandoned or ruined. */
   readonly wear: 0 | 1 | 2;
+  /** Its condition state (gen/buildingCondition.ts); an area's follows its wear. */
+  readonly state: ConditionState;
+  /** A ruin's severity 1..3, else 0. */
+  readonly severity: 0 | 1 | 2 | 3;
+  /** A sacred or formal building (its words): the threshold options apply. */
+  readonly role: "sacred" | "formal" | null;
 }
 
 export interface TreatmentOption {
@@ -112,7 +132,11 @@ export const TREATMENTS: readonly TreatmentFamily[] = [
         weight: (s) => (ruined(s) ? 0 : building(s) ? 2 : 1.5),
         recipes: { pilasters: "bays", cornerPosts: "all" },
       },
-      { id: "plain", weight: (s) => (ruined(s) ? 1 : s.condition === "weathered" ? 3 : 2), recipes: {} },
+      {
+        id: "plain",
+        weight: (s) => (ruined(s) ? 1 : s.state === "ramshackle" ? 4 : s.state === "worn" ? 3 : 2),
+        recipes: {},
+      },
     ],
   },
   {
@@ -172,7 +196,145 @@ export const TREATMENTS: readonly TreatmentFamily[] = [
       { id: "plain", weight: (s) => (s.indoor && s.wear === 0 ? 4 : 1), recipes: {} },
     ],
   },
+  {
+    id: "growth",
+    doc: "growth at a building's wall feet, on faces with no door, more toward the back: a fringe, thick, or none",
+    options: [
+      // (a kept building is weeded, a ruin mostly grown)
+      { id: "feet", weight: onBuildings(perState(0, 3, 3, 2)), recipes: { wallFootGrowth: "feet" } },
+      { id: "thick", weight: onBuildings(perState(0, 0.5, 1.5, 3)), recipes: { wallFootGrowth: "thick" } },
+      { id: "plain", weight: (s) => (building(s) ? perState(6, 1.5, 1, 1)(s) : 1), recipes: {} },
+    ],
+  },
+  {
+    id: "rubble",
+    doc: "a ruin's rubble graded by distance from each breach (big blocks near, piles, small stones far), or none",
+    options: [
+      { id: "graded", weight: onBuildings(perState(0, 0, 0, 4)), recipes: { breachRubble: "graded" } },
+      { id: "plain", weight: () => 1, recipes: {} },
+    ],
+  },
+  {
+    id: "threshold",
+    doc: "a sacred or formal building's threshold: a guardian pair flanking its main door, lights at its approach, both, or none",
+    options: [
+      {
+        id: "guardians",
+        weight: (s) => (s.role === "sacred" ? 3 : s.role === "formal" ? 1.5 : 0),
+        recipes: { guardianPair: "pair" },
+      },
+      {
+        id: "lights",
+        weight: (s) => (ruined(s) ? 0 : s.role === "sacred" ? 2 : s.role === "formal" ? 1.5 : 0),
+        recipes: { approachLights: "pair" },
+      },
+      {
+        id: "both",
+        weight: (s) => (ruined(s) ? 0 : s.role === "sacred" ? 2 : s.role === "formal" ? 0.5 : 0),
+        recipes: { guardianPair: "pair", approachLights: "pair" },
+      },
+      { id: "plain", weight: (s) => (s.role === null ? 1 : 1.5), recipes: {} },
+    ],
+  },
 ];
+
+/**
+ * The families that change a building's structure, drawn once per building when it is planned (resolve/building/), by
+ * the same weighted rule as the families above (`drawStructureOption`). Each has a plain option of real weight; the
+ * switch named in each doc builds it.
+ */
+export const STRUCTURE_TREATMENTS: readonly TreatmentFamily[] = [
+  {
+    id: "roofPatch",
+    doc: "switch roofPatches: patches of a worn roof re-laid in a second roof kit (worn about 15 %, ramshackle 30-45 %)",
+    options: [
+      { id: "patched", weight: perState(0, 0.4, 0.8, 0), recipes: {} },
+      { id: "plain", weight: perState(1, 0.6, 0.2, 1), recipes: {} },
+    ],
+  },
+  {
+    id: "porchSag",
+    doc: "switch porchWear: a porch roof whose outer edge has sagged one step (0.25), never the building's own eave",
+    options: [
+      { id: "sag", weight: perState(0, 0.3, 0.6, 0), recipes: {} },
+      { id: "plain", weight: perState(1, 0.7, 0.4, 1), recipes: {} },
+    ],
+  },
+  {
+    id: "porchPosts",
+    doc: "switch porchWear: a porch held up by posts of two kinds (a post replaced with what was to hand)",
+    options: [
+      { id: "mixed", weight: perState(0, 0.3, 0.7, 0), recipes: {} },
+      { id: "matched", weight: perState(1, 0.7, 0.3, 1), recipes: {} },
+    ],
+  },
+  {
+    id: "ruinEvents",
+    doc: "switch ruinBays: how a ruin lost its bays: single bays (its plain option), or a first event three cells wide",
+    options: [
+      { id: "bays", weight: (s) => (ruined(s) ? 3 : 1), recipes: {} },
+      { id: "wide", weight: (s) => (ruined(s) && s.severity >= 2 ? 1.5 : 0), recipes: {} },
+    ],
+  },
+];
+
+/** A weight by condition state: kept, worn, ramshackle, ruined. */
+function perState(kept: number, worn: number, ramshackle: number, ruinedW: number): (s: Subject) => number {
+  const w: Readonly<Record<ConditionState, number>> = { kept, worn, ramshackle, ruined: ruinedW };
+  return (s) => w[s.state];
+}
+
+/** A weight that applies to buildings only (0 for an area or the level). */
+function onBuildings(w: (s: Subject) => number): (s: Subject) => number {
+  return (s) => (s.kind === "building" ? w(s) : 0);
+}
+
+/** The option of family `family` (STRUCTURE_TREATMENTS) a building draws, named by `seed` (its own). */
+export function drawStructureOption(family: string, s: Subject, seed: string): string {
+  const f = STRUCTURE_TREATMENTS.find((q) => q.id === family);
+  if (!f) throw new Error(`unknown structure treatment family ${family}`);
+  return pickOption(f, s, hashUnitMixed(seed, "structureTreatment", family))?.id ?? "plain";
+}
+
+/** The option a draw `u` (0..1) picks from a family's weights for a subject, null when every weight is 0. */
+function pickOption(f: TreatmentFamily, s: Subject, u0: number): TreatmentOption | null {
+  const ws = f.options.map((o) => Math.max(0, o.weight(s)));
+  const total = ws.reduce((a, b) => a + b, 0);
+  if (total <= 0) return null;
+  let u = u0 * total;
+  for (let i = 0; i < f.options.length; i++) {
+    u -= ws[i] ?? 0;
+    if (u < 0 && (ws[i] ?? 0) > 0) return f.options[i] as TreatmentOption;
+  }
+  return f.options[f.options.length - 1] as TreatmentOption;
+}
+
+/** A building's subject as the structure step knows it (its plan words read through gen/buildingCondition.ts). */
+export function buildingSubject(
+  id: string,
+  cells: readonly Vec2[],
+  theme: ThemeId,
+  storeys: number,
+  words: BuildingWords,
+): Subject {
+  const st = buildingState(words);
+  const condition = words.condition ?? "intact";
+  return {
+    id,
+    kind: "building",
+    box: cellsBox(cells),
+    theme,
+    storeys,
+    walls: [],
+    condition,
+    indoor: true,
+    natural: false,
+    wear: wearOfState(st.state),
+    state: st.state,
+    severity: st.severity,
+    role: st.sacred ? "sacred" : st.formal ? "formal" : null,
+  };
+}
 
 /** What one subject drew. */
 export interface Treatment {
@@ -206,6 +368,8 @@ export interface TreatmentInput {
   readonly areaWalls: ReadonlyMap<string, readonly string[]>;
   /** The families to draw (default TREATMENTS). */
   readonly families?: readonly TreatmentFamily[];
+  /** What the plan says of each building, by id (its condition state and role read from them); none: its condition. */
+  readonly words?: ReadonlyMap<string, BuildingWords>;
 }
 
 /** Every subject of a level with its treatment, by subject id (buildings first, then areas, then the level). */
@@ -213,7 +377,7 @@ export function drawTreatments(input: TreatmentInput): Map<string, Treatment> {
   const { level: L, planSeed } = input;
   const families = input.families ?? TREATMENTS;
   const out = new Map<string, Treatment>();
-  const subjects = subjectsOf(L, input.defaultTheme, input.zones, input.areaWalls);
+  const subjects = subjectsOf(L, input.defaultTheme, input.zones, input.areaWalls, input.words);
   for (const group of neighbourhoods(subjects)) {
     const gid = group[0]?.id ?? "";
     // the neighbourhood's own few treatments: each a draw named by the group and its number, distinct where it can be
@@ -279,18 +443,8 @@ function treat(
   const byFamily = new Map<string, TreatmentOption>();
   let contrast = false;
   for (const f of families) {
-    const ws = f.options.map((o) => Math.max(0, o.weight(s)));
-    const total = ws.reduce((a, b) => a + b, 0);
-    if (total <= 0) continue;
-    let u = hashUnitMixed(planSeed, levelId, draw, "treatment", f.id) * total;
-    let pick = f.options[f.options.length - 1] as TreatmentOption;
-    for (let i = 0; i < f.options.length; i++) {
-      u -= ws[i] ?? 0;
-      if (u < 0 && (ws[i] ?? 0) > 0) {
-        pick = f.options[i] as TreatmentOption;
-        break;
-      }
-    }
+    const pick = pickOption(f, s, hashUnitMixed(planSeed, levelId, draw, "treatment", f.id));
+    if (!pick) continue;
     byFamily.set(f.id, pick);
     options.set(f.id, pick.id);
     if (pick.contrast === true) contrast = true;
@@ -335,8 +489,11 @@ function subjectsOf(
   defaultTheme: ThemeId,
   zones: readonly ZoneAnchor[],
   areaWalls: ReadonlyMap<string, readonly string[]>,
+  words: ReadonlyMap<string, BuildingWords> | undefined,
 ): Subject[] {
   const out: Subject[] = [];
+  const stateOfArea = (wear: 0 | 1 | 2): ConditionState =>
+    wear === 2 ? "ruined" : wear === 1 ? "worn" : "kept";
   for (const st of L.structures ?? []) {
     if (st.kind !== "building" || st.cells.length === 0) continue;
     const vols = volumesOf(st);
@@ -350,16 +507,14 @@ function subjectsOf(
     ];
     const condition = st.condition ?? "intact";
     out.push({
-      id: st.id,
-      kind: "building",
-      box: cellsBox(st.cells),
-      theme: st.theme,
-      storeys: Math.max(st.storeys.length, maxOf(vols.map((v) => v.storeys.length))),
+      ...buildingSubject(
+        st.id,
+        st.cells,
+        st.theme,
+        Math.max(st.storeys.length, maxOf(vols.map((v) => v.storeys.length))),
+        { ...words?.get(st.id), condition },
+      ),
       walls,
-      condition,
-      indoor: true,
-      natural: false,
-      wear: condition === "ruined" ? 2 : condition === "weathered" ? 1 : 0,
     });
   }
   const built = new Set(out.map((s) => s.id));
@@ -378,6 +533,9 @@ function subjectsOf(
       indoor: z.indoor,
       natural: z.natural,
       wear: z.wear,
+      state: stateOfArea(z.wear),
+      severity: z.wear === 2 ? 2 : 0,
+      role: null,
     });
   }
   out.push({
@@ -391,6 +549,9 @@ function subjectsOf(
     indoor: false,
     natural: false,
     wear: 0,
+    state: "kept",
+    severity: 0,
+    role: null,
   });
   return out;
 }

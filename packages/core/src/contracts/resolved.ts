@@ -522,7 +522,13 @@ export interface ResolvedStructure {
     parapet: WallStyle | null;
   };
   chimneys: Array<{ at: Vec2; side: Side }>;
-  porches: Array<{ cells: Vec2[]; side: Side; floor: Material; roof: boolean }>;
+  /**
+   * Generator 5 (switch porchWear), a worn or ramshackle building's porch: `sag` lowers the outer row of its roof (one
+   * step, 0.25); `posts` "mixed" stands it on posts of two kinds.
+   */
+  porches: Array<{ cells: Vec2[]; side: Side; floor: Material; roof: boolean; sag?: Height; posts?: "mixed" }>;
+  /** Generator 5 (switch roofPatches), a worn or ramshackle building: roof cells re-laid in a second roof kit. */
+  roofPatch?: Vec2[];
   /** Enclosures: fence style and gate edges ("at" cell inside the yard, side). */
   fence?: { style: WallStyle | null; gates: Array<{ at: Vec2; side: Side }> };
   /** Wall lights beside doors: the door cell (inside) and the face. */
@@ -579,6 +585,11 @@ export interface ResolvedStructure {
     topRubble?: Array<{ at: Vec2; side: Side; top: Height; kind: "block" | "rubble" }>;
     /** Generator 3 ruins: the volume that stands whole under its roof (the anchor); the rest decays away from it. */
     keep?: string;
+    /**
+     * Generator 5 ruins (switch ruinBays): the bays the building lost, each its breach (first face cell, side, width)
+     * and the cells of the bay, over which the roof (`roofHoles`) and the upper floors (`holes`) are open.
+     */
+    bays?: Array<{ at: Vec2; side: Side; width: number; cells: Vec2[] }>;
   };
   /**
    * Generator 3, weathered and ruined buildings: growth attached to the structure (themes without the palette roles

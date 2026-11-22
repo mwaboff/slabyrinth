@@ -1,0 +1,103 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 5,
+  "id": "3d8f1c62-7a40-4e95-b2d7-5c1e9f0a6b42",
+  "title": "condition-street-v1",
+  "kind": "outdoor",
+  "seed": 4207,
+  "theme": "wood_town",
+  "summary": "Condition line-up: one street of the same two-storey house four times, kept, worn, ramshackle and ruined, and across the lane a small stone shrine and the same house collapsed.",
+  "links": [],
+  "levels": [
+    {
+      "id": "g",
+      "name": "Lane",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 64, "h": 34 },
+      "base": { "type": "ground", "material": "grass" },
+      "areas": [
+        { "id": "lane", "kind": "zone", "name": "Lane", "shape": { "type": "rect", "x": 0, "y": 0, "w": 64, "h": 34 } }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [],
+      "labels": [],
+      "terrain": [
+        {
+          "id": "road",
+          "op": "path",
+          "points": [[0, 16], [63, 16]],
+          "width": 2,
+          "material": "gravel",
+          "style": "straight"
+        }
+      ],
+      "structures": [
+        {
+          "id": "kept",
+          "name": "Kept house",
+          "style": "cottage",
+          "seed": 7,
+          "condition": "intact",
+          "wings": [{ "x": 3, "y": 3, "w": 9, "h": 6, "ridge": "ew" }],
+          "storeys": [{ "walls": "stone" }, { "walls": "stone" }],
+          "front": "S",
+          "attachments": [{ "type": "porch", "side": "S", "width": 3, "depth": 2 }]
+        },
+        {
+          "id": "worn",
+          "name": "Worn house",
+          "style": "cottage",
+          "seed": 7,
+          "condition": "weathered",
+          "wings": [{ "x": 18, "y": 3, "w": 9, "h": 6, "ridge": "ew" }],
+          "storeys": [{ "walls": "stone" }, { "walls": "stone" }],
+          "front": "S",
+          "attachments": [{ "type": "porch", "side": "S", "width": 3, "depth": 2 }]
+        },
+        {
+          "id": "shack",
+          "name": "Ramshackle house",
+          "style": "cottage",
+          "seed": 7,
+          "condition": "weathered",
+          "wings": [{ "x": 33, "y": 3, "w": 9, "h": 6, "ridge": "ew" }],
+          "storeys": [{ "walls": "stone" }, { "walls": "stone" }],
+          "front": "S",
+          "attachments": [{ "type": "porch", "side": "S", "width": 3, "depth": 2 }]
+        },
+        {
+          "id": "ruin",
+          "name": "Ruined house",
+          "style": "cottage",
+          "seed": 7,
+          "condition": "ruined",
+          "wings": [{ "x": 48, "y": 3, "w": 9, "h": 6, "ridge": "ew" }],
+          "storeys": [{ "walls": "stone" }, { "walls": "stone" }],
+          "front": "S",
+          "attachments": [{ "type": "porch", "side": "S", "width": 3, "depth": 2 }]
+        },
+        {
+          "id": "fallen",
+          "name": "Collapsed house",
+          "style": "cottage",
+          "seed": 7,
+          "condition": "ruined",
+          "wings": [{ "x": 46, "y": 21, "w": 9, "h": 6, "ridge": "ew" }],
+          "storeys": [{ "walls": "stone" }, { "walls": "stone" }],
+          "front": "N"
+        },
+        {
+          "id": "shrine",
+          "name": "Lane shrine",
+          "style": "cottage",
+          "seed": 11,
+          "use": "shrine",
+          "wings": [{ "x": 27, "y": 22, "w": 7, "h": 6, "ridge": "ns" }],
+          "storeys": [{ "walls": "stone" }],
+          "front": "N"
+        }
+      ]
+    }
+  ]
+}

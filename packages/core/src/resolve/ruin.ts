@@ -44,6 +44,11 @@ export interface RuinProfile {
   topRubble?: Array<{ at: [number, number]; side: Side; top: number; kind: "block" | "rubble" }>;
   /** Generator 3 ruins: the volume that stays whole under its roof, the anchor the rest decays away from. */
   keep?: string;
+  /**
+   * Generator 5 ruins (switch `ruinBays`, resolve/building/ruinBays.ts): the bays the building lost, each its breach
+   * (first face cell, side, width) and the cells of the bay (the roof and upper floors are open over them).
+   */
+  bays?: Array<{ at: [number, number]; side: Side; width: number; cells: Array<[number, number]> }>;
 }
 
 /** What the generator-3 rules need to know about the building's openings. */
@@ -110,7 +115,7 @@ export function ruinProfile(
 }
 
 /** A wall column of the massing: its face cell and side, intact top, lowest floor, and the volumes that own it. */
-interface WallColumn {
+export interface WallColumn {
   at: [number, number];
   side: Side;
   full: number;
@@ -128,7 +133,7 @@ type RuinColumn = RuinProfile["columns"][number];
  * Wall columns ("x,y,side"): the outer face of every storey cell whose neighbour is not in that storey; its intact top
  * is the highest storey with that face; the volume of its lowest storey owns it (lost rooms go by volume).
  */
-function wallColumns(vols: readonly RuinVolumeIn[]): Map<string, WallColumn> {
+export function wallColumns(vols: readonly RuinVolumeIn[]): Map<string, WallColumn> {
   const cols = new Map<string, WallColumn>();
   for (const v of vols)
     for (const s of v.storeys) {
@@ -526,7 +531,10 @@ export function scatterTopRubble(profile: RuinProfile, blocked: ReadonlySet<stri
   if (out.length) profile.topRubble = out;
 }
 
-function lossOf(columns: ReadonlyArray<{ top: number; full: number }>, lows: readonly number[]): number {
+export function lossOf(
+  columns: ReadonlyArray<{ top: number; full: number }>,
+  lows: readonly number[],
+): number {
   let all = 0;
   let kept = 0;
   columns.forEach((c, i) => {

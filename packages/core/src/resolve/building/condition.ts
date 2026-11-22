@@ -24,11 +24,30 @@ import { FOOT_DEBRIS, ROOF_BROKEN, RUINED, WEATHERED } from "./conditionRates";
 import type { BuildingCtx } from "./context";
 import { type BuildingFaces, GROUND_FACES, party } from "./faces";
 import { alongFace, cellOf, faceKey, faceRuns, key, ringOf } from "./footprint";
-import type { BuildingPlan, Chimney, GroundOpening, VolumePlan } from "./types";
+import type { BuildingPlan, Chimney, GroundOpening, Porch, VolumePlan } from "./types";
+import { buildingSubject, type Subject } from "../recipes/treatments";
+import { ruinBays } from "./ruinBays";
+
+/** A building as the treatments see it (generator 5): its condition state and role from its plan words. */
+export function buildingSubjectOf(
+  b: BuildingCtx,
+  fp: { readonly cells: ReadonlyArray<[number, number]> },
+  vplans: readonly VolumePlan[],
+  condition: BuildingPlan["condition"],
+): Subject {
+  const { st } = b;
+  return buildingSubject(
+    st.id,
+    fp.cells,
+    st.theme ?? b.levelTheme,
+    Math.max(1, maxOf(vplans.map((v) => v.storeys.length))),
+    { condition, name: st.name, tags: st.tags, notes: st.notes, use: st.use },
+  );
+}
 
 type GrowthLevel = NonNullable<BuildingPlan["growthLevel"]>;
 import type { GroundFootprint } from "./volumes";
-import { pushAll } from "../../util/lists";
+import { maxOf, pushAll } from "../../util/lists";
 
 export interface Decay {
   readonly condition: BuildingPlan["condition"];
@@ -62,6 +81,7 @@ export function applyCondition(
   main: VolumePlan,
   faces: BuildingFaces,
   chimneys: readonly Chimney[],
+  porches: readonly Porch[] = [],
 ): Decay {
   const { st, profile, seed } = b;
   const condition = st.condition ?? profile.condition ?? "intact";
@@ -74,6 +94,42 @@ export function applyCondition(
     legible && condition !== "intact" ? (st.growth ?? (condition === "ruined" ? "medium" : "light")) : null;
   if (condition === "intact") return { condition, growthLevel, ruin: null, debris, growth };
   const ruined = condition === "ruined";
+  // generator 5: a ruin is a sound building that lost whole bays (resolve/building/ruinBays.ts)
+  if (ruined && b.gen.ruinBays) {
+    const s = buildingSubjectOf(b, fp, vplans, condition);
+    const ruin = ruinBays(b, fp, vplans, main, faces, porches, s);
+    const d: DecayWork = {
+      b,
+      fp,
+      vplans,
+      main,
+      faces,
+      ruin,
+      ruined,
+      legible,
+      heavyGrowth: growthLevel === "heavy",
+      prng4,
+      debris,
+    };
+    dropWindowsAboveWallTops(d);
+    for (const v of vplans) {
+      if (s.severity === 3) {
+        v.roof.layers = [];
+        v.roof.deck = false;
+      } else v.roof.broken = Math.max(v.roof.broken, ROOF_BROKEN.keptAnchor);
+    }
+    main.roof.summary.broken = Math.max(main.roof.summary.broken, ROOF_BROKEN.keptAnchor);
+    for (const g of faces.ground) if (isPassage(g.kind)) g.kind = "open";
+    const blocked = doorPaths(faces.ground, openingTests(b.gen).doorway);
+    if (legible) {
+      const openKeys = new Set<string>();
+      for (const g of faces.ground)
+        for (let k = 0; k < g.width; k++) openKeys.add(faceKey(...alongFace(g.at, g.side, k), g.side));
+      scatterTopRubble(ruin, openKeys, subSeed(seed, "ruin"));
+      pushAll(growth, climbing(d, blocked, growthLevel));
+    }
+    return { condition, growthLevel, ruin, debris, growth };
+  }
   const ruin = ruinOf(b, vplans, main, faces, condition, ruined, legible);
   const d: DecayWork = {
     b,
@@ -104,8 +160,11 @@ export function applyCondition(
     scatterTopRubble(ruin, openKeys, subSeed(seed, "ruin"));
   }
   const blocked = doorPaths(faces.ground, openingTests(b.gen).doorway);
-  scatterFootDebris(d, blocked);
-  if (legible && !ruined) footGrowth(d, blocked);
+  // generator 5: a weathered building's foot is dressed by its treatment (the `wallFootGrowth` recipe: off its doors'
+  // faces, by distance from use), not by heaps in the ring round it
+  const footByRecipe = b.gen.wallFootGrowth && !ruined;
+  if (!footByRecipe) scatterFootDebris(d, blocked);
+  if (legible && !ruined && !footByRecipe) footGrowth(d, blocked);
   if (ruined) insideRubble(d, blocked);
   if (ruined && legible) fallenHeaps(d, blocked);
   if (legible) pushAll(growth, climbing(d, blocked, growthLevel));
