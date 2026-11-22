@@ -14,8 +14,10 @@ import {
   lengthwise,
   mirror,
   pathLength,
+  pick,
   pieceCount,
   polyline,
+  repeat,
   rest,
   ring,
   roundCount,
@@ -27,8 +29,10 @@ import {
   stack,
   station,
   thin,
+  tier,
   transform,
   twin,
+  vary,
   type Arrangement,
 } from "../../../src/arrange";
 import { must, poses, synthetic } from "./synthetic";
@@ -299,16 +303,109 @@ describe("arrangement operators", () => {
     expect(tri.every((p) => p.x >= 0 && p.z <= 0 && p.x - p.z <= 4)).toBe(true);
   });
 
-  it("thin: a deterministic choice of at most the cap, in the original order", () => {
+  it("thin: a deterministic choice of at most the cap, finest tier first, in the original order", () => {
     const row = array(single(stone), { axis: "x", count: 10 });
-    const kept = thin(row, 3, "k");
+    const kept = thin(row, { cap: 3, seed: "k" });
     expect(kept).toHaveLength(3);
-    expect(thin(row, 3, "k")).toEqual(kept);
+    expect(thin(row, { cap: 3, seed: "k" })).toEqual(kept);
     expect(kept.map((p) => row.indexOf(p))).toEqual(
       [...kept.map((p) => row.indexOf(p))].sort((a, b) => a - b),
     );
-    expect(thin(row, 20, "k")).toBe(row);
+    expect(thin(row, { cap: 20, seed: "k" })).toBe(row);
+    // tier 3 detail goes before tier 0, whatever the draw
+    const mixed = [...tier(row.slice(0, 5), { tier: 3 }), ...row.slice(5)];
+    expect(thin(mixed, { cap: 5, seed: "k" }).every((p) => p.tier === undefined)).toBe(true);
+    expect(thin(mixed, { cap: 7, seed: "k" }).filter((p) => p.tier === 3)).toHaveLength(2);
     expect(ARRANGE_LIMITS.piecesPerLevel).toBeGreaterThan(ARRANGE_LIMITS.piecesPerInstance);
+  });
+
+  it("repeat: a count, or a length filled with the last copy pulled back flush", () => {
+    // 5 tiles of 1-wide boards at a 0.9 pitch: ceil(4 / 0.9) + 1 = 6, the last at 4 (its far end at 5)
+    const filled = repeat(single(synthetic("slat", 1, 0.1, 0.2)), { axis: "x", pitch: 0.9, length: 5 });
+    expect(filled.map((p) => Math.round(p.x * 1e9) / 1e9)).toEqual([0, 0.9, 1.8, 2.7, 3.6, 4]);
+    expect(bounds(filled).max.x).toBeCloseTo(4.5, 12);
+    expect(poses(repeat(single(crate), { axis: "y", count: 2 })).map((p) => p[1])).toEqual([0, 1]);
+    // a stair of copies by a step vector
+    expect(poses(repeat(single(crate), { axis: [1, 0.25, 0], count: 3 }))).toEqual([
+      [0, 0, 0, 0],
+      [1, 0.25, 0, 0],
+      [2, 0.5, 0, 0],
+    ]);
+  });
+
+  it("ring facing: out, to the centre, along the circle, or kept", () => {
+    const at = (facing: "out" | "centre" | "tangent" | "keep"): number[] =>
+      ring(single(stone), { count: 4, radius: 2, facing }).map((p) => p.yaw);
+    expect(at("out")).toEqual([0, 90, 180, 270]);
+    expect(at("centre")).toEqual([180, 270, 0, 90]);
+    expect(at("tangent")).toEqual([90, 180, 270, 0]);
+    expect(at("keep")).toEqual([0, 0, 0, 0]);
+  });
+
+  it("layer rises a course; rest hangs from an underside; scatter keeps a lane clear", () => {
+    expect(poses(layer(single(panel), { normal: "z", proud: 0.02, rise: 0.5 }))[1]).toEqual([
+      0, 0.5, 0.02, 0,
+    ]);
+    const beamOver = transform(lengthwise(beam), { dy: 2.5 });
+    // the cup hangs with its top at the beam's underside (2.5)
+    expect(poses(rest(single(cup), beamOver, { under: true }))[1]).toEqual([0, 2.3, 0, 0]);
+    expect(poses(rest(single(cup), beamOver, { under: true, each: true }))[1]).toEqual([0, 2.3, 0, 0]);
+    const lane = scatter(single(stone), {
+      area: { w: 8, d: 8 },
+      density: 3,
+      seed: "lane",
+      exclude: (x) => Math.abs(x) < 1,
+    });
+    expect(lane.length).toBeGreaterThan(20);
+    expect(lane.every((p) => Math.abs(p.x) >= 1)).toBe(true);
+  });
+
+  it("vary: hash-named imperfection, gaps never two in a row", () => {
+    const row = array(lengthwise(plank), { axis: "x", count: 40 });
+    const params = {
+      seed: "v",
+      along: 0.1,
+      across: 0.05,
+      height: 0.02,
+      yaw: 15,
+      flip: 0.3,
+      empty: 0.4,
+    } as const;
+    const a = vary(row, params);
+    expect(poses(vary(row, params))).toEqual(poses(a));
+    expect(a.length).toBeLessThan(40);
+    expect(a.length).toBeGreaterThanOrEqual(20);
+    // a gap is one place wide at most: the kept pieces' original slots never skip two
+    const slots = a.map((p) => Math.round(p.x + 19.5));
+    expect(slots.every((s, i) => i === 0 || s - (slots[i - 1] ?? s) <= 2)).toBe(true);
+    for (const p of a) expect(p.yaw % 15).toBe(0);
+    expect(a.some((p) => p.yaw === 180 || p.yaw === 165 || p.yaw === 195)).toBe(true);
+  });
+
+  it("pick: one piece, a mix without long runs, an odd one out, or by height", () => {
+    const row = array(single(stone), { axis: "x", count: 30 });
+    const from = [stone, cup, crate];
+    const same = pick(row, { from, policy: { kind: "same" }, seed: 1 });
+    expect(new Set(same.map((p) => p.piece)).size).toBe(1);
+    const mix = pick(row, { from, policy: { kind: "mix", noRun: 2 }, seed: 1 });
+    const ids = mix.map((p) => from.indexOf(p.piece));
+    expect(ids.every((id, i) => i < 2 || !(id === ids[i - 1] && id === ids[i - 2]))).toBe(true);
+    const odd = pick(row, { from, policy: { kind: "odd", rate: 0.2 }, seed: 1 });
+    const others = odd.filter((p) => p.piece !== stone).length;
+    expect(others).toBeGreaterThan(0);
+    expect(others).toBeLessThan(15);
+    const courses = stack(single(crate), { count: 4 });
+    const byHeight = pick(courses, {
+      from: [crate, stone],
+      policy: { kind: "byHeight", split: 0.5 },
+      seed: 1,
+    });
+    expect(byHeight.map((p) => p.piece)).toEqual([crate, crate, stone, stone]);
+    // a candidate long on the other axis is turned a quarter more, so the run stays a run
+    const zPlank = synthetic("zplank2", 0.2, 0.1, 1);
+    expect(must(pick(lengthwise(plank), { from: [zPlank], policy: { kind: "same" }, seed: 1 })[0]).yaw).toBe(
+      90,
+    );
   });
 
   it("the operators compose: a ring of twinned panels rested on a sunk block", () => {
@@ -324,6 +421,8 @@ describe("arrangement operators", () => {
       "fan",
       "layer",
       "mirror",
+      "pick",
+      "repeat",
       "rest",
       "ring",
       "run",
@@ -332,8 +431,10 @@ describe("arrangement operators", () => {
       "stack",
       "station",
       "thin",
+      "tier",
       "transform",
       "twin",
+      "vary",
     ]);
   });
 });

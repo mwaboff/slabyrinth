@@ -461,6 +461,8 @@ export interface ResolvedArrangementPiece {
   z: number;
   /** Degrees clockwise seen from above, a multiple of 15. */
   yaw: number;
+  /** Budget tier: 0 (absent) is kept longest, 3 is thinned first when a level is over its piece cap. */
+  tier?: number;
 }
 
 /**

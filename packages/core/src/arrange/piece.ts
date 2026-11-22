@@ -35,6 +35,11 @@ export interface Placed {
   readonly y: number;
   readonly z: number;
   readonly yaw: number;
+  /**
+   * What the piece is worth when a budget thins (budget.ts `thin`): 0 what makes the map read (kept longest) .. 3 the
+   * finest detail (dropped first). Absent: 0.
+   */
+  readonly tier?: number;
 }
 
 export type Arrangement = readonly Placed[];

@@ -27,7 +27,7 @@ export class ArrangementRecords {
     const kept =
       inst.pieces.length <= room
         ? inst
-        : { ...inst, pieces: [...thin(inst.pieces, room, `${inst.id}:level`)] };
+        : { ...inst, pieces: [...thin(inst.pieces, { cap: room, seed: `${inst.id}:level` })] };
     this.all.push(kept);
     this.pieces += kept.pieces.length;
     return kept;

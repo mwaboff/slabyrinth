@@ -28,6 +28,8 @@ export interface ScatterParams {
   readonly yawJitter?: number;
   /** 0..1: the share of slots left empty (default 0). */
   readonly empty?: number;
+  /** Points kept clear (a lane between doors, a doorway's clearance), in the area's frame. */
+  readonly exclude?: (x: number, z: number) => boolean;
   /** Names the draws: the same seed and parameters give the same scatter. */
   readonly seed: string | number;
 }
@@ -67,7 +69,7 @@ export function scatter(candidates: Arrangement, p: ScatterParams): Arrangement 
     for (let i = 0; i < cols; i++) {
       const x = region.box.x0 + (i + 0.5 + (draw("x", i, j) - 0.5) * jitter) * pitch;
       const z = region.box.z0 + (j + 0.5 + (draw("z", i, j) - 0.5) * jitter) * pitch;
-      if (!region.inside(x, z)) continue;
+      if (!region.inside(x, z) || p.exclude?.(x, z) === true) continue;
       // 0 on the edge, 1 at the middle (or deeper)
       const depth = Math.min(1, region.edge(x, z) / span);
       const edgeWeight = bias >= 0 ? 1 - bias * depth : 1 + bias * (1 - depth);

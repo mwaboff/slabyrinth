@@ -1,8 +1,8 @@
 /**
- * Piece budgets: how many pieces an arrangement places, and thinning one to a cap the same way every time (each piece
- * ranked by a hash of the seed and its index; the lowest ranks stay, in their original order). `ARRANGE_LIMITS` are the
- * caps the build holds instances to (resolve/level/arrangements.ts attaches within them; verify reports a level past
- * its cap).
+ * Piece budgets: how many pieces an arrangement places, and thinning one to a cap the same way every time: the finest
+ * detail goes first (the highest `tier`), and within a tier each piece is ranked by a hash of the seed and its index;
+ * what stays keeps its original order. `ARRANGE_LIMITS` are the caps the build holds instances to
+ * (resolve/level/arrangements.ts attaches within them; verify reports a level past its cap).
  */
 import { hashUnit } from "../util/hash";
 import type { Arrangement } from "./piece";
@@ -18,21 +18,24 @@ export function pieceCount(a: Arrangement): number {
   return a.length;
 }
 
+export interface ThinParams {
+  readonly cap: number;
+  /** Names the draw (default 0). */
+  readonly seed?: string | number;
+}
+
 /**
- * At most `cap` of the arrangement's pieces (or of any list: an instance's resolved pieces): a deterministic choice by
- * `seed`, in their original order.
+ * At most `cap` of the pieces (an arrangement's, or an instance's resolved pieces): the lowest tiers first, then a
+ * deterministic choice by `seed`, in their original order.
  */
-export function thin<T = Arrangement[number]>(
-  a: readonly T[],
-  cap: number,
-  seed: string | number = 0,
-): readonly T[] {
-  if (a.length <= cap) return a;
+export function thin<T extends { readonly tier?: number }>(a: readonly T[], p: ThinParams): readonly T[] {
+  if (a.length <= p.cap) return a;
+  const seed = p.seed ?? 0;
   const keep = new Set(
     a
-      .map((_, i) => ({ i, rank: hashUnit(seed, "thin", i) }))
-      .sort((p, q) => p.rank - q.rank || p.i - q.i)
-      .slice(0, Math.max(0, cap))
+      .map((q, i) => ({ i, tier: q.tier ?? 0, rank: hashUnit(seed, "thin", i) }))
+      .sort((x, y) => x.tier - y.tier || x.rank - y.rank || x.i - y.i)
+      .slice(0, Math.max(0, p.cap))
       .map((r) => r.i),
   );
   return a.filter((_, i) => keep.has(i));

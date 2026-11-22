@@ -41,7 +41,7 @@ export function planPointOf(
 
 /** The resolved element of an arrangement: its pieces as palette references, thinned to the per-instance cap. */
 export function toInstance(a: Arrangement, spec: InstanceSpec): ResolvedArrangement {
-  const kept = thin(a, ARRANGE_LIMITS.piecesPerInstance, spec.seed ?? spec.id);
+  const kept = thin(a, { cap: ARRANGE_LIMITS.piecesPerInstance, seed: spec.seed ?? spec.id });
   const turn = snapYaw(spec.anchor.turn ?? 0);
   const pieces: ResolvedArrangementPiece[] = kept.map((p) => ({
     palette: p.piece.palette,
@@ -51,6 +51,7 @@ export function toInstance(a: Arrangement, spec: InstanceSpec): ResolvedArrangem
     y: p.y,
     z: p.z,
     yaw: snapYaw(p.yaw),
+    ...(p.tier !== undefined && p.tier > 0 ? { tier: p.tier } : {}),
   }));
   return {
     id: spec.id,
