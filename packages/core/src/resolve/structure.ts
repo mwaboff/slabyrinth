@@ -41,7 +41,8 @@ import { generatorProfile, type GeneratorProfile } from "../plan/generator";
 import { withWings } from "../plan/building";
 import { rasterizeShape } from "../gen/shapes";
 import { elementSeed, subSeed } from "../util/hash";
-import { applyCondition } from "./building/condition";
+import { applyCondition, buildingSubjectOf } from "./building/condition";
+import { applyWear } from "./building/wear";
 import { startBuilding } from "./building/context";
 import { BuildingFaces, drawFrontage, placeChimneys, placeOpenings, placeWindows } from "./building/faces";
 import {
@@ -412,7 +413,15 @@ export class StructureWork {
         upperOpenings: b.upper,
         roof: b.roof,
         chimneys: b.chimneys.map((c) => ({ at: c.at, side: c.side })),
-        porches: b.porches.map((p) => ({ cells: p.cells, side: p.side, floor: p.floor, roof: p.roof })),
+        porches: b.porches.map((p) => ({
+          cells: p.cells,
+          side: p.side,
+          floor: p.floor,
+          roof: p.roof,
+          ...(p.sag !== undefined ? { sag: p.sag } : {}),
+          ...(p.posts !== undefined ? { posts: p.posts } : {}),
+        })),
+        ...(b.roofPatch ? { roofPatch: b.roofPatch } : {}),
         lights: b.lights,
         volumes,
         furniture: b.furniture,
@@ -442,6 +451,7 @@ export class StructureWork {
                 ...(b.ruin.weather ? { weather: b.ruin.weather } : {}),
                 ...(b.ruin.arches ? { arches: b.ruin.arches } : {}),
                 ...(b.ruin.keep !== undefined ? { keep: b.ruin.keep } : {}),
+                ...(b.ruin.bays ? { bays: b.ruin.bays } : {}),
                 ...(b.ruin.topRubble
                   ? { topRubble: b.ruin.topRubble.map((t) => ({ ...t, top: base + t.top })) }
                   : {}),
@@ -1136,7 +1146,12 @@ function planBuilding(
   const porches = placePorches(b, fp, faces.ground);
 
   // condition: a weathered or ruined building loses its chimney, roof pieces, doors; breaches, rubble, growth
-  const decay = applyCondition(b, fp, volumes, main, faces, chimneys);
+  const decay = applyCondition(b, fp, volumes, main, faces, chimneys, porches);
+  // generator 5: a worn or ramshackle building's roof patches and porch wear (each behind its switch)
+  const roofPatch =
+    b.gen.roofPatches || b.gen.porchWear
+      ? applyWear(b, volumes, porches, decay.ruin, buildingSubjectOf(b, fp, volumes, decay.condition))
+      : null;
   const standing = decay.condition === "intact" ? chimneys : [];
 
   // fittings, and the cells kept free of dressing
@@ -1179,6 +1194,7 @@ function planBuilding(
     growth: decay.growth,
     ...(decay.growthLevel !== null ? { growthLevel: decay.growthLevel } : {}),
     ruin: decay.ruin,
+    ...(roofPatch ? { roofPatch } : {}),
   };
 }
 

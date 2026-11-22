@@ -2776,7 +2776,7 @@ function ruins(c: Ctx): DesignNote[] {
   for (const st of buildingsOf(c)) {
     // a weathered building must read as neglected: too few signs and it looks like its intact version (generator 3)
     if (st.condition === "weathered" && c.gen.legibleCondition) {
-      const wm = weatherMeasures(st);
+      const wm = weatherMeasures(st, c.L.arrangements);
       const signs = wm ? weatherSigns(wm) : 0;
       if (wm && signs < T.weatherSigns)
         out.push({

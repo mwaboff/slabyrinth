@@ -3,7 +3,7 @@
  * recipe sees it on every subject, and a resolved plan with a level's arrangements replaced by a recipe run's.
  */
 import type { ResolvedArrangement, ResolvedPlan } from "../../src/contracts/resolved";
-import type { TreatmentFamily } from "../../src/resolve/recipes/treatments";
+import { TREATMENTS, type TreatmentFamily } from "../../src/resolve/recipes/treatments";
 
 /** Families with one option each: every wall recipe in its first variant, trims in the wall's own material. */
 export function forced(
@@ -15,10 +15,9 @@ export function forced(
     doc: "forced",
     options: [{ id: "forced", weight: () => 1, recipes: recipes[id] ?? {} }],
   });
+  // every family of the table (a family left out would apply its recipes everywhere): the ones not named go plain
   return [
-    fam("frame"),
-    fam("courses"),
-    fam("ground"),
+    ...TREATMENTS.filter((f) => f.id !== "trim").map((f) => fam(f.id)),
     {
       id: "trim",
       doc: "forced",

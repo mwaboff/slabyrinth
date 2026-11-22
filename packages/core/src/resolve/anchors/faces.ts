@@ -235,8 +235,9 @@ function buildingFaces(
   openings: OpeningAnchor[],
   storeyLines: LineDraft[],
 ): void {
-  // a ruin's walls break off column by column: nothing is dressed on them
-  if (st.kind !== "building" || st.condition === "ruined") return;
+  // a ruin's walls break off column by column: nothing is dressed on them; a ruin that lost bays (generator 5,
+  // ruin.bays) stands sound elsewhere, and its standing walls are faces like any other (a cut column is none)
+  if (st.kind !== "building" || (st.condition === "ruined" && !st.ruin?.bays)) return;
   const vols = volumesOf(st);
   const mainId = mainVolumeId(vols);
   const tagOf = (vid: string): string => volumeTag(st, mainId, vid);

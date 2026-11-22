@@ -11,7 +11,7 @@
  * and the design review (`ruin_flat_top`, `ruin_uniform`).
  */
 import type { Side } from "../contracts/plan";
-import type { ResolvedStructure } from "../contracts/resolved";
+import type { ResolvedArrangement, ResolvedStructure } from "../contracts/resolved";
 import { SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
 import { h32, hashUnit } from "../util/hash";
 import { maxOf, minOf } from "../util/lists";
@@ -44,6 +44,11 @@ export interface RuinProfile {
   topRubble?: Array<{ at: [number, number]; side: Side; top: number; kind: "block" | "rubble" }>;
   /** Generator 3 ruins: the volume that stays whole under its roof, the anchor the rest decays away from. */
   keep?: string;
+  /**
+   * Generator 5 ruins (switch `ruinBays`, resolve/building/ruinBays.ts): the bays the building lost, each its breach
+   * (first face cell, side, width) and the cells of the bay (the roof and upper floors are open over them).
+   */
+  bays?: Array<{ at: [number, number]; side: Side; width: number; cells: Array<[number, number]> }>;
 }
 
 /** What the generator-3 rules need to know about the building's openings. */
@@ -110,7 +115,7 @@ export function ruinProfile(
 }
 
 /** A wall column of the massing: its face cell and side, intact top, lowest floor, and the volumes that own it. */
-interface WallColumn {
+export interface WallColumn {
   at: [number, number];
   side: Side;
   full: number;
@@ -128,7 +133,7 @@ type RuinColumn = RuinProfile["columns"][number];
  * Wall columns ("x,y,side"): the outer face of every storey cell whose neighbour is not in that storey; its intact top
  * is the highest storey with that face; the volume of its lowest storey owns it (lost rooms go by volume).
  */
-function wallColumns(vols: readonly RuinVolumeIn[]): Map<string, WallColumn> {
+export function wallColumns(vols: readonly RuinVolumeIn[]): Map<string, WallColumn> {
   const cols = new Map<string, WallColumn>();
   for (const v of vols)
     for (const s of v.storeys) {
@@ -526,7 +531,10 @@ export function scatterTopRubble(profile: RuinProfile, blocked: ReadonlySet<stri
   if (out.length) profile.topRubble = out;
 }
 
-function lossOf(columns: ReadonlyArray<{ top: number; full: number }>, lows: readonly number[]): number {
+export function lossOf(
+  columns: ReadonlyArray<{ top: number; full: number }>,
+  lows: readonly number[],
+): number {
   let all = 0;
   let kept = 0;
   columns.forEach((c, i) => {
@@ -663,6 +671,10 @@ export function roofUnsupportedEdges(st: ResolvedStructure): Array<{ at: [number
   const cols = st.ruin?.columns;
   if (!cols || cols.length === 0) return [];
   const at = new Map(cols.map((c) => [`${c.at[0]},${c.at[1]},${c.side}`, c]));
+  // generator 5 (ruinBays): the roof is open over a lost bay, so a fallen wall under a roof hole holds up nothing
+  const open = new Set(
+    st.ruin?.bays !== undefined ? (st.ruin.roofHoles ?? []).map(([x, y]) => `${x},${y}`) : [],
+  );
   const out: Array<{ at: [number, number]; side: Side }> = [];
   for (const v of st.volumes ?? []) {
     if (v.roof.layers.length === 0 || v.roof.gableOnly !== undefined) continue;
@@ -672,7 +684,7 @@ export function roofUnsupportedEdges(st: ResolvedStructure): Array<{ at: [number
     for (const [x, y] of top.cells)
       for (const side of SIDES) {
         const [dx, dy] = STEP[side];
-        if (own.has(`${x + dx},${y + dy}`)) continue;
+        if (own.has(`${x + dx},${y + dy}`) || open.has(`${x},${y}`)) continue;
         const c = at.get(`${x},${y},${side}`);
         if (c && c.top < c.full - 0.5 - 1e-6) out.push({ at: [x, y], side });
       }
@@ -715,7 +727,15 @@ export const WEATHER_MINIMUMS: Readonly<{
   signs: 3,
 };
 
-export function weatherMeasures(st: ResolvedStructure): WeatherMeasures | null {
+/**
+ * `arrangements`: the level's detail instances. Generator 5 grows the wall foot of a worn building with the
+ * `wallFootGrowth` recipe instead of growth heaps in `debris`; the cells its instances hosted by this building cover
+ * beside a wall face count as growth heaps do.
+ */
+export function weatherMeasures(
+  st: ResolvedStructure,
+  arrangements: readonly ResolvedArrangement[] = [],
+): WeatherMeasures | null {
   if (st.condition === "ruined") return null;
   const r = st.ruin;
   const w = r?.weather;
@@ -727,10 +747,17 @@ export function weatherMeasures(st: ResolvedStructure): WeatherMeasures | null {
     const [x, y] = k.split(",").map(Number) as [number, number];
     for (const [dx, dy] of Object.values(STEP)) if (!cells.has(`${x + dx},${y + dy}`)) faces++;
   }
-  const growth = (st.debris ?? []).filter((d) => {
-    if (d.kind !== "growth" || cells.has(`${d.at[0]},${d.at[1]}`)) return false;
-    return Object.values(STEP).some(([dx, dy]) => cells.has(`${d.at[0] + dx},${d.at[1] + dy}`));
-  }).length;
+  const atFoot = ([x, y]: readonly [number, number]): boolean =>
+    !cells.has(`${x},${y}`) && Object.values(STEP).some(([dx, dy]) => cells.has(`${x + dx},${y + dy}`));
+  const grown = new Set(
+    arrangements
+      .filter((a) => a.recipe === "wallFootGrowth" && a.host === st.id)
+      .flatMap((a) => a.cells.filter(atFoot).map(([x, y]) => `${x},${y}`)),
+  );
+  const growth =
+    (st.debris ?? []).filter(
+      (d) => d.kind === "growth" && atFoot(d.at) && !grown.has(`${d.at[0]},${d.at[1]}`),
+    ).length + grown.size;
   const windows = w?.windows ?? 0;
   const boarded = w ? (windows > 0 ? w.boarded.length / windows : 1) : 0;
   const lit = st.lighting && st.lighting.windows !== "none" ? st.lighting.lit : 0;

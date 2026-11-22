@@ -13,12 +13,15 @@
 import { SIDE_STEP } from "../../../gen/gridGeometry";
 import { isWindow, openingTests } from "../../../gen/openingKinds";
 import { ONE_CELL } from "../../../palette/filters";
+import type { ResolvedVariant } from "../../../palette/resolve";
 import {
+  THEME_POST_ROLE,
   defaultPartRole,
   featureRole,
   floorRole,
   lightRole,
   partRole,
+  postRole,
   roofRole,
 } from "../../../palette/roles";
 import { partWalls } from "../../../resolve/building/parts";
@@ -108,19 +111,37 @@ export function layPorches(b: StructureCtx): void {
       : worn
         ? p.cells.filter((_, i) => p.cells.length < 2 || h32Utf16(`${st.id}:porch${pi}:${i}`) % 3 !== 0)
         : p.cells;
-    if (roofCells.length > 0)
-      layTiles(b, [roofRole(kit, "flat"), floorRole(p.floor)], setOf(roofCells), roofY, "wall", {
-        id: `${st.id}~porchroof${pi}`,
-        layer: "roof",
-      });
+    // generator 5 (porchWear): a sagging porch's outer row sits one step lower (the building's own eave never sags)
+    const sag = b.lv.ctx.profile.porchWear ? (p.sag ?? 0) : 0;
+    const outerRow = (c: readonly [number, number]): boolean =>
+      p.side === "S"
+        ? c[1] === y1 - 1
+        : p.side === "N"
+          ? c[1] === y0
+          : p.side === "E"
+            ? c[0] === x1 - 1
+            : c[0] === x0;
+    const rows: Array<[ReadonlyArray<readonly [number, number]>, number]> =
+      sag > 0
+        ? [
+            [roofCells.filter((c) => !outerRow(c)), roofY],
+            [roofCells.filter((c) => outerRow(c)), roofY - sag],
+          ]
+        : [[roofCells, roofY]];
+    for (const [rc, y] of rows)
+      if (rc.length > 0)
+        layTiles(b, [roofRole(kit, "flat"), floorRole(p.floor)], setOf(rc), y, "wall", {
+          id: `${st.id}~porchroof${pi}`,
+          layer: "roof",
+        });
     const style = partWalls(s0.walls, "porch");
     const pr = b.lookup(
       [partRole("porch_post", style), defaultPartRole("porch_post"), featureRole("pillar")],
       undefined,
       false,
     );
-    const pv = pr ? pick(pr.variants, `${L.id}:${st.id}:porchpost`) : undefined;
-    if (!pv) continue;
+    const pv0 = pr ? pick(pr.variants, `${L.id}:${st.id}:porchpost`) : undefined;
+    if (!pv0) continue;
     const outer: Array<[number, number]> =
       p.side === "S"
         ? [
@@ -141,13 +162,20 @@ export function layPorches(b: StructureCtx): void {
                 [x0 + 0.15, y0 + 0.15],
                 [x0 + 0.15, y1 - 0.15],
               ];
-    for (const [px, py] of gone ? outer.slice(0, 1) : outer) {
+    // generator 5 (porchWear): a post replaced with what was to hand, another kind of post on the second corner
+    const other =
+      b.lv.ctx.profile.porchWear && p.posts === "mixed"
+        ? otherPost(b, style, pv0, `${L.id}:${st.id}:porchpost2`)
+        : null;
+    for (const [i, [px, py]] of (gone ? outer.slice(0, 1) : outer).entries()) {
       const c = frame.point(px, py);
+      const pv = i === 1 && other ? other : pv0;
       const off =
         pv.geom.originAt === "minCorner"
           ? { x: pv.geom.size.x / 2, z: pv.geom.size.z / 2 }
           : rotateXZ(pv.geom.boundsCenter.x, pv.geom.boundsCenter.z, 0);
-      const n = Math.max(1, Math.round((roofY - s0.floorTop) / Math.max(0.25, pv.unitHeight)));
+      // (the outer posts stand under the sagged row)
+      const n = Math.max(1, Math.round((roofY - sag - s0.floorTop) / Math.max(0.25, pv.unitHeight)));
       for (let k = 0; k < n; k++)
         emit(
           pv,
@@ -161,6 +189,26 @@ export function layPorches(b: StructureCtx): void {
         );
     }
   }
+}
+
+/**
+ * Generator 5 (porchWear): a post of another kind than `pv` for a mixed porch: another variant of the porch post
+ * chain, else the theme's own wall post or pillar; null when the theme has none.
+ */
+function otherPost(b: StructureCtx, style: string, pv: ResolvedVariant, key: string): ResolvedVariant | null {
+  for (const roles of [
+    [partRole("porch_post", style), defaultPartRole("porch_post"), featureRole("pillar")],
+    [postRole(style), THEME_POST_ROLE],
+    [featureRole("pillar")],
+  ]) {
+    const r = b.lookup(roles, undefined, true);
+    const others = (r?.variants ?? []).filter(
+      (v) => v.weight > 0 && v.uuid !== pv.uuid && v.geom.size.y >= 0.5,
+    );
+    const v = others.length > 0 ? b.lv.ctx.pick(others, key) : undefined;
+    if (v) return v;
+  }
+  return null;
 }
 
 /** A light on the wall beside each door. */

@@ -40,7 +40,7 @@ import {
   stackEdge,
   type FaceCell,
 } from "./pieces";
-import { layRoofPiece } from "./roofPiece";
+import { hasOpenBays, layRoofPiece, openBay } from "./roofPiece";
 import { laySpire } from "./spire";
 
 type VolumeStorey = ResolvedVolume["storeys"][number];
@@ -112,7 +112,13 @@ export function layRoof(
       layTiles(
         b,
         [roofRole(kit, "deck"), roofRole(DEFAULT_PART, "deck"), floorRole(top.floor)],
-        cells,
+        // (generator 5: a ruin's lost bays have no deck either)
+        new Set(
+          [...cells].filter((k) => {
+            const [x, y] = cellOfKey(k);
+            return !openBay(b, { x, y, w: 1, h: 1 });
+          }),
+        ),
         wallTop,
         "floor",
         { id: `${tag}~deck`, layer: "roof" },
@@ -267,7 +273,7 @@ function layFlatTop(
   const { L } = b.lv;
   const { pick } = b.lv.ctx;
   const fallen = new Set(
-    (st.condition === "weathered" ? (st.ruin?.roofHoles ?? []) : [])
+    (st.condition === "weathered" || hasOpenBays(b) ? (st.ruin?.roofHoles ?? []) : [])
       .map(([x, y]) => key(x, y))
       .filter((k) => {
         const [x, y] = cellOfKey(k);

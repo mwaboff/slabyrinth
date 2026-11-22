@@ -62,7 +62,17 @@ export interface VolumePlan {
 export type GroundOpening = { id: string; kind: OpeningKind; at: Vec2; side: Side; width: number };
 export type UpperOpening = ResolvedStructure["upperOpenings"][number];
 export type Chimney = { at: Vec2; side: Side; wall: Vec2 };
-export type Porch = { id: string; cells: Vec2[]; side: Side; floor: Material; roof: boolean };
+export type Porch = {
+  id: string;
+  cells: Vec2[];
+  side: Side;
+  floor: Material;
+  roof: boolean;
+  /** Generator 5 (porchWear): the outer row of its roof sits this much lower. */
+  sag?: number;
+  /** Generator 5 (porchWear): posts of two kinds. */
+  posts?: "mixed";
+};
 
 export interface BuildingPlan {
   st: Building;
@@ -93,6 +103,8 @@ export interface BuildingPlan {
   growthLevel?: NonNullable<ResolvedStructure["growthLevel"]> | null;
   /** Wall tops and fallen floors of a weathered or ruined building, relative to the ground floor top. */
   ruin: RuinProfile | null;
+  /** Generator 5 (roofPatches): roof cells re-laid in a second roof kit. */
+  roofPatch?: Vec2[] | null;
   frontage: NonNullable<ResolvedStructure["frontage"]>;
   cells: Array<[number, number]>;
   cellSet: Set<string>;
