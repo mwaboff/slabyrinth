@@ -3,6 +3,7 @@
  * masks…) and a conservative cell bounding box. Rasterization itself belongs to WP2's resolver.
  */
 import type { Shape, Vec2 } from "../contracts/plan";
+import { maxOf, minOf } from "../util/lists";
 
 export interface CellBox {
   x0: number;
@@ -21,7 +22,7 @@ export function shapeCellBox(shape: Shape): CellBox | null {
     case "polygon": {
       const xs = shape.points.map((p) => p[0]);
       const ys = shape.points.map((p) => p[1]);
-      return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+      return { x0: minOf(xs), y0: minOf(ys), x1: maxOf(xs), y1: maxOf(ys) };
     }
     case "circle":
     case "blob": {
@@ -41,7 +42,7 @@ export function shapeCellBox(shape: Shape): CellBox | null {
         y1: Math.ceil(shape.cy + shape.ry),
       };
     case "cells": {
-      const w = Math.max(0, ...shape.rows.map((r) => r.length));
+      const w = Math.max(0, maxOf(shape.rows.map((r) => r.length)));
       return { x0: shape.x, y0: shape.y, x1: shape.x + w, y1: shape.y + shape.rows.length };
     }
     case "path": {
@@ -51,10 +52,10 @@ export function shapeCellBox(shape: Shape): CellBox | null {
       const xs = shape.points.map((p) => p[0]);
       const ys = shape.points.map((p) => p[1]);
       return {
-        x0: Math.min(...xs) - lo,
-        y0: Math.min(...ys) - lo,
-        x1: Math.max(...xs) + hi + 1,
-        y1: Math.max(...ys) + hi + 1,
+        x0: minOf(xs) - lo,
+        y0: minOf(ys) - lo,
+        x1: maxOf(xs) + hi + 1,
+        y1: maxOf(ys) + hi + 1,
       };
     }
     case "route":

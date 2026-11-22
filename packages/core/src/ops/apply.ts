@@ -48,6 +48,7 @@ import type { ValidateContext } from "../plan/validate";
 import { zodIssueToPlanIssue } from "../plan/zodIssues";
 import { across, shapeHasCell, tr, translateShape, translateStructure, translateTerrain } from "./geometry";
 import type { SizeLimits } from "../plan/sizeTiers";
+import { maxOf } from "../util/lists";
 
 // ───────────────────────────── rules (the resolver supplies them) ─────────────────────────────
 
@@ -1020,7 +1021,7 @@ function opDuplicate(d: Draft, op: Extract<PlanOp, { op: "duplicate" }>): void {
   for (const f of selection) {
     if (f.loc.kind === "level") {
       const src = f.level as Level;
-      const top = Math.max(...d.plan.levels.map((l) => l.elevation));
+      const top = maxOf(d.plan.levels.map((l) => l.elevation));
       const copy = cloneJson(src);
       copy.id = idMap.get(src.id) ?? src.id;
       copy.elevation = top + BUILD_CONSTANTS.storeyHeight;

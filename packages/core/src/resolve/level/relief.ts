@@ -18,6 +18,7 @@ import { accentTop, floorTone } from "../interiorFloors";
 import { isNaturalGround } from "../materials";
 import { breakStraightSteps, chamferCorners, organicTiers, roughenLumps } from "../organic";
 import type { ResolveGrid } from "./grid";
+import { maxOf, minOf } from "../../util/lists";
 
 /** What the relief ops leave on the resolved level. Written only here; read by feature placement and the output. */
 export class ReliefRecords {
@@ -199,7 +200,7 @@ export function applyPlatform(
     }
     if (m !== undefined) work.setMaterial(i, m);
   }
-  const top = Math.max(...tierOf.values());
+  const top = maxOf(tierOf.values());
   if (top < tiers)
     work.issue(
       "warning",
@@ -221,10 +222,10 @@ export function applyPlatform(
   // stairs: a 2-wide flight through the middle of each requested side, from outside the platform to the top tier
   const set = new Set(cells);
   const xy = cells.map((i) => work.cellXY(i));
-  const x0 = Math.min(...xy.map((c) => c[0]));
-  const x1 = Math.max(...xy.map((c) => c[0]));
-  const y0 = Math.min(...xy.map((c) => c[1]));
-  const y1 = Math.max(...xy.map((c) => c[1]));
+  const x0 = minOf(xy.map((c) => c[0]));
+  const x1 = maxOf(xy.map((c) => c[0]));
+  const y0 = minOf(xy.map((c) => c[1]));
+  const y1 = maxOf(xy.map((c) => c[1]));
   const cx = Math.floor((x0 + x1) / 2);
   const cy = Math.floor((y0 + y1) / 2);
   const [lo, hi] = bandOffsets(PLATFORM.flightWidth);

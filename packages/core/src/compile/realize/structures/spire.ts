@@ -17,6 +17,7 @@ import { EPS } from "../level";
 import type { StructureCtx } from "./context";
 import { edgePiece, layTiles, placeProp, rectCellsOf, setOf } from "./pieces";
 import { layRoofPiece } from "./roofPiece";
+import { maxOf } from "../../../util/lists";
 
 /**
  * The spire. The rings of a hip roof (eaves over the wall ring, the last ring capped) are each laid twice, one tile
@@ -48,7 +49,7 @@ export function laySpire(
     return layShellSpire(b, kit, rect, base, bands, tag);
   const g = hipRoof(rect);
   // slopes doubled: ring k fills base+2k .. base+2k+2; the ridge caps sit on the last ring's top (no gap under them)
-  const slopeTop = Math.max(0, ...g.pieces.filter((p) => p.kind !== "cap").map((p) => 2 * p.course + 2));
+  const slopeTop = Math.max(0, maxOf(g.pieces.filter((p) => p.kind !== "cap").map((p) => 2 * p.course + 2)));
   for (const p of g.pieces) {
     if (p.kind === "cap") {
       layRoofPiece(b, kit, p, base + slopeTop - p.course, tag);

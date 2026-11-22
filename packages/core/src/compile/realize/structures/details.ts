@@ -40,6 +40,7 @@ import {
   wallProp,
   type FaceCell,
 } from "./pieces";
+import { maxOf, minOf } from "../../../util/lists";
 
 /** The flat piece a canopy and a balcony borrow, then the floor they fall back to. */
 const BORROWED_FLAT = [roofRole(PART_FALLBACK_KITS.flat, "flat"), floorRole(PART_FALLBACK_FLOORS.tile)];
@@ -116,8 +117,8 @@ export function layDetails(
       const run = faces.filter((f) => f.face === front);
       const [dx, dy] = SIDE_STEP[front];
       const along = (f: FaceCell): number => (front === "N" || front === "S" ? f.x : f.y);
-      const lo = Math.min(...run.map(along));
-      const hi = Math.max(...run.map(along));
+      const lo = minOf(run.map(along));
+      const hi = maxOf(run.map(along));
       const slab = new Set<string>();
       for (const f of run) {
         if (!awning && (along(f) === lo || along(f) === hi)) continue;

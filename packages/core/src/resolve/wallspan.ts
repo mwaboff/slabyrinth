@@ -13,6 +13,7 @@
 import { BUILD_CONSTANTS } from "../contracts/plan";
 import { CELL, CELL_FLAG, type EdgeGrid, type ResolvedLevel } from "../contracts/resolved";
 import { cellIndex } from "./levelGrid";
+import { maxOf, minOf } from "../util/lists";
 
 /**
  * The wall height of edge `e` (tiles above its floor top, `EdgeGrid.height`): the stored height, or the default wall
@@ -95,8 +96,8 @@ export function wallSpan(
     return { base, top: base + wallHeight };
   }
   const tops = [a, b].filter((c) => c.floor).map(top);
-  const base = tops.length ? Math.min(...tops) : elevation + 0.5;
-  let hi = tops.length ? Math.max(...tops) : base;
+  const base = tops.length ? minOf(tops) : elevation + 0.5;
+  let hi = tops.length ? maxOf(tops) : base;
   for (const c of [a, b]) {
     if (!c.open || c.area === 0) continue;
     const r = ref.get(c.area);

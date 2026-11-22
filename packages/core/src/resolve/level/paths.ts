@@ -22,6 +22,7 @@ import { isWater, materialOrdinal } from "../materials";
 import { crossingCells, kerbLinesAndCorners } from "../road";
 import { trailCells } from "../trail";
 import type { ReadOnly, ResolveGrid } from "./grid";
+import { minOf } from "../../util/lists";
 
 /** A path op in road form (generator 2) as drawn: its carriageway cells and the pavement cells laid beside it so far. */
 export interface PendingRoad {
@@ -373,8 +374,8 @@ export function parkVehicle(
           lane.push([kl.from[0] + sx * (t + u) + dx, kl.from[1] + sy * (t + u) + dy]);
         if (!lane.every(([x, y]) => cw.has(k(x, y)) && !cross.has(k(x, y)))) continue;
         if (lane.some(([x, y]) => occupied(work.idx(x, y)))) continue;
-        const x0 = Math.min(...lane.map((c) => c[0]));
-        const y0 = Math.min(...lane.map((c) => c[1]));
+        const x0 = minOf(lane.map((c) => c[0]));
+        const y0 = minOf(lane.map((c) => c[1]));
         const d = Math.abs(x0 - at[0]) + Math.abs(y0 - at[1]);
         if (!best || d < best.d) best = { at: [x0, y0], size: horiz ? [len, 1] : [1, len], d };
       }

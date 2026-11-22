@@ -1,3 +1,4 @@
+import { maxOf } from "../util/lists";
 /**
  * The one tone scale: a palette variant's `tone`, the observations below, and the floor materials' guess
  * (resolve/materials.ts MATERIAL_INFO `tone`), darkest first.
@@ -9,7 +10,7 @@ export const TONE_RANK: Readonly<Record<Tone, number>> = { dark: 0, mid: 1, ligh
 
 /** Is a tone at an end of the scale (dark or light: a known contrast), not its middle? */
 export function isToneExtreme(t: Tone): boolean {
-  return TONE_RANK[t] === 0 || TONE_RANK[t] === Math.max(...Object.values(TONE_RANK));
+  return TONE_RANK[t] === 0 || TONE_RANK[t] === maxOf(Object.values(TONE_RANK));
 }
 
 /**

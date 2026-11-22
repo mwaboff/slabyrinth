@@ -21,6 +21,7 @@ import { roughenLumps } from "../organic";
 import type { FeatureWork } from "./features";
 import { type ReadOnly, type ResolveGrid, RAILING_HEIGHT } from "./grid";
 import type { ResolveLevelState } from "./state";
+import { maxOf } from "../../util/lists";
 
 /** The shape of a collapse (applyFloorOpening); the rest of its outline is the profile's `openingOutline` tuning. */
 const RAGGED = {
@@ -398,7 +399,7 @@ export function stepOpeningRubble(
     const cx = cells.reduce((s, c) => s + c[0], 0) / cells.length + 0.5;
     const cy = cells.reduce((s, c) => s + c[1], 0) / cells.length + 0.5;
     const dist = (c: Vec2): number => Math.hypot(c[0] + 0.5 - cx, c[1] + 0.5 - cy);
-    const maxD = Math.max(1, ...cells.map(dist));
+    const maxD = Math.max(1, maxOf(cells.map(dist)));
     const order = [...cells].sort((a, b) => dist(a) - dist(b) || a[1] - b[1] || a[0] - b[0]);
     const u = (c: Vec2, k: string): number => hashUnit(r.seed, "rubble", k, c[0], c[1]);
     let n = 0;

@@ -29,6 +29,7 @@ import { groundTop, legiblyWorn, unit01, type StructureCtx } from "./context";
 import type { LitWindow } from "./courses";
 import { openingFace } from "./openings";
 import { layTiles, placeProp, setOf, wallProp } from "./pieces";
+import { maxOf, minOf } from "../../../util/lists";
 
 /** Chimneys: a breast of blocks in the wall line, from the ground past the main roof, a pot on top. */
 export function layChimneys(b: StructureCtx, roofTop: number): void {
@@ -93,10 +94,10 @@ export function layPorches(b: StructureCtx): void {
     if (!p.roof) continue;
     const xs = p.cells.map((c) => c[0]);
     const ys = p.cells.map((c) => c[1]);
-    const x0 = Math.min(...xs);
-    const x1 = Math.max(...xs) + 1;
-    const y0 = Math.min(...ys);
-    const y1 = Math.max(...ys) + 1;
+    const x0 = minOf(xs);
+    const x1 = maxOf(xs) + 1;
+    const y0 = minOf(ys);
+    const y1 = maxOf(ys) + 1;
     const roofY = Math.max(s0.floorTop + 2, groundWallTop - 1);
     // generator 3: an attached porch takes the building's condition: a ruin's hood has fallen (one post stands), a
     // weathered one has lost a third of its roof cells

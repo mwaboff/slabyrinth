@@ -12,6 +12,7 @@
 import type { RoofType, Side } from "../contracts/plan";
 import type { ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
 import { isPitchedRoof } from "./roofTypes";
+import { maxOf } from "../util/lists";
 
 export interface RoofWing {
   /** Footprint rectangle (cells), without the wall ring. */
@@ -285,7 +286,7 @@ export function hipRoof(wing: Rect, holes: ReadonlySet<string> = new Set()): Roo
   const o: Rect = { x: wing.x - 1, y: wing.y - 1, w: wing.w + 2, h: wing.h + 2 };
   const n = Math.ceil(Math.min(o.w, o.h) / 2);
   const r = rings(o, n, "slope", holes);
-  const top = Math.max(0, ...r.pieces.map((p) => (p.kind === "cap" ? p.course : p.course + 1)));
+  const top = Math.max(0, maxOf(r.pieces.map((p) => (p.kind === "cap" ? p.course : p.course + 1))));
   const half = Math.min(o.w, o.h) / 2;
   const ridges: RoofShape["ridges"] =
     o.w >= o.h
@@ -558,7 +559,7 @@ export function roofProportion(st: ResolvedStructure): RoofProportion | null {
       // a gable rises over each of its wings, every other type over the top storey's rectangle
       const rise =
         layer.type === "gable"
-          ? Math.max(0, ...rects.map((r) => roofRise(layer.type, r)))
+          ? Math.max(0, maxOf(rects.map((r) => roofRise(layer.type, r))))
           : roofRise(layer.type, { ...last.rect, ridge: layer.ridge }, layer);
       if (isPitched) pitched = true;
       top = Math.max(top, base + rise);

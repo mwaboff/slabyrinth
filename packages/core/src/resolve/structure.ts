@@ -64,6 +64,7 @@ import {
   expandDesign,
 } from "./structureVariety";
 import { structureStyle } from "./structureStyles";
+import { maxOf, minOf } from "../util/lists";
 
 interface EnclosurePlan {
   st: Enclosure;
@@ -800,7 +801,7 @@ function lowMassAgainstNeighbour(
           0,
         )
       : 0;
-  const tallest = Math.max(...ground.map(heightOf));
+  const tallest = maxOf(ground.map(heightOf));
   return ground.some((v) => {
     if (heightOf(v) >= tallest) return false;
     for (let y = v.y - 1; y <= v.y + v.h; y++)
@@ -849,9 +850,11 @@ function addBuildings(x: Expansion): void {
       walls: s0.walls === null ? "none" : "auto",
       // the lowest ground storey of the ground volumes (a lean-to beside the house): the shell height verify expects
       wallHeight: Math.min(
-        ...b.volumes
-          .filter((v) => v.on === null)
-          .map((v) => (v.storeys[0]?.wallHeight ?? s0.wallHeight) + (v.storeys[0]?.footing?.height ?? 0)),
+        minOf(
+          b.volumes
+            .filter((v) => v.on === null)
+            .map((v) => (v.storeys[0]?.wallHeight ?? s0.wallHeight) + (v.storeys[0]?.footing?.height ?? 0)),
+        ),
         s0.wallHeight + (s0.footing?.height ?? 0),
       ),
       floor: s0.floor,

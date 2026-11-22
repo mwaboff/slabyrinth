@@ -34,6 +34,7 @@ import { sha256Hex } from "../slab/sha256";
 import { emptyBox, finiteBox, growBox } from "./geometry";
 import { placedBox } from "./placed";
 import type { RealizedSet } from "./realize/output";
+import { minOf, pushAll } from "../util/lists";
 
 /** The verify codes this stage emits (the water level note; VERIFY_CODES is the union of every check's list). */
 export const CHUNK_VERIFY_CODES = ["verify_water_level"] as const satisfies readonly CompileDiagnosticCode[];
@@ -373,7 +374,7 @@ function packRegions(
     });
     withMarkers = false;
   }
-  diagnostics.push(...pass.oversize);
+  pushAll(diagnostics, pass.oversize);
   if (pass.splits > 0) {
     diagnostics.push({
       severity: "info",
@@ -408,7 +409,7 @@ function buildChunks(
     const mine = regions.filter((r) => groupKey(r) === key);
     const xs = [...new Set(mine.map((r) => r.rect.x))].sort((a, b) => a - b);
     const ys = [...new Set(mine.map((r) => r.rect.y))].sort((a, b) => a - b);
-    const minCellX = Math.min(...mine.map((r) => r.rect.x));
+    const minCellX = minOf(mine.map((r) => r.rect.x));
     mine.forEach((r, i) => {
       const cb = emptyBox();
       for (const it of r.items) growBox(cb, it.box);
@@ -569,7 +570,7 @@ function layoutBuild(
   const levelsWanted = opts.levels ? new Set(opts.levels) : null;
   const levels = set.levels.filter((l) => !levelsWanted || levelsWanted.has(l.levelId));
   const elevOf = new Map((rs.levelInfo ?? []).map((l) => [l.levelId, l.elevation]));
-  const minElev = Math.min(...levels.map((l) => elevOf.get(l.levelId) ?? 0), Infinity);
+  const minElev = Math.min(minOf(levels.map((l) => elevOf.get(l.levelId) ?? 0)), Infinity);
   const shift = new Map<LevelId, { dx: number; dy: number }>();
   const levelPlacement: ExportBundle["levelPlacement"] = [];
   let cursorX = 0;

@@ -3,6 +3,7 @@
  * the longest straight outline segment, square corners, and how much of its bounding box a cell set fills.
  */
 import { traceRings } from "../resolve/trace";
+import { maxOf, minOf } from "../util/lists";
 
 export type CellSet = ReadonlyArray<readonly [number, number]>;
 
@@ -11,10 +12,10 @@ export function outline(cells: CellSet): Array<Array<[number, number]>> {
   if (cells.length === 0) return [];
   const xs = cells.map((c) => c[0]);
   const ys = cells.map((c) => c[1]);
-  const x0 = Math.min(...xs);
-  const y0 = Math.min(...ys);
-  const w = Math.max(...xs) - x0 + 1;
-  const h = Math.max(...ys) - y0 + 1;
+  const x0 = minOf(xs);
+  const y0 = minOf(ys);
+  const w = maxOf(xs) - x0 + 1;
+  const h = maxOf(ys) - y0 + 1;
   const set = new Set(cells.map(([x, y]) => `${x},${y}`));
   const rings = traceRings(w, h, (ux, uy) => set.has(`${x0 + ux},${y0 + uy}`), x0, y0);
   return rings.map((r) => {
@@ -43,7 +44,7 @@ function segments(cells: CellSet): number[][] {
 
 /** Longest straight piece of the outline, in cells. */
 export function longestStraight(cells: CellSet): number {
-  return Math.max(0, ...segments(cells).flat());
+  return Math.max(0, maxOf(segments(cells).flat()));
 }
 
 /** Square corners: outline vertices whose two segments are both at least `arm` cells long. */
@@ -60,7 +61,7 @@ export function boxFill(cells: CellSet): number {
   if (cells.length === 0) return 0;
   const xs = cells.map((c) => c[0]);
   const ys = cells.map((c) => c[1]);
-  return cells.length / ((Math.max(...xs) - Math.min(...xs) + 1) * (Math.max(...ys) - Math.min(...ys) + 1));
+  return cells.length / ((maxOf(xs) - minOf(xs) + 1) * (maxOf(ys) - minOf(ys) + 1));
 }
 
 /**

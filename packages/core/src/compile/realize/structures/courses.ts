@@ -39,6 +39,7 @@ import {
   type FaceCell,
   type Part,
 } from "./pieces";
+import { pushAll } from "../../../util/lists";
 
 /** A window built on a storey: the window lights (attachments.ts) light a share of them. */
 export interface LitWindow {
@@ -262,7 +263,7 @@ function layOpenings(b: StructureCtx, a: CourseArgs, mainBase: number, brokenOps
         if (tc - leafTop > 0.2 && !(a.openTop && isGap(op.kind) && !standing)) {
           const lintel = [partRole("over_door", style)];
           if (footing) lintel.push(partRole("footing", footing.style));
-          lintel.push(...wallChain(style));
+          pushAll(lintel, wallChain(style));
           // (over an empty doorway the grid has no opening edge, so the lintel is a wall piece, not a door piece)
           stackEdge(b, lintel, isGap(op.kind) ? "wall" : "opening", e, leafTop, tc, part, {
             shortRoles: [partRole("over_door", style)],

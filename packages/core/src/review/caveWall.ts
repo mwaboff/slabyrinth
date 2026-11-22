@@ -12,6 +12,7 @@ import { generatorProfile } from "../plan/generator";
 import { cellIndex, hEdgeIndex, vEdgeIndex } from "../resolve/levelGrid";
 import type { DesignNote } from "./review";
 import { REVIEW, capped, over } from "./thresholds";
+import { maxOf } from "../util/lists";
 
 /** CELL state of local cell (x, y), -1 outside the level. */
 function stateAt(L: ResolvedLevel, x: number, y: number): number {
@@ -122,7 +123,7 @@ export function caveNaturalMeasures(L: ResolvedLevel): CaveNaturalMeasures {
   }
   return {
     floorCells,
-    flatShare: floorCells > 0 ? Math.max(...count.values()) / floorCells : 0,
+    flatShare: floorCells > 0 ? maxOf(count.values()) / floorCells : 0,
     wallEdges: edges,
     straightShare: edges > 0 ? inRuns / edges : 0,
     longest,

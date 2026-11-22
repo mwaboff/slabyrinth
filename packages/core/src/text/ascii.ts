@@ -13,6 +13,7 @@ import { cellViewer, featureChars, issueMarks, linkCells } from "./asciiMap/cell
 import { type AsciiOptions, createAsciiCtx, newSeen } from "./asciiMap/context";
 import { doubleCharRows, overviewRows, singleCharRows } from "./asciiMap/grid";
 import { legendLines } from "./asciiMap/legend";
+import { pushAll } from "../util/lists";
 
 export type { AsciiOptions } from "./asciiMap/context";
 export { OPENING_CHAR } from "./asciiMap/legend";
@@ -53,6 +54,6 @@ export function asciiLevel(
       : c.rw > maxW
         ? singleCharRows(c, view, marks.marked, maxW)
         : doubleCharRows(c, view, seen, marks.marked);
-  if (opts.legend ?? true) lines.push(...legendLines(seen, feats.legend, links.notes, marks.notes));
+  if (opts.legend ?? true) pushAll(lines, legendLines(seen, feats.legend, links.notes, marks.notes));
   return lines.join("\n");
 }

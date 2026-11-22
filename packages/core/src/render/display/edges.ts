@@ -7,6 +7,7 @@ import { EDGE } from "../../contracts/resolved";
 import { hEdgeIndex, vEdgeIndex } from "../../resolve/levelGrid";
 import type { DisplayCtx } from "./context";
 import { cellRings } from "./rings";
+import { maxOf, minOf } from "../../util/lists";
 
 /** A drop of at least this many quarter tiles is a cliff (drawn with hachures), a lower one a ledge line. */
 const CLIFF_HEIGHT = 1;
@@ -102,7 +103,7 @@ export function bridgeItems(c: DisplayCtx): DisplayItem[] {
     if (rings.length === 0) continue;
     const xs = b.cells.map((p) => p[0]);
     const ys = b.cells.map((p) => p[1]);
-    const ew = Math.max(...xs) - Math.min(...xs) >= Math.max(...ys) - Math.min(...ys);
+    const ew = maxOf(xs) - minOf(xs) >= maxOf(ys) - minOf(ys);
     items.push({
       layer: "ledge",
       style: ew ? "bridge-h" : "bridge-v",

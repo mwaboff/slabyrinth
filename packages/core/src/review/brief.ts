@@ -7,6 +7,7 @@ import type { DesignBrief, MapPlan } from "../contracts/plan";
 import { CELL, CELL_FLAG, type ResolvedPlan, type ResolvedStructure } from "../contracts/resolved";
 import { GROWTH_LEVELS, growthMeasures } from "../resolve/growth";
 import type { DesignNote } from "./review";
+import { maxOf, minOf } from "../util/lists";
 
 /** The brief as one line of its listed parts (empty when there is no brief and no title). */
 export function briefCheckLine(brief: DesignBrief | undefined, plan: MapPlan): string {
@@ -43,7 +44,7 @@ const tallest = (r: ResolvedPlan): { s: ResolvedStructure; height: number; width
       const height = s.storeys.reduce((t, q) => t + q.wallHeight, 0);
       const xs = s.cells.map((p) => p[0]);
       const ys = s.cells.map((p) => p[1]);
-      const width = Math.max(Math.max(...xs) - Math.min(...xs) + 1, Math.max(...ys) - Math.min(...ys) + 1);
+      const width = Math.max(maxOf(xs) - minOf(xs) + 1, maxOf(ys) - minOf(ys) + 1);
       if (!best || height > best.height) best = { s, height, width };
     }
   return best;
