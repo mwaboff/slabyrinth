@@ -75,7 +75,10 @@ export async function launch(
     timeout: 30_000,
   });
   const page = await app.firstWindow();
+  // The theme follows the system by default: pin the system scheme so runs (and screenshots) match on any machine.
+  await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("html")).toHaveAttribute("data-slabyrinth-ready", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   return { app, page };
 }
 

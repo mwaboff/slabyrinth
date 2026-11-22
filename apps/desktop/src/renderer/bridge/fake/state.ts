@@ -256,7 +256,7 @@ function initialSettings(scenario: FakeScenario, recent: string[]): AppSettings 
       alignmentMarkers: false,
     },
     projects: { folder: "C:\\Users\\GM\\Documents\\Slabyrinth", recent },
-    ui: { theme: "dark", mapThemeId: "auto", gridVisible: true, onLaunch: "home" },
+    ui: { theme: "system", mapThemeId: "auto", gridVisible: true, onLaunch: "home" },
     suppressAssetWarning: false,
     updates: { autoCheck: true },
     setupCompleted: scenario.setup !== true,

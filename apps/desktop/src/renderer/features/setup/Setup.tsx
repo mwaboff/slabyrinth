@@ -310,7 +310,7 @@ export function Setup() {
     await useProject.getState().loadList();
     await newProject();
   };
-  const theme = settings?.ui.theme ?? "dark";
+  const theme = settings?.ui.theme ?? "system";
   return (
     <div className="setup-scrim">
       <div className="setup" role="dialog" aria-modal="true" aria-labelledby="setup-title">

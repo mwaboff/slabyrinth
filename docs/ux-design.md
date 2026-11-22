@@ -131,7 +131,7 @@ A step gets a check when it is complete: Brief ✓ once a plan exists, Plan ✓ 
 5. **Phase stepper**, centred (§2.1).
 6. **Cost meter**: `$0.38 · 41k tok`. Click for a popover with the project total, session total and all-time total, the last 5 calls (action, model, in/out tokens, cost), a link to the Anthropic Console usage page, and the warning thresholds. When the project passes its warning threshold (default $2.00), the meter turns warning-coloured and its text changes to "$2.14 · over $2", so it doesn't rely on colour alone.
 7. (No model chip here: model and effort live next to the composer, where they take effect. See §5.8.)
-8. **Theme** toggle: switches Dark (default) ↔ Light. "Match system" is in Settings ▸ Appearance. The tooltip names the current state.
+8. (No theme toggle here: the theme follows the system by default; Dark, Light and Match system are in Settings ▸ Appearance, and the command palette has "Switch theme".)
 9. **Settings** gear (`Ctrl+,`).
 10. **Status dot**, shown only when offline or when the key is invalid (§10).
 11. **Window controls**: native overlay on Windows, drawn by the app on Linux.

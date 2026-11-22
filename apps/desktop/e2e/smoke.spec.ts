@@ -100,7 +100,7 @@ test("app boots with the secure bridge only", async () => {
       }),
     );
     expect(unknown).toMatchObject({ ok: false, error: { code: "unsupported" } });
-    expect(unwrap(await invoke(page, "settings:get", undefined)).ui.theme).toBe("dark");
+    expect(unwrap(await invoke(page, "settings:get", undefined)).ui.theme).toBe("system");
   } finally {
     await app.close();
   }
