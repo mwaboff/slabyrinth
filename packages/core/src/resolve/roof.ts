@@ -1,5 +1,5 @@
 /**
- * Roof strategies (2026-11-20): pure geometry in plan cells, shared by the compiler (pieces) and the 2D overlay
+ * Roof strategies: pure geometry in plan cells, shared by the compiler (pieces) and the 2D overlay
  * (outline, ridge). Built today: gable; flat and none need no geometry here. New strategies (hip, shed, cone, dome)
  * add a function with the same output shape.
  *
@@ -9,8 +9,10 @@
  * one-cell pieces; an odd span gets a flat cap row on the ridge line. The roof outline is the wing plus the ring of
  * cells the walls stand in, so the eaves and gable ends overhang the wall faces by half a cell.
  */
-import type { Side } from "../contracts/plan";
+import type { RoofType, Side } from "../contracts/plan";
 import type { ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
+import { isPitchedRoof } from "./roofTypes";
+import { maxOf } from "../util/lists";
 
 export interface RoofWing {
   /** Footprint rectangle (cells), without the wall ring. */
@@ -161,11 +163,36 @@ export function gableRoof(wing: RoofWing, holes: ReadonlySet<string> = new Set()
 }
 
 /** Default ridge: along the longer side (east-west on a square). */
+/**
+ * How far one roof layer of `type` rises above its base over `wing` (tiles): a pitched roof's ridge or top, a skirt's
+ * or stepped layer's courses; 0 for a type that rises nothing (flat, none, a type that is not built). The geometry is
+ * the one place that switches on roof type; everything else asks it or ROOF_TYPE_INFO.
+ */
+export function roofRise(
+  type: RoofType,
+  wing: RoofWing,
+  shape: { readonly low?: Side | undefined; readonly courses?: number | undefined } = {},
+): number {
+  switch (type) {
+    case "gable":
+      return gableRoof(wing).ridgeTop;
+    case "hip":
+      return hipRoof(wing).top;
+    case "shed":
+      return shedRoof(wing, shape.low ?? "S").top;
+    case "skirt":
+    case "stepped":
+      return shape.courses ?? 0;
+    default:
+      return 0;
+  }
+}
+
 export function defaultRidge(w: number, h: number): "ew" | "ns" {
   return h > w ? "ns" : "ew";
 }
 
-// ───────────────────────────── more strategies (phase 2, 2026-11-20) ─────────────────────────────
+// ───────────────────────────── more strategies (hip, shed, ring layers, spire) ─────────────────────────────
 
 export interface Rect {
   x: number;
@@ -259,7 +286,7 @@ export function hipRoof(wing: Rect, holes: ReadonlySet<string> = new Set()): Roo
   const o: Rect = { x: wing.x - 1, y: wing.y - 1, w: wing.w + 2, h: wing.h + 2 };
   const n = Math.ceil(Math.min(o.w, o.h) / 2);
   const r = rings(o, n, "slope", holes);
-  const top = Math.max(0, ...r.pieces.map((p) => (p.kind === "cap" ? p.course : p.course + 1)));
+  const top = Math.max(0, maxOf(r.pieces.map((p) => (p.kind === "cap" ? p.course : p.course + 1))));
   const half = Math.min(o.w, o.h) / 2;
   const ridges: RoofShape["ridges"] =
     o.w >= o.h
@@ -272,7 +299,13 @@ export function hipRoof(wing: Rect, holes: ReadonlySet<string> = new Set()): Roo
  * Shed (lean-to) roof: one slope rising from the `low` side across the whole outline, run-2 pieces at every course
  * like the gable; the top course ends at the high side.
  */
-export function shedRoof(wing: Rect, low: Side, holes: ReadonlySet<string> = new Set()): RoofShape {
+export function shedRoof(
+  wing: Rect,
+  low: Side,
+  holes: ReadonlySet<string> = new Set(),
+  /** Generator 4: a run-2 piece over a hole becomes one-cell slopes on the cells that stay open (was: dropped whole). */
+  fill = false,
+): RoofShape {
   const o: Rect = { x: wing.x - 1, y: wing.y - 1, w: wing.w + 2, h: wing.h + 2 };
   const acrossY = low === "N" || low === "S";
   const span = acrossY ? o.h : o.w;
@@ -298,8 +331,17 @@ export function shedRoof(wing: Rect, low: Side, holes: ReadonlySet<string> = new
     const aStart = lowFirst ? k : span - 2 - k;
     for (const c of cols) {
       const rr = rect(c.b, c.along, aStart, 2);
-      if (cellsOf(rr).some((cc) => holes.has(cc))) continue;
-      pieces.push({ kind: c.along === 2 ? "slope2x2" : "slope2", ...rr, eave: low, course: k });
+      const piece: RoofPiece = { kind: c.along === 2 ? "slope2x2" : "slope2", ...rr, eave: low, course: k };
+      if (cellsOf(rr).some((cc) => holes.has(cc))) {
+        if (fill)
+          for (const cc of cellsOf(rr)) {
+            if (holes.has(cc)) continue;
+            const [x, y] = cc.split(",").map(Number) as [number, number];
+            pieces.push({ kind: "slope", x, y, w: 1, h: 1, eave: low, course: cellCourse(piece, x, y) });
+          }
+        continue;
+      }
+      pieces.push(piece);
     }
   }
   const surface = (x: number, y: number): number =>
@@ -449,13 +491,17 @@ export function mergeRoofs(roofs: readonly RoofOwner[]): Map<string, RoofPiece[]
  * The pitched roofs of a building (first layer of every volume: gable wings, hips, sheds) as owners for `mergeRoofs`,
  * keyed "<volume>#<wing>". Heights match the compiler: the top storey's wall top, plus the attic deck.
  */
-export function roofOwners(vols: readonly ResolvedVolume[], holes: ReadonlySet<string> = new Set()): RoofOwner[] {
+export function roofOwners(
+  vols: readonly ResolvedVolume[],
+  holes: ReadonlySet<string> = new Set(),
+  fill = false,
+): RoofOwner[] {
   const owners: RoofOwner[] = [];
   for (const v of vols) {
     const top = v.storeys[v.storeys.length - 1];
     const layer = v.roof.layers[0];
     if (!top || !layer || v.roof.gableOnly) continue;
-    const base = top.wallTop + (v.roof.deck && ["gable", "hip", "shed"].includes(layer.type) ? 0.5 : 0);
+    const base = top.wallTop + (v.roof.deck && isPitchedRoof(layer.type) ? 0.5 : 0);
     if (layer.type === "gable") {
       v.rects.forEach((w, wi) => {
         const g = gableRoof(w, holes);
@@ -471,7 +517,7 @@ export function roofOwners(vols: readonly ResolvedVolume[], holes: ReadonlySet<s
         });
       });
     } else if (layer.type === "hip" || layer.type === "shed") {
-      const g = layer.type === "hip" ? hipRoof(top.rect, holes) : shedRoof(top.rect, layer.low, holes);
+      const g = layer.type === "hip" ? hipRoof(top.rect, holes) : shedRoof(top.rect, layer.low, holes, fill);
       owners.push({ id: `${v.id}#0`, base, pieces: g.pieces, surface: g.surface });
     }
   }
@@ -507,14 +553,14 @@ export function roofProportion(st: ResolvedStructure): RoofProportion | null {
     let top = base;
     let pitched = false;
     v.roof.layers.forEach((layer, li) => {
-      const isPitched = layer.type === "gable" || layer.type === "hip" || layer.type === "shed";
+      const isPitched = isPitchedRoof(layer.type);
       if (li === 0 && v.roof.deck && isPitched) base += 0.5;
       const rects = li === 0 ? v.rects : [{ ...last.rect, ridge: layer.ridge }];
-      let rise = 0;
-      if (layer.type === "gable") rise = Math.max(0, ...rects.map((r) => gableRoof(r).ridgeTop));
-      else if (layer.type === "hip") rise = hipRoof(last.rect).top;
-      else if (layer.type === "shed") rise = shedRoof(last.rect, layer.low).top;
-      else if (layer.type === "skirt" || layer.type === "stepped") rise = layer.courses;
+      // a gable rises over each of its wings, every other type over the top storey's rectangle
+      const rise =
+        layer.type === "gable"
+          ? Math.max(0, maxOf(rects.map((r) => roofRise(layer.type, r))))
+          : roofRise(layer.type, { ...last.rect, ridge: layer.ridge }, layer);
       if (isPitched) pitched = true;
       top = Math.max(top, base + rise);
       base = top;

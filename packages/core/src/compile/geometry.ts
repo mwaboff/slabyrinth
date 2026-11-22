@@ -5,8 +5,10 @@
  */
 import type { Box3, OrientationCalibration, PaletteVariant } from "../contracts/compiler";
 import type { Side } from "../contracts/plan";
+import { SIDES } from "../gen/gridGeometry";
 
-export const DIRS: readonly Side[] = ["N", "E", "S", "W"];
+/** The four sides clockwise from north (gen/gridGeometry.ts SIDES), the order the quarter turns count in. */
+export const DIRS: readonly Side[] = SIDES;
 const idx = (d: Side): number => DIRS.indexOf(d);
 
 /** Turns `d` clockwise by `quarters` quarter turns (compass terms). */
@@ -17,16 +19,6 @@ export function rotateDir(d: Side, quarters: number): Side {
 /** Clockwise quarter turns from `from` to `to` (0..3). */
 export function turnQuarters(from: Side, to: Side): number {
   return (((idx(to) - idx(from)) % 4) + 4) % 4;
-}
-
-/** FNV-1a 32-bit over the UTF-16 code units of a string (deterministic picks; not a cryptographic hash). */
-export function h32(s: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h >>> 0;
 }
 
 export class WorldFrame {
@@ -79,6 +71,9 @@ export class WorldFrame {
     return (((d * this.o.rotSense) % 360) + 360) % 360;
   }
 }
+
+/** A rotation snapped to the nearest quarter turn, 0..270 (a tile stays square to the grid). */
+export const quarterTurn = (deg: number): number => (((Math.round(deg / 90) % 4) + 4) % 4) * 90;
 
 /** Rotates (x, z) clockwise (seen from above) by `deg` degrees of game rotation (after rotSense). */
 export function rotateXZ(x: number, z: number, cwDeg: number): { x: number; z: number } {

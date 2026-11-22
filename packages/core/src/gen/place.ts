@@ -6,129 +6,33 @@
 import type { DressPreset, FeatureType, Rotation, Side } from "../contracts/plan";
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
-import { featureInfo, rotatedSize } from "./catalog";
+import { featureInfo, rotatedSize, typesWith } from "./catalog";
+import {
+  EDGE_OPENING,
+  EDGE_WALL,
+  FLAG_LINK,
+  FLAG_NO_FLOOR,
+  FLAG_PATH,
+  FLAG_WATER,
+  NEIGHBOURS4,
+  SIDES,
+  SIDE_ROT,
+  cellKey,
+  footprintCells,
+  wallFootprint,
+  wallSides,
+} from "./gridGeometry";
 import { ValueNoise } from "./noise";
+import { ROOM_PURPOSE_INFO, presetPurpose } from "./roomPurpose";
+import { dressRoom } from "./rooms4";
+import {
+  footprintCrossesWall,
+  gridProfile,
+  type GeneratedPlacement,
+  type PlacementGrid,
+  type ScatterResult,
+} from "./placementGrid";
 import { composeArea, isComposedPreset, type ComposedPreset } from "./setpieces";
-
-export interface PlacementGrid {
-  inBounds(x: number, y: number): boolean;
-  /** OPEN with floor (not NO_FLOOR). */
-  isFloor(x: number, y: number): boolean;
-  /** CELL_FLAG bits. */
-  flags(x: number, y: number): number;
-  /** Display area index + 1 (0 = none). */
-  area(x: number, y: number): number;
-  /** Any feature already on the cell. */
-  occupied(x: number, y: number): boolean;
-  /** Edge kind on the given side of the cell (EDGE.*). */
-  edge(x: number, y: number, side: Side): number;
-  /**
-   * Floor height of the cell in tiles above the level floor (resolver height / 4). Optional: the composed set
-   * pieces use it to put focal pieces on high ground and keep multi-cell pieces off height steps; without it they
-   * fall back to LEDGE edges.
-   */
-  height?(x: number, y: number): number;
-  /**
-   * True on cells under a landmark piece already placed (a great tree, a landmark, a great statue). Optional: the
-   * composed set pieces keep a cleared apron round it, whichever dress op placed it.
-   */
-  landmark?(x: number, y: number): boolean;
-  /**
-   * True on cells nothing generated may stand on: a road crossing and the pavement cells at its ends (the people
-   * crossing need them). Optional.
-   */
-  keepClear?(x: number, y: number): boolean;
-  /** True on cells under a vehicle already placed (by the plan or another op). Optional. */
-  vehicle?(x: number, y: number): boolean;
-  /**
-   * Size in tiles (w along its length, d across, h tall) of the asset a feature type resolves to here, from the
-   * palette; undefined where the theme has no such asset. Optional: without the hook the cliff band uses nominal
-   * sizes; with it, a theme that has neither cliff_face nor cliff_crest gets no band (its cliff keeps the built face).
-   */
-  pieceSize?(type: FeatureType): { w: number; d: number; h: number } | undefined;
-  /**
-   * True on the cells of a rock ramp (`ResolvedLevel.ramps[].cells`; they carry no path flag). Nothing generated
-   * stands on them; the cliff band lines their sides from the upper ground. Optional.
-   */
-  ramp?(x: number, y: number): boolean;
-  /**
-   * The plan's generator version (`plan.generator`). Optional: absent means 2. Generator 3 rules (rock that rests
-   * on something, default cliff bands) switch on at 3 (plan/generator.ts `generatorAtLeast`).
-   */
-  generator?: number;
-  /**
-   * Generator 3: the asset's real outline in tiles (w along its length at turn 0, d across, h tall; the variant a
-   * piece most likely is), where `pieceSize` gives its footprint in cells. The rock band plans with it, and the
-   * review and the realizer judge cover with it. Optional.
-   */
-  pieceExtent?(type: FeatureType): { w: number; d: number; h: number } | undefined;
-  /**
-   * Generator 3: the level's water surface in tiles above the level floor (the scale of `height`; resolve/level.ts
-   * waterSurface() minus the floor thickness). Optional: without it water dressing estimates it from the beds and banks
-   * of the area it dresses (half a tile below the lowest bank, a quarter above the highest bed).
-   */
-  waterSurface?(): number | undefined;
-  /**
-   * Generator 3: true on cells off the board: void cells (a natural outline's cut-away corners) and everything outside
-   * the level bounds. The board's edge is a cliff where the ground stands above the base: the band skirts it with rock
-   * standing on the base plane. Optional.
-   */
-  void?(x: number, y: number): boolean;
-}
-
-export interface GeneratedPlacement {
-  type: FeatureType;
-  at: [number, number];
-  size: [number, number];
-  rot: Rotation;
-  rotFine: number;
-  /** Generator 3: sub-cell shift in tiles [east, south], each within ±0.5 (carried to the resolved feature). */
-  offset?: [number, number];
-  wall?: Side;
-  variant?: string;
-  /**
-   * Tiles above (or, negative, below) the floor of the anchor cell: a course of a rock band stacked on the one
-   * below, or a base course sunk into the ground. The resolver adds it to the feature's base height.
-   */
-  lift?: number;
-}
-
-const EDGE_WALL = 1;
-const EDGE_OPENING = 2;
-const FLAG_NO_FLOOR = 1;
-const FLAG_WATER = 4;
-const FLAG_PATH = 8;
-const FLAG_LINK = 16;
-
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
-
-/** Integer key of a cell (coordinates are within ±8192). */
-const cellKey = (x: number, y: number): number => (x + 16384) * 32768 + (y + 16384);
-
-function footprintCells(
-  at: readonly [number, number],
-  size: readonly [number, number],
-): Array<[number, number]> {
-  const out: Array<[number, number]> = [];
-  for (let y = at[1]; y < at[1] + size[1]; y++)
-    for (let x = at[0]; x < at[0] + size[0]; x++) out.push([x, y]);
-  return out;
-}
-
-/** True when a wall (WALL edge) separates two cells of the footprint. */
-export function footprintCrossesWall(
-  grid: Pick<PlacementGrid, "edge">,
-  at: readonly [number, number],
-  size: readonly [number, number],
-): boolean {
-  for (let y = at[1]; y < at[1] + size[1]; y++) {
-    for (let x = at[0]; x < at[0] + size[0]; x++) {
-      if (x + 1 < at[0] + size[0] && grid.edge(x, y, "E") === EDGE_WALL) return true;
-      if (y + 1 < at[1] + size[1] && grid.edge(x, y, "S") === EDGE_WALL) return true;
-    }
-  }
-  return false;
-}
 
 // ───────────────────────────── scatter ─────────────────────────────
 
@@ -159,25 +63,12 @@ export interface ScatterParams {
   supported?: boolean;
 }
 
-export interface ScatterResult {
-  placements: GeneratedPlacement[];
-  capped: boolean;
-}
-
 /**
- * Feature types that scatter in clumps (a seed placement plus 1–2 neighbours), so a scatter of stalagmites or
- * crystals reads as formations rather than litter. Only types added after generator v1 was frozen are listed:
- * adding a type here changes no existing map.
+ * Feature types that scatter in clumps (a seed placement plus 1–2 neighbours; the catalog's `clusters`), so a scatter
+ * of stalagmites or crystals reads as formations rather than litter. Every generator reads it: a type gains the trait
+ * only if it never scattered before (a type added since), or under a new switch.
  */
-export const CLUSTERED_TYPES: ReadonlySet<FeatureType> = new Set<FeatureType>([
-  "stalagmite",
-  "stalactite",
-  "crystal",
-  "giant_mushroom",
-  "root",
-  "skull_pile",
-  "candles",
-]);
+export const CLUSTERED_TYPES: ReadonlySet<FeatureType> = new Set(typesWith((f) => f.clusters === true));
 const CLUSTER_MEAN = 1.5;
 const SATELLITE_OFFSETS: ReadonlyArray<readonly [number, number]> = [
   [1, 0],
@@ -296,9 +187,12 @@ export function scatterFeatures(grid: PlacementGrid, p: ScatterParams): ScatterR
     if (cells.some(([x, y]) => tooClose(x, y))) continue;
     if (p.supported === true && !groundCarries(cells)) continue;
     if (footprintCrossesWall(grid, [cx, cy], size)) continue;
+    const variant = variantIdx >= 0 && p.variants ? (p.variants[variantIdx] as string) : undefined;
+    // generator 4: never in front of a way in, nor reaching over it (a tree's crown spills past its cell)
+    if (grid.blocksWayIn?.(p.feature, [cx, cy], size, variant) === true) continue;
     for (const [x, y] of cells) accept(x, y);
     const placement: GeneratedPlacement = { type: p.feature, at: [cx, cy], size, rot, rotFine };
-    if (variantIdx >= 0 && p.variants) placement.variant = p.variants[variantIdx] as string;
+    if (variant !== undefined) placement.variant = variant;
     out.push(placement);
     if (clustered) addSatellites(cx, cy, size);
   }
@@ -323,10 +217,13 @@ export function scatterFeatures(grid: PlacementGrid, p: ScatterParams): ScatterR
       const cells = footprintCells([sx, sy], sz);
       if (!cells.every(([x, y]) => cellOk(x, y) && !accepted.has(cellKey(x, y)))) continue;
       if (footprintCrossesWall(grid, [sx, sy], sz)) continue;
+      // (the variant is drawn before the way-in test, so the stream does not depend on it)
+      const variant =
+        p.variants && p.variants.length > 0 ? (p.variants[crng.int(p.variants.length)] as string) : undefined;
+      if (grid.blocksWayIn?.(p.feature, [sx, sy], sz, variant) === true) continue;
       for (const [x, y] of cells) accept(x, y);
       const sat: GeneratedPlacement = { type: p.feature, at: [sx, sy], size: sz, rot, rotFine };
-      if (p.variants && p.variants.length > 0)
-        sat.variant = p.variants[crng.int(p.variants.length)] as string;
+      if (variant !== undefined) sat.variant = variant;
       out.push(sat);
       added++;
     }
@@ -428,33 +325,34 @@ export interface DressParams {
   density: number;
   seed: number;
   remaining: number;
+  /** Generator 4: the area is abandoned (ResolvedArea.abandoned, from gen/roomPurpose.ts classifyRoom). */
+  abandoned?: boolean;
 }
 
-const SIDE_ROT: Record<Side, Rotation> = { N: 0, E: 90, S: 180, W: 270 };
 /** Random candidates tried per dress item before it is dropped. */
 const SAMPLE_TRIES = 24;
 
-/** Footprint top-left for an item of unrotated size [w (along wall), h (depth)] backed onto `side` of (cx, cy). */
-function wallFootprint(
-  cx: number,
-  cy: number,
-  side: Side,
-  size: readonly [number, number],
-): [number, number] {
-  const h = size[1];
-  switch (side) {
-    case "N":
-    case "W":
-      return [cx, cy];
-    case "S":
-      return [cx, cy - h + 1];
-    case "E":
-      return [cx - h + 1, cy];
-  }
-}
-
 export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   if (isComposedPreset(p.preset)) return composeArea(grid, { ...p, preset: p.preset });
+  const gen = gridProfile(grid);
+  // an interior preset dresses the room from its purpose's recipe (anchor, wall run, things on things, lights); a
+  // theme without the pieces, or an area without walls, keeps the weighted scatter below
+  if (gen.roomRecipes && grid.piece4 !== undefined) {
+    const purpose = presetPurpose(p.preset);
+    if (purpose !== undefined) {
+      const res = dressRoom(grid, {
+        purpose,
+        // the preset says what the room is for; the room's own words may still say nobody keeps it up
+        abandoned: ROOM_PURPOSE_INFO[purpose].abandoned || p.abandoned === true,
+        areaIndex: p.areaIndex,
+        areaCells: p.areaCells,
+        density: p.density / 0.5,
+        seed: p.seed,
+        remaining: p.remaining,
+      });
+      if (res !== null) return res;
+    }
+  }
   const table = DRESS_PRESET_TABLE[p.preset];
   const rng = createPrng(subSeed(p.seed, "dress"));
   const cells = p.areaCells.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0]);
@@ -462,7 +360,6 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   const count = Math.round((p.density * floorCells.length) / 6);
   const totalWeight = table.reduce((a, i) => a + i.weight, 0);
   const taken = new Set<number>();
-  const g3 = (grid.generator ?? 2) >= 3;
   const oneHeight = (at: readonly [number, number], size: readonly [number, number]): boolean => {
     if (!grid.height) return true;
     const h0 = grid.height(at[0], at[1]);
@@ -471,9 +368,13 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   const out: GeneratedPlacement[] = [];
   let capped = false;
 
-  const wallSides = (x: number, y: number): Side[] => SIDES.filter((s) => grid.edge(x, y, s) === EDGE_WALL);
+  const atOpening = (x: number, y: number): boolean => SIDES.some((s) => grid.edge(x, y, s) === EDGE_OPENING);
+  // generator 4: a blocking piece (rubble, a crate) keeps one more cell back from a doorway too: pieces are wider than
+  // a cell, and one standing beside the cell in front of a door spills into it (verify_door_blocked)
   const nearOpening = (x: number, y: number): boolean =>
-    SIDES.some((s) => grid.edge(x, y, s) === EDGE_OPENING);
+    atOpening(x, y) ||
+    (gen.doorwaysKeepClear &&
+      NEIGHBOURS4.some(([dx, dy]) => grid.inBounds(x + dx, y + dy) && atOpening(x + dx, y + dy)));
   const free = (x: number, y: number, blocking: boolean): boolean =>
     grid.inBounds(x, y) &&
     grid.area(x, y) === p.areaIndex &&
@@ -490,7 +391,7 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
   const cornerPairs: Array<[number, number, Side]> = [];
   const centerCells: Array<[number, number]> = [];
   for (const [x, y] of floorCells) {
-    const ws = wallSides(x, y);
+    const ws = wallSides(grid, x, y);
     for (const sd of ws) wallPairs.push([x, y, sd]);
     for (let i = 0; i < 4; i++) {
       const a = SIDES[i] as Side;
@@ -533,7 +434,9 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
       footprintCells(c.at, c.size).every(([x, y]) => free(x, y, blocking)) &&
       !footprintCrossesWall(grid, c.at, c.size) &&
       // generator 3: furniture never stands half on a ledge (a counter over a one-tile step floats)
-      (!g3 || oneHeight(c.at, c.size));
+      (!gen.levelFootprints || oneHeight(c.at, c.size)) &&
+      // generator 4: nor in front of a way in, nor reaching over it
+      grid.blocksWayIn?.(item.type, c.at, c.size) !== true;
     const fromWall = (e: readonly [number, number, Side]): Cand => {
       const rot = SIDE_ROT[e[2]];
       const c: Cand = {
@@ -565,7 +468,7 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
     if (c.wall) placement.wall = c.wall;
     out.push(placement);
   }
-  if (g3) addToppers(grid, out, rng, p.remaining);
+  if (gen.supportedParts) addToppers(grid, out, rng, p.remaining);
   return { placements: out, capped };
 }
 
@@ -575,10 +478,24 @@ export function dressArea(grid: PlacementGrid, p: DressParams): ScatterResult {
  * standing on the floor beside it. In the studied market 95% of small props sat on furniture. Only where the theme has
  * both pieces; the support's own cell carries the topper.
  */
-const TOPPERS: Partial<Record<FeatureType, { chance: number; on: ReadonlyArray<readonly [FeatureType, number]> }>> = {
-  table: { chance: 0.8, on: [["candles", 3], ["sack", 1]] },
+const TOPPERS: Partial<
+  Record<FeatureType, { chance: number; on: ReadonlyArray<readonly [FeatureType, number]> }>
+> = {
+  table: {
+    chance: 0.8,
+    on: [
+      ["candles", 3],
+      ["sack", 1],
+    ],
+  },
   round_table: { chance: 0.8, on: [["candles", 1]] },
-  counter: { chance: 0.9, on: [["sack", 2], ["candles", 1]] },
+  counter: {
+    chance: 0.9,
+    on: [
+      ["sack", 2],
+      ["candles", 1],
+    ],
+  },
   desk: { chance: 0.7, on: [["candles", 1]] },
   chest: { chance: 0.25, on: [["candles", 1]] },
 };
@@ -594,7 +511,7 @@ function addToppers(
     const def = TOPPERS[s.type];
     if (!def) continue;
     if (out.length >= remaining || !rng.chance(def.chance)) continue;
-    const ext = grid.pieceExtent?.(s.type);
+    const ext = grid.pieceExtent?.(s.type, s.at[0], s.at[1]);
     if (!ext) continue;
     const total = def.on.reduce((a, [, w]) => a + w, 0);
     let r = rng.next() * total;

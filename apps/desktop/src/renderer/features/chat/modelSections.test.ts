@@ -19,7 +19,15 @@ function api(modelId: string, displayName: string, createdAt: string): ModelDesc
   };
 }
 function curated(modelId: string, displayName: string): ModelDescriptor {
-  return { ...base, modelId, displayName, guidance: "Curated.", costTier: 2, speedTier: 2, status: "available" };
+  return {
+    ...base,
+    modelId,
+    displayName,
+    guidance: "Curated.",
+    costTier: 2,
+    speedTier: 2,
+    status: "available",
+  };
 }
 
 // Realistic Models API shape: dated snapshot ids, several versions per family, an alias/dated pair.
@@ -81,7 +89,11 @@ describe("buildModelSections", () => {
   });
 
   it("works for model ids it has never seen", () => {
-    const r = buildModelSections([curated("x-1", "X 1"), api("x-1-20300101", "X 1", "2030-01-01T00:00:00Z"), api("y-2", "Y 2", "2030-02-01T00:00:00Z")]);
+    const r = buildModelSections([
+      curated("x-1", "X 1"),
+      api("x-1-20300101", "X 1", "2030-01-01T00:00:00Z"),
+      api("y-2", "Y 2", "2030-02-01T00:00:00Z"),
+    ]);
     expect(r.other.map((m) => m.modelId)).toEqual(["y-2"]);
   });
 });

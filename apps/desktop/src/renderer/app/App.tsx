@@ -14,6 +14,8 @@ import { Setup } from "../features/setup/Setup";
 import { Workspace } from "../features/workspace/Workspace";
 import { SettingsModal } from "../features/settings/SettingsModal";
 import { errorMessage } from "../bridge/client";
+import { AddonDialog } from "../features/talespire/AddonDialog";
+import { AddonUpdatePrompt } from "../features/talespire/AddonUpdate";
 
 export function App() {
   useAppliedTheme();
@@ -57,6 +59,8 @@ export function App() {
         )}
       </div>
       {settingsOpen !== null && <SettingsModal />}
+      <AddonUpdatePrompt />
+      <AddonDialog />
       <ShortcutSheet />
       <ConfirmDialog />
       <Toasts />

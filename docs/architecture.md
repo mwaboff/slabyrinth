@@ -77,7 +77,7 @@ Core is pure TypeScript. It has no Electron, DOM, or `node:*` imports outside `s
 
 ### 2.2 Coordinates and units
 
-- One cell is one tile (5 ft). There is one **global** integer grid for all levels: x runs east, y runs south. Each level has `bounds` (≤160×160) inside it, so stairs line up by construction.
+- One cell is one tile (5 ft). There is one **global** integer grid for all levels: x runs east, y runs south. Each level has `bounds` (≤320×320, and all levels together ≤ 204,800 cells: `PLAN_LIMITS`) inside it, so stairs line up by construction.
 - A cell `(x,y)` covers `[x,x+1)×[y,y+1)`. A vertex `(x,y)` is the top-left corner of that cell. Polygons and wall runs use vertices; everything else uses cells.
 - Heights are in tiles, in multiples of 0.25. `level.elevation` is the **bottom** of that level's floor tiles. The walkable top is `elevation + 0.5` (`BUILD_CONSTANTS`). Stack storeys at 2.5.
 - Mapping to TaleSpire is **confirmed in game**: +x = East and +z = North, so world `x = col`, `z = (Hglobal − 1 − row)`, with no mirroring. Increasing `rot` turns clockwise seen from above. Both facts stay as data in the orientation table (§4.4).
@@ -183,7 +183,7 @@ All run with the over layer in array order and change open floor only.
 ### 2.4c Structures (buildings and yards, generator 2)
 
 `Level.structures` holds buildings and enclosures. Resolution (`resolve/structure.ts`, hooks in `level.ts` only):
-- **Expansion** (LevelWork constructor): an enclosure becomes a yard area (courtyard with its floor, or a zone) plus fence wall runs on its outline (skipping edges a building's own wall takes) and "open" gate openings; a building becomes an area of kind building (id = building id, wall style and height from its ground storey), its door/window openings (`at` edges chosen by face and position on the face's longest run) and porch areas. Synthetic elements come after the plan's own, so plan indices never move; issue paths and ids pointing at them are remapped to `/levels/i/structures/k`.
+- **Expansion** (`ResolveGrid` constructor, resolve/level/grid.ts): an enclosure becomes a yard area (courtyard with its floor, or a zone) plus fence wall runs on its outline (skipping edges a building's own wall takes) and "open" gate openings; a building becomes an area of kind building (id = building id, wall style and height from its ground storey), its door/window openings (`at` edges chosen by face and position on the face's longest run) and porch areas. Synthetic elements come after the plan's own, so plan indices never move; issue paths and ids pointing at them are remapped to `/levels/i/structures/k`.
 - **Style profiles** (`structureStyles.ts`, data): walls, upper walls, footing course, wall height, floor, roof (type, kit, deck, parapet, broken), window width, door light, and variety ranges (window densities, porch and chimney chances, door position) drawn with `elementSeed(plan.seed, id, seed)`.
 - **Pad**: after the areas and again after the over-layer terrain, the footprint, its wall ring and porches are flattened to the median ground height under the footprint.
 - **After the openings**: shell and fence edges host outside the footprint/yard; chimney and door-light cells get `CELL_FLAG.FEATURE`; `ResolvedLevel.reserved` (wall ring, door approaches, chimney, porch and its ring) is kept free by scatter and dress (`placeable`).
@@ -242,7 +242,7 @@ All generators use **integer-lattice value noise and arithmetic only**: `+ − �
 
 ### 2.8 Validation
 
-Validation is a pure function `validatePlan(plan, ctx {themes})` that returns `PlanIssue[]` with stable codes. **Errors** block (op batches are rejected, approval is blocked). **Warnings** don't block.
+Validation is a pure function `validatePlan(plan, ctx {checks, themes})` that returns `PlanIssue[]` with stable codes. **Errors** block (op batches are rejected, approval is blocked). **Warnings** don't block.
 
 Errors:
 - Zod schema failures. Messages are rewritten for the model: path, expected value, and nearest valid enum value.
@@ -893,7 +893,7 @@ World mapping: `wx = x`, `wz = Hg − 1 − y`, where `Hg` = 1 + the maximum y o
    - Water tiles are surfaces (0.5 thick, same rule). A per-role `offset.y` in the palette can lower them once the visual calibration is done.
 2. **Fill and cliffs.** For a cell with height h > the minimum ground height of its 4-neighbours (open cells, floorless ones included, and the ground recorded under bridge decks; non-open = 0), stack `fill.<material|default>` courses (`stack.unitHeight`, usually 0.5) from that minimum up to h. Where the drop is 1 tile or more a **cliff body** is stacked instead: `cliff.<material>` / `cliff.default`, or for natural ground (rock, dirt, gravel, mud, sand, grass, snow, ice, swamp, lava) `cliff.natural` — whole-cell 1×1 blocks from the top down (placement role `ledge`), else fill with an info note. Bridge decks get no fill (open air): the deck tile, plus a 1×1 `floor.<material beneath>` tile at the recorded height. Cells of any material on a 3×3 lattice get `glow.<material>` / `feature.<material>_glow` when the palette has one (lava glows today).
    - **Stairs**: on every `EDGE.STAIR` a `link.stairs` piece (rise 0.75–1.25) or `step.<material>`/`step.default` (smaller rises; none = the riser is fill) stands in the lower cell, climbing toward the higher one. **Piers**: `pier.<material>`/`pier.default`, else fill courses, from the ground to the deck. **Foundation** (generator 2): outside the level bounds the ground counts as the level's lowest floor, so border cells get fill or cliff sides down to it, and rock columns start there; their tops vary by 0–2 blocks (seeded value noise). Cliff blocks stop at the lower floor; the remainder is fill.
-   - **Wall span** (`compile/wallspan.ts`, shared with verify): base = the lower floor top; top = wall height above the higher of the two floor tops and the reference floor (most common height) of the open side's area, so walls beside a chasm or pit reach the area's normal wall top. Railings stand on the deck. A full-cell (rock block) wall whose host cell is open goes into the other cell when that one is rock, void or outside the level (caves touching the level bounds); one column per rock cell spans every edge it closes. Edge-centre runs shorter than the shortest piece get that piece centred over them.
+   - **Wall span** (`resolve/wallspan.ts`, shared with verify and the wall-height passes): base = the lower floor top; top = wall height above the higher of the two floor tops and the reference floor (most common height) of the open side's area, so walls beside a chasm or pit reach the area's normal wall top. Railings stand on the deck. A full-cell (rock block) wall whose host cell is open goes into the other cell when that one is rock, void or outside the level (caves touching the level bounds); one column per rock cell spans every edge it closes. Edge-centre runs shorter than the shortest piece get that piece centred over them.
 3. **Walls, openings, posts.** All of this is **confirmed in game**. Edge pieces are stored at the min corner of their *rotated* footprint, so rotation never selects which half of a cell a piece occupies:
    - rot 0 and 12 run east-west in the low-z (south) half;
    - rot 6 and 18 run north-south in the low-x (west) half;
@@ -969,6 +969,7 @@ For a build, compute the **global** bounds of all placements over all levels (st
 1. Add two `marker.alignment` tiles to **every** chunk: one at `(minX−1, minY, minZ−1)` and one at `(maxX+1, maxYtop, maxZ+1)`. Every chunk then has an **identical bounding box** in all three axes, whether the game anchors on the min corner or the centre.
    - Research §5 put both markers at y=0. Raising the second marker to the top is an extension so that vertical extents match too; this needs in-game confirmation.
    - Normalize all chunks with one shared offset.
+   - Generator 4 on (`pasteBesideMap`, decisions.md 2026-11-21): TaleSpire pastes at the box centre, and a chunk landing on a piece an earlier chunk put under the cursor sits high. So a multi-chunk build moves its markers (`besideMapBox`) until the centre is the middle of a bare cell 5 cells south of the middle of the map's south edge (4 empty cells between); the min marker then stands about a map depth south of the anchor. `ExportBundle.pasteAnchor` says so to the UI.
 2. Each level is split into rectangular whole-cell regions. Start from the level's occupied bbox. Each placement belongs to its **source cell**: the min cell of floors, the host cell of walls, the anchor cell of features. Encode for real; if `compressedBytes > 0.8 × 30720` (about 24.5 KB), split along the longer axis at the median source-cell coordinate and recurse.
 3. If a single cell is still too large, the result is a `chunk_oversize` error. That should never happen.
 4. Chunks are ordered by level (entry level first, then by elevation) and then by row-major region order. Each gets a label (West, Centre, East, or a grid position), ruler columns, `offsetFromFirst`, and a `contentHash` (sha256 of the raw payload).
@@ -1018,9 +1019,9 @@ Rasterizing SVG for export would need inlined CSS variables and fonts and a seco
 ### 5.3 Themes
 
 `MapTheme {id, colors: token→CSS colour, lineScale, fontFamily}`.
-- Bundled themes: `parchment-dark` (default, matching the default dark app theme), `parchment-light`, `print` (the light, high-contrast PNG Print style, UX §6.10), and `ink-on-white` (v1.1).
+- Bundled themes: `parchment-dark` (default for the dark app theme), `parchment-light`, `print` (the light, high-contrast PNG Print style, UX §6.10), and `ink-on-white` (v1.1).
 - Required tokens: `paper`, `rock`, `hatch`, `void`, `floor`, `grid`, `ink`, `wall`, `wall-exterior`, `door`, `secret`, `water-shallow`, `water-deep`, `path`, `forest`, `light`, `accent`, `select`, `label`, `label-halo`, and one `mat-<material>` per material.
-- The app theme setting (`dark`|`light`|`system`, default **dark**) chooses the map theme when `mapThemeId` is `auto`.
+- The app theme setting (`dark`|`light`|`system`, default **system**) chooses the map theme when `mapThemeId` is `auto`.
 - Fonts are bundled; there are no remote fonts.
 
 ### 5.4 Interaction
@@ -1336,10 +1337,8 @@ Separate build and release jobs avoid two matrix jobs racing to create the same 
   Anthropic provider, keyed from the API key stored in Settings (development builds also accept
   `ANTHROPIC_API_KEY` from the environment; smoke and e2e runs never do). Without a key, chat answers
   the typed `no_api_key` error and the UI asks for one. Wiring: `src/main/engineWiring.ts`.
-- **Fake engine (dev/test only).** `SLABYRINTH_FAKE_ENGINE=1` in a development or test run, or the
-  `fakeEngine` flag under `"x-featureFlags"` in `settings.json` of a development run, swaps in the
-  fake engine that replays recorded streams (`src/main/engine/recordings.ts`; send `#ask` or `#fail`
-  to see question cards and errors). Packaged builds ignore both.
+- **No second engine.** The recorded-stream fake engine was removed: tests and e2e drive the real engine
+  with a scripted provider (below), and renderer work without Electron uses the fake bridge.
 - **Smoke and e2e.** `SLABYRINTH_SMOKE=1` boots hidden, runs self-checks (including "chat answers
   `no_api_key`" and "packaged build uses the real engine and compiler"), prints `SMOKE_OK` and exits.
   `SLABYRINTH_E2E=1` is the Playwright mode. Both use a throwaway `userData` folder (or
@@ -1371,7 +1370,7 @@ Separate build and release jobs avoid two matrix jobs racing to create the same 
 
 | WP | Name | Owns | Delivers |
 |---|---|---|---|
-| **WP1** | Plan model | `packages/core/src/{contracts,plan,ops,history,util}/**`, `core/test/{unit/plan,unit/ops}`, root `tsconfig.base.json` | Contract copies, run through `tsc`. Zod schemas mirroring `plan.ts`. `validatePlan` (resolver-independent checks plus a hook for geometric checks provided by WP2). `applyOps` with key auto-assignment and cascades. History pointer operations, keyframes and replay. `diffPlans`. Plan and project migrations framework. hash, prng, canonical JSON. |
+| **WP1** | Plan model | `packages/core/src/{contracts,plan,ops,history,util}/**`, `core/test/{unit/plan,unit/ops}`, root `tsconfig.base.json` | Contract copies, run through `tsc`. Zod schemas mirroring `plan.ts`. `validatePlan` (resolver-independent checks plus the geometric checks the caller passes in, built by WP2's `planRules(palettes)`). `applyOps` with key auto-assignment and cascades. History pointer operations, keyframes and replay. `diffPlans`. Plan and project migrations framework. hash, prng, canonical JSON. |
 | **WP2** | Geometry & 2D | `core/src/{resolve,gen,render,text}/**`, `packages/render-canvas/**`, golden tests for those | `resolvePlan` (§2.4–2.7) and geometric validation checks. `buildDisplayList`, `hitTest`, outline and ASCII views, `drawDisplayList`, the three MapThemes, symbol painters for the UX §6.2 vocabulary, PNG export helper. |
 | **WP3** | Build | `core/src/{slab,palette,catalog,compile,cli}/**`, `core/data/**`, `core/scripts/**`, related tests | Codec (byte-exact). CatalogSource json now, binary when research lands. VDF parser. Palette load, merge and resolve. Draft import script. `orientation.json`. Realize, chunk and bundle. Estimate. CLI including `calibration`. |
 | **WP4** | Agent | `core/src/agent/**`, `apps/desktop/src/main/agent/**`, `apps/desktop/scripts/agent-eval.ts` | System prompt, tool definitions and executor, JSON protocol, progress parser. ConversationEngine, ProviderRegistry, AnthropicProvider (render, stream, errors, models table, pricing, cost), estimates. Eval harness. |

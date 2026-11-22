@@ -10,7 +10,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { CatalogAsset } from "../../../src/contracts/compiler";
-import { realize, placementMeta } from "../../../src/compile";
+import { placedName, realize } from "../../../src/compile";
 import { createAvailability } from "../../../src/catalog";
 import { loadPalettes } from "../../../src/palette";
 import { handLevel, handPlan } from "./handResolved";
@@ -49,7 +49,7 @@ describe.skipIf(catalog === null)("custom features: a real match or nothing", ()
     const p = set.levels[0]?.placements.find((q) => q.source.elementId === "x");
     const d = set.diagnostics.find((q) => q.code === "custom_unresolved");
     return {
-      name: p ? (placementMeta.get(p)?.name ?? p.asset) : null,
+      name: p ? placedName(set, p) : null,
       ...(d ? { severity: d.severity } : {}),
     };
   };

@@ -1004,7 +1004,53 @@ const bench = (p: PaintArgs): void => {
   box(0.06, 0.06)({ ...p, h: p.h - 2 * inset * p.u });
 };
 
+/**
+ * A covered market stall (generator 4): the cloth canopy as a filled panel with a ridge line along the front and
+ * rafters running down to the eaves, the front eave drawn heavier, and a post at each corner. The canopy hides the
+ * counters in this view, as it does from above in game. Drawn with its front (the side the customer stands on) at the
+ * top; the display list turns it to the real front (`rot` = SIDE_ROT of the front: N 0, E 90, S 180, W 270).
+ */
+const coveredStall: Painter = (p) => {
+  const { ctx, u } = p;
+  const inset = 0.05 * u;
+  const x = -p.w / 2 + inset;
+  const y = -p.h / 2 + inset;
+  const w = p.w - 2 * inset;
+  const h = p.h - 2 * inset;
+  ctx.beginPath();
+  roundRectPath(ctx, x, y, w, h, 0.05 * u);
+  fillStroke(p, c(p, "accent"), c(p, "ink"));
+  // ridge between the front and back halves, parallel to the front edge, and rafters down to the eaves
+  ctx.beginPath();
+  line(ctx, x + 0.06 * u, 0, x + w - 0.06 * u, 0);
+  for (let k = 0.2; k < w / u; k += 0.4) {
+    line(ctx, x + k * u, y + 0.06 * u, x + k * u, y + h - 0.06 * u);
+  }
+  ctx.strokeStyle = c(p, "ink");
+  ctx.lineWidth = p.lw * 0.5;
+  ctx.stroke();
+  // the front eave
+  ctx.beginPath();
+  line(ctx, x, y, x + w, y);
+  ctx.strokeStyle = c(p, "ink");
+  ctx.lineWidth = p.lw * 1.6;
+  ctx.stroke();
+  // corner posts
+  const s = 0.16 * u;
+  for (const [px, py] of [
+    [x, y],
+    [x + w - s, y],
+    [x, y + h - s],
+    [x + w - s, y + h - s],
+  ] as const) {
+    ctx.beginPath();
+    ctx.rect(px, py, s, s);
+    fillStroke(p, c(p, "wood"), c(p, "ink"), p.lw * 0.6);
+  }
+};
+
 export const PAINTERS: Record<string, Painter> = {
+  "feat-stall_cover": coveredStall,
   "feat-table": table,
   "feat-desk": box(0.08, 0.03, (p, x, y, w) => {
     line(p.ctx, x + w * 0.62, y, x + w * 0.62, y + p.h * 0.3);
@@ -1076,7 +1122,7 @@ export const PAINTERS: Record<string, Painter> = {
   "feat-standing_stone": standingStone,
   "feat-grave": grave,
   "feat-custom": custom,
-  // cave, ritual and light dressing (feature types added 2026-11-19): nearest existing cartographic symbol
+  // cave, ritual and light dressing: nearest existing cartographic symbol
   "feat-stalagmite": rock(0.3),
   "feat-stalactite": rock(0.25),
   "feat-rock_formation": rock(0.44),
@@ -1103,7 +1149,7 @@ export const PAINTERS: Record<string, Painter> = {
   "feat-rails": smallSquare,
   "feat-mine_support": pillar,
   "feat-chains": dots(5, 0.04, false),
-  // theme-neutral dressing roles (2026-11-19): a generic glyph per role, whatever asset a theme puts there
+  // theme-neutral dressing roles: a generic glyph per role, whatever asset a theme puts there
   "feat-landmark": statue,
   "feat-tall_marker": standingStone,
   "feat-formation": rock(0.44),
@@ -1116,7 +1162,7 @@ export const PAINTERS: Record<string, Painter> = {
   "feat-wall_dressing": wallHanging(false),
   "feat-bank_dressing": sprigs(6, "forest", false),
   "feat-jetty": bench,
-  // built places (2026-11-20): a parked vehicle, seating, a sign on a frontage
+  // built places: a parked vehicle, seating, a sign on a frontage
   "feat-vehicle": cart,
   "feat-seating": bench,
   "feat-signage": wallHanging(true),
@@ -1125,6 +1171,9 @@ export const PAINTERS: Record<string, Painter> = {
   "feat-goods": dots(5, 0.045, false),
   "feat-overhead": dots(5, 0.045, false),
   "feat-line_post": smallSquare,
+  // interiors (generator 4): a small thing standing on a table or shelf (one dot), and the shelf plank on a wall
+  "feat-clutter": dots(1, 0.04, false),
+  "feat-shelf_line": wallHanging(false),
   "feat-cliff_face": rock(0.46),
   "feat-cliff_crest": rock(0.38),
   "door-door": door(1, false),

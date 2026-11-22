@@ -1,6 +1,7 @@
 /** Home thumbnails for the fake bridge (main caches a small PNG of L1; here the renderer draws one). */
 import type { MapPlan } from "@slabyrinth/core";
-import { compute } from "../../map/resolveCore";
+import { bundledPalettes } from "@slabyrinth/core/palette";
+import { compute } from "../../../shared/resolveCore";
 import { drawLevel, mapThemeFor } from "../../map/render";
 
 const cache = new Map<string, string>();
@@ -21,19 +22,23 @@ function thumbnailSync(plan: MapPlan, key: string): string | undefined {
   )
     return undefined;
   try {
-    const r = compute({
-      id: 0,
-      plan,
-      version: 0,
-      options: {
-        grid: true,
-        roomNumbers: true,
-        roomNames: false,
-        furniture: true,
-        gmLayer: true,
-        legend: false,
+    // the fake bridge builds with the bundled palettes (its "palettes:resolveData")
+    const r = compute(
+      {
+        id: 0,
+        plan,
+        version: 0,
+        options: {
+          grid: true,
+          roomNumbers: true,
+          roomNames: false,
+          furniture: true,
+          gmLayer: true,
+          legend: false,
+        },
       },
-    });
+      bundledPalettes(),
+    );
     const entry = plan.entryLevel ?? r.resolved.levels[0]?.id ?? "";
     const list = r.lists[entry] ?? Object.values(r.lists)[0];
     if (!list) return undefined;

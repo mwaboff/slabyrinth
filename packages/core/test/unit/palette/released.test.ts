@@ -12,7 +12,10 @@ import { BUNDLED_PALETTES, createRoleResolver, mergePalettes, resolveRole } from
  * generators 1 and 2 never see it. Never regenerate this fixture to make the test pass.
  */
 const released = JSON.parse(
-  readFileSync(fileURLToPath(new URL("../../fixtures/released-palettes-0.1.2.json", import.meta.url)), "utf8"),
+  readFileSync(
+    fileURLToPath(new URL("../../fixtures/released-palettes-0.1.2.json", import.meta.url)),
+    "utf8",
+  ),
 ) as Record<string, Record<string, string>>;
 
 const { palettes } = mergePalettes(BUNDLED_PALETTES);
@@ -44,7 +47,10 @@ describe("released palettes (generator 2 is frozen)", () => {
     // test/fixtures/released-palettes-0.2.0.json: first-choice piece per role as generator 3 sees the palettes in
     // 0.2.0. A role or piece added later must carry `minGenerator: 4` (and generator 4 must be opened first).
     const released3 = JSON.parse(
-      readFileSync(fileURLToPath(new URL("../../fixtures/released-palettes-0.2.0.json", import.meta.url)), "utf8"),
+      readFileSync(
+        fileURLToPath(new URL("../../fixtures/released-palettes-0.2.0.json", import.meta.url)),
+        "utf8",
+      ),
     ) as Record<string, Record<string, string>>;
     expect(Object.keys(palettes).sort()).toEqual(Object.keys(released3).sort());
     const roles = [
@@ -61,6 +67,33 @@ describe("released palettes (generator 2 is frozen)", () => {
         if (v) now[role] = v.uuid.slice(0, 8);
       }
       expect(now, `${theme} @ generator 3`).toEqual(released3[theme]);
+    }
+  });
+
+  it("every theme and role resolves for generator 4 as it did in 0.3.0 (generator 4 is frozen)", () => {
+    // test/fixtures/released-palettes-0.3.0.json: first-choice piece per role as generator 4 sees the palettes in
+    // 0.3.0. A role or piece added later must carry `minGenerator: 5` (and generator 5 must be opened first).
+    const released4 = JSON.parse(
+      readFileSync(
+        fileURLToPath(new URL("../../fixtures/released-palettes-0.3.0.json", import.meta.url)),
+        "utf8",
+      ),
+    ) as Record<string, Record<string, string>>;
+    expect(Object.keys(palettes).sort()).toEqual(Object.keys(released4).sort());
+    const roles = [
+      ...new Set([
+        ...Object.values(palettes).flatMap((p) => Object.keys(p.roles)),
+        ...Object.values(released4).flatMap((r) => Object.keys(r)),
+      ]),
+    ].sort();
+    const resolve = createRoleResolver(cat, 4);
+    for (const theme of Object.keys(released4)) {
+      const now: Record<string, string> = {};
+      for (const role of roles) {
+        const v = resolve(theme, role).resolution?.variants[0];
+        if (v) now[role] = v.uuid.slice(0, 8);
+      }
+      expect(now, `${theme} @ generator 4`).toEqual(released4[theme]);
     }
   });
 

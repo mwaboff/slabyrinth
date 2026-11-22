@@ -1,5 +1,5 @@
 /**
- * Building style profiles (data, 2026-11-20). A profile holds the rules a kind of building follows — wall courses,
+ * Building style profiles (data). A profile holds the rules a kind of building follows — wall courses,
  * storey height, window rhythm, roof strategy and kit, door lights — and the palette roles (facade.<style>,
  * roof.<kit>.*, chimney.*, wall_light.*…) supply the assets. A new kind of building is a new entry here plus palette
  * roles; the resolver and compiler read only these fields. Every field can be overridden per building in the plan.
@@ -121,7 +121,12 @@ export const DEFAULT_STRUCTURE_STYLE = "cottage";
  * smithy a low twin-roofed workshop. Multipliers act on the near-zero weights of `bases:shopfront` and `details:awning`.
  */
 const SHOP = { "bases:shopfront": 30000, "details:awning": 30000, "bases:stoop": 0, "sizes:small": 0.5 };
-const SMITH = { "archetypes:twin": 3, "archetypes:lean": 2, "bases:shopfront": 15000, "details:awning": 15000 };
+const SMITH = {
+  "archetypes:twin": 3,
+  "archetypes:lean": 2,
+  "bases:shopfront": 15000,
+  "details:awning": 15000,
+};
 const TRADE_USES: Record<string, Record<string, number>> = {
   baker: { ...SHOP, "sizes:compact": 2 },
   bakery: { ...SHOP, "sizes:compact": 2 },
@@ -137,7 +142,13 @@ const TRADE_USES: Record<string, Record<string, number>> = {
   smith: SMITH,
   smithy: SMITH,
   blacksmith: SMITH,
-  inn: { "sizes:full": 3, "archetypes:ell": 2.5, "roofs:gable_cross": 2, "tops:same": 1.5, "details:awning": 15000 },
+  inn: {
+    "sizes:full": 3,
+    "archetypes:ell": 2.5,
+    "roofs:gable_cross": 2,
+    "tops:same": 1.5,
+    "details:awning": 15000,
+  },
 };
 
 export const STRUCTURE_STYLES: Readonly<Record<string, StructureStyleProfile>> = {
@@ -190,7 +201,7 @@ export const STRUCTURE_STYLES: Readonly<Record<string, StructureStyleProfile>> =
       // generator 3: the roof is the larger part (55-65 % of the visible height in the study's cottages and inns): the
       // top storey sits inside it as a knee-walled attic more often, and the walls are lowered until the drawn share is
       // met; cross wings and lean-tos stand a tile or more below the main ridge (see balanceRoofs)
-      gen3: {
+      buildingVariety: {
         roofShare: [0.52, 0.66],
         // a twin of two narrow halves has a low roof (a roof's rise is half its span), so it is drawn less often
         archetypes: { box: 2.5, ell: 1.8, twin: 0.4, lean: 1.5, shed: 0.3 },
@@ -221,14 +232,20 @@ export const STRUCTURE_STYLES: Readonly<Record<string, StructureStyleProfile>> =
           },
           farmhouse: { "sizes:full": 4, "archetypes:ell": 2, "archetypes:lean": 1.5, "tops:attic": 2 },
           workshop: { "archetypes:twin": 3, "archetypes:lean": 2, "roofs:hip": 0.5 },
-          tavern: { "sizes:full": 3, "archetypes:ell": 2.5, "roofs:hip": 1.5, "roofs:gable_cross": 2, "tops:same": 1.5 },
+          tavern: {
+            "sizes:full": 3,
+            "archetypes:ell": 2.5,
+            "roofs:hip": 1.5,
+            "roofs:gable_cross": 2,
+            "tops:same": 1.5,
+          },
         },
       },
     },
   },
   keep: {
     id: "keep",
-    // variety (2026-11-20): a frontier keep, a gatehouse block, a tower-house on a curtain base
+    // variety: a frontier keep, a gatehouse block, a tower-house on a curtain base
     design: {
       archetypes: { box: 3, setback: 1.5, podium: 1, ell: 1, twin: 0.7 },
       storeys: [2, 4],

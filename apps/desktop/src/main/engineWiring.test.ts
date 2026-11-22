@@ -78,21 +78,14 @@ function hostWith(secrets: SecretStore): MemoryHost {
 }
 
 describe("engine selection", () => {
-  const base = { isDev: false, safeMode: false, env: {}, fakeEngineFlag: false };
+  const base = { isDev: false, safeMode: false, env: {} };
 
   it("uses the real engine by default, in packaged and dev builds", () => {
     expect(engineKindFor(base)).toBe("real");
     expect(engineKindFor({ ...base, isDev: true })).toBe("real");
     expect(engineKindFor({ ...base, safeMode: true })).toBe("real");
-  });
-
-  it("selects the fake engine only behind an explicit dev/test switch", () => {
-    const fakeEnv = { SLABYRINTH_FAKE_ENGINE: "1" };
-    expect(engineKindFor({ ...base, env: fakeEnv })).toBe("real"); // packaged: ignored
-    expect(engineKindFor({ ...base, fakeEngineFlag: true })).toBe("real"); // packaged: ignored
-    expect(engineKindFor({ ...base, isDev: true, env: fakeEnv })).toBe("fake");
-    expect(engineKindFor({ ...base, isDev: true, fakeEngineFlag: true })).toBe("fake");
-    expect(engineKindFor({ ...base, safeMode: true, env: fakeEnv })).toBe("fake");
+    // the recorded-stream fake engine is gone: its old switch selects nothing
+    expect(engineKindFor({ ...base, isDev: true, env: { SLABYRINTH_FAKE_ENGINE: "1" } })).toBe("real");
   });
 
   it("registers a scripted provider only in test runs of test builds", () => {
@@ -133,9 +126,7 @@ describe("real engine wiring", () => {
     const selected = await selectEngine({
       isDev: false,
       safeMode: false,
-      env: { SLABYRINTH_FAKE_ENGINE: "1" },
-      fakeEngineFlag: true,
-      applyOps: null,
+      env: {},
     });
     expect(selected.kind).toBe("real");
     const host = hostWith(secrets);
@@ -162,9 +153,7 @@ describe("real engine wiring", () => {
 
   it("reports a missing key as the typed no_api_key state, without building a client", async () => {
     const host = hostWith(secretStore());
-    const engine = (
-      await selectEngine({ isDev: false, safeMode: false, env: {}, fakeEngineFlag: false, applyOps: null })
-    ).factory(host);
+    const engine = (await selectEngine({ isDev: false, safeMode: false, env: {} })).factory(host);
     const err = await engine.send({ text: "a crypt" }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(EnginePortError);
     expect((err as EnginePortError).error.code).toBe("no_api_key");

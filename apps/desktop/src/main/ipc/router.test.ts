@@ -5,7 +5,7 @@ import { memoryLogger } from "../logger";
 import { EnginePortError } from "../ports/engine";
 import { AppFailure } from "../util/errors";
 import { createDispatcher, makeSenderCheck, registerIpc, type Handlers, type IpcEventLike } from "./router";
-import { requestSchemas, sendSchemas } from "./schemas";
+import { requestSchemas, sendSchemas } from "../../shared/schemas/ipc";
 
 const APP_URL = "file:///C:/Program%20Files/Slabyrinth/resources/app.asar/out/renderer/index.html";
 const trusted = makeSenderCheck(APP_URL);

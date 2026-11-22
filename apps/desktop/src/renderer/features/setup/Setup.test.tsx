@@ -8,7 +8,13 @@ import { setBridge } from "../../bridge/client";
 import { useApp } from "../../stores/app";
 import { useSettings } from "../../stores/settings";
 import { SettingsModal } from "../settings/SettingsModal";
-import { ApiKeyField, KEY_STORAGE_TEXT, KeyStorageNote, UNREADABLE_KEY_TEXT, UnreadableKeyNote } from "./Setup";
+import {
+  ApiKeyField,
+  KEY_STORAGE_TEXT,
+  KeyStorageNote,
+  UNREADABLE_KEY_TEXT,
+  UnreadableKeyNote,
+} from "./Setup";
 
 type Row = IpcRequests["secrets:status"]["res"]["anthropic"];
 type Status = Record<string, Row>;
@@ -112,7 +118,11 @@ describe("ApiKeyField", () => {
     return stubBridge((channel) => {
       if (channel === "secrets:setApiKey") return { stored: keep, backend: "os", check };
       if (channel === "secrets:status")
-        return { anthropic: keep ? { hasKey: true, backend: "os", hint: "sk-ant-…x7X7" } : { hasKey: false, backend: null, hint: null } };
+        return {
+          anthropic: keep
+            ? { hasKey: true, backend: "os", hint: "sk-ant-…x7X7" }
+            : { hasKey: false, backend: null, hint: null },
+        };
       return undefined;
     });
   }

@@ -37,6 +37,8 @@ export default defineConfig({
             "src/main/**/*.test.ts",
             "src/preload/**/*.test.ts",
             "src/shared/**/*.test.ts",
+            // main and the renderer's fake bridge, side by side
+            "src/conformance/**/*.test.ts",
             "scripts/**/*.test.ts",
           ],
         },
@@ -50,6 +52,15 @@ export default defineConfig({
           include: ["src/renderer/**/*.test.{ts,tsx}"],
           setupFiles: ["./src/renderer/test/setup.ts"],
           css: true,
+        },
+      },
+      {
+        // TaleSpire symbiotes: plain browser scripts, tested by loading them as the game does.
+        test: {
+          name: "symbiotes",
+          root: "./symbiotes",
+          environment: "node",
+          include: ["test/**/*.test.js"],
         },
       },
     ],

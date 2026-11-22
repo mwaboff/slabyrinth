@@ -1,5 +1,5 @@
 /**
- * Building variety (2026-11-20, owner: "all the buildings look the same"). A style profile may declare a DESIGN SPACE:
+ * Building variety (without it "all the buildings look the same"). A style profile may declare a DESIGN SPACE:
  * weighted choices on independent axes — massing archetype, storeys and storey heights, wall material (and a base
  * storey in another one), roof, parapet, rooftop sets, window pattern, base treatment, top treatment — and a map from
  * a building's `use` (shop, apartments, warehouse …) to weight multipliers. When the plan leaves a building's shape
@@ -14,8 +14,12 @@
  */
 import type { Building, Roof, RoofType, Side, Storey, Volume, WallStyle } from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
+import { OPPOSITE } from "../gen/gridGeometry";
+import { OPENING_KIND_INFO, openingTests } from "../gen/openingKinds";
+import type { GeneratorProfile } from "../plan/generator";
 import { createPrng, type Prng } from "../util/prng";
-import { defaultRidge, gableRoof, hipRoof, shedRoof } from "./roof";
+import { defaultRidge, roofRise } from "./roof";
+import { isFlatRoof, isPitchedRoof } from "./roofTypes";
 import { structureStyle } from "./structureStyles";
 
 export type Weights = Readonly<Record<string, number>>;
@@ -98,17 +102,20 @@ export interface DesignSpace {
    * and cross wings and lean-tos stand a tile or more below the main ridge.
    */
   roofShare?: readonly [number, number];
-  /** Generator 3 only: axes replacing the ones above (shallow merge), so a style's older output stays as it was. */
-  gen3?: Partial<Omit<DesignSpace, "gen3">>;
+  /**
+   * Under the profile's `buildingVariety` switch (generator 3 on): axes replacing the ones above (shallow merge), so a
+   * style's older output stays as it was.
+   */
+  buildingVariety?: Partial<Omit<DesignSpace, "buildingVariety">>;
 }
 
 const merged = new WeakMap<DesignSpace, DesignSpace>();
-/** The design space a generator uses: generator 3 plans take the style's `gen3` overrides (one object per space). */
-export function designSpaceFor(space: DesignSpace, gen3: boolean): DesignSpace {
-  if (!gen3 || !space.gen3) return space;
+/** The design space a generator uses: with `buildingVariety` on, the style's `buildingVariety` overrides (one object per space). */
+export function designSpaceFor(space: DesignSpace, buildingVariety: boolean): DesignSpace {
+  if (!buildingVariety || !space.buildingVariety) return space;
   let m = merged.get(space);
   if (!m) {
-    m = { ...space, ...space.gen3 };
+    m = { ...space, ...space.buildingVariety };
     merged.set(space, m);
   }
   return m;
@@ -394,6 +401,7 @@ export function expandDesign(
   d: BuildingDesign,
   rect: { x: number; y: number; w: number; h: number },
   front: Side,
+  profile: GeneratorProfile,
   pitchedKit?: string,
   opts: {
     parapetFor?: Readonly<Record<string, string>>;
@@ -406,6 +414,8 @@ export function expandDesign(
   } = {},
 ): Building {
   const pat = windowPattern(d.windows);
+  // a way in that may be the main door (gen/openingKinds.ts openingTests: generator 4 asks the kind table)
+  const entrance = openingTests(profile).entrance;
   const own = d.parapet === "walls" ? (opts.parapetFor?.[d.material] ?? d.material) : d.parapet;
   const parapet = own === "none" ? null : own;
   const storeyList = (n: number, first: boolean, roofStorey: boolean): Storey[] =>
@@ -479,7 +489,7 @@ export function expandDesign(
     ...(roofOf("flat", front, lowOwn === "none" ? null : lowOwn, undefined) as Roof),
     ...surface,
   };
-  if (top !== "none" && top.type === "flat") Object.assign(top, surface);
+  if (top !== "none" && isFlatRoof(top.type)) Object.assign(top, surface);
   // a second mass beside the main one: pitched like it, or flat when the main roof is flat
   const second = ["flat", "skirt", "stepped", "spire", "skirt_spire"].includes(d.roof) ? flat : top;
   const n = d.storeys;
@@ -620,16 +630,16 @@ export function expandDesign(
   else if (st.shopfront === undefined) out.shopfront = false;
   if (d.base === "stoop" && st.plinth === undefined)
     out.plinth = { height: 1, margin: 1, sides: [front], approach: "steps", rim: "none" };
-  if (d.base === "garage" && !(st.openings ?? []).some((o) => o.kind === "double_door"))
+  // a garage needs a door a cart goes through: a kind that is wider than a cell (a double door)
+  if (d.base === "garage" && !(st.openings ?? []).some((o) => OPENING_KIND_INFO[o.kind].defaultWidth >= 2))
     out.openings = [{ kind: "double_door", side: front, position: 0.5, width: 2 }, ...(st.openings ?? [])];
   // a service door at the back, when the back looks onto open ground
-  const back: Side = front === "N" ? "S" : front === "S" ? "N" : front === "E" ? "W" : "E";
+  const back = OPPOSITE[front];
   if (d.serviceDoor && opts.rearOpen && !(st.openings ?? []).some((o) => o.side === back)) {
     const list = out.openings ?? st.openings ?? [];
     // the main entrance is always on the street face: a service door must never stand in for it (the resolver
     // only adds a door when the building has none)
-    const DOORS = new Set(["door", "double_door", "archway", "portcullis"]);
-    const mainDoor = list.some((o) => (o.storey ?? 0) === 0 && DOORS.has(o.kind));
+    const mainDoor = list.some((o) => (o.storey ?? 0) === 0 && entrance(o.kind));
     out.openings = [
       ...(mainDoor ? [] : [{ kind: "door" as const, side: front }]),
       ...list,
@@ -654,11 +664,7 @@ export function expandDesign(
  *    top storey is lowered, and when it cannot go lower the main walls rise by half a tile (at most a tile).
  * The heights are those of the resolver (footing course, floor thickness, deck), the roof rise the roof module's own.
  */
-function balanceRoofs(
-  volumes: Volume[],
-  d: BuildingDesign,
-  opts: { footing: number; deck: boolean },
-): void {
+function balanceRoofs(volumes: Volume[], d: BuildingDesign, opts: { footing: number; deck: boolean }): void {
   const FLOOR = 0.5;
   const list = (v: Volume): Storey[] => (Array.isArray(v.storeys) ? v.storeys : []);
   const wallOf = (v: Volume): number => {
@@ -672,11 +678,10 @@ function balanceRoofs(
   const riseOf = (v: Volume): number => {
     const r = v.roof;
     if (!r || r === "none") return -1;
-    const rect = { x: v.x, y: v.y, w: v.w, h: v.h };
-    if (r.type === "gable") return gableRoof({ ...rect, ridge: r.ridge ?? defaultRidge(v.w, v.h) }).ridgeTop;
-    if (r.type === "hip") return hipRoof(rect).top;
-    if (r.type === "shed") return shedRoof(rect, r.low ?? "S").top;
-    return -1;
+    // only a pitched roof has a ridge to balance
+    if (!isPitchedRoof(r.type)) return -1;
+    const wing = { x: v.x, y: v.y, w: v.w, h: v.h, ridge: r.ridge ?? defaultRidge(v.w, v.h) };
+    return roofRise(r.type, wing, { low: r.low ?? "S" });
   };
   const pitched = (): Array<{ v: Volume; wall: number; ridge: number }> =>
     volumes

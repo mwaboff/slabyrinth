@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { MapPlan } from "@slabyrinth/core/contracts/plan";
 import type { Canvas2DLike, DisplayList, MapTheme } from "@slabyrinth/core/contracts/resolved";
 import { SYMBOLS, buildPlanDisplayList, legendEntries } from "@slabyrinth/core/render";
+import { bundledPalettes } from "@slabyrinth/core/palette";
 import { resolvePlan } from "@slabyrinth/core/resolve";
 import {
   DEFAULT_MAP_THEME_ID,
@@ -131,8 +132,8 @@ const loadFixture = (name: string): MapPlan =>
     readFileSync(new URL(`../../core/test/fixtures/plans/${name}.json`, import.meta.url), "utf8"),
   ) as MapPlan;
 
-const resolvedA = resolvePlan(loadFixture("example-a"));
-const resolvedB = resolvePlan(loadFixture("example-b"));
+const resolvedA = resolvePlan(loadFixture("example-a"), bundledPalettes());
+const resolvedB = resolvePlan(loadFixture("example-b"), bundledPalettes());
 const listA = buildPlanDisplayList(resolvedA, "l1", { roomNames: true }, "l1") as DisplayList;
 const listA2 = buildPlanDisplayList(resolvedA, "l2", {}, "l1") as DisplayList;
 const listB = buildPlanDisplayList(resolvedB, "g", {}) as DisplayList;
@@ -196,7 +197,7 @@ describe("drawDisplayList", () => {
       links: [],
       entryLevel: "up",
     } as unknown as MapPlan;
-    const list = buildPlanDisplayList(resolvePlan(plan), "up", {}) as DisplayList;
+    const list = buildPlanDisplayList(resolvePlan(plan, bundledPalettes()), "up", {}) as DisplayList;
     expect(list.items.some((it) => it.layer === "ground" && it.style === "void")).toBe(true);
     for (const id of ["print", "ohsheet-light", "ohsheet-dark"]) {
       const theme = getMapTheme(id);
@@ -227,6 +228,18 @@ describe("symbols and themes", () => {
         expect(ctx.depth, id).toBe(0);
       }
     }
+  });
+  it("a covered stall (generator 4) is drawn as its canopy: a panel, a ridge, rafters, a heavy front eave and four posts", () => {
+    const theme = getMapTheme("ohsheet-light");
+    // one painter, drawn front-up; the display list turns it to its front with `rot`
+    const paint = PAINTERS["feat-stall_cover"];
+    expect(paint).toBeTypeOf("function");
+    const ctx = new RecordingContext();
+    paint?.({ ctx, theme, u: 24, w: 72, h: 48, style: "feat", seed: 1, lw: 1.5, rot: 90 });
+    expect(ctx.depth).toBe(0);
+    // the canopy panel, rafters, front eave and four posts are each stroked
+    expect(ctx.strokes.length).toBeGreaterThanOrEqual(7);
+    expect(ctx.calls.filter((c) => c.op === "rect").length).toBe(4);
   });
   it("themes define every required token", () => {
     for (const theme of Object.values(MAP_THEMES))
@@ -334,7 +347,7 @@ describe("depth: chasm, cliffs and bridges", () => {
       },
     ],
   };
-  const list = buildPlanDisplayList(resolvePlan(plan), "lv") as DisplayList;
+  const list = buildPlanDisplayList(resolvePlan(plan, bundledPalettes()), "lv") as DisplayList;
   it.each(Object.keys(MAP_THEMES))("theme %s: cliffs and the bridge draw with theme colours only", (id) => {
     const theme = getMapTheme(id);
     const allowed = new Set(Object.values(theme.colors));

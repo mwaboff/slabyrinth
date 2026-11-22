@@ -1,9 +1,11 @@
 /**
- * validatePlan (architecture §2.8): every resolver-INDEPENDENT check, plus a registration hook through which
- * WP2 plugs in geometric checks (opening_no_boundary on real edges, feature_blocked, area_empty, unreachable…)
- * without this module importing the resolver.
+ * validatePlan (architecture §2.8): every resolver-INDEPENDENT check, plus the checks the caller passes in
+ * (`ValidateContext.checks`). The resolver's geometric checks (opening_no_boundary on real edges, feature_blocked,
+ * area_empty, unreachable…) sit in a higher layer and need the palettes the plan is built with, so this module
+ * cannot import them: the caller hands them over (resolve's `planRules(palettes).checks`), or passes `[]` to check
+ * structure only. There is no process-wide registry: the same call gives the same answer in every process.
  *
- * Order: size limit → Zod structure → cross-element rules → registered checks. Registered checks run only when
+ * Order: size limit → Zod structure → cross-element rules → the given checks. The given checks run only when
  * everything before produced no error, so they may assume a structurally sound plan with valid references.
  *
  * Every issue carries a stable code, a JSON-pointer path, the element/level ids and a model-facing hint.
@@ -20,55 +22,48 @@ import type {
   Vec2,
 } from "../contracts/plan";
 import { BUILD_CONSTANTS, PLAN_LIMITS } from "../contracts/plan";
+import { own } from "../util/own";
 import { utf8Length } from "../util/hash";
+import { type GeneratorVocabulary, VOCABULARY_SINCE, generatorProfile } from "./generator";
 import { listForHint, nearest } from "../util/strings";
 import { KIND_LABEL, freeId, listElements } from "./elements";
 import type { ElementLocation } from "./elements";
-import { linkGeometry } from "./links";
+import { linkGeometry, linkKindInfo } from "./links";
 import { withWings } from "./building";
 import { MapPlanSchema } from "./schema";
 import { boxesIntersect, polylineProblems, shapeCellBox, shapeProblems } from "./shapes";
 import type { CellBox } from "./shapes";
 import { zodIssueToPlanIssue } from "./zodIssues";
+import { SIZE_TIER_ORDER, SIZE_TIERS, sizeLimits, smallestTierFor, type SizeLimits } from "./sizeTiers";
+import { pushAll } from "../util/lists";
 
-// ───────────────────────────── context and check registry ─────────────────────────────
+// ───────────────────────────── context and checks ─────────────────────────────
 
 export interface ValidateContext {
+  /**
+   * The checks that run after the structural ones, in this order, on a plan with no structural error. Required so
+   * that no caller leaves them out by accident: `planRules(palettes).checks` (resolve) adds the resolver's geometry
+   * and playability checks for the palettes the plan is built with; `[]` checks structure only.
+   */
+  checks: readonly PlanCheck[];
   /** Theme ids known to the installed palettes. When given, unknown themes produce `theme_unknown` warnings. */
   themes?: readonly string[];
-  /** Additional checks for this call only (run after the registered ones). */
-  checks?: readonly PlanCheck[];
-  /** Skip globally registered checks (structural validation only). */
-  skipRegistered?: boolean;
+  /** The size tier the plan is held to (plan/sizeTiers.ts); the standard one when absent. */
+  limits?: SizeLimits;
 }
 
 /**
- * A pluggable validation pass (WP2 geometry, WP3 palette checks such as custom_unresolved).
+ * A validation pass a higher layer supplies (the resolver's geometry and playability checks).
  * Must be pure and deterministic; receives only plans that passed every structural check.
  */
 export interface PlanCheck {
-  /** Unique name; registered checks run in name order. */
+  /** A name for tests and logs. */
   name: string;
   run(plan: MapPlan, ctx: ValidateContext): readonly PlanIssue[];
 }
 
-const registry = new Map<string, PlanCheck>();
-
-/**
- * Registers a check that validatePlan (and therefore applyOps) runs on every structurally valid plan.
- * Re-registering a name replaces it. Returns a function that unregisters it.
- */
-export function registerPlanCheck(check: PlanCheck): () => void {
-  registry.set(check.name, check);
-  return () => {
-    if (registry.get(check.name) === check) registry.delete(check.name);
-  };
-}
-
-/** Registered checks in deterministic (name) order. */
-export function registeredPlanChecks(): PlanCheck[] {
-  return [...registry.values()].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-}
+/** No checks beyond the structural ones: `validatePlan(plan, STRUCTURE_ONLY)`. */
+export const STRUCTURE_ONLY: ValidateContext = Object.freeze({ checks: Object.freeze([]) });
 
 // ───────────────────────────── entry points ─────────────────────────────
 
@@ -91,13 +86,12 @@ export function parsePlan(input: unknown): ParsePlanResult {
 /**
  * Validates a plan (or untrusted JSON). Pure and deterministic. `ok` is false iff an issue has severity "error".
  */
-export function validatePlan(input: unknown, ctx: ValidateContext = {}): ValidationResult {
+export function validatePlan(input: unknown, ctx: ValidateContext): ValidationResult {
   const parsed = parsePlan(input);
   if (!parsed.ok) return { ok: false, issues: parsed.issues };
   const issues = structuralChecks(parsed.plan, ctx);
   if (!issues.some((i) => i.severity === "error")) {
-    const checks = [...(ctx.skipRegistered === true ? [] : registeredPlanChecks()), ...(ctx.checks ?? [])];
-    for (const check of checks) issues.push(...check.run(parsed.plan, ctx));
+    for (const check of ctx.checks) pushAll(issues, check.run(parsed.plan, ctx));
   }
   return { ok: !issues.some((i) => i.severity === "error"), issues };
 }
@@ -132,6 +126,13 @@ function checkSize(input: unknown): PlanIssue | null {
   return null;
 }
 
+/** Where an issue points beyond its path. */
+interface IssueExtra {
+  elementId?: string;
+  levelId?: string;
+  cell?: Vec2;
+}
+
 class IssueSink {
   readonly issues: PlanIssue[] = [];
   add(
@@ -140,7 +141,7 @@ class IssueSink {
     path: string,
     message: string,
     hint: string,
-    extra: { elementId?: string; levelId?: string; cell?: Vec2 } = {},
+    extra: IssueExtra = {},
   ): void {
     const issue: PlanIssue = { severity, code, message, path, hint };
     if (extra.elementId !== undefined) issue.elementId = extra.elementId;
@@ -148,13 +149,7 @@ class IssueSink {
     if (extra.cell !== undefined) issue.cell = extra.cell;
     this.issues.push(issue);
   }
-  error(
-    code: PlanIssueCode,
-    path: string,
-    message: string,
-    hint: string,
-    extra?: { elementId?: string; levelId?: string; cell?: Vec2 },
-  ): void {
+  error(code: PlanIssueCode, path: string, message: string, hint: string, extra?: IssueExtra): void {
     this.add("error", code, path, message, hint, extra);
   }
 }
@@ -208,11 +203,14 @@ export function nextFreeKey(plan: MapPlan): string {
   return String(max + 1);
 }
 
-export function structuralChecks(plan: MapPlan, ctx: ValidateContext): PlanIssue[] {
+export function structuralChecks(
+  plan: MapPlan,
+  ctx: Pick<ValidateContext, "themes" | "limits">,
+): PlanIssue[] {
   const sink = new IssueSink();
   const elements = listElements(plan);
   checkIds(plan, elements, sink);
-  checkLevels(plan, sink);
+  checkLevels(plan, sink, ctx.limits ?? sizeLimits());
   checkKeys(plan, sink);
   plan.levels.forEach((level, li) => {
     checkLevelContents(plan, level, li, sink);
@@ -253,7 +251,44 @@ function checkIds(plan: MapPlan, elements: readonly ElementLocation[], sink: Iss
   }
 }
 
-function checkLevels(plan: MapPlan, sink: IssueSink): void {
+/** Where a plan larger than the active size tier can go: the next tier up, by the setting's name. */
+function largerTierHint(limits: SizeLimits, plan: MapPlan): string {
+  const fits = smallestTierFor(plan);
+  const order = SIZE_TIER_ORDER.indexOf(limits.id);
+  if (fits !== null && SIZE_TIER_ORDER.indexOf(fits) > order)
+    return `; or, to try it, the GM can turn on the experimental "larger maps" setting at ${SIZE_TIERS[fits].levelSide} cells a side (slower edits)`;
+  return "";
+}
+
+function checkLevels(plan: MapPlan, sink: IssueSink, limits: SizeLimits): void {
+  // one level's side: the schema allows the largest tier's, the active tier may allow less
+  plan.levels.forEach((level, li) => {
+    for (const k of ["w", "h"] as const) {
+      const v = level.bounds[k];
+      if (v <= limits.levelSide) continue;
+      sink.error(
+        "bounds_exceeded",
+        `/levels/${li}/bounds/${k}`,
+        `level "${level.id}" is ${v} cells ${k === "w" ? "wide" : "high"}; the ${limits.experimental ? `"larger maps" ${limits.levelSide}` : "map size"} limit is ${limits.levelSide} cells a side`,
+        `make the level ≤ ${limits.levelSide} cells a side${largerTierHint(limits, plan)}`,
+        { elementId: level.id, levelId: level.id },
+      );
+    }
+  });
+  // the levels together: build time and memory grow with every cell of every level (test/sweep/sizes.ts)
+  const cells = plan.levels.reduce((s, l) => s + l.bounds.w * l.bounds.h, 0);
+  if (cells > limits.totalCells) {
+    const sizes = plan.levels.map((l) => `${l.id} ${l.bounds.w}×${l.bounds.h}`).join(", ");
+    const example = limits.experimental
+      ? `for example ${Math.floor(limits.totalCells / limits.levelSide ** 2) || 1} level(s) of ${limits.levelSide}×${limits.levelSide}`
+      : `for example one ${limits.levelSide}×${limits.levelSide} level and one more of that size, or 8 levels of 160×160`;
+    sink.error(
+      "limit_exceeded",
+      "/levels",
+      `the levels cover ${cells} cells together (${sizes}); the limit is ${limits.totalCells}`,
+      `shrink the levels' bounds to what the map uses, or use fewer levels: ${example}${largerTierHint(limits, plan)}`,
+    );
+  }
   const seen = new Map<number, string>();
   const elevations = new Set(plan.levels.map((l) => l.elevation));
   plan.levels.forEach((level, li) => {
@@ -369,20 +404,86 @@ function areaRefCheck(
     elsewhere !== undefined
       ? `${what} "${elementId}" refers to area "${ref}", which is on level "${elsewhere.id}", not "${level.id}"`
       : `${what} "${elementId}" refers to unknown area "${ref}"`,
-    `${near !== undefined ? `did you mean "${near}"? ` : ""}areas on ${level.id}: ${ids.length > 0 ? listForHint(ids) : "(none)"}${what === "dress op" && plan.generator >= 2 ? "; or leave area out to dress the whole level" : ""}`,
+    `${near !== undefined ? `did you mean "${near}"? ` : ""}areas on ${level.id}: ${ids.length > 0 ? listForHint(ids) : "(none)"}${what === "dress op" && generatorProfile(plan).dressWholeLevel ? "; or leave area out to dress the whole level" : ""}`,
     { elementId, levelId: level.id },
   );
   return false;
+}
+
+/**
+ * Plan vocabulary a later generator added (plan/generator.ts VOCABULARY), used below that generator: refused, code
+ * `schema`, the same for every kind of word. The schema accepts the word for every generator (one schema serves every
+ * plan), so this is where a released generator's plan is held to the words its own release knew.
+ */
+function checkVocabulary(plan: MapPlan, level: Level, li: number, sink: IssueSink): void {
+  const known = generatorProfile(plan).vocabulary;
+  const base = `/levels/${li}`;
+  const refuse = (
+    kind: keyof GeneratorVocabulary,
+    word: string,
+    path: string,
+    what: string,
+    instead: string,
+    extra: IssueExtra,
+  ): void => {
+    const since = own(VOCABULARY_SINCE[kind], word);
+    if (since === undefined || known[kind].has(word)) return;
+    sink.error(
+      "schema",
+      path,
+      `${what} needs generator ${since}; this plan is generator ${plan.generator}`,
+      `set the plan generator to ${since} (new plans have it), or ${instead}`,
+      extra,
+    );
+  };
+  const fields = (
+    kind: "levelFields" | "areaFields",
+    element: object,
+    path: string,
+    label: string,
+    extra: IssueExtra,
+  ): void => {
+    for (const field of Object.keys(element))
+      refuse(kind, field, `${path}/${field}`, `${label}: ${field}`, `remove ${field}`, extra);
+  };
+  fields("levelFields", level, base, `level "${level.id}"`, { elementId: level.id, levelId: level.id });
+  level.areas.forEach((a, ai) => {
+    fields("areaFields", a, `${base}/areas/${ai}`, `area "${a.id}"`, { elementId: a.id, levelId: level.id });
+  });
+  level.features.forEach((f, fi) => {
+    refuse(
+      "featureTypes",
+      f.type,
+      `${base}/features/${fi}/type`,
+      `feature "${f.id}": type ${f.type}`,
+      "use another feature type",
+      { elementId: f.id, levelId: level.id, cell: f.at },
+    );
+  });
+  level.terrain.forEach((t, ti) => {
+    if (t.op === "scatter")
+      refuse(
+        "featureTypes",
+        t.feature,
+        `${base}/terrain/${ti}/feature`,
+        `scatter "${t.id}": feature ${t.feature}`,
+        "scatter another feature type",
+        { elementId: t.id, levelId: level.id },
+      );
+  });
 }
 
 function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: IssueSink): void {
   const base = `/levels/${li}`;
   const lb = levelBox(level);
 
+  checkVocabulary(plan, level, li, sink);
+  const gen = generatorProfile(plan);
+
   (level.structures ?? []).map(withWings).forEach((st, si) => {
     const p = `${base}/structures/${si}`;
     const extra = { elementId: st.id, levelId: level.id };
-    if (plan.generator < 2)
+    if (!gen.buildings)
       sink.error(
         "structure_invalid",
         p,
@@ -606,7 +707,7 @@ function checkLevelContents(plan: MapPlan, level: Level, li: number, sink: Issue
       case "dress":
         // generator 2: no area (or the level's own id) dresses the whole level
         if (t.area === undefined || t.area === level.id) {
-          if (plan.generator < 2)
+          if (!generatorProfile(plan).dressWholeLevel)
             sink.error(
               "ref_unknown",
               `${p}/area`,
@@ -682,7 +783,7 @@ function checkLinks(plan: MapPlan, sink: IssueSink): void {
     const arrival = geo.arrival;
     if (link.to.at !== undefined && (link.to.at[0] !== arrival[0] || link.to.at[1] !== arrival[1])) {
       const why =
-        link.kind === "stairs" || link.kind === "ramp"
+        linkKindInfo(link.kind).footprint === "run"
           ? `${link.kind} from ${from.id} ${link.from.at.join(",")} dir ${link.dir ?? "N"} rise ${geo.rise} arrive at ${arrival.join(",")}`
           : `${link.kind} arrives directly above its start ${arrival.join(",")}`;
       sink.error(
@@ -700,7 +801,7 @@ function checkLinks(plan: MapPlan, sink: IssueSink): void {
         "bounds_exceeded",
         `${p}/from/at`,
         `link "${link.id}" run cell [${outLow.join(",")}] is outside level "${from.id}" (${boundsText(from)})`,
-        link.kind === "stairs" || link.kind === "ramp"
+        linkKindInfo(link.kind).footprint === "run"
           ? `the run is ${geo.length} cells toward ${link.dir ?? "N"}; move from.at or change dir`
           : "move from.at inside the level",
         { ...extra, levelId: from.id, cell: outLow },

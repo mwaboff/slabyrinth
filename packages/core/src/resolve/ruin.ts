@@ -12,10 +12,9 @@
  */
 import type { Side } from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
-import { h32 } from "../util/hash";
-
-const STEP: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
+import { SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
+import { h32, hashUnit } from "../util/hash";
+import { maxOf, minOf } from "../util/lists";
 
 export interface RuinVolumeIn {
   id: string;
@@ -49,7 +48,8 @@ export interface RuinProfile {
 
 /** What the generator-3 rules need to know about the building's openings. */
 export interface RuinOptions {
-  gen3: boolean;
+  /** The generator profile's `legibleCondition` switch: ruins that read from the game camera (generator 3 on). */
+  legibleCondition: boolean;
   /**
    * Generator 3: one roofed volume (of those in `roofed`, nearest the standing corner, with nothing standing on it)
    * keeps its walls and roof whole as the anchor of the ruin; the rest decays away from it.
@@ -70,8 +70,8 @@ const NOISE: ReadonlyArray<readonly [number, number]> = [
   [1, 3],
 ];
 
-/** Generator 3: fewer columns keep their full height (15 %), more lose a half tile or a tile. */
-const NOISE3: ReadonlyArray<readonly [number, number]> = [
+/** Generator 3 (`legibleCondition`): fewer columns keep their full height (15 %), more lose a half tile or a tile. */
+const NOISE_LEGIBLE: ReadonlyArray<readonly [number, number]> = [
   [0.15, 0],
   [0.45, 0.5],
   [0.7, 1],
@@ -86,15 +86,50 @@ export function ruinProfile(
   gableRoof?: { x: number; y: number; w: number; h: number; ridge: "ew" | "ns" },
   /** Volumes with a roof: a weathered building's walls under a roof stay whole (no gap under the eaves). */
   roofed: ReadonlySet<string> = new Set(),
-  opts: RuinOptions = { gen3: false },
+  opts: RuinOptions = { legibleCondition: false },
 ): RuinProfile {
-  const u = (s: string): number => h32(`${seed}:ruin:${s}`) / 4294967296;
-  // wall columns: the outer face of every storey cell whose neighbour is not in that storey; its intact top is the
-  // highest storey with that face; the volume of its lowest storey owns it (lost rooms go by volume)
-  const cols = new Map<
-    string,
-    { at: [number, number]; side: Side; full: number; vol: string; low: number; topVol: string }
-  >();
+  const u = (s: string): number => hashUnit(seed, "ruin", s);
+  const cols = wallColumns(vols);
+  const list = [...cols.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  if (list.length === 0) return { columns: [], holes: [], anchor: [0, 0], loss: 0 };
+  if (condition === "weathered") return weatheredProfile(list, roofed, opts, u);
+  const fall = ruinFall({ vols, seed, gableRoof, roofed, opts, u, cols, list });
+  const columns = fallenColumns(fall);
+  const byKey = new Map(columns.map((c) => [`${c.at[0]},${c.at[1]},${c.side}`, c]));
+  const arches = standingArches(fall, byKey);
+  const holes = floorHoles(fall, byKey);
+  return {
+    columns,
+    holes,
+    anchor: fall.anchor,
+    loss: lossOf(columns, fall.lows),
+    ...(fall.gable ? { gable: fall.gable } : {}),
+    ...(arches.length ? { arches } : {}),
+    ...(fall.keep !== undefined ? { keep: fall.keep } : {}),
+  };
+}
+
+/** A wall column of the massing: its face cell and side, intact top, lowest floor, and the volumes that own it. */
+interface WallColumn {
+  at: [number, number];
+  side: Side;
+  full: number;
+  /** The volume of its lowest storey (lost rooms go by volume). */
+  vol: string;
+  low: number;
+  /** The volume of its highest storey. */
+  topVol: string;
+}
+
+/** A ruin's columns as decided: surviving and intact top. */
+type RuinColumn = RuinProfile["columns"][number];
+
+/**
+ * Wall columns ("x,y,side"): the outer face of every storey cell whose neighbour is not in that storey; its intact top
+ * is the highest storey with that face; the volume of its lowest storey owns it (lost rooms go by volume).
+ */
+function wallColumns(vols: readonly RuinVolumeIn[]): Map<string, WallColumn> {
+  const cols = new Map<string, WallColumn>();
   for (const v of vols)
     for (const s of v.storeys) {
       const own = new Set(s.cells.map(([x, y]) => `${x},${y}`));
@@ -115,61 +150,97 @@ export function ruinProfile(
           }
         }
     }
-  const list = [...cols.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  return cols;
+}
+
+/** The columns in key order ("x,y,side"). */
+type ColumnList = Array<[string, WallColumn]>;
+
+/** Weathered: the shape stays whole, with chipped tops where nothing roofs them. */
+function weatheredProfile(
+  list: ColumnList,
+  roofed: ReadonlySet<string>,
+  opts: RuinOptions,
+  u: (s: string) => number,
+): RuinProfile {
   const xs = list.map(([, c]) => c.at[0]);
   const ys = list.map(([, c]) => c.at[1]);
-  const bbox = (cs: typeof list): [number, number, number, number] => [
-    Math.min(...cs.map(([, c]) => c.at[0])),
-    Math.min(...cs.map(([, c]) => c.at[1])),
-    Math.max(...cs.map(([, c]) => c.at[0])),
-    Math.max(...cs.map(([, c]) => c.at[1])),
-  ];
-  if (list.length === 0) return { columns: [], holes: [], anchor: [0, 0], loss: 0 };
-
-  if (condition === "weathered") {
-    // chipped tops where nothing roofs them: one column in five loses half a tile or a tile; the shape stays whole
-    const columns = list.map(([k, c]) => {
-      const r = roofed.has(c.topVol) ? 1 : u(`chip:${k}`);
-      // generator 3: a third of the open tops are bitten, so a weathered wall reads as neglected from the game camera
-      const chip = opts.gen3 ? (r < 0.2 ? 0.5 : r < 0.35 ? 1 : 0) : r < 0.12 ? 0.5 : r < 0.2 ? 1 : 0;
-      return {
-        at: c.at,
-        side: c.side,
-        full: c.full,
-        top: Math.max(Math.min(c.full, c.low + 1), c.full - chip),
-      };
-    });
+  // chipped tops where nothing roofs them: one column in five loses half a tile or a tile; the shape stays whole
+  const columns = list.map(([k, c]) => {
+    const r = roofed.has(c.topVol) ? 1 : u(`chip:${k}`);
+    // generator 3: a third of the open tops are bitten, so a weathered wall reads as neglected from the game camera
+    const chip = opts.legibleCondition
+      ? r < 0.2
+        ? 0.5
+        : r < 0.35
+          ? 1
+          : 0
+      : r < 0.12
+        ? 0.5
+        : r < 0.2
+          ? 1
+          : 0;
     return {
-      columns,
-      holes: [],
-      anchor: [Math.min(...xs), Math.min(...ys)],
-      loss: lossOf(
-        columns,
-        list.map(([, c]) => c.low),
-      ),
+      at: c.at,
+      side: c.side,
+      full: c.full,
+      top: Math.max(Math.min(c.full, c.low + 1), c.full - chip),
     };
-  }
+  });
+  return {
+    columns,
+    holes: [],
+    anchor: [minOf(xs), minOf(ys)],
+    loss: lossOf(
+      columns,
+      list.map(([, c]) => c.low),
+    ),
+  };
+}
 
+/** What the fall of a ruin is decided from. */
+interface RuinFallIn {
+  vols: readonly RuinVolumeIn[];
+  seed: number;
+  gableRoof: { x: number; y: number; w: number; h: number; ridge: "ew" | "ns" } | undefined;
+  roofed: ReadonlySet<string>;
+  opts: RuinOptions;
+  u: (s: string) => number;
+  cols: ReadonlyMap<string, WallColumn>;
+  list: ColumnList;
+}
+
+/**
+ * How a ruin falls: the standing corner it falls away from, the volume kept whole (generator 3), the gable wall that
+ * stands, the rooms lost to stubs, the stub height and the bite out of each column's top.
+ */
+function ruinFall({ vols, seed, gableRoof, roofed, opts, u, cols, list }: RuinFallIn) {
+  const bbox = (cs: ColumnList): [number, number, number, number] => [
+    minOf(cs.map(([, c]) => c.at[0])),
+    minOf(cs.map(([, c]) => c.at[1])),
+    maxOf(cs.map(([, c]) => c.at[0])),
+    maxOf(cs.map(([, c]) => c.at[1])),
+  ];
   // the standing corner: a corner of the tall mass when one stands out (a tower over its hall), else of the whole
-  const hmax = Math.max(...list.map(([, c]) => c.full));
+  const hmax = maxOf(list.map(([, c]) => c.full));
   const tall = list.filter(([, c]) => c.full >= 0.75 * hmax);
   const region = tall.length <= 0.5 * list.length && hmax >= 5 ? tall : list;
   const [x0, y0, x1, y1] = bbox(region);
   const corner = h32(`${seed}:ruin:anchor`) % 4;
   const anchor: [number, number] = [corner % 2 === 0 ? x0 : x1, corner < 2 ? y0 : y1];
   const dist = (c: { at: [number, number] }): number => Math.hypot(c.at[0] - anchor[0], c.at[1] - anchor[1]);
-  const D = Math.max(1, ...list.map(([, c]) => dist(c)));
+  const D = Math.max(1, maxOf(list.map(([, c]) => dist(c))));
 
   // generator 3: one roofed volume stays whole (the reference ruins keep most of a roof: the anchor), the nearest to
   // the standing corner among those nothing stands on
   let keep: string | undefined;
-  if (opts.gen3 && opts.keepRoofed) {
+  if (opts.legibleCondition && opts.keepRoofed) {
     const hosts = new Set(vols.map((v) => v.on).filter((o): o is string => o !== null));
     let best = Infinity;
     for (const v of vols) {
       if (!roofed.has(v.id) || hosts.has(v.id) || v.on !== null) continue;
       const d =
-        Math.min(...v.storeys.flatMap((s) => s.cells.map(([x, y]) => Math.hypot(x - anchor[0], y - anchor[1])))) -
+        minOf(v.storeys.flatMap((s) => s.cells.map(([x, y]) => Math.hypot(x - anchor[0], y - anchor[1])))) -
         (opts.pitched?.has(v.id) ? 6 : 0);
       if (d < best - 1e-9) {
         best = d;
@@ -224,9 +295,9 @@ export function ruinProfile(
   const noiseOf = (k: string, c?: { at: [number, number]; side: Side }): number => {
     const draw = (s: string): number => {
       const r = u(s);
-      return ((opts.gen3 ? NOISE3 : NOISE).find(([p]) => r < p) ?? [1, 0])[1];
+      return ((opts.legibleCondition ? NOISE_LEGIBLE : NOISE).find(([p]) => r < p) ?? [1, 0])[1];
     };
-    if (!opts.gen3 || !c) return draw(`noise:${k}`);
+    if (!opts.legibleCondition || !c) return draw(`noise:${k}`);
     // generator 3: the bite varies smoothly along a wall (a collapse has slopes and long runs, not teeth): drawn at a
     // knot every three columns and interpolated, with a half-tile of per-column grain on a fifth of the columns
     const along = c.side === "N" || c.side === "S" ? c.at[0] : c.at[1];
@@ -240,18 +311,53 @@ export function ruinProfile(
   // generator 3: broken, not trimmed. A stretch of three columns may fall together (a notch), and the end of a wall or a
   // corner (a tower stub's edge) is bitten, so no cut top is a clean step or a long level run
   const rag = (k: string, c: { at: [number, number]; side: Side }): number => {
-    if (!opts.gen3) return 0;
+    if (!opts.legibleCondition) return 0;
     const along = c.side === "N" || c.side === "S" ? c.at[0] : c.at[1];
     const line = c.side === "N" || c.side === "S" ? c.at[1] : c.at[0];
     const [ux, uy] = c.side === "N" || c.side === "S" ? [1, 0] : [0, 1];
-    const notch = u(`notch:${c.side}:${line}:${Math.floor(along / 3)}`) < 0.3 ? 1 + 1.5 * u(`notchH:${c.side}:${line}:${Math.floor(along / 3)}`) : 0;
+    const notch =
+      u(`notch:${c.side}:${line}:${Math.floor(along / 3)}`) < 0.3
+        ? 1 + 1.5 * u(`notchH:${c.side}:${line}:${Math.floor(along / 3)}`)
+        : 0;
     const end =
-      (!cols.has(`${c.at[0] - ux},${c.at[1] - uy},${c.side}`) || !cols.has(`${c.at[0] + ux},${c.at[1] + uy},${c.side}`)) &&
+      (!cols.has(`${c.at[0] - ux},${c.at[1] - uy},${c.side}`) ||
+        !cols.has(`${c.at[0] + ux},${c.at[1] + uy},${c.side}`)) &&
       u(`end:${k}`) < 0.4
         ? 0.5 + u(`endH:${k}`)
         : 0;
     return notch + end;
   };
+  const lows = list.map(([, c]) => c.low);
+  return {
+    vols,
+    u,
+    opts,
+    cols,
+    list,
+    anchor,
+    dist,
+    D,
+    keep,
+    kept,
+    gable,
+    onGable,
+    onGround,
+    lost,
+    stub,
+    noiseOf,
+    rag,
+    lows,
+  };
+}
+
+type RuinFall = ReturnType<typeof ruinFall>;
+
+/**
+ * The fallen columns: a standing plateau, then a diagonal fall a third of the building wide down to the stubs, each top
+ * bitten; the fall reaches as far as it must to lose the building's drawn share of masonry (bisection).
+ */
+function fallenColumns(r: RuinFall): RuinColumn[] {
+  const { list, onGable, kept, stub, dist, D, lost, u, opts, noiseOf, rag, onGround, lows } = r;
   const shape = (t: number) =>
     list.map(([k, c]) => {
       const floor = c.low;
@@ -265,17 +371,28 @@ export function ruinProfile(
         : sb + (full - sb) * f ** 1.5;
       // the bite out of each top, cell by cell (never below a tile above the floor)
       // and now and then a fragment standing two tiles proud of the stubs round it (a pier, a door jamb)
-      const proud = f < 1 && u(`proud:${k}`) < (opts.gen3 ? 0.05 : 0.12) ? 2 : 0;
+      const proud = f < 1 && u(`proud:${k}`) < (opts.legibleCondition ? 0.05 : 0.12) ? 2 : 0;
       let top = Math.round((env + proud - noiseOf(k, c) - rag(k, c)) * 2) / 2;
       // a ground wall keeps a stub a tile tall; a mass standing on another may be gone to its floor
       // (generator 3: the lowest stubs are a tile or a tile and a half, so they are not one level line)
-      const least = onGround.has(c.vol) ? Math.min(full, floor + (opts.gen3 && u(`least:${c.side}:${c.side === "N" || c.side === "S" ? c.at[1] : c.at[0]}:${Math.floor((c.side === "N" || c.side === "S" ? c.at[0] : c.at[1]) / 2)}`) < 0.4 ? 1.5 : 1)) : floor;
+      const least = onGround.has(c.vol)
+        ? Math.min(
+            full,
+            floor +
+              (opts.legibleCondition &&
+              u(
+                `least:${c.side}:${c.side === "N" || c.side === "S" ? c.at[1] : c.at[0]}:${Math.floor((c.side === "N" || c.side === "S" ? c.at[0] : c.at[1]) / 2)}`,
+              ) < 0.4
+                ? 1.5
+                : 1),
+          )
+        : floor;
       top = Math.max(least, Math.min(full, top));
       // generator 3: where the fall reached the lowest stubs, some are a half tile proud (no long level line at the foot)
-      if (opts.gen3 && top <= least + 1e-6 && u(`stubup:${k}`) < 0.3) top = Math.min(full, top + 0.5);
+      if (opts.legibleCondition && top <= least + 1e-6 && u(`stubup:${k}`) < 0.3)
+        top = Math.min(full, top + 0.5);
       return { at: c.at, side: c.side, full, top };
     });
-  const lows = list.map(([, c]) => c.low);
   // the share lost: 45–70 % of the masonry, drawn per building, reached by how far the fall reaches (bisection)
   const target = 0.45 + 0.25 * u("loss");
   let lo = -0.4;
@@ -285,13 +402,20 @@ export function ruinProfile(
     if (lossOf(shape(mid), lows) > target) lo = mid;
     else hi = mid;
   }
-  const columns = shape(hi);
-  const byKey = new Map(columns.map((c) => [`${c.at[0]},${c.at[1]},${c.side}`, c]));
+  return shape(hi);
+}
 
-  // generator 3: a doorway or window frame keeps standing, with its arch, where the wall beside it has gone
-  // (one or two per building, drawn by seed)
+/**
+ * Generator 3: a doorway or window frame keeps standing, with its arch, where the wall beside it has gone (one or two
+ * per building, drawn by seed); the columns of its jambs are raised to the arch (`byKey` holds the fallen columns).
+ */
+function standingArches(
+  r: RuinFall,
+  byKey: ReadonlyMap<string, RuinColumn>,
+): NonNullable<RuinProfile["arches"]> {
+  const { opts, cols, vols, onGable, kept, u } = r;
   const arches: NonNullable<RuinProfile["arches"]> = [];
-  if (opts.gen3) {
+  if (opts.legibleCondition) {
     const cands: Array<{ o: NonNullable<RuinOptions["openings"]>[number]; top: number; w: number }> = [];
     for (const o of opts.openings ?? []) {
       const k0 = `${o.at[0]},${o.at[1]},${o.side}`;
@@ -325,9 +449,15 @@ export function ruinProfile(
       arches.push({ at: [c.o.at[0], c.o.at[1]], side: c.o.side, width: c.o.width });
     }
   }
+  return arches;
+}
 
-  // holes in upper floors: gone where the walls round them fell below the floor, else a fifth to a third of the floor
-  // falls in, from the far side of the standing corner and in ragged holes
+/**
+ * Holes in upper floors: gone where the walls round them fell below the floor, else a fifth to a third of the floor
+ * falls in, from the far side of the standing corner and in ragged holes.
+ */
+function floorHoles(r: RuinFall, byKey: ReadonlyMap<string, RuinColumn>): RuinProfile["holes"] {
+  const { vols, keep, u, anchor, D } = r;
   const holes: RuinProfile["holes"] = [];
   for (const v of vols)
     v.storeys.forEach((s, si) => {
@@ -362,16 +492,7 @@ export function ruinProfile(
       const n = Math.round(share * s.cells.length);
       if (n > 0) holes.push({ volume: v.id, storey: si, cells: scored.slice(0, n).map((q) => q.c) });
     });
-
-  return {
-    columns,
-    holes,
-    anchor,
-    loss: lossOf(columns, lows),
-    ...(gable ? { gable } : {}),
-    ...(arches.length ? { arches } : {}),
-    ...(keep !== undefined ? { keep } : {}),
-  };
+  return holes;
 }
 
 /**
@@ -380,10 +501,10 @@ export function ruinProfile(
  * holds their "x,y,side" keys), never on a crest that a battlement remnant may take.
  */
 export function scatterTopRubble(profile: RuinProfile, blocked: ReadonlySet<string>, seed: number): void {
-  const u = (s: string): number => h32(`${seed}:wallrubble:${s}`) / 4294967296;
+  const u = (s: string): number => hashUnit(seed, "wallrubble", s);
   const [ax, ay] = profile.anchor;
   const dist = (c: { at: [number, number] }): number => Math.hypot(c.at[0] - ax, c.at[1] - ay);
-  const D = Math.max(1, ...profile.columns.map(dist));
+  const D = Math.max(1, maxOf(profile.columns.map(dist)));
   const at = new Map(profile.columns.map((c) => [`${c.at[0]},${c.at[1]},${c.side}`, c]));
   const out: NonNullable<RuinProfile["topRubble"]> = [];
   for (const c of profile.columns) {
@@ -391,7 +512,10 @@ export function scatterTopRubble(profile: RuinProfile, blocked: ReadonlySet<stri
     if (c.top >= c.full - 1e-6 || blocked.has(k)) continue;
     const [ux, uy] = c.side === "N" || c.side === "S" ? [1, 0] : [0, 1];
     // a piece turned across its column is wider than the column: none beside an opening either
-    if (blocked.has(`${c.at[0] - ux},${c.at[1] - uy},${c.side}`) || blocked.has(`${c.at[0] + ux},${c.at[1] + uy},${c.side}`))
+    if (
+      blocked.has(`${c.at[0] - ux},${c.at[1] - uy},${c.side}`) ||
+      blocked.has(`${c.at[0] + ux},${c.at[1] + uy},${c.side}`)
+    )
       continue;
     const p = at.get(`${c.at[0] - ux},${c.at[1] - uy},${c.side}`);
     const q = at.get(`${c.at[0] + ux},${c.at[1] + uy},${c.side}`);

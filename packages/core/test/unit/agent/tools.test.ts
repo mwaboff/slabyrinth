@@ -10,14 +10,20 @@ import {
   validateToolInput,
 } from "../../../src/agent";
 import { h64hex } from "../../../src/util";
-import { DP_1_0_0, DP_1_1_0, DP_1_2_0 } from "../../../src/agent/designPrinciples.frozen";
+import { DP_1_0_0, DP_1_1_0, DP_1_2_0, DP_1_3_0 } from "../../../src/agent/designPrinciples.frozen";
 import { DESIGN_PRINCIPLES_VERSION } from "../../../src/agent/designPrinciples";
 import { TOOLS_VERSION } from "../../../src/agent/prompt";
 
 /** Hash of the published sp-1.1.0 text (frozen). */
 const SP_1_1_0_HASH = "2176e2d9b0362e06";
 
-describe("frozen tool list", () => {
+describe("working tool list (tools-1.9.0; published versions are pinned by hash below)", () => {
+  it("working versions are the ones last opened", () => {
+    // generator 4 opened sp-1.13.0, dp-1.3.0, tools-1.9.0; released in 0.3.0, so generator 5 opens the next ones
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.13.0");
+    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.3.0");
+    expect(TOOLS_VERSION).toBe("tools-1.9.0");
+  });
   it("serializes deterministically (the bytes are the cache key)", () => {
     const a = serializeTools(toolsForConversation(true));
     const b = serializeTools(toolsForConversation(true));
@@ -46,12 +52,7 @@ describe("frozen tool list", () => {
   });
 });
 
-describe("released in 0.1.2: sp-1.11.0, dp-1.1.0, tools-1.7.0 (frozen; the working versions are sp-1.12.0, dp-1.2.0, tools-1.8.0)", () => {
-  it("working versions are open", () => {
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.12.0");
-    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.2.0");
-    expect(TOOLS_VERSION).toBe("tools-1.8.0");
-  });
+describe("released in 0.1.2: sp-1.11.0, dp-1.1.0, tools-1.7.0 (frozen)", () => {
   it("sp-1.11.0 is byte-identical to the release", () => {
     expect(h64hex(systemPromptFor("sp-1.11.0") ?? "")).toBe("d074cc244ed28a6b");
   });
@@ -82,6 +83,21 @@ describe("released in 0.2.0: sp-1.12.0, dp-1.2.0, tools-1.8.0 (frozen with gener
     expect(h64hex(frozen)).toBe("89e7f4b8549a4d20");
     expect(toolsForConversation(false, "tools-1.8.0").map((t) => t.name)).not.toContain("view_map_image");
   });
+});
+
+describe("released in 0.3.0: sp-1.13.0, dp-1.3.0, tools-1.9.0 (frozen with generator 4)", () => {
+  it("sp-1.13.0 is byte-identical to the release", () => {
+    expect(h64hex(systemPromptFor("sp-1.13.0") ?? "")).toBe("3a3b40c1e0bbe663");
+  });
+  it("dp-1.3.0 is byte-identical to the release and sp-1.13.0 carries it", () => {
+    expect(h64hex(DP_1_3_0)).toBe("b742a7f442a2c475");
+    expect(systemPromptFor("sp-1.13.0")).toContain(DP_1_3_0);
+  });
+  it("tools-1.9.0 is byte-identical to the release and served from its frozen copy", () => {
+    const frozen = serializeTools(toolsForConversation(true, "tools-1.9.0"));
+    expect(h64hex(frozen)).toBe("63d3313aed2d1faa");
+    expect(toolsForConversation(false, "tools-1.9.0").map((t) => t.name)).not.toContain("view_map_image");
+  });
   it("the released 0.1.2 texts did not move", () => {
     expect(h64hex(systemPromptFor("sp-1.11.0") ?? "")).toBe("d074cc244ed28a6b");
     expect(h64hex(serializeTools(toolsForConversation(true, "tools-1.7.0")))).toBe("89b914883f0a96b1");
@@ -90,7 +106,7 @@ describe("released in 0.2.0: sp-1.12.0, dp-1.2.0, tools-1.8.0 (frozen with gener
 
 describe("system prompt", () => {
   it("is frozen per version", () => {
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.12.0");
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.13.0");
     // sp-1.10.0 shipped in the owner's second snapshot with dp-1.0.0: frozen byte for byte
     expect(h64hex(systemPromptFor("sp-1.10.0") ?? "")).toBe("74e5072df0fd89e2");
     expect(systemPromptFor(SYSTEM_PROMPT_VERSION)).toBe(SYSTEM_PROMPT);
@@ -100,6 +116,18 @@ describe("system prompt", () => {
     // sp-1.1.0 is published too (0.1.x): its text must never change either.
     expect(h64hex(systemPromptFor("sp-1.1.0") ?? "")).toBe(SP_1_1_0_HASH);
     expect(h64hex(SYSTEM_PROMPT)).toMatchSnapshot();
+  });
+  it("sp-1.13.0 (working) says the generator-4 room rules once, where they apply", () => {
+    // the dressing how-to lives in the set-dressing section only; the principle carries no list of purposes
+    expect(SYSTEM_PROMPT.match(/Rooms dress themselves/g)).toHaveLength(1);
+    expect(SYSTEM_PROMPT).toMatch(/Name every room for its use .* and leave its floor off/);
+    expect(DESIGN_PRINCIPLES).not.toMatch(/Kitchen|Guard room|Inhabited places are lit/);
+    // a carved interior and a kept-up building are told apart, not given contradictory rules
+    expect(DESIGN_PRINCIPLES).toMatch(/Rooms cut into rock sit in solid mass/);
+    expect(DESIGN_PRINCIPLES).toMatch(/Rooms of a kept-up building .* share their walls/);
+    expect(DESIGN_PRINCIPLES).not.toMatch(/roughens the wall tops/);
+    // the review runs from generator 2 on, so the prompt no longer scopes it to "a generator-2 plan"
+    expect(SYSTEM_PROMPT).not.toMatch(/generator-2 plan/);
   });
   it("sp-1.1.0 makes the checking method explicit", () => {
     expect(SYSTEM_PROMPT).toContain("# Checking your work");
@@ -120,11 +148,16 @@ describe("system prompt", () => {
   });
   it("sp-1.12.0 is sp-1.11.0 plus the working principles (dp-1.2.0), a few sentences", () => {
     const old = systemPromptFor("sp-1.11.0") ?? "";
-    expect(SYSTEM_PROMPT).not.toBe(old);
+    const released = systemPromptFor("sp-1.12.0") ?? "";
+    expect(released).not.toBe(old);
     // the building sentences: things attach to the structure; the roof is the larger half of a cottage or inn
-    expect(SYSTEM_PROMPT).toContain("- Attach things. Vines climb upper walls and rubble lies at wall feet; little stands alone on open floor.");
-    expect(SYSTEM_PROMPT).toContain("On cottages and inns the roof is the larger half; the top storey can sit inside it.");
-    expect(SYSTEM_PROMPT.length - old.length).toBeLessThan(500);
+    expect(SYSTEM_PROMPT).toContain(
+      "- Attach things. Vines climb upper walls and rubble lies at wall feet; little stands alone on open floor.",
+    );
+    expect(SYSTEM_PROMPT).toContain(
+      "On cottages and inns the roof is the larger half; the top storey can sit inside it.",
+    );
+    expect(released.length - old.length).toBeLessThan(500);
   });
   it("sp-1.11.0: current principles, streets with junctions and green, plot sizes by kind, condition and character honoured", () => {
     expect(SYSTEM_PROMPT).toContain(DESIGN_PRINCIPLES);

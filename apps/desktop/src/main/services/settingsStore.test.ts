@@ -3,7 +3,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { nullLogger } from "../logger";
-import { settingsPatchSchema, SettingsStore } from "./settingsStore";
+import { settingsPatchSchema } from "../../shared/schemas/settings";
+import { SettingsStore } from "./settingsStore";
 
 let dir: string;
 let file: string;
@@ -21,7 +22,7 @@ const make = (): SettingsStore =>
 describe("SettingsStore", () => {
   it("defaults follow docs/decisions.md", async () => {
     const s = await make().load();
-    expect(s.ui.theme).toBe("dark");
+    expect(s.ui.theme).toBe("system");
     expect(s.ui.onLaunch).toBe("home");
     expect(s.defaultSelection).toEqual({
       providerId: "anthropic",
@@ -103,11 +104,11 @@ describe("SettingsStore", () => {
   it("repairs invalid fields and survives a corrupt file", async () => {
     await fsp.writeFile(file, JSON.stringify({ ui: { theme: "neon" }, smartEffort: false }));
     const s = await make().load();
-    expect(s.ui.theme).toBe("dark");
+    expect(s.ui.theme).toBe("system");
     expect(s.smartEffort).toBe(false);
     await fsp.writeFile(file, "{not json");
     const s2 = await make().load();
-    expect(s2.ui.theme).toBe("dark");
+    expect(s2.ui.theme).toBe("system");
     expect((await fsp.readdir(dir)).some((n) => n.endsWith(".corrupt"))).toBe(true);
   });
 
@@ -119,11 +120,11 @@ describe("SettingsStore", () => {
     const recent = store.get().projects.recent;
     expect(recent).toHaveLength(10);
     expect(recent[0]).toBe(path.join(dir, "5.slabyrinth"));
-    expect(store.flag("fakeEngine")).toBe(false);
-    await store.setFlag("fakeEngine", true);
+    expect(store.flag("debugLogging")).toBe(false);
+    await store.setFlag("debugLogging", true);
     const again = make();
     await again.load();
-    expect(again.flag("fakeEngine")).toBe(true);
+    expect(again.flag("debugLogging")).toBe(true);
     expect(JSON.stringify(again.get())).not.toContain("x-featureFlags");
   });
 

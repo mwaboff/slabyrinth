@@ -3,11 +3,12 @@
  * (imported by agent/prompt.ts). General and theme-neutral; examples are short. Paired with the automatic design
  * review (review/), which measures several of these on each build and reports them as advice.
  *
- * This is the WORKING text. It equals dp-1.2.0, published in 0.2.0 inside sp-1.12.0 (generator 3). dp-1.0.0,
- * dp-1.1.0 and dp-1.2.0 live, frozen, in designPrinciples.frozen.ts. Any change here needs a new version
- * (dp-1.3.0, opened with generator 4 and sp-1.13.0); freeze a copy there when that version ships.
+ * This is the WORKING text. It still equals dp-1.3.0, released in 0.3.0 inside sp-1.13.0 (generator 4) and frozen
+ * as DP_1_3_0 in designPrinciples.frozen.ts with dp-1.0.0, dp-1.1.0 and dp-1.2.0; sp-1.13.0 is built from that
+ * frozen copy, so an edit here reaches no released prompt. The next edit opens dp-1.4.0 (with sp-1.14.0, when
+ * generator 5 opens): bump DESIGN_PRINCIPLES_VERSION first, and freeze a copy when it ships.
  */
-export const DESIGN_PRINCIPLES_VERSION = "dp-1.2.0";
+export const DESIGN_PRINCIPLES_VERSION = "dp-1.3.0";
 
 export const DESIGN_PRINCIPLES = `## What makes a good map
 Judge every draft by these.
@@ -25,8 +26,9 @@ Judge every draft by these.
 - The view from above. Roofs, ground and area outlines must be told apart from above.
 - Play first. Routes of usable width, more than one way through, cover and chokepoints, every entrance reachable, no landmark blocking the only approach.
 - Water is one flat level. The board has a single water height: keep a river or pool on one level, low or in a cut, with terraces beside it.
-- Solid rock round a cave. A cave keeps about 4 cells of solid rock between its floor and the board edge, except at a passage.
-- Implied story. A place shows what it is for: a camp has bedrolls and a fire, a shop has a front, a market has stalls of different goods, an aisle and a line strung overhead (Level.stalls, Level.lines, a trade use on each shopfront).
+- Solid rock round a cave. A cave keeps about 4 cells of solid rock between its floor and the board edge, except at a passage. A natural cave is no box: its chambers differ in size, bulge and bend.
+- Implied story. A place shows what it is for: a camp has bedrolls and a fire, a shop has a front, a market has stalls of different goods along a lane or square with a line strung overhead (Level.stalls, Level.lines, a trade use on each shopfront).
+- A room tells its purpose. One anchor piece against a wall, furniture along the walls with the middle left clear, small things on the furniture, its own floor and a light; rooms of the same purpose still differ, so never copy a room. Rooms cut into rock sit in solid mass: keep 2 to 3 cells of rock between them and the level's edge. Rooms of a kept-up building (timber, plaster) share their walls: neighbours touch or stand one cell apart, never more.
 - Attach things. Vines climb upper walls and rubble lies at wall feet; little stands alone on open floor.
 - Proportion. A base, a middle and a top; the ground storey differs from those above; pieces sized to the space. On cottages and inns the roof is the larger half; the top storey can sit inside it.
 - A wrong object is worse than none. Use what the asset packs actually have.

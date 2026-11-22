@@ -3,8 +3,7 @@
  * tan desert rock outside a desert, water's-edge and path-verge dressing, ground cover breaks the floor grid.
  */
 import { describe, expect, it } from "vitest";
-import { realize } from "../../../src/compile";
-import { placementMeta } from "../../../src/compile/realize";
+import { placedName, realize } from "../../../src/compile";
 import { loadPalettes, resolveRole } from "../../../src/palette";
 import { dressArea, type PlacementGrid } from "../../../src/gen";
 import { handLevel, handPlan } from "../compile/handResolved";
@@ -158,12 +157,12 @@ describe("floor variety", () => {
       cat,
     );
     const floors = (set.levels[0]?.placements ?? []).filter((q) => q.role === "floor");
-    const names = new Set(floors.map((q) => placementMeta.get(q)?.name));
+    const names = new Set(floors.map((q) => placedName(set, q)));
     expect(names.size).toBeGreaterThan(1);
   });
 });
 
-describe("owner round 3b: rows, forests, board edges", () => {
+describe("rows, forests, board edges", () => {
   /** 30×20 open ground; the north part (y < 8) is a terrace 1 tile higher, with a ledge along y = 8. */
   const terrace: PlacementGrid = {
     inBounds: (x, y) => x >= 0 && y >= 0 && x < 30 && y < 20,
@@ -235,7 +234,7 @@ describe("owner round 3b: rows, forests, board edges", () => {
   });
 });
 
-describe("owner round 4: tone, beds, rings", () => {
+describe("tone, beds, rings", () => {
   const featureNames = (th: string, role: string): string[] =>
     (resolveRole(cat, th, role).resolution?.variants ?? [])
       .filter((v) => v.weight > 0)

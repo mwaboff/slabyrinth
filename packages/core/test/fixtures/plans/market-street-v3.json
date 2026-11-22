@@ -1,0 +1,57 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 4,
+  "id": "9a1f2a40-3b5c-4f60-8a71-2b3c4d5e7013",
+  "title": "Market day on Cobble Street",
+  "kind": "town",
+  "seed": 4107,
+  "theme": "wood_town",
+  "summary": "A village street on market day: trades side by side along a cobbled street, a market square with two rows of covered stalls of different sizes and goods, and a well, lanterns and flags strung across. Same street and buildings as v2, new stalls (generator 4).",
+  "levels": [
+    {
+      "id": "g",
+      "name": "Cobble Street",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 48, "h": 36 },
+      "outline": "rect",
+      "base": { "type": "ground", "material": "grass" },
+      "areas": [
+        { "id": "square", "kind": "courtyard", "name": "Market square", "key": "1", "shape": { "type": "rect", "x": 17, "y": 5, "w": 14, "h": 9 }, "floor": "cobble", "walls": "none" }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [
+        { "id": "well", "type": "well", "at": [23, 5] },
+        { "id": "tree", "type": "tree", "at": [45, 3] }
+      ],
+      "labels": [],
+      "terrain": [
+        { "id": "street", "op": "path", "points": [[0, 18], [47, 18]], "width": 5, "material": "cobble", "style": "straight", "sidewalk": { "width": 2, "material": "flagstone" } },
+        { "id": "streetdress", "op": "dress", "preset": "street", "density": 0.4 }
+      ],
+      "stalls": [
+        { "id": "market", "area": { "x": 17, "y": 5, "w": 14, "h": 9 }, "goods": ["fruit", "vegetables", "bread", "dairy", "potions", "spices", "fish", "grain", "empty", "magic"], "aisle": 2 }
+      ],
+      "lines": [
+        { "id": "across1", "from": [5, 14], "to": [5, 22], "kind": "lanterns" },
+        { "id": "across2", "from": [10, 14], "to": [10, 22], "kind": "flags", "spacing": 2 },
+        { "id": "across3", "from": [36, 14], "to": [36, 22], "kind": "lights" },
+        { "id": "across4", "from": [41, 14], "to": [41, 22], "kind": "lanterns" },
+        { "id": "squareline", "from": [19, 9], "to": [28, 9], "kind": "flags", "spacing": 2 }
+      ],
+      "structures": [
+        { "id": "inn", "name": "The Gilded Goose", "style": "cottage", "use": "inn", "front": "S", "wings": [{ "x": 1, "y": 4, "w": 9, "h": 9 }] },
+        { "id": "baker", "name": "Baker", "style": "cottage", "use": "baker", "front": "S", "wings": [{ "x": 10, "y": 5, "w": 6, "h": 7 }] },
+        { "id": "smith", "name": "Smithy", "style": "cottage", "use": "smith", "front": "S", "wings": [{ "x": 32, "y": 4, "w": 7, "h": 9 }] },
+        { "id": "apothecary", "name": "Apothecary", "style": "cottage", "use": "apothecary", "front": "S", "wings": [{ "x": 39, "y": 5, "w": 5, "h": 8 }] },
+        { "id": "cobbler", "name": "Cobbler", "style": "cottage", "use": "cobbler", "front": "N", "wings": [{ "x": 1, "y": 24, "w": 5, "h": 7 }] },
+        { "id": "shop", "name": "General store", "style": "cottage", "use": "shop", "front": "N", "wings": [{ "x": 6, "y": 23, "w": 8, "h": 8 }] },
+        { "id": "tailor", "name": "Tailor", "style": "cottage", "use": "tailor", "front": "N", "wings": [{ "x": 14, "y": 25, "w": 6, "h": 7 }] },
+        { "id": "reeve", "name": "Reeve's house", "style": "cottage", "use": "farmhouse", "front": "N", "wings": [{ "x": 22, "y": 24, "w": 9, "h": 8 }] },
+        { "id": "butcher", "name": "Butcher", "style": "cottage", "use": "butcher", "front": "N", "wings": [{ "x": 33, "y": 23, "w": 7, "h": 8 }] },
+        { "id": "cooper", "name": "Cooper", "style": "cottage", "use": "workshop", "front": "N", "wings": [{ "x": 40, "y": 25, "w": 6, "h": 7 }] }
+      ]
+    }
+  ],
+  "links": []
+}

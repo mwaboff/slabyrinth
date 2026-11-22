@@ -12,7 +12,7 @@ import { emptySel, useMap, type Sel } from "../../stores/map";
 import { useChat } from "../../stores/chat";
 import { levelShort } from "../../stores/project";
 import { cellName } from "../../lib/format";
-import type { UiIssue } from "../../map/resolveCore";
+import type { UiIssue } from "../../../shared/resolveCore";
 
 export type Severity = "error" | "warning" | "info";
 

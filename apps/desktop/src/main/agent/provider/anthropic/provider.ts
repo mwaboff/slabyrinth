@@ -582,16 +582,12 @@ export class AnthropicProvider implements ChatProvider {
     const { usage, cost } = accountUsage(msg.usage, spec);
     onEvent({ type: "usage", usage });
     const result: StepResult = { stopReason, usage, cost };
+    // A refusal is reported in the result; the notice about how the turn ended is the engine's (one notice).
     if (stopReason === "refusal") {
       result.refusal = {
         category: msg.stop_details?.category ?? null,
         explanation: msg.stop_details?.explanation ?? null,
       };
-      onEvent({
-        type: "notice",
-        kind: "refusal",
-        text: "The request was declined. The plan wasn't changed.",
-      });
     }
     // Branch on stop_reason before reading content: a refusal's partial output is display-only.
     let parts = partsOf(msg.content, rawToolJson);

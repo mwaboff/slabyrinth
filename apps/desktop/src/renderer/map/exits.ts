@@ -1,5 +1,5 @@
 /** Exits of a room, generated from resolved geometry (UX §6.8: "W door → ②, E door → ⑤"). Pure. */
-import type { ResolvedLevel, ResolvedLink, ResolvedOpening } from "@slabyrinth/core";
+import type { OpeningKind, ResolvedLevel, ResolvedLink, ResolvedOpening } from "@slabyrinth/core";
 
 export interface Exit {
   side: "N" | "E" | "S" | "W";
@@ -10,7 +10,8 @@ export interface Exit {
   levelJump?: string;
 }
 
-const KIND: Record<string, string> = {
+/** How the room key names each opening kind (typed over every kind: a new kind needs its word here). */
+const KIND: Readonly<Record<OpeningKind, string>> = {
   door: "door",
   double_door: "double door",
   locked_door: "locked door",
@@ -55,7 +56,7 @@ export function roomExits(level: ResolvedLevel, links: readonly ResolvedLink[], 
     const room = areaById.get(areaId);
     for (const t of targets.length > 0 ? targets : [{ key: null, name: null }]) {
       if (t.key !== null && t.key === room?.key) continue;
-      out.push({ side, kind: KIND[o.kind] ?? o.kind, toKey: t.key, toName: t.name });
+      out.push({ side, kind: KIND[o.kind], toKey: t.key, toName: t.name });
     }
   }
   for (const l of links) {

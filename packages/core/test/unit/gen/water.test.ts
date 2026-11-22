@@ -99,14 +99,26 @@ describe("water dressing", () => {
   it("leaves generator 2 and themes without the rock role alone", () => {
     expect(run(2, 1).placements).toHaveLength(0);
     const g = { ...grid(3), pieceExtent: () => undefined, pieceSize: () => undefined };
-    const r = dressWater(g, { cells: cells(), inArea: () => true, taken: () => false, seed: 4, remaining: 1000 });
+    const r = dressWater(g, {
+      cells: cells(),
+      inArea: () => true,
+      taken: () => false,
+      seed: 4,
+      remaining: 1000,
+    });
     expect(r.placements.some((p) => p.type === "cliff_crest")).toBe(false);
     expect(r.placements.length).toBeGreaterThan(0); // plants and shore rock come from other roles
   });
 
   it("is deterministic and respects the cap", () => {
     expect(run(3, 9).placements).toEqual(run(3, 9).placements);
-    const r = dressWater(grid(3), { cells: cells(), inArea: () => true, taken: () => false, seed: 9, remaining: 5 });
+    const r = dressWater(grid(3), {
+      cells: cells(),
+      inArea: () => true,
+      taken: () => false,
+      seed: 9,
+      remaining: 5,
+    });
     expect(r.placements.length).toBeLessThanOrEqual(5);
   });
 });

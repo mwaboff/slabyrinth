@@ -72,7 +72,13 @@ describe("realize: walls, posts, floors (calibrated conventions)", () => {
   });
 
   it("is deterministic", () => {
-    expect(realize(handPlan([room()]), cat, { seed: 1 })).toEqual(set);
+    // what realize built from (`facts`: memoized answers, filled as asked) is not part of the output
+    const output = (s: typeof set): Omit<typeof set, "facts"> => {
+      const rest: Partial<typeof set> = { ...s };
+      delete rest.facts;
+      return rest as Omit<typeof set, "facts">;
+    };
+    expect(output(realize(handPlan([room()]), cat, { seed: 1 }))).toEqual(output(set));
   });
 });
 
@@ -126,7 +132,7 @@ describe("realize: doors pick the rotation that puts the handle at the preferred
     ).toBe("info");
   });
 
-  it("Fix 3: west/south-edge doors get the documented handle end (rot 6 → N end, rot 0 → W end)", () => {
+  it("west/south-edge doors get the documented handle end (rot 6 → N end, rot 0 → W end)", () => {
     const set = realize(
       handPlan([
         room({

@@ -12,9 +12,9 @@
  */
 import type { Side } from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
-import { h32 } from "../util/hash";
-
-const STEP: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
+import { SIDE_STEP as STEP } from "../gen/gridGeometry";
+import { hashUnit } from "../util/hash";
+import { maxOf } from "../util/lists";
 
 /** Shaded faces grow more (the sun is taken from the south). */
 const SHADE: Record<Side, number> = { N: 1.35, W: 1.15, E: 0.9, S: 0.65 };
@@ -78,11 +78,11 @@ export function climbingGrowth(inp: GrowthInput): GrowthItem[] {
   const P = GROWTH_LEVELS[inp.level];
   const out: GrowthItem[] = [];
   if (inp.level === "none") return out;
-  const u = (s: string): number => h32(`${inp.seed}:grow:${s}`) / 4294967296;
+  const u = (s: string): number => hashUnit(inp.seed, "grow", s);
   const key = (c: { at: readonly [number, number]; side: Side }): string => `${c.at[0]},${c.at[1]},${c.side}`;
   const dist = (c: { at: readonly [number, number] }): number =>
     Math.hypot(c.at[0] - inp.anchor[0], c.at[1] - inp.anchor[1]);
-  const D = Math.max(1, ...inp.columns.map(dist));
+  const D = Math.max(1, maxOf(inp.columns.map(dist)));
   const list = [...inp.columns].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
   const heavy = inp.level === "heavy";
 
@@ -99,8 +99,10 @@ export function climbingGrowth(inp: GrowthInput): GrowthItem[] {
   const usable = faces.filter((c) => capOf(c) >= 1.5);
 
   // patches: runs of faces along a wall that grow together (masses, not single strands); shaded and fallen sides first
-  const alongOf = (c: (typeof faces)[number]): number => (c.side === "N" || c.side === "S" ? c.at[0] : c.at[1]);
-  const lineOf = (c: (typeof faces)[number]): number => (c.side === "N" || c.side === "S" ? c.at[1] : c.at[0]);
+  const alongOf = (c: (typeof faces)[number]): number =>
+    c.side === "N" || c.side === "S" ? c.at[0] : c.at[1];
+  const lineOf = (c: (typeof faces)[number]): number =>
+    c.side === "N" || c.side === "S" ? c.at[1] : c.at[0];
   const patches = new Map<string, { w: number; faces: typeof faces }>();
   for (const c of usable) {
     const pk = `${c.side}:${lineOf(c)}:${Math.floor(alongOf(c) / P.patch)}`;
@@ -110,7 +112,8 @@ export function climbingGrowth(inp: GrowthInput): GrowthItem[] {
   }
   for (const [pk, p] of patches) {
     const mean =
-      p.faces.reduce((t, c) => t + SHADE[c.side] * (inp.ruined ? 0.7 + 0.8 * (dist(c) / D) : 1), 0) / p.faces.length;
+      p.faces.reduce((t, c) => t + SHADE[c.side] * (inp.ruined ? 0.7 + 0.8 * (dist(c) / D) : 1), 0) /
+      p.faces.length;
     p.w = (0.35 + u(`patch:${pk}`)) * mean;
   }
   const want = Math.max(
@@ -151,7 +154,9 @@ export function climbingGrowth(inp: GrowthInput): GrowthItem[] {
     while (n < 5 && u(`n:${k}:${n}`) < P.climb) n++;
     const [ux, uy] = c.side === "N" || c.side === "S" ? [1, 0] : [0, 1];
     // a face with vined faces on both sides along the wall may take the broad batch over its middle
-    const both = byKey.has(`${c.at[0] - ux},${c.at[1] - uy},${c.side}`) && byKey.has(`${c.at[0] + ux},${c.at[1] + uy},${c.side}`);
+    const both =
+      byKey.has(`${c.at[0] - ux},${c.at[1] - uy},${c.side}`) &&
+      byKey.has(`${c.at[0] + ux},${c.at[1] + uy},${c.side}`);
     out.push({
       kind: "vine",
       at: [c.at[0], c.at[1]],
@@ -167,7 +172,14 @@ export function climbingGrowth(inp: GrowthInput): GrowthItem[] {
   for (const c of faces) {
     const k = key(c);
     if (vined.has(k) || capOf(c) < 1 || u(`root:${k}`) >= P.root) continue;
-    out.push({ kind: "root", at: [c.at[0], c.at[1]], side: c.side, from: 0, to: Math.min(capOf(c), 1.5), thick: heavy ? 2 : 1 });
+    out.push({
+      kind: "root",
+      at: [c.at[0], c.at[1]],
+      side: c.side,
+      from: 0,
+      to: Math.min(capOf(c), 1.5),
+      thick: heavy ? 2 : 1,
+    });
   }
 
   // small growth on the cut wall tops (bushes, ferns, moss), none where a block already lies
@@ -183,7 +195,8 @@ export function climbingGrowth(inp: GrowthInput): GrowthItem[] {
   if (inp.ruined) {
     const spots = [...inp.open].sort().filter((k) => {
       const [x, y] = k.split(",").map(Number) as [number, number];
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!inp.open.has(`${x + dx},${y + dy}`)) return false;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) if (!inp.open.has(`${x + dx},${y + dy}`)) return false;
       return true;
     });
     const trees = heavy ? 2 : 1;
@@ -226,7 +239,8 @@ export interface GrowthMeasures {
 }
 
 /** How much of a face a mass fills: one strand a little under half, two nearly all, three or a broad batch all of it. */
-const fill = (g: { thick?: number; wide?: boolean }): number => (g.wide ? 1 : Math.min(1, 0.45 * (g.thick ?? 1) + 0.05));
+const fill = (g: { thick?: number; wide?: boolean }): number =>
+  g.wide ? 1 : Math.min(1, 0.45 * (g.thick ?? 1) + 0.05);
 
 export function growthMeasures(st: ResolvedStructure): GrowthMeasures {
   const g = st.growth ?? [];

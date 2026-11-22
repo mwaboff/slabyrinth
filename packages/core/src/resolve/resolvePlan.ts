@@ -1,56 +1,79 @@
 /**
  * resolvePlan (architecture §2.4–§2.7): MapPlan → ResolvedPlan, the single geometric source of truth for the 2D
- * view and the slab compiler. Pure and deterministic: the same plan gives byte-identical canonical JSON.
+ * view and the slab compiler. Pure and deterministic: the same plan and palettes give byte-identical canonical JSON.
  */
 import type { LevelId, MapPlan, PlanIssue, ThemeId } from "../contracts/plan";
-import { linkGeometry } from "../plan/links";
+import { generatorProfile } from "../plan/generator";
+import { linkGeometry, linkKindInfo } from "../plan/links";
 import type { ResolvedLink, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { canonicalJson } from "../util/canonical";
 import { h64hex } from "../util/hash";
-import { LevelWork } from "./level";
-import { type ThemeDefaults, builtinThemeDefaults } from "./themes";
-import { type PieceSizeFn, bundledPieceSize } from "./pieceSizes";
+import { runPhase1, runPhase2 } from "./level";
+import { linkFloorOpenings } from "./level/floorOpenings";
+import type { ResolveGrid } from "./level/grid";
+import { toResolved } from "./level/output";
+import { ResolveLevelState } from "./level/state";
+import { type ThemeDefaults, themeDefaults as themeDefaultsOf } from "./themes";
+import type { ResolvePalettes } from "../palette/resolve";
+import { resolveView } from "../palette/view";
 
 export interface ResolveOptions {
   /** Restrict the output to these levels (all levels are still resolved, because links span levels). */
   levels?: LevelId[];
   /** Version number recorded in ResolvedPlan.planVersion (default 0). */
   planVersion?: number;
-  /** Theme defaults lookup (default: the built-in table mirroring the bundled palettes). */
-  themeDefaults?: (theme: ThemeId) => ThemeDefaults;
-  /** Sizes of palette-shaped generated pieces (the rock band); default: the bundled palettes. */
-  pieceSize?: PieceSizeFn;
 }
 
-export function resolvePlan(plan: MapPlan, opts: ResolveOptions = {}): ResolvedPlan {
+/**
+ * Resolves `plan` against `palettes`: the palettes it is compiled with (bundled, user files, game availability), so
+ * the 2D preview, the agent's views and checks, and the build all describe the same map. What the resolver asks of
+ * them (piece sizes, room pieces, covered-stall forms, floor tile sizes) depends on the plan's generator
+ * (palette/view.ts `resolveView`). A caller that means the bundled palettes alone passes `bundledPalettes()`.
+ */
+export function resolvePlan(
+  plan: MapPlan,
+  palettes: ResolvePalettes,
+  opts: ResolveOptions = {},
+): ResolvedPlan {
   const issues: PlanIssue[] = [];
-  const themeDefaults = opts.themeDefaults ?? builtinThemeDefaults;
-  const works: LevelWork[] = plan.levels.map(
+  const palette = resolveView(plan, palettes);
+  const profile = generatorProfile(plan);
+  // what each theme defaults to, asked of the palette that supplies it (resolve/themes.ts), once per theme
+  const defaults = new Map<ThemeId, ThemeDefaults>();
+  const themeDefaults = (theme: ThemeId): ThemeDefaults => {
+    let td = defaults.get(theme);
+    if (!td) {
+      td = themeDefaultsOf(theme, palette, profile);
+      defaults.set(theme, td);
+    }
+    return td;
+  };
+  const works: ResolveLevelState[] = plan.levels.map(
     (_, levelIndex) =>
-      new LevelWork({
+      new ResolveLevelState({
         plan,
         levelIndex,
         themeDefaults,
         issues,
-        pieceSize: opts.pieceSize ?? bundledPieceSize,
+        palette,
       }),
   );
-  const byId = new Map<string, LevelWork>();
-  for (const w of works) if (!byId.has(w.level.id)) byId.set(w.level.id, w);
+  const byId = new Map<string, ResolveGrid>();
+  for (const { grid } of works) if (!byId.has(grid.level.id)) byId.set(grid.level.id, grid);
 
-  for (const w of works) w.runPhase1();
+  for (const w of works) runPhase1(w);
+  // each level's ceiling: the next level up, whose floor cells are laid now (dressing asks it in phase 2)
+  const byElev = [...works].sort((a, b) => a.grid.level.elevation - b.grid.level.elevation);
+  for (const w of works)
+    w.grid.above = byElev.find((o) => o.grid.level.elevation > w.grid.level.elevation)?.grid ?? null;
   const links = resolveLinks(plan, byId, issues);
-  if (plan.generator >= 3) {
-    // floor openings look into the next level down (rubble heaps and checks happen on both sides)
-    const byElev = [...works].sort((a, b) => a.level.elevation - b.level.elevation);
-    for (const w of works)
-      w.linkOpenings(byElev.filter((o) => o.level.elevation < w.level.elevation).pop());
-  }
-  for (const w of works) w.runPhase2();
+  // floor openings look into the next level down (rubble heaps and checks happen on both sides)
+  linkFloorOpenings(works);
+  for (const w of works) runPhase2(w);
 
   const levels = works
-    .map((w, i) => ({ r: w.toResolved(), i }))
+    .map((w, i) => ({ r: toResolved(w), i }))
     .sort((a, b) => a.r.elevation - b.r.elevation || a.i - b.i)
     .map((x) => x.r);
 
@@ -78,7 +101,7 @@ export function canonicalResolved(r: ResolvedPlan): string {
   return canonicalJson(r);
 }
 
-function resolveLinks(plan: MapPlan, byId: Map<string, LevelWork>, issues: PlanIssue[]): ResolvedLink[] {
+function resolveLinks(plan: MapPlan, byId: Map<string, ResolveGrid>, issues: PlanIssue[]): ResolvedLink[] {
   const out: ResolvedLink[] = [];
   plan.links.forEach((link, k) => {
     const path = `/links/${k}`;
@@ -108,6 +131,7 @@ function resolveLinks(plan: MapPlan, byId: Map<string, LevelWork>, issues: PlanI
     }
     const dir = link.dir ?? "N";
     const geo = linkGeometry(link, lo.level.elevation, up.level.elevation);
+    const kind = linkKindInfo(link.kind);
     if (link.to.at && (link.to.at[0] !== geo.arrival[0] || link.to.at[1] !== geo.arrival[1])) {
       push({
         severity: "error",
@@ -131,22 +155,21 @@ function resolveLinks(plan: MapPlan, byId: Map<string, LevelWork>, issues: PlanI
           message: `${link.kind} "${link.id}" needs ${lo.level.id} cell ${c[0]},${c[1]}, which ${why}`,
           levelId: lo.level.id,
           cell: c,
-          hint:
-            plan.generator < 3
-              ? `the run covers ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; move from.at or change dir`
-              : link.kind === "stairs" || link.kind === "ramp"
+          hint: !generatorProfile(plan).explainedLinkRuns
+            ? `the run covers ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; move from.at or change dir`
+            : kind.footprint === "run"
               ? `a rise of ${rise} needs a straight run of ${geo.length} cells (1 per tile of rise) from from.at ${link.from.at[0]},${link.from.at[1]} in direction ${dir}: ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; it does not fit, so move from.at to where ${geo.length} free floor cells lie in a line, change dir, or space the levels closer (not under 3.5) or use a ladder for a short link`
               : `the cells it needs: ${geo.lowerCells.map((p) => `${p[0]},${p[1]}`).join(" ")}; move from.at`,
         });
         break;
       }
     }
-    const needFloor = link.kind === "stairs" || link.kind === "ramp" || link.kind === "trapdoor";
+    const needFloor = kind.arrival === "floor";
     const badArrival = geo.arrivalCells.find((c) => {
       const ai = up.idx(c[0], c[1]);
       return ai < 0 || up.state[ai] !== CELL.OPEN || (needFloor && !up.isFloor(ai));
     });
-    if (link.kind !== "pit_drop" && badArrival) {
+    if (kind.arrival !== "none" && badArrival) {
       push({
         severity: "error",
         code: "link_blocked",
@@ -160,11 +183,11 @@ function resolveLinks(plan: MapPlan, byId: Map<string, LevelWork>, issues: PlanI
       const i = lo.idx(c[0], c[1]);
       if (i >= 0) lo.flags[i] = (lo.flags[i] as number) | CELL_FLAG.LINK;
     }
-    if (link.kind !== "trapdoor") {
+    if (kind.cuts !== null) {
       for (const c of geo.upperCells) {
         const i = up.idx(c[0], c[1]);
         if (i < 0 || up.state[i] !== CELL.OPEN) continue;
-        const bits = link.kind === "pit_drop" ? CELL_FLAG.NO_FLOOR : CELL_FLAG.NO_FLOOR | CELL_FLAG.STAIRWELL;
+        const bits = kind.cuts === "hole" ? CELL_FLAG.NO_FLOOR : CELL_FLAG.NO_FLOOR | CELL_FLAG.STAIRWELL;
         up.flags[i] = (up.flags[i] as number) | bits;
       }
     }
@@ -179,7 +202,7 @@ function resolveLinks(plan: MapPlan, byId: Map<string, LevelWork>, issues: PlanI
       arrival: geo.arrival,
       dir,
       rise,
-      theme: lo.themes[fromIdx >= 0 ? (lo.theme[fromIdx] as number) : 0] ?? lo.levelTheme,
+      theme: lo.themeAt(fromIdx),
     };
     if (link.label !== undefined) rl.label = link.label;
     out.push(rl);

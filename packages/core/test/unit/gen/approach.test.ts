@@ -6,7 +6,6 @@
  * player does (no step over half a tile unless it is a flight of steps) and floods from the approach to a walkway,
  * bridge or flight of steps, which also keeps two cells clear in front of them.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { MapPlan, Side } from "../../../src/contracts/plan";
 import {
@@ -16,8 +15,10 @@ import {
   type ComposedPreset,
   type PlacementGrid,
 } from "../../../src/gen/index";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
+import { loadPlan } from "../../fixtures";
+import { BUNDLED_RULES } from "../../fixtures/rules";
 import { validatePlan } from "../../../src/plan";
 
 // A plateau (3 tiles up) with a low rim (2 up) along its north and south edges, split by a rock barrier at
@@ -106,16 +107,14 @@ describe("dressing keeps routes open", () => {
     });
 
   it("the hillside proof: the tower walkway and the tower are reachable under dense forest", () => {
-    const plan = JSON.parse(
-      readFileSync(new URL("./fixtures/hillside-v5.json", import.meta.url), "utf8"),
-    ) as MapPlan;
+    const plan = loadPlan("hillside-v5");
     for (const L of plan.levels)
       for (const t of L.terrain)
         if (t.op === "dress" && t.id === "plateau_dress") {
           t.preset = "dense_forest";
           t.density = 1;
         }
-    const issues = validatePlan(plan).issues.filter(
+    const issues = validatePlan(plan, BUNDLED_RULES).issues.filter(
       (i) => i.code === "unreachable" || i.code === "area_sealed" || i.code === "opening_blocked",
     );
     expect(issues.map((i) => i.message)).toEqual([]);
@@ -162,7 +161,7 @@ describe("dressing stays off building ground (ResolvedLevel.reserved)", () => {
 
   for (const preset of COMPOSED_PRESETS)
     it(`${preset}: no generated piece on a reserved cell`, () => {
-      const L = resolvePlan(shackPlan(preset)).levels[0];
+      const L = resolvePlan(shackPlan(preset), bundledPalettes()).levels[0];
       if (!L) throw new Error("no level");
       const reserved = new Set(L.reserved ?? []);
       expect(reserved.size).toBeGreaterThan(0);

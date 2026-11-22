@@ -8,15 +8,22 @@
  *   cave_rock_tones      rock families of different tone in one cave
  *   cave_wall_row        longest run of identical wall pieces seen from inside
  * The measures are pure functions of plan-space pieces so tests can feed them hand-made layouts; `massPiecesOf` turns
- * a realized placement set into pieces (it needs the build, so only a review that was given one can run it).
+ * a realized placement set into pieces (it needs the build: the review's shared one, review/reviewBuild.ts).
  */
 import type { PaletteCatalog, PlacementSet } from "../contracts/compiler";
 import type { MapPlan } from "../contracts/plan";
 import { CELL, type ResolvedLevel, type ResolvedPlan } from "../contracts/resolved";
-import { rotateXZ } from "../compile/geometry";
+import { placementBox, rotateXZ } from "../compile/geometry";
+import { NEIGHBOURS4 as D4 } from "../gen/gridGeometry";
+import { hasNaturalWallStyle } from "../gen/wallStyles";
+import { massDepth, massFoot } from "../gen/solidMass";
+import { generatorProfile } from "../plan/generator";
 import { loadOrientation } from "../palette/load";
+import { NATURAL_WALL_ROLE } from "../palette/roles";
 import type { DesignNote } from "./review";
-import { REVIEW, ROCK_FAMILIES, ROCK_TONE_GROUPS } from "./thresholds";
+import type { ReviewBuild } from "./reviewBuild";
+import { REVIEW, ROCK_FAMILIES, ROCK_TONE_GROUPS, over } from "./thresholds";
+import { pushAll } from "../util/lists";
 
 export type MassRole = "column" | "mass" | "cap" | "toe";
 
@@ -41,6 +48,8 @@ export interface MassInput {
   /** Cell state (CELL.*) at a plan cell; -1 outside the level. */
   state: (x: number, y: number) => number;
   pieces: ReadonlyArray<MassPiece>;
+  /** Floor top (absolute tiles) of an open cell; when given, `hollow` is measured. */
+  floor?: (x: number, y: number) => number;
 }
 
 export interface MassMeasures {
@@ -57,14 +66,13 @@ export interface MassMeasures {
   longestRunAt: [number, number] | null;
   mass: number;
   columns: number;
+  /**
+   * Share of solid cells that are hollow seen from the side: at one of five points of the cell a gap of
+   * REVIEW.caveMass.hole tiles or more between the foot of the rock (the lowest floor beside it, less a quarter, never
+   * above a shallower neighbour's) and its top. 0 when the input has no floor heights.
+   */
+  hollow: number;
 }
-
-const D4: ReadonlyArray<readonly [number, number]> = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
 
 /** Rock family of an asset name (thresholds.ts ROCK_FAMILIES). */
 export function rockFamily(name: string): string {
@@ -224,7 +232,8 @@ export function massMeasures(input: MassInput): MassMeasures {
 
   // ── tone groups ──
   const famCount = new Map<string, number>();
-  for (const p of input.pieces) famCount.set(toneGroup(p.family), (famCount.get(toneGroup(p.family)) ?? 0) + 1);
+  for (const p of input.pieces)
+    famCount.set(toneGroup(p.family), (famCount.get(toneGroup(p.family)) ?? 0) + 1);
   const total = input.pieces.length;
   const families = [...famCount]
     .filter(([, n]) => n / Math.max(1, total) >= T.minFamilyShare)
@@ -285,7 +294,56 @@ export function massMeasures(input: MassInput): MassMeasures {
     }
   }
 
+  // ── hollow from the side: the foot of each solid cell, then gaps between the foot and the top ──
+  let hollowCells = 0;
+  if (input.floor) {
+    const floor = input.floor;
+    // the same foot rule the mass is built to (gen/solidMass.ts): a cell's foot is the lowest floor beside it, a quarter
+    // tile down, and deeper rock stands no higher than the shallower rock beside it
+    const grid = { w, h };
+    const at = (i: number): [number, number] => [x0 + (i % w), y0 + Math.floor(i / w)];
+    const lowest = new Map<number, number>();
+    for (let i = 0; i < w * h; i++) {
+      const [x, y] = at(i);
+      if (!solid(x, y)) continue;
+      let lo = Infinity;
+      for (const [dx, dy] of D4) if (open(x + dx, y + dy)) lo = Math.min(lo, floor(x + dx, y + dy));
+      if (lo < Infinity) lowest.set(i, lo - 0.25);
+    }
+    const { depth } = massDepth(grid, (i) => solid(...at(i)), [...lowest.keys()]);
+    const footOf = massFoot(grid, depth, (i) => lowest.get(i) ?? Infinity);
+    for (let i = 0; i < w * h; i++) {
+      if ((depth[i] as number) === 0) continue;
+      const [x, y] = at(i);
+      const f = footOf[i] as number;
+      let hollowHere = false;
+      for (const [fx, fy] of [
+        [0.5, 0.5],
+        [0.25, 0.25],
+        [0.75, 0.25],
+        [0.25, 0.75],
+        [0.75, 0.75],
+      ] as const) {
+        const iv = bucket
+          .at(x + fx, y + fy)
+          .map((i) => body[i] as MassPiece)
+          .sort((a, b) => a.base - b.base);
+        let reach = f;
+        for (const p of iv) {
+          if (p.base > reach + T.hole - 1e-9) {
+            hollowHere = true;
+            break;
+          }
+          reach = Math.max(reach, p.top);
+        }
+        if (hollowHere) break;
+      }
+      if (hollowHere) hollowCells++;
+    }
+  }
+
   return {
+    hollow: solidCells > 0 ? hollowCells / solidCells : 0,
     solidCells,
     uncovered: solidCells > 0 ? bare / solidCells : 0,
     faceCells: faces.length,
@@ -301,7 +359,7 @@ export function massMeasures(input: MassInput): MassMeasures {
 // ───────────────────────── from a realized build ─────────────────────────
 
 const ROLE_OF: Record<string, MassRole> = {
-  "wall.cave_rock": "column",
+  [NATURAL_WALL_ROLE]: "column",
   cave_mass: "mass",
   cave_cap: "cap",
   cave_foot: "toe",
@@ -333,6 +391,30 @@ export function massPiecesOf(
       const g = geoms.get(p.asset);
       if (!g) continue;
       const cw = p.rot * orientation.rotSense;
+      // generator 4: a fill column is a corner-origin block turned in quarter turns, which stays on its own cell
+      // (compile/geometry.ts placementBox); turning it about its corner would put it on the neighbouring cell
+      if (role === "column" && generatorProfile(resolved).solidCaveRock && g.geom.originAt === "minCorner") {
+        const box = placementBox(g.geom, p.x, p.y, p.z, cw);
+        const corner = (wx: number, wz: number): readonly [number, number] => [
+          wx,
+          orientation.flipZ ? hg - wz : wz,
+        ];
+        out.push({
+          poly: [
+            corner(box.min.x, box.min.z),
+            corner(box.max.x, box.min.z),
+            corner(box.max.x, box.max.z),
+            corner(box.min.x, box.max.z),
+          ],
+          base: box.min.y,
+          top: box.max.y,
+          asset: p.asset,
+          rot: p.rot % (Math.abs(g.geom.size.x - g.geom.size.z) < 0.08 ? 90 : 180),
+          family: rockFamily(g.name),
+          role,
+        });
+        continue;
+      }
       const c = rotateXZ(g.geom.boundsCenter.x, g.geom.boundsCenter.z, cw);
       const hx = g.geom.size.x / 2;
       const hz = g.geom.size.z / 2;
@@ -379,6 +461,7 @@ export function massInputOf(L: ResolvedLevel, pieces: ReadonlyArray<MassPiece>):
       return lx < 0 || ly < 0 || lx >= w || ly >= h ? -1 : (L.cells.state[ly * w + lx] ?? CELL.VOID);
     },
     pieces,
+    floor: (x, y) => L.elevation + 0.5 + (L.cells.height[(y - L.bounds.y) * w + (x - L.bounds.x)] ?? 0) / 4,
   };
 }
 
@@ -390,22 +473,59 @@ export function caveMassNotes(
   set: PlacementSet,
   palettes: PaletteCatalog,
 ): DesignNote[] {
-  if (plan.generator < 3) return [];
+  const gen = generatorProfile(plan);
+  if (!gen.caveRockMass) return [];
   const out: DesignNote[] = [];
   for (const L of resolved.levels) {
-    if (!L.wallStyles.some((s) => s === "cave_rock")) continue;
+    if (!hasNaturalWallStyle(L.wallStyles)) continue;
     const pieces = massPiecesOf(set, resolved, palettes, L.id);
     if (pieces.length === 0) continue;
     const m = massMeasures(massInputOf(L, pieces));
-    out.push(...caveMassNotesOf(L.id, m));
+    pushAll(out, caveMassNotesOf(L.id, m));
+    if (gen.naturalCaveReview) pushAll(out, caveHollowNotesOf(L.id, m));
   }
   return out;
+}
+
+/**
+ * The rock-mass notes in any review: with the build when the review has one (the CLI), else (generator 4: the in-app
+ * model review) the review's shared build (review/reviewBuild.ts: one realizer run for every note that needs it) for
+ * a plan with a cave-rock level. Generator 3 keeps its released behaviour: no build, no notes.
+ */
+export function caveMassReviewNotes(
+  plan: MapPlan,
+  resolved: ResolvedPlan,
+  build: ReviewBuild,
+  palettes: PaletteCatalog,
+): DesignNote[] {
+  if (
+    !build.given &&
+    (!generatorProfile(plan).naturalCaveReview ||
+      !resolved.levels.some((L) => hasNaturalWallStyle(L.wallStyles)))
+  )
+    return [];
+  return caveMassNotes(plan, resolved, build.get(), palettes);
+}
+
+/** Generator 4: rock that is hollow seen from the side (a cap or course over nothing, towers with gaps between). */
+export function caveHollowNotesOf(levelId: string, m: MassMeasures): DesignNote[] {
+  const T = REVIEW.caveMass;
+  if (m.solidCells < T.minSolid || m.hollow <= T.hollow) return [];
+  return [
+    {
+      code: "cave_mass_hollow",
+      levelId,
+      score: T.weight * over(m.hollow, T.hollow),
+      message: `${Math.round(m.hollow * 100)}% of the rock behind the cave wall is hollow seen from the side: pieces stand over empty space, so from the low side the rock reads as lace with the floor or the water showing through`,
+      action:
+        "leave whole cells of solid rock behind the wall (3 or more deep, and the cave 3 or more cells from the level edge) so the mass can stand on the ground everywhere; a thin or broken band of rock cannot be filled",
+    },
+  ];
 }
 
 export function caveMassNotesOf(levelId: string, m: MassMeasures): DesignNote[] {
   const T = REVIEW.caveMass;
   const out: DesignNote[] = [];
-  const over = (v: number, t: number): number => Math.min(3, v / Math.max(1e-9, t));
   if (m.solidCells >= T.minSolid && m.uncovered > T.uncovered)
     out.push({
       code: "cave_rock_uncovered",

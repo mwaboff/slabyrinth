@@ -1,12 +1,10 @@
 /**
- * ENGINE PORT — the seam between WP5 (desktop shell) and WP4's ConversationEngine
- * (architecture §3.2, §8.2). WP4 imports ONLY this file (plus the contracts); WP5 implements
- * `EngineHost` and constructs the engine with it.
+ * ENGINE PORT — the seam between the desktop shell (main's services) and the ConversationEngine (main/agent)
+ * (architecture §3.2, §8.2). The engine imports ONLY this file (plus the contracts); the shell implements
+ * `EngineHost` (ProjectService and friends) and constructs the engine with it.
  *
- * Wiring: `apps/desktop/src/main/agent/index.ts` should export
- *     export const createConversationEngine: EngineFactory = (host) => new ConversationEngine(host);
- * The shell detects that export at startup. Until it exists (or with the `fakeEngine` flag, or in
- * e2e runs) the shell uses the recorded-stream fake engine (main/engine/fakeEngine.ts).
+ * Wiring: `apps/desktop/src/main/agent/index.ts` exports `createConversationEngine: EngineFactory`, which
+ * main/engineWiring.ts builds the one engine with (test runs register a scripted provider in it instead of Anthropic).
  *
  * Rules for the engine:
  *  - Mutate project state ONLY through the host (commitVersion, appendItems, updateConversation,
@@ -20,7 +18,12 @@
  */
 import type { DesignBrief, LevelId, MapPlan } from "@slabyrinth/core/contracts/plan";
 import type { PlanVersion, VersionAuthor } from "@slabyrinth/core/contracts/ops";
-import type { AssetCatalog, CompileEstimate, Palette } from "@slabyrinth/core/contracts/compiler";
+import type {
+  AssetCatalog,
+  CompileEstimate,
+  Palette,
+  PaletteCatalog,
+} from "@slabyrinth/core/contracts/compiler";
 import type {
   ChatItem,
   Cost,
@@ -60,7 +63,7 @@ export interface CommitVersionInput {
 /** Image bridge request (architecture §5.5 step 4): the renderer rasterizes and replies. */
 export type ImageRequest = Omit<IpcEvents["render:requestImage"], "requestId">;
 
-/** Implemented by WP5 (ProjectService + friends). All methods act on the currently open project. */
+/** Implemented by the shell (ProjectService + friends). All methods act on the currently open project. */
 export interface EngineHost {
   /** Current project; treat as read-only (mutate through the methods below). null = no project open. */
   getProject(): Readonly<ProjectFile> | null;
@@ -89,18 +92,30 @@ export interface EngineHost {
   /** MAIN ONLY: decrypted API key (null if none). Never log, emit or persist it. */
   getApiKey(providerId: ProviderId): Promise<string | null>;
   getSettings(): AppSettings;
-  /** Cheap compile estimate for compile_preview (null when the compiler is unavailable). */
-  estimateCompile(plan: MapPlan, levels?: LevelId[]): Promise<CompileEstimate | null>;
+  /**
+   * Compile estimate for compile_preview. `signal`: the turn's; when it aborts (Stop) the estimate is abandoned and its
+   * worker ended. The host also gives every estimate a deadline, so a looping compile can never hold a turn.
+   */
+  estimateCompile(
+    plan: MapPlan,
+    levels: LevelId[] | undefined,
+    signal: AbortSignal,
+  ): Promise<CompileEstimate>;
   /** Cached asset catalog from the user's install (null = built-in asset set only). */
   getAssetCatalog(): AssetCatalog | null;
   /** Palettes visible to the app (bundled + user). */
   getPalettes(): Palette[];
+  /**
+   * The palettes builds compile with (bundled + user + the scanned game assets). Every plan the engine resolves,
+   * checks or reviews is resolved against these, so the model sees the map the build produces.
+   */
+  getBuildPalettes(): PaletteCatalog;
   /** Writes pending changes now (end of turn). */
   flush(): Promise<void>;
   readonly logger: EngineLogger;
 }
 
-/** Implemented by WP4. Methods mirror the chat:/providers:/models: IPC channels one to one. */
+/** Implemented by main/agent. Methods mirror the chat:/providers:/models: IPC channels one to one. */
 export interface ConversationEngine {
   /** Frozen per-conversation settings for a NEW conversation (system prompt/tools versions, tool mode). */
   conversationDefaults(selection: ModelSelection): {

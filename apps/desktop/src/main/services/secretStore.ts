@@ -146,7 +146,8 @@ export class SecretStore {
    */
   async storeWeak(providerId: ProviderId): Promise<{ stored: boolean; backend: SecretBackend }> {
     const key = this.memory.get(providerId);
-    if (key === undefined) throw new AppFailure("validation", "There is no session key to store. Enter it again.");
+    if (key === undefined)
+      throw new AppFailure("validation", "There is no session key to store. Enter it again.");
     const { stored, backend } = await this.setApiKey(providerId, key, "allow_weak");
     return { stored, backend };
   }

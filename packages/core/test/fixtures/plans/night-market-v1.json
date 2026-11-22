@@ -1,0 +1,51 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 4,
+  "id": "9a1f2a40-3b5c-4f60-8a71-2b3c4d5e7201",
+  "title": "Night market",
+  "kind": "town",
+  "seed": 8812,
+  "theme": "city",
+  "summary": "A concrete yard market after dark in a modern, cyberpunk city: two rows of flat-roofed covered stalls of different sizes facing a narrow lane, a few open tables, a low wall and lights strung along the lane.",
+  "levels": [
+    {
+      "id": "g",
+      "name": "Night market yard",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 26, "h": 18 },
+      "outline": "rect",
+      "base": { "type": "ground", "material": "concrete" },
+      "areas": [
+        {
+          "id": "yard",
+          "kind": "courtyard",
+          "name": "Market yard",
+          "key": "1",
+          "shape": { "type": "rect", "x": 2, "y": 2, "w": 22, "h": 14 },
+          "floor": "concrete",
+          "walls": "none"
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [
+        { "id": "lamp1", "type": "lantern", "at": [2, 9] },
+        { "id": "lamp2", "type": "lantern", "at": [21, 8] }
+      ],
+      "labels": [],
+      "terrain": [],
+      "stalls": [
+        {
+          "id": "night",
+          "area": { "x": 3, "y": 3, "w": 20, "h": 12 },
+          "goods": ["fruit", "bread", "empty", "potions", "magic", "spices", "weapons", "fish"],
+          "aisle": 2
+        }
+      ],
+      "lines": [
+        { "id": "lane", "from": [3, 9], "to": [22, 9], "kind": "lights" }
+      ]
+    }
+  ],
+  "links": []
+}

@@ -29,13 +29,18 @@ export const PLAN_SCHEMA = "slabyrinth/plan@1" as const;
  *     areas that later open those cells inherit it unless they set their own floorHeight. In version 1 such an op
  *     only touched cells that were already open, which on a solid base is none of them.
  *     Released in 0.1.2 and frozen since (golden tests in test/golden/generator2 pin it).
- *  3: unreleased, open for new work. Until behaviour is gated on it, it resolves exactly like 2.
- *     Gate new behaviour with `generatorAtLeast(plan, 3)` (plan/generator.ts); every `>= 2` rule stays on for 3.
+ *  3: cliffs, cave walls, growth, floor openings, stalls and overhead lines, trades. Released in 0.2.0 and
+ *     frozen since (golden tests in test/golden/generator3 pin it).
+ *  4: ragged cave outlines and stepped cave floors, room floors and dressing by purpose, covered market stalls,
+ *     roof fills and ridge caps, secret doors. Released in 0.3.0 and frozen since (test/golden/generator4 pins it).
+ *     No generator is open: the next behaviour change first adds generator 5.
+ *  What each version does is its profile in plan/generator.ts (`generatorProfile(plan)`): new behaviour is a named
+ *  switch, off in the released profiles and on from the open generator; code reads the switch, never the number.
  */
-export const GENERATOR_VERSION = 3 as const;
+export const GENERATOR_VERSION = 4 as const;
 /** Generator versions a reader accepts. */
-export type GeneratorVersion = 1 | 2 | 3;
-export const GENERATOR_VERSIONS: readonly GeneratorVersion[] = [1, 2, 3];
+export type GeneratorVersion = 1 | 2 | 3 | 4;
+export const GENERATOR_VERSIONS: readonly GeneratorVersion[] = [1, 2, 3, 4];
 
 // ───────────────────────────── primitives ─────────────────────────────
 
@@ -129,6 +134,9 @@ export const FEATURE_TYPES = [
   // markets (additive, generator 3): a stall by kind of goods (variant), small goods standing on a stall or table,
   // and the pieces of an overhead line (the line itself is Level.lines; these are what it resolves to)
   "stall", "goods", "overhead", "line_post",
+  // interiors (additive, generator 4): small things the room recipes stand on tables, counters, desks and shelves
+  // (variant = the family: table, study, store, tools, shelf), and a wall-mounted shelf plank they stand on
+  "clutter", "shelf_line",
   "custom",
 ] as const;
 export type FeatureType = (typeof FEATURE_TYPES)[number];
@@ -144,6 +152,16 @@ export const DRESS_PRESETS = [
   "street", "alley", "plaza",
 ] as const;
 export type DressPreset = (typeof DRESS_PRESETS)[number];
+
+/**
+ * What a room is for (generator 4): Area.purpose, else read from its words; ResolvedArea.purpose carries the result.
+ * gen/roomPurpose.ts holds what each purpose implies (floor, dressing, lights, whether it is a passage).
+ */
+export const ROOM_PURPOSES = [
+  "tavern", "dining", "kitchen", "library", "study", "armoury", "barracks", "bedroom", "storeroom", "shrine",
+  "crypt", "prison", "forge", "laboratory", "treasury", "washroom", "throne_room", "ruin", "passage",
+] as const;
+export type RoomPurpose = (typeof ROOM_PURPOSES)[number];
 
 export type AreaKind =
   | "room"        // built interior: floor + walls (default walls "auto")
@@ -218,7 +236,12 @@ export interface Area {
   /** Where the key badge is drawn (cell); default = resolved anchor. */
   labelAt?: Vec2;
   shape: Shape;
-  /** Omitted: theme default for room/corridor/cave/building/courtyard; "keep underlying" for zone. "none" = hole/chasm (open, no floor). */
+  /**
+   * Omitted: theme default for room/corridor/cave/building/courtyard; "keep underlying" for zone. "none" = hole/chasm (open, no floor).
+   * Generator 4, a room in a built interior (level base solid): a floor equal to the theme's default floor counts as
+   * "no preference", like an omitted one, and the room takes the floor of its purpose (the model writes the default on
+   * every room, which says nothing); so such a room cannot ask for exactly the default floor. Any other floor is kept.
+   */
   floor?: Material | "none";
   /** Floor offset relative to level elevation, tiles, −4..+4, multiple of 0.25 (dais +0.5, pit −1). Omitted = keep the underlying height. */
   floorHeight?: Height;
@@ -230,6 +253,14 @@ export interface Area {
   readAloud?: string;         // boxed text for players; ≤ 1500 chars
   encounter?: string;         // system-flavoured encounter line(s); ≤ 1000 chars
   tags?: string[];            // ≤ 8 tags, each ≤ 24 chars
+  /**
+   * Generator 4: what the room is for, when its name does not say ("The Grey Hall of Oaths" used as a dining hall).
+   * Wins over the purpose read from the name, tags and notes; omitted = read from them. It sets the room's default
+   * floor, furniture and lights; "passage" keeps the floor and height of the corridors it joins, "ruin" has nothing
+   * to furnish. Words of neglect or wreckage in the name or tags ("Derelict chapel") still mark it abandoned.
+   * Below generator 4 it is an error (validation), so plans for released generators validate as before.
+   */
+  purpose?: RoomPurpose;
   /** kind "bridge" only: wall style of the railings on the edges that face a drop (default "low_wall"); "none" = no railings. */
   railing?: WallStyle | "none";
   /** kind "bridge" only: deck cells that have fallen away (holes; the floor below shows through). ≤ 64. */
@@ -466,6 +497,11 @@ export interface Level {
   outline?: "natural" | "rect";
   /** Generator 3: `false` turns off the default rock band on rises of 2 tiles or more in natural regions no dress op covers. */
   cliffBands?: false;
+  /**
+   * Generator 4: `false` turns off the default dressing of rooms (an area of kind room whose name, tags or notes tell its
+   * purpose, no dress op over it and few features of its own gets that purpose's furniture, things on it and lights).
+   */
+  roomDress?: false;
   /** Default wall height for this level (tiles). Default 2 (10 ft); used for stacking checks. */
   wallHeight?: Height;
   /** Region of the global grid this level occupies (cells). 1..160 per side. */
@@ -918,7 +954,9 @@ export const BUILD_CONSTANTS = {
 /** Hard limits (also enforced by Zod). */
 export const PLAN_LIMITS = {
   levels: 8,
-  levelSide: 160,
+  levelSide: 320,
+  /** Cells of all levels together (sum of bounds w × h): 8 levels of 160 × 160, so a large level means fewer levels. */
+  totalCells: 204800,
   areasPerLevel: 200,
   openingsPerLevel: 400,
   wallRunsPerLevel: 200,

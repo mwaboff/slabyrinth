@@ -1,9 +1,83 @@
 /**
- * Level-link arithmetic (architecture §2.6). Pure and resolver-independent, so validation can check link
- * consistency (rise, computed arrival) and WP2's resolver can reuse the exact same footprints.
+ * Level-link arithmetic (architecture §2.6) and the entry level the links are walked from. Pure and
+ * resolver-independent, so validation can check link consistency (rise, computed arrival) and WP2's resolver can
+ * reuse the exact same footprints.
  */
 import { BUILD_CONSTANTS } from "../contracts/plan";
-import type { LevelLink, Side, Vec2 } from "../contracts/plan";
+import type { LevelLink, LinkKind, MapPlan, Side, Vec2 } from "../contracts/plan";
+import { pushAll } from "../util/lists";
+
+/**
+ * What each link kind IS, as data: one row per kind of the plan's LINK_KINDS, read by the geometry below, validation,
+ * the resolver's link pass and the playability walk instead of kind names. A new kind gets one row here.
+ */
+export interface LinkKindInfo {
+  /**
+   * The cells it takes: a straight run toward `dir`, one cell per stairRisePerCell of rise and `width` wide (stairs,
+   * a ramp: the arrival is past its end); a 2×2 square (a spiral stair); one cell (the rest: the arrival is above it).
+   */
+  footprint: "run" | "square" | "cell";
+  /**
+   * What its arrival must be on the upper level: open floor (a run, a hatch you climb out of), an open cell (a ladder
+   * or a spiral stair comes up through a stairwell), or nothing (a pit drop only lands below).
+   */
+  arrival: "floor" | "open" | "none";
+  /**
+   * What it cuts in the upper level's floor above its lower cells: a stairwell (the climb comes up through it), a hole
+   * (a pit), or nothing (a trapdoor is a hatch in a floor that stays).
+   */
+  cuts: "stairwell" | "hole" | null;
+  /** Can be climbed from the lower level to the upper (a pit drop only goes down). */
+  climbsUp: boolean;
+  /**
+   * Its upper end is a hatch: the upper level has no approach to keep clear, and climbing up through it from below
+   * needs something to climb (the playability check suggests a ladder).
+   */
+  hatch: boolean;
+}
+
+const row = (info: Partial<LinkKindInfo>): LinkKindInfo => ({
+  footprint: "cell",
+  arrival: "open",
+  cuts: "stairwell",
+  climbsUp: true,
+  hatch: false,
+  ...info,
+});
+
+export const LINK_KIND_INFO: Readonly<Record<LinkKind, LinkKindInfo>> = {
+  stairs: row({ footprint: "run", arrival: "floor" }),
+  spiral_stairs: row({ footprint: "square" }),
+  ladder: row({}),
+  ramp: row({ footprint: "run", arrival: "floor" }),
+  trapdoor: row({ arrival: "floor", cuts: null, hatch: true }),
+  pit_drop: row({ arrival: "none", cuts: "hole", climbsUp: false }),
+};
+
+/** What a link of this kind is (LINK_KIND_INFO). */
+export function linkKindInfo(kind: LinkKind): LinkKindInfo {
+  return LINK_KIND_INFO[kind];
+}
+
+/** Does a link of this kind climb along a run of cells (stairs, a ramp), not stand in one place? */
+export function isRunLink(kind: LinkKind): boolean {
+  return LINK_KIND_INFO[kind].footprint === "run";
+}
+
+/**
+ * Entry level id: plan.entryLevel, else the level with the smallest |elevation| (ties: plan order). The one rule: the
+ * playability walk and verify's reachability ask it (verify of a plan-less build passes the resolved levels).
+ */
+export function entryLevelId(plan: {
+  readonly entryLevel?: string | undefined;
+  readonly levels: readonly { readonly id: string; readonly elevation: number }[];
+}): string | undefined {
+  if (plan.entryLevel && plan.levels.some((l) => l.id === plan.entryLevel)) return plan.entryLevel;
+  let best: { id: string; e: number } | undefined;
+  for (const l of plan.levels)
+    if (!best || Math.abs(l.elevation) < best.e) best = { id: l.id, e: Math.abs(l.elevation) };
+  return best?.id;
+}
 
 /** Unit step per side in plan space (y grows south). */
 export const SIDE_STEP: Record<Side, Vec2> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
@@ -34,7 +108,8 @@ export function linkGeometry(link: LevelLink, fromElevation: number, toElevation
   const rise = toElevation - fromElevation;
   const [fx, fy] = link.from.at;
   const width = link.width ?? 1;
-  if (link.kind === "stairs" || link.kind === "ramp") {
+  const { footprint } = LINK_KIND_INFO[link.kind];
+  if (footprint === "run") {
     const dir = link.dir ?? "N";
     const [sx, sy] = SIDE_STEP[dir];
     const across: Vec2 = dir === "N" || dir === "S" ? [1, 0] : [0, 1];
@@ -42,7 +117,7 @@ export function linkGeometry(link: LevelLink, fromElevation: number, toElevation
     const strip = (x: number, y: number): Vec2[] =>
       Array.from({ length: width }, (_, w): Vec2 => [x + across[0] * w, y + across[1] * w]);
     const lowerCells: Vec2[] = [];
-    for (let k = 0; k < length; k++) lowerCells.push(...strip(fx + sx * k, fy + sy * k));
+    for (let k = 0; k < length; k++) pushAll(lowerCells, strip(fx + sx * k, fy + sy * k));
     const arrival: Vec2 = [fx + sx * length, fy + sy * length];
     return {
       rise,
@@ -53,7 +128,7 @@ export function linkGeometry(link: LevelLink, fromElevation: number, toElevation
       arrivalCells: strip(arrival[0], arrival[1]),
     };
   }
-  if (link.kind === "spiral_stairs") {
+  if (footprint === "square") {
     const cells: Vec2[] = [
       [fx, fy],
       [fx + 1, fy],
@@ -71,4 +146,23 @@ export function linkGeometry(link: LevelLink, fromElevation: number, toElevation
   }
   const cell: Vec2 = [fx, fy];
   return { rise, length: 1, lowerCells: [cell], upperCells: [cell], arrival: cell, arrivalCells: [cell] };
+}
+
+/**
+ * Every cell a level's links occupy on that level, from `linkGeometry`: the lower run of the links that start here, and
+ * the stairwell above it plus the arrival cells of the links that end here. A run climbs from its LOWER end, so the
+ * cells are right whichever end of the link this level holds, and the run is as long as the rise needs (not a fixed
+ * guess). Anything that must keep clear of a stair or ladder (floor shaping, ragged outlines, room steps) asks here.
+ */
+export function linkCellsOnLevel(plan: Pick<MapPlan, "levels" | "links">, levelId: string): Vec2[] {
+  const out: Vec2[] = [];
+  for (const link of plan.links) {
+    const lo = plan.levels.find((l) => l.id === link.from.level);
+    const up = plan.levels.find((l) => l.id === link.to.level);
+    if (!lo || !up) continue;
+    const geo = linkGeometry(link, lo.elevation, up.elevation);
+    if (lo.id === levelId) pushAll(out, geo.lowerCells);
+    if (up.id === levelId) pushAll(out, geo.upperCells, geo.arrivalCells);
+  }
+  return out;
 }

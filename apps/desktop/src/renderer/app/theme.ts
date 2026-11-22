@@ -1,4 +1,4 @@
-/** Applies the app theme (dark default · light · match system) to <html data-theme>. */
+/** Applies the app theme (match system by default · dark · light) to <html data-theme>. */
 import { useEffect, useState } from "react";
 import { useSettings } from "../stores/settings";
 
@@ -14,7 +14,7 @@ export function resolveTheme(pref: ThemePref): "dark" | "light" {
 }
 
 export function useAppliedTheme(): "dark" | "light" {
-  const pref = useSettings((s) => s.settings?.ui.theme ?? "dark");
+  const pref = useSettings((s) => s.settings?.ui.theme ?? "system");
   const [sysTick, setSysTick] = useState(0);
   useEffect(() => {
     if (pref !== "system" || typeof matchMedia !== "function") return;
@@ -44,7 +44,7 @@ export function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-/** Title-bar toggle: Dark ↔ Light (Match system lives in Settings ▸ Appearance). */
+/** The "Switch theme" command: Dark ↔ Light (Match system lives in Settings ▸ Appearance). */
 export function toggleTheme(): void {
   const s = useSettings.getState().settings;
   if (!s) return;

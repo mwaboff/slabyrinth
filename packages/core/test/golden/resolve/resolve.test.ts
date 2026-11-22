@@ -3,6 +3,7 @@
  * Update deliberately with `npm run test:golden:update` (generator changes need a new generator version, §2.7).
  */
 import { describe, expect, it } from "vitest";
+import { bundledPalettes } from "../../../src/palette";
 import { canonicalResolved, resolvePlan } from "../../../src/resolve/index";
 import { allFixtures } from "./allFixtures";
 
@@ -10,35 +11,35 @@ const fixtures = allFixtures();
 
 describe("resolvePlan golden snapshots", () => {
   it.each(fixtures)("%s resolves to its golden canonical form", async (name, plan) => {
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     await expect(canonicalResolved(r)).toMatchFileSnapshot(`__golden__/${name}.resolved.json`);
   });
 
   it("records the hashes of all fixtures", async () => {
-    const lines = fixtures.map(([name, plan]) => `${name} ${resolvePlan(plan).hash}`).join("\n");
+    const lines = fixtures.map(([name, plan]) => `${name} ${resolvePlan(plan, bundledPalettes()).hash}`).join("\n");
     await expect(lines + "\n").toMatchFileSnapshot("__golden__/hashes.txt");
   });
 });
 
 describe("determinism", () => {
   it.each(fixtures)("%s: resolving twice gives identical bytes", (_name, plan) => {
-    const a = canonicalResolved(resolvePlan(plan));
-    const b = canonicalResolved(resolvePlan(structuredClone(plan)));
+    const a = canonicalResolved(resolvePlan(plan, bundledPalettes()));
+    const b = canonicalResolved(resolvePlan(structuredClone(plan), bundledPalettes()));
     expect(b).toBe(a);
   });
 
   it("does not mutate the input plan", () => {
     for (const [, plan] of fixtures) {
       const before = JSON.stringify(plan);
-      resolvePlan(plan);
+      resolvePlan(plan, bundledPalettes());
       expect(JSON.stringify(plan)).toBe(before);
     }
   });
 
   it("hash ignores nothing: changing the seed changes generated content", () => {
     const [, b] = fixtures.find(([n]) => n === "example-b") as [string, Parameters<typeof resolvePlan>[0]];
-    const h1 = resolvePlan(b).hash;
-    const h2 = resolvePlan({ ...b, seed: b.seed + 1 }).hash;
+    const h1 = resolvePlan(b, bundledPalettes()).hash;
+    const h2 = resolvePlan({ ...b, seed: b.seed + 1 }, bundledPalettes()).hash;
     expect(h2).not.toBe(h1);
   });
 });
@@ -46,7 +47,7 @@ describe("determinism", () => {
 describe("worked example A (architecture §2.9)", () => {
   const plan = fixtures.find(([n]) => n === "example-a")?.[1];
   if (!plan) throw new Error("missing example-a");
-  const r = resolvePlan(plan);
+  const r = resolvePlan(plan, bundledPalettes());
   const l1 = r.levels.find((l) => l.id === "l1");
   const l2 = r.levels.find((l) => l.id === "l2");
   if (!l1 || !l2) throw new Error("levels");
@@ -113,7 +114,7 @@ describe("worked example A (architecture §2.9)", () => {
 describe("worked example B (architecture §2.10)", () => {
   const plan = fixtures.find(([n]) => n === "example-b")?.[1];
   if (!plan) throw new Error("missing example-b");
-  const r = resolvePlan(plan);
+  const r = resolvePlan(plan, bundledPalettes());
   const g = r.levels[0];
   if (!g) throw new Error("level");
   it("hosts the ruin's exterior walls on the grass side (full 8×7 interior)", () => {

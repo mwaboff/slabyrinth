@@ -16,6 +16,7 @@
 import type { Vec2 } from "../contracts/plan";
 import { ValueNoise } from "../gen/noise";
 import { subSeed } from "../util/hash";
+import { minOf } from "../util/lists";
 
 export interface TrailClip {
   x0: number;
@@ -109,7 +110,7 @@ export function trailCells(
       }
   };
   for (const p of samples) {
-    const near = Math.min(...anchorsS.map((a) => Math.abs(p.s - a)));
+    const near = minOf(anchorsS.map((a) => Math.abs(p.s - a)));
     const taper = Math.min(1, near / 3);
     // a snake: control points every half wavelength alternate sides with seeded amplitudes (so it always bends, never
     // runs straight for long), smoothstep between them, plus a small second octave for kinks

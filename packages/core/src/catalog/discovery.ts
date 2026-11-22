@@ -6,6 +6,8 @@
 import { parseAppManifest, parseLibraryFolders } from "./vdf";
 
 export const TALESPIRE_APP_ID = "720620";
+/** How the app starts TaleSpire: through Steam, never the exe directly (main opens it; the build view links it). */
+export const STEAM_LAUNCH_URL = `steam://rungameid/${TALESPIRE_APP_ID}`;
 
 /** Read-only file-system port injected by the caller (Electron main, CLI, tests). */
 export interface ReadonlyFs {

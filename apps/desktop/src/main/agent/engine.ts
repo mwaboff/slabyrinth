@@ -17,7 +17,9 @@ import {
   briefHash,
   createProgressTracker,
   createToolExecutor,
+  defaultExecutorPorts,
   sessionStartText,
+  briefLine,
   systemPromptFor,
   toolsForConversation,
   type AgentExecuteTool,
@@ -31,16 +33,21 @@ import {
   outstandingIssues,
 } from "@slabyrinth/core/agent";
 import type { DesignBrief, MapPlan, ValidationResult } from "@slabyrinth/core/contracts/plan";
-import { describeChanges } from "@slabyrinth/core/history";
+import type { SizeTierId } from "@slabyrinth/core/plan";
+import { describeChanges, nextVersionNumber } from "@slabyrinth/core/history";
 import { resolvePlan } from "@slabyrinth/core/resolve";
 import { outlineView } from "@slabyrinth/core/text";
 import type { AppError, ChatEvent, IpcRequests } from "../../shared/ipc";
 import type { ChatMessageMeta, Conversation, ProjectFile } from "../../shared/project";
+import { activeSizeTier, checkSecondsPerStep } from "../../shared/sizeTier";
 import { redactString } from "../logger";
 import { EnginePortError, type ConversationEngine, type EngineHost } from "../ports/engine";
+import { DEADLINES, withDeadline } from "../util/deadline";
 import { ZERO_USAGE, addCost, addUsage, costOf, promptTokens, ratesFor } from "./cost";
 import { errorInfo, isRetryableKind } from "./provider/errors";
+import { SIZE_TIER_PREFIX, sizeTierText, withSizeTier } from "./sizeTierText";
 import { createDefaultRegistry } from "./provider/registry";
+import { EFFORT_LEVELS } from "./provider/types";
 import type {
   AssistantPart,
   ChatItem,
@@ -108,10 +115,10 @@ export function snapEffort(effort: EffortLevel | null, d: ModelDescriptor | unde
   return d.effort.default;
 }
 
-const EFFORT_ORDER: readonly EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 export function capEffort(effort: EffortLevel | null, cap: EffortLevel): EffortLevel | null {
   if (effort === null) return null;
-  return EFFORT_ORDER.indexOf(effort) > EFFORT_ORDER.indexOf(cap) ? cap : effort;
+  // EFFORT_LEVELS is ordered lowest first (the provider contract)
+  return EFFORT_LEVELS.indexOf(effort) > EFFORT_LEVELS.indexOf(cap) ? cap : effort;
 }
 
 /** The effort last put into effect for `modelId` by a marker in the transcript (null = none yet). */
@@ -167,6 +174,26 @@ interface TurnState {
   lastAssistantId: string | null;
 }
 
+/** The turn loop's counters: steps run, pauses taken, the output limit (raised once) and busy retries in a row. */
+interface TurnLoop {
+  steps: number;
+  pauses: number;
+  maxOutput: number;
+  maxTokensRetried: boolean;
+  busyRetries: number;
+}
+
+/** What a turn does after a step: run another step, or stop (the turn has finished, failed or been cancelled). */
+type StepNext = "continue" | "stop";
+
+/** A step's event sink: forwards the provider's stream as chat events and keeps what it streamed and spent. */
+interface StepSink {
+  onEvent: (e: StepEvent) => void;
+  streamed: () => string;
+  trackers: Map<string, ProgressTracker>;
+  spent: () => Usage;
+}
+
 export class SlabyrinthConversationEngine implements ConversationEngine {
   private readonly registry: ProviderRegistry;
   private readonly execute: AgentExecuteTool;
@@ -174,7 +201,8 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
   private readonly now: () => Date;
   private readonly sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   private readonly random32: () => number;
-  private readonly validate: ((p: unknown) => ValidationResult) | undefined;
+  /** Plan validation against the build's palettes (the engine guard's outstanding issues). */
+  private readonly validate: (p: unknown) => ValidationResult;
   private running: RunningTurn | null = null;
   /** Synchronous lock held while a turn is being set up (between the entry call and startTurn). */
   private starting = false;
@@ -197,9 +225,13 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
           host.logger.debug(m, d);
         },
       });
-    this.execute = opts.executor ?? createToolExecutor(opts.executorPorts);
-    const vp = opts.executorPorts?.validatePlan;
-    this.validate = vp ? (p) => vp(p) : undefined;
+    this.execute =
+      opts.executor ??
+      createToolExecutor(opts.executorPorts, (what, err) => {
+        host.logger.warn(what, { error: err });
+      });
+    const vp = opts.executorPorts?.validatePlan ?? defaultExecutorPorts.validatePlan;
+    this.validate = (p) => vp(p, { palettes: host.getBuildPalettes(), sizeTier: this.sizeTier() });
     this.newId = opts.newId ?? randomUUID;
     this.now = opts.now ?? (() => new Date());
     this.sleep = opts.sleep ?? defaultSleep;
@@ -256,8 +288,11 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
   ): Promise<ModelDescriptor | undefined> {
     const cached = this.cachedDescriptor(sel);
     if (cached) return cached;
-    const list = await provider.listModels(new AbortController().signal);
-    this.models.set(sel.providerId, { at: Date.now(), list });
+    // A turn never waits long on the network for the model list: past the deadline the provider answers with its
+    // bundled table, which is used for this turn but not cached (the next turn asks again).
+    const signal = withDeadline(undefined, DEADLINES.modelListForTurnMs);
+    const list = await provider.listModels(signal);
+    if (!signal.aborted) this.models.set(sel.providerId, { at: Date.now(), list });
     return list.find((d) => d.modelId === sel.modelId);
   }
 
@@ -281,8 +316,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
   }
 
   private nextVersionNumber(): number {
-    const versions = this.project().history.versions;
-    return versions.reduce((m, v) => Math.max(m, v.number), 0) + 1;
+    return nextVersionNumber(this.project().history);
   }
 
   private systemPrompt(conv: Readonly<Conversation>): string {
@@ -309,6 +343,25 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         }),
       };
     });
+  }
+
+  /** The map size tier the model's plans are held to: the setting, raised to what the open plan needs. */
+  private sizeTier(): SizeTierId {
+    return activeSizeTier(this.host.getSettings().mapSize, this.host.getPlan());
+  }
+
+  /**
+   * The context line naming the map size limits: for an experimental tier, or to say the standard one is back after
+   * the model was told a larger one; null when the model already has the current line (or never needed one).
+   */
+  private sizeTierLine(conv: Readonly<Conversation>): string | null {
+    const line = sizeTierText(this.sizeTier());
+    let seen: string | null = null;
+    for (const item of conv.items)
+      if (item.type === "context")
+        for (const l of item.text.split("\n")) if (l.startsWith(SIZE_TIER_PREFIX)) seen = l;
+    if (seen === null) return this.sizeTier() === "standard" ? null : line;
+    return seen === line ? null : line;
   }
 
   private themes(): Array<{ id: string; name: string; description?: string }> {
@@ -344,10 +397,12 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     try {
       return outlineView(
         plan,
-        resolvePlan(plan, { planVersion: version }),
+        resolvePlan(plan, this.host.getBuildPalettes(), { planVersion: version }),
         levels ? { version, levels } : { version },
       );
-    } catch {
+    } catch (err) {
+      // the model still gets the outline, without resolved facts; the resolver bug behind it is logged
+      this.host.logger.warn("resolving the plan for the outline failed", { error: err });
       return outlineView(plan, null, levels ? { version, levels } : { version });
     }
   }
@@ -500,18 +555,25 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         type: "context",
         id: this.newId(),
         reason: "session_start",
-        text: sessionStartText({
-          themes: this.themes(),
-          builtInAssetsOnly: this.host.getAssetCatalog() === null,
-          scannedAt: this.host.getSettings().talespire.lastScanAt,
-          brief: project.brief,
-          plan,
-          head,
-          ...(plan ? { outline: this.outline(plan, head) } : {}),
-        }),
+        text: withSizeTier(
+          sessionStartText({
+            themes: this.themes(),
+            builtInAssetsOnly: this.host.getAssetCatalog() === null,
+            scannedAt: this.host.getSettings().talespire.lastScanAt,
+            brief: project.brief,
+            plan,
+            head,
+            ...(plan ? { outline: this.outline(plan, head) } : {}),
+          }),
+          this.sizeTierLine(conv),
+        ),
         createdAt: now,
       });
       return out;
+    }
+    const tierLine = this.sizeTierLine(conv);
+    if (tierLine !== null) {
+      out.push({ type: "context", id: this.newId(), reason: "resync", text: tierLine, createdAt: now });
     }
     if (conv.modelSeen.head !== head && plan) {
       const before = conv.modelSeen.head > 0 ? this.host.getPlan(conv.modelSeen.head) : null;
@@ -543,7 +605,8 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         type: "context",
         id: this.newId(),
         reason: "brief_changed",
-        text: `The GM edited the brief. Current brief: ${sessionStartText({ themes: [], builtInAssetsOnly: false, scannedAt: null, brief: project.brief, plan: null, head: 0 }).split("\n")[2] ?? ""}`,
+        // released wording: the line repeats "Current brief:" (kept byte for byte)
+        text: `The GM edited the brief. Current brief: ${briefLine(project.brief)}`,
         createdAt: now,
       });
     }
@@ -601,7 +664,9 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       .finally(() => {
         this.running = null;
         this.host.setBusy(null);
-        void this.host.flush();
+        this.host.flush().catch((err: unknown) => {
+          this.host.logger.error("saving after the turn failed", { error: err });
+        });
       });
     this.running = { turnId: args.turnId, abort, done };
     return Promise.resolve({ turnId: args.turnId });
@@ -609,22 +674,20 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
 
   // ───────────────────────────── the turn loop ─────────────────────────────
 
+  /**
+   * The turn loop: build the step's request, run it, then act on how it stopped, until the turn finishes, fails or is
+   * cancelled. A failed step may be retried after a back-off (busy, network); a cut-off tool call once with more room.
+   */
   private async runTurn(t: TurnState, signal: AbortSignal): Promise<void> {
-    let steps = 0;
-    let pauses = 0;
-    let maxOutput = DEFAULT_MAX_OUTPUT;
-    let maxTokensRetried = false;
-    let busyRetries = 0;
-    const conv = (): Readonly<Conversation> => {
-      const c = this.project().conversations.find((x) => x.id === t.conversationId);
-      if (!c) throw new Error("conversation vanished");
-      return c;
+    const loop: TurnLoop = {
+      steps: 0,
+      pauses: 0,
+      maxOutput: DEFAULT_MAX_OUTPUT,
+      maxTokensRetried: false,
+      busyRetries: 0,
     };
-    const tools = (c: Readonly<Conversation>): StepRequest["tools"] =>
-      c.toolMode === "none" ? [] : toolsForConversation(c.imageToolEnabled, c.toolsVersion);
-
     for (;;) {
-      if (steps >= MAX_STEPS_PER_TURN) {
+      if (loop.steps >= MAX_STEPS_PER_TURN) {
         this.emit({
           type: "notice",
           turnId: t.turnId,
@@ -634,172 +697,200 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         this.finish(t, "end_turn", false);
         return;
       }
-      const c = conv();
-      const request: StepRequest = {
-        conversationId: c.id,
-        turnId: t.turnId,
-        selection: t.selection,
-        systemPrompt: this.systemPrompt(c),
-        tools: tools(c),
-        transcript: this.hydrate(c.items),
-        maxOutputTokens: maxOutput,
-        effort: t.effort,
-        toolMode: c.toolMode,
-      };
-      const step = steps;
-      const sink = this.stepSink(t, step);
+      const request = this.stepRequest(t, loop.maxOutput);
+      const sink = this.stepSink(t, loop.steps);
       let result: StepResult;
       try {
         this.lastRequestAt.set(t.conversationId, Date.now());
         result = await t.provider.runStep(request, sink.onEvent, signal);
       } catch (err) {
-        // Whatever a failed step streamed was billed: count it (an estimate; the final usage never arrived).
-        const spent = sink.spent();
-        if (promptTokens(spent) + spent.outputTokens > 0)
-          this.account(t, spent, costOf(spent, t.descriptor?.pricing ?? null));
-        const info = errorInfo(err);
-        if (signal.aborted || info?.kind === "cancelled") {
-          this.cancelled(t, sink.streamed());
-          return;
-        }
-        if (info && isRetryableKind(info.kind) && busyRetries < BUSY_BACKOFF_MS.length) {
-          const delay = info.retryAfterMs ?? BUSY_BACKOFF_MS[busyRetries] ?? 30_000;
-          busyRetries++;
-          const what =
-            info.kind === "network" || info.kind === "timeout" ? "Connection lost" : "Anthropic is busy";
-          this.emit({
-            type: "notice",
-            turnId: t.turnId,
-            kind: "retrying",
-            text: `${what} — retrying in ${Math.round(delay / 1000)}s.`,
-          });
-          try {
-            await this.sleep(delay, signal);
-          } catch {
-            this.cancelled(t, "");
-            return;
-          }
-          continue;
-        }
-        this.failed(
-          t,
-          info ?? {
-            kind: "server",
-            retryable: false,
-            message: err instanceof Error ? redactString(err.message) : "Unknown error.",
-          },
-          busyRetries > 0,
-        );
-        return;
+        if ((await this.stepFailed(t, err, sink, signal, loop)) === "stop") return;
+        continue;
       }
-      steps++;
-      busyRetries = 0;
+      loop.steps++;
+      loop.busyRetries = 0;
       this.account(t, result.usage, result.cost);
-      if (result.stopReason === "cancelled") {
-        this.cancelled(t, sink.streamed());
-        return;
-      }
+      if ((await this.afterStep(t, result, sink, signal, loop)) === "stop") return;
+    }
+  }
 
-      const assistant = result.assistant;
-      switch (result.stopReason) {
-        case "end_turn":
-        case "error": {
-          if (assistant) this.appendAssistant(t, assistant, "complete");
+  /** The next step's request: the conversation as it stands, its prompt and tools, at the loop's output limit. */
+  private stepRequest(t: TurnState, maxOutput: number): StepRequest {
+    const c = this.project().conversations.find((x) => x.id === t.conversationId);
+    if (!c) throw new Error("conversation vanished");
+    return {
+      conversationId: c.id,
+      turnId: t.turnId,
+      selection: t.selection,
+      systemPrompt: this.systemPrompt(c),
+      tools: c.toolMode === "none" ? [] : toolsForConversation(c.imageToolEnabled, c.toolsVersion),
+      transcript: this.hydrate(c.items),
+      maxOutputTokens: maxOutput,
+      effort: t.effort,
+      toolMode: c.toolMode,
+    };
+  }
+
+  /**
+   * A step that threw: what it streamed is billed (an estimate; the final usage never arrived), then the turn is
+   * cancelled, retried after a back-off (busy or connection errors, up to BUSY_BACKOFF_MS.length times in a row) or
+   * failed.
+   */
+  private async stepFailed(
+    t: TurnState,
+    err: unknown,
+    sink: StepSink,
+    signal: AbortSignal,
+    loop: TurnLoop,
+  ): Promise<StepNext> {
+    const spent = sink.spent();
+    if (promptTokens(spent) + spent.outputTokens > 0)
+      this.account(t, spent, costOf(spent, t.descriptor?.pricing ?? null));
+    const info = errorInfo(err);
+    if (signal.aborted || info?.kind === "cancelled") {
+      this.cancelled(t, sink.streamed());
+      return "stop";
+    }
+    if (info && isRetryableKind(info.kind) && loop.busyRetries < BUSY_BACKOFF_MS.length) {
+      const delay = info.retryAfterMs ?? BUSY_BACKOFF_MS[loop.busyRetries] ?? 30_000;
+      loop.busyRetries++;
+      const what =
+        info.kind === "network" || info.kind === "timeout" ? "Connection lost" : "Anthropic is busy";
+      this.emit({
+        type: "notice",
+        turnId: t.turnId,
+        kind: "retrying",
+        text: `${what} — retrying in ${Math.round(delay / 1000)}s.`,
+      });
+      try {
+        await this.sleep(delay, signal);
+      } catch {
+        this.cancelled(t, "");
+        return "stop";
+      }
+      return "continue";
+    }
+    this.failed(
+      t,
+      info ?? {
+        kind: "server",
+        retryable: false,
+        message: err instanceof Error ? redactString(err.message) : "Unknown error.",
+      },
+      loop.busyRetries > 0,
+    );
+    return "stop";
+  }
+
+  /** Acts on how a step stopped: finish, pause and go on, refuse, handle the output limit, or run the tools. */
+  private async afterStep(
+    t: TurnState,
+    result: StepResult,
+    sink: StepSink,
+    signal: AbortSignal,
+    loop: TurnLoop,
+  ): Promise<StepNext> {
+    if (result.stopReason === "cancelled") {
+      this.cancelled(t, sink.streamed());
+      return "stop";
+    }
+    const assistant = result.assistant;
+    switch (result.stopReason) {
+      case "end_turn":
+      case "error": {
+        if (assistant) this.appendAssistant(t, assistant, "complete");
+        this.finish(t, "end_turn", false);
+        return "stop";
+      }
+      case "pause": {
+        if (assistant) this.appendAssistant(t, assistant, "complete");
+        if (++loop.pauses > MAX_PAUSES) {
+          this.finish(t, "pause", true);
+          return "stop";
+        }
+        return "continue";
+      }
+      case "refusal": {
+        if (assistant) this.appendAssistant(t, { ...assistant, excludedFromContext: true }, "refused");
+        this.emit({
+          type: "notice",
+          turnId: t.turnId,
+          kind: "refusal",
+          text: "The request was declined. The plan wasn't changed.",
+        });
+        this.finish(t, "refusal", false);
+        return "stop";
+      }
+      case "max_tokens":
+        return this.outputLimitReached(t, assistant, loop);
+      case "tool_use": {
+        if (!assistant) {
           this.finish(t, "end_turn", false);
-          return;
+          return "stop";
         }
-        case "pause": {
-          if (assistant) this.appendAssistant(t, assistant, "complete");
-          if (++pauses > MAX_PAUSES) {
-            this.finish(t, "pause", true);
-            return;
-          }
-          continue;
+        const outcome = await this.runTools(t, assistant, sink, signal);
+        if (outcome === "await_user") {
+          this.finish(t, "tool_use", false);
+          return "stop";
         }
-        case "refusal": {
-          if (assistant) this.appendAssistant(t, { ...assistant, excludedFromContext: true }, "refused");
-          this.emit({
-            type: "notice",
-            turnId: t.turnId,
-            kind: "refusal",
-            text: "The request was declined. The plan wasn't changed.",
-          });
-          this.finish(t, "refusal", false);
-          return;
+        if (signal.aborted) {
+          this.cancelled(t, "");
+          return "stop";
         }
-        case "max_tokens": {
-          if (assistant && toolCalls(assistant).length > 0) {
-            // A tool input cut off by the output limit is never executed: discard the step, retry once bigger.
-            if (!maxTokensRetried) {
-              maxTokensRetried = true;
-              maxOutput = RETRY_MAX_OUTPUT;
-              this.append(t.conversationId, t.turnId, [
-                {
-                  type: "context",
-                  id: this.newId(),
-                  reason: "retry_hint",
-                  text: RETRY_HINT_MAX_TOKENS,
-                  createdAt: this.nowIso(),
-                },
-              ]);
-              this.emit({
-                type: "notice",
-                turnId: t.turnId,
-                kind: "retrying",
-                text: "The plan came back incomplete; trying again in smaller pieces.",
-              });
-              continue;
-            }
-            this.failed(
-              t,
-              {
-                kind: "malformed_output",
-                retryable: false,
-                message: `That plan came back incomplete, so I didn't apply it. Your map is still v${this.project().history.head}. Very large maps cause this — try again, or ask for one level at a time.`,
-              },
-              false,
-            );
-            return;
-          }
-          if (assistant) this.appendAssistant(t, assistant, "truncated");
-          this.emit({
-            type: "notice",
-            turnId: t.turnId,
-            kind: "truncated",
-            text: "The reply was cut off. Press Continue for the rest.",
-          });
-          this.finish(t, "max_tokens", false, true);
-          return;
-        }
-        case "tool_use": {
-          if (!assistant) {
-            this.finish(t, "end_turn", false);
-            return;
-          }
-          const outcome = await this.runTools(t, assistant, sink, signal);
-          if (outcome === "await_user") {
-            this.finish(t, "tool_use", false);
-            return;
-          }
-          if (signal.aborted) {
-            this.cancelled(t, "");
-            return;
-          }
-          continue;
-        }
+        return "continue";
       }
     }
   }
 
-  private stepSink(
-    t: TurnState,
-    step: number,
-  ): {
-    onEvent: (e: StepEvent) => void;
-    streamed: () => string;
-    trackers: Map<string, ProgressTracker>;
-    spent: () => Usage;
-  } {
+  /**
+   * The step hit the output limit. A tool input cut off by it is never executed: the step is discarded and retried
+   * once with more room (then the turn fails). Plain text is kept as truncated, for Continue.
+   */
+  private outputLimitReached(t: TurnState, assistant: AssistantItem | undefined, loop: TurnLoop): StepNext {
+    if (assistant && toolCalls(assistant).length > 0) {
+      if (!loop.maxTokensRetried) {
+        loop.maxTokensRetried = true;
+        loop.maxOutput = RETRY_MAX_OUTPUT;
+        this.append(t.conversationId, t.turnId, [
+          {
+            type: "context",
+            id: this.newId(),
+            reason: "retry_hint",
+            text: RETRY_HINT_MAX_TOKENS,
+            createdAt: this.nowIso(),
+          },
+        ]);
+        this.emit({
+          type: "notice",
+          turnId: t.turnId,
+          kind: "retrying",
+          text: "The plan came back incomplete; trying again in smaller pieces.",
+        });
+        return "continue";
+      }
+      this.failed(
+        t,
+        {
+          kind: "malformed_output",
+          retryable: false,
+          message: `That plan came back incomplete, so I didn't apply it. Your map is still v${this.project().history.head}. Very large maps cause this — try again, or ask for one level at a time.`,
+        },
+        false,
+      );
+      return "stop";
+    }
+    if (assistant) this.appendAssistant(t, assistant, "truncated");
+    this.emit({
+      type: "notice",
+      turnId: t.turnId,
+      kind: "truncated",
+      text: "The reply was cut off. Press Continue for the rest.",
+    });
+    this.finish(t, "max_tokens", false, true);
+    return "stop";
+  }
+
+  private stepSink(t: TurnState, step: number): StepSink {
     let text = "";
     let spent: Usage = ZERO_USAGE;
     const trackers = new Map<string, ProgressTracker>();
@@ -916,10 +1007,17 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
             return new Uint8Array(Buffer.from(b64, "base64"));
           }
         : null,
-      estimate: (plan, levels) => this.host.estimateCompile(plan, levels),
+      // the turn's signal: Stop ends a running estimate too; a failed or timed-out one is "not available right now"
+      estimate: (plan, levels) =>
+        this.host.estimateCompile(plan, levels, signal).catch((err: unknown) => {
+          this.host.logger.warn("compile estimate failed", { error: err });
+          return null;
+        }),
       catalog: { themes: this.themes(), featureCoverage: (theme) => this.featureCoverage(theme) },
       newSeed: () => this.random32() >>> 0,
       newPlanId: () => randomUUID(),
+      palettes: this.host.getBuildPalettes(),
+      sizeTier: this.sizeTier(),
       nextVersion: this.nextVersionNumber(),
       planAt: (v) => this.host.getPlan(v),
     };
@@ -1184,7 +1282,11 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       costUsd = roundUp(firstRead + laterReads + (outTokens * r.output) / 1e6, roundCostLadder);
     }
     const tps = TOKENS_PER_SECOND[d?.speedTier ?? 2];
-    const seconds = roundUp(outTokens / tps + 2 * steps, roundSecondsLadder);
+    // at the experimental map sizes main checks and reviews the plan after each step: seconds the model doesn't spend
+    const seconds = roundUp(
+      outTokens / tps + (2 + checkSecondsPerStep(this.sizeTier())) * steps,
+      roundSecondsLadder,
+    );
     return { costUsd, seconds, basis };
   }
 
@@ -1339,9 +1441,13 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
 
   selectAlternative(req: IpcRequests["chat:selectAlternative"]["req"]): Promise<void> {
     const conv = this.conversation();
+    const m = conv.meta[req.messageId];
+    // index 0..n: one of the n earlier attempts, or the latest one
+    if (m && req.index > (m.alternatives?.length ?? 0))
+      throw new EnginePortError({ code: "validation", message: "That reply has no such alternative." });
     this.host.updateConversation(conv.id, (c) => {
-      const m = c.meta[req.messageId];
-      if (m) m.activeAlternative = req.index;
+      const mm = c.meta[req.messageId];
+      if (mm) mm.activeAlternative = req.index;
     });
     return Promise.resolve();
   }
@@ -1422,11 +1528,19 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
   ): Promise<{ ok: true } | { ok: false; error: ProviderErrorInfo }> {
     try {
       const p = await this.configured(providerId);
-      const res = await p.checkConnection(AbortSignal.timeout(20_000));
+      const res = await p.checkConnection(withDeadline(undefined, DEADLINES.providerRequestMs));
       return res.ok ? res : { ok: false, error: { ...res.error, message: redactString(res.error.message) } };
     } catch (err) {
-      if (err instanceof EnginePortError)
-        return { ok: false, error: { kind: "auth", retryable: false, message: err.message } };
+      // the engine's own refusals keep their meaning: only a missing key is "auth" (never a reason to drop a key)
+      if (err instanceof EnginePortError) {
+        const kind: ProviderErrorInfo["kind"] =
+          err.error.code === "no_api_key"
+            ? "auth"
+            : err.error.code === "unsupported"
+              ? "not_found"
+              : "invalid_request";
+        return { ok: false, error: { kind, retryable: false, message: redactString(err.message) } };
+      }
       const info = errorInfo(err);
       return {
         ok: false,
@@ -1446,7 +1560,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     } catch {
       // No key yet: the provider falls back to its bundled table.
     }
-    const list = await provider.listModels(AbortSignal.timeout(20_000));
+    const list = await provider.listModels(withDeadline(undefined, DEADLINES.providerRequestMs));
     this.models.set(providerId, { at: Date.now(), list });
     return list;
   }

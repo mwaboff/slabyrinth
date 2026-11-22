@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import type { MapPlan, TerrainOp } from "../../../src/contracts/plan";
 import { CELL_FLAG } from "../../../src/contracts/resolved";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { riverCourse } from "../../../src/resolve/water";
 
@@ -38,7 +39,7 @@ function meadow(terrain: TerrainOp[], generator: 1 | 2 = 2): MapPlan {
   };
 }
 const waterEdges = (p: MapPlan): Set<string> => {
-  const l = resolvePlan(p).levels[0];
+  const l = resolvePlan(p, bundledPalettes()).levels[0];
   const out = new Set<string>();
   if (!l) return out;
   for (let i = 0; i < W * H; i++) {

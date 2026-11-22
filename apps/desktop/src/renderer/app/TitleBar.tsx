@@ -1,4 +1,4 @@
-/** App header under the native window frame (UX §4; native frame per lead ruling): menu · mark/wordmark · project name · save state · stepper · cost · theme · settings. */
+/** App header under the native window frame (UX §4; native frame per lead ruling): menu · mark/wordmark · project name · save state · stepper · cost · settings. */
 import { useRef, useState } from "react";
 import { Icon, Mark } from "../ui/Icon";
 import { useDismiss } from "../ui/dismiss";
@@ -11,7 +11,6 @@ import { useRunPhase, verb } from "../features/chat/activity";
 import { goHome, renameProject } from "./actions";
 import { AppMenu } from "./AppMenu";
 import { money, tokens, relativeTime } from "../lib/format";
-import { toggleTheme, useAppliedTheme } from "./theme";
 import { UpdateChip } from "../features/updates/UpdateChip";
 
 export function ProjectName() {
@@ -260,11 +259,8 @@ export function TitleBar() {
   const offline = useApp((s) => s.banners.offline);
   const saveState = useProject((s) => s.saveState);
   const hasProject = useProject((s) => s.snap !== null);
-  const pref = useSettings((s) => s.settings?.ui.theme ?? "dark");
-  const theme = useAppliedTheme();
   const menuBtn = useRef<HTMLButtonElement>(null);
   const inWorkspace = route === "workspace" && hasProject;
-  const next = theme === "dark" ? "light" : "dark";
   return (
     <header className="titlebar">
       <button
@@ -307,14 +303,6 @@ export function TitleBar() {
       {route !== "setup" && <UpdateChip />}
       {route !== "setup" && <CostMeter />}
       {offline && <span className="statusdot" title="You're offline" role="img" aria-label="Offline" />}
-      <button
-        className="iconbtn"
-        aria-label={`Theme: ${pref === "system" ? "match system" : theme}. Switch to ${next}`}
-        title={`Theme: ${pref === "system" ? `Match system (${theme})` : theme === "dark" ? "Dark" : "Light"}`}
-        onClick={toggleTheme}
-      >
-        <Icon name={theme === "dark" ? "sun" : "moon"} />
-      </button>
       <button
         className="iconbtn"
         aria-label="Settings (Ctrl+,)"

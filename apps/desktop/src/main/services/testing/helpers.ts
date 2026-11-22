@@ -1,12 +1,13 @@
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ApplyOps, MapPlan, PlanOp } from "@slabyrinth/core";
+import { bundledPalettes, planRules } from "@slabyrinth/core";
+import type { MapPlan, PlanIssue, PlanRules } from "@slabyrinth/core";
 import { memoryLogger } from "../../logger";
 import { createPlanCorePort, type PlanCorePort } from "../../ports/core";
 import type { Dialogs } from "../dialogs";
 import { recordingEmitter } from "../events";
-import { fallbackTextUpdate, ProjectService } from "../projectService";
+import { ProjectService } from "../projectService";
 import { SettingsStore } from "../settingsStore";
 import type { LockEnv } from "../projectLock";
 
@@ -16,43 +17,16 @@ export async function tempDir(prefix = "slab-"): Promise<string> {
   return fsp.mkdtemp(path.join(os.tmpdir(), prefix));
 }
 
-/** A tiny stand-in for core applyOps supporting `update` and `add_features` (enough for service tests). */
-export const testApplyOps: ApplyOps = (plan: MapPlan, ops: readonly PlanOp[]) => {
-  let next = structuredClone(plan);
-  for (const op of ops) {
-    if (op.op === "update") next = fallbackTextUpdate(next, op.id, op.set);
-    else if (op.op === "add_features") {
-      const level = next.levels.find((l) => l.id === op.level);
-      if (!level)
-        return {
-          ok: false,
-          opErrors: [{ opIndex: 0, code: "unknown_level", message: "no level" }],
-          issues: [],
-        };
-      level.features.push(...op.features);
-    } else
-      return {
-        ok: false,
-        opErrors: [{ opIndex: 0, code: "not_applicable", message: `unsupported ${op.op}` }],
-        issues: [],
-      };
-  }
-  return {
-    ok: true,
-    plan: next,
-    changed: { added: [], updated: [], removed: [] },
-    dirtyLevels: [],
-    issues: [],
-  };
-};
+/** The plan rules of the bundled palettes (what the service tests build with). */
+export const BUNDLED_RULES: PlanRules = planRules(bundledPalettes());
 
+/** The real core port with the bundled palettes; a test may replace the validator or the migration. */
 export function corePort(
-  opts: { applyOps?: boolean; validate?: (p: MapPlan) => unknown; migrate?: (j: unknown) => unknown } = {},
+  opts: { validate?: (p: MapPlan) => PlanIssue[]; migrate?: (j: unknown) => unknown } = {},
 ): PlanCorePort {
-  return createPlanCorePort({
-    applyOps: opts.applyOps === false ? null : testApplyOps,
-    validatePlan: opts.validate ?? null,
-    migrateProject: opts.migrate ?? null,
+  return createPlanCorePort(() => BUNDLED_RULES, {
+    ...(opts.validate ? { validatePlan: opts.validate } : {}),
+    ...(opts.migrate ? { migrateProject: opts.migrate } : {}),
   });
 }
 

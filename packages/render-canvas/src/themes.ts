@@ -5,7 +5,7 @@
  * "wall"; anything missing falls back through `tokenColor`.
  */
 import type { MapTheme } from "@slabyrinth/core/contracts/resolved";
-import { MATERIALS } from "@slabyrinth/core/contracts/plan";
+import { MATERIALS, type Material } from "@slabyrinth/core/contracts/plan";
 
 export const REQUIRED_TOKENS = [
   "paper",
@@ -47,13 +47,16 @@ export const REQUIRED_TOKENS = [
 
 type Palette = Record<string, string>;
 
-function materials(base: Record<string, string>): Palette {
+/** Every material's colour (a new material in core is a compile error in each theme until it has one). */
+type MaterialColours = Readonly<Record<Material, string>>;
+
+function materials(base: MaterialColours): Palette {
   const out: Palette = {};
-  for (const m of MATERIALS) out[`mat-${m}`] = base[m] ?? base["flagstone"] ?? "#808080";
+  for (const m of MATERIALS) out[`mat-${m}`] = base[m];
   return out;
 }
 
-const DARK_MATS = {
+const DARK_MATS: MaterialColours = {
   flagstone: "#2B261F",
   stone_tile: "#2F2A23",
   marble: "#3A3631",
@@ -78,7 +81,7 @@ const DARK_MATS = {
   concrete: "#35332F",
 };
 
-const LIGHT_MATS = {
+const LIGHT_MATS: MaterialColours = {
   flagstone: "#FCF8EF",
   stone_tile: "#F6F1E6",
   marble: "#FFFEFB",

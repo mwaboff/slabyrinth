@@ -70,10 +70,20 @@ const requestChannels = [
   "palettes:list",
   "palettes:reload",
   "palettes:openFolder",
+  "palettes:resolveData",
   "shell:openExternal",
   "updates:status",
   "updates:check",
   "updates:skip",
+  "addon:status",
+  "addon:install",
+  "addon:chooseFolder",
+  "addon:uninstall",
+  "addon:openFolder",
+  "addon:dismissPrompt",
+  "link:status",
+  "link:send",
+  "link:stop",
 ] as const;
 
 const eventChannels = [
@@ -82,11 +92,14 @@ const eventChannels = [
   "project:changed",
   "catalog:changed",
   "catalog:warning",
+  "palettes:changed",
   "compile:progress",
   "settings:changed",
   "render:requestImage",
   "menu:command",
   "updates:available",
+  "addon:changed",
+  "link:changed",
 ] as const;
 
 const sendChannels = ["render:imageResult"] as const;

@@ -19,6 +19,7 @@ export type { RawCatalogRecord } from "./derive";
 export { VdfError, parseAppManifest, parseLibraryFolders, parseVdf, vdfGet } from "./vdf";
 export type { AppManifest, SteamLibrary, VdfObject, VdfValue } from "./vdf";
 export {
+  STEAM_LAUNCH_URL,
   TALESPIRE_APP_ID,
   joinPath,
   listPackDirs,
@@ -50,6 +51,8 @@ export type {
   PackBuildInfo,
 } from "./build";
 export { diffCatalogs, geometryChanged } from "./diff";
+export { AssetCatalogSchema, parseAssetCatalog } from "./schema";
+export type { ParseCatalogResult } from "./schema";
 export { NULL_AVAILABILITY, createAvailability, isNullAvailability } from "./availability";
 export {
   ROLE_RULES,

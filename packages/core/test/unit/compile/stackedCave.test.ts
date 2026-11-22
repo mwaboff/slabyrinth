@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { compileResolved } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { slabCodec } from "../../../src/slab";
 import { loadPlan } from "../../fixtures";
@@ -14,7 +14,10 @@ import { loadPlan } from "../../fixtures";
 describe("generator 2: rock walls under a stacked level", () => {
   it("example A as a generator-2 plan builds with no errors and nothing rising into the level above", () => {
     const plan = { ...loadPlan("example-a"), generator: 2 as const };
-    const bundle = compileResolved(resolvePlan(plan), loadPalettes(), slabCodec, { createdAt: "t", plan });
+    const bundle = compileResolved(resolvePlan(plan, bundledPalettes()), loadPalettes(), slabCodec, {
+      createdAt: "t",
+      plan,
+    });
     expect(bundle.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     expect(bundle.diagnostics.filter((d) => d.code === "verify_pokes_into_level_above")).toEqual([]);
   });

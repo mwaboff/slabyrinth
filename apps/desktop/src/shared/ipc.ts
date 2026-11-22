@@ -9,10 +9,10 @@
  * - Nothing here is provider-specific: models are addressed by ModelSelection / ModelDescriptor.
  * - Secrets never cross IPC towards the renderer (apiKey.set is write-only).
  */
-import type { MapPlan, LevelId } from "@slabyrinth/core/contracts/plan";
+import type { MapPlan, LevelId, ThemeId } from "@slabyrinth/core/contracts/plan";
 import type { PlanOp, PlanVersion, ApplyResult } from "@slabyrinth/core/contracts/ops";
 import type { MapSelection } from "@slabyrinth/core/contracts/resolved";
-import type { ExportBundle, ChunkOptions, CompileEstimate, CatalogChangeReport } from "@slabyrinth/core/contracts/compiler";
+import type { ExportBundle, ChunkOptions, CompileEstimate, CatalogChangeReport, Palette } from "@slabyrinth/core/contracts/compiler";
 import type {
   ChatItem, EffortLevel, ModelDescriptor, ModelSelection, ProviderErrorInfo, ProviderId, StopReason,
   SwitchImpact, Usage, Cost,
@@ -203,6 +203,12 @@ export interface IpcRequests {
   "palettes:list": { req: void; res: Array<{ id: string; name: string; source: "bundled" | "user"; extends?: string; issues: number }> };
   "palettes:reload": { req: void; res: void };
   "palettes:openFolder": { req: void; res: void };
+  /**
+   * The palettes builds compile with (bundled + user files + the scanned game assets), as the plain data the renderer
+   * resolves plans against, so the 2D preview shows the map the build produces (core palette/transfer.ts). Fetched at
+   * start and again after "palettes:changed".
+   */
+  "palettes:resolveData": { req: void; res: ResolvePalettesData };
 
   /** Opens https URLs from an allowlist (docs, GitHub releases, console.anthropic.com) in the system browser. */
   "shell:openExternal": { req: { url: string }; res: { opened: boolean } };
@@ -213,6 +219,114 @@ export interface IpcRequests {
   "updates:check": { req: { manual: boolean }; res: UpdateStatus };
   /** "Skip this version": no chip for this version; a newer one shows again. */
   "updates:skip": { req: { version: string }; res: UpdateStatus };
+
+  /** Slabyrinth Helper, the TaleSpire add-on (a symbiote): looks again for the Symbiotes folder and the installed copy. */
+  "addon:status": { req: void; res: AddonStatus };
+  /**
+   * Install, update now or reinstall: copies the bundled add-on into the Symbiotes folder and writes its pairing file.
+   * Fails "not_found" with no folder and "validation" over a folder of another add-on ("foreign"). Deletes nothing.
+   * (An installed, older add-on is also updated by itself when the app starts; a missing one is never installed by itself.)
+   */
+  "addon:install": { req: void; res: AddonStatus };
+  /**
+   * Native folder picker for the Symbiotes folder, saved as talespire.symbiotesFolder; reset: back to finding it
+   * automatically. null = cancelled. Fails "validation" for a folder the app cannot write in; one that does not look like
+   * TaleSpire's is kept with AddonStatus.folderWarning.
+   */
+  "addon:chooseFolder": { req: { reset?: boolean }; res: AddonStatus | null };
+  /**
+   * Removes the add-on's own folder (only one recognisably ours, a real folder directly inside the Symbiotes folder;
+   * never the Symbiotes folder or anything beside it). elsewhere: the copy at AddonStatus.elsewhere instead ("move it":
+   * addon:install, then this). Fails "validation" for a folder that is not ours, "io" with a plain reason otherwise.
+   */
+  "addon:uninstall": { req: { elsewhere?: boolean }; res: AddonStatus };
+  /** Opens a folder in the file manager: "installed" = the add-on in the Symbiotes folder (or the Symbiotes folder); "package" = a paired copy to install by hand. */
+  "addon:openFolder": { req: { which: "installed" | "package" }; res: { opened: boolean; path: string | null } };
+  /** "Don't ask again" on the update dialog, for this bundled version (saved as talespire.addonPromptDismissed). */
+  "addon:dismissPrompt": { req: { version: string }; res: AddonStatus };
+  "link:status": { req: void; res: LinkStatus };
+  /** Sends a build's chunks to the connected add-on (fails "validation" when none is connected, or a chunk has no assets). */
+  "link:send": { req: { buildId: string }; res: { chunks: number } };
+  /** Empties the add-on (it drops the set) and releases the hotkeys. */
+  "link:stop": { req: void; res: void };
+}
+
+/** Slabyrinth Helper in TaleSpire's Symbiotes folder (main looks again on window focus and every few seconds). */
+export interface AddonStatus {
+  /**
+   * not_found: no Symbiotes folder (TaleSpire not found here; choose it by hand) · missing: the folder is there, the
+   * add-on is not · installed: the bundled version, paired with this app · outdated: older than the bundled one ·
+   * mismatch: paired with another port or token (another copy of the app wrote it): install again ·
+   * foreign: a folder of the same name holds something else; the app never writes into it.
+   */
+  state: "not_found" | "missing" | "installed" | "outdated" | "mismatch" | "foreign";
+  /** The Symbiotes folder in use, or null. */
+  folder: string | null;
+  /** manual: chosen by hand · default: the Windows folder · proton: inside Steam's Proton prefix (Linux). */
+  folderSource: "manual" | "default" | "proton" | null;
+  /** Every Symbiotes folder looked for, for the "not found" help. */
+  tried: string[];
+  /** A folder chosen by hand that does not look like TaleSpire's Symbiotes folder (kept; the UI warns). */
+  folderWarning: string | null;
+  /** Our add-on also installed in another Symbiotes folder (the detected one, or the one used before a change). */
+  elsewhere: { folder: string; version: string } | null;
+  /** The add-on's own folder (<folder>/slabyrinth-helper) when installed. */
+  addonPath: string | null;
+  bundledVersion: string;
+  installedVersion: string | null;
+  /** What differs when state is "mismatch". */
+  mismatch: Array<"token" | "port">;
+  /**
+   * The last install or update this run: automatic (at start, an installed older copy) or by the user. failed keeps
+   * the plain reason (a locked file, no permission); the add-on then stays as it was and installing by hand still works.
+   */
+  update: { state: "none" | "updated" | "failed"; automatic: boolean; from: string | null; to: string | null; at: string | null; error: string | null };
+  /**
+   * The "update the add-on for you?" dialog: show while the installed copy is older than the bundled one, the automatic
+   * update did not do it, and the user has not said "don't ask again" for this bundled version (addon:dismissPrompt).
+   * reason: why the automatic update did not happen, in plain words.
+   */
+  prompt: { show: boolean; reason: string | null };
+  checkedAt: string;
+}
+
+/** One global hotkey of the add-on link (registered by the app only while a map is being placed). */
+export interface LinkHotkey {
+  /** active: registered · standby: chosen, registered once a map is loaded · refused: see reason (combo = the one kept) · none. */
+  status: "active" | "standby" | "refused" | "none";
+  combo: string | null;
+  wanted?: string;
+  reason?: string;
+}
+
+/** The local link between the app and the add-on (127.0.0.1 only). */
+export interface LinkStatus {
+  /** port_in_use: another program holds the port (for example the old development bridge). */
+  server: { state: "starting" | "listening" | "port_in_use" | "failed"; port: number };
+  /**
+   * The add-on's connection. refused: it connected without this app's pairing (an old or hand-copied add-on, or
+   * another app's): install it again. version: the add-on's own version as it said on connecting.
+   */
+  helper: { state: "none" | "connected" | "refused"; version: string | null; reason: "token" | "origin" | "protocol" | null };
+  /** The map loaded in the add-on, as it last reported; null when none. chunk is 1-based; finished after the last chunk. */
+  set: { name: string; chunk: number; total: number; phase: "ready" | "sending" | "inHand" | "failed" | "done"; finished: boolean; status: string; cause: string | null } | null;
+  /** The app's last send: sending until the add-on answers. */
+  send: { state: "idle" | "sending" | "loaded" | "failed"; buildId: string | null; chunks: number; error: string | null };
+  /**
+   * off: no map being placed (nothing registered) · active / partial / failed: how many registered.
+   * wayland: a Wayland session, where the desktop may refuse or ask first; the add-on's buttons always work.
+   */
+  hotkeys: { state: "off" | "active" | "partial" | "failed"; wayland: boolean; actions: Record<"next" | "back" | "again", LinkHotkey> };
+}
+
+/**
+ * Palettes as plain data (same shape as core palette/transfer.ts ResolvePalettesData): the merged palettes and the
+ * game status and name of every asset they name. `key` is a content hash: equal keys, equal palettes.
+ */
+export interface ResolvePalettesData {
+  key: string;
+  palettes: Record<ThemeId, Palette>;
+  assets: Record<string, { status: "present" | "deprecated" | "missing" | null; name: string | null }>;
 }
 
 /** A newer release found by the update check. */
@@ -268,6 +382,8 @@ export interface IpcEvents {
   "catalog:changed": CatalogChangeReport;
   /** Non-blocking startup warning when no install / unparseable index: app runs on bundled palettes only. */
   "catalog:warning": { kind: "no_install" | "parse_failed"; message: string };
+  /** The build's palettes changed (palette files reloaded, asset library rescanned): fetch palettes:resolveData. */
+  "palettes:changed": { key: string };
   "compile:progress": { stage: "resolve" | "realize" | "chunk" | "encode"; done: number; total: number };
   "settings:changed": AppSettings;
   /** Main asks renderer to rasterize a level for view_map_image (renderer replies via "render:imageResult"). */
@@ -275,6 +391,10 @@ export interface IpcEvents {
   "menu:command": { command: "new" | "open" | "save" | "saveAs" | "undo" | "redo" | "export" | "settings" };
   /** An update check (startup or manual) found a newer version that isn't skipped. Never opens anything by itself. */
   "updates:available": UpdateStatus;
+  /** The add-on's install status changed (found, installed by hand, updated, removed). */
+  "addon:changed": AddonStatus;
+  /** The link changed: the add-on connected or left, progress, hotkeys. */
+  "link:changed": LinkStatus;
 }
 
 /** Renderer → main one-way messages (ipcRenderer.send). */

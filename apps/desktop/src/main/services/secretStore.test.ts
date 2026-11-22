@@ -74,7 +74,10 @@ describe("SecretStore", () => {
     });
     expect(await store.getApiKey("anthropic")).toBe(KEY);
     await expect(fsp.access(file)).rejects.toThrow();
-    expect((await store.status())["anthropic"]).toMatchObject({ backend: "memory_only", weakAvailable: true });
+    expect((await store.status())["anthropic"]).toMatchObject({
+      backend: "memory_only",
+      weakAvailable: true,
+    });
 
     expect(await store.setApiKey("anthropic", KEY, "allow_weak")).toEqual({
       stored: true,
@@ -111,7 +114,11 @@ describe("SecretStore", () => {
       knownProviders: ["anthropic"],
     });
     expect(await fresh.getApiKey("anthropic")).toBe(KEY);
-    expect((await fresh.status())["anthropic"]).toEqual({ hasKey: true, backend: "basic_text", hint: "sk-ant-…a1B2" });
+    expect((await fresh.status())["anthropic"]).toEqual({
+      hasKey: true,
+      backend: "basic_text",
+      hint: "sk-ant-…a1B2",
+    });
 
     // With no encryption at all, weak storage isn't offered.
     const none = new SecretStore({
@@ -185,11 +192,17 @@ describe("SecretStore", () => {
 
     const NEW = "sk-ant-api03-NEWKEY-not-real-0000000000-c3D4";
     await store.setApiKey("anthropic", NEW);
-    expect((await store.status())["anthropic"]).toEqual({ hasKey: true, backend: "os", hint: "sk-ant-…c3D4" });
-    const onDisk = JSON.parse(await fsp.readFile(file, "utf8")) as { entries: Record<string, { data: string }> };
-    expect(fakeSafeStorage().decryptString(Buffer.from(onDisk.entries["anthropic"]?.data ?? "", "base64"))).toBe(
-      NEW,
-    );
+    expect((await store.status())["anthropic"]).toEqual({
+      hasKey: true,
+      backend: "os",
+      hint: "sk-ant-…c3D4",
+    });
+    const onDisk = JSON.parse(await fsp.readFile(file, "utf8")) as {
+      entries: Record<string, { data: string }>;
+    };
+    expect(
+      fakeSafeStorage().decryptString(Buffer.from(onDisk.entries["anthropic"]?.data ?? "", "base64")),
+    ).toBe(NEW);
 
     // A second stale blob is removed by clearing.
     const stale = new SecretStore({

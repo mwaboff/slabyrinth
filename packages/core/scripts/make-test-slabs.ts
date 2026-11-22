@@ -13,8 +13,8 @@ import { fileURLToPath } from "node:url";
 import { calibrationAssetsFrom, calibrationSlabAssets, compileResolved } from "../src/compile";
 import type { ExportBundle, SlabChunk } from "../src/contracts/compiler";
 import type { MapPlan } from "../src/contracts/plan";
-import { loadPalettes } from "../src/palette";
-import { validatePlan } from "../src/plan";
+import { bundledPalettes, loadPalettes } from "../src/palette";
+import { STRUCTURE_ONLY, validatePlan } from "../src/plan";
 import { resolvePlan } from "../src/resolve";
 import { decodeDetailed, encode, encodeRaw, slabCodec, toHex } from "../src/slab";
 
@@ -24,10 +24,11 @@ const outDir = join(repo, "data", "test-slabs");
 const cat = loadPalettes();
 
 function check(plan: MapPlan): void {
-  const v = validatePlan(plan);
+  // structure here; the resolver's own errors are checked below
+  const v = validatePlan(plan, STRUCTURE_ONLY);
   const errs = v.issues.filter((i) => i.severity === "error");
   if (errs.length) throw new Error(`${plan.title}: ${errs.map((e) => `${e.code} ${e.message}`).join("; ")}`);
-  const r = resolvePlan(plan);
+  const r = resolvePlan(plan, bundledPalettes());
   const rerrs = r.issues.filter((i) => i.severity === "error");
   if (rerrs.length)
     throw new Error(`${plan.title} (resolve): ${rerrs.map((e) => `${e.code} ${e.message}`).join("; ")}`);
@@ -216,7 +217,7 @@ function main(): void {
     copyFileSync(current, join(outDir, `02-single-room.v${n}.txt`));
   };
   writeFileSync(join(outDir, "02-single-room.plan.json"), JSON.stringify(singleRoom, null, 2) + "\n");
-  const b2 = compileResolved(resolvePlan(singleRoom), cat, slabCodec, { createdAt: when });
+  const b2 = compileResolved(resolvePlan(singleRoom, bundledPalettes()), cat, slabCodec, { createdAt: when });
   if (b2.chunks.length !== 1) throw new Error(`02 expected one chunk, got ${b2.chunks.length}`);
   const slab2 = (b2.chunks[0]?.slab ?? "") + "\n";
   archive(slab2);
@@ -230,7 +231,7 @@ function main(): void {
   // 03 two levels: (a) the default build = ONE slab; (b) forced multi-chunk (small budget) kept for regression
   check(twoLevel);
   writeFileSync(join(outDir, "03-two-level.plan.json"), JSON.stringify(twoLevel, null, 2) + "\n");
-  const b3a = compileResolved(resolvePlan(twoLevel), cat, slabCodec, { createdAt: when });
+  const b3a = compileResolved(resolvePlan(twoLevel, bundledPalettes()), cat, slabCodec, { createdAt: when });
   if (b3a.chunks.length !== 1 || b3a.chunks[0]?.hasAlignmentMarkers)
     throw new Error("03a: expected one slab, no markers");
   writeFileSync(join(outDir, "03-two-level-single-slab.txt"), (b3a.chunks[0]?.slab ?? "") + "\n");
@@ -240,7 +241,10 @@ function main(): void {
     compressedBytes: b3a.chunks[0]?.compressedBytes,
     diagnostics: diag(b3a),
   };
-  const b3 = compileResolved(resolvePlan(twoLevel), cat, slabCodec, { fill: 0.02, createdAt: when });
+  const b3 = compileResolved(resolvePlan(twoLevel, bundledPalettes()), cat, slabCodec, {
+    fill: 0.02,
+    createdAt: when,
+  });
   const boxes = new Set(
     b3.chunks.map((c) => {
       const a = decodeDetailed(c.slab).assets;

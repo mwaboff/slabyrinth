@@ -1,0 +1,43 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 4,
+  "id": "7c2e9a41-5d3b-4f80-b6a2-91e4d07c3f58",
+  "title": "The Hall of Oaths",
+  "kind": "building",
+  "seed": 5113,
+  "theme": "wood_town",
+  "summary": "Rooms off one passage whose names do not say what they are for, each with an explicit purpose; a kitchen named for its use is the control.",
+  "entryLevel": "l1",
+  "levels": [
+    {
+      "id": "l1",
+      "name": "Ground floor",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 35, "h": 19 },
+      "base": { "type": "solid" },
+      "areas": [
+        { "id": "passage", "kind": "corridor", "name": "Passage", "shape": { "type": "rect", "x": 2, "y": 8, "w": 31, "h": 3 }, "floor": "wood_plank" },
+        { "id": "antechamber", "kind": "room", "name": "Shrine antechamber", "key": "1", "purpose": "shrine", "shape": { "type": "rect", "x": 2, "y": 2, "w": 6, "h": 6 }, "floor": "wood_plank", "notes": "The household prays here before entering the hall." },
+        { "id": "oaths", "kind": "room", "name": "The Grey Hall of Oaths", "key": "2", "purpose": "throne_room", "shape": { "type": "rect", "x": 9, "y": 2, "w": 6, "h": 6 }, "floor": "wood_plank" },
+        { "id": "armas", "kind": "room", "name": "Sala de armas", "key": "3", "purpose": "armoury", "shape": { "type": "rect", "x": 16, "y": 2, "w": 6, "h": 6 }, "floor": "wood_plank" },
+        { "id": "mess", "kind": "room", "name": "The Mess", "key": "4", "purpose": "barracks", "shape": { "type": "rect", "x": 23, "y": 2, "w": 6, "h": 6 }, "floor": "wood_plank", "notes": "Where the hired swords sleep." },
+        { "id": "kitchen", "kind": "room", "name": "Kitchen", "key": "5", "shape": { "type": "rect", "x": 2, "y": 11, "w": 6, "h": 6 }, "floor": "wood_plank" },
+        { "id": "cellar", "kind": "room", "name": "Ruined cellar", "key": "6", "purpose": "storeroom", "shape": { "type": "rect", "x": 9, "y": 11, "w": 6, "h": 6 }, "floor": "wood_plank" }
+      ],
+      "openings": [
+        { "id": "d_antechamber", "kind": "door", "between": ["antechamber", "passage"], "position": 0.5 },
+        { "id": "d_oaths", "kind": "double_door", "between": ["oaths", "passage"], "position": 0.5 },
+        { "id": "d_armas", "kind": "door", "between": ["armas", "passage"], "position": 0.5 },
+        { "id": "d_mess", "kind": "door", "between": ["mess", "passage"], "position": 0.5 },
+        { "id": "d_kitchen", "kind": "door", "between": ["kitchen", "passage"], "position": 0.5 },
+        { "id": "d_cellar", "kind": "door", "between": ["cellar", "passage"], "position": 0.5 }
+      ],
+      "walls": [],
+      "features": [],
+      "terrain": [],
+      "labels": [],
+      "structures": []
+    }
+  ],
+  "links": []
+}

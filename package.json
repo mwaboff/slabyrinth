@@ -1,6 +1,6 @@
 {
   "name": "slabyrinth",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "license": "MIT",
   "description": "Design TaleSpire maps by chatting with Claude, review a 2D plan, export slabs.",
@@ -33,6 +33,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:golden:update": "vitest run --project core --update",
+    "test:golden:gen4:update": "npm run test:golden:gen4:update -w @slabyrinth/core",
+    "test:sweep": "npm run test:sweep -w @slabyrinth/core --",
     "test:e2e": "npm run test:e2e -w @slabyrinth/desktop",
     "capture:site": "npm run capture:site -w @slabyrinth/desktop",
     "package": "npm run package -w @slabyrinth/desktop",

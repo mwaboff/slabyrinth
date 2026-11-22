@@ -7,6 +7,7 @@
  */
 import type { ChunkOptions, CompileDiagnostic, ExportBundle, MapPlan, SlabChunk } from "@slabyrinth/core";
 import { validatePlan } from "@slabyrinth/core";
+import { fakeRules } from "./rules";
 import type { BuildRecord } from "../../../shared/project";
 import { colLetters } from "../../lib/format";
 
@@ -62,7 +63,7 @@ export type MultiLevelChunk = SlabChunk;
  */
 export function fakeVerify(plan: MapPlan): CompileDiagnostic[] {
   const out: CompileDiagnostic[] = [];
-  for (const i of validatePlan(plan).issues) {
+  for (const i of validatePlan(plan, fakeRules()).issues) {
     const base = {
       stage: "verify" as const,
       message: i.message,
@@ -155,8 +156,8 @@ export function fakeCompile(
       cellRect: { x: x0, y, w: x1 - x0 + 1, h },
       pasteNote:
         i === 0
-          ? "Paste anywhere flat; this sets the corner markers."
-          : "Paste on the same corner markers as part 1.",
+          ? "Paste anywhere flat; this sets the alignment pillars."
+          : "Paste on the same alignment pillars as slab 1.",
       hasAlignmentMarkers: n > 1 || opts.alignment === "always",
       label: n === 1 ? "Whole map" : (LABELS[n]?.[i] ?? `Part ${i + 1}`),
       columns: `${colLetters(x0 - x)}–${colLetters(x1 - x)}`,
@@ -239,7 +240,7 @@ export function fakeCompile(
     instructions:
       n === 1
         ? "Paste the slab anywhere flat in build mode."
-        : "Paste every part on the same corner markers.",
+        : "Paste every slab on the same alignment pillars.",
     assetSource,
     substitutions,
     levelPlacement: placement,

@@ -2,12 +2,13 @@ import * as fsp from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { createPlanCorePort } from "../ports/core";
 import { doorPlan } from "./testing/fixtures";
-import { projectRig, type ProjectRig } from "./testing/helpers";
+import { BUNDLED_RULES, projectRig, type ProjectRig } from "./testing/helpers";
 
 /**
  * Playability findings never reject a user edit (decisions.md "Playability validation"); only blocking
- * issues do. Uses the REAL core (applyOps, validatePlan with the playability check registered).
+ * issues do. Uses the REAL core (applyOps, validatePlan with the resolver's playability check).
  */
+const realCore = () => createPlanCorePort(() => BUNDLED_RULES);
 let rig: ProjectRig | null = null;
 afterEach(async () => {
   if (rig) {
@@ -18,7 +19,7 @@ afterEach(async () => {
 });
 
 async function start(altar: [number, number]): Promise<ProjectRig> {
-  rig = await projectRig({ core: createPlanCorePort() });
+  rig = await projectRig({ core: realCore() });
   await rig.projects.create({ name: "Playability" });
   rig.projects.commitVersion({
     plan: doorPlan(altar),
@@ -33,7 +34,7 @@ const codes = (issues: Array<{ code: string }>): string[] => issues.map((i) => i
 
 describe("user edits and playability checks (real core)", () => {
   it("the fixture really has a pre-existing opening_blocked error", () => {
-    const issues = createPlanCorePort().validatePlan(doorPlan([7, 3])) ?? [];
+    const issues = realCore().validatePlan(doorPlan([7, 3]));
     expect(issues.find((i) => i.code === "opening_blocked")?.severity).toBe("error");
   });
 
@@ -47,18 +48,16 @@ describe("user edits and playability checks (real core)", () => {
     expect(res.ok).toBe(true);
     expect(res.version).toBe(2);
     expect(codes(res.issues)).toContain("opening_blocked"); // reported, not rejected
-    // Same element within 2 min: merged into v2 (UX text-edit rule); another element: new v3.
-    expect(r.projects.editText({ id: "hall", set: { notes: "Echoes." } })).toEqual({ head: 2 });
-    expect(r.projects.editText({ id: "entry", set: { name: "Porch" } })).toEqual({ head: 3 });
+    // Same element within 2 min: joins v2 as v3 (v2 is dropped; UX text-edit rule); another element: new v4.
+    expect(r.projects.editText({ id: "hall", set: { notes: "Echoes." } })).toEqual({ head: 3 });
+    expect(r.projects.editText({ id: "entry", set: { name: "Porch" } })).toEqual({ head: 4 });
     const hall = r.projects.snapshot().plan?.levels[0]?.areas.find((a) => a.id === "hall");
     expect(hall).toMatchObject({ name: "Great Hall", notes: "Echoes." });
   });
 
   it("an op that introduces a playability error is applied and reported", async () => {
     const r = await start([10, 3]);
-    expect(codes(createPlanCorePort().validatePlan(doorPlan([10, 3])) ?? [])).not.toContain(
-      "opening_blocked",
-    );
+    expect(codes(realCore().validatePlan(doorPlan([10, 3])))).not.toContain("opening_blocked");
     const res = r.projects.applyOps({
       baseVersion: 1,
       label: "Move altar",

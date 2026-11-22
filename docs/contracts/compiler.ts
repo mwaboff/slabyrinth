@@ -13,6 +13,7 @@
 import type {
   ElementId, FeatureType, Height, LevelId, LinkKind, Material, OpeningKind, Side, ThemeId, WallStyle,
 } from "./plan";
+import type { ThemeInterior } from "./resolved";
 
 // ───────────────────────────── asset catalog (generated from the install) ─────────────────────────────
 
@@ -277,6 +278,11 @@ export interface Palette {
     floor: Material;
     wallStyle: WallStyle;
     caveFloor?: Material;
+    /**
+     * Generator 4: the theme's interior character (tidy or rough rooms, stone or timber floors). Absent = inherited
+     * along `extends`, and rough stone at the end of the chain.
+     */
+    interior?: ThemeInterior;
   };
   roles: Record<RoleName, PaletteRole>;
   source?: { generatedBy?: string; generatedAt?: string; editedByUser?: boolean };
@@ -353,6 +359,22 @@ export interface PlacementSet {
   bounds: Box3;
   diagnostics: CompileDiagnostic[];
   stats: { byRole: Record<PlacementRole, number>; total: number; distinctAssets: number };
+  /**
+   * What realize knows about each placement it made, keyed by the placement object. It belongs to this set and lives
+   * as long as it: a PlacementSet stays in memory inside one compile (it never crosses IPC, is never stored and is never
+   * hashed; the ExportBundle is what leaves), so the map is not serialisable on purpose. Absent (a set built elsewhere)
+   * or without an entry (a placement added or copied after realize): readers use the placement's point and uuid.
+   */
+  placed?: Map<Placement, PlacedAsset>;
+}
+
+/** One realized placement's asset name, geometry and world box (PlacementSet.placed). */
+export interface PlacedAsset {
+  /** Display name: the palette variant's name, else the catalog's, else the uuid. */
+  name: string;
+  geom: PaletteVariant["geom"];
+  /** World AABB, tiles. The verify stage moves it with the placement when it nudges a prop. */
+  box: Box3;
 }
 
 export interface Box3 { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } }
@@ -501,6 +523,17 @@ export interface ExportBundle {
   substitutions: Array<{ role: RoleName; wanted: { uuid: string; name?: string }; used: { uuid: string; name?: string } | null; count: number }>;
   /** Per level with water: the water surface to set with TaleSpire's water tool, in tiles above the slab's base (its lowest point). */
   waterLevels?: Array<{ levelId: LevelId; aboveBase: number; min: number; max: number }>;
+  /**
+   * Multi-chunk builds of generator 4 on: where the cursor goes. TaleSpire pastes a slab at the centre of its box; every
+   * chunk shares one box, padded so that centre is the middle of a bare cell beside the map, `clearanceCells` empty cells
+   * out from the middle of its `side` edge. The far alignment pillar stands on that side too, with `farMarkerCells`
+   * empty cells between it and the map edge. The near pillar stands beyond the north-east corner with
+   * `nearMarkerCells.north` and `.east` empty cells between it and the map's north and east edges (1, and 1 or 2).
+   * Every count is of empty cells in between (core always sets `nearMarkerCells`; optional so older bundles still
+   * type). Absent for a one-chunk build, and when the padded box would leave the slab format's range (the chunks then
+   * carry the plain corner pillars).
+   */
+  pasteAnchor?: { side: "north" | "east" | "south" | "west"; clearanceCells: number; farMarkerCells: number; nearMarkerCells?: { north: number; east: number } };
   /** Per level paste placement (UX §16 builds[].levels[].placement). */
   levelPlacement: Array<{ levelId: LevelId; pasteOrder: number; kind: "ground" | "storeys-up" | "side-by-side"; storeys?: number; offsetSq?: number }>;
 }
@@ -520,6 +553,7 @@ export type CompileDiagnosticCode =
   | "landmark_short"             // a landmark / great tree / great statue resolved to an asset under 3 tiles tall
   | "thick_wall_conflict"        // mount:"inner" wall with open cells on both sides
   | "footprint_mismatch"         // asset footprint differs from feature size
+  | "secret_door_plug"           // info (generator 4): where a secret door's removable plug stands and which piece to delete to open it
   | "coord_overflow"             // map exceeds codec coordinate range
   | "chunk_oversize"             // a single cell's placements exceed the limit (cannot split)
   | "chunk_split"                // info: chunk was split adaptively
@@ -554,7 +588,8 @@ export type CompileDiagnosticCode =
   | "verify_material_substituted"
   | "verify_water_level"          // info: set TaleSpire's water level to this height above the pasted slab  // warning (liquids) / info: the 2D map shows a material or wall style the theme builds with another one
   | "verify_line_unanchored"     // warning: an overhead line end has no wall or post at its height (its pieces are then judged as floating)
-  | "verify_cliff_gap";           // warning: a natural cliff edge left to the rock band has no rock in front and no face behind
+  | "verify_cliff_gap"           // warning: a natural cliff edge left to the rock band has no rock in front and no face behind
+  | "verify_stall_uncovered";    // warning (generator 4): a covered stall the palette cannot build (a part is missing); a table stands on its footprint
 
 export interface CompileDiagnostic {
   severity: "error" | "warning" | "info";

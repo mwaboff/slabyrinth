@@ -7,6 +7,7 @@ export * from "./mask";
 export * from "./noise";
 export * from "./shapes";
 export * from "./catalog";
+export * from "./placementGrid";
 export * from "./place";
 export * from "./setpieces";
 export * from "./cliffband";

@@ -84,6 +84,11 @@ export const roleSchema = z
   );
 
 const themeId = z.string().regex(/^[a-z][a-z0-9_]{0,31}$/);
+/** Generator 4: the theme's interior character (contracts/resolved.ts ThemeInterior). */
+const themeInterior = z.object({
+  finish: z.enum(["tidy", "rough"]),
+  floorFamily: z.enum(["stone", "timber"]),
+});
 
 export const paletteSchema = z.looseObject({
   schema: z.literal("slabyrinth/palette@1"),
@@ -91,7 +96,12 @@ export const paletteSchema = z.looseObject({
   name: z.string(),
   description: z.string().optional(),
   extends: themeId.optional(),
-  defaults: z.looseObject({ floor: z.string(), wallStyle: z.string(), caveFloor: z.string().optional() }),
+  defaults: z.looseObject({
+    floor: z.string(),
+    wallStyle: z.string(),
+    caveFloor: z.string().optional(),
+    interior: themeInterior.optional(),
+  }),
   roles: z.record(z.string(), roleSchema),
   source: z
     .looseObject({
@@ -112,6 +122,7 @@ export const paletteOverrideSchema = z.looseObject({
       floor: z.string().optional(),
       wallStyle: z.string().optional(),
       caveFloor: z.string().optional(),
+      interior: themeInterior.optional(),
     })
     .optional(),
   roles: z.record(z.string(), roleSchema.nullable()),

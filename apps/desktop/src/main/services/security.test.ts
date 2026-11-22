@@ -6,13 +6,14 @@ import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { createGzip } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
-import { FIXTURE_PLAN } from "../engine/recordings";
+import { FIXTURE_PLAN } from "../fixturePlan";
 import { createHandlers, type HandlerServices } from "../ipc/handlers";
 import { createDispatcher } from "../ipc/router";
-import { requestSchemas } from "../ipc/schemas";
+import { requestSchemas } from "../../shared/schemas/ipc";
+import { settingsPatchSchema } from "../../shared/schemas/settings";
 import { memoryLogger } from "../logger";
 import { checkLocalPath } from "../util/safePath";
-import { settingsPatchSchema, SettingsStore } from "./settingsStore";
+import { SettingsStore } from "./settingsStore";
 import { projectRig, scriptedDialogs, tempDir, type ProjectRig } from "./testing/helpers";
 
 /** Review findings: key redirection, renderer-supplied paths, gzip bombs, half-applied head moves, races. */

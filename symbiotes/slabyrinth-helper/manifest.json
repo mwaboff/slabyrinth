@@ -1,0 +1,40 @@
+{
+  "manifestVersion": 1,
+  "name": "Slabyrinth Helper",
+  "summary": "Places a big Slabyrinth map in TaleSpire: puts its slabs in your hand one at a time, with hotkeys, and says what to do next.",
+  "descriptionFilePath": "/description.md",
+  "entryPoint": "/index.html",
+  "version": "0.3.0",
+  "license": "MIT",
+  "about": {
+    "website": "https://slabyrinth.aboff.com",
+    "authors": ["Michael Aboff"]
+  },
+  "controls": {
+    "reload": true
+  },
+  "api": {
+    "version": "0.1",
+    "initTimeout": 10,
+    "subscriptions": {
+      "symbiote": {
+        "onStateChangeEvent": "handleStateChange",
+        "onVisibilityEvent": "handleVisibility"
+      },
+      "slabs": {
+        "onSlabCopied": "handleSlabCopied"
+      },
+      "clients": {
+        "onClientEvent": "handleClientEvent"
+      },
+      "picking": {
+        "onPickingEvent": "handlePickingEvent"
+      }
+    }
+  },
+  "environment": {
+    "webViewBackgroundColor": "#000000",
+    "capabilities": ["runInBackground"],
+    "extras": ["colorStyles", "fonts"]
+  }
+}

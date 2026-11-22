@@ -22,9 +22,11 @@ import {
   OPENING_KINDS,
   PLAN_LIMITS,
   PLAN_SCHEMA,
+  ROOM_PURPOSES,
   STALL_KINDS,
   WALL_STYLES,
 } from "../contracts/plan";
+import { MAX_LEVEL_SIDE } from "./sizeTiers";
 
 /**
  * Bounds plan.ts leaves open; chosen by WP1 and accepted by the lead. Exported so tool descriptions can quote them.
@@ -79,7 +81,8 @@ export const heightSchema = (min: number, max: number) => z.number().multipleOf(
 const half = z.number().multipleOf(0.5).min(-UNSPECIFIED_LIMITS.coord).max(UNSPECIFIED_LIMITS.coord);
 const unit = z.number().min(0).max(1);
 const text = (max: number) => z.string().max(max);
-const side = z.int().min(1).max(PLAN_LIMITS.levelSide);
+// the largest tier’s side; the active tier’s own limit is a structural check (plan/validate.ts checkLevels)
+const side = z.int().min(1).max(MAX_LEVEL_SIDE);
 
 // ───────────────────────────── shapes ─────────────────────────────
 
@@ -197,6 +200,8 @@ export const AreaSchema = z.strictObject({
   readAloud: text(1500).exactOptional(),
   encounter: text(1000).exactOptional(),
   tags: z.array(z.string().min(1).max(24)).max(8).exactOptional(),
+  // generator 4 vocabulary (plan/generator.ts VOCABULARY.areaFields): validation refuses it below
+  purpose: z.enum(ROOM_PURPOSES).exactOptional(),
   railing: z.union([WallStyleSchema, z.literal("none")]).exactOptional(),
   broken: z.array(Vec2Schema).max(64).exactOptional(),
   crumble: z.number().min(0).max(0.6).exactOptional(),
@@ -653,6 +658,7 @@ const levelFields = {
   foundation: heightSchema(0, 4).exactOptional(),
   outline: z.enum(["natural", "rect"]).exactOptional(),
   cliffBands: z.literal(false).exactOptional(),
+  roomDress: z.literal(false).exactOptional(),
   bounds: BoundsSchema,
   base: LevelBaseSchema,
   theme: ThemeIdSchema.exactOptional(),

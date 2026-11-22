@@ -1,6 +1,8 @@
 # Contributing
 
-Read `docs/decisions.md` first, then `docs/architecture.md`. Where they disagree, `decisions.md` wins.
+Read `docs/decisions.md` first, then `docs/architecture.md`. Where they disagree, `decisions.md` wins. `CLAUDE.md`
+holds the working rules for everyone, people and coding agents alike: the checks to run, what is frozen, what never to
+do, and the checklist for adding a new kind of thing.
 
 ## Package layout
 
@@ -20,19 +22,19 @@ Shared test fixtures live in `packages/core/test/fixtures/`.
 `docs/contracts/*.ts` are the normative types. The copies are:
 
 - `packages/core/src/contracts/{plan,ops,resolved,compiler}.ts`
-- `packages/core/src/agent/tools.ts`
+- `packages/core/src/agent/toolContract.ts` (copy of `tools.ts`: the tool interface; the model-facing tool definitions are versioned code in `agent/tools.ts`)
 - `apps/desktop/src/shared/{ipc,project}.ts`
 - `apps/desktop/src/main/agent/provider/types.ts` (copy of `provider.ts`)
 
-**Contract changes go through the lead** and are recorded in `docs/decisions.md`. Edit `docs/contracts/` first, then update every copy in the same change.
+**Contract changes go through the project owner** and are recorded in `docs/decisions.md`. Edit `docs/contracts/` first, then update every copy in the same change.
 Copies must match the originals byte for byte, apart from import paths. Do not reformat or lint-fix them (they are excluded from Prettier, and three documentation-style lint rules are off for them).
 
 ## Dependencies
 
 There is one lockfile for all workspaces. Add a dependency with `npm install <pkg> -w <workspace> --save-exact` and say why in the pull request.
 
-## Rules enforced by tooling
+## Style
 
-- `packages/core/src/**` must not import `electron`, `react` or Node built-ins, except in `src/cli/` (ESLint `no-restricted-imports`; core's tsconfig has no DOM or Node types).
-- Renderer colours, fonts, radii and shadows come only from theme tokens in `apps/desktop/src/renderer/styles/tokens.css`.
-- Before a pull request: `npm run lint && npm run typecheck && npm test && npm run build`.
+Renderer colours, fonts, radii and shadows come only from theme tokens in `apps/desktop/src/renderer/styles/tokens.css`.
+Everything else the tooling enforces is in `eslint.config.js` (each guard's message says what to do instead) and the
+tests; run the checks listed in `CLAUDE.md` before a pull request.

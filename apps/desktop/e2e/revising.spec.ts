@@ -101,7 +101,8 @@ test("a revision in progress shows in the chat, stepper, map, status bar and Sto
     ).toHaveCount(1);
 
     await shot(page, "revising-dark.png");
-    await page.getByRole("button", { name: /^Theme:/ }).click();
+    // the default theme follows the system: switching the system scheme switches the app
+    await page.emulateMedia({ colorScheme: "light" });
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
     await shot(page, "revising-light.png");
 

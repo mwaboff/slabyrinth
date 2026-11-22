@@ -11,7 +11,7 @@
  */
 import type {
   AreaId, AreaKind, BridgeSpan, ElementId, FeatureType, Height, LevelId, LinkKind, Material, OpeningKind,
-  PlanIssue, Rotation, Side, ThemeId, Vec2, WallStyle,
+  PlanIssue, RoomPurpose, Rotation, Side, ThemeId, Vec2, WallStyle,
 } from "./plan";
 
 /** Cell occupancy. */
@@ -77,6 +77,38 @@ export interface ResolvedArea {
   notes?: string;
   /** Area.labelAt: cell where the key badge is drawn (absent = the renderer picks a free cell near `anchor`). */
   labelAt?: Vec2;
+  /**
+   * Generator 4: what the area is for: the plan's Area.purpose, else read once by the resolver from its name, tags and
+   * notes (gen/roomPurpose.ts classifyRoom). Absent = neither names a purpose. Compile and review read this field;
+   * they never parse words.
+   */
+  purpose?: RoomPurpose;
+  /** Generator 4: nobody keeps the place up (a crypt, cells, a ruin, or words like ruined or derelict). Absent = false. */
+  abandoned?: boolean;
+  /**
+   * Generator 4: what the area is built as, from its theme's interior character (ThemeInterior): "tidy" (a built
+   * timber or plaster interior: the solid between rooms is the building's own walls, closed by their tops) or "rough"
+   * (old stone carved into a mass: an earth cap and skirt round it). The room's condition never changes it: an
+   * abandoned room gets the rough dressing (uneven and broken wall tops, rubble at the wall foot) whatever its finish,
+   * but its walls stay what they are built of.
+   */
+  finish?: InteriorFinish;
+}
+
+/** What a room is for (generator 4): the plan contract's list (Area.purpose), re-exported for readers of this one. */
+export type { RoomPurpose } from "./plan";
+
+/** How an interior is kept (generator 4): see ResolvedArea.finish. */
+export type InteriorFinish = "tidy" | "rough";
+/** The floors the rooms of an interior vary within (generator 4): stone and earth, or wood with a few domestic tiles. */
+export type FloorFamily = "stone" | "timber";
+/**
+ * The interior character of a theme (generator 4): data on the theme (Palette.defaults.interior, mirrored for the
+ * built-in themes in resolve/themes.ts), so a new theme declares it and no code lists theme names.
+ */
+export interface ThemeInterior {
+  finish: InteriorFinish;
+  floorFamily: FloorFamily;
 }
 
 export interface ResolvedOpening {
@@ -123,6 +155,30 @@ export interface ResolvedFeature {
   blocking: boolean;        // from feature catalog (rug=false, table=true…)
   /** GM-only (traps, hidden features): hidden in the player view and player PNG export. Absent = false. */
   gmOnly?: boolean;
+  /** Generator 4: a built market stall (type "stall" only). Absent = the generator-3 single table. */
+  stall?: StallBuild;
+}
+
+/** How a covered market stall is built (generator 4): the shell the realizer turns into base, counters, posts, canopy. */
+export type StallForm = "gable" | "flat";
+export interface StallBuild {
+  form: StallForm;
+  /** Side of the footprint the customer stands on (the lane side); the stall's rot says the same. */
+  front: Side;
+  /** Footprint in the stall's own frame: `w` cells along the front, `d` cells deep (front row = depth 0). */
+  w: number;
+  d: number;
+  /** Index along the front row with no counter (a walk-in gap), or -1 when counters run the whole front. */
+  gap: number;
+  /** Counters down both sides (needs w >= 3, d >= 3) and across the back (d >= 3). */
+  sides: boolean;
+  back: boolean;
+  /** Local cell [along, depth] of the seat, absent for none. */
+  seat?: [number, number];
+  /** A lantern hangs under the canopy at the front. */
+  light: boolean;
+  /** The size name the layout drew (small, medium, large, long, mini). */
+  size: string;
 }
 
 /**
@@ -494,6 +550,11 @@ export interface ResolvedStructure {
    * cell; a partly covered run-2 slope becomes one-cell slopes), instead of one roof cutting through the other.
    */
   valleys?: boolean;
+  /**
+   * Generator 4: no roof cell is left open. A kit with no ridge cap piece borrows another kit's cap for the ridge row of
+   * an odd span (it was a bare strip along the whole ridge, with the deck or the wall showing through).
+   */
+  roofFill?: boolean;
   /** Variety seed actually used (build-time choices hash it). */
   seed?: number;
 }

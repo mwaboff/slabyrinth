@@ -6,15 +6,14 @@
 import { describe, expect, it } from "vitest";
 import type { Area, Level, MapPlan, PlanIssue, TerrainOp } from "../../../src/contracts/plan";
 import { CELL, CELL_FLAG, EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
-import { compileResolved, placementMeta, realize, verifyBuild } from "../../../src/compile";
-import { createRoleResolver, loadPalettes } from "../../../src/palette";
+import { compileResolved, placedName, realize, verifyBuild } from "../../../src/compile";
+import { bundledPalettes, createRoleResolver, loadPalettes } from "../../../src/palette";
 import { checkPlayability, resolvePlan } from "../../../src/resolve";
 import { asciiView } from "../../../src/text";
 import { buildDisplayList, DEFAULT_DISPLAY_OPTIONS, legendEntries } from "../../../src/render";
 import { slabCodec } from "../../../src/slab";
 import { boxFill, longestStraight, squareCorners } from "./shapeMetrics";
-import { placementBoxes } from "../../../src/compile";
-import { validatePlan } from "../../../src/plan";
+import { STRUCTURE_ONLY, validatePlan } from "../../../src/plan";
 
 const cat = loadPalettes();
 
@@ -65,11 +64,11 @@ const chasm = (extra: Partial<Extract<TerrainOp, { op: "chasm" }>> = {}): Terrai
   floor: "lava",
   ...extra,
 });
-const L0 = (p: MapPlan): ResolvedLevel => resolvePlan(p).levels[0] as ResolvedLevel;
+const L0 = (p: MapPlan): ResolvedLevel => resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
 const at = (l: ResolvedLevel, x: number, y: number): number =>
   (y - l.bounds.y) * l.bounds.w + (x - l.bounds.x);
 const issues = (p: MapPlan, code: string): PlanIssue[] =>
-  resolvePlan(p).issues.filter((i) => i.code === code);
+  resolvePlan(p, bundledPalettes()).issues.filter((i) => i.code === code);
 
 /** The owner's first plan, reduced: a crevice as an under-layer height op on a solid level. */
 const crevicePlan = (generator: 1 | 2): MapPlan =>
@@ -116,8 +115,8 @@ describe("under-layer height ops", () => {
     expect(issues(p, "no_effect")[0]?.message).toMatch(/overridden everywhere/);
   });
   it("new plans are generator 2 and old ones still validate", () => {
-    expect(validatePlan(crevicePlan(1)).ok).toBe(true);
-    expect(validatePlan(crevicePlan(2)).ok).toBe(true);
+    expect(validatePlan(crevicePlan(1), STRUCTURE_ONLY).ok).toBe(true);
+    expect(validatePlan(crevicePlan(2), STRUCTURE_ONLY).ok).toBe(true);
   });
 });
 
@@ -197,7 +196,7 @@ describe("chasm op", () => {
     }
     // solid ring stays solid
     expect(l.cells.state[at(l, 15, 0)]).toBe(CELL.SOLID);
-    expect(resolvePlan(p).hash).toBe(resolvePlan(p).hash);
+    expect(resolvePlan(p, bundledPalettes()).hash).toBe(resolvePlan(p, bundledPalettes()).hash);
     // rows differ in where the trench starts (it meanders / its banks wander)
     const starts = new Set<number>();
     for (let y = 1; y < 17; y++) {
@@ -218,7 +217,7 @@ describe("chasm op", () => {
       ],
       terrain: [chasm()],
     });
-    const codes = checkPlayability(pp, resolvePlan(pp)).map((i) => i.code);
+    const codes = checkPlayability(pp, resolvePlan(pp, bundledPalettes())).map((i) => i.code);
     expect(codes).toContain("unreachable");
   });
   it("a chasm through rock only cuts nothing and says so", () => {
@@ -239,7 +238,7 @@ describe("bridges", () => {
     ],
     terrain: [chasm({ bridges: [{ at: 0.5, width: 2, crumble: 0.3 }] })],
   });
-  const r = resolvePlan(p);
+  const r = resolvePlan(p, bundledPalettes());
   const l = r.levels[0] as ResolvedLevel;
   const b = l.bridges?.[0];
   it("lays a deck at rim height over open air, keeping the lava beneath, with railings and crumbled cells", () => {
@@ -326,7 +325,7 @@ describe("build: cliffs, decks, lava, cave walls at the bounds", () => {
     areas: [cave({ shape: { type: "rect", x: 0, y: 0, w: 32, h: 18 } })],
     terrain: [chasm({ bridges: [{ at: 0.5, width: 2, span: "flat" }] })],
   });
-  const r = resolvePlan(p);
+  const r = resolvePlan(p, bundledPalettes());
   const l = r.levels[0] as ResolvedLevel;
   const set = realize(r, cat);
   // the flat span's piers are the only thing allowed under its deck
@@ -370,7 +369,7 @@ describe("build: cliffs, decks, lava, cave walls at the bounds", () => {
     expect(
       Math.min(...[...ledges, ...pl.filter((q) => q.role === "fill")].map((q) => q.y)),
     ).toBeGreaterThanOrEqual(-3);
-    expect(ledges.every((q) => /Cave Wall/.test(placementMeta.get(q)?.name ?? ""))).toBe(true);
+    expect(ledges.every((q) => /Cave Wall/.test(placedName(set, q)))).toBe(true);
   });
   it("bridge cells: deck tile at 0, lava below at -3, nothing in between", () => {
     const cells = l.bridges?.[0]?.cells ?? [];
@@ -429,7 +428,7 @@ describe("2D preview and ASCII show depth", () => {
     areas: [cave()],
     terrain: [chasm({ bridges: [{ at: 0.5, width: 2, crumble: 0.25 }] })],
   });
-  const r = resolvePlan(p);
+  const r = resolvePlan(p, bundledPalettes());
   const l = r.levels[0] as ResolvedLevel;
   it("display list: graded depth tint, cliff segments with the low side on the right, a bridge overlay", () => {
     const list = buildDisplayList(l, DEFAULT_DISPLAY_OPTIONS);
@@ -488,7 +487,7 @@ describe("structure: platforms, stairs, uneven ground, outcrops", () => {
       },
     ],
   });
-  const r = resolvePlan(p);
+  const r = resolvePlan(p, bundledPalettes());
   const l = r.levels[0] as ResolvedLevel;
   it("a three-tier dais: rings 0.5 apart, top at 1.5, stair edges on the requested side", () => {
     expect(l.cells.height[at(l, 8, 9)]).toBe(6);
@@ -504,7 +503,7 @@ describe("structure: platforms, stairs, uneven ground, outcrops", () => {
     const steps = (set.levels[0]?.placements ?? []).filter((q) => q.source.elementId === "steps");
     // the terrace's 1-tile rise gets a stair piece; the dais's 0.5 rises get half-height step pieces (step.*)
     // natural ground climbs on rock or earth steps (link.stairs.natural: bg_stairs_01 in a cave), named in lower case
-    const stairs = steps.filter((q) => /stairs/i.test(placementMeta.get(q)?.name ?? ""));
+    const stairs = steps.filter((q) => /stairs/i.test(placedName(set, q)));
     expect(stairs.length).toBe(2);
     for (const q of stairs) expect(q.y).toBeCloseTo(0.5);
     expect(steps.length).toBeGreaterThan(stairs.length);
@@ -621,7 +620,7 @@ describe("generality: an open-air hillside (no walls) with a plateau, a stream a
       },
     ],
   };
-  const r = resolvePlan(p);
+  const r = resolvePlan(p, bundledPalettes());
   const l = r.levels[0] as ResolvedLevel;
   it("the plateau stays high against the map edge and steps down toward the lowland", () => {
     expect(l.cells.height[at(l, 10, 0)]).toBe(12);
@@ -662,7 +661,7 @@ describe("generality: an open-air hillside (no walls) with a plateau, a stream a
   });
 });
 
-describe("round 3: water, mouths, paths, raised decks, risers", () => {
+describe("water, mouths, paths, raised decks, risers", () => {
   const brook = (): MapPlan => ({
     ...plan({}),
     theme: "outdoor",
@@ -709,7 +708,7 @@ describe("round 3: water, mouths, paths, raised decks, risers", () => {
     ],
   });
   const p = brook();
-  const r = resolvePlan(p);
+  const r = resolvePlan(p, bundledPalettes());
   const l = r.levels[0] as ResolvedLevel;
   const set = realize(r, cat);
   const pl = set.levels[0]?.placements ?? [];
@@ -724,7 +723,7 @@ describe("round 3: water, mouths, paths, raised decks, risers", () => {
       const here = pl.filter((q) => q.source.cell?.[0] === x && q.source.cell[1] === y && q.role === "floor");
       expect(here.some((q) => q.source.elementId === "bed")).toBe(true);
     }
-    const tempWater = pl.filter((q) => /tempWater/i.test(placementMeta.get(q)?.name ?? ""));
+    const tempWater = pl.filter((q) => /tempWater/i.test(placedName(set, q)));
     expect(tempWater).toEqual([]);
   });
   it("every open cell with a floor has a floor surface in the build", () => {
@@ -793,7 +792,7 @@ describe("round 3: water, mouths, paths, raised decks, risers", () => {
         },
       ],
     });
-    const rq = resolvePlan(q);
+    const rq = resolvePlan(q, bundledPalettes());
     const fills = (realize(rq, cat).levels[0]?.placements ?? []).filter((x) => x.role === "fill");
     expect(fills.length).toBeGreaterThan(0);
     const floorRock = new Set(
@@ -814,7 +813,7 @@ describe("round 3: water, mouths, paths, raised decks, risers", () => {
       areas: [cave({ shape: { type: "rect", x: 0, y: 0, w: 32, h: 18 } })],
       terrain: [chasm()],
     });
-    const rq = resolvePlan(q);
+    const rq = resolvePlan(q, bundledPalettes());
     const lq = rq.levels[0] as ResolvedLevel;
     expect(lq.cells.height[at(lq, 15, 0)]).toBeLessThan(0);
     const walls = (realize(rq, cat).levels[0]?.placements ?? []).filter((x) => x.role === "wall");
@@ -830,7 +829,7 @@ describe("round 3: water, mouths, paths, raised decks, risers", () => {
   });
 });
 
-describe("round 4: winding paths, intermittent kerbs, ragged ground, watchtower stairs", () => {
+describe("winding paths, intermittent kerbs, ragged ground, watchtower stairs", () => {
   const meadow = (terrain: TerrainOp[], areas: Area[] = []): MapPlan => ({
     ...plan({}),
     theme: "outdoor",
@@ -912,7 +911,7 @@ describe("round 4: winding paths, intermittent kerbs, ragged ground, watchtower 
         kerb: true,
       },
     ]);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const l = r.levels[0] as ResolvedLevel;
     const edges = pathCells(l).length * 2;
     expect(l.kerbs?.length ?? 0).toBeGreaterThan(0);
@@ -921,7 +920,7 @@ describe("round 4: winding paths, intermittent kerbs, ragged ground, watchtower 
     const kerbs = (set.levels[0]?.placements ?? []).filter((q) => q.source.elementId === "kerb");
     const hg = 20;
     for (const q of kerbs) {
-      const b = placementBoxes.get(q);
+      const b = set.placed.get(q)?.box;
       if (!b) continue;
       const cx = Math.floor((b.min.x + b.max.x) / 2);
       const cy = Math.floor(hg - (b.min.z + b.max.z) / 2);
@@ -1005,7 +1004,7 @@ describe("round 4: winding paths, intermittent kerbs, ragged ground, watchtower 
         },
       ],
     );
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     expect(issues(p, "bridge_unanchored")).toEqual([]);
     const codes = checkPlayability(p, r).map((i) => i.code);
     expect(codes).not.toContain("area_sealed");
@@ -1015,7 +1014,7 @@ describe("round 4: winding paths, intermittent kerbs, ragged ground, watchtower 
   });
 });
 
-describe("round 5: winding trails, organic tiers, fitting steps, cracked rifts", () => {
+describe("winding trails, organic tiers, fitting steps, cracked rifts", () => {
   const open = (terrain: TerrainOp[], seed = 1): MapPlan => ({
     ...plan({}),
     seed,
@@ -1195,9 +1194,10 @@ describe("round 5: winding trails, organic tiers, fitting steps, cracked rifts",
       },
       { id: "up", op: "stairs", from: [6, 10], to: [6, 5], width: 2 },
     ]);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const l = r.levels[0] as ResolvedLevel;
-    const steps = (realize(r, cat).levels[0]?.placements ?? []).filter((q) => q.source.elementId === "steps");
+    const set = realize(r, cat);
+    const steps = (set.levels[0]?.placements ?? []).filter((q) => q.source.elementId === "steps");
     for (const q of steps) {
       const [x, y] = q.source.cell ?? [0, 0];
       const upper = Math.max(
@@ -1209,7 +1209,7 @@ describe("round 5: winding trails, organic tiers, fitting steps, cracked rifts",
         ].map(([nx, ny]) => (l.cells.height[at(l, nx as number, ny as number)] as number) / 4),
       );
       // the step's top never stands above the floor it climbs to
-      expect(q.y + (placementMeta.get(q)?.geom.size.y ?? 0)).toBeLessThanOrEqual(upper + 0.5 + 0.01);
+      expect(q.y + (set.placed.get(q)?.geom.size.y ?? 0)).toBeLessThanOrEqual(upper + 0.5 + 0.01);
     }
   });
   it("a default rift reads as a crack: width 2..6+, pinched ends, ledges part-way down", () => {
@@ -1254,7 +1254,7 @@ describe("round 5: winding trails, organic tiers, fitting steps, cracked rifts",
     const l = L0(p);
     const label = buildDisplayList(l, DEFAULT_DISPLAY_OPTIONS).items.find((i) => i.ref === "water-level");
     expect(label?.text?.value).toMatch(/above the slab bottom/);
-    const bundle = compileResolved(resolvePlan(p), cat, slabCodec, { plan: p });
+    const bundle = compileResolved(resolvePlan(p, bundledPalettes()), cat, slabCodec, { plan: p });
     const figure = bundle.waterLevels?.[0]?.aboveBase;
     expect(label?.text?.value).toContain(String(figure));
   });

@@ -204,7 +204,8 @@ describe("AnthropicProvider.runStep (mocked SDK stream)", () => {
     expect(result.stopReason).toBe("refusal");
     expect(result.refusal).toEqual({ category: "cyber", explanation: "policy" });
     expect(result.assistant?.excludedFromContext).toBe(true);
-    expect(events.some((e) => e.type === "notice" && e.kind === "refusal")).toBe(true);
+    // the notice about how the turn ended is the engine's alone
+    expect(events.some((e) => e.type === "notice" && e.kind === "refusal")).toBe(false);
   });
 
   it("refusal before any output yields no assistant item", async () => {

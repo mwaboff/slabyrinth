@@ -2,11 +2,11 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, nativeImage } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, nativeImage } from "electron";
 import { createAppServices, type AppServices } from "./app";
 import { windowIconPath } from "./appIcon";
 import { APP_ID } from "./appIdentity";
-import { FIXTURE_PLAN } from "./engine/recordings";
+import { FIXTURE_PLAN } from "./fixturePlan";
 import { createFileLogger } from "./logger";
 import { makeAppPaths } from "./paths";
 import { installSecurityPolicy } from "./security";
@@ -39,9 +39,9 @@ const paths = makeAppPaths({
 /** The main-only `debugLogging` feature flag (settings.json "x-featureFlags"), read before the logger exists. */
 function debugLoggingFlag(): boolean {
   try {
-    const raw = JSON.parse(fs.readFileSync(paths.settingsFile, "utf8")) as {
-      "x-featureFlags"?: { debugLogging?: unknown };
-    };
+    const raw = JSON.parse(fs.readFileSync(paths.settingsFile, "utf8")) as Partial<
+      Record<"x-featureFlags", Partial<Record<"debugLogging", unknown>> | null>
+    >;
     return raw["x-featureFlags"]?.debugLogging === true;
   } catch {
     return false;
@@ -76,6 +76,15 @@ process.on("uncaughtException", (err) => {
 process.on("unhandledRejection", (reason) => {
   logger.error("unhandled rejection", { error: reason });
 });
+
+/**
+ * The bundled TaleSpire add-on: electron-builder's extraResources in a packaged app; in development and test builds
+ * the repo's own folder (out/main/index.js and out-test/main/index.js are four levels below the repo root).
+ */
+function addonDir(): string {
+  if (app.isPackaged) return path.join(process.resourcesPath, "slabyrinth-helper");
+  return fileURLToPath(new URL("../../../../symbiotes/slabyrinth-helper", import.meta.url));
+}
 
 function projectArg(argv: string[]): string | null {
   for (const a of argv.slice(1)) {
@@ -119,7 +128,14 @@ if (!app.requestSingleInstanceLock()) {
         platform: process.platform,
         safeMode,
       });
-      services = await createAppServices({ paths, logger, isDev, safeMode, appVersion });
+      services = await createAppServices({
+        paths,
+        logger,
+        isDev,
+        safeMode,
+        appVersion,
+        addonDir: addonDir(),
+      });
       const s = services;
       const win = createMainWindow({
         show: !hidden,
@@ -161,10 +177,10 @@ if (!app.requestSingleInstanceLock()) {
       if (smoke) {
         runSmoke(win, [
           () => {
-            const line = `engine=${s.engineKind} compile=${s.compiler.backend}`;
-            // A packaged build must run the real conversation engine and the real compiler.
-            if (app.isPackaged && (s.engineKind !== "real" || s.compiler.backend !== "core"))
-              throw new Error(`packaged build is not wired to the real engine/compiler (${line})`);
+            // the compiler is always core's (the only backend); the engine must be the real one
+            const line = `engine=${s.engineKind} compile=core`;
+            if (app.isPackaged && s.engineKind !== "real")
+              throw new Error(`packaged build is not wired to the real engine (${line})`);
             return Promise.resolve(line);
           },
           () => {
@@ -210,8 +226,12 @@ if (!app.requestSingleInstanceLock()) {
             return Promise.resolve(`test-code=absent (${String(files.length)} main files checked)`);
           },
           async () => {
+            // The TaleSpire add-on ships with the app (extraResources) and its manifest reads.
+            const a = await s.link.addonStatus();
+            return `addon=${a.bundledVersion} link=${s.link.linkStatus().server.state}`;
+          },
+          async () => {
             // Proves the compile worker loads from the packaged app (asar).
-            if (s.compiler.backend === "none") return "worker=skipped (no compiler)";
             const est = await s.build.estimate(FIXTURE_PLAN);
             return `worker=ok estimate.levels=${String(est.perLevel.length)}`;
           },
@@ -250,6 +270,11 @@ if (!app.requestSingleInstanceLock()) {
         logger.info("stopped");
         app.quit();
       });
+  });
+
+  // the add-on link's hotkeys are released on shutdown; this also covers a quit that skips it
+  app.on("will-quit", () => {
+    if (!safeMode) globalShortcut.unregisterAll();
   });
 
   app.on("window-all-closed", () => {

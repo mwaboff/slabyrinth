@@ -1,88 +1,60 @@
-import { applyOps, diffPlans, isBlocking, migrateProject, splitIssues, validatePlan } from "@slabyrinth/core";
-import type { ApplyOps, DiffPlans, MapPlan, PlanIssue } from "@slabyrinth/core";
-// (The root entry also registers the resolver's geometric checks that validatePlan runs.)
+import { applyOps, diffPlans, gateApplied, migrateProject, validatePlan } from "@slabyrinth/core";
+import type { ApplyOps, DiffPlans, MapPlan, PlanIssue, PlanRules } from "@slabyrinth/core";
 
 /**
- * Narrow port onto @slabyrinth/core's plan functions, injected into ProjectService so service
- * tests can substitute doubles. Production always uses the real core functions.
+ * Narrow port onto @slabyrinth/core's plan functions, injected into ProjectService. Production and the service tests
+ * use the real core functions, with the rules of the palettes the app builds with (core
+ * `planRules(buildPalettes.current())`); a test may replace the validator or the migration to steer a case.
  */
 export interface PlanCorePort {
   /**
-   * Applies ops WITHOUT validating the result (op errors still fail). Used for history replay, where
-   * newer checks must not make old versions unreadable. null only in tests that exercise "no plan
-   * engine" behaviour (UI edits refused with "unsupported").
+   * The current plan rules (the resolver's checks and the materialize generator for the build
+   * palettes). History replay takes them: an op that removes generated features by their shown id
+   * materializes them first.
    */
-  readonly applyOps: ApplyOps | null;
+  rules(): PlanRules;
   /**
-   * Applies ops for an EDIT, with the same split as the agent's executor (decisions.md "Playability
-   * validation"): apply without validation, validate the result, reject (nothing changes) only on
-   * blocking issues (core `isBlocking`: error severity outside the playability codes). On success,
-   * `issues` holds every non-blocking issue of the new plan, playability errors included, so the
-   * renderer can show them. null when applyOps is null.
+   * Applies ops WITHOUT validating the result (op errors still fail). Used for history replay, where
+   * newer checks must not make old versions unreadable.
    */
-  readonly applyChecked: ApplyOps | null;
-  /** Validation issues; null when a test double provides no validator. */
-  validatePlan(plan: MapPlan): PlanIssue[] | null;
+  readonly applyOps: ApplyOps;
+  /**
+   * Applies ops for an EDIT through core's edit gate (`applyChecked`, the same one the model's edit_plan passes):
+   * rejected (nothing changes) only on what blocks an edit; on success `issues` holds every non-blocking issue of the
+   * new plan, playability errors included, so the renderer can show them.
+   */
+  readonly applyChecked: ApplyOps;
+  /** Every issue of a plan, for the gates (core `planGate`). */
+  validatePlan(plan: MapPlan): PlanIssue[];
   diffPlans: DiffPlans;
   /** Upgrades an older project JSON to the current format; null when it can't be migrated. */
   migrateProject(json: unknown): unknown;
 }
 
-type Override<F> = F | null;
-
-/** Test doubles: a function replaces the core one, `null` removes it; absent keys use core. */
+/** Test doubles: a function replaces the core one; absent keys use core. */
 export interface PlanCoreOverrides {
-  applyOps?: Override<ApplyOps>;
-  validatePlan?: Override<(plan: MapPlan) => unknown>;
-  migrateProject?: Override<(json: unknown) => unknown>;
+  validatePlan?: (plan: MapPlan) => PlanIssue[];
+  migrateProject?: (json: unknown) => unknown;
 }
 
-export function createPlanCorePort(overrides: PlanCoreOverrides = {}): PlanCorePort {
-  const apply: ApplyOps | null =
-    overrides.applyOps === undefined
-      ? (plan, ops) => applyOps(plan, ops, { validate: false })
-      : overrides.applyOps;
+/** `rules`: asked at each call, since the build palettes change (user palettes, the game's assets). */
+export function createPlanCorePort(rules: () => PlanRules, overrides: PlanCoreOverrides = {}): PlanCorePort {
   const validate =
-    overrides.validatePlan === undefined
-      ? (plan: MapPlan): unknown => validatePlan(plan)
-      : overrides.validatePlan;
+    overrides.validatePlan ?? ((plan: MapPlan): PlanIssue[] => validatePlan(plan, rules()).issues);
   const migrate =
-    overrides.migrateProject === undefined
-      ? (json: unknown): unknown => migrateProject(json)
-      : overrides.migrateProject;
-  const validateIssues = (plan: MapPlan): PlanIssue[] | null => {
-    if (!validate) return null;
-    const r = validate(plan);
-    if (Array.isArray(r)) return r as PlanIssue[];
-    if (typeof r === "object" && r !== null && Array.isArray((r as { issues?: unknown }).issues)) {
-      return (r as { issues: PlanIssue[] }).issues;
-    }
-    return null;
-  };
-  const applyChecked: ApplyOps | null = apply
-    ? (plan, ops) => {
-        const r = apply(plan, ops);
-        if (!r.ok) return r;
-        const issues = validateIssues(r.plan) ?? r.issues;
-        const { blocking } = splitIssues(issues);
-        if (blocking.length > 0) return { ok: false, opErrors: [], issues: blocking };
-        return { ...r, issues: issues.filter((i) => !isBlocking(i)) };
-      }
-    : null;
+    overrides.migrateProject ??
+    ((json: unknown): unknown => {
+      const r = migrateProject(json);
+      return r.ok ? r.project : null;
+    });
+  const apply: ApplyOps = (plan, ops) => applyOps(plan, ops, rules(), { validate: false });
   return {
+    rules,
     applyOps: apply,
-    applyChecked,
-    validatePlan: validateIssues,
+    // core applyChecked, with this port's validator (the same one unless a test replaced it)
+    applyChecked: (plan, ops) => gateApplied(apply(plan, ops), validate),
+    validatePlan: validate,
     diffPlans: (before, after) => diffPlans(before, after),
-    migrateProject(json) {
-      if (!migrate) return null;
-      const r = migrate(json);
-      // core returns { ok, project } (MigrateProjectResult); test doubles may return a bare object.
-      if (typeof r === "object" && r !== null && "ok" in r) {
-        const res = r as { ok: boolean; project?: unknown };
-        return res.ok ? (res.project ?? null) : null;
-      }
-      return r ?? null;
-    },
+    migrateProject: (json) => migrate(json) ?? null,
   };
 }

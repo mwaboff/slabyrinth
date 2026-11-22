@@ -2,8 +2,8 @@ import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { gzipSync } from "node:zlib";
-import { afterEach, describe, expect, it } from "vitest";
-import { FIXTURE_PLAN } from "../engine/recordings";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { FIXTURE_PLAN } from "../fixturePlan";
 import { corePort, projectRig, type ProjectRig } from "./testing/helpers";
 import { sanitizeFileName } from "./projectService";
 
@@ -79,6 +79,25 @@ describe("ProjectService: files", () => {
     expect(reopened?.pngExport).toEqual(png);
   });
 
+  it("view state from the renderer lands only in the project the renderer was handed", async () => {
+    rig = await projectRig();
+    const a = rig.projects.handedToRenderer(await rig.projects.create({ name: "A" }));
+    rig.projects.setUiStateFromRenderer({ ui: { zoom: 2 } });
+    expect(rig.projects.getProject()?.ui.zoom).toBe(2);
+    // main opens B on its own (a file opened from the OS): the renderer still shows A, its save is dropped
+    const b = await rig.projects.create({ name: "B" });
+    rig.projects.setUiStateFromRenderer({ ui: { zoom: 5 } });
+    expect(rig.projects.getProject()?.ui.zoom).not.toBe(5);
+    // once the renderer has B's snapshot, its saves are B's
+    rig.projects.handedToRenderer(rig.projects.snapshot());
+    rig.projects.setUiStateFromRenderer({ ui: { zoom: 3 } });
+    expect(rig.projects.getProject()?.ui.zoom).toBe(3);
+    await rig.projects.close({});
+    const reopenedA = await rig.projects.open({ path: a.filePath as string });
+    expect(reopenedA?.ui).toMatchObject({ zoom: 2 });
+    expect(b.projectId).not.toBe(a.projectId);
+  });
+
   it("starts a new project's brief with the default game system from settings", async () => {
     rig = await projectRig();
     expect((await rig.projects.create({ name: "No system" })).brief.system).toBeUndefined();
@@ -96,9 +115,10 @@ describe("ProjectService: files", () => {
     const snap = await rig.projects.create({ name: "Autosave" });
     rig.projects.updateBrief({ tone: "eerie" });
     expect(rig.projects.snapshot().dirty).toBe(true);
-    await new Promise((r) => setTimeout(r, 120));
-    await rig.projects.flush();
-    expect(rig.projects.snapshot().dirty).toBe(false);
+    // the debounced autosave cleans the project on its own (no flush): wait for that, not for a fixed time
+    await vi.waitFor(() => {
+      expect(rig?.projects.snapshot().dirty).toBe(false);
+    });
     const file = await read(snap.filePath as string);
     expect((file["brief"] as Record<string, unknown>)["tone"]).toEqual({ value: "eerie", source: "user" });
     const changes = rig.emit.events
@@ -296,8 +316,8 @@ describe("ProjectService: files", () => {
 });
 
 describe("ProjectService: plan history", () => {
-  const setup = async (applyOps = true): Promise<ProjectRig> => {
-    rig = await projectRig({ core: corePort({ applyOps }) });
+  const setup = async (): Promise<ProjectRig> => {
+    rig = await projectRig({ core: corePort() });
     await rig.projects.create({ name: "History" });
     rig.projects.commitVersion({
       plan: FIXTURE_PLAN,
@@ -357,26 +377,68 @@ describe("ProjectService: plan history", () => {
     expect(() => r.projects.undo()).toThrow(/first version/);
   });
 
-  it("merges text edits of the same element within 2 minutes into one version", async () => {
+  it("joins text edits of the same element within 2 minutes into one version, under a new number", async () => {
     const r = await setup();
     expect(r.projects.editText({ id: "entry", set: { notes: "A" } })).toEqual({ head: 2 });
-    expect(r.projects.editText({ id: "entry", set: { name: "Hall" } })).toEqual({ head: 2 });
-    expect(r.projects.editText({ id: "tomb", set: { notes: "B" } })).toEqual({ head: 3 });
-    const entry = r.projects.getVersion(2).levels[0]?.areas.find((a) => a.id === "entry");
+    expect(r.projects.editText({ id: "entry", set: { name: "Hall" } })).toEqual({ head: 3 });
+    expect(r.projects.editText({ id: "tomb", set: { notes: "B" } })).toEqual({ head: 4 });
+    const entry = r.projects.getVersion(3).levels[0]?.areas.find((a) => a.id === "entry");
     expect(entry).toMatchObject({ notes: "A", name: "Hall" });
+    expect(r.projects.snapshot().versions.map((v) => [v.number, v.parentNumber])).toEqual([
+      [1, 0],
+      [3, 1],
+      [4, 3],
+    ]);
+    expect(() => r.projects.getVersion(2)).toThrow(/doesn't exist/);
     expect(() => r.projects.editText({ id: "entry", set: { shape: "x" } })).toThrow(/text field/);
+    // every content change is announced under a number the renderer has not seen before
+    const heads = r.emit.events
+      .filter((e) => e.channel === "plan:changed")
+      .map((e) => (e.payload as { head: number }).head);
+    expect(new Set(heads).size).toBe(heads.length);
   });
 
-  // History storage (keyframes, replay) is core's (services/history.ts delegates to @slabyrinth/core/history),
-  // so it no longer depends on the injected applyOps port; only UI op edits are refused without it.
-  it("works without the core applyOps port: UI ops refused, text edits still apply and undo", async () => {
-    const r = await setup(false);
-    expect(() => r.projects.applyOps({ baseVersion: 1, label: "x", ops: [{ op: "renumber" }] })).toThrow(
-      expect.objectContaining({ code: "unsupported" }) as Error,
-    );
-    expect(r.projects.editText({ id: "tomb", set: { notes: "fallback" } })).toEqual({ head: 2 });
-    r.projects.undo();
-    expect(r.projects.snapshot().plan?.levels[0]?.areas.find((a) => a.id === "tomb")?.notes).toBeUndefined();
+  it("loads files saved before and after versions stopped being rewritten (contiguous numbers, and gaps)", async () => {
+    const r = await setup();
+    r.projects.editText({ id: "entry", set: { notes: "A" } });
+    r.projects.editText({ id: "entry", set: { name: "Hall" } }); // joins: v3 in place of v2
+    const file = r.projects.filePath as string;
+    await r.projects.close({});
+    // a file with a gap in its numbers (this version's shape) opens as it was saved
+    const withGap = await r.projects.open({ path: file });
+    expect(withGap?.head).toBe(3);
+    expect(withGap?.versions.map((v) => v.number)).toEqual([1, 3]);
+    expect(withGap?.plan?.levels[0]?.areas.find((a) => a.id === "entry")).toMatchObject({
+      notes: "A",
+      name: "Hall",
+    });
+    await r.projects.close({});
+    // the older shape: the joined edit stored under the edited version's own number (v2, edited in place)
+    const json = await read(file);
+    const hist = json["history"] as { head: number; versions: Array<{ number: number; createdAt: string }> };
+    for (const v of hist.versions) if (v.number === 3) v.number = 2;
+    hist.head = 2;
+    for (const v of hist.versions) v.createdAt = "2026-01-01T00:00:00.000Z";
+    await fsp.writeFile(file, JSON.stringify(json));
+    const old = await r.projects.open({ path: file });
+    expect(old?.head).toBe(2);
+    expect(r.projects.getVersion(2).levels[0]?.areas.find((a) => a.id === "entry")).toMatchObject({
+      name: "Hall",
+    });
+    // the next edit gets the next number after the old ones
+    expect(r.projects.editText({ id: "tomb", set: { notes: "B" } })).toEqual({ head: 3 });
+  });
+
+  it("never joins an edit into a version the model has seen or a build was made of", async () => {
+    const r = await setup();
+    expect(r.projects.editText({ id: "entry", set: { notes: "A" } })).toEqual({ head: 2 });
+    const conv = r.projects.getProject()?.activeConversationId ?? "";
+    r.projects.updateConversation(conv, (c) => {
+      c.modelSeen.head = 2;
+    });
+    expect(r.projects.editText({ id: "entry", set: { notes: "B" } })).toEqual({ head: 3 });
+    expect(r.projects.getVersion(2).levels[0]?.areas.find((a) => a.id === "entry")?.notes).toBe("A");
+    expect(r.projects.snapshot().versions.find((v) => v.number === 3)?.parentNumber).toBe(2);
   });
 
   it("approval blocks on errors and unreachable areas, and passes otherwise", async () => {

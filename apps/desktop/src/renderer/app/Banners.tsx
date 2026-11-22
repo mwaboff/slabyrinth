@@ -3,8 +3,12 @@ import { useState } from "react";
 import { Icon } from "../ui/Icon";
 import { useApp } from "../stores/app";
 import { useSettings } from "../stores/settings";
-import { call, errorMessage } from "../bridge/client";
+import { errorMessage } from "../bridge/client";
+import { run } from "./actions";
 import { pickTaleSpireFolder } from "./folders";
+import { AddonUpdatedNotice } from "../features/talespire/AddonUpdate";
+import { useProject } from "../stores/project";
+import { tierAboveSetting, tierSize } from "../../shared/sizeTier";
 
 export function Banners() {
   const route = useApp((s) => s.route);
@@ -34,6 +38,8 @@ export function Banners() {
 
   return (
     <div>
+      <AddonUpdatedNotice />
+      {route === "workspace" && <LargerMapNotice />}
       {banners.saveFailed !== null && (
         <div className="banner banner--danger" role="alert">
           <Icon name="error" className="banner__icon" />
@@ -42,7 +48,10 @@ export function Banners() {
             work is kept in memory — choose another location.
           </span>
           <span className="banner__actions">
-            <button className="btn btn--sm" onClick={() => void call("project:saveCopyAs", undefined)}>
+            <button
+              className="btn btn--sm"
+              onClick={() => void run("project:saveCopyAs", undefined, "Couldn't save a copy.")}
+            >
               Save a copy as…
             </button>
             <button
@@ -121,6 +130,42 @@ export function Banners() {
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+/** One line when the open map is larger than the "Maximum map size" setting: it opens and edits at the size it needs. */
+function LargerMapNotice() {
+  const plan = useProject((s) => s.snap?.plan ?? null);
+  const setting = useSettings((s) => s.settings?.mapSize);
+  const [hidden, setHidden] = useState<string | null>(null);
+  const above = tierAboveSetting(setting, plan);
+  if (above === null || hidden === plan?.id) return null;
+  return (
+    <div className="banner" role="status">
+      <Icon name="info" className="banner__icon" />
+      <span className="banner__text">
+        <b>This map uses the experimental {tierSize(above)} size.</b> It is larger than your Maximum map size
+        setting, so changes and builds take longer.
+      </span>
+      <span className="banner__actions">
+        <button
+          className="btn btn--sm"
+          onClick={() => {
+            useApp.getState().openSettings("experimental");
+          }}
+        >
+          Map size setting
+        </button>
+        <button
+          className="btn btn--sm btn--ghost"
+          onClick={() => {
+            setHidden(plan?.id ?? null);
+          }}
+        >
+          Dismiss
+        </button>
+      </span>
     </div>
   );
 }

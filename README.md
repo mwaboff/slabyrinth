@@ -43,7 +43,7 @@ AppImages need FUSE 2: install `libfuse2` (Ubuntu 22.04) or `libfuse2t64` (Ubunt
 1. **Describe** the place you want: a dungeon, a crypt, a tower. Claude asks a few questions, keeps a design brief, and draws a first plan.
 2. **Review** the plan as a 2D map with a numbered room key, on one or several stacked levels. Change it by chatting ("make room 3 bigger") or directly on the map. Every change is a version you can undo, compare or restore.
 3. **Build:** approve a version and Slabyrinth compiles it into TaleSpire slabs.
-4. **Paste** into TaleSpire. **Copy & open TaleSpire** copies the slab and starts or focuses the game.
+4. **Paste** into TaleSpire. **Send to TaleSpire** hands the slabs to the Slabyrinth Helper add-on, which puts each one in your hand in turn (install it from the app, then turn on Symbiotes in TaleSpire under Game Settings > Modding Settings). **Copy & open TaleSpire** copies the slab and starts or focuses the game instead.
 
 Also included:
 
@@ -54,18 +54,18 @@ Also included:
 
 ## Privacy and network
 
-- **Network:** the app connects to `api.anthropic.com` to chat with Claude, and to GitHub for the update check. There is no telemetry and no account.
+- **Network:** the app connects to `api.anthropic.com` to chat with Claude, and to GitHub for the update check. To talk to the Slabyrinth Helper add-on it listens on `127.0.0.1` only (port 48731), with a pairing token, so nothing outside your computer can reach it. There is no telemetry and no account.
 - **Your API key** is encrypted with your system's keychain (Electron `safeStorage`) and stored in the app data folder. It is only ever sent to `api.anthropic.com`, and never written to map files or logs. On Linux without a keyring, the key is kept in memory for the session unless you choose to store it with weaker protection.
 - **Update check:** at most once a day the app sends one anonymous request to `api.github.com` for this repository's latest release. It carries no key, no map data and no identifiers. If a newer version exists, you see an "Update available" notice that links to its release page. Nothing is downloaded or installed for you. Turn the check off in **Settings ▸ About** ("Check for updates automatically").
 - **Maps** are saved as one `.slabyrinth` file per map in `Documents/Slabyrinth` (you can change the folder in Settings). They are plain JSON, autosaved with crash-safe writes, and the previous good copy is kept as `<map>.slabyrinth.bak`.
 - **App data** lives in `%APPDATA%\Slabyrinth` on Windows and `~/.config/Slabyrinth` on Linux: settings, the encrypted key, the asset library read from TaleSpire, custom palettes and logs. **Help ▸ Open data folder** opens it.
-- **TaleSpire** is only ever read, never modified. To launch it, the app uses Steam.
+- **TaleSpire** is only read, with one exception: when you install, update or remove the Slabyrinth Helper add-on, the app writes its own `slabyrinth-helper` folder in TaleSpire's Symbiotes folder and touches nothing else there. To launch TaleSpire, the app uses Steam.
 
 ## Known limitations
 
 - Windows and Linux (x64) only.
 - Claude is the only supported chat provider.
-- Large maps that don't fit in one slab are split into a few, which you paste one after another using the alignment markers Slabyrinth adds.
+- Large maps that don't fit in one slab are split into a few, which you paste one after another from the same spot just south of the map, using the alignment markers Slabyrinth adds. The add-on hands them to you in order.
 - A few placement details are correct by calculation but not yet confirmed in game, such as door-handle sides on east and west walls and water surface height.
 - Slab-count estimates near the size limit can be one too high.
 - No automatic updates: the app tells you about a new version, and you download it yourself.

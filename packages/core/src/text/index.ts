@@ -3,7 +3,7 @@
  * Pure TypeScript: no electron, DOM or node:* imports here.
  */
 export { outlineView, formatShape, formatOpeningEdge, truncate, type OutlineOptions } from "./outline";
-export { asciiView, asciiLevel, OPENING_CHAR, type AsciiOptions } from "./ascii";
+export { asciiView, asciiLevel, MAX_VIEW_CELLS, OPENING_CHAR, type AsciiOptions } from "./ascii";
 export {
   changedBBox,
   changedRegionViews,

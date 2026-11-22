@@ -8,6 +8,8 @@ import {
   elementSeed,
   fnv1a32Bytes,
   h32,
+  h32Utf16,
+  hashUnitUtf16,
   h64hex,
   latticeValue,
   nearest,
@@ -33,6 +35,13 @@ describe("hash", () => {
     expect(h32("")).toBe(0x811c9dc5);
     expect(h32("a")).toBe(0xe40c292c);
     expect(h32("foobar")).toBe(0xbf9cf968);
+  });
+  it("h32Utf16 (the compiler's frozen hash) agrees with h32 on ASCII and differs on other characters", () => {
+    for (const s of ["", "a", "foobar", "42:l1:walltops"]) expect(h32Utf16(s), s).toBe(h32(s));
+    expect(h32Utf16("é")).not.toBe(h32("é"));
+    // pinned: released slabs depend on these values
+    expect(h32Utf16("é")).toBe(0x6c0b6c44);
+    expect(hashUnitUtf16("a", 1)).toBeCloseTo(h32("a:1") / 2 ** 32, 12);
   });
   it("matches published FNV-1a 64 vectors", () => {
     expect(h64hex("")).toBe("cbf29ce484222325");
@@ -133,7 +142,7 @@ describe("canonical JSON", () => {
   });
 });
 
-describe("partial JSON: nesting limit (review finding)", () => {
+describe("partial JSON: nesting limit", () => {
   it("very deep input takes the bad-input path instead of overflowing the stack", () => {
     const deep = "[".repeat(100_000);
     const r = parsePartialJson(deep);

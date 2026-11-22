@@ -5,6 +5,7 @@
  */
 import type {
   AssetAvailability,
+  AssetCatalog,
   CatalogAsset,
   OrientationCalibration,
   Palette,
@@ -12,9 +13,9 @@ import type {
   PaletteOverride,
 } from "../contracts/compiler";
 import type { ThemeId } from "../contracts/plan";
-import { NULL_AVAILABILITY } from "../catalog/availability";
+import { NULL_AVAILABILITY, createAvailability } from "../catalog/availability";
 import { BUNDLED_ORIENTATION, BUNDLED_PALETTES } from "./bundled";
-import { dict, own } from "./own";
+import { dict, own } from "../util/own";
 import { parseOrientation, parsePalette, parsePaletteOverride } from "./schema";
 import { withAutoVariants } from "./auto";
 
@@ -34,6 +35,7 @@ export function applyOverride(base: Palette, o: PaletteOverride): Palette {
   if (o.defaults?.floor !== undefined) defaults.floor = o.defaults.floor;
   if (o.defaults?.wallStyle !== undefined) defaults.wallStyle = o.defaults.wallStyle;
   if (o.defaults?.caveFloor !== undefined) defaults.caveFloor = o.defaults.caveFloor;
+  if (o.defaults?.interior !== undefined) defaults.interior = o.defaults.interior;
   return {
     ...base,
     name: o.name ?? base.name,
@@ -120,7 +122,10 @@ export function mergePalettes(
   return { palettes, issues };
 }
 
-/** The bundled palettes merged with optional user files, as a PaletteCatalog. */
+/**
+ * The bundled palettes merged with optional user files, as a PaletteCatalog. To build with a scanned game catalog, use
+ * `buildPaletteCatalog`, which derives both catalog options from it.
+ */
 export function loadPalettes(
   opts: {
     user?: ReadonlyArray<{ source: string; data: unknown }>;
@@ -143,6 +148,36 @@ export function loadPalettes(
     issues: merged.issues,
     autoVariants: auto.added,
   };
+}
+
+/**
+ * The palettes a build compiles with: the bundled palettes, the user's palette files and, with the game's scanned
+ * asset catalog, what it says of each asset (availability: present, missing, deprecated; names) and the assets a game
+ * update added, joined to the roles they classify into as low-weight extra variants (palette/auto.ts). Without a
+ * catalog every asset counts as present. Every caller that builds from a catalog goes through here (the app's compile
+ * worker and main process, the CLI), so they resolve a plan alike.
+ */
+export function buildPaletteCatalog(
+  user: ReadonlyArray<{ source: string; data: unknown }>,
+  catalog: AssetCatalog | readonly CatalogAsset[] | null,
+): ReturnType<typeof loadPalettes> {
+  if (catalog === null) return loadPalettes({ user });
+  const assets: readonly CatalogAsset[] = Array.isArray(catalog)
+    ? (catalog as readonly CatalogAsset[])
+    : (catalog as AssetCatalog).assets;
+  return loadPalettes({ user, availability: createAvailability(assets), catalog: assets });
+}
+
+let bundled: PaletteCatalog | null = null;
+
+/**
+ * The palettes Slabyrinth ships with, alone (no user files, no game catalog), built once and shared: do not change
+ * the object. The released generators resolve against these whatever a plan is compiled with (their output is
+ * frozen, palette/view.ts `resolveView`), and a test or script that means "the bundled palettes" says so here.
+ */
+export function bundledPalettes(): PaletteCatalog {
+  bundled ??= loadPalettes();
+  return bundled;
 }
 
 /** Bundled orientation, optionally replaced by a user file (userData/orientation.json). Invalid user data is ignored. */

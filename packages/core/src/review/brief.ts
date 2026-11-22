@@ -7,6 +7,7 @@ import type { DesignBrief, MapPlan } from "../contracts/plan";
 import { CELL, CELL_FLAG, type ResolvedPlan, type ResolvedStructure } from "../contracts/resolved";
 import { GROWTH_LEVELS, growthMeasures } from "../resolve/growth";
 import type { DesignNote } from "./review";
+import { maxOf, minOf } from "../util/lists";
 
 /** The brief as one line of its listed parts (empty when there is no brief and no title). */
 export function briefCheckLine(brief: DesignBrief | undefined, plan: MapPlan): string {
@@ -43,7 +44,7 @@ const tallest = (r: ResolvedPlan): { s: ResolvedStructure; height: number; width
       const height = s.storeys.reduce((t, q) => t + q.wallHeight, 0);
       const xs = s.cells.map((p) => p[0]);
       const ys = s.cells.map((p) => p[1]);
-      const width = Math.max(Math.max(...xs) - Math.min(...xs) + 1, Math.max(...ys) - Math.min(...ys) + 1);
+      const width = Math.max(maxOf(xs) - minOf(xs) + 1, maxOf(ys) - minOf(ys) + 1);
       if (!best || height > best.height) best = { s, height, width };
     }
   return best;
@@ -132,10 +133,14 @@ export const BRIEF_WORDS: ReadonlyArray<{ words: readonly string[]; measure: Mea
   {
     words: ["overgrown", "ivy", "reclaimed", "abandoned", "vines", "vine"],
     measure: (_p, r) => {
-      const worn = r.levels.flatMap((L) => L.structures ?? []).filter((s) => s.condition && s.condition !== "intact");
+      const worn = r.levels
+        .flatMap((L) => L.structures ?? [])
+        .filter((s) => s.condition && s.condition !== "intact");
       if (worn.length === 0)
         return "the brief says overgrown, ivy-covered, reclaimed or abandoned but no building is weathered or ruined, so nothing is overgrown";
-      return worn.some((s) => s.growthLevel === "heavy" && growthMeasures(s).coverage >= GROWTH_LEVELS.heavy.min)
+      return worn.some(
+        (s) => s.growthLevel === "heavy" && growthMeasures(s).coverage >= GROWTH_LEVELS.heavy.min,
+      )
         ? null
         : "the brief says overgrown, ivy-covered, reclaimed or abandoned but no building has heavy growth: vines and creepers on a third or more of its walls";
     },

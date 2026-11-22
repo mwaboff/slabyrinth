@@ -1,15 +1,16 @@
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
-import type {
-  DesignBrief,
-  LevelId,
-  MapPlan,
-  PlanDiff,
-  PlanIssue,
-  PlanOp,
-  ApplyResult,
+import {
+  approve as approveHistory,
+  parseBriefPatch,
+  parsePlan,
+  patchBrief,
+  planGate,
+  TEXT_EDIT_FIELDS,
+  textEditPlan,
 } from "@slabyrinth/core";
+import type { ApplyResult, DesignBrief, LevelId, MapPlan, PlanDiff, PlanOp } from "@slabyrinth/core";
 import type { ChatItem, Cost, ModelSelection, Usage } from "../agent/provider/types";
 import type { IpcRequests, ProjectSnapshot } from "../../shared/ipc";
 import type { BuildRecord, ChatMessageMeta, Conversation, ProjectFile } from "../../shared/project";
@@ -49,8 +50,6 @@ import type { SettingsStore } from "./settingsStore";
 export const PROJECT_EXT = ".slabyrinth";
 /** Largest plan JSON file accepted by Import plan. */
 const PLAN_FILE_MAX_BYTES = 16 * 1024 * 1024;
-const TEXT_FIELDS = new Set(["name", "notes", "readAloud", "encounter", "label", "text", "description"]);
-const TEXT_MERGE_WINDOW_MS = 2 * 60 * 1000;
 
 export interface ProjectServiceDeps {
   settings: SettingsStore;
@@ -119,6 +118,8 @@ export class ProjectService {
   private writeChain: Promise<void> = Promise.resolve();
   private hooks: EngineHooks | null = null;
   private readonly listCache = new Map<string, { mtimeMs: number; size: number; entry: ProjectListEntry }>();
+  /** The project whose snapshot the renderer was last handed (`handedToRenderer`): its view-state saves are for it. */
+  private rendererProjectId: string | null = null;
   /** Project paths main has handed to the renderer (list, recents, dialogs, create/duplicate results). */
   private readonly knownPaths = new Set<string>();
   /** open/new/close/duplicate/trash/import run one at a time, so a lock is never replaced without release(). */
@@ -296,7 +297,8 @@ export class ProjectService {
     const migrate = (json: unknown): unknown => this.deps.core.migrateProject(json);
     const outcome = parseProject(bytes, migrate);
     if (outcome.ok) return { project: outcome.project, migratedFrom: outcome.migratedFrom, dirty: false };
-    if (outcome.reason !== "corrupt") throw new AppFailure("validation", outcome.message);
+    if (outcome.reason !== "corrupt" && outcome.reason !== "invalid")
+      throw new AppFailure("validation", outcome.message);
 
     // Damaged file: offer the previous good copy (architecture §6.4).
     const bak = `${file}.bak`;
@@ -339,7 +341,12 @@ export class ProjectService {
     const s = this.state;
     if (!s || s.project.history.head === 0) return;
     try {
-      const rebuilt = history.reconstruct(s.project.history, s.project.history.head, s.planCache);
+      const rebuilt = history.reconstruct(
+        s.project.history,
+        s.project.history.head,
+        this.deps.core.rules(),
+        s.planCache,
+      );
       if (JSON.stringify(rebuilt) !== JSON.stringify(s.project.plan)) {
         this.deps.logger.warn("head plan differs from history replay; keeping the stored plan", {
           head: s.project.history.head,
@@ -635,23 +642,32 @@ export class ProjectService {
       filters: [{ name: "Map plan (JSON)", extensions: ["json"] }],
     });
     if (src === null) return null;
-    let plan: MapPlan;
+    let json: unknown;
     try {
       const st = await fsp.stat(src);
       if (st.size > PLAN_FILE_MAX_BYTES) throw new Error("too large");
-      plan = JSON.parse(await fsp.readFile(src, "utf8")) as MapPlan;
+      json = JSON.parse(await fsp.readFile(src, "utf8"));
     } catch {
       throw new AppFailure("validation", "That file isn't a map plan (JSON).");
     }
     if (
-      typeof plan !== "object" ||
-      (plan as { schema?: unknown }).schema !== "slabyrinth/plan@1" ||
-      !Array.isArray(plan.levels)
-    ) {
+      typeof json !== "object" ||
+      json === null ||
+      (json as { schema?: unknown }).schema !== "slabyrinth/plan@1"
+    )
       throw new AppFailure("validation", "That file isn't a Slabyrinth map plan (slabyrinth/plan@1).");
+    // core's plan schema (parsePlan: for untrusted JSON), then the plan checks below
+    const parsed = parsePlan(json);
+    if (!parsed.ok) {
+      const first = parsed.issues[0];
+      throw new AppFailure(
+        "validation",
+        `That map plan is damaged${first ? ` (${first.path ?? ""} ${first.message})` : ""}.`,
+      );
     }
-    const issues = this.deps.core.validatePlan(plan);
-    const errors = issues?.filter((i) => i.severity === "error") ?? [];
+    const plan = parsed.plan;
+    // an imported plan is a new version like the model's create_plan: the edit gate decides
+    const errors = planGate(this.deps.core.validatePlan(plan), "edit").blocking;
     if (errors.length > 0) {
       throw new AppFailure(
         "validation",
@@ -700,7 +716,7 @@ export class ProjectService {
     const n = version ?? h.head;
     if (n === 0) return null;
     if (n === h.head && s.project.plan) return s.project.plan;
-    return history.reconstruct(h, n, s.planCache);
+    return history.reconstruct(h, n, this.deps.core.rules(), s.planCache);
   }
 
   commitVersion(input: CommitVersionInput): { version: number; plan: MapPlan } {
@@ -719,7 +735,7 @@ export class ProjectService {
       if (input.changeSummary !== undefined) nv.changeSummary = input.changeSummary.slice(0, 6);
       if (input.messageId !== undefined) nv.messageId = input.messageId;
       if (input.cost !== undefined) nv.cost = input.cost;
-      const v = history.commit(p.history, nv, s.planCache);
+      const v = history.commit(p.history, nv, this.deps.core.rules(), s.planCache);
       p.plan = structuredClone(input.plan);
       return v;
     });
@@ -747,13 +763,6 @@ export class ProjectService {
   applyOps(req: IpcRequests["plan:applyOps"]["req"]): ApplyResult & { version?: number } {
     this.ensureNotBusy();
     const s = this.require();
-    // Playability findings never reject an edit: only blocking issues do (PlanCorePort.applyChecked).
-    const applyOps = this.deps.core.applyChecked;
-    if (!applyOps)
-      throw new AppFailure(
-        "unsupported",
-        "Editing the map needs the plan engine, which isn't in this build yet.",
-      );
     if (req.baseVersion !== s.project.history.head) {
       throw new AppFailure(
         "validation",
@@ -762,7 +771,8 @@ export class ProjectService {
     }
     const base = this.getPlan();
     if (!base) throw new AppFailure("validation", "There's no plan to edit yet.");
-    const result = applyOps(base, req.ops);
+    // Playability findings never reject an edit: only what blocks an edit does (core's edit gate).
+    const result = this.deps.core.applyChecked(base, req.ops);
     if (!result.ok) return result;
     const { version } = this.commitVersion({
       plan: result.plan,
@@ -808,7 +818,10 @@ export class ProjectService {
     const s = this.require();
     const nextHistory = structuredClone(s.project.history);
     const n = step(nextHistory);
-    const plan = n === 0 ? null : structuredClone(history.reconstruct(nextHistory, n, s.planCache));
+    const plan =
+      n === 0
+        ? null
+        : structuredClone(history.reconstruct(nextHistory, n, this.deps.core.rules(), s.planCache));
     return this.mutate((p) => {
       p.history = nextHistory;
       p.plan = plan;
@@ -841,97 +854,82 @@ export class ProjectService {
     return this.deps.core.diffPlans(from === 0 ? null : this.getPlan(from), after);
   }
 
-  /** UX §7.5: blocking issues (errors, unreachable areas) prevent approval. */
+  /** UX §7.5: what blocks approval is core's `planGate(issues, "approve")`. */
   approve(version: number): { approved: boolean; blocking: string[]; warnings: string[] } {
     this.ensureNotBusy();
     const plan = this.getPlan(version);
     if (!plan) throw new AppFailure("not_found", `Version ${String(version)} doesn't exist.`);
-    const issues: PlanIssue[] | null = this.deps.core.validatePlan(plan);
-    const warnings: string[] = [];
-    const blocking: string[] = [];
-    if (issues === null) {
-      warnings.push("Plan checks aren't available in this build; the plan was approved without them.");
-    } else {
-      for (const i of issues) {
-        if (i.severity === "error" || i.code === "unreachable") blocking.push(i.message);
-        else if (i.severity === "warning") warnings.push(i.message);
-      }
-    }
+    const gate = planGate(this.deps.core.validatePlan(plan), "approve");
+    const blocking = gate.blocking.map((i) => i.message);
+    const warnings = gate.checks.warnings.map((i) => i.message);
     if (blocking.length > 0) return { approved: false, blocking, warnings };
+    const r = approveHistory(this.require().project.history, version);
+    if (!r.ok) throw new AppFailure("not_found", `Version ${String(version)} doesn't exist.`);
     this.mutate((p) => {
-      p.history.approvedVersion = version;
+      p.history = r.history;
     });
     this.emitPlanChanged();
     return { approved: true, blocking, warnings };
   }
 
-  /** Direct text edits; consecutive edits of the same element within 2 min merge into one version. */
+  /**
+   * Direct text edits. Consecutive edits of the same element within 2 minutes join into one version (core
+   * textEditPlan), which takes a NEW number: a version is never rewritten under its number. Versions something outside
+   * history refers to (the model's last seen version, a build) are never joined.
+   */
   editText(req: IpcRequests["plan:editText"]["req"]): { head: number } {
     this.ensureNotBusy();
     for (const k of Object.keys(req.set)) {
-      if (!TEXT_FIELDS.has(k)) throw new AppFailure("validation", `"${k}" isn't a text field.`);
+      if (!TEXT_EDIT_FIELDS.has(k)) throw new AppFailure("validation", `"${k}" isn't a text field.`);
     }
     const s = this.require();
-    const h = s.project.history;
-    const base = this.getPlan();
-    if (!base) throw new AppFailure("validation", "There's no plan to edit yet.");
-    const head = h.head === 0 ? undefined : history.findVersion(h, h.head);
-    const latest = history.nextNumber(h) - 1;
-    const prevOp = head?.cause.type === "ops" && head.cause.ops.length === 1 ? head.cause.ops[0] : undefined;
-    const merge =
-      head !== undefined &&
-      head.author === "user" &&
-      head.number === latest &&
-      h.approvedVersion !== head.number &&
-      prevOp?.op === "update" &&
-      prevOp.id === req.id &&
-      this.now().getTime() - Date.parse(head.createdAt) <= TEXT_MERGE_WINDOW_MS;
-
-    const set: Record<string, unknown> = merge ? { ...prevOp.set, ...req.set } : { ...req.set };
-    const op: PlanOp = { op: "update", id: req.id, set };
-    const parentPlan = merge ? this.getPlan(head.parentNumber) : base;
-    if (!parentPlan) throw new AppFailure("validation", "There's no plan to edit yet.");
-    const plan = this.applyTextOp(parentPlan, op);
-    const summary = `You edited ${Object.keys(set).join(", ")} of ${req.id}`;
-
-    if (merge) {
-      this.mutate((p) => {
-        head.cause = { type: "ops", ops: [op] };
-        head.summary = summary;
-        head.createdAt = this.now().toISOString();
-        if (head.snapshot) head.snapshot = structuredClone(plan);
-        p.plan = structuredClone(plan);
-      });
-      s.planCache.clear();
-      s.planCache.set(head.number, plan);
-      this.emitPlanChanged();
-      return { head: head.number };
-    }
-    const r = this.commitVersion({ plan, author: "user", summary, cause: { type: "ops", ops: [op] } });
-    return { head: r.version };
+    if (!this.getPlan()) throw new AppFailure("validation", "There's no plan to edit yet.");
+    const project = s.project;
+    const pinned = new Set<number>([
+      ...project.conversations.map((c) => c.modelSeen.head),
+      ...project.builds.map((b) => b.versionNumber),
+    ]);
+    const edit = textEditPlan(project.history, req, this.now().getTime(), pinned);
+    const basePlan = this.getPlan(edit.base);
+    if (!basePlan) throw new AppFailure("validation", "There's no plan to edit yet.");
+    const plan = this.applyTextOp(basePlan, edit.op);
+    const input: CommitVersionInput = {
+      plan,
+      author: "user",
+      summary: `You edited ${Object.keys(edit.op.set).join(", ")} of ${req.id}`,
+      cause: { type: "ops", ops: [edit.op] },
+    };
+    if (edit.supersedes === null) return { head: this.commitVersion(input).version };
+    const version = this.mutate((p) => {
+      const v = history.supersede(
+        p.history,
+        { ...input, createdAt: this.now().toISOString() },
+        this.deps.core.rules(),
+        s.planCache,
+      );
+      p.plan = structuredClone(plan);
+      return v.number;
+    });
+    s.planCache.set(version, s.project.plan as MapPlan);
+    this.emitPlanChanged();
+    return { head: version };
   }
 
   private applyTextOp(plan: MapPlan, op: Extract<PlanOp, { op: "update" }>): MapPlan {
-    const applyOps = this.deps.core.applyChecked;
-    if (applyOps) {
-      const r = applyOps(plan, [op]);
-      if (!r.ok) {
-        const msg = r.opErrors[0]?.message ?? r.issues[0]?.message ?? "The edit was rejected.";
-        throw new AppFailure("validation", msg);
-      }
-      return r.plan;
+    const r = this.deps.core.applyChecked(plan, [op]);
+    if (!r.ok) {
+      const msg = r.opErrors[0]?.message ?? r.issues[0]?.message ?? "The edit was rejected.";
+      throw new AppFailure("validation", msg);
     }
-    return fallbackTextUpdate(plan, op.id, op.set);
+    return r.plan;
   }
 
-  updateBrief(set: Partial<Record<keyof DesignBrief, unknown>>): DesignBrief {
+  /** brief:update: values are held to what update_brief accepts (core parseBriefPatch); null clears a field. */
+  updateBrief(set: IpcRequests["brief:update"]["req"]["set"]): DesignBrief {
+    const parsed = parseBriefPatch(set);
+    if (!parsed.ok) throw new AppFailure("validation", parsed.message);
     return this.mutate((p) => {
-      const brief = { ...p.brief } as Record<string, unknown>;
-      for (const [k, v] of Object.entries(set)) {
-        if (v === null) Reflect.deleteProperty(brief, k);
-        else if (v !== undefined) brief[k] = { value: v, source: "user" };
-      }
-      p.brief = brief;
+      p.brief = patchBrief(p.brief, parsed.patch);
       return p.brief;
     });
   }
@@ -1030,6 +1028,34 @@ export class ProjectService {
     return b;
   }
 
+  /**
+   * IPC: the renderer is handed this snapshot (project:new, project:open, project:snapshot): from now on its view-state
+   * saves are for that project. A project main opens on its own (a file opened from the OS) is not the renderer's
+   * until it asks for its snapshot.
+   */
+  handedToRenderer<T extends ProjectSnapshot | null>(snap: T): T {
+    if (snap !== null) this.rendererProjectId = snap.projectId;
+    return snap;
+  }
+
+  /**
+   * Channel project:setUiState. The request names no project, so it is for the project the renderer was last handed:
+   * a save that arrives after another project opened (main opened one on its own, or the renderer's save was on its way
+   * while the switch happened) is dropped rather than written into the wrong project. The renderer sends no save while
+   * its own switch is in flight (stores/project.ts), so a save sent before the switch is handled before it.
+   */
+  setUiStateFromRenderer(patch: Parameters<ProjectService["setUiState"]>[0]): void {
+    const open = this.state?.project.id ?? null;
+    if (open === null || open !== this.rendererProjectId) {
+      this.deps.logger.info("view state for another project dropped", {
+        open,
+        renderer: this.rendererProjectId,
+      });
+      return;
+    }
+    this.setUiState(patch);
+  }
+
   /** Resume state (UX §8.9), channel project:setUiState: ui is shallow-merged; pasteGuide null clears it. */
   setUiState(patch: {
     ui?: Partial<ProjectFile["ui"]>;
@@ -1069,41 +1095,4 @@ export function samePath(a: string, b: string): boolean {
   const ra = path.resolve(a);
   const rb = path.resolve(b);
   return process.platform === "win32" ? ra.toLowerCase() === rb.toLowerCase() : ra === rb;
-}
-
-/** Stand-in for core's `update` op restricted to text fields (used only until core applyOps exists). */
-export function fallbackTextUpdate(plan: MapPlan, id: string, set: Record<string, unknown>): MapPlan {
-  const next = structuredClone(plan);
-  const apply = (el: Record<string, unknown>): void => {
-    for (const [k, v] of Object.entries(set)) {
-      if (v === null) Reflect.deleteProperty(el, k);
-      else el[k] = v;
-    }
-  };
-  for (const level of next.levels) {
-    if (level.id === id) {
-      apply(level as unknown as Record<string, unknown>);
-      return next;
-    }
-    for (const list of [
-      level.areas,
-      level.openings,
-      level.walls,
-      level.features,
-      level.terrain,
-      level.labels,
-    ] as Array<Array<{ id: string }>>) {
-      const el = list.find((e) => e.id === id);
-      if (el) {
-        apply(el);
-        return next;
-      }
-    }
-  }
-  const link = next.links.find((l) => l.id === id);
-  if (link) {
-    apply(link as unknown as Record<string, unknown>);
-    return next;
-  }
-  throw new AppFailure("not_found", `No element "${id}" in the plan.`);
 }

@@ -29,6 +29,7 @@ jobs:
       - run: npm ci
       # Electron >= 45 no longer downloads its binary on install; fetch it for e2e.
       - run: node node_modules/electron/install.js
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       # Includes the crash-safety tests (fault injection + kill -9 of a writing process).
@@ -64,3 +65,18 @@ jobs:
           name: playwright-report-${{ matrix.os }}
           path: apps/desktop/playwright-report
           if-no-files-found: ignore
+
+  # Every stored plan built with many seeds (packages/core/test/sweep): a fault that shows for a few seeds in a hundred.
+  # Its own job so it does not slow the matrix. 120 seeds per plan: a seed costs ~1.35 s for all plans on a desktop
+  # (150 seeds in 202 s), so ~160 s there; a runner is up to about twice as slow, so ~5-6 minutes plus install.
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run test:sweep -- 120

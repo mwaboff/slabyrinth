@@ -7,45 +7,28 @@
 import { describe, expect, it } from "vitest";
 import type { Building, Level, MapPlan, Structure } from "../../../src/contracts/plan";
 import { CELL_FLAG, EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
-import { compileResolved, realize, verifyBuild } from "../../../src/compile";
-import { placementMeta } from "../../../src/compile/realize";
-import { loadPalettes } from "../../../src/palette";
+import { compileResolved, placedName, realize, verifyBuild } from "../../../src/compile";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { validatePlan } from "../../../src/plan";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
+import { BUNDLED_RULES } from "../../fixtures/rules";
 import { canonicalJson } from "../../../src/util/canonical";
+import { townPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
 
-function plan(structures: Structure[], extra: Partial<Level> = {}, generator: 1 | 2 = 2): MapPlan {
-  return {
-    schema: "slabyrinth/plan@1",
+const plan = (structures: Structure[], extra: Partial<Level> = {}, generator: 1 | 2 = 2): MapPlan =>
+  townPlan({
     generator,
     id: "structures",
-    title: "structures",
-    kind: "outdoor",
     seed: 11,
     theme: "forest",
-    links: [],
-    levels: [
-      {
-        id: "g",
-        name: "g",
-        elevation: 0,
-        bounds: { x: 0, y: 0, w: 24, h: 20 },
-        base: { type: "ground", material: "grass" },
-        areas: [{ id: "woods", kind: "zone", shape: { type: "rect", x: 0, y: 0, w: 24, h: 20 } }],
-        openings: [],
-        walls: [],
-        features: [],
-        terrain: [],
-        labels: [],
-        structures,
-        ...extra,
-      },
-    ],
-  };
-}
+    w: 24,
+    h: 20,
+    lot: "woods",
+    structures,
+    level: extra,
+  });
 
 const shack = (more: Partial<Building> = {}): Building => ({
   id: "shack",
@@ -58,7 +41,7 @@ const shack = (more: Partial<Building> = {}): Building => ({
   ...more,
 });
 
-const level0 = (p: MapPlan): ResolvedLevel => resolvePlan(p).levels[0] as ResolvedLevel;
+const level0 = (p: MapPlan): ResolvedLevel => resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
 const idx = (L: ResolvedLevel, x: number, y: number): number =>
   (y - L.bounds.y) * L.bounds.w + (x - L.bounds.x);
 
@@ -132,15 +115,19 @@ describe("structures: resolution", () => {
     const p = plan([shack()], {
       terrain: [{ id: "furnish", op: "dress", area: "shack", preset: "storeroom", density: 0.5 }],
     });
-    expect(validatePlan(p).issues.filter((i) => i.severity === "error")).toEqual([]);
+    expect(validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.severity === "error")).toEqual([]);
   });
 });
 
 describe("structures: validation", () => {
   const errors = (p: MapPlan) =>
-    validatePlan(p).issues.filter((i) => i.severity === "error" && i.code === "structure_invalid");
+    validatePlan(p, BUNDLED_RULES).issues.filter(
+      (i) => i.severity === "error" && i.code === "structure_invalid",
+    );
   const warnings = (p: MapPlan) =>
-    validatePlan(p).issues.filter((i) => i.severity === "warning" && i.code === "structure_invalid");
+    validatePlan(p, BUNDLED_RULES).issues.filter(
+      (i) => i.severity === "warning" && i.code === "structure_invalid",
+    );
 
   it("rejects overlapping buildings", () => {
     const p = plan([shack(), shack({ id: "other", wings: [{ x: 10, y: 7, w: 5, h: 4 }], attachments: [] })]);
@@ -182,7 +169,7 @@ describe("structures: validation", () => {
         attachments: [],
       }),
     ]);
-    const issues = validatePlan(p).issues.filter((i) => i.elementId?.startsWith("shack"));
+    const issues = validatePlan(p, BUNDLED_RULES).issues.filter((i) => i.elementId?.startsWith("shack"));
     for (const i of issues) {
       expect(i.elementId).toBe("shack");
       if (i.path?.startsWith("/levels/0/")) expect(i.path).not.toMatch(/\/(areas|openings|walls)\/[1-9]/);
@@ -192,10 +179,10 @@ describe("structures: validation", () => {
 
 describe("structures: build", () => {
   const p = plan([shack()]);
-  const resolved = resolvePlan(p);
+  const resolved = resolvePlan(p, bundledPalettes());
   const set = realize(resolved, palettes);
   const pl = set.levels[0]?.placements ?? [];
-  const named = (s: string) => pl.filter((x) => placementMeta.get(x)?.name === s);
+  const named = (s: string) => pl.filter((x) => placedName(set, x) === s);
 
   it("stacks the courses as in the in-game shack: footing, timber storey, attic deck, roof on the deck", () => {
     const footing = pl.filter((x) => x.source.elementId === "shack~footing");
@@ -245,15 +232,15 @@ describe("structures: variety", () => {
     plan([{ id: "hut", wings: [{ x: 8, y: 6, w: 6, h: 4 }], roof: { type: "gable" }, seed }]);
 
   it("the same spec with another seed builds a different building; the same seed is byte-stable", () => {
-    const a = resolvePlan(spec(1));
-    const a2 = resolvePlan(spec(1));
+    const a = resolvePlan(spec(1), bundledPalettes());
+    const a2 = resolvePlan(spec(1), bundledPalettes());
     expect(canonicalJson(a)).toBe(canonicalJson(a2));
     const pa = realize(a, palettes).levels[0]?.placements ?? [];
     const pa2 = realize(a2, palettes).levels[0]?.placements ?? [];
     expect(canonicalJson(pa)).toBe(canonicalJson(pa2));
     const variants = new Set<string>();
     for (const s of [1, 2, 3, 4, 5, 6]) {
-      const r = resolvePlan(spec(s));
+      const r = resolvePlan(spec(s), bundledPalettes());
       const st = r.levels[0]?.structures?.[0];
       variants.add(
         canonicalJson({ o: st?.openingIds, ops: r.levels[0]?.openings, c: st?.chimneys, p: st?.porches }),
@@ -265,12 +252,12 @@ describe("structures: variety", () => {
   it("200 seeds of one style: every building is valid, its door opens onto reachable ground, ridge and walls are whole", () => {
     for (let seed = 0; seed < 200; seed++) {
       const p = spec(seed);
-      const v = validatePlan(p);
+      const v = validatePlan(p, BUNDLED_RULES);
       expect(
         v.issues.filter((i) => i.severity === "error"),
         `seed ${seed}`,
       ).toEqual([]);
-      const r = resolvePlan(p);
+      const r = resolvePlan(p, bundledPalettes());
       const L = r.levels[0] as ResolvedLevel;
       const st = L.structures?.[0];
       const door = L.openings.find((o) => o.id === "hut~door0");
@@ -288,5 +275,5 @@ describe("structures: variety", () => {
       const holes = (st?.chimneys ?? []).filter((c) => c.at[1] === 7 || c.at[1] === 8).length;
       expect(ridge.length, `seed ${seed}`).toBe(16 - holes);
     }
-  }, 120_000);
+  }, 30_000); // 200 resolve + realize + verify runs: about 4.7 s under a parallel run, too close to the 5 s default
 });

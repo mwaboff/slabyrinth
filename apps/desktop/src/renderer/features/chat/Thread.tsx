@@ -12,9 +12,9 @@ import { useProject, latestBuild, versionCosts, type VersionRow } from "../../st
 import { EFFORT_LABEL, shortModelName, useSettings } from "../../stores/settings";
 import { useMap } from "../../stores/map";
 import { useApp } from "../../stores/app";
-import { call, tryCall } from "../../bridge/client";
+import { tryCall } from "../../bridge/client";
 import { duration, money, relativeTime } from "../../lib/format";
-import { approve, undo } from "../../app/actions";
+import { approve, run, undo } from "../../app/actions";
 import { RichText, withRefs } from "./RichText";
 import { STARTERS } from "./starters";
 import { WorkingCard } from "./WorkingCard";
@@ -279,7 +279,7 @@ function BuildCard({ version, slabs, at }: { version: number; slabs: number; at:
             Built
           </span>
           <span className="upd__t">
-            v{version} · {slabs === 1 ? "one slab" : `${slabs} parts`}
+            v{version} · {slabs === 1 ? "one slab" : `${slabs} slabs`}
           </span>
           <span className="upd__m">{relativeTime(at)} · no API cost</span>
         </div>
@@ -287,7 +287,7 @@ function BuildCard({ version, slabs, at }: { version: number; slabs: number; at:
           Ready for TaleSpire.{" "}
           {slabs === 1
             ? "Copy the slab and paste it with Ctrl+V."
-            : "The paste checklist copies each part in order."}
+            : "The paste checklist copies each slab in order."}
         </p>
         <div className="card-actions">
           <button
@@ -400,7 +400,13 @@ function ErrorCard({ turn }: { turn: TurnState }) {
         {c.actions.includes("console") && (
           <button
             className="btn btn--sm"
-            onClick={() => void call("shell:openExternal", { url: "https://console.anthropic.com" })}
+            onClick={() =>
+              void run(
+                "shell:openExternal",
+                { url: "https://console.anthropic.com" },
+                "Couldn't open the page.",
+              )
+            }
           >
             Open Anthropic Console
           </button>
@@ -418,7 +424,11 @@ function ErrorCard({ turn }: { turn: TurnState }) {
           <button
             className="btn btn--sm btn--ghost"
             onClick={() =>
-              void call("clipboard:writeText", { text: `${turn.error?.message ?? ""} ${p?.requestId ?? ""}` })
+              void run(
+                "clipboard:writeText",
+                { text: `${turn.error?.message ?? ""} ${p?.requestId ?? ""}` },
+                "Couldn't copy.",
+              )
             }
           >
             Copy details
@@ -475,7 +485,7 @@ function RetryMenu({ itemText }: { itemText: string }) {
       <button
         className="btn btn--ghost btn--sm"
         onClick={() =>
-          void call("clipboard:writeText", { text: itemText }).then(() => {
+          void run("clipboard:writeText", { text: itemText }, "Couldn't copy.", () => {
             useApp.getState().toast({ lead: "Copied the reply." });
           })
         }
@@ -704,7 +714,7 @@ function RecapCard() {
     text =
       slabs.size === 1
         ? `Build of v${build.versionNumber} · one slab, ${pasted.size === 1 ? "pasted" : "not pasted yet"}.`
-        : `Build of v${build.versionNumber} · ${pasted.size} of ${slabs.size} parts pasted.`;
+        : `Build of v${build.versionNumber} · ${pasted.size} of ${slabs.size} slabs pasted.`;
     actions = (
       <button
         className="btn btn--sm"

@@ -8,11 +8,19 @@
  *    markers (palette marker.alignment, a pillar), one clear cell diagonally outside the global min corner at ground
  *    level and outside the max corner raised to the top of the build. All chunks are normalised with ONE shared
  *    offset, so every chunk has an identical bounding box in all three axes (confirmed in game 2026-11-18).
+ *  - Pasted from beside the map (switch pasteBesideMap, generator 4): TaleSpire pastes a slab at the centre of its box,
+ *    and a chunk whose placement ray lands on a piece an earlier chunk placed sits about half a tile high, and so does
+ *    every chunk after it; with the cursor on bare ground four cells beside the map every chunk landed level (both
+ *    measured in game 2026-11-21). So a build of more than one chunk moves its two markers (`besideMapBox`) until the
+ *    box's centre is the middle of a bare cell south of the middle of the map's south edge, ANCHOR_CLEARANCE_CELLS
+ *    empty cells out: the min marker goes far south, about a map's depth beyond the anchor. A one-chunk build is
+ *    unchanged.
  */
 import type {
   Box3,
   ChunkOptions,
   CompileDiagnostic,
+  CompileDiagnosticCode,
   ExportBundle,
   Placement,
   PlacementSet,
@@ -21,9 +29,15 @@ import type {
   SlabCodec,
 } from "../contracts/compiler";
 import type { LevelId } from "../contracts/plan";
+import { MARKER_ROLE } from "../palette/roles";
 import { sha256Hex } from "../slab/sha256";
 import { emptyBox, finiteBox, growBox } from "./geometry";
-import { placementBoxes, type RealizedSet } from "./realize";
+import { placedBox } from "./placed";
+import type { RealizedSet } from "./realize/output";
+import { minOf, pushAll } from "../util/lists";
+
+/** The verify codes this stage emits (the water level note; VERIFY_CODES is the union of every check's list). */
+export const CHUNK_VERIFY_CODES = ["verify_water_level"] as const satisfies readonly CompileDiagnosticCode[];
 
 export const DEFAULT_FILL = 0.8;
 export const DEFAULT_SIDE_BY_SIDE_GAP = 10;
@@ -74,24 +88,104 @@ export function chunkAndEncode(
   const layout = opts.levelLayout ?? "stacked";
   const diagnostics: CompileDiagnostic[] = [...set.diagnostics];
   const markerAsset = opts.marker !== undefined ? opts.marker : (rs.marker ?? null);
-  const { levels, levelPlacement, perLevelRaw, gmin, gmax, overflow } = layoutBuild(set, opts, codec);
-  if (overflow) {
-    diagnostics.push(overflow);
-    return emptyBundle(set, rs, opts, diagnostics, levelPlacement);
+  const laid = layoutBuild(set, opts, codec);
+  if (laid.overflow) {
+    diagnostics.push(laid.overflow);
+    return emptyBundle(set, rs, opts, diagnostics, laid.levelPlacement);
   }
+  const packing = startPacking(codec, opts, budget, markerAsset, laid);
+  const { found, withMarkers, anchor } = packRegions(packing, alignment, besideMap(set), diagnostics);
+  const chunks = buildChunks(packing, found, withMarkers);
+  return finishBundle({ set, rs, opts, laid, chunks, diagnostics, withMarkers, layout, anchor });
+}
+
+/** Whether the set's generator pastes a multi-chunk build from beside the map (switch pasteBesideMap). */
+function besideMap(set: PlacementSet): boolean {
+  return (set as Partial<RealizedSet>).facts?.profile.pasteBesideMap === true;
+}
+
+/** Empty cells between the paste anchor's cell and the map (the margin of the passing in-game test, 2026-11-21). */
+export const ANCHOR_CLEARANCE_CELLS = 4;
+
+/**
+ * The shared box of a build pasted from beside the map, in world tiles on x and z (the markers are 1×1 pieces with
+ * their pivot at the min corner, so the box runs from the min marker's min corner to the far side of the max marker).
+ * The map spans gmin..gmax. The anchor cell is centred on the middle of the south edge (x) and lies
+ * ANCHOR_CLEARANCE_CELLS empty cells south of it (z = gmin.z − clearance − 1). The max marker stands where it always
+ * did, one clear cell beyond the north-east corner (one cell further east when that puts the x centre mid-cell); the
+ * min marker one clear cell west of the map and as far south as makes the box's centre the anchor cell's middle.
+ */
+export interface BesideMapBox {
+  readonly min: { readonly x: number; readonly z: number };
+  readonly max: { readonly x: number; readonly z: number };
+  /** Min corner of the anchor cell (the box centre is this + 0.5 on both axes). */
+  readonly anchor: { readonly x: number; readonly z: number };
+}
+
+export function besideMapBox(
+  gmin: { readonly x: number; readonly z: number },
+  gmax: { readonly x: number; readonly z: number },
+): BesideMapBox {
+  const mg = 1 + MARKER_GAP_CELLS;
+  const anchor = { x: Math.floor((gmin.x + gmax.x) / 2), z: gmin.z - ANCHOR_CLEARANCE_CELLS - 1 };
+  // the centre on each axis is anchor + 0.5, so min + max = 2 × anchor + 1
+  const minX = gmin.x - mg;
+  const maxZ = gmax.z + mg;
+  return {
+    min: { x: minX, z: 2 * anchor.z + 1 - maxZ },
+    max: { x: 2 * anchor.x + 1 - minX, z: maxZ },
+    anchor,
+  };
+}
+
+/** A region of the build that is encoded as one chunk: its levels, items, cell rectangle, assets and encoding. */
+interface Region {
+  levelId: LevelId;
+  levelIds: LevelId[];
+  items: Item[];
+  rect: { x: number; y: number; w: number; h: number };
+  enc: { slab: string; rawBytes: number; compressedBytes: number };
+  assets: SlabAsset[];
+}
+
+/**
+ * How the laid-out build is packed into chunks: the alignment markers and the shared offset, the slab assets of a set of
+ * items, the level order, and `split` (whole levels packed into as few groups as fit, each cut until it fits).
+ */
+function startPacking(
+  codec: SlabCodec,
+  opts: ChunkEncodeOptions,
+  budget: number,
+  markerAsset: { uuid: string } | null,
+  { levels, perLevelRaw, gmin, gmax }: ReturnType<typeof layoutBuild>,
+) {
   const grouping: "fewest" | "per-level" = opts.grouping ?? "fewest";
   // Markers sit diagonally outside the corner cells with MARKER_GAP_CELLS empty cells in between: the min marker at
   // ground level (min y), the max marker raised to the top of the build (max y).
+  // With `beside` (pasteBesideMap) they stand at the corners of besideMapBox instead.
   const mg = 1 + MARKER_GAP_CELLS;
-  const markersFor = (on: boolean): Array<{ uuid: string; x: number; y: number; z: number }> =>
+  const markersFor = (
+    on: boolean,
+    beside: BesideMapBox | null = null,
+  ): Array<{ uuid: string; x: number; y: number; z: number }> =>
     on && markerAsset
-      ? [
-          { uuid: markerAsset.uuid, x: gmin.x - mg, y: gmin.y, z: gmin.z - mg },
-          { uuid: markerAsset.uuid, x: gmax.x + mg - 1, y: gmax.y, z: gmax.z + mg - 1 },
-        ]
+      ? beside
+        ? [
+            { uuid: markerAsset.uuid, x: beside.min.x, y: gmin.y, z: beside.min.z },
+            { uuid: markerAsset.uuid, x: beside.max.x - 1, y: gmax.y, z: beside.max.z - 1 },
+          ]
+        : [
+            { uuid: markerAsset.uuid, x: gmin.x - mg, y: gmin.y, z: gmin.z - mg },
+            { uuid: markerAsset.uuid, x: gmax.x + mg - 1, y: gmax.y, z: gmax.z + mg - 1 },
+          ]
       : [];
-  const offsetFor = (on: boolean): { x: number; y: number; z: number } =>
-    on && markerAsset ? { x: gmin.x - mg, y: gmin.y, z: gmin.z - mg } : gmin;
+  const offsetFor = (on: boolean, beside: BesideMapBox | null = null): { x: number; y: number; z: number } =>
+    on && markerAsset
+      ? beside
+        ? { x: beside.min.x, y: gmin.y, z: beside.min.z }
+        : { x: gmin.x - mg, y: gmin.y, z: gmin.z - mg }
+      : gmin;
+  const besideBox = besideMapBox(gmin, gmax);
   // (layout transform, items, global bounds and the coordinate check live in layoutBuild, shared with estimate)
 
   const toAssets = (
@@ -117,14 +211,19 @@ export function chunkAndEncode(
     return out;
   };
 
-  interface Region {
-    levelId: LevelId;
-    levelIds: LevelId[];
-    items: Item[];
-    rect: { x: number; y: number; w: number; h: number };
-    enc: { slab: string; rawBytes: number; compressedBytes: number };
-    assets: SlabAsset[];
-  }
+  /**
+   * The slab of these assets, or null when it cannot be one slab: more pieces of one kind (or more kinds) than the
+   * format counts. Such a set is cut further like one over the byte budget (a large map has that many floor tiles).
+   */
+  const encodeIfFits = (assets: SlabAsset[]): ReturnType<SlabCodec["encode"]> | null => {
+    if (assets.length > codec.limits.maxAssetsPerLayout) {
+      const perKind = new Map<string, number>();
+      for (const a of assets) perKind.set(a.uuid, (perKind.get(a.uuid) ?? 0) + 1);
+      if (perKind.size > codec.limits.maxLayouts) return null;
+      for (const n of perKind.values()) if (n > codec.limits.maxAssetsPerLayout) return null;
+    }
+    return codec.encode(assets);
+  };
 
   const levelOrder = new Map(levels.map((l, i) => [l.levelId, i]));
   const levelsOf = (items: Item[]): LevelId[] =>
@@ -133,13 +232,18 @@ export function chunkAndEncode(
     );
 
   /** Groups of items to cut into regions: whole levels packed in order into as few groups as fit (or one per level). */
-  const groupsFor = (withMarkers: boolean): Array<{ levelId: LevelId; items: Item[] }> => {
+  const groupsFor = (
+    withMarkers: boolean,
+    beside: BesideMapBox | null,
+  ): Array<{ levelId: LevelId; items: Item[] }> => {
     const nonEmpty = perLevelRaw.filter((l) => l.items.length > 0);
     if (grouping === "per-level") return nonEmpty;
-    const markers = markersFor(withMarkers);
-    const off = offsetFor(withMarkers);
-    const fits = (items: Item[]): boolean =>
-      codec.encode(toAssets(items, markers, off)).compressedBytes <= budget;
+    const markers = markersFor(withMarkers, beside);
+    const off = offsetFor(withMarkers, beside);
+    const fits = (items: Item[]): boolean => {
+      const enc = encodeIfFits(toAssets(items, markers, off));
+      return enc !== null && enc.compressedBytes <= budget;
+    };
     const out: Array<{ levelId: LevelId; items: Item[] }> = [];
     let cur: { levelId: LevelId; items: Item[] } | null = null;
     for (const l of nonEmpty) {
@@ -156,25 +260,33 @@ export function chunkAndEncode(
 
   const split = (
     withMarkers: boolean,
+    beside: BesideMapBox | null = null,
   ): { regions: Region[]; oversize: CompileDiagnostic[]; splits: number } => {
-    const markers = markersFor(withMarkers);
-    const off = offsetFor(withMarkers);
+    const markers = markersFor(withMarkers, beside);
+    const off = offsetFor(withMarkers, beside);
     const regions: Region[] = [];
     const oversize: CompileDiagnostic[] = [];
     let splits = 0;
     const rectOf = (items: Item[]): Region["rect"] => {
-      const xs = items.map((i) => i.cx);
-      const ys = items.map((i) => i.cy);
-      const x = Math.min(...xs),
-        y = Math.min(...ys);
-      return { x, y, w: Math.max(...xs) - x + 1, h: Math.max(...ys) - y + 1 };
+      // (a loop, not Math.min(...): a region can hold more items than a call takes arguments)
+      let x = Infinity,
+        y = Infinity,
+        x1 = -Infinity,
+        y1 = -Infinity;
+      for (const i of items) {
+        x = Math.min(x, i.cx);
+        y = Math.min(y, i.cy);
+        x1 = Math.max(x1, i.cx);
+        y1 = Math.max(y1, i.cy);
+      }
+      return { x, y, w: x1 - x + 1, h: y1 - y + 1 };
     };
     const rec = (levelId: LevelId, items: Item[]): void => {
       if (items.length === 0) return;
       const rect = rectOf(items);
       const assets = toAssets(items, markers, off);
-      const enc = codec.encode(assets);
-      if (enc.compressedBytes <= budget) {
+      const enc = encodeIfFits(assets);
+      if (enc !== null && enc.compressedBytes <= budget) {
         regions.push({
           levelId: levelsOf(items)[0] ?? levelId,
           levelIds: levelsOf(items),
@@ -201,14 +313,17 @@ export function chunkAndEncode(
           return;
         }
       }
-      if (enc.compressedBytes > codec.limits.maxCompressedBytes) {
+      if (enc === null || enc.compressedBytes > codec.limits.maxCompressedBytes) {
         oversize.push({
           severity: "error",
           code: "chunk_oversize",
           stage: "chunk",
           levelId,
           cell: [rect.x, rect.y],
-          message: `A single cell holds ${enc.compressedBytes} bytes of slab data (limit ${codec.limits.maxCompressedBytes})`,
+          message:
+            enc === null
+              ? `A single cell holds more pieces of one kind than a slab can (limit ${codec.limits.maxAssetsPerLayout})`
+              : `A single cell holds ${enc.compressedBytes} bytes of slab data (limit ${codec.limits.maxCompressedBytes})`,
         });
         return;
       }
@@ -221,27 +336,62 @@ export function chunkAndEncode(
         assets,
       });
     };
-    for (const g of groupsFor(withMarkers)) rec(g.levelId, g.items);
+    for (const g of groupsFor(withMarkers, beside)) rec(g.levelId, g.items);
     return { regions, oversize, splits };
   };
+  return { codec, budget, markerAsset, levelOrder, split, besideBox, gmin, gmax };
+}
 
+type Packing = ReturnType<typeof startPacking>;
+
+/**
+ * The regions, with alignment markers when the build needs them (always, or when it is more than one chunk); notes a
+ * missing marker asset, oversize cells and the split.
+ */
+function packRegions(
+  { codec, budget, markerAsset, split, besideBox, gmin, gmax }: Packing,
+  alignment: NonNullable<ChunkOptions["alignment"]>,
+  pasteBeside: boolean,
+  diagnostics: CompileDiagnostic[],
+): { found: readonly Region[]; withMarkers: boolean; anchor: ExportBundle["pasteAnchor"] } {
   let pass = split(alignment === "always");
   let withMarkers = alignment === "always";
-  if (alignment === "multi-chunk" && pass.regions.length > 1) {
-    pass = split(true);
-    withMarkers = true;
+  const multi = pass.regions.length > 1;
+  if (alignment === "multi-chunk" && multi) withMarkers = true;
+  // the paste anchor is the centre of the shared box, which only the markers make shared
+  let beside = pasteBeside && multi && withMarkers && markerAsset !== null;
+  // the padded box stretches south to about twice the map's depth: when that leaves the slab format's range, the
+  // chunks keep the plain corner markers (which layoutBuild checked) and the bundle no paste anchor
+  const besideSpan = boxSpan(besideBox, gmin, gmax);
+  if (beside && besideSpan * 100 > codec.limits.maxCoord) {
+    beside = false;
+    diagnostics.push({
+      severity: "info",
+      code: "coord_overflow",
+      stage: "chunk",
+      message: `Pasting from beside the map would need a box of ${besideSpan} tiles (the slab format allows ${Math.floor(codec.limits.maxCoord / 100)}), so the chunks carry the alignment pillars at the map's corners instead: paste them by the pillars.`,
+    });
   }
+  if ((alignment === "multi-chunk" && multi) || beside) pass = split(true, beside ? besideBox : null);
+  const anchor: ExportBundle["pasteAnchor"] = beside
+    ? {
+        side: "south",
+        clearanceCells: ANCHOR_CLEARANCE_CELLS,
+        farMarkerCells: gmin.z - besideBox.min.z - 1,
+        nearMarkerCells: { north: besideBox.max.z - 1 - gmax.z, east: besideBox.max.x - 1 - gmax.x },
+      }
+    : undefined;
   if (withMarkers && !markerAsset) {
     diagnostics.push({
       severity: "warning",
       code: "role_missing",
       stage: "chunk",
-      role: "marker.alignment",
-      message: "No marker.alignment asset in the palettes; chunks carry no alignment markers",
+      role: MARKER_ROLE,
+      message: `No ${MARKER_ROLE} asset in the palettes; chunks carry no alignment markers`,
     });
     withMarkers = false;
   }
-  diagnostics.push(...pass.oversize);
+  pushAll(diagnostics, pass.oversize);
   if (pass.splits > 0) {
     diagnostics.push({
       severity: "info",
@@ -251,9 +401,16 @@ export function chunkAndEncode(
       count: pass.splits,
     });
   }
+  return { found: pass.regions, withMarkers, anchor };
+}
 
-  // ── order: by first level, then row-major by region rect ──
-  const regions = [...pass.regions].sort(
+/** The chunks in paste order (by first level, then row-major by region rect), labelled and with their paste notes. */
+function buildChunks(
+  { codec, levelOrder }: Packing,
+  found: readonly Region[],
+  withMarkers: boolean,
+): SlabChunk[] {
+  const regions = [...found].sort(
     (a, b) =>
       (levelOrder.get(a.levelId) ?? 0) - (levelOrder.get(b.levelId) ?? 0) ||
       a.rect.y - b.rect.y ||
@@ -269,7 +426,7 @@ export function chunkAndEncode(
     const mine = regions.filter((r) => groupKey(r) === key);
     const xs = [...new Set(mine.map((r) => r.rect.x))].sort((a, b) => a - b);
     const ys = [...new Set(mine.map((r) => r.rect.y))].sort((a, b) => a - b);
-    const minCellX = Math.min(...mine.map((r) => r.rect.x));
+    const minCellX = minOf(mine.map((r) => r.rect.x));
     mine.forEach((r, i) => {
       const cb = emptyBox();
       for (const it of r.items) growBox(cb, it.box);
@@ -316,7 +473,27 @@ export function chunkAndEncode(
       });
     });
   }
+  return chunks;
+}
 
+/**
+ * The bundle: each level's paste order, the stats, the water level notes (diagnostics and instructions: TaleSpire water
+ * is a board-wide plane the slab cannot carry) and the paste instructions.
+ */
+function finishBundle(b: {
+  set: PlacementSet;
+  rs: Partial<RealizedSet> & PlacementSet;
+  opts: ChunkEncodeOptions;
+  laid: ReturnType<typeof layoutBuild>;
+  chunks: SlabChunk[];
+  diagnostics: CompileDiagnostic[];
+  withMarkers: boolean;
+  layout: NonNullable<ChunkOptions["levelLayout"]>;
+  /** Where the cursor goes when the build is pasted from beside the map (besideMapBox). */
+  anchor: ExportBundle["pasteAnchor"];
+}): ExportBundle {
+  const { set, rs, opts, chunks, diagnostics, withMarkers, layout, anchor } = b;
+  const { levels, levelPlacement, gmin } = b.laid;
   // paste order per level = position of the first chunk that contains it
   for (const lp of levelPlacement) {
     const k = chunks.findIndex((c) => c.levelIds.includes(lp.levelId));
@@ -376,7 +553,7 @@ export function chunkAndEncode(
       perLevel: perLevelStats,
       droppedPlacements: dropped,
     },
-    instructions: pasteInstructions(chunks, withMarkers, layout) + waterNote,
+    instructions: pasteInstructions(chunks, withMarkers, layout, anchor) + waterNote,
     ...(waterLevels.length ? { waterLevels } : {}),
     assetSource: rs.assetSource ?? "builtin",
     substitutions: (rs.substitutions ?? []).map((s) => ({
@@ -386,6 +563,7 @@ export function chunkAndEncode(
       count: s.count,
     })),
     levelPlacement,
+    ...(anchor ? { pasteAnchor: anchor } : {}),
   };
 }
 
@@ -409,7 +587,7 @@ function layoutBuild(
   const levelsWanted = opts.levels ? new Set(opts.levels) : null;
   const levels = set.levels.filter((l) => !levelsWanted || levelsWanted.has(l.levelId));
   const elevOf = new Map((rs.levelInfo ?? []).map((l) => [l.levelId, l.elevation]));
-  const minElev = Math.min(...levels.map((l) => elevOf.get(l.levelId) ?? 0), Infinity);
+  const minElev = Math.min(minOf(levels.map((l) => elevOf.get(l.levelId) ?? 0)), Infinity);
   const shift = new Map<LevelId, { dx: number; dy: number }>();
   const levelPlacement: ExportBundle["levelPlacement"] = [];
   let cursorX = 0;
@@ -417,7 +595,7 @@ function layoutBuild(
     const elev = elevOf.get(l.levelId) ?? 0;
     if (layout === "side_by_side") {
       const b = emptyBox();
-      for (const p of l.placements) growBox(b, boxOf(p));
+      for (const p of l.placements) growBox(b, placedBox(set, p));
       const minX = Number.isFinite(b.min.x) ? Math.floor(b.min.x) : 0;
       const width = Number.isFinite(b.max.x) ? Math.ceil(b.max.x) - minX : 0;
       const dx = i === 0 ? 0 : cursorX - minX;
@@ -440,7 +618,7 @@ function layoutBuild(
     const s = shift.get(l.levelId) ?? { dx: 0, dy: 0 };
     const items: Item[] = l.placements.map((p0) => {
       const p = s.dx || s.dy ? { ...p0, x: p0.x + s.dx, y: p0.y + s.dy } : p0;
-      const b0 = boxOf(p0);
+      const b0 = placedBox(set, p0);
       const box = {
         min: { x: b0.min.x + s.dx, y: b0.min.y + s.dy, z: b0.min.z },
         max: { x: b0.max.x + s.dx, y: b0.max.y + s.dy, z: b0.max.z },
@@ -467,7 +645,13 @@ function layoutBuild(
     : { x: Math.ceil(g.max.x - 1e-9), y: Math.ceil(g.max.y * 4 - 1e-9) / 4, z: Math.ceil(g.max.z - 1e-9) };
 
   const mg = 1 + MARKER_GAP_CELLS;
-  const extent = Math.max(gmax.x - gmin.x + 2 * mg, gmax.z - gmin.z + 2 * mg, gmax.y - gmin.y + 3);
+  // the build with its corner markers: every build fits this box (a build pasted from beside the map whose padded box
+  // would not fit falls back to it, packRegions)
+  const extent = boxSpan(
+    { min: { x: gmin.x - mg, z: gmin.z - mg }, max: { x: gmax.x + mg, z: gmax.z + mg } },
+    gmin,
+    gmax,
+  );
   const overflow: CompileDiagnostic | null =
     extent * 100 > codec.limits.maxCoord
       ? {
@@ -481,6 +665,18 @@ function layoutBuild(
   return { levels, levelPlacement, perLevelRaw, gmin, gmax, overflow };
 }
 
+/** The largest side of a chunk box, in tiles: its x and z spans and the build's height with room for the pillars. */
+function boxSpan(
+  box: {
+    readonly min: { readonly x: number; readonly z: number };
+    readonly max: { readonly x: number; readonly z: number };
+  },
+  gmin: { readonly y: number },
+  gmax: { readonly y: number },
+): number {
+  return Math.max(box.max.x - box.min.x, box.max.z - box.min.z, gmax.y - gmin.y + 3);
+}
+
 /** The coord_overflow error compile would report for this placement set (null when the build fits). */
 export function extentDiagnostic(
   set: PlacementSet,
@@ -488,10 +684,6 @@ export function extentDiagnostic(
   opts: Pick<ChunkEncodeOptions, "levels" | "levelLayout" | "sideBySideGap"> = {},
 ): CompileDiagnostic | null {
   return layoutBuild(set, opts, codec).overflow;
-}
-
-function boxOf(p: Placement): Box3 {
-  return placementBoxes.get(p) ?? { min: { x: p.x, y: p.y, z: p.z }, max: { x: p.x, y: p.y, z: p.z } };
 }
 
 const round4 = (v: number): number => Math.round(v * 10000) / 10000 || 0;
@@ -517,10 +709,15 @@ function positionLabel(col: number, cols: number, row: number, rows: number): st
   return h || v || "Whole level";
 }
 
+/** "1 empty cell", "4 empty cells": the one way the paste instructions count cells (the empty cells in between). */
+const emptyCells = (n: number): string => `${n} empty ${n === 1 ? "cell" : "cells"}`;
+
 export function pasteInstructions(
   chunks: SlabChunk[],
   markers: boolean,
   layout: "stacked" | "side_by_side",
+  /** Where the cursor goes when the build is pasted from beside the map. */
+  anchor?: ExportBundle["pasteAnchor"],
 ): string {
   if (chunks.length === 0) return "Nothing to paste.";
   if (chunks.length === 1) {
@@ -534,9 +731,11 @@ export function pasteInstructions(
     "",
     "1. Use an empty board, or raise a build plane (G) at a known height.",
     "2. Do not move the camera between chunks.",
-    markers
-      ? "3. Each chunk carries the same two alignment pillars, one clear cell outside the south-west corner (at ground level) and the north-east corner (raised to the top). Place every chunk so its south-west pillar lands exactly on the pillar already placed."
-      : "3. Paste every chunk with the cursor on the same cell.",
+    anchor
+      ? `3. Keep the cursor on one bare cell ${anchor.side} of the middle of the map’s ${anchor.side} edge, with ${emptyCells(anchor.clearanceCells)} between it and the map: that cell is the middle of every chunk. Each chunk carries the same two alignment pillars: one beyond the map’s north-east corner, raised to the top, with ${emptyCells(anchor.nearMarkerCells?.north ?? MARKER_GAP_CELLS)} between it and the map northward and ${emptyCells(anchor.nearMarkerCells?.east ?? MARKER_GAP_CELLS)} eastward; and one at ground level beyond the ${anchor.side}-west corner, with ${emptyCells(anchor.farMarkerCells)} between it and the map ${anchor.side}ward and ${emptyCells(MARKER_GAP_CELLS)} westward. Place every chunk so its pillars land exactly on the pillars already placed.`
+      : markers
+        ? "3. Each chunk carries the same two alignment pillars, one clear cell outside the south-west corner (at ground level) and the north-east corner (raised to the top). Place every chunk so its south-west pillar lands exactly on the pillar already placed."
+        : "3. Paste every chunk with the cursor on the same cell.",
     "4. Right-click between chunks to drop the slab in hand.",
     markers ? "5. When all chunks are placed, delete the two alignment pillars." : "",
     "",

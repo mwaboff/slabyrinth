@@ -21,12 +21,18 @@ describe("sdkClientFactory (pinned host)", () => {
     vi.stubEnv("ANTHROPIC_BASE_URL", "https://evil.example.test");
     vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-api03-ENV-not-real-222222222222-q1Q1");
     vi.stubEnv("ANTHROPIC_AUTH_TOKEN", "env-bearer-token");
-    vi.stubEnv("ANTHROPIC_CUSTOM_HEADERS", "X-Api-Key: injected\nAuthorization: Bearer injected\nX-Extra: yes");
+    vi.stubEnv(
+      "ANTHROPIC_CUSTOM_HEADERS",
+      "X-Api-Key: injected\nAuthorization: Bearer injected\nX-Extra: yes",
+    );
     vi.stubEnv("ANTHROPIC_PROFILE", "someone-else");
     vi.stubEnv("ANTHROPIC_LOG", "debug");
     const seen: Array<{ url: string; headers: Headers }> = [];
     vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => {
-      seen.push({ url: String(input instanceof Request ? input.url : input), headers: new Headers(init?.headers) });
+      seen.push({
+        url: String(input instanceof Request ? input.url : input),
+        headers: new Headers(init?.headers),
+      });
       return Promise.resolve(
         new Response(JSON.stringify({ data: [], has_more: false, first_id: null, last_id: null }), {
           status: 200,
