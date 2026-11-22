@@ -313,6 +313,10 @@ const SWITCHES = {
     4,
     "The market's blocking pieces set against a wall (a trade's barrel or crate outside its door) stand clear of it, as other generated furniture does (resolve/level/features.ts offWalls).",
   ),
+  pasteBesideMap: on(
+    4,
+    "A build of more than one chunk is pasted from bare ground beside the map: the shared box is padded so its centre (the paste anchor) is the middle of a cell south of the map's south edge, with clear cells between them (compile/chunk.ts besideMapBox).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

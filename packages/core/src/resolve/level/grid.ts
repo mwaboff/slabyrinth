@@ -27,7 +27,7 @@ import type {
   WallMode,
   WallStyle,
 } from "../../contracts/plan";
-import { BUILD_CONSTANTS, MATERIALS, PLAN_LIMITS } from "../../contracts/plan";
+import { BUILD_CONSTANTS, MATERIALS } from "../../contracts/plan";
 import type { ThemeInterior } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
@@ -54,6 +54,7 @@ import { isWater, materialOrdinal } from "../materials";
 import type { ThemeDefaults } from "../themes";
 import { type StructureWork, expandStructures } from "../structure";
 import { areaTable } from "./areas";
+import { MAX_LEVEL_SIDE } from "../../plan/sizeTiers";
 
 export interface LevelContext {
   plan: MapPlan;
@@ -194,8 +195,8 @@ export class ResolveGrid {
     this.level = level;
     this.bx = Math.floor(level.bounds.x);
     this.by = Math.floor(level.bounds.y);
-    this.w = Math.max(1, Math.min(PLAN_LIMITS.levelSide, Math.floor(level.bounds.w)));
-    this.h = Math.max(1, Math.min(PLAN_LIMITS.levelSide, Math.floor(level.bounds.h)));
+    this.w = Math.max(1, Math.min(MAX_LEVEL_SIDE, Math.floor(level.bounds.w)));
+    this.h = Math.max(1, Math.min(MAX_LEVEL_SIDE, Math.floor(level.bounds.h)));
     this.n = this.w * this.h;
     this.state = new Uint8Array(this.n);
     this.struct = new Int32Array(this.n);

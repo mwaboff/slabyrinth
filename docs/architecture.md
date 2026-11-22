@@ -77,7 +77,7 @@ Core is pure TypeScript. It has no Electron, DOM, or `node:*` imports outside `s
 
 ### 2.2 Coordinates and units
 
-- One cell is one tile (5 ft). There is one **global** integer grid for all levels: x runs east, y runs south. Each level has `bounds` (≤160×160) inside it, so stairs line up by construction.
+- One cell is one tile (5 ft). There is one **global** integer grid for all levels: x runs east, y runs south. Each level has `bounds` (≤320×320, and all levels together ≤ 204,800 cells: `PLAN_LIMITS`) inside it, so stairs line up by construction.
 - A cell `(x,y)` covers `[x,x+1)×[y,y+1)`. A vertex `(x,y)` is the top-left corner of that cell. Polygons and wall runs use vertices; everything else uses cells.
 - Heights are in tiles, in multiples of 0.25. `level.elevation` is the **bottom** of that level's floor tiles. The walkable top is `elevation + 0.5` (`BUILD_CONSTANTS`). Stack storeys at 2.5.
 - Mapping to TaleSpire is **confirmed in game**: +x = East and +z = North, so world `x = col`, `z = (Hglobal − 1 − row)`, with no mirroring. Increasing `rot` turns clockwise seen from above. Both facts stay as data in the orientation table (§4.4).
@@ -969,6 +969,7 @@ For a build, compute the **global** bounds of all placements over all levels (st
 1. Add two `marker.alignment` tiles to **every** chunk: one at `(minX−1, minY, minZ−1)` and one at `(maxX+1, maxYtop, maxZ+1)`. Every chunk then has an **identical bounding box** in all three axes, whether the game anchors on the min corner or the centre.
    - Research §5 put both markers at y=0. Raising the second marker to the top is an extension so that vertical extents match too; this needs in-game confirmation.
    - Normalize all chunks with one shared offset.
+   - Generator 4 on (`pasteBesideMap`, decisions.md 2026-11-21): TaleSpire pastes at the box centre, and a chunk landing on a piece an earlier chunk put under the cursor sits high. So a multi-chunk build moves its markers (`besideMapBox`) until the centre is the middle of a bare cell 5 cells south of the middle of the map's south edge (4 empty cells between); the min marker then stands about a map depth south of the anchor. `ExportBundle.pasteAnchor` says so to the UI.
 2. Each level is split into rectangular whole-cell regions. Start from the level's occupied bbox. Each placement belongs to its **source cell**: the min cell of floors, the host cell of walls, the anchor cell of features. Encode for real; if `compressedBytes > 0.8 × 30720` (about 24.5 KB), split along the longer axis at the median source-cell coordinate and recurse.
 3. If a single cell is still too large, the result is a `chunk_oversize` error. That should never happen.
 4. Chunks are ordered by level (entry level first, then by elevation) and then by row-major region order. Each gets a label (West, Centre, East, or a grid position), ruler columns, `offsetFromFirst`, and a `contentHash` (sha256 of the raw payload).

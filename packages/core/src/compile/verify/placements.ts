@@ -64,7 +64,9 @@ export function dropBadPlacements(ctx: VerifyCtx): void {
         repaired: `dropped ${n} duplicate placement${n > 1 ? "s" : ""}`,
       });
     }
-    lv.placements.splice(0, lv.placements.length, ...kept);
+    // (in place, without spreading: a large level has more placements than a call takes arguments)
+    lv.placements.length = 0;
+    for (const p of kept) lv.placements.push(p);
   }
 }
 

@@ -45,6 +45,74 @@ export function singleCharRows(
   return lines;
 }
 
+/**
+ * A crop of more than `maxCells` cells: one character per block of s × s cells (the smallest s that keeps the blocks
+ * within `maxCells`), walls and doors omitted. A block shows "!" if it holds a marked cell, else the first feature in
+ * it, else the character most of its cells show. The last line states the scale and how to ask for full detail.
+ */
+export function overviewRows(
+  c: AsciiCtx,
+  view: CellReader,
+  marked: ReadonlySet<string>,
+  maxCells: number,
+  maxW: number,
+): string[] {
+  const { rx0, ry0, rx1, ry1, rw, rh } = c;
+  let s = Math.max(2, Math.ceil(Math.sqrt((rw * rh) / maxCells)));
+  while (Math.ceil(rw / s) * Math.ceil(rh / s) > maxCells) s++;
+  const bw = Math.ceil(rw / s);
+  const lines: string[] = [blockHeader(rx0, bw, s)];
+  for (let by = ry0; by < ry1; by += s) {
+    let row = "";
+    for (let bx = rx0; bx < rx1; bx += s)
+      row += blockChar(view, marked, bx, by, Math.min(bx + s, rx1), Math.min(by + s, ry1));
+    lines.push(blockRowLabel(by, (by - ry0) / s) + row);
+  }
+  const side = Math.floor(Math.sqrt(maxCells));
+  lines.push(
+    `(overview: level crop is ${rw}×${rh} cells, more than one view draws (${maxCells}), so 1 char = ${s}×${s} cells (x and y labels are cell coordinates), walls and doors omitted; call view_plan ascii with a region of at most ${side}×${side} cells for every cell, ≤ ${maxW} wide for walls)`,
+  );
+  return lines;
+}
+
+function blockChar(
+  view: CellReader,
+  marked: ReadonlySet<string>,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): string {
+  const count = new Map<string, number>();
+  for (let gy = y0; gy < y1; gy++)
+    for (let gx = x0; gx < x1; gx++) {
+      if (marked.has(`${gx},${gy}`)) return "!";
+      const v = view(gx, gy);
+      if (v.feat !== null) return v.feat;
+      const ch = shown(v);
+      count.set(ch, (count.get(ch) ?? 0) + 1);
+    }
+  let best = " ";
+  let n = 0;
+  for (const [ch, k] of count) if (k > n) [best, n] = [ch, k];
+  return best;
+}
+
+/** Row label: the block's first cell row, on every 5th block row. */
+function blockRowLabel(by: number, k: number): string {
+  return k % 5 === 0 ? String(by).padStart(3, " ") + " " : "    ";
+}
+
+/** Column header: the block's first cell column, on every 10th block. */
+function blockHeader(rx0: number, bw: number, s: number): string {
+  const chars = new Array<string>(bw).fill(" ");
+  for (let b = 0; b < bw; b += 10) {
+    const t = String(rx0 + b * s);
+    for (let k = 0; k < t.length && b + k < bw; k++) chars[b + k] = t[k] as string;
+  }
+  return "    " + chars.join("").replace(/\s+$/, "");
+}
+
 interface Edge {
   kind: number;
   ref: number;

@@ -2,12 +2,13 @@
 /**
  * slabyrinth CLI — headless seam for scripts and a future Claude Code plugin (architecture §4.7).
  *
- *   slabyrinth validate <plan.json> [--palettes <dir>] [--catalog <catalog.json>]
+ *   slabyrinth validate <plan.json> [--palettes <dir>] [--catalog <catalog.json>] [--size-tier <id>]
  *   slabyrinth ascii <plan.json> [--level <id>] [--palettes <dir>] [--catalog <catalog.json>]
  *   slabyrinth compile <plan.json> [--out <dir>] [--palettes <dir>] [--orientation <file>] [--catalog <catalog.json>]
  *                      [--fill <0..1>] [--alignment multi-chunk|always|none] [--layout stacked|side_by_side] [--json]
  *                      [--force] (write slabs despite verify errors) [--verbose] (also print info diagnostics)
  *                      [--omit-layer roof] (leave a paste layer out: roof, storey:1 …; repeatable as a comma list)
+ *                      [--size-tier standard|large-512|large-768|large-1024] (map size setting, validate and compile)
  *   slabyrinth decode <slab | @file | -> [--catalog <catalog.json>] [--json]
  *   slabyrinth encode <assets.json | -> [--fenced]
  *   slabyrinth catalog [--install <dir>] [--cached <catalog.json>] [--out <catalog.json>] [--json]
@@ -33,7 +34,7 @@ import type { AssetCatalog, ChunkOptions, PaletteCatalog, SlabAsset } from "../c
 import type { MapPlan } from "../contracts/plan";
 import { calibrationAssetsFrom, calibrationSlabAssets, compileResolved, realize } from "../compile/index";
 import { buildPaletteCatalog, loadOrientation, loadPalettes } from "../palette/index";
-import { parsePlan, planGate, validatePlan } from "../plan/index";
+import { SIZE_TIER_ORDER, parsePlan, planGate, validatePlan, type SizeTierId } from "../plan/index";
 import { planRules, resolvePlan } from "../resolve/index";
 import {
   decodeDetailed,
@@ -132,10 +133,19 @@ function palettesFrom(a: Args, io: CliIo): PaletteCatalog {
   return cat;
 }
 
+/** The --size-tier flag (plan/sizeTiers.ts): the standard limits when absent. */
+function sizeTierFrom(a: Args): { sizeTier?: SizeTierId } {
+  const t = flag(a, "size-tier");
+  if (t === undefined) return {};
+  if (!(SIZE_TIER_ORDER as readonly string[]).includes(t))
+    throw new UsageError(`--size-tier ${t}: one of ${SIZE_TIER_ORDER.join(", ")}`);
+  return { sizeTier: t as SizeTierId };
+}
+
 function cmdValidate(a: Args, io: CliIo): number {
   const path = a._[1];
   if (!path) throw new UsageError("validate <plan.json>");
-  const r = validatePlan(readJson(path, io), planRules(palettesFrom(a, io)));
+  const r = validatePlan(readJson(path, io), planRules(palettesFrom(a, io), sizeTierFrom(a)));
   if (a.flags["json"]) io.out(JSON.stringify(r, null, 2));
   else {
     for (const i of r.issues)
@@ -166,7 +176,7 @@ function cmdCompile(a: Args, io: CliIo): number {
   const plan = readPlan(path, io);
   const cat = palettesFrom(a, io);
   // the app's build gate (plan/gate.ts): structural errors refuse; playability errors are reported, as in the app
-  const gate = planGate(validatePlan(plan, planRules(cat)).issues, "build");
+  const gate = planGate(validatePlan(plan, planRules(cat, sizeTierFrom(a))).issues, "build");
   if (gate.blocking.length > 0) {
     for (const i of gate.blocking) io.err(`error ${i.code}: ${i.message}`);
     io.err("compile refused: the plan has validation errors");

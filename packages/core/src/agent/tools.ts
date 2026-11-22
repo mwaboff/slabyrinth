@@ -1434,7 +1434,9 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     streamInput: false,
     description:
       "Look at the current plan. outline = every element with its key parameters (authoritative ids, compact); ascii = resolved map of one level " +
-      "(walls, doors, features, heights) optionally cropped to a region; json = exact JSON of selected elements. Call this before editing " +
+      "(walls, doors, features, heights) optionally cropped to a region (a crop over 160×160 cells comes back as an overview, one " +
+      "character per block of cells with its scale stated: ask for a smaller region for every cell); json = exact JSON of selected " +
+      "elements. Call this before editing " +
       "something you have not seen since the last change, or when the GM refers to a part of the map you need to inspect.",
     inputSchema: {
       type: "object",

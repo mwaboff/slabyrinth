@@ -20,7 +20,6 @@ import type {
   Side,
   Vec2,
 } from "../contracts/plan";
-import { PLAN_LIMITS } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedLink, ResolvedOpening, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
@@ -29,6 +28,7 @@ import { OPPOSITE, SIDES, SIDE_STEP as DIRS } from "../gen/gridGeometry";
 import { sideEdgeIndex } from "./levelGrid";
 import { entryLevelId, linkKindInfo } from "../plan/links";
 import { exhaustive } from "../util/never";
+import { MAX_LEVEL_SIDE } from "../plan/sizeTiers";
 
 // ───────────────────────────── options and walk modes ─────────────────────────────
 
@@ -480,8 +480,8 @@ export function walkPathsFrom(
   };
 }
 
-/** Parents are stored as level index * stride + cell index (a level has at most PLAN_LIMITS.levelSide² cells). */
-const PARENT_STRIDE = PLAN_LIMITS.levelSide * PLAN_LIMITS.levelSide;
+/** Parents are stored as level index * stride + cell index (a level has at most MAX_LEVEL_SIDE² cells; 8 levels of 1024² fit an Int32). */
+const PARENT_STRIDE = MAX_LEVEL_SIDE * MAX_LEVEL_SIDE;
 
 // ───────────────────────────── the checks ─────────────────────────────
 
@@ -1162,10 +1162,6 @@ function findBlocker(
   areaCells: number[],
   reached: Uint8Array,
 ): { what: string; id?: string; cell?: Vec2 } | null {
-  const inner = g.flood(
-    areaCells.map((i) => [d.li, i] as [number, number]),
-    { secret: true, ignoreWater: true },
-  )[d.li] as Uint8Array;
   const area = new Set(areaCells);
   const touches = (i: number, mask: Uint8Array | Set<number>): boolean => {
     for (const s of SIDES) {
@@ -1174,15 +1170,22 @@ function findBlocker(
     }
     return false;
   };
-  const candidates: number[] = [];
+  // a blocker stands beside the reached part of the level: find those cells first, and flood from the area (a walk of
+  // the whole map) only when there are any, so a level nobody reaches costs no flood per area
+  const beside: number[] = [];
   for (let i = 0; i < d.w * d.h; i++) {
     if (d.l.cells.state[i] !== CELL.OPEN) continue;
     if (g.walkable(d, i, { secret: true, ignoreWater: true })) continue;
     if (!g.walkable(d, i, { secret: true, ignoreFeatures: true, ignoreWater: true, ignoreStairwells: true }))
       continue;
-    const nearArea = area.has(i) || touches(i, inner) || touches(i, area);
-    if (nearArea && touches(i, reached)) candidates.push(i);
+    if (touches(i, reached)) beside.push(i);
   }
+  if (beside.length === 0) return null;
+  const inner = g.flood(
+    areaCells.map((i) => [d.li, i] as [number, number]),
+    { secret: true, ignoreWater: true },
+  )[d.li] as Uint8Array;
+  const candidates = beside.filter((i) => area.has(i) || touches(i, inner) || touches(i, area));
   const best = candidates[0];
   if (best === undefined) return null;
   const k = d.featAt[best] as number;
