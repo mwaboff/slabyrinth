@@ -1,11 +1,11 @@
 {
-  "description": "level wider than 160",
+  "description": "level wider than 320",
   "base": "single-room.json",
   "expect": [
     {
       "code": "bounds_exceeded",
       "path": "/levels/0/bounds/w",
-      "hintIncludes": "≤ 160"
+      "hintIncludes": "≤ 320"
     }
   ],
   "plan": {
@@ -24,7 +24,7 @@
         "bounds": {
           "x": 0,
           "y": 0,
-          "w": 200,
+          "w": 400,
           "h": 10
         },
         "base": {

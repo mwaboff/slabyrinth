@@ -8,14 +8,16 @@ export { ROLE_ORDER } from "./realize/output";
 export type { RealizedSet } from "./realize/output";
 export type { BundleSubstitution, RealizeOptions } from "./realize/context";
 export {
+  ANCHOR_CLEARANCE_CELLS,
   DEFAULT_FILL,
   DEFAULT_SIDE_BY_SIDE_GAP,
   MARKER_GAP_CELLS,
+  besideMapBox,
   chunkAndEncode,
   extentDiagnostic,
   pasteInstructions,
 } from "./chunk";
-export type { ChunkEncodeOptions } from "./chunk";
+export type { BesideMapBox, ChunkEncodeOptions } from "./chunk";
 export { ESTIMATE_BYTES_PER_ASSET, compileResolved, createCompilePlan, estimate } from "./compile";
 export type { CompileDeps, CompileOptions } from "./compile";
 export { VERIFY_CODES, verifyBuild } from "./verify";

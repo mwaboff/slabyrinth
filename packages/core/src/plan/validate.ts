@@ -245,6 +245,17 @@ function checkIds(plan: MapPlan, elements: readonly ElementLocation[], sink: Iss
 }
 
 function checkLevels(plan: MapPlan, sink: IssueSink): void {
+  // the levels together: build time and memory grow with every cell of every level (test/sweep/sizes.ts)
+  const cells = plan.levels.reduce((s, l) => s + l.bounds.w * l.bounds.h, 0);
+  if (cells > PLAN_LIMITS.totalCells) {
+    const sizes = plan.levels.map((l) => `${l.id} ${l.bounds.w}×${l.bounds.h}`).join(", ");
+    sink.error(
+      "limit_exceeded",
+      "/levels",
+      `the levels cover ${cells} cells together (${sizes}); the limit is ${PLAN_LIMITS.totalCells}`,
+      `shrink the levels' bounds to what the map uses, or use fewer levels: for example one ${PLAN_LIMITS.levelSide}×${PLAN_LIMITS.levelSide} level and one more of that size, or 8 levels of 160×160`,
+    );
+  }
   const seen = new Map<number, string>();
   const elevations = new Set(plan.levels.map((l) => l.elevation));
   plan.levels.forEach((level, li) => {

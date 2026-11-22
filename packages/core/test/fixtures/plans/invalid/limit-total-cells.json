@@ -1,0 +1,239 @@
+{
+  "description": "three 320 x 320 levels: more cells together than the plan limit",
+  "base": "single-room.json",
+  "expect": [
+    {
+      "code": "limit_exceeded",
+      "path": "/levels",
+      "hintIncludes": "fewer levels"
+    }
+  ],
+  "plan": {
+    "schema": "slabyrinth/plan@1",
+    "generator": 1,
+    "id": "11111111-1111-4111-8111-111111111111",
+    "title": "Single Room",
+    "kind": "dungeon",
+    "seed": 1,
+    "theme": "stone_dungeon",
+    "levels": [
+      {
+        "id": "l1",
+        "name": "Cellar",
+        "elevation": 0,
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 320
+        },
+        "base": {
+          "type": "solid"
+        },
+        "areas": [
+          {
+            "id": "cellar",
+            "kind": "room",
+            "name": "Wine Cellar",
+            "key": "1",
+            "shape": {
+              "type": "rect",
+              "x": 2,
+              "y": 2,
+              "w": 8,
+              "h": 6
+            },
+            "notes": "Racks of empty bottles. One cask still sloshes."
+          }
+        ],
+        "openings": [],
+        "walls": [],
+        "features": [
+          {
+            "id": "table",
+            "type": "table",
+            "at": [5, 4],
+            "size": [2, 1]
+          },
+          {
+            "id": "chair",
+            "type": "chair",
+            "at": [5, 5],
+            "rot": 180
+          },
+          {
+            "id": "cask",
+            "type": "barrel",
+            "at": [8, 2]
+          },
+          {
+            "id": "chest",
+            "type": "chest",
+            "at": [2, 7],
+            "rot": 90
+          },
+          {
+            "id": "torch",
+            "type": "torch_wall",
+            "at": [3, 2],
+            "wall": "N"
+          }
+        ],
+        "terrain": [],
+        "labels": [
+          {
+            "id": "lbl_cellar",
+            "text": "Cellar",
+            "at": [6, 8],
+            "size": "m"
+          }
+        ]
+      },
+      {
+        "id": "l2",
+        "name": "Cellar 2",
+        "elevation": 2.5,
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 320
+        },
+        "base": {
+          "type": "solid"
+        },
+        "areas": [
+          {
+            "id": "cellar2",
+            "kind": "room",
+            "name": "Wine Cellar",
+            "key": "2",
+            "shape": {
+              "type": "rect",
+              "x": 2,
+              "y": 2,
+              "w": 8,
+              "h": 6
+            },
+            "notes": "Racks of empty bottles. One cask still sloshes."
+          }
+        ],
+        "openings": [],
+        "walls": [],
+        "features": [
+          {
+            "id": "table2",
+            "type": "table",
+            "at": [5, 4],
+            "size": [2, 1]
+          },
+          {
+            "id": "chair2",
+            "type": "chair",
+            "at": [5, 5],
+            "rot": 180
+          },
+          {
+            "id": "cask2",
+            "type": "barrel",
+            "at": [8, 2]
+          },
+          {
+            "id": "chest2",
+            "type": "chest",
+            "at": [2, 7],
+            "rot": 90
+          },
+          {
+            "id": "torch2",
+            "type": "torch_wall",
+            "at": [3, 2],
+            "wall": "N"
+          }
+        ],
+        "terrain": [],
+        "labels": [
+          {
+            "id": "lbl_cellar",
+            "text": "Cellar",
+            "at": [6, 8],
+            "size": "m"
+          }
+        ]
+      },
+      {
+        "id": "l3",
+        "name": "Cellar 3",
+        "elevation": 5,
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 320
+        },
+        "base": {
+          "type": "solid"
+        },
+        "areas": [
+          {
+            "id": "cellar3",
+            "kind": "room",
+            "name": "Wine Cellar",
+            "key": "3",
+            "shape": {
+              "type": "rect",
+              "x": 2,
+              "y": 2,
+              "w": 8,
+              "h": 6
+            },
+            "notes": "Racks of empty bottles. One cask still sloshes."
+          }
+        ],
+        "openings": [],
+        "walls": [],
+        "features": [
+          {
+            "id": "table3",
+            "type": "table",
+            "at": [5, 4],
+            "size": [2, 1]
+          },
+          {
+            "id": "chair3",
+            "type": "chair",
+            "at": [5, 5],
+            "rot": 180
+          },
+          {
+            "id": "cask3",
+            "type": "barrel",
+            "at": [8, 2]
+          },
+          {
+            "id": "chest3",
+            "type": "chest",
+            "at": [2, 7],
+            "rot": 90
+          },
+          {
+            "id": "torch3",
+            "type": "torch_wall",
+            "at": [3, 2],
+            "wall": "N"
+          }
+        ],
+        "terrain": [],
+        "labels": [
+          {
+            "id": "lbl_cellar",
+            "text": "Cellar",
+            "at": [6, 8],
+            "size": "m"
+          }
+        ]
+      }
+    ],
+    "links": []
+  }
+}

@@ -9,7 +9,13 @@
  * CI runs it as its own job (.github/workflows/ci.yml `sweep`) with fewer seeds than the default, to stay well under
  * ten minutes on a runner.
  */
-import type { MapPlan } from "../../src/contracts/plan";
+import { compileResolved } from "../../src/compile";
+import { PLAN_LIMITS, type MapPlan } from "../../src/contracts/plan";
+import { loadPalettes } from "../../src/palette";
+import { validatePlan } from "../../src/plan/validate";
+import { planRules, resolvePlan } from "../../src/resolve/index";
+import { slabCodec } from "../../src/slab";
+import { largeDungeonPlan } from "../fixtures/largePlan";
 import {
   E2E_ONCE_FAILED,
   e2ePlan,
@@ -22,6 +28,25 @@ import {
   unexpectedWarnings,
   type SweepFailure,
 } from "./seeds";
+
+const capPlan = largeDungeonPlan(PLAN_LIMITS.levelSide, PLAN_LIMITS.totalCells / PLAN_LIMITS.levelSide ** 2);
+const capLabel = `${capPlan.levels.length} dungeon levels of ${String(PLAN_LIMITS.levelSide)} x ${String(PLAN_LIMITS.levelSide)}`;
+
+/** The plan errors (validate) and build errors (compile) of the cap plan, or none. */
+function capBuildErrors(): string[] {
+  const cat = loadPalettes();
+  const issues = validatePlan(capPlan, planRules(cat)).issues.filter((i) => i.severity === "error");
+  const bundle = compileResolved(resolvePlan(capPlan, cat), cat, slabCodec, {
+    createdAt: "t",
+    plan: capPlan,
+  });
+  const built = bundle.diagnostics.filter((d) => d.severity === "error");
+  return [
+    ...issues.map((i) => `plan ${i.code}: ${i.message}`),
+    ...built.map((d) => `build ${d.code}: ${d.message}`),
+    ...(bundle.chunks.length === 0 ? ["no chunks"] : []),
+  ];
+}
 
 const n = Number(process.argv[2] ?? 250);
 if (!Number.isInteger(n) || n < 1)
@@ -60,6 +85,15 @@ for (const r of runs) {
       byCode.set(code, [...(byCode.get(code) ?? []), key.slice(key.indexOf("@") + 1)]);
   for (const [code, at] of byCode)
     console.log(`  warning ${code}: ${String(at.length)} seed(s), e.g. ${at.slice(0, 3).join(", ")}`);
+}
+// the size limit, built once: two dense dungeon levels at PLAN_LIMITS.levelSide (all the cells a plan may have)
+{
+  const t = Date.now();
+  const errors = capBuildErrors();
+  failed.push(...errors.map((e) => `size cap: ${e}`));
+  console.log(
+    `size cap (${capLabel}): ${errors.length ? errors.join("; ") : "builds"} (${String(Date.now() - t)} ms)`,
+  );
 }
 console.log(
   `\n${String(runs.length)} plans x ${String(n)} seeds (+ once-failed) in ${String(Math.round((Date.now() - t0) / 1000))} s: ` +

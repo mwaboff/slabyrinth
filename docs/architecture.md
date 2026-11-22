@@ -77,7 +77,7 @@ Core is pure TypeScript. It has no Electron, DOM, or `node:*` imports outside `s
 
 ### 2.2 Coordinates and units
 
-- One cell is one tile (5 ft). There is one **global** integer grid for all levels: x runs east, y runs south. Each level has `bounds` (≤160×160) inside it, so stairs line up by construction.
+- One cell is one tile (5 ft). There is one **global** integer grid for all levels: x runs east, y runs south. Each level has `bounds` (≤320×320, and all levels together ≤ 204,800 cells: `PLAN_LIMITS`) inside it, so stairs line up by construction.
 - A cell `(x,y)` covers `[x,x+1)×[y,y+1)`. A vertex `(x,y)` is the top-left corner of that cell. Polygons and wall runs use vertices; everything else uses cells.
 - Heights are in tiles, in multiples of 0.25. `level.elevation` is the **bottom** of that level's floor tiles. The walkable top is `elevation + 0.5` (`BUILD_CONSTANTS`). Stack storeys at 2.5.
 - Mapping to TaleSpire is **confirmed in game**: +x = East and +z = North, so world `x = col`, `z = (Hglobal − 1 − row)`, with no mirroring. Increasing `rot` turns clockwise seen from above. Both facts stay as data in the orientation table (§4.4).

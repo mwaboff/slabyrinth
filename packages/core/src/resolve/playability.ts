@@ -1162,10 +1162,6 @@ function findBlocker(
   areaCells: number[],
   reached: Uint8Array,
 ): { what: string; id?: string; cell?: Vec2 } | null {
-  const inner = g.flood(
-    areaCells.map((i) => [d.li, i] as [number, number]),
-    { secret: true, ignoreWater: true },
-  )[d.li] as Uint8Array;
   const area = new Set(areaCells);
   const touches = (i: number, mask: Uint8Array | Set<number>): boolean => {
     for (const s of SIDES) {
@@ -1174,15 +1170,22 @@ function findBlocker(
     }
     return false;
   };
-  const candidates: number[] = [];
+  // a blocker stands beside the reached part of the level: find those cells first, and flood from the area (a walk of
+  // the whole map) only when there are any, so a level nobody reaches costs no flood per area
+  const beside: number[] = [];
   for (let i = 0; i < d.w * d.h; i++) {
     if (d.l.cells.state[i] !== CELL.OPEN) continue;
     if (g.walkable(d, i, { secret: true, ignoreWater: true })) continue;
     if (!g.walkable(d, i, { secret: true, ignoreFeatures: true, ignoreWater: true, ignoreStairwells: true }))
       continue;
-    const nearArea = area.has(i) || touches(i, inner) || touches(i, area);
-    if (nearArea && touches(i, reached)) candidates.push(i);
+    if (touches(i, reached)) beside.push(i);
   }
+  if (beside.length === 0) return null;
+  const inner = g.flood(
+    areaCells.map((i) => [d.li, i] as [number, number]),
+    { secret: true, ignoreWater: true },
+  )[d.li] as Uint8Array;
+  const candidates = beside.filter((i) => area.has(i) || touches(i, inner) || touches(i, area));
   const best = candidates[0];
   if (best === undefined) return null;
   const k = d.featAt[best] as number;

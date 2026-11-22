@@ -952,7 +952,9 @@ export const BUILD_CONSTANTS = {
 /** Hard limits (also enforced by Zod). */
 export const PLAN_LIMITS = {
   levels: 8,
-  levelSide: 160,
+  levelSide: 320,
+  /** Cells of all levels together (sum of bounds w × h): 8 levels of 160 × 160, so a large level means fewer levels. */
+  totalCells: 204800,
   areasPerLevel: 200,
   openingsPerLevel: 400,
   wallRunsPerLevel: 200,
