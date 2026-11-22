@@ -222,6 +222,20 @@ const cellThemeRule = selectorRule("Resolve stages ask a cell's theme of Resolve
 ]);
 
 /**
+ * Who owns a cell while a level resolves has accessors on ResolveGrid (ownerAt, areaAt; regionAt, shownRegionAt for
+ * the raw region numbers): a stage that reads the ownership arrays and adds or subtracts one by hand restates the
+ * encoding. Writes (a stage that claims or clears cells) stay allowed.
+ */
+const cellOwnerRule = selectorRule("Resolve stages ask who owns a cell of ResolveGrid's accessors.", [
+  {
+    selector:
+      "MemberExpression[computed=true][object.property.name=/^(struct|disp)$/]:not(AssignmentExpression > MemberExpression.left)",
+    message:
+      "Ask ResolveGrid who owns the cell (ownerAt, areaAt; regionAt or shownRegionAt for region numbers) instead of reading struct/disp.",
+  },
+]);
+
+/**
  * A draw in [0, 1) from a hash is util/hash.ts hashUnit (or TWO_32 beside a hash of its own), never 2^32 by hand; and
  * the string hashes are defined once, in util/hash.ts (h32 over UTF-8 bytes, the frozen h32Utf16 the compiler's
  * released draws use), so which one a file gets is its call's name, not its import line.
@@ -574,6 +588,7 @@ const slabyrinthPlugin = {
     "variant-filters": variantFilterRule,
     "core-layers": coreLayersRule,
     "cell-theme": cellThemeRule,
+    "cell-owner": cellOwnerRule,
     "hash-unit": hashUnitRule,
     vocabulary: vocabularyRule,
     "feature-lists": featureListRule,
@@ -679,10 +694,10 @@ export default tseslint.config(
     rules: { "slabyrinth/core-layers": "error" },
   },
   {
-    // the grid owns the cell's theme; the area table builds the theme table
+    // the grid owns the cell's theme and owner; the area table builds the theme table and claims the cells
     files: ["packages/core/src/resolve/level/**/*.ts"],
     ignores: ["packages/core/src/resolve/level/grid.ts", "packages/core/src/resolve/level/areas.ts"],
-    rules: { "slabyrinth/cell-theme": "error" },
+    rules: { "slabyrinth/cell-theme": "error", "slabyrinth/cell-owner": "error" },
   },
   {
     files: ["packages/core/src/**/*.ts"],

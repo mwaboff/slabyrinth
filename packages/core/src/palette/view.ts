@@ -20,9 +20,9 @@ import { generatorProfile } from "../plan/generator";
 import { bundledPalettes } from "./load";
 import { createPlanRoles } from "./planRoles";
 import { themeChain, type ResolveOutcome, type ResolvePalettes, type VariantFilter } from "./resolve";
-import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE } from "./roles";
+import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE, floorRole } from "./roles";
 import { coveredStallForms, roleProbe, type RoleProbe } from "./stallParts";
-import { OBSERVED_TONES, TONE_RANK, type Tone } from "./tones";
+import { TONE_RANK, variantTone, type Tone } from "./tones";
 
 export type PieceSizeFn = (
   theme: ThemeId,
@@ -78,6 +78,8 @@ export interface PaletteView {
    * what was observed of its asset, palette/tones.ts); undefined when none of its pieces has a known tone.
    */
   floorTone: (theme: ThemeId, material: Material) => Tone | undefined;
+  /** Every tone among the usable pieces (weight above zero) of a theme's floor of `material`, on the same scale. */
+  floorTones: (theme: ThemeId, material: Material) => ReadonlySet<Tone>;
   /**
    * Is a place of this theme formal (halls, palaces, temples), so mirror symmetry is meant? A palette has no field
    * for it yet (Palette.defaults): until it has, the answer is FORMAL_THEME_FALLBACK's, by theme id.
@@ -197,14 +199,30 @@ export function createPaletteView(
     const key = `${theme}|${material}`;
     if (tones.has(key)) return tones.get(key);
     const weight = new Map<Tone, number>();
-    for (const v of variantsOf(theme, [`floor.${material}`], undefined)) {
-      const t = v.tone ?? OBSERVED_TONES[v.uuid]?.tone;
+    for (const v of variantsOf(theme, [floorRole(material)], undefined)) {
+      const t = variantTone(v);
       if (t !== undefined) weight.set(t, (weight.get(t) ?? 0) + v.weight);
     }
     // the heaviest tone; a tie goes to the darker one
     const tone = [...weight].sort((a, b) => b[1] - a[1] || TONE_RANK[a[0]] - TONE_RANK[b[0]])[0]?.[0];
     tones.set(key, tone);
     return tone;
+  };
+
+  const toneSets = new Map<string, ReadonlySet<Tone>>();
+  const floorTones = (theme: ThemeId, material: Material): ReadonlySet<Tone> => {
+    const key = `${theme}|${material}`;
+    let set = toneSets.get(key);
+    if (!set) {
+      const found = new Set<Tone>();
+      for (const v of variantsOf(theme, [floorRole(material)], undefined)) {
+        const t = v.weight > 0 ? variantTone(v) : undefined;
+        if (t !== undefined) found.add(t);
+      }
+      set = found;
+      toneSets.set(key, set);
+    }
+    return set;
   };
 
   return {
@@ -216,6 +234,7 @@ export function createPaletteView(
     probe,
     themeDefaults,
     floorTone,
+    floorTones,
     formalLayout: (theme) => FORMAL_THEME_FALLBACK.has(theme),
   };
 }

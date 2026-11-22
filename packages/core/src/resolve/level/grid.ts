@@ -482,6 +482,19 @@ export class ResolveGrid {
     return d > 0 ? this.areas[d - 1] : undefined;
   }
 
+  /**
+   * The structural region of a cell as a number: 0 for @ground (or outside the level), an area's index + 1 for the area
+   * that owns it (`ownerAt`). For walks that compare regions of neighbouring cells.
+   */
+  regionAt(i: number): number {
+    return i >= 0 ? (this.struct[i] ?? 0) : 0;
+  }
+
+  /** The display region of a cell as a number: 0 for none, an area's index + 1 for the area it shows as (`areaAt`). */
+  shownRegionAt(i: number): number {
+    return i >= 0 ? (this.disp[i] ?? 0) : 0;
+  }
+
   /** The area that owns a cell structurally (its walls, floor and theme; never a zone), or undefined (@ground). */
   ownerAt(i: number): AreaInfo | undefined {
     const s = i >= 0 ? (this.struct[i] as number) : 0;

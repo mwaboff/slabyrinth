@@ -255,7 +255,7 @@ export function stepOpenings(
     ): void => {
       if (target < 0) return;
       const routeCells = new Set(
-        square.map(([x, y]) => work.idx(x, y)).filter((i) => i >= 0 && work.struct[i] === r.ai + 1),
+        square.map(([x, y]) => work.idx(x, y)).filter((i) => i >= 0 && work.ownerAt(i)?.index === r.ai),
       );
       let matches = meetingEdges(work, r.ai + 1, target + 1, routeCells);
       if (matches.length === 0) matches = meetingEdges(work, r.ai + 1, target + 1, null);
@@ -292,8 +292,8 @@ function meetingEdges(
   const test = (orient: "h" | "v", i: number): void => {
     const [a, b] = work.edgeCells(orient, i);
     if (a < 0 || b < 0) return;
-    const oa = work.struct[a] as number;
-    const ob = work.struct[b] as number;
+    const oa = work.regionAt(a);
+    const ob = work.regionAt(b);
     if (oa === routeRegion && ob === targetRegion && (!only || only.has(a))) out.push({ orient, i });
     else if (ob === routeRegion && oa === targetRegion && (!only || only.has(b))) out.push({ orient, i });
   };
@@ -306,7 +306,7 @@ function nearestHint(work: ResolveGrid, ra: number, rb: number): string {
   const cellsOf = (r: number): number[] => {
     const out: number[] = [];
     for (let i = 0; i < work.n; i++) {
-      if (r === 0 ? work.struct[i] === 0 : work.struct[i] === r) out.push(i);
+      if (work.regionAt(i) === r) out.push(i);
     }
     return out;
   };

@@ -23,7 +23,6 @@ import { createPlanRoles } from "../../palette/planRoles";
 import { type ResolvedVariant, type ResolveOutcome, type VariantFilter } from "../../palette/resolve";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
 import { familiesOfVariants, type FloorFamily } from "../../resolve/floorFamilies";
-import { OBSERVED_TONES } from "../../palette/tones";
 import { BuildFacts } from "../buildFacts";
 import { WorldFrame } from "../geometry";
 import { h32Utf16, hashUnitUtf16 } from "../../util/hash";
@@ -223,8 +222,7 @@ export function createRealizeCtx(
    */
   const familyNoise = new ValueNoise(h32Utf16(`${seed}:floorfamilies`));
   const familyWarp = new ValueNoise(h32Utf16(`${seed}:floorfamilies:warp`));
-  const familiesOf = (vs: ResolvedVariant[]): FloorFamily[] =>
-    familiesOfVariants(vs, (uuid) => OBSERVED_TONES[uuid]?.tone);
+  const familiesOf = (vs: ResolvedVariant[]): FloorFamily[] => familiesOfVariants(vs);
   const familyAt = (fams: Array<{ name: string; share: number }>, x: number, y: number): string => {
     if (fams.length <= 1) return fams[0]?.name ?? "";
     const total = fams.reduce((t, q) => t + q.share, 0);

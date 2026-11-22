@@ -114,7 +114,7 @@ export function stepBridges(work: ResolveGrid, out: BridgeRecords, chasms: ReadO
     const broken: number[] = [];
     (a.broken ?? []).forEach((c, k) => {
       const i = work.idx(c[0], c[1]);
-      if (i >= 0 && work.struct[i] === info.index + 1) broken.push(i);
+      if (i >= 0 && work.ownerAt(i) === info) broken.push(i);
       else
         work.issue(
           "warning",

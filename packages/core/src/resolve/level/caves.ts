@@ -77,9 +77,10 @@ export function stepCaveOutlines(work: ResolveGrid): void {
       {
         w: work.w,
         h: work.h,
-        owner: (i) => work.struct[i] as number,
+        owner: (i) => work.regionAt(i),
         open: (i) => work.state[i] === CELL.OPEN,
-        rock: (i) => work.state[i] === CELL.SOLID && work.struct[i] === 0 && work.disp[i] === 0,
+        rock: (i) =>
+          work.state[i] === CELL.SOLID && work.ownerAt(i) === undefined && work.areaAt(i) === undefined,
         keep: (i) => keep.has(i) || zoneAt(i),
       },
       ai1,

@@ -296,10 +296,7 @@ export class FeatureWork {
         const i = work.idx(x, y);
         return i < 0 ? 0 : (work.flags[i] as number);
       },
-      area: (x, y) => {
-        const i = work.idx(x, y);
-        return i < 0 ? 0 : (work.disp[i] as number);
-      },
+      area: (x, y) => work.shownRegionAt(work.idx(x, y)),
       occupied: (x, y) => this.occupied(work.idx(x, y)),
       edge: (x, y, s) => work.edgeKindAt(x, y, s),
       landmark: (x, y) => this.landmarkCells.has(work.idx(x, y)),

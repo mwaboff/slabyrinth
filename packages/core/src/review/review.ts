@@ -4,7 +4,7 @@
  * Deterministic and cheap (one pass per measure over the cells); thresholds are data (review/thresholds.ts).
  * The principles it measures are the product text in agent/designPrinciples.ts.
  */
-import type { DesignBrief, FeatureType, MapPlan, Vec2 } from "../contracts/plan";
+import type { DesignBrief, FeatureType, MapPlan, Material, Vec2 } from "../contracts/plan";
 import {
   CELL,
   CELL_FLAG,
@@ -40,7 +40,7 @@ import {
   type ToneVariant,
 } from "../gen/cover";
 import { rasterizeShape } from "../gen/shapes";
-import { OBSERVED_TONES } from "../palette/tones";
+import { isToneExtreme, type Tone } from "../palette/tones";
 import { FENCE, fenceShare, type FenceRule } from "./rockSpacing";
 import { courseShape } from "../resolve/chasm";
 import {
@@ -200,10 +200,13 @@ interface Ctx {
   gen: GeneratorProfile;
   /** Ids of features the build dropped (custom_unresolved); absent in tests that build a context by hand. */
   dropped?: ReadonlySet<string>;
-  /** Tones of a floor role's variants in a theme (tagged variants only). */
-  floorTones: (theme: string, material: string) => Set<string>;
+  /** Tones of a floor role's variants in a theme (PaletteView.floorTones: tagged or observed pieces only). */
+  floorTones: (theme: string, material: Material) => ReadonlySet<Tone>;
   /** Tile families of a floor role and the largest one's share. */
-  floorFamilies: (theme: string, material: string) => { families: number; dominant: number; toned: boolean };
+  floorFamilies: (
+    theme: string,
+    material: Material,
+  ) => { families: number; dominant: number; toned: boolean };
   /** The floor role's families with their pick weights and tones (generator 3 measures the laid floor). */
   familyList: (theme: string, material: string) => FloorFamily[];
   /** Distinct assets the theme has for a feature type (feature.<type>). */
@@ -262,26 +265,13 @@ export function reviewDesign(
   /** The usable variants of a role in a theme (after the palette's fallbacks). */
   const variants = (theme: string, name: string): readonly ResolvedVariant[] =>
     view.probe(theme)([name])?.variants ?? [];
-  const toneMemo = new Map<string, Set<string>>();
-  const floorTones = (theme: string, material: string): Set<string> => {
-    const k = `${theme}|${material}`;
-    let t = toneMemo.get(k);
-    if (!t) {
-      t = new Set<string>();
-      for (const v of variants(theme, floorRole(material)))
-        if (v.weight > 0) {
-          const tone = v.tone ?? OBSERVED_TONES[v.uuid]?.tone;
-          if (tone !== undefined) t.add(tone);
-        }
-      toneMemo.set(k, t);
-    }
-    return t;
-  };
+  // the tones of a floor's pieces, on the palette's one tone scale
+  const floorTones = view.floorTones;
   // tile families a floor role lays in one field, and the largest family's share of the pick weight
   const famMemo = new Map<string, { families: number; dominant: number; toned: boolean }>();
   const floorFamilies = (
     theme: string,
-    material: string,
+    material: Material,
   ): { families: number; dominant: number; toned: boolean } => {
     const k = `${theme}|${material}`;
     let f = famMemo.get(k);
@@ -294,7 +284,7 @@ export function reviewDesign(
         families: w.size,
         dominant: total > 0 ? Math.max(...w.values()) / total : 1,
         // a family of known contrasting tone (a tagged or observed dark or light piece) among them
-        toned: [...floorTones(theme, material)].some((t) => t === "dark" || t === "light"),
+        toned: [...floorTones(theme, material)].some(isToneExtreme),
       };
       famMemo.set(k, f);
     }
@@ -305,7 +295,7 @@ export function reviewDesign(
     const k = `${theme}|${material}`;
     let l = listMemo.get(k);
     if (!l) {
-      l = familiesOfVariants(variants(theme, floorRole(material)), (u) => OBSERVED_TONES[u]?.tone);
+      l = familiesOfVariants(variants(theme, floorRole(material)));
       listMemo.set(k, l);
     }
     return l;
@@ -1372,7 +1362,8 @@ function floors(c: Ctx): DesignNote[] {
   const T = REVIEW.floors;
   const { L, W, H } = c;
   // open ground outside buildings, paths and bridges: the "field"
-  const count = new Map<string, { n: number; theme: string }>();
+  // ("" counts the odd cell with no material: it has no floor pieces, so no tones or families)
+  const count = new Map<Material | "", { n: number; theme: string }>();
   let field = 0;
   for (let i = 0; i < W * H; i++) {
     if (!c.walkable[i]) continue;
@@ -1393,7 +1384,7 @@ function floors(c: Ctx): DesignNote[] {
   // tile families of one material that mix dark and light (tone tags), or materials of clashing tone
   const tones = new Map<string, string[]>();
   for (const [m, e] of big)
-    for (const t of c.floorTones(e.theme, m)) tones.set(t, [...(tones.get(t) ?? []), m]);
+    if (m !== "") for (const t of c.floorTones(e.theme, m)) tones.set(t, [...(tones.get(t) ?? []), m]);
   if (tones.has("dark") && tones.has("light")) {
     const mats = [...new Set([...(tones.get("dark") ?? []), ...(tones.get("light") ?? [])])];
     out.push({
@@ -1424,7 +1415,7 @@ function floors(c: Ctx): DesignNote[] {
         n++;
       }
       const lead = n > 0 ? Math.max(...laid.values()) / n : 1;
-      const toneOf = (name: string): string | undefined => fams.find((f) => f.name === name)?.tone;
+      const toneOf = (name: string): Tone | undefined => fams.find((f) => f.name === name)?.tone;
       const names = [...laid.keys()];
       const clash = names.some((a) =>
         names.some(
@@ -1456,7 +1447,7 @@ function floors(c: Ctx): DesignNote[] {
           action: `lay one family over about ${Math.round(T.laidDominant * 100)}% or more of the ${top[0]} floor; a second only in patches beside water, a path, the foot of rock or a set piece`,
         });
     }
-  } else if (top && top[1].n / field >= T.familyFieldShare) {
+  } else if (top && top[0] !== "" && top[1].n / field >= T.familyFieldShare) {
     const fam = c.floorFamilies(top[1].theme, top[0]);
     if (fam.toned && fam.families >= T.families && fam.dominant < T.dominant)
       out.push({

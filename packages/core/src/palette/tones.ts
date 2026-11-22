@@ -7,6 +7,28 @@ export type Tone = "dark" | "mid" | "light";
 /** A tone's rank on the scale (0 dark, 1 mid, 2 light), for "paler by a step" comparisons. */
 export const TONE_RANK: Readonly<Record<Tone, number>> = { dark: 0, mid: 1, light: 2 };
 
+/** Is a tone at an end of the scale (dark or light: a known contrast), not its middle? */
+export function isToneExtreme(t: Tone): boolean {
+  return TONE_RANK[t] === 0 || TONE_RANK[t] === Math.max(...Object.values(TONE_RANK));
+}
+
+/**
+ * The tone of one palette variant: its own `tone`, else what was observed of its asset (OBSERVED_TONES); undefined
+ * when neither is known. The one reading of a piece's tone (the palette view, floor families, the review).
+ */
+export function variantTone(v: {
+  readonly tone?: Tone | undefined;
+  readonly uuid: string;
+}): Tone | undefined {
+  return v.tone ?? OBSERVED_TONES[v.uuid]?.tone;
+}
+
+/** Two tones are close when both are known and no more than one step apart, or when either is unknown. */
+export function tonesClose(a: Tone | undefined, b: Tone | undefined): boolean {
+  if (a === undefined || b === undefined) return true;
+  return Math.abs(TONE_RANK[a] - TONE_RANK[b]) <= 1;
+}
+
 /**
  * Tones observed in the owner's screenshots, by asset uuid, for palette rows that do not carry a `tone` tag yet.
  * Each entry is a piece someone has seen in game (an entry marked `basis: "guess"` is the exception, said so). A palette row's own `tone` wins. (The palette

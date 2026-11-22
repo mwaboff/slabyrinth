@@ -191,6 +191,34 @@ describe("core guards", () => {
     });
   });
 
+  describe("slabyrinth/cell-owner: a resolve stage asks ResolveGrid who owns a cell", () => {
+    const stage = "packages/core/src/resolve/level/bridges.ts";
+    it("reports a read of the ownership arrays", async () => {
+      for (const code of [
+        "if (work.struct[i] === info.index + 1) f();",
+        "const o = (work.struct[j] as number) - 1;",
+        "const d = work.disp[i];",
+      ])
+        expect(await guardHits(stage, code), code).toEqual([
+          expect.stringContaining("slabyrinth/cell-owner"),
+        ]);
+    });
+    it("leaves the accessors, writes, and the grid and area table alone", async () => {
+      for (const code of [
+        "if (work.ownerAt(i) === info) f();",
+        "work.struct[i] = 0;",
+        "work.disp[i] = work.shownRegionAt(a);",
+      ])
+        expect(await guardHits(stage, code), code).toEqual([]);
+      expect(await guardHits("packages/core/src/resolve/level/grid.ts", "const s = this.struct[i];")).toEqual(
+        [],
+      );
+      expect(
+        await guardHits("packages/core/src/resolve/level/areas.ts", "if (work.struct[i] === 0) f();"),
+      ).toEqual([]);
+    });
+  });
+
   describe("slabyrinth/vocabulary: a closed vocabulary is asked of its trait table", () => {
     const stage = "packages/core/src/resolve/level/openings.ts";
     it("reports an opening kind, a link kind, a roof type or a wall style compared by name", async () => {

@@ -16,14 +16,17 @@
 import { CELL, CELL_FLAG, type ResolvedLevel } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
 import { ValueNoise } from "../gen/noise";
+import { tonesClose, variantTone, type Tone } from "../palette/tones";
 import { h32 } from "../util/hash";
+
+export { tonesClose };
 
 export interface FloorFamily {
   name: string;
   /** The heaviest variant's weight. */
   share: number;
-  /** Tone tag of the family's heaviest variant (dark, mid, light), when known. */
-  tone?: string;
+  /** Tone of the family's heaviest variant (palette/tones.ts variantTone), when known. */
+  tone?: Tone;
 }
 
 /**
@@ -36,20 +39,17 @@ export interface FamilyVariant {
   variant?: string | undefined;
   weight: number;
   uuid: string;
-  tone?: string | undefined;
+  tone?: Tone | undefined;
 }
 
-/** The families of a role's variants (weight above zero), sorted by name; tone from the row or the lookup. */
-export function familiesOfVariants(
-  vs: readonly FamilyVariant[],
-  observedTone: (uuid: string) => string | undefined = () => undefined,
-): FloorFamily[] {
-  const m = new Map<string, { share: number; tone?: string }>();
+/** The families of a role's variants (weight above zero), sorted by name; tone as palette/tones.ts variantTone reads it. */
+export function familiesOfVariants(vs: readonly FamilyVariant[]): FloorFamily[] {
+  const m = new Map<string, { share: number; tone?: Tone }>();
   for (const v of vs) {
     if (v.weight <= 0) continue;
     const name = v.variant ?? "";
     const e = m.get(name);
-    const tone = v.tone ?? observedTone(v.uuid);
+    const tone = variantTone(v);
     if (!e) m.set(name, { share: v.weight, ...(tone !== undefined ? { tone } : {}) });
     else if (v.weight > e.share) {
       e.share = v.weight;
@@ -60,16 +60,6 @@ export function familiesOfVariants(
   return [...m]
     .map(([name, e]) => ({ name, share: e.share, ...(e.tone !== undefined ? { tone: e.tone } : {}) }))
     .sort((a, b) => (a.name < b.name ? -1 : 1));
-}
-
-const TONE_RANK: Record<string, number> = { dark: 0, mid: 1, light: 2 };
-
-/** Two tones are close when both are known and no more than one step apart, or when either is unknown. */
-export function tonesClose(a: string | undefined, b: string | undefined): boolean {
-  const ra = a === undefined ? undefined : TONE_RANK[a];
-  const rb = b === undefined ? undefined : TONE_RANK[b];
-  if (ra === undefined || rb === undefined) return true;
-  return Math.abs(ra - rb) <= 1;
 }
 
 /** The dominant family and the one family that may grow in caused patches (null when there is none). */

@@ -353,8 +353,8 @@ export function applyStairsOp(
       if (work.state[i] !== CELL.OPEN) {
         work.state[i] = CELL.OPEN;
         work.mat[i] = work.mat[a] as number;
-        work.struct[i] = work.struct[a] as number;
-        work.disp[i] = work.disp[a] as number;
+        work.struct[i] = work.regionAt(a);
+        work.disp[i] = work.shownRegionAt(a);
         work.theme[i] = work.theme[a] as number;
       }
       work.flags[i] = (work.flags[i] as number) & ~CELL_FLAG.NO_FLOOR;

@@ -114,7 +114,7 @@ export function stepRoomFloors(work: ResolveGrid): void {
       ] as const) {
         const j = work.idx(x + dx, y + dy);
         if (j < 0 || work.state[j] !== CELL.OPEN) continue;
-        const o = (work.struct[j] as number) - 1;
+        const o = work.ownerAt(j)?.index ?? -1;
         if (o >= 0 && o !== ai) set.add(o);
       }
     }

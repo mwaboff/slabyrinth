@@ -79,7 +79,7 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
   // areas
   const dispCells: number[][] = work.areas.map(() => []);
   for (let i = 0; i < n; i++) {
-    const d = work.disp[i] as number;
+    const d = work.shownRegionAt(i);
     if (d > 0) (dispCells[d - 1] as number[]).push(i);
   }
   const areas: ResolvedArea[] = work.areas.map((info) => {

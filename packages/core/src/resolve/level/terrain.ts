@@ -137,7 +137,7 @@ export function checkUnderSurvivors(work: ResolveGrid, under: readonly TerrainTo
     for (const i of cells) {
       if (work.state[i] !== CELL.OPEN) continue;
       opened++;
-      if (isHeight ? work.heightSet[i] === 0 : work.struct[i] === 0) survivors++;
+      if (isHeight ? work.heightSet[i] === 0 : work.ownerAt(i) === undefined) survivors++;
     }
     if (survivors > 0) continue;
     const msg =
@@ -388,7 +388,7 @@ export function stepOutline(work: ResolveGrid, paths: ReadOnly<PathRecords>): vo
   const keep = (i: number): boolean => {
     const f = work.flags[i] as number;
     if ((f & (CELL_FLAG.PATH | CELL_FLAG.WATER | CELL_FLAG.BRIDGE | CELL_FLAG.LINK)) !== 0) return true;
-    if ((work.struct[i] as number) > 0) return true;
+    if (work.ownerAt(i) !== undefined) return true;
     return work.structs?.reservedCell(i) === true;
   };
   // the plan's own features keep their cells too
