@@ -523,6 +523,13 @@ export interface ExportBundle {
   substitutions: Array<{ role: RoleName; wanted: { uuid: string; name?: string }; used: { uuid: string; name?: string } | null; count: number }>;
   /** Per level with water: the water surface to set with TaleSpire's water tool, in tiles above the slab's base (its lowest point). */
   waterLevels?: Array<{ levelId: LevelId; aboveBase: number; min: number; max: number }>;
+  /**
+   * Multi-chunk builds of generator 4 on: where the cursor goes. TaleSpire pastes a slab at the centre of its box; every
+   * chunk shares one box, padded so that centre is the middle of a bare cell beside the map, `clearanceCells` empty cells
+   * out from the middle of its `side` edge. The far alignment pillar stands on that side too, `farMarkerCells` cells
+   * beyond the map edge. Absent for a one-chunk build.
+   */
+  pasteAnchor?: { side: "north" | "east" | "south" | "west"; clearanceCells: number; farMarkerCells: number };
   /** Per level paste placement (UX §16 builds[].levels[].placement). */
   levelPlacement: Array<{ levelId: LevelId; pasteOrder: number; kind: "ground" | "storeys-up" | "side-by-side"; storeys?: number; offsetSq?: number }>;
 }
