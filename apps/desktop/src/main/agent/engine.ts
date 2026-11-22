@@ -39,7 +39,7 @@ import { resolvePlan } from "@slabyrinth/core/resolve";
 import { outlineView } from "@slabyrinth/core/text";
 import type { AppError, ChatEvent, IpcRequests } from "../../shared/ipc";
 import type { ChatMessageMeta, Conversation, ProjectFile } from "../../shared/project";
-import { activeSizeTier } from "../../shared/sizeTier";
+import { activeSizeTier, checkSecondsPerStep } from "../../shared/sizeTier";
 import { redactString } from "../logger";
 import { EnginePortError, type ConversationEngine, type EngineHost } from "../ports/engine";
 import { DEADLINES, withDeadline } from "../util/deadline";
@@ -1282,7 +1282,11 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       costUsd = roundUp(firstRead + laterReads + (outTokens * r.output) / 1e6, roundCostLadder);
     }
     const tps = TOKENS_PER_SECOND[d?.speedTier ?? 2];
-    const seconds = roundUp(outTokens / tps + 2 * steps, roundSecondsLadder);
+    // at the experimental map sizes main checks and reviews the plan after each step: seconds the model doesn't spend
+    const seconds = roundUp(
+      outTokens / tps + (2 + checkSecondsPerStep(this.sizeTier())) * steps,
+      roundSecondsLadder,
+    );
     return { costUsd, seconds, basis };
   }
 

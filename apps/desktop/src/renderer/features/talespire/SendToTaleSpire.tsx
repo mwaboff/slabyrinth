@@ -54,8 +54,9 @@ export function SendToTaleSpire({
   const addon = useTaleSpireLink((s) => s.addon);
   const link = useTaleSpireLink((s) => s.link);
   const busy = useTaleSpireLink((s) => s.busy);
+  const stoppedSend = useTaleSpireLink((s) => s.stoppedSend);
   const st = useTaleSpireLink.getState();
-  const v = sendView(addon, link, busy, buildId, emptyChunk);
+  const v = sendView(addon, link, busy, buildId, emptyChunk, stoppedSend);
   const send = (): void => {
     void st.send(buildId);
   };
@@ -126,6 +127,14 @@ export function SendToTaleSpire({
             <span>Sending to the add-on…</span>
           </p>
         )}
+        {v.kind === "no_answer" && (
+          <p className="tssend__line">
+            <StatusLight light="warn" />
+            <span>
+              <b>{v.message}</b>
+            </span>
+          </p>
+        )}
         {v.kind === "placing" && (
           <>
             <p className="tssend__line">
@@ -179,6 +188,13 @@ export function SendToTaleSpire({
         )}
         {(v.kind === "waiting" || v.kind === "empty_chunk" || v.kind === "sending") &&
           sendBtn(v.kind === "sending" ? "Sending…" : "Send to TaleSpire", false)}
+        {v.kind === "sending" && (
+          <button className="btn" disabled={busy === "stop"} onClick={() => void st.stop()}>
+            <Icon name="stop" size="sm" />
+            Stop
+          </button>
+        )}
+        {v.kind === "no_answer" && sendBtn("Send again", busy === null)}
         {v.kind === "waiting" && (
           <button className="btn btn--ghost" onClick={st.openDialog}>
             Help
@@ -202,12 +218,15 @@ export function SendToTaleSpire({
         )}
       </div>
       <ActionError actions={["send", "stop"]} />
-      {link?.send.state === "failed" && link.send.error !== null && busy === null && (
-        <p className="tserr" role="alert">
-          <Icon name="error" size="sm" />
-          <span>{link.send.error}</span>
-        </p>
-      )}
+      {v.kind !== "no_answer" &&
+        link?.send.state === "failed" &&
+        link.send.error !== null &&
+        busy === null && (
+          <p className="tserr" role="alert">
+            <Icon name="error" size="sm" />
+            <span>{link.send.error}</span>
+          </p>
+        )}
       {v.kind === "placing" && <HotkeyList compact />}
       {multi && (v.kind === "ready" || v.kind === "placing" || v.kind === "finished") && (
         <PasteSteps anchor={anchor} />

@@ -5,7 +5,7 @@
 import { SIZE_TIER_ORDER, type SizeTierId } from "@slabyrinth/core/plan";
 import { useProject } from "../../stores/project";
 import { useSettings } from "../../stores/settings";
-import { tierAboveSetting, tierSize } from "../../../shared/sizeTier";
+import { TIER_COSTS, checkSecondsPerStep, tierAboveSetting, tierSize } from "../../../shared/sizeTier";
 import type { AppSettings } from "../../../shared/project";
 
 export const MAP_SIZE_LABEL: Record<SizeTierId, string> = {
@@ -15,15 +15,26 @@ export const MAP_SIZE_LABEL: Record<SizeTierId, string> = {
   "large-1024": tierSize("large-1024"),
 };
 
-/** What each size costs, in one or two plain lines. */
+const range = ([lo, hi]: [number, number]): string =>
+  lo === hi ? `about ${String(lo)}` : `${lo <= 0 ? "" : `about ${String(lo)} to `}${String(hi)}`;
+
+/** What a size costs, in one or two plain lines, from the measured table (shared/sizeTier.ts TIER_COSTS). */
+function sizeNote(id: SizeTierId): string {
+  if (id === "standard") return "The default. Changes and builds stay quick.";
+  const c = TIER_COSTS[id];
+  return (
+    `Each change to a map this big takes ${range(c.change)} seconds, and a build ${range(c.build)} seconds more; ` +
+    `each step of an AI turn about ${String(checkSecondsPerStep(id))} seconds more. ` +
+    `Up to about ${String(c.memoryGb)} GB of memory, and more slabs to paste.` +
+    (id === "large-1024" ? " May be slow on a computer with less than 8 GB of memory." : "")
+  );
+}
+
 export const MAP_SIZE_NOTE: Record<SizeTierId, string> = {
-  standard: "The default. Changes and builds stay quick.",
-  "large-512":
-    "Each change to a map this big takes about 2 to 5 seconds, and a build about 4 seconds more. Up to about 1.2 GB of memory, and more slabs to paste.",
-  "large-768":
-    "Each change takes about 4 to 9 seconds, and a build about 8 seconds more. Up to about 2 GB of memory, and more slabs to paste.",
-  "large-1024":
-    "Each change takes about 6 to 16 seconds, and a build 12 to 18 seconds more. Up to about 2.6 GB of memory, and more slabs to paste. May be slow on a computer with less than 8 GB of memory.",
+  standard: sizeNote("standard"),
+  "large-512": sizeNote("large-512"),
+  "large-768": sizeNote("large-768"),
+  "large-1024": sizeNote("large-1024"),
 };
 
 export function MapSizeSetting({ s }: { s: AppSettings }) {

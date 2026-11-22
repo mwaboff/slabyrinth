@@ -22,6 +22,7 @@ afterEach(() => {
     link: null,
     busy: null,
     error: null,
+    stoppedSend: null,
     dialogOpen: false,
     promptSnoozed: false,
     noticeDismissed: false,
@@ -224,6 +225,52 @@ describe("Send to TaleSpire", () => {
     expect(screen.getByRole("list", { name: "Placing a map of several slabs" })).toHaveTextContent(
       /about 31 cells south of the map/,
     );
+  });
+
+  it("Sending… has a Stop; a send that gets no answer says so plainly and offers Send again", async () => {
+    bridge("addon-installed,helper-connected");
+    await useTaleSpireLink.getState().load();
+    const link = useTaleSpireLink.getState().link;
+    if (!link) throw new Error("no link");
+    act(() => {
+      useTaleSpireLink
+        .getState()
+        .setLink({ ...link, send: { ...link.send, state: "sending", buildId: "b1" } });
+    });
+    render(<SendToTaleSpire buildId="b1" multi={false} anchor={null} emptyChunk={false} />);
+    expect(screen.getByRole("button", { name: "Sending…" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+    // main still says sending (no deadline yet): the panel lets go of it anyway
+    expect(await screen.findByRole("button", { name: "Send to TaleSpire" })).toBeEnabled();
+    act(() => {
+      useTaleSpireLink
+        .getState()
+        .setLink({ ...link, send: { ...link.send, state: "failed", buildId: "b1", error: null } });
+    });
+    expect(
+      screen.getByText("TaleSpire didn't answer. Check the Slabyrinth panel is open, then send again."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send again" })).toBeEnabled();
+    // main's own reason (its 30 s deadline) is shown plainly, once
+    const late =
+      "The add-on didn't answer within 30 seconds. Check Slabyrinth Helper in TaleSpire, then send again.";
+    act(() => {
+      useTaleSpireLink
+        .getState()
+        .setLink({ ...link, send: { ...link.send, state: "failed", buildId: "b1", error: late } });
+    });
+    expect(screen.getAllByText(late)).toHaveLength(1);
+  });
+
+  it("Stop while main prepares the map is a quiet cancel", async () => {
+    setBridge({
+      ...createFakeBridge({ scenario: parseScenario(""), speed: 0 }),
+      invoke: () => Promise.resolve({ ok: false, error: { code: "cancelled", message: "Cancelled." } }),
+    } as unknown as Parameters<typeof setBridge>[0]);
+    // the real action (another test here swaps `send` for a mock)
+    useTaleSpireLink.setState({ send: useTaleSpireLink.getInitialState().send });
+    expect(await useTaleSpireLink.getState().send("b1")).toBe(false);
+    expect(useTaleSpireLink.getState().error).toBeNull();
   });
 
   it("not installed: one line and a button to the dialog; an empty slab is refused in plain words", async () => {

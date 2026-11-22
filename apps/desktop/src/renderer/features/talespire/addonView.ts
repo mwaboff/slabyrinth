@@ -4,7 +4,13 @@
  * (stores/talespireLink.ts), so one table-driven test covers every state, and every surface says the same thing.
  */
 import type { AddonStatus, LinkStatus } from "../../../shared/ipc";
-import { addonAction, canSend, placingProgress, type LinkAction } from "../../stores/talespireLink";
+import {
+  addonAction,
+  placingProgress,
+  sendPending,
+  sendUnanswered,
+  type LinkAction,
+} from "../../stores/talespireLink";
 
 /** The light's look: its colour and its shape both say it (never colour alone). */
 export type Light = "ok" | "busy" | "idle" | "action" | "warn" | "error";
@@ -279,6 +285,8 @@ export type SendView =
   | { kind: "empty_chunk" }
   | { kind: "ready"; other: string | null }
   | { kind: "sending" }
+  /** The last send of this build got no answer (failed, timed out, or a state this renderer doesn't know). */
+  | { kind: "no_answer"; message: string }
   | {
       kind: "placing";
       name: string;
@@ -291,8 +299,8 @@ export type SendView =
   | { kind: "finished"; name: string; total: number };
 
 /**
- * What the panel shows for this build. `emptyChunk`: a part of the build has no assets (TaleSpire crashes on an empty
- * slab, so the store and main refuse to send it).
+ * What the panel shows for this build. `emptyChunk`: a slab of the build has no assets (TaleSpire crashes on an empty
+ * slab, so the store and main refuse to send it). `stoppedSend`: the build whose pending send the GM stopped.
  */
 export function sendView(
   addon: AddonStatus | null,
@@ -300,6 +308,7 @@ export function sendView(
   busy: LinkAction | null,
   buildId: string,
   emptyChunk: boolean,
+  stoppedSend: string | null = null,
 ): SendView {
   const summary = addonSummary(addon, link);
   if (summary.key === "port_in_use" || summary.key === "link_failed" || summary.key === "checking")
@@ -311,7 +320,9 @@ export function sendView(
     if (summary.key === "waiting") return { kind: "waiting" };
     return { kind: "fix", summary };
   }
-  if (busy === "send" || link.send.state === "sending") return { kind: "sending" };
+  if (busy === "send" || sendPending(link, stoppedSend)) return { kind: "sending" };
+  // a failed, timed-out or unknown send state of this build: the add-on didn't take it
+  if (sendUnanswered(link, buildId)) return { kind: "no_answer", message: link.send.error ?? NO_ANSWER };
   const set = link.set;
   const ours = set !== null && link.send.buildId === buildId;
   if (set && ours) {
@@ -328,6 +339,8 @@ export function sendView(
     };
   }
   if (emptyChunk) return { kind: "empty_chunk" };
-  if (!canSend(link, busy)) return { kind: "sending" };
   return { kind: "ready", other: set ? set.name : null };
 }
+
+/** A send that failed, timed out or got an answer this app doesn't know: one plain line. */
+export const NO_ANSWER = "TaleSpire didn't answer. Check the Slabyrinth panel is open, then send again.";

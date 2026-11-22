@@ -162,6 +162,27 @@ test("install from the light, the build page turns Send on when the add-on conne
 
     // the states the test cannot make for real, for the owner's screenshots
     const real = unwrap(await invoke(page, "link:status", undefined));
+    // a send waiting for the add-on: Stop is there; a send the add-on didn't answer: one plain line, Send again
+    await emit(app, "link:changed", { ...real, send: { ...real.send, state: "sending" } });
+    await expect(panel.getByRole("button", { name: "Stop" })).toBeEnabled();
+    await shot(page, "build-sending-dark.png");
+    await emit(app, "link:changed", {
+      ...real,
+      send: { ...real.send, state: "failed", error: "The add-on didn't answer within 30 seconds." },
+    });
+    await expect(panel.getByRole("button", { name: "Send again" })).toBeEnabled();
+    await shot(page, "build-noanswer-dark.png");
+    // installed by hand where Slabyrinth doesn't look: the light says connected, the dialog says what is wrong
+    await emit(app, "addon:changed", {
+      ...fakeAddonStatus("not_found"),
+      prompt: { show: false, reason: null },
+    });
+    await emit(app, "link:changed", real);
+    await expect(light).toHaveAccessibleName("TaleSpire add-on: Add-on connected");
+    await light.click();
+    await expect(dialog.getByText(/connected, but Slabyrinth couldn't find/)).toBeVisible();
+    await shot(page, "dialog-connected-notfound-dark.png");
+    await page.keyboard.press("Escape");
     const states: Array<[string, AddonStatus, LinkStatus]> = [
       [
         "notfound",
@@ -247,6 +268,27 @@ test("install from the light, the build page turns Send on when the add-on conne
     await shot(page, "settings-light.png");
     await setScheme(page, "dark");
     await settings.getByRole("button", { name: "Done" }).click();
+
+    // a build of several slabs (one per level), read back from the project after a reload: the slab list and the
+    // paste guide say where to paste from the recorded paste anchor, with no bundle in memory
+    const multi = unwrap(
+      await invoke(page, "compile:run", { version: 1, options: { grouping: "per-level" } }),
+    );
+    expect(multi.chunks.length).toBeGreaterThan(1);
+    await page.reload();
+    const build = page.getByRole("tab", { name: "Build", exact: true });
+    if (await build.isVisible()) await build.click();
+    await expect(page.getByText(/Too big for one slab, so it's in \d+ slabs/)).toBeVisible({
+      timeout: 30_000,
+    });
+    if (multi.pasteAnchor)
+      await expect(page.locator(".build__foot").filter({ hasText: "split into" })).toContainText(
+        "bare ground just outside the middle",
+      );
+    await shot(page, "build-multislab-dark.png");
+    await page.getByRole("button", { name: "Start paste guide" }).click();
+    await expect(page.getByRole("complementary", { name: "Paste guide" })).toBeVisible();
+    await shot(page, "build-multislab-guide-dark.png");
     addon.ws.close();
   } finally {
     await app.close();

@@ -37,8 +37,13 @@ interface TaleSpireLinkState {
   dismissPrompt: () => Promise<void>;
   /** Sends a build to the connected add-on. Resolves true when it was sent (progress arrives as link:changed). */
   send: (buildId: string) => Promise<boolean>;
-  /** Empties the add-on and releases the hotkeys. */
+  /**
+   * Empties the add-on and releases the hotkeys. Also the way out of a send the add-on never answers: the build whose
+   * send was pending is kept in `stoppedSend`, and the UI stops waiting on it.
+   */
   stop: () => Promise<void>;
+  /** The build whose pending send the GM stopped (main may still report it as sending until its own deadline). */
+  stoppedSend: string | null;
   clearError: () => void;
   // ── the UI's own state (this session only) ──
   /** The add-on dialog (install guide and management). */
@@ -148,13 +153,21 @@ export const useTaleSpireLink = create<TaleSpireLinkState>((set, get) => {
         },
       );
     },
-    send: (buildId) =>
-      act(
+    send: async (buildId) => {
+      set({ stoppedSend: null });
+      const ok = await act(
         "send",
         () => tryCall("link:send", { buildId }),
         () => undefined,
-      ),
+      );
+      // Stop pressed while main prepared the map: a quiet cancel, not a failure to show
+      if (!ok && get().error?.code === "cancelled") set({ error: null });
+      return ok;
+    },
+    stoppedSend: null,
     stop: async () => {
+      const pending = get().link?.send;
+      if (pending?.state === "sending") set({ stoppedSend: pending.buildId });
       await act(
         "stop",
         () => tryCall("link:stop", undefined),
@@ -184,9 +197,29 @@ export const useTaleSpireLink = create<TaleSpireLinkState>((set, get) => {
 
 // ── selectors (pure; the UI's questions) ──
 
+/** A send is waiting for the add-on's answer, and the GM hasn't stopped waiting for it. */
+export function sendPending(link: LinkStatus | null, stoppedSend: string | null = null): boolean {
+  return link?.send.state === "sending" && link.send.buildId !== stoppedSend;
+}
+
 /** "Send to TaleSpire" is possible: the add-on is connected and nothing is being sent. */
-export function canSend(link: LinkStatus | null, busy: LinkAction | null = null): boolean {
-  return link?.helper.state === "connected" && link.send.state !== "sending" && busy !== "send";
+export function canSend(
+  link: LinkStatus | null,
+  busy: LinkAction | null = null,
+  stoppedSend: string | null = null,
+): boolean {
+  return link?.helper.state === "connected" && !sendPending(link, stoppedSend) && busy !== "send";
+}
+
+/**
+ * The send states that mean "sent, or on its way". Any other state of the app's last send (failed, timed out, or a
+ * state this renderer doesn't know yet) reads as "TaleSpire didn't answer".
+ */
+const SEND_GOING = new Set<string>(["idle", "sending", "loaded"]);
+
+/** The last send of this build got no usable answer from the add-on. */
+export function sendUnanswered(link: LinkStatus | null, buildId: string): boolean {
+  return link !== null && link.send.buildId === buildId && !SEND_GOING.has(link.send.state);
 }
 
 /** Progress of the map in the add-on: chunks placed of total (the GM's Next presses), or null with none loaded. */

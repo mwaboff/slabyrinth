@@ -10,6 +10,7 @@ import type { ChatItem } from "./provider/types";
 import { MemoryHost, defaultSettings, newProject } from "./testing/memoryHost";
 import { ScriptedProvider, call, say } from "./testing/scriptedProvider";
 import { SIZE_TIER_PREFIX, sizeTierText } from "./sizeTierText";
+import { checkSecondsPerStep } from "../../shared/sizeTier";
 
 /** A thin level wider than the standard size allows (cheap to resolve: 400 × 12 cells). */
 const WIDE = {
@@ -71,5 +72,21 @@ describe("map size setting in the conversation", () => {
     expect(sizeTierText("standard")).toBe(
       "Map size setting: standard, at most 320 cells a side and 204,800 cells over all levels together.",
     );
+  });
+});
+
+describe("the time estimate at the experimental sizes", () => {
+  it("adds main's plan check and review per step, from the measured table", async () => {
+    const seconds = async (size: SizeTierId | undefined): Promise<number> => {
+      const { engine, host } = setup(size);
+      const selection = { ...host.conv().selection, effort: "low" as const };
+      return (await engine.estimate({ text: "widen the road", intent: "plan", selection })).seconds ?? 0;
+    };
+    const standard = await seconds(undefined);
+    const big = await seconds("large-1024");
+    // three steps of a plan turn, each about 16 s of checks and 8 s of review at 1024
+    expect(big).toBeGreaterThan(standard);
+    expect(checkSecondsPerStep("large-1024")).toBe(24);
+    expect(checkSecondsPerStep("standard")).toBe(0);
   });
 });

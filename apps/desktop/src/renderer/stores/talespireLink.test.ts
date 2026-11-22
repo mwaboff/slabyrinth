@@ -17,7 +17,7 @@ import {
 } from "./talespireLink";
 
 afterEach(() => {
-  useTaleSpireLink.setState({ addon: null, link: null, busy: null, error: null });
+  useTaleSpireLink.setState({ addon: null, link: null, busy: null, error: null, stoppedSend: null });
 });
 
 function bridge(flags: string) {

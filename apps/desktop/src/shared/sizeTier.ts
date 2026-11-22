@@ -25,6 +25,30 @@ export function activeSizeTier(
   return tierAboveSetting(setting, plan) ?? setting ?? "standard";
 }
 
+/**
+ * What each size costs on the owner's machine class (±50%), measured with core's test/sweep/sizes.ts
+ * (docs/internal/handoff-size-tiers.md): seconds to check one change (validate), extra seconds per build, seconds of
+ * design review per change, and peak memory. The settings note and the chat's time estimate both read this one table.
+ */
+export const TIER_COSTS: Record<
+  SizeTierId,
+  { change: [number, number]; build: [number, number]; review: number; memoryGb: number }
+> = {
+  standard: { change: [0, 1], build: [0, 0], review: 0, memoryGb: 0.5 },
+  "large-512": { change: [2, 5], build: [4, 4], review: 3, memoryGb: 1.2 },
+  "large-768": { change: [4, 9], build: [8, 8], review: 4, memoryGb: 2 },
+  "large-1024": { change: [6, 16], build: [12, 18], review: 8, memoryGb: 2.6 },
+};
+
+/**
+ * Seconds main spends checking each step of the AI's turn at this size (the plan check and the design review, at the
+ * slow end), on top of the model's own time. Standard: nothing worth adding.
+ */
+export function checkSecondsPerStep(id: SizeTierId): number {
+  const c = TIER_COSTS[id];
+  return id === "standard" ? 0 : c.change[1] + c.review;
+}
+
 /** "768 × 768" */
 export function tierSize(id: SizeTierId): string {
   const side = sizeLimits(id).levelSide;

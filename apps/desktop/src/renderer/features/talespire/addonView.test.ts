@@ -277,6 +277,23 @@ describe("Send to TaleSpire", () => {
     });
   });
 
+  it("a send the add-on never answers: Stop lets go of it; a failed or unknown state says TaleSpire didn't answer", () => {
+    const sending = {
+      ...connected,
+      send: { ...connected.send, state: "sending" as const, buildId: "fake-build" },
+    };
+    expect(sendView(A("installed"), sending, null, "fake-build", false).kind).toBe("sending");
+    // the GM pressed Stop: main may still say sending until its own deadline; the panel offers sending again
+    expect(sendView(A("installed"), sending, null, "fake-build", false, "fake-build").kind).toBe("ready");
+    const failed = { ...sending, send: { ...sending.send, state: "failed" as const, error: "x" } };
+    expect(sendView(A("installed"), failed, null, "fake-build", false).kind).toBe("no_answer");
+    // a state main may add later (a timed-out send) reads the same, never as a blank panel
+    const later = { ...sending, send: { ...sending.send, state: "timed_out" } } as unknown as LinkStatus;
+    expect(sendView(A("installed"), later, null, "fake-build", false).kind).toBe("no_answer");
+    // another build's failed send says nothing about this one
+    expect(sendView(A("installed"), failed, null, "another", false).kind).toBe("ready");
+  });
+
   it("placing: progress from the add-on's state", () => {
     expect(sendView(A("installed"), placing("inHand"), null, "fake-build", false)).toMatchObject({
       kind: "placing",
