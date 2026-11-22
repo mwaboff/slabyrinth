@@ -2666,6 +2666,14 @@ class AreaComposer {
         )
       )
         continue;
+      // generator 4: the light stands off the landmark's real outline (a great tree's crown or a statue's plinth is
+      // wider than its footprint), turned any way: half the diagonal of its widest variant round the footprint's middle
+      const ext = gen.lightsOffLandmarks
+        ? this.grid.piece4?.(f.type, f.at[0], f.at[1], f.variant)
+        : undefined;
+      const reach = ext ? Math.hypot(ext.wMax, ext.dMax) / 2 : 0;
+      const underOutline = (x: number, y: number): boolean =>
+        x + 1 > cx - reach && x < cx + reach && y + 1 > cy - reach && y < cy + reach;
       // the nearest free ground ring around the footprint, off the paths
       const ring = cells
         .filter(([x, y]) => {
@@ -2675,7 +2683,8 @@ class AreaComposer {
             Math.max(dx, dy) >= 1 &&
             Math.max(dx, dy) <= 2 &&
             !taken.has(key(x, y)) &&
-            !doorZone.has(key(x, y))
+            !doorZone.has(key(x, y)) &&
+            !underOutline(x, y)
           );
         })
         .sort(

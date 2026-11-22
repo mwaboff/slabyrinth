@@ -1064,7 +1064,7 @@ plans/l-corridor-route@4 l1 feature torch_wall 10
 plans/l-corridor-route@4 diag info footprint_mismatch 2
 plans/l-corridor-route@4 review flat_map 1
 plans/l-corridor-route@4 review floor_patchwork 1
-plans/market-street-v3 g pieces feature 365
+plans/market-street-v3 g pieces feature 362
 plans/market-street-v3 g pieces fill 130
 plans/market-street-v3 g pieces floor 955
 plans/market-street-v3 g pieces ledge 144
@@ -1072,7 +1072,7 @@ plans/market-street-v3 g pieces opening 65
 plans/market-street-v3 g pieces wall 1520
 plans/market-street-v3 g pieces wall_post 106
 plans/market-street-v3 g layer roof 1111
-plans/market-street-v3 g layer site 1288
+plans/market-street-v3 g layer site 1285
 plans/market-street-v3 g layer storey:0 690
 plans/market-street-v3 g layer storey:1 196
 plans/market-street-v3 g part apothecary~canopy 4
@@ -1281,7 +1281,7 @@ plans/market-street-v3 g feature crate 3
 plans/market-street-v3 g feature flowers 1
 plans/market-street-v3 g feature lantern 12
 plans/market-street-v3 g feature line_post 2
-plans/market-street-v3 g feature overhead 46
+plans/market-street-v3 g feature overhead 43
 plans/market-street-v3 g feature sack 4
 plans/market-street-v3 g feature stall 8
 plans/market-street-v3 g feature stool 2
@@ -1292,7 +1292,7 @@ plans/market-street-v3 diag info custom_unresolved 4
 plans/market-street-v3 diag info footprint_mismatch 3
 plans/market-street-v3 diag info role_missing 1
 plans/market-street-v3 diag info verify_duplicate_removed 1
-plans/market-street-v3 diag info verify_prop_nudged 20
+plans/market-street-v3 diag info verify_prop_nudged 10
 plans/market-street-v3 review focal_unlit 1
 plans/market-street-v3 review pieces_substituted 1
 plans/market-street-v3 review roofs_alike 1
@@ -1339,12 +1339,12 @@ plans/multi-level-stairs@4 ground part foyer~room#2 1
 plans/multi-level-stairs@4 ground part foyer~room#3 1
 plans/multi-level-stairs@4 ground part foyer~room#4 1
 plans/multi-level-stairs@4 ground part foyer~room#5 1
-plans/multi-level-stairs@4 study_lvl pieces feature 44
+plans/multi-level-stairs@4 study_lvl pieces feature 38
 plans/multi-level-stairs@4 study_lvl pieces floor 19
 plans/multi-level-stairs@4 study_lvl pieces link 2
 plans/multi-level-stairs@4 study_lvl pieces wall 16
 plans/multi-level-stairs@4 study_lvl pieces wall_post 4
-plans/multi-level-stairs@4 study_lvl layer site 85
+plans/multi-level-stairs@4 study_lvl layer site 79
 plans/multi-level-stairs@4 study_lvl part floor:floor.wood_plank 19
 plans/multi-level-stairs@4 study_lvl part study~room#0 1
 plans/multi-level-stairs@4 study_lvl part study~room#1 1
@@ -1376,13 +1376,7 @@ plans/multi-level-stairs@4 study_lvl part study~room#32 1
 plans/multi-level-stairs@4 study_lvl part study~room#33 1
 plans/multi-level-stairs@4 study_lvl part study~room#34 1
 plans/multi-level-stairs@4 study_lvl part study~room#35 1
-plans/multi-level-stairs@4 study_lvl part study~room#36 1
-plans/multi-level-stairs@4 study_lvl part study~room#37 1
-plans/multi-level-stairs@4 study_lvl part study~room#38 1
-plans/multi-level-stairs@4 study_lvl part study~room#39 1
 plans/multi-level-stairs@4 study_lvl part study~room#4 1
-plans/multi-level-stairs@4 study_lvl part study~room#40 1
-plans/multi-level-stairs@4 study_lvl part study~room#41 1
 plans/multi-level-stairs@4 study_lvl part study~room#5 1
 plans/multi-level-stairs@4 study_lvl part study~room#6 1
 plans/multi-level-stairs@4 study_lvl part study~room#7 1
@@ -1397,16 +1391,14 @@ plans/multi-level-stairs@4 ground feature torch_wall 6
 plans/multi-level-stairs@4 study_lvl feature armor_stand 3
 plans/multi-level-stairs@4 study_lvl feature bookshelf 11
 plans/multi-level-stairs@4 study_lvl feature chest 6
-plans/multi-level-stairs@4 study_lvl feature clutter 11
+plans/multi-level-stairs@4 study_lvl feature clutter 5
 plans/multi-level-stairs@4 study_lvl feature desk 1
 plans/multi-level-stairs@4 study_lvl feature rug 1
 plans/multi-level-stairs@4 study_lvl feature shelf_line 4
 plans/multi-level-stairs@4 study_lvl feature torch_wall 7
 plans/multi-level-stairs@4 roof feature custom 1
 plans/multi-level-stairs@4 diag info footprint_mismatch 2
-plans/multi-level-stairs@4 diag info verify_prop_nudged 3
 plans/multi-level-stairs@4 diag warning custom_unresolved 1
-plans/multi-level-stairs@4 diag warning verify_pokes_into_level_above 1
 plans/multi-level-stairs@4 review brief_not_met 1
 plans/multi-level-stairs@4 review levels_close 2
 plans/multi-level-stairs@4 review pieces_substituted 1

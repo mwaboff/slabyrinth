@@ -864,6 +864,15 @@ class Room {
     return true;
   }
 
+  /**
+   * Does a thing lifted onto a piece (a candle on a desk, a jar on a shelf, a crate on a crate) stay under the floor of
+   * the level above, at its tallest variant? A low storey leaves the top of a tall support no room for it.
+   */
+  underCeiling(p: GeneratedPlacement): boolean {
+    const room = this.grid.headroom?.(p.at[0], p.at[1]) ?? Infinity;
+    return (p.lift ?? 0) + (this.piece(p.type, p.variant)?.hMax ?? 0) <= room;
+  }
+
   /** The piece a feature type (and variant) resolves to in this room's theme (asked of its first cell). */
   piece(type: FeatureType, variant?: string): ReturnType<NonNullable<PlacementGrid["piece4"]>> {
     const [x, y] = this.cells[0] ?? [0, 0];
@@ -1098,8 +1107,8 @@ class Room {
     if (stacked && rule.stackVariant !== undefined && p.variant === rule.stackVariant) {
       const cx = clampTo(p.centre[0], p.at[0], p.size[0]);
       const cy = clampTo(p.centre[1], p.at[1], p.size[1]);
-      if (this.grid.inBounds(cx, cy))
-        this.push({
+      if (this.grid.inBounds(cx, cy)) {
+        const top: GeneratedPlacement = {
           type: p.type,
           at: [cx, cy],
           size: [1, 1],
@@ -1111,7 +1120,9 @@ class Room {
             p.centre[0] - (cx + 0.5) + (this.rng.next() - 0.5) * 0.12,
             p.centre[1] - (cy + 0.5) + (this.rng.next() - 0.5) * 0.12,
           ],
-        });
+        };
+        if (this.underCeiling(top)) this.push(top);
+      }
       return;
     }
     const fam = this.piece("clutter", family) ? family : null;
@@ -1158,6 +1169,7 @@ class Room {
           Math.max(-0.5, Math.min(0.5, py - (cy + 0.5))),
         ],
       };
+      if (!this.underCeiling(g)) continue;
       if (!this.push(g)) return;
       this.used.add(cellKey(cx, cy));
     }
@@ -1179,6 +1191,7 @@ class Room {
       );
     const mountable = (x: number, y: number, s: Side): boolean =>
       g.edge(x, y, s) === EDGE_WALL &&
+      g.wallBuilt?.(x, y, s) !== false &&
       (g.wallHeight?.(x, y, s) ?? 2) >= ROOM_DRESS.shelfWall &&
       !isNaturalWallStyle(g.wallStyle?.(x, y, s)) &&
       !tallBelow(x, y) &&
@@ -1218,19 +1231,17 @@ class Room {
         const [dx, dy] = SIDE_STEP[s];
         const ox = dx !== 0 ? dx * toward : along;
         const oy = dy !== 0 ? dy * toward : along;
-        if (
-          !this.push({
-            type: "clutter",
-            at: [x, y],
-            size: [1, 1],
-            rot: 0,
-            rotFine: this.rng.int(24) * 15,
-            variant: SHELF_FAMILY,
-            lift: SHELF_TOP,
-            offset: [ox, oy],
-          })
-        )
-          return;
+        const thing: GeneratedPlacement = {
+          type: "clutter",
+          at: [x, y],
+          size: [1, 1],
+          rot: 0,
+          rotFine: this.rng.int(24) * 15,
+          variant: SHELF_FAMILY,
+          lift: SHELF_TOP,
+          offset: [ox, oy],
+        };
+        if (this.underCeiling(thing) && !this.push(thing)) return;
       }
     }
   }
@@ -1335,6 +1346,7 @@ class Room {
         ],
       };
       if (variant !== undefined) placement.variant = variant;
+      if (!this.underCeiling(placement)) continue;
       if (!this.push(placement)) return "full";
       q.light = true;
       this.lights.push([cx, cy]);
@@ -1347,6 +1359,7 @@ class Room {
   private torchFits(x: number, y: number, s: Side): boolean {
     const g = this.grid;
     if (g.edge(x, y, s) !== EDGE_WALL || (g.wallHeight?.(x, y, s) ?? 2) < ROOM_DRESS.torchWall) return false;
+    if (g.wallBuilt?.(x, y, s) === false) return false;
     const spot = cellKey(x, y) * 4 + SIDES.indexOf(s);
     if (this.hung.has(spot) || this.torched.has(spot)) return false;
     if (g.occupied(x, y) && !this.taken.has(cellKey(x, y))) return false;

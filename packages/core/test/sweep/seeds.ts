@@ -1,8 +1,9 @@
 /**
  * The seed sweep: a plan must build cleanly for any seed. Every stored plan (test/fixtures: the hand-written plans,
  * the proof plans and the generator test plans) and the plan the desktop e2e test builds, built under the newest
- * generator with fixed lists of other seeds, has no verify error. The goldens pin one seed per plan; a fault that shows
- * for a few seeds in a hundred only shows across many.
+ * generator with fixed lists of other seeds, has no verify error, and no warning but those KNOWN_WARNINGS still lists.
+ * The goldens pin one seed per plan; a fault that shows for a few seeds in a hundred only shows across many (a stored
+ * seed is the one the plan was revised at until it built cleanly, so it says little about the others).
  *
  * Two runs share this module: test/unit/compile/seedSweep*.test.ts (part of `npm test`: a few seeds per plan plus the
  * seeds that once failed) and test/sweep/run.ts (`npm run test:sweep`: hundreds of seeds per plan, for CI).
@@ -80,12 +81,76 @@ export interface SweepFailure {
   first: string;
 }
 
+/**
+ * Warnings about what the test run lacks, not about the build: tests load no TaleSpire catalog, so a plan's custom
+ * feature (multi-level-stairs' "brass telescope") never resolves. The sweep does not count them.
+ */
+export const ENVIRONMENT_WARNINGS: ReadonlySet<string> = new Set(["custom_unresolved"]);
+
+/** The sweep seeds KNOWN_WARNINGS counts are measured over: the first this many, plus the plan's once-failed seeds. */
+export const WARNING_BASIS = 150;
+
+/**
+ * Warnings stored plans still raise for some seeds (not at their stored seed: the goldens and proofs show 0), per plan:
+ * code -> how many of the WARNING_BASIS sweep seeds (and the once-failed ones) raise it. Every other warning fails the
+ * sweep, and so does a count that grows. The list only shrinks: a sweep of at least WARNING_BASIS seeds fails on a
+ * count that is now lower (lower it) or an entry no seed raises (remove it). The causes, for the next round:
+ * - keep-dungeon-v8 prop_in_wall: a dress op's bunk bed (1x2) in a cell whose corner holds a wall corner filler post;
+ *   the bed is too wide to be pushed clear inside its footprint.
+ * - market-street-v3 (overhead lines against what stands under them): prop_in_wall (a rope of lights into a wall
+ *   banner, a hung lantern into a building's main roof), prop_sunk (a rope into a covered stall's tent roof),
+ *   line_unanchored and prop_floating (no wall or post reaches a line's height at an end: the line and its pieces
+ *   hang free), props_overlap (a stall's fish sling and beam), cliff_gap (a 2-tile cliff edge with no rock in front).
+ * - heartroot-rift-v7, dressed-cave(-v2), night-market-v1 props_overlap: realize-made pieces (lava glow, outcrop columns) and dress pieces whose real outline is wider than
+ *   their cells (a crystal beside a crystal, a dragon skeleton's ribs over the fire beside it, a stall's stock).
+ * - dressed-cave, heartroot-rift-v7 mount_no_wall: a dress op's thorn vines hung on a cave wall edge with no wall
+ *   piece (the room recipe's board-edge torches are fixed: `mountsOnBuiltWalls`).
+ * - market-street-v3, three-step-glen-v1, terraced-hill cliff_gap: a 2-tile cliff edge with no rock in front.
+ * - heartroot-rift-v7, dressed-cave(-v2), hillside-v5, sea-grotto prop_no_floor: a dress piece (a swamp tree base, a
+ *   boulder, a moss rock) anchored on a cell whose centre has no floor piece under it (a ragged cave edge, an outcrop).
+ * - smugglers-grotto-v3, sea-grotto, old-stones-glade-v6 prop_floating: a landing's lantern and candles 0.42 above the
+ *   floor under their centre (the landing's lower step), pebbles 0.5 above a step.
+ */
+export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+  "heartroot-rift-v7": {
+    verify_props_overlap: 68,
+    verify_prop_no_floor: 4,
+    verify_mount_no_wall: 2,
+    verify_prop_floating: 4,
+  },
+  "keep-dungeon-v8": { verify_prop_in_wall: 128 },
+  "market-street-v3": {
+    verify_line_unanchored: 12,
+    verify_prop_floating: 12,
+    verify_props_overlap: 3,
+    verify_prop_sunk: 28,
+    verify_prop_in_wall: 7,
+    verify_cliff_gap: 4,
+  },
+  "night-market-v1": { verify_props_overlap: 11 },
+  "old-stones-glade-v6": { verify_prop_floating: 5 },
+  "smugglers-grotto-v3": { verify_prop_floating: 16, verify_prop_no_floor: 1 },
+  "three-step-glen-v1": { verify_cliff_gap: 1 },
+  "dressed-cave": {
+    verify_prop_no_floor: 11,
+    verify_props_overlap: 27,
+    verify_mount_no_wall: 7,
+    verify_prop_floating: 1,
+  },
+  "dressed-cave-v2": { verify_props_overlap: 130, verify_prop_no_floor: 17 },
+  "hillside-v5": { verify_prop_no_floor: 10 },
+  "sea-grotto": { verify_prop_no_floor: 1, verify_prop_floating: 19 },
+  "terraced-hill": { verify_cliff_gap: 1 },
+};
+
 /** The diagnostics of one severity a build has, as a failure (codes sorted and distinct); null when it has none. */
 function problems(
   diagnostics: readonly CompileDiagnostic[],
   severity: "error" | "warning",
 ): SweepFailure | null {
-  const found = diagnostics.filter((d) => d.severity === severity);
+  const found = diagnostics.filter(
+    (d) => d.severity === severity && !(severity === "warning" && ENVIRONMENT_WARNINGS.has(d.code)),
+  );
   if (found.length === 0) return null;
   return { codes: [...new Set(found.map((d) => d.code))].sort(), first: found[0]?.message ?? "" };
 }
@@ -101,9 +166,8 @@ function buildDiagnostics(plan: MapPlan): CompileDiagnostic[] {
 }
 
 /**
- * Every failing build of `name` over `seeds`, as "<plan>@<seed>" -> failure. Warnings do not fail a build: stored
- * plans still have some (prop overlaps in dense dressing, props pushed into walls, unanchored overhead lines), so
- * `warnings`, when given, collects them the same way, for the large sweep to report.
+ * Every failing build of `name` over `seeds`, as "<plan>@<seed>" -> failure; `warnings` collects the builds with
+ * warnings the same way (ENVIRONMENT_WARNINGS left out), for `unexpectedWarnings`.
  */
 export function sweepFailures(
   label: string,
@@ -120,6 +184,57 @@ export function sweepFailures(
     if (w) warnings[`${label}@${String(seed)}`] = w;
   }
   return out;
+}
+
+/**
+ * The warnings of a plan's builds against KNOWN_WARNINGS. `failed`: a code not listed for the plan, or (`basisSeeds`
+ * given: the run built the first that many sweep seeds and the once-failed ones) more seeds raising a listed code than
+ * its count allows. `stale` (only when the run covered the whole basis): a listed count higher than the seeds that
+ * raise it now, to lower or remove.
+ */
+export function unexpectedWarnings(
+  label: string,
+  warned: Readonly<Record<string, SweepFailure>>,
+  basisSeeds?: number,
+): { failed: string[]; stale: string[] } {
+  const known = KNOWN_WARNINGS[label] ?? {};
+  const seeds = new Map<string, string[]>();
+  for (const [k, w] of Object.entries(warned))
+    for (const code of w.codes) seeds.set(code, [...(seeds.get(code) ?? []), k]);
+  const failed: string[] = [];
+  for (const [code, at] of seeds) {
+    const allowed = known[code];
+    if (allowed === undefined)
+      failed.push(`${at.slice(0, 3).join(", ")}: warning ${code} (${warned[at[0] ?? ""]?.first ?? ""})`);
+    else if (basisSeeds !== undefined && basisSeeds <= WARNING_BASIS && at.length > allowed)
+      failed.push(
+        `${label}: warning ${code} on ${String(at.length)} seeds, KNOWN_WARNINGS allows ${String(allowed)}`,
+      );
+  }
+  const stale =
+    basisSeeds !== undefined && basisSeeds >= WARNING_BASIS
+      ? Object.entries(known)
+          .filter(([code, n]) => (seeds.get(code)?.length ?? 0) < n)
+          .map(
+            ([code, n]) =>
+              `${label}: warning ${code} now on ${String(seeds.get(code)?.length ?? 0)} seeds (listed ${String(n)})`,
+          )
+      : [];
+  return { failed, stale };
+}
+
+/**
+ * One build of the fast sweep (`npm test`): its errors against KNOWN_FAILURES and its warnings against KNOWN_WARNINGS
+ * (a code listed for the plan passes; counts are the large sweep's to check).
+ */
+export function sweepOne(
+  label: string,
+  seed: number,
+  planOf: (seed: number) => MapPlan,
+): { failed: string[]; stale: string[] } {
+  const warned: Record<string, SweepFailure> = {};
+  const errors = unexpected(label, [seed], sweepFailures(label, [seed], planOf, warned));
+  return { failed: [...errors.failed, ...unexpectedWarnings(label, warned).failed], stale: errors.stale };
 }
 
 /** The failures not listed in KNOWN_FAILURES (or listed with other codes), and the listed ones that passed. */

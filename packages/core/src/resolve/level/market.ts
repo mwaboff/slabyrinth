@@ -32,7 +32,7 @@ import {
 } from "../../gen/market";
 import { elementSeed, subSeed } from "../../util/hash";
 import { createPrng } from "../../util/prng";
-import type { FeatureWork } from "./features";
+import { type FeatureWork, offWalls } from "./features";
 import type { ReadOnly, ResolveGrid } from "./grid";
 import type { PathRecords } from "./paths";
 
@@ -106,6 +106,11 @@ function commitMarket(
   if (p.stall !== undefined) rf.stall = p.stall;
   if (p.offset !== undefined)
     rf.offset = [Math.max(-0.5, Math.min(0.5, p.offset[0])), Math.max(-0.5, Math.min(0.5, p.offset[1]))];
+  else if (work.profile.marketFurnitureOffWalls && occupy && p.stall === undefined && (p.lift ?? 0) === 0) {
+    // a trade's pieces stand against a house front, windows included
+    const off = offWalls(work, p.type, p.at, p.size, true);
+    if (off) rf.offset = off;
+  }
   const shown = work.areaAt(anchor);
   if (shown) rf.area = shown.area.id;
   // the market may let a piece reach over a door front: it keeps the doors clear cell by cell itself (`marketCellOk`)
@@ -400,8 +405,15 @@ function stepLine(
   const start = aLo.kind === "wall" ? aLo.at + 1 : aLo.at + 0.65;
   const end = aHi.kind === "wall" ? aHi.at : aHi.at + 0.35;
   const pieces = layoutLine({ alongX, lane, start, end }, line.kind ?? "lanterns", line.spacing ?? 3);
+  // generator 4: a lantern or flag hangs below the rope, into a porch roof under it: none hangs over a roofed porch
+  const porchRoofs = new Set<string>();
+  if (work.profile.linesClearPorches)
+    for (const b of work.structs?.buildings ?? [])
+      for (const q of b.porches) if (q.roof) for (const [x, y] of q.cells) porchRoofs.add(`${x},${y}`);
   pieces.forEach((p, n) => {
     if (features.generated >= cap) return;
+    const hung = p.size[0] * p.size[1] === 1;
+    if (hung && porchRoofs.has(`${p.at[0]},${p.at[1]}`)) return;
     commitMarket(
       work,
       features,

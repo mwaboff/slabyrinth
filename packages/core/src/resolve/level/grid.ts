@@ -37,6 +37,7 @@ import type { RoomClass } from "../../gen/roomPurpose";
 import { type ClipBox, rasterizeShape } from "../../gen/shapes";
 import type { PaletteView } from "../../palette/view";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
+import { floorTopAt, QUARTERS_PER_TILE } from "../../plan/levels";
 import {
   cellIndex,
   edgeCol,
@@ -167,6 +168,11 @@ export class ResolveGrid {
   readonly ctx: LevelContext;
   /** Buildings and enclosures (resolve/structure.ts); null when the level has none. */
   readonly structs: StructureWork | null;
+  /**
+   * The next level up by elevation, linked once every level's areas are laid (resolvePlan.ts, after phase 1): where it
+   * has floor, its elevation is this level's ceiling (`ceilingAt`). Null for the top level.
+   */
+  above: ResolveGrid | null = null;
 
   constructor(ctx: LevelContext) {
     this.ctx = ctx;
@@ -410,6 +416,18 @@ export class ResolveGrid {
   /** True when the cell has open floor (used by the level above to check what lies under its floor openings). */
   hasFloorAt(gx: number, gy: number): boolean {
     return this.isFloor(this.idx(gx, gy));
+  }
+
+  /**
+   * Clear height in tiles above the floor top of global cell (gx, gy): up to the underside of the level above where
+   * that level has floor over the cell (verify measures `verify_pokes_into_level_above` there), else Infinity.
+   */
+  headroomAt(gx: number, gy: number): number {
+    const up = this.above;
+    if (up === null || !up.hasFloorAt(gx, gy)) return Infinity;
+    const i = this.idx(gx, gy);
+    const height = i < 0 ? 0 : (this.height[i] as number) / QUARTERS_PER_TILE;
+    return up.level.elevation - floorTopAt(this.level.elevation, height);
   }
 
   // ───────────────────────────── areas ─────────────────────────────

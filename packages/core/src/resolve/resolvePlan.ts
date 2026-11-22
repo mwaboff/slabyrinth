@@ -63,6 +63,10 @@ export function resolvePlan(
   for (const { grid } of works) if (!byId.has(grid.level.id)) byId.set(grid.level.id, grid);
 
   for (const w of works) runPhase1(w);
+  // each level's ceiling: the next level up, whose floor cells are laid now (dressing asks it in phase 2)
+  const byElev = [...works].sort((a, b) => a.grid.level.elevation - b.grid.level.elevation);
+  for (const w of works)
+    w.grid.above = byElev.find((o) => o.grid.level.elevation > w.grid.level.elevation)?.grid ?? null;
   const links = resolveLinks(plan, byId, issues);
   // floor openings look into the next level down (rubble heaps and checks happen on both sides)
   linkFloorOpenings(works);

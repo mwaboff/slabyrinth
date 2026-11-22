@@ -281,6 +281,26 @@ const SWITCHES = {
     4,
     "An enclosure with no floor of its own is a plain zone with no walls field, so it raises no no_effect warning about walls the plan never set (resolve/structure.ts addEnclosureYards).",
   ),
+  mountsOnBuiltWalls: on(
+    4,
+    "A room recipe hangs a torch or shelf only on a wall edge a wall piece stands on: not a rock wall on the board's edge when that edge is an exit (PlacementGrid.wallBuilt).",
+  ),
+  lightsOffLandmarks: on(
+    4,
+    "The floor light that lights a landmark stands clear of the landmark's real outline (a tree's crown is wider than its footprint), never inside it (gen/setpieces.ts lightLandmarks).",
+  ),
+  ceilingOverRooms: on(
+    4,
+    "A room recipe's things lifted onto furniture or a shelf stay under the floor of the level above (gen/rooms4.ts underCeiling, PlacementGrid.headroom).",
+  ),
+  linesClearPorches: on(
+    4,
+    "An overhead line hangs no lantern or flag over a building's roofed porch (it would hang into the porch roof); the rope still runs to the wall (resolve/level/market.ts stepLine).",
+  ),
+  marketFurnitureOffWalls: on(
+    4,
+    "The market's blocking pieces set against a wall (a trade's barrel or crate outside its door) stand clear of it, as other generated furniture does (resolve/level/features.ts offWalls).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

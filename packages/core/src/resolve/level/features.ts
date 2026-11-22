@@ -17,6 +17,7 @@ import { SIDE_STEP } from "../../gen/gridGeometry";
 import { isPassage } from "../../gen/openingKinds";
 import type { GeneratedPlacement, PlacementGrid } from "../../gen/placementGrid";
 import { THEME_WALL_STYLE } from "../../gen/wallStyles";
+import { wallRole } from "../../palette/roles";
 import type { ChasmRecords } from "./chasms";
 import type { ReadOnly, ResolveGrid } from "./grid";
 import { type PathRecords, parkVehicle } from "./paths";
@@ -155,29 +156,10 @@ export class FeatureWork {
       // generator 3: a sub-cell shift (each axis within half a tile)
       if (p.offset !== undefined && work.profile.subCellOffsets)
         rf.offset = [Math.max(-0.5, Math.min(0.5, p.offset[0])), Math.max(-0.5, Math.min(0.5, p.offset[1]))];
-      // generator 3: a furnishing set against a wall stands clear of it (a preset's bed, coffin or brazier is a little
-      // wider than its cell and would sink into the wall, verify_prop_in_wall): shifted 0.45 tile off each wall it
-      // touches
-      if (
-        work.profile.furnitureOffWalls &&
-        rf.offset === undefined &&
-        !info.wallMounted &&
-        !info.organic &&
-        info.blocking
-      ) {
-        const [x0, y0] = p.at;
-        const [x1, y1] = [p.at[0] + p.size[0] - 1, p.at[1] + p.size[1] - 1];
-        let ox = 0;
-        let oy = 0;
-        for (let x = x0; x <= x1; x++) {
-          if (work.edgeKindAt(x, y0, "N") === EDGE.WALL) oy = 0.45;
-          if (work.edgeKindAt(x, y1, "S") === EDGE.WALL) oy = oy === 0.45 ? 0 : -0.45;
-        }
-        for (let y = y0; y <= y1; y++) {
-          if (work.edgeKindAt(x0, y, "W") === EDGE.WALL) ox = 0.45;
-          if (work.edgeKindAt(x1, y, "E") === EDGE.WALL) ox = ox === 0.45 ? 0 : -0.45;
-        }
-        if (ox !== 0 || oy !== 0) rf.offset = [ox, oy];
+      // generator 3: a furnishing set against a wall stands clear of it
+      if (work.profile.furnitureOffWalls && rf.offset === undefined) {
+        const off = offWalls(work, p.type, p.at, p.size);
+        if (off) rf.offset = off;
       }
       const shown = work.areaAt(anchor);
       if (shown) rf.area = shown.area.id;
@@ -357,6 +339,17 @@ export class FeatureWork {
               const host = forced >= 0 ? forced : work.hostOf(a, b, ed.e.run[ed.i] === 1);
               return host === (s === "N" || s === "W" ? 1 : 0);
             },
+            // the realize wall pass builds a rock wall's column in the cell past the edge, and nothing past the board
+            // when its edge is an exit (resolve/wallFaces.ts boardEdgeIsExit, compile/realize/walls.ts)
+            wallBuilt: (x: number, y: number, s: Side) => {
+              if (!work.profile.mountsOnBuiltWalls || !work.profile.boardEdgeExits) return true;
+              if (work.idx(x + SIDE_STEP[s][0], y + SIDE_STEP[s][1]) >= 0) return true;
+              const ed = work.sideEdge(x, y, s);
+              if (!ed || ed.e.kind[ed.i] !== EDGE.WALL) return true;
+              const style = ed.e.style[ed.i] ?? THEME_WALL_STYLE;
+              const res = work.ctx.palette.probe(work.themeAt(work.idx(x, y)))([wallRole(style)]);
+              return (res?.def.mount ?? "half-cell") !== "full-cell";
+            },
             wallHeight: (x: number, y: number, s: Side) => {
               const ed = work.sideEdge(x, y, s);
               return ed && ed.e.kind[ed.i] === EDGE.WALL ? (ed.e.height[ed.i] as number) : 0;
@@ -365,6 +358,8 @@ export class FeatureWork {
               const ed = work.sideEdge(x, y, s);
               return ed && ed.e.kind[ed.i] === EDGE.WALL ? (ed.e.style[ed.i] ?? THEME_WALL_STYLE) : undefined;
             },
+            headroom: (x: number, y: number) =>
+              work.profile.ceilingOverRooms ? work.headroomAt(x, y) : Infinity,
             lightCells: () =>
               this.list.filter((f) => LIGHT_FEATURES.has(f.type)).map((f) => [f.at[0], f.at[1]] as const),
             roomMemory: this.roomMemory,
@@ -372,6 +367,41 @@ export class FeatureWork {
         : {}),
     };
   }
+}
+
+/**
+ * The sub-cell shift that sets a blocking furnishing clear of the walls it stands against (a bed, coffin, brazier or
+ * barrel is a little wider than its cell, and a wall hosted on the cell's side takes half of it: it would sink into
+ * the wall, verify_prop_in_wall): 0.45 tile off each wall the footprint touches, none between two facing walls.
+ * Undefined for a piece that is wall-mounted, organic or not blocking, or that touches no wall. `openings`: an opening
+ * edge counts as wall too (a window's frame and the course under it stand where the wall would).
+ */
+export function offWalls(
+  work: ReadOnly<ResolveGrid>,
+  type: FeatureType,
+  at: readonly [number, number],
+  size: readonly [number, number],
+  openings = false,
+): [number, number] | undefined {
+  const info = featureInfo(type);
+  if (info.wallMounted || info.organic || !info.blocking) return undefined;
+  const walled = (x: number, y: number, s: Side): boolean => {
+    const k = work.edgeKindAt(x, y, s);
+    return k === EDGE.WALL || (openings && k === EDGE.OPENING);
+  };
+  const [x0, y0] = at;
+  const [x1, y1] = [at[0] + size[0] - 1, at[1] + size[1] - 1];
+  let ox = 0;
+  let oy = 0;
+  for (let x = x0; x <= x1; x++) {
+    if (walled(x, y0, "N")) oy = 0.45;
+    if (walled(x, y1, "S")) oy = oy === 0.45 ? 0 : -0.45;
+  }
+  for (let y = y0; y <= y1; y++) {
+    if (walled(x0, y, "W")) ox = 0.45;
+    if (walled(x1, y, "E")) ox = ox === 0.45 ? 0 : -0.45;
+  }
+  return ox !== 0 || oy !== 0 ? [ox, oy] : undefined;
 }
 
 /**

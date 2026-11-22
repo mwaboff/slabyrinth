@@ -111,10 +111,21 @@ export interface PlacementGrid {
     | undefined;
   /** Generator 4: does this cell host the wall strip on its `side` (a piece mounted there stands half a cell in)? */
   wallHosted?(x: number, y: number, side: Side): boolean;
+  /**
+   * Generator 4: does a wall piece stand on the cell's `side`? False on a wall edge nothing is built on: a rock wall
+   * (a full-cell piece, built in the cell past the edge) on the board's edge when the board edge is an exit.
+   */
+  wallBuilt?(x: number, y: number, side: Side): boolean;
   /** Generator 4: height in tiles of the wall on the cell's `side` (0 where there is none). */
   wallHeight?(x: number, y: number, side: Side): number;
   /** Generator 4: wall style of the wall on the cell's `side` (natural rock takes no shelf). */
   wallStyle?(x: number, y: number, side: Side): string | undefined;
+  /**
+   * Generator 4: clear height in tiles above the cell's floor top, up to the floor of the lowest level stacked above
+   * (plan/levels.ts `levelCeiling`); Infinity with none. Nothing a placer stands there may rise higher (verify's
+   * `verify_pokes_into_level_above`).
+   */
+  headroom?(x: number, y: number): number;
   /** Generator 4: cells of the lights already on the level (wall torches, candles, braziers, lanterns), plan or generated. */
   lightCells?(): ReadonlyArray<readonly [number, number]>;
   /**
