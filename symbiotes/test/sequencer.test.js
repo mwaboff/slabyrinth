@@ -53,8 +53,8 @@ describe("parseChunkSet", () => {
     [blob({ version: 2 }), /version 1/],
     [blob({ name: "" }), /"name"/],
     [blob({ chunks: [] }), /non-empty list/],
-    [blob({ chunks: [{ slab: SLAB }] }), /Chunk 1 needs a "label"/],
-    [blob({ chunks: [{ label: "a", slab: SLAB }, { label: "b" }] }), /Chunk 2 needs a "slab"/],
+    [blob({ chunks: [{ slab: SLAB }] }), /Slab 1 needs a "label"/],
+    [blob({ chunks: [{ label: "a", slab: SLAB }, { label: "b" }] }), /Slab 2 needs a "slab"/],
     [blob({ chunks: [{ label: "a", slab: "not base64!" }] }), /not base64/],
     [blob({ chunks: [{ label: "a", slab: "QUJDRA==" }] }), /not gzip/],
   ])("refuses %s in plain words", (text, message) => {
@@ -66,10 +66,10 @@ describe("parseChunkSet", () => {
   it("reads the optional map size and level count, and the header shows them as text", () => {
     const r = Seq.parseChunkSet(blob({ size: { w: 40, h: 30 }, levels: 2 }));
     expect(r.set).toMatchObject({ size: { w: 40, h: 30 }, levels: 2 });
-    expect(Seq.mapInfo(r.set)).toEqual({ title: "Two halves", meta: "2 chunks · 40 × 30 cells · 2 levels" });
+    expect(Seq.mapInfo(r.set)).toEqual({ title: "Two halves", meta: "2 slabs · 40 × 30 cells · 2 levels" });
     const plain = Seq.parseChunkSet(blob()).set;
     expect(plain).toMatchObject({ size: null, levels: null });
-    expect(Seq.mapInfo(plain)).toEqual({ title: "Two halves", meta: "2 chunks" });
+    expect(Seq.mapInfo(plain)).toEqual({ title: "Two halves", meta: "2 slabs" });
     expect(Seq.mapInfo(null)).toBeNull();
     expect(Seq.parseChunkSet(blob({ name: "<b>x</b>" })).set.name).toBe("<b>x</b>"); // kept as text
   });
@@ -88,7 +88,7 @@ describe("parseChunkSet", () => {
       expect(Seq.parseChunkSet(blob({ anchor: bad })).error).toMatch(/^"anchor" must be/);
   });
 
-  it("with a paste anchor, chunk 1 says where the cursor goes; without one, the plain wording stays", () => {
+  it("with a paste anchor, slab 1 says where the cursor goes; without one, the plain wording stays", () => {
     const keys = { next: "Ctrl+Alt+D", back: "Ctrl+Alt+A", again: "Ctrl+Alt+S" };
     const inHand = (over) => {
       let s = Seq.reduce(Seq.initialState(), { type: "load", set: Seq.parseChunkSet(blob(over)).set }).state;
@@ -98,14 +98,14 @@ describe("parseChunkSet", () => {
     const a = inHand({ anchor: { side: "south", clearanceCells: 4, farMarkerCells: 31 } });
     expect(Seq.guide(a, { keys })).toEqual({
       tone: "action",
-      step: "Chunk 1 of 2 in hand",
+      step: "Slab 1 of 2 in hand",
       title: "Click just south of where the map goes",
       detail:
-        "Hold the click briefly, then press Ctrl+Alt+D for chunk 2. The map lands north of the cursor, about 5" +
-        " cells away. Click this same spot for every chunk. Keep the camera and the mouse still.",
+        "Hold the click briefly, then press Ctrl+Alt+D for slab 2. The map lands north of the cursor, about 5" +
+        " cells away. Click this same spot for every slab. Keep the camera and the mouse still.",
     });
     expect(Seq.statusLine(a).text).toMatch(
-      /^Chunk 1 of 2 is in your hand\. With the build plane raised \(G\), click just south of where the map goes/,
+      /^Slab 1 of 2 is in your hand\. With the build plane raised \(G\), click just south of where the map goes/,
     );
     expect(Seq.guide(inHand({}), { keys }).title).toBe("Click one spot to place it");
   });
@@ -124,7 +124,7 @@ describe("parseChunkSet", () => {
   it("refuses a chunk over the size limit TaleSpire reports", () => {
     const r = Seq.parseChunkSet(blob(), 40);
     expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/Chunk 1 is 58 bytes; TaleSpire accepts at most 40 bytes/);
+    expect(r.error).toMatch(/Slab 1 is 58 bytes; TaleSpire accepts at most 40 bytes/);
   });
 });
 
@@ -132,9 +132,9 @@ describe("the chunk flow", () => {
   it("feeds every chunk to the hand in order and says what to do at each step", () => {
     let s = loaded();
     expect(s.phase).toBe("ready");
-    // the build plane is a step before the first placement, not a footnote (Test B: without it chunk 2 sat higher)
+    // the build plane is a step before the first placement, not a footnote (Test B: without it slab 2 sat higher)
     expect(Seq.statusLine(s).text).toMatch(
-      /^Chunk 1 of 2 is ready\. First press G in TaleSpire to raise the build plane .* Then press Next/,
+      /^Slab 1 of 2 is ready\. First press G in TaleSpire to raise the build plane .* Then press Next/,
     );
     expect(Seq.controls(s).next.enabled).toBe(true);
 
@@ -142,13 +142,13 @@ describe("the chunk flow", () => {
     let r = Seq.reduce(s, { type: "next" });
     expect(r.effect).toEqual({ type: "send", index: 0 });
     s = r.state;
-    expect(Seq.statusLine(s)).toEqual({ tone: "wait", text: "Sending chunk 1 of 2 to your hand…" });
+    expect(Seq.statusLine(s)).toEqual({ tone: "wait", text: "Sending slab 1 of 2 to your hand…" });
     expect(Seq.controls(s).send.enabled).toBe(false);
 
     s = Seq.reduce(s, { type: "sent", index: 0, ok: true }).state;
     expect(s.phase).toBe("inHand");
     expect(Seq.statusLine(s).text).toMatch(
-      /^Chunk 1 of 2 is in your hand\. With the build plane raised \(G\), click one spot .* then press Next\./,
+      /^Slab 1 of 2 is in your hand\. With the build plane raised \(G\), click one spot .* then press Next\./,
     );
     expect(Seq.controls(s).send.label).toBe("Put in hand again");
 
@@ -156,7 +156,7 @@ describe("the chunk flow", () => {
     expect(r.effect).toEqual({ type: "send", index: 1 });
     s = Seq.reduce(r.state, { type: "sent", index: 1, ok: true }).state;
     expect(Seq.statusLine(s).text).toMatch(
-      /^Chunk 2 of 2 is in your hand\. Click the same spot again without moving the camera, then press Finish\./,
+      /^Slab 2 of 2 is in your hand\. Click the same spot again without moving the camera, then press Finish\./,
     );
     expect(Seq.controls(s).next.label).toBe("Finish");
     expect(Seq.progress(s)).toMatchObject({ current: 2, total: 2, placed: 1 });
@@ -176,7 +176,7 @@ describe("the chunk flow", () => {
     const line = Seq.statusLine(s);
     expect(line.tone).toBe("error");
     expect(line.text).toMatch(
-      /^Chunk 1 of 2 did not reach your hand: .*sending too fast\. Wait a few seconds\./,
+      /^Slab 1 of 2 did not reach your hand: .*sending too fast\. Wait a few seconds\./,
     );
     expect(line.text).toMatch(/Put in hand again/);
     const again = Seq.reduce(s, { type: "send" });
@@ -201,7 +201,7 @@ describe("the chunk flow", () => {
   it("does nothing before a set is loaded", () => {
     const s = Seq.initialState();
     for (const type of ["send", "next", "back"]) expect(Seq.reduce(s, { type }).effect).toBeUndefined();
-    expect(Seq.statusLine(s).text).toBe("Load a set of chunks to begin.");
+    expect(Seq.statusLine(s).text).toBe("Load a set of slabs to begin.");
   });
 });
 
@@ -340,10 +340,75 @@ describe("the state header", () => {
       label: "Link is off",
       detail: "Turn it on under Link and hotkeys.",
     });
-    const icons = ["connected", "connecting", "retrying", "unpaired", "off"].map(
+    expect(Seq.linkLight("replaced")).toMatchObject({
+      label: "Another Slabyrinth panel took over",
+      detail: expect.stringMatching(/switch Link off and on/),
+    });
+    const icons = ["connected", "connecting", "retrying", "unpaired", "replaced", "off"].map(
       (s) => Seq.linkLight(s).icon,
     );
-    expect(new Set(icons).size).toBe(5);
+    expect(new Set(icons).size).toBe(6);
+  });
+});
+
+describe("after the link closes", () => {
+  it("retries a drop and a pairing refusal, but not being replaced by another paired panel", () => {
+    expect(Seq.LINK_CLOSE_REPLACED).toBe(4000);
+    expect(Seq.linkAfterClose(4000)).toEqual({ status: "replaced", retry: false });
+    expect(Seq.linkAfterClose(4001)).toEqual({ status: "unpaired", retry: true });
+    for (const code of [1000, 1001, 1006, 1009])
+      expect(Seq.linkAfterClose(code)).toEqual({ status: "retrying", retry: true });
+  });
+
+  it("connects again at once when a pairing file read again has a new token or port", () => {
+    const a = { port: 48731, token: "a".repeat(48) };
+    expect(Seq.pairingChanged(a, { ...a })).toBe(false);
+    expect(Seq.pairingChanged(a, { ...a, token: "b".repeat(48) })).toBe(true);
+    expect(Seq.pairingChanged(a, { ...a, port: 48732 })).toBe(true);
+    expect(Seq.pairingChanged(null, a)).toBe(true);
+    // the file gone or damaged: nothing new to try
+    expect(Seq.pairingChanged(a, null)).toBe(false);
+  });
+});
+
+describe("one word for the pieces", () => {
+  it("every text the GM reads says slab, never chunk", () => {
+    const texts = [];
+    const look = (s) => {
+      texts.push(Seq.statusLine(s).text);
+      for (const linked of [false, true]) {
+        const g = Seq.guide(s, { linked, keys: linked ? Seq.DEFAULT_HOTKEYS : null });
+        texts.push(g.step, g.title, g.detail);
+      }
+      if (s.set) texts.push(Seq.mapInfo(s.set).meta);
+    };
+    const anchor = { side: "south", clearanceCells: 4, farMarkerCells: 31 };
+    for (const set of [Seq.parseChunkSet(blob()).set, Seq.parseChunkSet(blob({ anchor })).set]) {
+      let s = Seq.initialState();
+      look(s);
+      const step = (a) => {
+        s = Seq.reduce(s, a).state;
+        look(s);
+      };
+      step({ type: "load", set });
+      step({ type: "next" });
+      step({ type: "sent", index: 0, ok: false, cause: "dataOversized" });
+      step({ type: "send" });
+      step({ type: "sent", index: 0, ok: true });
+      step({ type: "next" });
+      step({ type: "sent", index: 1, ok: true });
+      step({ type: "next" });
+      step({ type: "cleared", method: "picking", ok: true });
+      step({ type: "back" });
+    }
+    for (const cause of ["dataOversized", "invalidSlabString", "emptySlab", "spawnFailed", "whatever"])
+      texts.push(Seq.explainCause(cause));
+    for (const bad of ["", blob({ chunks: [{ label: "a" }] }), blob({ chunks: new Array(501).fill({}) })])
+      texts.push(Seq.parseChunkSet(bad).error);
+    for (const s of ["connected", "connecting", "retrying", "unpaired", "replaced", "off"])
+      texts.push(Seq.linkLight(s).label, Seq.linkLight(s).detail);
+    expect(texts.filter((t) => /chunk/i.test(t))).toEqual([]);
+    expect(texts.join(" ")).toMatch(/Slab 1 of 2/);
   });
 });
 
@@ -352,14 +417,14 @@ describe("the now block", () => {
   const two = () =>
     Seq.reduce(Seq.initialState(), { type: "load", set: Seq.parseChunkSet(blob(), 0).set }).state;
 
-  it("asks for the build plane before chunk 1 and names the hotkey while the link is up", () => {
+  it("asks for the build plane before slab 1 and names the hotkey while the link is up", () => {
     const g = Seq.guide(two(), { linked: true, keys: KEYS });
     expect(g).toMatchObject({
       tone: "action",
-      step: "Before chunk 1",
+      step: "Before slab 1",
       title: "Press G to raise the build plane",
     });
-    expect(g.detail).toMatch(/^Then press Ctrl\+Alt\+D to put chunk 1 in your hand\./);
+    expect(g.detail).toMatch(/^Then press Ctrl\+Alt\+D to put slab 1 in your hand\./);
     // no working hotkeys: the button is named instead
     expect(Seq.guide(two(), { linked: false, keys: null }).detail).toMatch(/^Then press Next /);
   });
@@ -368,12 +433,12 @@ describe("the now block", () => {
     let s = Seq.reduce(two(), { type: "next" }).state;
     expect(Seq.guide(s, { keys: KEYS })).toMatchObject({
       tone: "wait",
-      title: "Putting chunk 1 in your hand…",
+      title: "Putting slab 1 in your hand…",
     });
     s = Seq.reduce(s, { type: "sent", index: 0, ok: true }).state;
     let g = Seq.guide(s, { keys: KEYS });
-    expect(g).toMatchObject({ step: "Chunk 1 of 2 in hand", title: "Click one spot to place it" });
-    expect(g.detail).toMatch(/then press Ctrl\+Alt\+D for chunk 2\./);
+    expect(g).toMatchObject({ step: "Slab 1 of 2 in hand", title: "Click one spot to place it" });
+    expect(g.detail).toMatch(/then press Ctrl\+Alt\+D for slab 2\./);
     s = Seq.reduce(s, { type: "next" }).state;
     s = Seq.reduce(s, { type: "sent", index: 1, ok: true }).state;
     g = Seq.guide(s, { keys: null });
@@ -390,7 +455,7 @@ describe("the now block", () => {
     let s = Seq.reduce(two(), { type: "next" }).state;
     s = Seq.reduce(s, { type: "sent", index: 0, ok: false, cause: "clientIsNotInGmMode" }).state;
     const g = Seq.guide(s, { keys: KEYS });
-    expect(g).toMatchObject({ tone: "error", title: "Chunk 1 didn't reach your hand" });
+    expect(g).toMatchObject({ tone: "error", title: "Slab 1 didn't reach your hand" });
     expect(g.detail).toBe("TaleSpire is not in GM mode. Switch to GM mode, then press Ctrl+Alt+S.");
     expect(Seq.guide(s, {}).detail).toMatch(/then press Put in hand again\.$/);
     expect(Seq.controls(s).primary).toBe("send");
@@ -426,7 +491,7 @@ describe("after the last chunk: the picking tool", () => {
     expect(Seq.guide(picking, {})).toMatchObject({
       title: "Switched to the picking tool",
       detail:
-        "Another click won't paste the last chunk. Click the board or dismiss the tool to leave it. " +
+        "Another click won't paste the last slab. Click the board or dismiss the tool to leave it. " +
         "Then delete the two alignment pillars.",
     });
     for (const g of [Seq.guide(s, {}), Seq.guide(picking, {})])
@@ -468,9 +533,7 @@ describe("after the last chunk: the picking tool", () => {
       "Then delete the two alignment pillars: one just past the map's north-east corner, and one about 31 cells" +
       " south of the map.";
     expect(Seq.guide(s, {}).detail).toBe("If a slab is still in your hand, right-click. " + pillars);
-    expect(Seq.statusLine(s).text).toBe(
-      "All 2 chunks are placed. Right-click to clear your hand. " + pillars,
-    );
+    expect(Seq.statusLine(s).text).toBe("All 2 slabs are placed. Right-click to clear your hand. " + pillars);
   });
 
   it("the picking tool is the default; the removed empty-slab setting becomes it", () => {
@@ -502,8 +565,8 @@ describe("after the end: Start over and Back put nothing in the hand", () => {
     expect(r.state).toMatchObject({ index: 1, phase: "ready", clear: null });
     const g = Seq.guide(r.state, { keys: { next: "Ctrl+Alt+D", back: "Ctrl+Alt+A", again: "Ctrl+Alt+S" } });
     expect(g).toMatchObject({
-      step: "Chunk 2 of 2 selected",
-      title: "Press Ctrl+Alt+D to put chunk 2 in your hand",
+      step: "Slab 2 of 2 selected",
+      title: "Press Ctrl+Alt+D to put slab 2 in your hand",
     });
     expect(g.detail).toMatch(/^It is not in your hand yet \(Put in hand does the same\)\./);
     expect(Seq.controls(r.state).next.label).toBe("Next");
@@ -545,7 +608,7 @@ describe("empty slabs are never sent", () => {
     );
     expect(r).toEqual({
       ok: false,
-      error: "Chunk 2 has no assets. TaleSpire crashes on an empty slab, so this set cannot be used.",
+      error: "Slab 2 has no assets. TaleSpire crashes on an empty slab, so this set cannot be used.",
     });
   });
 });

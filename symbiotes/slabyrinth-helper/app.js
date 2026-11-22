@@ -337,7 +337,6 @@ function start() {
   apiInfo.atDomReady = !!findApi();
   setText("diag-api-version", "0.1 (from manifest.json; the API has no version getter)");
   setText("diag-origin", location.href);
-  el("port").value = String(DEFAULT_PORT);
   bindUi();
   renderDesignPicker();
   renderClearSetting();
@@ -416,7 +415,7 @@ function renderClearSetting() {
 
 async function sendChunk(index) {
   const chunk = state.set.chunks[index];
-  logEvent("helper", `sendSlabToHand chunk ${index + 1}`, { label: chunk.label, bytes: chunk.bytes }, true);
+  logEvent("helper", `sendSlabToHand slab ${index + 1}`, { label: chunk.label, bytes: chunk.bytes }, true);
   // never send an empty slab: TaleSpire's slab spawn divides by zero on one (the set check refuses them too)
   const r = Seq.slabHasRoomForAnAsset(chunk.slab)
     ? await call("slabs.sendSlabToHand", chunk.slab)
@@ -426,14 +425,16 @@ async function sendChunk(index) {
 }
 
 // ── link to the Slabyrinth app ──
-// The app sends chunk sets and its global hotkeys over a WebSocket on 127.0.0.1; they drive the same actions as the
+// The app sends slab sets and its global hotkeys over a WebSocket on 127.0.0.1; they drive the same actions as the
 // buttons. The first message is the pairing token from slabyrinth-link.json, which the app wrote when it installed
-// this add-on; the app refuses a copy without it (close code 4001). Reconnects with backoff while Link is on; the
-// switch is remembered in this panel.
+// this add-on (it names the port too); the app refuses a copy without it (close code 4001). Reconnects with backoff
+// while Link is on, reading the pairing file again before every try (so a reinstall heals an open panel); after close
+// code 4000 (another paired panel took the link) it waits for the GM. The switch is remembered in this panel.
 
 const LINK_STORE = "slabyrinth-helper.link";
 // on by default: it only talks to 127.0.0.1 and retries quietly; `failed` = a try has failed since the last success;
-// `refused` = the app refused the pairing; `config` = the pairing file ({ port, token }), or null
+// `refused` = the app refused the pairing; `replaced` = another panel took the link; `config` = the pairing file
+// ({ port, token }), or null
 const link = {
   on: true,
   port: DEFAULT_PORT,
@@ -441,15 +442,17 @@ const link = {
   connected: false,
   failed: false,
   refused: false,
+  replaced: false,
   config: null,
   retry: null,
   delay: 1000,
 };
 
-/** The link light's state: off, connecting (first try), retrying (the app did not answer), unpaired or connected. */
+/** The link light's state: off, connecting (first try), retrying, unpaired, replaced or connected. */
 function linkStatus() {
   if (!link.on) return "off";
   if (link.connected) return "connected";
+  if (link.replaced) return "replaced";
   if (link.refused) return "unpaired";
   return link.failed ? "retrying" : "connecting";
 }
@@ -464,7 +467,7 @@ async function loadLinkConfig() {
     // a plain-browser preview (file://) or no pairing file: the app will refuse the link and say so
   }
   link.config = text === null ? null : Seq.parseLinkConfig(text);
-  if (link.config) link.port = link.config.port;
+  link.port = link.config ? link.config.port : DEFAULT_PORT;
   setText(
     "diag-pairing",
     link.config
@@ -490,7 +493,6 @@ function loadLinkSettings() {
   try {
     const saved = JSON.parse(window.localStorage.getItem(LINK_STORE) || "null");
     if (saved && typeof saved.on === "boolean") link.on = saved.on;
-    if (saved && Number.isInteger(saved.port)) link.port = saved.port;
   } catch {
     // storage blocked or damaged: the defaults stand (Link on)
   }
@@ -498,7 +500,7 @@ function loadLinkSettings() {
 
 function saveLinkSettings() {
   try {
-    window.localStorage.setItem(LINK_STORE, JSON.stringify({ on: link.on, port: link.port }));
+    window.localStorage.setItem(LINK_STORE, JSON.stringify({ on: link.on }));
   } catch {
     // not saved
   }
@@ -532,20 +534,44 @@ function linkConnect() {
   ws.onclose = (c) => {
     if (link.ws !== ws) return; // an old socket closing after Link was switched off and on
     if (link.connected) logEvent("link", "disconnected", { code: c.code }, true);
+    const after = Seq.linkAfterClose(c.code);
     link.ws = null;
     link.connected = false;
     link.failed = true;
-    link.refused = c.code === Seq.LINK_CLOSE_PAIRING;
+    link.refused = after.status === "unpaired";
+    link.replaced = after.status === "replaced";
+    if (link.replaced) logEvent("link", "another Slabyrinth panel took the link; not retrying", null, true);
     renderLink();
+    if (!after.retry) return;
     linkRetry();
+    // refused for the pairing: a reinstall may have written a new pairing file, so look now
+    if (link.refused) void linkRepair();
   };
   ws.onerror = () => {}; // onclose follows and retries
 }
 
 function linkRetry() {
   if (!link.on) return;
-  link.retry = setTimeout(linkConnect, link.delay);
+  clearTimeout(link.retry);
+  link.retry = setTimeout(() => void linkReconnect(), link.delay);
   link.delay = Math.min(link.delay * 2, 15000);
+}
+
+/** A try: the pairing file is read again first (a reinstall, or a new token from Slabyrinth). */
+async function linkReconnect() {
+  if (!link.on || link.ws || link.replaced) return;
+  await loadLinkConfig();
+  linkConnect();
+}
+
+/** After a pairing refusal: read the pairing file now, and connect at once if it changed. */
+async function linkRepair() {
+  const before = link.config;
+  await loadLinkConfig();
+  if (!link.on || link.ws || link.replaced || !Seq.pairingChanged(before, link.config)) return;
+  logEvent("link", "pairing file changed; connecting again", null, true);
+  link.delay = 1000;
+  linkConnect();
 }
 
 function linkDisconnect() {
@@ -556,6 +582,7 @@ function linkDisconnect() {
   link.connected = false;
   link.failed = false;
   link.refused = false;
+  link.replaced = false;
   renderLink();
 }
 
@@ -704,10 +731,10 @@ function renderLink() {
     connecting: "Connecting…",
     retrying: "Not connected",
     unpaired: "Not paired",
+    replaced: "Another panel has it",
   }[linkStatus()];
   dot.textContent = text;
   el("link-on").checked = link.on;
-  el("link-port").value = String(link.port);
   renderHotkeys();
   renderHeader();
 }
@@ -720,23 +747,18 @@ function loadText(text, source) {
     return;
   }
   el("load-error").hidden = true;
-  logEvent("helper", `loaded ${parsed.set.chunks.length} chunks (${source})`, parsed.set.name, true);
+  logEvent("helper", `loaded ${parsed.set.chunks.length} slabs (${source})`, parsed.set.name, true);
   dispatch({ type: "load", set: parsed.set });
 }
 
-// ── local connection test ──
+// ── local connection test (Diagnostics): does Slabyrinth answer on the paired port? ──
 
 async function testLocal() {
-  const port = Number(el("port").value);
   const out = el("local-result");
-  if (!Number.isInteger(port) || port < 1024 || port > 65535) {
-    out.textContent = "Type a port between 1024 and 65535.";
-    return;
-  }
   const lines = [`Page origin: ${location.origin || "(none)"}`];
   const show = () => (out.textContent = lines.join("\n"));
   show();
-  const url = `http://127.0.0.1:${port}/probe`;
+  const url = `http://127.0.0.1:${link.port}/probe`;
   try {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 4000);
@@ -753,39 +775,10 @@ async function testLocal() {
       `HTTP fetch ${url}: FAILED (${e && e.name ? e.name + ": " : ""}${e && e.message ? e.message : e})`,
     );
   }
-  show();
-  lines.push(await new Promise((resolve) => wsProbe(port, resolve)));
   lines.push(
     "This was only a one-off test. The switch under Link and hotkeys makes the lasting connection to Slabyrinth.",
   );
   show();
-}
-
-function wsProbe(port, resolve) {
-  // the /probe path tells Slabyrinth this is a test, not the helper's link
-  const url = `ws://127.0.0.1:${port}/probe`;
-  let done = false;
-  const finish = (text) => {
-    if (done) return;
-    done = true;
-    clearTimeout(timer);
-    resolve(`WebSocket ${url}: ${text}`);
-  };
-  const timer = setTimeout(() => finish("FAILED (no answer in 4 s)"), 4000);
-  let ws;
-  try {
-    ws = new WebSocket(url);
-  } catch (e) {
-    finish(`FAILED (${e && e.message ? e.message : e})`);
-    return;
-  }
-  ws.onopen = () => ws.send("hello from Slabyrinth Helper");
-  ws.onmessage = (m) => {
-    finish(`open, reply "${String(m.data).slice(0, 120)}"`);
-    ws.close();
-  };
-  ws.onerror = () => finish("FAILED (error event; see the server window for whether it connected)");
-  ws.onclose = (c) => finish(`closed before a reply (code ${c.code})`);
 }
 
 // ── rendering ──
@@ -995,17 +988,9 @@ function bindUi() {
   el("link-on").addEventListener("change", () => {
     link.on = el("link-on").checked;
     saveLinkSettings();
-    if (link.on) linkConnect();
+    if (link.on) void linkReconnect();
     else linkDisconnect();
     renderLink();
-  });
-  el("link-port").addEventListener("change", () => {
-    const p = Number(el("link-port").value);
-    if (!Number.isInteger(p) || p < 1024 || p > 65535) return renderLink();
-    link.port = p;
-    saveLinkSettings();
-    linkDisconnect();
-    linkConnect();
   });
   for (const which of ["next", "back"])
     el(`key-${which}`).addEventListener("click", () => {

@@ -2,7 +2,8 @@
  * A small dependency-free WebSocket server side (RFC 6455) for the add-on link: the handshake, frame reading and
  * writing, and `attachWebSocket` to serve it from a node:http server. Text frames only, no extensions; a fragmented,
  * binary, unmasked or oversized client frame closes the connection. Enough for one local page that sends small JSON
- * messages, not a general WebSocket library.
+ * messages, not a general WebSocket library. It owns its connections: a closed one is destroyed if the peer does not
+ * finish closing within CLOSE_GRACE_MS, and `closeAll` ends every one (so a silent peer can never hold up a quit).
  *
  * Why not the `ws` package: the app bundles every dependency into out/ (electron-vite, no node_modules shipped), `ws`
  * pulls optional native add-ons (bufferutil, utf-8-validate) the bundler has to be taught to skip, and the link needs
@@ -24,6 +25,7 @@ export const OPCODE = {
 /** Close codes the link uses (4000-4999 are free for applications). */
 export const CLOSE = {
   normal: 1000,
+  goingAway: 1001,
   tooBig: 1009,
   protocol: 1002,
   replaced: 4000,
@@ -140,17 +142,51 @@ export function frameStop(frame: Frame): number | null {
   return ok.includes(frame.opcode) ? null : CLOSE.protocol;
 }
 
-const STATUS_TEXT: Record<number, string> = { 400: "Bad Request", 403: "Forbidden", 404: "Not Found" };
+const STATUS_TEXT: Record<number, string> = {
+  400: "Bad Request",
+  403: "Forbidden",
+  404: "Not Found",
+  503: "Service Unavailable",
+};
+
+/**
+ * How long a closed connection may wait for the peer to finish closing before its socket is destroyed: a peer that
+ * never answers the close frame (or never reads) cannot keep a socket, the server or the process alive.
+ */
+export const CLOSE_GRACE_MS = 500;
 
 function refuse(socket: Duplex, status: number): void {
   socket.end(`HTTP/1.1 ${String(status)} ${STATUS_TEXT[status] ?? "Refused"}\r\nConnection: close\r\n\r\n`);
+  destroyLater(socket);
 }
 
-/** Serves WebSocket connections from an http server's "upgrade" event. Returns the set of open connections. */
-export function attachWebSocket(server: Server, h: WsHandlers): Set<WsConnection> {
+/** Destroys a socket that is still open after CLOSE_GRACE_MS (the timer never keeps the process alive). */
+function destroyLater(socket: Duplex): void {
+  const t = setTimeout(() => {
+    socket.destroy();
+  }, CLOSE_GRACE_MS);
+  t.unref();
+  socket.once("close", () => {
+    clearTimeout(t);
+  });
+}
+
+export interface WsServer {
+  /** The open connections. */
+  readonly open: ReadonlySet<WsConnection>;
+  /**
+   * Closes every connection (a close frame with `code`), and destroys every socket still open after the grace
+   * period. Resolves once all are gone.
+   */
+  closeAll(code?: number): Promise<void>;
+}
+
+/** Serves WebSocket connections from an http server's "upgrade" event. The connections are the WsServer's. */
+export function attachWebSocket(server: Server, h: WsHandlers): WsServer {
   const open = new Set<WsConnection>();
+  const sockets = new Map<WsConnection, Duplex>();
   let nextId = 1;
-  server.on("upgrade", (req: IncomingMessage, socket: Duplex) => {
+  server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     socket.on("error", () => socket.destroy());
     const key = req.headers["sec-websocket-key"];
     const upgrade = (req.headers.upgrade ?? "").toLowerCase();
@@ -168,6 +204,8 @@ export function attachWebSocket(server: Server, h: WsHandlers): Set<WsConnection
         `Sec-WebSocket-Accept: ${acceptKey(key)}\r\n\r\n`,
     );
     let closed = false;
+    /** Read through a call: a handler may close the connection in the middle of the frame loop. */
+    const isClosed = (): boolean => closed;
     const conn: WsConnection = {
       id: nextId++,
       path: (req.url ?? "").split("?")[0] ?? "",
@@ -179,10 +217,13 @@ export function attachWebSocket(server: Server, h: WsHandlers): Set<WsConnection
         if (closed) return;
         closed = true;
         socket.end(closeFrame(code));
+        destroyLater(socket);
       },
     };
     open.add(conn);
+    sockets.set(conn, socket);
     const gone = (): void => {
+      sockets.delete(conn);
       if (!open.delete(conn)) return;
       closed = true;
       h.onClose(conn);
@@ -193,7 +234,7 @@ export function attachWebSocket(server: Server, h: WsHandlers): Set<WsConnection
     };
     h.onOpen(conn);
     let buf = Buffer.alloc(0);
-    socket.on("data", (chunk: Buffer) => {
+    const onData = (chunk: Buffer): void => {
       if (closed) return;
       buf = Buffer.concat([buf, chunk]);
       for (;;) {
@@ -212,9 +253,35 @@ export function attachWebSocket(server: Server, h: WsHandlers): Set<WsConnection
         buf = buf.subarray(frame.length);
         if (frame.opcode === OPCODE.ping) socket.write(encodeFrame(OPCODE.pong, frame.payload));
         else if (frame.opcode === OPCODE.text) h.onMessage(conn, frame.payload.toString("utf8"));
+        if (isClosed()) return; // a handler closed it
       }
-    });
+    };
+    socket.on("data", onData);
     socket.on("close", gone);
+    // bytes the client sent right behind its handshake (a browser waits for the 101, but a client need not)
+    if (head.length > 0) onData(Buffer.from(head));
   });
-  return open;
+  return {
+    open,
+    closeAll: async (code = CLOSE.goingAway) => {
+      const all = [...sockets.entries()];
+      await Promise.all(
+        all.map(
+          ([conn, socket]) =>
+            new Promise<void>((resolve) => {
+              if (socket.destroyed) {
+                resolve();
+                return;
+              }
+              socket.once("close", () => {
+                resolve();
+              });
+              conn.close(code);
+              // a connection already closing has its own timer; this one makes sure of every socket
+              destroyLater(socket);
+            }),
+        ),
+      );
+    },
+  };
 }

@@ -150,7 +150,7 @@ describe("slabyrinth-link: app -> helper", () => {
     expect(loaded?.type).toBe("load");
     if (!loaded?.set) throw new Error("no set");
     expect(loaded.set).toMatchObject({ name: "Keep", size: { w: 40, h: 30 }, levels: 2 });
-    expect(Seq.mapInfo(loaded.set)?.meta).toBe("1 chunk · 40 × 30 cells · 2 levels");
+    expect(Seq.mapInfo(loaded.set)?.meta).toBe("1 slab · 40 × 30 cells · 2 levels");
   });
 
   it("the add-on reads the paste anchor the app sends and says where the cursor goes and which pillars to delete", () => {

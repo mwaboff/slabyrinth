@@ -3,13 +3,21 @@
  * app.js drives it) and against pages that must be refused. No real hotkey is registered: a fake registrar records.
  */
 import { request } from "node:http";
+import { connect as netConnect, type Socket } from "node:net";
 import { gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 import type { LinkStatus } from "../../../../shared/ipc";
 import { memoryLogger } from "../../../logger";
-import { LinkServer, allowedHost, allowedOrigin, httpAnswer } from "./linkServer";
+import {
+  LinkServer,
+  MAX_PENDING,
+  allowedHost,
+  allowedOrigin,
+  httpAnswer,
+  loadTimeoutError,
+} from "./linkServer";
 import { LINK_PROTOCOL, LINK_VERSION, type ChunkSet } from "./protocol";
-import { connectAddon } from "./testing/fakeAddon";
+import { connectAddon, loadSequencer } from "./testing/fakeAddon";
 import { connect } from "./testing/wsClient";
 import { OPCODE, encodeFrame } from "./wsLite";
 
@@ -28,7 +36,13 @@ const SET: ChunkSet = {
   ],
 };
 
-function rig(opts: { taken?: string[] } = {}) {
+interface RigOptions {
+  taken?: string[];
+  helloTimeoutMs?: number;
+  loadTimeoutMs?: number;
+}
+
+function rig(opts: RigOptions = {}) {
   const registered = new Map<string, () => void>();
   const changes: LinkStatus[] = [];
   const server = new LinkServer({
@@ -36,6 +50,8 @@ function rig(opts: { taken?: string[] } = {}) {
     token: () => TOKEN,
     wayland: false,
     logger: memoryLogger(),
+    ...(opts.helloTimeoutMs !== undefined ? { helloTimeoutMs: opts.helloTimeoutMs } : {}),
+    ...(opts.loadTimeoutMs !== undefined ? { loadTimeoutMs: opts.loadTimeoutMs } : {}),
     registrar: {
       register: (acc, cb) => {
         if (opts.taken?.includes(acc) || registered.has(acc)) return false;
@@ -56,7 +72,7 @@ afterEach(async () => {
   for (const s of servers.splice(0)) await s.close();
 });
 
-async function started(opts: { taken?: string[] } = {}) {
+async function started(opts: RigOptions = {}) {
   const r = rig(opts);
   servers.push(r.server);
   await r.server.start();
@@ -86,6 +102,8 @@ describe("who may connect", () => {
     expect(await connect(p, { origin: "http://localhost.evil.com" })).toEqual({ refused: 403 });
     expect(await connect(p, { host: `evil.example:${String(p)}` })).toEqual({ refused: 403 });
     expect(await connect(p, { path: "/other" })).toEqual({ refused: 404 });
+    // the connection test is plain HTTP: no WebSocket on /probe
+    expect(await connect(p, { path: "/probe" })).toEqual({ refused: 404 });
     expect(server.status().helper.state).toBe("refused");
   });
 
@@ -267,5 +285,146 @@ describe("a map through the link, with the add-on's own code", () => {
     await second.start();
     expect(second.status().server.state).toBe("port_in_use");
     expect(second.status().hotkeys.wayland).toBe(true);
+  });
+});
+
+const MASK = Buffer.from([9, 8, 7, 6]);
+const hello = (token = TOKEN): string =>
+  JSON.stringify({ protocol: LINK_PROTOCOL, version: LINK_VERSION, type: "hello", token });
+
+async function client(port: number, opts: Parameters<typeof connect>[1] = {}) {
+  const c = await connect(port, opts);
+  if ("refused" in c) throw new Error(`refused ${String(c.refused)}`);
+  return c;
+}
+
+/** A plain TCP connection that sends `text` and keeps whatever comes back. */
+function rawSocket(port: number, text: Buffer | string): Promise<{ socket: Socket; received: () => string }> {
+  return new Promise((resolve, reject) => {
+    let got = Buffer.alloc(0);
+    const socket = netConnect({ host: "127.0.0.1", port, allowHalfOpen: true }, () => {
+      socket.write(text);
+      resolve({ socket, received: () => got.toString("latin1") });
+    });
+    socket.on("data", (d: Buffer) => {
+      got = Buffer.concat([got, d]);
+    });
+    socket.on("error", reject);
+  });
+}
+
+describe("frames and timers", () => {
+  it("closes a connection that never says hello, and reports it refused", async () => {
+    const { server } = await started({ helloTimeoutMs: 100 });
+    const c = await client(server.port);
+    expect(await c.closed()).toBe(4001);
+    expect(server.status().helper).toEqual({ state: "refused", version: null, reason: "protocol" });
+  });
+
+  it("answers a ping with a pong, closes on a client close frame, and refuses a fragmented frame", async () => {
+    const { server } = await started();
+    const c = await client(server.port);
+    c.send(hello());
+    await waitFor(() => server.connected);
+    c.sendRaw(encodeFrame(OPCODE.ping, "are you there", MASK));
+    await waitFor(() => c.opcodes.includes(OPCODE.pong));
+    c.close();
+    expect(await c.closed()).toBe(1000);
+    await waitFor(() => !server.connected);
+
+    const f = await client(server.port);
+    const first = encodeFrame(OPCODE.text, '{"protocol":', MASK);
+    first[0] = (first[0] ?? 0) & 0x7f; // FIN off: the first part of a fragmented message
+    f.sendRaw(first);
+    expect(await f.closed()).toBe(1002);
+  });
+
+  it("reads bytes the client sent right behind its handshake", async () => {
+    const { server } = await started();
+    const handshake =
+      `GET /link HTTP/1.1\r\nHost: 127.0.0.1:${String(server.port)}\r\nOrigin: http://localhost:59998\r\n` +
+      "Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\n" +
+      "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n";
+    const raw = await rawSocket(
+      server.port,
+      Buffer.concat([Buffer.from(handshake, "latin1"), encodeFrame(OPCODE.text, hello(), MASK)]),
+    );
+    await waitFor(() => server.connected);
+    expect(raw.received()).toMatch(/^HTTP\/1\.1 101/);
+    raw.socket.destroy();
+  });
+
+  it("refuses more than a few connections waiting for their hello", async () => {
+    const { server } = await started();
+    const waiting = [];
+    for (let i = 0; i < MAX_PENDING; i++) waiting.push(await client(server.port));
+    expect(await connect(server.port)).toEqual({ refused: 503 });
+    // once one has paired, there is room again
+    waiting[0]?.send(hello());
+    await waitFor(() => server.connected);
+    await client(server.port);
+  });
+});
+
+describe("close", () => {
+  it("returns at once with silent peers still open: paired, unpaired, plain HTTP and idle TCP", async () => {
+    const { server, changes } = await started({ helloTimeoutMs: 300, loadTimeoutMs: 300 });
+    const paired = await client(server.port, { silent: true });
+    paired.send(hello());
+    await waitFor(() => server.connected);
+    server.load(SET, "b-close");
+    const unpaired = await client(server.port, { silent: true });
+    const http = await rawSocket(
+      server.port,
+      `GET /probe HTTP/1.1\r\nHost: 127.0.0.1:${String(server.port)}\r\n\r\n`,
+    );
+    const idle = await rawSocket(server.port, "");
+    const t0 = Date.now();
+    await server.close();
+    expect(Date.now() - t0).toBeLessThan(1500);
+    expect(paired.closedWith).not.toBeNull();
+    expect(unpaired.closedWith).not.toBeNull();
+    // the hello and send timers went with it: nothing is reported after close
+    const seen = changes.length;
+    await new Promise((r) => setTimeout(r, 500));
+    expect(changes.length).toBe(seen);
+    for (const s of [http.socket, idle.socket]) s.destroy();
+  });
+});
+
+describe("a send that is not answered", () => {
+  it("times out with a plain reason, a late answer still settles it, and Stop ends it", async () => {
+    const { server } = await started({ loadTimeoutMs: 100 });
+    const c = await client(server.port);
+    c.send(hello());
+    await waitFor(() => server.connected);
+    expect(server.load(SET, "b-late")).toBe(true);
+    expect(server.status().send.state).toBe("sending");
+    await waitFor(() => server.status().send.state === "failed");
+    expect(server.status().send.error).toBe(loadTimeoutError(100));
+    expect(loadTimeoutError(30_000)).toMatch(/^The add-on didn't answer within 30 seconds\./);
+    const load = JSON.parse(await c.next((m) => m.includes('"load"'))) as { id: number };
+    const seq = loadSequencer();
+    c.send(JSON.stringify(seq.linkReply(seq.initialState(), load.id)));
+    await waitFor(() => server.status().send.state === "loaded");
+
+    server.load(SET, "b-stop");
+    server.stopSend();
+    expect(server.status().send).toMatchObject({ state: "idle", buildId: "b-stop", error: null });
+    c.close();
+    await waitFor(() => !server.connected);
+    expect(server.load(SET, "b-gone")).toBe(false);
+  });
+
+  it("a disconnect while sending (or after the deadline) is a plain failure", async () => {
+    const { server } = await started({ loadTimeoutMs: 100 });
+    const c = await client(server.port);
+    c.send(hello());
+    await waitFor(() => server.connected);
+    server.load(SET, "b-drop");
+    await waitFor(() => server.status().send.error === loadTimeoutError(100));
+    c.close();
+    await waitFor(() => server.status().send.error === "The add-on disconnected.");
+    expect(server.status().send.state).toBe("failed");
   });
 });

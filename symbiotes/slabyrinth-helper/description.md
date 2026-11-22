@@ -2,7 +2,7 @@
 
 The TaleSpire side of Slabyrinth (slabyrinth.aboff.com), a desktop app where you design a map by chatting with Claude.
 
-A big map does not fit in one slab, so Slabyrinth splits it into chunks that all share one bounding box. This add-on
+A big map does not fit in one slab, so Slabyrinth splits it into slabs that all share one bounding box. This add-on
 puts them in your hand one at a time: raise the build plane (G), click one spot, press Next, click the same spot
 again, until the map is complete. It always says what to do next.
 

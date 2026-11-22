@@ -13,7 +13,7 @@ import { z } from "zod";
 import type { AddonStatus, LinkStatus } from "../../../../shared/ipc";
 import type { Logger } from "../../../logger";
 import { writeFileAtomic } from "../../../util/atomicWrite";
-import { AppFailure } from "../../../util/errors";
+import { AppFailure, isNodeError } from "../../../util/errors";
 import type { BuildService } from "../../buildService";
 import type { Dialogs } from "../../dialogs";
 import type { EmitEvent } from "../../events";
@@ -67,8 +67,27 @@ function setShape(record: Awaited<ReturnType<BuildService["chunksForSend"]>>["re
   return w >= 1 && h >= 1 && w <= 10_000 && h <= 10_000 ? { size: { w, h }, levels } : { levels };
 }
 
+function notConnected(): AppFailure {
+  return new AppFailure(
+    "validation",
+    "The TaleSpire add-on isn't connected. Open Slabyrinth Helper in TaleSpire.",
+  );
+}
+
+/** Why the token file could not be written, in a few words. */
+function plainSaveReason(err: unknown): string {
+  const code = isNodeError(err) ? err.code : undefined;
+  if (code === "ENOSPC") return "the disk is full";
+  if (code === "EPERM" || code === "EACCES" || code === "EROFS")
+    return "its settings folder can't be written";
+  if (code === "EBUSY") return "the file is in use by another program";
+  return code ? `error ${code}` : "an unexpected error";
+}
+
 export class TaleSpireLinkService {
   private token: string | null = null;
+  /** Bumped by stop(): a send still preparing its chunks when it changes goes no further. */
+  private sendGeneration = 0;
   private readonly server: LinkServer;
   private readonly addon: AddonService;
   private lastAddon = "";
@@ -110,10 +129,14 @@ export class TaleSpireLinkService {
     return out;
   }
 
-  /** Loads or makes the pairing token, starts the listener, updates an installed older add-on. Never throws. */
+  /**
+   * Loads or makes the pairing token, starts the listener, updates an installed older add-on. Never throws. The
+   * listener starts whatever happens to the token file: a token that cannot be saved is used for this run only (the
+   * link status carries the plain reason).
+   */
   async start(): Promise<void> {
+    await this.prepareToken();
     try {
-      this.token = await this.loadToken();
       await this.server.start();
     } catch (err) {
       this.d.logger.warn("link start failed", { error: err });
@@ -236,24 +259,28 @@ export class TaleSpireLinkService {
 
   /** Sends a build's chunks to the connected add-on. */
   async send(buildId: string): Promise<{ chunks: number }> {
-    if (!this.server.connected)
+    if (!this.server.connected) throw notConnected();
+    const generation = this.sendGeneration;
+    const { record, chunks, pasteAnchor } = await this.d.build.chunksForSend(buildId);
+    // the chunks may have taken a recompile: the add-on can have gone, or the user stopped, meanwhile
+    if (generation !== this.sendGeneration) throw new AppFailure("cancelled", "Sending was stopped.");
+    if (this.server.status().helper.state !== "connected")
       throw new AppFailure(
         "validation",
-        "The TaleSpire add-on isn't connected. Open Slabyrinth Helper in TaleSpire.",
+        "The TaleSpire add-on disconnected while the map was being prepared. Open Slabyrinth Helper in TaleSpire and send again.",
       );
-    const { record, chunks, pasteAnchor } = await this.d.build.chunksForSend(buildId);
-    if (chunks.length === 0) throw new AppFailure("validation", "This build has no chunks.");
+    if (chunks.length === 0) throw new AppFailure("validation", "This build has no slabs.");
     if (chunks.length > MAX_CHUNKS)
       throw new AppFailure(
         "validation",
-        `This build has ${String(chunks.length)} chunks; the add-on takes ${String(MAX_CHUNKS)}.`,
+        `This build has ${String(chunks.length)} slabs; the add-on takes ${String(MAX_CHUNKS)}.`,
       );
     // an empty slab crashes TaleSpire's slab spawn: never send one (the add-on refuses them too)
     const empty = chunks.find((c) => c.assetCount <= 0);
     if (empty)
       throw new AppFailure(
         "validation",
-        `Chunk ${empty.id} has no assets, and TaleSpire crashes on an empty slab. Build again.`,
+        `Slab ${empty.id} has no assets, and TaleSpire crashes on an empty slab. Build again.`,
       );
     const name =
       (this.d.projects.getProject()?.name ?? "Slabyrinth map").trim().slice(0, 200) || "Slabyrinth map";
@@ -267,19 +294,25 @@ export class TaleSpireLinkService {
     };
     if (JSON.stringify(set).length > LINK_MAX_CHARS - 1024)
       throw new AppFailure("validation", "This build is too big to send to the add-on in one go.");
-    this.server.load(set, buildId);
+    if (!this.server.load(set, buildId)) throw notConnected();
     return { chunks: chunks.length };
   }
 
-  /** Empties the add-on and releases the hotkeys. */
+  /**
+   * Empties the add-on and releases the hotkeys. Works at any time: a send still preparing its chunks goes no further,
+   * one waiting for the add-on's answer is reported stopped.
+   */
   stop(): void {
+    this.sendGeneration++;
+    this.server.stopSend();
     this.server.command("unload");
   }
 
   // ── internals ──
 
-  private pairing(): LinkConfig {
-    if (this.token === null) throw new Error("the pairing token is not loaded yet");
+  /** The pairing an installed copy must carry; null only before start() has made the token. Never throws. */
+  private pairing(): LinkConfig | null {
+    if (this.token === null) return null;
     return { port: this.d.port === 0 ? this.server.port : this.d.port, token: this.token };
   }
 
@@ -294,18 +327,34 @@ export class TaleSpireLinkService {
     return findSymbiotesFolder(this.d.folderEnv, manual);
   }
 
-  private async loadToken(): Promise<string> {
+  /**
+   * The saved pairing token, or a new one: saved when it can be, else kept for this run only (logged with the plain
+   * reason; on the next start a new token makes the installed copy read as `mismatch`, and the UI offers to install it
+   * again). Never throws.
+   */
+  private async prepareToken(): Promise<void> {
+    if (this.token !== null) return;
     try {
       const raw: unknown = JSON.parse(await fsp.readFile(this.d.tokenFile, "utf8"));
       const t = tokenFileSchema.safeParse(raw);
-      if (t.success) return t.data.token;
+      if (t.success) {
+        this.token = t.data.token;
+        return;
+      }
     } catch {
       // none yet, or unreadable: make a new one (the add-on is then paired again on its next install)
     }
     const token = randomBytes(24).toString("hex");
-    await fsp.mkdir(path.dirname(this.d.tokenFile), { recursive: true });
-    await writeFileAtomic(this.d.tokenFile, `${JSON.stringify({ token })}\n`);
-    return token;
+    this.token = token;
+    try {
+      await fsp.mkdir(path.dirname(this.d.tokenFile), { recursive: true });
+      await writeFileAtomic(this.d.tokenFile, `${JSON.stringify({ token })}\n`);
+    } catch (err) {
+      this.d.logger.warn("the pairing token could not be saved; it is kept for this run only", {
+        reason: plainSaveReason(err),
+        error: err,
+      });
+    }
   }
 
   private emitAddon(s: AddonStatus): AddonStatus {

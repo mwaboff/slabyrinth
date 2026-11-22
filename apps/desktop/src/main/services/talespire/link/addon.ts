@@ -6,9 +6,15 @@
  * - At start an installed, older copy that is recognisably ours (same manifest name and website) is updated by itself;
  *   a missing one is never installed by itself; a newer one is never downgraded; a foreign folder of the same name is
  *   never written to.
- * - Files are replaced one at a time through a temporary file and a rename, manifest.json last, so an update that
- *   stops half way still reads as the old version and is tried again. The pairing file is kept on an automatic update.
- *   Nothing else in the Symbiotes folder (or the add-on folder) is deleted.
+ * - Install and update build the whole add-on in a hidden staging folder beside it (`.slabyrinth-helper.installing-*`,
+ *   same volume; TaleSpire skips dot-folders), pairing file included, and then swap it in: the old folder is renamed to
+ *   a hidden name, the staging folder takes its place, the old one is deleted. An install that stops part way leaves
+ *   only a hidden folder, never a half-copy that reads as someone else's; an update is old or new, never a mix, and
+ *   carries no stale files of an older version. A failed swap puts the old folder back. The pairing file is kept on an
+ *   automatic update.
+ * - Leftovers of an interrupted attempt (hidden folders of ours, recognised by name) are cleared on the next install,
+ *   update or removal; an old copy left hidden by a swap that stopped between its two renames is put back first.
+ *   Nothing else in the Symbiotes folder is touched.
  * - A failure never throws out of the automatic update: it is recorded with a plain reason for the UI.
  */
 import { randomBytes } from "node:crypto";
@@ -43,8 +49,8 @@ export interface AddonDeps {
   bundledDir: string;
   /** Where a paired copy is prepared for a manual install (under userData). */
   packageDir: string;
-  /** The pairing the installed copy must carry. */
-  pairing: () => LinkConfig;
+  /** The pairing the installed copy must carry; null while the link has no token yet (never throws). */
+  pairing: () => LinkConfig | null;
   /** The Symbiotes folder (manual choice first), and every path tried. */
   locate: () => Promise<{ found: FolderCandidate | null; tried: string[] }>;
   /** The bundled version whose prompt the user dismissed. */
@@ -53,14 +59,30 @@ export interface AddonDeps {
   others?: () => Promise<string[]>;
   logger: Logger;
   now?: () => Date;
-  /** The two steps of removing a folder (tests make them fail). */
-  removal?: { rename: (from: string, to: string) => Promise<void>; rm: (dir: string) => Promise<void> };
+  /** The file operations that change folders (tests make them fail). */
+  fileOps?: Partial<FileOps>;
 }
 
-const nodeRemoval = {
-  rename: (from: string, to: string) => fsp.rename(from, to),
-  rm: (dir: string) => fsp.rm(dir, { recursive: true }),
+export interface FileOps {
+  rename: (from: string, to: string) => Promise<void>;
+  rm: (dir: string) => Promise<void>;
+  writeFile: (file: string, data: Buffer | string) => Promise<void>;
+}
+
+const nodeFileOps: FileOps = {
+  rename: (from, to) => fsp.rename(from, to),
+  rm: (dir) => fsp.rm(dir, { recursive: true }),
+  writeFile: (file, data) => fsp.writeFile(file, data),
 };
+
+/** Our hidden working folders beside the add-on's: staging, an old copy being swapped out, one being removed. */
+const LEFTOVER = new RegExp(
+  `^\\.${ADDON_FOLDER_NAME.replace(/[-.]/g, "\\$&")}\\.(installing|old|removing)-[0-9a-f]{8}$`,
+);
+
+function hiddenName(kind: "installing" | "old" | "removing"): string {
+  return `.${ADDON_FOLDER_NAME}.${kind}-${randomBytes(4).toString("hex")}`;
+}
 
 /** A file-system failure in plain words. */
 export function plainReason(err: unknown): string {
@@ -102,17 +124,12 @@ async function listFiles(dir: string, rel = ""): Promise<string[]> {
   return out;
 }
 
-/** Writes a file through a temporary dot-file beside it and a rename (TaleSpire ignores dot-files). */
-async function replaceFile(target: string, data: Buffer | string): Promise<void> {
-  await fsp.mkdir(path.dirname(target), { recursive: true });
-  const tmp = path.join(path.dirname(target), `.${path.basename(target)}.slabyrinth-tmp`);
-  await fsp.writeFile(tmp, data);
-  try {
-    await fsp.rename(tmp, target);
-  } catch (err) {
-    await fsp.rm(tmp, { force: true }).catch(() => undefined);
-    throw err;
-  }
+/** A rename of the add-on's folder that failed: on Windows a file in it is open (TaleSpire running, a virus scan). */
+export function plainSwapReason(err: unknown): string {
+  const code = isNodeError(err) ? err.code : undefined;
+  if (code === "EPERM" || code === "EACCES" || code === "EBUSY")
+    return "A file of the add-on is in use, or the folder can't be changed. Close TaleSpire and try again.";
+  return plainReason(err);
 }
 
 /** A chosen folder that is not TaleSpire's Symbiotes folder (kept, with this warning). */
@@ -212,8 +229,8 @@ export class AddonService {
     const cfg = configSchema.safeParse(await readJson(path.join(dir, LINK_CONFIG_FILE)));
     const want = this.d.pairing();
     const mismatch: AddonStatus["mismatch"] = [];
-    if (!cfg.success || cfg.data.token !== want.token) mismatch.push("token");
-    if (!cfg.success || cfg.data.port !== want.port) mismatch.push("port");
+    if (!cfg.success || want === null || cfg.data.token !== want.token) mismatch.push("token");
+    if (!cfg.success || want === null || cfg.data.port !== want.port) mismatch.push("port");
     return { ...installed, state: mismatch.length ? "mismatch" : "installed", mismatch };
   }
 
@@ -229,6 +246,8 @@ export class AddonService {
    * folder, never throws. Returns the status after.
    */
   async autoUpdate(): Promise<AddonStatus> {
+    const found = (await this.d.locate()).found;
+    if (found) await this.clearLeftovers(path.join(found.path, ADDON_FOLDER_NAME));
     const s = await this.status();
     if (s.state !== "outdated" || !s.addonPath) {
       this.autoChecked = true;
@@ -241,6 +260,8 @@ export class AddonService {
 
   /** The user's install, update or reinstall. Throws a plain Error when there is nowhere to put it. */
   async install(): Promise<AddonStatus> {
+    const found = (await this.d.locate()).found;
+    if (found) await this.clearLeftovers(path.join(found.path, ADDON_FOLDER_NAME));
     const s = await this.status();
     if (s.state === "not_found" || !s.folder)
       throw new AppFailure("not_found", "TaleSpire's Symbiotes folder wasn't found.");
@@ -264,16 +285,17 @@ export class AddonService {
     const symbiotes = elsewhere ? (s.elsewhere?.folder ?? null) : s.folder;
     if (symbiotes === null) throw new AppFailure("not_found", "There is no add-on to remove there.");
     const dir = await this.ownFolder(symbiotes);
-    const hidden = path.join(symbiotes, `.${ADDON_FOLDER_NAME}.removing-${randomBytes(4).toString("hex")}`);
-    const removal = this.d.removal ?? nodeRemoval;
+    await this.clearLeftovers(dir);
+    const hidden = path.join(symbiotes, hiddenName("removing"));
+    const ops = this.ops();
     try {
-      await removal.rename(dir, hidden);
+      await ops.rename(dir, hidden);
     } catch (err) {
       this.d.logger.warn("add-on removal failed", { error: err });
       throw new AppFailure("io", `The add-on could not be removed: ${plainReason(err)}`);
     }
     try {
-      await removal.rm(hidden);
+      await ops.rm(hidden);
     } catch (err) {
       this.d.logger.warn("add-on removal left files", { error: err });
       throw new AppFailure(
@@ -306,8 +328,117 @@ export class AddonService {
   /** A paired copy under userData, for "install it by hand". Returns its folder. */
   async preparePackage(): Promise<string> {
     const dir = path.join(this.d.packageDir, ADDON_FOLDER_NAME);
-    await this.copyFiles(dir, true);
+    try {
+      await this.stageAndSwap(dir, true);
+    } catch (err) {
+      throw new AppFailure("io", err instanceof CopyError ? err.reason : plainReason(err));
+    }
     return dir;
+  }
+
+  private ops(): FileOps {
+    return { ...nodeFileOps, ...this.d.fileOps };
+  }
+
+  /** Our manifest in `dir` (a real folder, not a link), or null. */
+  private async oursAt(dir: string): Promise<boolean> {
+    const st = await fsp.lstat(dir).catch(() => null);
+    if (!st?.isDirectory() || st.isSymbolicLink()) return false;
+    const m = manifestSchema.safeParse(await readJson(path.join(dir, "manifest.json")));
+    return m.success && this.ours(m.data, await this.bundledManifest());
+  }
+
+  /**
+   * Our hidden leftovers beside `dir` (the add-on folder) from an attempt that stopped: an old copy a swap left hidden
+   * is put back when `dir` is missing; every other one is deleted. Only real folders named like ours. Never throws.
+   */
+  private async clearLeftovers(dir: string): Promise<void> {
+    const parent = path.dirname(dir);
+    const names = (await fsp.readdir(parent).catch(() => [] as string[])).filter((n) => LEFTOVER.test(n));
+    const ops = this.ops();
+    for (const name of names.sort()) {
+      const p = path.join(parent, name);
+      const st = await fsp.lstat(p).catch(() => null);
+      if (!st?.isDirectory() || st.isSymbolicLink()) continue;
+      try {
+        const missing = (await fsp.lstat(dir).catch(() => null)) === null;
+        if (name.includes(".old-") && missing && (await this.oursAt(p))) {
+          await ops.rename(p, dir);
+          this.d.logger.info("add-on: put back the copy an interrupted update left hidden");
+        } else {
+          await ops.rm(p);
+          this.d.logger.info("add-on: cleared a leftover of an interrupted attempt", { name });
+        }
+      } catch (err) {
+        this.d.logger.info("add-on: a leftover folder could not be cleared (tried again next time)", {
+          name,
+          error: err,
+        });
+      }
+    }
+  }
+
+  /**
+   * Builds the add-on in a hidden staging folder beside `dir` (the bundled files, and the pairing file: the current
+   * pairing with `writeConfig`, else the one `dir` already has), then swaps it in by rename. A failure before the swap
+   * leaves `dir` as it was; a failed swap puts the old folder back. Throws CopyError with a plain reason for a failed
+   * swap, the file-system error for a failed copy.
+   */
+  private async stageAndSwap(dir: string, writeConfig: boolean): Promise<void> {
+    const ops = this.ops();
+    const parent = path.dirname(dir);
+    await fsp.mkdir(parent, { recursive: true });
+    await this.clearLeftovers(dir);
+    let config: Buffer | string | null;
+    if (writeConfig) {
+      const pairing = this.d.pairing();
+      if (pairing === null)
+        throw new CopyError("Slabyrinth's link is still starting. Try again in a moment.");
+      config = `${JSON.stringify(pairing, null, 2)}\n`;
+    } else config = await fsp.readFile(path.join(dir, LINK_CONFIG_FILE)).catch(() => null);
+    // README.md is the developers' notes (not shipped in a packaged app either; electron-builder.yml)
+    const files = (await listFiles(this.d.bundledDir)).filter(
+      (f) => f !== LINK_CONFIG_FILE && f !== "README.md",
+    );
+    const ordered = [...files.filter((f) => f !== "manifest.json"), "manifest.json"];
+    const staging = path.join(parent, hiddenName("installing"));
+    const dropStaging = (): Promise<void> =>
+      fsp.rm(staging, { recursive: true, force: true }).catch(() => undefined);
+    try {
+      await fsp.mkdir(staging);
+      if (config !== null) await ops.writeFile(path.join(staging, LINK_CONFIG_FILE), config);
+      for (const f of ordered) {
+        const target = path.join(staging, f);
+        await fsp.mkdir(path.dirname(target), { recursive: true });
+        await ops.writeFile(target, await fsp.readFile(path.join(this.d.bundledDir, f)));
+      }
+    } catch (err) {
+      await dropStaging();
+      throw err;
+    }
+    const old = (await fsp.lstat(dir).catch(() => null)) ? path.join(parent, hiddenName("old")) : null;
+    if (old !== null)
+      try {
+        await ops.rename(dir, old);
+      } catch (err) {
+        await dropStaging();
+        throw new CopyError(plainSwapReason(err), err);
+      }
+    try {
+      await ops.rename(staging, dir);
+    } catch (err) {
+      if (old !== null)
+        await ops.rename(old, dir).catch((e: unknown) => {
+          // the next attempt puts it back (clearLeftovers)
+          this.d.logger.warn("add-on: the old copy could not be put back yet", { error: e });
+        });
+      await dropStaging();
+      throw new CopyError(plainSwapReason(err), err);
+    }
+    if (old !== null)
+      await ops.rm(old).catch((err: unknown) => {
+        this.d.logger.info("add-on: the replaced copy is left hidden; cleared next time", { error: err });
+      });
   }
 
   private async copy(
@@ -316,7 +447,7 @@ export class AddonService {
   ): Promise<void> {
     const b = await this.bundledManifest();
     try {
-      await this.copyFiles(dir, o.writeConfig);
+      await this.stageAndSwap(dir, o.writeConfig);
       this.update = {
         state: "updated",
         automatic: o.automatic,
@@ -327,7 +458,7 @@ export class AddonService {
       };
       this.d.logger.info("add-on installed", { automatic: o.automatic, from: o.from, to: b.version });
     } catch (err) {
-      const error = plainReason(err);
+      const error = err instanceof CopyError ? err.reason : plainReason(err);
       this.update = {
         state: "failed",
         automatic: o.automatic,
@@ -340,18 +471,15 @@ export class AddonService {
       if (!o.automatic) throw new AppFailure("io", error);
     }
   }
+}
 
-  /** Copies the bundled files into `dir` (manifest.json last), and the pairing file when asked. */
-  private async copyFiles(dir: string, writeConfig: boolean): Promise<void> {
-    // README.md is the developers' notes (not shipped in a packaged app either; electron-builder.yml)
-    const files = (await listFiles(this.d.bundledDir)).filter(
-      (f) => f !== LINK_CONFIG_FILE && f !== "README.md",
-    );
-    const ordered = [...files.filter((f) => f !== "manifest.json"), "manifest.json"];
-    await fsp.mkdir(dir, { recursive: true });
-    if (writeConfig)
-      await replaceFile(path.join(dir, LINK_CONFIG_FILE), `${JSON.stringify(this.d.pairing(), null, 2)}\n`);
-    for (const f of ordered)
-      await replaceFile(path.join(dir, f), await fsp.readFile(path.join(this.d.bundledDir, f)));
+/** An install step that failed, with its reason in plain words. */
+class CopyError extends Error {
+  constructor(
+    readonly reason: string,
+    cause?: unknown,
+  ) {
+    super(reason, { cause });
+    this.name = "CopyError";
   }
 }
