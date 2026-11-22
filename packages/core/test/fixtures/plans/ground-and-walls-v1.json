@@ -1,0 +1,281 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 5,
+  "id": "7c2e9a41-3b5d-4f08-9e61-2a7d4c8b1f30",
+  "title": "ground-and-walls-v1",
+  "kind": "outdoor",
+  "seed": 6311,
+  "theme": "wood_town",
+  "summary": "Ground and walls line-up: a grass yard with a gravel path, a fenced plot, a ruined chapel, a large stone hall, and a street of six two-storey houses in brick, stone and plaster.",
+  "levels": [
+    {
+      "id": "g",
+      "name": "Yard",
+      "elevation": 0,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 60,
+        "h": 36
+      },
+      "base": {
+        "type": "ground",
+        "material": "grass"
+      },
+      "areas": [
+        {
+          "id": "yard",
+          "kind": "zone",
+          "name": "Yard",
+          "shape": {
+            "type": "rect",
+            "x": 0,
+            "y": 0,
+            "w": 60,
+            "h": 36
+          }
+        },
+        {
+          "id": "hall",
+          "kind": "room",
+          "name": "Great hall",
+          "shape": {
+            "type": "rect",
+            "x": 40,
+            "y": 3,
+            "w": 12,
+            "h": 9
+          },
+          "walls": "auto",
+          "wallStyle": "stone",
+          "floor": "flagstone"
+        },
+        {
+          "id": "ruin",
+          "kind": "room",
+          "name": "Ruined chapel",
+          "shape": {
+            "type": "rect",
+            "x": 22,
+            "y": 3,
+            "w": 8,
+            "h": 7
+          },
+          "walls": "auto",
+          "wallStyle": "stone",
+          "floor": "flagstone"
+        }
+      ],
+      "openings": [
+        {
+          "id": "halldoor",
+          "kind": "door",
+          "at": {
+            "x": 45,
+            "y": 11,
+            "side": "S"
+          }
+        },
+        {
+          "id": "ruindoor",
+          "kind": "door",
+          "at": {
+            "x": 25,
+            "y": 9,
+            "side": "S"
+          }
+        }
+      ],
+      "walls": [],
+      "features": [],
+      "labels": [],
+      "terrain": [
+        {
+          "id": "path",
+          "op": "path",
+          "points": [
+            [
+              0,
+              17
+            ],
+            [
+              20,
+              16
+            ],
+            [
+              40,
+              17
+            ],
+            [
+              59,
+              16
+            ]
+          ],
+          "width": 2,
+          "material": "gravel"
+        }
+      ],
+      "structures": [
+        {
+          "id": "plot",
+          "kind": "enclosure",
+          "name": "Fenced plot",
+          "shape": {
+            "type": "rect",
+            "x": 3,
+            "y": 3,
+            "w": 10,
+            "h": 7
+          },
+          "wall": "fence",
+          "gates": [
+            {
+              "side": "S",
+              "width": 2
+            }
+          ],
+          "floor": "dirt"
+        },
+        {
+          "id": "s1",
+          "name": "Brick house",
+          "style": "cottage",
+          "seed": 51,
+          "wings": [
+            {
+              "x": 2,
+              "y": 22,
+              "w": 7,
+              "h": 6
+            }
+          ],
+          "storeys": [
+            {
+              "walls": "brick"
+            },
+            {
+              "walls": "brick"
+            }
+          ],
+          "front": "N"
+        },
+        {
+          "id": "s2",
+          "name": "Stone house",
+          "style": "cottage",
+          "seed": 52,
+          "wings": [
+            {
+              "x": 11,
+              "y": 22,
+              "w": 7,
+              "h": 6
+            }
+          ],
+          "storeys": [
+            {
+              "walls": "stone"
+            },
+            {
+              "walls": "stone"
+            }
+          ],
+          "front": "N"
+        },
+        {
+          "id": "s3",
+          "name": "Plaster house",
+          "style": "cottage",
+          "seed": 53,
+          "wings": [
+            {
+              "x": 20,
+              "y": 22,
+              "w": 7,
+              "h": 6
+            }
+          ],
+          "storeys": [
+            {
+              "walls": "plaster"
+            },
+            {
+              "walls": "plaster"
+            }
+          ],
+          "front": "N"
+        },
+        {
+          "id": "s4",
+          "name": "Brick house",
+          "style": "cottage",
+          "seed": 54,
+          "wings": [
+            {
+              "x": 29,
+              "y": 22,
+              "w": 7,
+              "h": 6
+            }
+          ],
+          "storeys": [
+            {
+              "walls": "brick"
+            },
+            {
+              "walls": "brick"
+            }
+          ],
+          "front": "N"
+        },
+        {
+          "id": "s5",
+          "name": "Stone house",
+          "style": "cottage",
+          "seed": 55,
+          "wings": [
+            {
+              "x": 38,
+              "y": 22,
+              "w": 7,
+              "h": 6
+            }
+          ],
+          "storeys": [
+            {
+              "walls": "stone"
+            },
+            {
+              "walls": "stone"
+            }
+          ],
+          "front": "N"
+        },
+        {
+          "id": "s6",
+          "name": "Plaster house",
+          "style": "cottage",
+          "seed": 56,
+          "wings": [
+            {
+              "x": 47,
+              "y": 22,
+              "w": 7,
+              "h": 6
+            }
+          ],
+          "storeys": [
+            {
+              "walls": "plaster"
+            },
+            {
+              "walls": "plaster"
+            }
+          ],
+          "front": "N"
+        }
+      ]
+    }
+  ],
+  "links": []
+}

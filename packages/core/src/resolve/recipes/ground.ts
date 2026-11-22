@@ -46,6 +46,8 @@ const SINK = [0.3, 0.5] as const;
 /** ... but never deeper than this: a floor may be thinner than the piece is sunk (verify judges a base within 0.06 of the
  * floor top as standing on it, and a deeper one only where a floor piece is there to be sunk into). */
 const SINK_MAX = 0.05;
+/** Cells no piece of the cover reaches onto: water, a path, a stair, a link. */
+const KEEP_OFF = CELL_FLAG.WATER | CELL_FLAG.PATH | CELL_FLAG.STEPS | CELL_FLAG.LINK;
 
 const flatOf = (ps: readonly ArrangePiece[]): ArrangePiece[] =>
   ps.filter((p) => p.measures.height <= FLAT_H && p.measures.footprint >= 0.05);
@@ -136,10 +138,11 @@ export const layeredGround: Recipe<"zone"> = {
       const d = a.edgeAt(x, y);
       return d <= 1 ? NEAR_WEIGHT : d <= NEAR_REACH + 0.5 ? 1.5 : 1;
     };
-    // a cluster covers about its main flat piece and one partner, less their overlap
+    // a cluster covers about its main flat piece and (three times in four) a partner, less their overlap and what
+    // is left out at a path or a drop
     const main = flat.length > 0 ? flat : low;
     const mean = main.reduce((s, p) => s + p.measures.footprint, 0) / main.length;
-    const clusterArea = mean * (flat.length > 0 ? 1.7 : 1) + (low.length > 0 ? 0.15 : 0);
+    const clusterArea = mean * (flat.length > 0 ? 1.45 : 1) + (low.length > 0 ? 0.15 : 0);
     const total = cells.reduce((s, [x, y]) => s + weightOf(x, y), 0);
     const k = (share * cells.length) / (clusterArea * total);
     const g = ctx.anchors.grid;
@@ -149,7 +152,7 @@ export const layeredGround: Recipe<"zone"> = {
     const out: Placed[] = [];
     const lows: Placed[] = [];
     const recent = new Map<readonly ArrangePiece[], number[]>();
-    // a piece lies wholly on this place's own floor at the cluster's height (never over water, a drop or a wall)
+    // a piece lies wholly on this place's own floor at the cluster's height (never over water, a path, a drop or a wall)
     const onGround = (px: number, py: number, p: ArrangePiece, yaw: number, top: number): boolean => {
       const h = turnedHalfExtents(p.variant.geom.size.x, p.variant.geom.size.z, yaw);
       return [
@@ -166,7 +169,7 @@ export const layeredGround: Recipe<"zone"> = {
           c.floor &&
           a.classAt(cx, cy) !== 0 &&
           Math.abs(g.top(cx, cy) - top) < 0.01 &&
-          ((ctx.level.cells.flags[g.index(cx, cy)] ?? 0) & CELL_FLAG.WATER) === 0
+          ((ctx.level.cells.flags[g.index(cx, cy)] ?? 0) & KEEP_OFF) === 0
         );
       });
     };
@@ -213,14 +216,14 @@ export const layeredGround: Recipe<"zone"> = {
       }
       // low pieces gather at the edges: sunk tufts and rocks, rare in the middle
       const lowPool = near && rocks.length > 0 && draw("rock", x, y) < 0.35 ? rocks : low;
+      // (a place with no flat cover makes its clusters of low pieces: one at least, in the middle too)
+      const least = flat.length === 0 ? 1 : 0;
       const lowCount =
         lowPool.length === 0
           ? 0
           : near
             ? 1 + Math.floor(draw("lows", x, y) * 2)
-            : draw("lows", x, y) < 0.2
-              ? 1
-              : 0;
+            : Math.max(least, draw("lows", x, y) < 0.2 ? 1 : 0);
       for (let i = 0; i < lowCount; i++) {
         // mixed within the pool, never three alike in a row
         let li = Math.floor(draw("low", x, y, i) * lowPool.length);
