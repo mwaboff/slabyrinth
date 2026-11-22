@@ -34,6 +34,8 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
   const room = new Room(grid, p.areaIndex, p.areaCells, p.seed, p.remaining, {
     ...(grid.windowOn ? { windowOn: (x: number, y: number, s) => grid.windowOn?.(x, y, s) === true } : {}),
     compactDoorsBelow: COMPACT_DOORS_BELOW,
+    floorLightsApart: true,
+    junctionPosts: true,
   });
   if (room.cells.length < SMALLEST_FURNISHED || room.wallPairs.length === 0) return null;
 

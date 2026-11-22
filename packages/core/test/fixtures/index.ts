@@ -36,6 +36,7 @@ export const STORED_PLANS = [
   "enclosure-gates-v1",
   "heartroot-rift-v7",
   "inn-interior-v1",
+  "interiors-lineup-v1",
   "keep-dungeon-v8",
   "market-street-v3",
   "night-market-v1",

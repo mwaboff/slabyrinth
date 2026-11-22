@@ -173,8 +173,16 @@ export function wallTorch(room: Room, [x, y, s]: [number, number, Side]): LightS
 function floorLight(room: Room, wx: number, wy: number, kind: LightOpts["floor"]): LightStep {
   if (kind === null || !room.has(kind)) return "none";
   const near = ([x, y]: readonly [number, number]): number => Math.hypot(x - wx, y - wy);
+  // generator 5: a cell from whatever the level already holds (its outline may overhang its own cells)
+  const apart = ([x, y]: readonly [number, number]): boolean => {
+    if (room.opts.floorLightsApart !== true) return true;
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++)
+        if (room.grid.inBounds(x + dx, y + dy) && room.grid.occupied(x + dx, y + dy)) return false;
+    return true;
+  };
   const spots = room.cells
-    .filter((c) => room.free(c[0], c[1]) && !room.zone.has(cellKey(c[0], c[1])) && near(c) <= 3)
+    .filter((c) => room.free(c[0], c[1]) && !room.zone.has(cellKey(c[0], c[1])) && near(c) <= 3 && apart(c))
     .sort((a, b) => near(a) - near(b));
   if (kind === "candles") {
     const at = spots[0];
@@ -195,7 +203,10 @@ function floorLight(room: Room, wx: number, wy: number, kind: LightOpts["floor"]
     const after = room.keepsWay([[x, y]]);
     if (after === null) continue;
     const bext = room.piece("brazier");
-    const shift = bext && !bext.tile ? (touchShift(room.grid, [x, y], [1, 1], 0, bext) ?? [0, 0]) : [0, 0];
+    const fit = bext && !bext.tile ? touchShift(room.grid, [x, y], [1, 1], 0, bext, room.postAt) : [0, 0];
+    // generator 5: a brazier too big for the cell beside a wall stands elsewhere, never in the wall
+    if (fit === null && room.opts.floorLightsApart === true) continue;
+    const shift = fit ?? [0, 0];
     const bp: GeneratedPlacement = { type: "brazier", at: [x, y], size: [1, 1], rot: 0, rotFine: 0 };
     bp.offset = [shift[0] as number, shift[1] as number];
     if (!room.push(bp)) return "full";
@@ -243,7 +254,14 @@ export function lightArea(
     occupancy?: { length?: number };
   },
 ): ScatterResult {
-  const room = new Room(grid, p.areaIndex, p.areaCells, p.seed, p.remaining);
+  const room = new Room(
+    grid,
+    p.areaIndex,
+    p.areaCells,
+    p.seed,
+    p.remaining,
+    p.occupancy === undefined ? {} : { floorLightsApart: true, junctionPosts: true },
+  );
   const n = room.cells.length;
   const smallest = p.occupancy === undefined ? 6 : OCCUPANCY.smallestLit;
   if (n < smallest || grid.piece4 === undefined) return { placements: [], capped: false };

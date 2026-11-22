@@ -157,6 +157,8 @@ export function addShelf(room: Room): void {
         lift: SHELF_TOP,
         offset: [ox, oy],
       };
+      // generator 5: nothing on the plank where it runs into a post (a corner, a wall meeting it from outside)
+      if (room.postAt !== undefined && room.nearPost(x + 0.5 + ox, y + 0.5 + oy)) continue;
       if (room.underCeiling(thing) && !room.push(thing)) return;
     }
   }

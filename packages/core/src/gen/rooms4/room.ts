@@ -20,13 +20,16 @@ import {
   stepSide,
   wallSides,
 } from "../gridGeometry";
+import { isNaturalWallStyle } from "../wallStyles";
 import type { Family } from "./recipes";
 
 /**
  * Where a piece stands in its footprint: pushed against the wall it backs onto (and the side wall in a corner) so its
  * back touches the wall and nothing of it reaches into the next cell. The generator-3 rule shifts every wall piece 0.45
  * off its wall, which leaves a piece half in the next row and overlapping what stands there. A wall strip hosted in
- * this very cell takes half of it. Null when the piece is too big for the room between its walls.
+ * this very cell takes half of it. Null when the piece is too big for the room between its walls. `postAt` (generator 5,
+ * RoomOpts.junctionPosts): a post stands at this vertex of the wall the piece backs onto (where another wall meets it
+ * from outside the room, a T), and takes the 0.5 square there as a corner post does.
  */
 export function touchShift(
   grid: PlacementGrid,
@@ -34,6 +37,7 @@ export function touchShift(
   size: readonly [number, number],
   rot: number,
   ext: { wMax: number; dMax: number },
+  postAt?: (vx: number, vy: number) => boolean,
 ): [number, number] | null {
   const [x0, y0] = at;
   const [x1, y1] = [at[0] + size[0] - 1, at[1] + size[1] - 1];
@@ -41,8 +45,9 @@ export function touchShift(
   // the largest variant of the role decides the fit (a smaller one then stands a little off the wall, never in it)
   const exX = swap ? ext.dMax : ext.wMax;
   const exY = swap ? ext.wMax : ext.dMax;
+  // generator 5: a window's frame stands in the wall line, so a piece keeps off it as off the wall
   const wall = (x: number, y: number, s: Side): { wall: boolean; hosted: boolean } => ({
-    wall: grid.edge(x, y, s) === EDGE_WALL,
+    wall: grid.edge(x, y, s) === EDGE_WALL || grid.windowOn?.(x, y, s) === true,
     hosted: grid.wallHosted?.(x, y, s) === true,
   });
   // the corner post where two walls meet takes the 0.5 square of the corner: a piece in a corner starts clear of it
@@ -52,13 +57,17 @@ export function touchShift(
     hi: { wall: boolean; hosted: boolean },
     ex: number,
     post: boolean,
+    junction: readonly [boolean, boolean] = [false, false],
   ): number | null => {
-    const cLo = lo.wall && (lo.hosted || post) ? 0.5 : 0;
-    const cHi = hi.wall && (hi.hosted || post) ? 0.5 : 0;
-    if (ex > n - cLo - cHi + (post ? 0.15 : 0.06)) return null;
-    if (lo.wall && !hi.wall) return cLo + ex / 2 - n / 2;
-    if (hi.wall && !lo.wall) return n / 2 - cHi - ex / 2;
-    if (lo.wall && hi.wall) return (cLo - cHi) / 2;
+    const [jLo, jHi] = junction;
+    const loStop = lo.wall || jLo;
+    const hiStop = hi.wall || jHi;
+    const cLo = (lo.wall && (lo.hosted || post)) || jLo ? 0.5 : 0;
+    const cHi = (hi.wall && (hi.hosted || post)) || jHi ? 0.5 : 0;
+    if (ex > n - cLo - cHi + (post || jLo || jHi ? 0.15 : 0.06)) return null;
+    if (loStop && !hiStop) return cLo + ex / 2 - n / 2;
+    if (hiStop && !loStop) return n / 2 - cHi - ex / 2;
+    if (loStop && hiStop) return (cLo - cHi) / 2;
     return 0;
   };
   const anyOf = (
@@ -85,8 +94,29 @@ export function touchShift(
   const corner = (wl.wall || we.wall) && (wn.wall || ws.wall);
   // only the axis along the backing wall needs the corner clearance (the piece touches the backing wall itself)
   const alongX = rot === 0 || rot === 180;
-  const ox = axis(size[0], wl, we, exX, corner && alongX);
-  const oy = axis(size[1], wn, ws, exY, corner && !alongX);
+  // the posts at the ends of the backing wall where other walls meet it (generator 5)
+  const ends = (line: number | null, x: boolean): [boolean, boolean] =>
+    postAt === undefined || line === null
+      ? [false, false]
+      : x
+        ? [postAt(x0, line), postAt(x1 + 1, line)]
+        : [postAt(line, y0), postAt(line, y1 + 1)];
+  const ox = axis(
+    size[0],
+    wl,
+    we,
+    exX,
+    corner && alongX,
+    alongX ? ends(wn.wall ? y0 : ws.wall ? y1 + 1 : null, true) : undefined,
+  );
+  const oy = axis(
+    size[1],
+    wn,
+    ws,
+    exY,
+    corner && !alongX,
+    alongX ? undefined : ends(wl.wall ? x0 : we.wall ? x1 + 1 : null, false),
+  );
   if (ox === null || oy === null) return null;
   const c = (v: number): number => Math.max(-0.5, Math.min(0.5, Math.round(v * 100) / 100));
   return [c(ox), c(oy)];
@@ -123,6 +153,13 @@ export interface RoomOpts {
    * not the cells either side and two deep, so a small room still has floor to furnish.
    */
   compactDoorsBelow?: number;
+  /**
+   * A floor light (a brazier, candles) keeps a cell from anything the level already holds there (the plan's own
+   * pieces: an altar's outline overhangs its cells), so it never stands in it.
+   */
+  floorLightsApart?: boolean;
+  /** A wall meeting the room's wall from outside (a T) has a post at the joint, as a corner does (touchShift). */
+  junctionPosts?: boolean;
 }
 
 export class Room {
@@ -147,6 +184,21 @@ export class Room {
   /** The same as keys (cell key × 4 + side index). */
   readonly windows = new Set<number>();
 
+  /**
+   * Generator 5 (RoomOpts.junctionPosts): does a post stand at vertex (vx, vy): walls meet there both ways (a corner, a
+   * T, a cross)? Undefined for a room read as generator 4 reads it; the placers hand it to touchShift.
+   */
+  get postAt(): ((vx: number, vy: number) => boolean) | undefined {
+    if (this.opts.junctionPosts !== true) return undefined;
+    const g = this.grid;
+    // a built wall: natural rock has no post where two faces meet
+    const w = (x: number, y: number, s: Side): boolean =>
+      g.inBounds(x, y) && g.edge(x, y, s) === EDGE_WALL && !isNaturalWallStyle(g.wallStyle?.(x, y, s));
+    return (vx, vy) =>
+      (w(vx, vy, "N") || w(vx, vy - 1, "S") || w(vx - 1, vy, "N") || w(vx - 1, vy - 1, "S")) &&
+      (w(vx, vy, "W") || w(vx - 1, vy, "E") || w(vx, vy - 1, "W") || w(vx - 1, vy - 1, "E"));
+  }
+
   /** Is there a window in the wall on side `s` of the cell (generator 5; never at generator 4)? */
   windowAt(x: number, y: number, s: Side): boolean {
     return this.windows.has(cellKey(x, y) * 4 + SIDES.indexOf(s));
@@ -156,7 +208,14 @@ export class Room {
 
   /** Is the point within 0.9 of a corner post (0.5 square from the vertex, and the width of the thing, turned)? */
   nearPost(px: number, py: number): boolean {
-    return this.posts.some(([vx, vy]) => Math.abs(px - vx) < 0.9 && Math.abs(py - vy) < 0.9);
+    if (this.posts.some(([vx, vy]) => Math.abs(px - vx) < 0.9 && Math.abs(py - vy) < 0.9)) return true;
+    // generator 5: the posts where other walls meet the room's walls from outside (a T) too
+    const at = this.postAt;
+    if (at === undefined) return false;
+    for (const vx of [Math.floor(px), Math.ceil(px)])
+      for (const vy of [Math.floor(py), Math.ceil(py)])
+        if (Math.abs(px - vx) < 0.9 && Math.abs(py - vy) < 0.9 && at(vx, vy)) return true;
+    return false;
   }
   readonly lights: Array<[number, number]> = [];
   centroid: [number, number] = [0, 0];
@@ -171,7 +230,7 @@ export class Room {
     areaCells: ReadonlyArray<readonly [number, number]>,
     seed: number,
     readonly remaining: number,
-    private readonly opts: RoomOpts = {},
+    readonly opts: RoomOpts = {},
   ) {
     this.rng = createPrng(subSeed(seed, "room4"));
     const sorted = areaCells.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0]);

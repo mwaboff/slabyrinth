@@ -73,7 +73,7 @@ export function candidates(
       const psize = rotatedSize(base, rot);
       // where it stands: against its wall(s), clear of the next cell; a piece too big for its walls is no candidate
       const shift: [number, number] | null =
-        ext === undefined || ext.tile ? [0, 0] : touchShift(room.grid, pat, psize, rot, ext);
+        ext === undefined || ext.tile ? [0, 0] : touchShift(room.grid, pat, psize, rot, ext, room.postAt);
       if (shift === null) ok = false;
       else pieces.push({ at: pat, size: psize, shift });
     }
@@ -226,7 +226,10 @@ export function addSeats(room: Room, p: Placed, seatSpec: { type: FeatureType; n
     const turn = FACE_ROT[p.side];
     const g: GeneratedPlacement = { type: seatSpec.type, at: [x, y], size: [1, 1], rot: turn, rotFine: turn };
     const sext = room.piece(seatSpec.type);
-    const shift = sext && !sext.tile ? (touchShift(room.grid, [x, y], [1, 1], turn, sext) ?? [0, 0]) : [0, 0];
+    const shift =
+      sext && !sext.tile
+        ? (touchShift(room.grid, [x, y], [1, 1], turn, sext, room.postAt) ?? [0, 0])
+        : [0, 0];
     g.offset = [shift[0] as number, shift[1] as number];
     if (!room.push(g)) return;
     room.taken.add(cellKey(x, y));

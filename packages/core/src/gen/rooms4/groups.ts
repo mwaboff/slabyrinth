@@ -160,7 +160,9 @@ function anchorAt(room: Room, spec: Spec, f: Frame, pushToWall: boolean): Omit<C
     const pr = rectOf(own);
     const psize = rotatedSize(base, rot);
     const shift: XY | null =
-      ext === undefined || ext.tile || !pushToWall ? [0, 0] : touchShift(room.grid, pr.at, psize, rot, ext);
+      ext === undefined || ext.tile || !pushToWall
+        ? [0, 0]
+        : touchShift(room.grid, pr.at, psize, rot, ext, room.postAt);
     if (shift === null) return null;
     // nothing blocking reaches over the cells in front of a way in (it would be refused when committed)
     if (
@@ -396,7 +398,9 @@ function pickCompanion(
     const halfU = (alongN ? ext.wMax : ext.dMax) / 2;
     const halfN = (alongN ? ext.dMax : ext.wMax) / 2;
     // against the walls it has (as any wall piece), then the gap to the anchor along the slot's axis
-    const pushed = ext.tile ? null : touchShift(room.grid, cell, [1, 1], turn.rot, ext);
+    const pushed = ext.tile ? null : touchShift(room.grid, cell, [1, 1], turn.rot, ext, room.postAt);
+    // a piece too big for its cell between the walls and posts it has does not stand there
+    if (!ext.tile && pushed === null) continue;
     let centre: XY = [cell[0] + 0.5 + (pushed?.[0] ?? 0), cell[1] + 0.5 + (pushed?.[1] ?? 0)];
     const setAlong = (axis: XY, want: number): void => {
       const d = want - dot(centre, axis);
