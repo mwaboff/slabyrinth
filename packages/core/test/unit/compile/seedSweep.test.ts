@@ -18,21 +18,24 @@ import {
   unexpected,
 } from "../../sweep/seeds";
 
+// one test per plan and seed: a failure names both, and no test builds more than one map
+const RUNS = STORED_PLANS.flatMap((name: StoredPlan) =>
+  [...FAST_SEEDS, ...(ONCE_FAILED[name] ?? [])].map((seed) => [name, seed] as const),
+);
+
 describe("seed sweep: stored plans build without verify errors under the newest generator", () => {
-  it.each(STORED_PLANS.map((name) => [name]))("%s", (name: StoredPlan) => {
-    const seeds = [...FAST_SEEDS, ...(ONCE_FAILED[name] ?? [])];
+  it.each(RUNS)("%s@%i", (name, seed) => {
     const { failed, stale } = unexpected(
       name,
-      seeds,
-      sweepFailures(name, seeds, (seed) => sweepPlan(name, seed)),
+      [seed],
+      sweepFailures(name, [seed], (s) => sweepPlan(name, s)),
     );
     expect(failed).toEqual([]);
     expect(stale, "KNOWN_FAILURES entries that build cleanly now").toEqual([]);
   });
 
-  it("the e2e plan, with the seeds that once failed", () => {
-    const seeds = [...FAST_SEEDS, ...E2E_ONCE_FAILED];
-    const { failed, stale } = unexpected("e2e", seeds, sweepFailures("e2e", seeds, e2ePlan));
+  it.each([...FAST_SEEDS, ...E2E_ONCE_FAILED])("the e2e plan@%i", (seed) => {
+    const { failed, stale } = unexpected("e2e", [seed], sweepFailures("e2e", [seed], e2ePlan));
     expect(failed).toEqual([]);
     expect(stale).toEqual([]);
   });

@@ -22,19 +22,18 @@ const BUILT: readonly CompileDiagnosticCode[] = ["verify_floor_missing", "verify
 const cat = loadPalettes();
 
 describe("realize and verify agree", () => {
-  it("every stored plan, at its own generator: verify of an untouched realize has no error", () => {
-    const pal = bundledPalettes();
-    for (const name of STORED_PLANS) {
+  // one test per plan, so a failure names its plan and no single test builds them all
+  it.each(STORED_PLANS.map((name) => [name]))(
+    "%s, at its own generator: verify of an untouched realize has no error",
+    (name) => {
+      const pal = bundledPalettes();
       const plan = loadPlan(name);
       const r = resolvePlan(plan, pal);
       const set = realize(r, pal);
       const errors = verifyBuild(r, set, pal, { plan }).diagnostics.filter((d) => d.severity === "error");
-      expect(
-        errors.map((d) => `${d.code} ${d.message}`),
-        name,
-      ).toEqual([]);
-    }
-  });
+      expect(errors.map((d) => `${d.code} ${d.message}`)).toEqual([]);
+    },
+  );
 
   it("random hand levels, every generator and theme (one with no palette): no wall or floor the build left open", () => {
     const themes = [...Object.keys(cat.palettes), "no_such_theme"];

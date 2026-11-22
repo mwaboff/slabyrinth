@@ -7,13 +7,17 @@ import { describe, expect, it } from "vitest";
 import { GENERATOR_TEST_PLANS, type StoredPlan } from "../../fixtures";
 import { FAST_SEEDS, ONCE_FAILED, sweepFailures, sweepPlan, unexpected } from "../../sweep/seeds";
 
+// one test per plan and seed: a failure names both, and no test builds more than one map
+const RUNS = GENERATOR_TEST_PLANS.flatMap((name: StoredPlan) =>
+  [...FAST_SEEDS, ...(ONCE_FAILED[name] ?? [])].map((seed) => [name, seed] as const),
+);
+
 describe("seed sweep: generator test plans build without verify errors under the newest generator", () => {
-  it.each(GENERATOR_TEST_PLANS.map((name) => [name]))("%s", (name: StoredPlan) => {
-    const seeds = [...FAST_SEEDS, ...(ONCE_FAILED[name] ?? [])];
+  it.each(RUNS)("%s@%i", (name, seed) => {
     const { failed, stale } = unexpected(
       name,
-      seeds,
-      sweepFailures(name, seeds, (seed) => sweepPlan(name, seed)),
+      [seed],
+      sweepFailures(name, [seed], (s) => sweepPlan(name, s)),
     );
     expect(failed).toEqual([]);
     expect(stale, "KNOWN_FAILURES entries that build cleanly now").toEqual([]);

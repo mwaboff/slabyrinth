@@ -238,7 +238,7 @@ describe("ruins at generator 3", () => {
     expect(found).toBeGreaterThan(3);
     // generator 2 keeps no arches
     expect(first(plan([b("keep", 4, 9, 9, { condition: "ruined" })], 2)).ruin?.arches).toBeUndefined();
-  });
+  }, 30_000); // 40 seeds (the count of ruins with arches is the point), each built and verified: ~2 s under a parallel run
 
   it("two ruins of one style differ by seed", () => {
     const a = first(plan([b("keep", 4, 9, 9, { condition: "ruined" })])).ruin?.topRubble ?? [];
