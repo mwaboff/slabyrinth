@@ -95,7 +95,7 @@ describe("the metric table", () => {
   });
 
   it("targets read as text and judge a value", () => {
-    expect(targetText("lights_per_floor_tile")).toBe("0.05–0.38");
+    expect(targetText("lights_per_floor_tile")).toBe("0.04–0.43");
     expect(targetText("overlap_share")).toBe("≥ 0.49");
     expect(targetText("lane_blocked")).toBe("≤ 0.1");
     expect(targetText("pieces")).toBe("–");

@@ -372,6 +372,30 @@ const SWITCHES = {
     5,
     "A room is lit by who uses it: a light on each table, desk and nightstand, a light either side of a shared room's main door, lights per 10 floor tiles from the room-kind table, at least one in every lived-in room down to 3 tiles, a corridor one per 8 tiles of its length (gen/rooms4/occupancy.ts).",
   ),
+  reviewByKind: on(
+    5,
+    "The review judges a room by its kind's row of the room-kind table (gen/roomTraits.ts roomTargets): bare below half its props per 10 tiles, adrift below its near-wall share (floor-group and station-row kinds not judged), a hall carried by columns, level changes or water is not bare; a room with none of its kind's anchors gets anchor_missing (review/interiors.ts).",
+  ),
+  deadEndReview: on(
+    5,
+    "The review notes rooms with one way on and nothing in them, when more than one (dead_end_empty, review/layoutNotes.ts).",
+  ),
+  roomSizeReview: on(
+    5,
+    "The review notes a complex whose rooms are all near one size (rooms_same_size, review/layoutNotes.ts).",
+  ),
+  corridorShareReview: on(
+    5,
+    "The review notes a complex whose corridors take a large share of its floor (corridor_heavy, review/layoutNotes.ts).",
+  ),
+  entrancesReview: on(
+    5,
+    "The review notes a large complex with a single way in (entrances_few, review/layoutNotes.ts).",
+  ),
+  wayBackReview: on(
+    5,
+    "The review notes an area the party reaches by a one-way drop with no walk back (drop_trap_dead, review/layoutNotes.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

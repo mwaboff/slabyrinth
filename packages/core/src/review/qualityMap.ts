@@ -29,6 +29,7 @@ import { loadOrientation } from "../palette/load";
 import { LevelGrid } from "../resolve/levelGrid";
 import { maxOf } from "../util/lists";
 import { QUALITY_METRICS, type QualityMetricId, targetText, withinTarget } from "./qualityMetrics";
+import { roomMeter } from "./qualityRooms";
 import { slabMeter, type MeterPiece } from "./qualitySlab";
 
 /** One room's figures (areas of kind room with walkable floor). */
@@ -340,6 +341,8 @@ const percentile = (xs: readonly number[], p: number): number => {
 export interface QualityOptions {
   /** The orientation the build was realized with (default: the bundled one, as realize uses). */
   orientation?: OrientationCalibration;
+  /** The plan's entry level (MapPlan.entryLevel), for the layout rows' walk back to it. */
+  entryLevel?: string;
 }
 
 /** The whole quality meter of a realized build of a resolved plan. */
@@ -464,6 +467,7 @@ export function qualityMeter(
       lights_per_floor_tile: ratio(lightT),
       doors_lit: ratio(doorT),
       band_coverage: ratio(bandT),
+      ...roomMeter(resolved, set, frame, opts.entryLevel),
     },
     rooms,
   };
@@ -483,7 +487,10 @@ export function qualityOfBuild(
   const orientation = opts.orientation ?? loadOrientation().orientation;
   const set = opts.realized ?? realize(resolved, palettes, { orientation });
   verifyBuild(resolved, set, palettes, { plan, flipZ: orientation.flipZ });
-  return qualityMeter(resolved, set, { orientation });
+  return qualityMeter(resolved, set, {
+    orientation,
+    ...(plan.entryLevel !== undefined ? { entryLevel: plan.entryLevel } : {}),
+  });
 }
 
 /** The report as baseline lines: `<name> <metric> <value>`, one per metric, in table order. */

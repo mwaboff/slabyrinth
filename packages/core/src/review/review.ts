@@ -61,6 +61,7 @@ import { stallNotes } from "./stalls";
 import { floorAccentNotes } from "./floorTone";
 import { centreOf, neighbourGroups } from "../resolve/neighbours";
 import { qualityNotes } from "./qualityNotes";
+import { layoutNotes } from "./layoutNotes";
 import { LIGHT_FEATURES, isBandRock } from "../gen/catalog";
 import {
   LIT_FOCALS,
@@ -155,7 +156,13 @@ export type DesignNoteCode =
   | "lane_blocked"
   | "doors_unlit"
   | "silhouette_flat"
-  | "facades_alike";
+  | "facades_alike"
+  | "anchor_missing"
+  | "dead_end_empty"
+  | "rooms_same_size"
+  | "corridor_heavy"
+  | "entrances_few"
+  | "drop_trap_dead";
 
 /** Bare face by class (gen/cover.ts: what really hides the face), for the cliff checks and for proofs and tests. */
 export interface CliffCoverage {
@@ -443,6 +450,8 @@ export function reviewDesign(
   pushAll(notes, interiorNotes(plan, resolved));
   // generator 5: what the quality meter finds that plan words can change (lanes, door lights, roofline, facades)
   if (gen.qualityNotes) pushAll(notes, qualityNotes(plan, resolved));
+  // generator 5: how a complex of rooms is laid out (dead ends, size mix, corridors, ways in, ways back)
+  pushAll(notes, layoutNotes(plan, resolved));
   pushAll(notes, substitutionNotes(opts.diagnostics ?? [], resolved.levels[0]?.id ?? ""));
   pushAll(notes, briefNotes(opts.brief, plan, resolved, REVIEW.brief.weight));
   const ranked = notes.sort(

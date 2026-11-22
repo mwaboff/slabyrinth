@@ -38,6 +38,11 @@ export interface FeatureInfo {
   /** Hung from the ceiling: raised on purpose, so verify never calls it floating (compile/verify/props.ts). */
   ceilingMounted?: boolean;
   /**
+   * A column that carries a hall (a pillar, a rock column, a timber support): a hall with columns reads full with few
+   * props, so the review by room kind does not call it bare (review/interiors.ts).
+   */
+  carriesHall?: boolean;
+  /**
    * A piece of a cliff's rock band (generator 2): placed along a rise by gen/cliffband.ts, built and rested by the
    * band passes, measured by verify's and the review's cliff checks.
    */
@@ -143,7 +148,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   armor_stand: F("Armour stand", "furniture"),
   cage: F("Cage", "furniture"),
   stocks: F("Stocks", "furniture"),
-  pillar: F("Pillar", "architecture"),
+  pillar: F("Pillar", "architecture", { carriesHall: true }),
   statue: F("Statue", "architecture", {
     groundCause: "wear",
     focal: "lesser",
@@ -371,7 +376,12 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
     wantsLight: true,
     runMix: true,
   }),
-  cave_column: F("Rock column", "outdoor", { organic: true, glyph: "pillar", focusPiece: true }),
+  cave_column: F("Rock column", "outdoor", {
+    organic: true,
+    glyph: "pillar",
+    focusPiece: true,
+    carriesHall: true,
+  }),
   statue_large: F("Great statue", "architecture", {
     size: [2, 2],
     landmark: true,
@@ -384,7 +394,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   }),
   mine_cart: F("Mine cart", "furniture", { glyph: "crate" }),
   rails: F("Rails", "architecture", { blocking: false, glyph: "debris" }),
-  mine_support: F("Timber support", "architecture", { glyph: "pillar" }),
+  mine_support: F("Timber support", "architecture", { glyph: "pillar", carriesHall: true }),
   chains: F("Hanging chains", "other", { blocking: false, wallMounted: true, glyph: "banner_wall" }),
   // theme-neutral slots: each theme's palette (feature.<slot>) decides the assets, e.g. cluster_tall is
   // stalagmite columns in a cave, pines in a forest and stone columns in a dungeon

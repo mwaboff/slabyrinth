@@ -1657,6 +1657,7 @@ plans/inn-interior-v1@5 l1 feature weapon_rack 9
 plans/inn-interior-v1@5 diag info footprint_mismatch 3
 plans/inn-interior-v1@5 diag info verify_prop_nudged 9
 plans/inn-interior-v1@5 review flat_map 1
+plans/inn-interior-v1@5 review rooms_same_size 1
 plans/inn-interior-v1@5 review single_route 1
 plans/interiors-lineup-v1 l1 pieces feature 420
 plans/interiors-lineup-v1 l1 pieces floor 217
@@ -2304,8 +2305,7 @@ plans/keep-dungeon-v8@5 l1 feature web 2
 plans/keep-dungeon-v8@5 diag info footprint_mismatch 10
 plans/keep-dungeon-v8@5 diag info secret_door_plug 1
 plans/keep-dungeon-v8@5 diag info verify_props_overlap 2
-plans/keep-dungeon-v8@5 review furniture_adrift 1
-plans/keep-dungeon-v8@5 review room_bare 1
+plans/keep-dungeon-v8@5 review anchor_missing 1
 plans/l-corridor-route l1 pieces feature 1
 plans/l-corridor-route l1 pieces floor 43
 plans/l-corridor-route l1 pieces opening 2
@@ -3568,7 +3568,9 @@ plans/purpose-lineup-v1@5 l1 feature torch_wall 29
 plans/purpose-lineup-v1@5 l1 feature weapon_rack 6
 plans/purpose-lineup-v1@5 diag info footprint_mismatch 2
 plans/purpose-lineup-v1@5 diag info verify_prop_nudged 2
+plans/purpose-lineup-v1@5 review corridor_heavy 1
 plans/purpose-lineup-v1@5 review flat_map 1
+plans/purpose-lineup-v1@5 review rooms_same_size 1
 plans/purpose-lineup-v1@5 review single_route 1
 plans/single-room l1 pieces feature 5
 plans/single-room l1 pieces floor 12

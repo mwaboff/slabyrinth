@@ -363,6 +363,42 @@ export const REVIEW = {
     /** … and under this share of them within a tile of a wall is adrift (the study: 92%). */
     adriftShare: 0.6,
     weights: { bare: 6, alike: 5, unlit: 6.5, adrift: 4 },
+    /**
+     * Generator 5 (`reviewByKind`): a room is judged by its kind's row of the room-kind table (gen/roomTraits.ts
+     * roomTargets). Lenient on purpose: the table's numbers are example ranges from a few training sets.
+     *   bare        under this share of the kind's lowest props per 10 tiles, never stricter than `bareDensity` nor
+     *               looser than `bareFloor`;
+     *   adrift      under the kind's lowest near-wall share (never stricter than `adriftShare`); kinds that lay out
+     *               floor groups or station rows are not judged;
+     *   carried    a hall with this many floor heights, a column standing in it, or water in it reads full with few
+     *               props: not judged bare.
+     */
+    byKind: { bareShare: 0.5, bareFloor: 1.5, carriedHeights: 3 },
+    /** anchor_missing: a room of a furnished kind with none of its anchors (advisory). */
+    anchorWeight: 3,
+  },
+  /**
+   * Generator 5: how a complex of rooms is laid out (review/layout.ts, review/layoutNotes.ts; build plan §11.3,
+   * technique catalogue Part 4 Q1, Q2, Q4, Q5, Q6). The numbers are one dungeon's [E] examples, set looser than the
+   * example and weighted low until a second dungeon confirms them. Every note is advice among options: a plan may keep a
+   * long corridor or rooms of one size on purpose.
+   */
+  layout: {
+    /** A level with fewer rooms is not judged as a complex. */
+    minRooms: 4,
+    /** Areas smaller than this (floor cells) are not judged for a way back. */
+    minTrapCells: 4,
+    /** corridor_heavy: corridor floor above this share of room and corridor floor (example: 0.25). */
+    corridorShare: 0.3,
+    /** rooms_same_size: at least this many rooms whose largest is under `sizeRatio` times the median (example: 2). */
+    sizeRooms: 6,
+    sizeRatio: 1.6,
+    /** dead_end_empty: more than this many rooms with one way on and nothing in them. */
+    emptyDeadEnds: 1,
+    /** entrances_few: a map of this many rooms or more with at most `entrances` ways in. */
+    entrancesRooms: 12,
+    entrances: 1,
+    weights: { deadEnd: 2.5, sizeMix: 2, corridor: 2, entrances: 2, wayBack: 3.5 },
   },
   /** Market stalls (generator 4, review/stalls.ts). */
   stalls: {
