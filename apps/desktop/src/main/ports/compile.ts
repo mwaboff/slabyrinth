@@ -1,6 +1,6 @@
 import { createCompilePlan, estimate as coreEstimate } from "@slabyrinth/core/compile";
 import { buildPaletteCatalog, loadOrientation } from "@slabyrinth/core/palette";
-import { planGate, validatePlan } from "@slabyrinth/core/plan";
+import { planGate, validatePlan, type SizeTierId } from "@slabyrinth/core/plan";
 import { planRules, resolvePlan } from "@slabyrinth/core/resolve";
 import { slabCodec } from "@slabyrinth/core/slab";
 import type {
@@ -34,6 +34,8 @@ export interface CompileInput {
   orientationOverride: unknown;
   /** Assets of the scanned catalog; null = no catalog (built-in asset set: everything counts as present). */
   availability: CatalogAsset[] | null;
+  /** The map size tier the build gate holds the plan to (core plan/sizeTiers.ts); standard when absent. */
+  sizeTier?: SizeTierId;
 }
 
 export interface CompileBackend {
@@ -64,7 +66,13 @@ export function createCoreCompileBackend(): CompileBackend {
         // refused. createCompilePlan passes the plan to verify, which then skips build findings the plan-level
         // checks already report.
         validatePlan: (plan, palettes) => {
-          const { blocking } = planGate(validatePlan(plan, planRules(palettes)).issues, "build");
+          const { blocking } = planGate(
+            validatePlan(
+              plan,
+              planRules(palettes, input.sizeTier !== undefined ? { sizeTier: input.sizeTier } : {}),
+            ).issues,
+            "build",
+          );
           return { ok: blocking.length === 0, issues: blocking };
         },
         orientation: orientationFor(input),

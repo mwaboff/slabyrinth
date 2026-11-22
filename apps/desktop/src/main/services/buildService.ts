@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
 import type { ChunkOptions, CompileEstimate, ExportBundle, LevelId, MapPlan } from "@slabyrinth/core";
+import type { SizeTierId } from "@slabyrinth/core/plan";
 import type { BuildRecord } from "../../shared/project";
 import type { Logger } from "../logger";
 import { availabilityFromCatalog, type CompileInput } from "../ports/compile";
@@ -27,6 +28,11 @@ export interface BuildServiceDeps {
   palettes: PaletteService;
   catalog: CatalogService;
   settings: SettingsStore;
+  /**
+   * The map size tier the build gate holds a plan to, asked of the plan being built or sent (an approved older version
+   * may be larger than the head plan): app.ts; standard when absent.
+   */
+  sizeTier?: (plan: MapPlan) => SizeTierId;
   dialogs: Dialogs;
   logger: Logger;
 }
@@ -48,6 +54,7 @@ export class BuildService {
       orientation,
       orientationOverride,
       availability: availabilityFromCatalog(this.deps.catalog.current()),
+      sizeTier: this.deps.sizeTier?.(plan) ?? "standard",
     };
   }
 
@@ -193,11 +200,13 @@ export class BuildService {
         errors: bundle.diagnostics.filter((d) => d.severity === "error").length,
         warnings: bundle.diagnostics.filter((d) => d.severity === "warning").length,
       },
+      // the paste steps read it after a restart (renderer talespire/pasteSteps.ts), as the add-on gets it
+      ...(bundle.pasteAnchor ? { pasteAnchor: { ...bundle.pasteAnchor } } : {}),
     };
   }
 
-  /** Slab text of a chunk; recompiles the build's version when the bundle is no longer in memory. */
-  async chunkSlab(buildId: string, chunkId: string): Promise<string> {
+  /** A build's bundle; recompiles the build's version when the bundle is no longer in memory. */
+  private async bundleOf(buildId: string): Promise<ExportBundle> {
     let bundle = this.bundles.get(buildId);
     if (!bundle) {
       const record = this.deps.projects.findBuild(buildId);
@@ -206,19 +215,54 @@ export class BuildService {
       bundle = await this.deps.compiler.run(this.input(plan, BuildService.optionsOf(record)));
       this.bundles.set(buildId, bundle);
     }
-    const chunk = bundle.chunks.find((c) => c.id === chunkId);
-    if (!chunk) throw new AppFailure("not_found", "That chunk isn't part of this build.");
-    // A recompile with the recorded options reproduces the recorded chunk unless the build inputs
-    // changed since (palettes, orientation or the asset library): never hand out a different slab
-    // under the old chunk's name.
+    return bundle;
+  }
+
+  /**
+   * A recompile with the recorded options reproduces the recorded chunk unless the build inputs changed since
+   * (palettes, orientation or the asset library): never hand out a different slab under the old chunk's name.
+   */
+  private checkUnchanged(buildId: string, chunk: ExportBundle["chunks"][number]): void {
     const record = this.deps.projects.getProject()?.builds.find((b) => b.id === buildId);
-    const recorded = record?.levels.flatMap((l) => l.chunks).find((c) => c.id === chunkId);
+    const recorded = record?.levels.flatMap((l) => l.chunks).find((c) => c.id === chunk.id);
     if (recorded && recorded.contentHash !== chunk.contentHash)
       throw new AppFailure(
         "validation",
         "The palettes or asset library changed since this build. Build again to copy it.",
       );
+  }
+
+  /** Slab text of a chunk. */
+  async chunkSlab(buildId: string, chunkId: string): Promise<string> {
+    const bundle = await this.bundleOf(buildId);
+    const chunk = bundle.chunks.find((c) => c.id === chunkId);
+    if (!chunk) throw new AppFailure("not_found", "That slab isn't part of this build.");
+    this.checkUnchanged(buildId, chunk);
     return chunk.slab;
+  }
+
+  /**
+   * Every chunk of a build in paste order, with its slab and asset count, and where the cursor goes for a map pasted
+   * from beside it (the TaleSpire add-on's chunk set).
+   */
+  async chunksForSend(buildId: string): Promise<{
+    record: BuildRecord;
+    chunks: Array<{ id: string; label: string; slab: string; assetCount: number }>;
+    pasteAnchor?: ExportBundle["pasteAnchor"];
+  }> {
+    const record = this.deps.projects.findBuild(buildId);
+    const bundle = await this.bundleOf(buildId);
+    for (const c of bundle.chunks) this.checkUnchanged(buildId, c);
+    return {
+      record,
+      ...(bundle.pasteAnchor ? { pasteAnchor: bundle.pasteAnchor } : {}),
+      chunks: bundle.chunks.map((c) => ({
+        id: c.id,
+        label: c.label,
+        slab: c.slab,
+        assetCount: c.assetCount,
+      })),
+    };
   }
 
   /** The ChunkOptions a build was made with (older records: the compiler defaults for what they lack). */

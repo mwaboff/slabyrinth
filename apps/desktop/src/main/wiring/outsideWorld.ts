@@ -1,14 +1,15 @@
 /**
  * The app's effects on the outside world, as the services take them: dialogs, the clipboard, opening links and
  * folders, the trash, and what the TaleSpire lookup reads (the Steam locator's files and commands, the process
- * probe). `safeMode` (smoke and e2e runs) swaps every one for an inert double: no TaleSpire lookup/launch/focus,
- * memory clipboard, no dialogs, a trash folder under the user data.
+ * probe), and the system-wide hotkeys. `safeMode` (smoke and e2e runs) swaps every one for an inert double: no
+ * TaleSpire lookup/launch/focus, memory clipboard, no dialogs, a trash folder under the user data, memory hotkeys.
  */
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { execFile } from "node:child_process";
-import { clipboard, dialog, shell, type BrowserWindow } from "electron";
+import { clipboard, dialog, globalShortcut, shell, type BrowserWindow } from "electron";
+import type { HotkeyRegistrar } from "../services/talespire/link/hotkeys";
 import type { Logger } from "../logger";
 import { ClipboardService, memoryClipboard } from "../services/clipboardService";
 import { cancelAllDialogs, type Dialogs } from "../services/dialogs";
@@ -31,6 +32,8 @@ export interface OutsideWorld {
   showItemInFolder: (file: string) => void;
   locator: LocatorEnv;
   probe: ProcessProbe;
+  /** System-wide hotkeys (Electron globalShortcut); a memory fake in safe mode, so tests never grab a real key. */
+  hotkeys: HotkeyRegistrar;
 }
 
 export function outsideWorld(
@@ -55,6 +58,12 @@ function realWorld(getWindow: () => BrowserWindow | null): OutsideWorld {
       homedir: os.homedir(),
       execFile: (f, a) => execFileP(f, a, { timeoutMs: LOCATOR_TIMEOUT_MS }),
       fs: nodeReadonlyFs,
+    },
+    hotkeys: {
+      register: (accelerator, callback) => globalShortcut.register(accelerator, callback),
+      unregister: (accelerator) => {
+        globalShortcut.unregister(accelerator);
+      },
     },
     probe: {
       execFile: execFileP,
@@ -89,7 +98,31 @@ function inertWorld(userData: string, logger: Logger): OutsideWorld {
     showItemInFolder: () => undefined,
     locator: inertLocator,
     probe: inertProbe,
+    hotkeys: memoryHotkeys(),
   };
+}
+
+/** Safe mode: hotkeys are only remembered, never registered with the system. An e2e spec can press one. */
+export interface MemoryHotkeys extends HotkeyRegistrar {
+  registered: Map<string, () => void>;
+}
+
+function memoryHotkeys(): MemoryHotkeys {
+  const registered = new Map<string, () => void>();
+  const r: MemoryHotkeys = {
+    registered,
+    register: (accelerator, callback) => {
+      if (registered.has(accelerator)) return false;
+      registered.set(accelerator, callback);
+      return true;
+    },
+    unregister: (accelerator) => {
+      registered.delete(accelerator);
+    },
+  };
+  // Safe mode only (e2e/smoke): lets a Playwright spec see and press the hotkeys via electronApp.evaluate.
+  (globalThis as { __slabyrinthHotkeys?: MemoryHotkeys }).__slabyrinthHotkeys = r;
+  return r;
 }
 
 const execFileP = (

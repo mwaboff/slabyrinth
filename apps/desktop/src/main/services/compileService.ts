@@ -28,6 +28,14 @@ export interface CompileServiceDeps {
   deadlines?: { estimateMs?: number; runMs?: number };
 }
 
+/** A worker that hits its `resourceLimits` (app.ts: 4 GB) ends with this error code, or with exit code 134 (abort). */
+const OOM_ERROR_CODE = "ERR_WORKER_OUT_OF_MEMORY";
+const OOM_EXIT_CODE = 134;
+export const OUT_OF_MEMORY =
+  "The build ran out of memory. Close other programs and build again, or use a smaller Maximum map size in Settings for new maps.";
+
+const isOutOfMemory = (err: Error): boolean => (err as Error & { code?: unknown }).code === OOM_ERROR_CODE;
+
 interface Running {
   worker: WorkerLike;
   cancel: () => void;
@@ -125,12 +133,20 @@ export class CompileService {
       worker.on("error", (err: Error) => {
         this.deps.logger.error("compile worker crashed", { error: err });
         finish(() => {
-          reject(new AppFailure("internal", "The build stopped unexpectedly."));
+          reject(
+            isOutOfMemory(err)
+              ? new AppFailure("internal", OUT_OF_MEMORY)
+              : new AppFailure("internal", "The build stopped unexpectedly."),
+          );
         });
       });
       worker.on("exit", (code: number) => {
         finish(() => {
-          reject(new AppFailure("internal", `The build stopped unexpectedly (exit ${String(code)}).`));
+          reject(
+            code === OOM_EXIT_CODE
+              ? new AppFailure("internal", OUT_OF_MEMORY)
+              : new AppFailure("internal", `The build stopped unexpectedly (exit ${String(code)}).`),
+          );
         });
       });
       worker.postMessage({ ...msg, id });

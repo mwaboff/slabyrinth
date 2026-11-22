@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en" data-theme="slabyrinth">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slabyrinth Helper</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="sequencer.js"></script>
+    <script src="test-pair.js"></script>
+    <script src="app.js"></script>
+  </head>
+  <body>
+    <div class="app">
+      <p id="banner" class="banner" role="status" hidden></p>
+
+      <!-- glance zone: link and slabs lights, the map and its progress, what to do now, the three controls -->
+      <section class="lights" aria-label="Connection and slabs">
+        <div id="light-link" class="light off">
+          <span class="light-icon" aria-hidden="true">○</span>
+          <span class="light-text">
+            <span class="light-label">Link is off</span>
+            <span class="light-detail"></span>
+          </span>
+        </div>
+        <div id="light-slabs" class="light off">
+          <span class="light-icon" aria-hidden="true">○</span>
+          <span class="light-text">
+            <span class="light-label">No slabs loaded</span>
+            <span class="light-detail"></span>
+          </span>
+        </div>
+      </section>
+
+      <section id="map-info" class="map" aria-label="Map" hidden>
+        <div class="map-head">
+          <h1 id="map-name" class="map-name"></h1>
+          <p id="map-meta" class="map-meta"></p>
+        </div>
+        <div class="meter">
+          <div
+            id="progress"
+            class="bar"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="1"
+            aria-valuenow="0"
+            aria-labelledby="progress-text"
+          >
+            <div id="progress-fill" class="bar-fill"></div>
+            <div id="progress-current" class="bar-current" hidden></div>
+            <div id="progress-ticks" class="bar-ticks" aria-hidden="true"></div>
+          </div>
+          <p id="progress-text" class="count">
+            <span id="progress-placed" class="count-n">0</span>
+            <span class="count-rest">of <span id="progress-total">0</span> placed</span>
+          </p>
+        </div>
+      </section>
+
+      <section id="status" class="now idle" role="status" aria-live="polite">
+        <p id="now-step" class="now-step"></p>
+        <p id="now-title" class="now-title">No map loaded</p>
+        <p id="now-detail" class="now-detail"></p>
+      </section>
+
+      <div id="controls" class="controls" role="group" aria-label="Slab controls" data-primary="next" hidden>
+        <button id="btn-back" class="ctl ctl-back" disabled>
+          <span class="ctl-label">Back</span><kbd class="ctl-key" hidden></kbd>
+        </button>
+        <button id="btn-send" class="ctl ctl-send" disabled>
+          <span class="ctl-label">Put in hand</span><kbd class="ctl-key" hidden></kbd>
+        </button>
+        <button id="btn-next" class="ctl ctl-next" disabled>
+          <span class="ctl-label">Next</span><kbd class="ctl-key" hidden></kbd>
+        </button>
+      </div>
+      <p id="footnote" class="footnote" hidden>
+        TaleSpire can't see placements, so press Next after each click.
+      </p>
+
+      <!-- reference and settings: closed until wanted -->
+      <details id="chunks" class="section" hidden>
+        <summary>
+          <span class="section-title">Slabs</span><span id="chunk-count" class="section-aside"></span>
+        </summary>
+        <ol id="chunk-list" class="chunks"></ol>
+      </details>
+
+      <details id="settings" class="section">
+        <summary>
+          <span class="section-title">Link and hotkeys</span
+          ><span id="link-state" class="section-aside">Off</span>
+        </summary>
+        <div class="section-body">
+          <div class="field-row">
+            <label class="switch" for="link-on">
+              <input id="link-on" type="checkbox" role="switch" />
+              <span class="switch-track" aria-hidden="true"></span>
+              <span>Link to Slabyrinth</span>
+            </label>
+          </div>
+          <p class="note">
+            Hotkeys work while TaleSpire has the keyboard, as long as the link is up. Click one, then press
+            the new combination (Ctrl or Alt plus a key).
+          </p>
+          <div class="hotkeys">
+            <span class="hk-name">Next</span><button id="hk-next" class="key">Ctrl+Alt+D</button>
+            <span id="hk-next-result" class="hk-result"></span>
+            <span class="hk-name">Back</span><button id="hk-back" class="key">Ctrl+Alt+A</button>
+            <span id="hk-back-result" class="hk-result"></span>
+            <span class="hk-name">Again</span><button id="hk-again" class="key">Ctrl+Alt+S</button>
+            <span id="hk-again-result" class="hk-result"></span>
+          </div>
+          <button id="hk-reset" class="quiet">Reset hotkeys to defaults</button>
+          <label class="switch" for="clear-picking">
+            <input id="clear-picking" type="checkbox" role="switch" checked />
+            <span class="switch-track" aria-hidden="true"></span>
+            <span>After the last slab, switch to the picking tool so nothing more can be pasted</span>
+          </label>
+        </div>
+      </details>
+
+      <details id="appearance" class="section">
+        <summary><span class="section-title">Appearance</span></summary>
+        <div class="section-body">
+          <fieldset class="designs">
+            <legend>Look</legend>
+            <div id="design-list" class="design-list"></div>
+          </fieldset>
+          <p class="note">Remembered in this panel for the next time you open it.</p>
+        </div>
+      </details>
+
+      <details id="dev" class="section dev">
+        <summary><span class="section-title">Developer tools</span></summary>
+        <div class="section-body">
+          <nav class="tabs" role="tablist" aria-label="Developer tools">
+            <button id="tab-load" role="tab" aria-selected="true" aria-controls="panel-load">Load</button>
+            <button id="tab-log" role="tab" aria-selected="false" aria-controls="panel-log">Event log</button>
+            <button id="tab-diag" role="tab" aria-selected="false" aria-controls="panel-diag">
+              Diagnostics
+            </button>
+          </nav>
+
+          <section id="panel-load" role="tabpanel" aria-labelledby="tab-load">
+            <button id="btn-test-pair" class="quiet">Load test pair</button>
+            <label for="blob">Or paste a slab set (JSON)</label>
+            <textarea
+              id="blob"
+              rows="4"
+              spellcheck="false"
+              placeholder='{"format": "slabyrinth-chunks", "version": 1, …}'
+            ></textarea>
+            <button id="btn-load" class="quiet">Load pasted set</button>
+            <p id="load-error" class="error" role="alert" hidden></p>
+          </section>
+
+          <section id="panel-log" role="tabpanel" aria-labelledby="tab-log" hidden>
+            <p class="note">
+              Every TaleSpire event this helper subscribes to, newest first. Lines marked ▸ are the helper's
+              own calls.
+            </p>
+            <button id="btn-clear-log" class="quiet">Clear</button>
+            <ol id="event-log" class="log"></ol>
+          </section>
+
+          <section id="panel-diag" role="tabpanel" aria-labelledby="tab-diag" hidden>
+            <h2>Last API error</h2>
+            <p class="note">The full text TaleSpire gave; the status line only names the problem.</p>
+            <dl class="facts">
+              <dt>Error</dt>
+              <dd id="api-error-short">none yet</dd>
+              <dt>End of map</dt>
+              <dd id="clear-last">not yet</dd>
+            </dl>
+            <details id="api-error-more" class="error-more" hidden>
+              <summary>Full text</summary>
+              <pre id="api-error-full" class="result"></pre>
+            </details>
+
+            <h2>TaleSpire API</h2>
+            <dl class="facts">
+              <dt>Mode</dt>
+              <dd id="diag-api-mode">-</dd>
+              <dt>API object</dt>
+              <dd id="diag-api-found">-</dd>
+              <dt>Init event</dt>
+              <dd id="diag-init">-</dd>
+              <dt>API present</dt>
+              <dd id="diag-api-timing">-</dd>
+              <dt>API version</dt>
+              <dd id="diag-api-version">-</dd>
+              <dt>Max slab size</dt>
+              <dd id="diag-max">-</dd>
+              <dt>Client mode</dt>
+              <dd id="diag-mode">-</dd>
+              <dt>API namespaces</dt>
+              <dd id="diag-namespaces">-</dd>
+              <dt>Page address</dt>
+              <dd id="diag-origin">-</dd>
+              <dt>Pairing</dt>
+              <dd id="diag-pairing">-</dd>
+            </dl>
+
+            <h2>Panel keys</h2>
+            <p id="keys-hint" class="note"></p>
+            <dl class="facts">
+              <dt>Next key</dt>
+              <dd><button id="key-next" class="key">Ctrl+Space</button></dd>
+              <dt>Back key</dt>
+              <dd><button id="key-back" class="key">Ctrl+Shift+Space</button></dd>
+              <dt>Last key</dt>
+              <dd id="key-last">none yet</dd>
+              <dt>At</dt>
+              <dd id="key-at">-</dd>
+              <dt>Panel had focus</dt>
+              <dd id="key-focus">-</dd>
+              <dt>What it did</dt>
+              <dd id="key-did">-</dd>
+            </dl>
+
+            <h2>Copied slab</h2>
+            <p class="note">Copy something in TaleSpire (Ctrl+C) and this updates.</p>
+            <dl class="facts">
+              <dt>Status</dt>
+              <dd id="copied-status">nothing copied yet</dd>
+              <dt>Data size</dt>
+              <dd id="copied-size">-</dd>
+              <dt>Slab string</dt>
+              <dd id="copied-length">-</dd>
+              <dt>At</dt>
+              <dd id="copied-at">-</dd>
+            </dl>
+            <textarea
+              id="copied-slab"
+              rows="3"
+              readonly
+              spellcheck="false"
+              aria-label="Copied slab string"
+            ></textarea>
+
+            <h2>Local connection test</h2>
+            <p class="note">
+              Asks Slabyrinth on this computer for an answer on the port its pairing file names. Start
+              Slabyrinth first.
+            </p>
+            <button id="btn-local" class="quiet">Test local connection</button>
+            <pre id="local-result" class="result"></pre>
+          </section>
+        </div>
+      </details>
+    </div>
+  </body>
+</html>

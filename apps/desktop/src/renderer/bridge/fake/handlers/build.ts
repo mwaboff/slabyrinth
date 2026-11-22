@@ -80,7 +80,7 @@ export function buildHandlers(s: FakeState): HandlerGroup<BuildChannels> {
     "build:setPasted": ({ buildId, chunkId, pasted }) => {
       const b = s.open().builds.find((x) => x.id === buildId);
       const cs = (b?.levels ?? []).flatMap((l) => l.chunks).filter((x) => x.id === chunkId);
-      if (cs.length === 0) return fail("not_found", "Chunk not found.");
+      if (cs.length === 0) return fail("not_found", "Slab not found.");
       for (const c of cs) {
         c.pasted = pasted;
         if (pasted && c.copiedAt === undefined) c.copiedAt = new Date().toISOString();

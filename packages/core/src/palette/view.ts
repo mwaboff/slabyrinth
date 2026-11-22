@@ -23,6 +23,7 @@ import { themeChain, type ResolveOutcome, type ResolvePalettes, type VariantFilt
 import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE, floorRole } from "./roles";
 import { coveredStallForms, roleProbe, type RoleProbe } from "./stallParts";
 import { TONE_RANK, variantTone, type Tone } from "./tones";
+import { maxOf, minOf } from "../util/lists";
 
 export type PieceSizeFn = (
   theme: ThemeId,
@@ -135,12 +136,12 @@ export function createPaletteView(
     // a tile (a minCorner piece such as a bar counter block) stands exactly on its cell: a shift never moves it
     const tiles = vs.filter((q) => q.geom.originAt === "minCorner").length;
     return {
-      w: Math.min(...vs.map((q) => q.geom.size.x)),
-      d: Math.min(...vs.map((q) => q.geom.size.z)),
-      h: Math.min(...vs.map((q) => q.geom.size.y)),
-      wMax: Math.max(...vs.map((q) => q.geom.size.x)),
-      dMax: Math.max(...vs.map((q) => q.geom.size.z)),
-      hMax: Math.max(...vs.map((q) => q.geom.size.y)),
+      w: minOf(vs.map((q) => q.geom.size.x)),
+      d: minOf(vs.map((q) => q.geom.size.z)),
+      h: minOf(vs.map((q) => q.geom.size.y)),
+      wMax: maxOf(vs.map((q) => q.geom.size.x)),
+      dMax: maxOf(vs.map((q) => q.geom.size.z)),
+      hMax: maxOf(vs.map((q) => q.geom.size.y)),
       tile: tiles === vs.length,
       mixed: tiles > 0 && tiles < vs.length,
     };
@@ -154,9 +155,9 @@ export function createPaletteView(
       const vs = variantsOf(theme, featureRoles(type), variant);
       if (vs.length === 0) return undefined;
       return {
-        w: Math.min(...vs.map((q) => q.geom.size.x)),
-        d: Math.min(...vs.map((q) => q.geom.size.z)),
-        h: Math.min(...vs.map((q) => q.geom.size.y)),
+        w: minOf(vs.map((q) => q.geom.size.x)),
+        d: minOf(vs.map((q) => q.geom.size.z)),
+        h: minOf(vs.map((q) => q.geom.size.y)),
       };
     }
     const role = ROLE_OF[type];
@@ -175,7 +176,7 @@ export function createPaletteView(
     const key = `${theme}|${material}`;
     if (areas.has(key)) return areas.get(key);
     const vs = variantsOf(theme, [`floor.${material}`], undefined);
-    const area = vs.length === 0 ? undefined : Math.max(...vs.map((v) => v.footprint[0] * v.footprint[1]));
+    const area = vs.length === 0 ? undefined : maxOf(vs.map((v) => v.footprint[0] * v.footprint[1]));
     areas.set(key, area);
     return area;
   };

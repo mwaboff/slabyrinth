@@ -279,7 +279,7 @@ function BuildCard({ version, slabs, at }: { version: number; slabs: number; at:
             Built
           </span>
           <span className="upd__t">
-            v{version} · {slabs === 1 ? "one slab" : `${slabs} parts`}
+            v{version} · {slabs === 1 ? "one slab" : `${slabs} slabs`}
           </span>
           <span className="upd__m">{relativeTime(at)} · no API cost</span>
         </div>
@@ -287,7 +287,7 @@ function BuildCard({ version, slabs, at }: { version: number; slabs: number; at:
           Ready for TaleSpire.{" "}
           {slabs === 1
             ? "Copy the slab and paste it with Ctrl+V."
-            : "The paste checklist copies each part in order."}
+            : "The paste checklist copies each slab in order."}
         </p>
         <div className="card-actions">
           <button
@@ -714,7 +714,7 @@ function RecapCard() {
     text =
       slabs.size === 1
         ? `Build of v${build.versionNumber} · one slab, ${pasted.size === 1 ? "pasted" : "not pasted yet"}.`
-        : `Build of v${build.versionNumber} · ${pasted.size} of ${slabs.size} parts pasted.`;
+        : `Build of v${build.versionNumber} · ${pasted.size} of ${slabs.size} slabs pasted.`;
     actions = (
       <button
         className="btn btn--sm"

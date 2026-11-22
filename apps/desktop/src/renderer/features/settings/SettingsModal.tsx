@@ -28,6 +28,9 @@ const refreshSecrets = (): Promise<void> =>
         .toast({ lead: "Couldn't read the key status.", body: errorMessage(e), tone: "error" });
     });
 import { UpdateCheckRow } from "../updates/UpdateChip";
+import { AddonSettings } from "../talespire/AddonSettings";
+import { MapSizeSetting } from "./MapSizeSetting";
+import { useTaleSpireLink } from "../../stores/talespireLink";
 
 /** Same wording in Settings and Setup. */
 export const UPDATE_CHECK_HELP =
@@ -52,6 +55,7 @@ const NAV: Array<[SettingsSection, string]> = [
   ["talespire", "TaleSpire & assets"],
   ["projects", "Projects & storage"],
   ["appearance", "Appearance"],
+  ["experimental", "Experimental"],
   ["about", "About"],
 ];
 
@@ -468,17 +472,24 @@ function TaleSpireSection({ s }: { s: AppSettings }) {
         </div>
         <span className="muted">Either way the whole map is one slab when it fits.</span>
       </Row>
-      <Row label="Corner markers">
+      <Row label="Alignment pillars">
         <Check
           on={s.talespire.alignmentMarkers}
           onChange={(v) => void update({ talespire: { ...s.talespire, alignmentMarkers: v } })}
-          label="Add corner markers to single-slab builds"
-          help="Builds split into several parts always get two gravel markers so the parts line up."
+          label="Add alignment pillars to single-slab builds"
+          help="Builds split into several slabs always get two alignment pillars so the slabs line up."
         />
       </Row>
       <Row label="Export method">
-        <span>Clipboard paste</span>
-        <span className="muted">In-game helper (Symbiote) — planned.</span>
+        <span>Copy and paste, or send to the TaleSpire add-on</span>
+        <button
+          className="btn btn--link"
+          onClick={() => {
+            useTaleSpireLink.getState().openDialog();
+          }}
+        >
+          TaleSpire add-on…
+        </button>
       </Row>
     </>
   );
@@ -591,7 +602,9 @@ function AppearanceSection({ s }: { s: AppSettings }) {
   return (
     <>
       <h3>Appearance</h3>
-      <p className="lead">Dark is the default. The PNG export has its own print style.</p>
+      <p className="lead">
+        The theme follows your system unless you pick one. The PNG export has its own print style.
+      </p>
       <Row label="Theme">
         <div className="segctl segctl--fit" role="radiogroup" aria-label="Theme">
           {(
@@ -622,6 +635,18 @@ function AppearanceSection({ s }: { s: AppSettings }) {
   );
 }
 
+function ExperimentalSection({ s }: { s: AppSettings }) {
+  return (
+    <>
+      <h3>Experimental</h3>
+      <p className="lead">Options still being tried out. They may change or go away.</p>
+      <Row label="Maximum map size">
+        <MapSizeSetting s={s} />
+      </Row>
+    </>
+  );
+}
+
 function AboutSection({ s }: { s: AppSettings }) {
   const version = useApp((x) => x.version);
   const update = useSettings((x) => x.update);
@@ -644,6 +669,9 @@ function AboutSection({ s }: { s: AppSettings }) {
           label="Check for updates automatically"
           help={UPDATE_CHECK_HELP}
         />
+      </Row>
+      <Row label="TaleSpire add-on">
+        <AddonSettings />
       </Row>
       <Row label="Data folder">
         <code className="setup__path">{dataPath}</code>
@@ -726,6 +754,7 @@ export function SettingsModal() {
             {section === "talespire" && <TaleSpireSection s={s} />}
             {section === "projects" && <ProjectsSection s={s} />}
             {section === "appearance" && <AppearanceSection s={s} />}
+            {section === "experimental" && <ExperimentalSection s={s} />}
             {section === "about" && <AboutSection s={s} />}
           </div>
           <div className="sfoot">

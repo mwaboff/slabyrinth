@@ -12,6 +12,7 @@ import type { ProjectService } from "../services/projectService";
 import type { SecretStore } from "../services/secretStore";
 import type { SettingsStore } from "../services/settingsStore";
 import type { CatalogService } from "../services/talespire/catalogService";
+import type { TaleSpireLinkService } from "../services/talespire/link/linkService";
 import type { TaleSpireService } from "../services/talespire/taleSpireService";
 import type { UpdateService } from "../services/updateService";
 import { AppFailure } from "../util/errors";
@@ -38,6 +39,19 @@ export interface HandlerServices {
   openExternal: (url: string) => Promise<void>;
   /** Update notice (status, manual check, skip). */
   updates: Pick<UpdateService, "status" | "check" | "skip">;
+  /** The TaleSpire add-on and its link. */
+  link: Pick<
+    TaleSpireLinkService,
+    | "addonStatus"
+    | "install"
+    | "chooseFolder"
+    | "uninstall"
+    | "openFolder"
+    | "dismissPrompt"
+    | "linkStatus"
+    | "send"
+    | "stop"
+  >;
   logger: Logger;
 }
 
@@ -239,5 +253,20 @@ export function createHandlers(s: HandlerServices): Handlers {
     "updates:status": () => s.updates.status(),
     "updates:check": (req) => s.updates.check(req),
     "updates:skip": (req) => s.updates.skip(req.version),
+
+    "addon:status": () => s.link.addonStatus(),
+    "addon:install": () => s.link.install(),
+    "addon:chooseFolder": (req) => s.link.chooseFolder(req.reset === true),
+    "addon:uninstall": (req) => s.link.uninstall(req.elsewhere === true),
+    "addon:openFolder": (req) => s.link.openFolder(req.which),
+    "addon:dismissPrompt": (req) => s.link.dismissPrompt(req.version),
+    "link:status": () => s.link.linkStatus(),
+    "link:send": (req) => {
+      requireProject();
+      return s.link.send(req.buildId);
+    },
+    "link:stop": () => {
+      s.link.stop();
+    },
   };
 }

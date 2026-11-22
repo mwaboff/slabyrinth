@@ -299,6 +299,22 @@ export const requestSchemas: RequestSchemas = {
       .max(64)
       .regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/),
   }),
+
+  "addon:status": voidReq,
+  "addon:install": voidReq,
+  "addon:chooseFolder": z.strictObject({ reset: z.boolean().optional() }),
+  "addon:uninstall": z.strictObject({ elsewhere: z.boolean().optional() }),
+  "addon:openFolder": z.strictObject({ which: z.enum(["installed", "package"]) }),
+  "addon:dismissPrompt": z.strictObject({
+    version: z
+      .string()
+      .min(1)
+      .max(32)
+      .regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/),
+  }),
+  "link:status": voidReq,
+  "link:send": z.strictObject({ buildId: id }),
+  "link:stop": voidReq,
 };
 
 export const sendSchemas: SendSchemas = {

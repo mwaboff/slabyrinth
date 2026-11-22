@@ -1,11 +1,13 @@
 /**
  * Build tab (UX §9, adjusted by the 2026-11-18 export ruling): the common case is ONE slab with every level in
  * it — one prominent "Copy & open TaleSpire" button, a plain Copy, the size gauge and a short instruction.
- * Only an oversized build shows the numbered parts checklist, corner-marker instructions and the paste guide.
+ * Only an oversized build shows the numbered slab checklist, the paste steps (talespire/pasteSteps.ts) and the paste guide.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./build.css";
-import { STEAM_LAUNCH_URL, type CompileDiagnostic, type MapPlan } from "@slabyrinth/core";
+import { STEAM_LAUNCH_URL, type CompileDiagnostic, type ExportBundle, type MapPlan } from "@slabyrinth/core";
+import { SendToTaleSpire } from "../talespire/SendToTaleSpire";
+import { pasteSteps } from "../talespire/pasteSteps";
 import { Icon } from "../../ui/Icon";
 import { useDismiss } from "../../ui/dismiss";
 import { useBuild } from "../../stores/build";
@@ -538,7 +540,15 @@ function SingleSlab({
 
 const copiedLabel = (at: string | null): string => (at !== null ? `copied ${clock(at)}` : "not copied");
 
-function ChunkList({ model, plan }: { model: BuildModel; plan: MapPlan }) {
+function ChunkList({
+  model,
+  plan,
+  anchor,
+}: {
+  model: BuildModel;
+  plan: MapPlan;
+  anchor: ExportBundle["pasteAnchor"] | null;
+}) {
   const dispatch = useBuild((s) => s.dispatch);
   const paste = useBuild((s) => s.paste);
   const guideOpen = useBuild((s) => s.guideOpen);
@@ -551,15 +561,15 @@ function ChunkList({ model, plan }: { model: BuildModel; plan: MapPlan }) {
   const ordered = orderedLevels(plan);
   const pastedN = model.slabs.filter((s) => paste?.pasted[s.id] ?? s.pasted).length;
   const changedN = model.slabs.filter((s) => s.changed === true).length;
+  const words = pasteSteps(anchor);
   return (
     <>
       {changedN > 0 && (
         <div className="build__note" role="status">
           <b>
-            {changedN} of {model.slabs.length} parts changed.
+            {changedN} of {model.slabs.length} slabs changed.
           </b>{" "}
-          In TaleSpire, delete the tiles in those parts' areas, then paste the new parts on the same corner
-          markers. Unchanged parts can stay.
+          {words.changed}
         </div>
       )}
       <div className="order eyebrow">
@@ -575,7 +585,7 @@ function ChunkList({ model, plan }: { model: BuildModel; plan: MapPlan }) {
                 <SlabPreview plan={plan} version={model.version} slab={s} levelIds={ids.slice(0, 1)} />
                 <div className="cinfo">
                   <div className="cname">
-                    Part {s.step} · {s.label}
+                    Slab {s.step} · {s.label}
                     {s.columns !== null && <span className="cmeta">cols {s.columns}</span>}
                     {s.changed === true && <span className="tag tag--changed">Changed</span>}
                     {s.changed === false && <span className="tag">Unchanged</span>}
@@ -609,16 +619,20 @@ function ChunkList({ model, plan }: { model: BuildModel; plan: MapPlan }) {
           })}
         </div>
       </section>
-      <p className="build__foot">
-        This map is too big for one slab, so it's split into {model.slabs.length} parts that all share one
-        bounding box: two small gravel <b>corner markers</b> sit in every part, so each part is pasted on the
-        same cell. Delete the markers when you're done.
-      </p>
+      <p className="build__foot">{words.foot(model.slabs.length)}</p>
     </>
   );
 }
 
-function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
+function PasteGuide({
+  model,
+  plan,
+  anchor,
+}: {
+  model: BuildModel;
+  plan: MapPlan;
+  anchor: ExportBundle["pasteAnchor"] | null;
+}) {
   const paste = useBuild((s) => s.paste);
   const pasteStep = paste?.current;
   const dispatch = useBuild((s) => s.dispatch);
@@ -630,13 +644,14 @@ function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
     panel.current?.querySelector<HTMLButtonElement>(".guide__f .btn--primary")?.focus();
   }, [pasteStep]);
   if (!paste) return null;
+  const words = pasteSteps(anchor);
   const step = currentStep(paste);
   const at = (): string => new Date().toISOString();
   const total = paste.steps.length;
   const nextStep = paste.steps[paste.current + 1];
   const nextLabel =
     nextStep?.kind === "slab"
-      ? `Next: copy part ${nextStep.index}${notFound ? "" : " & open TaleSpire"}`
+      ? `Next: copy slab ${nextStep.index}${notFound ? "" : " & open TaleSpire"}`
       : nextStep?.kind === "tidy"
         ? "Next: tidy up"
         : null;
@@ -685,10 +700,11 @@ function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
               </li>
               <li>
                 <span>2</span>
-                <div>
-                  Find a flat, empty area a little bigger than the map, with room for the two corner markers.
-                  Don't build anything on it yet.
-                </div>
+                <div>{words.ground}</div>
+              </li>
+              <li>
+                <span>3</span>
+                <div>{words.plane}</div>
               </li>
             </ol>
             {!notFound && (
@@ -717,7 +733,7 @@ function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
             />
             <div className="gtitle">
               <b>
-                Part {step.index} of {step.count} ({slab.label})
+                Slab {step.index} of {step.count} ({slab.label})
               </b>
               {paste.copied[slab.id] !== undefined && (
                 <span className="clip">
@@ -739,25 +755,19 @@ function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
                   <li>
                     <span>2</span>
                     <div>
-                      Move it where you want the map. <b>Press and hold</b> left-click to place it, then
-                      right-click to let go.
+                      {words.first} <b>Press and hold</b> left-click to place it, then right-click to let go.
                     </div>
                   </li>
                   <li>
                     <span>3</span>
-                    <div>
-                      Note the two <b>gravel markers</b> at its corners. Every other part lines up on them.
-                    </div>
+                    <div>{words.firstNote}</div>
                   </li>
                 </>
               ) : (
                 <>
                   <li>
                     <span>2</span>
-                    <div>
-                      Point at the <b>same corner marker</b> you used for part 1. This part's markers should
-                      sit exactly on top of the old ones.
-                    </div>
+                    <div>{words.later}</div>
                   </li>
                   <li>
                     <span>3</span>
@@ -777,8 +787,7 @@ function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
             {step.index > 1 && (
               <div className="offset">
                 <b>Keep it steady</b>
-                Don't move the camera between parts. Aim at the marker or empty ground, not at walls you've
-                already placed, or the paste can lift.
+                {words.steady}
               </div>
             )}
           </>
@@ -787,13 +796,12 @@ function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
           <>
             <div className="gtitle">
               <b>
-                Done — {Object.values(paste.pasted).filter(Boolean).length} of {model.slabs.length} parts
+                Done — {Object.values(paste.pasted).filter(Boolean).length} of {model.slabs.length} slabs
                 pasted.
               </b>
             </div>
             <p className="guide__p">
-              Delete the two gravel corner markers in TaleSpire. If a part landed wrong, select it in
-              TaleSpire, delete it, and paste it again from the checklist.
+              {words.pillars} {words.redo}
             </p>
             <div className="card-actions">
               <button
@@ -835,7 +843,7 @@ function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
             onClick={() => void dispatch({ type: "next", at: at() })}
           >
             {step?.kind === "prepare"
-              ? `Next: copy the first part${notFound ? "" : " & open TaleSpire"}`
+              ? `Next: copy the first slab${notFound ? "" : " & open TaleSpire"}`
               : nextLabel}
             <Icon name="right" />
           </button>
@@ -1022,6 +1030,10 @@ export function BuildView() {
     bundle?.planVersion === rec.versionNumber
       ? bundle.diagnostics.filter((d) => d.stage === "verify" || d.severity !== "info")
       : null;
+  const current = bundle?.planVersion === rec.versionNumber ? bundle : null;
+  const anchor = model.pasteAnchor;
+  // an empty slab crashes TaleSpire: the store and main refuse to send it; say so before the click
+  const emptyChunk = current?.chunks.some((c) => c.assetCount <= 0) ?? false;
   const stale = snap.head !== rec.versionNumber;
   const pastedN = model.slabs.filter((s) => paste?.pasted[s.id] ?? s.pasted).length;
   const levelsN = model.levels.length;
@@ -1041,7 +1053,7 @@ export function BuildView() {
           )}
           <span className="bhead__m">
             {levelsN} level{levelsN === 1 ? "" : "s"} ·{" "}
-            {model.single ? "one slab" : `${model.slabs.length} parts`} · built {clock(rec.createdAt)} on this
+            {model.single ? "one slab" : `${model.slabs.length} slabs`} · built {clock(rec.createdAt)} on this
             PC
             {rec.assetSource === "builtin"
               ? " · built-in asset set"
@@ -1109,6 +1121,7 @@ export function BuildView() {
             </button>
           </div>
         )}
+        <SendToTaleSpire buildId={rec.id} multi={!model.single} anchor={anchor} emptyChunk={emptyChunk} />
         {!plan ? (
           <span className="spinner" />
         ) : model.single ? (
@@ -1117,8 +1130,8 @@ export function BuildView() {
           <>
             <div className="getin">
               <div className="getin__txt">
-                <b>Too big for one slab, so it's in {model.slabs.length} parts.</b> The paste guide copies
-                each part in order, brings TaleSpire to the front, and tells you where to paste it with
+                <b>Too big for one slab, so it's in {model.slabs.length} slabs.</b> The paste guide copies
+                each slab in order, brings TaleSpire to the front, and tells you where to paste it with
                 Ctrl+V.
               </div>
               <button
@@ -1142,12 +1155,12 @@ export function BuildView() {
               </button>
             </div>
             <BuildErrors plan={plan} diags={diags ?? []} />
-            <ChunkList model={model} plan={plan} />
+            <ChunkList model={model} plan={plan} anchor={anchor} />
           </>
         )}
         {plan && <BuildNotes plan={plan} diags={diags} summary={rec.diagnosticsSummary} />}
       </div>
-      {showGuide && plan && <PasteGuide model={model} plan={plan} />}
+      {showGuide && plan && <PasteGuide model={model} plan={plan} anchor={anchor} />}
     </div>
   );
 }

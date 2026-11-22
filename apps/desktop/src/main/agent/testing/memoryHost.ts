@@ -31,7 +31,7 @@ export function defaultSettings(): AppSettings {
     spending: { perActionWarnUsd: 1, perProjectWarnUsd: 10, allTime: { usage: ZERO_USAGE, cost: null } },
     talespire: { installPath: null, lastScanAt: null, levelLayout: "stacked", alignmentMarkers: true },
     projects: { folder: "", recent: [] },
-    ui: { theme: "dark", mapThemeId: "auto", gridVisible: true, onLaunch: "home" },
+    ui: { theme: "system", mapThemeId: "auto", gridVisible: true, onLaunch: "home" },
     suppressAssetWarning: false,
     defaultSystem: null,
     setupCompleted: true,

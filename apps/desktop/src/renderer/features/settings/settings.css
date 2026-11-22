@@ -318,3 +318,9 @@
 .segctl--fit {
   max-width: 440px;
 }
+
+/* Experimental > Maximum map size: the cost of a larger size, said before choosing it */
+.mapsize__warn {
+  font: var(--t-small);
+  color: var(--warning);
+}

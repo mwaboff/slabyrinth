@@ -54,6 +54,15 @@ export default defineConfig({
           css: true,
         },
       },
+      {
+        // TaleSpire symbiotes: plain browser scripts, tested by loading them as the game does.
+        test: {
+          name: "symbiotes",
+          root: "./symbiotes",
+          environment: "node",
+          include: ["test/**/*.test.js"],
+        },
+      },
     ],
     coverage: {
       provider: "v8",

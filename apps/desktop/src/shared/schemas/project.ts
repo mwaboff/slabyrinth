@@ -103,6 +103,15 @@ const buildSchema = z.looseObject({
       chunks: z.array(z.looseObject({ id: str, pasted: z.boolean() })),
     }),
   ),
+  // absent in builds saved before 2026-11-22 and in builds pasted the plain way
+  pasteAnchor: z
+    .looseObject({
+      side: z.enum(["north", "east", "south", "west"]),
+      clearanceCells: int.nonnegative(),
+      farMarkerCells: int.nonnegative(),
+      nearMarkerCells: z.looseObject({ north: int.nonnegative(), east: int.nonnegative() }).optional(),
+    })
+    .optional(),
 });
 
 /** The resume state the renderer reads (ProjectFile.ui). */

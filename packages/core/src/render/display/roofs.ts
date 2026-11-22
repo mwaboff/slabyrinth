@@ -9,6 +9,7 @@ import { isBareRoof, roofEnds } from "../../resolve/roofTypes";
 import { exhaustive } from "../../util/never";
 import type { DisplayCtx } from "./context";
 import { box, flat } from "./rings";
+import { maxOf, minOf } from "../../util/lists";
 
 type Structure = NonNullable<ResolvedLevel["structures"]>[number];
 type Volume = NonNullable<Structure["volumes"]>[number];
@@ -134,9 +135,9 @@ function porchAndChimneyLines(st: Structure, out: RoofLines): void {
     if (!p.roof || p.cells.length === 0) continue;
     const xs = p.cells.map((k) => k[0]);
     const ys = p.cells.map((k) => k[1]);
-    const x0 = Math.min(...xs);
-    const y0 = Math.min(...ys);
-    out.rings.push(box(x0, y0, Math.max(...xs) - x0 + 1, Math.max(...ys) - y0 + 1));
+    const x0 = minOf(xs);
+    const y0 = minOf(ys);
+    out.rings.push(box(x0, y0, maxOf(xs) - x0 + 1, maxOf(ys) - y0 + 1));
   }
   for (const ch of st.chimneys)
     out.rings.push(box(ch.at[0] + CHIMNEY_INSET, ch.at[1] + CHIMNEY_INSET, CHIMNEY_SIDE, CHIMNEY_SIDE));

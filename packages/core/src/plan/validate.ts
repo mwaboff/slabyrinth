@@ -35,6 +35,7 @@ import { boxesIntersect, polylineProblems, shapeCellBox, shapeProblems } from ".
 import type { CellBox } from "./shapes";
 import { zodIssueToPlanIssue } from "./zodIssues";
 import { SIZE_TIER_ORDER, SIZE_TIERS, sizeLimits, smallestTierFor, type SizeLimits } from "./sizeTiers";
+import { pushAll } from "../util/lists";
 
 // ───────────────────────────── context and checks ─────────────────────────────
 
@@ -90,7 +91,7 @@ export function validatePlan(input: unknown, ctx: ValidateContext): ValidationRe
   if (!parsed.ok) return { ok: false, issues: parsed.issues };
   const issues = structuralChecks(parsed.plan, ctx);
   if (!issues.some((i) => i.severity === "error")) {
-    for (const check of ctx.checks) issues.push(...check.run(parsed.plan, ctx));
+    for (const check of ctx.checks) pushAll(issues, check.run(parsed.plan, ctx));
   }
   return { ok: !issues.some((i) => i.severity === "error"), issues };
 }

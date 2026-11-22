@@ -1,7 +1,10 @@
 import * as fs from "node:fs";
 import { Worker } from "node:worker_threads";
 import { safeStorage, type BrowserWindow } from "electron";
+import type { MapPlan } from "@slabyrinth/core";
+import type { SizeTierId } from "@slabyrinth/core/plan";
 import { planRules } from "@slabyrinth/core/resolve";
+import { activeSizeTier } from "../shared/sizeTier";
 import type { EngineKind } from "./engineWiring";
 import type { Dispatch } from "./ipc/router";
 import type { Logger } from "./logger";
@@ -21,11 +24,16 @@ import { SecretStore } from "./services/secretStore";
 import { SettingsStore } from "./services/settingsStore";
 import { CatalogService } from "./services/talespire/catalogService";
 import { TaleSpireService } from "./services/talespire/taleSpireService";
+import { TaleSpireLinkService } from "./services/talespire/link/linkService";
+import { DEFAULT_LINK_PORT } from "./services/talespire/link/protocol";
 import type { UpdateService } from "./services/updateService";
 import { cleanupTempFiles } from "./util/atomicWrite";
+import { BIG_MAP_HEAP_MB, logMainHeap } from "./util/heap";
 import { startEngine } from "./wiring/engine";
 import { installMenu, wireIpc } from "./wiring/ipcAndMenu";
 import { outsideWorld, type OutsideWorld } from "./wiring/outsideWorld";
+import { watchRenderer } from "./wiring/rendererRecovery";
+import { runShutdown } from "./wiring/shutdown";
 import { thumbnailRefresher } from "./wiring/thumbnails";
 import { startUpdates } from "./wiring/updates";
 import { WindowLink } from "./wiring/windowLink";
@@ -44,6 +52,8 @@ export interface AppContext {
   isDev: boolean;
   safeMode: boolean;
   appVersion: string;
+  /** The bundled TaleSpire add-on (resources in a packaged app, the repo's symbiotes folder in development). */
+  addonDir: string;
 }
 
 export interface AppServices {
@@ -58,6 +68,8 @@ export interface AppServices {
   exporter: ExportService;
   imageBridge: ImageBridge;
   updates: UpdateService;
+  /** The TaleSpire add-on and its link (started in the background). */
+  link: TaleSpireLinkService;
   /** Starts the background update check when it may run (packaged, not safe mode, daily, autoCheck on). */
   startUpdateCheck(packaged: boolean): void;
   engine: ConversationEngine | null;
@@ -76,9 +88,21 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
   const { settings, secrets } = await startSettings(ctx, emit);
   const outside = outsideWorld({ safeMode, userData: paths.userData, logger }, link.getWindow);
   void cleanupTempFiles(settings.get().projects.folder);
-  const assets = await startAssets(ctx, emit, settings, outside);
+  // The map size tier plans are held to: the setting, raised to what the open project's plan needs (shared/sizeTier.ts).
+  // The plan port checks the head plan; a build asks with the plan it builds (an approved older version may be larger).
+  const openPlan = { current: (): MapPlan | null => null };
+  const tierFor = (plan: MapPlan | null): SizeTierId => activeSizeTier(settings.get().mapSize, plan);
+  const assets = await startAssets(ctx, emit, settings, outside, () => tierFor(openPlan.current()));
   const projects = startProjects(ctx, emit, settings, assets.core, outside);
-  const work = startBuildWork(ctx, emit, settings, projects, assets, outside);
+  openPlan.current = () => projects.getPlan();
+  // main runs the agent's plan checks and review itself: say in the log when its heap is too small for the size in use
+  let heapTier = tierFor(null);
+  logMainHeap(logger, heapTier);
+  settings.onChange(() => {
+    const tier = tierFor(null);
+    if (tier !== heapTier) logMainHeap(logger, (heapTier = tier));
+  });
+  const work = startBuildWork(ctx, emit, settings, projects, assets, outside, tierFor);
   const { updates, startUpdateCheck } = startUpdates({
     appVersion: ctx.appVersion,
     safeMode,
@@ -98,6 +122,7 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
     ...work,
   });
   link.onPlanChanged(thumbnailRefresher(projects, work.imageBridge));
+  const talespireLink = startTaleSpireLink(ctx, emit, settings, projects, work.build, outside);
   const dispatch = wireIpc(
     {
       appInfo: {
@@ -119,6 +144,7 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
       dialogs: outside.dialogs,
       openExternal: outside.openExternal,
       updates,
+      link: talespireLink,
       logger: logger.child("ipc"),
     },
     work.imageBridge,
@@ -136,25 +162,44 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
     talespire: assets.talespire,
     ...work,
     updates,
+    link: talespireLink,
     startUpdateCheck,
     engine,
     engineKind,
     dispatch,
     attachWindow(win, url) {
       link.attach(win, url);
+      // a renderer that runs out of memory (a big map) or crashes is reloaded with a plain message, never left blank
+      watchRenderer(win, url, { logger: logger.child("window"), dialogs: outside.dialogs });
+      // a copy of the add-on installed by hand shows up when the user comes back to the app
+      win.on("focus", () => {
+        void talespireLink.recheck();
+      });
     },
-    async shutdown() {
-      assets.catalog.unwatch();
-      work.imageBridge.cancelAll();
-      work.compiler.cancel();
-      try {
-        await projects.close({});
-      } catch (err) {
-        logger.error("final save failed", { error: err });
-        projects.releaseLockSync(fs.unlinkSync);
-      }
-      await engine?.dispose().catch(() => undefined);
-    },
+    // the final save first; every other step has a time limit (wiring/shutdown.ts)
+    shutdown: () =>
+      runShutdown({
+        halt: [
+          () => {
+            assets.catalog.unwatch();
+          },
+          () => {
+            work.imageBridge.cancelAll();
+          },
+          () => {
+            work.compiler.cancel();
+          },
+        ],
+        save: () => projects.close({}),
+        releaseLock: () => {
+          projects.releaseLockSync(fs.unlinkSync);
+        },
+        steps: [
+          { name: "talespire link", run: () => talespireLink.shutdown() },
+          { name: "engine", run: () => engine?.dispose() },
+        ],
+        logger,
+      }),
   };
 }
 
@@ -202,6 +247,7 @@ async function startAssets(
   emit: EmitEvent,
   settings: SettingsStore,
   outside: OutsideWorld,
+  sizeTier: () => SizeTierId,
 ): Promise<Assets> {
   const { paths, logger } = ctx;
   // Set once the build palettes exist (below): tells the renderer when they change.
@@ -246,7 +292,7 @@ async function startAssets(
     },
   });
   const buildPalettes = new BuildPalettes({ palettes, catalog });
-  const core = createPlanCorePort(() => planRules(buildPalettes.current()));
+  const core = createPlanCorePort(() => planRules(buildPalettes.current(), { sizeTier: sizeTier() }));
   let announcedKey: string | null = null;
   announcePalettes = () => {
     const { key } = buildPalettes.data();
@@ -276,6 +322,49 @@ function startProjects(
   });
 }
 
+/**
+ * The TaleSpire add-on and its link: listens on 127.0.0.1 (the real port; an ephemeral one in safe mode), updates an
+ * installed older add-on, and looks at its install status every few seconds. Safe mode looks only at the test folder
+ * named by SLABYRINTH_TEST_SYMBIOTES_DIR (never a real TaleSpire folder) and never registers a real hotkey.
+ */
+function startTaleSpireLink(
+  ctx: AppContext,
+  emit: EmitEvent,
+  settings: SettingsStore,
+  projects: ProjectService,
+  build: BuildService,
+  outside: OutsideWorld,
+): TaleSpireLinkService {
+  const { paths, safeMode, logger } = ctx;
+  const env = process.env;
+  const service = new TaleSpireLinkService({
+    port: safeMode ? 0 : DEFAULT_LINK_PORT,
+    tokenFile: paths.linkTokenFile,
+    bundledDir: ctx.addonDir,
+    packageDir: paths.addonPackage,
+    folderEnv: {
+      platform: outside.locator.platform,
+      homedir: outside.locator.homedir,
+      fs: outside.locator.fs,
+    },
+    testSymbiotesDir: safeMode ? (env["SLABYRINTH_TEST_SYMBIOTES_DIR"] ?? null) : null,
+    settings,
+    registrar: outside.hotkeys,
+    wayland:
+      process.platform === "linux" && (env["XDG_SESSION_TYPE"] === "wayland" || !!env["WAYLAND_DISPLAY"]),
+    build,
+    projects,
+    dialogs: outside.dialogs,
+    openPath: outside.openPath,
+    emit,
+    logger: logger.child("talespire-link"),
+  });
+  void service.start().then(() => {
+    service.watch();
+  });
+  return service;
+}
+
 interface BuildWork {
   compiler: CompileService;
   build: BuildService;
@@ -291,11 +380,14 @@ function startBuildWork(
   projects: ProjectService,
   assets: Assets,
   outside: OutsideWorld,
+  sizeTier: (plan: MapPlan) => SizeTierId,
 ): BuildWork {
   const { logger } = ctx;
   const workerUrl = new URL("./compile.worker.js", import.meta.url);
   const compiler = new CompileService({
-    spawn: () => new Worker(workerUrl),
+    // a 1024 × 1024 build peaks near 2.6 GB (docs/internal/handoff-size-tiers.md): give each worker a 4 GB heap; every
+    // request gets its own worker, so a resolve and a compile of one big map never share one
+    spawn: () => new Worker(workerUrl, { resourceLimits: { maxOldGenerationSizeMb: BIG_MAP_HEAP_MB } }),
     emit,
     logger: logger.child("compile"),
   });
@@ -305,6 +397,7 @@ function startBuildWork(
     palettes: assets.palettes,
     catalog: assets.catalog,
     settings,
+    sizeTier,
     dialogs: outside.dialogs,
     logger: logger.child("build"),
   });

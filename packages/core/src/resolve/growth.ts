@@ -14,6 +14,7 @@ import type { Side } from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
 import { SIDE_STEP as STEP } from "../gen/gridGeometry";
 import { hashUnit } from "../util/hash";
+import { maxOf } from "../util/lists";
 
 /** Shaded faces grow more (the sun is taken from the south). */
 const SHADE: Record<Side, number> = { N: 1.35, W: 1.15, E: 0.9, S: 0.65 };
@@ -81,7 +82,7 @@ export function climbingGrowth(inp: GrowthInput): GrowthItem[] {
   const key = (c: { at: readonly [number, number]; side: Side }): string => `${c.at[0]},${c.at[1]},${c.side}`;
   const dist = (c: { at: readonly [number, number] }): number =>
     Math.hypot(c.at[0] - inp.anchor[0], c.at[1] - inp.anchor[1]);
-  const D = Math.max(1, ...inp.columns.map(dist));
+  const D = Math.max(1, maxOf(inp.columns.map(dist)));
   const list = [...inp.columns].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
   const heavy = inp.level === "heavy";
 

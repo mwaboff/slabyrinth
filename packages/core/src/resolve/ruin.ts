@@ -14,6 +14,7 @@ import type { Side } from "../contracts/plan";
 import type { ResolvedStructure } from "../contracts/resolved";
 import { SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
 import { h32, hashUnit } from "../util/hash";
+import { maxOf, minOf } from "../util/lists";
 
 export interface RuinVolumeIn {
   id: string;
@@ -189,7 +190,7 @@ function weatheredProfile(
   return {
     columns,
     holes: [],
-    anchor: [Math.min(...xs), Math.min(...ys)],
+    anchor: [minOf(xs), minOf(ys)],
     loss: lossOf(
       columns,
       list.map(([, c]) => c.low),
@@ -215,20 +216,20 @@ interface RuinFallIn {
  */
 function ruinFall({ vols, seed, gableRoof, roofed, opts, u, cols, list }: RuinFallIn) {
   const bbox = (cs: ColumnList): [number, number, number, number] => [
-    Math.min(...cs.map(([, c]) => c.at[0])),
-    Math.min(...cs.map(([, c]) => c.at[1])),
-    Math.max(...cs.map(([, c]) => c.at[0])),
-    Math.max(...cs.map(([, c]) => c.at[1])),
+    minOf(cs.map(([, c]) => c.at[0])),
+    minOf(cs.map(([, c]) => c.at[1])),
+    maxOf(cs.map(([, c]) => c.at[0])),
+    maxOf(cs.map(([, c]) => c.at[1])),
   ];
   // the standing corner: a corner of the tall mass when one stands out (a tower over its hall), else of the whole
-  const hmax = Math.max(...list.map(([, c]) => c.full));
+  const hmax = maxOf(list.map(([, c]) => c.full));
   const tall = list.filter(([, c]) => c.full >= 0.75 * hmax);
   const region = tall.length <= 0.5 * list.length && hmax >= 5 ? tall : list;
   const [x0, y0, x1, y1] = bbox(region);
   const corner = h32(`${seed}:ruin:anchor`) % 4;
   const anchor: [number, number] = [corner % 2 === 0 ? x0 : x1, corner < 2 ? y0 : y1];
   const dist = (c: { at: [number, number] }): number => Math.hypot(c.at[0] - anchor[0], c.at[1] - anchor[1]);
-  const D = Math.max(1, ...list.map(([, c]) => dist(c)));
+  const D = Math.max(1, maxOf(list.map(([, c]) => dist(c))));
 
   // generator 3: one roofed volume stays whole (the reference ruins keep most of a roof: the anchor), the nearest to
   // the standing corner among those nothing stands on
@@ -239,9 +240,8 @@ function ruinFall({ vols, seed, gableRoof, roofed, opts, u, cols, list }: RuinFa
     for (const v of vols) {
       if (!roofed.has(v.id) || hosts.has(v.id) || v.on !== null) continue;
       const d =
-        Math.min(
-          ...v.storeys.flatMap((s) => s.cells.map(([x, y]) => Math.hypot(x - anchor[0], y - anchor[1]))),
-        ) - (opts.pitched?.has(v.id) ? 6 : 0);
+        minOf(v.storeys.flatMap((s) => s.cells.map(([x, y]) => Math.hypot(x - anchor[0], y - anchor[1])))) -
+        (opts.pitched?.has(v.id) ? 6 : 0);
       if (d < best - 1e-9) {
         best = d;
         keep = v.id;
@@ -504,7 +504,7 @@ export function scatterTopRubble(profile: RuinProfile, blocked: ReadonlySet<stri
   const u = (s: string): number => hashUnit(seed, "wallrubble", s);
   const [ax, ay] = profile.anchor;
   const dist = (c: { at: [number, number] }): number => Math.hypot(c.at[0] - ax, c.at[1] - ay);
-  const D = Math.max(1, ...profile.columns.map(dist));
+  const D = Math.max(1, maxOf(profile.columns.map(dist)));
   const at = new Map(profile.columns.map((c) => [`${c.at[0]},${c.at[1]},${c.side}`, c]));
   const out: NonNullable<RuinProfile["topRubble"]> = [];
   for (const c of profile.columns) {

@@ -1,0 +1,1070 @@
+/*
+ * Slabyrinth Helper: one structure, two looks (data-theme on <html>; the Appearance section picks one). Slabyrinth is
+ * the default; Native is the alternative.
+ * TaleSpire shows symbiotes in one dark theme, so every look is dark. The "colorStyles" extra injects the --ts-* colour
+ * variables and the "fonts" extra the OptimusPrinceps face; only the Native look reads the colours, and its fallbacks
+ * are the values measured in game, so a plain-browser preview looks like the panel in TaleSpire. Slabyrinth sets every
+ * colour itself, from the desktop app's tokens. Colour never carries state alone: each light and step also has an icon
+ * and words.
+ *
+ * Layout: a glance zone (lights, map and progress, what to do now, three controls) above closed sections (chunks,
+ * link and hotkeys, appearance, developer tools).
+ */
+
+/* ── tokens: the base set is Native's; Slabyrinth (the default look) redefines them ── */
+:root {
+  color-scheme: dark;
+  --bg: var(--ts-background-primary, #000000);
+  --surface: var(--ts-background-secondary, #191919);
+  --surface-2: var(--ts-background-tertiary, #262626);
+  --text: var(--ts-color-primary, #ffffff);
+  --text-2: var(--ts-color-secondary, #a6a6a6);
+  --line: var(--ts-accessibility-border, #3a3a3a);
+  --focus: var(--ts-accessibility-focus, #7cc8f2);
+  --primary: var(--ts-button-background, #0072a5);
+  --primary-hover: var(--ts-button-hover, #0a86bd);
+  --primary-text: var(--ts-color-primary, #ffffff);
+  --quiet: var(--ts-background-tertiary, #262626);
+  --quiet-hover: #333333;
+  --action: var(--ts-accent-primary, #2b9fd6);
+  --fill: var(--ts-accent-primary, #2b9fd6);
+  --track: #2e2e2e;
+  --tick: var(--bg);
+  --good: #5cc26a;
+  --wait: #e3a93c;
+  --bad: var(--ts-color-danger, #ff6a5f);
+  --warn-bg: #3d3416;
+  --warn-text: #f3dc96;
+
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: OptimusPrinceps, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --font-num: var(--font-ui);
+  --font-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+
+  --radius: 4px;
+  --gap: 10px;
+  --pad: 12px;
+  --title-size: 19px;
+  --count-size: 22px;
+  --bar-h: 8px;
+  --tick-w: 2px;
+  --now-rule: 4px;
+  --flash-spread: 4px;
+  --flash-time: 0.9s;
+}
+
+/*
+ * Slabyrinth: the desktop app's own look. The --sl-* values are copied from the app's dark theme in
+ * apps/desktop/src/renderer/styles/tokens.css (skin B v2), and the button, kbd, eyebrow, card and segmented-control
+ * recipes from apps/desktop/src/renderer/styles/base.css. The symbiote cannot import them, so keep these in step by
+ * hand. TaleSpire is dark only, so the app's light theme is not carried over. The app bundles Cinzel, Lora and
+ * Source Sans 3; a symbiote may not load fonts from outside, so each stack tries the app face (only if installed
+ * locally), then TaleSpire's own OptimusPrinceps (a Roman capital face close to Cinzel) for display, and the app's
+ * own fallbacks (Georgia, Segoe UI) for text and UI.
+ */
+:root[data-theme="slabyrinth"] {
+  --sl-bg: #110d0b;
+  --sl-surface: #1a1512;
+  --sl-surface-2: #221c18;
+  --sl-surface-3: #2d2520;
+  --sl-field-bg: #130f0d;
+  --sl-line: #2f2721;
+  --sl-line-strong: #807060;
+  --sl-ink: #efe4d4;
+  --sl-ink-2: #cfc2b0;
+  --sl-muted: #a89a87;
+  --sl-accent: #d4a056;
+  --sl-accent-fill: #d4a056;
+  --sl-accent-bright: #e2b46e;
+  --sl-accent-tint: rgba(212, 160, 86, 0.14);
+  --sl-on-accent: #1a1412;
+  --sl-on-accent-line: rgba(26, 20, 18, 0.4);
+  --sl-focus: #d4a056;
+  --sl-success: #7dcb94;
+  --sl-success-tint: rgba(125, 203, 148, 0.12);
+  --sl-warning: #e09a6e;
+  --sl-warning-tint: rgba(224, 154, 110, 0.12);
+  --sl-danger: #e59a8f;
+  --sl-danger-tint: rgba(229, 154, 143, 0.12);
+  --sl-r-3: 3px;
+  --sl-r-4: 4px;
+  --sl-r-6: 6px;
+  --sl-r-pill: 999px;
+  --sl-f-ui: "Source Sans 3", "Segoe UI", Ubuntu, system-ui, sans-serif;
+  --sl-f-text: "Lora", Georgia, "DejaVu Serif", serif;
+  --sl-f-display: "Cinzel", "Trajan Pro", OptimusPrinceps, "Palatino Linotype", Georgia, serif;
+  --sl-eyebrow-tracking: 0.07em;
+
+  --bg: var(--sl-bg);
+  --surface: var(--sl-surface-2); /* the app's .card */
+  --surface-2: var(--sl-surface-3);
+  --text: var(--sl-ink);
+  --text-2: var(--sl-ink-2);
+  --line: var(--sl-line);
+  --focus: var(--sl-focus);
+  --primary: var(--sl-accent-fill);
+  --primary-hover: var(--sl-accent-bright);
+  --primary-text: var(--sl-on-accent);
+  --quiet: transparent;
+  --quiet-hover: var(--sl-surface-3);
+  --action: var(--sl-accent);
+  --fill: var(--sl-accent-fill);
+  --track: var(--sl-surface-3);
+  --tick: var(--sl-surface-2);
+  --good: var(--sl-success);
+  --wait: var(--sl-warning);
+  --bad: var(--sl-danger);
+  --warn-bg: var(--sl-warning-tint);
+  --warn-text: var(--sl-warning);
+
+  --font-ui: var(--sl-f-ui);
+  --font-display: var(--sl-f-display);
+  --font-num: var(--sl-f-ui);
+
+  --radius: var(--sl-r-6);
+  --gap: 10px;
+  --pad: 14px;
+  --title-size: 18px;
+  --count-size: 22px;
+  --bar-h: 6px;
+  --tick-w: 2px;
+  --now-rule: 0px;
+  --flash-spread: 3px;
+  --flash-time: 0.9s;
+}
+
+/* ── base ── */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+p,
+h1,
+h2,
+ol,
+dl,
+fieldset {
+  margin: 0;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.app {
+  display: grid;
+  gap: var(--gap);
+  padding: 10px var(--pad) 24px;
+  min-width: 0;
+}
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--quiet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  background: var(--quiet-hover);
+}
+button:disabled {
+  cursor: default;
+  color: var(--text-2);
+  opacity: 0.5;
+}
+button.primary:not(:disabled) {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-text);
+}
+button.primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+summary:focus-visible {
+  outline-offset: -2px;
+}
+
+textarea {
+  width: 100%;
+  font: 12px/1.35 var(--font-mono);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+}
+textarea {
+  resize: vertical;
+}
+.error-more summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.error-more .result {
+  max-height: 240px;
+  overflow: auto;
+  margin-top: 6px;
+}
+
+code,
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.note,
+.footnote {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.error {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+/* ── banner: API mode (preview, waiting, missing) ── */
+.banner {
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-2);
+}
+.banner.preview {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+.banner.error {
+  background: var(--surface);
+  color: var(--bad);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--bad);
+}
+
+/* ── lights: connected to Slabyrinth; slabs loaded, ready or blocked ── */
+.lights {
+  display: grid;
+  gap: 6px;
+}
+@media (min-width: 520px) {
+  .lights {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.light {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.light-icon {
+  flex: none;
+  width: 1.1em;
+  font-size: 15px;
+  line-height: 20px;
+  text-align: center;
+}
+.light-text {
+  display: grid;
+  min-width: 0;
+}
+.light-label {
+  font-weight: 600;
+  line-height: 20px;
+}
+.light-detail {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.light.off .light-icon,
+.light.off .light-label {
+  color: var(--text-2);
+}
+.light.off .light-label {
+  font-weight: 500;
+}
+.light.good .light-icon {
+  color: var(--good);
+}
+.light.wait .light-icon {
+  color: var(--wait);
+}
+.light.bad .light-icon,
+.light.bad .light-label {
+  color: var(--bad);
+}
+/* a brief highlight when a light changes state */
+.light.changed {
+  animation: changed 0.8s ease-out;
+}
+@keyframes changed {
+  from {
+    box-shadow: 0 0 0 2px var(--action);
+  }
+  to {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+/* ── the map and its progress ── */
+.map {
+  display: grid;
+  gap: 8px;
+  padding: 10px var(--pad) 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  min-width: 0;
+}
+.map-head {
+  min-width: 0;
+}
+.map-name {
+  font: 600 var(--title-size) / 1.25 var(--font-display);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-meta {
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.meter {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+.bar {
+  position: relative;
+  height: var(--bar-h);
+  border-radius: calc(var(--bar-h) / 2);
+  background: var(--track);
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  width: 0;
+  background: var(--fill);
+  transition: width 0.3s ease-out;
+}
+/* the chunk in hand: its segment half-lit, so "which one am I on" reads from the bar too */
+.bar-current {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--fill);
+  opacity: 0.4;
+}
+.bar-ticks span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--tick-w);
+  margin-left: calc(var(--tick-w) / -2);
+  background: var(--tick);
+}
+.count {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.count-n {
+  font: 700 var(--count-size) / 1 var(--font-num);
+}
+.count-rest {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* ── now: the one thing to do ── */
+.now {
+  display: grid;
+  gap: 4px;
+  padding: 12px var(--pad) 13px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: inset var(--now-rule) 0 0 var(--line);
+}
+.now-step {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.now-title {
+  font: 700 var(--title-size) / 1.25 var(--font-ui);
+  text-wrap: balance;
+}
+.now-detail {
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+.now.action {
+  box-shadow: inset var(--now-rule) 0 0 var(--action);
+}
+.now.wait {
+  box-shadow: inset var(--now-rule) 0 0 var(--wait);
+}
+.now.done {
+  box-shadow: inset var(--now-rule) 0 0 var(--good);
+}
+.now.error {
+  box-shadow: inset var(--now-rule) 0 0 var(--bad);
+}
+.now.error .now-title {
+  color: var(--bad);
+}
+.now.action .now-step::before {
+  content: "▶ ";
+  color: var(--action);
+}
+.now.wait .now-step::before {
+  content: "◌ ";
+  color: var(--wait);
+}
+.now.done .now-step::before {
+  content: "✓ ";
+  color: var(--good);
+}
+.now.error .now-step::before {
+  content: "⚠ ";
+  color: var(--bad);
+}
+.now.flash {
+  animation: flash var(--flash-time) ease-out;
+}
+@keyframes flash {
+  from {
+    outline: var(--flash-spread) solid var(--action);
+    outline-offset: 0;
+  }
+  to {
+    outline: var(--flash-spread) solid transparent;
+    outline-offset: var(--flash-spread);
+  }
+}
+
+/* ── controls: Back, Again, Next (Next on its own row when narrow) ── */
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.5fr;
+  grid-template-areas: "back send next";
+  gap: 8px;
+}
+@media (max-width: 400px) {
+  .controls {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "next next"
+      "back send";
+  }
+  .controls[data-primary="send"] {
+    grid-template-areas:
+      "send send"
+      "back next";
+  }
+}
+.ctl-back {
+  grid-area: back;
+}
+.ctl-send {
+  grid-area: send;
+}
+.ctl-next {
+  grid-area: next;
+}
+.ctl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 6px 8px;
+  text-align: center;
+  line-height: 1.2;
+}
+.ctl-label {
+  font-weight: 600;
+}
+.ctl-key {
+  font-size: 11px;
+  opacity: 0.8;
+  letter-spacing: 0.01em;
+}
+.ctl.primary .ctl-label {
+  font-size: 16px;
+}
+
+.footnote {
+  margin-top: -2px;
+}
+
+/* ── closed sections ── */
+.section {
+  border-top: 1px solid var(--line);
+}
+.section summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 0;
+  cursor: pointer;
+  list-style: none;
+}
+.section summary::-webkit-details-marker {
+  display: none;
+}
+.section summary::before {
+  content: "▸";
+  color: var(--text-2);
+  width: 0.9em;
+  transition: transform 0.15s;
+}
+.section[open] summary::before {
+  transform: rotate(90deg);
+}
+.section-title {
+  font-weight: 600;
+}
+.section-aside {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.section-body {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+.dev summary .section-title {
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* chunk list */
+.chunks {
+  list-style: none;
+  padding: 0 0 12px;
+  display: grid;
+  gap: 2px;
+  counter-reset: chunk;
+}
+.chunks li {
+  counter-increment: chunk;
+  display: grid;
+  grid-template-columns: 2.2em 1fr auto;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  min-width: 0;
+}
+.chunks li::before {
+  content: counter(chunk);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.chunks li.placed::before {
+  content: "✓";
+  color: var(--good);
+}
+.chunks li.placed .chunk-label {
+  color: var(--text-2);
+  text-decoration: line-through;
+}
+.chunks li.current {
+  background: var(--surface);
+  font-weight: 600;
+}
+.chunks li.current::before {
+  content: "▶";
+  color: var(--action);
+}
+.chunk-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chunk-size {
+  color: var(--text-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* link switch */
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.switch-track {
+  flex: none;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--track);
+  border: 1px solid var(--line);
+  transition: background 0.15s;
+}
+.switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-2);
+  transition: transform 0.15s;
+}
+.switch input:checked + .switch-track {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.switch input:checked + .switch-track::after {
+  transform: translateX(14px);
+  background: var(--primary-text);
+}
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+/* hotkeys */
+.hotkeys {
+  display: grid;
+  grid-template-columns: max-content max-content 1fr;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 13px;
+}
+@media (max-width: 340px) {
+  .hotkeys {
+    grid-template-columns: max-content 1fr;
+  }
+  .hk-result {
+    grid-column: 2;
+  }
+  .hotkeys .key {
+    justify-self: start;
+  }
+}
+.hk-name {
+  font-weight: 600;
+}
+.hk-result {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.hk-result.good {
+  color: var(--good);
+}
+.hk-result.good::before {
+  content: "● ";
+}
+.hk-result.bad {
+  color: var(--bad);
+}
+.hk-result.bad::before {
+  content: "⚠ ";
+}
+button.key {
+  padding: 3px 8px;
+  font: 12px/1.3 var(--font-mono);
+  background: var(--surface);
+}
+button.quiet {
+  justify-self: start;
+}
+
+/* developer tools */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tabs button {
+  padding: 4px 10px;
+  font-size: 13px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-2);
+}
+.tabs button[aria-selected="true"] {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--text);
+  font-weight: 600;
+}
+[role="tabpanel"] {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+[role="tabpanel"] label {
+  font-size: 13px;
+}
+[role="tabpanel"] h2 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-top: 6px;
+}
+.designs {
+  border: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.designs legend {
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 6px;
+}
+.design-list {
+  display: grid;
+  gap: 6px;
+}
+.design {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.design:has(input:checked) {
+  border-color: var(--action);
+  background: var(--surface);
+}
+.design input {
+  grid-row: span 2;
+  margin: 3px 0 0;
+  accent-color: var(--primary);
+}
+.design-name {
+  font-weight: 600;
+}
+.design-summary {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.log {
+  list-style: none;
+  padding: 0;
+  font: 11px/1.35 var(--font-mono);
+}
+.log li {
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.log li.mine {
+  color: var(--text-2);
+}
+.log li.mine::before {
+  content: "▸ ";
+}
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 10px;
+  font-size: 13px;
+}
+.facts dt {
+  color: var(--text-2);
+}
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.result {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.4 var(--font-mono);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  min-height: 2em;
+}
+
+/* ── Native: TaleSpire's own chrome. Small-caps display face for names, quiet outlined secondary buttons ── */
+:root[data-theme="native"] .map-name,
+:root[data-theme="native"] .section-title {
+  font-variant: small-caps;
+  letter-spacing: 0.02em;
+}
+:root[data-theme="native"] .section-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+:root[data-theme="native"] .ctl:not(.primary) {
+  background: transparent;
+}
+:root[data-theme="native"] .ctl:not(.primary):hover:not(:disabled) {
+  background: var(--surface);
+}
+
+/* ── Slabyrinth: the app's recipes (base.css): outline buttons, gold primary, kbd chips, eyebrows, cards ── */
+:root[data-theme="slabyrinth"] body {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+:root[data-theme="slabyrinth"] button {
+  border-color: var(--sl-line-strong);
+  border-radius: var(--sl-r-4);
+  font-weight: 500;
+  transition:
+    background 150ms,
+    border-color 150ms;
+}
+:root[data-theme="slabyrinth"] button:hover:not(:disabled) {
+  border-color: var(--sl-ink-2);
+}
+:root[data-theme="slabyrinth"] button:disabled {
+  opacity: 0.45;
+  color: var(--sl-ink);
+}
+:root[data-theme="slabyrinth"] button.primary:not(:disabled) {
+  font-weight: 600;
+}
+:root[data-theme="slabyrinth"] button.primary:hover:not(:disabled) {
+  border-color: var(--sl-accent-bright);
+}
+/* the app's primary button, disabled: a flat surface, not a faded gold */
+:root[data-theme="slabyrinth"] button.primary:disabled {
+  background: var(--sl-surface-3);
+  border-color: var(--sl-surface-3);
+  color: var(--sl-muted);
+  opacity: 1;
+}
+:root[data-theme="slabyrinth"] .ctl {
+  border-radius: var(--sl-r-4);
+  gap: 4px;
+}
+:root[data-theme="slabyrinth"] .ctl.primary .ctl-label {
+  font-size: 14.5px;
+}
+:root[data-theme="slabyrinth"] .ctl-key {
+  font: 500 11px/16px var(--sl-f-ui);
+  border: 1px solid var(--sl-line-strong);
+  border-radius: var(--sl-r-3);
+  padding: 0 4px;
+  color: var(--sl-ink-2);
+  opacity: 1;
+}
+:root[data-theme="slabyrinth"] .ctl.primary .ctl-key {
+  color: var(--sl-on-accent);
+  border-color: var(--sl-on-accent-line);
+}
+:root[data-theme="slabyrinth"] textarea {
+  background: var(--sl-field-bg);
+  border-color: var(--sl-line-strong);
+  border-radius: var(--sl-r-4);
+}
+:root[data-theme="slabyrinth"] textarea:focus {
+  border-color: var(--sl-accent);
+  box-shadow: 0 0 0 3px var(--sl-accent-tint);
+  outline: none;
+}
+:root[data-theme="slabyrinth"] button.key {
+  background: transparent;
+  border-color: var(--sl-line-strong);
+}
+
+/* lights as the app's status pills: a tint and a coloured mark, a danger outline when blocked */
+:root[data-theme="slabyrinth"] .light {
+  background: var(--sl-surface-2);
+  align-items: center;
+}
+:root[data-theme="slabyrinth"] .light.good {
+  background: var(--sl-success-tint);
+}
+:root[data-theme="slabyrinth"] .light.wait {
+  background: var(--sl-warning-tint);
+}
+:root[data-theme="slabyrinth"] .light.bad {
+  background: var(--sl-danger-tint);
+  box-shadow: inset 0 0 0 1px var(--sl-danger);
+}
+:root[data-theme="slabyrinth"] .light.good .light-label {
+  color: var(--sl-success);
+}
+:root[data-theme="slabyrinth"] .light.wait .light-label {
+  color: var(--sl-warning);
+}
+:root[data-theme="slabyrinth"] .light-label {
+  font-weight: 600;
+}
+
+/* names in the display face, set like the app's room names and panel titles */
+/* Cinzel's lowercase are small capitals; small-caps makes a fallback face read the same way */
+:root[data-theme="slabyrinth"] .map-name {
+  font-weight: 600;
+  font-variant: small-caps;
+  letter-spacing: 0.02em;
+}
+:root[data-theme="slabyrinth"] .map-meta {
+  font-size: 12px;
+  color: var(--sl-muted);
+}
+:root[data-theme="slabyrinth"] .count-rest {
+  color: var(--sl-muted);
+}
+
+/* the now block: an eyebrow, a headline and a line of reading text, as in the app's chat */
+:root[data-theme="slabyrinth"] .now {
+  padding: 12px 14px 14px;
+}
+:root[data-theme="slabyrinth"] .now-step {
+  font: 600 11px/16px var(--sl-f-ui);
+  letter-spacing: var(--sl-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--sl-muted);
+}
+:root[data-theme="slabyrinth"] .now.action .now-step {
+  color: var(--sl-accent);
+}
+:root[data-theme="slabyrinth"] .now.done .now-step {
+  color: var(--sl-success);
+}
+:root[data-theme="slabyrinth"] .now.wait .now-step {
+  color: var(--sl-warning);
+}
+:root[data-theme="slabyrinth"] .now-title {
+  font: 600 20px/28px var(--sl-f-text);
+}
+:root[data-theme="slabyrinth"] .now-detail {
+  font: 400 14px/22px var(--sl-f-text);
+  color: var(--sl-ink-2);
+}
+:root[data-theme="slabyrinth"] .now.error {
+  background: var(--sl-danger-tint);
+  box-shadow: inset 0 0 0 1px var(--sl-danger);
+}
+
+/* sections titled like the app's eyebrows ("Brief", "Legend · this level") */
+:root[data-theme="slabyrinth"] .section-title {
+  font: 600 11px/16px var(--sl-f-ui);
+  letter-spacing: var(--sl-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--sl-ink-2);
+}
+:root[data-theme="slabyrinth"] .dev summary .section-title {
+  color: var(--sl-muted);
+}
+
+/* developer tabs and the design list as the app's segmented control and chips: tint plus a gold inset ring */
+:root[data-theme="slabyrinth"] .tabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
+  gap: 0;
+  border: 1px solid var(--sl-line-strong);
+  border-radius: var(--sl-r-4);
+  overflow: hidden;
+}
+:root[data-theme="slabyrinth"] .tabs button {
+  border: 0;
+  border-right: 1px solid var(--sl-line);
+  border-radius: 0;
+  color: var(--sl-ink-2);
+  font-size: 12.5px;
+  padding: 6px;
+  white-space: nowrap;
+}
+:root[data-theme="slabyrinth"] .tabs button:last-child {
+  border-right: 0;
+}
+:root[data-theme="slabyrinth"] .tabs button[aria-selected="true"] {
+  background: var(--sl-accent-tint);
+  color: var(--sl-ink);
+  box-shadow: inset 0 0 0 1px var(--sl-accent);
+}
+:root[data-theme="slabyrinth"] .design {
+  border-color: var(--sl-line-strong);
+  border-radius: var(--sl-r-4);
+}
+:root[data-theme="slabyrinth"] .design:has(input:checked) {
+  background: var(--sl-accent-tint);
+  border-color: var(--sl-accent);
+}
+:root[data-theme="slabyrinth"] .chunks li.current {
+  background: var(--sl-accent-tint);
+}
+
+/* ── short panels: tighten the glance zone ── */
+@media (max-height: 520px) {
+  .app {
+    gap: 8px;
+    padding-top: 8px;
+  }
+  .ctl {
+    min-height: 40px;
+  }
+  .footnote {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .now.flash,
+  .light.changed {
+    animation: none;
+  }
+  .bar-fill,
+  .switch-track,
+  .switch-track::after,
+  .section summary::before {
+    transition: none;
+  }
+}

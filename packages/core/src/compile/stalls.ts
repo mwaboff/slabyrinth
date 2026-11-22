@@ -42,6 +42,7 @@ import { createPrng, type Prng } from "../util/prng";
 import type { WorldFrame } from "./geometry";
 import { quarterTurn, rotateXZ } from "./geometry";
 import type { RealizeLevel } from "./realize/level";
+import { maxOf, minOf } from "../util/lists";
 
 const oneCell = ONE_CELL_TILE;
 
@@ -414,9 +415,7 @@ class Stall {
         );
         // a 2x1 run is the long strip turned across (it slopes over its short side); a 2x2 or 1x1 is the same piece
         const want =
-          w * depth === 2
-            ? pool.filter((v) => Math.max(...v.footprint) === 2 && Math.min(...v.footprint) === 1)
-            : pool;
+          w * depth === 2 ? pool.filter((v) => maxOf(v.footprint) === 2 && minOf(v.footprint) === 1) : pool;
         const v = pick(want.length > 0 ? want : pool, `${f.id}:canopy:${half.r0}:${px}`);
         if (!v) return;
         this.tile(v, r, yc, this.turn(half.low, v, STALL_ROLES.canopy));

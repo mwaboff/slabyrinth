@@ -22,7 +22,7 @@ const make = (): SettingsStore =>
 describe("SettingsStore", () => {
   it("defaults follow docs/decisions.md", async () => {
     const s = await make().load();
-    expect(s.ui.theme).toBe("dark");
+    expect(s.ui.theme).toBe("system");
     expect(s.ui.onLaunch).toBe("home");
     expect(s.defaultSelection).toEqual({
       providerId: "anthropic",
@@ -104,11 +104,11 @@ describe("SettingsStore", () => {
   it("repairs invalid fields and survives a corrupt file", async () => {
     await fsp.writeFile(file, JSON.stringify({ ui: { theme: "neon" }, smartEffort: false }));
     const s = await make().load();
-    expect(s.ui.theme).toBe("dark");
+    expect(s.ui.theme).toBe("system");
     expect(s.smartEffort).toBe(false);
     await fsp.writeFile(file, "{not json");
     const s2 = await make().load();
-    expect(s2.ui.theme).toBe("dark");
+    expect(s2.ui.theme).toBe("system");
     expect((await fsp.readdir(dir)).some((n) => n.endsWith(".corrupt"))).toBe(true);
   });
 

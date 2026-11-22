@@ -16,6 +16,7 @@ import { elementSeed } from "../../util/hash";
 import { raggedCaveOutline } from "../caveOutline";
 import { CAVE_RELIEF, caveShelves } from "../caveRelief";
 import type { ResolveGrid } from "./grid";
+import { maxOf } from "../../util/lists";
 
 /**
  * Generator 4: cells the natural cave passes (ragged outlines, floor shelves) must leave as the plan drew them:
@@ -171,7 +172,7 @@ export function stepCaveRelief(work: ResolveGrid): void {
     }
     if (best < 0) return;
     const d = work.innerDistance(work.areaCells(best));
-    const top = Math.max(...d.values());
+    const top = maxOf(d.values());
     low = [...d].filter(([, v]) => v >= top - 1).map(([i]) => i);
   }
   // a shelf leaves a creature's headroom under the level stacked above (whose floor the rock walls stop at)

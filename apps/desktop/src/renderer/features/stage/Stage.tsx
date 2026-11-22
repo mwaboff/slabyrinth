@@ -23,6 +23,7 @@ import { PngExport } from "./PngExport";
 import { BuildView, BuildToolbar } from "../build/BuildView";
 import { briefSummary } from "../chat/BriefCard";
 import { runPhase, useRunPhase, verb } from "../chat/activity";
+import { AddonIndicator } from "../talespire/AddonParts";
 
 // ───────────── stage bar ─────────────
 
@@ -533,6 +534,7 @@ function StatusBar({ plan }: { plan: MapPlan | null }) {
         <span>Brief · nothing drawn yet</span>
         <span className="statusbar__sp" />
         <AssetChip />
+        <AddonIndicator />
         <button
           className="btn btn--primary"
           disabled={!snap.brief.mapType || live !== null}
@@ -553,6 +555,7 @@ function StatusBar({ plan }: { plan: MapPlan | null }) {
         <span>Build of v{build?.versionNumber ?? snap.approvedVersion}</span>
         <span className="statusbar__sp" />
         <AssetChip />
+        <AddonIndicator />
         <button
           className="btn btn--ghost"
           onClick={() => {
@@ -593,6 +596,7 @@ function StatusBar({ plan }: { plan: MapPlan | null }) {
       )}
       <span className="statusbar__sp" />
       <AssetChip />
+      <AddonIndicator />
       <span className="muted">
         {plan.levels.length} level{plan.levels.length === 1 ? "" : "s"}
         {estChunks !== null ? ` · ${slabEstimate(estChunks)}` : ""}

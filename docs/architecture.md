@@ -1019,9 +1019,9 @@ Rasterizing SVG for export would need inlined CSS variables and fonts and a seco
 ### 5.3 Themes
 
 `MapTheme {id, colors: token→CSS colour, lineScale, fontFamily}`.
-- Bundled themes: `parchment-dark` (default, matching the default dark app theme), `parchment-light`, `print` (the light, high-contrast PNG Print style, UX §6.10), and `ink-on-white` (v1.1).
+- Bundled themes: `parchment-dark` (default for the dark app theme), `parchment-light`, `print` (the light, high-contrast PNG Print style, UX §6.10), and `ink-on-white` (v1.1).
 - Required tokens: `paper`, `rock`, `hatch`, `void`, `floor`, `grid`, `ink`, `wall`, `wall-exterior`, `door`, `secret`, `water-shallow`, `water-deep`, `path`, `forest`, `light`, `accent`, `select`, `label`, `label-halo`, and one `mat-<material>` per material.
-- The app theme setting (`dark`|`light`|`system`, default **dark**) chooses the map theme when `mapThemeId` is `auto`.
+- The app theme setting (`dark`|`light`|`system`, default **system**) chooses the map theme when `mapThemeId` is `auto`.
 - Fonts are bundled; there are no remote fonts.
 
 ### 5.4 Interaction

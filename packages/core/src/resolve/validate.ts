@@ -17,6 +17,7 @@ import { entryLevelId, linkKindInfo } from "../plan/links";
 import { edgeIndex, sideEdgeIndex } from "./levelGrid";
 import { type PlayabilityOptions, checkPlayability } from "./playability";
 import { resolvePlan } from "./resolvePlan";
+import { pushAll } from "../util/lists";
 
 /** Codes the resolver may emit that WP1's own (structural) checks already cover — dropped to avoid duplicates. */
 const WP1_CODES = new Set<PlanIssueCode>(["ref_unknown", "link_mismatch"]);
@@ -59,10 +60,10 @@ export function geometryChecks(
   }
   const issues = resolved.issues.filter((i) => !fromWp1(i));
   for (const lvl of resolved.levels) {
-    issues.push(...disconnectedAreas(plan, lvl));
-    issues.push(...narrowCorridors(plan, lvl));
+    pushAll(issues, disconnectedAreas(plan, lvl));
+    pushAll(issues, narrowCorridors(plan, lvl));
   }
-  issues.push(...checkPlayability(plan, resolved, ctx.playability));
+  pushAll(issues, checkPlayability(plan, resolved, ctx.playability));
   return issues;
 }
 

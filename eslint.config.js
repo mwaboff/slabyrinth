@@ -605,8 +605,26 @@ const parsedJsonRule = selectorRule("Parsed JSON is validated, not cast.", [
   },
 ]);
 
+/**
+ * A spread argument passes one argument per entry, and V8 overflows the call stack somewhere above 100,000 of them: a
+ * list with one entry per cell gets there at the large size tiers. Extremes and appends go through core's
+ * util/lists.ts (minOf, maxOf, pushAll), which loop and give the spread form's exact results (empty lists included).
+ */
+const spreadArgsRule = selectorRule("No spread arguments in Math.min, Math.max or push.", [
+  {
+    selector: "CallExpression[callee.object.name='Math'][callee.property.name=/^(min|max)$/] > SpreadElement",
+    message:
+      "A spread argument overflows the stack on a long list: use util/lists.ts minOf(xs) / maxOf(xs) (Math.min(a, minOf(xs)) beside other arguments).",
+  },
+  {
+    selector: "CallExpression[callee.property.name=/^(push|unshift)$/] > SpreadElement",
+    message: "A spread argument overflows the stack on a long list: use util/lists.ts pushAll(target, xs).",
+  },
+]);
+
 const slabyrinthPlugin = {
   rules: {
+    "spread-args": spreadArgsRule,
     "app-layers": appLayersRule,
     "reported-calls": reportedCallsRule,
     "project-switch": projectSwitchRule,
@@ -669,6 +687,8 @@ export default tseslint.config(
       "**/.tsbuild/**",
       "**/playwright-report/**",
       "**/test-results/**",
+      // Agent worktrees: separate checkouts, linted in their own tree.
+      ".claude/worktrees/**",
       "docs/**",
       "data/**",
       "tools/**",
@@ -693,6 +713,18 @@ export default tseslint.config(
     files: ["**/*.js", "**/*.cjs", "**/*.mjs"],
     ...tseslint.configs.disableTypeChecked,
     languageOptions: { globals: globals.node },
+  },
+  {
+    // TaleSpire symbiotes: plain JavaScript outside every tsconfig (copied into the game as they are); and the bare
+    // Electron host the add-on's page test runs in (Electron runs it as it is).
+    files: ["symbiotes/**/*.{js,mjs}", "apps/desktop/e2e/**/*.mjs"],
+    languageOptions: { parserOptions: { projectService: false, project: false } },
+  },
+  {
+    // Symbiote pages are classic browser scripts: the game calls their handlers by global name.
+    files: ["symbiotes/*/**/*.js"],
+    ignores: ["symbiotes/test/**"],
+    languageOptions: { sourceType: "script", globals: globals.browser },
   },
   {
     // Contract copies are verbatim from docs/contracts (normative; tsc-checked). These rules flag
@@ -766,6 +798,12 @@ export default tseslint.config(
     ignores: ["packages/core/src/plan/generator.ts", "**/*.test.{ts,tsx}"],
     plugins: { slabyrinth: slabyrinthPlugin },
     rules: { "slabyrinth/generator-switches": "error" },
+  },
+  {
+    // the helpers themselves are written with plain calls; render-canvas paints lists the size of a level too
+    files: ["packages/core/src/**/*.ts", "packages/render-canvas/src/**/*.ts"],
+    plugins: { slabyrinth: slabyrinthPlugin },
+    rules: { "slabyrinth/spread-args": "error" },
   },
   {
     files: ["packages/core/src/review/**/*.ts"],

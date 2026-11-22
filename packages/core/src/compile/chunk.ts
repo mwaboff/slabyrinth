@@ -34,6 +34,7 @@ import { sha256Hex } from "../slab/sha256";
 import { emptyBox, finiteBox, growBox } from "./geometry";
 import { placedBox } from "./placed";
 import type { RealizedSet } from "./realize/output";
+import { minOf, pushAll } from "../util/lists";
 
 /** The verify codes this stage emits (the water level note; VERIFY_CODES is the union of every check's list). */
 export const CHUNK_VERIFY_CODES = ["verify_water_level"] as const satisfies readonly CompileDiagnosticCode[];
@@ -338,7 +339,7 @@ function startPacking(
     for (const g of groupsFor(withMarkers, beside)) rec(g.levelId, g.items);
     return { regions, oversize, splits };
   };
-  return { codec, budget, markerAsset, levelOrder, split, besideBox, gmin };
+  return { codec, budget, markerAsset, levelOrder, split, besideBox, gmin, gmax };
 }
 
 type Packing = ReturnType<typeof startPacking>;
@@ -348,7 +349,7 @@ type Packing = ReturnType<typeof startPacking>;
  * missing marker asset, oversize cells and the split.
  */
 function packRegions(
-  { budget, markerAsset, split, besideBox, gmin }: Packing,
+  { codec, budget, markerAsset, split, besideBox, gmin, gmax }: Packing,
   alignment: NonNullable<ChunkOptions["alignment"]>,
   pasteBeside: boolean,
   diagnostics: CompileDiagnostic[],
@@ -358,10 +359,27 @@ function packRegions(
   const multi = pass.regions.length > 1;
   if (alignment === "multi-chunk" && multi) withMarkers = true;
   // the paste anchor is the centre of the shared box, which only the markers make shared
-  const beside = pasteBeside && multi && withMarkers && markerAsset !== null;
+  let beside = pasteBeside && multi && withMarkers && markerAsset !== null;
+  // the padded box stretches south to about twice the map's depth: when that leaves the slab format's range, the
+  // chunks keep the plain corner markers (which layoutBuild checked) and the bundle no paste anchor
+  const besideSpan = boxSpan(besideBox, gmin, gmax);
+  if (beside && besideSpan * 100 > codec.limits.maxCoord) {
+    beside = false;
+    diagnostics.push({
+      severity: "info",
+      code: "coord_overflow",
+      stage: "chunk",
+      message: `Pasting from beside the map would need a box of ${besideSpan} tiles (the slab format allows ${Math.floor(codec.limits.maxCoord / 100)}), so the chunks carry the alignment pillars at the map's corners instead: paste them by the pillars.`,
+    });
+  }
   if ((alignment === "multi-chunk" && multi) || beside) pass = split(true, beside ? besideBox : null);
   const anchor: ExportBundle["pasteAnchor"] = beside
-    ? { side: "south", clearanceCells: ANCHOR_CLEARANCE_CELLS, farMarkerCells: gmin.z - besideBox.min.z - 1 }
+    ? {
+        side: "south",
+        clearanceCells: ANCHOR_CLEARANCE_CELLS,
+        farMarkerCells: gmin.z - besideBox.min.z - 1,
+        nearMarkerCells: { north: besideBox.max.z - 1 - gmax.z, east: besideBox.max.x - 1 - gmax.x },
+      }
     : undefined;
   if (withMarkers && !markerAsset) {
     diagnostics.push({
@@ -373,7 +391,7 @@ function packRegions(
     });
     withMarkers = false;
   }
-  diagnostics.push(...pass.oversize);
+  pushAll(diagnostics, pass.oversize);
   if (pass.splits > 0) {
     diagnostics.push({
       severity: "info",
@@ -408,7 +426,7 @@ function buildChunks(
     const mine = regions.filter((r) => groupKey(r) === key);
     const xs = [...new Set(mine.map((r) => r.rect.x))].sort((a, b) => a - b);
     const ys = [...new Set(mine.map((r) => r.rect.y))].sort((a, b) => a - b);
-    const minCellX = Math.min(...mine.map((r) => r.rect.x));
+    const minCellX = minOf(mine.map((r) => r.rect.x));
     mine.forEach((r, i) => {
       const cb = emptyBox();
       for (const it of r.items) growBox(cb, it.box);
@@ -569,7 +587,7 @@ function layoutBuild(
   const levelsWanted = opts.levels ? new Set(opts.levels) : null;
   const levels = set.levels.filter((l) => !levelsWanted || levelsWanted.has(l.levelId));
   const elevOf = new Map((rs.levelInfo ?? []).map((l) => [l.levelId, l.elevation]));
-  const minElev = Math.min(...levels.map((l) => elevOf.get(l.levelId) ?? 0), Infinity);
+  const minElev = Math.min(minOf(levels.map((l) => elevOf.get(l.levelId) ?? 0)), Infinity);
   const shift = new Map<LevelId, { dx: number; dy: number }>();
   const levelPlacement: ExportBundle["levelPlacement"] = [];
   let cursorX = 0;
@@ -627,12 +645,13 @@ function layoutBuild(
     : { x: Math.ceil(g.max.x - 1e-9), y: Math.ceil(g.max.y * 4 - 1e-9) / 4, z: Math.ceil(g.max.z - 1e-9) };
 
   const mg = 1 + MARKER_GAP_CELLS;
-  // a build pasted from beside the map may stretch its box south to about twice the map depth (besideMapBox); the
-  // check takes that box whenever the generator may use it, so the estimate never promises what compile refuses
-  const box = besideMap(set)
-    ? besideMapBox(gmin, gmax)
-    : { min: { x: gmin.x - mg, z: gmin.z - mg }, max: { x: gmax.x + mg, z: gmax.z + mg } };
-  const extent = Math.max(box.max.x - box.min.x, box.max.z - box.min.z, gmax.y - gmin.y + 3);
+  // the build with its corner markers: every build fits this box (a build pasted from beside the map whose padded box
+  // would not fit falls back to it, packRegions)
+  const extent = boxSpan(
+    { min: { x: gmin.x - mg, z: gmin.z - mg }, max: { x: gmax.x + mg, z: gmax.z + mg } },
+    gmin,
+    gmax,
+  );
   const overflow: CompileDiagnostic | null =
     extent * 100 > codec.limits.maxCoord
       ? {
@@ -644,6 +663,18 @@ function layoutBuild(
         }
       : null;
   return { levels, levelPlacement, perLevelRaw, gmin, gmax, overflow };
+}
+
+/** The largest side of a chunk box, in tiles: its x and z spans and the build's height with room for the pillars. */
+function boxSpan(
+  box: {
+    readonly min: { readonly x: number; readonly z: number };
+    readonly max: { readonly x: number; readonly z: number };
+  },
+  gmin: { readonly y: number },
+  gmax: { readonly y: number },
+): number {
+  return Math.max(box.max.x - box.min.x, box.max.z - box.min.z, gmax.y - gmin.y + 3);
 }
 
 /** The coord_overflow error compile would report for this placement set (null when the build fits). */
@@ -678,6 +709,9 @@ function positionLabel(col: number, cols: number, row: number, rows: number): st
   return h || v || "Whole level";
 }
 
+/** "1 empty cell", "4 empty cells": the one way the paste instructions count cells (the empty cells in between). */
+const emptyCells = (n: number): string => `${n} empty ${n === 1 ? "cell" : "cells"}`;
+
 export function pasteInstructions(
   chunks: SlabChunk[],
   markers: boolean,
@@ -698,7 +732,7 @@ export function pasteInstructions(
     "1. Use an empty board, or raise a build plane (G) at a known height.",
     "2. Do not move the camera between chunks.",
     anchor
-      ? `3. Keep the cursor on one bare cell ${anchor.clearanceCells + 1} cells ${anchor.side} of the middle of the map’s ${anchor.side} edge (${anchor.clearanceCells} empty cells between it and the map): that cell is the middle of every chunk. Each chunk carries the same two alignment pillars, one clear cell beyond the north-east corner (raised to the top) and one at ground level ${anchor.farMarkerCells} cells ${anchor.side} of the map, one cell beyond its west edge. Place every chunk so its pillars land exactly on the pillars already placed.`
+      ? `3. Keep the cursor on one bare cell ${anchor.side} of the middle of the map’s ${anchor.side} edge, with ${emptyCells(anchor.clearanceCells)} between it and the map: that cell is the middle of every chunk. Each chunk carries the same two alignment pillars: one beyond the map’s north-east corner, raised to the top, with ${emptyCells(anchor.nearMarkerCells?.north ?? MARKER_GAP_CELLS)} between it and the map northward and ${emptyCells(anchor.nearMarkerCells?.east ?? MARKER_GAP_CELLS)} eastward; and one at ground level beyond the ${anchor.side}-west corner, with ${emptyCells(anchor.farMarkerCells)} between it and the map ${anchor.side}ward and ${emptyCells(MARKER_GAP_CELLS)} westward. Place every chunk so its pillars land exactly on the pillars already placed.`
       : markers
         ? "3. Each chunk carries the same two alignment pillars, one clear cell outside the south-west corner (at ground level) and the north-east corner (raised to the top). Place every chunk so its south-west pillar lands exactly on the pillar already placed."
         : "3. Paste every chunk with the cursor on the same cell.",

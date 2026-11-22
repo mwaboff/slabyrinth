@@ -75,6 +75,15 @@ const requestChannels = [
   "updates:status",
   "updates:check",
   "updates:skip",
+  "addon:status",
+  "addon:install",
+  "addon:chooseFolder",
+  "addon:uninstall",
+  "addon:openFolder",
+  "addon:dismissPrompt",
+  "link:status",
+  "link:send",
+  "link:stop",
 ] as const;
 
 const eventChannels = [
@@ -89,6 +98,8 @@ const eventChannels = [
   "render:requestImage",
   "menu:command",
   "updates:available",
+  "addon:changed",
+  "link:changed",
 ] as const;
 
 const sendChannels = ["render:imageResult"] as const;

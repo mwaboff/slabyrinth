@@ -10,6 +10,7 @@ import { checksLine, issueWhere, type CheckResults } from "../checks";
 import { RESULT_VIEW_BUDGET, changeReportJson, clip } from "../report";
 import type { PlanChangeReport, ToolResultContent } from "../tools";
 import type { ToolRunCtx } from "./context";
+import { maxOf, minOf } from "../../util/lists";
 
 type ReportErr = NonNullable<PlanChangeReport["errors"]>[number];
 type ReportWarning = NonNullable<PlanChangeReport["warnings"]>[number];
@@ -106,10 +107,10 @@ function issueMaps(
     const xs = here.map((i) => i.cell?.[0] ?? 0);
     const ys = here.map((i) => i.cell?.[1] ?? 0);
     const b = level.bounds;
-    const x0 = Math.max(b.x, Math.min(...xs) - ISSUE_MAP_MARGIN);
-    const y0 = Math.max(b.y, Math.min(...ys) - ISSUE_MAP_MARGIN);
-    const x1 = Math.min(b.x + b.w, Math.max(...xs) + ISSUE_MAP_MARGIN + 1);
-    const y1 = Math.min(b.y + b.h, Math.max(...ys) + ISSUE_MAP_MARGIN + 1);
+    const x0 = Math.max(b.x, minOf(xs) - ISSUE_MAP_MARGIN);
+    const y0 = Math.max(b.y, minOf(ys) - ISSUE_MAP_MARGIN);
+    const x1 = Math.min(b.x + b.w, maxOf(xs) + ISSUE_MAP_MARGIN + 1);
+    const y1 = Math.min(b.y + b.h, maxOf(ys) + ISSUE_MAP_MARGIN + 1);
     const text = `ISSUES ON ${level.id} ("!" marks the cell):\n${r.ports.ascii(resolved, level.id, {
       region: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 },
       issues: here,

@@ -33,16 +33,19 @@ import {
   outstandingIssues,
 } from "@slabyrinth/core/agent";
 import type { DesignBrief, MapPlan, ValidationResult } from "@slabyrinth/core/contracts/plan";
+import type { SizeTierId } from "@slabyrinth/core/plan";
 import { describeChanges, nextVersionNumber } from "@slabyrinth/core/history";
 import { resolvePlan } from "@slabyrinth/core/resolve";
 import { outlineView } from "@slabyrinth/core/text";
 import type { AppError, ChatEvent, IpcRequests } from "../../shared/ipc";
 import type { ChatMessageMeta, Conversation, ProjectFile } from "../../shared/project";
+import { activeSizeTier, checkSecondsPerStep } from "../../shared/sizeTier";
 import { redactString } from "../logger";
 import { EnginePortError, type ConversationEngine, type EngineHost } from "../ports/engine";
 import { DEADLINES, withDeadline } from "../util/deadline";
 import { ZERO_USAGE, addCost, addUsage, costOf, promptTokens, ratesFor } from "./cost";
 import { errorInfo, isRetryableKind } from "./provider/errors";
+import { SIZE_TIER_PREFIX, sizeTierText, withSizeTier } from "./sizeTierText";
 import { createDefaultRegistry } from "./provider/registry";
 import { EFFORT_LEVELS } from "./provider/types";
 import type {
@@ -228,7 +231,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         host.logger.warn(what, { error: err });
       });
     const vp = opts.executorPorts?.validatePlan ?? defaultExecutorPorts.validatePlan;
-    this.validate = (p) => vp(p, { palettes: host.getBuildPalettes() });
+    this.validate = (p) => vp(p, { palettes: host.getBuildPalettes(), sizeTier: this.sizeTier() });
     this.newId = opts.newId ?? randomUUID;
     this.now = opts.now ?? (() => new Date());
     this.sleep = opts.sleep ?? defaultSleep;
@@ -340,6 +343,25 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         }),
       };
     });
+  }
+
+  /** The map size tier the model's plans are held to: the setting, raised to what the open plan needs. */
+  private sizeTier(): SizeTierId {
+    return activeSizeTier(this.host.getSettings().mapSize, this.host.getPlan());
+  }
+
+  /**
+   * The context line naming the map size limits: for an experimental tier, or to say the standard one is back after
+   * the model was told a larger one; null when the model already has the current line (or never needed one).
+   */
+  private sizeTierLine(conv: Readonly<Conversation>): string | null {
+    const line = sizeTierText(this.sizeTier());
+    let seen: string | null = null;
+    for (const item of conv.items)
+      if (item.type === "context")
+        for (const l of item.text.split("\n")) if (l.startsWith(SIZE_TIER_PREFIX)) seen = l;
+    if (seen === null) return this.sizeTier() === "standard" ? null : line;
+    return seen === line ? null : line;
   }
 
   private themes(): Array<{ id: string; name: string; description?: string }> {
@@ -533,18 +555,25 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         type: "context",
         id: this.newId(),
         reason: "session_start",
-        text: sessionStartText({
-          themes: this.themes(),
-          builtInAssetsOnly: this.host.getAssetCatalog() === null,
-          scannedAt: this.host.getSettings().talespire.lastScanAt,
-          brief: project.brief,
-          plan,
-          head,
-          ...(plan ? { outline: this.outline(plan, head) } : {}),
-        }),
+        text: withSizeTier(
+          sessionStartText({
+            themes: this.themes(),
+            builtInAssetsOnly: this.host.getAssetCatalog() === null,
+            scannedAt: this.host.getSettings().talespire.lastScanAt,
+            brief: project.brief,
+            plan,
+            head,
+            ...(plan ? { outline: this.outline(plan, head) } : {}),
+          }),
+          this.sizeTierLine(conv),
+        ),
         createdAt: now,
       });
       return out;
+    }
+    const tierLine = this.sizeTierLine(conv);
+    if (tierLine !== null) {
+      out.push({ type: "context", id: this.newId(), reason: "resync", text: tierLine, createdAt: now });
     }
     if (conv.modelSeen.head !== head && plan) {
       const before = conv.modelSeen.head > 0 ? this.host.getPlan(conv.modelSeen.head) : null;
@@ -988,6 +1017,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       newSeed: () => this.random32() >>> 0,
       newPlanId: () => randomUUID(),
       palettes: this.host.getBuildPalettes(),
+      sizeTier: this.sizeTier(),
       nextVersion: this.nextVersionNumber(),
       planAt: (v) => this.host.getPlan(v),
     };
@@ -1252,7 +1282,11 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       costUsd = roundUp(firstRead + laterReads + (outTokens * r.output) / 1e6, roundCostLadder);
     }
     const tps = TOKENS_PER_SECOND[d?.speedTier ?? 2];
-    const seconds = roundUp(outTokens / tps + 2 * steps, roundSecondsLadder);
+    // at the experimental map sizes main checks and reviews the plan after each step: seconds the model doesn't spend
+    const seconds = roundUp(
+      outTokens / tps + (2 + checkSecondsPerStep(this.sizeTier())) * steps,
+      roundSecondsLadder,
+    );
     return { costUsd, seconds, basis };
   }
 

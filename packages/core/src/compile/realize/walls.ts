@@ -28,6 +28,7 @@ import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import { edgeLineLength, edgeLines, edgeOnLine } from "../../resolve/levelGrid";
 import { EPS, type RealizeLevel } from "./level";
 import type { SolidShellPlan } from "./solidShell";
+import { minOf } from "../../util/lists";
 
 /** A full-cell wall column: one per rock cell, spanning every wall edge it closes. */
 export interface FullCellColumn {
@@ -205,7 +206,7 @@ function tileWallRun(
   while (i < edges.length) {
     const remaining = edges.length - i;
     const cands = (greedy ? lengths : [1]).filter((n) => n <= remaining);
-    const shortest = lengths.length > 0 ? Math.min(...lengths) : 1;
+    const shortest = lengths.length > 0 ? minOf(lengths) : 1;
     if (edgeCenter && remaining < shortest) {
       // free-standing low walls/fences/railings: a run shorter than the shortest piece gets that piece centred over
       // it (it overhangs a little), rather than a gap

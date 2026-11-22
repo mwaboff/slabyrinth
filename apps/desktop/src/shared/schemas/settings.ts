@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GAME_SYSTEM_IDS, type GameSystemId } from "@slabyrinth/core/plan";
+import { GAME_SYSTEM_IDS, SIZE_TIER_ORDER, type GameSystemId, type SizeTierId } from "@slabyrinth/core/plan";
 import type { AppSettings } from "../project";
 import { costSchema, modelSelectionSchema, pathSchema, providerIdSchema, usageSchema } from "./common";
 
@@ -44,6 +44,14 @@ const defaultSystemSchema = z.strictObject({
   otherName: z.string().trim().min(1).max(60).optional(),
 });
 const warnUsd = z.number().min(0).max(100_000).nullable();
+/** The map size setting: core's tiers (a contract list checked against core's below). */
+const mapSizeSchema = z.enum(SIZE_TIER_ORDER as [SizeTierId, ...SizeTierId[]]);
+type SettingsMapSize = NonNullable<AppSettings["mapSize"]>;
+export const SETTINGS_SIZES_ARE_CORES: [SettingsMapSize] extends [SizeTierId]
+  ? [SizeTierId] extends [SettingsMapSize]
+    ? true
+    : never
+  : never = true;
 
 export const settingsSchema = z.object({
   schema: z.literal("slabyrinth/settings@1"),
@@ -61,6 +69,8 @@ export const settingsSchema = z.object({
     lastScanAt: z.string().nullable(),
     levelLayout: z.enum(["stacked", "side_by_side"]),
     alignmentMarkers: z.boolean(),
+    symbiotesFolder: pathSchema.nullable().optional(),
+    addonPromptDismissed: z.string().min(1).max(32).optional(),
   }),
   projects: z.object({ folder: pathSchema, recent: z.array(pathSchema).max(10) }),
   ui: z.object({
@@ -77,12 +87,14 @@ export const settingsSchema = z.object({
     skippedVersion: z.string().min(1).max(64).optional(),
     lastCheckedAt: z.string().min(1).max(64).optional(),
   }),
+  mapSize: mapSizeSchema.optional(),
 });
 
 /**
  * What the renderer may change through `settings:update` (Partial<AppSettings>, nested objects
  * merged). Main-owned fields are not accepted: schema, spending.allTime, talespire.lastScanAt,
- * talespire.installPath (use talespire:setPath, which validates), projects.recent.
+ * talespire.installPath (use talespire:setPath, which validates), talespire.symbiotesFolder (addon:chooseFolder),
+ * talespire.addonPromptDismissed (addon:dismissPrompt), projects.recent.
  */
 export const settingsPatchSchema = z.strictObject({
   defaultSelection: modelSelectionSchema.optional(),
@@ -125,5 +137,6 @@ export const settingsPatchSchema = z.strictObject({
   setupCompleted: z.boolean().optional(),
   /** skippedVersion (updates:skip) and lastCheckedAt are main-owned. */
   updates: z.strictObject({ autoCheck: z.boolean().optional() }).optional(),
+  mapSize: mapSizeSchema.optional(),
 });
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>;

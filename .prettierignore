@@ -6,6 +6,8 @@ release/
 coverage/
 playwright-report/
 test-results/
+# Agent worktrees: separate checkouts, formatted in their own tree.
+.claude/worktrees/
 package-lock.json
 # Normative documents and research artefacts are not reformatted by tooling.
 docs/

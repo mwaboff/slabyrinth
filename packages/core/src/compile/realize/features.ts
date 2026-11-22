@@ -20,6 +20,7 @@ import { realizeStall } from "../stalls";
 import type { CliffTones } from "./cliffBand";
 import { OPPOSITE } from "../../gen/gridGeometry";
 import { EPS, type RealizeLevel } from "./level";
+import { maxOf } from "../../util/lists";
 
 /** What every feature of one layFeatures call shares. */
 interface FeaturePass {
@@ -441,7 +442,7 @@ function mountOnWall(lv: RealizeLevel, f: ResolvedFeature, asset: FeatureAsset, 
 /** Landmarks must give the map a skyline: an info note when the asset (with its parts) stands under 3 tiles. */
 function noteShortLandmark(lv: RealizeLevel, f: ResolvedFeature, v: ResolvedVariant): void {
   if (!isLandmark(f.type)) return;
-  const top = Math.max(v.geom.size.y, ...(v.parts ?? []).map((q) => (q.offset?.y ?? 0) + q.geom.size.y));
+  const top = Math.max(v.geom.size.y, maxOf((v.parts ?? []).map((q) => (q.offset?.y ?? 0) + q.geom.size.y)));
   if (top < 3 - EPS)
     lv.ctx.addDiag({
       severity: "info",

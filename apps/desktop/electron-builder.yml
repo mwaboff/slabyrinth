@@ -10,8 +10,17 @@ directories:
 files:
   - "out/**"
   - "package.json"
-# No extraResources: the curated palettes and orientation are compiled into the bundle (core
-# palette/bundled.ts); user overrides live in userData/palettes. The full asset catalog never ships.
+# The curated palettes and orientation are compiled into the bundle (core palette/bundled.ts); user
+# overrides live in userData/palettes. The full asset catalog never ships.
+# The one extra resource is the TaleSpire add-on (Slabyrinth Helper), which the app copies into
+# TaleSpire's Symbiotes folder on the user's request (main/index.ts addonDir: resources/slabyrinth-helper).
+extraResources:
+  - from: ../../symbiotes/slabyrinth-helper
+    to: slabyrinth-helper
+    filter:
+      - "**/*"
+      - "!README.md"
+      - "!**/.*"
 # The licences of the bundled fonts and npm packages (scripts/third-party-notices.ts) sit next to the
 # executable, beside Electron's LICENSE.electron.txt and LICENSES.chromium.html (also in the AppImage).
 extraFiles:

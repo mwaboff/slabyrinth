@@ -14,9 +14,11 @@ import { useMap } from "../stores/map";
 import { switchProject, useProject } from "../stores/project";
 import { useSettings } from "../stores/settings";
 import { useBuild } from "../stores/build";
+import { useTaleSpireLink } from "../stores/talespireLink";
 import { useUpdates } from "../stores/updates";
 import { openSnapshot, reportUnhandled } from "./actions";
 import { runMenuCommand } from "./commands";
+import { announceRecovery } from "./recovered";
 
 export async function installBridge(): Promise<"real" | "fake"> {
   const url = new URL(window.location.href);
@@ -104,6 +106,12 @@ export function subscribeEvents(): void {
     on("updates:available", (st) => {
       useUpdates.getState().set(st);
     }),
+    on("addon:changed", (st) => {
+      useTaleSpireLink.getState().setAddon(st);
+    }),
+    on("link:changed", (st) => {
+      useTaleSpireLink.getState().setLink(st);
+    }),
     // The agent's view_map_image: main asks, the renderer draws the level and replies (render:imageResult).
     on("render:requestImage", (req) => {
       void answerImageRequest(req, {
@@ -138,10 +146,12 @@ export function subscribeEvents(): void {
 export async function boot(): Promise<void> {
   await installBridge();
   subscribeEvents();
+  announceRecovery(useApp.getState().toast);
   const info = await call("app:getInfo", undefined);
   useApp.getState().setInfo(info.platform, info.version);
   await useSettings.getState().load();
   void useUpdates.getState().load();
+  void useTaleSpireLink.getState().load();
   const settings = useSettings.getState().settings;
   const catalog = useSettings.getState().catalog;
   if (catalog?.state === "no_install" && settings?.suppressAssetWarning !== true)

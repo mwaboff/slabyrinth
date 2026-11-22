@@ -8,6 +8,7 @@ import type { Area, MapPlan } from "../../../src/contracts/plan";
 import { PLAN_LIMITS } from "../../../src/contracts/plan";
 import { createToolExecutor, type AgentToolContext } from "../../../src/agent";
 import { compileResolved } from "../../../src/compile";
+import { applyChecked, applyOps } from "../../../src/ops";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import {
   MAX_LEVEL_SIDE,
@@ -106,23 +107,20 @@ describe("size tiers", () => {
     expect(errors(sparsePlan(1025), "large-1024").map((i) => i.code)).toContain("bounds_exceeded");
   });
 
-  it("validation given the caller's own resolve of the plan gives the same issues, without resolving it again", () => {
-    for (const name of ["keep-dungeon-v8", "example-a"] as const) {
-      const plan = loadPlan(name);
-      const resolved = resolvePlan(plan, cat);
-      let asked = 0;
-      const reused = validatePlan(
-        plan,
-        planRules(cat, {
-          resolvedFor: (p) => {
-            asked++;
-            return p === plan ? resolved : undefined;
-          },
-        }),
-      );
-      expect(asked).toBe(1);
-      expect(reused).toEqual(validatePlan(plan, planRules(cat)));
-    }
+  it("applyOps and applyChecked validate at the rules' tier", () => {
+    const plan = sparsePlan(400);
+    const op = { op: "set_meta", title: "Wide" } as const;
+    const large = planRules(cat, { sizeTier: "large-512" });
+    const applied = applyOps(plan, [op], large);
+    expect(applied.ok ? [] : applied.issues.map((i) => i.code)).toEqual([]);
+    const checked = applyChecked(plan, [op], large);
+    expect(checked.ok ? [] : checked.issues.map((i) => i.code)).toEqual([]);
+    // the standard tier still refuses it
+    const refused = applyOps(plan, [op], planRules(cat));
+    expect(refused.ok ? [] : refused.issues.map((i) => i.code)).toEqual([
+      "bounds_exceeded",
+      "bounds_exceeded",
+    ]);
   });
 
   it("a plan within the standard limits validates the same whatever tier is active", () => {

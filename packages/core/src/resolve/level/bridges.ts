@@ -19,6 +19,7 @@ import { materialInfo, materialOrdinal } from "../materials";
 import type { ChasmRecords } from "./chasms";
 import type { FeatureWork } from "./features";
 import { type ReadOnly, type ResolveGrid, RAILING_HEIGHT } from "./grid";
+import { maxOf, minOf, pushAll } from "../../util/lists";
 
 /** A bridge deck waiting for the bridge pass (area of kind "bridge" or a chasm op's bridge). */
 export interface BridgeRequest {
@@ -145,7 +146,7 @@ export function stepBridges(work: ResolveGrid, out: BridgeRecords, chasms: ReadO
     if (a.name !== undefined) req.label = a.name;
     reqs.push(req);
   }
-  reqs.push(...chasms.bridgeRequests);
+  pushAll(reqs, chasms.bridgeRequests);
   // raised decks (explicit height) first, so spans that climb to them meet their real height
   const ordered = [...reqs.filter((r) => r.deck !== null), ...reqs.filter((r) => r.deck === null)];
   const raised: RaisedDeck[] = [];
@@ -173,8 +174,7 @@ function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRec
       touch = Math.max(touch, work.height[j] as number);
     }
   }
-  let deck =
-    r.deck ?? (Number.isFinite(touch) ? touch : Math.max(...cells.map((i) => work.height[i] as number)));
+  let deck = r.deck ?? (Number.isFinite(touch) ? touch : maxOf(cells.map((i) => work.height[i] as number)));
   deck = Math.max(PLAN_LIMITS.minHeight * 4, Math.min(PLAN_LIMITS.maxHeight * 4, deck));
   // anchor cells: deck cells next to walkable floor within a 0.5 step of the deck (where you get on and off)
   const anchorCells: number[] = [];
@@ -204,10 +204,10 @@ function layBridge(work: ResolveGrid, r: ReadOnly<BridgeRequest>, out: BridgeRec
   const deckMat = MATERIALS[r.floorMat - 1] as Material;
   const span: BridgeSpan = r.span ?? materialInfo(deckMat).deckSpan;
   const cxy = cells.map((i) => work.cellXY(i));
-  const bx0 = Math.min(...cxy.map((c) => c[0]));
-  const bx1 = Math.max(...cxy.map((c) => c[0]));
-  const by0 = Math.min(...cxy.map((c) => c[1]));
-  const by1 = Math.max(...cxy.map((c) => c[1]));
+  const bx0 = minOf(cxy.map((c) => c[0]));
+  const bx1 = maxOf(cxy.map((c) => c[0]));
+  const by0 = minOf(cxy.map((c) => c[1]));
+  const by1 = maxOf(cxy.map((c) => c[1]));
   const axis = r.axis ?? (bx1 - bx0 >= by1 - by0 ? "h" : "v");
   const p0 = axis === "h" ? bx0 : by0;
   const len = (axis === "h" ? bx1 - bx0 : by1 - by0) + 1;

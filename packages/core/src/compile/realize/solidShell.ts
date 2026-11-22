@@ -14,6 +14,7 @@ import { h32Utf16 } from "../../util/hash";
 import { SHELL, isCarvedLevel, planShell, type Shell } from "../shell";
 import type { EdgeCtx } from "./edges";
 import type { RealizeLevel } from "./level";
+import { minOf } from "../../util/lists";
 
 /** The level's solid shell as the later passes read it. */
 export interface SolidShellPlan {
@@ -44,7 +45,7 @@ export function planSolidShell(lv: RealizeLevel): SolidShellPlan {
   );
   if (shell && capVariants.length === 0)
     shell = shell.strips.length > 0 ? { ...shell, cells: new Map(), edges: [] } : null;
-  const capThick = capVariants.length > 0 ? Math.min(...capVariants.map((v) => v.geom.size.y)) : 0.5;
+  const capThick = capVariants.length > 0 ? minOf(capVariants.map((v) => v.geom.size.y)) : 0.5;
   const skirtEdges = new Map<string, EdgeCtx>();
   if (shell)
     for (const se of shell.edges) {

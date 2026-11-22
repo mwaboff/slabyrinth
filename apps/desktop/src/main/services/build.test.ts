@@ -10,13 +10,14 @@ import { memoryLogger } from "../logger";
 import type { CompileBackend, CompileInput } from "../ports/compile";
 import { fakeCompileBackend } from "./testing/fakeCompileBackend";
 import type { WorkerResponse } from "../workers/protocol";
-import { BuildService } from "./buildService";
+import { BuildService, type BuildServiceDeps } from "./buildService";
 import { ClipboardService, memoryClipboard } from "./clipboardService";
 import { CompileService, type WorkerLike } from "./compileService";
 import { ExportService, roomKeyMarkdown } from "./exportService";
 import { PaletteService } from "./paletteService";
 import { CatalogService } from "./talespire/catalogService";
 import { inProcessWorker } from "./testing/inProcessWorker";
+import { activeSizeTier } from "../../shared/sizeTier";
 import { projectRig, type ProjectRig } from "./testing/helpers";
 
 let rig: ProjectRig | null = null;
@@ -106,6 +107,49 @@ describe("CompileService", () => {
     }
   });
 
+  it("a worker out of memory says so in plain words, naming the map size setting", async () => {
+    const dying = (
+      fail: (w: { error?: (e: Error) => void; exit?: (c: number) => void }) => void,
+    ): WorkerLike => {
+      const on: { error?: (e: Error) => void; exit?: (c: number) => void } = {};
+      return {
+        postMessage: () => {
+          setTimeout(() => {
+            fail(on);
+          }, 0);
+        },
+        on: (event: string, fn: never) => {
+          if (event === "error") on.error = fn;
+          if (event === "exit") on.exit = fn;
+        },
+        terminate: () => Promise.resolve(0),
+      };
+    };
+    const oom = Object.assign(new Error("Worker terminated due to reaching memory limit"), {
+      code: "ERR_WORKER_OUT_OF_MEMORY",
+    });
+    for (const fail of [
+      (w: { error?: (e: Error) => void }) => w.error?.(oom),
+      (w: { exit?: (c: number) => void }) => w.exit?.(134),
+    ]) {
+      const compiler = new CompileService({
+        spawn: () => dying(fail),
+        emit: () => undefined,
+        logger: memoryLogger(),
+      });
+      await expect(compiler.run(input)).rejects.toMatchObject({
+        message: expect.stringMatching(/^The build ran out of memory\..*Maximum map size/) as unknown,
+      });
+    }
+    // any other crash keeps the plain line
+    const other = new CompileService({
+      spawn: () => dying((w) => w.error?.(new Error("boom"))),
+      emit: () => undefined,
+      logger: memoryLogger(),
+    });
+    await expect(other.run(input)).rejects.toMatchObject({ message: "The build stopped unexpectedly." });
+  });
+
   it("the real worker_threads entry loads and answers (tsx loader)", async () => {
     try {
       createRequire(import.meta.url).resolve("tsx");
@@ -128,7 +172,7 @@ describe("CompileService", () => {
 });
 
 describe("BuildService and ExportService", () => {
-  const setup = async (backend?: CompileBackend) => {
+  const setup = async (backend?: CompileBackend, deps: Partial<BuildServiceDeps> = {}) => {
     rig = await projectRig();
     const logger = memoryLogger();
     const palettes = new PaletteService({
@@ -160,6 +204,7 @@ describe("BuildService and ExportService", () => {
       settings: rig.settings,
       dialogs: rig.dialogs,
       logger,
+      ...deps,
     });
     const clip = memoryClipboard();
     const exporter = new ExportService({
@@ -244,6 +289,60 @@ describe("BuildService and ExportService", () => {
     const slab = await build.chunkSlab(res.buildId, res.chunks[0]?.id ?? "");
     expect(slab).toBe(res.chunks[0]?.slab);
     expect(seen[1]).toEqual({ ...seen[0], sideBySideGap: 10 }); // the recorded default gap
+    // the TaleSpire add-on's chunk set: every chunk in paste order, with its slab and asset count
+    const forSend = await build.chunksForSend(res.buildId);
+    expect(forSend.record.id).toBe(res.buildId);
+    expect(forSend.chunks.map((c) => [c.id, c.slab, c.assetCount])).toEqual(
+      res.chunks.map((c) => [c.id, c.slab, c.assetCount]),
+    );
+  });
+
+  it("records the paste anchor, so the paste steps read the same after a restart", async () => {
+    const anchor = { side: "south" as const, clearanceCells: 5, farMarkerCells: 37 };
+    const beside: CompileBackend = {
+      estimate: (input, levels) => fakeCompileBackend.estimate(input, levels),
+      compile: (input, progress) => ({ ...fakeCompileBackend.compile(input, progress), pasteAnchor: anchor }),
+    };
+    const { r, build } = await setup(beside);
+    const res = await build.run({});
+    expect(r.projects.snapshot().builds[0]?.pasteAnchor).toEqual(anchor);
+    await r.projects.flush();
+    const saved = JSON.parse(await fsp.readFile(r.projects.filePath as string, "utf8")) as {
+      builds: Array<{ pasteAnchor?: unknown }>;
+    };
+    expect(saved.builds[0]?.pasteAnchor).toEqual(anchor);
+    // the plain way: no anchor recorded (and older records without one still parse: projectFile.test.ts)
+    const plain = await setup();
+    await plain.build.run({});
+    expect(plain.r.projects.snapshot().builds[0]).not.toHaveProperty("pasteAnchor");
+    expect(res.buildId).toBeTruthy();
+  });
+
+  it("holds a build to the size of the plan it builds, not the head plan", async () => {
+    const tiers: Array<string | undefined> = [];
+    const recording: CompileBackend = {
+      estimate: (input, levels) => fakeCompileBackend.estimate(input, levels),
+      compile: (input, progress) => {
+        tiers.push(input.sizeTier);
+        return fakeCompileBackend.compile(input, progress);
+      },
+    };
+    // the setting is Standard; v2 (approved) is 400 cells a side, then the head v3 shrinks back
+    const { r, build } = await setup(recording, {
+      sizeTier: (plan) => activeSizeTier("standard", plan),
+    });
+    const wide = {
+      ...FIXTURE_PLAN,
+      levels: FIXTURE_PLAN.levels.map((l, i) => (i === 0 ? { ...l, bounds: { ...l.bounds, w: 400 } } : l)),
+    };
+    r.projects.commitVersion({ plan: wide, author: "ai", summary: "v2", cause: { type: "create" } });
+    r.projects.commitVersion({ plan: FIXTURE_PLAN, author: "ai", summary: "v3", cause: { type: "create" } });
+    const res = await build.run({ version: 2 });
+    await build.run({ version: 3 });
+    // a re-send after a restart recompiles v2 at its own size too
+    (build as unknown as { bundles: Map<string, unknown> }).bundles.clear();
+    await build.chunksForSend(res.buildId);
+    expect(tiers).toEqual(["large-512", "standard", "large-512"]);
   });
 
   it("records chunks that span several levels once, in paste order, and tracks copies", async () => {

@@ -5,6 +5,7 @@
  */
 import { BUILD_CONSTANTS } from "../contracts/plan";
 import type { LevelLink, LinkKind, MapPlan, Side, Vec2 } from "../contracts/plan";
+import { pushAll } from "../util/lists";
 
 /**
  * What each link kind IS, as data: one row per kind of the plan's LINK_KINDS, read by the geometry below, validation,
@@ -116,7 +117,7 @@ export function linkGeometry(link: LevelLink, fromElevation: number, toElevation
     const strip = (x: number, y: number): Vec2[] =>
       Array.from({ length: width }, (_, w): Vec2 => [x + across[0] * w, y + across[1] * w]);
     const lowerCells: Vec2[] = [];
-    for (let k = 0; k < length; k++) lowerCells.push(...strip(fx + sx * k, fy + sy * k));
+    for (let k = 0; k < length; k++) pushAll(lowerCells, strip(fx + sx * k, fy + sy * k));
     const arrival: Vec2 = [fx + sx * length, fy + sy * length];
     return {
       rise,
@@ -160,8 +161,8 @@ export function linkCellsOnLevel(plan: Pick<MapPlan, "levels" | "links">, levelI
     const up = plan.levels.find((l) => l.id === link.to.level);
     if (!lo || !up) continue;
     const geo = linkGeometry(link, lo.elevation, up.elevation);
-    if (lo.id === levelId) out.push(...geo.lowerCells);
-    if (up.id === levelId) out.push(...geo.upperCells, ...geo.arrivalCells);
+    if (lo.id === levelId) pushAll(out, geo.lowerCells);
+    if (up.id === levelId) pushAll(out, geo.upperCells, geo.arrivalCells);
   }
   return out;
 }

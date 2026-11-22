@@ -29,6 +29,7 @@ import {
 import type { ObstructedCells } from "./openFloor";
 import { isRun, type StairRuns } from "./runs";
 import { fmt, round2, uniq } from "./words";
+import { maxOf, minOf } from "../../util/lists";
 
 /** The codes this file emits (VERIFY_CODES is the union of every check's list). */
 export const LINK_CODES = [
@@ -109,9 +110,11 @@ function topOfPieces(solids: SolidIndex, parts: readonly Solid[], c: readonly [n
   const pc = solids.toWorld(c[0] + 0.5, c[1] + 0.5);
   return Math.max(
     -Infinity,
-    ...parts
-      .filter((s) => s.box.min.x < pc.x && s.box.max.x > pc.x && s.box.min.z < pc.z && s.box.max.z > pc.z)
-      .map((s) => s.box.max.y),
+    maxOf(
+      parts
+        .filter((s) => s.box.min.x < pc.x && s.box.max.x > pc.x && s.box.min.z < pc.z && s.box.max.z > pc.z)
+        .map((s) => s.box.max.y),
+    ),
   );
 }
 
@@ -297,7 +300,7 @@ function checkVerticalStack(
       });
     return;
   }
-  const top = Math.max(...parts.map((s) => s.box.max.y));
+  const top = maxOf(parts.map((s) => s.box.max.y));
   const cell = parts[0]?.p.source.cell ?? lk.lowerCells[0] ?? lk.arrival;
   const upTop = gu.top(cell[0], cell[1]);
   if (!(top < upTop - LADDER_REACH_TOLERANCE)) return;
@@ -328,8 +331,7 @@ function checkTrapdoorHatch(
   const hatch = piecesOf(solids, upper.id, lk.id);
   const cell = lk.upperCells[0] ?? lk.arrival;
   const upTop = gu.top(cell[0], cell[1]);
-  if (hatch.length && !(Math.abs(Math.min(...hatch.map((s) => s.box.min.y)) - upTop) > HATCH_TOLERANCE))
-    return;
+  if (hatch.length && !(Math.abs(minOf(hatch.map((s) => s.box.min.y)) - upTop) > HATCH_TOLERANCE)) return;
   verdicts.fail(lk.id);
   ctx.report.add({
     severity: "error",

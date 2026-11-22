@@ -8,6 +8,9 @@
  *   nots    → TaleSpire not found           empty → no projects yet
  *   win     → platform win32 (native window controls)
  *   update  → a newer release is available (header chip)
+ *   addon-notfound | addon-missing (default) | addon-installed | addon-outdated | addon-mismatch | addon-foreign
+ *           → the TaleSpire add-on's install state;  addon-autofail → outdated, the automatic update failed
+ *   helper-none (default) | helper-connected | helper-refused → the add-on's link;  wayland → a Wayland session
  *
  * The state is one FakeState per bridge (state.ts); the channels are answered by handler groups in handlers/, one
  * per area of main (app, projects, plan, chat, build, TaleSpire). The type of `handlers` below checks every
@@ -17,6 +20,7 @@ import type { z } from "zod";
 import type { IpcEvents, IpcRequests, Result, SlabyrinthApi } from "../../../shared/ipc";
 import { describeRequestError, requestSchemas } from "../../../shared/schemas/ipc";
 import type { FakeProject } from "./fixtures";
+import { addonHandlers } from "./handlers/addon";
 import { appHandlers } from "./handlers/app";
 import { buildHandlers } from "./handlers/build";
 import { chatHandlers } from "./handlers/chat";
@@ -24,6 +28,7 @@ import { planHandlers } from "./handlers/plan";
 import { projectHandlers } from "./handlers/projects";
 import { taleSpireHandlers } from "./handlers/talespire";
 import { FakeFailure, FakeState, type FakeOptions, type FakeScenario, type Handlers } from "./state";
+import { setFakeSizeTier } from "./rules";
 
 export type { FakeOptions, FakeScenario } from "./state";
 
@@ -42,7 +47,26 @@ export function parseScenario(search: string): FakeScenario {
     empty: flags.has("empty") || flags.has("setup"),
     win: flags.has("win"),
     update: flags.has("update"),
+    ...addonScenario(flags),
   };
+}
+
+const ADDON_STATES = ["not_found", "missing", "installed", "outdated", "mismatch", "foreign"] as const;
+const HELPER_STATES = ["none", "connected", "refused"] as const;
+
+/** addon-<state>, addon-autofail, helper-<state>, wayland (see the comment at the top). */
+function addonScenario(
+  flags: Set<string>,
+): Pick<FakeScenario, "addon" | "addonAutoFailed" | "helper" | "wayland"> {
+  const out: Pick<FakeScenario, "addon" | "addonAutoFailed" | "helper" | "wayland"> = {};
+  for (const a of ADDON_STATES) if (flags.has(`addon-${a.replace("_", "")}`)) out.addon = a;
+  for (const h of HELPER_STATES) if (flags.has(`helper-${h}`)) out.helper = h;
+  if (flags.has("addon-autofail")) {
+    out.addon = "outdated";
+    out.addonAutoFailed = true;
+  }
+  if (flags.has("wayland")) out.wayland = true;
+  return out;
 }
 
 export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
@@ -50,6 +74,7 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
   projects: Map<string, FakeProject>;
 } {
   const s = new FakeState(opts);
+  setFakeSizeTier(() => s.settings.mapSize ?? "standard");
   const handlers: Handlers = {
     ...appHandlers(s),
     ...projectHandlers(s),
@@ -57,6 +82,7 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
     ...chatHandlers(s),
     ...buildHandlers(s),
     ...taleSpireHandlers(s),
+    ...addonHandlers(s),
   };
   // Startup warning, as main sends it after the first catalog check.
   if (s.scenario.nots === true) {
