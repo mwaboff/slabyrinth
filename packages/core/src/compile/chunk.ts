@@ -672,7 +672,7 @@ export function pasteInstructions(
     "1. Use an empty board, or raise a build plane (G) at a known height.",
     "2. Do not move the camera between chunks.",
     anchor
-      ? `3. Keep the cursor on one bare cell ${anchor.clearanceCells + 1} cells ${anchor.side} of the middle of the map’s ${anchor.side} edge (${anchor.clearanceCells} empty cells between it and the map): that cell is the middle of every chunk. Each chunk carries the same two alignment pillars, one clear cell beyond the north-east corner (raised to the top) and one at ground level ${anchor.farMarkerCells} cells ${anchor.side} of the map. Place every chunk so its pillars land exactly on the pillars already placed.`
+      ? `3. Keep the cursor on one bare cell ${anchor.clearanceCells + 1} cells ${anchor.side} of the middle of the map’s ${anchor.side} edge (${anchor.clearanceCells} empty cells between it and the map): that cell is the middle of every chunk. Each chunk carries the same two alignment pillars, one clear cell beyond the north-east corner (raised to the top) and one at ground level ${anchor.farMarkerCells} cells ${anchor.side} of the map, one cell beyond its west edge. Place every chunk so its pillars land exactly on the pillars already placed.`
       : markers
         ? "3. Each chunk carries the same two alignment pillars, one clear cell outside the south-west corner (at ground level) and the north-east corner (raised to the top). Place every chunk so its south-west pillar lands exactly on the pillar already placed."
         : "3. Paste every chunk with the cursor on the same cell.",
