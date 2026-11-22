@@ -48,6 +48,8 @@ export interface PlacementGrid {
     at: readonly [number, number],
     size: readonly [number, number],
     variant?: string,
+    /** Generator 5 (`exactWayInReach`): how the piece stands, so one set square reaches exactly its outline. */
+    pose?: { rotFine: number; offset?: readonly [number, number] },
   ): boolean;
   /** True on cells under a vehicle already placed (by the plan or another op). Optional. */
   vehicle?(x: number, y: number): boolean;
@@ -88,7 +90,7 @@ export interface PlacementGrid {
    */
   void?(x: number, y: number): boolean;
   /**
-   * Generator 4, room recipes (gen/rooms4.ts): the real size in tiles of the smallest variant of the piece a feature
+   * Generator 4, room recipes (gen/rooms4): the real size in tiles of the smallest variant of the piece a feature
    * type (and variant name) resolves to when anchored on cell (x, y), in the theme it is built in; undefined where
    * that theme has no such piece (the recipe leaves that item out). Absent: no room recipe runs.
    */
@@ -133,6 +135,11 @@ export interface PlacementGrid {
    * purpose draw different variants. Created per level by the resolver.
    */
   roomMemory?: Map<string, number[]>;
+  /**
+   * Generator 5 (`companionGroups`): is there a window (an opening that is no way through, gen/openingKinds.ts) in the
+   * wall on the cell's side? A room furnisher seats a desk at it and keeps tall pieces off it. Optional.
+   */
+  windowOn?(x: number, y: number, side: Side): boolean;
 }
 
 /** What the grid's generator does (plan/generator.ts); a grid that names no generator is generator 2. */
@@ -161,6 +168,8 @@ export interface GeneratedPlacement {
 export interface ScatterResult {
   placements: GeneratedPlacement[];
   capped: boolean;
+  /** Generator 5, a furnished room: the cells it kept clear of blockers (standing room, the way in, door landings). */
+  keptClear?: Array<[number, number]>;
 }
 
 /** True when a wall (WALL edge) separates two cells of the footprint. */

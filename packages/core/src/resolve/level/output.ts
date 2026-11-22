@@ -215,6 +215,9 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
   if (s.lines.length > 0) lvl.lines = s.lines;
   // generator 5: the arrangement instances the stages attached (resolve/level/arrangements.ts; empty otherwise)
   if (s.arrangements.all.length > 0) lvl.arrangements = s.arrangements.all;
+  // generator 5: what the room furnisher kept clear (gen/rooms4/furnish.ts; empty otherwise)
+  const kept = s.features.keptClear;
+  if (kept.length > 0) lvl.keptClear = kept;
   if (work.structs) Object.assign(lvl, work.structs.finish(work.level.elevation));
   // the walls of a built interior vary in height (resolve/wallTops.ts)
   if (work.profile.interiorWallTops && work.level.base.type === "solid") {

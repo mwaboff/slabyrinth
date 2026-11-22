@@ -356,6 +356,22 @@ const SWITCHES = {
     5,
     "The review advises from the quality meter where plan words can act: a blocked lane between a room's doors, unlit outside doors, a flat roofline, alike facades in a row (review/qualityNotes.ts).",
   ),
+  roomKinds: on(
+    5,
+    "A room's words name a finer kind (shop, stable, lounge, classroom, command, ward; a parlour is a lounge, a dormitory a barracks), furnished from its row of the room-kind table (gen/roomTraits.ts) and written as the purpose that hosts it.",
+  ),
+  companionGroups: on(
+    5,
+    "A room's anchor comes with its companions (a bed's nightstand and chest, a counter's stools and back store, a desk's chair), placed by the room-kind table's rule (facing the door, at a window, free-standing, on the axis) with the way from the door kept clear; a rug lies under the group; a room down to 3 floor tiles gets its minimum set (gen/rooms4/groups.ts).",
+  ),
+  exactWayInReach: on(
+    5,
+    "A generated blocking piece set square where it stands is kept out of a doorway by its real outline there, not by its outline turned any way, so furniture in a small room may stand beside its door (resolve/level/features.ts blocksWayIn).",
+  ),
+  occupancyLights: on(
+    5,
+    "A room is lit by who uses it: a light on each table, desk and nightstand, a light either side of a shared room's main door, lights per 10 floor tiles from the room-kind table, at least one in every lived-in room down to 3 tiles, a corridor one per 8 tiles of its length (gen/rooms4/occupancy.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

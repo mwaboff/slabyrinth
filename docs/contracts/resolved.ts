@@ -423,6 +423,12 @@ export interface ResolvedLevel {
    */
   reserved?: number[];
   /**
+   * Generator 5: cells the room furnisher keeps clear of blockers: the standing room before a furniture group, the way
+   * from the main door to it, the landings at the doors. Local cell indices (ly*w + lx), ascending. Absent when empty.
+   * Detail recipes lay no ground cover there and stand nothing but wall-hugging pieces there.
+   */
+  keptClear?: number[];
+  /**
    * Generator 5: arrangement instances, pieces composed in a local frame and set at an anchor (core arrange/). Each
    * instance is one element, so its own pieces may overlap. Absent when there are none.
    */

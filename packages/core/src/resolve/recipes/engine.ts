@@ -115,7 +115,8 @@ export function runRecipes(
     mountOf,
     topOf: (f) => {
       const h = heightOf(f);
-      return h === null ? null : level.elevation + f.baseHeight + h;
+      // (baseHeight is absolute: it holds the level's elevation already)
+      return h === null ? null : f.baseHeight + h;
     },
     defaultTheme: palette.defaultTheme,
     boardEdgeIsExit: profile.boardEdgeExits,

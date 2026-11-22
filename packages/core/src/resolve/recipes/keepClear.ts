@@ -3,8 +3,9 @@
  *
  *   ways      the walking space (floor top to head height) of every cell beside a passage opening, of stairs, links and
  *             ramps: no piece at all.
- *   lanes     the walking space of a room's clear lanes and door aprons (anchors/zones.ts LANE, DOOR): a piece may only
- *             hug a wall there (lie within HUG of a walled side of the cell).
+ *   lanes     the walking space of a room's clear lanes and door aprons (anchors/zones.ts LANE, DOOR), and of the cells
+ *             the room furnisher kept clear (ResolvedLevel.keptClear): a piece may only hug a wall there (lie within
+ *             HUG of a walled side of the cell).
  *   open      the free centre of every open floor cell (resolve/levelGrid.ts `freeCentre`, where the 2D map's open
  *             floor is judged): no piece over it at walking height.
  *   features  the footprint and height of every feature already on the level (furniture, wall torches, shelves): no
@@ -81,10 +82,13 @@ export class KeepClear {
     for (const z of zones)
       for (const [x, y] of z.cells)
         if ((z.classAt(x, y) & (ZONE.LANE | ZONE.DOOR)) !== 0) this.soft.add(g.index(x, y));
+    // what a room's furnisher kept clear (standing room before a group, the way to it, door landings) is a lane too
+    for (const i of L.keptClear ?? []) this.soft.add(i);
     for (const f of L.features) {
       const ox = f.offset?.[0] ?? 0;
       const oy = f.offset?.[1] ?? 0;
-      const base = L.elevation + f.baseHeight;
+      // (baseHeight is absolute: it holds the level's elevation already)
+      const base = f.baseHeight;
       this.boxes.push({
         box: {
           x0: f.at[0] + ox,

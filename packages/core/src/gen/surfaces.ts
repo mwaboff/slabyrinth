@@ -11,7 +11,7 @@
  *                   knows which role a family lives in.
  *   SURFACE_LOAD    how many small things stand on each kind of support (a room's table, a stall's counter cell).
  *
- * Callers: gen/rooms4.ts (room recipes), gen/market.ts (the stall-kind table names a family per kind), compile/stalls.ts
+ * Callers: gen/rooms4 (room recipes), gen/market.ts (the stall-kind table names a family per kind), compile/stalls.ts
  * (counters of a covered stall) and the palette view (piece sizes). Generators 1-3 keep their own tables
  * (gen/place.ts, the generator-3 stall goods) and never read this one.
  */
@@ -53,7 +53,7 @@ export function featureRoles(type: FeatureType): readonly string[] {
 export interface SurfaceLoad {
   n: readonly [number, number];
   family?: SmallFamily;
-  /** Chance it takes anything at all (default: gen/rooms4.ts ROOM_DRESS.topChance). */
+  /** Chance it takes anything at all (default: gen/rooms4/recipes.ts ROOM_DRESS.topChance). */
   chance?: number;
   /** The variant that carries things and stacks on itself (a small crate: a large one's top is taller). */
   stackVariant?: string;
