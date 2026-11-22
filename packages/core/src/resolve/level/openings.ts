@@ -156,11 +156,33 @@ function placeOpening(
   return true;
 }
 
+const ownerPairKey = (a: number, b: number): string => (a <= b ? `${a}:${b}` : `${b}:${a}`);
+
+/**
+ * Every edge of the level by the pair of owners on its two sides, in edge order (horizontal edges, then vertical): one
+ * walk over the edges serves every opening, which before walked them all once each.
+ */
+function edgesByOwners(work: ResolveGrid): Map<string, Array<{ orient: "h" | "v"; i: number }>> {
+  const out = new Map<string, Array<{ orient: "h" | "v"; i: number }>>();
+  const add = (orient: "h" | "v", i: number): void => {
+    const [a, b] = work.edgeCells(orient, i);
+    const key = ownerPairKey(work.owner(a), work.owner(b));
+    const list = out.get(key);
+    if (list) list.push({ orient, i });
+    else out.set(key, [{ orient, i }]);
+  };
+  for (let i = 0; i < work.hE.kind.length; i++) add("h", i);
+  for (let i = 0; i < work.vE.kind.length; i++) add("v", i);
+  return out;
+}
+
 export function stepOpenings(
   work: ResolveGrid,
   routes: readonly RouteRecord[],
   out: ResolvedOpening[],
 ): void {
+  // the edges between each pair of owners, found once (openings change edges, never owners)
+  let byOwners: Map<string, Array<{ orient: "h" | "v"; i: number }>> | undefined;
   work.level.openings.forEach((o, k) => {
     const path = `/levels/${work.li}/openings/${k}`;
     const width0 = openingWidth(o);
@@ -184,15 +206,8 @@ export function stepOpenings(
         });
         return;
       }
-      const matches: Array<{ orient: "h" | "v"; i: number }> = [];
-      const test = (orient: "h" | "v", i: number): void => {
-        const [a, b] = work.edgeCells(orient, i);
-        const oa = work.owner(a);
-        const ob = work.owner(b);
-        if ((oa === ra && ob === rb) || (oa === rb && ob === ra)) matches.push({ orient, i });
-      };
-      for (let i = 0; i < work.hE.kind.length; i++) test("h", i);
-      for (let i = 0; i < work.vE.kind.length; i++) test("v", i);
+      byOwners ??= edgesByOwners(work);
+      const matches = byOwners.get(ownerPairKey(ra, rb)) ?? [];
       const run = pickRun(runsOf(work, matches));
       if (!run) {
         work.issue(

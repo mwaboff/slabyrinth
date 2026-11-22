@@ -99,14 +99,20 @@ export class BlockedOpenings {
 
 export function checkOpenings(ctx: VerifyCtx, solids: SolidIndex): BlockedOpenings {
   const blocked = new BlockedOpenings();
+  // each opening's door and wall pieces, in build order, found in one pass over the solids (not one pass per opening)
+  const byOpening = new Map<string, Solid[]>();
+  for (const s of solids.all) {
+    if (s.role !== "opening" && s.role !== "wall") continue;
+    const key = `${s.levelId}|${s.p.source.elementId ?? ""}`;
+    const list = byOpening.get(key);
+    if (list) list.push(s);
+    else byOpening.set(key, [s]);
+  }
   for (const L of ctx.levels) {
     const g = ctx.grids.get(L.id);
     if (!g) continue;
     for (const op of L.openings) {
-      const pieces = solids.all.filter(
-        (s) =>
-          s.levelId === L.id && s.p.source.elementId === op.id && (s.role === "opening" || s.role === "wall"),
-      );
+      const pieces = byOpening.get(`${L.id}|${op.id}`) ?? [];
       const edges = openingEdges(op);
       checkDoorPieces(ctx, solids, L, g, op, edges, pieces);
       if (isPassage(op.kind)) checkPassage(ctx, solids, L, g, op, edges, blocked);
