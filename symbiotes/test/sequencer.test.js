@@ -286,14 +286,84 @@ describe("global hotkeys (helper side)", () => {
 describe("the state header", () => {
   it("link light: words and icon change with the colour", () => {
     expect(Seq.linkLight("connected")).toMatchObject({ tone: "good", label: "Connected to Slabyrinth" });
-    expect(Seq.linkLight("connecting")).toMatchObject({ tone: "wait", label: "Connecting…" });
+    expect(Seq.linkLight("connecting")).toMatchObject({ tone: "wait", label: "Connecting to Slabyrinth…" });
     expect(Seq.linkLight("retrying")).toMatchObject({
       tone: "wait",
-      label: "Not connected: bridge not running (retrying)",
+      label: "Not connected to Slabyrinth",
+      detail: "The bridge is not running. Retrying on its own.",
     });
-    expect(Seq.linkLight("off")).toMatchObject({ tone: "off", label: "Link is off: turn on Link below" });
+    expect(Seq.linkLight("off")).toMatchObject({
+      tone: "off",
+      label: "Link is off",
+      detail: "Turn it on under Link and hotkeys.",
+    });
     const icons = ["connected", "connecting", "retrying", "off"].map((s) => Seq.linkLight(s).icon);
     expect(new Set(icons).size).toBe(4);
+  });
+});
+
+describe("the now block", () => {
+  const KEYS = { next: "Ctrl+Alt+D", back: "Ctrl+Alt+A", again: "Ctrl+Alt+S" };
+  const two = () =>
+    Seq.reduce(Seq.initialState(), { type: "load", set: Seq.parseChunkSet(blob(), 0).set }).state;
+
+  it("asks for the build plane before chunk 1 and names the hotkey while the link is up", () => {
+    const g = Seq.guide(two(), { linked: true, keys: KEYS });
+    expect(g).toMatchObject({
+      tone: "action",
+      step: "Before chunk 1",
+      title: "Press G to raise the build plane",
+    });
+    expect(g.detail).toMatch(/^Then press Ctrl\+Alt\+D to put chunk 1 in your hand\./);
+    // no working hotkeys: the button is named instead
+    expect(Seq.guide(two(), { linked: false, keys: null }).detail).toMatch(/^Then press Next /);
+  });
+
+  it("walks the chunks with a short headline and says when it is the last", () => {
+    let s = Seq.reduce(two(), { type: "next" }).state;
+    expect(Seq.guide(s, { keys: KEYS })).toMatchObject({
+      tone: "wait",
+      title: "Putting chunk 1 in your hand…",
+    });
+    s = Seq.reduce(s, { type: "sent", index: 0, ok: true }).state;
+    let g = Seq.guide(s, { keys: KEYS });
+    expect(g).toMatchObject({ step: "Chunk 1 of 2 in hand", title: "Click one spot to place it" });
+    expect(g.detail).toMatch(/then press Ctrl\+Alt\+D for chunk 2\./);
+    s = Seq.reduce(s, { type: "next" }).state;
+    s = Seq.reduce(s, { type: "sent", index: 1, ok: true }).state;
+    g = Seq.guide(s, { keys: null });
+    expect(g.title).toBe("Click the same spot");
+    expect(g.detail).toBe("Don't move the camera. Then press Finish to finish.");
+    s = Seq.reduce(s, { type: "next" }).state;
+    expect(Seq.guide(s, { keys: KEYS })).toMatchObject({
+      tone: "done",
+      title: "Right-click to clear your hand",
+    });
+  });
+
+  it("explains a refusal and points at Again (its hotkey, or the button)", () => {
+    let s = Seq.reduce(two(), { type: "next" }).state;
+    s = Seq.reduce(s, { type: "sent", index: 0, ok: false, cause: "clientIsNotInGmMode" }).state;
+    const g = Seq.guide(s, { keys: KEYS });
+    expect(g).toMatchObject({ tone: "error", title: "Chunk 1 didn't reach your hand" });
+    expect(g.detail).toBe("TaleSpire is not in GM mode. Switch to GM mode, then press Ctrl+Alt+S.");
+    expect(Seq.guide(s, {}).detail).toMatch(/then press Put in hand again\.$/);
+    expect(Seq.controls(s).primary).toBe("send");
+    expect(Seq.controls(two()).primary).toBe("next");
+  });
+
+  it("with no map, says whether one can arrive", () => {
+    expect(Seq.guide(Seq.initialState(), { linked: true }).title).toBe("Waiting for a map");
+    expect(Seq.guide(Seq.initialState(), { linked: false }).title).toBe("No map loaded");
+  });
+});
+
+describe("design preview", () => {
+  it("keeps a saved design only when it is one of the three", () => {
+    expect(Seq.DESIGNS.map((d) => d.id).sort()).toEqual(["instrument", "lantern", "native"]);
+    expect(Seq.pickDesign("lantern")).toBe("lantern");
+    expect(Seq.pickDesign("neon")).toBe(Seq.DESIGNS[0].id);
+    expect(Seq.pickDesign(null)).toBe(Seq.DESIGNS[0].id);
   });
 });
 
@@ -332,6 +402,10 @@ describe("buttons with no set loaded", () => {
     let s = loaded();
     expect(Seq.slabsLight(s, "gm")).toMatchObject({ tone: "good", label: READY });
     expect(Seq.slabsLight(s, "player")).toMatchObject({ tone: "bad", label: "Blocked: not in GM mode" });
+    expect(Seq.slabsLight(s, "gm", true)).toMatchObject({
+      tone: "bad",
+      label: "Blocked: TaleSpire's API is missing",
+    });
     s = Seq.reduce(s, { type: "next" }).state;
     expect(Seq.slabsLight(s, null).label).toBe(READY);
     const failed = Seq.reduce(s, { type: "sent", index: 0, ok: false, cause: "notInBoard" }).state;

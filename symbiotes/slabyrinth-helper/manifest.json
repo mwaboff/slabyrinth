@@ -32,8 +32,8 @@
     }
   },
   "environment": {
-    "webViewBackgroundColor": "#17171b",
+    "webViewBackgroundColor": "#000000",
     "capabilities": ["runInBackground"],
-    "extras": ["colorStyles"]
+    "extras": ["colorStyles", "fonts"]
   }
 }

@@ -22,6 +22,64 @@ let state = Seq.initialState();
 let clientMode = null; // "gm", "player", "spectator" as TaleSpire last reported, or null
 const events = [];
 
+// ── design preview (temporary): the look is a data-theme on <html>, set before the body paints ──
+
+const DESIGN_STORE = "slabyrinth-helper.design";
+
+function loadDesign() {
+  try {
+    return Seq.pickDesign(window.localStorage.getItem(DESIGN_STORE));
+  } catch {
+    return Seq.pickDesign(null);
+  }
+}
+
+function applyDesign(id) {
+  document.documentElement.dataset.theme = Seq.pickDesign(id);
+}
+
+function saveDesign(id) {
+  applyDesign(id);
+  for (const d of Seq.DESIGNS) {
+    const input = el(`design-${d.id}`);
+    if (input) input.checked = d.id === document.documentElement.dataset.theme;
+  }
+  try {
+    window.localStorage.setItem(DESIGN_STORE, id);
+  } catch {
+    // not remembered; the look still changes now
+  }
+}
+
+applyDesign(loadDesign());
+
+function renderDesignPicker() {
+  const list = el("design-list");
+  if (!list) return;
+  const current = document.documentElement.dataset.theme;
+  list.replaceChildren(
+    ...Seq.DESIGNS.map((d) => {
+      const label = document.createElement("label");
+      label.className = "design";
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "design";
+      input.id = `design-${d.id}`;
+      input.value = d.id;
+      input.checked = d.id === current;
+      input.addEventListener("change", () => saveDesign(d.id));
+      const name = document.createElement("span");
+      name.className = "design-name";
+      name.textContent = d.name;
+      const summary = document.createElement("span");
+      summary.className = "design-summary";
+      summary.textContent = d.summary;
+      label.append(input, name, summary);
+      return label;
+    }),
+  );
+}
+
 // ── API access ──
 
 /** A preview stand-in for TS: answers like TaleSpire would, sends nothing anywhere. */
@@ -170,9 +228,11 @@ function checkApi() {
     preview = true;
     apiReady = true;
   }
-  if (m.mode !== apiInfo.mode) logEvent("helper", `API mode: ${m.mode}`, null, true);
+  const changed = m.mode !== apiInfo.mode;
+  if (changed) logEvent("helper", `API mode: ${m.mode}`, null, true);
   apiInfo.mode = m.mode;
   renderBanner(m.banner);
+  if (changed) renderHeader();
   renderApiDiag();
   if (m.mode === "game" || m.mode === "preview") {
     clearInterval(apiPoll);
@@ -255,6 +315,7 @@ function start() {
   setText("diag-origin", location.href);
   el("port").value = String(DEFAULT_PORT);
   bindUi();
+  renderDesignPicker();
   loadLinkSettings();
   renderLink();
   linkConnect();
@@ -494,6 +555,20 @@ function renderHotkeys() {
     out.textContent = text;
     out.className = `hk-result ${tone}`;
   }
+  renderNow();
+}
+
+/** The global hotkeys that work right now (the link is up and the bridge holds them), or null. */
+function activeHotkeys() {
+  if (!link.connected) return null;
+  const out = {};
+  for (const a of Seq.HOTKEY_ACTIONS) {
+    const r = hk.results ? hk.results[a] : null;
+    if (r) {
+      if (r.status === "active" && r.combo) out[a] = r.combo;
+    } else out[a] = hk.stored[a] || Seq.DEFAULT_HOTKEYS[a];
+  }
+  return out;
 }
 
 function renderLink() {
@@ -503,10 +578,9 @@ function renderLink() {
     off: "Off",
     connected: "Connected",
     connecting: "Connecting…",
-    retrying: "Bridge not running (retrying)",
+    retrying: "Not connected",
   }[linkStatus()];
   dot.textContent = text;
-  dot.className = `link-state ${link.connected ? "on" : link.on ? "waiting" : "off"}`;
   el("link-on").checked = link.on;
   el("link-port").value = String(link.port);
   renderHotkeys();
@@ -557,7 +631,7 @@ async function testLocal() {
   show();
   lines.push(await new Promise((resolve) => wsProbe(port, resolve)));
   lines.push(
-    "This was only a one-off test. The Link switch on the Chunks tab makes the lasting connection to the bridge.",
+    "This was only a one-off test. The switch under Link and hotkeys makes the lasting connection to the bridge.",
   );
   show();
 }
@@ -610,7 +684,7 @@ function renderBanner(banner) {
   b.textContent = banner.text;
 }
 
-/** The two lights at the top: state at a glance (the status line below says what to do). */
+/** The two lights and the map card at the top: state at a glance (the now block below says what to do). */
 function renderHeader() {
   const info = Seq.mapInfo(state.set);
   const box = el("map-info");
@@ -623,7 +697,7 @@ function renderHeader() {
   }
   const lights = {
     "light-link": Seq.linkLight(linkStatus()),
-    "light-slabs": Seq.slabsLight(state, clientMode),
+    "light-slabs": Seq.slabsLight(state, clientMode, apiInfo.mode === "missing"),
   };
   for (const [id, l] of Object.entries(lights)) {
     const node = el(id);
@@ -636,41 +710,86 @@ function renderHeader() {
     }
     node.querySelector(".light-icon").textContent = l.icon;
     node.querySelector(".light-label").textContent = l.label;
+    const detail = node.querySelector(".light-detail");
+    detail.textContent = l.detail || "";
+    detail.hidden = !l.detail;
   }
 }
 
-let shown = ""; // the step last shown, to flash the status block when it changes
+/** The now block and the three buttons, with the hotkey that does each while the link is up. */
+function renderNow() {
+  const status = el("status");
+  if (!status) return;
+  const keys = activeHotkeys();
+  const g = Seq.guide(state, { linked: link.connected, keys });
+  status.className = `now ${g.tone}${status.classList.contains("flash") ? " flash" : ""}`;
+  setText("now-step", g.step);
+  el("now-step").hidden = !g.step;
+  setText("now-title", g.title);
+  setText("now-detail", g.detail);
+  el("now-detail").hidden = !g.detail;
+  const c = Seq.controls(state);
+  for (const [id, b, action] of [
+    ["btn-send", c.send, "again"],
+    ["btn-next", c.next, "next"],
+    ["btn-back", c.back, "back"],
+  ]) {
+    const button = el(id);
+    button.disabled = !b.enabled;
+    button.querySelector(".ctl-label").textContent = b.label;
+    const kbd = button.querySelector(".ctl-key");
+    kbd.textContent = keys && keys[action] ? keys[action] : "";
+    kbd.hidden = !kbd.textContent;
+  }
+  // one highlighted button: the step the now block asks for (and, when narrow, the one on a row of its own)
+  el("btn-send").classList.toggle("primary", c.primary === "send");
+  el("btn-next").classList.toggle("primary", c.primary === "next");
+  el("controls").dataset.primary = c.primary;
+  // no map: nothing to press, so the controls step aside
+  el("controls").hidden = !state.set;
+  el("footnote").hidden = !state.set;
+}
+
+let shown = ""; // the step last shown, to flash the now block when it changes
 
 function render() {
-  const s = Seq.statusLine(state);
   const status = el("status");
-  status.textContent = s.text;
-  status.className = `status ${s.tone}`;
   // a brief flash on each new step, noticeable from the corner of the eye while watching the board
   const step = `${state.index}:${state.phase}`;
+  status.classList.remove("flash");
   if (step !== shown && state.phase !== "sending" && state.set) {
     void status.offsetWidth; // restart the animation
     status.classList.add("flash");
   }
   shown = step;
+  renderNow();
   const p = Seq.progress(state);
-  el("progress").max = Math.max(p.total, 1);
-  el("progress").value = p.placed;
-  setText("progress-text", `${p.placed} of ${p.total} placed`);
-  renderHeader();
-  setText("set-name", state.set ? state.set.name : "");
-  const c = Seq.controls(state);
-  for (const [id, b] of [
-    ["btn-send", c.send],
-    ["btn-next", c.next],
-    ["btn-back", c.back],
-  ]) {
-    el(id).disabled = !b.enabled;
-    el(id).textContent = b.label;
+  const bar = el("progress");
+  bar.setAttribute("aria-valuemax", String(Math.max(p.total, 1)));
+  bar.setAttribute("aria-valuenow", String(p.placed));
+  el("progress-fill").style.width = `${(p.fraction * 100).toFixed(2)}%`;
+  const cur = el("progress-current");
+  cur.hidden = !(state.phase === "inHand" || state.phase === "sending");
+  if (p.total) {
+    cur.style.left = `${((state.index / p.total) * 100).toFixed(3)}%`;
+    cur.style.width = `${(100 / p.total).toFixed(3)}%`;
   }
-  // one highlighted button: the step the status line asks for
-  el("btn-send").classList.toggle("primary", state.phase !== "inHand");
-  el("btn-next").classList.toggle("primary", state.phase === "inHand");
+  // one tick between chunks while they stay readable; a plain bar beyond that
+  const ticks = el("progress-ticks");
+  const n = p.total <= 40 ? p.total : 0;
+  if (ticks.childElementCount !== Math.max(n - 1, 0)) {
+    ticks.replaceChildren();
+    for (let i = 1; i < n; i++) {
+      const t = document.createElement("span");
+      t.style.left = `${((i / n) * 100).toFixed(3)}%`;
+      ticks.append(t);
+    }
+  }
+  setText("progress-placed", String(p.placed));
+  setText("progress-total", String(p.total));
+  renderHeader();
+  el("chunks").hidden = !state.set;
+  setText("chunk-count", state.set ? String(state.set.chunks.length) : "");
   const list = el("chunk-list");
   list.replaceChildren();
   if (state.set)
@@ -678,7 +797,14 @@ function render() {
       const li = document.createElement("li");
       const mark = i < p.placed ? "placed" : i === state.index ? "current" : "waiting";
       li.className = mark;
-      li.textContent = `${ch.label} — ${ch.bytes} bytes`;
+      const label = document.createElement("span");
+      label.className = "chunk-label";
+      label.textContent = ch.label;
+      const size = document.createElement("span");
+      size.className = "chunk-size";
+      size.textContent = `${(ch.bytes / 1024).toFixed(1)} KB`;
+      li.append(label, size);
+      if (mark === "placed") li.title = "Placed";
       if (i === state.index && state.phase !== "done") li.setAttribute("aria-current", "step");
       list.append(li);
     });
@@ -697,8 +823,10 @@ function renderLog() {
   );
 }
 
+const DEV_TABS = ["load", "log", "diag", "design"];
+
 function showTab(name) {
-  for (const t of ["main", "log", "diag"]) {
+  for (const t of DEV_TABS) {
     el(`tab-${t}`).setAttribute("aria-selected", String(t === name));
     el(`panel-${t}`).hidden = t !== name;
   }
@@ -723,7 +851,7 @@ function bindUi() {
     renderLog();
   });
   el("btn-local").addEventListener("click", () => void testLocal());
-  for (const t of ["main", "log", "diag"]) el(`tab-${t}`).addEventListener("click", () => showTab(t));
+  for (const t of DEV_TABS) el(`tab-${t}`).addEventListener("click", () => showTab(t));
   for (const a of Seq.HOTKEY_ACTIONS) {
     el(`hk-${a}`).addEventListener("click", () => {
       hk.capturing = a;
@@ -842,8 +970,9 @@ function renderKeys() {
     el(`key-${which}`).textContent = capturing === which ? "Press a key… (Esc cancels)" : keys[which];
   setText(
     "keys-hint",
-    `Panel keys (only while this panel has the keyboard): ${keys.next} = Next, ${keys.back} = Back. ` +
-      "For keys that work while you play, use the hotkey bridge below.",
+    `Keys that reach the panel only while it has the keyboard (clicking the board takes it): ${keys.next} = Next, ` +
+      `${keys.back} = Back. Click a key, then press the one you want. The hotkeys under Link and hotkeys work ` +
+      "while you play.",
   );
 }
 

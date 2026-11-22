@@ -36,8 +36,41 @@ to the bridge on `127.0.0.1` (this computer only).
 Opening `index.html` from disk in an ordinary browser shows a **preview**: a yellow banner says the TaleSpire API is
 not there and nothing is sent to TaleSpire; a fake answers instead. Inside TaleSpire the helper never uses the fake:
 it waits for TaleSpire's API (a "Waiting for TaleSpire's API" banner that disappears within a second or two), and if
-the API never comes it says so in red. **Diagnostics > TaleSpire API** shows the mode, whether and when the API
-object and its init event appeared, and the namespaces.
+the API never comes it says so in red. **Developer tools > Diagnostics > TaleSpire API** shows the mode, whether and
+when the API object and its init event appeared, and the namespaces.
+
+## The panel
+
+From the top, everything the GM needs at a glance, then closed sections:
+
+- **Two lights.** The link: "Connected to Slabyrinth", "Connecting to Slabyrinth…", "Not connected to Slabyrinth"
+  (the bridge is not running; it retries on its own) or "Link is off". The slabs: "No slabs loaded", "Slabs are ready
+  to paste", or "Blocked: …" naming the cause (not in GM mode, not on a board, TaleSpire's API missing). Each light
+  has an icon and words as well as a colour.
+- **The map:** its name (long names are cut short; hover for the whole name), chunks, size and levels, and a progress
+  bar with one segment per chunk (a plain bar above 40 chunks), the chunk in hand half-lit, and the number placed.
+- **Now:** the one thing to do, as a short headline ("Press G to raise the build plane", "Click the same spot",
+  "Right-click to clear your hand") with a line of detail. While the link is up it names your hotkeys; otherwise
+  the buttons. It flashes briefly on each new step (no flash with the system's "reduce motion" setting).
+- **Back, Put in hand again, Next:** the fallback for the hotkeys, each showing its hotkey while the link is up. The
+  highlighted one is the step the now block asks for. They are hidden until a map is loaded.
+- **Chunks** (closed): every chunk, placed ones ticked, the one in hand marked.
+- **Link and hotkeys** (closed): the Link switch and port, and the three hotkeys.
+- **Developer tools** (closed): Load (test pair, pasted JSON), Event log, Diagnostics (including the panel-only
+  keys) and Design.
+
+TaleSpire injects its colour variables (the `colorStyles` extra) and its OptimusPrinceps font (the `fonts` extra).
+
+### Design preview (temporary)
+
+**Developer tools > Design** switches between three looks over the same panel, so they can be judged in game next to
+the board. The choice is remembered in the panel.
+
+- **Instrument** (the default): high contrast, big numbers, a segmented gauge and signal colours, read from the
+  corner of the eye.
+- **Native**: TaleSpire's own colours (black, dark grey, TaleSpire blue buttons) and its OptimusPrinceps face, so the
+  helper reads as part of the game.
+- **Lantern**: warm, quiet and roomy, with serif names; it steps back until it is needed.
 
 ## Recommended flow: the hotkey bridge
 
@@ -54,14 +87,15 @@ object and its init event appeared, and the namespaces.
    sends and the helper's answer. **Ctrl+C** in the terminal stops it and releases the hotkeys.
 
 2. In the helper, **Link** is on by default (port 48731): within a few seconds the top light turns to "Connected to
-   Slabyrinth". "Not connected: bridge not running" means it is retrying; "Link is off" means the Link switch under
-   **Link to Slabyrinth** is off. (Diagnostics > "Test local connection" is only a one-off test, not the link.)
-3. Load the chunks: the bridge's `--set` file, **Load test pair**, or a pasted set.
+   Slabyrinth". "Not connected to Slabyrinth" means the bridge is not running and the helper is retrying; "Link is
+   off" means the switch under **Link and hotkeys** is off. (Developer tools > Diagnostics > "Test local connection"
+   is only a one-off test, not the link.)
+3. Load the chunks: the bridge's `--set` file, or under **Developer tools > Load**, the test pair or a pasted set.
 4. In TaleSpire, **press G to raise the build plane** first (without it, later chunks land a little higher). Point the
    camera at an empty area and do not move it again.
 5. Press **Ctrl+Alt+D** (Next): chunk 1 goes to your hand. Click one spot (hold the click briefly).
 6. Keep the mouse where it is and press **Ctrl+Alt+D** again: the next chunk goes to your hand. Click the same spot.
-   Repeat until the status line says all chunks are placed, then right-click to clear your hand and delete the two
+   Repeat until the panel says all chunks are placed, then right-click to clear your hand and delete the two
    alignment pillars.
 
 Hotkeys (left hand only, the right stays on the mouse):
@@ -72,15 +106,11 @@ Hotkeys (left hand only, the right stays on the mouse):
 | Ctrl+Alt+A | Back one chunk, and put it in your hand       |
 | Ctrl+Alt+S | Put the current chunk in your hand again      |
 
-You can change them in the helper: click a hotkey under **Link to Slabyrinth** and press the new combination (Ctrl or
+You can change them in the helper: click a hotkey under **Link and hotkeys** and press the new combination (Ctrl or
 Alt plus a letter, digit, F-key, Space or arrow). The helper sends it to the bridge, which answers "Active" or why it
 refused (for example "taken by another program"); a refused hotkey keeps the previous one. Hotkeys set in the helper are
 remembered and win over the bridge's command-line ones each time they connect. **Reset hotkeys to defaults** goes back
 to Ctrl+Alt+D, A and S. If the link is down, a change applies when the bridge connects.
-
-The status block flashes briefly on each step so you notice it from the corner of your eye (no flash with the
-system's "reduce motion" setting). The header above it shows the link light, the slabs light ("No slabs loaded",
-"Slabs are ready to paste", or what blocks pasting), the map's name and size, and the progress.
 
 **This link is an experiment:** anything on this computer, including a web page in any browser, could connect to
 the bridge's port. A product version would add a pairing token and an `Origin` check, and would live inside the
@@ -89,8 +119,8 @@ Slabyrinth app.
 ## Without the bridge
 
 The buttons do the same: **Next** (puts chunk 1 in hand first, then each next chunk), **Back**, **Put in hand
-again**. The panel also has keys (Ctrl+Space Next, Ctrl+Shift+Space Back), but they only work while the panel has
-the keyboard, which it loses when you click the board.
+again**. The panel also has keys (Ctrl+Space Next, Ctrl+Shift+Space Back; set under Developer tools > Diagnostics),
+but they only work while the panel has the keyboard, which it loses when you click the board.
 
 ## Chunk-set format
 
@@ -112,12 +142,14 @@ the keyboard, which it loses when you click the board.
 (`test-pair.js`) is Slabyrinth's single-room test plan (one small walled room with a few props) split down the
 middle into a west half and an east half.
 
-## Other tabs
+## Developer tools
 
+- **Load** loads the bundled test pair or a pasted chunk set.
 - **Event log** lists every TaleSpire event the helper listens to, with times, and its own and the link's activity
   (marked ▸).
 - **Diagnostics** shows the API's slab size limit, your client mode, the last slab you copied in game, the panel
   keys and the last key the panel received, and the local connection test.
+- **Design** is the temporary design preview (above).
 
 ## Test procedure
 
@@ -161,7 +193,8 @@ Report: what the status line and the bridge's terminal showed.
 
 ### Test D (again): does anything signal a placement?
 
-Open **Event log**, press **Clear**, put a chunk in hand and place it. Also try Ctrl+C on a selection.
+Open **Developer tools > Event log**, press **Clear**, put a chunk in hand and place it. Also try Ctrl+C on a
+selection.
 Look for: any line that appears when you place (not when you copy). Copying should add a `slabs.onSlabCopied` line,
 and **Diagnostics > Copied slab** should show its status and size.
 Report: every line that appeared and what you did just before it. If placing adds nothing, advancing stays manual

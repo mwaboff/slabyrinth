@@ -243,6 +243,91 @@
     }
   }
 
+  /**
+   * The "now" block: what to do at this moment, as a short eyebrow (`step`), a headline the GM can read at a glance
+   * from the side of the screen (`title`) and one line of detail. `opts.linked` says whether the link to Slabyrinth
+   * is up; `opts.keys` ({ next, back, again }) are the global hotkeys to name, or null when they do not work now (then
+   * the buttons are named instead). Text only (never HTML). statusLine stays the one-sentence form sent over the link.
+   */
+  function guide(state, opts) {
+    var o = opts || {};
+    var keys = o.keys || null;
+    if (!state.set)
+      return o.linked
+        ? {
+            tone: "idle",
+            step: "",
+            title: "Waiting for a map",
+            detail: "Send one from Slabyrinth and it appears here.",
+          }
+        : {
+            tone: "idle",
+            step: "",
+            title: "No map loaded",
+            detail: "Connect to Slabyrinth to receive one. The link light above says what is missing.",
+          };
+    var total = state.set.chunks.length;
+    var n = state.index + 1;
+    var last = n === total;
+    var which = "Chunk " + n + " of " + total;
+    var c = controls(state);
+    var press = function (action) {
+      if (keys && keys[action]) return "press " + keys[action];
+      return "press " + (action === "again" ? c.send.label : action === "back" ? c.back.label : c.next.label);
+    };
+    var cap = function (s) {
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    };
+    switch (state.phase) {
+      case "ready":
+        if (n === 1)
+          return {
+            tone: "action",
+            step: "Before chunk 1",
+            title: "Press G to raise the build plane",
+            detail:
+              "Then " +
+              press("next") +
+              " to put chunk 1 in your hand. Without the plane, later chunks land too high.",
+          };
+        return {
+          tone: "action",
+          step: which,
+          title: cap(press("next")) + " for chunk " + n,
+          detail: "Keep the camera and the mouse still.",
+        };
+      case "sending":
+        return { tone: "wait", step: which, title: "Putting chunk " + n + " in your hand…", detail: "" };
+      case "inHand":
+        return {
+          tone: "action",
+          step: which + " in hand",
+          title: n === 1 ? "Click one spot to place it" : "Click the same spot",
+          detail:
+            (n === 1 ? "Hold the click briefly, then " : "Don't move the camera. Then ") +
+            press("next") +
+            (last ? " to finish." : " for chunk " + (n + 1) + ".") +
+            (n === 1 ? " Keep the camera and the mouse still from now on." : ""),
+        };
+      case "failed":
+        return {
+          tone: "error",
+          step: which,
+          title: "Chunk " + n + " didn't reach your hand",
+          detail: cap(explainCause(state.cause)) + ", then " + press("again") + ".",
+        };
+      case "done":
+        return {
+          tone: "done",
+          step: "All chunks placed",
+          title: "Right-click to clear your hand",
+          detail: "Then delete the two alignment pillars.",
+        };
+      default:
+        return { tone: "idle", step: "", title: "No map loaded", detail: "" };
+    }
+  }
+
   /** Progress: which chunk is current and how many are behind the GM (placed, by their Next presses). */
   function progress(state) {
     if (!state.set) return { current: 0, total: 0, placed: 0, fraction: 0 };
@@ -267,6 +352,8 @@
         label: loaded && state.index + 1 >= total ? "Finish" : "Next",
       },
       back: { enabled: loaded && !busy && (state.index > 0 || state.phase === "done"), label: "Back" },
+      // the one highlighted button: Next drives the flow; after a refused send, putting it in hand again
+      primary: state.phase === "failed" ? "send" : "next",
     };
   }
 
@@ -484,11 +571,18 @@
    * bridge is not running or not on this port) or "connected".
    */
   function linkLight(linkStatus) {
-    if (linkStatus === "connected") return { tone: "good", icon: "●", label: "Connected to Slabyrinth" };
-    if (linkStatus === "connecting") return { tone: "wait", icon: "◐", label: "Connecting…" };
+    if (linkStatus === "connected")
+      return { tone: "good", icon: "●", label: "Connected to Slabyrinth", detail: "" };
+    if (linkStatus === "connecting")
+      return { tone: "wait", icon: "◐", label: "Connecting to Slabyrinth…", detail: "" };
     if (linkStatus === "retrying")
-      return { tone: "wait", icon: "◌", label: "Not connected: bridge not running (retrying)" };
-    return { tone: "off", icon: "○", label: "Link is off: turn on Link below" };
+      return {
+        tone: "wait",
+        icon: "◌",
+        label: "Not connected to Slabyrinth",
+        detail: "The bridge is not running. Retrying on its own.",
+      };
+    return { tone: "off", icon: "○", label: "Link is off", detail: "Turn it on under Link and hotkeys." };
   }
 
   /**
@@ -522,7 +616,7 @@
         tone: "error",
         text:
           "TaleSpire's API did not appear, so nothing can be put in your hand. Reload the symbiote; if this stays," +
-          " send the Diagnostics > TaleSpire API readout.",
+          " send the readout under Developer tools > Diagnostics.",
       },
     };
   }
@@ -535,10 +629,11 @@
    * Progress is the progress bar's job and "all placed" the status line's, so the light says only loaded or not, or
    * what blocks pasting.
    */
-  function slabsLight(state, clientMode) {
+  function slabsLight(state, clientMode, apiMissing) {
     if (!state.set) return { tone: "off", icon: "○", label: "No slabs loaded" };
-    var blocked =
-      clientMode && clientMode !== "gm"
+    var blocked = apiMissing
+      ? "TaleSpire's API is missing"
+      : clientMode && clientMode !== "gm"
         ? BLOCKING.clientIsNotInGmMode
         : state.phase === "failed" && Object.prototype.hasOwnProperty.call(BLOCKING, state.cause)
           ? BLOCKING[state.cause]
@@ -547,7 +642,36 @@
     return { tone: "good", icon: "●", label: "Slabs are ready to paste" };
   }
 
+  // ── design preview (temporary: three looks over one structure, to choose between in game) ──
+
+  // the first is the default (the recommended one)
+  var DESIGNS = [
+    {
+      id: "instrument",
+      name: "Instrument",
+      summary: "High contrast, big numbers and signal colours, read from the corner of the eye.",
+    },
+    {
+      id: "native",
+      name: "Native",
+      summary: "TaleSpire's own panel colours and type, so the helper reads as part of the game.",
+    },
+    {
+      id: "lantern",
+      name: "Lantern",
+      summary: "Warm, quiet and roomy; a calm page that steps back until it is needed.",
+    },
+  ];
+
+  /** The design to show: a saved id when it is one of DESIGNS, else the first. */
+  function pickDesign(saved) {
+    for (var i = 0; i < DESIGNS.length; i++) if (DESIGNS[i].id === saved) return saved;
+    return DESIGNS[0].id;
+  }
+
   root.SlabyrinthSequencer = {
+    DESIGNS: DESIGNS,
+    pickDesign: pickDesign,
     mapInfo: mapInfo,
     apiMode: apiMode,
     linkLight: linkLight,
@@ -573,6 +697,7 @@
     initialState: initialState,
     reduce: reduce,
     statusLine: statusLine,
+    guide: guide,
     progress: progress,
     controls: controls,
   };
