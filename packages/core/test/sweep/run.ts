@@ -4,7 +4,8 @@
  * once failed (test/sweep/seeds.ts), prints each plan's count and time, every failure as "<plan>@<seed>: codes
  * (first message)", and exits 1 when a build fails that KNOWN_FAILURES does not list (or a listed one passes), or
  * raises a warning KNOWN_WARNINGS does not allow (or a listed count is now too high). Every warning is also printed
- * per plan and code (how many seeds, a few of them).
+ * per plan and code (how many seeds, a few of them). It also builds the size caps and runs every plan-showing tool on
+ * a level at the side limit (the view budget, test/fixtures/viewBudget.ts).
  *
  * CI runs it as its own job (.github/workflows/ci.yml `sweep`) with fewer seeds than the default, to stay well under
  * ten minutes on a runner.
@@ -14,9 +15,10 @@ import { PLAN_LIMITS, type MapPlan } from "../../src/contracts/plan";
 import { loadPalettes } from "../../src/palette";
 import { validatePlan } from "../../src/plan/validate";
 import { planRules, resolvePlan } from "../../src/resolve/index";
-import { slabCodec } from "../../src/slab";
+import { SLAB_LIMITS, decodeDetailed, slabCodec } from "../../src/slab";
 import { MAX_LEVEL_SIDE, type SizeTierId } from "../../src/plan/sizeTiers";
 import { largeDungeonPlan, largeOutdoorPlan } from "../fixtures/largePlan";
+import { RESULT_BLOCK_BUDGET, viewBudgetRun } from "../fixtures/viewBudget";
 import {
   E2E_ONCE_FAILED,
   e2ePlan,
@@ -32,8 +34,9 @@ import {
 
 /**
  * The size limits, each built once: two dense dungeon levels at the standard limit (all the cells a plan may have),
- * and a forest of the largest experimental tier, one level at its side. The chunks must stay within what the helper
- * add-on loads (HELPER_MAX_CHUNKS chunks, HELPER_MAX_LINK_CHARS characters in its load message).
+ * a forest level at the standard side and a forest of the largest experimental tier, one level at its side. Every
+ * chunk stays under the byte cap and in the coordinate range, and the chunks within what the helper add-on loads
+ * (HELPER_MAX_CHUNKS chunks, HELPER_MAX_LINK_CHARS characters in its load message).
  */
 const HELPER_MAX_CHUNKS = 500;
 const HELPER_MAX_LINK_CHARS = 4 * 1024 * 1024;
@@ -41,6 +44,11 @@ const caps: Array<{ label: string; plan: MapPlan; tier: SizeTierId }> = [
   {
     label: `${String(PLAN_LIMITS.totalCells / PLAN_LIMITS.levelSide ** 2)} dungeon levels of ${String(PLAN_LIMITS.levelSide)} x ${String(PLAN_LIMITS.levelSide)}`,
     plan: largeDungeonPlan(PLAN_LIMITS.levelSide, PLAN_LIMITS.totalCells / PLAN_LIMITS.levelSide ** 2),
+    tier: "standard",
+  },
+  {
+    label: `a forest of ${String(PLAN_LIMITS.levelSide)} x ${String(PLAN_LIMITS.levelSide)}`,
+    plan: largeOutdoorPlan(PLAN_LIMITS.levelSide),
     tier: "standard",
   },
   {
@@ -59,9 +67,16 @@ function capBuildErrors(plan: MapPlan, sizeTier: SizeTierId): string[] {
   const bundle = compileResolved(resolvePlan(plan, cat), cat, slabCodec, { createdAt: "t", plan });
   const built = bundle.diagnostics.filter((d) => d.severity === "error");
   const chars = bundle.chunks.reduce((s, c) => s + c.slab.length, 0);
+  // every chunk under the byte cap, every stored coordinate in the format's range
+  const outOfRange = bundle.chunks.filter(
+    (c) =>
+      c.compressedBytes > SLAB_LIMITS.maxCompressedBytes ||
+      decodeDetailed(c.slab).assets.some((a) => Math.max(a.sx, a.sy, a.sz) > SLAB_LIMITS.maxCoord),
+  );
   return [
     ...issues.map((i) => `plan ${i.code}: ${i.message}`),
     ...built.map((d) => `build ${d.code}: ${d.message}`),
+    ...outOfRange.map((c) => `chunk ${c.id} over the byte cap or out of range`),
     ...(bundle.chunks.length === 0 ? ["no chunks"] : []),
     ...(bundle.chunks.length > HELPER_MAX_CHUNKS ? [`${String(bundle.chunks.length)} chunks`] : []),
     ...(chars > HELPER_MAX_LINK_CHARS ? [`${String(chars)} characters of slab text`] : []),
@@ -112,6 +127,17 @@ for (const cap of caps) {
   failed.push(...errors.map((e) => `size cap ${cap.tier}: ${e}`));
   console.log(
     `size cap (${cap.label}): ${errors.length ? errors.join("; ") : "builds"} (${String(Date.now() - t)} ms)`,
+  );
+}
+{
+  // the view budget at the side limit (the unit test runs the same tools on a moderate plan)
+  const t = Date.now();
+  const { problems, ascii } = await viewBudgetRun(largeOutdoorPlan(PLAN_LIMITS.levelSide));
+  if (!/overview: level crop is \d+×\d+ cells/.test(ascii))
+    problems.push("the ASCII view is not an overview");
+  failed.push(...problems.map((p) => `view budget: ${p}`));
+  console.log(
+    `view budget (a level of ${String(PLAN_LIMITS.levelSide)} x ${String(PLAN_LIMITS.levelSide)}): ${problems.length ? problems.join("; ") : `within ${String(RESULT_BLOCK_BUDGET)} characters a block`} (${String(Date.now() - t)} ms)`,
   );
 }
 console.log(
