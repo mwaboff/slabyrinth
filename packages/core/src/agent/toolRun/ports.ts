@@ -12,6 +12,7 @@ import { validatePlan } from "../../plan/validate";
 import { planRules, resolvePlan } from "../../resolve";
 import { asciiView, changedRegionViews, outlineView } from "../../text";
 import type { ToolContext, ToolOutcome } from "../tools";
+import { sizeLimits, type SizeTierId } from "../../plan/sizeTiers";
 
 /** A crop and the issues to mark, as the ascii port takes them. */
 export interface AsciiPortOptions {
@@ -25,7 +26,7 @@ export interface ExecutorPorts {
   /** `palettes`: the ones the plan is built with (the checks that resolve the plan use them). */
   validatePlan: (
     input: unknown,
-    ctx: { themes?: readonly string[]; palettes: PaletteCatalog },
+    ctx: { themes?: readonly string[]; palettes: PaletteCatalog; sizeTier?: SizeTierId },
   ) => ValidationResult;
   diffPlans: DiffPlans;
   /** null: resolver unavailable (outline still works without resolved facts; ascii is unavailable). */
@@ -57,6 +58,7 @@ export const defaultExecutorPorts: ExecutorPorts = {
     validatePlan(input, {
       checks: planRules(ctx.palettes).checks,
       ...(ctx.themes !== undefined ? { themes: ctx.themes } : {}),
+      ...(ctx.sizeTier !== undefined ? { limits: sizeLimits(ctx.sizeTier) } : {}),
     }),
   diffPlans: (before, after) => diffPlans(before, after),
   resolvePlan: (plan, palettes, version) => resolvePlan(plan, palettes, { planVersion: version }),
@@ -79,6 +81,8 @@ export const defaultExecutorPorts: ExecutorPorts = {
  */
 export interface AgentToolContext extends ToolContext {
   palettes: PaletteCatalog;
+  /** The map size setting the model's plans are held to (plan/sizeTiers.ts); standard when absent. */
+  sizeTier?: SizeTierId;
   nextVersion?: number;
   planAt?: (version: number) => MapPlan | null;
 }

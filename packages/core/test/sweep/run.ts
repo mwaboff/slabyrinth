@@ -15,7 +15,8 @@ import { loadPalettes } from "../../src/palette";
 import { validatePlan } from "../../src/plan/validate";
 import { planRules, resolvePlan } from "../../src/resolve/index";
 import { slabCodec } from "../../src/slab";
-import { largeDungeonPlan } from "../fixtures/largePlan";
+import { MAX_LEVEL_SIDE, type SizeTierId } from "../../src/plan/sizeTiers";
+import { largeDungeonPlan, largeOutdoorPlan } from "../fixtures/largePlan";
 import {
   E2E_ONCE_FAILED,
   e2ePlan,
@@ -29,22 +30,41 @@ import {
   type SweepFailure,
 } from "./seeds";
 
-const capPlan = largeDungeonPlan(PLAN_LIMITS.levelSide, PLAN_LIMITS.totalCells / PLAN_LIMITS.levelSide ** 2);
-const capLabel = `${capPlan.levels.length} dungeon levels of ${String(PLAN_LIMITS.levelSide)} x ${String(PLAN_LIMITS.levelSide)}`;
+/**
+ * The size limits, each built once: two dense dungeon levels at the standard limit (all the cells a plan may have),
+ * and a forest of the largest experimental tier, one level at its side. The chunks must stay within what the helper
+ * add-on loads (HELPER_MAX_CHUNKS chunks, HELPER_MAX_LINK_CHARS characters in its load message).
+ */
+const HELPER_MAX_CHUNKS = 500;
+const HELPER_MAX_LINK_CHARS = 4 * 1024 * 1024;
+const caps: Array<{ label: string; plan: MapPlan; tier: SizeTierId }> = [
+  {
+    label: `${String(PLAN_LIMITS.totalCells / PLAN_LIMITS.levelSide ** 2)} dungeon levels of ${String(PLAN_LIMITS.levelSide)} x ${String(PLAN_LIMITS.levelSide)}`,
+    plan: largeDungeonPlan(PLAN_LIMITS.levelSide, PLAN_LIMITS.totalCells / PLAN_LIMITS.levelSide ** 2),
+    tier: "standard",
+  },
+  {
+    label: `a forest of ${String(MAX_LEVEL_SIDE)} x ${String(MAX_LEVEL_SIDE)} (experimental)`,
+    plan: largeOutdoorPlan(MAX_LEVEL_SIDE),
+    tier: "large-1024",
+  },
+];
 
-/** The plan errors (validate) and build errors (compile) of the cap plan, or none. */
-function capBuildErrors(): string[] {
+/** The plan errors (validate in its tier) and build errors (compile) of a cap plan, or none. */
+function capBuildErrors(plan: MapPlan, sizeTier: SizeTierId): string[] {
   const cat = loadPalettes();
-  const issues = validatePlan(capPlan, planRules(cat)).issues.filter((i) => i.severity === "error");
-  const bundle = compileResolved(resolvePlan(capPlan, cat), cat, slabCodec, {
-    createdAt: "t",
-    plan: capPlan,
-  });
+  const issues = validatePlan(plan, planRules(cat, { sizeTier })).issues.filter(
+    (i) => i.severity === "error",
+  );
+  const bundle = compileResolved(resolvePlan(plan, cat), cat, slabCodec, { createdAt: "t", plan });
   const built = bundle.diagnostics.filter((d) => d.severity === "error");
+  const chars = bundle.chunks.reduce((s, c) => s + c.slab.length, 0);
   return [
     ...issues.map((i) => `plan ${i.code}: ${i.message}`),
     ...built.map((d) => `build ${d.code}: ${d.message}`),
     ...(bundle.chunks.length === 0 ? ["no chunks"] : []),
+    ...(bundle.chunks.length > HELPER_MAX_CHUNKS ? [`${String(bundle.chunks.length)} chunks`] : []),
+    ...(chars > HELPER_MAX_LINK_CHARS ? [`${String(chars)} characters of slab text`] : []),
   ];
 }
 
@@ -86,13 +106,12 @@ for (const r of runs) {
   for (const [code, at] of byCode)
     console.log(`  warning ${code}: ${String(at.length)} seed(s), e.g. ${at.slice(0, 3).join(", ")}`);
 }
-// the size limit, built once: two dense dungeon levels at PLAN_LIMITS.levelSide (all the cells a plan may have)
-{
+for (const cap of caps) {
   const t = Date.now();
-  const errors = capBuildErrors();
-  failed.push(...errors.map((e) => `size cap: ${e}`));
+  const errors = capBuildErrors(cap.plan, cap.tier);
+  failed.push(...errors.map((e) => `size cap ${cap.tier}: ${e}`));
   console.log(
-    `size cap (${capLabel}): ${errors.length ? errors.join("; ") : "builds"} (${String(Date.now() - t)} ms)`,
+    `size cap (${cap.label}): ${errors.length ? errors.join("; ") : "builds"} (${String(Date.now() - t)} ms)`,
   );
 }
 console.log(

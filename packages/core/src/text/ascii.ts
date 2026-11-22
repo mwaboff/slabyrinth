@@ -11,7 +11,7 @@ import type { LevelId } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
 import { cellViewer, featureChars, issueMarks, linkCells } from "./asciiMap/cells";
 import { type AsciiOptions, createAsciiCtx, newSeen } from "./asciiMap/context";
-import { doubleCharRows, singleCharRows } from "./asciiMap/grid";
+import { doubleCharRows, overviewRows, singleCharRows } from "./asciiMap/grid";
 import { legendLines } from "./asciiMap/legend";
 
 export type { AsciiOptions } from "./asciiMap/context";
@@ -19,6 +19,13 @@ export { OPENING_CHAR } from "./asciiMap/legend";
 
 /** Crops wider than this many cells are drawn one character per cell (no walls) unless the caller says otherwise. */
 const MAX_DOUBLE_WIDTH = 60;
+
+/**
+ * The most cells one view draws one by one: 160 × 160, the largest level before the size limit rose to 320
+ * (decisions.md 2026-11-21), so a view never costs the model more than it did then. A larger crop is drawn as an
+ * overview, one character per block of cells, with a line saying how to ask for a region in full.
+ */
+export const MAX_VIEW_CELLS = 160 * 160;
 
 export function asciiView(resolved: ResolvedPlan, levelId: LevelId, opts: AsciiOptions = {}): string {
   const lvl = resolved.levels.find((l) => l.id === levelId);
@@ -39,8 +46,13 @@ export function asciiLevel(
   const view = cellViewer(c, feats, links, seen);
   const marks = issueMarks(c);
   const maxW = opts.maxDoubleWidth ?? MAX_DOUBLE_WIDTH;
+  const maxCells = opts.maxCells ?? MAX_VIEW_CELLS;
   const lines =
-    c.rw > maxW ? singleCharRows(c, view, marks.marked, maxW) : doubleCharRows(c, view, seen, marks.marked);
+    c.rw * c.rh > maxCells
+      ? overviewRows(c, view, marks.marked, maxCells, maxW)
+      : c.rw > maxW
+        ? singleCharRows(c, view, marks.marked, maxW)
+        : doubleCharRows(c, view, seen, marks.marked);
   if (opts.legend ?? true) lines.push(...legendLines(seen, feats.legend, links.notes, marks.notes));
   return lines.join("\n");
 }

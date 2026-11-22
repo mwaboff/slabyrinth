@@ -210,6 +210,20 @@ function startPacking(
     return out;
   };
 
+  /**
+   * The slab of these assets, or null when it cannot be one slab: more pieces of one kind (or more kinds) than the
+   * format counts. Such a set is cut further like one over the byte budget (a large map has that many floor tiles).
+   */
+  const encodeIfFits = (assets: SlabAsset[]): ReturnType<SlabCodec["encode"]> | null => {
+    if (assets.length > codec.limits.maxAssetsPerLayout) {
+      const perKind = new Map<string, number>();
+      for (const a of assets) perKind.set(a.uuid, (perKind.get(a.uuid) ?? 0) + 1);
+      if (perKind.size > codec.limits.maxLayouts) return null;
+      for (const n of perKind.values()) if (n > codec.limits.maxAssetsPerLayout) return null;
+    }
+    return codec.encode(assets);
+  };
+
   const levelOrder = new Map(levels.map((l, i) => [l.levelId, i]));
   const levelsOf = (items: Item[]): LevelId[] =>
     [...new Set(items.map((i) => i.levelId))].sort(
@@ -225,8 +239,10 @@ function startPacking(
     if (grouping === "per-level") return nonEmpty;
     const markers = markersFor(withMarkers, beside);
     const off = offsetFor(withMarkers, beside);
-    const fits = (items: Item[]): boolean =>
-      codec.encode(toAssets(items, markers, off)).compressedBytes <= budget;
+    const fits = (items: Item[]): boolean => {
+      const enc = encodeIfFits(toAssets(items, markers, off));
+      return enc !== null && enc.compressedBytes <= budget;
+    };
     const out: Array<{ levelId: LevelId; items: Item[] }> = [];
     let cur: { levelId: LevelId; items: Item[] } | null = null;
     for (const l of nonEmpty) {
@@ -251,18 +267,25 @@ function startPacking(
     const oversize: CompileDiagnostic[] = [];
     let splits = 0;
     const rectOf = (items: Item[]): Region["rect"] => {
-      const xs = items.map((i) => i.cx);
-      const ys = items.map((i) => i.cy);
-      const x = Math.min(...xs),
-        y = Math.min(...ys);
-      return { x, y, w: Math.max(...xs) - x + 1, h: Math.max(...ys) - y + 1 };
+      // (a loop, not Math.min(...): a region can hold more items than a call takes arguments)
+      let x = Infinity,
+        y = Infinity,
+        x1 = -Infinity,
+        y1 = -Infinity;
+      for (const i of items) {
+        x = Math.min(x, i.cx);
+        y = Math.min(y, i.cy);
+        x1 = Math.max(x1, i.cx);
+        y1 = Math.max(y1, i.cy);
+      }
+      return { x, y, w: x1 - x + 1, h: y1 - y + 1 };
     };
     const rec = (levelId: LevelId, items: Item[]): void => {
       if (items.length === 0) return;
       const rect = rectOf(items);
       const assets = toAssets(items, markers, off);
-      const enc = codec.encode(assets);
-      if (enc.compressedBytes <= budget) {
+      const enc = encodeIfFits(assets);
+      if (enc !== null && enc.compressedBytes <= budget) {
         regions.push({
           levelId: levelsOf(items)[0] ?? levelId,
           levelIds: levelsOf(items),
@@ -289,14 +312,17 @@ function startPacking(
           return;
         }
       }
-      if (enc.compressedBytes > codec.limits.maxCompressedBytes) {
+      if (enc === null || enc.compressedBytes > codec.limits.maxCompressedBytes) {
         oversize.push({
           severity: "error",
           code: "chunk_oversize",
           stage: "chunk",
           levelId,
           cell: [rect.x, rect.y],
-          message: `A single cell holds ${enc.compressedBytes} bytes of slab data (limit ${codec.limits.maxCompressedBytes})`,
+          message:
+            enc === null
+              ? `A single cell holds more pieces of one kind than a slab can (limit ${codec.limits.maxAssetsPerLayout})`
+              : `A single cell holds ${enc.compressedBytes} bytes of slab data (limit ${codec.limits.maxCompressedBytes})`,
         });
         return;
       }

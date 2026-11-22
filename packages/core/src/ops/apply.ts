@@ -47,6 +47,7 @@ import { KEYED_AREA_KINDS, validatePlan } from "../plan/validate";
 import type { ValidateContext } from "../plan/validate";
 import { zodIssueToPlanIssue } from "../plan/zodIssues";
 import { across, shapeHasCell, tr, translateShape, translateStructure, translateTerrain } from "./geometry";
+import type { SizeLimits } from "../plan/sizeTiers";
 
 // ───────────────────────────── rules (the resolver supplies them) ─────────────────────────────
 
@@ -70,6 +71,8 @@ export type Materializer = (
 export interface PlanRules {
   readonly checks: ValidateContext["checks"];
   readonly materialize: Materializer | null;
+  /** The size tier plans are held to (plan/sizeTiers.ts); the standard one when absent. */
+  readonly limits?: SizeLimits;
 }
 
 /** No resolver: structural validation only, and `materialize` fails with a message. */

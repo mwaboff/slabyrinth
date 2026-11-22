@@ -34,6 +34,7 @@ import { MapPlanSchema } from "./schema";
 import { boxesIntersect, polylineProblems, shapeCellBox, shapeProblems } from "./shapes";
 import type { CellBox } from "./shapes";
 import { zodIssueToPlanIssue } from "./zodIssues";
+import { SIZE_TIER_ORDER, SIZE_TIERS, sizeLimits, smallestTierFor, type SizeLimits } from "./sizeTiers";
 
 // ───────────────────────────── context and checks ─────────────────────────────
 
@@ -46,6 +47,8 @@ export interface ValidateContext {
   checks: readonly PlanCheck[];
   /** Theme ids known to the installed palettes. When given, unknown themes produce `theme_unknown` warnings. */
   themes?: readonly string[];
+  /** The size tier the plan is held to (plan/sizeTiers.ts); the standard one when absent. */
+  limits?: SizeLimits;
 }
 
 /**
@@ -199,11 +202,14 @@ export function nextFreeKey(plan: MapPlan): string {
   return String(max + 1);
 }
 
-export function structuralChecks(plan: MapPlan, ctx: Pick<ValidateContext, "themes">): PlanIssue[] {
+export function structuralChecks(
+  plan: MapPlan,
+  ctx: Pick<ValidateContext, "themes" | "limits">,
+): PlanIssue[] {
   const sink = new IssueSink();
   const elements = listElements(plan);
   checkIds(plan, elements, sink);
-  checkLevels(plan, sink);
+  checkLevels(plan, sink, ctx.limits ?? sizeLimits());
   checkKeys(plan, sink);
   plan.levels.forEach((level, li) => {
     checkLevelContents(plan, level, li, sink);
@@ -244,16 +250,42 @@ function checkIds(plan: MapPlan, elements: readonly ElementLocation[], sink: Iss
   }
 }
 
-function checkLevels(plan: MapPlan, sink: IssueSink): void {
+/** Where a plan larger than the active size tier can go: the next tier up, by the setting's name. */
+function largerTierHint(limits: SizeLimits, plan: MapPlan): string {
+  const fits = smallestTierFor(plan);
+  const order = SIZE_TIER_ORDER.indexOf(limits.id);
+  if (fits !== null && SIZE_TIER_ORDER.indexOf(fits) > order)
+    return `; or, to try it, the GM can turn on the experimental "larger maps" setting at ${SIZE_TIERS[fits].levelSide} cells a side (slower edits)`;
+  return "";
+}
+
+function checkLevels(plan: MapPlan, sink: IssueSink, limits: SizeLimits): void {
+  // one level's side: the schema allows the largest tier's, the active tier may allow less
+  plan.levels.forEach((level, li) => {
+    for (const k of ["w", "h"] as const) {
+      const v = level.bounds[k];
+      if (v <= limits.levelSide) continue;
+      sink.error(
+        "bounds_exceeded",
+        `/levels/${li}/bounds/${k}`,
+        `level "${level.id}" is ${v} cells ${k === "w" ? "wide" : "high"}; the ${limits.experimental ? `"larger maps" ${limits.levelSide}` : "map size"} limit is ${limits.levelSide} cells a side`,
+        `make the level ≤ ${limits.levelSide} cells a side${largerTierHint(limits, plan)}`,
+        { elementId: level.id, levelId: level.id },
+      );
+    }
+  });
   // the levels together: build time and memory grow with every cell of every level (test/sweep/sizes.ts)
   const cells = plan.levels.reduce((s, l) => s + l.bounds.w * l.bounds.h, 0);
-  if (cells > PLAN_LIMITS.totalCells) {
+  if (cells > limits.totalCells) {
     const sizes = plan.levels.map((l) => `${l.id} ${l.bounds.w}×${l.bounds.h}`).join(", ");
+    const example = limits.experimental
+      ? `for example ${Math.floor(limits.totalCells / limits.levelSide ** 2) || 1} level(s) of ${limits.levelSide}×${limits.levelSide}`
+      : `for example one ${limits.levelSide}×${limits.levelSide} level and one more of that size, or 8 levels of 160×160`;
     sink.error(
       "limit_exceeded",
       "/levels",
-      `the levels cover ${cells} cells together (${sizes}); the limit is ${PLAN_LIMITS.totalCells}`,
-      `shrink the levels' bounds to what the map uses, or use fewer levels: for example one ${PLAN_LIMITS.levelSide}×${PLAN_LIMITS.levelSide} level and one more of that size, or 8 levels of 160×160`,
+      `the levels cover ${cells} cells together (${sizes}); the limit is ${limits.totalCells}`,
+      `shrink the levels' bounds to what the map uses, or use fewer levels: ${example}${largerTierHint(limits, plan)}`,
     );
   }
   const seen = new Map<number, string>();
