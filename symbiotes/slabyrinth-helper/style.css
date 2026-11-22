@@ -289,15 +289,15 @@ input[type="number"] {
 textarea {
   resize: vertical;
 }
-select {
-  font: inherit;
-  font-size: 13px;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 5px 8px;
-  max-width: 100%;
+.error-more summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.error-more .result {
+  max-height: 240px;
+  overflow: auto;
+  margin-top: 6px;
 }
 
 code,
@@ -719,6 +719,7 @@ kbd {
   height: 1px;
 }
 .switch-track {
+  flex: none;
   position: relative;
   width: 34px;
   height: 20px;
@@ -890,7 +891,7 @@ button.quiet {
 .log li {
   padding: 3px 0;
   border-bottom: 1px solid var(--line);
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .log li.mine {
   color: var(--text-2);
@@ -909,12 +910,12 @@ button.quiet {
 }
 .facts dd {
   margin: 0;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .result {
   margin: 0;
   white-space: pre-wrap;
-  word-break: break-all;
+  overflow-wrap: anywhere;
   font: 12px/1.4 var(--font-mono);
   background: var(--surface);
   border-radius: var(--radius);
@@ -994,7 +995,7 @@ button.quiet {
   min-height: 54px;
   border-width: 1px;
 }
-:root[data-theme="instrument"] .ctl.primary .ctl-label {
+:root[data-theme="instrument"] .ctl.primary.ctl-next .ctl-label {
   font-size: 18px;
   letter-spacing: 0.02em;
 }

@@ -117,11 +117,25 @@ async function call(path, ...args) {
   try {
     const value = await fn.apply(thisArg, args);
     const cause = causeOf(value);
+    if (cause) recordApiError(path, cause);
     return cause ? { ok: false, cause, raw: value } : { ok: true, value };
   } catch (e) {
     const cause = causeOf(e) || (e && e.message) || String(e);
+    recordApiError(path, cause);
     return { ok: false, cause, raw: e };
   }
+}
+
+/**
+ * Keeps the full text of the last failed API call for Diagnostics (a cause can be a whole .NET exception with its
+ * stack trace). The status line never shows it: it gets Seq.explainCause's plain sentence instead.
+ */
+function recordApiError(path, cause) {
+  const text = String(cause);
+  setText("api-error-short", `${stamp()} ${path}: ${Seq.shortError(text, 160)}`);
+  setText("api-error-full", text);
+  const more = el("api-error-more");
+  if (more) more.hidden = text.length <= 160 && !text.includes("\n");
 }
 
 // ── event log ──
@@ -183,6 +197,14 @@ function handleClientEvent(e) {
 
 function handlePickingEvent(e) {
   logEvent("picking.onPickingEvent", e && e.kind, e && e.payload);
+  // the end-of-map picking tool ending (the GM clicked the board or dismissed it): note it, change nothing else
+  const id = e && e.payload && e.payload.id;
+  if (endPickId !== null && id === endPickId) {
+    endPickId = null;
+    const how = e.kind === "pickingCompleted" ? "the GM clicked the board" : "the GM dismissed it";
+    logEvent("helper", `end-of-map picking tool closed (${how}); nothing picked is used`, null, true);
+    setText("clear-last", `${stamp()}: picking tool closed (${how})`);
+  }
 }
 
 // ── start-up ──
@@ -316,7 +338,7 @@ function start() {
   el("port").value = String(DEFAULT_PORT);
   bindUi();
   renderDesignPicker();
-  renderClearPicker();
+  renderClearSetting();
   loadLinkSettings();
   renderLink();
   linkConnect();
@@ -360,45 +382,40 @@ function saveClearMethod(id) {
   }
 }
 
+let endPickId = null; // the id picking.startPicking returned after the last chunk, until its tool closes
+
+/** After the last chunk: switch to TaleSpire's picking tool, which drops the slab in hand (Test K). */
 async function clearHand() {
   const method = clearMethod;
   let r = { ok: true, cause: null };
-  if (method === "empty") {
-    logEvent("helper", "clear hand: sendSlabToHand (empty slab)", { slab: Seq.EMPTY_SLAB }, true);
-    r = await call("slabs.sendSlabToHand", Seq.EMPTY_SLAB);
-  } else if (method === "picking") {
-    logEvent("helper", "clear hand: picking.startPicking", null, true);
+  if (method === "picking") {
+    logEvent("helper", "end of map: picking.startPicking", null, true);
     r = await call("picking.startPicking");
+    endPickId = r.ok && typeof r.value === "string" ? r.value : null;
   }
   const said =
     method === "off"
-      ? "not tried (switched off)"
+      ? "switched off; nothing done"
       : r.ok
-        ? `answered without an error`
-        : `refused: ${r.cause}`;
-  if (method !== "off") logEvent("helper", `clear hand: ${said}`, r.ok ? r.value : r.raw, true);
-  setText("clear-last", `${stamp()}: ${method}, ${said}`);
+        ? "picking tool started"
+        : `refused: ${Seq.shortError(r.cause, 120)}`;
+  if (method !== "off") logEvent("helper", `end of map: ${said}`, r.ok ? r.value : r.cause, true);
+  setText("clear-last", `${stamp()}: ${said}`);
   await dispatch({ type: "cleared", method, ok: r.ok, cause: r.cause });
 }
 
-function renderClearPicker() {
-  const select = el("clear-method");
-  if (!select) return;
-  select.replaceChildren(
-    ...Seq.CLEAR_METHODS.map((m) => {
-      const o = document.createElement("option");
-      o.value = m.id;
-      o.textContent = m.name;
-      return o;
-    }),
-  );
-  select.value = clearMethod;
+function renderClearSetting() {
+  const box = el("clear-picking");
+  if (box) box.checked = clearMethod === "picking";
 }
 
 async function sendChunk(index) {
   const chunk = state.set.chunks[index];
   logEvent("helper", `sendSlabToHand chunk ${index + 1}`, { label: chunk.label, bytes: chunk.bytes }, true);
-  const r = await call("slabs.sendSlabToHand", chunk.slab);
+  // never send an empty slab: TaleSpire's slab spawn divides by zero on one (the set check refuses them too)
+  const r = Seq.slabHasRoomForAnAsset(chunk.slab)
+    ? await call("slabs.sendSlabToHand", chunk.slab)
+    : { ok: false, cause: "emptySlab" };
   logEvent("helper", r.ok ? "sendSlabToHand ok" : "sendSlabToHand failed", r.ok ? r.value : r.cause, true);
   await dispatch({ type: "sent", index, ok: r.ok, cause: r.cause });
 }
@@ -924,7 +941,9 @@ function bindUi() {
     });
   }
   el("hk-reset").addEventListener("click", resetHotkeys);
-  el("clear-method").addEventListener("change", () => saveClearMethod(el("clear-method").value));
+  el("clear-picking").addEventListener("change", () =>
+    saveClearMethod(el("clear-picking").checked ? "picking" : "off"),
+  );
   el("link-on").addEventListener("change", () => {
     link.on = el("link-on").checked;
     saveLinkSettings();

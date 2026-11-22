@@ -53,9 +53,10 @@ From the top, everything the GM needs at a glance, then closed sections:
   "Right-click to clear your hand") with a line of detail. While the link is up it names your hotkeys; otherwise
   the buttons. It flashes briefly on each new step (no flash with the system's "reduce motion" setting).
 - **Back, Put in hand again, Next:** the fallback for the hotkeys, each showing its hotkey while the link is up. The
-  highlighted one is the step the now block asks for. They are hidden until a map is loaded.
+  highlighted one is the step the now block asks for. They are hidden until a map is loaded. After the last chunk,
+  Put in hand again becomes **Start over**.
 - **Chunks** (closed): every chunk, placed ones ticked, the one in hand marked.
-- **Link and hotkeys** (closed): the Link switch and port, and the three hotkeys.
+- **Link and hotkeys** (closed): the Link switch and port, the three hotkeys, and the end-of-map picking-tool switch.
 - **Developer tools** (closed): Load (test pair, pasted JSON), Event log, Diagnostics (including the panel-only
   keys) and Design.
 
@@ -104,27 +105,27 @@ the board. The choice is remembered in the panel.
    and delete the two alignment pillars.
 
 The last chunk stays in your hand as a stamp after you place it, so another click would paste it again. The symbiote
-API has no call that clears the hand, so as an **experiment** the helper tries something when you press Next (Finish)
-on the last chunk; choose what under **Developer tools > Diagnostics > After the last chunk**:
+API has no call that clears the hand, so when you press Next (Finish) on the last chunk the helper **switches to
+TaleSpire's picking tool**, which drops the slab (Test K). The panel says "Switched to the picking tool": another click
+won't paste. Click the board or dismiss the tool to leave it; the helper ignores whatever that click picks. The switch
+for this is under **Link and hotkeys** ("After the last chunk, switch to the picking tool…"); turned off, the panel
+asks you to right-click instead. The helper does not touch the clipboard: `sendSlabToHand` does not go through it.
 
-- **Send an empty slab to your hand** (the default): a well-formed slab with no assets, which should replace the last
-  chunk with nothing.
-- **Start TaleSpire's picking tool**: switching to that tool may drop the slab; click the board or dismiss the tool
-  to leave it.
-- **Do nothing**: right-click yourself.
+After the end:
 
-The panel then says "Trying to clear your hand…" and, once TaleSpire answers, "If a slab is still in your hand,
-right-click". It never says the hand is empty, because the API cannot see the hand. TaleSpire's answer is in the
-event log and under "Last try". The helper does not touch the clipboard: `sendSlabToHand` does not go through it, so
-emptying it would not empty the hand.
+- **Start over** (the Again button and hotkey) goes back to the first step with nothing placed and **puts nothing in
+  your hand** until you press Next, so a stray press is harmless.
+- **Back** selects the last chunk **without putting it in your hand** (a slab in hand hides the cursor while you are
+  on the panel); Next or Put in hand then sends it. Mid-map, Back still puts the previous chunk straight in your hand,
+  because you are on the board then.
 
 Hotkeys (left hand only, the right stays on the mouse):
 
-| Hotkey     | Does                                          |
-| ---------- | --------------------------------------------- |
-| Ctrl+Alt+D | Next (and, with nothing in hand yet, chunk 1) |
-| Ctrl+Alt+A | Back one chunk, and put it in your hand       |
-| Ctrl+Alt+S | Put the current chunk in your hand again      |
+| Hotkey     | Does                                                                          |
+| ---------- | ----------------------------------------------------------------------------- |
+| Ctrl+Alt+D | Next (and, with nothing in hand yet, puts the current chunk there)            |
+| Ctrl+Alt+A | Back one chunk, and put it in your hand (after the end: select it only)       |
+| Ctrl+Alt+S | Put the current chunk in your hand again (after the end: Start over, no send) |
 
 You can change them in the helper: click a hotkey under **Link and hotkeys** and press the new combination (Ctrl or
 Alt plus a letter, digit, F-key, Space or arrow). The helper sends it to the bridge, which answers "Active" or why it
@@ -167,8 +168,9 @@ middle into a west half and an east half.
 - **Load** loads the bundled test pair or a pasted chunk set.
 - **Event log** lists every TaleSpire event the helper listens to, with times, and its own and the link's activity
   (marked ▸).
-- **Diagnostics** shows the API's slab size limit, your client mode, the last slab you copied in game, the panel
-  keys and the last key the panel received, and the local connection test.
+- **Diagnostics** shows the last API error in full (the status line only names it), what happened at the end of
+  the map, the API's slab size limit, your client mode, the last slab you copied in game, the panel keys and the last
+  key the panel received, and the local connection test.
 - **Design** is the temporary design preview (above).
 
 ## Test procedure
@@ -182,6 +184,14 @@ Use a scratch board, in GM mode. Report back for each test what you saw; screens
 - Test E (local connection): WebSocket works.
 - Test F (panel keys): they work only after clicking the panel; with a slab in hand the cursor is hidden until a
   right-click.
+- Test K (clear the hand at the end): **an empty slab (no assets) crashes TaleSpire's slab spawn**
+  (`System.DivideByZeroException` in `Slab.Init`, from `sendSlabToHand`). The helper therefore never sends one: a
+  chunk set with a slab too small to hold an asset is refused on load (the size is read from the gzip trailer), and
+  the send path checks again. **Starting the picking tool drops the slab in hand** ("worked perfectly"), so the helper
+  does that after the last chunk.
+- Raw TaleSpire errors (a .NET exception with its stack trace) are never shown in the status line: it says
+  "TaleSpire reported an error" and the whole text is under **Developer tools > Diagnostics > Last API error** and in
+  the event log.
 
 ### Test G: the bridge flow
 
@@ -211,14 +221,14 @@ Look for: does the status line ever say TaleSpire is limiting the helper for sen
 skipped?
 Report: what the status line and the bridge's terminal showed.
 
-### Test K: does the helper empty your hand at the end?
+### Test L: the end of the map, Start over and Back
 
-After the last chunk, press the Next hotkey once more (Finish). Is your hand empty? What does the event log say?
-Look for: whether a slab is still under the cursor, and what a click on the board does now. The event log has a
-`clear hand:` line with TaleSpire's answer (also under Diagnostics > Last try).
-Report: hand empty or not, the `clear hand:` lines, and whether a click pasted anything. If the empty slab does
-nothing, switch Diagnostics > After the last chunk to **Start TaleSpire's picking tool**, run the last chunk again
-(Back, then Finish) and report the same.
+Place every chunk and press Finish.
+Look for: the panel says "Switched to the picking tool" and a click on the board pastes nothing; the event log has
+`end of map:` lines and, after your click, "end-of-map picking tool closed". Then press **Back** (Ctrl+Alt+A): chunk 6
+(or the last) is selected, the cursor stays visible and nothing is in your hand until Next. Finish again, then press
+**Start over** (Ctrl+Alt+S): the panel returns to "Press G to raise the build plane" with nothing in your hand.
+Report: anything that put a slab in your hand when it should not have, and any wording that was unclear.
 
 ### Test D (again): does anything signal a placement?
 

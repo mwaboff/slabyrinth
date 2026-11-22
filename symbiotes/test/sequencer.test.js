@@ -338,7 +338,7 @@ describe("the now block", () => {
     s = Seq.reduce(s, { type: "next" }).state;
     expect(Seq.guide(s, { keys: KEYS })).toMatchObject({
       tone: "done",
-      title: "Trying to clear your hand…",
+      title: "Switching to the picking tool…",
     });
   });
 
@@ -359,53 +359,48 @@ describe("the now block", () => {
   });
 });
 
-describe("emptying the hand after the last chunk (experiment)", () => {
-  const finished = () => {
-    let s = loaded();
-    s = Seq.reduce(s, { type: "next" }).state;
-    s = Seq.reduce(s, { type: "sent", index: 0, ok: true }).state;
-    s = Seq.reduce(s, { type: "next" }).state;
-    s = Seq.reduce(s, { type: "sent", index: 1, ok: true }).state;
-    return Seq.reduce(s, { type: "next" }).state;
-  };
+const finished = () => {
+  let s = loaded();
+  s = Seq.reduce(s, { type: "next" }).state;
+  s = Seq.reduce(s, { type: "sent", index: 0, ok: true }).state;
+  s = Seq.reduce(s, { type: "next" }).state;
+  s = Seq.reduce(s, { type: "sent", index: 1, ok: true }).state;
+  return Seq.reduce(s, { type: "next" }).state;
+};
 
-  it("the empty slab is a well-formed slab with no assets", () => {
-    expect(Seq.EMPTY_SLAB.startsWith("H4sI")).toBe(true);
-    expect(decode(Seq.EMPTY_SLAB)).toMatchObject({ version: 2, assets: [] });
-    // the same bytes the core encoder writes for zero layouts (header, no layouts, trailer)
-    expect([...decompress(Seq.EMPTY_SLAB).raw]).toEqual([...encodeLayoutsRaw([])]);
-  });
-
-  it("says it is trying, then never claims the hand is clear", () => {
+describe("after the last chunk: the picking tool", () => {
+  it("says what it is doing, then what was done, never that the hand is empty", () => {
     const s = finished();
     expect(s.clear).toEqual({ status: "trying" });
     expect(Seq.guide(s, {})).toMatchObject({
       tone: "done",
-      title: "Trying to clear your hand…",
+      title: "Switching to the picking tool…",
       detail: "If a slab is still in your hand, right-click. Then delete the two alignment pillars.",
     });
-    const answered = Seq.reduce(s, { type: "cleared", method: "empty", ok: true }).state;
-    expect(answered.clear).toEqual({ status: "answered", method: "empty", cause: null });
-    expect(Seq.guide(answered, {}).title).toBe("If a slab is still in your hand, right-click");
-    expect(Seq.guide(answered, {}).detail).toMatch(
-      /^The helper tried to clear it by sending an empty slab\./,
-    );
     const picking = Seq.reduce(s, { type: "cleared", method: "picking", ok: true }).state;
-    expect(Seq.guide(picking, {}).detail).toMatch(/picking tool/);
-    for (const g of [Seq.guide(s, {}), Seq.guide(answered, {}), Seq.guide(picking, {})])
+    expect(picking.clear).toEqual({ status: "answered", method: "picking", cause: null });
+    expect(Seq.guide(picking, {})).toMatchObject({
+      title: "Switched to the picking tool",
+      detail:
+        "Another click won't paste the last chunk. Click the board or dismiss the tool to leave it. " +
+        "Then delete the two alignment pillars.",
+    });
+    for (const g of [Seq.guide(s, {}), Seq.guide(picking, {})])
       expect(`${g.title} ${g.detail}`).not.toMatch(/hand is (clear|empty)|cleared your hand/);
   });
 
-  it("a refusal or the switch off ends in the plain right-click step", () => {
+  it("a refusal (in plain words) or the switch off ends in the plain right-click step", () => {
     const s = finished();
     const refused = Seq.reduce(s, {
       type: "cleared",
-      method: "empty",
+      method: "picking",
       ok: false,
-      cause: "spawnFailed",
+      cause: "toolInUse",
     }).state;
-    expect(Seq.guide(refused, {})).toMatchObject({ title: "Right-click to clear your hand" });
-    expect(Seq.guide(refused, {}).detail).toMatch(/refused the helper's try \(spawnFailed\)/);
+    expect(Seq.guide(refused, {})).toMatchObject({
+      title: "Right-click to clear your hand",
+      detail: "Another symbiote is using the picking tool. Then delete the two alignment pillars.",
+    });
     const off = Seq.reduce(s, { type: "cleared", method: "off", ok: true }).state;
     expect(off.clear.status).toBe("off");
     expect(Seq.guide(off, {})).toMatchObject({
@@ -414,17 +409,80 @@ describe("emptying the hand after the last chunk (experiment)", () => {
     });
   });
 
-  it("a late answer after Back changes nothing, and Back forgets the try", () => {
-    const back = Seq.reduce(finished(), { type: "back" }).state;
-    expect(back.clear).toBeNull();
-    expect(Seq.reduce(back, { type: "cleared", method: "empty", ok: true }).state).toBe(back);
+  it("the picking tool is the default; the removed empty-slab setting becomes it", () => {
+    expect(Seq.CLEAR_METHODS.map((m) => m.id)).toEqual(["picking", "off"]);
+    expect(Seq.pickClearMethod("off")).toBe("off");
+    expect(Seq.pickClearMethod("empty")).toBe("picking");
+    expect(Seq.pickClearMethod(null)).toBe("picking");
+  });
+});
+
+describe("after the end: Start over and Back put nothing in the hand", () => {
+  it("Start over (the Again control and hotkey) resets to the first step and waits", () => {
+    const done = finished();
+    expect(Seq.controls(done).send).toEqual({ enabled: true, label: "Start over" });
+    const r = Seq.reduce(done, { type: "send" });
+    expect(r.effect).toBeUndefined();
+    expect(r.state).toMatchObject({ index: 0, phase: "ready", clear: null });
+    expect(Seq.progress(r.state).placed).toBe(0);
+    expect(Seq.guide(r.state, {}).title).toBe("Press G to raise the build plane");
+    // the link's "again" is the same action
+    expect(Seq.linkCommand({ type: "again" })).toEqual({ action: { type: "send" } });
+    // a late picking answer after Start over changes nothing
+    expect(Seq.reduce(r.state, { type: "cleared", method: "picking", ok: true }).state).toBe(r.state);
   });
 
-  it("keeps a saved method only when it is a known one; the empty slab is the default", () => {
-    expect(Seq.CLEAR_METHODS.map((m) => m.id)).toEqual(["empty", "picking", "off"]);
-    expect(Seq.pickClearMethod("picking")).toBe("picking");
-    expect(Seq.pickClearMethod("clipboard")).toBe("empty");
-    expect(Seq.pickClearMethod(null)).toBe("empty");
+  it("Back selects the last chunk without sending it; Next or Put in hand then sends it", () => {
+    const r = Seq.reduce(finished(), { type: "back" });
+    expect(r.effect).toBeUndefined();
+    expect(r.state).toMatchObject({ index: 1, phase: "ready", clear: null });
+    const g = Seq.guide(r.state, { keys: { next: "Ctrl+Alt+D", back: "Ctrl+Alt+A", again: "Ctrl+Alt+S" } });
+    expect(g).toMatchObject({
+      step: "Chunk 2 of 2 selected",
+      title: "Press Ctrl+Alt+D to put chunk 2 in your hand",
+    });
+    expect(g.detail).toMatch(/^It is not in your hand yet \(Put in hand does the same\)\./);
+    expect(Seq.controls(r.state).next.label).toBe("Next");
+    expect(Seq.reduce(r.state, { type: "next" }).effect).toEqual({ type: "send", index: 1 });
+    expect(Seq.reduce(r.state, { type: "send" }).effect).toEqual({ type: "send", index: 1 });
+  });
+
+  it("mid-sequence Back still puts the previous chunk in hand", () => {
+    let s = Seq.reduce(loaded(), { type: "next" }).state;
+    s = Seq.reduce(s, { type: "sent", index: 0, ok: true }).state;
+    s = Seq.reduce(s, { type: "next" }).state;
+    s = Seq.reduce(s, { type: "sent", index: 1, ok: true }).state;
+    expect(Seq.reduce(s, { type: "back" }).effect).toEqual({ type: "send", index: 0 });
+  });
+});
+
+describe("empty slabs are never sent", () => {
+  // a well-formed v2 slab with no layouts: TaleSpire's slab spawn divides by zero on it (Test K). Test data only.
+  const EMPTY = "H4sIAAAAAAACAzv369xFJgYIAACcngOODAAAAA==";
+
+  it("reads the uncompressed size from the gzip trailer", () => {
+    expect(decode(EMPTY)).toMatchObject({ assets: [] });
+    expect(Seq.slabRawSize(EMPTY)).toBe(decompress(EMPTY).raw.length);
+    expect(Seq.slabRawSize(SLAB)).toBe(decompress(SLAB).raw.length);
+    expect(Seq.slabRawSize(EMPTY)).toBe(encodeLayoutsRaw([]).length);
+  });
+
+  it("refuses a slab that cannot hold an asset, and a set that contains one", () => {
+    expect(Seq.slabHasRoomForAnAsset(EMPTY)).toBe(false);
+    expect(Seq.slabHasRoomForAnAsset(SLAB)).toBe(true);
+    expect(Seq.slabHasRoomForAnAsset("H4sI")).toBe(false);
+    const r = Seq.parseChunkSet(
+      blob({
+        chunks: [
+          { label: "a", slab: SLAB },
+          { label: "b", slab: EMPTY },
+        ],
+      }),
+    );
+    expect(r).toEqual({
+      ok: false,
+      error: "Chunk 2 has no assets. TaleSpire crashes on an empty slab, so this set cannot be used.",
+    });
   });
 });
 
@@ -530,8 +588,36 @@ describe("explainCause", () => {
     ["dataOversized", /over TaleSpire's slab size limit/],
     ["invalidSlabString", /could not read/],
     ["spawnFailed", /could not create the slab/],
-    ["somethingNew", /TaleSpire reported "somethingNew"/],
+    ["couldNotSwitchToTool", /could not switch to the picking tool/],
+    ["emptySlab", /crashes on an empty slab/],
+    ["somethingNew", /^TaleSpire reported an error \(details under Developer tools > Diagnostics\)$/],
   ])("%s", (cause, text) => expect(Seq.explainCause(cause)).toMatch(text));
+
+  // what the owner saw in Test K: a .NET exception with its stack trace, word for word in the status line
+  const EXCEPTION =
+    "System.DivideByZeroException: Attempted to divide by zero.\n  at Slab.Init (DataModel.Copied copied, " +
+    "UnityEngine.Shader remoteReplacementShader) [0x00123]\n  at Slab.Spawn ()\n  at " +
+    "Symbiotes.Impls+v0_1+slabs.sendSlabToHand (System.String slabStr)";
+
+  it("never puts a raw exception or stack trace in the status line, on any failure path", () => {
+    let s = Seq.reduce(loaded(), { type: "next" }).state;
+    s = Seq.reduce(s, { type: "sent", index: 0, ok: false, cause: EXCEPTION }).state;
+    const texts = [Seq.statusLine(s).text, Seq.guide(s, {}).detail, Seq.slabsLight(s, "gm").label];
+    let d = Seq.reduce(Seq.reduce(s, { type: "send" }).state, { type: "sent", index: 0, ok: true }).state;
+    d = Seq.reduce(d, { type: "next" }).state;
+    d = Seq.reduce(d, { type: "sent", index: 1, ok: true }).state;
+    d = Seq.reduce(d, { type: "next" }).state;
+    d = Seq.reduce(d, { type: "cleared", method: "picking", ok: false, cause: EXCEPTION }).state;
+    texts.push(Seq.guide(d, {}).detail, Seq.linkReply(s, 1).status);
+    for (const t of texts) expect(t).not.toMatch(/Exception|Slab\.Init|at Symbiotes|\n/);
+    expect(Seq.guide(d, {}).detail).toMatch(/^TaleSpire reported an error \(details under/);
+  });
+
+  it("cuts a long error to its first line for a one-line readout", () => {
+    expect(Seq.shortError(EXCEPTION, 160)).toBe("System.DivideByZeroException: Attempted to divide by zero.");
+    expect(Seq.shortError("x".repeat(300), 20)).toBe("x".repeat(19) + "…");
+    expect(Seq.shortError(null)).toBe("");
+  });
 });
 
 describe("the bundled test pair", () => {

@@ -7,7 +7,7 @@
  *  - parseChunkSet(text, maxBytes): validates a pasted chunk-set blob.
  *  - reduce(state, action): the next state, plus an effect for the page to run (`{ type: "send", index }`).
  *  - statusLine(state), progress(state), controls(state): what the page shows.
- *  - explainCause(cause): a TaleSpire failure cause in plain words.
+ *  - explainCause(cause): a TaleSpire failure cause in plain words (never the raw text of an unknown one).
  */
 (function (root) {
   "use strict";
@@ -22,6 +22,46 @@
   function base64Bytes(s) {
     var pad = s.endsWith("==") ? 2 : s.endsWith("=") ? 1 : 0;
     return (s.length / 4) * 3 - pad;
+  }
+
+  var B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+  /**
+   * The uncompressed size of a slab string, read from the gzip trailer (ISIZE: the last 4 bytes, little-endian), or
+   * null when it cannot be read. The page cannot inflate gzip synchronously, but this needs only the last 8 base64
+   * characters.
+   */
+  function slabRawSize(slab) {
+    if (typeof slab !== "string" || slab.length < 8 || slab.length % 4 !== 0) return null;
+    var tail = slab.slice(-8);
+    var pad = tail.endsWith("==") ? 2 : tail.endsWith("=") ? 1 : 0;
+    var bytes = [];
+    for (var i = 0; i < 8; i += 4) {
+      var v = 0;
+      for (var j = 0; j < 4; j++) {
+        var ch = tail.charAt(i + j);
+        var d = ch === "=" ? 0 : B64.indexOf(ch);
+        if (d < 0) return null;
+        v = v * 64 + d;
+      }
+      bytes.push((v >> 16) & 255, (v >> 8) & 255, v & 255);
+    }
+    bytes = bytes.slice(0, 6 - pad);
+    if (bytes.length < 4) return null;
+    var b = bytes.slice(-4);
+    return b[0] + b[1] * 256 + b[2] * 65536 + b[3] * 16777216;
+  }
+
+  /**
+   * The smallest slab that can hold one asset: header (10 bytes) + one layout (20) + one instance (8) + trailer (2).
+   * Anything smaller has no assets, and an empty slab makes TaleSpire's slab spawn divide by zero (Test K).
+   */
+  var MIN_SLAB_RAW_BYTES = 40;
+
+  /** False for a slab string that cannot hold an asset (or whose size cannot be read): never send it. */
+  function slabHasRoomForAnAsset(slab) {
+    var size = slabRawSize(slab);
+    return size !== null && size >= MIN_SLAB_RAW_BYTES;
   }
 
   /** Trims whitespace and the optional triple-backtick fences TaleSpire also accepts. */
@@ -101,6 +141,8 @@
       var bytes = base64Bytes(slab);
       if (bytes > limit)
         return fail(n + " is " + bytes + " bytes; TaleSpire accepts at most " + limit + " bytes per slab.");
+      if (!slabHasRoomForAnAsset(slab))
+        return fail(n + " has no assets. TaleSpire crashes on an empty slab, so this set cannot be used.");
       chunks.push({ label: c.label.trim(), slab: slab, bytes: bytes });
     }
     return { ok: true, set: { name: data.name.trim(), chunks: chunks, size: size, levels: levels } };
@@ -127,16 +169,33 @@
     spawnFailed: "TaleSpire could not create the slab in your hand. Try again, and note it if it repeats",
     noApi: "the TaleSpire API is not available here",
     notInitialized: "the TaleSpire API has not finished starting. Wait a moment",
+    emptySlab: "this chunk has no assets, and TaleSpire crashes on an empty slab. Rebuild the map",
+    couldNotSwitchToTool: "TaleSpire could not switch to the picking tool",
+    toolInUse: "another symbiote is using the picking tool",
   };
 
+  /**
+   * A failure cause in plain words, for the status line. Never the raw text: an unknown cause can be a whole .NET
+   * exception with a stack trace, so it is named only as "an error"; the page keeps the full text for Diagnostics and
+   * the event log.
+   */
   function explainCause(cause) {
     if (typeof cause === "string" && Object.prototype.hasOwnProperty.call(CAUSES, cause))
       return CAUSES[cause];
-    return 'TaleSpire reported "' + String(cause || "unknown error") + '". Note this message';
+    return "TaleSpire reported an error (details under Developer tools > Diagnostics)";
+  }
+
+  /** A long failure text cut for a one-line readout: the first line, at most `max` characters. */
+  function shortError(text, max) {
+    var limit = typeof max === "number" && max > 0 ? max : 160;
+    var first = String(text === undefined || text === null ? "" : text)
+      .split(/\r?\n/)[0]
+      .trim();
+    return first.length > limit ? first.slice(0, limit - 1) + "…" : first;
   }
 
   /**
-   * `clear` is the experiment run after the last chunk (see CLEAR_METHODS): null before the end, then
+   * `clear` is what the helper does after the last chunk (see CLEAR_METHODS): null before the end, then
    * { status: "trying" | "answered" | "refused" | "off", method, cause }. "answered" means only that TaleSpire took
    * the call without an error; the API cannot say what is in the GM's hand, so nothing ever claims the hand is empty.
    */
@@ -155,7 +214,9 @@
    * Phases: "empty" (nothing loaded), "ready" (current chunk not sent yet), "sending", "inHand" (TaleSpire accepted
    * it), "failed" (TaleSpire refused it; `cause` says why), "done" (the GM pressed Next on the last chunk).
    * Actions: load {set}, send, next, back, sent {index, ok, cause}, cleared {method, ok, cause}, unload.
-   * Next on the last chunk also asks the page to try to empty the hand (effect `clearHand`).
+   * Next on the last chunk also asks the page to switch the hand away from the last chunk (effect `clearHand`).
+   * `send` (Again) after the end starts over: nothing placed, back to the first step, nothing sent until Next, so an
+   * accidental press puts nothing in the hand.
    */
   function reduce(state, action) {
     var total = state.set ? state.set.chunks.length : 0;
@@ -167,7 +228,9 @@
       case "unload":
         return { state: initialState() };
       case "send":
-        if (!state.set || state.phase === "sending" || state.phase === "done") return { state: state };
+        if (!state.set || state.phase === "sending") return { state: state };
+        if (state.phase === "done")
+          return { state: Object.assign({}, state, { index: 0, phase: "ready", cause: null, clear: null }) };
         return sendFrom(state, state.index);
       case "next":
         if (!state.set || state.phase === "sending" || state.phase === "done") return { state: state };
@@ -181,7 +244,10 @@
         return sendFrom(state, state.index + 1);
       case "back":
         if (!state.set || state.phase === "sending") return { state: state };
-        if (state.phase === "done") return sendFrom(state, state.index);
+        // after the end, Back selects the last chunk without putting it in hand: a slab in hand hides the cursor,
+        // and the GM is on the panel at this point (mid-sequence Back still sends, since the GM is on the board)
+        if (state.phase === "done")
+          return { state: Object.assign({}, state, { phase: "ready", cause: null, clear: null }) };
         if (state.index === 0) return { state: state };
         return sendFrom(state, state.index - 1);
       case "sent":
@@ -314,11 +380,15 @@
               press("next") +
               " to put chunk 1 in your hand. Without the plane, later chunks land too high.",
           };
+        // a later chunk selected but not sent (Back after the end)
         return {
           tone: "action",
-          step: which,
-          title: cap(press("next")) + " for chunk " + n,
-          detail: "Keep the camera and the mouse still.",
+          step: which + " selected",
+          title: cap(press("next")) + " to put chunk " + n + " in your hand",
+          detail:
+            "It is not in your hand yet (" +
+            c.send.label +
+            " does the same). Keep the camera and the mouse still.",
         };
       case "sending":
         return { tone: "wait", step: which, title: "Putting chunk " + n + " in your hand…", detail: "" };
@@ -347,23 +417,20 @@
         var done = { tone: "done", step: "All chunks placed" };
         if (cl && cl.status === "trying")
           return Object.assign(done, {
-            title: "Trying to clear your hand…",
+            title: "Switching to the picking tool…",
             detail: "If a slab is still in your hand, right-click. " + pillars,
           });
         if (cl && cl.status === "answered")
           return Object.assign(done, {
-            title: "If a slab is still in your hand, right-click",
+            title: "Switched to the picking tool",
             detail:
-              (cl.method === "picking"
-                ? "The helper started TaleSpire's picking tool to drop it; if that tool is showing, click the board" +
-                  " or dismiss it. "
-                : "The helper tried to clear it by sending an empty slab. ") + pillars,
+              "Another click won't paste the last chunk. Click the board or dismiss the tool to leave it. " +
+              pillars,
           });
         if (cl && cl.status === "refused")
           return Object.assign(done, {
             title: "Right-click to clear your hand",
-            detail:
-              "TaleSpire refused the helper's try (" + (cl.cause || "no reason given") + "). " + pillars,
+            detail: cap(explainCause(cl.cause)) + ". " + pillars,
           });
         return Object.assign(done, { title: "Right-click to clear your hand", detail: pillars });
       }
@@ -387,13 +454,15 @@
     var busy = state.phase === "sending";
     var sentOnce = state.phase === "inHand" || state.phase === "failed";
     return {
+      // after the end the Again control starts over (it resets and waits; nothing goes to the hand)
       send: {
-        enabled: loaded && !busy && state.phase !== "done",
-        label: sentOnce ? "Put in hand again" : "Put in hand",
+        enabled: loaded && !busy,
+        label: state.phase === "done" ? "Start over" : sentOnce ? "Put in hand again" : "Put in hand",
       },
       next: {
         enabled: loaded && !busy && state.phase !== "done",
-        label: loaded && state.index + 1 >= total ? "Finish" : "Next",
+        // Next on a chunk not yet sent puts it in hand, so it says Finish only once the last chunk has been sent
+        label: loaded && state.index + 1 >= total && state.phase !== "ready" ? "Finish" : "Next",
       },
       back: { enabled: loaded && !busy && (state.index > 0 || state.phase === "done"), label: "Back" },
       // the one highlighted button: Next drives the flow; after a refused send, putting it in hand again
@@ -713,22 +782,18 @@
     },
   ];
 
-  // ── experiment: empty the hand after the last chunk ──
-  // The API has no call that clears the hand or the tool. Two documented calls might displace the last chunk: sending
-  // a slab with no assets (a well-formed v2 slab: header with zero layouts and the trailer), or starting the picking
-  // tool (its failure state "couldNotSwitchToTool" says it switches tool). Which works, if either, is for Test K.
-
-  /** gzip (level 9, mtime 0) of u32 0xD1CEFACE · u16 2 · u16 0 layouts · u16 0 creatures · u16 0 trailer, base64. */
-  var EMPTY_SLAB = "H4sIAAAAAAACAzv369xFJgYIAACcngOODAAAAA==";
+  // ── after the last chunk: switch to the picking tool so another click cannot paste it ──
+  // The API has no call that clears the hand. Starting the picking tool switches tool, which drops the slab in hand
+  // (Test K, in game). Sending an empty slab was tried and crashed TaleSpire's slab spawn (divide by zero), so it is
+  // gone, and slabHasRoomForAnAsset keeps any empty slab from being sent.
 
   // the first is the default
   var CLEAR_METHODS = [
-    { id: "empty", name: "Send an empty slab to your hand" },
-    { id: "picking", name: "Start TaleSpire's picking tool" },
+    { id: "picking", name: "Switch to the picking tool so nothing more can be pasted" },
     { id: "off", name: "Do nothing (right-click yourself)" },
   ];
 
-  /** The clear-hand method to use: a saved id when it is one of CLEAR_METHODS, else the first. */
+  /** The method to use: a saved id when it is one of CLEAR_METHODS, else the first (the removed "empty" too). */
   function pickClearMethod(saved) {
     for (var i = 0; i < CLEAR_METHODS.length; i++) if (CLEAR_METHODS[i].id === saved) return saved;
     return CLEAR_METHODS[0].id;
@@ -741,7 +806,9 @@
   }
 
   root.SlabyrinthSequencer = {
-    EMPTY_SLAB: EMPTY_SLAB,
+    slabRawSize: slabRawSize,
+    slabHasRoomForAnAsset: slabHasRoomForAnAsset,
+    shortError: shortError,
     CLEAR_METHODS: CLEAR_METHODS,
     pickClearMethod: pickClearMethod,
     DESIGNS: DESIGNS,

@@ -115,6 +115,11 @@
             <span id="hk-again-result" class="hk-result"></span>
           </div>
           <button id="hk-reset" class="quiet">Reset hotkeys to defaults</button>
+          <label class="switch" for="clear-picking">
+            <input id="clear-picking" type="checkbox" role="switch" checked />
+            <span class="switch-track" aria-hidden="true"></span>
+            <span>After the last chunk, switch to the picking tool so nothing more can be pasted</span>
+          </label>
         </div>
       </details>
 
@@ -155,18 +160,18 @@
           </section>
 
           <section id="panel-diag" role="tabpanel" aria-labelledby="tab-diag" hidden>
-            <h2>Experiment: empty the hand after the last chunk</h2>
-            <p class="note">
-              When you press Next (Finish) on the last chunk, the helper tries this. TaleSpire cannot tell it
-              what is in your hand, so right-click if a slab is still there. The event log shows TaleSpire's
-              answer.
-            </p>
-            <label for="clear-method">After the last chunk</label>
-            <select id="clear-method"></select>
+            <h2>Last API error</h2>
+            <p class="note">The full text TaleSpire gave; the status line only names the problem.</p>
             <dl class="facts">
-              <dt>Last try</dt>
+              <dt>Error</dt>
+              <dd id="api-error-short">none yet</dd>
+              <dt>End of map</dt>
               <dd id="clear-last">not yet</dd>
             </dl>
+            <details id="api-error-more" class="error-more" hidden>
+              <summary>Full text</summary>
+              <pre id="api-error-full" class="result"></pre>
+            </details>
 
             <h2>TaleSpire API</h2>
             <dl class="facts">
