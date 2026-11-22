@@ -64,7 +64,7 @@ export interface WallFace {
   readonly style: string;
   /** Natural rock (gen/wallStyles.ts trait): the cave rock owns the solid behind it. */
   readonly natural: boolean;
-  /** A building builds this edge itself (compile/realize/structures/claims.ts `structureClaims`). */
+  /** A building builds this edge itself (resolve/structureFaces.ts `structureClaims`). */
   readonly claimed: boolean;
   /** The host is the edge's first cell (north of an "h" edge, west of a "v" edge). */
   readonly hostFirst: boolean;
@@ -82,7 +82,7 @@ export interface WallFace {
 }
 
 export interface WallFaceOptions {
-  /** Edges buildings build themselves, as "<orient><edge index>" (compile/realize/structures/claims.ts `structureClaims().edges`). */
+  /** Edges buildings build themselves, as "<orient><edge index>" (resolve/structureFaces.ts `structureClaims().edges`). */
   readonly claimed?: ReadonlySet<string>;
   /** Reference floor heights of the level's areas (resolve/wallspan.ts); computed when left out. */
   readonly refHeights?: ReadonlyMap<number, number>;
