@@ -18,7 +18,8 @@
     "src/main/services/talespire/link/hotkeys.ts",
     "src/main/services/talespire/link/protocol.ts",
     "src/main/services/talespire/link/wsLite.ts",
-    "src/main/services/talespire/link/testing/*.ts"
+    "src/main/services/talespire/link/testing/*.ts",
+    "src/renderer/bridge/fake/talespireLink.ts"
   ],
   "references": [{ "path": "../../packages/core" }]
 }

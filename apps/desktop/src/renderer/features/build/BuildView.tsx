@@ -5,7 +5,9 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./build.css";
-import { STEAM_LAUNCH_URL, type CompileDiagnostic, type MapPlan } from "@slabyrinth/core";
+import { STEAM_LAUNCH_URL, type CompileDiagnostic, type ExportBundle, type MapPlan } from "@slabyrinth/core";
+import { SendToTaleSpire } from "../talespire/SendToTaleSpire";
+import { pasteSteps } from "../talespire/pasteSteps";
 import { Icon } from "../../ui/Icon";
 import { useDismiss } from "../../ui/dismiss";
 import { useBuild } from "../../stores/build";
@@ -538,7 +540,15 @@ function SingleSlab({
 
 const copiedLabel = (at: string | null): string => (at !== null ? `copied ${clock(at)}` : "not copied");
 
-function ChunkList({ model, plan }: { model: BuildModel; plan: MapPlan }) {
+function ChunkList({
+  model,
+  plan,
+  anchor,
+}: {
+  model: BuildModel;
+  plan: MapPlan;
+  anchor: ExportBundle["pasteAnchor"] | null;
+}) {
   const dispatch = useBuild((s) => s.dispatch);
   const paste = useBuild((s) => s.paste);
   const guideOpen = useBuild((s) => s.guideOpen);
@@ -609,16 +619,31 @@ function ChunkList({ model, plan }: { model: BuildModel; plan: MapPlan }) {
           })}
         </div>
       </section>
-      <p className="build__foot">
-        This map is too big for one slab, so it's split into {model.slabs.length} parts that all share one
-        bounding box: two small gravel <b>corner markers</b> sit in every part, so each part is pasted on the
-        same cell. Delete the markers when you're done.
-      </p>
+      {anchor ? (
+        <p className="build__foot">
+          This map is too big for one slab, so it's split into {model.slabs.length} parts that share one paste
+          point. {pasteSteps(anchor).spot} {pasteSteps(anchor).pillars}
+        </p>
+      ) : (
+        <p className="build__foot">
+          This map is too big for one slab, so it's split into {model.slabs.length} parts that all share one
+          bounding box: two small gravel <b>corner markers</b> sit in every part, so each part is pasted on
+          the same cell. Delete the markers when you're done.
+        </p>
+      )}
     </>
   );
 }
 
-function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
+function PasteGuide({
+  model,
+  plan,
+  anchor,
+}: {
+  model: BuildModel;
+  plan: MapPlan;
+  anchor: ExportBundle["pasteAnchor"] | null;
+}) {
   const paste = useBuild((s) => s.paste);
   const pasteStep = paste?.current;
   const dispatch = useBuild((s) => s.dispatch);
@@ -739,8 +764,8 @@ function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
                   <li>
                     <span>2</span>
                     <div>
-                      Move it where you want the map. <b>Press and hold</b> left-click to place it, then
-                      right-click to let go.
+                      {anchor ? `${pasteSteps(anchor).spot} ` : "Move it where you want the map. "}
+                      <b>Press and hold</b> left-click to place it, then right-click to let go.
                     </div>
                   </li>
                   <li>
@@ -755,8 +780,17 @@ function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
                   <li>
                     <span>2</span>
                     <div>
-                      Point at the <b>same corner marker</b> you used for part 1. This part's markers should
-                      sit exactly on top of the old ones.
+                      {anchor ? (
+                        <>
+                          Point at the <b>same spot</b> you clicked for part 1. This part's markers should sit
+                          exactly on top of the old ones.
+                        </>
+                      ) : (
+                        <>
+                          Point at the <b>same corner marker</b> you used for part 1. This part's markers
+                          should sit exactly on top of the old ones.
+                        </>
+                      )}
                     </div>
                   </li>
                   <li>
@@ -792,8 +826,8 @@ function PasteGuide({ model, plan }: { model: BuildModel; plan: MapPlan }) {
               </b>
             </div>
             <p className="guide__p">
-              Delete the two gravel corner markers in TaleSpire. If a part landed wrong, select it in
-              TaleSpire, delete it, and paste it again from the checklist.
+              {anchor ? pasteSteps(anchor).pillars : "Delete the two gravel corner markers in TaleSpire."} If
+              a part landed wrong, select it in TaleSpire, delete it, and paste it again from the checklist.
             </p>
             <div className="card-actions">
               <button
@@ -1022,6 +1056,10 @@ export function BuildView() {
     bundle?.planVersion === rec.versionNumber
       ? bundle.diagnostics.filter((d) => d.stage === "verify" || d.severity !== "info")
       : null;
+  const current = bundle?.planVersion === rec.versionNumber ? bundle : null;
+  const anchor = current?.pasteAnchor ?? null;
+  // an empty slab crashes TaleSpire: the store and main refuse to send it; say so before the click
+  const emptyChunk = current?.chunks.some((c) => c.assetCount <= 0) ?? false;
   const stale = snap.head !== rec.versionNumber;
   const pastedN = model.slabs.filter((s) => paste?.pasted[s.id] ?? s.pasted).length;
   const levelsN = model.levels.length;
@@ -1109,6 +1147,7 @@ export function BuildView() {
             </button>
           </div>
         )}
+        <SendToTaleSpire buildId={rec.id} multi={!model.single} anchor={anchor} emptyChunk={emptyChunk} />
         {!plan ? (
           <span className="spinner" />
         ) : model.single ? (
@@ -1142,12 +1181,12 @@ export function BuildView() {
               </button>
             </div>
             <BuildErrors plan={plan} diags={diags ?? []} />
-            <ChunkList model={model} plan={plan} />
+            <ChunkList model={model} plan={plan} anchor={anchor} />
           </>
         )}
         {plan && <BuildNotes plan={plan} diags={diags} summary={rec.diagnosticsSummary} />}
       </div>
-      {showGuide && plan && <PasteGuide model={model} plan={plan} />}
+      {showGuide && plan && <PasteGuide model={model} plan={plan} anchor={anchor} />}
     </div>
   );
 }

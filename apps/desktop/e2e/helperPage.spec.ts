@@ -7,7 +7,7 @@
  * TaleSpire documents no way to test a symbiote outside the game, so this is as close as it gets; what only the game
  * can show (placement, the build plane, the hand) stays with the owner.
  */
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -206,4 +206,30 @@ test("keeps the chosen look across a reload, and opens in Slabyrinth by default"
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "native");
   await expect(page.locator("#design-native")).toBeChecked();
+});
+
+const shots = fileURLToPath(new URL("../../../docs/internal/talespire-ui/", import.meta.url));
+
+test("a map pasted from beside it: the panel says where to click and which pillars to delete", async () => {
+  mkdirSync(shots, { recursive: true });
+  await page.setViewportSize({ width: 420, height: 760 });
+  await page.goto(`http://127.0.0.1:${String(filesPort)}/index.html`);
+  await expect(page.locator("#light-link .light-label")).toHaveText("Connected to Slabyrinth");
+  link.load({ ...SET, anchor: { side: "south", clearanceCells: 4, farMarkerCells: 31 } }, "build-2");
+  await expect(title()).toHaveText("Press G to raise the build plane");
+  await page.locator("#btn-next").click();
+  await expect(title()).toHaveText("Click just south of where the map goes");
+  await expect(page.locator("#now-detail")).toContainText(
+    "The map lands north of the cursor, about 5 cells away.",
+  );
+  await page.screenshot({ path: path.join(shots, "addon-panel-anchor-chunk1.png"), animations: "disabled" });
+  await page.locator("#btn-next").click();
+  await expect(page.locator("#now-step")).toHaveText("Chunk 2 of 2 in hand");
+  await page.locator("#btn-next").click();
+  await expect(page.locator("#now-detail")).toContainText(
+    "one just past the map's north-east corner, and one about 31 cells south of the map.",
+  );
+  await page.screenshot({ path: path.join(shots, "addon-panel-anchor-done.png"), animations: "disabled" });
+  link.command("unload");
+  await expect(page.locator("#map-info")).toBeHidden();
 });

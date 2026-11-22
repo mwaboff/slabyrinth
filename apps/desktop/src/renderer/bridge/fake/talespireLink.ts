@@ -4,7 +4,7 @@
  */
 import type { AddonStatus, LinkStatus } from "../../../shared/ipc";
 
-export const FAKE_BUNDLED_VERSION = "0.2.0";
+export const FAKE_BUNDLED_VERSION = "0.3.0";
 export const FAKE_SYMBIOTES =
   "C:\\Users\\gm\\AppData\\LocalLow\\BouncyRock Entertainment\\TaleSpire\\Symbiotes";
 

@@ -40,6 +40,17 @@ interface TaleSpireLinkState {
   /** Empties the add-on and releases the hotkeys. */
   stop: () => Promise<void>;
   clearError: () => void;
+  // ── the UI's own state (this session only) ──
+  /** The add-on dialog (install guide and management). */
+  dialogOpen: boolean;
+  openDialog: () => void;
+  closeDialog: () => void;
+  /** "Not now" on the update prompt: closed until the next start. */
+  promptSnoozed: boolean;
+  snoozePrompt: () => void;
+  /** The quiet "the add-on was updated" notice was dismissed. */
+  noticeDismissed: boolean;
+  dismissNotice: () => void;
 }
 
 export const useTaleSpireLink = create<TaleSpireLinkState>((set, get) => {
@@ -152,6 +163,21 @@ export const useTaleSpireLink = create<TaleSpireLinkState>((set, get) => {
     },
     clearError: () => {
       set({ error: null });
+    },
+    dialogOpen: false,
+    openDialog: () => {
+      set({ dialogOpen: true });
+    },
+    closeDialog: () => {
+      set({ dialogOpen: false });
+    },
+    promptSnoozed: false,
+    snoozePrompt: () => {
+      set({ promptSnoozed: true });
+    },
+    noticeDismissed: false,
+    dismissNotice: () => {
+      set({ noticeDismissed: true });
     },
   };
 });

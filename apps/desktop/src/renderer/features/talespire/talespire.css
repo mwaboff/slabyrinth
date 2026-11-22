@@ -1,0 +1,511 @@
+/* The TaleSpire add-on: status light, dialog, settings, build page panel. Tokens only. */
+
+/* ───── the light: colour and shape both carry the state ───── */
+.tslight {
+  flex: none;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.tslight--ok {
+  background: var(--success);
+}
+
+.tslight--busy {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+  animation: tslight-pulse 1.6s var(--ease) infinite;
+}
+
+.tslight--idle {
+  border: 1.5px solid var(--muted);
+}
+
+.tslight--action {
+  border-radius: 0;
+  background:
+    linear-gradient(var(--accent), var(--accent)) center / 100% 2px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) center / 2px 100% no-repeat;
+  width: 9px;
+  height: 9px;
+}
+
+.tslight--warn {
+  border-radius: 0;
+  width: 10px;
+  height: 9px;
+  background: var(--warning);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.tslight--error {
+  border-radius: 1px;
+  width: 7px;
+  height: 7px;
+  margin: 0 1px;
+  background: var(--danger);
+  transform: rotate(45deg);
+}
+
+@keyframes tslight-pulse {
+  50% {
+    box-shadow: 0 0 0 1px var(--accent-tint);
+  }
+}
+
+/* ───── status bar ───── */
+.tsind {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: var(--t-small);
+  color: var(--ink-2);
+  background: none;
+  border: 0;
+  padding: var(--s4) var(--s6);
+  border-radius: var(--r-4);
+  min-width: 0;
+}
+
+.tsind:hover {
+  background: var(--surface-2);
+}
+
+.tsind__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tsind--action .tsind__label,
+.tsind--warn .tsind__label,
+.tsind--error .tsind__label {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ───── shared rows ───── */
+.tsnow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s10);
+  padding: var(--s10) var(--s12);
+  border-radius: var(--r-6);
+  background: var(--surface-2);
+  border: var(--line-w) solid var(--line);
+  font: var(--t-ui);
+  color: var(--ink-2);
+}
+
+.tsnow b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.tsnow .tslight {
+  transform: translateY(-1px);
+}
+
+.tsnow .tslight--error {
+  transform: translateY(-1px) rotate(45deg);
+}
+
+.tsnow--ok {
+  background: var(--success-tint);
+}
+
+.tsnow--warn,
+.tsnow--action {
+  background: var(--warning-tint);
+}
+
+.tsnow--action {
+  background: var(--accent-tint);
+}
+
+.tsnow--error {
+  background: var(--danger-tint);
+}
+
+.tsrow {
+  display: grid;
+  gap: var(--s8);
+}
+
+.tsfacts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--s4) var(--s12);
+  margin: 0;
+  font: var(--t-ui);
+}
+
+.tsfacts dt {
+  color: var(--muted);
+}
+
+.tsfacts dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s8);
+  color: var(--ink);
+  min-width: 0;
+}
+
+.tspath {
+  font: var(--t-code);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.tsbtns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s8);
+}
+
+.tsdanger {
+  color: var(--danger);
+}
+
+.tsnote {
+  margin: 0;
+  font: var(--t-small);
+  color: var(--muted);
+}
+
+.tswarn,
+.tserr {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s6);
+  font: var(--t-small);
+  color: var(--ink-2);
+}
+
+.tswarn > .icon {
+  color: var(--warning);
+  margin-top: 2px;
+}
+
+.tserr > .icon {
+  color: var(--danger);
+  margin-top: 2px;
+}
+
+.tswarn--box {
+  flex-wrap: wrap;
+  padding: var(--s8) var(--s10);
+  border-radius: var(--r-6);
+  background: var(--warning-tint);
+}
+
+.tswarn--box > span:first-of-type {
+  flex: 1;
+  min-width: 220px;
+}
+
+.tswarn--box > .icon {
+  color: var(--info);
+}
+
+.tstried,
+.tsmanual {
+  font: var(--t-small);
+  color: var(--ink-2);
+}
+
+.tstried summary,
+.tsmanual summary {
+  cursor: pointer;
+  color: var(--accent);
+  font: var(--t-small-m);
+  width: fit-content;
+  border-radius: var(--r-3);
+}
+
+.tstried ul {
+  margin: var(--s6) 0 0;
+  padding-left: var(--s16);
+}
+
+.tsmanual ol {
+  margin: var(--s6) 0 var(--s8);
+  padding-left: var(--s20);
+}
+
+.tsmanual[open] {
+  padding: var(--s8) var(--s10);
+  border-radius: var(--r-6);
+  background: var(--surface-2);
+}
+
+/* ───── dialog ───── */
+.tsdialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+}
+
+.tsdialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tsdialog__lead {
+  margin: 0;
+}
+
+.tsdialog__scroll {
+  overflow: auto;
+  display: grid;
+  gap: var(--s16);
+  padding-right: var(--s4);
+  min-height: 0;
+}
+
+.tssteps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s12);
+}
+
+.tsstep {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: var(--s10);
+}
+
+.tsstep__dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: var(--t-small-strong);
+  border: 1.5px solid var(--line-strong);
+  color: var(--muted);
+}
+
+.tsstep--current .tsstep__dot {
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.tsstep--done .tsstep__dot {
+  background: var(--success-tint);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.tsstep__body {
+  display: grid;
+  gap: var(--s6);
+  font: var(--t-ui-body);
+  color: var(--ink-2);
+}
+
+.tsstep__body b {
+  font: var(--t-section);
+  color: var(--ink);
+}
+
+.tsstep__body p {
+  margin: 0;
+}
+
+.tsstep--todo .tsstep__body {
+  color: var(--muted);
+}
+
+.tssec {
+  display: grid;
+  gap: var(--s8);
+  padding-top: var(--s12);
+  border-top: var(--line-w) solid var(--line);
+}
+
+.tssec h3 {
+  margin: 0;
+  font: var(--t-eyebrow);
+  letter-spacing: var(--eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tshot {
+  display: grid;
+  gap: var(--s6);
+}
+
+.tshot__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+  gap: var(--s4) var(--s12);
+  align-items: center;
+  font: var(--t-ui);
+}
+
+.tshot__list li {
+  display: contents;
+}
+
+.tshot__list--compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s6) var(--s16);
+}
+
+.tshot__list--compact li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s6);
+}
+
+.tshot__name {
+  color: var(--ink-2);
+}
+
+.tshot--off .kbd {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+/* ───── update prompt and notice ───── */
+.tsprompt {
+  width: min(480px, calc(100vw - 32px));
+}
+
+.tsprompt__actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tsprompt__sp {
+  flex: 1;
+}
+
+.tsnotice__icon {
+  color: var(--success);
+}
+
+/* ───── settings ───── */
+.tssettings {
+  display: grid;
+  gap: var(--s12);
+  justify-items: start;
+}
+
+.tssettings > * {
+  width: 100%;
+}
+
+.tssettings > .btn--link {
+  width: auto;
+}
+
+/* ───── build page ───── */
+.tssend {
+  display: grid;
+  gap: var(--s10);
+  padding: var(--s14) var(--s16);
+  border: var(--line-w) solid var(--line);
+  border-radius: var(--r-8);
+  background: var(--surface);
+}
+
+.tssend[data-state="ready"] {
+  border-color: var(--accent);
+}
+
+.tssend__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s4) var(--s10);
+}
+
+.tssend__head h3 {
+  margin: 0;
+  font: var(--t-name);
+  letter-spacing: var(--tracking-name);
+  color: var(--ink);
+}
+
+.tssend__head .muted {
+  font: var(--t-small);
+}
+
+.tssend__state {
+  display: grid;
+  gap: var(--s8);
+  font: var(--t-ui-body);
+  color: var(--ink-2);
+}
+
+.tssend__state p {
+  margin: 0;
+}
+
+.tssend__line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s10);
+}
+
+.tssend__line b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.tssend__line .spinner {
+  align-self: center;
+}
+
+.tsprog {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.tsprog i {
+  display: block;
+  height: 100%;
+  background: var(--accent-fill);
+  transition: width var(--dur-fade) var(--ease);
+}
+
+.tspaste {
+  margin: 0;
+  padding: var(--s8) var(--s10) var(--s8) var(--s28);
+  border-radius: var(--r-6);
+  background: var(--surface-2);
+  font: var(--t-ui);
+  color: var(--ink-2);
+  display: grid;
+  gap: var(--s4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tslight--busy {
+    animation: none;
+  }
+}
+
+.tsstep--first .tsstep__dot {
+  border-color: var(--accent);
+  color: var(--accent);
+}

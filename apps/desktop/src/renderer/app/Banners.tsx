@@ -6,6 +6,7 @@ import { useSettings } from "../stores/settings";
 import { errorMessage } from "../bridge/client";
 import { run } from "./actions";
 import { pickTaleSpireFolder } from "./folders";
+import { AddonUpdatedNotice } from "../features/talespire/AddonUpdate";
 
 export function Banners() {
   const route = useApp((s) => s.route);
@@ -35,6 +36,7 @@ export function Banners() {
 
   return (
     <div>
+      <AddonUpdatedNotice />
       {banners.saveFailed !== null && (
         <div className="banner banner--danger" role="alert">
           <Icon name="error" className="banner__icon" />

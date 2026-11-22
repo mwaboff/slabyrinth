@@ -28,6 +28,8 @@ const refreshSecrets = (): Promise<void> =>
         .toast({ lead: "Couldn't read the key status.", body: errorMessage(e), tone: "error" });
     });
 import { UpdateCheckRow } from "../updates/UpdateChip";
+import { AddonSettings } from "../talespire/AddonSettings";
+import { useTaleSpireLink } from "../../stores/talespireLink";
 
 /** Same wording in Settings and Setup. */
 export const UPDATE_CHECK_HELP =
@@ -477,8 +479,15 @@ function TaleSpireSection({ s }: { s: AppSettings }) {
         />
       </Row>
       <Row label="Export method">
-        <span>Clipboard paste</span>
-        <span className="muted">In-game helper (Symbiote) — planned.</span>
+        <span>Copy and paste, or send to the TaleSpire add-on</span>
+        <button
+          className="btn btn--link"
+          onClick={() => {
+            useTaleSpireLink.getState().openDialog();
+          }}
+        >
+          TaleSpire add-on…
+        </button>
       </Row>
     </>
   );
@@ -591,7 +600,9 @@ function AppearanceSection({ s }: { s: AppSettings }) {
   return (
     <>
       <h3>Appearance</h3>
-      <p className="lead">Dark is the default. The PNG export has its own print style.</p>
+      <p className="lead">
+        The theme follows your system unless you pick one. The PNG export has its own print style.
+      </p>
       <Row label="Theme">
         <div className="segctl segctl--fit" role="radiogroup" aria-label="Theme">
           {(
@@ -644,6 +655,9 @@ function AboutSection({ s }: { s: AppSettings }) {
           label="Check for updates automatically"
           help={UPDATE_CHECK_HELP}
         />
+      </Row>
+      <Row label="TaleSpire add-on">
+        <AddonSettings />
       </Row>
       <Row label="Data folder">
         <code className="setup__path">{dataPath}</code>
