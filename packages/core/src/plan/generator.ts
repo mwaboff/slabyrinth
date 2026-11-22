@@ -324,6 +324,10 @@ const SWITCHES = {
     5,
     "Arrangement instances a resolve stage attaches (ResolvedLevel.arrangements: palette pieces composed by the arrange/ operators) are built, one element each (compile/realize/arrangements.ts).",
   ),
+  layeredProps: on(
+    5,
+    "Props of different elements may overlap (layered dressing pastes whole in game): verify warns only when two pieces of blocking furniture stand in one spot, reports other overlaps as info, and no longer says TaleSpire drops them.",
+  ),
   jambPosts: on(
     5,
     "Detail recipe: a slender post at each jamb of a door or window on a seen wall, storey high, in the wall style's own post (resolve/recipes/walls.ts).",

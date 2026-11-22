@@ -27,6 +27,7 @@ import {
   PROP_OVERLAP_HEIGHT,
   PROP_OVERLAP_MIN_AREA,
   PROP_OVERLAP_SHARE,
+  PROP_SAME_SPOT_SHARE,
   SUPPORT_SLACK,
 } from "./limits";
 import { OverheadLines } from "./lines";
@@ -75,11 +76,23 @@ export function checkProps(ctx: VerifyCtx, solids: SolidIndex): void {
   }
 }
 
-/** `verify_props_overlap`: pairs of blocking or organic props of different features that share space (each pair once). */
+/**
+ * `verify_props_overlap`: pairs of blocking or organic props of different features that share space (each pair once).
+ * Generator 5 (`layeredProps`): pieces pasted in game survive overlapping (the engine-operators proof), so layering is
+ * no fault: only two pieces of blocking furniture in one spot (sharing PROP_SAME_SPOT_SHARE of the smaller) are a
+ * warning, a layout fault; every other overlap is info.
+ */
 function checkPropOverlaps({ ctx, solids, L }: PropLevel, props: readonly Solid[]): void {
+  const layered = ctx.profile.layeredProps;
+  const furniture = (s: Solid): boolean => {
+    const f = ctx.featureOf(L.id, s.p.source.elementId);
+    return f !== undefined && f.blocking && featureInfo(f.type).category === "furniture";
+  };
   let pairs = 0;
   let builtPairs = 0;
+  let sameSpot = 0;
   const examples: string[] = [];
+  const spotExamples: string[] = [];
   const seenPair = new Set<string>();
   for (const a of props) {
     if (!a.blocking && !a.organic) continue;
@@ -104,11 +117,29 @@ function checkPropOverlaps({ ctx, solids, L }: PropLevel, props: readonly Solid[
         // natural pieces (tree canopies, rock piles) overhang what stands beside them by design: only two built
         // pieces overlapping is a warning
         if (!a.organic && !b.organic) builtPairs++;
-        if (examples.length < 3) examples.push(`${solidLabel(a)} and ${solidLabel(b)}`);
+        const spot = furniture(a) && furniture(b) && ox * oz > PROP_SAME_SPOT_SHARE * Math.min(areaA, areaB);
+        const label = `${solidLabel(a)} and ${solidLabel(b)}`;
+        if (spot) {
+          sameSpot++;
+          if (spotExamples.length < 3) spotExamples.push(label);
+        }
+        if (examples.length < 3) examples.push(label);
       }
     }
   }
-  if (pairs > 0)
+  if (pairs > 0 && layered)
+    ctx.report.add({
+      severity: sameSpot > 0 ? "warning" : "info",
+      code: "verify_props_overlap",
+      levelId: L.id,
+      count: sameSpot > 0 ? sameSpot : pairs,
+      message:
+        sameSpot > 0
+          ? `${sameSpot} pair${sameSpot > 1 ? "s" : ""} of furniture stand in the same spot on level ${L.id} (e.g. ${spotExamples.join("; ")}).`
+          : `${pairs} pair${pairs > 1 ? "s" : ""} of props overlap on level ${L.id} (e.g. ${examples.join("; ")}), layered on purpose or touching.`,
+      ...(sameSpot > 0 ? { hint: "Move one of the two pieces of furniture to its own spot." } : {}),
+    });
+  else if (pairs > 0)
     ctx.report.add({
       severity: builtPairs > 0 ? "warning" : "info",
       code: "verify_props_overlap",

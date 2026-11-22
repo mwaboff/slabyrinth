@@ -54,6 +54,8 @@ export const PROP_OVERLAP_HEIGHT = 0.05;
 export const PROP_OVERLAP_SHARE = 0.25;
 /** ... and more than this area. */
 export const PROP_OVERLAP_MIN_AREA = 0.01;
+/** Generator 5 (`layeredProps`): two pieces of furniture stand in one spot when they share this much of the smaller one. */
+export const PROP_SAME_SPOT_SHARE = 0.6;
 /** A wall-mounted prop is backed by a wall piece within this distance. */
 export const MOUNT_BACKING_REACH = 0.6;
 /** A prop pokes into a wall piece when they overlap by more than this, both ways across the floor. */

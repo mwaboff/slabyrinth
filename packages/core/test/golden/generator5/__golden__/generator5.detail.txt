@@ -3717,7 +3717,7 @@ gen/dressed-cave-v2@5 l1 feature undergrowth 17
 gen/dressed-cave-v2@5 l1 feature vines 4
 gen/dressed-cave-v2@5 diag info footprint_mismatch 8
 gen/dressed-cave-v2@5 diag info landmark_short 1
-gen/dressed-cave-v2@5 diag warning verify_props_overlap 1
+gen/dressed-cave-v2@5 diag info verify_props_overlap 1
 gen/dressed-cave-v2@5 review bare_ground 1
 gen/dressed-cave-v2@5 review cave_wall_row 1
 gen/dressed-cave-v2@5 review competing_focals 1
