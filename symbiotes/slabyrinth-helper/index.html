@@ -63,7 +63,7 @@
         <p id="now-detail" class="now-detail"></p>
       </section>
 
-      <div id="controls" class="controls" role="group" aria-label="Chunk controls" data-primary="next" hidden>
+      <div id="controls" class="controls" role="group" aria-label="Slab controls" data-primary="next" hidden>
         <button id="btn-back" class="ctl ctl-back" disabled>
           <span class="ctl-label">Back</span><kbd class="ctl-key" hidden></kbd>
         </button>
@@ -81,7 +81,7 @@
       <!-- reference and settings: closed until wanted -->
       <details id="chunks" class="section" hidden>
         <summary>
-          <span class="section-title">Chunks</span><span id="chunk-count" class="section-aside"></span>
+          <span class="section-title">Slabs</span><span id="chunk-count" class="section-aside"></span>
         </summary>
         <ol id="chunk-list" class="chunks"></ol>
       </details>
@@ -98,9 +98,6 @@
               <span class="switch-track" aria-hidden="true"></span>
               <span>Link to Slabyrinth</span>
             </label>
-            <label class="port" for="link-port"
-              >Port <input id="link-port" type="number" min="1024" max="65535"
-            /></label>
           </div>
           <p class="note">
             Hotkeys work while TaleSpire has the keyboard, as long as the link is up. Click one, then press
@@ -118,7 +115,7 @@
           <label class="switch" for="clear-picking">
             <input id="clear-picking" type="checkbox" role="switch" checked />
             <span class="switch-track" aria-hidden="true"></span>
-            <span>After the last chunk, switch to the picking tool so nothing more can be pasted</span>
+            <span>After the last slab, switch to the picking tool so nothing more can be pasted</span>
           </label>
         </div>
       </details>
@@ -147,7 +144,7 @@
 
           <section id="panel-load" role="tabpanel" aria-labelledby="tab-load">
             <button id="btn-test-pair" class="quiet">Load test pair</button>
-            <label for="blob">Or paste a chunk set (JSON)</label>
+            <label for="blob">Or paste a slab set (JSON)</label>
             <textarea
               id="blob"
               rows="4"
@@ -243,13 +240,11 @@
             ></textarea>
 
             <h2>Local connection test</h2>
-            <p class="note">Start Slabyrinth on this computer first; it answers on the link's port.</p>
-            <div class="field-row">
-              <label class="port" for="port"
-                >Port <input id="port" type="number" min="1024" max="65535"
-              /></label>
-              <button id="btn-local" class="quiet">Test local connection</button>
-            </div>
+            <p class="note">
+              Asks Slabyrinth on this computer for an answer on the port its pairing file names. Start
+              Slabyrinth first.
+            </p>
+            <button id="btn-local" class="quiet">Test local connection</button>
             <pre id="local-result" class="result"></pre>
           </section>
         </div>

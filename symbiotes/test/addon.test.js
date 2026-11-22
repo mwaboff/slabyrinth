@@ -95,12 +95,48 @@ describe("the add-on talks to nothing off this computer", () => {
 
   it("only ever opens sockets and fetches to 127.0.0.1 or its own folder", () => {
     const app = readFileSync(new URL("app.js", DIR), "utf8");
-    for (const m of app.matchAll(/new WebSocket\(([^)]*)\)/g))
-      expect(m[1]).toMatch(/^`ws:\/\/127\.0\.0\.1:|^url$/);
+    const sockets = [...app.matchAll(/new WebSocket\(([^)]*)\)/g)].map((m) => m[1]);
+    // one socket: the link (the connection test is plain HTTP)
+    expect(sockets).toEqual(["`ws://127.0.0.1:${link.port}/link`"]);
     for (const m of app.matchAll(/fetch\(([^,)]*)/g))
       expect(m[1]).toMatch(/^(Seq\.LINK_CONFIG_FILE|"manifest\.json"|url)$/);
-    expect(app).toMatch(/const url = `http:\/\/127\.0\.0\.1:\$\{port\}\/probe`;/);
-    expect(app).toMatch(/const url = `ws:\/\/127\.0\.0\.1:\$\{port\}\/probe`;/);
+    expect(app).toMatch(/const url = `http:\/\/127\.0\.0\.1:\$\{link\.port\}\/probe`;/);
+  });
+});
+
+describe("nothing left of the standalone bridge", () => {
+  const page = ["app.js", "index.html", "sequencer.js", "README.md", "description.md"].map((f) =>
+    readFileSync(new URL(f, DIR), "utf8"),
+  );
+
+  it("no port fields, no WebSocket probe, no server window", () => {
+    const [app, html] = page;
+    expect(html).not.toMatch(/id="(link-)?port"/);
+    expect(app).not.toMatch(/el\("(link-)?port"\)|wsProbe|\/probe`[^;]*ws:|server window/);
+    for (const text of page) expect(text).not.toMatch(/server window|listener program|the bridge window/i);
+  });
+
+  it("reads its pairing file again before every reconnect, and not after another panel took the link", () => {
+    const [app] = page;
+    // the retry goes through linkReconnect, which reads the pairing file first
+    expect(app).toMatch(/setTimeout\(\(\) => void linkReconnect\(\), link\.delay\)/);
+    expect(app).toMatch(
+      /async function linkReconnect\(\) \{[^}]*await loadLinkConfig\(\);\s*linkConnect\(\);/,
+    );
+    expect(app).toMatch(/const after = Seq\.linkAfterClose\(c\.code\);/);
+    expect(app).toMatch(/if \(!after\.retry\) return;/);
+  });
+});
+
+describe("one word for the pieces", () => {
+  it("the GM reads 'slab', never 'chunk' (internal names, the protocol and the set format aside)", () => {
+    const html = readFileSync(new URL("index.html", DIR), "utf8")
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/\s(id|class|for|aria-controls)="[^"]*"/g, "")
+      .replace(/slabyrinth-chunks/g, "");
+    expect(html).not.toMatch(/chunk/i);
+    const visible = [manifest.summary, readFileSync(new URL("description.md", DIR), "utf8")].join("\n");
+    expect(visible).not.toMatch(/chunk/i);
   });
 
   it("writes text into the page with textContent only", () => {

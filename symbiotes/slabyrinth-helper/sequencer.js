@@ -93,7 +93,7 @@
   function parseChunkSet(text, maxBytes) {
     var limit = typeof maxBytes === "number" && maxBytes > 0 ? maxBytes : DEFAULT_MAX_BYTES;
     if (typeof text !== "string" || text.trim() === "")
-      return fail("The box is empty. Paste a chunk set first.");
+      return fail("The box is empty. Paste a slab set first.");
     var data;
     try {
       data = JSON.parse(text);
@@ -153,11 +153,11 @@
     if (!Array.isArray(data.chunks) || data.chunks.length === 0)
       return fail('"chunks" must be a non-empty list.');
     if (data.chunks.length > MAX_CHUNKS)
-      return fail("Too many chunks (" + data.chunks.length + "; at most " + MAX_CHUNKS + ").");
+      return fail("Too many slabs (" + data.chunks.length + "; at most " + MAX_CHUNKS + ").");
     var chunks = [];
     for (var i = 0; i < data.chunks.length; i++) {
       var c = data.chunks[i];
-      var n = "Chunk " + (i + 1);
+      var n = "Slab " + (i + 1);
       if (c === null || typeof c !== "object") return fail(n + " must be an object with a label and a slab.");
       if (typeof c.label !== "string" || c.label.trim() === "") return fail(n + ' needs a "label".');
       if (typeof c.slab !== "string") return fail(n + ' needs a "slab" string.');
@@ -199,7 +199,7 @@
         " of the cursor, about " +
         away +
         (away === 1 ? " cell" : " cells") +
-        " away. Click this same spot for every chunk.",
+        " away. Click this same spot for every slab.",
       pillars:
         "Then delete the two alignment pillars: one just past the map's " +
         NEAR_PILLAR_CORNER[a.side] +
@@ -215,7 +215,7 @@
   function mapInfo(set) {
     if (!set) return null;
     var n = set.chunks.length;
-    var facts = [n + (n === 1 ? " chunk" : " chunks")];
+    var facts = [n + (n === 1 ? " slab" : " slabs")];
     if (set.size) facts.push(set.size.w + " × " + set.size.h + " cells");
     if (set.levels) facts.push(set.levels + (set.levels === 1 ? " level" : " levels"));
     return { title: set.name, meta: facts.join(" · ") };
@@ -227,12 +227,12 @@
     notInBoard: "you are not on a board. Open the board you are building on",
     rateLimited: "TaleSpire is limiting this symbiote for sending too fast. Wait a few seconds",
     dataOversized:
-      "this chunk is over TaleSpire's slab size limit, so it can never be placed. Rebuild the map with smaller chunks",
-    invalidSlabString: "TaleSpire could not read this chunk's slab string. Reload the chunk set",
+      "this slab is over TaleSpire's slab size limit, so it can never be placed. Rebuild the map with smaller slabs",
+    invalidSlabString: "TaleSpire could not read this slab's string. Load the set again",
     spawnFailed: "TaleSpire could not create the slab in your hand. Try again, and note it if it repeats",
     noApi: "the TaleSpire API is not available here",
     notInitialized: "the TaleSpire API has not finished starting. Wait a moment",
-    emptySlab: "this chunk has no assets, and TaleSpire crashes on an empty slab. Rebuild the map",
+    emptySlab: "this slab has no assets, and TaleSpire crashes on an empty slab. Rebuild the map",
     couldNotSwitchToTool: "TaleSpire could not switch to the picking tool",
     toolInUse: "another symbiote is using the picking tool",
   };
@@ -341,10 +341,10 @@
 
   /** The one line that says what the GM should do now; tone is idle, wait, action, error or done. */
   function statusLine(state) {
-    if (!state.set) return { tone: "idle", text: "Load a set of chunks to begin." };
+    if (!state.set) return { tone: "idle", text: "Load a set of slabs to begin." };
     var total = state.set.chunks.length;
     var n = state.index + 1;
-    var which = "Chunk " + n + " of " + total;
+    var which = "Slab " + n + " of " + total;
     var nextWord = n === total ? "Finish" : "Next";
     var anchor = pasteAnchorText(state.set);
     switch (state.phase) {
@@ -354,8 +354,8 @@
           text:
             n === 1
               ? which +
-                " is ready. First press G in TaleSpire to raise the build plane (without it, later chunks land" +
-                " a little higher). Then press Next to put chunk 1 in your hand."
+                " is ready. First press G in TaleSpire to raise the build plane (without it, later slabs land" +
+                " a little higher). Then press Next to put slab 1 in your hand."
               : which + " is ready. Press Next to put it in your hand. Keep the camera and the mouse still.",
         };
       case "sending":
@@ -400,11 +400,11 @@
             "All " +
             total +
             (anchor
-              ? " chunks are placed. Right-click to clear your hand. " + anchor.pillars
-              : " chunks are placed. Right-click to clear your hand, then delete the two alignment pillars."),
+              ? " slabs are placed. Right-click to clear your hand. " + anchor.pillars
+              : " slabs are placed. Right-click to clear your hand, then delete the two alignment pillars."),
         };
       default:
-        return { tone: "idle", text: "Load a set of chunks to begin." };
+        return { tone: "idle", text: "Load a set of slabs to begin." };
     }
   }
 
@@ -434,7 +434,7 @@
     var total = state.set.chunks.length;
     var n = state.index + 1;
     var last = n === total;
-    var which = "Chunk " + n + " of " + total;
+    var which = "Slab " + n + " of " + total;
     var c = controls(state);
     var press = function (action) {
       if (keys && keys[action]) return "press " + keys[action];
@@ -449,25 +449,25 @@
         if (n === 1)
           return {
             tone: "action",
-            step: "Before chunk 1",
+            step: "Before slab 1",
             title: "Press G to raise the build plane",
             detail:
               "Then " +
               press("next") +
-              " to put chunk 1 in your hand. Without the plane, later chunks land too high.",
+              " to put slab 1 in your hand. Without the plane, later slabs land too high.",
           };
         // a later chunk selected but not sent (Back after the end)
         return {
           tone: "action",
           step: which + " selected",
-          title: cap(press("next")) + " to put chunk " + n + " in your hand",
+          title: cap(press("next")) + " to put slab " + n + " in your hand",
           detail:
             "It is not in your hand yet (" +
             c.send.label +
             " does the same). Keep the camera and the mouse still.",
         };
       case "sending":
-        return { tone: "wait", step: which, title: "Putting chunk " + n + " in your hand…", detail: "" };
+        return { tone: "wait", step: which, title: "Putting slab " + n + " in your hand…", detail: "" };
       case "inHand":
         if (n === 1 && anchor)
           return {
@@ -477,7 +477,7 @@
             detail:
               "Hold the click briefly, then " +
               press("next") +
-              (last ? " to finish. " : " for chunk 2. ") +
+              (last ? " to finish. " : " for slab 2. ") +
               anchor.spot +
               " Keep the camera and the mouse still.",
           };
@@ -488,21 +488,21 @@
           detail:
             (n === 1 ? "Hold the click briefly, then " : "Don't move the camera. Then ") +
             press("next") +
-            (last ? " to finish." : " for chunk " + (n + 1) + ".") +
+            (last ? " to finish." : " for slab " + (n + 1) + ".") +
             (n === 1 ? " Keep the camera and the mouse still from now on." : ""),
         };
       case "failed":
         return {
           tone: "error",
           step: which,
-          title: "Chunk " + n + " didn't reach your hand",
+          title: "Slab " + n + " didn't reach your hand",
           detail: cap(explainCause(state.cause)) + ", then " + press("again") + ".",
         };
       case "done": {
         // never "your hand is clear": the API cannot see the hand, so every wording leaves the right-click to the GM
         var pillars = anchor ? anchor.pillars : "Then delete the two alignment pillars.";
         var cl = state.clear;
-        var done = { tone: "done", step: "All chunks placed" };
+        var done = { tone: "done", step: "All slabs placed" };
         if (cl && cl.status === "trying")
           return Object.assign(done, {
             title: "Switching to the picking tool…",
@@ -512,7 +512,7 @@
           return Object.assign(done, {
             title: "Switched to the picking tool",
             detail:
-              "Another click won't paste the last chunk. Click the board or dismiss the tool to leave it. " +
+              "Another click won't paste the last slab. Click the board or dismiss the tool to leave it. " +
               pillars,
           });
         if (cl && cl.status === "refused")
@@ -602,6 +602,26 @@
   var LINK_CONFIG_FILE = "slabyrinth-link.json";
   /** The close code the app uses when it refuses this add-on's pairing. */
   var LINK_CLOSE_PAIRING = 4001;
+  /** The close code the app uses when another paired copy of this add-on took the link. */
+  var LINK_CLOSE_REPLACED = 4000;
+
+  /**
+   * What the panel does after its link closed with `code`: `status` for the link light, and whether to try again.
+   * Before every try the page reads its pairing file again, so a reinstall or a new token heals an open panel.
+   * Replaced (another paired panel took the link): no retry, or the two would take it from each other forever; the
+   * GM switches Link off and on to take it back.
+   */
+  function linkAfterClose(code) {
+    if (code === LINK_CLOSE_REPLACED) return { status: "replaced", retry: false };
+    if (code === LINK_CLOSE_PAIRING) return { status: "unpaired", retry: true };
+    return { status: "retrying", retry: true };
+  }
+
+  /** Whether a pairing read again differs from the one in use (then the page connects again at once). */
+  function pairingChanged(before, after) {
+    if (!after) return false;
+    return !before || before.token !== after.token || before.port !== after.port;
+  }
 
   /**
    * The pairing file's content ({ port, token }), or null when it is missing or malformed (then the add-on was not
@@ -810,12 +830,19 @@
 
   /**
    * The link light. linkStatus: "off" (Link switched off), "connecting" (first try), "retrying" (a try failed:
-   * Slabyrinth is not running), "unpaired" (Slabyrinth refused this copy: it was not installed from this app) or
-   * "connected".
+   * Slabyrinth is not running), "unpaired" (Slabyrinth refused this copy: it was not installed from this app),
+   * "replaced" (another Slabyrinth panel took the link) or "connected".
    */
   function linkLight(linkStatus) {
     if (linkStatus === "connected")
       return { tone: "good", icon: "●", label: "Connected to Slabyrinth", detail: "" };
+    if (linkStatus === "replaced")
+      return {
+        tone: "wait",
+        icon: "⇄",
+        label: "Another Slabyrinth panel took over",
+        detail: "Only one panel can be linked at a time. To use this one, switch Link off and on here.",
+      };
     if (linkStatus === "connecting")
       return { tone: "wait", icon: "◐", label: "Connecting to Slabyrinth…", detail: "" };
     if (linkStatus === "retrying")
@@ -954,6 +981,9 @@
     LINK_MAX_CHARS: LINK_MAX_CHARS,
     LINK_CONFIG_FILE: LINK_CONFIG_FILE,
     LINK_CLOSE_PAIRING: LINK_CLOSE_PAIRING,
+    LINK_CLOSE_REPLACED: LINK_CLOSE_REPLACED,
+    linkAfterClose: linkAfterClose,
+    pairingChanged: pairingChanged,
     MAX_CHUNKS: MAX_CHUNKS,
     parseLinkConfig: parseLinkConfig,
     helloMessage: helloMessage,

@@ -203,8 +203,7 @@ summary:focus-visible {
   outline-offset: -2px;
 }
 
-textarea,
-input[type="number"] {
+textarea {
   width: 100%;
   font: 12px/1.35 var(--font-mono);
   color: var(--text);
@@ -624,7 +623,7 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
-/* link switch and port */
+/* link switch */
 .field-row {
   display: flex;
   flex-wrap: wrap;
@@ -678,17 +677,6 @@ kbd {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-.port {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text-2);
-}
-.port input {
-  width: 84px;
-}
-
 /* hotkeys */
 .hotkeys {
   display: grid;
@@ -918,14 +906,12 @@ button.quiet {
   color: var(--sl-on-accent);
   border-color: var(--sl-on-accent-line);
 }
-:root[data-theme="slabyrinth"] textarea,
-:root[data-theme="slabyrinth"] input[type="number"] {
+:root[data-theme="slabyrinth"] textarea {
   background: var(--sl-field-bg);
   border-color: var(--sl-line-strong);
   border-radius: var(--sl-r-4);
 }
-:root[data-theme="slabyrinth"] textarea:focus,
-:root[data-theme="slabyrinth"] input[type="number"]:focus {
+:root[data-theme="slabyrinth"] textarea:focus {
   border-color: var(--sl-accent);
   box-shadow: 0 0 0 3px var(--sl-accent-tint);
   outline: none;
