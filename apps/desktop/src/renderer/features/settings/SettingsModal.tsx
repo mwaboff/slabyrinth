@@ -29,6 +29,7 @@ const refreshSecrets = (): Promise<void> =>
     });
 import { UpdateCheckRow } from "../updates/UpdateChip";
 import { AddonSettings } from "../talespire/AddonSettings";
+import { MapSizeSetting } from "./MapSizeSetting";
 import { useTaleSpireLink } from "../../stores/talespireLink";
 
 /** Same wording in Settings and Setup. */
@@ -54,6 +55,7 @@ const NAV: Array<[SettingsSection, string]> = [
   ["talespire", "TaleSpire & assets"],
   ["projects", "Projects & storage"],
   ["appearance", "Appearance"],
+  ["experimental", "Experimental"],
   ["about", "About"],
 ];
 
@@ -633,6 +635,18 @@ function AppearanceSection({ s }: { s: AppSettings }) {
   );
 }
 
+function ExperimentalSection({ s }: { s: AppSettings }) {
+  return (
+    <>
+      <h3>Experimental</h3>
+      <p className="lead">Options still being tried out. They may change or go away.</p>
+      <Row label="Maximum map size">
+        <MapSizeSetting s={s} />
+      </Row>
+    </>
+  );
+}
+
 function AboutSection({ s }: { s: AppSettings }) {
   const version = useApp((x) => x.version);
   const update = useSettings((x) => x.update);
@@ -740,6 +754,7 @@ export function SettingsModal() {
             {section === "talespire" && <TaleSpireSection s={s} />}
             {section === "projects" && <ProjectsSection s={s} />}
             {section === "appearance" && <AppearanceSection s={s} />}
+            {section === "experimental" && <ExperimentalSection s={s} />}
             {section === "about" && <AboutSection s={s} />}
           </div>
           <div className="sfoot">

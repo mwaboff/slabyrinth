@@ -28,6 +28,7 @@ import { planHandlers } from "./handlers/plan";
 import { projectHandlers } from "./handlers/projects";
 import { taleSpireHandlers } from "./handlers/talespire";
 import { FakeFailure, FakeState, type FakeOptions, type FakeScenario, type Handlers } from "./state";
+import { setFakeSizeTier } from "./rules";
 
 export type { FakeOptions, FakeScenario } from "./state";
 
@@ -73,6 +74,7 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
   projects: Map<string, FakeProject>;
 } {
   const s = new FakeState(opts);
+  setFakeSizeTier(() => s.settings.mapSize ?? "standard");
   const handlers: Handlers = {
     ...appHandlers(s),
     ...projectHandlers(s),

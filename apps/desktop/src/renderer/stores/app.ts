@@ -2,7 +2,8 @@
 import { create } from "zustand";
 
 export type Route = "boot" | "setup" | "home" | "workspace";
-export type SettingsSection = "ai" | "spending" | "talespire" | "projects" | "appearance" | "about";
+export type SettingsSection =
+  "ai" | "spending" | "talespire" | "projects" | "appearance" | "experimental" | "about";
 
 export interface Toast {
   id: number;

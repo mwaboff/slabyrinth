@@ -196,7 +196,7 @@ export interface AppSettings {
     addonPromptDismissed?: string;
   };
   projects: { folder: string; recent: string[] };   // folder default: Documents/Slabyrinth; recent ≤ 10 absolute paths
-  /** App theme. Default "dark" (user requirement); map theme follows unless overridden. */
+  /** App theme. Default "system" (owner, 2026-11-22); map theme follows unless overridden. */
   ui: { theme: "dark" | "light" | "system"; mapThemeId: string | "auto"; gridVisible: boolean; onLaunch: "home" | "last_project" };
   /** Built-in-asset-set banner: "Don't remind me". */
   suppressAssetWarning: boolean;
@@ -212,4 +212,10 @@ export interface AppSettings {
    * lastCheckedAt (ISO) are main-owned.
    */
   updates: { autoCheck: boolean; skippedVersion?: string; lastCheckedAt?: string };
+  /**
+   * The largest map the model may make and the app validates and builds (core plan/sizeTiers.ts). Absent = "standard"
+   * (320 cells a side). The larger tiers are experimental: slower edits and builds, more memory, more slabs. A project
+   * whose plan is larger than this is still opened and edited at the tier it needs (smallestTierFor).
+   */
+  mapSize?: "standard" | "large-512" | "large-768" | "large-1024";
 }

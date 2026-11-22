@@ -1,7 +1,10 @@
 import * as fs from "node:fs";
 import { Worker } from "node:worker_threads";
 import { safeStorage, type BrowserWindow } from "electron";
+import type { MapPlan } from "@slabyrinth/core";
+import type { SizeTierId } from "@slabyrinth/core/plan";
 import { planRules } from "@slabyrinth/core/resolve";
+import { activeSizeTier } from "../shared/sizeTier";
 import type { EngineKind } from "./engineWiring";
 import type { Dispatch } from "./ipc/router";
 import type { Logger } from "./logger";
@@ -82,9 +85,13 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
   const { settings, secrets } = await startSettings(ctx, emit);
   const outside = outsideWorld({ safeMode, userData: paths.userData, logger }, link.getWindow);
   void cleanupTempFiles(settings.get().projects.folder);
-  const assets = await startAssets(ctx, emit, settings, outside);
+  // The map size tier plans are held to: the setting, raised to what the open project's plan needs (shared/sizeTier.ts).
+  const openPlan = { current: (): MapPlan | null => null };
+  const sizeTier = (): SizeTierId => activeSizeTier(settings.get().mapSize, openPlan.current());
+  const assets = await startAssets(ctx, emit, settings, outside, sizeTier);
   const projects = startProjects(ctx, emit, settings, assets.core, outside);
-  const work = startBuildWork(ctx, emit, settings, projects, assets, outside);
+  openPlan.current = () => projects.getPlan();
+  const work = startBuildWork(ctx, emit, settings, projects, assets, outside, sizeTier);
   const { updates, startUpdateCheck } = startUpdates({
     appVersion: ctx.appVersion,
     safeMode,
@@ -216,6 +223,7 @@ async function startAssets(
   emit: EmitEvent,
   settings: SettingsStore,
   outside: OutsideWorld,
+  sizeTier: () => SizeTierId,
 ): Promise<Assets> {
   const { paths, logger } = ctx;
   // Set once the build palettes exist (below): tells the renderer when they change.
@@ -260,7 +268,7 @@ async function startAssets(
     },
   });
   const buildPalettes = new BuildPalettes({ palettes, catalog });
-  const core = createPlanCorePort(() => planRules(buildPalettes.current()));
+  const core = createPlanCorePort(() => planRules(buildPalettes.current(), { sizeTier: sizeTier() }));
   let announcedKey: string | null = null;
   announcePalettes = () => {
     const { key } = buildPalettes.data();
@@ -348,11 +356,14 @@ function startBuildWork(
   projects: ProjectService,
   assets: Assets,
   outside: OutsideWorld,
+  sizeTier: () => SizeTierId,
 ): BuildWork {
   const { logger } = ctx;
   const workerUrl = new URL("./compile.worker.js", import.meta.url);
   const compiler = new CompileService({
-    spawn: () => new Worker(workerUrl),
+    // a 1024 × 1024 build peaks near 2.6 GB (docs/internal/handoff-size-tiers.md): give each worker a 4 GB heap; every
+    // request gets its own worker, so a resolve and a compile of one big map never share one
+    spawn: () => new Worker(workerUrl, { resourceLimits: { maxOldGenerationSizeMb: 4096 } }),
     emit,
     logger: logger.child("compile"),
   });
@@ -362,6 +373,7 @@ function startBuildWork(
     palettes: assets.palettes,
     catalog: assets.catalog,
     settings,
+    sizeTier,
     dialogs: outside.dialogs,
     logger: logger.child("build"),
   });

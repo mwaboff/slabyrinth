@@ -12,6 +12,8 @@ import type { ResolvePalettesData } from "@slabyrinth/core/palette";
 import { call, on } from "../bridge/client";
 import type { ResolveWorkerMessage } from "../workers/resolve.worker";
 import { compute, palettesFromData, type ResolveRequest, type ResolveResult } from "../../shared/resolveCore";
+import { activeSizeTier } from "../../shared/sizeTier";
+import { useSettings } from "../stores/settings";
 
 type Pending = { resolve: (r: ResolveResult) => void; reject: (e: Error) => void };
 
@@ -137,10 +139,12 @@ export async function resolveAsync(
   options: DisplayOptions,
 ): Promise<ResolveResult> {
   const data = await buildPalettes();
-  const key = `${data.key}|${resolveKey(plan, version, options)}`;
+  // the plan check holds the plan to the map size setting (raised to what the plan needs: it opens either way)
+  const sizeTier = activeSizeTier(useSettings.getState().settings?.mapSize, plan);
+  const key = `${data.key}|${sizeTier}|${resolveKey(plan, version, options)}`;
   const hit = cache.get(key);
   if (hit) return hit;
-  const p = run({ id: seq++, plan, version, options, palettesKey: data.key }, data);
+  const p = run({ id: seq++, plan, version, options, palettesKey: data.key, sizeTier }, data);
   cache.set(key, p);
   p.catch(() => cache.delete(key));
   if (cache.size > 24) {
@@ -165,6 +169,7 @@ export function useResolved(
     error: null,
   });
   const palettesNow = usePalettesKey();
+  const mapSize = useSettings((s) => s.settings?.mapSize);
   const key = plan ? resolveKey(plan, version, options) : null;
   useEffect(() => {
     if (!plan || key === null) return;
@@ -180,8 +185,8 @@ export function useResolved(
     return () => {
       alive = false;
     };
-    // options are captured through `key`; a change of the build's palettes resolves again
+    // options are captured through `key`; a change of the build's palettes or the map size setting resolves again
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, palettesNow]);
+  }, [key, palettesNow, mapSize]);
   return state;
 }

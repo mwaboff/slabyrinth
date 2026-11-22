@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GAME_SYSTEM_IDS, type GameSystemId } from "@slabyrinth/core/plan";
+import { GAME_SYSTEM_IDS, SIZE_TIER_ORDER, type GameSystemId, type SizeTierId } from "@slabyrinth/core/plan";
 import type { AppSettings } from "../project";
 import { costSchema, modelSelectionSchema, pathSchema, providerIdSchema, usageSchema } from "./common";
 
@@ -44,6 +44,14 @@ const defaultSystemSchema = z.strictObject({
   otherName: z.string().trim().min(1).max(60).optional(),
 });
 const warnUsd = z.number().min(0).max(100_000).nullable();
+/** The map size setting: core's tiers (a contract list checked against core's below). */
+const mapSizeSchema = z.enum(SIZE_TIER_ORDER as [SizeTierId, ...SizeTierId[]]);
+type SettingsMapSize = NonNullable<AppSettings["mapSize"]>;
+export const SETTINGS_SIZES_ARE_CORES: [SettingsMapSize] extends [SizeTierId]
+  ? [SizeTierId] extends [SettingsMapSize]
+    ? true
+    : never
+  : never = true;
 
 export const settingsSchema = z.object({
   schema: z.literal("slabyrinth/settings@1"),
@@ -79,6 +87,7 @@ export const settingsSchema = z.object({
     skippedVersion: z.string().min(1).max(64).optional(),
     lastCheckedAt: z.string().min(1).max(64).optional(),
   }),
+  mapSize: mapSizeSchema.optional(),
 });
 
 /**
@@ -128,5 +137,6 @@ export const settingsPatchSchema = z.strictObject({
   setupCompleted: z.boolean().optional(),
   /** skippedVersion (updates:skip) and lastCheckedAt are main-owned. */
   updates: z.strictObject({ autoCheck: z.boolean().optional() }).optional(),
+  mapSize: mapSizeSchema.optional(),
 });
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>;

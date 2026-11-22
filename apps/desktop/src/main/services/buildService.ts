@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import * as path from "node:path";
 import type { ChunkOptions, CompileEstimate, ExportBundle, LevelId, MapPlan } from "@slabyrinth/core";
+import type { SizeTierId } from "@slabyrinth/core/plan";
 import type { BuildRecord } from "../../shared/project";
 import type { Logger } from "../logger";
 import { availabilityFromCatalog, type CompileInput } from "../ports/compile";
@@ -27,6 +28,8 @@ export interface BuildServiceDeps {
   palettes: PaletteService;
   catalog: CatalogService;
   settings: SettingsStore;
+  /** The map size tier the build gate holds plans to (app.ts; standard when absent). */
+  sizeTier?: () => SizeTierId;
   dialogs: Dialogs;
   logger: Logger;
 }
@@ -48,6 +51,7 @@ export class BuildService {
       orientation,
       orientationOverride,
       availability: availabilityFromCatalog(this.deps.catalog.current()),
+      sizeTier: this.deps.sizeTier?.() ?? "standard",
     };
   }
 
