@@ -1,23 +1,46 @@
 /**
- * Wall recipes (plan Wave 1, W7 and W8): posts at the jambs of openings and at outer corners (D6), and the band course
- * along a building's floor lines (D3). Composed in the anchor's frame (resolve/anchors/frame.ts: x along the wall, z out
- * of it, y up from the storey's floor), from measures of the chosen piece, never from constants of one kit.
+ * Wall recipes (plan Wave 1, W7 and W8): posts at the jambs of openings and at outer corners (D6), pilasters on long
+ * blank runs phase-locked to the openings (D6), the band course along a building's floor lines (D3) and a plinth where
+ * a wall meets the ground with no footing (D3, D5). Composed in the anchor's frame (resolve/anchors/frame.ts: x along
+ * the wall, z out of it, y up from the storey's floor), from measures of the chosen piece, never from constants of one
+ * kit. Which of them a building (or a room's walls) gets, in which variant and material, is its treatment
+ * (treatments.ts: families "frame" and "courses", and "trim" for the material).
  *
- * Pieces, in the slot order of slots.ts:
- *   post   the theme's own slender pillar (feature.pillar, its own palette only) → the wall style's post
- *          (facade_post.<style> → wall_post.<style> → wall_post.wall, the piece its corners are built with) → the
- *          theme's own structural posts; at most storey high, no thicker than 0.62 (corners: 0.35, so a corner never
- *          doubles its wall's own corner filler). None: the recipe is left out.
- *   band   the theme's own thin structural beam (0.9-2.6 long, at most 0.5 high and deep); none: simplified to the
- *          storey's own floor slab showing its edge (floor.<material>, 1 x 1 tiles, 0.25 proud), which every theme has.
+ * Pieces, in the slot order of slots.ts, in the trim style `t` (the wall's own style, or a contrasting one the
+ * treatment drew):
+ *   post   the theme's own slender pillar (feature.pillar, its own palette only; not for a contrasting trim) → the trim
+ *          style's post (facade_post.<t> → wall_post.<t>) → the theme's own post (wall_post.wall) → the theme's own
+ *          structural posts; at most storey high, no thicker than 0.62 (corners: 0.35, so a corner never doubles its
+ *          wall's own corner filler). None: the recipe is left out.
+ *   band   the theme's own thin structural beam (0.9-2.6 long, at most 0.5 high and deep); none: simplified to a floor
+ *          slab showing its edge (floor.<surface of t>: the storey's own floor in its own trim), which every theme has.
+ *   plinth the trim style's footing course (footing.<t>) → the theme's own thin beam, sunk to show a low course and
+ *          never deeper behind the surface than the wall is thick; none: no plinth (a 1-tile floor slab would show
+ *          through the wall inside).
+ *
+ * Variety (one rule for every recipe here): one subject, one set of pieces. A piece is chosen per subject (the
+ * treatment's seed), so every jamb and corner of one building shows the same post and both posts of an opening match.
+ * Along a run (a band, a plinth) the pieces mix within the chosen piece's own family (the same palette and role, about
+ * the same size: one material, one kit) with no three alike in a row (`pick` mix, noRun 2). Two buildings with the same
+ * treatment still differ by their own draws: band depth, plinth height, pilaster pitch.
  */
-import { mirror, repeat, single, stack, transform, type Arrangement, type ArrangePiece } from "../../arrange";
+import {
+  mirror,
+  pick,
+  repeat,
+  single,
+  stack,
+  transform,
+  type Arrangement,
+  type ArrangePiece,
+} from "../../arrange";
 import { isGap, isPassage, isSecret } from "../../gen/openingKinds";
+import { isLowWallStyle, wallStyleInfo } from "../../gen/wallStyles";
 import { THEME_POST_ROLE, floorRole, partRole, postRole } from "../../palette/roles";
 import type { TraitQuery } from "../../palette/traitPools";
 import { hashUnitMixed } from "../../util/hash";
-import { blankStretches } from "../anchors";
-import type { FilledSlot, Recipe, SlotRole } from "./types";
+import { baysOf, blankStretches, type FaceEnd, type FaceGap } from "../anchors";
+import type { ComposeCtx, FilledSlot, Recipe, SlotRole } from "./types";
 
 /** Role families structure may borrow from (no furniture, signs or rubble of the right shape). */
 const STRUCTURE = [
@@ -34,18 +57,30 @@ const STRUCTURE = [
 
 /** How far a post or band stands proud of the wall at most (the rest is bedded in it). */
 const PROUD = 0.3;
-/** A band's projection when it is the floor slab's edge. */
-const SLAB_PROUD = 0.25;
-/** A band lies this much under the floor line, so its top never meets the floor's own. */
-const UNDER_FLOOR = 0.02;
+/** A band's projection when it is a floor slab's edge: between these (a subject's draw). */
+const SLAB_PROUD = [0.18, 0.3] as const;
+/** A band lies this much under the floor line, so its top never meets the floor's own (≥ 0.02 after quantising). */
+const UNDER_FLOOR = 0.03;
 /** A post this much shorter than its storey still reads storey high; a taller one would poke past the wall. */
 const POST_SLACK = 0.05;
+/** A plinth shows this much above the ground (a subject's draw) and stands this proud. */
+const PLINTH_SHOW = [0.18, 0.35] as const;
+const PLINTH_PROUD = [0.08, 0.18] as const;
+/** How deep a course may reach behind a wall's surface (a wall is half a tile thick; it never shows inside). */
+const IN_WALL = 0.42;
+/** A blank run longer than this gets pilasters, at this pitch (a subject's draw), phase-locked to its openings. */
+const PILASTER_RUN = 4;
+const PILASTER_PITCH = [2, 3] as const;
 
-/** The post roles of a wall style: the theme's own slender pillar, then the style's own post chain. */
-const postRoles = (style: string): SlotRole[] => [
-  { role: "feature.pillar", own: true },
-  { role: partRole("facade_post", style) },
-  { role: postRole(style) },
+/** A subject's draw `what` within [lo, hi]. */
+const within = (ctx: ComposeCtx, what: string, [lo, hi]: readonly [number, number]): number =>
+  lo + (hi - lo) * ctx.treatment.jitter(what);
+
+/** The post roles of a trim style: the theme's own slender pillar (own trims only), then the style's post chain. */
+const postRoles = (style: string, trim: string): SlotRole[] => [
+  ...(trim === style ? [{ role: "feature.pillar", own: true }] : []),
+  { role: partRole("facade_post", trim) },
+  { role: postRole(trim) },
   { role: THEME_POST_ROLE },
 ];
 
@@ -56,10 +91,55 @@ const postShape = (height: number, thick: number): TraitQuery => ({
   families: STRUCTURE,
 });
 
-/** One piece of a filled slot, the same for every place this recipe uses it at the anchor (a pair stays a pair). */
-function choose(slot: FilledSlot | undefined, seed: string, what: string): ArrangePiece | undefined {
-  const ps = slot?.pieces ?? [];
-  return ps[Math.floor(hashUnitMixed(seed, what) * ps.length)];
+/** A thin structural beam: a band or a plinth course. */
+const beamShape = (): TraitQuery => ({
+  trait: "beam",
+  where: { height: [0.06, 0.5], width: [0.06, 0.5], length: [0.9, 2.6] },
+  families: STRUCTURE,
+});
+
+/** The floor material a trim style shows as a flat course (the wall table's surface), else `fallback`. */
+const surfaceOf = (trim: string, fallback: string): string => wallStyleInfo(trim)?.surface ?? fallback;
+
+/** A 1 x 1 floor slab (every theme has one per material). */
+const slabShape = (): TraitQuery => ({
+  trait: "slab",
+  kind: "tile",
+  where: { length: [0.99, 1.01], width: [0.99, 1.01] },
+});
+
+/**
+ * The subject's piece of a filled slot: each candidate ranked by a draw named by the subject and the piece, the best
+ * taken. A piece that wins once wins wherever it is a candidate, so a building shows one post on every jamb, corner and
+ * pilaster (a storey too low for it, or a corner too narrow, takes the next best).
+ */
+function choose(slot: FilledSlot | undefined, ctx: ComposeCtx, what: string): ArrangePiece | undefined {
+  let best: ArrangePiece | undefined;
+  let rank = -1;
+  for (const p of slot?.pieces ?? []) {
+    const r = hashUnitMixed(ctx.treatment.seed, what, p.palette, p.role, p.variant.wanted);
+    if (r > rank) {
+      rank = r;
+      best = p;
+    }
+  }
+  return best;
+}
+
+/** The chosen piece's own family in a slot: the same palette and role, about its size (one material, one kit). */
+function kin(slot: FilledSlot | undefined, c: ArrangePiece): ArrangePiece[] {
+  const m = c.measures;
+  const near = (a: number, b: number): boolean => Math.abs(a - b) <= 0.1 * Math.max(a, b) + 0.02;
+  const others = (slot?.pieces ?? []).filter(
+    (p) =>
+      p !== c &&
+      p.palette === c.palette &&
+      p.role === c.role &&
+      near(p.measures.length, m.length) &&
+      near(p.measures.width, m.width) &&
+      near(p.measures.height, m.height),
+  );
+  return [c, ...others];
 }
 
 /**
@@ -82,10 +162,59 @@ function proudOf(post: ArrangePiece): { across: number; along: number; z: number
   return { across, along, z: Math.min(across, PROUD) - across / 2 };
 }
 
+/** A straight run along a wall: a face or a storey line. */
+interface Run {
+  readonly length: number;
+  readonly gaps: readonly FaceGap[];
+  readonly ends: readonly [FaceEnd, FaceEnd];
+  readonly beyond: readonly [number, number];
+}
+
+/**
+ * A course along a run's blank stretches: `module` (one piece, lengthwise, its back at local z = proud - depth) repeated
+ * end to end at `pitch`, its pieces mixed by `from`. At an outer corner the run's end goes on past the meeting surface by
+ * its own projection, and its start begins where the other run's course (the same depth) ends, so the two meet
+ * without lying over each other; at an inner corner the end stops short of the other course and the start at its wall.
+ */
+function course(
+  run: Run,
+  module: Arrangement,
+  p: { proud: number; depth: number; pitch: number; from: readonly ArrangePiece[]; seed: string },
+): Arrangement {
+  const out: Arrangement[] = [];
+  const stretches = blankStretches(run.length, run.gaps);
+  const size = module[0]?.piece.variant.geom.size;
+  if (!size) return [];
+  const along = module[0]?.yaw === 90 ? size.z : size.x;
+  stretches.forEach(([from, to], i) => {
+    const first = i === 0 && from === 0;
+    const last = i === stretches.length - 1 && to === run.length;
+    const x0 = !first
+      ? from
+      : run.ends[0] === "convex"
+        ? -run.beyond[0] - p.proud + p.depth
+        : run.ends[0] === "concave"
+          ? -run.beyond[0]
+          : 0;
+    const x1 = !last
+      ? to
+      : run.ends[1] === "convex"
+        ? run.length + run.beyond[1] + p.proud
+        : run.ends[1] === "concave"
+          ? run.length + run.beyond[1] - p.proud
+          : run.length;
+    const len = x1 - x0;
+    if (len <= 0.2) return;
+    out.push(repeat(transform(module, { dx: x0 + along / 2 }), { axis: "x", pitch: p.pitch, length: len }));
+  });
+  return pick(out.flat(), { from: p.from, policy: { kind: "mix", noRun: 2 }, seed: p.seed });
+}
+
 export const jambPosts: Recipe<"opening"> = {
   id: "jambPosts",
-  doc: "a slender post at each jamb of a door or window on a seen wall, storey high (D6)",
+  doc: "a slender post at each jamb of a door or window on a seen wall, storey high (D6); variant doors: doors only",
   switch: "jambPosts",
+  family: "frame",
   anchor: "opening",
   tier: (a) => (isPassage(a.openingKind) ? 1 : 2),
   mount: "wall",
@@ -100,10 +229,15 @@ export const jambPosts: Recipe<"opening"> = {
     !isGap(a.openingKind) &&
     a.head >= 1.2,
   slots: {
-    post: { roles: (a) => postRoles(a.style), shape: (a) => postShape(a.head, 0.62), fallback: "skip" },
+    post: {
+      roles: (a, trim) => postRoles(a.style, trim),
+      shape: (a) => postShape(a.head, 0.62),
+      fallback: "skip",
+    },
   },
   compose: (a, slots, ctx) => {
-    const post = choose(slots.post, ctx.seed, "post");
+    if (ctx.variant === "doors" && !isPassage(a.openingKind)) return null;
+    const post = choose(slots.post, ctx, "post");
     if (!post) return null;
     const { along, z } = proudOf(post);
     const column = postColumn(post, a.head);
@@ -126,6 +260,7 @@ export const cornerPosts: Recipe<"corner"> = {
   id: "cornerPosts",
   doc: "a slender post standing at each outer corner of a seen wall (D6), where the theme has one",
   switch: "cornerPosts",
+  family: "frame",
   anchor: "corner",
   tier: () => 2,
   mount: "wall",
@@ -143,13 +278,13 @@ export const cornerPosts: Recipe<"corner"> = {
     ),
   slots: {
     post: {
-      roles: (a) => postRoles(a.style),
+      roles: (a, trim) => postRoles(a.style, trim),
       shape: (a) => postShape(a.height, 0.35),
       fallback: "skip",
     },
   },
   compose: (a, slots, ctx) => {
-    const post = choose(slots.post, ctx.seed, "post");
+    const post = choose(slots.post, ctx, "post");
     if (!post) return null;
     const { across, z } = proudOf(post);
     // diagonally off the corner: as proud of the first face (local -x) as of the second (local +z)
@@ -158,69 +293,150 @@ export const cornerPosts: Recipe<"corner"> = {
   },
 };
 
-export const bandCourses: Recipe<"storeyLine"> = {
-  id: "bandCourses",
-  doc: "a band course along every floor line of a building's outside, and its foot when it has no footing (D3)",
-  switch: "bandCourses",
-  anchor: "storeyLine",
-  tier: (a) => (a.line === "floor" ? 1 : 2),
+export const pilasters: Recipe<"face"> = {
+  id: "pilasters",
+  doc: "pilasters on seen blank wall runs longer than 4 tiles, at the joints of bays phase-locked to its openings (D6)",
+  switch: "pilasters",
+  family: "frame",
+  anchor: "face",
+  tier: () => 2,
   mount: "wall",
   blocking: false,
-  thinnable: false,
-  when: (a) => a.seen && a.length >= 1 && (a.line === "floor" || !a.footed),
+  thinnable: true,
+  when: (a) =>
+    a.seen &&
+    !a.natural &&
+    !isLowWallStyle(a.style) &&
+    (a.structure === null || a.outside) &&
+    a.height >= 1.2 &&
+    blankStretches(a.length, a.gaps).some(([f, t]) => t - f > PILASTER_RUN),
   slots: {
-    band: {
-      shape: () => ({
-        trait: "beam",
-        where: { height: [0.06, 0.5], width: [0.06, 0.5], length: [0.9, 2.6] },
-        families: STRUCTURE,
-      }),
-      fallback: "simplify",
-    },
-    slab: {
-      roles: (a) => [{ role: floorRole(a.floor) }],
-      shape: () => ({ trait: "slab", kind: "tile", where: { length: [0.99, 1.01], width: [0.99, 1.01] } }),
+    post: {
+      roles: (a, trim) => postRoles(a.style, trim),
+      shape: (a) => postShape(a.height, 0.62),
       fallback: "skip",
     },
   },
   compose: (a, slots, ctx) => {
-    const beam = choose(slots.band, ctx.seed, "band");
-    const slab = choose(slots.slab, ctx.seed, "slab");
+    const post = choose(slots.post, ctx, "post");
+    if (!post) return null;
+    const { along, z } = proudOf(post);
+    const column = postColumn(post, a.height);
+    const pitch = within(ctx, "pilasterPitch", PILASTER_PITCH) / ctx.density;
+    const long = blankStretches(a.length, a.gaps).map(([f, t]) => t - f > PILASTER_RUN);
     const out: Arrangement[] = [];
-    const proud = beam ? Math.min(PROUD, beam.measures.width) : SLAB_PROUD;
-    const stretches = blankStretches(a.length, a.gaps);
-    stretches.forEach(([from, to], i) => {
-      // past an outer corner the band runs on to meet the other face's; short of an inner one it stops at its surface
-      const endOf = (end: 0 | 1, at: boolean): number =>
-        !at ? 0 : a.ends[end] === "convex" ? proud : a.ends[end] === "concave" ? -proud : 0;
-      const x0 = from - endOf(0, i === 0 && from === 0);
-      const x1 = to + endOf(1, i === stretches.length - 1 && to === a.length);
-      const len = x1 - x0;
-      if (len <= 0.2) return;
-      if (beam) {
-        const m = beam.measures;
-        const module = single(beam, m.runAxis === "z" ? 90 : 0);
+    for (const b of baysOf(a, pitch)) {
+      // a joint between two bays of a long stretch: never at an opening or an end (jambs and corners have theirs)
+      if (!long[b.stretch] || b.index >= b.of - 1) continue;
+      const x = b.x + b.width / 2;
+      if (x - along / 2 < 0.3 || x + along / 2 > a.length - 0.3) continue;
+      out.push(transform(column, { dx: x, dz: z }));
+    }
+    return out.length > 0 ? out.flat() : null;
+  },
+};
+
+export const bandCourses: Recipe<"storeyLine"> = {
+  id: "bandCourses",
+  doc: "a band course along a building's outside floor lines (D3); variants: every floor line, the first floor only",
+  switch: "bandCourses",
+  family: "courses",
+  anchor: "storeyLine",
+  tier: () => 1,
+  mount: "wall",
+  blocking: false,
+  thinnable: false,
+  when: (a) => a.seen && a.length >= 1 && a.line === "floor",
+  slots: {
+    band: { shape: () => beamShape(), fallback: "simplify" },
+    slab: {
+      roles: (a, trim) => [{ role: floorRole(trim === a.style ? a.floor : surfaceOf(trim, a.floor)) }],
+      shape: () => slabShape(),
+      fallback: "skip",
+    },
+  },
+  compose: (a, slots, ctx) => {
+    if (ctx.variant === "first" && a.storey !== 1) return null;
+    const beam = choose(slots.band, ctx, "band");
+    const slab = choose(slots.slab, ctx, "slab");
+    if (beam) {
+      const m = beam.measures;
+      const proud = Math.min(PROUD, m.width) * (0.7 + 0.3 * ctx.treatment.jitter("bandProud"));
+      const module = transform(single(beam, m.runAxis === "z" ? 90 : 0), {
         // centred in the floor's thickness under the line
-        const y = -0.25 - m.height / 2;
-        const row = repeat(transform(module, { dx: x0 + m.length / 2, dz: proud - m.width / 2, dy: y }), {
-          axis: "x",
-          pitch: m.length * 0.97,
-          length: len,
-        });
-        out.push(row);
-      } else if (slab) {
-        const g = slab.variant.geom.size;
-        const row = repeat(
-          transform(single(slab), { dx: x0 + g.x / 2, dz: proud - g.z / 2, dy: -g.y - UNDER_FLOOR }),
-          {
-            axis: "x",
-            length: len,
-          },
-        );
-        out.push(row);
-      }
+        dz: proud - m.width / 2,
+        dy: -0.25 - m.height / 2,
+      });
+      const arr = course(a, module, {
+        proud,
+        depth: m.width,
+        pitch: m.length * 0.97,
+        from: kin(slots.band, beam),
+        seed: `${ctx.seed}|band`,
+      });
+      return arr.length > 0 ? arr : null;
+    }
+    if (!slab) return null;
+    const g = slab.variant.geom.size;
+    const proud = within(ctx, "bandProud", SLAB_PROUD);
+    const module = transform(single(slab), { dz: proud - g.z / 2, dy: -g.y - UNDER_FLOOR });
+    const arr = course(a, module, {
+      proud,
+      depth: g.z,
+      pitch: g.x,
+      from: kin(slots.slab, slab),
+      seed: `${ctx.seed}|band`,
     });
-    const arr = out.flat();
+    return arr.length > 0 ? arr : null;
+  },
+};
+
+export const plinths: Recipe<"face"> = {
+  id: "plinths",
+  doc: "a low course where a seen wall meets the ground and has no footing of its own (D3, D5), past windows, not doors",
+  switch: "plinths",
+  family: "courses",
+  anchor: "face",
+  tier: () => 2,
+  mount: "wall",
+  blocking: false,
+  thinnable: false,
+  when: (a) =>
+    a.seen &&
+    !a.natural &&
+    !a.footed &&
+    a.storey === 0 &&
+    !isLowWallStyle(a.style) &&
+    (a.structure === null || a.outside) &&
+    a.height >= 1.2 &&
+    a.length >= 1,
+  slots: {
+    footing: { roles: (_a, trim) => [{ role: partRole("footing", trim) }], fallback: "simplify" },
+    course: { shape: () => beamShape(), fallback: "simplify" },
+  },
+  compose: (a, slots, ctx) => {
+    const footing = choose(slots.footing, ctx, "plinth");
+    const piece = footing ?? choose(slots.course, ctx, "plinth");
+    if (!piece) return null;
+    const from = footing ? slots.footing : slots.course;
+    const m = piece.measures;
+    const turned = m.runAxis === "z";
+    const depth = turned ? piece.variant.geom.size.x : piece.variant.geom.size.z;
+    // never through the wall to show inside: its back stays IN_WALL behind the surface at most
+    const proud = Math.min(depth, Math.max(depth - IN_WALL, within(ctx, "plinthProud", PLINTH_PROUD)));
+    if (proud > PLINTH_PROUD[1] + 0.12) return null;
+    const show = Math.min(m.height, within(ctx, "plinthShow", PLINTH_SHOW));
+    const module = transform(single(piece, turned ? 90 : 0), { dz: proud - depth / 2, dy: show - m.height });
+    // doors break it; windows sit on it
+    const run: Run = { ...a, gaps: a.gaps.filter((g) => isPassage(g.kind)) };
+    const along = turned ? piece.variant.geom.size.z : piece.variant.geom.size.x;
+    const arr = course(run, module, {
+      proud,
+      depth,
+      pitch: along * 0.97,
+      from: kin(from, piece),
+      seed: `${ctx.seed}|plinth`,
+    });
     return arr.length > 0 ? arr : null;
   },
 };

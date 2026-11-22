@@ -59,7 +59,7 @@ import { roofGapNotes } from "./roofGaps";
 import { reviewBuild } from "./reviewBuild";
 import { stallNotes } from "./stalls";
 import { floorAccentNotes } from "./floorTone";
-import { centreOf, neighbourGroups } from "./neighbours";
+import { centreOf, neighbourGroups } from "../resolve/neighbours";
 import { qualityNotes } from "./qualityNotes";
 import { LIGHT_FEATURES, isBandRock } from "../gen/catalog";
 import {

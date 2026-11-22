@@ -65,6 +65,38 @@ const FAMILY_SURFACE: Record<WallFamily, Material | null> = {
   plant: "grass",
 };
 
+/**
+ * Trims (generator 5 detail recipes: bands, posts, plinths, pilasters, skins) in a second material: which families may
+ * trim a wall of each family (stone bands and quoins on brick, a brick or stone plinth under timber, timber framing on
+ * stone or plaster), in order of preference, and the style whose roles (`facade_post.<style>`, `wall_post.<style>`)
+ * name a family's trim pieces. A family with none is trimmed only in its own material. "theme" is the palette's own
+ * wall, whatever it is built of: masonry or timber trims it.
+ */
+export const FAMILY_TRIMS: Readonly<Record<WallFamily, readonly WallFamily[]>> = {
+  theme: ["stone", "timber"],
+  stone: ["timber", "brick"],
+  brick: ["stone", "timber"],
+  timber: ["stone", "brick"],
+  plaster: ["timber", "stone", "brick"],
+  concrete: ["metal", "stone"],
+  metal: ["concrete"],
+  rock: [],
+  plant: [],
+};
+
+/** The style that names a family's trim roles (null: the family has none of its own). */
+export const FAMILY_TRIM_STYLE: Readonly<Record<WallFamily, WallStyle | null>> = {
+  theme: "wall",
+  stone: "stone",
+  brick: "brick",
+  timber: "wood",
+  plaster: "plaster",
+  concrete: "concrete",
+  metal: "metal",
+  rock: null,
+  plant: null,
+};
+
 const row = (family: WallFamily, flags: Partial<Omit<WallStyleInfo, "family">> = {}): WallStyleInfo => ({
   family,
   natural: false,

@@ -15,11 +15,17 @@ import { fitsShape } from "../../palette/traits";
 import type { FilledSlot, SlotSpec } from "./types";
 
 /** The pieces of one slot at one anchor, or null when the slot (and so the recipe there) must be skipped. */
-export function fillSlot<A>(roles: PlanRoles, theme: ThemeId, spec: SlotSpec<A>, a: A): FilledSlot | null {
+export function fillSlot<A>(
+  roles: PlanRoles,
+  theme: ThemeId,
+  spec: SlotSpec<A>,
+  a: A,
+  trim: string,
+): FilledSlot | null {
   const t = roles.paletteTheme(theme);
-  const shape = spec.shape?.(a) ?? null;
+  const shape = spec.shape?.(a, trim) ?? null;
   const min = Math.max(1, spec.min ?? 1);
-  for (const r of spec.roles?.(a) ?? []) {
+  for (const r of spec.roles?.(a, trim) ?? []) {
     const res = roles.resolve(t, r.role).resolution;
     if (!res) continue;
     if (r.own === true && res.paletteId === GENERIC_THEME && t !== GENERIC_THEME) continue;

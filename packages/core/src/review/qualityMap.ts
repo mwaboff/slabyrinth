@@ -277,8 +277,15 @@ function bandTally(L: ResolvedLevel, set: PlacementSet, frame: WorldFrame, t: Ta
         if (k > 0) lines.push({ cells: s.cells, floorTop: q.floorTop });
       });
     if (lines.length === 0) continue;
+    // its own pieces, and the detail recipes' instances dressing it
+    const hosted = new Set((L.arrangements ?? []).filter((a) => a.host === s.id).map((a) => a.id));
     const boxes = placements
-      .filter((p) => p.source.elementId === s.id || (p.source.elementId ?? "").startsWith(`${s.id}~`))
+      .filter(
+        (p) =>
+          p.source.elementId === s.id ||
+          (p.source.elementId ?? "").startsWith(`${s.id}~`) ||
+          hosted.has(p.source.elementId ?? ""),
+      )
       .map((p) => placedBox(set, p))
       .filter((b) => b.max.y - b.min.y <= B.bandHeight);
     for (const line of lines) {

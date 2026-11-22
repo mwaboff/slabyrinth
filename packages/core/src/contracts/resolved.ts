@@ -456,6 +456,16 @@ export interface ResolvedArrangement {
   mount?: "wall";
   /** Generator 5: the paste layer of its pieces (a building's "storey:<n>"); absent = the site. */
   layer?: string;
+  /**
+   * Generator 5, detail recipes: the plan element the instance dresses (the building whose walls carry the posts, the
+   * area whose ground it covers), so a reader can count it with that element. Absent: it dresses nothing but itself.
+   */
+  host?: ElementId;
+  /**
+   * Generator 5, detail recipes: the treatment its subject drew (resolve/recipes/treatments.ts: one option per family,
+   * "frame:framed courses:plain ..."), the same on every instance of that subject.
+   */
+  treatment?: string;
 }
 
 export interface ResolvedArrangementPiece {

@@ -338,7 +338,19 @@ const SWITCHES = {
   ),
   bandCourses: on(
     5,
-    "Detail recipe: a band course along every floor line of a building's outside (and its foot when it has no footing), a thin beam of the theme or the storey's own floor slab showing (resolve/recipes/walls.ts).",
+    "Detail recipe: a band course along a building's outside floor lines (every one, or the first floor's), a thin beam of the theme or a floor slab of the trim's material showing (resolve/recipes/walls.ts).",
+  ),
+  plinths: on(
+    5,
+    "Detail recipe: a low course where a seen wall meets the ground with no footing of its own, past windows and broken by doors (resolve/recipes/walls.ts).",
+  ),
+  pilasters: on(
+    5,
+    "Detail recipe: pilasters on seen blank wall runs longer than 4 tiles, at the joints of bays phase-locked to the openings (resolve/recipes/walls.ts).",
+  ),
+  layeredGround: on(
+    5,
+    "Detail recipe: layered ground cover, flat pieces overlapping at free turns and low ones sunk, gathered where the ground meets something, by what the place is (resolve/recipes/ground.ts).",
   ),
   qualityNotes: on(
     5,

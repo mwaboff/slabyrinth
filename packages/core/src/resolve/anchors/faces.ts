@@ -47,8 +47,12 @@ export type MountOf = (theme: ThemeId, style: string) => WallMount;
 const EPS = 1e-6;
 
 /** A face or a storey line before its ends are known. */
-type FaceDraft = Omit<FaceAnchor, "ends"> & { ends: [FaceEnd, FaceEnd] };
-type LineDraft = Omit<StoreyLineAnchor, "ends"> & { ends: [FaceEnd, FaceEnd]; outside: boolean };
+type FaceDraft = Omit<FaceAnchor, "ends" | "beyond"> & { ends: [FaceEnd, FaceEnd]; beyond: [number, number] };
+type LineDraft = Omit<StoreyLineAnchor, "ends" | "beyond"> & {
+  ends: [FaceEnd, FaceEnd];
+  beyond: [number, number];
+  outside: boolean;
+};
 
 export interface WallAnchors {
   readonly faces: FaceAnchor[];
@@ -215,6 +219,8 @@ function levelRun(
     plane: first.plane,
     gaps,
     ends: ["open", "open"],
+    beyond: [0, 0],
+    footed: false,
   };
   faces.push(face);
   for (const gap of gaps) openings.push(openingAnchor(face, gap, 0, face.height));
@@ -354,6 +360,8 @@ function buildingRun(
     plane: outside ? 0.5 : 0,
     gaps,
     ends: ["open", "open"],
+    beyond: [0, 0],
+    footed: c.ground && outside && (sp.footing !== null || st.plinth !== undefined),
   };
   // a window sits on the footing (ground) or on the wall top below (upper storeys); a door on the floor
   const footing = c.ground ? (sp.footing?.height ?? 0) : -0.5;
@@ -387,6 +395,7 @@ function storeyLine(c: StoreyCtx, run: readonly FaceCell[]): LineDraft {
     band: base ? 0 : 0.5,
     gaps,
     ends: ["open", "open"],
+    beyond: [0, 0],
     style: sp.walls ?? "",
     floor: sp.floor,
     footed: base && (sp.footing !== null || st.plinth !== undefined),
@@ -437,6 +446,7 @@ interface Run {
   readonly outside: boolean;
   readonly storey: number;
   readonly ends: [FaceEnd, FaceEnd];
+  readonly beyond: [number, number];
 }
 
 /**
@@ -481,6 +491,9 @@ function meetings<R extends Run>(
       if (da > 0.5 + EPS || db > 0.5 + EPS) continue;
       a.ends[1] = cw ? "convex" : "concave";
       b.ends[0] = cw ? "convex" : "concave";
+      // signed: past a's end along u, and before b's start against v
+      a.beyond[1] = (p[0] - end[0]) * ux + (p[1] - end[1]) * uy;
+      b.beyond[0] = (b.frame.at[0] - p[0]) * vx + (b.frame.at[1] - p[1]) * vy;
       meet(a, b, p, cw);
     }
   }

@@ -12,6 +12,9 @@
  *   fixtures  what a building's record says it hangs on its walls and before its doors (door lights, entrance strips,
  *             porches, a canopy or awning, balconies, a fire escape, service pipes, a shop sign): no piece in it.
  *
+ * Underfoot pieces (a recipe's flat or low ground cover, walked over) skip `open` and may lie over open floor, but take
+ * no lane or apron cell at all, not even against a wall.
+ *
  * A box here is plan x/y (cells) and absolute height. Heights the resolved level does not hold (a feature's piece, a
  * door light) are the palette's (`heightOf`) or a generous default.
  */
@@ -103,8 +106,11 @@ export class KeepClear {
     if (i >= 0) this.hard.add(i);
   }
 
-  /** Why a piece's box may not stand, or null when it may. */
-  refuse(b: PlanBox): ClearReason | null {
+  /**
+   * Why a piece's box may not stand, or null when it may. An `underfoot` piece (flat or low, walked over) may cover open
+   * floor, but never a lane or an apron, not even against a wall.
+   */
+  refuse(b: PlanBox, underfoot = false): ClearReason | null {
     const g = this.g;
     for (let y = Math.floor(b.y0 + TOUCH); y < b.y1 - TOUCH; y++)
       for (let x = Math.floor(b.x0 + TOUCH); x < b.x1 - TOUCH; x++) {
@@ -113,7 +119,8 @@ export class KeepClear {
         const top = g.top(x, y);
         if (overlap(b.z0, b.z1, top, top + HEAD) <= TOUCH) continue;
         if (this.hard.has(i)) return "way";
-        if (this.soft.has(i) && !this.hugs(b, x, y)) return "lane";
+        if (this.soft.has(i) && (underfoot || !this.hugs(b, x, y))) return "lane";
+        if (underfoot) continue;
         // the point the 2D map's open floor is judged at stays free
         const c = g.freeCentre(x, y);
         if (c && c[0] > b.x0 + TOUCH && c[0] < b.x1 - TOUCH && c[1] > b.y0 + TOUCH && c[1] < b.y1 - TOUCH)

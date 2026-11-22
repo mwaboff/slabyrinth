@@ -76,6 +76,13 @@ export interface FaceAnchor extends AnchorBase {
   readonly gaps: readonly FaceGap[];
   /** What the start (local x = 0) and end meet. */
   readonly ends: readonly [FaceEnd, FaceEnd];
+  /**
+   * How far past each end the surface it meets stands (before local x = 0, after `length`): 0.5 at a building's outer
+   * corner (its surfaces stand half a cell out), negative short of an inner one, 0 at an open end.
+   */
+  readonly beyond: readonly [number, number];
+  /** A building's ground storey standing on a footing course or a plinth (false for any other face). */
+  readonly footed: boolean;
 }
 
 export interface OpeningAnchor extends AnchorBase {
@@ -129,6 +136,8 @@ export interface StoreyLineAnchor extends AnchorBase {
   /** Openings crossing the line (a door on the base line), local x. */
   readonly gaps: readonly FaceGap[];
   readonly ends: readonly [FaceEnd, FaceEnd];
+  /** How far past each end the line it meets stands (as FaceAnchor.beyond). */
+  readonly beyond: readonly [number, number];
   /** The storey's wall style, the floor material of the storey above the line. */
   readonly style: string;
   readonly floor: string;
@@ -173,6 +182,19 @@ export interface ZoneAnchor extends AnchorBase {
   /** The room's centroid (plan point) and the axis its bounding box is longer along (plan x, or y). */
   readonly centroid: readonly [number, number];
   readonly longAxis: "x" | "y";
+  /**
+   * What its floor says of the place: under a roof (a room or corridor), mostly natural ground (resolve/materials.ts),
+   * and its wear (0 kept up, 1 a rough interior, 2 abandoned or a ruin).
+   */
+  readonly indoor: boolean;
+  readonly natural: boolean;
+  readonly wear: 0 | 1 | 2;
+  /**
+   * Steps (4-neighbour, inside the area) from a cell to the nearest one where its ground meets something: a wall or an
+   * opening, a ledge, a step, another floor material, water, another area's floor, a building, a blocking feature. The
+   * board's own edge is not one (slabs are tiled side by side). Infinity off the area or when nothing is met.
+   */
+  edgeAt(x: number, y: number): number;
   /** Zone bits (ZONE) of a cell of the room, 0 for any other cell. */
   classAt(x: number, y: number): number;
   /** Focal score 0..1 of a cell (1 at a door or the focal point, falling away from them), 0 off the room. */

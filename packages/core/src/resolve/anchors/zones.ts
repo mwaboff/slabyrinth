@@ -12,6 +12,9 @@
  *   lanes    shortest walkable paths (no blocking feature on the way) from every door and every stair or link cell to
  *            the focal point, and between every two doors (the first four doors), one cell wide.
  *   shape    the room's centroid and long axis (for rows along it, a gathering table on it).
+ *   edge     steps to where the ground meets something (a wall, a step, another material, water, another area, a
+ *            blocking feature), the board's own edge excepted: where ground cover gathers.
+ *   place    indoor (a room or corridor), mostly natural ground, and wear (a rough finish, abandoned, a ruin).
  *   middle   room floor that is neither band, lane nor apron; END the fifth of a long room's length at each end.
  *   score    1 at a door or the focal point, falling linearly to 0 four cells from a door and five from the focal point.
  * Pure over the resolved level; breadth-first walks over the room's own cells (linear in its size per door).
@@ -22,6 +25,7 @@ import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
 import { NEIGHBOURS4, OPPOSITE, SIDE_STEP, SIDES } from "../../gen/gridGeometry";
 import { isPassage } from "../../gen/openingKinds";
+import { MATERIAL_INFO } from "../materials";
 import type { LevelGrid } from "../levelGrid";
 import { ZONE, type ZoneAnchor, type ZoneDoor } from "./types";
 
@@ -39,6 +43,7 @@ export function zoneAnchors(L: ResolvedLevel, g: LevelGrid): ZoneAnchor[] {
   const n = g.w * g.h;
   const bits = new Uint8Array(n);
   const score = new Float32Array(n);
+  const edge = new Float32Array(n).fill(Infinity);
   const cellsBy = new Map<number, number[]>();
   for (let i = 0; i < n; i++) {
     const a = L.cells.area[i] ?? 0;
@@ -52,7 +57,7 @@ export function zoneAnchors(L: ResolvedLevel, g: LevelGrid): ZoneAnchor[] {
   for (const [a, cells] of [...cellsBy].sort((p, q) => p[0] - q[0])) {
     const area = L.areas[a - 1];
     if (!area) continue;
-    const z = roomZones(L, g, area, a, cells, bits, score);
+    const z = roomZones(L, g, area, a, cells, bits, score, edge);
     if (!z) continue;
     out.push({
       kind: "zone",
@@ -72,6 +77,13 @@ export function zoneAnchors(L: ResolvedLevel, g: LevelGrid): ZoneAnchor[] {
       focalFeature: z.focalFeature,
       centroid: z.centroid,
       longAxis: z.longAxis,
+      indoor: area.kind === "room" || area.kind === "corridor",
+      natural: z.natural,
+      wear: area.abandoned === true || area.purpose === "ruin" ? 2 : area.finish === "rough" ? 1 : 0,
+      edgeAt: (x, y) => {
+        const i = index(x, y);
+        return i >= 0 && (L.cells.area[i] ?? 0) === a ? (edge[i] ?? Infinity) : Infinity;
+      },
       classAt: (x, y) => {
         const i = index(x, y);
         return i >= 0 && (L.cells.area[i] ?? 0) === a ? (bits[i] ?? 0) : 0;
@@ -88,6 +100,7 @@ export function zoneAnchors(L: ResolvedLevel, g: LevelGrid): ZoneAnchor[] {
 interface RoomZones {
   centroid: [number, number];
   longAxis: "x" | "y";
+  natural: boolean;
   focal: [number, number];
   focalFeature: string | null;
   doors: ZoneDoor[];
@@ -101,6 +114,7 @@ function roomZones(
   cells: readonly number[],
   bits: Uint8Array,
   score: Float32Array,
+  edge: Float32Array,
 ): RoomZones | null {
   const w = g.w;
   const mine = (i: number): boolean =>
@@ -134,6 +148,31 @@ function roomZones(
     if (touches) touch.push(i);
   }
   const band = walk(g, touch, mine);
+
+  // where the ground meets something (the board's own edge is nothing): ground cover gathers there
+  const meets: number[] = [];
+  let natural = 0;
+  for (const i of cells) {
+    const [x, y] = xy(i);
+    const c = g.cell(x, y);
+    if (c.material !== null && MATERIAL_INFO[c.material].natural) natural++;
+    const at = SIDES.some((s) => {
+      if (g.edgeKind(x, y, s) !== EDGE.NONE) return true;
+      const [dx, dy] = SIDE_STEP[s];
+      const o = g.cell(x + dx, y + dy);
+      if (!o.inBounds) return false;
+      const j = g.index(x + dx, y + dy);
+      return (
+        !mine(j) ||
+        blocked.has(j) ||
+        o.material !== c.material ||
+        o.height !== c.height ||
+        ((o.flags | c.flags) & CELL_FLAG.WATER) !== 0
+      );
+    });
+    if (at) meets.push(i);
+  }
+  for (const [i, d] of walk(g, meets, mine)) edge[i] = d;
 
   // doors: the room's side of every passage opening it has
   const doors: ZoneDoor[] = [];
@@ -265,6 +304,7 @@ function roomZones(
     focalFeature: focalFeature?.id ?? null,
     doors,
     centroid: [cx, cy],
+    natural: natural * 2 >= cells.length,
     longAxis: area.bbox.w >= area.bbox.h ? "x" : "y",
   };
 }

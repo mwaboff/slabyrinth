@@ -1,7 +1,8 @@
 /**
  * The detail recipe engine (resolve/recipes/): the budget rule, slot filling with its fallbacks, conditions, keeping
- * doors and lanes clear, determinism and independence of recipes, and the behaviour of the two wall recipes (posts at
- * jambs and corners, the band course at floor lines) on wall-recipes-v1, which generator 4 does not build.
+ * doors and lanes clear, determinism and independence of recipes, and the behaviour of the wall recipes (posts at jambs
+ * and corners, pilasters, the band course at floor lines, the plinth) on wall-recipes-v1 with every recipe forced on
+ * (treatments are tested in treatments.test.ts), held to the quality meter's hard rules; generator 4 builds none.
  */
 import { describe, expect, it } from "vitest";
 import { single, transform } from "../../../src/arrange";
@@ -17,7 +18,18 @@ import { runRecipes } from "../../../src/resolve/recipes/engine";
 import { fillSlot } from "../../../src/resolve/recipes/slots";
 import type { Recipe } from "../../../src/resolve/recipes/types";
 import { bandCourses, jambPosts } from "../../../src/resolve/recipes/walls";
+import { realize } from "../../../src/compile";
+import type { TreatmentFamily } from "../../../src/resolve/recipes/treatments";
 import { loadPlan } from "../../fixtures";
+import {
+  bandCoverage,
+  coplanarShare,
+  duplicateCount,
+  piecesOf,
+  restContact,
+  structureOnAxis,
+} from "../../fixtures/quality";
+import { ALL_WALLS, withArrangements } from "../../fixtures/treatments";
 
 const pal = bundledPalettes();
 const plan5 = { ...loadPlan("wall-recipes-v1"), generator: 5 as const };
@@ -32,12 +44,19 @@ const level = (): ResolvedLevel => {
   delete bare.arrangements;
   return bare;
 };
-const run = (L: ResolvedLevel, recipes?: Parameters<typeof runRecipes>[2]["recipes"], budget = 1e6) =>
+/** The recipes run over the bare level, every wall recipe forced on unless `families` says otherwise. */
+const run = (
+  L: ResolvedLevel,
+  recipes?: Parameters<typeof runRecipes>[2]["recipes"],
+  budget = 1e6,
+  families: readonly TreatmentFamily[] = ALL_WALLS,
+) =>
   runRecipes(L, new ArrangementRecords(), {
     planSeed: plan5.seed,
     profile,
     palette: view,
     budget,
+    families,
     ...(recipes ? { recipes } : {}),
   });
 
@@ -92,26 +111,31 @@ describe("slot filling", () => {
   it("takes a band from the theme's own structure, else simplifies to the floor slab's edge (never furniture)", () => {
     const spec = bandCourses.slots.band;
     if (!spec) throw new Error("no band slot");
-    expect(fillSlot(view.roles, "wood_town", spec, line)?.source).toBe("simplified");
-    const generic = fillSlot(view.roles, "generic", spec, line);
+    expect(fillSlot(view.roles, "wood_town", spec, line, line.style)?.source).toBe("simplified");
+    const generic = fillSlot(view.roles, "generic", spec, line, line.style);
     expect(generic?.source).toBe("theme");
     expect(generic?.pieces.every((p) => !p.role.startsWith("feature."))).toBe(true);
-    expect(fillSlot(view.roles, "wood_town", bandCourses.slots.slab ?? spec, line)?.source).toBe("role");
+    expect(fillSlot(view.roles, "wood_town", bandCourses.slots.slab ?? spec, line, line.style)?.source).toBe(
+      "role",
+    );
   });
   it("takes a post from the theme's own pillar, else the wall style's post; none: the recipe is skipped", () => {
     const op = new LevelAnchors(level()).of("opening").find((o) => o.structure === "lhouse" && o.outside);
     const spec = jambPosts.slots.post;
     if (!op || !spec) throw new Error("no opening");
-    expect(fillSlot(view.roles, "wood_town", spec, op)?.pieces[0]?.variant.name).toBe("Wooden Pillar ornate");
-    expect(fillSlot(view.roles, "city", spec, op)?.pieces[0]?.role).toBe("facade_post.wood");
+    expect(fillSlot(view.roles, "wood_town", spec, op, op.style)?.pieces[0]?.variant.name).toBe(
+      "Wooden Pillar ornate",
+    );
+    expect(fillSlot(view.roles, "city", spec, op, op.style)?.pieces[0]?.role).toBe("facade_post.wood");
     // a post must stand under its storey: none is 0.5 tall
-    expect(fillSlot(view.roles, "wood_town", spec, { ...op, head: 0.5 })).toBeNull();
+    expect(fillSlot(view.roles, "wood_town", spec, { ...op, head: 0.5 }, op.style)).toBeNull();
   });
 });
 
 /** A test recipe: a crate standing `out` tiles in front of each door's centre. */
 const crateAt = (out: number): Recipe<"opening"> => ({
   id: `crate${out}`,
+  family: "test",
   doc: "test",
   switch: "jambPosts",
   anchor: "opening",
@@ -157,10 +181,13 @@ describe("the engine", () => {
   });
 });
 
-describe("wall recipes on wall-recipes-v1 (generator 5)", () => {
-  const L = resolved.levels[0];
-  if (!L) throw new Error("no level");
-  const inst = L.arrangements ?? [];
+describe("wall recipes on wall-recipes-v1 (generator 5), every recipe forced on", () => {
+  const all = run(level(), undefined, 1e6, ALL_WALLS);
+  const inst = all.attached;
+  const r5 = withArrangements(resolved, "g", inst);
+  const set = realize(r5, pal, {});
+  const everything = piecesOf(set, () => true);
+  const of = (recipe: string) => piecesOf(set, (e) => e.startsWith(`${recipe}@`));
 
   it("generator 4 builds none of it", () => {
     const g4 = resolvePlan({ ...plan5, generator: 4 }, pal);
@@ -181,22 +208,76 @@ describe("wall recipes on wall-recipes-v1 (generator 5)", () => {
     // the openings left out are the ones a building's fixtures (a door light, the porch) stand beside
     expect(framed / openings.length).toBeGreaterThanOrEqual(0.8);
     expect(inst.some((x) => x.id.startsWith("jambPosts@face:L:") && x.id.endsWith("stonedoor"))).toBe(true);
-    for (const x of inst.filter((q) => q.recipe !== "bandCourses")) expect(x.mount).toBe("wall");
+    for (const x of inst) expect(x.mount).toBe("wall");
   });
 
-  it("runs a band along at least 80% of every upper floor line, under the floor line, a quarter tile proud", () => {
+  it("runs a band along every upper floor line, under the floor line, proud by the building's own draw", () => {
     const lines = new LevelAnchors(level()).of("storeyLine").filter((l) => l.line === "floor");
     expect(lines.length).toBeGreaterThan(0);
     for (const l of lines) {
       const band = inst.find((x) => x.id === `bandCourses@${l.key}`);
       expect(band, l.key).toBeDefined();
-      const covered = (band?.pieces ?? []).length; // 1-tile slab edges, one per tile of the line
-      expect(covered / l.length).toBeGreaterThanOrEqual(0.8);
       for (const p of band?.pieces ?? []) {
         expect(p.y).toBeLessThan(0);
-        expect(p.z + 0.5).toBeCloseTo(0.25, 5);
+        // 1-tile slab edges: the centre stands half a tile in from the front, 0.18-0.3 proud of the wall
+        expect(p.z + 0.5).toBeGreaterThanOrEqual(0.18 - 1e-6);
+        expect(p.z + 0.5).toBeLessThanOrEqual(0.3 + 1e-6);
       }
       expect(band?.layer).toBe("storey:1");
+      expect(band?.host).toBe(l.structure);
+    }
+  });
+
+  it("meets the meter's hard rules: structure on axis, no coplanar flat tops, no duplicates, bands cover the lines", () => {
+    for (const recipe of ["bandCourses", "jambPosts", "cornerPosts", "plinths", "pilasters"]) {
+      const ps = of(recipe);
+      expect(ps.length, recipe).toBeGreaterThan(0);
+      expect(structureOnAxis(ps), recipe).toEqual([]);
+      expect(coplanarShare(ps), recipe).toBe(0);
+      expect(duplicateCount(ps), recipe).toBe(0);
+      expect(restContact(ps, everything), recipe).toEqual([]);
+    }
+    expect(bandCoverage(r5, set)).toBeGreaterThanOrEqual(0.8);
+  });
+
+  it("meets the bands at outer corners: one runs on past the corner, the other starts where it ends", () => {
+    const lines = new LevelAnchors(level()).of("storeyLine").filter((l) => l.line === "floor");
+    const convexStart = lines.find((l) => l.ends[0] === "convex");
+    const convexEnd = lines.find((l) => l.ends[1] === "convex");
+    if (!convexStart || !convexEnd) throw new Error("no outer corner");
+    expect(convexEnd.beyond[1]).toBeCloseTo(0.5, 6);
+    const last = (inst.find((x) => x.id === `bandCourses@${convexEnd.key}`)?.pieces ?? []).map(
+      (p) => p.x + 0.5,
+    );
+    // past the meeting surface (0.5 beyond the end) by its projection
+    expect(Math.max(...last)).toBeGreaterThan(convexEnd.length + 0.5);
+  });
+
+  it("puts pilasters only at bay joints of blank runs longer than 4, never in an opening", () => {
+    const faces = new LevelAnchors(level()).of("face");
+    let n = 0;
+    for (const x of inst.filter((q) => q.recipe === "pilasters")) {
+      const f = faces.find((q) => x.id === `pilasters@${q.key}`);
+      if (!f) throw new Error(x.id);
+      for (const p of x.pieces) {
+        n++;
+        expect(f.gaps.some((g) => p.x > g.from - 0.1 && p.x < g.to + 0.1)).toBe(false);
+      }
+    }
+    expect(n).toBeGreaterThan(0);
+  });
+
+  it("lays a plinth only where a wall has no footing, broken by doors and running under windows", () => {
+    const faces = new LevelAnchors(level()).of("face");
+    const plinth = inst.filter((q) => q.recipe === "plinths");
+    expect(plinth.length).toBeGreaterThan(0);
+    for (const x of plinth) {
+      const f = faces.find((q) => x.id === `plinths@${q.key}`);
+      expect(f?.footed).toBe(false);
+      expect(f?.storey).toBe(0);
+      for (const p of x.pieces)
+        for (const g of f?.gaps.filter((q) => q.kind === "door") ?? [])
+          expect(p.x > g.from + 0.05 && p.x < g.to - 0.05).toBe(false);
     }
   });
 });

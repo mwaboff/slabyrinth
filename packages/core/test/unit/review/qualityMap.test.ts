@@ -70,6 +70,20 @@ const build = (p: MapPlan): { r: ResolvedPlan; set: ReturnType<typeof realize> }
 const codes = (p: MapPlan): DesignNoteCode[] =>
   reviewDesign(p, resolvePlan(p, palettes), palettes, { limit: 999 }).map((n) => n.code);
 
+/** The notes of a plan built with no detail recipes: every building dressed alike (none). */
+const undressed = (p: MapPlan): DesignNoteCode[] => {
+  const r = resolvePlan(p, palettes);
+  const bare = {
+    ...r,
+    levels: r.levels.map((L) => {
+      const c = { ...L };
+      delete c.arrangements;
+      return c;
+    }),
+  };
+  return reviewDesign(p, bare, palettes, { limit: 999 }).map((n) => n.code);
+};
+
 const QUALITY_CODES = ["lane_blocked", "doors_unlit", "silhouette_flat", "facades_alike"] as const;
 
 describe("the metric table", () => {
@@ -241,10 +255,12 @@ describe("quality notes (generator 5)", () => {
     expect(codes(street(4, [bare]))).not.toContain("silhouette_flat");
   });
 
-  it("facades_alike: three neighbours with the same storeys and walls; varied storeys are fine", () => {
+  it("facades_alike: three neighbours with the same storeys, walls and dressing; varied ones are fine", () => {
     const same = (id: string, x: number): Building =>
       house(id, x, { storeys: [{ walls: "plaster" }, { walls: "plaster" }] });
-    expect(codes(street(5, [same("a", 2), same("b", 10), same("c", 18)]))).toContain("facades_alike");
+    expect(undressed(street(5, [same("a", 2), same("b", 10), same("c", 18)]))).toContain("facades_alike");
+    // the detail treatments dress neighbours differently (resolve/recipes/treatments.ts), so the built street is varied
+    expect(codes(street(5, [same("a", 2), same("b", 10), same("c", 18)]))).not.toContain("facades_alike");
     const varied = [
       same("a", 2),
       house("b", 10, { storeys: [{ walls: "stone" }] }),
@@ -264,7 +280,7 @@ describe("quality notes (generator 5)", () => {
     ]);
     // the same street at generator 5 has them (so the silence above is the switch, not the street)
     const at5 = codes({ ...busy, generator: 5 });
-    expect(at5).toContain("facades_alike");
+    expect(undressed({ ...busy, generator: 5 })).toContain("facades_alike");
     expect(at5).toContain("silhouette_flat");
     const found = codes(busy);
     for (const c of QUALITY_CODES) expect(found).not.toContain(c);

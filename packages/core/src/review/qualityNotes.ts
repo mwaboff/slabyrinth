@@ -7,7 +7,8 @@
  *   lane_blocked     a room whose walking lane between its doors is blocked by features the plan placed
  *   doors_unlit      an intact building with two or more outside doors and no light at them, door lights not asked for
  *   silhouette_flat  a building of two storeys or more (or a large one) with nothing above its roof
- *   facades_alike    three or more neighbouring buildings with the same storeys and the same walls
+ *   facades_alike    three or more neighbouring buildings with the same storeys, the same walls and the same detail
+ *                    treatment (resolve/recipes/treatments.ts: posts, bands, plinths, trim material)
  *
  * Not built, and why (build plan §3.2): `storage_scattered` needs a container trait in the feature table (gen/catalog.ts,
  * the anchors package) and its advice ("name the room a store so its stock is stacked") relies on storage stacks, which
@@ -23,7 +24,7 @@ import { featureInfo } from "../gen/catalog";
 import { isPassage } from "../gen/openingKinds";
 import { LevelGrid } from "../resolve/levelGrid";
 import { maxOf, minOf } from "../util/lists";
-import { centreOf, neighbourGroups } from "./neighbours";
+import { centreOf, neighbourGroups } from "../resolve/neighbours";
 import { buildingDoors, openingCell, roomLane } from "./qualityMap";
 import type { DesignNote } from "./review";
 import { REVIEW, capped } from "./thresholds";
@@ -160,9 +161,13 @@ export function qualityNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[
         action: "give each something above its roof: chimneys, a taller volume or tower, or roofFurniture",
       });
 
-    const rows = neighbourGroups(buildings, Q.gap, (s) => `${storeysOf(s)}|${wallsOf(s)}`).filter(
-      (g) => g.length >= Q.facadesRow,
-    );
+    // the treatment each building drew: neighbours dressed differently do not read alike
+    const treated = new Map((L.arrangements ?? []).map((a) => [a.host, a.treatment]));
+    const rows = neighbourGroups(
+      buildings,
+      Q.gap,
+      (s) => `${storeysOf(s)}|${wallsOf(s)}|${treated.get(s.id) ?? ""}`,
+    ).filter((g) => g.length >= Q.facadesRow);
     const row = rows.sort((a, b) => b.length - a.length)[0];
     if (row)
       out.push({

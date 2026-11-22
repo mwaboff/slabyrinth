@@ -14,6 +14,7 @@ import type { TraitQuery } from "../../palette/traitPools";
 import type { PlanRoles } from "../../palette/planRoles";
 import type { SwitchName } from "../../plan/generator";
 import type { AnchorKind, AnchorOf, LevelAnchors } from "../anchors";
+import type { Treatment } from "./treatments";
 
 /** What a slot does when neither its roles nor the theme's own pieces have what it needs. */
 export type SlotFallback =
@@ -34,9 +35,9 @@ export interface SlotRole {
 /** The pieces one slot of a recipe needs. */
 export interface SlotSpec<A> {
   /** Roles asked first, in order (style-aware: a function of the anchor); every piece must also fit `shape`. */
-  readonly roles?: (a: A) => readonly SlotRole[];
+  readonly roles?: (a: A, trim: string) => readonly SlotRole[];
   /** The shape the slot's pieces have; the theme's own pieces of it (palette/traitPools.ts) come after the roles. */
-  readonly shape?: (a: A) => TraitQuery | null;
+  readonly shape?: (a: A, trim: string) => TraitQuery | null;
   /** Fewest distinct pieces a source must offer to supply the slot (default 1). */
   readonly min?: number;
   readonly fallback: SlotFallback;
@@ -64,6 +65,12 @@ export interface ComposeCtx extends RecipeCtx {
   readonly seed: string;
   /** 1, or less when the budget thins a `thinnable` recipe (repeats at a wider pitch). */
   readonly density: number;
+  /** The variant the anchor's subject drew for this recipe (treatments.ts), e.g. "every" or "first". */
+  readonly variant: string;
+  /** The subject's treatment: its seed (one set of pieces per subject), jitter and trim material. */
+  readonly treatment: Treatment;
+  /** The style the subject's trims are made in (its own wall style unless the treatment contrasts). */
+  readonly trim: string;
 }
 
 export interface Recipe<K extends AnchorKind = AnchorKind> {
@@ -71,6 +78,8 @@ export interface Recipe<K extends AnchorKind = AnchorKind> {
   /** What it does, in a line. */
   readonly doc: string;
   readonly switch: SwitchName;
+  /** Its treatment family (treatments.ts TREATMENTS): it applies where its subject's drawn option names it. */
+  readonly family: string;
   readonly anchor: K;
   /** Budget tier: 0 never dropped .. 3 dropped first (plan §5); may depend on the anchor (a door's posts outrank a window's). */
   readonly tier: (a: AnchorOf<K>) => 0 | 1 | 2 | 3;
@@ -80,6 +89,16 @@ export interface Recipe<K extends AnchorKind = AnchorKind> {
   readonly blocking: boolean;
   /** Its repeats may be spread (density < 1) before it is dropped. */
   readonly thinnable: boolean;
+  /**
+   * Its pieces lie underfoot (flat or low, walked over: ground cover): they may cover open floor, but never a way, a
+   * lane or a door's apron, even against a wall (keepClear.ts).
+   */
+  readonly underfoot?: boolean;
+  /**
+   * Cover a large anchor (a whole field) as one instance per block of this many cells, each its own element with its
+   * own focus, so the budget thins and drops calm blocks first and no instance passes its piece cap.
+   */
+  readonly block?: number;
   /** Whether it applies at an anchor (theme-neutral conditions). */
   readonly when: (a: AnchorOf<K>, ctx: RecipeCtx) => boolean;
   readonly slots: Readonly<Record<string, SlotSpec<AnchorOf<K>>>>;

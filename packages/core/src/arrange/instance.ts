@@ -30,6 +30,10 @@ export interface InstanceSpec {
   readonly mount?: "wall";
   /** Paste layer of its pieces (a building's "storey:<n>"). */
   readonly layer?: string;
+  /** The plan element it dresses (a building, an area). */
+  readonly host?: string;
+  /** The treatment its subject drew (resolve/recipes/treatments.ts). */
+  readonly treatment?: string;
 }
 
 /** The plan point of a local point (x, z) of an instance at `at` turned `turn`. */
@@ -68,6 +72,8 @@ export function toInstance(a: Arrangement, spec: InstanceSpec): ResolvedArrangem
     pieces,
     ...(spec.mount !== undefined ? { mount: spec.mount } : {}),
     ...(spec.layer !== undefined ? { layer: spec.layer } : {}),
+    ...(spec.host !== undefined ? { host: spec.host } : {}),
+    ...(spec.treatment !== undefined ? { treatment: spec.treatment } : {}),
   };
 }
 
