@@ -15,6 +15,8 @@
   --button-hover: var(--ts-button-hover, #d4d4dc);
   --danger: var(--ts-color-danger, #b3261e);
   --ok: #2e7d32;
+  --ok-bg: #dff0e0;
+  --amber: #a15c00;
   --warn-bg: #fff3cd;
   --warn-fg: #5c4500;
   color-scheme: light dark;
@@ -34,6 +36,8 @@
     --button-hover: var(--ts-button-hover, #3a3a45);
     --danger: var(--ts-color-danger, #f2867c);
     --ok: #7bc67f;
+    --ok-bg: #1d3320;
+    --amber: #f0b44c;
     --warn-bg: #3d3214;
     --warn-fg: #f4dd9a;
   }
@@ -144,6 +148,152 @@ button.primary:not(:disabled) {
 }
 .status.done {
   border-left-color: var(--ok);
+  background: var(--ok-bg);
+}
+/* a brief flash on each new step, so it is noticed while the eyes are on the board */
+.status.flash {
+  animation: flash 0.9s ease-out;
+}
+@keyframes flash {
+  from {
+    box-shadow: 0 0 0 4px var(--accent);
+    filter: brightness(1.35);
+  }
+  to {
+    box-shadow: 0 0 0 0 transparent;
+    filter: none;
+  }
+}
+
+/* ── state header: link light, slabs light, progress ── */
+.state-header {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+.light {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+.light-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  font-size: 15px;
+  line-height: 1;
+}
+.light.off .light-icon {
+  color: var(--muted);
+}
+.light.off .light-label {
+  color: var(--muted);
+  font-weight: 500;
+}
+.light.wait .light-icon {
+  color: var(--amber);
+}
+.light.good .light-icon,
+.light.busy .light-icon {
+  color: var(--ok);
+}
+.light.busy .light-icon {
+  color: var(--accent);
+}
+.light.bad .light-icon,
+.light.bad .light-label {
+  color: var(--danger);
+}
+.map-info {
+  padding-left: 26px; /* under the light's label */
+  min-width: 0;
+}
+.map-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.light.changed {
+  animation: changed 0.6s ease-out;
+}
+@keyframes changed {
+  from {
+    background: var(--accent-bg);
+  }
+  to {
+    background: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status.flash,
+  .light.changed {
+    animation: none;
+  }
+}
+
+/* ── link to the bridge ── */
+.link {
+  margin: 10px 0;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.link summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.link-state {
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 6px;
+  color: var(--muted);
+}
+.link-state.on {
+  color: var(--ok);
+}
+.link-state.waiting {
+  color: var(--amber);
+}
+.link .port-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+.link .port-row input[type="checkbox"] {
+  width: auto;
+}
+.hotkeys {
+  display: grid;
+  grid-template-columns: max-content max-content 1fr;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 8px 0 4px;
+  font-size: 13px;
+}
+.hk-result {
+  font-size: 12px;
+  color: var(--muted);
+}
+.hk-result.good {
+  color: var(--ok);
+}
+.hk-result.bad {
+  color: var(--danger);
 }
 
 .progress-row {

@@ -5,6 +5,11 @@ var SLABYRINTH_TEST_PAIR = {
   format: "slabyrinth-chunks",
   version: 1,
   name: "Test pair: single-room split down the middle",
+  size: {
+    w: 12,
+    h: 10,
+  },
+  levels: 1,
   chunks: [
     {
       label: "Chunk 1 of 2: West half (columns A–D, 19 assets incl. 2 markers)",

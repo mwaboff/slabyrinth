@@ -19,14 +19,26 @@
     </nav>
 
     <main id="panel-main" role="tabpanel">
+      <header class="state-header" aria-label="Link and slab state">
+        <div id="light-link" class="light off">
+          <span class="light-icon" aria-hidden="true">○</span><span class="light-label">Not connected</span>
+        </div>
+        <div id="light-slabs" class="light off">
+          <span class="light-icon" aria-hidden="true">○</span><span class="light-label">No slabs loaded</span>
+        </div>
+        <div id="map-info" class="map-info" hidden>
+          <div id="map-name" class="map-name"></div>
+          <div id="map-meta" class="map-meta"></div>
+        </div>
+        <div class="progress-row">
+          <progress id="progress" max="1" value="0" aria-labelledby="progress-text"></progress>
+          <span id="progress-text">0 of 0 placed</span>
+        </div>
+      </header>
+
       <p id="status" class="status idle" role="status" aria-live="assertive">
         Load a set of chunks to begin.
       </p>
-
-      <div class="progress-row">
-        <progress id="progress" max="1" value="0"></progress>
-        <span id="progress-text">No chunks loaded</span>
-      </div>
 
       <div class="actions">
         <button id="btn-send" class="primary" disabled>Put in hand</button>
@@ -37,6 +49,29 @@
         TaleSpire does not tell symbiotes when a slab is placed, so press Next yourself after each placement.
       </p>
       <p id="keys-hint" class="note"></p>
+
+      <details class="link" open>
+        <summary>Link to Slabyrinth <span id="link-state" class="link-state off">Off</span></summary>
+        <p class="note">
+          Run the hotkey bridge (see README), then turn Link on. Its hotkeys work while TaleSpire has the
+          keyboard.
+        </p>
+        <div class="port-row">
+          <label><input id="link-on" type="checkbox" /> Link</label>
+          <label for="link-port">Port</label>
+          <input id="link-port" type="number" min="1024" max="65535" />
+        </div>
+        <div class="hotkeys">
+          <span>Next</span><button id="hk-next" class="key">Ctrl+Alt+D</button>
+          <span id="hk-next-result" class="hk-result"></span>
+          <span>Back</span><button id="hk-back" class="key">Ctrl+Alt+A</button>
+          <span id="hk-back-result" class="hk-result"></span>
+          <span>Again</span><button id="hk-again" class="key">Ctrl+Alt+S</button>
+          <span id="hk-again-result" class="hk-result"></span>
+        </div>
+        <p class="note">Click a hotkey, then press the new combination (Ctrl or Alt plus a key).</p>
+        <button id="hk-reset">Reset hotkeys to defaults</button>
+      </details>
 
       <h2 id="set-name"></h2>
       <ol id="chunk-list" class="chunks"></ol>

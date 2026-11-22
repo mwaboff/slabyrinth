@@ -18,6 +18,7 @@ let preview = false;
 let apiReady = false;
 let maxBytes = Seq.DEFAULT_MAX_BYTES;
 let state = Seq.initialState();
+let clientMode = null; // "gm", "player", "spectator" as TaleSpire last reported, or null
 const events = [];
 
 // ── API access ──
@@ -142,6 +143,8 @@ async function refreshMode() {
   if (!me.ok || !me.value) return setText("diag-mode", `unknown (${me.ok ? "no client" : me.cause})`);
   const info = await call("clients.getMoreInfo", [me.value.id]);
   const mode = info.ok && Array.isArray(info.value) && info.value[0] ? info.value[0].clientMode : null;
+  clientMode = typeof mode === "string" ? mode : null;
+  renderHeader();
   setText(
     "diag-mode",
     mode ? (mode === "gm" ? "gm (GM mode)" : `${mode} (not GM mode)`) : `unknown (${info.cause})`,
@@ -157,6 +160,9 @@ function start() {
   setText("diag-origin", location.href);
   el("port").value = String(DEFAULT_PORT);
   bindUi();
+  loadLinkSettings();
+  renderLink();
+  linkConnect();
   renderKeys();
   renderBanner();
   render();
@@ -170,11 +176,12 @@ function start() {
 
 // ── chunk flow ──
 
+/** Applies an action; resolves once any slab it sends has been answered by TaleSpire. */
 function dispatch(action) {
   const { state: next, effect } = Seq.reduce(state, action);
   state = next;
   render();
-  if (effect && effect.type === "send") void sendChunk(effect.index);
+  return effect && effect.type === "send" ? sendChunk(effect.index) : Promise.resolve();
 }
 
 async function sendChunk(index) {
@@ -182,7 +189,213 @@ async function sendChunk(index) {
   logEvent("helper", `sendSlabToHand chunk ${index + 1}`, { label: chunk.label, bytes: chunk.bytes }, true);
   const r = await call("slabs.sendSlabToHand", chunk.slab);
   logEvent("helper", r.ok ? "sendSlabToHand ok" : "sendSlabToHand failed", r.ok ? r.value : r.cause, true);
-  dispatch({ type: "sent", index, ok: r.ok, cause: r.cause });
+  await dispatch({ type: "sent", index, ok: r.ok, cause: r.cause });
+}
+
+// ── link to the hotkey bridge (symbiotes/hotkey-bridge.mjs) ──
+// The bridge's global shortcuts arrive here as messages over a WebSocket on 127.0.0.1 and drive the same actions as
+// the buttons. Reconnects with backoff while Link is on; the setting is remembered in this panel.
+
+const LINK_STORE = "slabyrinth-helper.link";
+const link = { on: false, port: DEFAULT_PORT, ws: null, connected: false, retry: null, delay: 1000 };
+
+function loadLinkSettings() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(LINK_STORE) || "null");
+    if (saved && typeof saved.on === "boolean") link.on = saved.on;
+    if (saved && Number.isInteger(saved.port)) link.port = saved.port;
+  } catch {
+    // storage blocked or damaged: Link starts off
+  }
+}
+
+function saveLinkSettings() {
+  try {
+    window.localStorage.setItem(LINK_STORE, JSON.stringify({ on: link.on, port: link.port }));
+  } catch {
+    // not saved
+  }
+}
+
+function linkConnect() {
+  clearTimeout(link.retry);
+  if (!link.on || link.ws) return;
+  let ws;
+  try {
+    ws = new WebSocket(`ws://127.0.0.1:${link.port}/`);
+  } catch (e) {
+    logEvent("link", "could not open", e && e.message, true);
+    return linkRetry();
+  }
+  link.ws = ws;
+  renderLink();
+  ws.onopen = () => {
+    link.connected = true;
+    link.delay = 1000;
+    logEvent("link", "connected", { port: link.port }, true);
+    renderLink();
+    linkSend(Seq.linkReply(state, null));
+    sendHotkeys(); // the hotkeys set here win over the bridge's command-line ones
+  };
+  ws.onmessage = (m) => void onLinkMessage(m.data);
+  ws.onclose = () => {
+    if (link.ws !== ws) return; // an old socket closing after Link was switched off and on
+    if (link.connected) logEvent("link", "disconnected", null, true);
+    link.ws = null;
+    link.connected = false;
+    renderLink();
+    linkRetry();
+  };
+  ws.onerror = () => {}; // onclose follows and retries
+}
+
+function linkRetry() {
+  if (!link.on) return;
+  link.retry = setTimeout(linkConnect, link.delay);
+  link.delay = Math.min(link.delay * 2, 15000);
+}
+
+function linkDisconnect() {
+  clearTimeout(link.retry);
+  link.delay = 1000;
+  if (link.ws) link.ws.close();
+  link.ws = null;
+  link.connected = false;
+  renderLink();
+}
+
+function linkSend(obj) {
+  if (link.ws && link.connected) link.ws.send(JSON.stringify(obj));
+}
+
+async function onLinkMessage(text) {
+  const msg = Seq.parseLinkMessage(typeof text === "string" ? text : "");
+  if (!msg) {
+    logEvent("link", "ignored a malformed message", String(text).slice(0, 120), true);
+    return;
+  }
+  logEvent("link", `received ${msg.type}`, msg.type === "hotkeys-result" ? msg.results : msg.id, true);
+  if (msg.type === "hotkeys-result") {
+    hk.results = msg.results;
+    hk.pending = false;
+    // a refused hotkey is not kept: the setting shows what the bridge still uses
+    let changed = false;
+    for (const [a, r] of Object.entries(msg.results))
+      if (r.status === "refused" && hk.stored[a] === r.wanted) {
+        const rest = Object.fromEntries(Object.entries(hk.stored).filter(([k]) => k !== a));
+        hk.stored = r.combo ? { ...rest, [a]: r.combo } : rest;
+        changed = true;
+      }
+    if (changed) saveHotkeys();
+    renderHotkeys();
+    return;
+  }
+  const cmd = Seq.linkCommand(msg, maxBytes);
+  if (cmd.error) {
+    linkSend(Seq.linkReply(state, msg.id, cmd.error));
+    return;
+  }
+  if (cmd.action && cmd.action.type === "load") el("load-error").hidden = true;
+  if (cmd.action) await dispatch(cmd.action);
+  linkSend(Seq.linkReply(state, msg.id));
+}
+
+// ── global hotkeys: set here, registered by the bridge ──
+
+const HOTKEYS_STORE = "slabyrinth-helper.hotkeys";
+// stored: only the hotkeys the GM set; results: the bridge's last answer; pending: a change not yet answered
+const hk = { stored: loadHotkeys(), results: null, pending: false, capturing: null, note: {}, nextId: 1 };
+
+function loadHotkeys() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(HOTKEYS_STORE) || "null");
+    const out = {};
+    if (saved && typeof saved === "object")
+      for (const a of Seq.HOTKEY_ACTIONS) {
+        const c = Seq.checkHotkey(saved[a]);
+        if (c.ok) out[a] = c.combo;
+      }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function saveHotkeys() {
+  try {
+    if (Object.keys(hk.stored).length) window.localStorage.setItem(HOTKEYS_STORE, JSON.stringify(hk.stored));
+    else window.localStorage.removeItem(HOTKEYS_STORE);
+  } catch {
+    // not saved; the bridge still gets the change now
+  }
+}
+
+/** Sends the GM's hotkeys to the bridge (all three on reset, else only the ones set here). */
+function sendHotkeys(wanted = hk.stored) {
+  if (!link.connected) return;
+  hk.pending = true;
+  linkSend(Seq.hotkeysMessage(wanted, hk.nextId++));
+  renderHotkeys();
+}
+
+function setHotkey(action, combo) {
+  const c = Seq.checkHotkey(combo);
+  if (!c.ok) {
+    hk.note[action] = `Not allowed: ${c.reason}.`;
+    return;
+  }
+  hk.note[action] = null;
+  hk.stored = { ...hk.stored, [action]: c.combo };
+  saveHotkeys();
+  sendHotkeys();
+}
+
+function resetHotkeys() {
+  hk.stored = {};
+  hk.note = {};
+  saveHotkeys();
+  sendHotkeys({ ...Seq.DEFAULT_HOTKEYS });
+  renderHotkeys();
+}
+
+function renderHotkeys() {
+  for (const a of Seq.HOTKEY_ACTIONS) {
+    const b = el(`hk-${a}`);
+    if (!b) return;
+    const r = hk.results ? hk.results[a] : null;
+    const current = hk.stored[a] || (r && r.combo) || `${Seq.DEFAULT_HOTKEYS[a]}`;
+    b.textContent = hk.capturing === a ? "Press keys… (Esc cancels)" : current;
+    let text;
+    let tone = "";
+    if (hk.note[a]) {
+      text = hk.note[a];
+      tone = "bad";
+    } else if (!link.connected) text = "Applies when the bridge connects.";
+    else if (hk.pending) text = "Asking the bridge…";
+    else if (!r) text = "";
+    else if (r.status === "active") {
+      text = "Active";
+      tone = "good";
+    } else if (r.status === "refused") {
+      text = `${r.wanted || "That key"} refused (${r.reason}). ${r.combo ? `Still using ${r.combo}.` : "No hotkey set."}`;
+      tone = "bad";
+    } else text = r.reason ? `Not set (${r.reason})` : "Not set";
+    const out = el(`hk-${a}-result`);
+    out.textContent = text;
+    out.className = `hk-result ${tone}`;
+  }
+}
+
+function renderLink() {
+  const dot = el("link-state");
+  if (!dot) return;
+  const text = !link.on ? "Off" : link.connected ? "Connected" : link.ws ? "Connecting…" : "Not connected";
+  dot.textContent = text;
+  dot.className = `link-state ${link.connected ? "on" : link.on ? "waiting" : "off"}`;
+  el("link-on").checked = link.on;
+  el("link-port").value = String(link.port);
+  renderHotkeys();
+  renderHeader();
 }
 
 function loadText(text, source) {
@@ -277,15 +490,54 @@ function renderBanner() {
     : "Waiting for TaleSpire's API to start…";
 }
 
+/** The two lights at the top: state at a glance (the status line below says what to do). */
+function renderHeader() {
+  const info = Seq.mapInfo(state.set);
+  const box = el("map-info");
+  if (box) {
+    box.hidden = !info;
+    // textContent only: the name comes from a pasted or pushed file
+    setText("map-name", info ? info.title : "");
+    el("map-name").title = info ? info.title : "";
+    setText("map-meta", info ? info.meta : "");
+  }
+  const lights = {
+    "light-link": Seq.linkLight(link.connected ? "connected" : link.on ? "connecting" : "off"),
+    "light-slabs": Seq.slabsLight(state, clientMode),
+  };
+  for (const [id, l] of Object.entries(lights)) {
+    const node = el(id);
+    if (!node) return;
+    const cls = `light ${l.tone}`;
+    if (node.className.replace(" changed", "") !== cls) {
+      node.className = cls;
+      void node.offsetWidth; // restart the brief change highlight
+      node.classList.add("changed");
+    }
+    node.querySelector(".light-icon").textContent = l.icon;
+    node.querySelector(".light-label").textContent = l.label;
+  }
+}
+
+let shown = ""; // the step last shown, to flash the status block when it changes
+
 function render() {
   const s = Seq.statusLine(state);
   const status = el("status");
   status.textContent = s.text;
   status.className = `status ${s.tone}`;
+  // a brief flash on each new step, noticeable from the corner of the eye while watching the board
+  const step = `${state.index}:${state.phase}`;
+  if (step !== shown && state.phase !== "sending" && state.set) {
+    void status.offsetWidth; // restart the animation
+    status.classList.add("flash");
+  }
+  shown = step;
   const p = Seq.progress(state);
   el("progress").max = Math.max(p.total, 1);
   el("progress").value = p.placed;
-  setText("progress-text", p.total ? `${p.placed} of ${p.total} placed` : "No chunks loaded");
+  setText("progress-text", `${p.placed} of ${p.total} placed`);
+  renderHeader();
   setText("set-name", state.set ? state.set.name : "");
   const c = Seq.controls(state);
   for (const [id, b] of [
@@ -352,6 +604,33 @@ function bindUi() {
   });
   el("btn-local").addEventListener("click", () => void testLocal());
   for (const t of ["main", "log", "diag"]) el(`tab-${t}`).addEventListener("click", () => showTab(t));
+  for (const a of Seq.HOTKEY_ACTIONS) {
+    el(`hk-${a}`).addEventListener("click", () => {
+      hk.capturing = a;
+      hk.note[a] = null;
+      renderHotkeys();
+    });
+    el(`hk-${a}`).addEventListener("blur", () => {
+      if (hk.capturing === a) hk.capturing = null;
+      renderHotkeys();
+    });
+  }
+  el("hk-reset").addEventListener("click", resetHotkeys);
+  el("link-on").addEventListener("change", () => {
+    link.on = el("link-on").checked;
+    saveLinkSettings();
+    if (link.on) linkConnect();
+    else linkDisconnect();
+    renderLink();
+  });
+  el("link-port").addEventListener("change", () => {
+    const p = Number(el("link-port").value);
+    if (!Number.isInteger(p) || p < 1024 || p > 65535) return renderLink();
+    link.port = p;
+    saveLinkSettings();
+    linkDisconnect();
+    linkConnect();
+  });
   for (const which of ["next", "back"])
     el(`key-${which}`).addEventListener("click", () => {
       capturing = which;
@@ -396,6 +675,17 @@ function saveKeys() {
 }
 
 function onKey(e) {
+  if (hk.capturing) {
+    // recording a global hotkey: wait for a non-modifier key, by physical key
+    const hot = Seq.hotkeyCombo(e);
+    if (!hot) return;
+    e.preventDefault();
+    const action = hk.capturing;
+    hk.capturing = null;
+    if (hot !== "Escape") setHotkey(action, hot);
+    renderHotkeys();
+    return;
+  }
   const combo = Seq.keyCombo(e);
   if (!combo) return;
   let did = "nothing";
@@ -430,7 +720,11 @@ function onKey(e) {
 function renderKeys() {
   for (const which of ["next", "back"])
     el(`key-${which}`).textContent = capturing === which ? "Press a key… (Esc cancels)" : keys[which];
-  setText("keys-hint", `Keys: ${keys.next} = Next, ${keys.back} = Back (while this panel has the keyboard).`);
+  setText(
+    "keys-hint",
+    `Panel keys (only while this panel has the keyboard): ${keys.next} = Next, ${keys.back} = Back. ` +
+      "For keys that work while you play, use the hotkey bridge below.",
+  );
 }
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
