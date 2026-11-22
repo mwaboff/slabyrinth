@@ -755,30 +755,19 @@
     return { tone: "good", icon: "●", label: "Slabs are ready to paste" };
   }
 
-  // ── design preview (temporary: four looks over one structure, to choose between in game) ──
+  // ── appearance: two looks over one structure (Settings > Appearance), remembered in the panel ──
 
-  // the first is the default (the recommended one)
+  // the first is the default
   var DESIGNS = [
     {
-      id: "instrument",
-      name: "Instrument",
-      summary: "High contrast, big numbers and signal colours, read from the corner of the eye.",
+      id: "slabyrinth",
+      name: "Slabyrinth",
+      summary: "The Slabyrinth app's own colours, gold accent and buttons.",
     },
     {
       id: "native",
       name: "Native",
       summary: "TaleSpire's own panel colours and type, so the helper reads as part of the game.",
-    },
-    {
-      id: "lantern",
-      name: "Lantern",
-      summary: "Warm, quiet and roomy; a calm page that steps back until it is needed.",
-    },
-    {
-      id: "slabyrinth",
-      name: "Slabyrinth",
-      summary:
-        "The Slabyrinth app's own palette, gold accent and buttons, so the helper reads as the same product.",
     },
   ];
 
@@ -799,7 +788,7 @@
     return CLEAR_METHODS[0].id;
   }
 
-  /** The design to show: a saved id when it is one of DESIGNS, else the first. */
+  /** The look to show: a saved id when it is one of DESIGNS, else the first (also for a removed look's id). */
   function pickDesign(saved) {
     for (var i = 0; i < DESIGNS.length; i++) if (DESIGNS[i].id === saved) return saved;
     return DESIGNS[0].id;

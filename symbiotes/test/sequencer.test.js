@@ -486,14 +486,62 @@ describe("empty slabs are never sent", () => {
   });
 });
 
-describe("design preview", () => {
-  it("keeps a saved design only when it is one of the four; Instrument stays the default", () => {
-    expect(Seq.DESIGNS.map((d) => d.id).sort()).toEqual(["instrument", "lantern", "native", "slabyrinth"]);
-    expect(Seq.DESIGNS[0].id).toBe("instrument");
-    expect(Seq.pickDesign("lantern")).toBe("lantern");
+describe("appearance", () => {
+  it("has two looks, Slabyrinth the default and Native the alternative", () => {
+    expect(Seq.DESIGNS.map((d) => d.id)).toEqual(["slabyrinth", "native"]);
+    expect(Seq.pickDesign("native")).toBe("native");
     expect(Seq.pickDesign("slabyrinth")).toBe("slabyrinth");
-    expect(Seq.pickDesign("neon")).toBe(Seq.DESIGNS[0].id);
-    expect(Seq.pickDesign(null)).toBe(Seq.DESIGNS[0].id);
+  });
+
+  it("falls back to Slabyrinth for a removed look, an unknown value or nothing stored", () => {
+    for (const stored of ["instrument", "lantern", "neon", "", null, undefined, 3])
+      expect(Seq.pickDesign(stored)).toBe("slabyrinth");
+  });
+
+  /** Runs the page script up to the point the body would paint (start() waits for DOMContentLoaded). */
+  function themeOnOpen(stored, { throws = false } = {}) {
+    const store = new Map(stored === undefined ? [] : [["slabyrinth-helper.design", stored]]);
+    const localStorage = {
+      getItem: (k) => {
+        if (throws) throw new Error("blocked");
+        return store.has(k) ? store.get(k) : null;
+      },
+      setItem: (k, v) => store.set(k, String(v)),
+      removeItem: (k) => store.delete(k),
+    };
+    const documentElement = { dataset: {} };
+    const ctx = createContext({
+      window: { localStorage },
+      document: { documentElement, readyState: "loading", addEventListener: () => {} },
+      location: { protocol: "http:" },
+      setTimeout,
+      clearTimeout,
+      setInterval,
+      clearInterval,
+    });
+    for (const n of ["sequencer.js", "app.js"])
+      runInContext(readFileSync(new URL(n, DIR), "utf8"), ctx, { filename: n });
+    return documentElement.dataset.theme;
+  }
+
+  it("restores the stored look before the body paints, and falls back when it is unknown", () => {
+    expect(themeOnOpen("native")).toBe("native");
+    expect(themeOnOpen("slabyrinth")).toBe("slabyrinth");
+    expect(themeOnOpen(undefined)).toBe("slabyrinth");
+    expect(themeOnOpen("instrument")).toBe("slabyrinth");
+    expect(themeOnOpen("native", { throws: true })).toBe("slabyrinth");
+  });
+
+  it("ships the default look in the page itself, so nothing flashes before the script runs", () => {
+    const html = readFileSync(new URL("index.html", DIR), "utf8");
+    expect(html).toMatch(/<html lang="en" data-theme="slabyrinth">/);
+    // the page script is in <head>, ahead of <body>
+    expect(html.indexOf('<script src="app.js"></script>')).toBeLessThan(html.indexOf("<body>"));
+    const css = readFileSync(new URL("style.css", DIR), "utf8");
+    expect([...css.matchAll(/data-theme="([a-z]+)"/g)].map((m) => m[1]).sort()).toEqual(
+      expect.arrayContaining(["native", "slabyrinth"]),
+    );
+    expect(css).not.toMatch(/instrument|lantern/i);
   });
 });
 

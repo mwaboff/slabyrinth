@@ -57,26 +57,25 @@ From the top, everything the GM needs at a glance, then closed sections:
   Put in hand again becomes **Start over**.
 - **Chunks** (closed): every chunk, placed ones ticked, the one in hand marked.
 - **Link and hotkeys** (closed): the Link switch and port, the three hotkeys, and the end-of-map picking-tool switch.
-- **Developer tools** (closed): Load (test pair, pasted JSON), Event log, Diagnostics (including the panel-only
-  keys) and Design.
+- **Appearance** (closed): the look, Slabyrinth or Native.
+- **Developer tools** (closed): Load (test pair, pasted JSON), Event log and Diagnostics (including the panel-only
+  keys).
 
 TaleSpire injects its colour variables (the `colorStyles` extra) and its OptimusPrinceps font (the `fonts` extra).
 
-### Design preview (temporary)
+### Appearance
 
-**Developer tools > Design** switches between four looks over the same panel, so they can be judged in game next to
-the board. The choice is remembered in the panel.
+**Appearance** (a closed section under Link and hotkeys) picks one of two looks over the same panel. The choice is
+kept in the panel's own storage and applied before the panel paints the next time it opens; reinstalling or updating
+the add-on from Slabyrinth does not change it. A stored look that no longer exists falls back to Slabyrinth.
 
-- **Instrument** (the default): high contrast, big numbers, a segmented gauge and signal colours, read from the
-  corner of the eye.
-- **Native**: TaleSpire's own colours (black, dark grey, TaleSpire blue buttons) and its OptimusPrinceps face, so the
-  helper reads as part of the game.
-- **Lantern**: warm, quiet and roomy, with serif names; it steps back until it is needed.
-- **Slabyrinth**: the desktop app's own look, so the helper reads as the same product. Its colours, radii, outline
-  and gold primary buttons, key chips, eyebrows and status tints are copied from the app's dark theme
+- **Slabyrinth** (the default): the desktop app's own look, so the helper reads as the same product. Its colours,
+  radii, outline and gold primary buttons, key chips, eyebrows and status tints are copied from the app's dark theme
   (`apps/desktop/src/renderer/styles/tokens.css` and `base.css`; keep them in step by hand). The app's bundled fonts
   cannot be loaded here: Cinzel falls back to TaleSpire's OptimusPrinceps (set in small capitals), Lora to Georgia and
   Source Sans 3 to Segoe UI.
+- **Native**: TaleSpire's own colours (black, dark grey, TaleSpire blue buttons) and its OptimusPrinceps face, so the
+  helper reads as part of the game.
 
 ## Recommended flow: the hotkey bridge
 
@@ -171,7 +170,6 @@ middle into a west half and an east half.
 - **Diagnostics** shows the last API error in full (the status line only names it), what happened at the end of
   the map, the API's slab size limit, your client mode, the last slab you copied in game, the panel keys and the last
   key the panel received, and the local connection test.
-- **Design** is the temporary design preview (above).
 
 ## Test procedure
 

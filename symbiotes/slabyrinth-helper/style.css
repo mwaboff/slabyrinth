@@ -1,15 +1,17 @@
 /*
- * Slabyrinth Helper: one structure, four looks (data-theme on <html>; the Design tab under Developer tools picks one).
+ * Slabyrinth Helper: one structure, two looks (data-theme on <html>; the Appearance section picks one). Slabyrinth is
+ * the default; Native is the alternative.
  * TaleSpire shows symbiotes in one dark theme, so every look is dark. The "colorStyles" extra injects the --ts-* colour
  * variables and the "fonts" extra the OptimusPrinceps face; only the Native look reads the colours, and its fallbacks
- * are the values measured in game, so a plain-browser preview looks like the panel in TaleSpire. Instrument, Lantern
- * and Slabyrinth set every colour themselves (Slabyrinth from the desktop app's tokens). Colour never carries state alone: each light and step also has an icon and words.
+ * are the values measured in game, so a plain-browser preview looks like the panel in TaleSpire. Slabyrinth sets every
+ * colour itself, from the desktop app's tokens. Colour never carries state alone: each light and step also has an icon
+ * and words.
  *
  * Layout: a glance zone (lights, map and progress, what to do now, three controls) above closed sections (chunks,
- * link and hotkeys, developer tools).
+ * link and hotkeys, appearance, developer tools).
  */
 
-/* ── tokens: the base set is Native's; Instrument (the default look) and Lantern redefine them ── */
+/* ── tokens: the base set is Native's; Slabyrinth (the default look) redefines them ── */
 :root {
   color-scheme: dark;
   --bg: var(--ts-background-primary, #000000);
@@ -49,81 +51,6 @@
   --now-rule: 4px;
   --flash-spread: 4px;
   --flash-time: 0.9s;
-}
-
-:root[data-theme="instrument"] {
-  --bg: #0a0c0f;
-  --surface: #13171c;
-  --surface-2: #1d232a;
-  --text: #f5f7fa;
-  --text-2: #b1bcc7;
-  --line: #2d353e;
-  --focus: #ffd84d;
-  --primary: #33c6f0;
-  --primary-hover: #63d5f5;
-  --primary-text: #03141b;
-  --quiet: #1d232a;
-  --quiet-hover: #28303a;
-  --action: #33c6f0;
-  --fill: #33c6f0;
-  --track: #242b33;
-  --tick: #0a0c0f;
-  --good: #3ddc84;
-  --wait: #ffb02e;
-  --bad: #ff5f5f;
-  --warn-bg: #3a2c0c;
-  --warn-text: #ffd98a;
-
-  --font-display: Bahnschrift, "DIN Alternate", "Segoe UI", system-ui, sans-serif;
-  --font-num: Bahnschrift, "DIN Alternate", "Segoe UI", system-ui, sans-serif;
-
-  --radius: 2px;
-  --gap: 8px;
-  --title-size: 23px;
-  --count-size: 34px;
-  --bar-h: 14px;
-  --tick-w: 3px;
-  --now-rule: 6px;
-  --flash-spread: 6px;
-  --flash-time: 0.7s;
-}
-
-:root[data-theme="lantern"] {
-  --bg: #15120e;
-  --surface: #1e1a15;
-  --surface-2: #29231b;
-  --text: #efe6d6;
-  --text-2: #bcae97;
-  --line: #3b3228;
-  --focus: #f2c879;
-  --primary: #e3b866;
-  --primary-hover: #eec67c;
-  --primary-text: #1d1408;
-  --quiet: #29231b;
-  --quiet-hover: #342c22;
-  --action: #e3b866;
-  --fill: #e3b866;
-  --track: #2f2820;
-  --tick: #1e1a15;
-  --good: #a9cb8a;
-  --wait: #dca06a;
-  --bad: #f08d7a;
-  --warn-bg: #3a2e18;
-  --warn-text: #f1d9a4;
-
-  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
-  --font-num: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
-
-  --radius: 10px;
-  --gap: 14px;
-  --pad: 14px;
-  --title-size: 21px;
-  --count-size: 24px;
-  --bar-h: 6px;
-  --tick-w: 2px;
-  --now-rule: 0px;
-  --flash-spread: 10px;
-  --flash-time: 1.4s;
 }
 
 /*
@@ -938,118 +865,6 @@ button.quiet {
 }
 :root[data-theme="native"] .ctl:not(.primary):hover:not(:disabled) {
   background: var(--surface);
-}
-
-/* ── Instrument: lit chips, a segmented gauge, uppercase readouts ── */
-:root[data-theme="instrument"] .light {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  align-items: center;
-}
-:root[data-theme="instrument"] .light.good {
-  border-color: color-mix(in srgb, var(--good) 55%, transparent);
-  background: color-mix(in srgb, var(--good) 10%, var(--surface));
-}
-:root[data-theme="instrument"] .light.wait {
-  border-color: color-mix(in srgb, var(--wait) 55%, transparent);
-  background: color-mix(in srgb, var(--wait) 9%, var(--surface));
-}
-:root[data-theme="instrument"] .light.bad {
-  border-color: var(--bad);
-  background: color-mix(in srgb, var(--bad) 14%, var(--surface));
-}
-:root[data-theme="instrument"] .light.good .light-icon {
-  text-shadow: 0 0 8px var(--good);
-}
-:root[data-theme="instrument"] .light-label,
-:root[data-theme="instrument"] .now-title,
-:root[data-theme="instrument"] .ctl-label {
-  font-family: var(--font-display);
-}
-:root[data-theme="instrument"] .map-name {
-  font-weight: 600;
-}
-:root[data-theme="instrument"] .now-step,
-:root[data-theme="instrument"] .map-meta,
-:root[data-theme="instrument"] .count-rest,
-:root[data-theme="instrument"] .section-title {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 11px;
-}
-:root[data-theme="instrument"] .section-title {
-  font-family: var(--font-display);
-  font-size: 12px;
-}
-:root[data-theme="instrument"] .bar {
-  border-radius: 0;
-}
-:root[data-theme="instrument"] .now {
-  border: 1px solid var(--line);
-}
-:root[data-theme="instrument"] .now-title {
-  font-weight: 600;
-  letter-spacing: 0.005em;
-}
-:root[data-theme="instrument"] .ctl {
-  min-height: 54px;
-  border-width: 1px;
-}
-:root[data-theme="instrument"] .ctl.primary.ctl-next .ctl-label {
-  font-size: 18px;
-  letter-spacing: 0.02em;
-}
-
-/* ── Lantern: no boxes for the lights, serif names, a soft glow on the step ── */
-:root[data-theme="lantern"] .lights {
-  gap: 2px 18px;
-}
-:root[data-theme="lantern"] .light {
-  background: transparent;
-  padding: 2px 0;
-}
-:root[data-theme="lantern"] .map {
-  background: transparent;
-  padding: 0;
-  gap: 10px;
-}
-:root[data-theme="lantern"] .map-name {
-  font-weight: 500;
-  font-size: 24px;
-}
-:root[data-theme="lantern"] .now {
-  padding: 16px 18px 17px;
-  background: radial-gradient(120% 140% at 0% 0%, var(--surface-2), var(--surface) 70%);
-}
-:root[data-theme="lantern"] .now-title {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 22px;
-}
-:root[data-theme="lantern"] .now.error {
-  box-shadow: inset 0 0 0 1px var(--bad);
-}
-:root[data-theme="lantern"] .now.action .now-step {
-  color: var(--action);
-}
-:root[data-theme="lantern"] .now.done .now-step {
-  color: var(--good);
-}
-:root[data-theme="lantern"] .now.wait .now-step {
-  color: var(--wait);
-}
-:root[data-theme="lantern"] .count-n {
-  font-weight: 600;
-}
-:root[data-theme="lantern"] .ctl {
-  min-height: 46px;
-  border-color: var(--line);
-}
-:root[data-theme="lantern"] .ctl:not(.primary) {
-  background: transparent;
-}
-:root[data-theme="lantern"] .section {
-  border-top-color: color-mix(in srgb, var(--line) 70%, transparent);
 }
 
 /* ── Slabyrinth: the app's recipes (base.css): outline buttons, gold primary, kbd chips, eyebrows, cards ── */

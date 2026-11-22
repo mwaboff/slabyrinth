@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="instrument">
+<html lang="en" data-theme="slabyrinth">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -123,6 +123,17 @@
         </div>
       </details>
 
+      <details id="appearance" class="section">
+        <summary><span class="section-title">Appearance</span></summary>
+        <div class="section-body">
+          <fieldset class="designs">
+            <legend>Look</legend>
+            <div id="design-list" class="design-list"></div>
+          </fieldset>
+          <p class="note">Remembered in this panel for the next time you open it.</p>
+        </div>
+      </details>
+
       <details id="dev" class="section dev">
         <summary><span class="section-title">Developer tools</span></summary>
         <div class="section-body">
@@ -131,9 +142,6 @@
             <button id="tab-log" role="tab" aria-selected="false" aria-controls="panel-log">Event log</button>
             <button id="tab-diag" role="tab" aria-selected="false" aria-controls="panel-diag">
               Diagnostics
-            </button>
-            <button id="tab-design" role="tab" aria-selected="false" aria-controls="panel-design">
-              Design
             </button>
           </nav>
 
@@ -243,16 +251,6 @@
               <button id="btn-local" class="quiet">Test local connection</button>
             </div>
             <pre id="local-result" class="result"></pre>
-          </section>
-
-          <section id="panel-design" role="tabpanel" aria-labelledby="tab-design" hidden>
-            <p class="note">
-              Temporary: four looks over the same panel, to judge next to the board. The choice is remembered.
-            </p>
-            <fieldset class="designs">
-              <legend>Design preview</legend>
-              <div id="design-list" class="design-list"></div>
-            </fieldset>
           </section>
         </div>
       </details>

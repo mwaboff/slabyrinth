@@ -22,7 +22,9 @@ let state = Seq.initialState();
 let clientMode = null; // "gm", "player", "spectator" as TaleSpire last reported, or null
 const events = [];
 
-// ── design preview (temporary): the look is a data-theme on <html>, set before the body paints ──
+// ── appearance: the look is a data-theme on <html>, set from the panel's storage before the body paints ──
+// (this script runs from <head>; TaleSpire keeps the panel's localStorage outside the add-on folder, so a reinstall or
+// update from Slabyrinth keeps the choice; a stored look that no longer exists falls back to the default)
 
 const DESIGN_STORE = "slabyrinth-helper.design";
 
@@ -900,7 +902,7 @@ function renderLog() {
   );
 }
 
-const DEV_TABS = ["load", "log", "diag", "design"];
+const DEV_TABS = ["load", "log", "diag"];
 
 function showTab(name) {
   for (const t of DEV_TABS) {
