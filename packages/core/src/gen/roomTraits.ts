@@ -134,7 +134,7 @@ const NIGHTSTAND = [P("crate", "small"), P("chest"), P("stool")];
 const STOOL = [P("stool"), P("chair")];
 const CHAIR = [P("chair"), P("stool")];
 const CHEST = [P("chest"), P("crate", "small")];
-const STORE = [P("barrel"), P("crate")];
+const STORE = [P("barrel"), P("crate", "small"), P("crate")];
 const SHELVES = [P("bookshelf"), P("wardrobe")];
 /** No palette has a bucket: a barrel stands in (a tub, a water butt). */
 const BUCKET = [P("barrel")];

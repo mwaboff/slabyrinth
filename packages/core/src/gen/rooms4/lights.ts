@@ -22,6 +22,8 @@ export interface LightOpts {
   floor: "brazier" | "candles" | null;
   /** Generator 5: never more lights than this in the room (its kind's high end), dark corners or not. */
   max?: number;
+  /** Generator 5: a wall light never closer than this (tiles) to another light: the wall lights' rhythm. */
+  spacing?: number;
 }
 
 /** One lighting step: it lit the cell, it found nowhere to, or the level's feature cap is reached (stop). */
@@ -48,7 +50,7 @@ export function light(room: Room, opts: LightOpts): void {
     if (!opts.torchOnly && room.lights.length % 2 === 0) r = lampOnFurniture(room, wx, wy);
     if (r === "full") return;
     // the wall spot is chosen every round (its draw keeps the seeded sequence), used only if nothing is lit yet
-    const wall = torch ? nearestTorchSpot(room, wx, wy) : null;
+    const wall = torch ? nearestTorchSpot(room, wx, wy, opts.spacing) : null;
     if (r === "none" && (wall === null || wall.dist > ROOM_DRESS.torchReach))
       r = floorLight(room, wx, wy, opts.floor);
     if (r === "none" && wall !== null) r = wallTorch(room, wall.at);
@@ -139,12 +141,16 @@ function nearestTorchSpot(
   room: Room,
   wx: number,
   wy: number,
+  spacing?: number,
 ): { at: [number, number, Side]; dist: number } | null {
   let best: [number, number, Side] | null = null;
   let bestScore = Infinity;
   let bestDist = Infinity;
   for (const [x, y, s] of room.wallPairs) {
     if (!torchFits(room, x, y, s)) continue;
+    // generator 5: wall lights keep their rhythm, never closer than `spacing` to another wall light
+    if (spacing !== undefined && room.wallLights.some(([lx, ly]) => Math.hypot(lx - x, ly - y) < spacing))
+      continue;
     const d = Math.hypot(x - wx, y - wy);
     const sc = d + room.rng.next() * 0.6 + (room.zone.has(cellKey(x, y)) ? 0.8 : 0);
     if (sc < bestScore) {
@@ -163,6 +169,7 @@ export function wallTorch(room: Room, [x, y, s]: [number, number, Side]): LightS
     return "full";
   room.torched.add(cellKey(x, y) * 4 + SIDES.indexOf(s));
   room.lights.push([x, y]);
+  room.wallLights.push([x, y]);
   return "lit";
 }
 
@@ -225,6 +232,8 @@ export const OCCUPANCY = {
   smallestLit: 3,
   /** A passage gets one light per this many tiles of its length (the training builds: 1 per 6-10). */
   passageEvery: 8,
+  /** Wall lights stand at least this far apart (tiles; the training builds: a 1.5-3 rhythm, denser by doors). */
+  wallPitch: 1.5,
 } as const;
 
 /**

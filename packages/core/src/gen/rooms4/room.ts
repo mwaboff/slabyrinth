@@ -218,6 +218,8 @@ export class Room {
     return false;
   }
   readonly lights: Array<[number, number]> = [];
+  /** The wall lights this room hung (cells), for their rhythm (generator 5). */
+  readonly wallLights: Array<[number, number]> = [];
   centroid: [number, number] = [0, 0];
   entry: [number, number] = [0, 0];
   reach = new Set<number>();

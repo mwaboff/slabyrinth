@@ -4,8 +4,10 @@
  *   1. a light on every seat-bearing surface the room's kind lights (each table, desk and nightstand, a bar every two
  *      tiles: the pieces the furnisher marked `wantsLight`, and any table or desk the theme put there);
  *   2. a light either side of the main door of a shared room (a taproom, a shop, a hall);
- *   3. then, darkest floor first, up to the kind's lights per 10 floor tiles: at least one in every lived-in room
- *      whatever its size, never more than the kind's high end.
+ *   3. no floor farther than 3.6 from a light: a floor light (a brazier, candles where fire does not belong) only in
+ *      the middle of a big room where no wall is near; at least one light in every lived-in room whatever its size;
+ *   4. wall lights, darkest wall first and at least 1.5 tiles from any other light (the walls' rhythm), up to the kind's
+ *      lights per 10 floor tiles, never more than its high end.
  * A place nobody keeps (a crypt, cells, a looted room: `abandoned`) keeps generator 4's dark rule: one light per 50
  * tiles at most, none under 8. A level with `roomDress: false` gets no room lights at all (resolve/level/rooms.ts).
  */
@@ -14,7 +16,7 @@ import { featureInfo } from "../catalog";
 import { SIDES, cellKey } from "../gridGeometry";
 import type { RoomTraits } from "../roomTraits";
 import { lightOn } from "./groups";
-import { light, lightTarget, torchFits, wallTorch } from "./lights";
+import { OCCUPANCY, light, lightTarget, torchFits, wallTorch } from "./lights";
 import { ROOM_DRESS } from "./recipes";
 import type { Room } from "./room";
 
@@ -42,14 +44,23 @@ export function lightByOccupancy(
     }
   // 2. either side of the main door
   if (t.lights.doorPair) doorPair(room);
-  // 3. the room's share, darkest floor first; at least one
-  const target = Math.min(most, Math.max(1, Math.round((((lo + hi) / 2) * n) / 10)));
+  // 3. no floor far from a light (a floor light only where no wall is near), at least one light
   light(room, {
-    target,
+    target: 1,
     radius: ROOM_DRESS.roomLightRadius,
     torchOnly: false,
     floor: n >= ROOM_DRESS.roomFloorLightCells ? (opts.noFire ? "candles" : "brazier") : null,
     max: most,
+  });
+  // 4. the room's share on its walls, darkest first (the wall lights' rhythm)
+  const target = Math.min(most, Math.max(1, Math.round((((lo + hi) / 2) * n) / 10)));
+  light(room, {
+    target,
+    radius: Infinity,
+    torchOnly: true,
+    floor: null,
+    max: most,
+    spacing: OCCUPANCY.wallPitch,
   });
 }
 

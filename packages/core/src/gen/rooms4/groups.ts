@@ -370,12 +370,7 @@ function pickCompanion(
   baseHeight: XY,
 ): Pick[] {
   if (c.chance !== undefined && !room.rng.chance(c.chance)) return [];
-  const piece = companionPiece(room, c);
-  if (piece === undefined) return [];
-  const info = featureInfo(piece.type);
-  const blocking = info.blocking && !info.wallMounted;
-  const ext = room.piece(piece.type, piece.variant);
-  if (ext === undefined) return [];
+  if (companionPiece(room, c) === undefined) return [];
   let cells = slotCells(f, c.slot);
   if (c.slot === "head" || c.slot === "flank") cells = room.rng.shuffle(cells);
   const want =
@@ -387,67 +382,86 @@ function pickCompanion(
     if (out.length >= want) break;
     const k = cellKey(cell[0], cell[1]);
     if (virtual.has(k) || !room.free(cell[0], cell[1])) continue;
-    if (blocking && room.zone.has(k)) continue;
     const toward = towardAnchor(f, c.slot, cell);
     if (room.grid.edge(cell[0], cell[1], sideOf(toward)) === EDGE_WALL) continue;
     if (!room.oneHeight([cell, baseHeight])) continue;
-    // its facing, and its half sizes along the anchor and across it
-    const face: XY = c.facing === "anchor" ? toward : c.facing === "away" ? neg(toward) : f.n;
-    const turn = turnToward(face);
-    const alongN = Math.abs(dot(face, f.n)) >= Math.abs(dot(face, f.u));
-    const halfU = (alongN ? ext.wMax : ext.dMax) / 2;
-    const halfN = (alongN ? ext.dMax : ext.wMax) / 2;
-    // against the walls it has (as any wall piece), then the gap to the anchor along the slot's axis
-    const pushed = ext.tile ? null : touchShift(room.grid, cell, [1, 1], turn.rot, ext, room.postAt);
-    // a piece too big for its cell between the walls and posts it has does not stand there
-    if (!ext.tile && pushed === null) continue;
-    let centre: XY = [cell[0] + 0.5 + (pushed?.[0] ?? 0), cell[1] + 0.5 + (pushed?.[1] ?? 0)];
-    const setAlong = (axis: XY, want: number): void => {
-      const d = want - dot(centre, axis);
-      centre = [centre[0] + axis[0] * d, centre[1] + axis[1] * d];
-    };
-    if (c.slot === "front" || c.slot === "back") {
-      setAlong(
-        f.n,
-        c.slot === "front" ? reach.n + reach.halfN + c.gap + halfN : reach.n - reach.halfN - c.gap - halfN,
-      );
-      // one seat at a long piece sits at its middle (a desk's chair)
-      if (want === 1) setAlong(f.u, (reach.uMin + reach.uMax) / 2);
-    } else if (c.slot === "head") {
-      const i = dot([cell[0] - f.origin[0], cell[1] - f.origin[1]], f.u);
-      setAlong(f.u, i < 0 ? reach.uMin - c.gap - halfU : reach.uMax + c.gap + halfU);
+    // the first of its pieces that fits this cell (a small crate where a barrel is too big beside a thick wall)
+    for (const piece of c.pieces) {
+      const pick = poseAt(room, f, reach, c, piece, cell, toward, want);
+      if (pick === null) continue;
+      virtual.add(k);
+      out.push(pick);
+      break;
     }
-    const clamp = (v: number): number => Math.max(-0.5, Math.min(0.5, Math.round(v * 100) / 100));
-    const offset: XY = [clamp(centre[0] - cell[0] - 0.5), clamp(centre[1] - cell[1] - 0.5)];
-    const placement: GeneratedPlacement = {
-      type: piece.type,
-      at: [cell[0], cell[1]],
-      size: [1, 1],
-      rot: turn.rot,
-      rotFine: turn.rotFine,
-      offset,
-    };
-    if (piece.variant !== undefined) placement.variant = piece.variant;
-    if (
-      blocking &&
-      room.grid.blocksWayIn?.(piece.type, placement.at, placement.size, piece.variant, {
-        rotFine: turn.rotFine,
-        offset,
-      })
-    )
-      continue;
-    virtual.add(k);
-    out.push({
-      comp: c,
-      piece,
-      cell,
-      placement,
-      centre: [cell[0] + 0.5 + offset[0], cell[1] + 0.5 + offset[1]],
-      blocking,
-      height: ext.hMax,
-    });
   }
   return out;
+}
+
+/** A companion piece posed in its cell (facing, against its walls, at its gap to the anchor); null where it does not fit. */
+function poseAt(
+  room: Room,
+  f: Frame,
+  reach: ReturnType<typeof anchorReach>,
+  c: Companion,
+  piece: PieceChoice,
+  cell: XY,
+  toward: XY,
+  want: number,
+): Pick | null {
+  const ext = room.piece(piece.type, piece.variant);
+  if (ext === undefined || ext.wMax > GROUPS.cellFit || ext.dMax > GROUPS.cellFit) return null;
+  const info = featureInfo(piece.type);
+  const blocking = info.blocking && !info.wallMounted;
+  if (blocking && room.zone.has(cellKey(cell[0], cell[1]))) return null;
+  // its facing, and its half sizes along the anchor and across it
+  const face: XY = c.facing === "anchor" ? toward : c.facing === "away" ? neg(toward) : f.n;
+  const turn = turnToward(face);
+  const alongN = Math.abs(dot(face, f.n)) >= Math.abs(dot(face, f.u));
+  const halfU = (alongN ? ext.wMax : ext.dMax) / 2;
+  const halfN = (alongN ? ext.dMax : ext.wMax) / 2;
+  // against the walls it has (as any wall piece), then the gap to the anchor along the slot's axis; a piece too big
+  // for its cell between the walls and posts it has does not stand there
+  const pushed = ext.tile ? null : touchShift(room.grid, cell, [1, 1], turn.rot, ext, room.postAt);
+  if (!ext.tile && pushed === null) return null;
+  let centre: XY = [cell[0] + 0.5 + (pushed?.[0] ?? 0), cell[1] + 0.5 + (pushed?.[1] ?? 0)];
+  const setAlong = (axis: XY, at: number): void => {
+    const d = at - dot(centre, axis);
+    centre = [centre[0] + axis[0] * d, centre[1] + axis[1] * d];
+  };
+  if (c.slot === "front" || c.slot === "back") {
+    setAlong(
+      f.n,
+      c.slot === "front" ? reach.n + reach.halfN + c.gap + halfN : reach.n - reach.halfN - c.gap - halfN,
+    );
+    // one seat at a long piece sits at its middle (a desk's chair)
+    if (want === 1) setAlong(f.u, (reach.uMin + reach.uMax) / 2);
+  } else if (c.slot === "head") {
+    const i = dot([cell[0] - f.origin[0], cell[1] - f.origin[1]], f.u);
+    setAlong(f.u, i < 0 ? reach.uMin - c.gap - halfU : reach.uMax + c.gap + halfU);
+  }
+  const clamp = (v: number): number => Math.max(-0.5, Math.min(0.5, Math.round(v * 100) / 100));
+  const offset: XY = [clamp(centre[0] - cell[0] - 0.5), clamp(centre[1] - cell[1] - 0.5)];
+  const placement: GeneratedPlacement = {
+    type: piece.type,
+    at: [cell[0], cell[1]],
+    size: [1, 1],
+    rot: turn.rot,
+    rotFine: turn.rotFine,
+    offset,
+  };
+  if (piece.variant !== undefined) placement.variant = piece.variant;
+  const pose = { rotFine: turn.rotFine, offset };
+  if (blocking && room.grid.blocksWayIn?.(piece.type, placement.at, placement.size, piece.variant, pose))
+    return null;
+  return {
+    comp: c,
+    piece,
+    cell,
+    placement,
+    centre: [cell[0] + 0.5 + offset[0], cell[1] + 0.5 + offset[1]],
+    blocking,
+    height: ext.hMax,
+  };
 }
 
 /** Does a companion in this slot stand against the wall behind the anchor's back row? */

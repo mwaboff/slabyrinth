@@ -348,13 +348,13 @@ plans/example-a review floor_patchwork 1
 plans/example-a review furniture_adrift 1
 plans/example-a review room_unlit 1
 plans/example-a review single_route 1
-plans/example-a@5 l2 pieces feature 41
+plans/example-a@5 l2 pieces feature 40
 plans/example-a@5 l2 pieces fill 29
 plans/example-a@5 l2 pieces floor 129
 plans/example-a@5 l2 pieces link 9
 plans/example-a@5 l2 pieces wall 255
 plans/example-a@5 l2 pieces wall_post 6
-plans/example-a@5 l2 layer site 469
+plans/example-a@5 l2 layer site 468
 plans/example-a@5 l2 part c3~room#0 1
 plans/example-a@5 l2 part c3~room#1 1
 plans/example-a@5 l2 part chapel~room#0 1
@@ -384,7 +384,6 @@ plans/example-a@5 l2 part chapel~room#3 1
 plans/example-a@5 l2 part chapel~room#30 1
 plans/example-a@5 l2 part chapel~room#31 1
 plans/example-a@5 l2 part chapel~room#32 1
-plans/example-a@5 l2 part chapel~room#33 1
 plans/example-a@5 l2 part chapel~room#4 1
 plans/example-a@5 l2 part chapel~room#5 1
 plans/example-a@5 l2 part chapel~room#6 1
@@ -395,13 +394,13 @@ plans/example-a@5 l2 part floor:floor.cobble 32
 plans/example-a@5 l2 part floor:floor.rock 39
 plans/example-a@5 l2 part landing~room#0 1
 plans/example-a@5 l2 part landing~room#1 1
-plans/example-a@5 l1 pieces feature 128
+plans/example-a@5 l1 pieces feature 116
 plans/example-a@5 l1 pieces fill 91
 plans/example-a@5 l1 pieces floor 95
 plans/example-a@5 l1 pieces opening 4
 plans/example-a@5 l1 pieces wall 148
 plans/example-a@5 l1 pieces wall_post 27
-plans/example-a@5 l1 layer site 493
+plans/example-a@5 l1 layer site 481
 plans/example-a@5 l1 part c1~a 1
 plans/example-a@5 l1 part c1~b 1
 plans/example-a@5 l1 part c1~room#0 1
@@ -470,20 +469,7 @@ plans/example-a@5 l1 part hall~room#59 1
 plans/example-a@5 l1 part hall~room#6 1
 plans/example-a@5 l1 part hall~room#60 1
 plans/example-a@5 l1 part hall~room#61 1
-plans/example-a@5 l1 part hall~room#62 1
-plans/example-a@5 l1 part hall~room#63 1
-plans/example-a@5 l1 part hall~room#64 1
-plans/example-a@5 l1 part hall~room#65 1
-plans/example-a@5 l1 part hall~room#66 1
-plans/example-a@5 l1 part hall~room#67 1
-plans/example-a@5 l1 part hall~room#68 1
-plans/example-a@5 l1 part hall~room#69 1
 plans/example-a@5 l1 part hall~room#7 1
-plans/example-a@5 l1 part hall~room#70 1
-plans/example-a@5 l1 part hall~room#71 1
-plans/example-a@5 l1 part hall~room#72 1
-plans/example-a@5 l1 part hall~room#73 1
-plans/example-a@5 l1 part hall~room#74 1
 plans/example-a@5 l1 part hall~room#8 1
 plans/example-a@5 l1 part hall~room#9 1
 plans/example-a@5 l1 part ossuary~room#0 1
@@ -494,7 +480,6 @@ plans/example-a@5 l1 part ossuary~room#4 1
 plans/example-a@5 l1 part ossuary~room#5 1
 plans/example-a@5 l2 feature altar 1
 plans/example-a@5 l2 feature bench 7
-plans/example-a@5 l2 feature brazier 1
 plans/example-a@5 l2 feature candelabra 3
 plans/example-a@5 l2 feature chest 3
 plans/example-a@5 l2 feature clutter 4
@@ -511,7 +496,7 @@ plans/example-a@5 l1 feature candles 3
 plans/example-a@5 l1 feature chest 5
 plans/example-a@5 l1 feature clutter 21
 plans/example-a@5 l1 feature coffin 2
-plans/example-a@5 l1 feature debris 16
+plans/example-a@5 l1 feature debris 17
 plans/example-a@5 l1 feature pillar 8
 plans/example-a@5 l1 feature rubble 3
 plans/example-a@5 l1 feature rug 1
@@ -520,12 +505,11 @@ plans/example-a@5 l1 feature shelf_line 5
 plans/example-a@5 l1 feature statue 1
 plans/example-a@5 l1 feature stool 6
 plans/example-a@5 l1 feature table 3
-plans/example-a@5 l1 feature torch_wall 35
+plans/example-a@5 l1 feature torch_wall 22
 plans/example-a@5 l1 feature weapon_rack 1
 plans/example-a@5 diag info footprint_mismatch 4
 plans/example-a@5 diag info role_missing 2
 plans/example-a@5 diag info secret_door_plug 1
-plans/example-a@5 diag info verify_props_overlap 1
 plans/example-a@5 diag info verify_water_level 1
 plans/example-a@5 review cave_floor_flat 1
 plans/example-a@5 review cave_mass_gaps 1
@@ -1083,13 +1067,13 @@ plans/inn-interior-v1 diag info footprint_mismatch 3
 plans/inn-interior-v1 diag info verify_prop_nudged 14
 plans/inn-interior-v1 review flat_map 1
 plans/inn-interior-v1 review single_route 1
-plans/inn-interior-v1@5 l1 pieces feature 368
+plans/inn-interior-v1@5 l1 pieces feature 358
 plans/inn-interior-v1@5 l1 pieces fill 54
 plans/inn-interior-v1@5 l1 pieces floor 222
 plans/inn-interior-v1@5 l1 pieces opening 11
 plans/inn-interior-v1@5 l1 pieces wall 149
 plans/inn-interior-v1@5 l1 pieces wall_post 40
-plans/inn-interior-v1@5 l1 layer site 844
+plans/inn-interior-v1@5 l1 layer site 834
 plans/inn-interior-v1@5 l1 part armoury~room#0 1
 plans/inn-interior-v1@5 l1 part armoury~room#1 1
 plans/inn-interior-v1@5 l1 part armoury~room#10 1
@@ -1262,9 +1246,6 @@ plans/inn-interior-v1@5 l1 part library~room#29 1
 plans/inn-interior-v1@5 l1 part library~room#3 1
 plans/inn-interior-v1@5 l1 part library~room#30 1
 plans/inn-interior-v1@5 l1 part library~room#31 1
-plans/inn-interior-v1@5 l1 part library~room#32 1
-plans/inn-interior-v1@5 l1 part library~room#33 1
-plans/inn-interior-v1@5 l1 part library~room#34 1
 plans/inn-interior-v1@5 l1 part library~room#4 1
 plans/inn-interior-v1@5 l1 part library~room#5 1
 plans/inn-interior-v1@5 l1 part library~room#6 1
@@ -1298,7 +1279,6 @@ plans/inn-interior-v1@5 l1 part shrine~room#22 1
 plans/inn-interior-v1@5 l1 part shrine~room#23 1
 plans/inn-interior-v1@5 l1 part shrine~room#24 1
 plans/inn-interior-v1@5 l1 part shrine~room#25 1
-plans/inn-interior-v1@5 l1 part shrine~room#26 1
 plans/inn-interior-v1@5 l1 part shrine~room#3 1
 plans/inn-interior-v1@5 l1 part shrine~room#4 1
 plans/inn-interior-v1@5 l1 part shrine~room#5 1
@@ -1430,13 +1410,7 @@ plans/inn-interior-v1@5 l1 part tavern~room#51 1
 plans/inn-interior-v1@5 l1 part tavern~room#52 1
 plans/inn-interior-v1@5 l1 part tavern~room#53 1
 plans/inn-interior-v1@5 l1 part tavern~room#54 1
-plans/inn-interior-v1@5 l1 part tavern~room#55 1
-plans/inn-interior-v1@5 l1 part tavern~room#56 1
-plans/inn-interior-v1@5 l1 part tavern~room#57 1
-plans/inn-interior-v1@5 l1 part tavern~room#58 1
-plans/inn-interior-v1@5 l1 part tavern~room#59 1
 plans/inn-interior-v1@5 l1 part tavern~room#6 1
-plans/inn-interior-v1@5 l1 part tavern~room#60 1
 plans/inn-interior-v1@5 l1 part tavern~room#7 1
 plans/inn-interior-v1@5 l1 part tavern~room#8 1
 plans/inn-interior-v1@5 l1 part tavern~room#9 1
@@ -1470,7 +1444,7 @@ plans/inn-interior-v1@5 l1 feature bench 3
 plans/inn-interior-v1@5 l1 feature bookshelf 10
 plans/inn-interior-v1@5 l1 feature bunk_bed 5
 plans/inn-interior-v1@5 l1 feature candelabra 2
-plans/inn-interior-v1@5 l1 feature candles 22
+plans/inn-interior-v1@5 l1 feature candles 19
 plans/inn-interior-v1@5 l1 feature cauldron 1
 plans/inn-interior-v1@5 l1 feature chair 16
 plans/inn-interior-v1@5 l1 feature chest 18
@@ -1484,18 +1458,18 @@ plans/inn-interior-v1@5 l1 feature shelf_line 40
 plans/inn-interior-v1@5 l1 feature statue 2
 plans/inn-interior-v1@5 l1 feature stool 6
 plans/inn-interior-v1@5 l1 feature table 6
-plans/inn-interior-v1@5 l1 feature torch_wall 65
+plans/inn-interior-v1@5 l1 feature torch_wall 58
 plans/inn-interior-v1@5 l1 feature weapon_rack 6
 plans/inn-interior-v1@5 diag info footprint_mismatch 3
 plans/inn-interior-v1@5 diag info verify_prop_nudged 18
 plans/inn-interior-v1@5 review flat_map 1
 plans/inn-interior-v1@5 review single_route 1
-plans/interiors-lineup-v1 l1 pieces feature 452
+plans/interiors-lineup-v1 l1 pieces feature 414
 plans/interiors-lineup-v1 l1 pieces floor 217
 plans/interiors-lineup-v1 l1 pieces opening 18
 plans/interiors-lineup-v1 l1 pieces wall 157
 plans/interiors-lineup-v1 l1 pieces wall_post 9
-plans/interiors-lineup-v1 l1 layer site 853
+plans/interiors-lineup-v1 l1 layer site 815
 plans/interiors-lineup-v1 l1 part chart~room#0 1
 plans/interiors-lineup-v1 l1 part chart~room#1 1
 plans/interiors-lineup-v1 l1 part chart~room#10 1
@@ -1557,8 +1531,6 @@ plans/interiors-lineup-v1 l1 part guest~room#27 1
 plans/interiors-lineup-v1 l1 part guest~room#28 1
 plans/interiors-lineup-v1 l1 part guest~room#29 1
 plans/interiors-lineup-v1 l1 part guest~room#3 1
-plans/interiors-lineup-v1 l1 part guest~room#30 1
-plans/interiors-lineup-v1 l1 part guest~room#31 1
 plans/interiors-lineup-v1 l1 part guest~room#4 1
 plans/interiors-lineup-v1 l1 part guest~room#5 1
 plans/interiors-lineup-v1 l1 part guest~room#6 1
@@ -1619,7 +1591,6 @@ plans/interiors-lineup-v1 l1 part master~room#25 1
 plans/interiors-lineup-v1 l1 part master~room#26 1
 plans/interiors-lineup-v1 l1 part master~room#27 1
 plans/interiors-lineup-v1 l1 part master~room#28 1
-plans/interiors-lineup-v1 l1 part master~room#29 1
 plans/interiors-lineup-v1 l1 part master~room#3 1
 plans/interiors-lineup-v1 l1 part master~room#4 1
 plans/interiors-lineup-v1 l1 part master~room#5 1
@@ -1662,8 +1633,6 @@ plans/interiors-lineup-v1 l1 part office~room#37 1
 plans/interiors-lineup-v1 l1 part office~room#38 1
 plans/interiors-lineup-v1 l1 part office~room#39 1
 plans/interiors-lineup-v1 l1 part office~room#4 1
-plans/interiors-lineup-v1 l1 part office~room#40 1
-plans/interiors-lineup-v1 l1 part office~room#41 1
 plans/interiors-lineup-v1 l1 part office~room#5 1
 plans/interiors-lineup-v1 l1 part office~room#6 1
 plans/interiors-lineup-v1 l1 part office~room#7 1
@@ -1687,7 +1656,6 @@ plans/interiors-lineup-v1 l1 part parlour~room#21 1
 plans/interiors-lineup-v1 l1 part parlour~room#22 1
 plans/interiors-lineup-v1 l1 part parlour~room#23 1
 plans/interiors-lineup-v1 l1 part parlour~room#24 1
-plans/interiors-lineup-v1 l1 part parlour~room#25 1
 plans/interiors-lineup-v1 l1 part parlour~room#3 1
 plans/interiors-lineup-v1 l1 part parlour~room#4 1
 plans/interiors-lineup-v1 l1 part parlour~room#5 1
@@ -1726,10 +1694,6 @@ plans/interiors-lineup-v1 l1 part school~room#30 1
 plans/interiors-lineup-v1 l1 part school~room#31 1
 plans/interiors-lineup-v1 l1 part school~room#32 1
 plans/interiors-lineup-v1 l1 part school~room#33 1
-plans/interiors-lineup-v1 l1 part school~room#34 1
-plans/interiors-lineup-v1 l1 part school~room#35 1
-plans/interiors-lineup-v1 l1 part school~room#36 1
-plans/interiors-lineup-v1 l1 part school~room#37 1
 plans/interiors-lineup-v1 l1 part school~room#4 1
 plans/interiors-lineup-v1 l1 part school~room#5 1
 plans/interiors-lineup-v1 l1 part school~room#6 1
@@ -1773,6 +1737,9 @@ plans/interiors-lineup-v1 l1 part shop~room#39 1
 plans/interiors-lineup-v1 l1 part shop~room#4 1
 plans/interiors-lineup-v1 l1 part shop~room#40 1
 plans/interiors-lineup-v1 l1 part shop~room#41 1
+plans/interiors-lineup-v1 l1 part shop~room#42 1
+plans/interiors-lineup-v1 l1 part shop~room#43 1
+plans/interiors-lineup-v1 l1 part shop~room#44 1
 plans/interiors-lineup-v1 l1 part shop~room#5 1
 plans/interiors-lineup-v1 l1 part shop~room#6 1
 plans/interiors-lineup-v1 l1 part shop~room#7 1
@@ -1882,40 +1849,9 @@ plans/interiors-lineup-v1 l1 part taproom~room#59 1
 plans/interiors-lineup-v1 l1 part taproom~room#6 1
 plans/interiors-lineup-v1 l1 part taproom~room#60 1
 plans/interiors-lineup-v1 l1 part taproom~room#61 1
-plans/interiors-lineup-v1 l1 part taproom~room#62 1
-plans/interiors-lineup-v1 l1 part taproom~room#63 1
-plans/interiors-lineup-v1 l1 part taproom~room#64 1
-plans/interiors-lineup-v1 l1 part taproom~room#65 1
-plans/interiors-lineup-v1 l1 part taproom~room#66 1
-plans/interiors-lineup-v1 l1 part taproom~room#67 1
-plans/interiors-lineup-v1 l1 part taproom~room#68 1
-plans/interiors-lineup-v1 l1 part taproom~room#69 1
 plans/interiors-lineup-v1 l1 part taproom~room#7 1
-plans/interiors-lineup-v1 l1 part taproom~room#70 1
-plans/interiors-lineup-v1 l1 part taproom~room#71 1
-plans/interiors-lineup-v1 l1 part taproom~room#72 1
-plans/interiors-lineup-v1 l1 part taproom~room#73 1
-plans/interiors-lineup-v1 l1 part taproom~room#74 1
-plans/interiors-lineup-v1 l1 part taproom~room#75 1
-plans/interiors-lineup-v1 l1 part taproom~room#76 1
-plans/interiors-lineup-v1 l1 part taproom~room#77 1
-plans/interiors-lineup-v1 l1 part taproom~room#78 1
-plans/interiors-lineup-v1 l1 part taproom~room#79 1
 plans/interiors-lineup-v1 l1 part taproom~room#8 1
-plans/interiors-lineup-v1 l1 part taproom~room#80 1
-plans/interiors-lineup-v1 l1 part taproom~room#81 1
-plans/interiors-lineup-v1 l1 part taproom~room#82 1
-plans/interiors-lineup-v1 l1 part taproom~room#83 1
-plans/interiors-lineup-v1 l1 part taproom~room#84 1
-plans/interiors-lineup-v1 l1 part taproom~room#85 1
-plans/interiors-lineup-v1 l1 part taproom~room#86 1
-plans/interiors-lineup-v1 l1 part taproom~room#87 1
-plans/interiors-lineup-v1 l1 part taproom~room#88 1
-plans/interiors-lineup-v1 l1 part taproom~room#89 1
 plans/interiors-lineup-v1 l1 part taproom~room#9 1
-plans/interiors-lineup-v1 l1 part taproom~room#90 1
-plans/interiors-lineup-v1 l1 part taproom~room#91 1
-plans/interiors-lineup-v1 l1 part taproom~room#92 1
 plans/interiors-lineup-v1 l1 part ward~room#0 1
 plans/interiors-lineup-v1 l1 part ward~room#1 1
 plans/interiors-lineup-v1 l1 part ward~room#10 1
@@ -1951,30 +1887,29 @@ plans/interiors-lineup-v1 l1 part ward~room#6 1
 plans/interiors-lineup-v1 l1 part ward~room#7 1
 plans/interiors-lineup-v1 l1 part ward~room#8 1
 plans/interiors-lineup-v1 l1 part ward~room#9 1
-plans/interiors-lineup-v1 l1 feature armor_stand 5
+plans/interiors-lineup-v1 l1 feature armor_stand 4
 plans/interiors-lineup-v1 l1 feature bar_counter 5
 plans/interiors-lineup-v1 l1 feature barrel 13
 plans/interiors-lineup-v1 l1 feature bed 5
-plans/interiors-lineup-v1 l1 feature bench 7
-plans/interiors-lineup-v1 l1 feature bookshelf 23
-plans/interiors-lineup-v1 l1 feature brazier 9
+plans/interiors-lineup-v1 l1 feature bench 9
+plans/interiors-lineup-v1 l1 feature bookshelf 24
 plans/interiors-lineup-v1 l1 feature candelabra 1
-plans/interiors-lineup-v1 l1 feature candles 36
+plans/interiors-lineup-v1 l1 feature candles 25
 plans/interiors-lineup-v1 l1 feature cauldron 1
-plans/interiors-lineup-v1 l1 feature chair 25
+plans/interiors-lineup-v1 l1 feature chair 20
 plans/interiors-lineup-v1 l1 feature chest 25
-plans/interiors-lineup-v1 l1 feature clutter 103
+plans/interiors-lineup-v1 l1 feature clutter 101
 plans/interiors-lineup-v1 l1 feature counter 2
-plans/interiors-lineup-v1 l1 feature crate 15
+plans/interiors-lineup-v1 l1 feature crate 21
 plans/interiors-lineup-v1 l1 feature desk 11
 plans/interiors-lineup-v1 l1 feature rug 4
 plans/interiors-lineup-v1 l1 feature sack 9
-plans/interiors-lineup-v1 l1 feature shelf_line 38
+plans/interiors-lineup-v1 l1 feature shelf_line 37
 plans/interiors-lineup-v1 l1 feature stool 3
-plans/interiors-lineup-v1 l1 feature table 10
-plans/interiors-lineup-v1 l1 feature torch_wall 102
+plans/interiors-lineup-v1 l1 feature table 7
+plans/interiors-lineup-v1 l1 feature torch_wall 87
 plans/interiors-lineup-v1 diag info footprint_mismatch 3
-plans/interiors-lineup-v1 diag info verify_prop_nudged 10
+plans/interiors-lineup-v1 diag info verify_prop_nudged 14
 plans/interiors-lineup-v1 review flat_map 1
 plans/interiors-lineup-v1 review no_focal_point 1
 plans/keep-dungeon-v8 l3 pieces feature 41
@@ -2076,13 +2011,13 @@ plans/keep-dungeon-v8 diag info verify_props_overlap 2
 plans/keep-dungeon-v8 review focal_unlit 2
 plans/keep-dungeon-v8 review furniture_adrift 1
 plans/keep-dungeon-v8 review room_bare 1
-plans/keep-dungeon-v8@5 l3 pieces feature 53
+plans/keep-dungeon-v8@5 l3 pieces feature 51
 plans/keep-dungeon-v8@5 l3 pieces fill 45
 plans/keep-dungeon-v8@5 l3 pieces floor 39
 plans/keep-dungeon-v8@5 l3 pieces link 4
 plans/keep-dungeon-v8@5 l3 pieces wall 41
 plans/keep-dungeon-v8@5 l3 pieces wall_post 8
-plans/keep-dungeon-v8@5 l3 layer site 190
+plans/keep-dungeon-v8@5 l3 layer site 188
 plans/keep-dungeon-v8@5 l3 part ante~room#0 1
 plans/keep-dungeon-v8@5 l3 part ante~room#1 1
 plans/keep-dungeon-v8@5 l3 part floor:floor.flagstone 13
@@ -2126,7 +2061,6 @@ plans/keep-dungeon-v8@5 l1 part landing~room#2 1
 plans/keep-dungeon-v8@5 l1 part landing~room#3 1
 plans/keep-dungeon-v8@5 l3 feature altar 2
 plans/keep-dungeon-v8@5 l3 feature bench 4
-plans/keep-dungeon-v8@5 l3 feature brazier 2
 plans/keep-dungeon-v8@5 l3 feature candelabra 6
 plans/keep-dungeon-v8@5 l3 feature candles 1
 plans/keep-dungeon-v8@5 l3 feature chest 4
@@ -2771,22 +2705,24 @@ plans/multi-level-stairs@5 roof part floor:floor.flagstone 18
 plans/multi-level-stairs@5 ground feature statue 1
 plans/multi-level-stairs@5 ground feature torch_wall 6
 plans/multi-level-stairs@5 study_lvl feature armor_stand 3
-plans/multi-level-stairs@5 study_lvl feature bookshelf 9
+plans/multi-level-stairs@5 study_lvl feature bookshelf 11
 plans/multi-level-stairs@5 study_lvl feature candles 2
 plans/multi-level-stairs@5 study_lvl feature chair 2
-plans/multi-level-stairs@5 study_lvl feature chest 3
-plans/multi-level-stairs@5 study_lvl feature clutter 4
+plans/multi-level-stairs@5 study_lvl feature chest 2
+plans/multi-level-stairs@5 study_lvl feature clutter 3
+plans/multi-level-stairs@5 study_lvl feature crate 1
 plans/multi-level-stairs@5 study_lvl feature desk 1
 plans/multi-level-stairs@5 study_lvl feature rug 1
 plans/multi-level-stairs@5 study_lvl feature shelf_line 4
 plans/multi-level-stairs@5 study_lvl feature table 1
-plans/multi-level-stairs@5 study_lvl feature torch_wall 7
+plans/multi-level-stairs@5 study_lvl feature torch_wall 6
 plans/multi-level-stairs@5 roof feature custom 1
 plans/multi-level-stairs@5 diag info footprint_mismatch 2
 plans/multi-level-stairs@5 diag warning custom_unresolved 1
 plans/multi-level-stairs@5 review brief_not_met 1
 plans/multi-level-stairs@5 review levels_close 2
 plans/multi-level-stairs@5 review pieces_substituted 1
+plans/multi-level-stairs@5 review symmetry 1
 plans/night-market-v1 g pieces feature 360
 plans/night-market-v1 g pieces fill 336
 plans/night-market-v1 g pieces floor 468
@@ -3228,13 +3164,13 @@ plans/purpose-lineup-v1 diag info footprint_mismatch 2
 plans/purpose-lineup-v1 diag info verify_prop_nudged 4
 plans/purpose-lineup-v1 review flat_map 1
 plans/purpose-lineup-v1 review single_route 1
-plans/purpose-lineup-v1@5 l1 pieces feature 180
+plans/purpose-lineup-v1@5 l1 pieces feature 176
 plans/purpose-lineup-v1@5 l1 pieces fill 24
 plans/purpose-lineup-v1@5 l1 pieces floor 129
 plans/purpose-lineup-v1@5 l1 pieces opening 6
 plans/purpose-lineup-v1@5 l1 pieces wall 91
 plans/purpose-lineup-v1@5 l1 pieces wall_post 24
-plans/purpose-lineup-v1@5 l1 layer site 454
+plans/purpose-lineup-v1@5 l1 layer site 450
 plans/purpose-lineup-v1@5 l1 part antechamber~room#0 1
 plans/purpose-lineup-v1@5 l1 part antechamber~room#1 1
 plans/purpose-lineup-v1@5 l1 part antechamber~room#10 1
@@ -3397,10 +3333,6 @@ plans/purpose-lineup-v1@5 l1 part oaths~room#11 1
 plans/purpose-lineup-v1@5 l1 part oaths~room#12 1
 plans/purpose-lineup-v1@5 l1 part oaths~room#13 1
 plans/purpose-lineup-v1@5 l1 part oaths~room#14 1
-plans/purpose-lineup-v1@5 l1 part oaths~room#15 1
-plans/purpose-lineup-v1@5 l1 part oaths~room#16 1
-plans/purpose-lineup-v1@5 l1 part oaths~room#17 1
-plans/purpose-lineup-v1@5 l1 part oaths~room#18 1
 plans/purpose-lineup-v1@5 l1 part oaths~room#2 1
 plans/purpose-lineup-v1@5 l1 part oaths~room#3 1
 plans/purpose-lineup-v1@5 l1 part oaths~room#4 1
@@ -3419,7 +3351,6 @@ plans/purpose-lineup-v1@5 l1 feature altar 1
 plans/purpose-lineup-v1@5 l1 feature armor_stand 5
 plans/purpose-lineup-v1@5 l1 feature barrel 10
 plans/purpose-lineup-v1@5 l1 feature bench 2
-plans/purpose-lineup-v1@5 l1 feature brazier 1
 plans/purpose-lineup-v1@5 l1 feature bunk_bed 3
 plans/purpose-lineup-v1@5 l1 feature candelabra 4
 plans/purpose-lineup-v1@5 l1 feature candles 3
@@ -3435,7 +3366,7 @@ plans/purpose-lineup-v1@5 l1 feature shelf_line 19
 plans/purpose-lineup-v1@5 l1 feature statue 5
 plans/purpose-lineup-v1@5 l1 feature table 1
 plans/purpose-lineup-v1@5 l1 feature throne 1
-plans/purpose-lineup-v1@5 l1 feature torch_wall 34
+plans/purpose-lineup-v1@5 l1 feature torch_wall 31
 plans/purpose-lineup-v1@5 l1 feature weapon_rack 7
 plans/purpose-lineup-v1@5 diag info footprint_mismatch 2
 plans/purpose-lineup-v1@5 diag info verify_prop_nudged 7
