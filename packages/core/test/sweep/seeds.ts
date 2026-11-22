@@ -106,7 +106,7 @@ export const WARNING_BASIS = 150;
  * - dressed-cave, heartroot-rift-v7 mount_no_wall: a dress op's thorn vines hung on a cave wall edge with no wall
  *   piece (the room recipe's board-edge torches are fixed: `mountsOnBuiltWalls`).
  * - market-street-v3, three-step-glen-v1, terraced-hill cliff_gap: a 2-tile cliff edge with no rock in front.
- * - heartroot-rift-v7, dressed-cave(-v2), hillside-v5, sea-grotto prop_no_floor: a dress piece (a swamp tree base, a
+ * - heartroot-rift-v7, dressed-cave(-v2), hillside-v5, smugglers-grotto-v3 prop_no_floor: a dress piece (a swamp tree base, a
  *   boulder, a moss rock) anchored on a cell whose centre has no floor piece under it (a ragged cave edge, an outcrop).
  * - smugglers-grotto-v3, sea-grotto, old-stones-glade-v6 prop_floating: a landing's lantern and candles 0.42 above the
  *   floor under their centre (the landing's lower step), pebbles 0.5 above a step.
@@ -115,7 +115,8 @@ export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, num
   "heartroot-rift-v7": {
     verify_props_overlap: 68,
     verify_prop_no_floor: 4,
-    verify_mount_no_wall: 2,
+    // 2 before `channelFloorWhole` moved the rift's shelves and the lair dressing round them
+    verify_mount_no_wall: 4,
     verify_prop_floating: 4,
   },
   "keep-dungeon-v8": { verify_prop_in_wall: 128 },
@@ -139,7 +140,7 @@ export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, num
   },
   "dressed-cave-v2": { verify_props_overlap: 130, verify_prop_no_floor: 17 },
   "hillside-v5": { verify_prop_no_floor: 10 },
-  "sea-grotto": { verify_prop_no_floor: 1, verify_prop_floating: 19 },
+  "sea-grotto": { verify_prop_floating: 19 },
   "terraced-hill": { verify_cliff_gap: 1 },
 };
 
