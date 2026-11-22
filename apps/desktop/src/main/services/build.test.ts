@@ -107,6 +107,49 @@ describe("CompileService", () => {
     }
   });
 
+  it("a worker out of memory says so in plain words, naming the map size setting", async () => {
+    const dying = (
+      fail: (w: { error?: (e: Error) => void; exit?: (c: number) => void }) => void,
+    ): WorkerLike => {
+      const on: { error?: (e: Error) => void; exit?: (c: number) => void } = {};
+      return {
+        postMessage: () => {
+          setTimeout(() => {
+            fail(on);
+          }, 0);
+        },
+        on: (event: string, fn: never) => {
+          if (event === "error") on.error = fn;
+          if (event === "exit") on.exit = fn;
+        },
+        terminate: () => Promise.resolve(0),
+      };
+    };
+    const oom = Object.assign(new Error("Worker terminated due to reaching memory limit"), {
+      code: "ERR_WORKER_OUT_OF_MEMORY",
+    });
+    for (const fail of [
+      (w: { error?: (e: Error) => void }) => w.error?.(oom),
+      (w: { exit?: (c: number) => void }) => w.exit?.(134),
+    ]) {
+      const compiler = new CompileService({
+        spawn: () => dying(fail),
+        emit: () => undefined,
+        logger: memoryLogger(),
+      });
+      await expect(compiler.run(input)).rejects.toMatchObject({
+        message: expect.stringMatching(/^The build ran out of memory\..*Maximum map size/) as unknown,
+      });
+    }
+    // any other crash keeps the plain line
+    const other = new CompileService({
+      spawn: () => dying((w) => w.error?.(new Error("boom"))),
+      emit: () => undefined,
+      logger: memoryLogger(),
+    });
+    await expect(other.run(input)).rejects.toMatchObject({ message: "The build stopped unexpectedly." });
+  });
+
   it("the real worker_threads entry loads and answers (tsx loader)", async () => {
     try {
       createRequire(import.meta.url).resolve("tsx");

@@ -32,6 +32,7 @@ import { BIG_MAP_HEAP_MB, logMainHeap } from "./util/heap";
 import { startEngine } from "./wiring/engine";
 import { installMenu, wireIpc } from "./wiring/ipcAndMenu";
 import { outsideWorld, type OutsideWorld } from "./wiring/outsideWorld";
+import { watchRenderer } from "./wiring/rendererRecovery";
 import { thumbnailRefresher } from "./wiring/thumbnails";
 import { startUpdates } from "./wiring/updates";
 import { WindowLink } from "./wiring/windowLink";
@@ -167,6 +168,8 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
     dispatch,
     attachWindow(win, url) {
       link.attach(win, url);
+      // a renderer that runs out of memory (a big map) or crashes is reloaded with a plain message, never left blank
+      watchRenderer(win, url, { logger: logger.child("window"), dialogs: outside.dialogs });
       // a copy of the add-on installed by hand shows up when the user comes back to the app
       win.on("focus", () => {
         void talespireLink.recheck();

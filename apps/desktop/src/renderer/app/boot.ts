@@ -18,6 +18,7 @@ import { useTaleSpireLink } from "../stores/talespireLink";
 import { useUpdates } from "../stores/updates";
 import { openSnapshot, reportUnhandled } from "./actions";
 import { runMenuCommand } from "./commands";
+import { announceRecovery } from "./recovered";
 
 export async function installBridge(): Promise<"real" | "fake"> {
   const url = new URL(window.location.href);
@@ -145,6 +146,7 @@ export function subscribeEvents(): void {
 export async function boot(): Promise<void> {
   await installBridge();
   subscribeEvents();
+  announceRecovery(useApp.getState().toast);
   const info = await call("app:getInfo", undefined);
   useApp.getState().setInfo(info.platform, info.version);
   await useSettings.getState().load();

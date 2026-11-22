@@ -98,13 +98,23 @@ export function planIssues(
   }
 }
 
+/** The display list of every level for these options: cheap next to the resolve, so the preview builds it per toggle. */
+export function displayLists(
+  resolved: ResolvedPlan,
+  labels: Record<string, string>,
+  options: DisplayOptions,
+): Record<string, DisplayList> {
+  const lists: Record<string, DisplayList> = {};
+  for (const level of resolved.levels) {
+    lists[level.id] = buildDisplayList(level, options, { links: resolved.links, levelLabels: labels });
+  }
+  return lists;
+}
+
 export function compute(req: Omit<ResolveRequest, "palettesKey">, palettes: ResolvePalettes): ResolveResult {
   const resolved = resolvePlan(req.plan, palettes);
   const labels = levelLabels(resolved, req.plan.entryLevel);
-  const lists: Record<string, DisplayList> = {};
-  for (const level of resolved.levels) {
-    lists[level.id] = buildDisplayList(level, req.options, { links: resolved.links, levelLabels: labels });
-  }
+  const lists = displayLists(resolved, labels, req.options);
   const issues = planIssues(req.plan, palettes, {
     resolved,
     ...(req.sizeTier !== undefined ? { sizeTier: req.sizeTier } : {}),
