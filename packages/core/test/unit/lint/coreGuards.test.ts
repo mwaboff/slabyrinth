@@ -538,6 +538,19 @@ describe("app guards", () => {
           expect.stringContaining("slabyrinth/reported-calls"),
         ]);
     });
+    it("reports a catch that swallows the failure without a trace", async () => {
+      for (const code of [
+        "void load().catch(() => undefined);",
+        "void load().catch(() => {});",
+        "void load().catch(() => null);",
+      ])
+        expect(await guardHits(file, code), code).toEqual([
+          expect.stringContaining("slabyrinth/reported-calls"),
+        ]);
+      expect(
+        await guardHits(file, 'void load().catch((e: unknown) => { console.warn("load failed", e); });'),
+      ).toEqual([]);
+    });
     it("leaves run, tryCall and awaited calls alone", async () => {
       for (const code of [
         'void run("plan:undo", undefined, "Couldn\'t undo.");',
@@ -572,7 +585,7 @@ describe("app guards", () => {
     const file = "apps/desktop/src/renderer/features/x.ts";
     it("reports view state sent past the store, and a project switch outside switchProject", async () => {
       for (const code of [
-        'call("project:setUiState", { ui: { zoom: 2 } }).catch(() => undefined);',
+        'call("project:setUiState", { ui: { zoom: 2 } }).catch(warn);',
         'async function f() { await call("project:open", { path: p }); }',
         'async function f() { await tryCall("project:close", {}); }',
       ])
@@ -590,7 +603,7 @@ describe("app guards", () => {
       expect(
         await guardHits(
           "apps/desktop/src/renderer/stores/project.ts",
-          'call("project:setUiState", { ui: {} }).catch(() => undefined);',
+          'call("project:setUiState", { ui: {} }).catch(warn);',
         ),
       ).toEqual([]);
     });

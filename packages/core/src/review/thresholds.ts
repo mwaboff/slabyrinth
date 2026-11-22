@@ -170,6 +170,10 @@ export const REVIEW = {
   },
   streets: {
     weight: 5,
+    /** The weight's factor for misplaced props: base, plus this much per prop, up to the cap. */
+    misplacedBase: 0.8,
+    misplacedPerProp: 0.2,
+    misplacedCap: 2,
   },
   brief: {
     /** A word of the request the map does not show ranks high. */

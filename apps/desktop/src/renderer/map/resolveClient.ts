@@ -60,7 +60,10 @@ function buildPalettes(): Promise<ResolvePalettesData> {
     watching = true;
     on("palettes:changed", () => {
       palettes = null;
-      void buildPalettes().catch(() => undefined);
+      // a prefetch: the next map draw asks again and shows its own failure; this one is only logged
+      void buildPalettes().catch((e: unknown) => {
+        console.warn("[slabyrinth] could not prefetch the changed palettes", e);
+      });
     });
   }
   palettes ??= call("palettes:resolveData", undefined).then(

@@ -114,8 +114,11 @@ export const useBuild = create<BuildState>((set, get) => ({
     for (const fx of effects) {
       if (fx.type === "copy") await get().copy(fx.slabId, true);
       else if (fx.type === "set_pasted")
+        // the pasted tick is a convenience: the paste guide goes on without it, the failure is logged
         await call("build:setPasted", { buildId: rec.id, chunkId: fx.slabId, pasted: fx.pasted }).catch(
-          () => undefined,
+          (err: unknown) => {
+            console.warn("[slabyrinth] could not record the pasted slab", err);
+          },
         );
       else useProject.getState().savePasteGuide({ buildId: rec.id, currentStep: fx.step });
     }

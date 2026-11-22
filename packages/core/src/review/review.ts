@@ -1950,7 +1950,12 @@ function streets(c: Ctx): DesignNote[] {
     out.push({
       code: "misplaced_props",
       levelId: L.id,
-      score: REVIEW.streets.weight * Math.min(2, 0.8 + wrong.length * 0.2),
+      score:
+        REVIEW.streets.weight *
+        Math.min(
+          REVIEW.streets.misplacedCap,
+          REVIEW.streets.misplacedBase + wrong.length * REVIEW.streets.misplacedPerProp,
+        ),
       ...(at ? { cell: at } : {}),
       elementIds: wrong.slice(0, 8),
       message: `${wrong.length} prop${wrong.length === 1 ? " stands" : "s stand"} where it does not belong (vehicles on the pavement or a crossing, other props in the carriageway): ${wrong.slice(0, 5).join(", ")}`,

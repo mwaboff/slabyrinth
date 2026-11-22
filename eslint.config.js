@@ -544,6 +544,12 @@ const reportedCallsRule = selectorRule("Renderer IPC calls report their failures
     message:
       "A `void call(...).then(...)` loses its failure: use run(channel, req, failLead, then) from app/actions.ts.",
   },
+  {
+    selector:
+      "CallExpression[callee.property.name='catch'] > ArrowFunctionExpression[params.length=0]:matches([body.type='BlockStatement'][body.body.length=0], [body.type='Identifier'][body.name='undefined'], [body.type='Literal'][body.raw='null'])",
+    message:
+      "`.catch(() => undefined)` swallows the failure without a trace: show it (run, fail from app/actions.ts) or at least log it with what failed.",
+  },
 ]);
 
 /**
