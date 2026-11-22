@@ -61,8 +61,9 @@ export function areaTable(
       area.kind === "cave" ? td.caveFloor : area.kind === "courtyard" ? td.courtyardFloor : td.floor;
     const floor = area.floor ?? defFloor;
     // generator 4 reads these (rooms dressed, floored, finished by purpose); they are cheap and pure, so every
-    // generator computes them, and only generator 4 writes them on the resolved area
-    const room = classifyRoom(area);
+    // generator computes them, and only generator 4 writes them on the resolved area; generator 5 also reads the
+    // finer kind a room is furnished as (switch roomKinds)
+    const room = classifyRoom(area, { kinds: profile.roomKinds });
     const interior = td.interior;
     areas.push({
       area,

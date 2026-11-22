@@ -414,15 +414,144 @@ const LINKING: ReadonlySet<string> = new Set([
   "and",
 ]);
 
-/** Each purpose word and the one purpose it names. */
-const PURPOSE_OF_WORD: ReadonlyMap<string, RoomPurpose> = (() => {
-  const out = new Map<string, RoomPurpose>();
+/** Purposes with a recipe (gen/rooms4); each is also an interior dress preset of the same name. */
+export type FurnishedPurpose = Exclude<RoomPurpose, "ruin" | "passage">;
+
+/**
+ * Generator 5 (switch `roomKinds`): kinds of room the contract's purposes have no word for. Each is furnished from its
+ * own row of the room-kind table (gen/roomTraits.ts) and written on the resolved area as its `host`, the contract
+ * purpose closest to it (its floor, its fire rule, how the review and the outline read it), until the owner adds the
+ * purpose to the contract list.
+ */
+export type NewRoomKind = "shop" | "stable" | "lounge" | "classroom" | "command" | "ward";
+/** What a room is furnished as (generator 5): a furnished purpose, or a new kind hosted by one. */
+export type RoomKind = FurnishedPurpose | NewRoomKind;
+
+/** Each new kind: the purpose that hosts it and the whole words that name it at generator 5. */
+export const NEW_KIND_INFO: Readonly<
+  Record<NewRoomKind, { host: FurnishedPurpose; words: readonly string[] }>
+> = {
+  // a shop holds stock: storeroom is the nearest purpose (its floor and its no-fire rule)
+  shop: {
+    host: "storeroom",
+    words: [
+      "shop",
+      "shops",
+      "storefront",
+      "boutique",
+      "emporium",
+      "chandlery",
+      "pawnshop",
+      "haberdashery",
+      "bookshop",
+      "showroom",
+      "trader",
+      "traders",
+      "merchant",
+      "merchants",
+    ],
+  },
+  stable: {
+    host: "storeroom",
+    words: [
+      "stable",
+      "stables",
+      // not "stall" or "pen": a market's stalls and a pen and ink are no stable
+      "kennel",
+      "kennels",
+      "byre",
+      "cowshed",
+      "barn",
+      "barns",
+      "mews",
+      "coop",
+      "sty",
+      "pigsty",
+      "livery",
+    ],
+  },
+  // parlour and solar were words of study at generator 4: a sitting room is not a desk room
+  lounge: {
+    host: "study",
+    words: ["lounge", "lounges", "sitting", "drawing", "salon", "snug", "parlor", "parlour", "solar"],
+  },
+  // the scriptorium was a library word: desks in rows facing one wall, like a schoolroom
+  classroom: {
+    host: "library",
+    words: [
+      "classroom",
+      "classrooms",
+      "schoolroom",
+      "schoolrooms",
+      "school",
+      "schoolhouse",
+      "lecture",
+      "scriptorium",
+    ],
+  },
+  command: {
+    host: "study",
+    words: [
+      "command",
+      "cockpit",
+      "helm",
+      "wheelhouse",
+      "chartroom",
+      "headquarters",
+      "ops",
+      "operations",
+      "warroom",
+    ],
+  },
+  // a ward is beds in a row: infirmary and sickbay were laboratory words
+  ward: {
+    host: "laboratory",
+    words: ["ward", "wards", "infirmary", "sickbay", "sickroom", "hospital", "hospice", "clinic"],
+  },
+};
+
+/** Words generator 5 gives to an existing kind beyond generator 4's (a shared sleeping room is a barracks, not a bed). */
+const MORE_WORDS_5: Readonly<Partial<Record<FurnishedPurpose, readonly string[]>>> = {
+  barracks: ["dormitory", "dorm", "berth", "berths", "bunkroom", "bunkrooms", "bunkhouse", "troop", "troops"],
+  storeroom: ["hold", "holds", "cargo"],
+};
+
+/** What a word names: a purpose, or (generator 5) a new kind. */
+type Reading = RoomPurpose | NewRoomKind;
+
+const isNewKind = (r: Reading): r is NewRoomKind => Object.hasOwn(NEW_KIND_INFO, r);
+
+/** The contract purpose of a reading: a new kind's host, else the purpose itself. */
+const purposeOf = (r: Reading): RoomPurpose => (isNewKind(r) ? NEW_KIND_INFO[r].host : r);
+
+/** Each purpose word and the one purpose it names (generators 4 and before). */
+const PURPOSE_OF_WORD: ReadonlyMap<string, Reading> = (() => {
+  const out = new Map<string, Reading>();
   for (const [purpose, info] of Object.entries(ROOM_PURPOSE_INFO) as Array<[RoomPurpose, PurposeInfo]>)
     for (const w of info.words) {
       const other = out.get(w);
       if (other !== undefined) throw new Error(`room purpose word "${w}" names both ${other} and ${purpose}`);
       out.set(w, purpose);
     }
+  return out;
+})();
+
+/** Generator 5: each word and the one kind it names (the purposes' words, then the new kinds' and the moved ones). */
+const KIND_OF_WORD: ReadonlyMap<string, Reading> = (() => {
+  const out = new Map(PURPOSE_OF_WORD);
+  const added = new Map<string, Reading>();
+  const add = (w: string, r: Reading): void => {
+    const other = added.get(w);
+    if (other !== undefined) throw new Error(`room kind word "${w}" names both ${other} and ${r}`);
+    added.set(w, r);
+    out.set(w, r);
+  };
+  for (const [kind, info] of Object.entries(NEW_KIND_INFO) as Array<
+    [NewRoomKind, { words: readonly string[] }]
+  >)
+    for (const w of info.words) add(w, kind);
+  for (const [p, words] of Object.entries(MORE_WORDS_5) as Array<[FurnishedPurpose, readonly string[]]>)
+    for (const w of words) add(w, p);
   return out;
 })();
 
@@ -440,28 +569,31 @@ function leadingWords(text: string, n: number): string[] {
 }
 
 /** A name or tag: the last purpose word of the head phrase, else the first one after it; plus any other purpose named. */
-function readPhrase(text: string): {
-  head?: RoomPurpose;
-  named: RoomPurpose[];
+function readPhrase(
+  text: string,
+  lexicon: ReadonlyMap<string, Reading>,
+): {
+  head?: Reading;
+  named: Reading[];
   neglect: boolean;
   wrecked: boolean;
 } {
   const words = wordsOf(text);
   const cut = words.findIndex((w) => LINKING.has(w));
   const headWords = cut < 0 ? words : words.slice(0, cut);
-  const named: RoomPurpose[] = [];
+  const named: Reading[] = [];
   for (const w of words) {
-    const p = PURPOSE_OF_WORD.get(w);
+    const p = lexicon.get(w);
     if (p !== undefined) named.push(p);
   }
-  let head: RoomPurpose | undefined;
-  for (const w of headWords) head = PURPOSE_OF_WORD.get(w) ?? head;
+  let head: Reading | undefined;
+  for (const w of headWords) head = lexicon.get(w) ?? head;
   if (head === undefined && cut >= 0)
     for (const w of words.slice(cut)) {
-      head = PURPOSE_OF_WORD.get(w);
+      head = lexicon.get(w);
       if (head !== undefined) break;
     }
-  const out: { head?: RoomPurpose; named: RoomPurpose[]; neglect: boolean; wrecked: boolean } = {
+  const out: { head?: Reading; named: Reading[]; neglect: boolean; wrecked: boolean } = {
     named,
     neglect: words.some((w) => NEGLECT.has(w)),
     wrecked: words.some((w) => WRECKED.has(w)),
@@ -484,36 +616,55 @@ export interface RoomClass {
   purpose?: RoomPurpose;
   /** Nobody keeps it up. */
   abandoned: boolean;
+  /**
+   * Generator 5 (`kinds`): what the room is furnished as, for a furnished purpose: a new kind its words name whose host
+   * is the purpose ("Parlour": a lounge in a study), else the purpose itself. Absent below generator 5.
+   */
+  kind?: RoomKind;
 }
 
-/** The one reading of a room (see the file header for the order). */
-export function classifyRoom(area: RoomWords): RoomClass {
-  const phrases = [area.name ?? "", ...(area.tags ?? [])].map(readPhrase);
+/**
+ * The one reading of a room (see the file header for the order). `kinds` (generator 5, switch `roomKinds`): read the
+ * generator-5 words, which name new kinds of room (a shop, a lounge) and move a few words (a dormitory is a barracks);
+ * the purpose is then a new kind's host, and the result carries the kind.
+ */
+export function classifyRoom(area: RoomWords, opts: { kinds?: boolean } = {}): RoomClass {
+  const lexicon = opts.kinds === true ? KIND_OF_WORD : PURPOSE_OF_WORD;
+  const phrases = [area.name ?? "", ...(area.tags ?? [])].map((t) => readPhrase(t, lexicon));
   const neglect = phrases.some((ph) => ph.neglect);
   const wrecked = phrases.some((ph) => ph.wrecked);
-  const purpose = area.purpose ?? inferredPurpose(phrases, area.notes ?? "", { neglect, wrecked });
+  const read = (): Reading | undefined =>
+    inferredPurpose(phrases, area.notes ?? "", { neglect, wrecked }, lexicon);
+  const reading = area.purpose === undefined || opts.kinds === true ? read() : undefined;
+  const purpose = area.purpose ?? (reading === undefined ? undefined : purposeOf(reading));
   const abandoned =
     neglect ||
     wrecked ||
     (purpose !== undefined && ROOM_PURPOSE_INFO[purpose].abandoned) ||
     // a passage takes the state of the place it serves
-    (purpose === "passage" && phrases.some((ph) => ph.named.some((p) => ROOM_PURPOSE_INFO[p].abandoned)));
+    (purpose === "passage" &&
+      phrases.some((ph) => ph.named.some((p) => ROOM_PURPOSE_INFO[purposeOf(p)].abandoned)));
   const out: RoomClass = { abandoned };
   if (purpose !== undefined) out.purpose = purpose;
+  if (opts.kinds === true && furnishedPurpose(purpose))
+    // a stated purpose keeps the kind its words name when that kind lives in it ("Parlour", purpose study: a lounge)
+    out.kind =
+      reading !== undefined && isNewKind(reading) && purposeOf(reading) === purpose ? reading : purpose;
   return out;
 }
 
-/** The purpose a room's words give when the plan states none: name, tags, notes, then its state words. */
+/** The purpose (or kind) a room's words give when the plan states none: name, tags, notes, then its state words. */
 function inferredPurpose(
   phrases: ReadonlyArray<ReturnType<typeof readPhrase>>,
   notes: string,
   state: { neglect: boolean; wrecked: boolean },
-): RoomPurpose | undefined {
+  lexicon: ReadonlyMap<string, Reading>,
+): Reading | undefined {
   let purpose = phrases.find((ph) => ph.head !== undefined)?.head;
   if (purpose === undefined)
     purpose = leadingWords(notes, NOTES_READ)
-      .map((w) => PURPOSE_OF_WORD.get(w))
-      .find((p) => p !== undefined && ROOM_PURPOSE_INFO[p].inNotes);
+      .map((w) => lexicon.get(w))
+      .find((p) => p !== undefined && ROOM_PURPOSE_INFO[purposeOf(p)].inNotes);
   // a wrecked room is a ruin, whatever it was for ("Ruined chapel", "Collapsed chamber", tag "ruined"), except a
   // passage, which stays a way through ("Collapsed tunnel")
   if (state.wrecked && purpose !== "passage") return "ruin";
@@ -526,9 +677,6 @@ function inferredPurpose(
 export function furnishedPurpose(p: RoomPurpose | undefined): p is FurnishedPurpose {
   return p !== undefined && ROOM_PURPOSE_INFO[p].furnished;
 }
-
-/** Purposes with a recipe (gen/rooms4); each is also an interior dress preset of the same name. */
-export type FurnishedPurpose = Exclude<RoomPurpose, "ruin" | "passage">;
 
 /** The purpose an interior dress preset stands for (a dress op over a room uses that purpose's recipe). */
 export function presetPurpose(preset: string): FurnishedPurpose | undefined {
