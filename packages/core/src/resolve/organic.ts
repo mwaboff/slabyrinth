@@ -12,6 +12,7 @@
  *
  * Arithmetic, sqrt and value noise only (architecture §2.5).
  */
+import { NEIGHBOURS4 } from "../gen/gridGeometry";
 import { ValueNoise } from "../gen/noise";
 import { h32, subSeed } from "../util/hash";
 
@@ -215,14 +216,18 @@ export function roughenLumps(tierOf: Map<number, number>, grid: OrganicGrid, see
     if (s < 0) continue;
     // lateral neighbours must be straight edge on the same side (so the bite sits inside a run, not at its end)
     const [lx, ly] = s < 2 ? [0, 1] : [1, 0];
-    if (edgeSide(x + lx, y + ly, tierAt(x + lx, y + ly)) !== s || edgeSide(x - lx, y - ly, tierAt(x - lx, y - ly)) !== s)
+    if (
+      edgeSide(x + lx, y + ly, tierAt(x + lx, y + ly)) !== s ||
+      edgeSide(x - lx, y - ly, tierAt(x - lx, y - ly)) !== s
+    )
       continue;
     // the bitten cell stays within one tier of all its neighbours (a walkable step)
     const to = step(t);
     if (N4.some(([dx, dy]) => Math.abs(tierAt(x + dx, y + dy) - to) > 1)) continue;
     if (h32(`${seed}:bite:${x}:${y}`) % 4 !== 0) continue;
     let near = false;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (bitten.has(`${x + dx},${y + dy}`)) near = true;
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++) if (bitten.has(`${x + dx},${y + dy}`)) near = true;
     for (const k of [2, -2]) if (bitten.has(`${x + lx * k},${y + ly * k}`)) near = true;
     if (near) continue;
     bitten.add(`${x},${y}`);
@@ -233,12 +238,7 @@ export function roughenLumps(tierOf: Map<number, number>, grid: OrganicGrid, see
 /** Longest straight tier step an organic outline keeps (cells). */
 export const MAX_STRAIGHT = 5;
 
-const N4 = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-] as const;
+const N4 = NEIGHBOURS4;
 
 function relax(tierOf: Map<number, number>, grid: OrganicGrid, boundsInside: boolean): void {
   for (let pass = 0; pass < 8; pass++) {

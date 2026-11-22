@@ -5,8 +5,9 @@
  * tool input is held to exactly the rules a stored plan is.
  */
 import { z } from "zod";
-import { FEATURE_TYPES } from "../contracts/plan";
+import { FEATURE_TYPES, type DesignBrief } from "../contracts/plan";
 import type { PlanOp } from "../contracts/ops";
+import { GAME_SYSTEM_IDS } from "../plan/gameSystems";
 import { PlanOpSchema } from "../plan/schema";
 import { zodIssueToPlanIssue } from "../plan/zodIssues";
 import type {
@@ -47,28 +48,86 @@ export function invalidJsonRaw(input: unknown): string | null {
 const text = (max: number) => z.string().max(max);
 const rect = z.strictObject({ x: z.int(), y: z.int(), w: z.int().min(1), h: z.int().min(1) });
 
+/**
+ * The value of each brief field, as anyone may set it (the model's update_brief, the GM's brief:update). One table, so
+ * the two writers cannot disagree on what a brief holds.
+ */
+export const BRIEF_VALUE_SCHEMAS = {
+  mapType: z.string().min(1).max(80),
+  system: z.enum(GAME_SYSTEM_IDS),
+  party: z.strictObject({
+    tier: z.int().min(1).max(10).optional(),
+    level: z.int().min(1).max(30).optional(),
+    size: z.int().min(1).max(12).optional(),
+  }),
+  footprint: z.strictObject({
+    preset: z.enum(["small", "medium", "large", "custom"]),
+    widthSq: z.int().min(1).max(512),
+    heightSq: z.int().min(1).max(512),
+  }),
+  levels: z.strictObject({ count: z.int().min(1).max(8), names: z.array(text(80)).max(8) }),
+  tone: text(80),
+  mustInclude: z.array(text(200)).max(20),
+  avoid: z.array(text(200)).max(20),
+  theme: z.string().min(1).max(64),
+} as const satisfies Record<keyof DesignBrief, z.ZodType>;
+
+/**
+ * What a SAVED brief field may hold: the same fields with their types but without today's limits, so a project saved
+ * by an older build (whose limits differed) still opens. Every field of BRIEF_VALUE_SCHEMAS has its stored form (the
+ * `satisfies` makes a missing one a compile error).
+ */
+export const BRIEF_STORED_SCHEMAS = {
+  mapType: z.string(),
+  system: z.enum(GAME_SYSTEM_IDS),
+  party: z.looseObject({
+    tier: z.number().optional(),
+    level: z.number().optional(),
+    size: z.number().optional(),
+  }),
+  footprint: z.looseObject({ preset: z.string(), widthSq: z.number(), heightSq: z.number() }),
+  levels: z.looseObject({ count: z.number(), names: z.array(z.string()) }),
+  tone: z.string(),
+  mustInclude: z.array(z.string()),
+  avoid: z.array(z.string()),
+  theme: z.string(),
+} as const satisfies Record<keyof typeof BRIEF_VALUE_SCHEMAS, z.ZodType>;
+
+/** A saved brief: each known field `{ value, source }` of its stored type; unknown fields are kept as they are. */
+export const StoredBriefSchema = z.looseObject(
+  Object.fromEntries(
+    Object.entries(BRIEF_STORED_SCHEMAS).map(([k, v]) => [
+      k,
+      z.looseObject({ value: v, source: z.enum(["user", "ai"]) }).optional(),
+    ]),
+  ),
+);
+
+const B = BRIEF_VALUE_SCHEMAS;
+
 const BriefSetSchema = z.strictObject({
-  mapType: z.string().min(1).max(80).optional(),
-  system: z.enum(["daggerheart", "dnd5e", "other"]).optional(),
-  party: z
-    .strictObject({
-      tier: z.int().min(1).max(10).optional(),
-      level: z.int().min(1).max(30).optional(),
-      size: z.int().min(1).max(12).optional(),
-    })
-    .optional(),
-  footprint: z
-    .strictObject({
-      preset: z.enum(["small", "medium", "large", "custom"]),
-      widthSq: z.int().min(1).max(512),
-      heightSq: z.int().min(1).max(512),
-    })
-    .optional(),
-  levels: z.strictObject({ count: z.int().min(1).max(8), names: z.array(text(80)).max(8) }).optional(),
-  tone: text(80).optional(),
-  mustInclude: z.array(text(200)).max(20).optional(),
-  avoid: z.array(text(200)).max(20).optional(),
-  theme: z.string().min(1).max(64).optional(),
+  mapType: B.mapType.optional(),
+  system: B.system.optional(),
+  party: B.party.optional(),
+  footprint: B.footprint.optional(),
+  levels: B.levels.optional(),
+  tone: B.tone.optional(),
+  mustInclude: B.mustInclude.optional(),
+  avoid: B.avoid.optional(),
+  theme: B.theme.optional(),
+});
+
+/** The GM's brief:update: any field may be set to a value or cleared with null. */
+export const BriefPatchSchema = z.strictObject({
+  mapType: B.mapType.nullable().optional(),
+  system: B.system.nullable().optional(),
+  party: B.party.nullable().optional(),
+  footprint: B.footprint.nullable().optional(),
+  levels: B.levels.nullable().optional(),
+  tone: B.tone.nullable().optional(),
+  mustInclude: B.mustInclude.nullable().optional(),
+  avoid: B.avoid.nullable().optional(),
+  theme: B.theme.nullable().optional(),
 });
 
 const UpdateBriefSchema = z.strictObject({ set: BriefSetSchema });
@@ -147,7 +206,9 @@ export interface ToolInputs {
   list_catalog: ListCatalogInput;
 }
 
-const SCHEMAS: { [K in ToolName]: z.ZodType } = {
+/** Each tool's input schema (what the executor holds a call to; test/unit/agent/toolSchemas.test.ts ties it to the
+ * JSON Schema the model is shown). */
+export const TOOL_INPUT_SCHEMAS: { readonly [K in ToolName]: z.ZodType } = {
   update_brief: UpdateBriefSchema,
   ask_questions: AskQuestionsSchema,
   create_plan: CreatePlanEnvelopeSchema,
@@ -176,7 +237,7 @@ export function validateToolInput<K extends ToolName>(name: K, input: unknown): 
       ],
     };
   }
-  const schema = SCHEMAS[name];
+  const schema = TOOL_INPUT_SCHEMAS[name];
   const parsed = schema.safeParse(input);
   if (parsed.success) return { ok: true, value: parsed.data as ToolInputs[K] };
   const errors: ReportError[] = parsed.error.issues.map((issue) => {

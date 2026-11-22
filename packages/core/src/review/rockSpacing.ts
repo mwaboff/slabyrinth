@@ -125,7 +125,9 @@ export function fenceRuns(points: readonly RockAt[], rule: FenceRule): FenceRun[
     const median = sorted[Math.floor(sorted.length / 2)] as number;
     if (rule.mode === "step" && median < 1.4) continue;
     const ok = (g: number): boolean =>
-      rule.mode === "teeth" ? g >= rule.gapMin && g <= rule.link : Math.abs(g - median) <= rule.spread * median;
+      rule.mode === "teeth"
+        ? g >= rule.gapMin && g <= rule.link
+        : Math.abs(g - median) <= rule.spread * median;
     // the longest stretch of consecutive gaps that all qualify
     let bestStart = 0;
     let bestLen = 0;

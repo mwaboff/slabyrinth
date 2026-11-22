@@ -1,5 +1,5 @@
 /**
- * Composed set pieces (dress presets added 2026-11-19): authored groups of features instead of weighted scatter.
+ * Composed set pieces (dress presets): authored groups of features instead of weighted scatter.
  *
  * A set piece is
  *   - an optional FOCAL group (ritual ring, great tree, rockfall, camp fire), placed once, at the area's centre
@@ -17,18 +17,39 @@
  * Deterministic: one seeded PRNG stream, integer arithmetic only.
  */
 import type { DressPreset, FeatureType, Rotation, Side } from "../contracts/plan";
+import type { GeneratorProfile } from "../plan/generator";
 import { subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
 import { ValueNoise } from "./noise";
 import { dressWater } from "./water";
 import { cliffBand, riseUnits, type BandResult } from "./cliffband";
-import { featureInfo, LIGHT_FEATURES } from "./catalog";
+import { featureInfo, isLandmark, LIGHT_FEATURES, traitWithDelta, typesWith } from "./catalog";
+import {
+  EDGE_LEDGE,
+  EDGE_OPENING,
+  EDGE_STAIR,
+  EDGE_WALL,
+  FLAG_BRIDGE,
+  FLAG_LINK,
+  FLAG_NO_FLOOR,
+  FLAG_PATH,
+  FLAG_STEPS,
+  FLAG_WATER,
+  INWARD,
+  SIDES,
+  SIDE_ROT,
+  SIDE_STEP,
+  cellKey as key,
+  stepSide as step,
+  wallSides,
+} from "./gridGeometry";
 import {
   footprintCrossesWall,
+  gridProfile,
   type GeneratedPlacement,
   type PlacementGrid,
   type ScatterResult,
-} from "./place";
+} from "./placementGrid";
 
 export const COMPOSED_PRESETS = [
   "ritual_circle",
@@ -74,8 +95,8 @@ export interface Part {
    * such support piece. Below generator 3 the part stands at its own dx, dy as before.
    */
   on?: number;
-  /** Generator 3 only: the part does not exist at earlier generators (their output is frozen). */
-  gen3?: boolean;
+  /** A part that exists only where the generator puts things on things (`supportedParts`, from generator 3). */
+  needsSupportedParts?: boolean;
 }
 
 export interface Group {
@@ -263,7 +284,7 @@ const G = {
       p("rock", 1, 0),
       p("stalagmite", 0, 1),
       p("debris", 1, 1),
-      p("small_detail", 0, 0, { on: 0, gen3: true }),
+      p("small_detail", 0, 0, { on: 0, needsSupportedParts: true }),
     ],
   },
   bonesNook: {
@@ -344,7 +365,7 @@ const G = {
       p("chest", 1, 0),
       p("lantern", 2, 0, { on: 1 }),
       p("sack", 0, 1),
-      p("candles", 1, 0, { on: 1, gen3: true }),
+      p("candles", 1, 0, { on: 1, needsSupportedParts: true }),
     ],
   },
   woodpile: {
@@ -352,7 +373,7 @@ const G = {
     anchor: "wall",
     parts: [p("log", 0, 0, { variant: "pile" }), p("stump", 2, 0), p("crate", 2, 1)],
   },
-  // ── round 2: tall pieces and skyline ──
+  // ── tall pieces and skyline ──
   columnCluster: {
     name: "rock columns",
     anchor: "corner",
@@ -410,7 +431,7 @@ const G = {
       p("rock", 0, 1),
       p("debris", 1, 1),
       p("debris", 2, 2),
-      p("small_detail", 1, 0, { on: 1, gen3: true }),
+      p("small_detail", 1, 0, { on: 1, needsSupportedParts: true }),
     ],
   },
   rootSpill: {
@@ -676,7 +697,7 @@ const G = {
 } satisfies Record<string, Group>;
 
 /** Natural focal: a landmark (great tree, statue, rock spire…) with a stand of tall growth round it. */
-// ── built places (city street, 2026-11-20): the same slots in a medieval lane, a modern street, a concourse ──
+// ── built places (a city street): the same slots in a medieval lane, a modern street, a concourse ──
 const BUILT = {
   // a shopfront: a sign on the wall, goods or a bin by the door, a little litter
   frontage: {
@@ -876,7 +897,7 @@ function ritualRing(areaCells: number, radius?: number): Group {
 }
 
 /**
- * Great tree against a wall (round 5: it read as a dark tangle on dark rock). The tree stands proud with a cleared
+ * Great tree against a wall (pressed against it, it read as a dark tangle on dark rock). The tree stands proud with a cleared
  * apron in front of it: light pools at its base (two accent lights, a glow either side of the trunk), roots run
  * up the wall beside it, and the smaller pieces keep their distance — mushrooms and crystals at the apron's edge,
  * columns framing it — so nothing clutters the trunk.
@@ -1358,18 +1379,6 @@ export const SET_PIECES: Record<ComposedPreset, SetPieceDef> = {
 
 // ───────────────────────────── placement ─────────────────────────────
 
-const EDGE_WALL = 1;
-const EDGE_OPENING = 2;
-const EDGE_LEDGE = 3;
-const FLAG_LINK = 16;
-const FLAG_WATER = 4;
-const FLAG_PATH = 8;
-const FLAG_BRIDGE = 64;
-const FLAG_STEPS = 128;
-const EDGE_STAIR = 4;
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
-const SIDE_ROT: Record<Side, Rotation> = { N: 0, E: 90, S: 180, W: 270 };
-const INWARD: Record<Side, [number, number]> = { N: [0, 1], E: [-1, 0], S: [0, -1], W: [1, 0] };
 const sq = (v: number): number => v * v;
 const NEIGHBOURS8: ReadonlyArray<readonly [number, number]> = [
   [1, 0],
@@ -1381,34 +1390,10 @@ const NEIGHBOURS8: ReadonlyArray<readonly [number, number]> = [
   [-1, 1],
   [-1, -1],
 ];
-/** Pieces whose crowns or masses overhang their cell: they keep one cell inside the board. */
-const BIG = new Set<FeatureType>([
-  "cluster_tall",
-  "landmark",
-  "tree_large",
-  "formation",
-  "tree",
-  "pine_tree",
-  "dead_tree",
-  "statue_large",
-]);
-/** Upright pieces that read as a fence when they stand in single file (see makesSingleFile). */
-export const RUNNERS: ReadonlySet<FeatureType> = new Set<FeatureType>([
-  "cluster_tall",
-  "formation",
-  "boulder",
-  "tree",
-  "pine_tree",
-  "dead_tree",
-  "stalagmite",
-  "tall_marker",
-  "monolith",
-  "standing_stone",
-  "edge_dressing",
-  "rock",
-]);
-/** One-off statement pieces: never repeated in one dress op, clear ring round structures. */
-const STATEMENT = new Set<FeatureType>(["landmark", "tree_large", "statue_large"]);
+/** Pieces whose crowns or masses overhang their cell (`overhangs`): they keep one cell inside the board. */
+const overhangs = (t: FeatureType): boolean => featureInfo(t).overhangs === true;
+/** Upright pieces (`upright`) that read as a fence when they stand in single file (see makesSingleFile). */
+export const RUNNERS: ReadonlySet<FeatureType> = new Set(typesWith((f) => f.upright === true));
 /** Anchors along a line (cliff lips and feet, banks, path verges): their groups are placed irregularly. */
 const LINE_ANCHORS = new Set<Group["anchor"]>(["ledge_low", "ledge_high", "water_edge", "path_edge"]);
 /** What a line piece may become instead, so a run mixes sizes and kinds (a fallen log among the rocks). */
@@ -1419,7 +1404,6 @@ const LINE_SWAP: readonly FeatureType[] = [
   "root_large",
   "edge_dressing",
 ];
-const key = (x: number, y: number): number => (x + 16384) * 32768 + (y + 16384);
 /** Anchors of two groups keep at least this Chebyshev distance (clear ground between vignettes). */
 const GROUP_GAP = 5;
 /** Candidate anchors tried per group before it is dropped. */
@@ -1477,12 +1461,12 @@ export interface DefaultBandParams {
 }
 
 /**
- * The default rock band of a natural region at generator 3 (grid.generator >= 3; nothing at 2): a face of rock on
+ * The default rock band of a natural region (`defaultCliffBands`, from generator 3; nothing before): a face of rock on
  * every rise of 2 tiles or more in the region, however the model dressed it. Themes without the formation roles get
  * nothing (grid.pieceSize says so). The caller decides which regions are natural and open-air and honours any opt-out.
  */
 export function defaultCliffBands(grid: PlacementGrid, prm: DefaultBandParams): ScatterResult {
-  if ((grid.generator ?? 2) < 3) return { placements: [], capped: false };
+  if (!gridProfile(grid).defaultCliffBands) return { placements: [], capped: false };
   return composeArea(
     grid,
     { preset: "natural_clusters", density: 0, ...prm, seed: subSeed(prm.seed, "defaultband") },
@@ -1490,6 +1474,10 @@ export function defaultCliffBands(grid: PlacementGrid, prm: DefaultBandParams): 
   );
 }
 
+/**
+ * Dresses one area with a composed preset (or `defOverride`): the steps below, in this order, each over the same
+ * area state (`AreaComposer`). Every step draws from the one seeded stream, so their order is part of the output.
+ */
 export function composeArea(
   grid: PlacementGrid,
   prm: ComposeParams,
@@ -1497,146 +1485,294 @@ export function composeArea(
 ): ScatterResult {
   const def = defOverride ?? SET_PIECES[prm.preset];
   const rng = createPrng(subSeed(prm.seed, `compose:${prm.preset}`));
-  const isG3 = (grid.generator ?? 2) >= 3;
-  const inArea =(x: number, y: number): boolean =>
+  const inArea = (x: number, y: number): boolean =>
     grid.inBounds(x, y) && grid.area(x, y) === prm.areaIndex && grid.isFloor(x, y);
   const cells = prm.areaCells.filter(([x, y]) => inArea(x, y)).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
-  const out: GeneratedPlacement[] = [];
-  if (cells.length === 0) return { placements: out, capped: false };
-
-  const taken = new Set<number>();
-  /** Cells and anchor cells of organic pieces (natural overlap is allowed onto these, never onto an anchor). */
-  const takenOrg = new Set<number>();
-  const anchorsOrg = new Set<number>();
-  const pendingAnchorsOrg = new Set<number>();
-  /** Cells of committed and pending upright pieces (trees, rock masses, stones): no single-file runs of them. */
-  const tallCells = new Set<number>();
-  const pendingTall = new Set<number>();
-  /** The focal group (a ring of stones, a statue and its braziers) is laid out on purpose: the run rule skips it. */
-  let runGuard = true;
-  /** Off only for the junction green: a street's joins to its side streets are not doorways. */
-  let doorZoneOn = true;
-  /** Cells kept clear round a landmark (filled after the focal group). */
-  const apron = new Set<number>();
-  /** Cells under seating: two seats never touch (a picnic table is wider than its cell). */
-  const seatCells = new Set<number>();
-  if (grid.landmark)
-    for (const [x, y] of prm.areaCells)
-      for (let dy = -2; dy <= 2; dy++)
-        for (let dx = -2; dx <= 2; dx++)
-          if (grid.landmark(x + dx, y + dy) && !grid.landmark(x, y)) apron.add(key(x, y));
-  const blocked = new Set<number>();
-  for (const [x, y] of cells) if (grid.occupied(x, y)) blocked.add(key(x, y));
-
-  const ownCells = new Set(prm.areaCells.map(([x, y]) => key(x, y)));
-  // entrances: cells with an opening (or a link) — blocking pieces keep two cells clear of them
-  const entries: Array<[number, number]> = [];
-  // a narrow open join into another area (merging caves, an "open" doorway) is an entrance too; a long shared
-  // boundary (a zone inside a bigger area) is not, or a zone could never be dressed
-  const joins = new Map<number, Array<[number, number]>>();
-  for (const [x, y] of cells)
-    for (const sd of SIDES) {
-      // a wall, or a cliff (nobody walks across it), is no join
-      if (grid.edge(x, y, sd) === EDGE_WALL) continue;
-      const nx = x + (sd === "E" ? 1 : sd === "W" ? -1 : 0);
-      const ny = y + (sd === "S" ? 1 : sd === "N" ? -1 : 0);
-      if (
-        grid.edge(x, y, sd) !== EDGE_STAIR &&
-        Math.abs((grid.height?.(nx, ny) ?? 0) - (grid.height?.(x, y) ?? 0)) > 0.5
-      )
-        continue;
-      const a = grid.inBounds(nx, ny) ? grid.area(nx, ny) : 0;
-      if (a === 0 || a === prm.areaIndex || !grid.isFloor(nx, ny) || ownCells.has(key(nx, ny))) continue;
-      const l = joins.get(a) ?? [];
-      l.push([x, y]);
-      joins.set(a, l);
-    }
-  for (const l of joins.values()) if (l.length <= 6) entries.push(...l);
-  const joinEntries = entries.length;
-  for (const [x, y] of cells) {
-    if (SIDES.some((s0) => grid.edge(x, y, s0) === EDGE_OPENING) || (grid.flags(x, y) & FLAG_LINK) !== 0)
-      entries.push([x, y]);
-    // the approach to a walkway, bridge or flight of steps is an entrance too (those cells are not floor the
-    // dressing may use, so they never show up as a join above)
-    else if (
-      SIDES.some((s0) => {
-        if (grid.edge(x, y, s0) === EDGE_STAIR) return true;
-        if (grid.edge(x, y, s0) === EDGE_WALL) return false;
-        const nx = x + (s0 === "E" ? 1 : s0 === "W" ? -1 : 0);
-        const ny = y + (s0 === "S" ? 1 : s0 === "N" ? -1 : 0);
-        return grid.inBounds(nx, ny) && (grid.flags(nx, ny) & (FLAG_BRIDGE | FLAG_STEPS)) !== 0;
-      })
-    )
-      entries.push([x, y]);
+  if (cells.length === 0) return { placements: [], capped: false };
+  const c = new AreaComposer(grid, prm, def, rng, cells, inArea);
+  c.rockBand();
+  c.focalGroup();
+  for (const row of def.rows ?? []) {
+    if (c.capped) break;
+    c.kerbRow(row);
   }
-  const approach = new Set<number>();
-  for (const [ex, ey] of entries.slice(joinEntries))
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) approach.add(key(ex + dx, ey + dy));
-  const doorZone = new Set<number>();
-  for (const [ex, ey] of entries)
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) doorZone.add(key(ex + dx, ey + dy));
+  c.junctionGreen();
+  c.vignettes();
+  c.lightEntrancesAndWalls();
+  c.lightLandmarks();
+  c.canopy();
+  c.groundCover();
+  c.waterBody();
+  return { placements: c.out, capped: c.capped };
+}
 
-  const wallSides = (x: number, y: number): Side[] => SIDES.filter((s) => grid.edge(x, y, s) === EDGE_WALL);
-  const thinWallOn = (x: number, y: number, s: Side): boolean => {
-    if (grid.edge(x, y, s) !== EDGE_WALL) return false;
-    const nx = x + (s === "E" ? 1 : s === "W" ? -1 : 0);
-    const ny = y + (s === "S" ? 1 : s === "N" ? -1 : 0);
-    return grid.inBounds(nx, ny) && grid.isFloor(nx, ny);
+/**
+ * Placements along a line — cliff lips and feet, banks, path verges: the one routine every line-following group
+ * goes through, so all of them share the irregularity rules.
+ *  - spacing: the distance from a new run to the nearest earlier run on the same kind of line never repeats more
+ *    than twice (no metronome of equal gaps);
+ *  - shape: each piece after the first shifts along the line by up to a cell and up to two cells off it (some on
+ *    the lip, some back from it);
+ *  - kinds: rock masses and edge stones sometimes become something else (a log among the rocks), and at most two
+ *    large pieces in one run touch;
+ *  - single file: upright pieces never make a run of more than three (makesSingleFile, checked per piece).
+ */
+function lineRhythm(rng: Prng): {
+  spacingOk: (anchor: Group["anchor"], x: number, y: number) => boolean;
+  record: (anchor: Group["anchor"], x: number, y: number) => void;
+  parts: (g: Group) => Group;
+} {
+  const placed = new Map<Group["anchor"], Array<[number, number]>>();
+  const gaps = new Map<string, number>();
+  const nearest = (anchor: Group["anchor"], x: number, y: number): number | null => {
+    const l = placed.get(anchor) ?? [];
+    if (l.length === 0) return null;
+    return Math.min(...l.map(([ax, ay]) => Math.max(Math.abs(ax - x), Math.abs(ay - y))));
   };
-  const hOf = (x: number, y: number): number => grid.height?.(x, y) ?? 0;
-  const step = (x: number, y: number, s: Side): [number, number] => [
-    x + (s === "E" ? 1 : s === "W" ? -1 : 0),
-    y + (s === "S" ? 1 : s === "N" ? -1 : 0),
-  ];
-  const wallCands: Array<[number, number, Side]> = [];
-  const cornerCands: Array<[number, number, Side]> = [];
-  const openCands: Array<[number, number]> = [];
+  return {
+    spacingOk: (anchor, x, y) => {
+      const d = nearest(anchor, x, y);
+      return d === null || (gaps.get(`${anchor}:${String(d)}`) ?? 0) < 2;
+    },
+    record: (anchor, x, y) => {
+      const d = nearest(anchor, x, y);
+      if (d !== null) gaps.set(`${anchor}:${String(d)}`, (gaps.get(`${anchor}:${String(d)}`) ?? 0) + 1);
+      placed.set(anchor, [...(placed.get(anchor) ?? []), [x, y]]);
+    },
+    parts: (g) => {
+      let large = 0;
+      return {
+        ...g,
+        parts: g.parts.map((q, i) => {
+          let t: FeatureType = q.t;
+          if (i > 0 && (t === "formation" || t === "edge_dressing") && rng.chance(0.35))
+            t = LINE_SWAP[rng.int(LINE_SWAP.length)] as FeatureType;
+          if (t === "formation" && ++large > 2) t = rng.chance(0.5) ? "edge_dressing" : "undergrowth";
+          return {
+            ...q,
+            t,
+            dx: q.dx + (i > 0 ? rng.int(3) - 1 : 0),
+            dy: q.dy + (i > 0 ? rng.int(3) : 0),
+          };
+        }),
+      };
+    },
+  };
+}
+
+/**
+ * Focal pieces a lit place lights (generator 3, switch `litLandmarks`; frozen): the focal pieces that are not lights
+ * themselves, less the natural ones (a great tree, a giant mushroom), and a throne, which is no trail's goal.
+ */
+export const FOCAL_LIT = traitWithDelta((f) => f.focal !== undefined && f.light !== true, {
+  plus: ["throne"],
+  minus: ["tree_large", "giant_mushroom"],
+});
+
+/**
+ * Pieces that cause ground cover round them (generator 3, switch `causedGroundCover`; frozen): what litters the ground
+ * (groundCause "litter"), less tall growth, and a landmark.
+ */
+export const COVER_CAUSES = traitWithDelta((f) => f.groundCause === "litter", {
+  plus: ["landmark"],
+  minus: ["cluster_tall"],
+});
+
+/**
+ * One area being composed: what it is (cells, entrances, the cells each kind of group anchors on), what is placed so
+ * far, and the primitives every step uses: `frameFor` (where and which way a group stands), `planPart` / `tryGroup`
+ * (does it fit, and does it keep every entrance reachable) and `commit`. The steps are the public methods, called by
+ * `composeArea` in order.
+ */
+class AreaComposer {
+  readonly gen: GeneratorProfile;
+  readonly out: GeneratedPlacement[] = [];
+  readonly taken = new Set<number>();
+  /** Cells and anchor cells of organic pieces (natural overlap is allowed onto these, never onto an anchor). */
+  readonly takenOrg = new Set<number>();
+  readonly anchorsOrg = new Set<number>();
+  readonly pendingAnchorsOrg = new Set<number>();
+  /** Cells of committed and pending upright pieces (trees, rock masses, stones): no single-file runs of them. */
+  readonly tallCells = new Set<number>();
+  readonly pendingTall = new Set<number>();
+  /** The focal group (a ring of stones, a statue and its braziers) is laid out on purpose: the run rule skips it. */
+  runGuard = true;
+  /** Off only for the junction green: a street's joins to its side streets are not doorways. */
+  doorZoneOn = true;
+  /** Cells kept clear round a landmark (filled after the focal group). */
+  readonly apron = new Set<number>();
+  /** Cells under seating: two seats never touch (a picnic table is wider than its cell). */
+  readonly seatCells = new Set<number>();
+  /** Cells nobody can walk through: what stood there before, and every blocking piece placed. */
+  readonly blocked = new Set<number>();
+  /** Entrances: cells with an opening (or a link) — blocking pieces keep two cells clear of them. */
+  readonly entries: Array<[number, number]> = [];
+  /** The cell in front of a door, link or flight of steps and its neighbours. */
+  readonly approach = new Set<number>();
+  /** Two cells round every entrance. */
+  readonly doorZone = new Set<number>();
+  readonly wallCands: Array<[number, number, Side]> = [];
+  readonly cornerCands: Array<[number, number, Side]> = [];
+  readonly openCands: Array<[number, number]> = [];
   // ledges: a LEDGE edge (height step) or an open edge onto floorless ground (a chasm lip)
   /** Cells on the boundary of the area (no wall): a zone or an outdoor area has few or no walls. */
-  const edgeCands: Array<[number, number, Side]> = [];
+  readonly edgeCands: Array<[number, number, Side]> = [];
   /** Cells beside water (side = toward the water) and beside a path (side = toward the path). */
-  const waterCands: Array<[number, number, Side]> = [];
-  const pathCands: Array<[number, number, Side]> = [];
-  const ledgeLow: Array<[number, number, Side]> = [];
-  const ledgeHigh: Array<[number, number, Side]> = [];
-  for (const [x, y] of cells) {
-    const own = grid.flags(x, y);
-    for (const sd of SIDES) {
-      const [wx, wy] = step(x, y, sd);
-      if (!grid.inBounds(wx, wy) || grid.edge(x, y, sd) === EDGE_WALL) continue;
-      const nf = grid.flags(wx, wy);
-      if ((own & FLAG_WATER) === 0 && (nf & FLAG_WATER) !== 0) waterCands.push([x, y, sd]);
-      if ((own & FLAG_PATH) === 0 && (nf & FLAG_PATH) !== 0) pathCands.push([x, y, sd]);
+  readonly waterCands: Array<[number, number, Side]> = [];
+  readonly pathCands: Array<[number, number, Side]> = [];
+  readonly ledgeLow: Array<[number, number, Side]> = [];
+  readonly ledgeHigh: Array<[number, number, Side]> = [];
+  /** Where the reachability guard floods from (the entrances, or the first cell). */
+  readonly sources: ReadonlyArray<[number, number]>;
+  /** What the guard reaches now. */
+  reachable: { cells: number; groups: number };
+  /** Anchors of the groups placed (later groups keep their distance). */
+  readonly anchors: Array<[number, number]> = [];
+  /** The placement budget is spent: every later step does nothing. */
+  capped = false;
+  /** Lights placed (from the lighting step on). */
+  readonly lights: Array<[number, number]> = [];
+  /** The middle of the area, and the squared radius of its clear middle (a quarter of its typical width). */
+  readonly midX: number;
+  readonly midY: number;
+  readonly clearR2: number;
+
+  constructor(
+    readonly grid: PlacementGrid,
+    readonly prm: ComposeParams,
+    readonly def: SetPieceDef,
+    readonly rng: Prng,
+    readonly cells: ReadonlyArray<[number, number]>,
+    readonly inArea: (x: number, y: number) => boolean,
+  ) {
+    this.gen = gridProfile(grid);
+    const { apron, blocked } = this;
+    if (grid.landmark)
+      for (const [x, y] of prm.areaCells)
+        for (let dy = -2; dy <= 2; dy++)
+          for (let dx = -2; dx <= 2; dx++)
+            if (grid.landmark(x + dx, y + dy) && !grid.landmark(x, y)) apron.add(key(x, y));
+    for (const [x, y] of cells) if (grid.occupied(x, y)) blocked.add(key(x, y));
+    this.findEntrances();
+    this.findAnchorCells();
+    this.sources = this.entries.length ? this.entries : cells.slice(0, 1);
+    this.reachable = this.reach();
+    let midX = 0;
+    let midY = 0;
+    for (const [x, y] of cells) {
+      midX += x + 0.5;
+      midY += y + 0.5;
     }
+    this.midX = midX / cells.length;
+    this.midY = midY / cells.length;
+    this.clearR2 = cells.length / 16;
   }
-  for (const [x, y] of cells) {
-    for (const sd of SIDES) {
-      const e = grid.edge(x, y, sd);
-      const [nx, ny] = step(x, y, sd);
-      if (e === EDGE_LEDGE) {
-        if (grid.height === undefined) {
-          ledgeLow.push([x, y, sd]);
+
+  /** Entrances (doors, links, narrow joins into other areas, the approach to walkways, bridges and stairs). */
+  private findEntrances(): void {
+    const { grid, prm, cells, entries } = this;
+    const ownCells = new Set(prm.areaCells.map(([x, y]) => key(x, y)));
+    // a narrow open join into another area (merging caves, an "open" doorway) is an entrance too; a long shared
+    // boundary (a zone inside a bigger area) is not, or a zone could never be dressed
+    const joins = new Map<number, Array<[number, number]>>();
+    for (const [x, y] of cells)
+      for (const sd of SIDES) {
+        // a wall, or a cliff (nobody walks across it), is no join
+        if (grid.edge(x, y, sd) === EDGE_WALL) continue;
+        const [nx, ny] = step(x, y, sd);
+        if (
+          grid.edge(x, y, sd) !== EDGE_STAIR &&
+          Math.abs((grid.height?.(nx, ny) ?? 0) - (grid.height?.(x, y) ?? 0)) > 0.5
+        )
+          continue;
+        const a = grid.inBounds(nx, ny) ? grid.area(nx, ny) : 0;
+        if (a === 0 || a === prm.areaIndex || !grid.isFloor(nx, ny) || ownCells.has(key(nx, ny))) continue;
+        const l = joins.get(a) ?? [];
+        l.push([x, y]);
+        joins.set(a, l);
+      }
+    for (const l of joins.values()) if (l.length <= 6) entries.push(...l);
+    const joinEntries = entries.length;
+    for (const [x, y] of cells) {
+      if (SIDES.some((s0) => grid.edge(x, y, s0) === EDGE_OPENING) || (grid.flags(x, y) & FLAG_LINK) !== 0)
+        entries.push([x, y]);
+      // the approach to a walkway, bridge or flight of steps is an entrance too (those cells are not floor the
+      // dressing may use, so they never show up as a join above)
+      else if (
+        SIDES.some((s0) => {
+          if (grid.edge(x, y, s0) === EDGE_STAIR) return true;
+          if (grid.edge(x, y, s0) === EDGE_WALL) return false;
+          const [nx, ny] = step(x, y, s0);
+          return grid.inBounds(nx, ny) && (grid.flags(nx, ny) & (FLAG_BRIDGE | FLAG_STEPS)) !== 0;
+        })
+      )
+        entries.push([x, y]);
+    }
+    for (const [ex, ey] of entries.slice(joinEntries))
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) this.approach.add(key(ex + dx, ey + dy));
+    for (const [ex, ey] of entries)
+      for (let dy = -2; dy <= 2; dy++)
+        for (let dx = -2; dx <= 2; dx++) this.doorZone.add(key(ex + dx, ey + dy));
+  }
+
+  /** The cells each kind of group anchors on: walls, corners, open ground, the area's edge, water, paths, ledges. */
+  private findAnchorCells(): void {
+    const { grid, cells, inArea, hOf, wallCands, cornerCands, openCands, edgeCands } = this;
+    const { waterCands, pathCands, ledgeLow, ledgeHigh } = this;
+    for (const [x, y] of cells) {
+      const own = grid.flags(x, y);
+      for (const sd of SIDES) {
+        const [wx, wy] = step(x, y, sd);
+        if (!grid.inBounds(wx, wy) || grid.edge(x, y, sd) === EDGE_WALL) continue;
+        const nf = grid.flags(wx, wy);
+        if ((own & FLAG_WATER) === 0 && (nf & FLAG_WATER) !== 0) waterCands.push([x, y, sd]);
+        if ((own & FLAG_PATH) === 0 && (nf & FLAG_PATH) !== 0) pathCands.push([x, y, sd]);
+      }
+    }
+    for (const [x, y] of cells) {
+      for (const sd of SIDES) {
+        const e = grid.edge(x, y, sd);
+        const [nx, ny] = step(x, y, sd);
+        if (e === EDGE_LEDGE) {
+          if (grid.height === undefined) {
+            ledgeLow.push([x, y, sd]);
+            ledgeHigh.push([x, y, sd]);
+          } else if (hOf(nx, ny) > hOf(x, y)) ledgeLow.push([x, y, sd]);
+          else ledgeHigh.push([x, y, sd]);
+        } else if (
+          e !== EDGE_WALL &&
+          grid.inBounds(nx, ny) &&
+          !grid.isFloor(nx, ny) &&
+          grid.area(nx, ny) !== 0
+        )
           ledgeHigh.push([x, y, sd]);
-        } else if (hOf(nx, ny) > hOf(x, y)) ledgeLow.push([x, y, sd]);
-        else ledgeHigh.push([x, y, sd]);
-      } else if (e !== EDGE_WALL && grid.inBounds(nx, ny) && !grid.isFloor(nx, ny) && grid.area(nx, ny) !== 0)
-        ledgeHigh.push([x, y, sd]);
+      }
+    }
+    for (const [x, y] of cells) {
+      const ws = wallSides(grid, x, y);
+      for (const s of ws) wallCands.push([x, y, s]);
+      for (let i = 0; i < 4; i++) {
+        const a = SIDES[i] as Side;
+        if (ws.includes(a) && ws.includes(SIDES[(i + 1) % 4] as Side)) cornerCands.push([x, y, a]);
+      }
+      if (ws.length === 0) openCands.push([x, y]);
+      for (const sd of SIDES) {
+        if (grid.edge(x, y, sd) === EDGE_WALL) continue;
+        const [nx, ny] = step(x, y, sd);
+        if (!inArea(nx, ny) && grid.isFloor(nx, ny)) edgeCands.push([x, y, sd]);
+      }
     }
   }
-  for (const [x, y] of cells) {
-    const ws = wallSides(x, y);
-    for (const s of ws) wallCands.push([x, y, s]);
-    for (let i = 0; i < 4; i++) {
-      const a = SIDES[i] as Side;
-      if (ws.includes(a) && ws.includes(SIDES[(i + 1) % 4] as Side)) cornerCands.push([x, y, a]);
-    }
-    if (ws.length === 0) openCands.push([x, y]);
-    for (const sd of SIDES) {
-      if (grid.edge(x, y, sd) === EDGE_WALL) continue;
-      const [nx, ny] = step(x, y, sd);
-      if (!inArea(nx, ny) && grid.isFloor(nx, ny)) edgeCands.push([x, y, sd]);
-    }
-  }
+
+  /** Is there a thin wall (a strip between two open cells) on side `s` of (x, y)? */
+  private readonly thinWallOn = (x: number, y: number, s: Side): boolean => {
+    const { grid } = this;
+    if (grid.edge(x, y, s) !== EDGE_WALL) return false;
+    const [nx, ny] = step(x, y, s);
+    return grid.inBounds(nx, ny) && grid.isFloor(nx, ny);
+  };
+  private readonly hOf = (x: number, y: number): number => this.grid.height?.(x, y) ?? 0;
 
   // ── reachability guard ──
   // Walks the way a player does: no walls, no height step over half a tile unless it is a flight of steps. It
@@ -1644,8 +1780,8 @@ export function composeArea(
   // take its own cells out of the walkable set, and may never split the entrances into more separate groups: a
   // tree on the only cell-wide way between the head of a walkway and the top of a flight of stairs is refused, even
   // on a ledge of the area that only the walkway reaches.
-  const sources = entries.length ? entries : cells.slice(0, 1);
-  const reach = (): { cells: number; groups: number } => {
+  private readonly reach = (): { cells: number; groups: number } => {
+    const { grid, sources, blocked, inArea, hOf } = this;
     const seen = new Set<number>();
     let groups = 0;
     for (const [sx, sy] of sources) {
@@ -1659,8 +1795,7 @@ export function composeArea(
         for (const s of SIDES) {
           const e = grid.edge(x, y, s);
           if (e === EDGE_WALL) continue;
-          const nx = x + (s === "E" ? 1 : s === "W" ? -1 : 0);
-          const ny = y + (s === "S" ? 1 : s === "N" ? -1 : 0);
+          const [nx, ny] = step(x, y, s);
           const k = key(nx, ny);
           if (seen.has(k) || blocked.has(k) || !inArea(nx, ny)) continue;
           if (grid.height !== undefined && e !== EDGE_STAIR && Math.abs(hOf(nx, ny) - hOf(x, y)) > 0.5)
@@ -1672,9 +1807,27 @@ export function composeArea(
     }
     return { cells: seen.size, groups };
   };
-  let reachable = reach();
 
-  const frameFor = (x: number, y: number, side: Side | null, corner: boolean): Frame => {
+  /**
+   * Blocks `added` (cells not blocked yet) when that keeps every entrance reachable: the cells reachable drop by no
+   * more than the cells blocked and the entrances do not split. `keep` false undoes it after the check (a dry run).
+   */
+  private blockIfReachable(added: readonly number[], keep: boolean): boolean {
+    const { blocked } = this;
+    for (const k of added) blocked.add(k);
+    const after = this.reach();
+    const cuts = after.cells < this.reachable.cells - added.length || after.groups > this.reachable.groups;
+    if (cuts || !keep) {
+      for (const k of added) blocked.delete(k);
+      return !cuts;
+    }
+    this.reachable = after;
+    return true;
+  }
+
+  /** Where and which way a group stands: at (x, y), backed by the wall on `side` (or turned at random on open ground). */
+  private readonly frameFor = (x: number, y: number, side: Side | null, corner: boolean): Frame => {
+    const { rng } = this;
     if (side === null) {
       const q = rng.int(4) as 0 | 1 | 2 | 3;
       const dirs: Array<[number, number]> = [
@@ -1703,7 +1856,8 @@ export function composeArea(
    * rows or columns either side). Trees on a two-cell strip between a brook and the board edge, rocks along a lip:
    * they come in clumps of up to three with gaps, never as a fence.
    */
-  const makesSingleFile = (fp: ReadonlyArray<readonly [number, number]>): boolean => {
+  private makesSingleFile(fp: ReadonlyArray<readonly [number, number]>): boolean {
+    const { tallCells, pendingTall } = this;
     const mine = new Set(fp.map(([x, y]) => key(x, y)));
     const isT = (x: number, y: number): boolean => {
       const k = key(x, y);
@@ -1754,10 +1908,12 @@ export function composeArea(
       }
     }
     return false;
-  };
+  }
 
   /** Plans one part in a frame; null when it does not fit. */
-  const planPart = (f: Frame, part: Part, pending: Set<number>, pendingOrg: Set<number>): Planned | null => {
+  private planPart(f: Frame, part: Part, pending: Set<number>, pendingOrg: Set<number>): Planned | null {
+    const { grid, rng, inArea, hOf, thinWallOn, taken, takenOrg, anchorsOrg, pendingAnchorsOrg } = this;
+    const { seatCells, apron, doorZone } = this;
     const info = featureInfo(part.t);
     const [sa, si] = part.size ?? info.size;
     const corners: Array<[number, number]> = [
@@ -1797,22 +1953,23 @@ export function composeArea(
         if (grid.keepClear?.(xx, yy) === true) return null;
         // the apron in front of a landmark stays clear (lights excepted: they pool light at its base)
         if (apron.has(k) && !LIGHT_FEATURES.has(part.t)) return null;
-        if (blocking && doorZoneOn && doorZone.has(k)) return null;
+        if (blocking && this.doorZoneOn && doorZone.has(k)) return null;
         fp.push([xx, yy]);
       }
     if (footprintCrossesWall(grid, [x0, y0], [w, h])) return null;
-    if (runGuard && RUNNERS.has(part.t) && makesSingleFile(fp)) return null;
+    // generator 4: nothing blocking in front of a way in, nor reaching over it
+    if (blocking && grid.blocksWayIn?.(part.t, [x0, y0], [w, h]) === true) return null;
+    if (this.runGuard && RUNNERS.has(part.t) && this.makesSingleFile(fp)) return null;
     // big pieces keep one cell inside the board, so crowns and rock masses never hang off the slab
     // (a wall on that side hides the overhang)
-    if (BIG.has(part.t))
+    if (overhangs(part.t))
       for (const [xx, yy] of fp)
-        for (const sd of SIDES)
-          for (let d = 1; d <= 1; d++) {
-            const [nx, ny] = step(xx, yy, sd);
-            if (!grid.inBounds(nx, ny) && grid.edge(xx, yy, sd) !== EDGE_WALL) return null;
-          }
-    // statement pieces keep a clear ring round structures and yard pieces already on the map
-    if (STATEMENT.has(part.t))
+        for (const sd of SIDES) {
+          const [nx, ny] = step(xx, yy, sd);
+          if (!grid.inBounds(nx, ny) && grid.edge(xx, yy, sd) !== EDGE_WALL) return null;
+        }
+    // landmarks (statement pieces) keep a clear ring round structures and yard pieces already on the map
+    if (isLandmark(part.t))
       for (let yy = y0 - 1; yy <= y0 + h; yy++)
         for (let xx = x0 - 1; xx <= x0 + w; xx++)
           if (grid.inBounds(xx, yy) && (grid.occupied(xx, yy) || SIDES.some((sd) => thinWallOn(xx, yy, sd))))
@@ -1853,10 +2010,11 @@ export function composeArea(
     if (wall) placement.wall = wall;
     if (part.variant !== undefined) placement.variant = part.variant;
     return { placement, cells: fp, blocking };
-  };
+  }
 
   /** Tries to place a whole group at a frame; the focal part must fit, the rest are optional. */
-  const tryGroup = (f: Frame, g: Group, keepOptional = 1, dryRun = false): Planned[] | null => {
+  private readonly tryGroup = (f: Frame, g: Group, keepOptional = 1, dryRun = false): Planned[] | null => {
+    const { grid, rng, gen, pendingAnchorsOrg, pendingTall, blocked } = this;
     const pending = new Set<number>();
     const pendingOrg = new Set<number>();
     pendingAnchorsOrg.clear();
@@ -1865,14 +2023,16 @@ export function composeArea(
     const byPart = new Map<number, Planned>();
     for (let i = 0; i < g.parts.length; i++) {
       // generator 3 parts do not exist (and draw nothing) at earlier generators
-      if ((g.parts[i] as Part).gen3 === true && !isG3) continue;
+      if ((g.parts[i] as Part).needsSupportedParts === true && !gen.supportedParts) continue;
       // optional pieces drop out at random so repeated groups never look stamped
       if (i > 0 && keepOptional < 1 && (g.parts[i] as Part).required !== true && !rng.chance(keepOptional))
         continue;
       const part = g.parts[i] as Part;
-      if (isG3 && part.on !== undefined) {
+      if (gen.supportedParts && part.on !== undefined) {
         const sup = byPart.get(part.on);
-        const ext = sup ? grid.pieceExtent?.(sup.placement.type) : undefined;
+        const ext = sup
+          ? grid.pieceExtent?.(sup.placement.type, sup.placement.at[0], sup.placement.at[1])
+          : undefined;
         if (!sup || !ext) continue;
         const sp = sup.placement;
         const mx = sp.at[0] + sp.size[0] / 2;
@@ -1899,7 +2059,7 @@ export function composeArea(
         byPart.set(i, top);
         continue;
       }
-      const pl = planPart(f, part, pending, pendingOrg);
+      const pl = this.planPart(f, part, pending, pendingOrg);
       if (!pl) {
         if (i === 0 || part.required === true) return null;
         continue;
@@ -1920,25 +2080,20 @@ export function composeArea(
     const added = [
       ...new Set(planned.filter((q) => q.blocking).flatMap((q) => q.cells.map(([x, y]) => key(x, y)))),
     ].filter((k) => !blocked.has(k));
-    for (const k of added) blocked.add(k);
-    const after = reach();
-    const cuts = after.cells < reachable.cells - added.length || after.groups > reachable.groups;
-    if (cuts || dryRun) {
-      for (const k of added) blocked.delete(k);
-      return cuts ? null : planned;
-    }
-    reachable = after;
-    return planned;
+    return this.blockIfReachable(added, !dryRun) ? planned : null;
   };
 
-  const anchors: Array<[number, number]> = [];
-  const farFromAnchors = (x: number, y: number, gap: number): boolean =>
-    anchors.every(([ax, ay]) => Math.max(Math.abs(ax - x), Math.abs(ay - y)) >= gap);
-  const st = { capped: false };
-  const commit = (planned: Planned[], ax: number, ay: number): void => {
+  /** Does (x, y) keep `gap` cells (Chebyshev) from every group placed? */
+  private farFromAnchors(x: number, y: number, gap: number): boolean {
+    return this.anchors.every(([ax, ay]) => Math.max(Math.abs(ax - x), Math.abs(ay - y)) >= gap);
+  }
+
+  /** Places a planned group (until the budget runs out) and records its anchor. */
+  private readonly commit = (planned: Planned[], ax: number, ay: number): void => {
+    const { prm, out, taken, tallCells, seatCells, takenOrg, anchorsOrg } = this;
     for (const q of planned) {
       if (out.length >= prm.remaining) {
-        st.capped = true;
+        this.capped = true;
         return;
       }
       for (const [x, y] of q.cells) taken.add(key(x, y));
@@ -1950,19 +2105,27 @@ export function composeArea(
       }
       out.push(q.placement);
     }
-    anchors.push([ax, ay]);
+    this.anchors.push([ax, ay]);
   };
 
-  const distToEntry = (x: number, y: number): number =>
-    entries.length === 0
+  private distToEntry(x: number, y: number): number {
+    const { entries } = this;
+    return entries.length === 0
       ? 0
       : Math.min(...entries.map(([ex, ey]) => (ex - x) * (ex - x) + (ey - y) * (ey - y)));
+  }
 
-  // ── 0. cliffs as rock bands (cliffband.ts), first so the rock claims every edge before focal aprons and vignettes: courses of face rock stepping back up every rise, crest boulders over
-  //    the lip; then growth that follows the rock: roots at the lip, shrubs on and behind the crest, a tree or a
-  //    broken trunk a cell or two behind it ──
-  if (def.cladLedges === true && !st.capped) {
-    const levelBand = (grid.generator ?? 2) >= 3 && def.bandOnly !== true;
+  /**
+   * Step 0: cliffs as rock bands (cliffband.ts), first so the rock claims every edge before focal aprons and
+   * vignettes: courses of face rock stepping back up every rise, crest boulders over the lip; then growth that follows
+   * the rock: roots at the lip, shrubs on and behind the crest, a tree or a broken trunk a cell or two behind it.
+   */
+  rockBand(): void {
+    const { grid, prm, def, rng, gen, cells, out, inArea, approach, apron, taken, takenOrg, anchorsOrg } =
+      this;
+    const { tryGroup, frameFor, commit } = this;
+    if (def.cladLedges !== true || this.capped) return;
+    const levelBand = gen.defaultCliffBands && def.bandOnly !== true;
     const band: BandResult = levelBand
       ? {
           placements: [],
@@ -1990,21 +2153,14 @@ export function composeArea(
           // tries another way to cover that edge instead)
           accept: (fp) => {
             const added = [...new Set(fp.filter(([x, y]) => inArea(x, y)).map(([x, y]) => key(x, y)))].filter(
-              (k) => !blocked.has(k),
+              (k) => !this.blocked.has(k),
             );
-            for (const k of added) blocked.add(k);
-            const after = reach();
-            if (after.cells < reachable.cells - added.length || after.groups > reachable.groups) {
-              for (const k of added) blocked.delete(k);
-              return false;
-            }
-            reachable = after;
-            return true;
+            return this.blockIfReachable(added, true);
           },
         });
     for (const q of band.placements) {
       if (out.length >= prm.remaining) {
-        st.capped = true;
+        this.capped = true;
         break;
       }
       // other dressing keeps off the rock (growth may tuck into it)
@@ -2016,10 +2172,9 @@ export function composeArea(
       anchorsOrg.add(key(q.at[0], q.at[1]));
       out.push(q);
     }
-    const STEPS: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
     for (const u of def.bandOnly === true ? [] : band.rises) {
-      if (st.capped) break;
-      const [dx, dy] = STEPS[u.side];
+      if (this.capped) break;
+      const [dx, dy] = SIDE_STEP[u.side];
       const lipX = u.low[0] + dx;
       const lipY = u.low[1] + dy;
       const roll = rng.next();
@@ -2045,8 +2200,10 @@ export function composeArea(
     }
   }
 
-  // ── 1. focal group ──
-  if (def.focal) {
+  /** Step 1: the focal group, at the middle (high ground first) or against the wall farthest from the entrances. */
+  focalGroup(): void {
+    const { def, cells, hOf, wallCands, edgeCands, apron, anchors, tryGroup, frameFor, commit } = this;
+    if (!def.focal) return;
     // a raised dais: size the focal (a ritual ring) to its top tier
     const top = Math.max(...cells.map(([x, y]) => hOf(x, y)));
     const topCells = cells.filter(([x, y]) => hOf(x, y) === top).length;
@@ -2091,7 +2248,7 @@ export function composeArea(
         .sort(
           (a, b) =>
             hOf(b[0], b[1]) - hOf(a[0], a[1]) ||
-            distToEntry(b[0], b[1]) - distToEntry(a[0], a[1]) ||
+            this.distToEntry(b[0], b[1]) - this.distToEntry(a[0], a[1]) ||
             a[1] - b[1] ||
             a[0] - b[0],
         );
@@ -2099,7 +2256,7 @@ export function composeArea(
     // centre: the first fit nearest the middle. Far wall: of the 40 wall spots farthest from the entrances, the
     // one where the most of the group fits (a great tree needs wall space for its roots either side).
     let best: { f: Frame; n: number; x: number; y: number; g: Group } | null = null;
-    runGuard = false;
+    this.runGuard = false;
     for (const g of builds) {
       // a ragged natural wall: the group may stand one or two cells off it
       for (const [x, y, s] of cands.slice(0, def.focal.place === "center" ? 60 : 120)) {
@@ -2118,14 +2275,14 @@ export function composeArea(
       if (best) break;
     }
     const planned = best ? tryGroup(best.f, best.g) : null;
-    runGuard = true;
+    this.runGuard = true;
     if (best && planned) {
       commit(planned, best.x, best.y);
       // a landmark (great tree, statue) gets a cleared apron round it (two cells, or the preset's), so it reads on
       // its own
       const apronR = def.landmarkApron ?? 2;
       for (const q of planned)
-        if (STATEMENT.has(q.placement.type))
+        if (isLandmark(q.placement.type))
           for (const [cx, cy] of q.cells)
             for (let dy = -apronR; dy <= apronR; dy++)
               for (let dx = -apronR; dx <= apronR; dx++)
@@ -2136,9 +2293,9 @@ export function composeArea(
     }
   }
 
-  // ── 1b. kerb rows (built places): a regular rhythm or varied gaps along the edge of a road ──
-  for (const row of def.rows ?? []) {
-    if (st.capped) break;
+  /** Step 1b, per row of the preset: kerb rows (built places), a regular rhythm or varied gaps along a road's edge. */
+  kerbRow(row: KerbRow): void {
+    const { grid, def, rng, cells, inArea, taken, tryGroup, commit } = this;
     // candidate cells and the side the road (row "kerb") or the pavement (row "lane") lies on
     const cands: Array<[number, number, Side]> = [];
     for (const [x, y] of cells) {
@@ -2187,7 +2344,7 @@ export function composeArea(
       commit(planned, x, y);
       return true;
     };
-    runGuard = row.rhythm !== "regular" && def.lineRhythm !== "regular";
+    this.runGuard = row.rhythm !== "regular" && def.lineRhythm !== "regular";
     // the cap: one piece per `capPer` candidate cells, less what already stands in this area's lanes
     let rowCount = 0;
     let rowCap = Infinity;
@@ -2267,11 +2424,13 @@ export function composeArea(
         }
       }
     }
-    runGuard = true;
+    this.runGuard = true;
   }
 
-  // ── 1c. a pocket of green at a junction corner (a street tree with shrubs where two roads meet) ──
-  if (def.junctionGreen === true && !st.capped) {
+  /** Step 1c: a pocket of green at a junction corner (a street tree with shrubs where two roads meet). */
+  junctionGreen(): void {
+    const { grid, def, rng, cells, inArea, tryGroup, frameFor, commit } = this;
+    if (def.junctionGreen !== true || this.capped) return;
     const corners = cells.filter(([x, y]) => {
       if ((grid.flags(x, y) & FLAG_PATH) !== 0) return false;
       const road = (dx: number, dy: number): boolean =>
@@ -2285,7 +2444,7 @@ export function composeArea(
       for (const [dx, dy] of [[0, 0], ...NEIGHBOURS8, [2, 0], [-2, 0], [0, 2], [0, -2]] as const)
         if (inArea(cx + dx, cy + dy) && (grid.flags(cx + dx, cy + dy) & FLAG_PATH) === 0)
           spots.push([cx + dx, cy + dy]);
-    doorZoneOn = false;
+    this.doorZoneOn = false;
     for (const [x, y] of rng.shuffle(spots)) {
       const planned = tryGroup(frameFor(x, y, null, false), {
         name: "corner green",
@@ -2302,163 +2461,111 @@ export function composeArea(
         break;
       }
     }
-    doorZoneOn = true;
+    this.doorZoneOn = true;
   }
 
-  // ── 2. vignettes ──
-  const want = Math.max(1, Math.round((prm.density * cells.length) / def.cellsPerGroup));
-  let midX = 0;
-  let midY = 0;
-  for (const [x, y] of cells) {
-    midX += x + 0.5;
-    midY += y + 0.5;
-  }
-  midX /= cells.length;
-  midY /= cells.length;
-  /** Squared radius of the clear middle: a quarter of the area's typical width. */
-  const clearR2 = cells.length / 16;
-  const big = cells.length >= 150 || def.openAnywhere === true;
-  const wallish = wallCands.length >= 8 ? wallCands : [...wallCands, ...edgeCands];
-  // each use halves a group's weight and at most MAX_REPEAT copies appear, so the room is a mix, not a pattern
-  const groups = def.groups
-    .filter(([g]) => (g.anchor !== "open" || big) && (g.anchor !== "ledge_low" || ledgeLow.length > 0))
-    .filter(([g]) => g.anchor !== "ledge_high" || ledgeHigh.length > 0)
-    .filter(([g]) => g.anchor !== "water_edge" || (waterCands.length > 0 && !isG3))
-    .filter(([g]) => g.anchor !== "path_edge" || pathCands.length > 0)
-    .map(([g, w]) => ({ g, w, used: 0 }));
-  // large natural areas need many stands of trees and rocks, not three
-  const maxRepeat = big ? Math.max(3, Math.ceil(cells.length / 150)) : 2;
-  const gap = def.openAnywhere === true ? GROUP_GAP - 1 : GROUP_GAP;
-  const pickGroup = (r: Prng): Group | null => {
-    const live = groups.filter((e) => e.used < maxRepeat);
-    const total = live.reduce((s, e) => s + e.w, 0);
-    if (total <= 0) return null;
-    let x = r.next() * total;
-    for (const e of live) {
-      x -= e.w;
-      if (x < 0) return e.g;
-    }
-    return (live[live.length - 1] as { g: Group }).g;
-  };
-  const used = (g: Group): void => {
-    const e = groups.find((q) => q.g === g);
-    if (e) {
-      e.used++;
-      e.w /= 2;
-    }
-  };
-  const openList: ReadonlyArray<readonly [number, number, Side | null]> = openCands.map(([x, y]) => [
-    x,
-    y,
-    null,
-  ]);
-  /**
-   * Placements along a line — cliff lips and feet, banks, path verges: the one routine every line-following group
-   * goes through, so all of them share the irregularity rules.
-   *  - spacing: the distance from a new run to the nearest earlier run on the same kind of line never repeats more
-   *    than twice (no metronome of equal gaps);
-   *  - shape: each piece after the first shifts along the line by up to a cell and up to two cells off it (some on
-   *    the lip, some back from it);
-   *  - kinds: rock masses and edge stones sometimes become something else (a log among the rocks), and at most two
-   *    large pieces in one run touch;
-   *  - single file: upright pieces never make a run of more than three (makesSingleFile, checked per piece).
-   */
-  const alongLine = (() => {
-    const placed = new Map<Group["anchor"], Array<[number, number]>>();
-    const gaps = new Map<string, number>();
-    const nearest = (anchor: Group["anchor"], x: number, y: number): number | null => {
-      const l = placed.get(anchor) ?? [];
-      if (l.length === 0) return null;
-      return Math.min(...l.map(([ax, ay]) => Math.max(Math.abs(ax - x), Math.abs(ay - y))));
+  /** Step 2: vignettes, groups drawn by weight and anchored on walls, corners, ledges, banks, verges or open ground. */
+  vignettes(): void {
+    const { prm, def, rng, gen, cells, wallCands, edgeCands, cornerCands, openCands } = this;
+    const { ledgeLow, ledgeHigh, waterCands, pathCands, midX, midY, clearR2, tryGroup, frameFor, commit } =
+      this;
+    const want = Math.max(1, Math.round((prm.density * cells.length) / def.cellsPerGroup));
+    const big = cells.length >= 150 || def.openAnywhere === true;
+    const wallish = wallCands.length >= 8 ? wallCands : [...wallCands, ...edgeCands];
+    // each use halves a group's weight and at most MAX_REPEAT copies appear, so the room is a mix, not a pattern
+    const groups = def.groups
+      .filter(([g]) => (g.anchor !== "open" || big) && (g.anchor !== "ledge_low" || ledgeLow.length > 0))
+      .filter(([g]) => g.anchor !== "ledge_high" || ledgeHigh.length > 0)
+      .filter(([g]) => g.anchor !== "water_edge" || (waterCands.length > 0 && !gen.waterBody))
+      .filter(([g]) => g.anchor !== "path_edge" || pathCands.length > 0)
+      .map(([g, w]) => ({ g, w, used: 0 }));
+    // large natural areas need many stands of trees and rocks, not three
+    const maxRepeat = big ? Math.max(3, Math.ceil(cells.length / 150)) : 2;
+    const gap = def.openAnywhere === true ? GROUP_GAP - 1 : GROUP_GAP;
+    const pickGroup = (r: Prng): Group | null => {
+      const live = groups.filter((e) => e.used < maxRepeat);
+      const total = live.reduce((s, e) => s + e.w, 0);
+      if (total <= 0) return null;
+      let x = r.next() * total;
+      for (const e of live) {
+        x -= e.w;
+        if (x < 0) return e.g;
+      }
+      return (live[live.length - 1] as { g: Group }).g;
     };
-    return {
-      spacingOk: (anchor: Group["anchor"], x: number, y: number): boolean => {
-        const d = nearest(anchor, x, y);
-        return d === null || (gaps.get(`${anchor}:${String(d)}`) ?? 0) < 2;
-      },
-      record: (anchor: Group["anchor"], x: number, y: number): void => {
-        const d = nearest(anchor, x, y);
-        if (d !== null) gaps.set(`${anchor}:${String(d)}`, (gaps.get(`${anchor}:${String(d)}`) ?? 0) + 1);
-        placed.set(anchor, [...(placed.get(anchor) ?? []), [x, y]]);
-      },
-      parts: (g: Group): Group => {
-        let large = 0;
-        return {
-          ...g,
-          parts: g.parts.map((q, i) => {
-            let t: FeatureType = q.t;
-            if (i > 0 && (t === "formation" || t === "edge_dressing") && rng.chance(0.35))
-              t = LINE_SWAP[rng.int(LINE_SWAP.length)] as FeatureType;
-            if (t === "formation" && ++large > 2) t = rng.chance(0.5) ? "edge_dressing" : "undergrowth";
-            return {
-              ...q,
-              t,
-              dx: q.dx + (i > 0 ? rng.int(3) - 1 : 0),
-              dy: q.dy + (i > 0 ? rng.int(3) : 0),
-            };
-          }),
-        };
-      },
+    const used = (g: Group): void => {
+      const e = groups.find((q) => q.g === g);
+      if (e) {
+        e.used++;
+        e.w /= 2;
+      }
     };
-  })();
-  let made = 0;
-  for (let n = 0; n < want * 2 && made < want && !st.capped; n++) {
-    const g = pickGroup(rng);
-    if (!g) break;
-    const anchored: ReadonlyArray<readonly [number, number, Side | null]> =
-      g.anchor === "wall"
-        ? wallish
-        : g.anchor === "corner"
-          ? cornerCands
-          : g.anchor === "ledge_low"
-            ? ledgeLow
-            : g.anchor === "ledge_high"
-              ? ledgeHigh
-              : g.anchor === "water_edge"
-                ? waterCands
-                : g.anchor === "path_edge"
-                  ? pathCands
-                  : openList;
-    // natural presets in open country (no walls or corners): wall and corner groups stand on open ground instead
-    const list =
-      anchored.length === 0 &&
-      def.openAnywhere === true &&
-      (g.anchor === "wall" || g.anchor === "corner") &&
-      !g.parts.some((q) => LIGHT_FEATURES.has(q.t))
-        ? openList
-        : anchored;
-    if (list.length === 0) continue;
-    for (let t = 0; t < TRIES; t++) {
-      const c = list[rng.int(list.length)] as readonly [number, number, Side | null];
-      const line = LINE_ANCHORS.has(g.anchor);
-      if (!farFromAnchors(c[0], c[1], line ? gap + 2 + rng.int(5) : gap)) continue;
-      // negative space: open-ground groups keep out of the middle of the area (the combat floor and paths)
-      if (c[2] === null && sq(c[0] + 0.5 - midX) + sq(c[1] + 0.5 - midY) < clearR2) continue;
-      const regular = def.lineRhythm === "regular";
-      if (line && !regular && !alongLine.spacingOk(g.anchor, c[0], c[1])) continue;
-      const g2: Group = line && !regular ? alongLine.parts(g) : g;
-      runGuard = !regular;
-      const planned = tryGroup(frameFor(c[0], c[1], c[2], g.anchor === "corner"), g2, line ? 0.7 : 0.9);
-      runGuard = true;
-      if (!planned) continue;
-      commit(planned, c[0], c[1]);
-      if (line) alongLine.record(g.anchor, c[0], c[1]);
-      used(g);
-      made++;
-      break;
+    const openList: ReadonlyArray<readonly [number, number, Side | null]> = openCands.map(([x, y]) => [
+      x,
+      y,
+      null,
+    ]);
+    const alongLine = lineRhythm(rng);
+    let made = 0;
+    for (let n = 0; n < want * 2 && made < want && !this.capped; n++) {
+      const g = pickGroup(rng);
+      if (!g) break;
+      const anchored: ReadonlyArray<readonly [number, number, Side | null]> =
+        g.anchor === "wall"
+          ? wallish
+          : g.anchor === "corner"
+            ? cornerCands
+            : g.anchor === "ledge_low"
+              ? ledgeLow
+              : g.anchor === "ledge_high"
+                ? ledgeHigh
+                : g.anchor === "water_edge"
+                  ? waterCands
+                  : g.anchor === "path_edge"
+                    ? pathCands
+                    : openList;
+      // natural presets in open country (no walls or corners): wall and corner groups stand on open ground instead
+      const list =
+        anchored.length === 0 &&
+        def.openAnywhere === true &&
+        (g.anchor === "wall" || g.anchor === "corner") &&
+        !g.parts.some((q) => LIGHT_FEATURES.has(q.t))
+          ? openList
+          : anchored;
+      if (list.length === 0) continue;
+      for (let t = 0; t < TRIES; t++) {
+        const c = list[rng.int(list.length)] as readonly [number, number, Side | null];
+        const line = LINE_ANCHORS.has(g.anchor);
+        if (!this.farFromAnchors(c[0], c[1], line ? gap + 2 + rng.int(5) : gap)) continue;
+        // negative space: open-ground groups keep out of the middle of the area (the combat floor and paths)
+        if (c[2] === null && sq(c[0] + 0.5 - midX) + sq(c[1] + 0.5 - midY) < clearR2) continue;
+        const regular = def.lineRhythm === "regular";
+        if (line && !regular && !alongLine.spacingOk(g.anchor, c[0], c[1])) continue;
+        const g2: Group = line && !regular ? alongLine.parts(g) : g;
+        this.runGuard = !regular;
+        const planned = tryGroup(frameFor(c[0], c[1], c[2], g.anchor === "corner"), g2, line ? 0.7 : 0.9);
+        this.runGuard = true;
+        if (!planned) continue;
+        commit(planned, c[0], c[1]);
+        if (line) alongLine.record(g.anchor, c[0], c[1]);
+        used(g);
+        made++;
+        break;
+      }
     }
   }
 
-  // ── 3. lighting pass: entrances first, then along the walls ──
-  const lights: Array<[number, number]> = out
-    .filter((q) => LIGHT_FEATURES.has(q.type))
-    .map((q) => [q.at[0], q.at[1]]);
-  const lit = (x: number, y: number, r: number): boolean =>
-    lights.some(([lx, ly]) => Math.max(Math.abs(lx - x), Math.abs(ly - y)) < r);
-  const placeLight = (x: number, y: number, s: Side, type: FeatureType | null = def.wallLight): boolean => {
+  /** Is a light within `r` cells (Chebyshev, exclusive) of (x, y)? */
+  private lit(x: number, y: number, r: number): boolean {
+    return this.lights.some(([lx, ly]) => Math.max(Math.abs(lx - x), Math.abs(ly - y)) < r);
+  }
+
+  /** A wall light on side `s` of (x, y), when solid wall stands behind it and the cell is free. */
+  private placeLight(x: number, y: number, s: Side, type: FeatureType | null = this.def.wallLight): boolean {
+    const { grid, prm, out, inArea, taken, thinWallOn, lights } = this;
     if (type === null) return false;
     if (out.length >= prm.remaining) {
-      st.capped = true;
+      this.capped = true;
       return false;
     }
     const k = key(x, y);
@@ -2487,69 +2594,109 @@ export function composeArea(
     });
     lights.push([x, y]);
     return true;
-  };
-  for (const [ex, ey] of entries) {
-    if (lit(ex, ey, 3)) continue;
-    const near = wallCands
-      .filter(([x, y]) => Math.max(Math.abs(x - ex), Math.abs(y - ey)) <= 2)
-      .sort(
-        (a, b) => Math.abs(a[0] - ex) + Math.abs(a[1] - ey) - (Math.abs(b[0] - ex) + Math.abs(b[1] - ey)),
-      );
-    for (const [x, y, s] of near) if (placeLight(x, y, s, "torch_wall")) break;
   }
-  // platform and chasm edges: a floor light on the upper side wherever the lip is dark (lights on both levels)
-  // at most two per dress op, well apart: lights mark a lip, they do not line it
-  let edgeLights = 0;
-  const atStairOrBridge = (x: number, y: number): boolean =>
-    SIDES.some((sd) => {
-      if (grid.edge(x, y, sd) === EDGE_STAIR) return true;
-      const [nx, ny] = step(x, y, sd);
-      return (
-        grid.inBounds(nx, ny) &&
-        (grid.flags(nx, ny) & FLAG_BRIDGE) !== 0 &&
-        (grid.flags(x, y) & FLAG_BRIDGE) === 0
-      );
-    });
-  const lightSpots = cells
-    .filter(([x, y]) => atStairOrBridge(x, y))
-    .map(([x, y]) => [x, y] as [number, number]);
-  for (const [x, y] of rng.shuffle(lightSpots)) {
-    if (st.capped || edgeLights >= 2 || lit(x, y, def.lightSpacing + 4)) continue;
-    const planned = tryGroup(frameFor(x, y, null, false), {
-      name: "edge light",
-      anchor: "open",
-      parts: [p("torch_floor", 0, 0)],
-    });
-    if (!planned) continue;
-    commit(planned, x, y);
-    lights.push([x, y]);
-    edgeLights++;
+
+  /** Step 3: lighting, entrances first, then the lips of platforms and chasms, then along the walls. */
+  lightEntrancesAndWalls(): void {
+    const { grid, def, rng, cells, out, entries, wallCands, lights, tryGroup, frameFor, commit } = this;
+    lights.push(
+      ...out.filter((q) => LIGHT_FEATURES.has(q.type)).map((q): [number, number] => [q.at[0], q.at[1]]),
+    );
+    for (const [ex, ey] of entries) {
+      if (this.lit(ex, ey, 3)) continue;
+      const near = wallCands
+        .filter(([x, y]) => Math.max(Math.abs(x - ex), Math.abs(y - ey)) <= 2)
+        .sort(
+          (a, b) => Math.abs(a[0] - ex) + Math.abs(a[1] - ey) - (Math.abs(b[0] - ex) + Math.abs(b[1] - ey)),
+        );
+      for (const [x, y, s] of near) if (this.placeLight(x, y, s, "torch_wall")) break;
+    }
+    // platform and chasm edges: a floor light on the upper side wherever the lip is dark (lights on both levels)
+    // at most two per dress op, well apart: lights mark a lip, they do not line it
+    let edgeLights = 0;
+    const atStairOrBridge = (x: number, y: number): boolean =>
+      SIDES.some((sd) => {
+        if (grid.edge(x, y, sd) === EDGE_STAIR) return true;
+        const [nx, ny] = step(x, y, sd);
+        return (
+          grid.inBounds(nx, ny) &&
+          (grid.flags(nx, ny) & FLAG_BRIDGE) !== 0 &&
+          (grid.flags(x, y) & FLAG_BRIDGE) === 0
+        );
+      });
+    const lightSpots = cells
+      .filter(([x, y]) => atStairOrBridge(x, y))
+      .map(([x, y]) => [x, y] as [number, number]);
+    for (const [x, y] of rng.shuffle(lightSpots)) {
+      if (this.capped || edgeLights >= 2 || this.lit(x, y, def.lightSpacing + 4)) continue;
+      const planned = tryGroup(frameFor(x, y, null, false), {
+        name: "edge light",
+        anchor: "open",
+        parts: [p("torch_floor", 0, 0)],
+      });
+      if (!planned) continue;
+      commit(planned, x, y);
+      lights.push([x, y]);
+      edgeLights++;
+    }
+    const order = rng.shuffle(wallCands);
+    for (const [x, y, s] of order) {
+      if (this.capped) break;
+      if (this.lit(x, y, def.lightSpacing)) continue;
+      this.placeLight(x, y, s);
+    }
   }
-  const order = rng.shuffle(wallCands);
-  for (const [x, y, s] of order) {
-    if (st.capped) break;
-    if (lit(x, y, def.lightSpacing)) continue;
-    placeLight(x, y, s);
-  }
-  // ── 3b. generator 3: a landmark is lit: a floor light a cell or two off its footprint when none stands within four
-  //    cells (the review's focal_unlit check; the lights of a lit place stand at the focal points, not only at walls) ──
-  if ((grid.generator ?? 2) >= 3) {
-    const FOCAL_LIT = new Set<FeatureType>(["landmark", "statue", "statue_large", "altar", "fountain", "well", "monolith", "standing_stone", "tall_marker", "throne"]);
+
+  /**
+   * Step 3b, generator 3: a landmark is lit: a floor light a cell or two off its footprint when none stands within
+   * four cells (the review's focal_unlit check; the lights of a lit place stand at the focal points, not only at walls).
+   */
+  lightLandmarks(): void {
+    const { gen, cells, out, taken, doorZone, lights, tryGroup, frameFor, commit } = this;
+    if (!gen.litLandmarks) return;
     for (const f of out.filter((q) => FOCAL_LIT.has(q.type))) {
-      if (st.capped) break;
+      if (this.capped) break;
       const cx = f.at[0] + f.size[0] / 2;
       const cy = f.at[1] + f.size[1] / 2;
-      if (lights.some(([lx, ly]) => Math.max(Math.abs(lx + 0.5 - cx), Math.abs(ly + 0.5 - cy)) < 4 + Math.max(f.size[0], f.size[1]) / 2)) continue;
+      if (
+        lights.some(
+          ([lx, ly]) =>
+            Math.max(Math.abs(lx + 0.5 - cx), Math.abs(ly + 0.5 - cy)) <
+            4 + Math.max(f.size[0], f.size[1]) / 2,
+        )
+      )
+        continue;
+      // generator 4: the light stands off the landmark's real outline (a great tree's crown or a statue's plinth is
+      // wider than its footprint), turned any way: half the diagonal of its widest variant round the footprint's middle
+      const ext = gen.lightsOffLandmarks
+        ? this.grid.piece4?.(f.type, f.at[0], f.at[1], f.variant)
+        : undefined;
+      const reach = ext ? Math.hypot(ext.wMax, ext.dMax) / 2 : 0;
+      const underOutline = (x: number, y: number): boolean =>
+        x + 1 > cx - reach && x < cx + reach && y + 1 > cy - reach && y < cy + reach;
       // the nearest free ground ring around the footprint, off the paths
       const ring = cells
         .filter(([x, y]) => {
           const dx = Math.max(f.at[0] - x, 0, x - (f.at[0] + f.size[0] - 1));
           const dy = Math.max(f.at[1] - y, 0, y - (f.at[1] + f.size[1] - 1));
-          return Math.max(dx, dy) >= 1 && Math.max(dx, dy) <= 2 && !taken.has(key(x, y)) && !doorZone.has(key(x, y));
+          return (
+            Math.max(dx, dy) >= 1 &&
+            Math.max(dx, dy) <= 2 &&
+            !taken.has(key(x, y)) &&
+            !doorZone.has(key(x, y)) &&
+            !underOutline(x, y)
+          );
         })
-        .sort((a, b) => Math.hypot(a[0] - cx, a[1] - cy) - Math.hypot(b[0] - cx, b[1] - cy) || a[0] - b[0] || a[1] - b[1]);
+        .sort(
+          (a, b) =>
+            Math.hypot(a[0] - cx, a[1] - cy) - Math.hypot(b[0] - cx, b[1] - cy) || a[0] - b[0] || a[1] - b[1],
+        );
       for (const [x, y] of ring.slice(0, 8)) {
-        const planned = tryGroup(frameFor(x, y, null, false), { name: "focal light", anchor: "open", parts: [p("torch_floor", 0, 0)] });
+        const planned = tryGroup(frameFor(x, y, null, false), {
+          name: "focal light",
+          anchor: "open",
+          parts: [p("torch_floor", 0, 0)],
+        });
         if (!planned) continue;
         commit(planned, x, y);
         lights.push([x, y]);
@@ -2557,9 +2704,15 @@ export function composeArea(
       }
     }
   }
-  // ── 4. canopy: trees in noise patches over free ground up to the preset's cover, thinning toward paths and the
-  //    clearing, with undergrowth between them ──
-  if (def.canopy !== undefined && def.canopy > 0) {
+
+  /**
+   * Step 4: canopy, trees in noise patches over free ground up to the preset's cover, thinning toward paths and the
+   * clearing, with undergrowth between them.
+   */
+  canopy(): void {
+    const { grid, prm, def, rng, cells, out, taken, doorZone, apron, midX, midY, clearR2 } = this;
+    const { tryGroup, frameFor, commit } = this;
+    if (def.canopy === undefined || def.canopy <= 0) return;
     const field = new ValueNoise(subSeed(prm.seed, "canopy"));
     const nearPath = (x: number, y: number, r: number): boolean => {
       for (let dy = -r; dy <= r; dy++)
@@ -2570,7 +2723,7 @@ export function composeArea(
     const target = Math.round(def.canopy * cells.length * 0.45);
     let trees = out.filter((q) => q.type === "cluster_tall").length;
     for (const [x, y] of rng.shuffle(cells)) {
-      if (st.capped || trees >= target) break;
+      if (this.capped || trees >= target) break;
       if (taken.has(key(x, y)) || doorZone.has(key(x, y)) || apron.has(key(x, y))) continue;
       const clearing = sq(x + 0.5 - midX) + sq(y + 0.5 - midY) < clearR2 * (def.canopy >= 0.7 ? 0.5 : 1);
       let pr = def.canopy * (field.sample(x / 6, y / 6) > 0.4 ? 1.4 : 0.35);
@@ -2600,17 +2753,19 @@ export function composeArea(
     }
   }
 
-  // ── 5. ground cover: drifts in value-noise patches, denser at tree feet and verges, never on paths or entrances ──
-  if (def.groundCover !== undefined && def.groundCover > 0) {
+  /** Step 5: ground cover, drifts in value-noise patches, denser at tree feet and verges, never on paths or entrances. */
+  groundCover(): void {
+    const { grid, prm, def, rng, gen, cells, out, inArea, taken, takenOrg, anchorsOrg, doorZone, apron } =
+      this;
+    if (def.groundCover === undefined || def.groundCover <= 0) return;
     const field = new ValueNoise(subSeed(prm.seed, "groundcover"));
     const types: FeatureType[] = ["ground_cover", "ground_cover", "small_detail"];
     const coverCells = new Set<number>();
-    const CAUSES = new Set<FeatureType>(["campfire", "fire_pit", "tent", "tree_large", "landmark", "tree", "dead_tree", "pine_tree"]);
-    const causes = out.filter((q) => CAUSES.has(q.type)).map((q) => [q.at[0], q.at[1]] as const);
+    const causes = out.filter((q) => COVER_CAUSES.has(q.type)).map((q) => [q.at[0], q.at[1]] as const);
     for (const [x, y] of cells) {
-      if (st.capped) break;
+      if (this.capped) break;
       if (out.length >= prm.remaining) {
-        st.capped = true;
+        this.capped = true;
         break;
       }
       const k = key(x, y);
@@ -2623,7 +2778,7 @@ export function composeArea(
           return grid.inBounds(nx, ny) && grid.isFloor(nx, ny) && (grid.flags(nx, ny) & FLAG_WATER) === 0;
         });
         // (generator 3 dresses the water as one body: gen/water.ts)
-        if (atBank && rng.chance(0.35) && !isG3) {
+        if (atBank && rng.chance(0.35) && !gen.waterBody) {
           taken.add(k);
           takenOrg.add(k);
           anchorsOrg.add(k);
@@ -2633,7 +2788,7 @@ export function composeArea(
       }
       if ((fl & (FLAG_LINK | FLAG_PATH)) !== 0) continue;
       // generator 3: broader drifts (about 7 cells), so the bare ground between them is wide
-      const patch = isG3 ? field.sample(x / 6.5, y / 7.5) : field.sample(x / 3.3, y / 4.7);
+      const patch = gen.causedGroundCover ? field.sample(x / 6.5, y / 7.5) : field.sample(x / 3.3, y / 4.7);
       const r = rng.next();
       const t = types[rng.int(types.length)] as FeatureType;
       // beside trees, rocks and paths the ground cover thickens (tree feet, verges)
@@ -2650,17 +2805,24 @@ export function composeArea(
       // patch, a thicker sowing inside it, and nothing at its feathered edge
       // and tied to a cause: damp ground by a rift or water, a camp, a tree; far from any, only the odd tuft
       let tied = false;
-      if (isG3) {
+      if (gen.causedGroundCover) {
         tied = causes.some(([cx, cy]) => Math.hypot(cx - x, cy - y) <= 3.5);
         for (let dy = -3; dy <= 3 && !tied; dy++)
           for (let dx = -3; dx <= 3; dx++)
-            if (grid.inBounds(x + dx, y + dy) && (grid.flags(x + dx, y + dy) & (FLAG_WATER | 1)) !== 0) {
+            if (
+              grid.inBounds(x + dx, y + dy) &&
+              (grid.flags(x + dx, y + dy) & (FLAG_WATER | FLAG_NO_FLOOR)) !== 0
+            ) {
               tied = true;
               break;
             }
       }
-      const pr = isG3
-        ? 0.4 * def.groundCover * (patch > 0.64 ? 3.6 : patch > 0.58 ? 1.0 : 0) * (1 + near * 0.6) * (tied ? 1.6 : 0.15)
+      const pr = gen.causedGroundCover
+        ? 0.4 *
+          def.groundCover *
+          (patch > 0.64 ? 3.6 : patch > 0.58 ? 1.0 : 0) *
+          (1 + near * 0.6) *
+          (tied ? 1.6 : 0.15)
         : 0.4 * def.groundCover * (patch > 0.55 ? 2.2 : patch > 0.45 ? 0.6 : 0) * (1 + near * 0.6);
       if (r >= pr) continue;
       let crowded = false;
@@ -2681,7 +2843,7 @@ export function composeArea(
       }
       for (const [cx, cy] of clump) {
         if (out.length >= prm.remaining) {
-          st.capped = true;
+          this.capped = true;
           break;
         }
         const ck = key(cx, cy);
@@ -2696,8 +2858,11 @@ export function composeArea(
       }
     }
   }
-  // ── 6. generator 3: the water is dressed as one body (sunk boulders, shallows plants, shore rock, stepping stones) ──
-  if (isG3 && !st.capped) {
+
+  /** Step 6, generator 3: the water is dressed as one body (sunk boulders, shallows plants, shore rock, stepping stones). */
+  waterBody(): void {
+    const { grid, prm, gen, cells, out, inArea, taken, doorZone } = this;
+    if (!gen.waterBody || this.capped) return;
     const wd = dressWater(grid, {
       cells,
       inArea,
@@ -2707,5 +2872,4 @@ export function composeArea(
     });
     out.push(...wd.placements);
   }
-  return { placements: out, capped: st.capped };
 }

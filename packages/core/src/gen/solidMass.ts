@@ -1,5 +1,5 @@
 /**
- * Solid mass, shared (generator 4 code review, finding 8). Two systems fill the solid cells behind a wall so nothing
+ * Solid mass, shared. Two systems fill the solid cells behind a wall so nothing
  * reads hollow: the interior shell (compile/shell.ts: a flat cap and a skirt behind built walls) and the cave rock mass
  * (gen/cavewall.ts: stacked rock behind natural walls). They answer the same questions, so the answers live here and
  * both ask:
@@ -188,7 +188,11 @@ export function inBlock2x2(g: CellGrid, i: number, member: (j: number) => boolea
 }
 
 /** Teeth: a cell of the set with at most one four-neighbour in the set goes, when `removable` says it may. */
-export function trimTeeth(g: CellGrid, set: Map<number, number>, removable: (i: number, v: number) => boolean): void {
+export function trimTeeth(
+  g: CellGrid,
+  set: Map<number, number>,
+  removable: (i: number, v: number) => boolean,
+): void {
   for (const [i, v] of [...set]) {
     if (!removable(i, v)) continue;
     if (orthNeighbours(g, i).filter((k) => set.has(k)).length <= 1) set.delete(i);
@@ -253,6 +257,7 @@ export function dropLumps(
           }
         }
     }
-    if (!comp.some((i) => anchored(i, set.get(i) as number)) || comp.length < minSize) for (const i of comp) set.delete(i);
+    if (!comp.some((i) => anchored(i, set.get(i) as number)) || comp.length < minSize)
+      for (const i of comp) set.delete(i);
   }
 }

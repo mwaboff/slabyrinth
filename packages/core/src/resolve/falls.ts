@@ -1,9 +1,9 @@
 /**
- * Stepped rivers, generator 3 (terrain round, 2026-11-20). A river that runs down a slope used to be cut to one level
+ * Stepped rivers, generator 3. A river that runs down a slope used to be cut to one level
  * and became a trench. Where its course drops 2 tiles or more it is split into reaches at different levels with a fall
  * between them (1 to 3 tiles each), as a real stream steps down a hillside. This module only plans: which samples of
  * the course end a reach, which reach every channel cell belongs to and what level each reach is cut to. The resolver
- * (level.ts) cuts the heights, widens a pool at each foot and records the falls.
+ * (resolve/level/chasms.ts) cuts the heights, widens a pool at each foot and records the falls.
  *
  * Arithmetic only (no trigonometry), integer-lattice neutral: every engine agrees on the cells.
  */

@@ -2,6 +2,7 @@ import type { IpcRequests } from "../../shared/ipc";
 import { isAllowedExternalUrl } from "../externalUrls";
 import type { Logger } from "../logger";
 import type { ConversationEngine } from "../ports/engine";
+import type { BuildPalettes } from "../services/buildPalettes";
 import type { BuildService } from "../services/buildService";
 import type { ClipboardService } from "../services/clipboardService";
 import type { Dialogs } from "../services/dialogs";
@@ -30,6 +31,8 @@ export interface HandlerServices {
   build: BuildService;
   exporter: ExportService;
   palettes: PaletteService;
+  /** The palettes builds compile with, which the 2D preview resolves against too. */
+  buildPalettes: Pick<BuildPalettes, "data">;
   /** Native dialogs (inert in smoke/e2e runs). */
   dialogs: Dialogs;
   openExternal: (url: string) => Promise<void>;
@@ -90,9 +93,13 @@ export function createHandlers(s: HandlerServices): Handlers {
       try {
         check = await engine().checkProvider(req.providerId);
       } catch {
-        check = { ok: false, error: { kind: "network", retryable: true, message: "Couldn't check the key." } };
+        check = {
+          ok: false,
+          error: { kind: "network", retryable: true, message: "Couldn't check the key." },
+        };
       }
-      if (!check.ok && check.error.kind === "auth") {
+      // only the provider itself rejecting the key (HTTP 401) removes it
+      if (!check.ok && check.error.kind === "auth" && check.error.httpStatus === 401) {
         await s.secrets.clearApiKey(req.providerId);
         s.logger.info("api key rejected by the provider; removed", { providerId: req.providerId });
         return { stored: false, backend: res.backend, check };
@@ -107,8 +114,8 @@ export function createHandlers(s: HandlerServices): Handlers {
     "providers:check": (req) => engine().checkProvider(req.providerId),
     "models:list": (req) => engine().listModels(req.providerId, req.refresh === true),
 
-    "project:new": (req) => s.projects.create(req),
-    "project:open": (req) => s.projects.open(req),
+    "project:new": async (req) => s.projects.handedToRenderer(await s.projects.create(req)),
+    "project:open": async (req) => s.projects.handedToRenderer(await s.projects.open(req)),
     "project:saveCopyAs": () => s.projects.saveCopyAs(),
     "project:rename": (req) => s.projects.rename(req.name),
     "project:duplicate": (req) => s.projects.duplicate(req.path),
@@ -117,12 +124,12 @@ export function createHandlers(s: HandlerServices): Handlers {
       s.projects.revealInFolder(req.path);
     },
     "project:close": (req) => s.projects.close(req),
-    "project:snapshot": () => s.projects.snapshot(),
+    "project:snapshot": () => s.projects.handedToRenderer(s.projects.snapshot()),
     "project:setUiState": (req) => {
-      s.projects.setUiState(req);
+      s.projects.setUiStateFromRenderer(req);
     },
     "project:list": () => s.projects.list(),
-    "project:importPlan": () => s.projects.importPlan(),
+    "project:importPlan": async () => s.projects.handedToRenderer(await s.projects.importPlan()),
     "project:exportPlan": () => s.projects.exportPlan(),
 
     "plan:applyOps": (req) => s.projects.applyOps(req),
@@ -218,6 +225,7 @@ export function createHandlers(s: HandlerServices): Handlers {
     "palettes:list": () => s.palettes.list(),
     "palettes:reload": () => s.palettes.load(),
     "palettes:openFolder": () => s.palettes.openFolder(),
+    "palettes:resolveData": () => s.buildPalettes.data(),
 
     "shell:openExternal": async (req) => {
       if (!isAllowedExternalUrl(req.url)) {

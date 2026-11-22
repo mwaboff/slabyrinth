@@ -102,7 +102,6 @@ async function launchHiDpi(run: Run): Promise<{ app: ElectronApplication; page: 
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
   delete env["ANTHROPIC_API_KEY"];
-  delete env["SLABYRINTH_FAKE_ENGINE"];
   const app = await electron.launch({
     args: [mainEntry],
     env: {

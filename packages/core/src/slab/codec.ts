@@ -36,14 +36,20 @@ export function toScaled(t: number): number {
   return Math.round(Number((t * 100).toFixed(6)));
 }
 
+/** TaleSpire turns an asset in steps of this many degrees ... */
+export const ROTATION_STEP = 15;
+/** ... so a full turn is this many steps (the slab's rotation index is 0..ROTATION_STEPS - 1). */
+export const ROTATION_STEPS = 360 / ROTATION_STEP;
+
 export function degreesToRot(deg: number): number {
-  const steps = Math.round(deg / 15);
-  if (Math.abs(steps * 15 - deg) > 1e-6) throw new RangeError(`rotation ${deg}° is not a multiple of 15°`);
-  return ((steps % 24) + 24) % 24;
+  const steps = Math.round(deg / ROTATION_STEP);
+  if (Math.abs(steps * ROTATION_STEP - deg) > 1e-6)
+    throw new RangeError(`rotation ${deg}° is not a multiple of ${ROTATION_STEP}°`);
+  return ((steps % ROTATION_STEPS) + ROTATION_STEPS) % ROTATION_STEPS;
 }
 
 export function rotToDegrees(rot: number): number {
-  return (((rot % 24) + 24) % 24) * 15;
+  return (((rot % ROTATION_STEPS) + ROTATION_STEPS) % ROTATION_STEPS) * ROTATION_STEP;
 }
 
 /** Packs one instance into the u64 (BigInt; the fields straddle bit 32). */

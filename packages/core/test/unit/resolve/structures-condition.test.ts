@@ -3,47 +3,30 @@
  * tops carry broken blocks and rubble, and a ruin keeps some doorway and window arches standing alone.
  */
 import { describe, expect, it } from "vitest";
-import type { Building, MapPlan, Structure } from "../../../src/contracts/plan";
+import type { Building, MapPlan, Structure, StructureOpening } from "../../../src/contracts/plan";
 import type { ResolvedLevel, ResolvedStructure } from "../../../src/contracts/resolved";
 import { realize, verifyBuild } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
 import { WEATHER_MINIMUMS, structureRuinMeasures, weatherMeasures, weatherSigns } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
+import { townPlan } from "../../fixtures/planBuilder";
 
 const palettes = loadPalettes();
 
-function plan(structures: Structure[], generator: 2 | 3 = 3, theme = "forest"): MapPlan {
-  return {
-    schema: "slabyrinth/plan@1",
+const plan = (structures: Structure[], generator: 2 | 3 = 3, theme = "forest"): MapPlan =>
+  townPlan({
     generator,
     id: "cond",
-    title: "cond",
-    kind: "outdoor",
     seed: 5,
     theme,
-    links: [],
-    levels: [
-      {
-        id: "g",
-        name: "g",
-        elevation: 0,
-        bounds: { x: 0, y: 0, w: 30, h: 30 },
-        base: { type: "ground", material: "grass" },
-        areas: [{ id: "lot", kind: "zone", shape: { type: "rect", x: 0, y: 0, w: 30, h: 30 } }],
-        openings: [],
-        walls: [],
-        features: [{ id: "f", type: "statue", at: [2, 2] }],
-        terrain: [],
-        labels: [],
-        structures,
-      },
-    ],
-  };
-}
+    w: 30,
+    h: 30,
+    structures,
+    level: { features: [{ id: "f", type: "statue", at: [2, 2] }] },
+  });
 const first = (p: MapPlan): ResolvedStructure =>
-  ((resolvePlan(p).levels[0] as ResolvedLevel).structures ?? [])[0] as ResolvedStructure;
+  ((resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel).structures ?? [])[0] as ResolvedStructure;
 const b = (style: string, seed: number, w: number, h: number, extra: Partial<Building> = {}): Building => ({
   id: "b",
   style,
@@ -51,7 +34,8 @@ const b = (style: string, seed: number, w: number, h: number, extra: Partial<Bui
   wings: [{ x: 8, y: 8, w, h }],
   ...extra,
 });
-const placementsOf = (p: MapPlan) => realize(resolvePlan(p), palettes).levels[0]?.placements ?? [];
+const placementsOf = (p: MapPlan) =>
+  realize(resolvePlan(p, bundledPalettes()), palettes).levels[0]?.placements ?? [];
 
 const CASES: Array<[string, number, number, number, Partial<Building>]> = [
   ["cottage", 12, 8, 7, { roof: { type: "gable" } }],
@@ -80,7 +64,7 @@ describe("weathered at generator 3", () => {
       expect(im.roofMissing).toBe(0);
       // the shape stays whole and the build is clean
       const p = plan([wb]);
-      const r = resolvePlan(p);
+      const r = resolvePlan(p, bundledPalettes());
       expect(
         verifyBuild(r, realize(r, palettes), palettes, { plan: p }).diagnostics.filter(
           (x) => x.severity === "error",
@@ -108,11 +92,11 @@ describe("weathered at generator 3", () => {
 
   it("review: weathered_same_as_intact fires when the signs are missing, and is quiet otherwise", () => {
     const wp = plan([b("cottage", 12, 8, 7, { roof: { type: "gable" }, condition: "weathered" })]);
-    const good = resolvePlan(wp);
-    expect(reviewDesign(wp, good, { limit: 99 }).map((n) => n.code)).not.toContain(
+    const good = resolvePlan(wp, bundledPalettes());
+    expect(reviewDesign(wp, good, bundledPalettes(), { limit: 99 }).map((n) => n.code)).not.toContain(
       "weathered_same_as_intact",
     );
-    const bare = resolvePlan(wp);
+    const bare = resolvePlan(wp, bundledPalettes());
     const st = (bare.levels[0] as ResolvedLevel).structures?.[0] as ResolvedStructure;
     if (st.ruin) {
       st.ruin.roofHoles = [];
@@ -121,12 +105,14 @@ describe("weathered at generator 3", () => {
     }
     st.debris = [];
     if (st.lighting) st.lighting.lit = 0.8;
-    const notes = reviewDesign(wp, bare, { limit: 99 });
+    const notes = reviewDesign(wp, bare, bundledPalettes(), { limit: 99 });
     expect(notes.map((n) => n.code)).toContain("weathered_same_as_intact");
     // generator 2 plans are never told (their output is frozen)
     const wp2 = plan([b("cottage", 12, 8, 7, { roof: { type: "gable" }, condition: "weathered" })], 2);
-    const r2 = resolvePlan(wp2);
-    expect(reviewDesign(wp2, r2, { limit: 99 }).map((n) => n.code)).not.toContain("weathered_same_as_intact");
+    const r2 = resolvePlan(wp2, bundledPalettes());
+    expect(reviewDesign(wp2, r2, bundledPalettes(), { limit: 99 }).map((n) => n.code)).not.toContain(
+      "weathered_same_as_intact",
+    );
   });
 });
 
@@ -152,7 +138,7 @@ describe("ruins at generator 3", () => {
       expect(top.length, `${style} ${seed}`).toBeLessThan(Math.max(1, cut));
       const cells = new Set(st.cells.map(([x, y]) => `${x},${y}`));
       const doorFaces = new Set<string>();
-      for (const o of (resolvePlan(p).levels[0] as ResolvedLevel).openings) {
+      for (const o of (resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel).openings) {
         if (!st.openingIds.includes(o.id) || o.kind === "window") continue;
         for (let k = 0; k < o.width; k++) {
           const [x, y] = o.orientation === "h" ? [o.start[0] + k, o.start[1]] : [o.start[0], o.start[1] + k];
@@ -194,7 +180,7 @@ describe("ruins at generator 3", () => {
     const rb = b("keep", 4, 9, 9, { condition: "ruined" });
     expect(first(plan([rb], 2)).ruin?.topRubble).toBeUndefined();
     const p = plan([rb]);
-    const r = resolvePlan(p);
+    const r = resolvePlan(p, bundledPalettes());
     const bare = {
       ...palettes,
       palettes: Object.fromEntries(
@@ -242,7 +228,7 @@ describe("ruins at generator 3", () => {
       // it is built: lintel pieces over the open doorway
       const pl = placementsOf(p);
       expect(pl.length).toBeGreaterThan(0);
-      const r = resolvePlan(p);
+      const r = resolvePlan(p, bundledPalettes());
       const ver = verifyBuild(r, realize(r, palettes), palettes, { plan: p });
       expect(ver.diagnostics.filter((x) => x.severity === "error")).toEqual([]);
       const m = structureRuinMeasures(st);
@@ -252,11 +238,133 @@ describe("ruins at generator 3", () => {
     expect(found).toBeGreaterThan(3);
     // generator 2 keeps no arches
     expect(first(plan([b("keep", 4, 9, 9, { condition: "ruined" })], 2)).ruin?.arches).toBeUndefined();
-  });
+  }, 30_000); // 40 seeds (the count of ruins with arches is the point), each built and verified: ~2 s under a parallel run
 
   it("two ruins of one style differ by seed", () => {
     const a = first(plan([b("keep", 4, 9, 9, { condition: "ruined" })])).ruin?.topRubble ?? [];
     const c = first(plan([b("keep", 5, 9, 9, { condition: "ruined" })])).ruin?.topRubble ?? [];
     expect(JSON.stringify(a)).not.toBe(JSON.stringify(c));
+  });
+});
+
+describe("a building's arrow slits are windows, not doorways (generator 4, openingKindTraits)", () => {
+  const slits: StructureOpening[] = [
+    ...(["N", "E", "S", "W"] as const).flatMap((side) =>
+      [0.2, 0.4, 0.6, 0.8].map((position): StructureOpening => ({ kind: "arrow_slit", side, position })),
+    ),
+    { kind: "door", side: "S", position: 0.5 },
+  ];
+  /** The ground openings of a ruined keep slit on every face, by id: the face cells each one covers. */
+  const openingsOf = (generator: 3 | 4, seed: number): Map<string, { kind: string; cells: string[] }> => {
+    const p = townPlan({
+      generator,
+      id: "slits",
+      seed,
+      theme: "forest",
+      w: 30,
+      h: 30,
+      structures: [b("keep", seed, 10, 10, { condition: "ruined", openings: slits })],
+      level: {},
+    });
+    const L = resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
+    const st = (L.structures ?? [])[0] as ResolvedStructure;
+    const out = new Map<string, { kind: string; cells: string[] }>();
+    for (const o of L.openings.filter((q) => st.openingIds.includes(q.id))) {
+      const cells: string[] = [];
+      for (let k = 0; k < o.width; k++)
+        cells.push(
+          o.orientation === "h" ? `h${o.start[0] + k},${o.start[1]}` : `v${o.start[0]},${o.start[1] + k}`,
+        );
+      out.set(o.id, { kind: o.kind, cells });
+    }
+    return out;
+  };
+  const breachCells = (ops: Map<string, { kind: string; cells: string[] }>): Set<string> =>
+    new Set([...ops].filter(([id]) => id.includes("~breach")).flatMap(([, o]) => o.cells));
+
+  it("a breach may tear a slit out of the wall; generator 3 spares slits like doorways", () => {
+    let torn = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const g3 = openingsOf(3, seed);
+      const g4 = openingsOf(4, seed);
+      // generator 3: no breach ever covers a slit's face cell
+      const b3 = breachCells(g3);
+      for (const [, o] of g3)
+        if (o.kind === "arrow_slit") for (const c of o.cells) expect(b3.has(c)).toBe(false);
+      // generator 4: no slit is left inside a breach, and some slit of the generator-3 ruin is torn out by one
+      const b4 = breachCells(g4);
+      for (const [, o] of g4)
+        if (o.kind === "arrow_slit") for (const c of o.cells) expect(b4.has(c)).toBe(false);
+      for (const [id, o] of g3)
+        if (o.kind === "arrow_slit" && !g4.has(id) && o.cells.some((c) => b4.has(c))) torn++;
+    }
+    expect(torn).toBeGreaterThan(0);
+  });
+
+  it("vines climb past a slit as past a window, never in front of the door (compile/structure.ts)", () => {
+    const tower = (generator: 3 | 4, kind: "arrow_slit" | "window"): number => {
+      const openings: StructureOpening[] = [
+        ...(["N", "E", "S", "W"] as const).flatMap((side) =>
+          [0.25, 0.75].map((position): StructureOpening => ({ kind, side, position })),
+        ),
+        { kind: "door", side: "S", position: 0.5 },
+      ];
+      const p = townPlan({
+        generator,
+        id: "v",
+        seed: 7,
+        theme: "forest",
+        w: 30,
+        h: 30,
+        structures: [
+          { id: "b", style: "wizard_tower", seed: 7, wings: [{ x: 10, y: 10, w: 5, h: 5 }], openings },
+        ],
+        level: {},
+      });
+      return placementsOf(p).filter((q) => String(q.source.elementId).includes("vines")).length;
+    };
+    const windows = tower(4, "window");
+    expect(windows).toBeGreaterThan(1);
+    expect(tower(4, "arrow_slit")).toBe(windows);
+    // generator 3 kept the cells round every slit clear, as round a door
+    expect(tower(3, "arrow_slit")).toBeLessThan(windows);
+  });
+
+  it("a locked door is a main door: a service door at the back adds no second street door (structureVariety)", () => {
+    /** The passages of a city block whose plan gives it only a locked street door. */
+    const passages = (generator: 3 | 4, seed: number): string[] => {
+      const p = townPlan({
+        generator,
+        id: "md",
+        seed,
+        theme: "city",
+        w: 30,
+        h: 30,
+        structures: [
+          {
+            id: "b",
+            style: "modern_block",
+            seed,
+            front: "S",
+            wings: [{ x: 10, y: 10, w: 8, h: 8 }],
+            openings: [{ kind: "locked_door", side: "S", position: 0.5 }],
+          },
+        ],
+        level: {},
+      });
+      const L = resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
+      const st = (L.structures ?? [])[0] as ResolvedStructure;
+      return L.openings.filter((o) => st.openingIds.includes(o.id) && o.kind !== "window").map((o) => o.kind);
+    };
+    const doors = (kinds: string[]): number => kinds.filter((k) => k === "door").length;
+    let extra3 = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      // generator 4: at most the service door is added (a garage base may still give the block a double door)
+      const g4 = passages(4, seed);
+      expect(doors(g4)).toBeLessThanOrEqual(1);
+      // generator 3 took the locked door for no door and added a plain one at the street face too
+      if (doors(passages(3, seed)) > doors(g4)) extra3++;
+    }
+    expect(extra3).toBeGreaterThan(3);
   });
 });

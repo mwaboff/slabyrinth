@@ -109,126 +109,37 @@ export interface BuildCatalogOptions {
   force?: boolean;
 }
 
+type PackDir = Awaited<ReturnType<typeof listPackDirs>>[number];
+
+/** Reads a file of the install once: the bytes read while hashing are kept for parsing. */
+type InstallReader = (rel: string) => Promise<Uint8Array>;
+
 /** Builds (or reuses) the catalog for an install. `fs` is the injected read-only port. */
 export async function buildCatalogFromInstall(
   fs: ReadonlyFs,
   installPath: string,
   opts: BuildCatalogOptions = {},
 ): Promise<BuildCatalogResult> {
-  const cached =
-    opts.cached &&
-    (opts.cached.schema as string) === CATALOG_SCHEMA &&
-    opts.cached.extractorVersion === EXTRACTOR_VERSION
-      ? opts.cached
-      : null;
   const warnings: string[] = [];
-  if (opts.cached && !cached)
-    warnings.push("cached catalog has an unknown schema or extractor version; rebuilding");
+  const cached = usableCache(opts.cached, warnings);
   const dirs = await listPackDirs(fs, installPath);
   if (dirs.length === 0) warnings.push(`no asset packs found under ${joinPath(installPath, "Taleweaver")}`);
-
-  const stats: FileStat[] = [];
-  for (const d of dirs) {
-    for (const rel of [d.binaryIndex, d.indexJson]) {
-      if (!rel) continue;
-      const st = await fs.stat(joinPath(installPath, rel));
-      if (st) stats.push({ relPath: rel, size: st.size, mtimeMs: st.mtimeMs });
-    }
-  }
-  const plan = planFingerprint(cached?.fingerprint ?? null, stats, installPath);
-  const bytesCache = new Map<string, Uint8Array>();
-  const files: InstallFingerprint["files"] = [...plan.reuse];
-  for (const f of plan.hash) {
-    try {
-      const b = await fs.readFile(joinPath(installPath, f.relPath));
-      bytesCache.set(f.relPath, b);
-      files.push({ ...f, sha256: sha256Hex(b) });
-    } catch (e) {
-      warnings.push(`cannot read ${f.relPath}: ${(e as Error).message}`);
-    }
-  }
-  files.sort((a, b) => (a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0));
-  const fingerprint: InstallFingerprint = { installPath, files };
+  const { fingerprint, read } = await fingerprintInstall(fs, installPath, dirs, cached, warnings);
   const changed = changedFiles(
     cached && samePath(cached.fingerprint.installPath, installPath) ? cached.fingerprint : null,
     fingerprint,
   );
-
-  if (cached && changed.length === 0 && !opts.force) {
-    // Same content (e.g. an update that only touched mtimes): keep the cache, refresh the stored stats.
-    const catalog: AssetCatalog = { ...cached, fingerprint };
-    return {
-      catalog,
-      changed: false,
-      packs: cached.packs.map((p) => ({
-        packId: p.packId,
-        name: p.name,
-        source: p.source,
-        stale: false,
-        warnings: [],
-        reparsed: false,
-      })),
-      report: diffCatalogs(cached, catalog, opts.palettes),
-      warnings,
-    };
-  }
-
-  const read = async (rel: string): Promise<Uint8Array> => {
-    const hit = bytesCache.get(rel);
-    if (hit) return hit;
-    const b = await fs.readFile(joinPath(installPath, rel));
-    bytesCache.set(rel, b);
-    return b;
-  };
-
+  if (cached && changed.length === 0 && !opts.force)
+    return unchangedResult(cached, fingerprint, opts, warnings);
   const packs: PackBuildInfo[] = [];
   const assets: CatalogAsset[] = [];
   const catalogPacks: AssetCatalog["packs"] = [];
   for (const d of dirs) {
-    const pw: string[] = [];
     const prevPack = cached?.packs.find((p) => p.packId === d.packId);
-    const prevAssets = cached?.assets.filter((a) => a.packId === d.packId) ?? [];
     const packChanged =
       opts.force || !prevPack || changed.some((c) => c.startsWith(`Taleweaver/${d.dirName}/`));
-    let got: {
-      packName: string;
-      assets: CatalogAsset[];
-      source: CatalogSourceId | "cache";
-      stale: boolean;
-    } | null = null;
-
-    if (!packChanged) {
-      got = { packName: prevPack.name, assets: prevAssets, source: prevPack.source, stale: false };
-    }
-    if (!got && d.binaryIndex) {
-      try {
-        const r = binaryIndexSource.read(await read(d.binaryIndex), { packId: d.packId, dirName: d.dirName });
-        pw.push(...r.warnings);
-        got = { ...r, source: "binary-index", stale: false };
-      } catch (e) {
-        pw.push(`binary index unreadable: ${(e as Error).message}`);
-      }
-    } else if (!got) {
-      pw.push("binary index missing");
-    }
-    if (!got && prevPack && prevAssets.length) {
-      pw.push(
-        "TaleSpire updated its asset index format; using the last good catalog for this pack (new assets may be missing)",
-      );
-      got = { packName: prevPack.name, assets: prevAssets, source: "cache", stale: true };
-    }
-    if (!got && d.indexJson) {
-      try {
-        const r = indexJsonSource.read(await read(d.indexJson), { packId: d.packId, dirName: d.dirName });
-        pw.push(
-          ...r.warnings,
-          "using index.json, which game updates do not refresh (new assets may be missing)",
-        );
-        got = { ...r, source: "index-json", stale: true };
-      } catch (e) {
-        pw.push(`index.json unreadable: ${(e as Error).message}`);
-      }
-    }
+    const pw: string[] = [];
+    const got = await readPack(d, cached, packChanged, read, pw);
     if (!got) {
       packs.push({
         packId: d.packId,
@@ -269,6 +180,135 @@ export async function buildCatalogFromInstall(
     assets,
   };
   return { catalog, changed: true, packs, report: diffCatalogs(cached, catalog, opts.palettes), warnings };
+}
+
+/** The cached catalog when this extractor wrote it, else null (with a warning when there was one). */
+function usableCache(cached: AssetCatalog | null | undefined, warnings: string[]): AssetCatalog | null {
+  const ok =
+    cached && (cached.schema as string) === CATALOG_SCHEMA && cached.extractorVersion === EXTRACTOR_VERSION
+      ? cached
+      : null;
+  if (cached && !ok) warnings.push("cached catalog has an unknown schema or extractor version; rebuilding");
+  return ok;
+}
+
+/**
+ * Steps 1-2: stat each pack's index files, reuse the cached hash when size and mtime are unchanged, hash the rest.
+ * Returns the fingerprint and a reader that serves the bytes read while hashing.
+ */
+async function fingerprintInstall(
+  fs: ReadonlyFs,
+  installPath: string,
+  dirs: readonly PackDir[],
+  cached: AssetCatalog | null,
+  warnings: string[],
+): Promise<{ fingerprint: InstallFingerprint; read: InstallReader }> {
+  const stats: FileStat[] = [];
+  for (const d of dirs) {
+    for (const rel of [d.binaryIndex, d.indexJson]) {
+      if (!rel) continue;
+      const st = await fs.stat(joinPath(installPath, rel));
+      if (st) stats.push({ relPath: rel, size: st.size, mtimeMs: st.mtimeMs });
+    }
+  }
+  const plan = planFingerprint(cached?.fingerprint ?? null, stats, installPath);
+  const bytesCache = new Map<string, Uint8Array>();
+  const files: InstallFingerprint["files"] = [...plan.reuse];
+  for (const f of plan.hash) {
+    try {
+      const b = await fs.readFile(joinPath(installPath, f.relPath));
+      bytesCache.set(f.relPath, b);
+      files.push({ ...f, sha256: sha256Hex(b) });
+    } catch (e) {
+      warnings.push(`cannot read ${f.relPath}: ${(e as Error).message}`);
+    }
+  }
+  files.sort((a, b) => (a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0));
+  const read: InstallReader = async (rel) => {
+    const hit = bytesCache.get(rel);
+    if (hit) return hit;
+    const b = await fs.readFile(joinPath(installPath, rel));
+    bytesCache.set(rel, b);
+    return b;
+  };
+  return { fingerprint: { installPath, files }, read };
+}
+
+/** Same content (e.g. an update that only touched mtimes): keep the cache, refresh the stored stats. */
+function unchangedResult(
+  cached: AssetCatalog,
+  fingerprint: InstallFingerprint,
+  opts: BuildCatalogOptions,
+  warnings: string[],
+): BuildCatalogResult {
+  const catalog: AssetCatalog = { ...cached, fingerprint };
+  return {
+    catalog,
+    changed: false,
+    packs: cached.packs.map((p) => ({
+      packId: p.packId,
+      name: p.name,
+      source: p.source,
+      stale: false,
+      warnings: [],
+      reparsed: false,
+    })),
+    report: diffCatalogs(cached, catalog, opts.palettes),
+    warnings,
+  };
+}
+
+interface PackRead {
+  packName: string;
+  assets: CatalogAsset[];
+  source: CatalogSourceId | "cache";
+  stale: boolean;
+}
+
+/**
+ * Step 4, one pack: the cached assets when it did not change, else binary index → last good cached assets (stale) →
+ * index.json (stale) → null. Warnings go to `pw`.
+ */
+async function readPack(
+  d: PackDir,
+  cached: AssetCatalog | null,
+  packChanged: boolean,
+  read: InstallReader,
+  pw: string[],
+): Promise<PackRead | null> {
+  const prevPack = cached?.packs.find((p) => p.packId === d.packId);
+  const prevAssets = cached?.assets.filter((a) => a.packId === d.packId) ?? [];
+  if (!packChanged && prevPack)
+    return { packName: prevPack.name, assets: prevAssets, source: prevPack.source, stale: false };
+  const where = { packId: d.packId, dirName: d.dirName };
+  if (d.binaryIndex) {
+    try {
+      const r = binaryIndexSource.read(await read(d.binaryIndex), where);
+      pw.push(...r.warnings);
+      return { ...r, source: "binary-index", stale: false };
+    } catch (e) {
+      pw.push(`binary index unreadable: ${(e as Error).message}`);
+    }
+  } else pw.push("binary index missing");
+  if (prevPack && prevAssets.length) {
+    pw.push(
+      "TaleSpire updated its asset index format; using the last good catalog for this pack (new assets may be missing)",
+    );
+    return { packName: prevPack.name, assets: prevAssets, source: "cache", stale: true };
+  }
+  if (d.indexJson) {
+    try {
+      const r = indexJsonSource.read(await read(d.indexJson), where);
+      pw.push(
+        ...r.warnings,
+        "using index.json, which game updates do not refresh (new assets may be missing)",
+      );
+      return { ...r, source: "index-json", stale: true };
+    } catch (e) {
+      pw.push(`index.json unreadable: ${(e as Error).message}`);
+    }
+  }
+  return null;
 }
 
 /** Builds a catalog from already-read pack files (CLI, tests). */

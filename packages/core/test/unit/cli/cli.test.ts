@@ -82,6 +82,21 @@ describe("slabyrinth CLI", () => {
     expect((await run(["compile", f])).code).toBe(1);
   });
 
+  it("a plan or catalog file that is not one is refused at the boundary with what is wrong", async () => {
+    const bad = join(tmp, "notaplan.json");
+    writeFileSync(bad, JSON.stringify({ schema: "slabyrinth/plan@1", levels: "none" }));
+    for (const cmd of ["ascii", "compile", "review"]) {
+      const r = await run([cmd, bad]);
+      expect(r.code, cmd).toBe(1);
+      expect(r.err, cmd).toMatch(/notaplan\.json is not a valid plan/);
+    }
+    const cat = join(tmp, "notacatalog.json");
+    writeFileSync(cat, JSON.stringify({ schema: "slabyrinth/asset-catalog@1", assets: [{ uuid: 1 }] }));
+    const r = await run(["validate", join(plans, "two-rooms-door.json"), "--catalog", cat]);
+    expect(r.code).toBe(1);
+    expect(r.err).toMatch(/notacatalog\.json: not an asset catalog/);
+  });
+
   it("compile prints verify diagnostics with fixes, writes nothing on errors, and --force overrides", async () => {
     // A valid plan (two-rooms-door passes validation) built with a user palette override whose door geometry is
     // wrong (origin "center" instead of the tile's min corner): only the verify stage can see that the built door

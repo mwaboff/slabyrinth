@@ -54,17 +54,6 @@ function allText(doc: ReleaseNotesDoc): string {
   return parts.join("\n");
 }
 
-/** Best of three runs, in ms (avoids flakiness from a single slow run). */
-function bestOf3(fn: () => void): number {
-  let best = Infinity;
-  for (let k = 0; k < 3; k++) {
-    const t0 = performance.now();
-    fn();
-    best = Math.min(best, performance.now() - t0);
-  }
-  return best;
-}
-
 describe("real CHANGELOG sections", () => {
   it("0.1.1", () => {
     const doc = parseReleaseNotes(prepareNotes(section("0.1.1")));
@@ -266,7 +255,9 @@ describe("hostile input stays literal text", () => {
     expect(parseReleaseNotes("short").truncated).toBe(false);
   });
 
-  it("stays fast on pathological input (best of three, generous budget)", () => {
+  // Backtracking or quadratic parsing on these inputs runs far past the test's timeout; there is no elapsed-time
+  // assertion, which would measure the machine rather than the parser.
+  it("parses pathological input without blowing up", () => {
     const inputs = [
       "x".repeat(1024 * 1024),
       "- a\n".repeat(100_000),
@@ -283,11 +274,8 @@ describe("hostile input stays literal text", () => {
       "\u202e\u200b\u0000".repeat(300_000),
     ];
     for (const input of inputs) {
-      const ms = bestOf3(() => {
-        parseReleaseNotes(prepareNotes(input));
-        parseReleaseNotes(input);
-      });
-      expect(ms).toBeLessThan(500);
+      expect(Array.isArray(parseReleaseNotes(prepareNotes(input)).blocks)).toBe(true);
+      expect(Array.isArray(parseReleaseNotes(input).blocks)).toBe(true);
     }
   });
 });

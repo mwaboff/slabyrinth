@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StepRequest } from "../provider/types";
 import { ScriptedProvider, say } from "./scriptedProvider";
 
@@ -8,11 +8,24 @@ const request = {
 } as unknown as StepRequest;
 
 describe("ScriptedProvider delayMs (e2e specs observe the app mid-turn)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("waits before answering", async () => {
+    vi.useFakeTimers();
     const p = new ScriptedProvider([{ kind: "reply", delayMs: 120, parts: [say("late")] }]);
-    const t0 = Date.now();
-    const r = await p.runStep(request, () => undefined, new AbortController().signal);
-    expect(Date.now() - t0).toBeGreaterThanOrEqual(100);
+    let answered = false;
+    const run = p
+      .runStep(request, () => undefined, new AbortController().signal)
+      .then((r) => {
+        answered = true;
+        return r;
+      });
+    await vi.advanceTimersByTimeAsync(119);
+    expect(answered).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const r = await run;
     expect(r.assistant?.parts).toEqual([say("late")]);
   });
 

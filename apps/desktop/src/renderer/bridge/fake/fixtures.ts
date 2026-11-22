@@ -3,7 +3,13 @@
  * (packages/core/test/fixtures/plans) through the real history functions, so versions, undo/redo,
  * restore and diff behave exactly like main's ProjectService will.
  */
-import { applyOps, commitVersion, createHistory, approve as approveHistory } from "@slabyrinth/core";
+import {
+  applyOps,
+  commitVersion,
+  createHistory,
+  parsePlan,
+  approve as approveHistory,
+} from "@slabyrinth/core";
 import type { DesignBrief, MapPlan, MapSelection, PlanHistory, PlanOp } from "@slabyrinth/core";
 import type { ChatItem, ModelSelection, Usage } from "../../../main/agent/provider/types";
 import type { BuildRecord, ChatMessageMeta } from "../../../shared/project";
@@ -13,6 +19,7 @@ import towerRaw from "../../../../../../packages/core/test/fixtures/plans/multi-
 import proofRaw from "../../../../../../data/test-slabs/02-single-room.plan.json?raw";
 import proofV4Raw from "../../../../../../data/test-slabs/02-single-room.v4.plan.json?raw";
 import { fakeCompile } from "./compile";
+import { fakeRules } from "./rules";
 
 export const DEFAULT_SELECTION: ModelSelection = {
   providerId: "anthropic",
@@ -46,7 +53,12 @@ export interface FakeProject {
   slabs: Record<string, Record<string, string>>;
 }
 
-export const loadFixturePlan = (raw: string): MapPlan => JSON.parse(raw) as MapPlan;
+/** A fixture plan of the repository, checked with core's plan schema like any plan from outside. */
+export const loadFixturePlan = (raw: string): MapPlan => {
+  const r = parsePlan(JSON.parse(raw));
+  if (!r.ok) throw new Error(`fixture plan invalid: ${r.issues[0]?.message ?? ""}`);
+  return r.plan;
+};
 export const EXAMPLE_A = (): MapPlan => loadFixturePlan(exampleARaw);
 export const EXAMPLE_B = (): MapPlan => loadFixturePlan(exampleBRaw);
 export const TOWER = (): MapPlan => loadFixturePlan(towerRaw);
@@ -62,7 +74,7 @@ const ago = (now: number, minutes: number): string => new Date(now - minutes * 6
 
 /** applyOps that falls back to the input plan when a fixture op does not validate (WP1/WP2 still moving). */
 export function tryOps(plan: MapPlan, ops: PlanOp[]): MapPlan {
-  const r = applyOps(plan, ops);
+  const r = applyOps(plan, ops, fakeRules());
   if (r.ok) return r.plan;
   console.warn("[fake] fixture ops rejected", r.opErrors, r.issues);
   return plan;
@@ -131,16 +143,20 @@ function buildProject(args: {
     const versions: number[] = [];
     if (t.version) {
       const v = t.version;
-      const r = commitVersion(history, {
-        plan: v.plan,
-        author: "ai",
-        createdAt: at,
-        summary: v.summary,
-        changeSummary: v.changes,
-        cause: v.cause === "create" ? { type: "create" } : { type: "ops", ops: v.cause },
-        messageId: aid,
-        cost: { currency: "USD", amount: v.cost },
-      });
+      const r = commitVersion(
+        history,
+        {
+          plan: v.plan,
+          author: "ai",
+          createdAt: at,
+          summary: v.summary,
+          changeSummary: v.changes,
+          cause: v.cause === "create" ? { type: "create" } : { type: "ops", ops: v.cause },
+          messageId: aid,
+          cost: { currency: "USD", amount: v.cost },
+        },
+        fakeRules(),
+      );
       history = r.history;
       versions.push(r.version.number);
     }
@@ -162,13 +178,17 @@ function buildProject(args: {
     totalUsage.cacheReadTokens += u.cacheReadTokens;
   });
   if (args.userEdit) {
-    history = commitVersion(history, {
-      plan: args.userEdit.plan,
-      author: "user",
-      createdAt: ago(now, args.userEdit.minutesAgo),
-      summary: args.userEdit.summary,
-      cause: { type: "ops", ops: args.userEdit.ops },
-    }).history;
+    history = commitVersion(
+      history,
+      {
+        plan: args.userEdit.plan,
+        author: "user",
+        createdAt: ago(now, args.userEdit.minutesAgo),
+        summary: args.userEdit.summary,
+        cause: { type: "ops", ops: args.userEdit.ops },
+      },
+      fakeRules(),
+    ).history;
   }
   const builds: BuildRecord[] = [];
   const slabs: FakeProject["slabs"] = {};

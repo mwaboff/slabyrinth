@@ -1,18 +1,29 @@
 /** Hit-test integration: real fixture plan → core resolvePlan → view transform → core hitTest (architecture §5.4). */
 import { describe, expect, it } from "vitest";
 import type { MapPlan } from "@slabyrinth/core";
+import { bundledPalettes } from "@slabyrinth/core/palette";
 import exampleA from "../../../../../packages/core/test/fixtures/plans/example-a.json?raw";
-import { compute } from "./resolveCore";
+import { compute } from "../../shared/resolveCore";
 import { hitAt, toCell } from "./render";
 import { roomExits } from "./exits";
 
 const plan = JSON.parse(exampleA) as MapPlan;
-const r = compute({
-  id: 1,
-  plan,
-  version: 1,
-  options: { grid: true, roomNumbers: true, roomNames: true, furniture: true, gmLayer: true, legend: false },
-});
+const r = compute(
+  {
+    id: 1,
+    plan,
+    version: 1,
+    options: {
+      grid: true,
+      roomNumbers: true,
+      roomNames: true,
+      furniture: true,
+      gmLayer: true,
+      legend: false,
+    },
+  },
+  bundledPalettes(),
+);
 const l1 = r.resolved.levels.find((l) => l.id === "l1");
 if (!l1) throw new Error("fixture changed: no l1");
 // 24 px per cell at 150 % zoom, map origin offset by (100, 50) px

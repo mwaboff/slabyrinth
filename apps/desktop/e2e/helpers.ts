@@ -19,7 +19,23 @@ export interface Run {
   log: string;
 }
 
+/**
+ * Every scripted create_plan carries a numeric seed: without one the app draws a random seed, and the build (what a
+ * spec copies and checks) would change from run to run.
+ */
+function assertSeeded(steps: unknown[]): void {
+  for (const s of steps) {
+    const parts = (s as { parts?: unknown[] }).parts ?? [];
+    for (const p of parts) {
+      const c = p as { type?: string; name?: string; input?: { plan?: { seed?: unknown } } };
+      if (c.type === "tool_call" && c.name === "create_plan" && typeof c.input?.plan?.seed !== "number")
+        throw new Error("e2e script: a create_plan without a fixed plan.seed makes the build differ per run");
+    }
+  }
+}
+
 export function newRun(prefix: string, steps: unknown[]): Run {
+  assertSeeded(steps);
   const dir = mkdtempSync(path.join(os.tmpdir(), prefix));
   const run = {
     dir,
@@ -46,7 +62,6 @@ export async function launch(
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
   delete env["ANTHROPIC_API_KEY"];
-  delete env["SLABYRINTH_FAKE_ENGINE"];
   const app = await electron.launch({
     args: [mainEntry],
     env: {

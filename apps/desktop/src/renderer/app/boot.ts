@@ -11,11 +11,11 @@ import { resolveAsync } from "../map/resolveClient";
 import { useApp } from "../stores/app";
 import { useChat } from "../stores/chat";
 import { useMap } from "../stores/map";
-import { useProject } from "../stores/project";
+import { switchProject, useProject } from "../stores/project";
 import { useSettings } from "../stores/settings";
 import { useBuild } from "../stores/build";
 import { useUpdates } from "../stores/updates";
-import { openSnapshot } from "./actions";
+import { openSnapshot, reportUnhandled } from "./actions";
 import { runMenuCommand } from "./commands";
 
 export async function installBridge(): Promise<"real" | "fake"> {
@@ -120,8 +120,18 @@ export function subscribeEvents(): void {
   const online = (): void => {
     useApp.getState().setBanner({ offline: !navigator.onLine });
   };
+  // anything that still rejects unhandled is logged and shown, never silent
+  const unhandled = (e: PromiseRejectionEvent): void => {
+    reportUnhandled(e.reason);
+  };
   window.addEventListener("online", online);
   window.addEventListener("offline", online);
+  window.addEventListener("unhandledrejection", unhandled);
+  unsubs.push(() => {
+    window.removeEventListener("online", online);
+    window.removeEventListener("offline", online);
+    window.removeEventListener("unhandledrejection", unhandled);
+  });
   online();
 }
 
@@ -146,7 +156,8 @@ export async function boot(): Promise<void> {
     return;
   }
   if (settings?.ui.onLaunch === "last_project" && settings.projects.recent[0] !== undefined) {
-    const r = await tryCall("project:open", { path: settings.projects.recent[0] });
+    const last = settings.projects.recent[0];
+    const r = await switchProject(() => tryCall("project:open", { path: last }));
     if (r.ok && r.value) {
       openSnapshot(r.value);
       return;

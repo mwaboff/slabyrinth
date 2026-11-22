@@ -11,7 +11,7 @@
  */
 import type {
   AreaId, AreaKind, BridgeSpan, ElementId, FeatureType, Height, LevelId, LinkKind, Material, OpeningKind,
-  PlanIssue, Rotation, Side, ThemeId, Vec2, WallStyle,
+  PlanIssue, RoomPurpose, Rotation, Side, ThemeId, Vec2, WallStyle,
 } from "./plan";
 
 /** Cell occupancy. */
@@ -78,26 +78,25 @@ export interface ResolvedArea {
   /** Area.labelAt: cell where the key badge is drawn (absent = the renderer picks a free cell near `anchor`). */
   labelAt?: Vec2;
   /**
-   * Generator 4: what the area is for, read once by the resolver from its name, tags and notes (gen/roomPurpose.ts
-   * classifyRoom). Absent = its words name no purpose. Compile and review read this field; they never parse words.
+   * Generator 4: what the area is for: the plan's Area.purpose, else read once by the resolver from its name, tags and
+   * notes (gen/roomPurpose.ts classifyRoom). Absent = neither names a purpose. Compile and review read this field;
+   * they never parse words.
    */
   purpose?: RoomPurpose;
   /** Generator 4: nobody keeps the place up (a crypt, cells, a ruin, or words like ruined or derelict). Absent = false. */
   abandoned?: boolean;
   /**
-   * Generator 4: the finish of the area as an interior: "tidy" (kept-up timber or plaster: clean walls, no rubble, no
-   * earth cap round it) or "rough" (old stone: uneven and broken wall tops, rubble at the wall foot). From the theme's
-   * interior character (ThemeInterior), and rough whenever the area is abandoned.
+   * Generator 4: what the area is built as, from its theme's interior character (ThemeInterior): "tidy" (a built
+   * timber or plaster interior: the solid between rooms is the building's own walls, closed by their tops) or "rough"
+   * (old stone carved into a mass: an earth cap and skirt round it). The room's condition never changes it: an
+   * abandoned room gets the rough dressing (uneven and broken wall tops, rubble at the wall foot) whatever its finish,
+   * but its walls stay what they are built of.
    */
   finish?: InteriorFinish;
 }
 
-/** What a room is for (generator 4, gen/roomPurpose.ts holds the words and what each purpose implies). */
-export const ROOM_PURPOSES = [
-  "tavern", "dining", "kitchen", "library", "study", "armoury", "barracks", "bedroom", "storeroom", "shrine",
-  "crypt", "prison", "forge", "laboratory", "treasury", "washroom", "throne_room", "ruin", "passage",
-] as const;
-export type RoomPurpose = (typeof ROOM_PURPOSES)[number];
+/** What a room is for (generator 4): the plan contract's list (Area.purpose), re-exported for readers of this one. */
+export type { RoomPurpose } from "./plan";
 
 /** How an interior is kept (generator 4): see ResolvedArea.finish. */
 export type InteriorFinish = "tidy" | "rough";

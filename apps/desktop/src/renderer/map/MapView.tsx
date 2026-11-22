@@ -21,6 +21,16 @@ import {
   toCell,
   type View,
 } from "./render";
+import {
+  drawCompare,
+  drawIssueMarkers,
+  drawPulse,
+  drawRulers,
+  placeShadowPlate,
+  PULSE_MS,
+  PULSE_REDUCED_MS,
+  pulseAlpha,
+} from "./mapOverlays";
 import type { Resolved } from "./resolveClient";
 import { roomA11yLabel, roomExits } from "./exits";
 
@@ -242,7 +252,7 @@ export const MapView = memo(function MapView({
   // pulse animation driver
   useEffect(() => {
     if (!pulse) return;
-    const dur = reducedMotion() ? 2000 : 900;
+    const dur = reducedMotion() ? PULSE_REDUCED_MS : PULSE_MS;
     let raf = 0;
     const loop = (): void => {
       setTick((t) => t + 1);
@@ -279,161 +289,18 @@ export const MapView = memo(function MapView({
       view,
     );
 
-    // compare outlines (UX §2.3): added solid + NEW, changed dashed + Δ, removed ghosted + ✕
     if (compare) {
-      const tag = (x: number, y: number, text: string, color: string): void => {
-        ctx.font = `600 11px ${theme.fontFamily}`;
-        const w = ctx.measureText(text).width + 10;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.roundRect(x, y - 16, w, 16, 3);
-        ctx.fill();
-        ctx.fillStyle = theme.colors["label"] ?? "transparent";
-        ctx.textAlign = "left";
-        ctx.textBaseline = "middle";
-        ctx.fillText(text, x + 5, y - 8);
-      };
-      const outline = (
-        rings: ReadonlyArray<ReadonlyArray<readonly [number, number]>>,
-        color: string,
-        dash: number[],
-        fill: string | null,
-      ): void => {
-        ctx.beginPath();
-        for (const r of rings)
-          r.forEach(([x, y], i) => {
-            if (i === 0) ctx.moveTo(view.ox + x * scale, view.oy + y * scale);
-            else ctx.lineTo(view.ox + x * scale, view.oy + y * scale);
-          });
-        ctx.closePath();
-        if (fill !== null) {
-          ctx.fillStyle = fill;
-          ctx.globalAlpha = 0.22;
-          ctx.fill("evenodd");
-          ctx.globalAlpha = 1;
-        }
-        ctx.setLineDash(dash);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
-        ctx.setLineDash([]);
-      };
-      const cNew = cssVar("--map-new");
-      const cChg = theme.colors["accent"] ?? cNew;
-      const cDel = cssVar("--map-removed");
-      for (const a of level.areas) {
-        if (compare.diff.areas.added.includes(a.id)) {
-          outline(a.outline, cNew, [], null);
-          tag(view.ox + a.bbox.x * scale + 4, view.oy + a.bbox.y * scale + 2, "NEW", cNew);
-        } else if (compare.diff.areas.changed.includes(a.id)) {
-          outline(a.outline, cChg, [8, 4], null);
-          tag(view.ox + a.bbox.x * scale + 4, view.oy + a.bbox.y * scale + 2, "Δ changed", cChg);
-        }
-      }
       const oldLevel = compare.old?.resolved.levels.find((l) => l.id === levelId);
-      for (const a of oldLevel?.areas ?? []) {
-        if (!compare.diff.areas.removed.includes(a.id)) continue;
-        outline(a.outline, cDel, [4, 4], cDel);
-        tag(view.ox + a.bbox.x * scale + 4, view.oy + a.bbox.y * scale + 2, "✕ removed", cDel);
-      }
+      drawCompare(ctx, level, oldLevel, compare.diff, theme, view);
     }
-
     // changed rooms pulse once (300 ms); reduced motion: a static outline for 2 s
-    if (pulse) {
-      const t = Date.now() - pulse.at;
-      const rm = reducedMotion();
-      const alpha = rm
-        ? t < 2000
-          ? 1
-          : 0
-        : t < 900
-          ? Math.sin((Math.min(t, 300) / 300) * Math.PI) * (t < 300 ? 1 : 0) +
-            (t >= 300 ? Math.max(0, 1 - (t - 300) / 600) * 0.6 : 0)
-          : 0;
-      if (alpha > 0) {
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        for (const a of level.areas) {
-          if (!pulse.ids.includes(a.id)) continue;
-          ctx.beginPath();
-          for (const r of a.outline)
-            r.forEach(([x, y], i) => {
-              if (i === 0) ctx.moveTo(view.ox + x * scale, view.oy + y * scale);
-              else ctx.lineTo(view.ox + x * scale, view.oy + y * scale);
-            });
-          ctx.closePath();
-          ctx.strokeStyle = theme.colors["accent"] ?? "transparent";
-          ctx.lineWidth = 3;
-          ctx.stroke();
-        }
-        ctx.restore();
-      }
-    }
-
-    // plan-check markers: shape + glyph, not colour alone (error = solid triangle, warning = outlined triangle,
-    // note = circled i, notes only while the Issues list is open)
-    if (!readOnly) {
-      for (const is of issues) {
-        if (is.levelId !== levelId || !is.cell) continue;
-        if (is.severity === "info" && !issuesOpen) continue;
-        const x = view.ox + (is.cell[0] + 0.5) * scale;
-        const y = view.oy + (is.cell[1] + 0.5) * scale;
-        const r = Math.max(7, Math.min(11, scale * 0.38));
-        const col = cssVar(
-          is.severity === "error" ? "--danger-fill" : is.severity === "warning" ? "--warning" : "--info",
-        );
-        ctx.save();
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        if (is.severity === "info") ctx.arc(x, y, r * 0.9, 0, Math.PI * 2);
-        else {
-          ctx.moveTo(x, y - r);
-          ctx.lineTo(x + r * 1.05, y + r * 0.8);
-          ctx.lineTo(x - r * 1.05, y + r * 0.8);
-          ctx.closePath();
-        }
-        ctx.fillStyle = is.severity === "error" ? col : cssVar("--surface");
-        ctx.fill();
-        ctx.strokeStyle = col;
-        ctx.stroke();
-        ctx.font = `700 ${Math.round(r * 1.1)}px ${theme.fontFamily}`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillStyle = is.severity === "error" ? cssVar("--surface") : col;
-        ctx.fillText(is.severity === "info" ? "i" : "!", x, y + (is.severity === "info" ? 0 : r * 0.12));
-        ctx.restore();
-      }
-    }
-
+    if (pulse)
+      drawPulse(ctx, level, pulse.ids, pulseAlpha(Date.now() - pulse.at, reducedMotion()), theme, view);
+    if (!readOnly) drawIssueMarkers(ctx, issues, levelId, issuesOpen, theme, view);
     drawLevel(ctx, parts.labels, theme, view);
     drawSelectedBadges(ctx, list, sel.areaIds, theme, view, cssVar("--accent-fill"), cssVar("--on-accent"));
-
-    // rulers (zoom ≥ 75%): column letters and row numbers along the level's top and left edges
-    if (zoom >= 0.75) {
-      const b = level.bounds;
-      ctx.save();
-      ctx.font = `500 10px ${theme.fontFamily}`;
-      ctx.fillStyle = cssVar("--muted");
-      ctx.textAlign = "center";
-      ctx.textBaseline = "bottom";
-      const every = scale < 22 ? 2 : 1;
-      for (let i = 0; i < b.w; i += every)
-        ctx.fillText(colLetters(i), view.ox + (b.x + i + 0.5) * scale, view.oy + b.y * scale - 4);
-      ctx.textAlign = "right";
-      ctx.textBaseline = "middle";
-      for (let j = 0; j < b.h; j += every)
-        ctx.fillText(String(j + 1), view.ox + b.x * scale - 5, view.oy + (b.y + j + 0.5) * scale);
-      ctx.restore();
-    }
-
-    // shadow plate under the map bounds
-    const sh = shadow.current;
-    if (sh) {
-      const b = level.bounds;
-      sh.style.transform = `translate(${view.ox + b.x * scale}px, ${view.oy + b.y * scale}px)`;
-      sh.style.width = `${b.w * scale}px`;
-      sh.style.height = `${b.h * scale}px`;
-    }
+    drawRulers(ctx, level, zoom, theme, view);
+    if (shadow.current) placeShadowPlate(shadow.current, level, view);
     // view is derived from zoom/pan/size, all listed
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [

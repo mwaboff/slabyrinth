@@ -9,7 +9,7 @@ import { CELL, CELL_FLAG, type ResolvedLevel } from "../../../src/contracts/reso
 import { resolvePlan } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
 import { compileResolved, realize } from "../../../src/compile";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { slabCodec } from "../../../src/slab";
 
 const W = 40;
@@ -42,7 +42,7 @@ function meadow(terrain: TerrainOp[], extra: Partial<Level> = {}, generator: 1 |
     ],
   };
 }
-const L0 = (p: MapPlan): ResolvedLevel => resolvePlan(p).levels[0] as ResolvedLevel;
+const L0 = (p: MapPlan): ResolvedLevel => resolvePlan(p, bundledPalettes()).levels[0] as ResolvedLevel;
 const block = (rise: number, extra: Partial<Extract<TerrainOp, { op: "platform" }>> = {}): TerrainOp => ({
   id: "hill",
   op: "platform",
@@ -53,7 +53,8 @@ const block = (rise: number, extra: Partial<Extract<TerrainOp, { op: "platform" 
   edge: "clean",
   ...extra,
 });
-const codes = (p: MapPlan): string[] => reviewDesign(p, resolvePlan(p), { limit: 99 }).map((n) => n.code);
+const codes = (p: MapPlan): string[] =>
+  reviewDesign(p, resolvePlan(p, bundledPalettes()), bundledPalettes(), { limit: 99 }).map((n) => n.code);
 
 describe("cliff runs", () => {
   it("a clean 2-tile plateau is one closed run round its edge, in order, with its heights", () => {
@@ -270,13 +271,13 @@ describe("verify: a band cliff with nothing in front", () => {
       theme: "forest",
     });
     const gap = (plan: MapPlan): boolean =>
-      compileResolved(resolvePlan(plan), cat, slabCodec, { plan }).diagnostics.some(
+      compileResolved(resolvePlan(plan, bundledPalettes()), cat, slabCodec, { plan }).diagnostics.some(
         (d) => d.code === "verify_cliff_gap",
       );
     expect(gap(p([]))).toBe(false);
     const bare = p([]);
     const ledges =
-      realize(resolvePlan(bare), cat).levels[0]?.placements.filter(
+      realize(resolvePlan(bare, bundledPalettes()), cat).levels[0]?.placements.filter(
         (q) =>
           q.role === "ledge" &&
           (q.source.cell?.[0] ?? -1) >= 10 &&

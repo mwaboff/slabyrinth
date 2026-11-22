@@ -7,6 +7,7 @@
  */
 import type { ChunkOptions, CompileDiagnostic, ExportBundle, MapPlan, SlabChunk } from "@slabyrinth/core";
 import { validatePlan } from "@slabyrinth/core";
+import { fakeRules } from "./rules";
 import type { BuildRecord } from "../../../shared/project";
 import { colLetters } from "../../lib/format";
 
@@ -62,7 +63,7 @@ export type MultiLevelChunk = SlabChunk;
  */
 export function fakeVerify(plan: MapPlan): CompileDiagnostic[] {
   const out: CompileDiagnostic[] = [];
-  for (const i of validatePlan(plan).issues) {
+  for (const i of validatePlan(plan, fakeRules()).issues) {
     const base = {
       stage: "verify" as const,
       message: i.message,

@@ -10,11 +10,14 @@
  * Only `cells` change (the caller passes the floor at the flat height, away from water, features, bridges, links,
  * openings and other steps); everything else counts as shelf 0. Pure; arithmetic and value noise only.
  */
+import { NEIGHBOURS4 } from "../gen/gridGeometry";
 import { ValueNoise } from "../gen/noise";
 import { subSeed } from "../util/hash";
 import { breakStraightSteps, type OrganicGrid } from "./organic";
 
 export const CAVE_RELIEF = {
+  /** One shelf's rise (tiles). */
+  shelfTiles: 0.5,
   /** A floor counts as flat when this share of its dry cave floor is at one height. */
   flatShare: 0.75,
   /** Fewest cells worth shaping. */
@@ -32,16 +35,12 @@ export const CAVE_RELIEF = {
   minShelf: 8,
 } as const;
 
-const N4: ReadonlyArray<readonly [number, number]> = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
+const N4 = NEIGHBOURS4;
 
 /**
  * Shelf (0..maxShelf, in half tiles) for each of `cells`. `low` are the cells the floor stays low at (water, or the
- * heart of the main chamber); `walk` says which cells the walking distance may pass through (open floor).
+ * heart of the main chamber); `walk` says which cells the walking distance may pass through (open floor). No shelf
+ * rises above `ceilingShelf` (a level stacked above leaves room for that many: plan/levels.ts `highestFloorTop`).
  */
 export function caveShelves(
   grid: OrganicGrid,
@@ -49,9 +48,10 @@ export function caveShelves(
   low: readonly number[],
   walk: (i: number) => boolean,
   seed: number,
+  ceilingShelf = Infinity,
 ): Map<number, number> {
   const out = new Map<number, number>();
-  if (cells.length < CAVE_RELIEF.minCells || low.length === 0) return out;
+  if (cells.length < CAVE_RELIEF.minCells || low.length === 0 || ceilingShelf < 1) return out;
   const set = new Set(cells);
   // walking distance from the low ground
   const dist = new Map<number, number>();
@@ -77,7 +77,9 @@ export function caveShelves(
   if (reach.length === 0) return out;
   const sorted = [...reach].sort((a, b) => a - b);
   const far = sorted[Math.floor(sorted.length * 0.95)] as number;
-  const maxShelf = far >= CAVE_RELIEF.far ? CAVE_RELIEF.maxShelfFar : CAVE_RELIEF.maxShelf;
+  // the slope is the cave's own; a low ceiling only flattens the top shelves
+  const slopeShelf = far >= CAVE_RELIEF.far ? CAVE_RELIEF.maxShelfFar : CAVE_RELIEF.maxShelf;
+  const maxShelf = Math.min(slopeShelf, ceilingShelf);
   const span = Math.max(4, far - CAVE_RELIEF.lowBand);
   const noise = new ValueNoise(subSeed(seed, "caverelief"));
   for (const i of cells) {
@@ -87,7 +89,7 @@ export function caveShelves(
       continue;
     }
     const [x, y] = grid.xy(i);
-    const t = (Math.max(0, d - CAVE_RELIEF.lowBand) / span) * (maxShelf + 0.6);
+    const t = (Math.max(0, d - CAVE_RELIEF.lowBand) / span) * (slopeShelf + 0.6);
     const n = (noise.sample(x / CAVE_RELIEF.scale, y / CAVE_RELIEF.scale) - 0.5) * 2 * CAVE_RELIEF.wander;
     // nothing rises inside the low band
     const v = d <= CAVE_RELIEF.lowBand ? 0 : Math.round(t + n);

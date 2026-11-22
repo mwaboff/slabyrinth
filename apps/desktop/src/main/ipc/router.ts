@@ -1,7 +1,8 @@
 import type { z } from "zod";
 import type { AppError, IpcRequests, IpcSends, Result } from "../../shared/ipc";
 import { REQUEST_CHANNELS, SEND_CHANNELS } from "../../shared/channels";
-import type { Logger } from "../logger";
+import { describeRequestError } from "../../shared/schemas/ipc";
+import { redactString, type Logger } from "../logger";
 import { EnginePortError } from "../ports/engine";
 import { toAppError } from "../util/errors";
 
@@ -42,7 +43,15 @@ function isProviderErrorLike(err: unknown): err is { info: NonNullable<AppError[
   );
 }
 
+/** Every error that crosses IPC, with key-shaped text redacted (defence in depth: the engine redacts too). */
 export function mapError(err: unknown): AppError {
+  const e = mapErrorUnredacted(err);
+  const out: AppError = { ...e, message: redactString(e.message) };
+  if (e.provider) out.provider = { ...e.provider, message: redactString(e.provider.message) };
+  return out;
+}
+
+function mapErrorUnredacted(err: unknown): AppError {
   if (err instanceof EnginePortError) return err.error;
   if (isProviderErrorLike(err)) {
     return {
@@ -52,13 +61,6 @@ export function mapError(err: unknown): AppError {
     };
   }
   return toAppError(err);
-}
-
-function describeZod(error: z.ZodError): string {
-  const first = error.issues[0];
-  if (!first) return "Invalid request.";
-  const where = first.path.length > 0 ? ` at ${first.path.join(".")}` : "";
-  return `Invalid request${where}: ${first.message}`;
 }
 
 export type Dispatch = (
@@ -85,7 +87,7 @@ export function createDispatcher(
     const parsed = schemas[c].safeParse(payload);
     if (!parsed.success) {
       logger.info("ipc payload rejected", { channel, issues: parsed.error.issues.length });
-      return { ok: false, error: { code: "validation", message: describeZod(parsed.error) } };
+      return { ok: false, error: { code: "validation", message: describeRequestError(parsed.error) } };
     }
     try {
       const handler = handlers[c] as (req: unknown) => unknown;

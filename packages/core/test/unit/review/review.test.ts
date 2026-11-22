@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import type { Building, DesignBrief, Feature, Level, MapPlan, TerrainOp } from "../../../src/contracts/plan";
 import type { ResolvedPlan } from "../../../src/contracts/resolved";
+import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import {
   briefCheckLine,
@@ -48,10 +49,10 @@ const codes = (
   p: MapPlan,
   opts: { brief?: DesignBrief; mutate?: (r: ResolvedPlan) => void } = {},
 ): DesignNoteCode[] => {
-  const r = resolvePlan(p);
+  const r = resolvePlan(p, bundledPalettes());
   opts.mutate?.(r);
   // every note, not just the top six
-  return reviewDesign(p, r, opts.brief ? { brief: opts.brief } : {}).map((n) => n.code);
+  return reviewDesign(p, r, bundledPalettes(), opts.brief ? { brief: opts.brief } : {}).map((n) => n.code);
 };
 const allCodes = (p: MapPlan, brief?: DesignBrief): Set<DesignNoteCode> => {
   // the cap hides lower notes; review each concern on its own fixture, so the cap rarely matters, but be safe
@@ -394,7 +395,7 @@ describe("design review", () => {
       mustInclude: { value: ["a river crossing"], source: "user" },
     };
     const wide = plan({ structures: [bldg("t", 10, 8, 12, 9, { storeys: 1 })], features: [statue] });
-    const notes = reviewDesign(wide, resolvePlan(wide), { brief });
+    const notes = reviewDesign(wide, resolvePlan(wide, bundledPalettes()), bundledPalettes(), { brief });
     const msgs = notes.filter((n) => n.code === "brief_not_met").map((n) => n.message);
     expect(msgs.some((m) => m.includes("tower"))).toBe(true);
     expect(msgs.some((m) => m.includes("river"))).toBe(true);
@@ -415,7 +416,9 @@ describe("design review", () => {
       features: [statue],
     });
     expect(
-      reviewDesign(tall, resolvePlan(tall), { brief }).filter((n) => n.code === "brief_not_met"),
+      reviewDesign(tall, resolvePlan(tall, bundledPalettes()), bundledPalettes(), { brief }).filter(
+        (n) => n.code === "brief_not_met",
+      ),
     ).toEqual([]);
     const line = briefCheckLine(brief, tall);
     expect(line).toContain("BRIEF CHECK");
@@ -426,8 +429,8 @@ describe("design review", () => {
 
   it("is capped, ranked and deterministic", () => {
     const p = plan({});
-    const a = reviewDesign(p, resolvePlan(p));
-    const b = reviewDesign(p, resolvePlan(p));
+    const a = reviewDesign(p, resolvePlan(p, bundledPalettes()), bundledPalettes());
+    const b = reviewDesign(p, resolvePlan(p, bundledPalettes()), bundledPalettes());
     expect(a).toEqual(b);
     expect(a.length).toBeLessThanOrEqual(6);
     for (let i = 1; i < a.length; i++) expect((a[i - 1]?.score ?? 0) >= (a[i]?.score ?? 0)).toBe(true);
@@ -445,23 +448,31 @@ describe("ruins", () => {
   };
   it("ruin_flat_top: a ruin whose walls broke to one level fires; a tower broken cell by cell is quiet", () => {
     const flat = ruinPlan({ id: "k", style: "ruin", wings: [{ x: 8, y: 6, w: 10, h: 8 }] });
-    expect(reviewDesign(flat, resolvePlan(flat), { limit: 99 }).map((n) => n.code)).toContain(
-      "ruin_flat_top",
-    );
+    expect(
+      reviewDesign(flat, resolvePlan(flat, bundledPalettes()), bundledPalettes(), { limit: 99 }).map(
+        (n) => n.code,
+      ),
+    ).toContain("ruin_flat_top");
     const good = ruinPlan(tower);
-    expect(reviewDesign(good, resolvePlan(good), { limit: 99 }).map((n) => n.code)).not.toContain(
-      "ruin_flat_top",
-    );
+    expect(
+      reviewDesign(good, resolvePlan(good, bundledPalettes()), bundledPalettes(), { limit: 99 }).map(
+        (n) => n.code,
+      ),
+    ).not.toContain("ruin_flat_top");
   });
   it("ruin_uniform: a tall ruin decayed evenly fires; the tower with a standing mass is quiet", () => {
     const p = ruinPlan(tower);
-    const good = resolvePlan(p);
-    expect(reviewDesign(p, good, { limit: 99 }).map((n) => n.code)).not.toContain("ruin_uniform");
+    const good = resolvePlan(p, bundledPalettes());
+    expect(reviewDesign(p, good, bundledPalettes(), { limit: 99 }).map((n) => n.code)).not.toContain(
+      "ruin_uniform",
+    );
     // the same tower with every wall broken to one height
-    const even = resolvePlan(p);
+    const even = resolvePlan(p, bundledPalettes());
     const st = even.levels[0]?.structures?.[0];
     const floor = st?.storeys[0]?.floorTop ?? 0;
     for (const col of st?.ruin?.columns ?? []) col.top = floor + 3;
-    expect(reviewDesign(p, even, { limit: 99 }).map((n) => n.code)).toContain("ruin_uniform");
+    expect(reviewDesign(p, even, bundledPalettes(), { limit: 99 }).map((n) => n.code)).toContain(
+      "ruin_uniform",
+    );
   });
 });

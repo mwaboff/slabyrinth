@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
+import { MATERIALS } from "@slabyrinth/core/contracts/plan";
 import { loadPalettes, resolveRole } from "@slabyrinth/core/palette";
 import { slabCodec } from "@slabyrinth/core/slab";
 import type { ChatEvent, IpcRequests, Result } from "../src/shared/ipc";
@@ -32,7 +33,6 @@ async function launch(run: Run): Promise<{ app: ElectronApplication; page: Page 
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
   delete env["ANTHROPIC_API_KEY"]; // belt and braces: safe mode ignores it anyway
-  delete env["SLABYRINTH_FAKE_ENGINE"];
   const app = await electron.launch({
     args: [mainEntry],
     env: {
@@ -193,7 +193,7 @@ test("real engine end to end: brief → questions → plan → edits → approve
       expect(decoded.assets).toHaveLength(chunk.assetCount);
       saved.builtUuids = [...new Set(decoded.assets.map((a) => a.uuid))];
       const palettes = loadPalettes();
-      for (const role of ["feature.altar", "opening.door", "wall.wall", "floor.flagstone"]) {
+      for (const role of ["feature.altar", "opening.door", "wall.wall"]) {
         const wanted =
           resolveRole(palettes, "stone_dungeon", role).resolution?.variants.map((v) => v.uuid) ?? [];
         expect(wanted.length, `${role} resolves`).toBeGreaterThan(0);
@@ -202,6 +202,21 @@ test("real engine end to end: brief → questions → plan → edits → approve
           `${role} is in the slab`,
         ).toBe(true);
       }
+      // Floors: which floor a room gets is the generator's choice (since generator 4 it follows the room's
+      // purpose and the plan's random seed, which the app picks per run), so the check is that the slab holds
+      // the stone_dungeon floor of SOME material, not that it holds flagstone.
+      const floorUuids = new Set(
+        MATERIALS.flatMap(
+          (m) =>
+            resolveRole(palettes, "stone_dungeon", `floor.${m}`).resolution?.variants.map((v) => v.uuid) ??
+            [],
+        ),
+      );
+      expect(floorUuids.size, "stone_dungeon has floors").toBeGreaterThan(0);
+      expect(
+        saved.builtUuids.some((u) => floorUuids.has(u)),
+        "a stone_dungeon floor is in the slab",
+      ).toBe(true);
     } finally {
       await app.close(); // before-quit flushes the autosave
     }

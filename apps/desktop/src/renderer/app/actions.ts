@@ -1,14 +1,41 @@
 /** Cross-store user actions (each one IPC call + store updates). Components call these, never IPC directly. */
-import type { ProjectSnapshot } from "../../shared/ipc";
-import { call, errorMessage, tryCall } from "../bridge/client";
+import type { IpcRequests, ProjectSnapshot } from "../../shared/ipc";
+import { call, errorMessage, tryCall, type Req, type Res } from "../bridge/client";
 import { useApp } from "../stores/app";
 import { useBuild } from "../stores/build";
 import { useChat } from "../stores/chat";
 import { useMap } from "../stores/map";
-import { orderedLevels, phaseOf, useProject } from "../stores/project";
+import { orderedLevels, phaseOf, switchProject, useProject } from "../stores/project";
 
 function fail(lead: string, e: unknown): void {
   useApp.getState().toast({ lead, body: errorMessage(e), tone: "error", ms: 6000 });
+}
+
+/**
+ * An IPC call fired from a click or an effect: `then` gets the value; a failure is shown to the GM as a toast led by
+ * `failLead` and never becomes an unhandled rejection. The renderer lint refuses `void call(...)`: use this (or
+ * `tryCall`, which returns a Result) instead.
+ */
+export function run<C extends keyof IpcRequests>(
+  channel: C,
+  req: Req<C>,
+  failLead: string,
+  then?: (value: Res<C>) => void,
+): Promise<void> {
+  return call(channel, req).then(
+    (value) => {
+      then?.(value);
+    },
+    (e: unknown) => {
+      fail(failLead, e);
+    },
+  );
+}
+
+/** Whatever rejects without a handler is logged and shown, never silent (installed once by app/boot.ts). */
+export function reportUnhandled(e: unknown): void {
+  console.error("[slabyrinth] unhandled failure", e);
+  fail("Something didn't work.", e);
 }
 
 export function openSnapshot(snap: ProjectSnapshot): void {
@@ -44,7 +71,7 @@ export function openSnapshot(snap: ProjectSnapshot): void {
 
 export async function openProject(path?: string): Promise<void> {
   try {
-    const snap = await call("project:open", path !== undefined ? { path } : {});
+    const snap = await switchProject(() => call("project:open", path !== undefined ? { path } : {}));
     if (snap) openSnapshot(snap);
   } catch (e) {
     fail("Couldn't open that project.", e);
@@ -53,7 +80,7 @@ export async function openProject(path?: string): Promise<void> {
 
 export async function newProject(prompt?: string): Promise<void> {
   try {
-    const snap = await call("project:new", {});
+    const snap = await switchProject(() => call("project:new", {}));
     openSnapshot(snap);
     if (prompt !== undefined) {
       useChat.getState().setDraft(prompt);
@@ -68,7 +95,7 @@ export async function goHome(): Promise<void> {
   if (useProject.getState().snap) {
     const draft = useChat.getState().draft;
     useProject.getState().saveUi({ composerDraft: { text: draft, references: [] } });
-    await tryCall("project:close", {});
+    await switchProject(() => tryCall("project:close", {}));
   }
   useProject.getState().setSnapshot(null);
   useApp.getState().setRoute("home");

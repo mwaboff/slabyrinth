@@ -1,7 +1,7 @@
 /**
  * Small things on a surface (generator 4): the one table behind "a plate on a table", "loaves on a counter" and "jugs on
- * a stall". Three places used to carry their own copy of it: market goods (`feature.goods`, by kind of stall), room
- * clutter (`feature.clutter`, by family of room) and the room recipes' per-support counts. Now:
+ * a stall", read by market goods (`feature.goods`, by kind of stall), room clutter (`feature.clutter`, by family of room)
+ * and the room recipes' per-support counts:
  *
  *   FAMILIES        every family of small things, and the palette variant name it goes by. The variant name is the
  *                   family name, so a palette lists the pieces of a family under one name wherever they live.
@@ -16,6 +16,7 @@
  * (gen/place.ts, the generator-3 stall goods) and never read this one.
  */
 import type { FeatureType } from "../contracts/plan";
+import { typesWith } from "./catalog";
 
 /** What a stall or a shop sells, as small things (the palette variant names of `feature.goods`). */
 export type GoodsFamily = "produce" | "bread" | "dairy" | "fish" | "potions" | "grain";
@@ -23,14 +24,21 @@ export type GoodsFamily = "produce" | "bread" | "dairy" | "fish" | "potions" | "
 export type RoomFamily = "table" | "study" | "store" | "tools" | "shelf";
 export type SmallFamily = GoodsFamily | RoomFamily;
 
-export const GOODS_FAMILIES: readonly GoodsFamily[] = ["produce", "bread", "dairy", "fish", "potions", "grain"];
+export const GOODS_FAMILIES: readonly GoodsFamily[] = [
+  "produce",
+  "bread",
+  "dairy",
+  "fish",
+  "potions",
+  "grain",
+];
 export const ROOM_FAMILIES: readonly RoomFamily[] = ["table", "study", "store", "tools", "shelf"];
 
 /** Palette roles that hold small things, in the order they are tried (generator 4). */
 export const SMALL_THINGS_ROLES: readonly string[] = ["feature.clutter", "feature.goods"];
 
-/** Feature types that are small things on a surface; at generator 4 both resolve through SMALL_THINGS_ROLES. */
-export const SMALL_THING_TYPES: ReadonlySet<FeatureType> = new Set<FeatureType>(["clutter", "goods"]);
+/** Feature types that are small things on a surface (`smallThing`); at generator 4 they resolve through SMALL_THINGS_ROLES. */
+export const SMALL_THING_TYPES: ReadonlySet<FeatureType> = new Set(typesWith((f) => f.smallThing === true));
 
 /**
  * Palette roles a feature type is built from at generator 4 (the single place that says so). A small thing is looked up
@@ -45,6 +53,10 @@ export function featureRoles(type: FeatureType): readonly string[] {
 export interface SurfaceLoad {
   n: readonly [number, number];
   family?: SmallFamily;
+  /** Chance it takes anything at all (default: gen/rooms4.ts ROOM_DRESS.topChance). */
+  chance?: number;
+  /** The variant that carries things and stacks on itself (a small crate: a large one's top is taller). */
+  stackVariant?: string;
 }
 
 /**
@@ -57,8 +69,8 @@ export const SURFACE_LOAD: Readonly<Record<string, SurfaceLoad>> = {
   counter: { n: [2, 3] },
   bar_counter: { n: [1, 2] },
   desk: { n: [2, 3] },
-  chest: { n: [1, 1] },
-  crate: { n: [1, 1], family: "store" },
+  chest: { n: [1, 1], chance: 0.8 },
+  crate: { n: [1, 1], family: "store", stackVariant: "small" },
   barrel: { n: [1, 1], family: "store" },
   anvil: { n: [1, 1], family: "tools" },
   stall_counter: { n: [1, 2] },

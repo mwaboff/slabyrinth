@@ -2,6 +2,7 @@ import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import type { Palette } from "@slabyrinth/core";
 import { BUNDLED_PALETTES, loadOrientation, loadPalettes } from "@slabyrinth/core/palette";
+import { parseJsonText, type Unparsed } from "@slabyrinth/core/util";
 import type { Logger } from "../logger";
 
 /**
@@ -30,6 +31,8 @@ export interface PaletteServiceDeps {
   orientationOverride: string;
   logger: Logger;
   openPath: (dir: string) => Promise<string>;
+  /** After every load (startup or reload): the palettes may have changed. */
+  onLoaded?: () => void;
 }
 
 async function readUserDir(dir: string, logger: Logger): Promise<UserFile[]> {
@@ -43,7 +46,7 @@ async function readUserDir(dir: string, logger: Logger): Promise<UserFile[]> {
   for (const name of names) {
     const file = path.join(dir, name);
     try {
-      out.push({ file, json: JSON.parse(await fsp.readFile(file, "utf8")) as unknown });
+      out.push({ file, json: parseJsonText(await fsp.readFile(file, "utf8")) });
     } catch (err) {
       logger.warn("palette unreadable", { file, error: err });
       out.push({ file, json: null });
@@ -101,6 +104,7 @@ export class PaletteService {
       this.deps.logger.warn("palette issue", { source: i.source, severity: i.severity, message: i.message });
     this.entries = entries;
     this.deps.logger.info("palettes loaded", { bundled: bundledIds.size, user: this.user.length });
+    this.deps.onLoaded?.();
   }
 
   private userInputs(): Array<{ source: string; data: unknown }> {
@@ -148,9 +152,10 @@ export class PaletteService {
   }
 }
 
-async function readJsonFile(file: string): Promise<unknown> {
+/** A JSON file, unchecked (core loadOrientation checks it); null when missing or unreadable. */
+async function readJsonFile(file: string): Promise<Unparsed | null> {
   try {
-    return JSON.parse(await fsp.readFile(file, "utf8"));
+    return parseJsonText(await fsp.readFile(file, "utf8"));
   } catch {
     return null;
   }

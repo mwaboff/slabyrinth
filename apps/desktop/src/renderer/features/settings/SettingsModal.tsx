@@ -8,7 +8,25 @@ import { useApp, type SettingsSection } from "../../stores/app";
 import { useSettings } from "../../stores/settings";
 import { useProject } from "../../stores/project";
 import { call, errorMessage } from "../../bridge/client";
+import { run } from "../../app/actions";
+import {
+  GAME_SYSTEM_IDS,
+  GAME_SYSTEM_LABEL,
+  GAME_SYSTEM_NAMED,
+  type GameSystemId,
+} from "@slabyrinth/core/plan";
 import { ApiKeyField, KeyStorageNote, UnreadableKeyNote } from "../setup/Setup";
+
+/** Re-reads the key status after a change; a failure is shown, not lost. */
+const refreshSecrets = (): Promise<void> =>
+  useSettings
+    .getState()
+    .refreshSecrets()
+    .catch((e: unknown) => {
+      useApp
+        .getState()
+        .toast({ lead: "Couldn't read the key status.", body: errorMessage(e), tone: "error" });
+    });
 import { UpdateCheckRow } from "../updates/UpdateChip";
 
 /** Same wording in Settings and Setup. */
@@ -92,11 +110,16 @@ function AiSection({ s }: { s: AppSettings }) {
   const [snapped, setSnapped] = useState<null | NonNullable<AppSettings["defaultSelection"]["effort"]>>(null);
   useEffect(() => {
     if (sec?.hasKey !== true) return;
-    void call("providers:check", { providerId: s.defaultSelection.providerId }).then((r) => {
-      setCheck(
-        r.ok ? { ok: true, text: "Key works · checked just now" } : { ok: false, text: r.error.message },
-      );
-    });
+    void run(
+      "providers:check",
+      { providerId: s.defaultSelection.providerId },
+      "Couldn't check the key.",
+      (r) => {
+        setCheck(
+          r.ok ? { ok: true, text: "Key works · checked just now" } : { ok: false, text: r.error.message },
+        );
+      },
+    );
   }, [sec?.hasKey, s.defaultSelection.providerId]);
   const perPlan = (m: (typeof models)[number]): string | null => {
     if (!caps.hasCost || !m.pricing) return null;
@@ -166,10 +189,15 @@ function AiSection({ s }: { s: AppSettings }) {
                 <button
                   className="btn btn--sm btn--ghost"
                   onClick={() =>
-                    void call("secrets:clearApiKey", { providerId: active.id }).then(() => {
-                      void useSettings.getState().refreshSecrets();
-                      setCheck(null);
-                    })
+                    void run(
+                      "secrets:clearApiKey",
+                      { providerId: active.id },
+                      "Couldn't remove the key.",
+                      () => {
+                        void refreshSecrets();
+                        setCheck(null);
+                      },
+                    )
                   }
                 >
                   Remove
@@ -191,10 +219,15 @@ function AiSection({ s }: { s: AppSettings }) {
                 <button
                   className="btn btn--sm btn--ghost"
                   onClick={() =>
-                    void call("secrets:clearApiKey", { providerId: active.id }).then(() => {
-                      void useSettings.getState().refreshSecrets();
-                      setCheck(null);
-                    })
+                    void run(
+                      "secrets:clearApiKey",
+                      { providerId: active.id },
+                      "Couldn't remove the key.",
+                      () => {
+                        void refreshSecrets();
+                        setCheck(null);
+                      },
+                    )
                   }
                 >
                   Remove saved key
@@ -331,7 +364,7 @@ function TaleSpireSection({ s }: { s: AppSettings }) {
   const [palettes, setPalettes] = useState<Palette[]>([]);
   const [pathMsg, setPathMsg] = useState<string | null>(null);
   useEffect(() => {
-    void call("palettes:list", undefined).then(setPalettes);
+    void run("palettes:list", undefined, "Couldn't list the palettes.", setPalettes);
   }, []);
   const refresh = async (): Promise<void> => {
     useSettings.getState().setCatalogBusy(true);
@@ -460,31 +493,30 @@ export function SystemPicker({
   onChange: (v: AppSettings["defaultSystem"]) => void;
 }) {
   const [other, setOther] = useState(value?.otherName ?? "");
+  // a system whose name is the GM's own ("other") takes a free-text name
+  const ownName = (id: GameSystemId): boolean => !GAME_SYSTEM_NAMED[id];
+  const chosen = value?.system;
   return (
     <div className="inline">
       <div className="segctl" role="radiogroup" aria-label="Game system">
-        {(
-          [
-            ["daggerheart", "Daggerheart"],
-            ["dnd5e", "D&D 5e"],
-            ["other", "Other / none"],
-          ] as const
-        ).map(([v, l]) => (
-          <button
-            key={v}
-            role="radio"
-            aria-checked={value?.system === v}
-            onClick={() => {
-              onChange(
-                v === "other" && other.trim() !== "" ? { system: v, otherName: other.trim() } : { system: v },
-              );
-            }}
-          >
-            {l}
-          </button>
-        ))}
+        {GAME_SYSTEM_IDS.map((id) => [id, ownName(id) ? "Other / none" : GAME_SYSTEM_LABEL[id]] as const).map(
+          ([v, l]) => (
+            <button
+              key={v}
+              role="radio"
+              aria-checked={chosen === v}
+              onClick={() => {
+                onChange(
+                  ownName(v) && other.trim() !== "" ? { system: v, otherName: other.trim() } : { system: v },
+                );
+              }}
+            >
+              {l}
+            </button>
+          ),
+        )}
       </div>
-      {value?.system === "other" && (
+      {chosen !== undefined && ownName(chosen) && (
         <input
           className="input sys-other"
           aria-label="Which system"
@@ -495,9 +527,7 @@ export function SystemPicker({
             setOther(e.target.value);
           }}
           onBlur={() => {
-            onChange(
-              other.trim() === "" ? { system: "other" } : { system: "other", otherName: other.trim() },
-            );
+            onChange(other.trim() === "" ? { system: chosen } : { system: chosen, otherName: other.trim() });
           }}
         />
       )}
@@ -597,7 +627,7 @@ function AboutSection({ s }: { s: AppSettings }) {
   const update = useSettings((x) => x.update);
   const [dataPath, setDataPath] = useState("");
   useEffect(() => {
-    void call("app:getInfo", undefined).then((i) => {
+    void run("app:getInfo", undefined, "Couldn't read the app's details.", (i) => {
       setDataPath(i.userDataPath);
     });
   }, []);
@@ -630,7 +660,9 @@ function AboutSection({ s }: { s: AppSettings }) {
         </span>
         <button
           className="btn btn--sm"
-          onClick={() => void call("shell:openExternal", { url: THIRD_PARTY_NOTICES_URL })}
+          onClick={() =>
+            void run("shell:openExternal", { url: THIRD_PARTY_NOTICES_URL }, "Couldn't open the page.")
+          }
         >
           Third-party notices
         </button>

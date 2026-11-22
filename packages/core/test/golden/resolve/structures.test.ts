@@ -4,9 +4,8 @@
  */
 import { describe, expect, it } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
-import { realize } from "../../../src/compile";
-import { placementMeta } from "../../../src/compile/realize";
-import { loadPalettes } from "../../../src/palette";
+import { placedName, realize } from "../../../src/compile";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve/index";
 import { asciiView, outlineView } from "../../../src/text";
 
@@ -60,7 +59,7 @@ const PLAN: MapPlan = {
 };
 
 describe("structures golden", () => {
-  const resolved = resolvePlan(PLAN);
+  const resolved = resolvePlan(PLAN, bundledPalettes());
   it("ascii and outline", async () => {
     const text = [
       asciiView(resolved, "g"),
@@ -77,7 +76,7 @@ describe("structures golden", () => {
       .filter((p) => /^(cottage|yard)/.test(p.source.elementId ?? ""))
       .map(
         (p) =>
-          `${p.source.elementId} ${p.layer ?? "site"} ${p.role} ${placementMeta.get(p)?.name ?? p.asset} ${p.x},${p.y},${p.z} r${p.rot}`,
+          `${p.source.elementId} ${p.layer ?? "site"} ${p.role} ${placedName(set, p)} ${p.x},${p.y},${p.z} r${p.rot}`,
       );
     await expect(lines.join("\n") + "\n").toMatchFileSnapshot("__golden__/structures-cottage.placements.txt");
   });

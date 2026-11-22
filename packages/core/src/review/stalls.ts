@@ -1,5 +1,6 @@
 /**
- * Market stall notes (generator 4). The owner's market proof had bare tables in a tidy grid: no canopy, no cloth, every
+ * Market stall notes (generator 4: the review runs them where the generator builds covered stalls, `coveredStalls`).
+ * The owner's market proof had bare tables in a tidy grid: no canopy, no cloth, every
  * stall the same. A market reads as a market when its stalls are covered and differ, so the review says so.
  *
  *   stalls_uncovered  a map whose theme has canopy pieces but whose stalls are bare tables (plan-placed stall features or
@@ -7,27 +8,34 @@
  *   stalls_grid       four or more stalls of one size standing in one line at one gap, or every stall the same size
  */
 import type { ResolvedLevel } from "../contracts/resolved";
+import { elementThemeAt } from "../resolve/levelGrid";
+import { REVIEW } from "./thresholds";
 import type { DesignNote } from "./review";
 
-const SCORE = { uncovered: 3.6, grid: 3.2 } as const;
+const T = REVIEW.stalls;
+const SCORE = T.weights;
 
 export interface StallNoteInput {
   levelId: string;
   level: ResolvedLevel;
-  generator: number;
-  /** Can the level's theme build a covered stall (palette/stallParts.ts, the resolver's and compiler's question)? Absent: assume yes. */
+  /** Can a theme build a covered stall (palette/stallParts.ts, the resolver's and compiler's question)? Absent: assume yes. */
   canCoverStall?: (theme: string) => boolean;
+  /** The theme a cell with no theme reads as (the build's default theme). */
+  defaultTheme: string;
 }
 
 export function stallNotes(input: StallNoteInput): DesignNote[] {
-  if (input.generator < 4) return [];
   const stalls = input.level.features.filter((f) => f.type === "stall");
-  if (stalls.length < 3) return [];
+  if (stalls.length < T.minStalls) return [];
   const out: DesignNote[] = [];
-  const bare = stalls.filter((f) => f.stall === undefined);
-  const theme = stalls[0]?.theme ?? "";
-  const canCover = input.canCoverStall ? input.canCoverStall(theme) : true;
-  if (canCover && bare.length >= 2 && bare.length * 2 >= stalls.length) {
+  // a bare table counts where its own theme (its own, else its cell's) could have covered it
+  const L = input.level;
+  const themeOf = (f: (typeof stalls)[number]): string =>
+    elementThemeAt(f.theme, L, f.at, input.defaultTheme);
+  const bare = stalls.filter(
+    (f) => f.stall === undefined && (input.canCoverStall ? input.canCoverStall(themeOf(f)) : true),
+  );
+  if (bare.length >= T.minBare && bare.length >= stalls.length * T.bareShare) {
     out.push({
       code: "stalls_uncovered",
       levelId: input.levelId,
@@ -44,15 +52,24 @@ export function stallNotes(input: StallNoteInput): DesignNote[] {
   const lineKey = (f: (typeof stalls)[number]): string => {
     const front = f.stall?.front ?? (f.rot === 0 ? "S" : f.rot === 90 ? "W" : f.rot === 180 ? "N" : "E");
     const across = front === "S" || front === "N";
-    const edge = front === "S" ? f.at[1] + f.size[1] : front === "N" ? f.at[1] : front === "E" ? f.at[0] + f.size[0] : f.at[0];
+    const edge =
+      front === "S"
+        ? f.at[1] + f.size[1]
+        : front === "N"
+          ? f.at[1]
+          : front === "E"
+            ? f.at[0] + f.size[0]
+            : f.at[0];
     return `${front}${across ? "y" : "x"}${edge}`;
   };
   const lines = new Map<string, Array<(typeof stalls)[number]>>();
   for (const f of stalls) lines.set(lineKey(f), [...(lines.get(lineKey(f)) ?? []), f]);
   let regular: Array<(typeof stalls)[number]> | undefined;
   for (const row of lines.values()) {
-    if (row.length < 4 || new Set(row.map(size)).size > 1) continue;
-    const across = row[0]?.stall ? row[0].stall.front === "S" || row[0].stall.front === "N" : row[0]?.rot === 0 || row[0]?.rot === 180;
+    if (row.length < T.gridRow || new Set(row.map(size)).size > 1) continue;
+    const across = row[0]?.stall
+      ? row[0].stall.front === "S" || row[0].stall.front === "N"
+      : row[0]?.rot === 0 || row[0]?.rot === 180;
     const sorted = [...row].sort((a, b) => (across ? a.at[0] - b.at[0] : a.at[1] - b.at[1]));
     const gaps = sorted.slice(1).map((f, i) => {
       const p = sorted[i] as (typeof sorted)[number];
@@ -60,7 +77,7 @@ export function stallNotes(input: StallNoteInput): DesignNote[] {
     });
     if (new Set(gaps).size === 1) regular = sorted;
   }
-  const sameSize = stalls.length >= 4 && new Set(stalls.map(size)).size === 1;
+  const sameSize = stalls.length >= T.gridRow && new Set(stalls.map(size)).size === 1;
   if (regular || sameSize) {
     const group = regular ?? stalls;
     out.push({

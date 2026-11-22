@@ -14,9 +14,10 @@ import { call, tryCall } from "../../bridge/client";
 import { useResolved, type Resolved } from "../../map/resolveClient";
 import { MapView } from "../../map/MapView";
 import { relativeTime, roundCost, roundSeconds, slabEstimate, sqSize } from "../../lib/format";
-import { approve, editRoomText, restoreVersion, sendPrepared } from "../../app/actions";
+import { editRoomText, restoreVersion, run, sendPrepared } from "../../app/actions";
 import { RoomKey } from "./RoomKey";
-import { IssueList, IssuesChip, askToFix, issueItems } from "./Issues";
+import { ApprovePopover } from "./ApprovePopover";
+import { IssuesChip } from "./Issues";
 import { HistoryPanel } from "./HistoryPanel";
 import { PngExport } from "./PngExport";
 import { BuildView, BuildToolbar } from "../build/BuildView";
@@ -477,109 +478,6 @@ function EmptyStage() {
   );
 }
 
-// ───────────── approve popover ─────────────
-
-function ApprovePopover({
-  version,
-  anchor,
-}: {
-  version: number;
-  anchor: React.RefObject<HTMLButtonElement | null>;
-}) {
-  const snap = useProject((s) => s.snap);
-  const ref = useRef<HTMLDivElement>(null);
-  const [est, setEst] = useState<number | null>(null);
-  const [checks, setChecks] = useState<{ blocking: string[]; warnings: string[] } | null>(null);
-  const issues = useMap((s) => s.issues);
-  const close = (): void => {
-    useMap.getState().setApprove(false);
-  };
-  useDismiss(true, [ref, anchor], close, anchor);
-  useEffect(() => {
-    void tryCall("compile:estimate", {}).then((r) => {
-      if (r.ok) setEst(r.value.estimatedChunks);
-    });
-    ref.current?.querySelector<HTMLButtonElement>(".btn--primary")?.focus();
-  }, []);
-  if (!snap?.plan) return null;
-  const rooms = roomCount(snap.plan);
-  const plan = snap.plan;
-  const errors = issues.filter((i) => i.severity === "error");
-  const warnings = issues.filter((i) => i.severity === "warning");
-  const go = async (build: boolean): Promise<void> => {
-    const r = await approve(version, build);
-    if (r) setChecks(r);
-  };
-  return (
-    <div ref={ref} className="popover approvepop" role="dialog" aria-label={`Approve v${version}`}>
-      <h3>Approve v{version} for building?</h3>
-      <p>
-        {snap.plan.levels.length} level{snap.plan.levels.length === 1 ? "" : "s"} · {rooms} rooms ·{" "}
-        {est === null ? "estimating the slab size…" : slabEstimate(est)}
-        .
-      </p>
-      <p className="muted">You can still change the plan afterwards; you'll just approve and rebuild.</p>
-      {errors.length + warnings.length > 0 && (
-        <div className="approvepop__list">
-          <p className={errors.length > 0 ? "approvepop__block" : "muted"}>
-            {errors.length > 0
-              ? "Fix the problems below before approving — the party couldn't get through as drawn."
-              : "These warnings can be approved anyway."}
-          </p>
-          <IssueList
-            items={issueItems(plan, issues, true)}
-            labels={{ error: "Blocking", warning: "Warnings", info: "Notes" }}
-            onFixAll={() => {
-              close();
-              askToFix(plan, [...errors, ...warnings]);
-            }}
-          />
-        </div>
-      )}
-      {checks && checks.blocking.length > 0 && (
-        <div className="approvepop__issues" role="alert">
-          <b>Fix these first:</b>
-          <ul>
-            {checks.blocking.map((b) => (
-              <li key={b}>{b}</li>
-            ))}
-          </ul>
-          <button
-            className="btn btn--sm"
-            onClick={() => {
-              // pre-fill the composer; never send silently
-              close();
-              useChat
-                .getState()
-                .setDraft(
-                  `Please fix these problems before I approve:\n${checks.blocking.map((b) => `- ${b}`).join("\n")}`,
-                );
-              useChat.getState().focusComposer();
-            }}
-          >
-            Ask Claude to fix
-          </button>
-        </div>
-      )}
-      <div className="card-actions">
-        <button
-          className="btn btn--primary btn--sm"
-          disabled={errors.length > 0}
-          onClick={() => void go(true)}
-        >
-          Approve & build
-        </button>
-        <button className="btn btn--sm" disabled={errors.length > 0} onClick={() => void go(false)}>
-          Approve only
-        </button>
-        <button className="btn btn--sm btn--ghost" onClick={close}>
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ───────────── status bar ─────────────
 
 function AssetChip() {
@@ -813,7 +711,7 @@ export function MapContent({ plan, version }: { plan: MapPlan; version: number }
   const [fetched, setFetched] = useState<{ v: number; plan: MapPlan } | null>(null);
   useEffect(() => {
     if (preview === null) return;
-    void call("plan:getVersion", { version: preview }).then((p) => {
+    void run("plan:getVersion", { version: preview }, `Couldn't load v${preview}.`, (p) => {
       setFetched({ v: preview, plan: p });
     });
   }, [preview]);
@@ -862,7 +760,10 @@ export function MapContent({ plan, version }: { plan: MapPlan; version: number }
         )}
         {compare && preview === null && <CompareChips diff={compare.diff} />}
         {revising && (
-          <div className="revising" title="The map will update when this finishes. You can keep looking around.">
+          <div
+            className="revising"
+            title="The map will update when this finishes. You can keep looking around."
+          >
             <span className="spinner" aria-hidden="true" />
             {verb(runPhaseNow, snap?.head ?? 0, newVersions)}…
             <button className="btn btn--sm btn--ghost" title="Stop (Esc)" onClick={() => void stop()}>

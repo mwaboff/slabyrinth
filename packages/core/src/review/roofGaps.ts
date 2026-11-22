@@ -12,12 +12,17 @@ import type { PaletteCatalog, PlacementSet } from "../contracts/compiler";
 import type { MapPlan } from "../contracts/plan";
 import type { ResolvedPlan, ResolvedStructure } from "../contracts/resolved";
 import { footprintFromGeom } from "../palette/resolve";
+import { generatorProfile } from "../plan/generator";
 import { roofOwners } from "../resolve/roof";
 import type { DesignNote } from "./review";
 import type { ReviewBuild } from "./reviewBuild";
+import { REVIEW } from "./thresholds";
 
 /** Roof cells of a building that have no roof piece. `covered` is a set of "x,y" keys the realized pieces fill. */
-export function uncoveredRoofCells(st: ResolvedStructure, covered: ReadonlySet<string>): Array<[number, number]> {
+export function uncoveredRoofCells(
+  st: ResolvedStructure,
+  covered: ReadonlySet<string>,
+): Array<[number, number]> {
   const holes = new Set(st.chimneys.map((c) => `${c.at[0]},${c.at[1]}`));
   const out: Array<[number, number]> = [];
   const seen = new Set<string>();
@@ -62,7 +67,12 @@ export function roofCoverOf(
     if (lv.levelId !== levelId) continue;
     for (const q of lv.placements) {
       const id = q.source.elementId ?? "";
-      if (q.layer !== "roof" || !id.startsWith(`${buildingId}~`) || !/(roof|dormer)$/.test(id) || /porch|attach/.test(id))
+      if (
+        q.layer !== "roof" ||
+        !id.startsWith(`${buildingId}~`) ||
+        !/(roof|dormer)$/.test(id) ||
+        /porch|attach/.test(id)
+      )
         continue;
       if (!q.source.cell) continue;
       const f = feet.get(q.asset) ?? [1, 1];
@@ -82,7 +92,7 @@ export function roofGapNotes(
   build: ReviewBuild,
   palettes: PaletteCatalog,
 ): DesignNote[] {
-  if (plan.generator < 4) return [];
+  if (!generatorProfile(plan).closedRoofs) return [];
   const out: DesignNote[] = [];
   const intact = (st: ResolvedStructure): boolean =>
     st.kind !== "enclosure" && (st.condition ?? "intact") === "intact" && !!st.volumes?.length;
@@ -97,7 +107,8 @@ export function roofGapNotes(
       out.push({
         code: "roof_gap",
         levelId: L.id,
-        score: 2 + Math.min(2, open.length / 8),
+        score:
+          REVIEW.roofGap.base + Math.min(REVIEW.roofGap.extraMax, open.length / REVIEW.roofGap.cellsPerPoint),
         elementIds: [st.id],
         cell: first,
         message: `the roof of ${st.id} has ${open.length} open cell${open.length === 1 ? "" : "s"} (first at (${first[0]},${first[1]})) that no roof piece covers, so the deck or the wall shows through; only a chimney stack may stand in a roof`,

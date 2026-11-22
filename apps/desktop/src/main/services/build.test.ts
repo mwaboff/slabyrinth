@@ -4,10 +4,11 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import type { ChunkOptions, PngExportOptions } from "@slabyrinth/core";
-import { afterEach, describe, expect, it } from "vitest";
-import { FIXTURE_PLAN } from "../engine/recordings";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { FIXTURE_PLAN } from "../fixturePlan";
 import { memoryLogger } from "../logger";
-import { fakeCompileBackend, type CompileBackend, type CompileInput } from "../ports/compile";
+import type { CompileBackend, CompileInput } from "../ports/compile";
+import { fakeCompileBackend } from "./testing/fakeCompileBackend";
 import type { WorkerResponse } from "../workers/protocol";
 import { BuildService } from "./buildService";
 import { ClipboardService, memoryClipboard } from "./clipboardService";
@@ -42,7 +43,6 @@ describe("CompileService", () => {
     rig = await projectRig();
     const compiler = new CompileService({
       spawn: () => inProcessWorker(),
-      backend: "fake",
       emit: rig.emit,
       logger: memoryLogger(),
     });
@@ -58,10 +58,9 @@ describe("CompileService", () => {
     let worker: ReturnType<typeof inProcessWorker> | null = null;
     const compiler = new CompileService({
       spawn: () => {
-        worker = inProcessWorker(null, 50);
+        worker = inProcessWorker(fakeCompileBackend, 50);
         return worker;
       },
-      backend: "fake",
       emit: rig.emit,
       logger: memoryLogger(),
     });
@@ -72,15 +71,39 @@ describe("CompileService", () => {
     expect((worker as unknown as { terminated: boolean }).terminated).toBe(true);
   });
 
-  it("reports 'unsupported' when the build has no compiler", async () => {
-    rig = await projectRig();
-    const compiler = new CompileService({
-      spawn: () => inProcessWorker(),
-      backend: "none",
-      emit: rig.emit,
-      logger: memoryLogger(),
-    });
-    await expect(compiler.run(input)).rejects.toMatchObject({ code: "unsupported" });
+  it("a compile that never answers is ended at its deadline; Stop (the signal) ends an estimate at once", async () => {
+    vi.useFakeTimers();
+    try {
+      rig = await projectRig();
+      const workers: Array<ReturnType<typeof inProcessWorker>> = [];
+      const compiler = new CompileService({
+        spawn: () => {
+          const w = inProcessWorker(fakeCompileBackend, Infinity);
+          workers.push(w);
+          return w;
+        },
+        emit: rig.emit,
+        logger: memoryLogger(),
+        deadlines: { estimateMs: 1_000, runMs: 5_000 },
+      });
+      const late = compiler.estimate(input).catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(await late).toMatchObject({
+        code: "internal",
+        message: expect.stringMatching(/in time/) as unknown,
+      });
+      const stop = new AbortController();
+      const stopped = compiler.estimate(input, undefined, stop.signal).catch((e: unknown) => e);
+      stop.abort();
+      expect(await stopped).toMatchObject({ code: "cancelled" });
+      const run = compiler.run(input).catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(await run).toMatchObject({ code: "internal" });
+      expect(compiler.busy).toBe(false);
+      expect(workers.every((w) => w.terminated)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("the real worker_threads entry loads and answers (tsx loader)", async () => {
@@ -96,14 +119,11 @@ describe("CompileService", () => {
         if (m.type !== "progress") resolve(m);
       });
       worker.on("error", reject);
-      worker.postMessage({ type: "estimate", id: 7, backend: "fake", input });
+      worker.postMessage({ type: "estimate", id: 7, input });
     });
     await worker.terminate();
-    expect(reply).toMatchObject({
-      type: "estimated",
-      id: 7,
-      estimate: { totalAssets: fakeCompileBackend.estimate(input).totalAssets },
-    });
+    expect(reply).toMatchObject({ type: "estimated", id: 7 });
+    expect(reply.type === "estimated" && reply.estimate.totalAssets).toBeGreaterThan(0);
   }, 30_000);
 });
 
@@ -128,8 +148,7 @@ describe("BuildService and ExportService", () => {
       suppressWarning: () => true,
     });
     const compiler = new CompileService({
-      spawn: (): WorkerLike => inProcessWorker(backend ?? null),
-      backend: backend ? "core" : "fake",
+      spawn: (): WorkerLike => inProcessWorker(backend),
       emit: rig.emit,
       logger,
     });
@@ -204,7 +223,6 @@ describe("BuildService and ExportService", () => {
   it("records the options a build used and re-copies a non-default build after a restart", async () => {
     const seen: ChunkOptions[] = [];
     const recording: CompileBackend = {
-      kind: "core",
       estimate: (input, levels) => fakeCompileBackend.estimate(input, levels),
       compile: (input, progress) => {
         seen.push(structuredClone(input.options));
@@ -243,7 +261,6 @@ describe("BuildService and ExportService", () => {
     };
     // A split build: chunk 1 holds all of l1 plus part of l2 (core reports levelIds), chunk 2 the rest of l2.
     const spanning: CompileBackend = {
-      kind: "core",
       estimate: (input, levels) => fakeCompileBackend.estimate(input, levels),
       compile: (input, progress) => {
         const base = fakeCompileBackend.compile({ ...input, plan: twoLevels }, progress);

@@ -111,18 +111,16 @@ export const fakeIndexJsonSource: CatalogSource = {
   id: "index-json",
   canRead: (fileName, head) => fileName === "index.json" && head.length > 0 && head[0] !== 0xce,
   read(bytes, pack) {
-    const json = JSON.parse(new TextDecoder().decode(bytes)) as {
-      Name?: string;
-      Tiles?: JsonBoardObject[];
-      Props?: JsonBoardObject[];
-    };
+    const json = JSON.parse(new TextDecoder().decode(bytes)) as Partial<
+      Record<"Name", unknown> & Record<"Tiles" | "Props", JsonBoardObject[] | null>
+    >;
     const packName = typeof json.Name === "string" ? json.Name : pack.dirName;
     const assets: CatalogAsset[] = [];
-    for (const t of json.Tiles ?? []) {
+    for (const t of Array.isArray(json.Tiles) ? json.Tiles : []) {
       const a = toAsset(t, "tile", packName, pack.packId);
       if (a) assets.push(a);
     }
-    for (const p of json.Props ?? []) {
+    for (const p of Array.isArray(json.Props) ? json.Props : []) {
       const a = toAsset(p, "prop", packName, pack.packId);
       if (a) assets.push(a);
     }

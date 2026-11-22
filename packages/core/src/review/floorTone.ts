@@ -1,6 +1,6 @@
 /**
- * Floor accent tone (generator 4, interior round item 6c). The owner called the hall's dais "a stark white rectangle":
- * a marble top on a flagstone room is the palest thing on the board. The resolver now tones such a platform top down
+ * Floor accent tone (generator 4). A pale accent reads as a spotlit slab: a marble dais top in a flagstone hall looked
+ * like "a stark white rectangle", the palest thing on the board. The resolver now tones such a platform top down
  * (resolve/interiorFloors.ts accentTop), so this note catches what remains: a patch of floor of a much paler material
  * than the room round it (a pale painted patch, a pale raised floor), which reads as a spotlit slab.
  *
@@ -9,15 +9,20 @@
  */
 import { CELL } from "../contracts/resolved";
 import type { ResolvedLevel } from "../contracts/resolved";
-import { toneOf } from "../resolve/interiorFloors";
+import type { PaletteView } from "../palette/view";
+import { floorTone } from "../resolve/interiorFloors";
+import { cellTheme } from "../resolve/levelGrid";
 import type { DesignNote } from "./review";
+import { REVIEW } from "./thresholds";
 
-const SCORE = 3.4;
-const MIN_CELLS = 6;
-const MAX_SHARE = 0.45;
+const { weight: SCORE, minCells: MIN_CELLS, maxShare: MAX_SHARE } = REVIEW.floorAccent;
 
-export function floorAccentNotes(levelId: string, L: ResolvedLevel, generator: number): DesignNote[] {
-  if (generator < 4) return [];
+/** The review runs it where the generator tones accents itself (`floorAccentReview`, plan/generator.ts). */
+export function floorAccentNotes(
+  levelId: string,
+  L: ResolvedLevel,
+  view: Pick<PaletteView, "floorTone" | "defaultTheme">,
+): DesignNote[] {
   if (!L.cells.state.some((s) => s === CELL.SOLID)) return [];
   const byArea = new Map<number, Map<number, number[]>>();
   const n = L.bounds.w * L.bounds.h;
@@ -38,6 +43,8 @@ export function floorAccentNotes(levelId: string, L: ResolvedLevel, generator: n
     const main = [...mats].sort((x, y) => y[1].length - x[1].length || x[0] - y[0])[0];
     if (!main) continue;
     const mainMat = L.materials[main[0] - 1];
+    // the tones the resolver's accent rule asks, in the area's theme (resolve/interiorFloors.ts floorTone)
+    const toneOf = floorTone(view, cellTheme(L, main[1][0] ?? -1, view.defaultTheme));
     const mainTone = toneOf(mainMat);
     if (mainTone === undefined) continue;
     for (const [m, cells] of [...mats].sort((x, y) => x[0] - y[0])) {

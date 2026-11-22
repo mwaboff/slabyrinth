@@ -1,26 +1,31 @@
 /** Brief card pinned at the top of chat (UX §5.1): expanded form in the brief phase, two-line summary later. */
 import { useState } from "react";
-import type { DesignBrief, MapPlan } from "@slabyrinth/core";
+import {
+  GAME_SYSTEM_IDS,
+  GAME_SYSTEM_LABEL,
+  GAME_SYSTEM_NAMED,
+  GAME_SYSTEM_PARTY_MEASURE,
+  type DesignBrief,
+  type GameSystemId,
+  type MapPlan,
+} from "@slabyrinth/core";
 import { Icon } from "../../ui/Icon";
 import { useApp } from "../../stores/app";
 import { phaseOf, useProject } from "../../stores/project";
 import { useChat } from "../../stores/chat";
 import { call, errorMessage } from "../../bridge/client";
 
-const SYSTEMS = [
-  ["daggerheart", "Daggerheart"],
-  ["dnd5e", "D&D 5e"],
-  ["other", "Other"],
-] as const;
+const SYSTEMS = GAME_SYSTEM_IDS.map((id) => [id, GAME_SYSTEM_LABEL[id]] as const);
 const PRESETS = { small: [20, 20], medium: [40, 30], large: [80, 60] } as const;
-const SYS_NAME: Record<string, string> = { daggerheart: "Daggerheart", dnd5e: "D&D 5e", other: "" };
+/** The name in the summary line (a system whose name is the GM's own reads as nothing there). */
+const systemName = (id: GameSystemId): string => (GAME_SYSTEM_NAMED[id] ? GAME_SYSTEM_LABEL[id] : "");
 
 /**
  * Two summary lines. Once a plan exists, its level count and size come from the plan (the brief only records what
  * was intended at the start and goes stale as the map changes); before that, the brief's intended values.
  */
 export function briefSummary(b: DesignBrief, plan?: Pick<MapPlan, "levels"> | null): [string, string] {
-  const sys = b.system ? (SYS_NAME[b.system.value] ?? "") : "";
+  const sys = b.system ? systemName(b.system.value) : "";
   const party = b.party?.value;
   const partyText = party
     ? [
@@ -269,7 +274,7 @@ export function BriefCard() {
           </dd>
           <dt>Party</dt>
           <dd>
-            {sys === "dnd5e" ? (
+            {sys !== null && GAME_SYSTEM_PARTY_MEASURE[sys] === "level" ? (
               <label className="bpair">
                 Level
                 <input

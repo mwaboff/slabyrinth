@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 import * as fsp from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
-import { countPlanRooms } from "@slabyrinth/core/plan";
-import { z } from "zod";
+import { countPlanRooms, parsePlan } from "@slabyrinth/core/plan";
 import type { ChatItem, ModelSelection } from "../agent/provider/types";
 import type { ProjectSnapshot } from "../../shared/ipc";
 import {
@@ -12,7 +11,8 @@ import {
   type Phase,
   type ProjectFile,
 } from "../../shared/project";
-import { emptyUsage } from "../schemas/common";
+import { emptyUsage } from "../../shared/schemas/common";
+import { describeStoredIssue, storedProjectSchema, storedUiSchema } from "../../shared/schemas/project";
 import { AppFailure } from "../util/errors";
 import { emptyHistory } from "./history";
 
@@ -84,41 +84,14 @@ export function newProjectFile(input: {
   };
 }
 
-/** Structural gate for files we read: loose so unknown/extension keys survive a round trip. */
-const projectShape = z.looseObject({
-  format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.number().int().positive(),
-  appVersion: z.string(),
-  id: z.string().min(1),
-  name: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  brief: z.record(z.string(), z.unknown()),
-  plan: z.record(z.string(), z.unknown()).nullable(),
-  history: z.looseObject({
-    head: z.number().int().nonnegative(),
-    versions: z.array(
-      z.looseObject({ number: z.number().int().positive(), parentNumber: z.number().int().nonnegative() }),
-    ),
-    undone: z.array(z.number().int()),
-    approvedVersion: z.number().int().nullable(),
-  }),
-  conversations: z
-    .array(
-      z.looseObject({ id: z.string(), items: z.array(z.looseObject({ type: z.string(), id: z.string() })) }),
-    )
-    .min(1),
-  activeConversationId: z.string(),
-  builds: z.array(z.record(z.string(), z.unknown())),
-  spend: z.record(z.string(), z.unknown()),
-  blobs: z.record(z.string(), z.unknown()),
-  stamps: z.record(z.string(), z.unknown()),
-  ui: z.record(z.string(), z.unknown()),
-});
-
 export type ParseOutcome =
   | { ok: true; project: ProjectFile; migratedFrom: number | null }
-  | { ok: false; reason: "not_project" | "corrupt" | "newer" | "needs_migration"; message: string };
+  | {
+      ok: false;
+      /** corrupt: not readable JSON (the .bak is offered); invalid: a project whose content does not fit. */
+      reason: "not_project" | "corrupt" | "invalid" | "newer" | "needs_migration";
+      message: string;
+    };
 
 const GZIP = [0x1f, 0x8b];
 
@@ -186,16 +159,31 @@ export function parseProject(bytes: Uint8Array, migrate: (json: unknown) => unkn
     json = upgraded;
     migratedFrom = version;
   }
-  const parsed = projectShape.safeParse(json);
-  if (!parsed.success) {
-    return { ok: false, reason: "not_project", message: "That file isn't a valid Slabyrinth project." };
+  const parsed = storedProjectSchema.safeParse(json);
+  if (!parsed.success) return damaged(describeStoredIssue(parsed.error));
+  // the head plan is held to core's plan schema (its shape; the plan checks themselves are reported in the app)
+  if (parsed.data.plan !== null) {
+    const plan = parsePlan(parsed.data.plan);
+    const first = plan.ok ? undefined : plan.issues[0];
+    if (first) return damaged(`plan${first.path ?? ""}: ${first.message}`);
   }
-  const project = json as ProjectFile;
+  const ui = storedUiSchema.safeParse(parsed.data.ui);
+  // storedProjectSchema and the plan schema checked every field the app reads; extension keys are kept
+  const project = { ...parsed.data, ui: ui.success ? ui.data : { tab: "map" } } as unknown as ProjectFile;
   if (!project.conversations.some((c) => c.id === project.activeConversationId)) {
     project.activeConversationId =
       project.conversations[project.conversations.length - 1]?.id ?? project.activeConversationId;
   }
   return { ok: true, project, migratedFrom };
+}
+
+/** A file that is a Slabyrinth project but whose content does not fit: refused, saying what is wrong. */
+function damaged(where: string): ParseOutcome {
+  return {
+    ok: false,
+    reason: "invalid",
+    message: `That map file is damaged and can't be opened${where ? ` (${where})` : ""}.`,
+  };
 }
 
 export function serializeProject(p: ProjectFile): string {

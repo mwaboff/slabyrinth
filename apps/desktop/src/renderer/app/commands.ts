@@ -7,8 +7,7 @@ import { useChat } from "../stores/chat";
 import { useMap, ZOOM_STEPS } from "../stores/map";
 import { orderedLevels, phaseOf, useProject } from "../stores/project";
 import { inTextField } from "../ui/dismiss";
-import { copyRoomKey, goHome, newProject, openProject, redo, undo } from "./actions";
-import { call } from "../bridge/client";
+import { copyRoomKey, goHome, newProject, openProject, redo, run, undo } from "./actions";
 import { toggleTheme } from "./theme";
 
 export interface Command {
@@ -54,7 +53,7 @@ export const COMMANDS: Command[] = [
     keys: "Ctrl+Shift+S",
     enabled: inProject,
     run: () =>
-      void call("project:saveCopyAs", undefined).then((r) => {
+      void run("project:saveCopyAs", undefined, "Couldn't save a copy.", (r) => {
         if (r) useApp.getState().toast({ lead: "Copy saved.", body: r.path });
       }),
   },

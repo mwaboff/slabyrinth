@@ -1,7 +1,7 @@
 /** mapStore (architecture §6.3): active level, view transform, layers, selection, hover, compare, history. */
 import { create } from "zustand";
 import type { DisplayOptions, HitTarget } from "@slabyrinth/core";
-import type { UiIssue } from "../map/resolveCore";
+import type { UiIssue } from "../../shared/resolveCore";
 
 export interface Layers {
   grid: boolean;

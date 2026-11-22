@@ -1,6 +1,7 @@
 /**
  * Geometric validation (architecture §2.8) — the checks that need the resolver. WP1's `validatePlan` owns schema,
- * ids, refs and limits; it registers `geometryChecks` through its hook and merges the issues.
+ * ids, refs and limits; callers pass `geometryChecks` to it as a check (resolve/rules.ts `planRules`) and it merges the
+ * issues.
  *
  * Errors reported here: opening_no_boundary, opening_overlap, link_mismatch, link_blocked, feature_blocked,
  * area_empty, shape_invalid (wall runs), bounds_exceeded (openings out of bounds).
@@ -10,8 +11,12 @@
 import type { MapPlan, PlanIssue, PlanIssueCode, Vec2 } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
+import { isPassage } from "../gen/openingKinds";
+import type { ResolvePalettes } from "../palette/resolve";
+import { entryLevelId, linkKindInfo } from "../plan/links";
+import { edgeIndex, sideEdgeIndex } from "./levelGrid";
 import { type PlayabilityOptions, checkPlayability } from "./playability";
-import { type ResolveOptions, resolvePlan } from "./resolvePlan";
+import { resolvePlan } from "./resolvePlan";
 
 /** Codes the resolver may emit that WP1's own (structural) checks already cover — dropped to avoid duplicates. */
 const WP1_CODES = new Set<PlanIssueCode>(["ref_unknown", "link_mismatch"]);
@@ -23,21 +28,26 @@ const fromWp1 = (i: PlanIssue): boolean =>
   (i.code === "shape_invalid" && i.message.includes("not axis-aligned")) ||
   (i.code === "opening_no_boundary" && i.message.includes("needs two different sides"));
 
-const BLOCKING_OPENINGS = new Set(["window", "arrow_slit", "bars"]);
-
 export interface GeometryCheckContext {
   /** Extra blocked cells / openings (e.g. from realized geometry) for the playability pass. */
   playability?: PlayabilityOptions;
-  /** A resolved plan for this exact plan, when the caller already has one (avoids resolving twice). */
+  /** A resolved plan for this exact plan and palettes, when the caller already has one (avoids resolving twice). */
   resolved?: ResolvedPlan;
-  resolveOptions?: ResolveOptions;
 }
 
-/** The function WP1's validatePlan hook registers. Pure; never throws for bad content. */
-export function geometryChecks(plan: MapPlan, ctx: GeometryCheckContext = {}): PlanIssue[] {
+/**
+ * The checks validatePlan runs when given `planRules(palettes)` (resolve/rules.ts), on the plan resolved against
+ * `palettes`. Pure; never
+ * throws for bad content.
+ */
+export function geometryChecks(
+  plan: MapPlan,
+  palettes: ResolvePalettes,
+  ctx: GeometryCheckContext = {},
+): PlanIssue[] {
   let resolved: ResolvedPlan;
   try {
-    resolved = ctx.resolved ?? resolvePlan(plan, ctx.resolveOptions);
+    resolved = ctx.resolved ?? resolvePlan(plan, palettes);
   } catch (err) {
     return [
       {
@@ -114,7 +124,7 @@ function narrowCorridors(plan: MapPlan, lvl: ResolvedLevel): PlanIssue[] {
   const li = levelPath(plan, lvl.id);
   const hostedIn = (orient: "h" | "v", lx: number, ly: number, which: 0 | 1): boolean => {
     const g = orient === "h" ? lvl.hEdges : lvl.vEdges;
-    const i = orient === "h" ? ly * w + lx : ly * (w + 1) + lx;
+    const i = edgeIndex(lvl.bounds, orient, lx, ly);
     const k = g.kind[i];
     return (k === EDGE.WALL || k === EDGE.OPENING) && g.host[i] === which;
   };
@@ -152,15 +162,6 @@ function keyOrder(a: string, b: string): number {
   if (!Number.isNaN(na)) return -1;
   if (!Number.isNaN(nb)) return 1;
   return a < b ? -1 : a > b ? 1 : 0;
-}
-
-/** Entry level id: plan.entryLevel, else the level with the smallest |elevation| (ties: plan order). */
-export function entryLevelId(plan: MapPlan): string | undefined {
-  if (plan.entryLevel && plan.levels.some((l) => l.id === plan.entryLevel)) return plan.entryLevel;
-  let best: { id: string; e: number } | undefined;
-  for (const l of plan.levels)
-    if (!best || Math.abs(l.elevation) < best.e) best = { id: l.id, e: Math.abs(l.elevation) };
-  return best?.id;
 }
 
 /**
@@ -249,7 +250,7 @@ export function reachableCells(plan: MapPlan, resolved: ResolvedPlan): Map<strin
     for (const c of link.lowerCells) {
       const li = idx(lo, c);
       if (li < 0) continue;
-      if (link.kind !== "pit_drop") addN([lo.id, li], [up.id, ar]);
+      if (linkKindInfo(link.kind).climbsUp) addN([lo.id, li], [up.id, ar]);
       addN([up.id, ar], [lo.id, li]);
     }
   }
@@ -266,14 +267,14 @@ export function reachableCells(plan: MapPlan, resolved: ResolvedPlan): Map<strin
       if (k === EDGE.LEDGE) return (g.height[e] as number) <= 0.5;
       if (k === EDGE.OPENING) {
         const o = l.openings[g.ref[e] as number];
-        return !o || !BLOCKING_OPENINGS.has(o.kind);
+        return !o || isPassage(o.kind);
       }
       return false;
     };
-    if (ly > 0 && pass(l.hEdges, ly * w + lx)) seed(lid, i - w);
-    if (ly < h - 1 && pass(l.hEdges, (ly + 1) * w + lx)) seed(lid, i + w);
-    if (lx > 0 && pass(l.vEdges, ly * (w + 1) + lx)) seed(lid, i - 1);
-    if (lx < w - 1 && pass(l.vEdges, ly * (w + 1) + lx + 1)) seed(lid, i + 1);
+    if (ly > 0 && pass(l.hEdges, sideEdgeIndex(l.bounds, lx, ly, "N"))) seed(lid, i - w);
+    if (ly < h - 1 && pass(l.hEdges, sideEdgeIndex(l.bounds, lx, ly, "S"))) seed(lid, i + w);
+    if (lx > 0 && pass(l.vEdges, sideEdgeIndex(l.bounds, lx, ly, "W"))) seed(lid, i - 1);
+    if (lx < w - 1 && pass(l.vEdges, sideEdgeIndex(l.bounds, lx, ly, "E"))) seed(lid, i + 1);
     for (const [nl, ni] of linkNbrs.get(`${lid}|${i}`) ?? []) seed(nl, ni);
   }
   return reached;

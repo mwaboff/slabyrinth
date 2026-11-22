@@ -63,11 +63,13 @@ describe("history pointer", () => {
     expect(historyRows(s)).toHaveLength(5);
   });
 
-  it("text edits to the same room within two minutes merge into one version", async () => {
+  it("text edits to the same room within two minutes join into one version, under a new number", async () => {
     await call("plan:editText", { id: "guard", set: { notes: "One." } });
     await call("plan:editText", { id: "guard", set: { notes: "Two." } });
     const s = await snap();
-    expect(s.head).toBe(5);
+    expect(s.head).toBe(6);
+    expect(s.versions.map((v) => v.number)).not.toContain(5);
+    expect(historyRows(s)).toHaveLength(5);
     expect(s.plan?.levels[0]?.areas.find((a) => a.id === "guard")?.notes).toBe("Two.");
   });
 });

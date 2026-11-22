@@ -239,7 +239,7 @@ describe("user overrides", () => {
   });
 });
 
-describe("prototype-named keys never throw (review finding)", () => {
+describe("prototype-named keys never throw", () => {
   const PROTO = ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"];
   const cat = loadPalettes();
 

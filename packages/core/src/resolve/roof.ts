@@ -1,5 +1,5 @@
 /**
- * Roof strategies (2026-11-20): pure geometry in plan cells, shared by the compiler (pieces) and the 2D overlay
+ * Roof strategies: pure geometry in plan cells, shared by the compiler (pieces) and the 2D overlay
  * (outline, ridge). Built today: gable; flat and none need no geometry here. New strategies (hip, shed, cone, dome)
  * add a function with the same output shape.
  *
@@ -9,8 +9,9 @@
  * one-cell pieces; an odd span gets a flat cap row on the ridge line. The roof outline is the wing plus the ring of
  * cells the walls stand in, so the eaves and gable ends overhang the wall faces by half a cell.
  */
-import type { Side } from "../contracts/plan";
+import type { RoofType, Side } from "../contracts/plan";
 import type { ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
+import { isPitchedRoof } from "./roofTypes";
 
 export interface RoofWing {
   /** Footprint rectangle (cells), without the wall ring. */
@@ -161,11 +162,36 @@ export function gableRoof(wing: RoofWing, holes: ReadonlySet<string> = new Set()
 }
 
 /** Default ridge: along the longer side (east-west on a square). */
+/**
+ * How far one roof layer of `type` rises above its base over `wing` (tiles): a pitched roof's ridge or top, a skirt's
+ * or stepped layer's courses; 0 for a type that rises nothing (flat, none, a type that is not built). The geometry is
+ * the one place that switches on roof type; everything else asks it or ROOF_TYPE_INFO.
+ */
+export function roofRise(
+  type: RoofType,
+  wing: RoofWing,
+  shape: { readonly low?: Side | undefined; readonly courses?: number | undefined } = {},
+): number {
+  switch (type) {
+    case "gable":
+      return gableRoof(wing).ridgeTop;
+    case "hip":
+      return hipRoof(wing).top;
+    case "shed":
+      return shedRoof(wing, shape.low ?? "S").top;
+    case "skirt":
+    case "stepped":
+      return shape.courses ?? 0;
+    default:
+      return 0;
+  }
+}
+
 export function defaultRidge(w: number, h: number): "ew" | "ns" {
   return h > w ? "ns" : "ew";
 }
 
-// ───────────────────────────── more strategies (phase 2, 2026-11-20) ─────────────────────────────
+// ───────────────────────────── more strategies (hip, shed, ring layers, spire) ─────────────────────────────
 
 export interface Rect {
   x: number;
@@ -474,7 +500,7 @@ export function roofOwners(
     const top = v.storeys[v.storeys.length - 1];
     const layer = v.roof.layers[0];
     if (!top || !layer || v.roof.gableOnly) continue;
-    const base = top.wallTop + (v.roof.deck && ["gable", "hip", "shed"].includes(layer.type) ? 0.5 : 0);
+    const base = top.wallTop + (v.roof.deck && isPitchedRoof(layer.type) ? 0.5 : 0);
     if (layer.type === "gable") {
       v.rects.forEach((w, wi) => {
         const g = gableRoof(w, holes);
@@ -526,14 +552,14 @@ export function roofProportion(st: ResolvedStructure): RoofProportion | null {
     let top = base;
     let pitched = false;
     v.roof.layers.forEach((layer, li) => {
-      const isPitched = layer.type === "gable" || layer.type === "hip" || layer.type === "shed";
+      const isPitched = isPitchedRoof(layer.type);
       if (li === 0 && v.roof.deck && isPitched) base += 0.5;
       const rects = li === 0 ? v.rects : [{ ...last.rect, ridge: layer.ridge }];
-      let rise = 0;
-      if (layer.type === "gable") rise = Math.max(0, ...rects.map((r) => gableRoof(r).ridgeTop));
-      else if (layer.type === "hip") rise = hipRoof(last.rect).top;
-      else if (layer.type === "shed") rise = shedRoof(last.rect, layer.low).top;
-      else if (layer.type === "skirt" || layer.type === "stepped") rise = layer.courses;
+      // a gable rises over each of its wings, every other type over the top storey's rectangle
+      const rise =
+        layer.type === "gable"
+          ? Math.max(0, ...rects.map((r) => roofRise(layer.type, r)))
+          : roofRise(layer.type, { ...last.rect, ridge: layer.ridge }, layer);
       if (isPitched) pitched = true;
       top = Math.max(top, base + rise);
       base = top;

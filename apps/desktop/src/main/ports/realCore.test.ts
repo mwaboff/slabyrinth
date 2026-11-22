@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { slabCodec } from "@slabyrinth/core/slab";
-import { FIXTURE_PLAN } from "../engine/recordings";
+import { FIXTURE_PLAN } from "../fixturePlan";
 import { doorPlan } from "../services/testing/fixtures";
+import { BUNDLED_RULES } from "../services/testing/helpers";
 import { createCoreCatalogReader } from "./catalog";
 import { createCoreCompileBackend, type CompileInput } from "./compile";
 import { createPlanCorePort } from "./core";
@@ -11,12 +12,11 @@ import { createPlanCorePort } from "./core";
  */
 describe("real core wiring", () => {
   it("plan port uses core applyOps / validatePlan / diffPlans / migrateProject", () => {
-    const port = createPlanCorePort();
-    expect(port.applyOps).not.toBeNull();
+    const port = createPlanCorePort(() => BUNDLED_RULES);
     const issues = port.validatePlan(FIXTURE_PLAN);
-    expect(issues?.filter((i) => i.severity === "error")).toEqual([]);
-    const r = port.applyOps?.(FIXTURE_PLAN, [{ op: "update", id: "tomb", set: { notes: "Real core" } }]);
-    expect(r?.ok).toBe(true);
+    expect(issues.filter((i) => i.severity === "error")).toEqual([]);
+    const r = port.applyOps(FIXTURE_PLAN, [{ op: "update", id: "tomb", set: { notes: "Real core" } }]);
+    expect(r.ok).toBe(true);
     const migrated = port.migrateProject({
       format: "slabyrinth/project@1",
       formatVersion: 1,
@@ -28,7 +28,6 @@ describe("real core wiring", () => {
 
   it("compile backend: FIXTURE_PLAN compiles to slabs that decode", () => {
     const backend = createCoreCompileBackend();
-    expect(backend.kind).toBe("core");
     const input: CompileInput = {
       plan: FIXTURE_PLAN,
       options: { alignment: "multi-chunk" },

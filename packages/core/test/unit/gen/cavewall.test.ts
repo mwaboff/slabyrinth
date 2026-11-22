@@ -5,14 +5,12 @@
  * generator 2; the four design-review measures (review/caveMass.ts) on a hand-made copy of the first generator-3 try
  * (a palisade of posts with a thin ring of separate lumps outside, three tones) and on what the planner builds.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { MapPlan } from "../../../src/contracts/plan";
 import { CELL } from "../../../src/contracts/resolved";
 import { realize } from "../../../src/compile";
 import { verifyBuild } from "../../../src/compile/verify/verify";
 import { planCaveWall, type WallFace, type WallShape, type CaveWallPlan } from "../../../src/gen/cavewall";
-import { loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes } from "../../../src/palette";
 import {
   caveMassNotesOf,
   massInputOf,
@@ -24,7 +22,7 @@ import {
 } from "../../../src/review/caveMass";
 import { caveWallChecks, caveWallThickness } from "../../../src/review/caveWall";
 import { resolvePlan } from "../../../src/resolve/index";
-import "../../../src/resolve/autoregister";
+import { loadPlan } from "../../fixtures";
 
 const D4 = [
   [1, 0],
@@ -49,13 +47,17 @@ const SHAPES: WallShape[] = [
   { id: 9, family: "toe", w: 1, d: 2, h: 1 },
 ];
 
-function scene(isOpen: (x: number, y: number) => boolean = (x, y) => x >= OPEN.x0 && x < OPEN.x1 && y >= OPEN.y0 && y < OPEN.y1) {
+function scene(
+  isOpen: (x: number, y: number) => boolean = (x, y) =>
+    x >= OPEN.x0 && x < OPEN.x1 && y >= OPEN.y0 && y < OPEN.y1,
+) {
   const inLevel = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < W && y < H;
   const rock = (x: number, y: number): boolean => inLevel(x, y) && !isOpen(x, y);
   const faces: WallFace[] = [];
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++)
-      if (rock(x, y) && D4.some(([dx, dy]) => isOpen(x + dx, y + dy))) faces.push({ x, y, base: -3.5, top: 2.5 });
+      if (rock(x, y) && D4.some(([dx, dy]) => isOpen(x + dx, y + dy)))
+        faces.push({ x, y, base: -3.5, top: 2.5 });
   const input = (seed: number) => ({
     seed,
     faces,
@@ -67,11 +69,18 @@ function scene(isOpen: (x: number, y: number) => boolean = (x, y) => x >= OPEN.x
     shapes: SHAPES,
     ceiling: Infinity,
   });
-  const state = (x: number, y: number): number => (!inLevel(x, y) ? -1 : isOpen(x, y) ? CELL.OPEN : CELL.SOLID);
+  const state = (x: number, y: number): number =>
+    !inLevel(x, y) ? -1 : isOpen(x, y) ? CELL.OPEN : CELL.SOLID;
   return { faces, rock, open: isOpen, input, state };
 }
 
-const corners = (cx: number, cy: number, rot: number, w: number, d: number): Array<readonly [number, number]> => {
+const corners = (
+  cx: number,
+  cy: number,
+  rot: number,
+  w: number,
+  d: number,
+): Array<readonly [number, number]> => {
   const a = (rot * Math.PI) / 180;
   const c = Math.cos(a);
   const s = Math.sin(a);
@@ -103,7 +112,15 @@ function asPieces(plan: CaveWallPlan): MassPiece[] {
   }
   for (const k of plan.columns) {
     const [x, y] = k.split(",").map(Number) as [number, number];
-    out.push({ poly: corners(x + 0.5, y + 0.5, 0, 1, 1), base: -3.5, top: 2.5, asset: "post", rot: 0, family: "cavern", role: "column" });
+    out.push({
+      poly: corners(x + 0.5, y + 0.5, 0, 1, 1),
+      base: -3.5,
+      top: 2.5,
+      asset: "post",
+      rot: 0,
+      family: "cavern",
+      role: "column",
+    });
   }
   return out;
 }
@@ -124,7 +141,15 @@ const input = (sc: ReturnType<typeof scene>, pieces: MassPiece[]): MassInput => 
 function firstTry(sc: ReturnType<typeof scene>): MassPiece[] {
   const out: MassPiece[] = [];
   for (const f of sc.faces)
-    out.push({ poly: corners(f.x + 0.5, f.y + 0.5, 0, 1, 1), base: -3.5, top: 2.5, asset: "post", rot: 0, family: "cavern", role: "column" });
+    out.push({
+      poly: corners(f.x + 0.5, f.y + 0.5, 0, 1, 1),
+      base: -3.5,
+      top: 2.5,
+      asset: "post",
+      rot: 0,
+      family: "cavern",
+      role: "column",
+    });
   const fams = ["flowstone", "stalagmite", "grey_rock"];
   let i = 0;
   for (const f of sc.faces) {
@@ -184,7 +209,12 @@ describe("cave wall mass: planning", () => {
     const by = (lo: number, hi: number): number[] => {
       const out: number[] = [];
       for (const p of mass) {
-        const d = Math.min(Math.abs(p.cx - OPEN.x0), Math.abs(p.cx - OPEN.x1), Math.abs(p.cy - OPEN.y0), Math.abs(p.cy - OPEN.y1));
+        const d = Math.min(
+          Math.abs(p.cx - OPEN.x0),
+          Math.abs(p.cx - OPEN.x1),
+          Math.abs(p.cy - OPEN.y0),
+          Math.abs(p.cy - OPEN.y1),
+        );
         if (d >= lo && d < hi) out.push(top(p));
       }
       return out;
@@ -221,7 +251,8 @@ describe("cave wall mass: planning", () => {
 
   it("keeps under a ceiling and is deterministic", () => {
     const low = planCaveWall({ ...sc.input(9), ceiling: 3 });
-    for (const p of low.pieces) if (p.family === "A") expect(p.base + (SHAPES[p.shape] as WallShape).h).toBeLessThanOrEqual(3);
+    for (const p of low.pieces)
+      if (p.family === "A") expect(p.base + (SHAPES[p.shape] as WallShape).h).toBeLessThanOrEqual(3);
     expect(planCaveWall(sc.input(9))).toEqual(plan);
   });
 });
@@ -230,7 +261,10 @@ describe("cave wall review measures: the first try fails them, the planner passe
   const sc = scene();
   const bad = massMeasures(input(sc, firstTry(sc)));
   const good = massMeasures(input(sc, asPieces(planCaveWall(sc.input(9)))));
-  const codes = (m: typeof bad): string[] => caveMassNotesOf("l1", m).map((n) => n.code).sort();
+  const codes = (m: typeof bad): string[] =>
+    caveMassNotesOf("l1", m)
+      .map((n) => n.code)
+      .sort();
 
   it("flags the posts and the lumps", () => {
     expect(bad.uncovered).toBeGreaterThan(0.5); // cave_rock_uncovered
@@ -246,13 +280,11 @@ describe("cave wall review measures: the first try fails them, the planner passe
 });
 
 describe("cave wall mass: the whole build on a sea cave", () => {
-  const fixture = JSON.parse(
-    readFileSync(new URL("fixtures/sea-grotto.json", import.meta.url), "utf8"),
-  ) as MapPlan;
+  const fixture = loadPlan("sea-grotto");
   const palettes = loadPalettes();
   const build = (generator: 2 | 3) => {
     const plan = { ...fixture, generator };
-    const r = resolvePlan(plan);
+    const r = resolvePlan(plan, bundledPalettes());
     const set = realize(r, palettes, {});
     set.diagnostics.push(...verifyBuild(r, set, palettes, { plan }).diagnostics);
     return { r, set };
@@ -262,7 +294,9 @@ describe("cave wall mass: the whole build on a sea cave", () => {
   const total = (s: typeof g3.set): number => s.levels.reduce((n, l) => n + l.placements.length, 0);
 
   it("generator 2 stays one column asset; generator 3 builds the mass from one rock family", () => {
-    const wall2 = g2.set.levels.flatMap((l) => l.placements).filter((p) => p.source.elementId === "wall.cave_rock");
+    const wall2 = g2.set.levels
+      .flatMap((l) => l.placements)
+      .filter((p) => p.source.elementId === "wall.cave_rock");
     expect(new Set(wall2.map((p) => p.asset)).size).toBe(1);
     const L = g3.r.levels[0];
     if (!L) throw new Error("no level");
@@ -307,11 +341,9 @@ describe("cave wall mass: the whole build on a sea cave", () => {
 });
 
 describe("cave wall review note (thin rock)", () => {
-  const fixture = JSON.parse(
-    readFileSync(new URL("fixtures/sea-grotto.json", import.meta.url), "utf8"),
-  ) as MapPlan;
+  const fixture = loadPlan("sea-grotto");
   it("measures wall thickness from the resolved level and fires only on thin walls at generator 3", () => {
-    const r = resolvePlan(fixture);
+    const r = resolvePlan(fixture, bundledPalettes());
     const L = r.levels[0];
     if (!L) throw new Error("no level");
     expect(caveWallThickness(L).length).toBeGreaterThan(20);

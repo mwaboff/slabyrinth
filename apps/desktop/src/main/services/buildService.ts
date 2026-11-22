@@ -57,8 +57,8 @@ export class BuildService {
     return { levelLayout: ts.levelLayout, alignment: ts.alignmentMarkers ? "always" : "multi-chunk" };
   }
 
-  async estimate(plan: MapPlan, levels?: LevelId[]): Promise<CompileEstimate> {
-    return this.deps.compiler.estimate(this.input(plan, this.defaultOptions()), levels);
+  async estimate(plan: MapPlan, levels?: LevelId[], signal?: AbortSignal): Promise<CompileEstimate> {
+    return this.deps.compiler.estimate(this.input(plan, this.defaultOptions()), levels, signal);
   }
 
   async estimateOpen(levels?: LevelId[]): Promise<CompileEstimate> {
@@ -83,11 +83,7 @@ export class BuildService {
     this.deps.projects.addBuild(record);
     this.bundles.set(record.id, bundle);
     if (this.bundles.size > 5) this.bundles.delete(this.bundles.keys().next().value as string);
-    this.deps.logger.info("build finished", {
-      version,
-      chunks: bundle.chunks.length,
-      backend: this.deps.compiler.backend,
-    });
+    this.deps.logger.info("build finished", { version, chunks: bundle.chunks.length });
     return { ...bundle, buildId: record.id };
   }
 

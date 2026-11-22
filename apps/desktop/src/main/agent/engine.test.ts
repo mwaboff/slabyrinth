@@ -1,8 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { BetaFlags } from "./provider/anthropic/betas";
 import { buildRequest } from "./provider/anthropic/render";
 import { requestShapeViolations } from "./testing/invariants";
 import { applyOps } from "@slabyrinth/core/ops";
+import { bundledPalettes } from "@slabyrinth/core/palette";
+import { planRules } from "@slabyrinth/core/resolve";
 import type { MapPlan } from "@slabyrinth/core/contracts/plan";
 import { EnginePortError } from "../ports/engine";
 import { SlabyrinthConversationEngine, capEffort, snapEffort } from "./engine";
@@ -11,6 +13,9 @@ import type { ChatItem, StepRequest } from "./provider/types";
 import { modelSpec, staticDescriptors } from "./provider/anthropic/models";
 import { MemoryHost, newProject } from "./testing/memoryHost";
 import { ScriptedProvider, call, say, type ScriptedStep } from "./testing/scriptedProvider";
+
+/** The rules of the palettes MemoryHost builds with (the bundled ones). */
+const RULES = planRules(bundledPalettes());
 
 const AUTHORED = {
   title: "Abbey Crypt",
@@ -180,7 +185,7 @@ describe("full scripted conversation: brief → questions → create_plan → tw
     // Ops-caused versions carry exactly the ops that turn the head into the new plan (replay-checked).
     const v2 = p?.history.versions.find((v) => v.number === 2);
     expect(v2?.cause).toEqual({ type: "ops", ops: opsA });
-    const replay = applyOps(host.getPlan(2) as MapPlan, opsB as never);
+    const replay = applyOps(host.getPlan(2) as MapPlan, opsB as never, RULES);
     expect(replay.ok && JSON.stringify(replay.plan)).toBe(JSON.stringify(host.getPlan(3)));
     expect(host.getPlan(3)?.levels[0]?.features[0]?.at).toEqual([10, 3]);
 
@@ -311,7 +316,10 @@ describe("stop reasons and failures", () => {
   it("cancel keeps streamed text display-only and ends the turn", async () => {
     const { host, engine } = setup([{ kind: "hang" }]);
     const { turnId } = await engine.send({ text: "draw" });
-    await new Promise((r) => setTimeout(r, 5));
+    // wait for the partial answer to stream, not for a guessed number of milliseconds
+    await vi.waitFor(() => {
+      expect(host.events.some((e) => e.type === "text_delta")).toBe(true);
+    });
     await engine.cancel(turnId);
     const last = items(host).at(-1);
     expect(last).toMatchObject({
@@ -331,7 +339,7 @@ describe("stop reasons and failures", () => {
     await engine.send({ text: "x" });
     await engine.whenIdle();
     expect(items(host).at(-1)).toMatchObject({ type: "assistant", excludedFromContext: true });
-    expect(host.eventsOf("notice").some((n) => n.kind === "refusal")).toBe(true);
+    expect(host.eventsOf("notice").filter((n) => n.kind === "refusal")).toHaveLength(1);
     expect(host.project?.history.head).toBe(0);
     expect(Object.values(host.conv().meta)[0]?.status).toBe("refused");
   });
@@ -552,7 +560,7 @@ describe("context, retry and resume", () => {
     await engine.send({ text: "draw" });
     await engine.whenIdle();
     const plan = host.getPlan() as MapPlan;
-    const edited = applyOps(plan, [{ op: "update", id: "hall", set: { name: "Great Hall" } }]);
+    const edited = applyOps(plan, [{ op: "update", id: "hall", set: { name: "Great Hall" } }], RULES);
     if (!edited.ok) throw new Error("edit failed");
     host.commitVersion({
       plan: edited.plan,
@@ -784,7 +792,7 @@ describe("review fixes", () => {
     await engine.send({ text: "remove altar" });
     await engine.whenIdle();
     const ops = [{ op: "update" as const, id: "hall", set: { name: "Great Hall" } }];
-    const e = applyOps(host.getPlan() as MapPlan, ops);
+    const e = applyOps(host.getPlan() as MapPlan, ops, RULES);
     if (!e.ok) throw new Error("edit");
     host.commitVersion({ plan: e.plan, author: "user", summary: "rename", cause: { type: "ops", ops } });
     const before = JSON.stringify(host.project);

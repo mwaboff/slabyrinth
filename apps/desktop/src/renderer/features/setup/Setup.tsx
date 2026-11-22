@@ -6,7 +6,7 @@ import { call, errorMessage } from "../../bridge/client";
 import { useSettings } from "../../stores/settings";
 import { useApp } from "../../stores/app";
 import { useProject } from "../../stores/project";
-import { newProject } from "../../app/actions";
+import { newProject, run } from "../../app/actions";
 import { pickTaleSpireFolder } from "../../app/folders";
 import { Check, SystemPicker, UPDATE_CHECK_HELP } from "../settings/SettingsModal";
 import type { ProviderErrorInfo } from "../../../main/agent/provider/types";
@@ -54,7 +54,13 @@ export const KEY_STORAGE_TEXT = {
   none: "Your key is only ever sent to api.anthropic.com. It is never written into project files.",
 } as const;
 
-export function KeyStorageNote({ providerId = "anthropic", className }: { providerId?: string; className?: string }) {
+export function KeyStorageNote({
+  providerId = "anthropic",
+  className,
+}: {
+  providerId?: string;
+  className?: string;
+}) {
   const row = useSettings((s) => s.secrets[providerId]);
   const [failed, setFailed] = useState<string | null>(null);
   const backend = row?.hasKey === true ? row.backend : null;
@@ -341,7 +347,11 @@ export function Setup() {
               <button
                 className="btn btn--link"
                 onClick={() =>
-                  void call("shell:openExternal", { url: "https://console.anthropic.com/settings/keys" })
+                  void run(
+                    "shell:openExternal",
+                    { url: "https://console.anthropic.com/settings/keys" },
+                    "Couldn't open the page.",
+                  )
                 }
               >
                 Get a key at console.anthropic.com

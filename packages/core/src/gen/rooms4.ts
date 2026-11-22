@@ -1,8 +1,7 @@
 /**
- * Room recipes (generator 4). The owner admired a community interior and called ours "a plain hall and identical
- * cells". Measured like for like, our keep dungeon had 1.3 props per 10 floor tiles against 21, 40% of its furniture
- * near a wall against 92%, two props resting on other props against a third of them, six of thirteen rooms with no
- * light and 57% of the floor more than four tiles from one. This is the answer: a room is dressed from its purpose.
+ * Room recipes (generator 4): a room is dressed and lit from its purpose, toward the measures of a well-dressed
+ * interior (about two props per floor tile, nearly all furniture against a wall, a third of the props resting on other
+ * pieces, every room lit and no floor far from a light).
  *
  *   1. an anchor that names the purpose (a bed, a long table, a counter, a forge, an altar), on the wall away from the
  *      door, with its seats on the open side;
@@ -22,8 +21,8 @@ import type { FeatureType, Rotation, Side } from "../contracts/plan";
 import { subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
 import { featureInfo, rotatedSize } from "./catalog";
-import type { GeneratedPlacement, PlacementGrid, ScatterResult } from "./place";
-import type { FurnishedPurpose, RoomPurpose } from "./roomPurpose";
+import type { GeneratedPlacement, PlacementGrid, ScatterResult } from "./placementGrid";
+import { ROOM_PURPOSE_INFO, type FurnishedPurpose } from "./roomPurpose";
 import {
   EDGE_OPENING,
   EDGE_STAIR,
@@ -31,10 +30,17 @@ import {
   FLAG_FEATURE,
   FLAG_LINK,
   FLAG_NO_FLOOR,
+  FACE_ROT,
+  INWARD,
+  OPPOSITE,
   SIDES,
+  SIDE_ROT,
+  SIDE_STEP,
   cellKey,
   footprintCells,
+  stepSide,
   wallFootprint,
+  wallSides,
 } from "./gridGeometry";
 import { SURFACE_LOAD, surfaceCount, type SmallFamily, type SurfaceLoad } from "./surfaces";
 import { isNaturalWallStyle } from "./wallStyles";
@@ -81,7 +87,11 @@ interface Recipe {
   variants: readonly Variant[];
 }
 
-const S = (type: FeatureType, weight: number, more: Omit<Spec, "type" | "weight"> = {}): Spec => ({ type, weight, ...more });
+const S = (type: FeatureType, weight: number, more: Omit<Spec, "type" | "weight"> = {}): Spec => ({
+  type,
+  weight,
+  ...more,
+});
 
 export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
   tavern: {
@@ -114,7 +124,11 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
       {
         family: "table",
         anchors: [S("bar_counter", 1, { size: [1, 1], run: 2, top: "table" })],
-        wall: [S("table", 4, { seats: { type: "stool", n: 3 } }), S("bench", 2), S("barrel", 4, { corner: true, top: "store" })],
+        wall: [
+          S("table", 4, { seats: { type: "stool", n: 3 } }),
+          S("bench", 2),
+          S("barrel", 4, { corner: true, top: "store" }),
+        ],
         shelf: true,
       },
     ],
@@ -126,12 +140,22 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
         family: "table",
         rug: true,
         anchors: [S("table", 1, { run: 2, seats: { type: "chair", n: 4 } })],
-        wall: [S("bench", 3), S("table", 2, { seats: { type: "chair", n: 2 } }), S("brazier", 2, { corner: true }), S("chest", 1)],
+        wall: [
+          S("bench", 3),
+          S("table", 2, { seats: { type: "chair", n: 2 } }),
+          S("brazier", 2, { corner: true }),
+          S("chest", 1),
+        ],
       },
       {
         family: "table",
         anchors: [S("table", 1, { run: 3, seats: { type: "stool", n: 4 } })],
-        wall: [S("barrel", 3, { corner: true, top: "store" }), S("bench", 2), S("chest", 1), S("brazier", 1, { corner: true })],
+        wall: [
+          S("barrel", 3, { corner: true, top: "store" }),
+          S("bench", 2),
+          S("chest", 1),
+          S("brazier", 1, { corner: true }),
+        ],
         shelf: true,
       },
     ],
@@ -155,7 +179,12 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
         family: "table",
         shelf: true,
         anchors: [S("cauldron", 1), S("counter", 1, { run: 2, top: "table" })],
-        wall: [S("table", 2, { top: "table" }), S("counter", 2, { top: "table" }), S("barrel", 3, { corner: true }), S("sack", 2, { corner: true })],
+        wall: [
+          S("table", 2, { top: "table" }),
+          S("counter", 2, { top: "table" }),
+          S("barrel", 3, { corner: true }),
+          S("sack", 2, { corner: true }),
+        ],
       },
     ],
   },
@@ -166,12 +195,21 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
         family: "study",
         rug: true,
         anchors: [S("bookshelf", 1, { size: [1, 1], run: 3 })],
-        wall: [S("bookshelf", 6, { size: [1, 1] }), S("desk", 2, { top: "study", seats: { type: "chair", n: 1 } }), S("chest", 1), S("candelabra", 1, { corner: true, variant: "candle" })],
+        wall: [
+          S("bookshelf", 6, { size: [1, 1] }),
+          S("desk", 2, { top: "study", seats: { type: "chair", n: 1 } }),
+          S("chest", 1),
+          S("candelabra", 1, { corner: true, variant: "candle" }),
+        ],
       },
       {
         family: "study",
         anchors: [S("desk", 1, { top: "study", seats: { type: "chair", n: 1 } })],
-        wall: [S("bookshelf", 5, { size: [1, 1] }), S("table", 2, { top: "study", seats: { type: "chair", n: 2 } }), S("chest", 1, { top: "study" })],
+        wall: [
+          S("bookshelf", 5, { size: [1, 1] }),
+          S("table", 2, { top: "study", seats: { type: "chair", n: 2 } }),
+          S("chest", 1, { top: "study" }),
+        ],
         rug: true,
       },
     ],
@@ -190,7 +228,12 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
         family: "study",
         shelf: true,
         anchors: [S("table", 1, { top: "study", seats: { type: "chair", n: 2 } })],
-        wall: [S("bookshelf", 3, { size: [1, 1] }), S("desk", 2, { top: "study" }), S("chest", 1), S("candelabra", 1, { corner: true, variant: "candle" })],
+        wall: [
+          S("bookshelf", 3, { size: [1, 1] }),
+          S("desk", 2, { top: "study" }),
+          S("chest", 1),
+          S("candelabra", 1, { corner: true, variant: "candle" }),
+        ],
       },
     ],
   },
@@ -200,13 +243,24 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
       {
         family: "tools",
         anchors: [S("weapon_rack", 1, { run: 2 })],
-        wall: [S("weapon_rack", 4), S("armor_stand", 4), S("chest", 2, { top: "tools" }), S("table", 1, { top: "tools" }), S("crate", 1, { corner: true })],
+        wall: [
+          S("weapon_rack", 4),
+          S("armor_stand", 4),
+          S("chest", 2, { top: "tools" }),
+          S("table", 1, { top: "tools" }),
+          S("crate", 1, { corner: true }),
+        ],
       },
       {
         family: "tools",
         shelf: true,
         anchors: [S("armor_stand", 1, { run: 2 })],
-        wall: [S("weapon_rack", 3), S("table", 2, { top: "tools", seats: { type: "stool", n: 1 } }), S("barrel", 2, { corner: true }), S("chest", 1)],
+        wall: [
+          S("weapon_rack", 3),
+          S("table", 2, { top: "tools", seats: { type: "stool", n: 1 } }),
+          S("barrel", 2, { corner: true }),
+          S("chest", 1),
+        ],
       },
     ],
   },
@@ -216,12 +270,24 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
       {
         family: "table",
         anchors: [S("table", 1, { seats: { type: "stool", n: 3 } })],
-        wall: [S("bunk_bed", 5), S("chest", 3, { top: "table" }), S("weapon_rack", 2), S("armor_stand", 1), S("barrel", 1, { corner: true })],
+        wall: [
+          S("bunk_bed", 5),
+          S("chest", 3, { top: "table" }),
+          S("weapon_rack", 2),
+          S("armor_stand", 1),
+          S("barrel", 1, { corner: true }),
+        ],
       },
       {
         family: "tools",
         anchors: [S("weapon_rack", 1, { run: 2 })],
-        wall: [S("bunk_bed", 4), S("table", 1, { seats: { type: "stool", n: 2 } }), S("chest", 2, { top: "table" }), S("barrel", 1, { corner: true }), S("crate", 1, { corner: true })],
+        wall: [
+          S("bunk_bed", 4),
+          S("table", 1, { seats: { type: "stool", n: 2 } }),
+          S("chest", 2, { top: "table" }),
+          S("barrel", 1, { corner: true }),
+          S("crate", 1, { corner: true }),
+        ],
         shelf: true,
       },
     ],
@@ -233,14 +299,23 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
         family: "table",
         rug: true,
         anchors: [S("bed", 1)],
-        wall: [S("chest", 3, { top: "table" }), S("wardrobe", 2, { max: 1 }), S("chair", 1), S("candelabra", 1, { corner: true, variant: "candle" })],
+        wall: [
+          S("chest", 3, { top: "table" }),
+          S("wardrobe", 2, { max: 1 }),
+          S("chair", 1),
+          S("candelabra", 1, { corner: true, variant: "candle" }),
+        ],
       },
       {
         family: "study",
         rug: true,
         shelf: true,
         anchors: [S("bed", 1, { run: 2 })],
-        wall: [S("chest", 2, { top: "study" }), S("wardrobe", 2, { max: 1 }), S("desk", 1, { top: "study", seats: { type: "chair", n: 1 } })],
+        wall: [
+          S("chest", 2, { top: "study" }),
+          S("wardrobe", 2, { max: 1 }),
+          S("desk", 1, { top: "study", seats: { type: "chair", n: 1 } }),
+        ],
       },
     ],
   },
@@ -264,7 +339,12 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
         family: "store",
         shelf: true,
         anchors: [S("barrel", 1, { run: 3, top: "store" })],
-        wall: [S("crate", 4, { stack: true, variant: "small" }), S("sack", 3), S("chest", 1, { top: "store" }), S("barrel", 2, { corner: true })],
+        wall: [
+          S("crate", 4, { stack: true, variant: "small" }),
+          S("sack", 3),
+          S("chest", 1, { top: "store" }),
+          S("barrel", 2, { corner: true }),
+        ],
       },
     ],
   },
@@ -276,12 +356,21 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
         rug: true,
         shelf: true,
         anchors: [S("altar", 1, { size: [3, 2], top: "none" })],
-        wall: [S("statue", 2, { max: 1 }), S("candelabra", 2, { corner: true, variant: "candle" }), S("brazier", 1, { corner: true }), S("bench", 3)],
+        wall: [
+          S("statue", 2, { max: 1 }),
+          S("candelabra", 2, { corner: true, variant: "candle" }),
+          S("brazier", 1, { corner: true }),
+          S("bench", 3),
+        ],
       },
       {
         family: "table",
         anchors: [S("altar", 4, { size: [3, 2], top: "none" }), S("statue", 1)],
-        wall: [S("candelabra", 3, { corner: true, variant: "candle" }), S("bench", 3), S("chest", 2, { top: "table" })],
+        wall: [
+          S("candelabra", 3, { corner: true, variant: "candle" }),
+          S("bench", 3),
+          S("chest", 2, { top: "table" }),
+        ],
         rug: true,
         shelf: true,
       },
@@ -293,21 +382,56 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
       {
         family: "store",
         anchors: [S("sarcophagus", 1)],
-        wall: [S("sarcophagus", 3), S("coffin", 1), S("bones", 2, { corner: true }), S("skull_pile", 1, { corner: true }), S("web", 2, { corner: true })],
+        wall: [
+          S("sarcophagus", 3),
+          S("coffin", 1),
+          S("bones", 2, { corner: true }),
+          S("skull_pile", 1, { corner: true }),
+          S("web", 2, { corner: true }),
+        ],
       },
       {
         family: "store",
         anchors: [S("coffin", 1, { run: 2 })],
-        wall: [S("sarcophagus", 2), S("skull_pile", 2, { corner: true }), S("bones", 2, { corner: true }), S("statue", 1)],
+        wall: [
+          S("sarcophagus", 2),
+          S("skull_pile", 2, { corner: true }),
+          S("bones", 2, { corner: true }),
+          S("statue", 1),
+        ],
       },
     ],
   },
   prison: {
     fill: 0.12,
     variants: [
-      { family: "store", anchors: [S("bed", 1, { variant: "straw" })], wall: [S("bones", 2, { corner: true }), S("barrel", 1, { corner: true }), S("web", 1, { corner: true })] },
-      { family: "store", anchors: [S("stocks", 1, { size: [2, 1] })], wall: [S("bones", 2, { corner: true }), S("skull_pile", 1, { corner: true }), S("debris", 2, { corner: true })] },
-      { family: "store", anchors: [S("stool", 1)], wall: [S("skull_pile", 2, { corner: true }), S("web", 2, { corner: true }), S("debris", 1, { corner: true })] },
+      {
+        family: "store",
+        anchors: [S("bed", 1, { variant: "straw" })],
+        wall: [
+          S("bones", 2, { corner: true }),
+          S("barrel", 1, { corner: true }),
+          S("web", 1, { corner: true }),
+        ],
+      },
+      {
+        family: "store",
+        anchors: [S("stocks", 1, { size: [2, 1] })],
+        wall: [
+          S("bones", 2, { corner: true }),
+          S("skull_pile", 1, { corner: true }),
+          S("debris", 2, { corner: true }),
+        ],
+      },
+      {
+        family: "store",
+        anchors: [S("stool", 1)],
+        wall: [
+          S("skull_pile", 2, { corner: true }),
+          S("web", 2, { corner: true }),
+          S("debris", 1, { corner: true }),
+        ],
+      },
     ],
   },
   forge: {
@@ -316,13 +440,24 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
       {
         family: "tools",
         anchors: [S("forge", 1)],
-        wall: [S("anvil", 2, { top: "tools" }), S("weapon_rack", 2), S("barrel", 2, { corner: true }), S("crate", 1, { corner: true }), S("counter", 1, { top: "tools" })],
+        wall: [
+          S("anvil", 2, { top: "tools" }),
+          S("weapon_rack", 2),
+          S("barrel", 2, { corner: true }),
+          S("crate", 1, { corner: true }),
+          S("counter", 1, { top: "tools" }),
+        ],
       },
       {
         family: "tools",
         shelf: true,
         anchors: [S("counter", 1, { run: 2, top: "tools" })],
-        wall: [S("forge", 1, { max: 1 }), S("anvil", 2, { top: "tools" }), S("armor_stand", 1), S("barrel", 2, { corner: true })],
+        wall: [
+          S("forge", 1, { max: 1 }),
+          S("anvil", 2, { top: "tools" }),
+          S("armor_stand", 1),
+          S("barrel", 2, { corner: true }),
+        ],
       },
     ],
   },
@@ -333,21 +468,39 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
         family: "shelf",
         shelf: true,
         anchors: [S("table", 1, { run: 2, top: "shelf", seats: { type: "stool", n: 2 } })],
-        wall: [S("bookshelf", 3, { size: [1, 1] }), S("cauldron", 2), S("chest", 1, { top: "study" }), S("barrel", 1, { corner: true })],
+        wall: [
+          S("bookshelf", 3, { size: [1, 1] }),
+          S("cauldron", 2),
+          S("chest", 1, { top: "study" }),
+          S("barrel", 1, { corner: true }),
+        ],
       },
       {
         family: "shelf",
         shelf: true,
         anchors: [S("cauldron", 1), S("table", 1, { top: "shelf", seats: { type: "stool", n: 1 } })],
-        wall: [S("bookshelf", 3, { size: [1, 1] }), S("table", 2, { top: "shelf" }), S("barrel", 1, { corner: true }), S("candelabra", 1, { corner: true, variant: "candle" })],
+        wall: [
+          S("bookshelf", 3, { size: [1, 1] }),
+          S("table", 2, { top: "shelf" }),
+          S("barrel", 1, { corner: true }),
+          S("candelabra", 1, { corner: true, variant: "candle" }),
+        ],
       },
     ],
   },
   treasury: {
     fill: 0.24,
     variants: [
-      { family: "store", anchors: [S("chest", 1, { run: 3, top: "table" })], wall: [S("chest", 4, { corner: true }), S("statue", 1), S("armor_stand", 1)] },
-      { family: "store", anchors: [S("statue", 1), S("chest", 3, { top: "table" })], wall: [S("chest", 3, { corner: true }), S("weapon_rack", 1), S("armor_stand", 1)] },
+      {
+        family: "store",
+        anchors: [S("chest", 1, { run: 3, top: "table" })],
+        wall: [S("chest", 4, { corner: true }), S("statue", 1), S("armor_stand", 1)],
+      },
+      {
+        family: "store",
+        anchors: [S("statue", 1), S("chest", 3, { top: "table" })],
+        wall: [S("chest", 3, { corner: true }), S("weapon_rack", 1), S("armor_stand", 1)],
+      },
     ],
   },
   washroom: {
@@ -357,12 +510,22 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
         family: "store",
         shelf: true,
         anchors: [S("barrel", 1, { run: 2, top: "store" })],
-        wall: [S("bench", 3), S("barrel", 2, { corner: true, top: "store" }), S("stool", 2), S("chest", 1, { top: "store" })],
+        wall: [
+          S("bench", 3),
+          S("barrel", 2, { corner: true, top: "store" }),
+          S("stool", 2),
+          S("chest", 1, { top: "store" }),
+        ],
       },
       {
         family: "store",
         anchors: [S("counter", 1, { top: "store" })],
-        wall: [S("bench", 2), S("barrel", 3, { corner: true }), S("sack", 2, { corner: true }), S("stool", 1)],
+        wall: [
+          S("bench", 2),
+          S("barrel", 3, { corner: true }),
+          S("sack", 2, { corner: true }),
+          S("stool", 1),
+        ],
         shelf: true,
       },
     ],
@@ -374,7 +537,12 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
         family: "table",
         rug: true,
         anchors: [S("throne", 1)],
-        wall: [S("statue", 2, { max: 2 }), S("brazier", 2, { corner: true }), S("chest", 1), S("table", 1, { top: "table", seats: { type: "chair", n: 2 } })],
+        wall: [
+          S("statue", 2, { max: 2 }),
+          S("brazier", 2, { corner: true }),
+          S("chest", 1),
+          S("table", 1, { top: "table", seats: { type: "chair", n: 2 } }),
+        ],
       },
     ],
   },
@@ -386,25 +554,33 @@ export const ROOM_RECIPES_4: Readonly<Record<FurnishedPurpose, Recipe>> = {
  */
 const FILL_GAIN = 1.3;
 
-/** How many small things go on a support of each type, and its default family: the shared table (gen/surfaces.ts). */
-const TOP = SURFACE_LOAD;
+/** The measures a room is dressed and lit by (tiles unless said). */
+const ROOM_DRESS = {
+  /** Variants of one support whose heights differ by more than this take nothing on top (it would sink or float). */
+  heightSpread: 0.15,
+  /** A piece taller than this is tall: no shelf plank hangs over it, no torch in front of it. */
+  tall: 1.1,
+  /** The lowest wall a shelf plank hangs on, and a wall torch. */
+  shelfWall: 1.75,
+  torchWall: 1.5,
+  /** Chance a support takes small things on its top, unless its SURFACE_LOAD row says another. */
+  topChance: 0.94,
+  /** A dark point with no wall nearer than this for a torch gets a floor light first. */
+  torchReach: 3.2,
+  /** Furniture whose top takes a light is lit when it stands within this of the dark point. */
+  lampReach: 3.4,
+  /** No cell farther than this from a light: a dressed room, and an area that only gets lights. */
+  roomLightRadius: 3.6,
+  areaLightRadius: 4.4,
+  /** A lived-in place of this many floor tiles gets a floor light: a dressed room, and an area that only gets lights. */
+  roomFloorLightCells: 30,
+  areaFloorLightCells: 60,
+} as const;
 
-/** Rooms where an open fire does not belong (paper, cloth, straw and stored goods): their floor lights are candles. */
-const NO_FIRE: ReadonlySet<RoomPurpose> = new Set<RoomPurpose>(["library", "study", "bedroom", "storeroom", "laboratory", "treasury"]);
-
-/** Supports whose top takes a candle (a flame at hand height); the others take a small lantern. */
-const CANDLE_ON: ReadonlySet<FeatureType> = new Set<FeatureType>(["table", "round_table", "desk", "bar_counter", "altar"]);
-const LANTERN_ON: ReadonlySet<FeatureType> = new Set<FeatureType>(["counter", "chest"]);
+/** The small-things family a shelf plank carries. */
+const SHELF_FAMILY: Family = "shelf";
 
 // ───────────────────────────── geometry helpers ─────────────────────────────
-
-const DIR: Record<Side, readonly [number, number]> = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
-const OPP: Record<Side, Side> = { N: "S", E: "W", S: "N", W: "E" };
-const SIDE_ROT: Record<Side, Rotation> = { N: 0, E: 90, S: 180, W: 270 };
-/** Rotation of a piece that faces the given side (rot 0 faces south, as the realizer turns it). */
-const FACE_ROT: Record<Side, Rotation> = { S: 0, W: 90, N: 180, E: 270 };
-
-const ckey = cellKey;
 
 /**
  * Where a piece stands in its footprint: pushed against the wall it backs onto (and the side wall in a corner) so its
@@ -445,7 +621,10 @@ function touchShift(
     if (lo.wall && hi.wall) return (cLo - cHi) / 2;
     return 0;
   };
-  const anyOf = (cells: ReadonlyArray<readonly [number, number]>, s: Side): { wall: boolean; hosted: boolean } => {
+  const anyOf = (
+    cells: ReadonlyArray<readonly [number, number]>,
+    s: Side,
+  ): { wall: boolean; hosted: boolean } => {
     let wl = false;
     let ho = false;
     for (const [x, y] of cells) {
@@ -455,8 +634,10 @@ function touchShift(
     }
     return { wall: wl, hosted: ho };
   };
-  const col = (x: number): Array<[number, number]> => Array.from({ length: size[1] }, (_, i) => [x, y0 + i] as [number, number]);
-  const row = (y: number): Array<[number, number]> => Array.from({ length: size[0] }, (_, i) => [x0 + i, y] as [number, number]);
+  const col = (x: number): Array<[number, number]> =>
+    Array.from({ length: size[1] }, (_, i) => [x, y0 + i] as [number, number]);
+  const row = (y: number): Array<[number, number]> =>
+    Array.from({ length: size[0] }, (_, i) => [x0 + i, y] as [number, number]);
   const wl = anyOf(col(x0), "W");
   const we = anyOf(col(x1), "E");
   const wn = anyOf(row(y0), "N");
@@ -522,6 +703,9 @@ class Room {
   readonly cornerPairs = new Set<number>();
   /** Vertices of the room's inner corners (a corner post stands there). */
   readonly posts: Array<[number, number]> = [];
+  /** Wall spots (cell key × 4 + side) a shelf plank hangs on, and those a wall torch took. */
+  readonly hung = new Set<number>();
+  readonly torched = new Set<number>();
 
   /** Is the point within 0.9 of a corner post (0.5 square from the vertex, and the width of the thing, turned)? */
   nearPost(px: number, py: number): boolean {
@@ -547,27 +731,30 @@ class Room {
       if (!grid.inBounds(x, y) || grid.area(x, y) !== areaIndex || !grid.isFloor(x, y)) continue;
       if ((grid.flags(x, y) & (FLAG_LINK | FLAG_NO_FLOOR)) !== 0) continue;
       this.cells.push([x, y]);
-      this.inRoom.add(ckey(x, y));
+      this.inRoom.add(cellKey(x, y));
     }
     let sx = 0;
     let sy = 0;
     for (const [x, y] of this.cells) {
       sx += x + 0.5;
       sy += y + 0.5;
-      const walls = SIDES.filter((s) => grid.edge(x, y, s) === EDGE_WALL);
+      const walls = wallSides(grid, x, y);
       for (const s of walls) this.wallPairs.push([x, y, s]);
-      if (SIDES.some((s, i) => walls.includes(s) && walls.includes(SIDES[(i + 1) % 4] as Side))) this.cornerPairs.add(ckey(x, y));
+      if (SIDES.some((s, i) => walls.includes(s) && walls.includes(SIDES[(i + 1) % 4] as Side)))
+        this.cornerPairs.add(cellKey(x, y));
       // the vertex of each inner corner: its post takes the 0.5 square beside it
       for (const v of ["N", "S"] as const)
         for (const h of ["W", "E"] as const)
-          if (walls.includes(v) && walls.includes(h)) this.posts.push([h === "E" ? x + 1 : x, v === "S" ? y + 1 : y]);
+          if (walls.includes(v) && walls.includes(h))
+            this.posts.push([h === "E" ? x + 1 : x, v === "S" ? y + 1 : y]);
     }
     const n = Math.max(1, this.cells.length);
     this.centroid = [sx / n, sy / n];
     this.findThresholds();
     this.entry = this.thresholds.length > 0 ? this.meanOf(this.thresholds) : this.centroid;
     this.reach = this.walk(new Set());
-    for (const [lx, ly] of grid.lightCells?.() ?? []) if (this.inRoom.has(ckey(lx, ly))) this.lights.push([lx, ly]);
+    for (const [lx, ly] of grid.lightCells?.() ?? [])
+      if (this.inRoom.has(cellKey(lx, ly))) this.lights.push([lx, ly]);
   }
 
   private meanOf(list: ReadonlyArray<readonly [number, number]>): [number, number] {
@@ -587,26 +774,32 @@ class Room {
     for (const [x, y] of this.cells) {
       for (const s of SIDES) {
         const e = g.edge(x, y, s);
-        const nx = x + DIR[s][0];
-        const ny = y + DIR[s][1];
+        const [nx, ny] = stepSide(x, y, s);
         let door = e === EDGE_OPENING || e === EDGE_STAIR;
-        if (!door && e === 0 && g.inBounds(nx, ny) && !this.inRoom.has(ckey(nx, ny)))
+        if (!door && e === 0 && g.inBounds(nx, ny) && !this.inRoom.has(cellKey(nx, ny)))
           door = g.isFloor(nx, ny) || (g.flags(nx, ny) & FLAG_LINK) !== 0;
-        if (!door && g.inBounds(nx, ny) && (g.flags(nx, ny) & FLAG_LINK) !== 0 && !this.inRoom.has(ckey(nx, ny))) door = true;
+        if (
+          !door &&
+          g.inBounds(nx, ny) &&
+          (g.flags(nx, ny) & FLAG_LINK) !== 0 &&
+          !this.inRoom.has(cellKey(nx, ny))
+        )
+          door = true;
         if (!door) continue;
-        if (!seen.has(ckey(x, y))) {
-          seen.add(ckey(x, y));
+        if (!seen.has(cellKey(x, y))) {
+          seen.add(cellKey(x, y));
           this.thresholds.push([x, y]);
         }
-        const inward = DIR[OPP[s]];
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) this.zone.add(ckey(x + dx, y + dy));
-        this.zone.add(ckey(x + inward[0] * 2, y + inward[1] * 2));
+        const inward = INWARD[s];
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) this.zone.add(cellKey(x + dx, y + dy));
+        this.zone.add(cellKey(x + inward[0] * 2, y + inward[1] * 2));
       }
     }
   }
 
   blocked(x: number, y: number): boolean {
-    return this.taken.has(ckey(x, y)) || (this.grid.flags(x, y) & FLAG_FEATURE) !== 0;
+    return this.taken.has(cellKey(x, y)) || (this.grid.flags(x, y) & FLAG_FEATURE) !== 0;
   }
 
   /** The room cells reachable from its doors when `extra` is also blocked. */
@@ -614,16 +807,16 @@ class Room {
     const seen = new Set<number>();
     const queue: Array<[number, number]> = [];
     const open = (x: number, y: number): boolean =>
-      this.inRoom.has(ckey(x, y)) && !this.blocked(x, y) && !extra.has(ckey(x, y));
+      this.inRoom.has(cellKey(x, y)) && !this.blocked(x, y) && !extra.has(cellKey(x, y));
     for (const [x, y] of this.thresholds)
-      if (open(x, y) && !seen.has(ckey(x, y))) {
-        seen.add(ckey(x, y));
+      if (open(x, y) && !seen.has(cellKey(x, y))) {
+        seen.add(cellKey(x, y));
         queue.push([x, y]);
       }
     if (queue.length === 0) {
       const first = this.cells.find(([x, y]) => open(x, y));
       if (first) {
-        seen.add(ckey(first[0], first[1]));
+        seen.add(cellKey(first[0], first[1]));
         queue.push([first[0], first[1]]);
       }
     }
@@ -631,10 +824,9 @@ class Room {
       const [x, y] = queue[h] as [number, number];
       for (const s of SIDES) {
         if (this.grid.edge(x, y, s) === EDGE_WALL) continue;
-        const nx = x + DIR[s][0];
-        const ny = y + DIR[s][1];
-        if (!open(nx, ny) || seen.has(ckey(nx, ny))) continue;
-        seen.add(ckey(nx, ny));
+        const [nx, ny] = stepSide(x, y, s);
+        if (!open(nx, ny) || seen.has(cellKey(nx, ny))) continue;
+        seen.add(cellKey(nx, ny));
         queue.push([nx, ny]);
       }
     }
@@ -643,7 +835,7 @@ class Room {
 
   /** May these cells be blocked: every cell still reachable from the doors stays reachable. */
   keepsWay(cells: ReadonlyArray<readonly [number, number]>): Set<number> | null {
-    const extra = new Set(cells.map(([x, y]) => ckey(x, y)));
+    const extra = new Set(cells.map(([x, y]) => cellKey(x, y)));
     const after = this.walk(extra);
     let lost = 0;
     for (const k of this.reach) if (!after.has(k) && !extra.has(k)) lost++;
@@ -651,7 +843,7 @@ class Room {
   }
 
   free(x: number, y: number): boolean {
-    const k = ckey(x, y);
+    const k = cellKey(x, y);
     return this.inRoom.has(k) && !this.taken.has(k) && !this.used.has(k) && !this.grid.occupied(x, y);
   }
 
@@ -672,8 +864,23 @@ class Room {
     return true;
   }
 
+  /**
+   * Does a thing lifted onto a piece (a candle on a desk, a jar on a shelf, a crate on a crate) stay under the floor of
+   * the level above, at its tallest variant? A low storey leaves the top of a tall support no room for it.
+   */
+  underCeiling(p: GeneratedPlacement): boolean {
+    const room = this.grid.headroom?.(p.at[0], p.at[1]) ?? Infinity;
+    return (p.lift ?? 0) + (this.piece(p.type, p.variant)?.hMax ?? 0) <= room;
+  }
+
+  /** The piece a feature type (and variant) resolves to in this room's theme (asked of its first cell). */
+  piece(type: FeatureType, variant?: string): ReturnType<NonNullable<PlacementGrid["piece4"]>> {
+    const [x, y] = this.cells[0] ?? [0, 0];
+    return this.grid.piece4?.(type, x, y, variant);
+  }
+
   has(type: FeatureType, variant?: string): boolean {
-    return this.grid.piece4?.(type, variant) !== undefined;
+    return this.piece(type, variant) !== undefined;
   }
 
   /** Candidate wall-backed positions for a run of pieces of `base` size [along, depth]. */
@@ -686,9 +893,9 @@ class Room {
   ): Cand[] {
     const out: Cand[] = [];
     const blocking = featureInfo(type).blocking;
-    const ext = this.grid.piece4?.(type, variant);
+    const ext = this.piece(type, variant);
     for (const [x, y, s] of this.wallPairs) {
-      const corner = this.cornerPairs.has(ckey(x, y));
+      const corner = this.cornerPairs.has(cellKey(x, y));
       if (cornerOnly && !corner) continue;
       const along: readonly [number, number] = s === "N" || s === "S" ? [1, 0] : [0, 1];
       const total: [number, number] = [base[0] * run, base[1]];
@@ -700,11 +907,11 @@ class Room {
       for (let i = 0; i < total[0] && ok; i++) {
         const ax = x + along[0] * i;
         const ay = y + along[1] * i;
-        if (!this.inRoom.has(ckey(ax, ay)) || this.grid.edge(ax, ay, s) !== EDGE_WALL) ok = false;
+        if (!this.inRoom.has(cellKey(ax, ay)) || this.grid.edge(ax, ay, s) !== EDGE_WALL) ok = false;
       }
       if (!ok) continue;
       for (const [cx, cy] of cells) {
-        if (!this.free(cx, cy) || (blocking && this.zone.has(ckey(cx, cy)))) {
+        if (!this.free(cx, cy) || (blocking && this.zone.has(cellKey(cx, cy)))) {
           ok = false;
           break;
         }
@@ -739,14 +946,21 @@ class Room {
 
   /** Is the cell on the wall side `s` close to a placed piece (a run of furniture along the wall). */
   nextToPlaced(c: Cand): boolean {
-    return c.cells.some(([x, y]) => SIDES.some((s) => this.taken.has(ckey(x + DIR[s][0], y + DIR[s][1]))));
+    return c.cells.some(([x, y]) => SIDES.some((s) => this.taken.has(cellKey(...stepSide(x, y, s)))));
   }
 
   /** Choose and place one wall item of the spec; returns the pieces placed or null. */
   placeWall(spec: Spec, opts: { far?: boolean; family: Family }): Placed[] | null {
-    // a crate that carries things is the small one (the large crate's top is a taller piece than the height we lift to)
-    if (spec.type === "crate" && spec.variant === undefined && spec.top !== "none" && this.has("crate", "small"))
-      spec = { ...spec, variant: "small" };
+    // a support that carries things is its stacking variant where the load table names one (the small crate: the large
+    // crate's top is a taller piece than the height we lift to)
+    const stackVariant = SURFACE_LOAD[spec.type]?.stackVariant;
+    if (
+      stackVariant !== undefined &&
+      spec.variant === undefined &&
+      spec.top !== "none" &&
+      this.has(spec.type, stackVariant)
+    )
+      spec = { ...spec, variant: stackVariant };
     const info = featureInfo(spec.type);
     // a preferred variant the theme lacks (a straw bed, a small crate) gives way to the theme's own; stacking needs it
     if (spec.variant !== undefined && !this.has(spec.type, spec.variant)) {
@@ -788,7 +1002,7 @@ class Room {
   commitCand(spec: Spec, c: Cand, family: Family, after: Set<number> | null): Placed[] | null {
     const info = featureInfo(spec.type);
     const placed: Placed[] = [];
-    const ext = this.grid.piece4?.(spec.type, spec.variant);
+    const ext = this.piece(spec.type, spec.variant);
     const variant = spec.variant;
     for (const pc of c.pieces) {
       // a tile (a bar counter block) stands exactly on its cell; a prop is pushed against the wall it backs onto
@@ -805,7 +1019,12 @@ class Room {
       if (variant !== undefined) g.variant = variant;
       if (!this.push(g)) break;
       // a role whose variants are some tiles and some props has no one top height or centre: nothing stands on it
-      const fam = ext?.mixed === true ? "none" : spec.top === undefined ? (TOP[spec.type]?.family ?? family) : spec.top;
+      const fam =
+        ext?.mixed === true
+          ? "none"
+          : spec.top === undefined
+            ? (SURFACE_LOAD[spec.type]?.family ?? family)
+            : spec.top;
       placed.push({
         type: spec.type,
         at: pc.at,
@@ -821,9 +1040,9 @@ class Room {
     if (placed.length === 0) return null;
     for (const [x, y] of c.cells) {
       if (info.blocking && !info.wallMounted) {
-        this.taken.add(ckey(x, y));
+        this.taken.add(cellKey(x, y));
         this.blockCells++;
-      } else this.used.add(ckey(x, y));
+      } else this.used.add(cellKey(x, y));
     }
     if (after) this.reach = after;
     this.placed.push(...placed);
@@ -839,7 +1058,7 @@ class Room {
   /** Seats on the open side of a piece, facing it. */
   addSeats(p: Placed, seat: { type: FeatureType; n: number }): void {
     if (!this.has(seat.type)) return;
-    const open = OPP[p.side];
+    const open = OPPOSITE[p.side];
     const cells: Array<[number, number]> = [];
     const [x0, y0] = p.at;
     const [w, h] = p.size;
@@ -850,17 +1069,18 @@ class Room {
     let placed = 0;
     for (const [x, y] of this.rng.shuffle(cells)) {
       if (placed >= seat.n) break;
-      if (!this.free(x, y) || this.zone.has(ckey(x, y))) continue;
+      if (!this.free(x, y) || this.zone.has(cellKey(x, y))) continue;
       if (this.grid.edge(x, y, p.side) === EDGE_WALL) continue;
       const after = this.keepsWay([[x, y]]);
       if (after === null) continue;
       const turn = FACE_ROT[p.side];
       const g: GeneratedPlacement = { type: seat.type, at: [x, y], size: [1, 1], rot: turn, rotFine: turn };
-      const sext = this.grid.piece4?.(seat.type);
-      const shift = sext && !sext.tile ? (touchShift(this.grid, [x, y], [1, 1], turn, sext) ?? [0, 0]) : [0, 0];
+      const sext = this.piece(seat.type);
+      const shift =
+        sext && !sext.tile ? (touchShift(this.grid, [x, y], [1, 1], turn, sext) ?? [0, 0]) : [0, 0];
       g.offset = [shift[0] as number, shift[1] as number];
       if (!this.push(g)) return;
-      this.taken.add(ckey(x, y));
+      this.taken.add(cellKey(x, y));
       this.blockCells++;
       this.reach = after;
       this.placed.push({
@@ -870,7 +1090,7 @@ class Room {
         centre: [x + 0.5 + (shift[0] as number), y + 0.5 + (shift[1] as number)],
         side: p.side,
         family: "none",
-        height: this.grid.piece4?.(seat.type)?.h ?? 0.5,
+        height: this.piece(seat.type)?.h ?? 0.5,
         light: false,
       });
       placed++;
@@ -879,28 +1099,33 @@ class Room {
 
   /** Small things on the top of a support, spread along its length, at its real top height. */
   addToppers(p: Placed, family: Family, rule: SurfaceLoad, stacked: boolean): void {
-    const ext = this.grid.piece4?.(p.type, p.variant);
+    const ext = this.piece(p.type, p.variant);
     if (!ext || ext.mixed) return;
     // variants of very different height (a large and a small crate): a thing lifted to one sinks into, or floats over, another
-    if (ext.hMax - ext.h > 0.15) return;
-    // a second crate on the first (things resting on things): the small crate again, at the small crate's top
-    if (stacked && p.variant === "small") {
+    if (ext.hMax - ext.h > ROOM_DRESS.heightSpread) return;
+    // a second crate on the first (things resting on things): the small variant again, at its top
+    if (stacked && rule.stackVariant !== undefined && p.variant === rule.stackVariant) {
       const cx = clampTo(p.centre[0], p.at[0], p.size[0]);
       const cy = clampTo(p.centre[1], p.at[1], p.size[1]);
-      if (this.grid.inBounds(cx, cy))
-        this.push({
+      if (this.grid.inBounds(cx, cy)) {
+        const top: GeneratedPlacement = {
           type: p.type,
           at: [cx, cy],
           size: [1, 1],
           rot: 0,
           rotFine: this.rng.int(24) * 15,
-          variant: "small",
+          variant: rule.stackVariant,
           lift: ext.hMax,
-          offset: [p.centre[0] - (cx + 0.5) + (this.rng.next() - 0.5) * 0.12, p.centre[1] - (cy + 0.5) + (this.rng.next() - 0.5) * 0.12],
-        });
+          offset: [
+            p.centre[0] - (cx + 0.5) + (this.rng.next() - 0.5) * 0.12,
+            p.centre[1] - (cy + 0.5) + (this.rng.next() - 0.5) * 0.12,
+          ],
+        };
+        if (this.underCeiling(top)) this.push(top);
+      }
       return;
     }
-    const fam = this.grid.piece4?.("clutter", family) ? family : null;
+    const fam = this.piece("clutter", family) ? family : null;
     if (fam === null) return;
     const n = surfaceCount(rule, (k) => this.rng.int(k));
     const alongX = p.size[0] >= p.size[1];
@@ -939,33 +1164,50 @@ class Room {
         rotFine: this.rng.int(24) * 15,
         variant: family,
         lift: ext.hMax,
-        offset: [Math.max(-0.5, Math.min(0.5, px - (cx + 0.5))), Math.max(-0.5, Math.min(0.5, py - (cy + 0.5)))],
+        offset: [
+          Math.max(-0.5, Math.min(0.5, px - (cx + 0.5))),
+          Math.max(-0.5, Math.min(0.5, py - (cy + 0.5))),
+        ],
       };
+      if (!this.underCeiling(g)) continue;
       if (!this.push(g)) return;
-      this.used.add(ckey(cx, cy));
+      this.used.add(cellKey(cx, cy));
     }
   }
 
   /** A shelf plank along one stretch of wall with small things on it (the reference's built-in shelving). */
-  addShelf(family: Family): void {
+  addShelf(): void {
     const g = this.grid;
-    if (!this.has("shelf_line") || !this.has("clutter", family)) return;
+    if (!this.has("shelf_line") || !this.has("clutter", SHELF_FAMILY)) return;
     // wall cells where a plank may hang: a tall wall, nothing tall beneath it, off the door zones
     const tallBelow = (x: number, y: number): boolean =>
-      this.placed.some((q) => q.height > 1.1 && x >= q.at[0] && x < q.at[0] + q.size[0] && y >= q.at[1] && y < q.at[1] + q.size[1]);
+      this.placed.some(
+        (q) =>
+          q.height > ROOM_DRESS.tall &&
+          x >= q.at[0] &&
+          x < q.at[0] + q.size[0] &&
+          y >= q.at[1] &&
+          y < q.at[1] + q.size[1],
+      );
     const mountable = (x: number, y: number, s: Side): boolean =>
-      g.edge(x, y, s) === EDGE_WALL && (g.wallHeight?.(x, y, s) ?? 2) >= 1.75 && !isNaturalWallStyle(g.wallStyle?.(x, y, s)) && !tallBelow(x, y) && !this.hung.has(ckey(x, y) * 4 + SIDES.indexOf(s));
+      g.edge(x, y, s) === EDGE_WALL &&
+      g.wallBuilt?.(x, y, s) !== false &&
+      (g.wallHeight?.(x, y, s) ?? 2) >= ROOM_DRESS.shelfWall &&
+      !isNaturalWallStyle(g.wallStyle?.(x, y, s)) &&
+      !tallBelow(x, y) &&
+      !this.hung.has(cellKey(x, y) * 4 + SIDES.indexOf(s));
     const runs: Array<Array<[number, number, Side]>> = [];
     for (const s of SIDES) {
       const along: readonly [number, number] = s === "N" || s === "S" ? [1, 0] : [0, 1];
       const cells = this.cells
         .filter(([x, y]) => mountable(x, y, s))
         .sort((a, b) => a[1] - b[1] || a[0] - b[0]);
-      const set = new Set(cells.map(([x, y]) => ckey(x, y)));
+      const set = new Set(cells.map(([x, y]) => cellKey(x, y)));
       for (const [x, y] of cells) {
-        if (set.has(ckey(x - along[0], y - along[1]))) continue;
+        if (set.has(cellKey(x - along[0], y - along[1]))) continue;
         const run: Array<[number, number, Side]> = [];
-        for (let cx = x, cy = y; set.has(ckey(cx, cy)); cx += along[0], cy += along[1]) run.push([cx, cy, s]);
+        for (let cx = x, cy = y; set.has(cellKey(cx, cy)); cx += along[0], cy += along[1])
+          run.push([cx, cy, s]);
         if (run.length >= 3) runs.push(run);
       }
     }
@@ -976,8 +1218,9 @@ class Room {
     const start = this.rng.int(run.length - len + 1);
     for (const [x, y, s] of run.slice(start, start + len)) {
       const turn = SIDE_ROT[s];
-      if (!this.push({ type: "shelf_line", at: [x, y], size: [1, 1], rot: turn, rotFine: turn, wall: s })) return;
-      this.hung.add(ckey(x, y) * 4 + SIDES.indexOf(s));
+      if (!this.push({ type: "shelf_line", at: [x, y], size: [1, 1], rot: turn, rotFine: turn, wall: s }))
+        return;
+      this.hung.add(cellKey(x, y) * 4 + SIDES.indexOf(s));
       const hosted = g.wallHosted?.(x, y, s) ?? false;
       // the things stand against the wall on the plank (0.18 deep), 0.09 off its back face: over its middle
       const depth = (hosted ? 0.5 : 0) + 0.09;
@@ -985,14 +1228,23 @@ class Room {
       const kinds = this.rng.chance(0.85) ? 1 + this.rng.int(2) : 0;
       for (let i = 0; i < kinds; i++) {
         const along = (this.rng.next() - 0.5) * 0.7;
-        const ox = DIR[s][0] !== 0 ? DIR[s][0] * toward : along;
-        const oy = DIR[s][1] !== 0 ? DIR[s][1] * toward : along;
-        if (!this.push({ type: "clutter", at: [x, y], size: [1, 1], rot: 0, rotFine: this.rng.int(24) * 15, variant: "shelf", lift: SHELF_TOP, offset: [ox, oy] })) return;
+        const [dx, dy] = SIDE_STEP[s];
+        const ox = dx !== 0 ? dx * toward : along;
+        const oy = dy !== 0 ? dy * toward : along;
+        const thing: GeneratedPlacement = {
+          type: "clutter",
+          at: [x, y],
+          size: [1, 1],
+          rot: 0,
+          rotFine: this.rng.int(24) * 15,
+          variant: SHELF_FAMILY,
+          lift: SHELF_TOP,
+          offset: [ox, oy],
+        };
+        if (this.underCeiling(thing) && !this.push(thing)) return;
       }
     }
   }
-
-  readonly hung = new Set<number>();
 
   /** A rug on a free 2×2 near the middle of the room (it blocks nothing). */
   addRug(): void {
@@ -1001,7 +1253,7 @@ class Room {
     let bestD = Infinity;
     for (const [x, y] of this.cells) {
       const block = footprintCells([x, y], [2, 2]);
-      if (!block.every(([cx, cy]) => this.free(cx, cy) && !this.zone.has(ckey(cx, cy)))) continue;
+      if (!block.every(([cx, cy]) => this.free(cx, cy) && !this.zone.has(cellKey(cx, cy)))) continue;
       if (this.crossesWall([x, y], [2, 2]) || !this.oneHeight(block)) continue;
       const d = Math.hypot(x + 1 - this.centroid[0], y + 1 - this.centroid[1]) + this.rng.next() * 0.9;
       if (d < bestD) {
@@ -1012,158 +1264,208 @@ class Room {
     if (best.length === 0) return;
     const at = best[0] as [number, number];
     if (!this.push({ type: "rug", at, size: [2, 2], rot: 0, rotFine: 0 })) return;
-    for (const [x, y] of best) this.used.add(ckey(x, y));
+    for (const [x, y] of best) this.used.add(cellKey(x, y));
   }
 
-  /** Lights: candles and lanterns on furniture, torches on the walls, a brazier in a big room. */
-  light(opts: { target: number; radius: number; torchOnly: boolean; floor: "brazier" | "candles" | null }): void {
-    const g = this.grid;
+  /**
+   * Lights the room until every cell is within `radius` of a light and it has `target` lights. Each round finds the
+   * darkest cell and lights it with the first of these that works: a flame on furniture near it (every second light),
+   * a floor light when no wall is near enough for a torch, a wall torch, and a floor light after all.
+   */
+  light(opts: LightOpts): void {
     const torch = this.has("torch_wall");
-    const dist = (x: number, y: number): number => {
-      let d = Infinity;
-      for (const [lx, ly] of this.lights) d = Math.min(d, Math.hypot(lx - x, ly - y));
-      return d;
-    };
-    const wallSpot = (x: number, y: number, s: Side): boolean => {
-      if (g.edge(x, y, s) !== EDGE_WALL || (g.wallHeight?.(x, y, s) ?? 2) < 1.5) return false;
-      if (this.hung.has(ckey(x, y) * 4 + SIDES.indexOf(s))) return false;
-      if (this.torched.has(ckey(x, y) * 4 + SIDES.indexOf(s))) return false;
-      const k = ckey(x, y);
-      if (g.occupied(x, y) && !this.taken.has(k)) return false;
-      const under = this.placed.find((q) => x >= q.at[0] && x < q.at[0] + q.size[0] && y >= q.at[1] && y < q.at[1] + q.size[1] && q.type !== "clutter");
-      return under === undefined || under.height <= 1.1;
-    };
     for (let guard = 0; guard < 40; guard++) {
       if (this.out.length >= this.remaining) {
         this.capped = true;
         return;
       }
-      // the cell farthest from every light: the one the next light must reach
-      let worst: [number, number] | null = null;
-      let worstD = -1;
-      for (const [x, y] of this.cells) {
-        const d = dist(x + 0.5, y + 0.5) + this.rng.next() * 0.01;
-        if (d > worstD) {
-          worstD = d;
-          worst = [x, y];
-        }
-      }
-      if (worst === null) return;
-      const dark = worstD > opts.radius;
-      if (this.lights.length >= opts.target && !dark) return;
-      const [wx, wy] = worst;
-      const near = (x: number, y: number): number => Math.hypot(x - wx, y - wy);
-      // 1. a flame on furniture near the dark cell (every second light, and the first when the anchor is a table)
-      let done = false;
-      if (!opts.torchOnly && this.lights.length % 2 === 0) {
-        const sups = this.placed
-          .filter(
-            (q) =>
-              !q.light &&
-              (CANDLE_ON.has(q.type) || LANTERN_ON.has(q.type)) &&
-              near(q.centre[0], q.centre[1]) <= 3.4 &&
-              !this.nearPost(q.centre[0], q.centre[1]),
-          )
-          .sort((a, b) => near(a.centre[0], a.centre[1]) - near(b.centre[0], b.centre[1]));
-        for (const q of sups) {
-          const lamp: FeatureType = CANDLE_ON.has(q.type) ? "candles" : "candelabra";
-          const variant = lamp === "candelabra" ? "lantern" : undefined;
-          const ext = g.piece4?.(q.type, q.variant);
-          if (!ext || ext.mixed || ext.hMax - ext.h > 0.15 || !this.has(lamp, variant)) continue;
-          const cx = Math.min(Math.max(Math.floor(q.centre[0]), q.at[0]), q.at[0] + q.size[0] - 1);
-          const cy = Math.min(Math.max(Math.floor(q.centre[1]), q.at[1]), q.at[1] + q.size[1] - 1);
-          const placement: GeneratedPlacement = {
-            type: lamp,
-            at: [cx, cy],
-            size: [1, 1],
-            rot: 0,
-            rotFine: this.rng.int(24) * 15,
-            lift: ext.hMax,
-            offset: [q.centre[0] - (cx + 0.5) + (this.rng.next() - 0.5) * 0.3, q.centre[1] - (cy + 0.5) + (this.rng.next() - 0.5) * 0.3],
-          };
-          if (variant !== undefined) placement.variant = variant;
-          if (!this.push(placement)) return;
-          q.light = true;
-          this.lights.push([cx, cy]);
-          done = true;
-          break;
-        }
-      }
-      // the wall spot nearest the dark cell
-      let best: [number, number, Side] | null = null;
-      let bestScore = Infinity;
-      let bestDist = Infinity;
-      if (torch)
-        for (const [x, y, s] of this.wallPairs) {
-          if (!wallSpot(x, y, s)) continue;
-          const sc = near(x, y) + this.rng.next() * 0.6 + (this.zone.has(ckey(x, y)) ? 0.8 : 0);
-          if (sc < bestScore) {
-            bestScore = sc;
-            bestDist = near(x, y);
-            best = [x, y, s];
-          }
-        }
-      // 2. a floor brazier where the dark cell is too far from any wall for a torch to reach (the middle of a big room)
-      const brazier = (): boolean | null => {
-        if (opts.floor === null || !this.has(opts.floor)) return false;
-        const spots = this.cells
-          .filter(([x, y]) => this.free(x, y) && !this.zone.has(ckey(x, y)) && near(x, y) <= 3)
-          .sort((a, b) => near(a[0], a[1]) - near(b[0], b[1]));
-        // where fire does not belong (a library, a bedroom, a store) the floor light is a stand of candles: it blocks nothing
-        if (opts.floor === "candles") {
-          const at = spots[0];
-          if (!at) return false;
-          if (!this.push({ type: "candles", at: [at[0], at[1]], size: [1, 1], rot: 0, rotFine: this.rng.int(24) * 15 })) return null;
-          this.used.add(ckey(at[0], at[1]));
-          this.lights.push([at[0], at[1]]);
-          return true;
-        }
-        for (const [x, y] of spots.slice(0, 6)) {
-          const after = this.keepsWay([[x, y]]);
-          if (after === null) continue;
-          const bext = g.piece4?.("brazier");
-          const shift = bext && !bext.tile ? (touchShift(g, [x, y], [1, 1], 0, bext) ?? [0, 0]) : [0, 0];
-          const bp: GeneratedPlacement = { type: "brazier", at: [x, y], size: [1, 1], rot: 0, rotFine: 0 };
-          bp.offset = [shift[0] as number, shift[1] as number];
-          if (!this.push(bp)) return null;
-          this.taken.add(ckey(x, y));
-          this.blockCells++;
-          this.reach = after;
-          this.lights.push([x, y]);
-          return true;
-        }
-        return false;
-      };
-      if (!done && (best === null || bestDist > 3.2)) {
-        const r = brazier();
-        if (r === null) return;
-        done = r;
-      }
-      // 3. a wall torch on the wall nearest the dark cell
-      if (!done && best) {
-        const [x, y, s] = best;
-        if (!this.push({ type: "torch_wall", at: [x, y], size: [1, 1], rot: SIDE_ROT[s], rotFine: SIDE_ROT[s], wall: s })) return;
-        this.torched.add(ckey(x, y) * 4 + SIDES.indexOf(s));
-        this.lights.push([x, y]);
-        done = true;
-      }
-      if (!done) {
-        const r = brazier();
-        if (r === null) return;
-        done = r;
-      }
-      if (!done) return;
+      const dark = this.darkestCell();
+      if (dark === null) return;
+      if (this.lights.length >= opts.target && dark.dist <= opts.radius) return;
+      const [wx, wy] = dark.at;
+      let r: LightStep = "none";
+      if (!opts.torchOnly && this.lights.length % 2 === 0) r = this.lampOnFurniture(wx, wy);
+      if (r === "full") return;
+      // the wall spot is chosen every round (its draw keeps the seeded sequence), used only if nothing is lit yet
+      const wall = torch ? this.nearestTorchSpot(wx, wy) : null;
+      if (r === "none" && (wall === null || wall.dist > ROOM_DRESS.torchReach))
+        r = this.floorLight(wx, wy, opts.floor);
+      if (r === "none" && wall !== null) r = this.wallTorch(wall.at);
+      if (r === "none") r = this.floorLight(wx, wy, opts.floor);
+      if (r !== "lit") return;
     }
   }
 
-  readonly torched = new Set<number>();
+  /** The cell farthest from every light (the one the next light must reach), and that distance. */
+  private darkestCell(): { at: [number, number]; dist: number } | null {
+    let worst: [number, number] | null = null;
+    let worstD = -1;
+    for (const [x, y] of this.cells) {
+      let d = Infinity;
+      for (const [lx, ly] of this.lights) d = Math.min(d, Math.hypot(lx - (x + 0.5), ly - (y + 0.5)));
+      d += this.rng.next() * 0.01;
+      if (d > worstD) {
+        worstD = d;
+        worst = [x, y];
+      }
+    }
+    return worst === null ? null : { at: worst, dist: worstD };
+  }
+
+  /** A candle or a small lantern on the nearest piece of furniture within reach of (wx, wy) whose top takes one. */
+  private lampOnFurniture(wx: number, wy: number): LightStep {
+    const near = (q: Placed): number => Math.hypot(q.centre[0] - wx, q.centre[1] - wy);
+    const sups = this.placed
+      .filter(
+        (q) =>
+          !q.light &&
+          featureInfo(q.type).topLight !== undefined &&
+          near(q) <= ROOM_DRESS.lampReach &&
+          !this.nearPost(q.centre[0], q.centre[1]),
+      )
+      .sort((a, b) => near(a) - near(b));
+    for (const q of sups) {
+      // a candle is the candles piece, a lantern the candelabra's lantern variant
+      const lamp: FeatureType = featureInfo(q.type).topLight === "candle" ? "candles" : "candelabra";
+      const variant = lamp === "candelabra" ? "lantern" : undefined;
+      const ext = this.piece(q.type, q.variant);
+      if (!ext || ext.mixed || ext.hMax - ext.h > ROOM_DRESS.heightSpread || !this.has(lamp, variant))
+        continue;
+      const cx = clampTo(q.centre[0], q.at[0], q.size[0]);
+      const cy = clampTo(q.centre[1], q.at[1], q.size[1]);
+      const placement: GeneratedPlacement = {
+        type: lamp,
+        at: [cx, cy],
+        size: [1, 1],
+        rot: 0,
+        rotFine: this.rng.int(24) * 15,
+        lift: ext.hMax,
+        offset: [
+          q.centre[0] - (cx + 0.5) + (this.rng.next() - 0.5) * 0.3,
+          q.centre[1] - (cy + 0.5) + (this.rng.next() - 0.5) * 0.3,
+        ],
+      };
+      if (variant !== undefined) placement.variant = variant;
+      if (!this.underCeiling(placement)) continue;
+      if (!this.push(placement)) return "full";
+      q.light = true;
+      this.lights.push([cx, cy]);
+      return "lit";
+    }
+    return "none";
+  }
+
+  /** May a wall torch hang on side `s` of (x, y): a tall wall, nothing hung there yet, nothing tall in front. */
+  private torchFits(x: number, y: number, s: Side): boolean {
+    const g = this.grid;
+    if (g.edge(x, y, s) !== EDGE_WALL || (g.wallHeight?.(x, y, s) ?? 2) < ROOM_DRESS.torchWall) return false;
+    if (g.wallBuilt?.(x, y, s) === false) return false;
+    const spot = cellKey(x, y) * 4 + SIDES.indexOf(s);
+    if (this.hung.has(spot) || this.torched.has(spot)) return false;
+    if (g.occupied(x, y) && !this.taken.has(cellKey(x, y))) return false;
+    const under = this.placed.find(
+      (q) =>
+        x >= q.at[0] &&
+        x < q.at[0] + q.size[0] &&
+        y >= q.at[1] &&
+        y < q.at[1] + q.size[1] &&
+        q.type !== "clutter",
+    );
+    return under === undefined || under.height <= ROOM_DRESS.tall;
+  }
+
+  /** The wall spot for a torch nearest (wx, wy), door zones a little less welcome; with its distance. */
+  private nearestTorchSpot(wx: number, wy: number): { at: [number, number, Side]; dist: number } | null {
+    let best: [number, number, Side] | null = null;
+    let bestScore = Infinity;
+    let bestDist = Infinity;
+    for (const [x, y, s] of this.wallPairs) {
+      if (!this.torchFits(x, y, s)) continue;
+      const d = Math.hypot(x - wx, y - wy);
+      const sc = d + this.rng.next() * 0.6 + (this.zone.has(cellKey(x, y)) ? 0.8 : 0);
+      if (sc < bestScore) {
+        bestScore = sc;
+        bestDist = d;
+        best = [x, y, s];
+      }
+    }
+    return best === null ? null : { at: best, dist: bestDist };
+  }
+
+  /** A wall torch on the given spot. */
+  private wallTorch([x, y, s]: [number, number, Side]): LightStep {
+    const turn = SIDE_ROT[s];
+    if (!this.push({ type: "torch_wall", at: [x, y], size: [1, 1], rot: turn, rotFine: turn, wall: s }))
+      return "full";
+    this.torched.add(cellKey(x, y) * 4 + SIDES.indexOf(s));
+    this.lights.push([x, y]);
+    return "lit";
+  }
+
+  /**
+   * A floor light within 3 of (wx, wy), for the middle of a big room a torch cannot reach: a brazier that keeps the way
+   * clear, or, where fire does not belong (a library, a bedroom, a store), a stand of candles that blocks nothing.
+   */
+  private floorLight(wx: number, wy: number, kind: LightOpts["floor"]): LightStep {
+    if (kind === null || !this.has(kind)) return "none";
+    const near = ([x, y]: readonly [number, number]): number => Math.hypot(x - wx, y - wy);
+    const spots = this.cells
+      .filter((c) => this.free(c[0], c[1]) && !this.zone.has(cellKey(c[0], c[1])) && near(c) <= 3)
+      .sort((a, b) => near(a) - near(b));
+    if (kind === "candles") {
+      const at = spots[0];
+      if (!at) return "none";
+      const candles: GeneratedPlacement = {
+        type: "candles",
+        at: [at[0], at[1]],
+        size: [1, 1],
+        rot: 0,
+        rotFine: this.rng.int(24) * 15,
+      };
+      if (!this.push(candles)) return "full";
+      this.used.add(cellKey(at[0], at[1]));
+      this.lights.push([at[0], at[1]]);
+      return "lit";
+    }
+    for (const [x, y] of spots.slice(0, 6)) {
+      const after = this.keepsWay([[x, y]]);
+      if (after === null) continue;
+      const bext = this.piece("brazier");
+      const shift = bext && !bext.tile ? (touchShift(this.grid, [x, y], [1, 1], 0, bext) ?? [0, 0]) : [0, 0];
+      const bp: GeneratedPlacement = { type: "brazier", at: [x, y], size: [1, 1], rot: 0, rotFine: 0 };
+      bp.offset = [shift[0] as number, shift[1] as number];
+      if (!this.push(bp)) return "full";
+      this.taken.add(cellKey(x, y));
+      this.blockCells++;
+      this.reach = after;
+      this.lights.push([x, y]);
+      return "lit";
+    }
+    return "none";
+  }
 }
+
+/** What `Room.light` asks for. */
+interface LightOpts {
+  /** Lights the room wants (lightTarget). */
+  target: number;
+  /** No cell farther than this from a light (Infinity: an abandoned place keeps its dark pockets). */
+  radius: number;
+  /** Wall torches and floor lights only, nothing on the furniture. */
+  torchOnly: boolean;
+  /** The floor light of a big room, or none. */
+  floor: "brazier" | "candles" | null;
+}
+
+/** One lighting step: it lit the cell, it found nowhere to, or the level's feature cap is reached (stop). */
+type LightStep = "lit" | "none" | "full";
 
 /** Height (tiles) of the top of the shelf plank above the floor; the palette's shelf_line variants lift to the same. */
 export const SHELF_TOP = 1.66;
 
 /** The cell of a support that holds a point, kept inside its footprint (a piece may overhang its cell a little). */
-const clampTo = (v: number, lo: number, n: number): number => Math.min(Math.max(Math.floor(v), lo), lo + n - 1);
+const clampTo = (v: number, lo: number, n: number): number =>
+  Math.min(Math.max(Math.floor(v), lo), lo + n - 1);
 
 const pickSpec = (rng: Prng, list: readonly Spec[]): Spec | null => {
   const total = list.reduce((a, s) => a + s.weight, 0);
@@ -1176,10 +1478,13 @@ const pickSpec = (rng: Prng, list: readonly Spec[]): Spec | null => {
   return list[list.length - 1] ?? null;
 };
 
-/** How many lights a room asks for: one per about 9 floor tiles when lived in, one per 50 (at least one) when not. */
-export function lightTarget(floor: number, abandoned: boolean): number {
+/**
+ * How many lights a place asks for: one per `every` floor tiles when lived in (about 9 in a dressed room), one per 50
+ * (at least one) when abandoned. The one rule for a dressed room and an area that only gets lights.
+ */
+export function lightTarget(floor: number, abandoned: boolean, every = 9): number {
   if (abandoned) return floor >= 8 ? Math.max(1, Math.floor(floor / 50)) : 0;
-  return floor >= 6 ? Math.max(1, Math.ceil(floor / 9)) : 0;
+  return floor >= 6 ? Math.max(1, Math.ceil(floor / every)) : 0;
 }
 
 /**
@@ -1201,7 +1506,10 @@ export function dressRoom(grid: PlacementGrid, p: RoomDressParams): ScatterResul
   const variant = recipe.variants[vi] as Variant;
 
   const n = room.cells.length;
-  const maxBlock = Math.max(2, Math.round(n * recipe.fill * FILL_GAIN * Math.min(2, Math.max(0.2, p.density))));
+  const maxBlock = Math.max(
+    2,
+    Math.round(n * recipe.fill * FILL_GAIN * Math.min(2, Math.max(0.2, p.density))),
+  );
   const have = new Set(p.have ?? []);
 
   // 1. the anchor, on the wall away from the door
@@ -1239,12 +1547,13 @@ export function dressRoom(grid: PlacementGrid, p: RoomDressParams): ScatterResul
 
   // 3. things on the furniture
   for (const q of room.placed.slice()) {
-    const rule = TOP[q.type];
+    const rule = SURFACE_LOAD[q.type];
     if (!rule || q.family === "none") continue;
     const spec = [...variant.anchors, ...variant.wall].find((s) => s.type === q.type);
-    if (room.rng.chance(q.type === "chest" ? 0.8 : 0.94)) room.addToppers(q, q.family, rule, spec?.stack === true && room.rng.chance(0.7));
+    if (room.rng.chance(rule.chance ?? ROOM_DRESS.topChance))
+      room.addToppers(q, q.family, rule, spec?.stack === true && room.rng.chance(0.7));
   }
-  if (variant.shelf === true) room.addShelf("shelf");
+  if (variant.shelf === true) room.addShelf();
 
   // 4. a rug
   if (variant.rug === true) room.addRug();
@@ -1254,25 +1563,42 @@ export function dressRoom(grid: PlacementGrid, p: RoomDressParams): ScatterResul
   room.light({
     target: lightTarget(floor, p.abandoned),
     // an abandoned place keeps its dark pockets: one light, then no more
-    radius: p.abandoned ? Infinity : 3.6,
+    radius: p.abandoned ? Infinity : ROOM_DRESS.roomLightRadius,
     torchOnly: p.abandoned,
-    floor: floor >= 30 && !p.abandoned ? (NO_FIRE.has(p.purpose) ? "candles" : "brazier") : null,
+    floor:
+      floor >= ROOM_DRESS.roomFloorLightCells && !p.abandoned
+        ? ROOM_PURPOSE_INFO[p.purpose].noFire
+          ? "candles"
+          : "brazier"
+        : null,
   });
   return { placements: room.out, capped: room.capped };
 }
 
 /**
  * Lights only: a room or passage nobody dressed (no purpose in its words, or the plan furnished it itself) still gets
- * its torches. Abandoned places keep one, a lived-in one about one per 12 floor tiles, a passage one per 18.
+ * its torches, as many as lightTarget asks (one per `every` floor tiles: 12 in a room, 18 in a passage; an abandoned
+ * place one per 50).
  */
 export function lightArea(
   grid: PlacementGrid,
-  p: { areaIndex: number; areaCells: Array<[number, number]>; seed: number; remaining: number; every: number; abandoned: boolean },
+  p: {
+    areaIndex: number;
+    areaCells: Array<[number, number]>;
+    seed: number;
+    remaining: number;
+    every: number;
+    abandoned: boolean;
+  },
 ): ScatterResult {
   const room = new Room(grid, p.areaIndex, p.areaCells, p.seed, p.remaining);
   const n = room.cells.length;
   if (n < 6 || grid.piece4 === undefined) return { placements: [], capped: false };
-  const target = p.abandoned ? (n >= 8 ? 1 : 0) : Math.max(1, Math.ceil(n / p.every));
-  room.light({ target, radius: p.abandoned ? Infinity : 4.4, torchOnly: true, floor: n >= 60 && !p.abandoned ? "brazier" : null });
+  room.light({
+    target: lightTarget(n, p.abandoned, p.every),
+    radius: p.abandoned ? Infinity : ROOM_DRESS.areaLightRadius,
+    torchOnly: true,
+    floor: n >= ROOM_DRESS.areaFloorLightCells && !p.abandoned ? "brazier" : null,
+  });
   return { placements: room.out, capped: room.capped };
 }

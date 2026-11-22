@@ -2,7 +2,7 @@
  * Integer-lattice value noise (architecture §2.5/§2.7). Arithmetic only (+ − × ÷, floor): no sin/cos/exp,
  * so the output is bit-identical on every engine. Lattice values are h32(seed:ix:iy)/2^32.
  */
-import { latticeValue } from "../util/hash";
+import { TWO_32, latticeValue } from "../util/hash";
 
 /** murmur3 fmix32: integer-only avalanche of a 32-bit value. */
 export function fmix32(h: number): number {
@@ -29,7 +29,7 @@ export class ValueNoise {
     const k = `${ix}:${iy}`;
     let v = this.cache.get(k);
     if (v === undefined) {
-      v = fmix32(Math.round(latticeValue(this.seed, ix, iy) * 4294967296)) / 4294967296;
+      v = fmix32(Math.round(latticeValue(this.seed, ix, iy) * TWO_32)) / TWO_32;
       this.cache.set(k, v);
     }
     return v;

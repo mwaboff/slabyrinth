@@ -19,12 +19,14 @@
  */
 import type { Area, MapPlan } from "../contracts/plan";
 import type { ResolvedArea, ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
-import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
+import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { LIGHT_FEATURES, featureInfo } from "../gen/catalog";
+import { SIDES, SIDE_STEP } from "../gen/gridGeometry";
+import { LevelGrid } from "../resolve/levelGrid";
 import { type RoomClass, classifyRoom } from "../gen/roomPurpose";
-import { generatorAtLeast } from "../plan/generator";
+import { generatorProfile } from "../plan/generator";
 import type { DesignNote } from "./review";
-import { REVIEW } from "./thresholds";
+import { REVIEW, capped } from "./thresholds";
 
 export interface RoomStat {
   levelId: string;
@@ -45,37 +47,20 @@ export interface RoomStat {
   cell: [number, number];
 }
 
-/**
- * Loose litter (wall-foot rubble, bones, webs): it is neither furniture nor a thing on it, so it does not make a room
- * dressed, and two rooms differing only in their litter are still copies.
- */
-const LITTER: ReadonlySet<string> = new Set(["debris", "rubble", "bones", "web", "skull_pile", "cave_in"]);
-
-/** Does a wall stand on the `side` of cell (x, y)? */
-function wallOn(L: ResolvedLevel, x: number, y: number, side: "N" | "E" | "S" | "W"): boolean {
-  const W = L.bounds.w;
-  const lx = x - L.bounds.x;
-  const ly = y - L.bounds.y;
-  if (lx < 0 || ly < 0 || lx >= W || ly >= L.bounds.h) return false;
-  const k =
-    side === "N"
-      ? L.hEdges.kind[ly * W + lx]
-      : side === "S"
-        ? L.hEdges.kind[(ly + 1) * W + lx]
-        : side === "W"
-          ? L.vEdges.kind[ly * (W + 1) + lx]
-          : L.vEdges.kind[ly * (W + 1) + lx + 1];
-  return k === EDGE.WALL;
-}
-
 /** A resolved area's classification as the resolver wrote it (generator 4). */
 export const resolvedRoomClass = (a: ResolvedArea): RoomClass =>
-  a.purpose === undefined ? { abandoned: a.abandoned === true } : { purpose: a.purpose, abandoned: a.abandoned === true };
+  a.purpose === undefined
+    ? { abandoned: a.abandoned === true }
+    : { purpose: a.purpose, abandoned: a.abandoned === true };
 
 /** Per-room measures of one level (areas of kind room with floor). */
-export function roomStats(L: ResolvedLevel, classOf: (a: ResolvedArea) => RoomClass = resolvedRoomClass): RoomStat[] {
+export function roomStats(
+  L: ResolvedLevel,
+  classOf: (a: ResolvedArea) => RoomClass = resolvedRoomClass,
+): RoomStat[] {
   const T = REVIEW.interiors;
   const W = L.bounds.w;
+  const grid = new LevelGrid(L);
   const out: RoomStat[] = [];
   L.areas.forEach((a, ai) => {
     if (a.kind !== "room") return;
@@ -86,17 +71,23 @@ export function roomStats(L: ResolvedLevel, classOf: (a: ResolvedArea) => RoomCl
       cells.push([L.bounds.x + (i % W), L.bounds.y + Math.floor(i / W)]);
     }
     if (cells.length < T.minFloor) return;
-    const mine = L.features.filter((f) => f.area === a.id && f.gmOnly !== true && !LITTER.has(f.type));
+    // loose litter (wall-foot rubble, bones, webs: `strewn`) is neither furniture nor a thing on it, so it does not make
+    // a room dressed, and two rooms differing only in their litter are still copies
+    const mine = L.features.filter(
+      (f) => f.area === a.id && f.gmOnly !== true && featureInfo(f.type).strewn !== true,
+    );
     const own = new Set(cells.map(([x, y]) => `${x},${y}`));
     // furniture: blocking pieces that are not mounted on a wall; "near a wall" = a wall within one cell of any of its cells
     const near = (x: number, y: number): boolean => {
-      for (const [dx, dy, s] of [[0, -1, "N"], [1, 0, "E"], [0, 1, "S"], [-1, 0, "W"]] as const)
+      for (const s of SIDES) {
+        const [dx, dy] = SIDE_STEP[s];
         for (let k = 0; k < 2; k++) {
           const cx = x + dx * k;
           const cy = y + dy * k;
           if (!own.has(`${cx},${cy}`)) break;
-          if (wallOn(L, cx, cy, s)) return true;
+          if (grid.wallOn(cx, cy, s)) return true;
         }
+      }
       return false;
     };
     const blockers = mine.filter((f) => f.blocking && !featureInfo(f.type).wallMounted);
@@ -114,7 +105,7 @@ export function roomStats(L: ResolvedLevel, classOf: (a: ResolvedArea) => RoomCl
     const counts = new Map<string, number>();
     for (const f of mine) counts.set(f.type, (counts.get(f.type) ?? 0) + 1);
     const first = cells[0] as [number, number];
-    const mat = L.materials[(L.cells.material[(first[1] - L.bounds.y) * W + (first[0] - L.bounds.x)] as number) - 1] ?? "";
+    const mat = L.materials[(L.cells.material[grid.index(first[0], first[1])] as number) - 1] ?? "";
     const sizeClass = T.sizeClasses.findIndex((m) => cells.length <= m);
     const cls = classOf(a);
     out.push({
@@ -130,9 +121,13 @@ export function roomStats(L: ResolvedLevel, classOf: (a: ResolvedArea) => RoomCl
       // named as a passage, or long and thin (a landing, a gallery): circulation, not a room to furnish
       passage:
         cls.purpose === "passage" ||
-        (Math.min(a.bbox.w, a.bbox.h) <= 4 && Math.max(a.bbox.w, a.bbox.h) >= 2.5 * Math.min(a.bbox.w, a.bbox.h)),
+        (Math.min(a.bbox.w, a.bbox.h) <= 4 &&
+          Math.max(a.bbox.w, a.bbox.h) >= 2.5 * Math.min(a.bbox.w, a.bbox.h)),
       sizeClass: sizeClass < 0 ? T.sizeClasses.length : sizeClass,
-      signature: `${mat}|${[...counts.entries()].sort((p, q) => (p[0] < q[0] ? -1 : 1)).map(([k, v]) => `${k}${v}`).join(",")}`,
+      signature: `${mat}|${[...counts.entries()]
+        .sort((p, q) => (p[0] < q[0] ? -1 : 1))
+        .map(([k, v]) => `${k}${v}`)
+        .join(",")}`,
       cell: first,
     });
   });
@@ -145,18 +140,22 @@ const names = (rooms: readonly RoomStat[]): string =>
     .map((r) => `${r.name} (${r.id})`)
     .join(", ") + (rooms.length > 6 ? ` and ${rooms.length - 6} more` : "");
 
-const rank = (weight: number, n: number): number => weight * Math.min(3, 0.8 + n / 3);
+const rank = (weight: number, n: number): number => weight * capped(0.8 + n / 3);
 
 /** The interior notes of a map: bare, alike, unlit and adrift rooms. */
 export function interiorNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[] {
   const T = REVIEW.interiors;
-  const g4 = generatorAtLeast(plan, 4);
-  // generators 1-3 resolve no classification: read the plan's area with the same classifier the resolver uses
+  const gen = generatorProfile(plan);
+  // a generator that resolves no classification: read the plan's area with the same classifier the resolver uses
   const planClass = (levelId: string) => {
-    const byId = new Map<string, Area>((plan.levels.find((l) => l.id === levelId)?.areas ?? []).map((a) => [a.id, a]));
+    const byId = new Map<string, Area>(
+      (plan.levels.find((l) => l.id === levelId)?.areas ?? []).map((a) => [a.id, a]),
+    );
     return (a: ResolvedArea): RoomClass => classifyRoom(byId.get(a.id) ?? a);
   };
-  const rooms = resolved.levels.flatMap((L) => roomStats(L, g4 ? resolvedRoomClass : planClass(L.id)));
+  const rooms = resolved.levels.flatMap((L) =>
+    roomStats(L, gen.roomClassification ? resolvedRoomClass : planClass(L.id)),
+  );
   if (rooms.length === 0) return [];
   const out: DesignNote[] = [];
   const density = (r: RoomStat): number => (r.props * 10) / r.floor;
@@ -172,15 +171,18 @@ export function interiorNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote
       cell: (bare[0] as RoomStat).cell,
       elementIds: bare.slice(0, 6).map((r) => r.id),
       message: `${bare.length} of ${rooms.length} rooms read bare (under ${T.bareDensity} props per 10 floor tiles) while other rooms are dressed: ${names(bare)}`,
-      action: g4
+      action: gen.roomRecipes
         ? "name each room for what it is (Kitchen, Guard room, Library, Store room, Bedroom, Armoury, Shrine, Washroom) so the generator dresses it, or give it a dress op with the matching preset; keep a crypt or cells sparse on purpose"
         : "give each bare room a dress op with the preset of its purpose, or furnish it with features along its walls; keep a crypt or cells sparse on purpose",
     });
 
   // alike: copies of one room (same size class, floor and furniture)
   const groups = new Map<string, RoomStat[]>();
-  for (const r of rooms) groups.set(`${r.sizeClass}|${r.signature}`, [...(groups.get(`${r.sizeClass}|${r.signature}`) ?? []), r]);
-  const alike = [...groups.values()].filter((g) => g.length >= T.alike).sort((p, q) => q.length - p.length)[0];
+  for (const r of rooms)
+    groups.set(`${r.sizeClass}|${r.signature}`, [...(groups.get(`${r.sizeClass}|${r.signature}`) ?? []), r]);
+  const alike = [...groups.values()]
+    .filter((g) => g.length >= T.alike)
+    .sort((p, q) => q.length - p.length)[0];
   if (alike)
     out.push({
       code: "rooms_alike",
@@ -203,7 +205,7 @@ export function interiorNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote
       cell: (unlit[0] as RoomStat).cell,
       elementIds: unlit.slice(0, 6).map((r) => r.id),
       message: `${unlit.length} of ${rooms.length} rooms have no light inside or on their walls: ${names(unlit)}`,
-      action: g4
+      action: gen.roomRecipes
         ? "light every room that is lived in: candles on its table, a lantern on a chest, wall torches, a brazier in a big room (naming a room for its purpose lights it by itself); leave only crypts, cells and ruins dark"
         : "light every room that is lived in: candles on its table, a lantern on a chest, wall torches, a brazier in a big room; leave only crypts, cells and ruins dark",
     });
