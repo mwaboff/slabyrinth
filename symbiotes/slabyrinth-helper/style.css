@@ -107,6 +107,11 @@ button.primary:not(:disabled) {
   color: var(--warn-fg);
   font-weight: 600;
 }
+.banner.error {
+  border-left: 4px solid var(--danger);
+  color: var(--danger);
+  font-weight: 600;
+}
 
 .tabs {
   display: flex;

@@ -7,6 +7,9 @@ import { createContext, runInContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SHORTCUTS,
+  allowedOrigin,
+  connectionKind,
+  httpAnswer,
   checkHotkey,
   createHotkeyManager,
   describeReply,
@@ -181,6 +184,32 @@ describe("hotkey manager", () => {
     expect(registered.size).toBe(3);
     m.clear();
     expect(registered.size).toBe(0);
+  });
+});
+
+describe("bridge HTTP and WebSocket paths", () => {
+  it("tells the helper's link from the diagnostics probe", () => {
+    expect(connectionKind("/link")).toBe("link");
+    expect(connectionKind("/")).toBe("link"); // older helpers
+    expect(connectionKind("/probe")).toBe("probe");
+    expect(connectionKind("/probe?x=1")).toBe("probe");
+    expect(connectionKind("/other")).toBeNull();
+  });
+
+  it("answers the HTTP probe with CORS for local page origins only", () => {
+    const ok = httpAnswer("POST", "/probe", "http://localhost:59998");
+    expect(ok.status).toBe(200);
+    expect(ok.headers["Access-Control-Allow-Origin"]).toBe("http://localhost:59998");
+    expect(ok.body).toMatch(/probe only/);
+    expect(httpAnswer("GET", "/probe", "null").headers["Access-Control-Allow-Origin"]).toBe("null");
+    expect(httpAnswer("OPTIONS", "/probe", "http://127.0.0.1:5000").status).toBe(204);
+    const remote = httpAnswer("POST", "/probe", "https://example.com");
+    expect(remote.status).toBe(200);
+    expect(remote.headers["Access-Control-Allow-Origin"]).toBeUndefined();
+    expect(httpAnswer("GET", "/", "http://localhost:1").status).toBe(404);
+    expect(httpAnswer("DELETE", "/probe", "http://localhost:1").status).toBe(405);
+    for (const o of ["http://localhost.evil.com", "http://localhost:1/x", undefined, "https://localhost:3"])
+      expect(allowedOrigin(o)).toBe(false);
   });
 });
 

@@ -287,9 +287,43 @@ describe("the state header", () => {
   it("link light: words and icon change with the colour", () => {
     expect(Seq.linkLight("connected")).toMatchObject({ tone: "good", label: "Connected to Slabyrinth" });
     expect(Seq.linkLight("connecting")).toMatchObject({ tone: "wait", label: "Connecting…" });
-    expect(Seq.linkLight("off")).toMatchObject({ tone: "off", label: "Not connected" });
-    const icons = ["connected", "connecting", "off"].map((s) => Seq.linkLight(s).icon);
-    expect(new Set(icons).size).toBe(3);
+    expect(Seq.linkLight("retrying")).toMatchObject({
+      tone: "wait",
+      label: "Not connected: bridge not running (retrying)",
+    });
+    expect(Seq.linkLight("off")).toMatchObject({ tone: "off", label: "Link is off: turn on Link below" });
+    const icons = ["connected", "connecting", "retrying", "off"].map((s) => Seq.linkLight(s).icon);
+    expect(new Set(icons).size).toBe(4);
+  });
+});
+
+describe("which API the page uses", () => {
+  it("uses TaleSpire's API as soon as it exists", () => {
+    expect(Seq.apiMode(true, "http:", 0, 15000)).toEqual({ mode: "game", fake: false, banner: null });
+    expect(Seq.apiMode(true, "file:", 0, 15000).mode).toBe("game");
+  });
+
+  it("fakes only in a plain browser (file://)", () => {
+    const m = Seq.apiMode(false, "file:", 0, 15000);
+    expect(m).toMatchObject({ mode: "preview", fake: true });
+    expect(m.banner.text).toMatch(/^Preview: .*Nothing is being sent to TaleSpire/);
+  });
+
+  it("in TaleSpire (served over http) it waits for the API, then says plainly that it is missing", () => {
+    // TaleSpire starts injecting at DOMContentLoaded, so the API can be absent when the page's own handler runs
+    expect(Seq.apiMode(false, "http:", 0, 15000)).toMatchObject({ mode: "waiting", fake: false });
+    const missing = Seq.apiMode(false, "http:", 15000, 15000);
+    expect(missing).toMatchObject({ mode: "missing", fake: false });
+    expect(missing.banner).toMatchObject({ tone: "error" });
+    expect(missing.banner.text).toMatch(/nothing can be put in your hand/);
+  });
+});
+
+describe("buttons with no set loaded", () => {
+  it("say Put in hand, Next, Back (never Finish), all off", () => {
+    const c = Seq.controls(Seq.initialState());
+    expect([c.send.label, c.next.label, c.back.label]).toEqual(["Put in hand", "Next", "Back"]);
+    expect([c.send.enabled, c.next.enabled, c.back.enabled]).toEqual([false, false, false]);
   });
 
   it("slabs light: loaded or not, or what blocks pasting (progress is the bar's job)", () => {

@@ -33,8 +33,11 @@ to the bridge on `127.0.0.1` (this computer only).
 3. Open the symbiotes panel in TaleSpire and pick **Slabyrinth Helper**. TaleSpire reloads it when files in its folder
    change.
 
-Opening `index.html` in an ordinary browser shows a **preview**: a yellow banner says the TaleSpire API is not there
-and nothing is sent to TaleSpire; a fake answers instead.
+Opening `index.html` from disk in an ordinary browser shows a **preview**: a yellow banner says the TaleSpire API is
+not there and nothing is sent to TaleSpire; a fake answers instead. Inside TaleSpire the helper never uses the fake:
+it waits for TaleSpire's API (a "Waiting for TaleSpire's API" banner that disappears within a second or two), and if
+the API never comes it says so in red. **Diagnostics > TaleSpire API** shows the mode, whether and when the API
+object and its init event appeared, and the namespaces.
 
 ## Recommended flow: the hotkey bridge
 
@@ -50,8 +53,9 @@ and nothing is sent to TaleSpire; a fake answers instead.
    `--next=Ctrl+Alt+D`, `--back=Ctrl+Alt+A`, `--again=Ctrl+Alt+S`. It prints the active hotkeys, every command it
    sends and the helper's answer. **Ctrl+C** in the terminal stops it and releases the hotkeys.
 
-2. In the helper, open **Link to Slabyrinth**, check the port (48731) and tick **Link**. The top light turns to
-   "Connected to Slabyrinth".
+2. In the helper, **Link** is on by default (port 48731): within a few seconds the top light turns to "Connected to
+   Slabyrinth". "Not connected: bridge not running" means it is retrying; "Link is off" means the Link switch under
+   **Link to Slabyrinth** is off. (Diagnostics > "Test local connection" is only a one-off test, not the link.)
 3. Load the chunks: the bridge's `--set` file, **Load test pair**, or a pasted set.
 4. In TaleSpire, **press G to raise the build plane** first (without it, later chunks land a little higher). Point the
    camera at an empty area and do not move it again.

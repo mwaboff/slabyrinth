@@ -243,14 +243,66 @@ export function describeReply(text) {
  * createHotkeyManager) answers the helper's hotkey requests.
  * Resolves to { send(type), helpers(), close() } once listening.
  */
+/** Which WebSocket a path is: the helper's link ("/link", or "/" from older helpers), the diagnostics probe, or none. */
+export function connectionKind(url) {
+  const path = String(url ?? "").split("?")[0];
+  if (path === "/link" || path === "/") return "link";
+  if (path === "/probe") return "probe";
+  return null;
+}
+
+/** May this page origin read the bridge's HTTP probe answer? Only local pages: TaleSpire's localhost server or a file. */
+export function allowedOrigin(origin) {
+  return typeof origin === "string" && /^(http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?|null)$/.test(origin);
+}
+
+/**
+ * The HTTP answer: /probe (the helper's diagnostics) answers a short text, with CORS for a local page origin only;
+ * anything else is 404. -> { status, headers, body }
+ */
+export function httpAnswer(method, url, origin) {
+  const path = String(url ?? "").split("?")[0];
+  const cors = allowedOrigin(origin)
+    ? {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Headers": "Content-Type",
+        Vary: "Origin",
+      }
+    : {};
+  if (path !== "/probe") return { status: 404, headers: { "Content-Type": "text/plain" }, body: "Not found" };
+  if (method === "OPTIONS") return { status: 204, headers: cors, body: "" };
+  if (method !== "GET" && method !== "POST")
+    return { status: 405, headers: { ...cors, "Content-Type": "text/plain" }, body: "Method not allowed" };
+  return {
+    status: 200,
+    headers: { ...cors, "Content-Type": "text/plain; charset=utf-8" },
+    body: "hello from the Slabyrinth hotkey bridge (HTTP probe only)",
+  };
+}
+
 export function startLinkServer({ port = DEFAULT_PORT, set = null, hotkeys = null, log = console.log } = {}) {
   let nextId = 1;
   const server = createServer((req, res) => {
-    res.writeHead(426, { "Content-Type": "text/plain" });
-    res.end("Slabyrinth Helper link: WebSocket only");
+    req.resume();
+    const a = httpAnswer(req.method, req.url, req.headers.origin);
+    if (a.status === 200) log(`HTTP probe from ${req.headers.origin ?? "(no origin)"}.`);
+    res.writeHead(a.status, a.headers);
+    res.end(a.body);
   });
-  const helpers = attachWebSocket(server, {
+  const helpers = new Set();
+  attachWebSocket(server, {
     onOpen: (c) => {
+      const kind = connectionKind(c.url);
+      if (kind === "probe") {
+        log(`Diagnostics probe connected (Origin: ${c.origin}); not the helper's link.`);
+        return;
+      }
+      if (kind !== "link") {
+        log(`Refused a WebSocket on ${c.url}.`);
+        c.close();
+        return;
+      }
+      helpers.add(c);
       log(`Helper connected (Origin: ${c.origin}).`);
       if (set) {
         const id = nextId++;
@@ -259,6 +311,13 @@ export function startLinkServer({ port = DEFAULT_PORT, set = null, hotkeys = nul
       }
     },
     onMessage: (c, text) => {
+      if (!helpers.has(c)) {
+        log(`Probe says: ${text.slice(0, 200)}`);
+        c.send(
+          "hello from the Slabyrinth hotkey bridge (probe only; the Link switch makes the real connection)",
+        );
+        return;
+      }
       const m = parseHelperMessage(text);
       if (!m) return log(`Helper sent something unexpected (ignored): ${text.slice(0, 200)}`);
       if (m.kind === "state") return log(`Helper: ${m.line}`);
@@ -278,7 +337,9 @@ export function startLinkServer({ port = DEFAULT_PORT, set = null, hotkeys = nul
         }),
       );
     },
-    onClose: () => log("Helper disconnected."),
+    onClose: (c) => {
+      if (helpers.delete(c)) log("Helper disconnected.");
+    },
   });
   return new Promise((resolve, reject) => {
     server.once("error", reject);

@@ -3,7 +3,8 @@
  *
  * A classic script: TaleSpire calls the manifest's subscription handlers by global name, so the handlers below are
  * top-level function declarations (the docs say a handler in a scoped variable is not visible to the API).
- * When the `TS` object is absent (a plain browser), a clearly labelled fake stands in and nothing reaches TaleSpire.
+ * In a plain browser (file://) a clearly labelled fake stands in and nothing reaches TaleSpire; in TaleSpire the page
+ * waits for the API and never fakes it.
  */
 /* exported handleStateChange, handleVisibility, handleSlabCopied, handleClientEvent, handlePickingEvent */
 /* global SlabyrinthSequencer, SLABYRINTH_TEST_PAIR */
@@ -95,7 +96,11 @@ function logEvent(source, kind, payload, mine = false) {
 
 function handleStateChange(e) {
   logEvent("symbiote.onStateChangeEvent", e && e.kind, e && e.payload);
-  if (e && e.kind === "hasInitialized") onApiReady();
+  if (e && e.kind === "hasInitialized") {
+    apiInfo.initAt = stamp();
+    if (el("banner")) checkApi();
+    void onApiReady();
+  }
 }
 
 function handleVisibility(e) {
@@ -124,13 +129,106 @@ function handlePickingEvent(e) {
 
 // ── start-up ──
 
+// TaleSpire starts injecting its API when the page's DOMContentLoaded fires (docs: "Symbiote lifetime"), so the API
+// may not exist yet when this page's own DOMContentLoaded handler runs. The page therefore never decides at load:
+// it waits for the API object (polling) or the hasInitialized event, and uses the fake only in a plain browser.
+
+const API_WAIT_MS = 15000; // longer than the manifest's initTimeout (10 s)
+const apiInfo = {
+  foundAt: null,
+  via: null,
+  initAt: null,
+  startedAt: Date.now(),
+  mode: "waiting",
+  atScript: !!findApi(), // did the API exist when this script ran?
+  atDomReady: null, // and when the page's DOMContentLoaded handler ran?
+};
+let apiPoll = null;
+
+/** TaleSpire's API object, if injected: the documented `TS` alias, or its full name. */
+function findApi() {
+  /* global TS */
+  if (typeof TS === "object" && TS !== null) return { ts: TS, via: "TS" };
+  const full = window.com && window.com.bouncyrock && window.com.bouncyrock.talespire;
+  if (typeof full === "object" && full !== null) return { ts: full, via: "com.bouncyrock.talespire" };
+  return null;
+}
+
+/** Looks for the API; switches to it (from the fake too) the moment it appears. */
+function checkApi() {
+  const found = findApi();
+  if (found && (api === null || preview)) {
+    api = found.ts;
+    preview = false;
+    apiInfo.foundAt = stamp();
+    apiInfo.via = found.via;
+    logEvent("helper", "TaleSpire API found", found.via, true);
+  }
+  const m = Seq.apiMode(!!found, location.protocol, Date.now() - apiInfo.startedAt, API_WAIT_MS);
+  if (m.mode === "preview" && !api) {
+    api = makeFakeApi();
+    preview = true;
+    apiReady = true;
+  }
+  if (m.mode !== apiInfo.mode) logEvent("helper", `API mode: ${m.mode}`, null, true);
+  apiInfo.mode = m.mode;
+  renderBanner(m.banner);
+  renderApiDiag();
+  if (m.mode === "game" || m.mode === "preview") {
+    clearInterval(apiPoll);
+    apiPoll = null;
+    // TaleSpire's own init event normally makes the API ready; after the wait, use it anyway
+    if (m.mode === "preview" || apiInfo.initAt || Date.now() - apiInfo.startedAt > API_WAIT_MS)
+      void onApiReady();
+    else setTimeout(() => void onApiReady(), Math.max(0, API_WAIT_MS - (Date.now() - apiInfo.startedAt)));
+  } else if (m.mode === "missing" && apiPoll) {
+    // keep looking, more slowly, and switch the moment it appears
+    clearInterval(apiPoll);
+    apiPoll = setInterval(checkApi, 2000);
+  }
+}
+
+function renderApiDiag() {
+  setText(
+    "diag-api-found",
+    apiInfo.foundAt
+      ? `yes, as ${apiInfo.via}, at ${apiInfo.foundAt}`
+      : preview
+        ? "no (plain browser)"
+        : "not yet",
+  );
+  setText("diag-init", apiInfo.initAt ? `fired at ${apiInfo.initAt}` : "not yet");
+  const yn = (v) => (v === null ? "-" : v ? "yes" : "no");
+  setText(
+    "diag-api-timing",
+    `at script start: ${yn(apiInfo.atScript)}; at DOMContentLoaded: ${yn(apiInfo.atDomReady)}; ` +
+      `TaleSpire web view (window.vuplex): ${yn(typeof window.vuplex === "object" && window.vuplex !== null)}`,
+  );
+  setText(
+    "diag-api-mode",
+    {
+      game: "TaleSpire",
+      preview: "Preview (fake API, plain browser)",
+      waiting: "waiting for TaleSpire",
+      missing: "API missing",
+    }[apiInfo.mode],
+  );
+  const found = findApi();
+  setText("diag-namespaces", found ? Object.keys(found.ts).sort().join(", ") || "(none listed)" : "none");
+}
+
+let readyFor = null; // the API object the start-up reads below were done for
+
+/** Reads the limits and client mode once per API object (the fake, then the real one if it appears). */
 async function onApiReady() {
-  if (apiReady) return;
-  // hasInitialized may arrive before DOMContentLoaded when the page loads fast; take the API object here too
-  if (!api && typeof window.TS === "object" && window.TS) api = window.TS;
+  const found = findApi();
+  if (found && api !== found.ts) {
+    api = found.ts;
+    preview = false;
+  }
+  if (!api || readyFor === api || !el("banner")) return; // start() calls again once the DOM is there
   apiReady = true;
-  if (!el("banner")) return; // start() renders the rest once the DOM is there
-  renderBanner();
+  readyFor = api;
   const max = await call("slabs.getMaxSlabSizeInBytes");
   if (max.ok && typeof max.value === "number") maxBytes = max.value;
   setText("diag-max", max.ok ? `${max.value} bytes` : `not available (${max.cause})`);
@@ -152,11 +250,8 @@ async function refreshMode() {
 }
 
 function start() {
-  const ts = typeof window.TS === "object" && window.TS ? window.TS : null;
-  preview = !ts;
-  api = ts || makeFakeApi();
+  apiInfo.atDomReady = !!findApi();
   setText("diag-api-version", "0.1 (from manifest.json; the API has no version getter)");
-  setText("diag-namespaces", ts ? Object.keys(ts).sort().join(", ") : "none (preview)");
   setText("diag-origin", location.href);
   el("port").value = String(DEFAULT_PORT);
   bindUi();
@@ -164,14 +259,9 @@ function start() {
   renderLink();
   linkConnect();
   renderKeys();
-  renderBanner();
   render();
-  if (preview) void onApiReady();
-  else if (apiReady) {
-    // the API started before the DOM: fill in what onApiReady skipped
-    apiReady = false;
-    void onApiReady();
-  }
+  apiPoll = setInterval(checkApi, 250);
+  checkApi();
 }
 
 // ── chunk flow ──
@@ -197,7 +287,23 @@ async function sendChunk(index) {
 // the buttons. Reconnects with backoff while Link is on; the setting is remembered in this panel.
 
 const LINK_STORE = "slabyrinth-helper.link";
-const link = { on: false, port: DEFAULT_PORT, ws: null, connected: false, retry: null, delay: 1000 };
+// on by default: it only talks to 127.0.0.1 and retries quietly; `failed` = a try has failed since the last success
+const link = {
+  on: true,
+  port: DEFAULT_PORT,
+  ws: null,
+  connected: false,
+  failed: false,
+  retry: null,
+  delay: 1000,
+};
+
+/** The link light's state: off, connecting (first try), retrying (the bridge did not answer) or connected. */
+function linkStatus() {
+  if (!link.on) return "off";
+  if (link.connected) return "connected";
+  return link.failed ? "retrying" : "connecting";
+}
 
 function loadLinkSettings() {
   try {
@@ -205,7 +311,7 @@ function loadLinkSettings() {
     if (saved && typeof saved.on === "boolean") link.on = saved.on;
     if (saved && Number.isInteger(saved.port)) link.port = saved.port;
   } catch {
-    // storage blocked or damaged: Link starts off
+    // storage blocked or damaged: the defaults stand (Link on)
   }
 }
 
@@ -222,15 +328,17 @@ function linkConnect() {
   if (!link.on || link.ws) return;
   let ws;
   try {
-    ws = new WebSocket(`ws://127.0.0.1:${link.port}/`);
+    ws = new WebSocket(`ws://127.0.0.1:${link.port}/link`);
   } catch (e) {
     logEvent("link", "could not open", e && e.message, true);
+    link.failed = true;
     return linkRetry();
   }
   link.ws = ws;
   renderLink();
   ws.onopen = () => {
     link.connected = true;
+    link.failed = false;
     link.delay = 1000;
     logEvent("link", "connected", { port: link.port }, true);
     renderLink();
@@ -243,6 +351,7 @@ function linkConnect() {
     if (link.connected) logEvent("link", "disconnected", null, true);
     link.ws = null;
     link.connected = false;
+    link.failed = true;
     renderLink();
     linkRetry();
   };
@@ -261,6 +370,7 @@ function linkDisconnect() {
   if (link.ws) link.ws.close();
   link.ws = null;
   link.connected = false;
+  link.failed = false;
   renderLink();
 }
 
@@ -389,7 +499,12 @@ function renderHotkeys() {
 function renderLink() {
   const dot = el("link-state");
   if (!dot) return;
-  const text = !link.on ? "Off" : link.connected ? "Connected" : link.ws ? "Connecting…" : "Not connected";
+  const text = {
+    off: "Off",
+    connected: "Connected",
+    connecting: "Connecting…",
+    retrying: "Bridge not running (retrying)",
+  }[linkStatus()];
   dot.textContent = text;
   dot.className = `link-state ${link.connected ? "on" : link.on ? "waiting" : "off"}`;
   el("link-on").checked = link.on;
@@ -441,11 +556,15 @@ async function testLocal() {
   }
   show();
   lines.push(await new Promise((resolve) => wsProbe(port, resolve)));
+  lines.push(
+    "This was only a one-off test. The Link switch on the Chunks tab makes the lasting connection to the bridge.",
+  );
   show();
 }
 
 function wsProbe(port, resolve) {
-  const url = `ws://127.0.0.1:${port}/`;
+  // the /probe path tells the bridge this is a test, not the helper's link (no chunk set is pushed)
+  const url = `ws://127.0.0.1:${port}/probe`;
   let done = false;
   const finish = (text) => {
     if (done) return;
@@ -481,13 +600,14 @@ function setText(id, text) {
   if (node) node.textContent = text;
 }
 
-function renderBanner() {
+/** The banner for the API mode (none once TaleSpire's API is in use). */
+function renderBanner(banner) {
   const b = el("banner");
-  b.hidden = !preview && apiReady;
-  b.className = preview ? "banner preview" : "banner";
-  b.textContent = preview
-    ? "Preview: the TaleSpire API is not here. Nothing is being sent to TaleSpire; a fake answers instead."
-    : "Waiting for TaleSpire's API to start…";
+  if (!b) return;
+  b.hidden = !banner;
+  if (!banner) return;
+  b.className = `banner ${banner.tone}`;
+  b.textContent = banner.text;
 }
 
 /** The two lights at the top: state at a glance (the status line below says what to do). */
@@ -502,7 +622,7 @@ function renderHeader() {
     setText("map-meta", info ? info.meta : "");
   }
   const lights = {
-    "light-link": Seq.linkLight(link.connected ? "connected" : link.on ? "connecting" : "off"),
+    "light-link": Seq.linkLight(linkStatus()),
     "light-slabs": Seq.slabsLight(state, clientMode),
   };
   for (const [id, l] of Object.entries(lights)) {

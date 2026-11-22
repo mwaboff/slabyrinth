@@ -264,7 +264,7 @@
       },
       next: {
         enabled: loaded && !busy && state.phase !== "done",
-        label: state.index + 1 >= total ? "Finish" : "Next",
+        label: loaded && state.index + 1 >= total ? "Finish" : "Next",
       },
       back: { enabled: loaded && !busy && (state.index > 0 || state.phase === "done"), label: "Back" },
     };
@@ -479,11 +479,52 @@
 
   // ── the state header: two lights (shape + icon + words, not colour alone) ──
 
-  /** The link light. linkStatus: "off" (Link switched off), "connecting" or "connected". */
+  /**
+   * The link light. linkStatus: "off" (Link switched off), "connecting" (first try), "retrying" (a try failed: the
+   * bridge is not running or not on this port) or "connected".
+   */
   function linkLight(linkStatus) {
     if (linkStatus === "connected") return { tone: "good", icon: "●", label: "Connected to Slabyrinth" };
     if (linkStatus === "connecting") return { tone: "wait", icon: "◐", label: "Connecting…" };
-    return { tone: "off", icon: "○", label: "Not connected" };
+    if (linkStatus === "retrying")
+      return { tone: "wait", icon: "◌", label: "Not connected: bridge not running (retrying)" };
+    return { tone: "off", icon: "○", label: "Link is off: turn on Link below" };
+  }
+
+  /**
+   * Which API the page uses. found: TaleSpire's API object exists; protocol: location.protocol; waitedMs: time since
+   * start; timeoutMs: how long to wait for TaleSpire to inject it (it starts injecting at DOMContentLoaded, so a page
+   * cannot decide at that moment).
+   * -> { mode: "game" | "waiting" | "missing" | "preview", fake, banner: { tone, text } | null }
+   * The fake answers only in a plain browser (file://); in TaleSpire a missing API is shown, never faked.
+   */
+  function apiMode(found, protocol, waitedMs, timeoutMs) {
+    if (found) return { mode: "game", fake: false, banner: null };
+    if (protocol === "file:")
+      return {
+        mode: "preview",
+        fake: true,
+        banner: {
+          tone: "preview",
+          text: "Preview: the TaleSpire API is not here. Nothing is being sent to TaleSpire; a fake answers instead.",
+        },
+      };
+    if (waitedMs < timeoutMs)
+      return {
+        mode: "waiting",
+        fake: false,
+        banner: { tone: "wait", text: "Waiting for TaleSpire's API to start…" },
+      };
+    return {
+      mode: "missing",
+      fake: false,
+      banner: {
+        tone: "error",
+        text:
+          "TaleSpire's API did not appear, so nothing can be put in your hand. Reload the symbiote; if this stays," +
+          " send the Diagnostics > TaleSpire API readout.",
+      },
+    };
   }
 
   var BLOCKING = { clientIsNotInGmMode: "not in GM mode", notInBoard: "not on a board" };
@@ -508,6 +549,7 @@
 
   root.SlabyrinthSequencer = {
     mapInfo: mapInfo,
+    apiMode: apiMode,
     linkLight: linkLight,
     slabsLight: slabsLight,
     HOTKEY_ACTIONS: HOTKEY_ACTIONS,
