@@ -1,31 +1,20 @@
 /**
- * The runs the generator-4 golden pins, and the record each run is reduced to. Shared by generator4.test.ts (which
- * only reads the golden) and update.ts (the one thing that writes it). See the header of generator4.test.ts.
+ * The record a golden run is reduced to, shared by the open generator's golden (generator5/: runs.ts, the test and
+ * the update script) and the frozen generator-4 golden (generator4/generator4.test.ts, which only reads). A run is a
+ * stored plan at one generator; its record is one hash line and the readable detail lines. See the header of
+ * generator5/generator5.test.ts.
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { compileResolved, realize } from "../../../src/compile";
-import type { CompileDiagnostic, PlacementSet } from "../../../src/contracts/compiler";
-import type { MapPlan } from "../../../src/contracts/plan";
-import type { ResolvedPlan } from "../../../src/contracts/resolved";
-import { loadPalettes } from "../../../src/palette";
-import { resolvePlan } from "../../../src/resolve/index";
-import { designReviewText, reviewDesign, type DesignNote } from "../../../src/review";
-import { slabCodec } from "../../../src/slab";
-import { GENERATOR_TEST_PLANS, loadPlan, STORED_PLANS, type StoredPlan } from "../../fixtures";
-
-/** The newest generator: the one this golden follows (see the header of generator4.test.ts). */
-export const OPEN_GENERATOR = 4;
-/**
- * The newest released generator: runs at it or below have frozen builds (FROZEN_FIELDS), which the test reports as
- * frozen and the update script refuses to rewrite. Generator 4 was released in 0.3.0, so every run here is frozen;
- * only the review and the detail it carries may move until generator 5 opens.
- */
-export const RELEASED_GENERATOR = 4;
-
-export const GOLDEN_FILE = new URL("__golden__/generator4.txt", import.meta.url);
-/** The readable sidecar: what each run built, one fact per line, each line starting with the run's name. */
-export const DETAIL_FILE = new URL("__golden__/generator4.detail.txt", import.meta.url);
+import { compileResolved, realize } from "../../src/compile";
+import type { CompileDiagnostic, PlacementSet } from "../../src/contracts/compiler";
+import type { GeneratorVersion, MapPlan } from "../../src/contracts/plan";
+import type { ResolvedPlan } from "../../src/contracts/resolved";
+import { loadPalettes } from "../../src/palette";
+import { resolvePlan } from "../../src/resolve/index";
+import { designReviewText, reviewDesign, type DesignNote } from "../../src/review";
+import { slabCodec } from "../../src/slab";
+import { GENERATOR_TEST_PLANS, loadPlan, STORED_PLANS, type StoredPlan } from "../fixtures";
 
 /** The stored plans, by the short name of their directory, which a run is called after. */
 const STORED: ReadonlyArray<readonly [string, readonly StoredPlan[]]> = [
@@ -34,27 +23,24 @@ const STORED: ReadonlyArray<readonly [string, readonly StoredPlan[]]> = [
 ];
 
 export interface Run {
-  /** `<dir>/<file>` at the plan's own generator, `<dir>/<file>@4` for a plan of a released generator forced to 4. */
+  /** `<dir>/<file>` at the plan's own generator, `<dir>/<file>@<n>` for a plan of an older generator forced to n. */
   name: string;
   plan: MapPlan;
 }
 
 /**
- * Every stored plan at its own generator, and every plan of a released generator forced to the open one too (so the
- * open generator's switches are exercised on terrain, caves and towns, not only on the plans written for it).
+ * Every stored plan at its own generator, and every plan of another generator forced to `generator` too (so that
+ * generator's switches are exercised on terrain, caves and towns, not only on the plans written for it).
  */
-export function goldenRuns(): Run[] {
+export function storedRuns(generator: GeneratorVersion): Run[] {
   const runs: Run[] = [];
   for (const [dirName, names] of STORED)
     for (const stored of [...names].sort()) {
       const plan = loadPlan(stored);
       const name = `${dirName}/${stored}`;
       runs.push({ name, plan });
-      if (plan.generator !== OPEN_GENERATOR)
-        runs.push({
-          name: `${name}@${String(OPEN_GENERATOR)}`,
-          plan: loadPlan(stored, { generator: OPEN_GENERATOR }),
-        });
+      if (plan.generator !== generator)
+        runs.push({ name: `${name}@${String(generator)}`, plan: loadPlan(stored, { generator }) });
     }
   return runs;
 }
@@ -175,15 +161,15 @@ export function parseLine(line: string): { name: string; fields: Map<string, str
 const fileLines = (file: URL): string[] =>
   existsSync(file) ? readFileSync(file, "utf8").split(/\r?\n/).filter(Boolean) : [];
 
-/** The committed golden lines, by run name (empty when the file does not exist yet). */
-export function readGolden(): Map<string, string> {
-  return new Map(fileLines(GOLDEN_FILE).map((l) => [parseLine(l).name, l]));
+/** A committed golden file's lines, by run name (empty when the file does not exist yet). */
+export function readGoldenFile(file: URL): Map<string, string> {
+  return new Map(fileLines(file).map((l) => [parseLine(l).name, l]));
 }
 
-/** The committed detail lines, by run name (every line starts with its run's name). */
-export function readDetail(): Map<string, string[]> {
+/** A committed detail file's lines, by run name (every line starts with its run's name). */
+export function readDetailFile(file: URL): Map<string, string[]> {
   const out = new Map<string, string[]>();
-  for (const l of fileLines(DETAIL_FILE)) {
+  for (const l of fileLines(file)) {
     const name = l.slice(0, l.indexOf(" "));
     out.set(name, [...(out.get(name) ?? []), l]);
   }
@@ -214,10 +200,12 @@ export function detailDiff(was: readonly string[] = [], now: readonly string[] =
   ];
 }
 
-/** True when the run is at a released generator and a field of its frozen output differs. */
-export function changesReleasedOutput(was: string, now: string): boolean {
+/** True when a field of the build (FROZEN_FIELDS, or the error) differs between two lines of a run. */
+export function changesBuild(was: string, now: string): boolean {
   const a = parseLine(was).fields;
   const b = parseLine(now).fields;
-  if (Number(a.get("gen")) > RELEASED_GENERATOR) return false;
   return a.get("error") !== b.get("error") || FROZEN_FIELDS.some((k) => a.get(k) !== b.get(k));
 }
+
+/** A run's generator, as its line records it. */
+export const lineGenerator = (line: string): number => Number(parseLine(line).fields.get("gen"));

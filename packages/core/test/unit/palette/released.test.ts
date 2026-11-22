@@ -72,7 +72,7 @@ describe("released palettes (generator 2 is frozen)", () => {
 
   it("every theme and role resolves for generator 4 as it did in 0.3.0 (generator 4 is frozen)", () => {
     // test/fixtures/released-palettes-0.3.0.json: first-choice piece per role as generator 4 sees the palettes in
-    // 0.3.0. A role or piece added later must carry `minGenerator: 5` (and generator 5 must be opened first).
+    // 0.3.0. A role or piece added later must carry `minGenerator: 5`.
     const released4 = JSON.parse(
       readFileSync(
         fileURLToPath(new URL("../../fixtures/released-palettes-0.3.0.json", import.meta.url)),

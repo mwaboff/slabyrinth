@@ -15,9 +15,10 @@ import { GENERATOR_VERSIONS, type GeneratorVersion } from "../contracts/plan";
  * A switch is on in its first generator and in every later one, by construction, so the SWITCHES table read top to
  * bottom is the changelog of the generators. Generators 1, 2, 3 and 4 are released: what they turn on is frozen, and
  * so is their output (test/golden/generator2, generator3, generator4). New behaviour is a new switch that starts in
- * the open generator; none is open after 0.3.0, so the next behaviour change first opens generator 5. A later generator never switches an old behaviour off: it adds a new switch for the new behaviour, and
- * the code reads the new one first. Opening generator 5 means adding a version to GENERATOR_VERSIONS
- * (contracts/plan.ts); the compiler then asks for its TUNINGS and VOCABULARY entries, and new switches start in 5.
+ * the open generator, 5 (test/golden/generator5 follows it). A later generator never switches an old behaviour off:
+ * it adds a new switch for the new behaviour, and the code reads the new one first. Opening generator 6 (after 5 is
+ * released) means adding a version to GENERATOR_VERSIONS (contracts/plan.ts); the compiler then asks for its
+ * VOCABULARY entry, and new switches start in 6.
  *
  * Palette roles carry their own first generator (`minGenerator` in the palette data, palette/resolve.ts): palettes
  * are data, generated and user-written, so they name a version rather than a switch. A test keeps the roles of the
@@ -317,6 +318,8 @@ const SWITCHES = {
     4,
     "A build of more than one chunk is pasted from bare ground beside the map: the shared box is padded so its centre (the paste anchor) is the middle of a cell south of the map's south edge, with clear cells between them (compile/chunk.ts besideMapBox).",
   ),
+
+  // ── generator 5 (open) ──
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */
@@ -366,6 +369,7 @@ const VOCABULARY: Readonly<Record<GeneratorVersion, VocabularyDeclaration>> = {
   2: { featureTypes: [], levelFields: [], areaFields: [] },
   3: { featureTypes: [], levelFields: [], areaFields: [] },
   4: { featureTypes: ["clutter", "shelf_line"], levelFields: ["roomDress"], areaFields: ["purpose"] },
+  5: { featureTypes: [], levelFields: [], areaFields: [] },
 };
 
 /** The plan vocabulary one generator understands (what it added and what the generators before it did). */

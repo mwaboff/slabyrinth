@@ -10,14 +10,15 @@
  */
 import type { DesignBrief, MapPlan } from "../contracts/plan";
 import { DP_1_0_0, DP_1_1_0, DP_1_2_0, DP_1_3_0 } from "./designPrinciples.frozen";
+import { DESIGN_PRINCIPLES } from "./designPrinciples";
 
 /**
  * Version of the working tool list (tools.ts + serialization). Bump when TOOL_DEFINITIONS or its rendering changes.
  * tools-1.7.0 (0.1.2, tools.frozen.ts), tools-1.8.0 (0.2.0, tools.frozen.v1_8_0.ts) and tools-1.9.0 (0.3.0,
- * tools.frozen.v1_9_0.ts) are published and frozen. The working TOOL_DEFINITIONS still equal tools-1.9.0; the next
- * edit opens tools-1.10.0 (with generator 5).
+ * tools.frozen.v1_9_0.ts) are published and frozen. The working TOOL_DEFINITIONS are tools-1.10.0, opened with
+ * generator 5 as a copy of tools-1.9.0 (unreleased, free to edit until release).
  */
-export const TOOLS_VERSION = "tools-1.9.0";
+export const TOOLS_VERSION = "tools-1.10.0";
 
 const SP_1_0_0 = `You are the map designer inside Slabyrinth, a desktop app for tabletop game masters (GMs). Together with the GM you design battle maps (dungeons, caves, towers, towns, wilderness) that the app later builds in TaleSpire, a 3D virtual tabletop made of tiles and props on a 5-foot grid.
 
@@ -430,7 +431,17 @@ const SP_1_13_0 = [
   ],
 ].reduce((text, [from, to]) => revise(text, from as string, to as string), SP_1_12_0);
 
-export const SYSTEM_PROMPT_VERSION = "sp-1.13.0";
+/**
+ * sp-1.14.0 (WORKING, opened with generator 5; unreleased): sp-1.13.0 with the working principles (dp-1.4.0, the
+ * live DESIGN_PRINCIPLES). It starts equal to sp-1.13.0. Add revisions below; principles go in designPrinciples.ts,
+ * how-to here, field facts in tools.ts; say each thing once. Freeze a copy of all three when generator 5 ships.
+ */
+const SP_1_14_0 = [[DP_1_3_0, DESIGN_PRINCIPLES]].reduce(
+  (text, [from, to]) => revise(text, from as string, to as string),
+  SP_1_13_0,
+);
+
+export const SYSTEM_PROMPT_VERSION = "sp-1.14.0";
 
 const PROMPTS: Readonly<Record<string, string>> = {
   "sp-1.0.0": SP_1_0_0,
@@ -447,6 +458,7 @@ const PROMPTS: Readonly<Record<string, string>> = {
   "sp-1.11.0": SP_1_11_0,
   "sp-1.12.0": SP_1_12_0,
   "sp-1.13.0": SP_1_13_0,
+  "sp-1.14.0": SP_1_14_0,
 };
 
 /** The system prompt text frozen under `version`, or null for an unknown version. */
@@ -455,7 +467,7 @@ export function systemPromptFor(version: string): string | null {
 }
 
 /** The current system prompt (for new conversations). */
-export const SYSTEM_PROMPT: string = SP_1_13_0;
+export const SYSTEM_PROMPT: string = SP_1_14_0;
 
 // ───────────────────────────── app context texts (§3.2 step 2, §3.6) ─────────────────────────────
 

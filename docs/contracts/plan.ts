@@ -33,14 +33,15 @@ export const PLAN_SCHEMA = "slabyrinth/plan@1" as const;
  *     frozen since (golden tests in test/golden/generator3 pin it).
  *  4: ragged cave outlines and stepped cave floors, room floors and dressing by purpose, covered market stalls,
  *     roof fills and ridge caps, secret doors. Released in 0.3.0 and frozen since (test/golden/generator4 pins it).
- *     No generator is open: the next behaviour change first adds generator 5.
+ *  5: unreleased, open for new work (test/golden/generator5 follows it). Until a switch starts in it, it builds
+ *     exactly like 4.
  *  What each version does is its profile in plan/generator.ts (`generatorProfile(plan)`): new behaviour is a named
  *  switch, off in the released profiles and on from the open generator; code reads the switch, never the number.
  */
-export const GENERATOR_VERSION = 4 as const;
+export const GENERATOR_VERSION = 5 as const;
 /** Generator versions a reader accepts. */
-export type GeneratorVersion = 1 | 2 | 3 | 4;
-export const GENERATOR_VERSIONS: readonly GeneratorVersion[] = [1, 2, 3, 4];
+export type GeneratorVersion = 1 | 2 | 3 | 4 | 5;
+export const GENERATOR_VERSIONS: readonly GeneratorVersion[] = [1, 2, 3, 4, 5];
 
 // ───────────────────────────── primitives ─────────────────────────────
 

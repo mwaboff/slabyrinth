@@ -6,8 +6,8 @@
  * { description, base, context?, expect: [{code, severity?, path, hintIncludes}], plan }.
  *
  * Adding a plan: put the file in one of the two directories and its name in the list below (a test keeps the lists
- * and the directories equal). The generator-4 golden runs every stored plan, so also run
- * `npm run test:golden:gen4:update` (test/golden/generator4).
+ * and the directories equal). The generator-5 golden runs every stored plan, so also run
+ * `npm run test:golden:gen5:update` (test/golden/generator5).
  */
 import { readFileSync, readdirSync } from "node:fs";
 import type { GeneratorVersion, MapPlan, PlanIssueCode, Severity } from "../../src/contracts/plan";

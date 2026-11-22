@@ -1,7 +1,7 @@
 /**
- * Rewrites the generator-4 golden on purpose: `npm run test:golden:gen4:update` (from the repo root or packages/core).
+ * Rewrites the generator-5 golden on purpose: `npm run test:golden:gen5:update` (from the repo root or packages/core).
  * Rebuilds every run, prints what changed per plan (hash fields `field: was -> now`, then the detail lines that went
- * `-` and came `+`), and writes __golden__/generator4.txt and generator4.detail.txt. Commit both together with the
+ * `-` and came `+`), and writes __golden__/generator5.txt and generator5.detail.txt. Commit both together with the
  * change that moved them, and give one line of reason per changed plan in the commit message.
  *
  * It refuses (and writes nothing) when a run at a released generator changes its build (resolved hash, slab, asset
@@ -9,17 +9,8 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import {
-  changesReleasedOutput,
-  DETAIL_FILE,
-  detailDiff,
-  GOLDEN_FILE,
-  goldenRecord,
-  goldenRuns,
-  lineDiff,
-  readDetail,
-  readGolden,
-} from "./runs";
+import { detailDiff, goldenRecord, lineDiff } from "../goldenRecord";
+import { changesReleasedOutput, DETAIL_FILE, GOLDEN_FILE, goldenRuns, readDetail, readGolden } from "./runs";
 
 const before = readGolden();
 const beforeDetail = readDetail();
@@ -53,7 +44,7 @@ if (frozen.length) {
   );
   process.exitCode = 1;
 } else if (changed === 0) {
-  console.log(`generator-4 golden unchanged (${String(records.length)} runs)`);
+  console.log(`generator-5 golden unchanged (${String(records.length)} runs)`);
 } else {
   mkdirSync(new URL(".", GOLDEN_FILE), { recursive: true });
   writeFileSync(GOLDEN_FILE, records.map((r) => r.line).join("\n") + "\n");

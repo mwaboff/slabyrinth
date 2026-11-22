@@ -17,12 +17,12 @@ import { TOOLS_VERSION } from "../../../src/agent/prompt";
 /** Hash of the published sp-1.1.0 text (frozen). */
 const SP_1_1_0_HASH = "2176e2d9b0362e06";
 
-describe("working tool list (tools-1.9.0; published versions are pinned by hash below)", () => {
+describe("working tool list (tools-1.10.0; published versions are pinned by hash below)", () => {
   it("working versions are the ones last opened", () => {
-    // generator 4 opened sp-1.13.0, dp-1.3.0, tools-1.9.0; released in 0.3.0, so generator 5 opens the next ones
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.13.0");
-    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.3.0");
-    expect(TOOLS_VERSION).toBe("tools-1.9.0");
+    // generator 5 opened sp-1.14.0, dp-1.4.0, tools-1.10.0 (the 0.3.0 texts are pinned below)
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.14.0");
+    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.4.0");
+    expect(TOOLS_VERSION).toBe("tools-1.10.0");
   });
   it("serializes deterministically (the bytes are the cache key)", () => {
     const a = serializeTools(toolsForConversation(true));
@@ -106,7 +106,7 @@ describe("released in 0.3.0: sp-1.13.0, dp-1.3.0, tools-1.9.0 (frozen with gener
 
 describe("system prompt", () => {
   it("is frozen per version", () => {
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.13.0");
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.14.0");
     // sp-1.10.0 shipped in the owner's second snapshot with dp-1.0.0: frozen byte for byte
     expect(h64hex(systemPromptFor("sp-1.10.0") ?? "")).toBe("74e5072df0fd89e2");
     expect(systemPromptFor(SYSTEM_PROMPT_VERSION)).toBe(SYSTEM_PROMPT);
@@ -117,7 +117,7 @@ describe("system prompt", () => {
     expect(h64hex(systemPromptFor("sp-1.1.0") ?? "")).toBe(SP_1_1_0_HASH);
     expect(h64hex(SYSTEM_PROMPT)).toMatchSnapshot();
   });
-  it("sp-1.13.0 (working) says the generator-4 room rules once, where they apply", () => {
+  it("sp-1.13.0 (and the working prompt after it) says the generator-4 room rules once, where they apply", () => {
     // the dressing how-to lives in the set-dressing section only; the principle carries no list of purposes
     expect(SYSTEM_PROMPT.match(/Rooms dress themselves/g)).toHaveLength(1);
     expect(SYSTEM_PROMPT).toMatch(/Name every room for its use .* and leave its floor off/);
