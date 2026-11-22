@@ -155,6 +155,19 @@
           </section>
 
           <section id="panel-diag" role="tabpanel" aria-labelledby="tab-diag" hidden>
+            <h2>Experiment: empty the hand after the last chunk</h2>
+            <p class="note">
+              When you press Next (Finish) on the last chunk, the helper tries this. TaleSpire cannot tell it
+              what is in your hand, so right-click if a slab is still there. The event log shows TaleSpire's
+              answer.
+            </p>
+            <label for="clear-method">After the last chunk</label>
+            <select id="clear-method"></select>
+            <dl class="facts">
+              <dt>Last try</dt>
+              <dd id="clear-last">not yet</dd>
+            </dl>
+
             <h2>TaleSpire API</h2>
             <dl class="facts">
               <dt>Mode</dt>

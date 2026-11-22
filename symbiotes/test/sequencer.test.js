@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { createContext, runInContext } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { decode } from "../../packages/core/src/slab/index.ts";
+import { decode, decompress, encodeLayoutsRaw } from "../../packages/core/src/slab/index.ts";
 
 const DIR = new URL("../slabyrinth-helper/", import.meta.url);
 
@@ -126,7 +126,8 @@ describe("the chunk flow", () => {
     expect(Seq.progress(s)).toMatchObject({ current: 2, total: 2, placed: 1 });
 
     r = Seq.reduce(s, { type: "next" });
-    expect(r.effect).toBeUndefined();
+    // Finish sends nothing more, but asks the page to try to empty the hand (the last chunk is still a stamp there)
+    expect(r.effect).toEqual({ type: "clearHand" });
     expect(r.state.phase).toBe("done");
     expect(Seq.statusLine(r.state).tone).toBe("done");
     expect(Seq.progress(r.state).placed).toBe(2);
@@ -337,7 +338,7 @@ describe("the now block", () => {
     s = Seq.reduce(s, { type: "next" }).state;
     expect(Seq.guide(s, { keys: KEYS })).toMatchObject({
       tone: "done",
-      title: "Right-click to clear your hand",
+      title: "Trying to clear your hand…",
     });
   });
 
@@ -355,6 +356,75 @@ describe("the now block", () => {
   it("with no map, says whether one can arrive", () => {
     expect(Seq.guide(Seq.initialState(), { linked: true }).title).toBe("Waiting for a map");
     expect(Seq.guide(Seq.initialState(), { linked: false }).title).toBe("No map loaded");
+  });
+});
+
+describe("emptying the hand after the last chunk (experiment)", () => {
+  const finished = () => {
+    let s = loaded();
+    s = Seq.reduce(s, { type: "next" }).state;
+    s = Seq.reduce(s, { type: "sent", index: 0, ok: true }).state;
+    s = Seq.reduce(s, { type: "next" }).state;
+    s = Seq.reduce(s, { type: "sent", index: 1, ok: true }).state;
+    return Seq.reduce(s, { type: "next" }).state;
+  };
+
+  it("the empty slab is a well-formed slab with no assets", () => {
+    expect(Seq.EMPTY_SLAB.startsWith("H4sI")).toBe(true);
+    expect(decode(Seq.EMPTY_SLAB)).toMatchObject({ version: 2, assets: [] });
+    // the same bytes the core encoder writes for zero layouts (header, no layouts, trailer)
+    expect([...decompress(Seq.EMPTY_SLAB).raw]).toEqual([...encodeLayoutsRaw([])]);
+  });
+
+  it("says it is trying, then never claims the hand is clear", () => {
+    const s = finished();
+    expect(s.clear).toEqual({ status: "trying" });
+    expect(Seq.guide(s, {})).toMatchObject({
+      tone: "done",
+      title: "Trying to clear your hand…",
+      detail: "If a slab is still in your hand, right-click. Then delete the two alignment pillars.",
+    });
+    const answered = Seq.reduce(s, { type: "cleared", method: "empty", ok: true }).state;
+    expect(answered.clear).toEqual({ status: "answered", method: "empty", cause: null });
+    expect(Seq.guide(answered, {}).title).toBe("If a slab is still in your hand, right-click");
+    expect(Seq.guide(answered, {}).detail).toMatch(
+      /^The helper tried to clear it by sending an empty slab\./,
+    );
+    const picking = Seq.reduce(s, { type: "cleared", method: "picking", ok: true }).state;
+    expect(Seq.guide(picking, {}).detail).toMatch(/picking tool/);
+    for (const g of [Seq.guide(s, {}), Seq.guide(answered, {}), Seq.guide(picking, {})])
+      expect(`${g.title} ${g.detail}`).not.toMatch(/hand is (clear|empty)|cleared your hand/);
+  });
+
+  it("a refusal or the switch off ends in the plain right-click step", () => {
+    const s = finished();
+    const refused = Seq.reduce(s, {
+      type: "cleared",
+      method: "empty",
+      ok: false,
+      cause: "spawnFailed",
+    }).state;
+    expect(Seq.guide(refused, {})).toMatchObject({ title: "Right-click to clear your hand" });
+    expect(Seq.guide(refused, {}).detail).toMatch(/refused the helper's try \(spawnFailed\)/);
+    const off = Seq.reduce(s, { type: "cleared", method: "off", ok: true }).state;
+    expect(off.clear.status).toBe("off");
+    expect(Seq.guide(off, {})).toMatchObject({
+      title: "Right-click to clear your hand",
+      detail: "Then delete the two alignment pillars.",
+    });
+  });
+
+  it("a late answer after Back changes nothing, and Back forgets the try", () => {
+    const back = Seq.reduce(finished(), { type: "back" }).state;
+    expect(back.clear).toBeNull();
+    expect(Seq.reduce(back, { type: "cleared", method: "empty", ok: true }).state).toBe(back);
+  });
+
+  it("keeps a saved method only when it is a known one; the empty slab is the default", () => {
+    expect(Seq.CLEAR_METHODS.map((m) => m.id)).toEqual(["empty", "picking", "off"]);
+    expect(Seq.pickClearMethod("picking")).toBe("picking");
+    expect(Seq.pickClearMethod("clipboard")).toBe("empty");
+    expect(Seq.pickClearMethod(null)).toBe("empty");
   });
 });
 

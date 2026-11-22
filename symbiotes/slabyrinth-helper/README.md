@@ -100,8 +100,23 @@ the board. The choice is remembered in the panel.
    camera at an empty area and do not move it again.
 5. Press **Ctrl+Alt+D** (Next): chunk 1 goes to your hand. Click one spot (hold the click briefly).
 6. Keep the mouse where it is and press **Ctrl+Alt+D** again: the next chunk goes to your hand. Click the same spot.
-   Repeat until the panel says all chunks are placed, then right-click to clear your hand and delete the two
-   alignment pillars.
+   Repeat until the panel says all chunks are placed, then right-click to clear your hand if a slab is still in it,
+   and delete the two alignment pillars.
+
+The last chunk stays in your hand as a stamp after you place it, so another click would paste it again. The symbiote
+API has no call that clears the hand, so as an **experiment** the helper tries something when you press Next (Finish)
+on the last chunk; choose what under **Developer tools > Diagnostics > After the last chunk**:
+
+- **Send an empty slab to your hand** (the default): a well-formed slab with no assets, which should replace the last
+  chunk with nothing.
+- **Start TaleSpire's picking tool**: switching to that tool may drop the slab; click the board or dismiss the tool
+  to leave it.
+- **Do nothing**: right-click yourself.
+
+The panel then says "Trying to clear your hand…" and, once TaleSpire answers, "If a slab is still in your hand,
+right-click". It never says the hand is empty, because the API cannot see the hand. TaleSpire's answer is in the
+event log and under "Last try". The helper does not touch the clipboard: `sendSlabToHand` does not go through it, so
+emptying it would not empty the hand.
 
 Hotkeys (left hand only, the right stays on the mouse):
 
@@ -195,6 +210,15 @@ Load a larger set (several chunks) and press Ctrl+Alt+D several times quickly.
 Look for: does the status line ever say TaleSpire is limiting the helper for sending too fast? Does any chunk get
 skipped?
 Report: what the status line and the bridge's terminal showed.
+
+### Test K: does the helper empty your hand at the end?
+
+After the last chunk, press the Next hotkey once more (Finish). Is your hand empty? What does the event log say?
+Look for: whether a slab is still under the cursor, and what a click on the board does now. The event log has a
+`clear hand:` line with TaleSpire's answer (also under Diagnostics > Last try).
+Report: hand empty or not, the `clear hand:` lines, and whether a click pasted anything. If the empty slab does
+nothing, switch Diagnostics > After the last chunk to **Start TaleSpire's picking tool**, run the last chunk again
+(Back, then Finish) and report the same.
 
 ### Test D (again): does anything signal a placement?
 

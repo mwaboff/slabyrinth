@@ -316,6 +316,7 @@ function start() {
   el("port").value = String(DEFAULT_PORT);
   bindUi();
   renderDesignPicker();
+  renderClearPicker();
   loadLinkSettings();
   renderLink();
   linkConnect();
@@ -332,7 +333,66 @@ function dispatch(action) {
   const { state: next, effect } = Seq.reduce(state, action);
   state = next;
   render();
-  return effect && effect.type === "send" ? sendChunk(effect.index) : Promise.resolve();
+  if (effect && effect.type === "send") return sendChunk(effect.index);
+  if (effect && effect.type === "clearHand") return clearHand();
+  return Promise.resolve();
+}
+
+// ── experiment: try to empty the hand after the last chunk (Developer tools > Diagnostics) ──
+
+const CLEAR_STORE = "slabyrinth-helper.clearHand";
+let clearMethod = loadClearMethod();
+
+function loadClearMethod() {
+  try {
+    return Seq.pickClearMethod(window.localStorage.getItem(CLEAR_STORE));
+  } catch {
+    return Seq.pickClearMethod(null);
+  }
+}
+
+function saveClearMethod(id) {
+  clearMethod = Seq.pickClearMethod(id);
+  try {
+    window.localStorage.setItem(CLEAR_STORE, clearMethod);
+  } catch {
+    // not remembered; used until the panel reloads
+  }
+}
+
+async function clearHand() {
+  const method = clearMethod;
+  let r = { ok: true, cause: null };
+  if (method === "empty") {
+    logEvent("helper", "clear hand: sendSlabToHand (empty slab)", { slab: Seq.EMPTY_SLAB }, true);
+    r = await call("slabs.sendSlabToHand", Seq.EMPTY_SLAB);
+  } else if (method === "picking") {
+    logEvent("helper", "clear hand: picking.startPicking", null, true);
+    r = await call("picking.startPicking");
+  }
+  const said =
+    method === "off"
+      ? "not tried (switched off)"
+      : r.ok
+        ? `answered without an error`
+        : `refused: ${r.cause}`;
+  if (method !== "off") logEvent("helper", `clear hand: ${said}`, r.ok ? r.value : r.raw, true);
+  setText("clear-last", `${stamp()}: ${method}, ${said}`);
+  await dispatch({ type: "cleared", method, ok: r.ok, cause: r.cause });
+}
+
+function renderClearPicker() {
+  const select = el("clear-method");
+  if (!select) return;
+  select.replaceChildren(
+    ...Seq.CLEAR_METHODS.map((m) => {
+      const o = document.createElement("option");
+      o.value = m.id;
+      o.textContent = m.name;
+      return o;
+    }),
+  );
+  select.value = clearMethod;
 }
 
 async function sendChunk(index) {
@@ -864,6 +924,7 @@ function bindUi() {
     });
   }
   el("hk-reset").addEventListener("click", resetHotkeys);
+  el("clear-method").addEventListener("change", () => saveClearMethod(el("clear-method").value));
   el("link-on").addEventListener("change", () => {
     link.on = el("link-on").checked;
     saveLinkSettings();

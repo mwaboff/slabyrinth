@@ -135,13 +135,18 @@
     return 'TaleSpire reported "' + String(cause || "unknown error") + '". Note this message';
   }
 
+  /**
+   * `clear` is the experiment run after the last chunk (see CLEAR_METHODS): null before the end, then
+   * { status: "trying" | "answered" | "refused" | "off", method, cause }. "answered" means only that TaleSpire took
+   * the call without an error; the API cannot say what is in the GM's hand, so nothing ever claims the hand is empty.
+   */
   function initialState() {
-    return { set: null, index: 0, phase: "empty", cause: null, sentCount: 0 };
+    return { set: null, index: 0, phase: "empty", cause: null, sentCount: 0, clear: null };
   }
 
   function sendFrom(state, index) {
     return {
-      state: Object.assign({}, state, { index: index, phase: "sending", cause: null }),
+      state: Object.assign({}, state, { index: index, phase: "sending", cause: null, clear: null }),
       effect: { type: "send", index: index },
     };
   }
@@ -149,13 +154,16 @@
   /**
    * Phases: "empty" (nothing loaded), "ready" (current chunk not sent yet), "sending", "inHand" (TaleSpire accepted
    * it), "failed" (TaleSpire refused it; `cause` says why), "done" (the GM pressed Next on the last chunk).
-   * Actions: load {set}, send, next, back, sent {index, ok, cause}, unload.
+   * Actions: load {set}, send, next, back, sent {index, ok, cause}, cleared {method, ok, cause}, unload.
+   * Next on the last chunk also asks the page to try to empty the hand (effect `clearHand`).
    */
   function reduce(state, action) {
     var total = state.set ? state.set.chunks.length : 0;
     switch (action.type) {
       case "load":
-        return { state: { set: action.set, index: 0, phase: "ready", cause: null, sentCount: 0 } };
+        return {
+          state: { set: action.set, index: 0, phase: "ready", cause: null, sentCount: 0, clear: null },
+        };
       case "unload":
         return { state: initialState() };
       case "send":
@@ -166,7 +174,10 @@
         // nothing in hand yet: Next puts the current chunk there (so one key drives the whole flow)
         if (state.phase === "ready") return sendFrom(state, state.index);
         if (state.index + 1 >= total)
-          return { state: Object.assign({}, state, { phase: "done", cause: null }) };
+          return {
+            state: Object.assign({}, state, { phase: "done", cause: null, clear: { status: "trying" } }),
+            effect: { type: "clearHand" },
+          };
         return sendFrom(state, state.index + 1);
       case "back":
         if (!state.set || state.phase === "sending") return { state: state };
@@ -181,6 +192,19 @@
             state: Object.assign({}, state, { phase: "inHand", cause: null, sentCount: state.sentCount + 1 }),
           };
         return { state: Object.assign({}, state, { phase: "failed", cause: action.cause || "unknown" }) };
+      case "cleared":
+        // the answer to the clear-hand try; ignored once the GM has gone back to a chunk
+        if (state.phase !== "done" || !state.clear || state.clear.status !== "trying")
+          return { state: state };
+        return {
+          state: Object.assign({}, state, {
+            clear: {
+              status: action.method === "off" ? "off" : action.ok ? "answered" : "refused",
+              method: action.method,
+              cause: action.ok ? null : action.cause || null,
+            },
+          }),
+        };
       default:
         return { state: state };
     }
@@ -316,13 +340,33 @@
           title: "Chunk " + n + " didn't reach your hand",
           detail: cap(explainCause(state.cause)) + ", then " + press("again") + ".",
         };
-      case "done":
-        return {
-          tone: "done",
-          step: "All chunks placed",
-          title: "Right-click to clear your hand",
-          detail: "Then delete the two alignment pillars.",
-        };
+      case "done": {
+        // never "your hand is clear": the API cannot see the hand, so every wording leaves the right-click to the GM
+        var pillars = "Then delete the two alignment pillars.";
+        var cl = state.clear;
+        var done = { tone: "done", step: "All chunks placed" };
+        if (cl && cl.status === "trying")
+          return Object.assign(done, {
+            title: "Trying to clear your hand…",
+            detail: "If a slab is still in your hand, right-click. " + pillars,
+          });
+        if (cl && cl.status === "answered")
+          return Object.assign(done, {
+            title: "If a slab is still in your hand, right-click",
+            detail:
+              (cl.method === "picking"
+                ? "The helper started TaleSpire's picking tool to drop it; if that tool is showing, click the board" +
+                  " or dismiss it. "
+                : "The helper tried to clear it by sending an empty slab. ") + pillars,
+          });
+        if (cl && cl.status === "refused")
+          return Object.assign(done, {
+            title: "Right-click to clear your hand",
+            detail:
+              "TaleSpire refused the helper's try (" + (cl.cause || "no reason given") + "). " + pillars,
+          });
+        return Object.assign(done, { title: "Right-click to clear your hand", detail: pillars });
+      }
       default:
         return { tone: "idle", step: "", title: "No map loaded", detail: "" };
     }
@@ -669,6 +713,27 @@
     },
   ];
 
+  // ── experiment: empty the hand after the last chunk ──
+  // The API has no call that clears the hand or the tool. Two documented calls might displace the last chunk: sending
+  // a slab with no assets (a well-formed v2 slab: header with zero layouts and the trailer), or starting the picking
+  // tool (its failure state "couldNotSwitchToTool" says it switches tool). Which works, if either, is for Test K.
+
+  /** gzip (level 9, mtime 0) of u32 0xD1CEFACE · u16 2 · u16 0 layouts · u16 0 creatures · u16 0 trailer, base64. */
+  var EMPTY_SLAB = "H4sIAAAAAAACAzv369xFJgYIAACcngOODAAAAA==";
+
+  // the first is the default
+  var CLEAR_METHODS = [
+    { id: "empty", name: "Send an empty slab to your hand" },
+    { id: "picking", name: "Start TaleSpire's picking tool" },
+    { id: "off", name: "Do nothing (right-click yourself)" },
+  ];
+
+  /** The clear-hand method to use: a saved id when it is one of CLEAR_METHODS, else the first. */
+  function pickClearMethod(saved) {
+    for (var i = 0; i < CLEAR_METHODS.length; i++) if (CLEAR_METHODS[i].id === saved) return saved;
+    return CLEAR_METHODS[0].id;
+  }
+
   /** The design to show: a saved id when it is one of DESIGNS, else the first. */
   function pickDesign(saved) {
     for (var i = 0; i < DESIGNS.length; i++) if (DESIGNS[i].id === saved) return saved;
@@ -676,6 +741,9 @@
   }
 
   root.SlabyrinthSequencer = {
+    EMPTY_SLAB: EMPTY_SLAB,
+    CLEAR_METHODS: CLEAR_METHODS,
+    pickClearMethod: pickClearMethod,
     DESIGNS: DESIGNS,
     pickDesign: pickDesign,
     mapInfo: mapInfo,

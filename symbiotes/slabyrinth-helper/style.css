@@ -289,6 +289,16 @@ input[type="number"] {
 textarea {
   resize: vertical;
 }
+select {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 5px 8px;
+  max-width: 100%;
+}
 
 code,
 kbd {
