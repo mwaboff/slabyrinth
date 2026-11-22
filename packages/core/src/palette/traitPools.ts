@@ -7,7 +7,9 @@
  *   - shape: the piece passes `traitFilter(query)` (palette/filters.ts over palette/traits.ts);
  *   - chain: the palettes of the theme's chain (itself, its `extends`, then `generic`) are asked in order and the first
  *     with any piece of the shape supplies the whole pool, so a theme's own pieces win and generic is the last resort,
- *     the same order a role falls back in. Pieces are never mixed across palettes in one pool;
+ *     the same order a role falls back in (`stopAt: "theme"` stops before generic). Pieces are never mixed across
+ *     palettes in one pool;
+ *   - families: a query may name the role families that lend (structure from structure);
  *   - roles: a palette's own roles, those the generator sees (`minGenerator`), aliases (no variants) skipped;
  *   - availability: a variant the game lacks is replaced by its alternate or skipped, as in role resolution;
  *   - borrow risk: a piece any role of the chain lists as a door, stairs, light, GM-only or marker piece is left out,
@@ -23,7 +25,14 @@ import type { ThemeId } from "../contracts/plan";
 import { hashUnit } from "../util/hash";
 import { own } from "../util/own";
 import { traitFilter } from "./filters";
-import { themeChain, usableVariants, type ResolvedVariant, type ResolvePalettes } from "./resolve";
+import {
+  GENERIC_THEME,
+  themeChain,
+  usableVariants,
+  type ResolvedVariant,
+  type ResolvePalettes,
+} from "./resolve";
+import { roleFamily } from "./roles";
 import {
   borrowRisk,
   measurePiece,
@@ -36,6 +45,16 @@ import {
 /** A shape to pool, and which borrow risks the caller accepts (none by default). */
 export interface TraitQuery extends TraitShape {
   readonly allow?: readonly BorrowRisk[];
+  /**
+   * "theme": only the theme's own palettes lend pieces (itself and its `extends`, never generic unless the theme is
+   * generic): a visible trim is better left out than borrowed from another kit. Default: the whole chain.
+   */
+  readonly stopAt?: "theme";
+  /**
+   * Only roles of these families lend pieces (palette/roles.ts `roleFamily`): structure borrows from structure
+   * (walls, posts, floors), never from furniture of the right shape. Default: every family.
+   */
+  readonly families?: readonly string[];
 }
 
 /** One piece of a pool. */
@@ -57,10 +76,16 @@ export interface TraitPool {
   readonly pieces: readonly TraitPiece[];
 }
 
-/** The memo key of a query: its shape key and its allowed risks in name order. */
+/** The memo key of a query: its shape key, its allowed risks, families and stop, each only when given. */
 export function traitQueryKey(query: TraitQuery): string {
   const allow = [...new Set(query.allow ?? [])].sort();
-  return allow.length > 0 ? `${shapeKey(query)}+allow:${allow.join(",")}` : shapeKey(query);
+  const families = [...new Set(query.families ?? [])].sort();
+  return (
+    shapeKey(query) +
+    (allow.length > 0 ? `+allow:${allow.join(",")}` : "") +
+    (families.length > 0 ? `+families:${families.join(",")}` : "") +
+    (query.stopAt !== undefined ? `+stop:${query.stopAt}` : "")
+  );
 }
 
 const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -76,7 +101,10 @@ export function traitPool(
   generator?: number,
 ): TraitPool {
   const key = traitQueryKey(query);
-  const chain = themeChain(cat.palettes, theme);
+  const whole = themeChain(cat.palettes, theme);
+  const chain =
+    query.stopAt === "theme" && theme !== GENERIC_THEME ? whole.filter((id) => id !== GENERIC_THEME) : whole;
+  const families = query.families !== undefined ? new Set(query.families) : null;
   const visibleRoles = (id: ThemeId): [RoleName, PaletteRole][] => {
     const roles = own(cat.palettes, id)?.roles;
     return Object.keys(roles ?? {})
@@ -109,6 +137,7 @@ export function traitPool(
     path.push(id);
     const pieces = new Map<string, { variant: ResolvedVariant; roles: RoleName[] }>();
     for (const [role, def] of visibleRoles(id)) {
+      if (families !== null && !families.has(roleFamily(role))) continue;
       for (const v of usableVariants(def, role, cat, [])) {
         if (v.parts !== undefined || risky.has(v.uuid) || risky.has(v.wanted) || !fits.test(v)) continue;
         const seen = pieces.get(v.uuid);

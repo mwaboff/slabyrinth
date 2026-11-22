@@ -5,7 +5,9 @@
  * its own height; stored by the anchor rule of its kind (compile/geometry.ts `storedPosition`: a tile at the min corner
  * of its turned footprint, a prop at its origin); quantised as the slab encoder stores it (0.01 tile on each axis, 15°
  * turns), so the box verify measures is the one TaleSpire gets. Every piece of an instance carries the instance's id as
- * its element, so verify treats the instance as one element (its pieces may overlap).
+ * its element, so verify treats the instance as one element (its pieces may overlap). A wall-mounted instance (`mount`)
+ * is built as wall structure (role wall_post: held by its wall, never judged as a prop standing on a floor), in its
+ * paste layer.
  *
  * A piece is placed by its collider in its own axes: the variant's correction `rot` and `offset` (role conventions for
  * placing it by role) do not apply.
@@ -29,6 +31,8 @@ export function layArrangements(lv: RealizeLevel): void {
   const { L, emit } = lv;
   const { frame, orientation } = lv.ctx;
   for (const inst of L.arrangements ?? []) {
+    // a wall-mounted instance (a post, a band) is wall structure, held by the wall; any other stands as a prop
+    const role = inst.mount === "wall" ? "wall_post" : "feature";
     for (const piece of inst.pieces) {
       const v = pieceVariant(lv, inst, piece);
       if (!v) continue;
@@ -36,10 +40,16 @@ export function layArrangements(lv: RealizeLevel): void {
       const c = frame.point(px, py);
       const deg = snapYaw(frame.planDegreesToWorld(inst.turn + piece.yaw));
       const pos = storedPosition(v.geom, c.x, inst.base + piece.y, c.z, deg * orientation.rotSense);
-      emit({ ...v, offset: NO_OFFSET }, "feature", quantise(pos.x), quantise(pos.y), quantise(pos.z), deg, {
-        cell: [Math.floor(px), Math.floor(py)],
-        elementId: inst.id,
-      });
+      emit(
+        { ...v, offset: NO_OFFSET },
+        role,
+        quantise(pos.x),
+        quantise(pos.y),
+        quantise(pos.z),
+        deg,
+        { cell: [Math.floor(px), Math.floor(py)], elementId: inst.id },
+        inst.layer,
+      );
     }
   }
 }

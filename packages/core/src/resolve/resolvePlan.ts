@@ -9,7 +9,8 @@ import type { ResolvedLink, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { canonicalJson } from "../util/canonical";
 import { h64hex } from "../util/hash";
-import { runPhase1, runPhase2 } from "./level";
+import { runDetail, runPhase1, runPhase2 } from "./level";
+import { detailBudgets } from "./recipes/budget";
 import { linkFloorOpenings } from "./level/floorOpenings";
 import type { ResolveGrid } from "./level/grid";
 import { toResolved } from "./level/output";
@@ -72,10 +73,17 @@ export function resolvePlan(
   linkFloorOpenings(works);
   for (const w of works) runPhase2(w);
 
-  const levels = works
-    .map((w, i) => ({ r: toResolved(w), i }))
-    .sort((a, b) => a.r.elevation - b.r.elevation || a.i - b.i)
-    .map((x) => x.r);
+  const finished = works.map((w, i) => ({ r: toResolved(w), i }));
+  // step 11: detail recipes, each level within its share of the map's detail budget
+  const budgets = detailBudgets(
+    finished.map((x) => x.r),
+    profile.detailBudget,
+  );
+  for (const { r, i } of finished) {
+    const w = works[i];
+    if (w) runDetail(w, r, budgets.get(r.id) ?? 0);
+  }
+  const levels = finished.sort((a, b) => a.r.elevation - b.r.elevation || a.i - b.i).map((x) => x.r);
 
   const keep = opts.levels ? new Set(opts.levels) : null;
   const out: ResolvedPlan = {

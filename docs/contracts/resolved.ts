@@ -449,6 +449,13 @@ export interface ResolvedArrangement {
   /** Whether its pieces block the way, as a blocking feature's do. */
   blocking: boolean;
   pieces: ResolvedArrangementPiece[];
+  /**
+   * Generator 5, detail recipes: "wall" when the pieces are fastened to a wall (posts, bands, trims): they are built as
+   * wall structure (placement role wall_post), held by the wall, not standing on a floor. Absent: loose pieces.
+   */
+  mount?: "wall";
+  /** Generator 5: the paste layer of its pieces (a building's "storey:<n>"); absent = the site. */
+  layer?: string;
 }
 
 export interface ResolvedArrangementPiece {

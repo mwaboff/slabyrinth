@@ -27,6 +27,9 @@ import type { Side, ThemeId, Material } from "../contracts/plan";
 import { CELL, CELL_FLAG, EDGE, type EdgeGrid, type ResolvedLevel } from "../contracts/resolved";
 import { GENERIC_THEME } from "../palette/resolve";
 
+/** A cell whose unhosted part is narrower than this (either way) has no free centre (`LevelGrid.freeCentre`). */
+export const MIN_FREE_SPAN = 0.2;
+
 /** A grid's size in cells (a ResolvedLevel's `bounds`, a ResolveGrid). */
 export interface GridSize {
   readonly w: number;
@@ -271,6 +274,35 @@ export class LevelGrid implements GridSize {
       area: c.area[i] ?? 0,
       flags,
     };
+  }
+
+  /**
+   * The centre (plan coordinates) of the part of cell (x, y) no wall or door strip stands in, or null when less than
+   * `minSpan` is left either way: the point the 2D map's open floor is judged at (verify's open-floor check, the recipe
+   * engine's keep-clear rule).
+   */
+  freeCentre(x: number, y: number, minSpan: number = MIN_FREE_SPAN): [number, number] | null {
+    let x0 = x,
+      x1 = x + 1,
+      y0 = y,
+      y1 = y + 1;
+    if (this.hostedOn(x, y, "W")) x0 += 0.5;
+    if (this.hostedOn(x, y, "E")) x1 -= 0.5;
+    if (this.hostedOn(x, y, "N")) y0 += 0.5;
+    if (this.hostedOn(x, y, "S")) y1 -= 0.5;
+    if (x1 - x0 < minSpan || y1 - y0 < minSpan) return null;
+    // an outer corner of a building diagonal to this cell (walls on both neighbours, hosted on this side) carries a
+    // corner post in this cell's corner quarter: when that quarter is all that is left free, the cell is not open floor
+    const quarter = (qx: number, qy: number): boolean =>
+      x0 >= qx - 0.01 && x1 <= qx + 0.51 && y0 >= qy - 0.01 && y1 <= qy + 0.51;
+    if (
+      (quarter(x + 0.5, y + 0.5) && this.hostedOn(x + 1, y, "S") && this.hostedOn(x, y + 1, "E")) ||
+      (quarter(x, y + 0.5) && this.hostedOn(x - 1, y, "S") && this.hostedOn(x, y + 1, "W")) ||
+      (quarter(x + 0.5, y) && this.hostedOn(x + 1, y, "N") && this.hostedOn(x, y - 1, "E")) ||
+      (quarter(x, y) && this.hostedOn(x - 1, y, "N") && this.hostedOn(x, y - 1, "W"))
+    )
+      return null;
+    return [(x0 + x1) / 2, (y0 + y1) / 2];
   }
 
   /** Absolute walkable floor top of (x, y): elevation + floor thickness (0.5) + the cell's height. */

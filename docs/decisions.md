@@ -258,3 +258,4 @@ Not implemented yet:
   2617 tiles in x or z; `compile_preview` validating the plan before estimating.
 - Estimates near the 30,720-byte slab limit may over-count by one slab (worded
   "about N").
+| 2026-11-22 | Generator 5 detail recipes fasten posts, bands and trims to walls, and a building's pieces paste with its storeys (lead approved additive resolved-contract changes for generator 5) | Additive `ResolvedArrangement.mount?: "wall"` (the pieces are built as wall structure, placement role `wall_post`: held by their wall, never judged as props standing on a floor) and `ResolvedArrangement.layer?: string` (the paste layer of its pieces, a building's `storey:<n>`), docs/contracts/resolved.ts and its copy. Absent for every released generator and for loose arrangements, so no saved file, IPC message or released build changes. |

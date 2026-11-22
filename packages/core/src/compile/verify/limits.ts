@@ -11,8 +11,8 @@ export const STEP = 0.5;
 /** The step of a placement's rotation (degrees): TaleSpire's, from the slab codec. */
 export { ROTATION_STEP } from "../../slab/codec";
 
-/** A cell whose unhosted part is narrower than this (either way) has no free centre to test. */
-export const MIN_FREE_SPAN = 0.2;
+/** A cell whose unhosted part is narrower than this (either way) has no free centre to test (resolve/levelGrid.ts). */
+export { MIN_FREE_SPAN } from "../../resolve/levelGrid";
 
 /** Walls: the wall pieces are sampled this far inside the wall's span (above its base, below its top). */
 export const WALL_SAMPLE_INSET = 0.1;

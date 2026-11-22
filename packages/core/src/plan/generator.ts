@@ -324,6 +324,18 @@ const SWITCHES = {
     5,
     "Arrangement instances a resolve stage attaches (ResolvedLevel.arrangements: palette pieces composed by the arrange/ operators) are built, one element each (compile/realize/arrangements.ts).",
   ),
+  jambPosts: on(
+    5,
+    "Detail recipe: a slender post at each jamb of a door or window on a seen wall, storey high, in the wall style's own post (resolve/recipes/walls.ts).",
+  ),
+  cornerPosts: on(
+    5,
+    "Detail recipe: a slender post standing at each outer corner of a seen wall, where the theme has one (resolve/recipes/walls.ts).",
+  ),
+  bandCourses: on(
+    5,
+    "Detail recipe: a band course along every floor line of a building's outside (and its foot when it has no footing), a thin beam of the theme or the storey's own floor slab showing (resolve/recipes/walls.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */
@@ -343,12 +355,31 @@ export interface OpeningOutlineTuning {
   readonly lobeCut: number;
 }
 
+/**
+ * The detail budget (plan §5): detail pieces per footprint tile by what the tile is (a room or corridor, a built
+ * exterior: building footprints, courtyards and bridges, natural ground), and the ceiling of a whole map; a level's own
+ * ceiling is ARRANGE_LIMITS.piecesPerLevel. Read by resolve/recipes/budget.ts only.
+ */
+export interface DetailBudgetTuning {
+  readonly interior: number;
+  readonly builtExterior: number;
+  readonly natural: number;
+  readonly perMap: number;
+}
+
 /** Numbers a generator sets. Each tuning starts with a step for generator 1; a later step replaces it from there on. */
 const TUNINGS = {
   openingOutline: [
     { since: 1, value: { grain: 1.6, cut: 0.3, keepShare: 0.55, lobeCut: 0.74 } },
     // deeper bites at a coarser grain, so the outline reads as broken rather than as a nibbled rectangle
     { since: 4, value: { grain: 2.2, cut: 0.36, keepShare: 0.45, lobeCut: 0.6 } },
+  ],
+  // (only detail recipes read it, and they start in generator 5)
+  detailBudget: [
+    {
+      since: 1,
+      value: { interior: 3, builtExterior: 2, natural: 1.5, perMap: 24000 } satisfies DetailBudgetTuning,
+    },
   ],
 } as const satisfies Record<string, readonly [TuningStep<unknown>, ...TuningStep<unknown>[]]>;
 

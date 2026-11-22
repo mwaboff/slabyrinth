@@ -26,6 +26,10 @@ export interface InstanceSpec {
   readonly blocking?: boolean;
   /** Names the thinning draw when the arrangement is over `ARRANGE_LIMITS.piecesPerInstance` (default: the id). */
   readonly seed?: string | number;
+  /** Fastened to a wall (posts, bands, trims): built as wall structure, held by the wall. Default: loose. */
+  readonly mount?: "wall";
+  /** Paste layer of its pieces (a building's "storey:<n>"). */
+  readonly layer?: string;
 }
 
 /** The plan point of a local point (x, z) of an instance at `at` turned `turn`. */
@@ -62,6 +66,8 @@ export function toInstance(a: Arrangement, spec: InstanceSpec): ResolvedArrangem
     cells: coveredCells(kept, spec.anchor.at, turn),
     blocking: spec.blocking ?? true,
     pieces,
+    ...(spec.mount !== undefined ? { mount: spec.mount } : {}),
+    ...(spec.layer !== undefined ? { layer: spec.layer } : {}),
   };
 }
 
