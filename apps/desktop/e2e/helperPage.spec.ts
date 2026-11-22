@@ -151,7 +151,7 @@ test("pairs with the app, places a sent map by hotkeys and buttons, finishes, st
   // the app sends the build: the panel shows it and asks for the build plane; the hotkeys are held
   link.load(SET, "build-1");
   await expect(page.locator("#map-name")).toHaveText("Two halves");
-  await expect(page.locator("#map-meta")).toHaveText("2 chunks · 20 × 10 cells · 1 level");
+  await expect(page.locator("#map-meta")).toHaveText("2 slabs · 20 × 10 cells · 1 level");
   await expect(title()).toHaveText("Press G to raise the build plane");
   await expect.poll(() => link.status().send.state).toBe("loaded");
   await expect.poll(() => registered.size).toBe(3);
@@ -161,16 +161,16 @@ test("pairs with the app, places a sent map by hotkeys and buttons, finishes, st
   press("Control+Alt+D");
   await expect(title()).toHaveText("Click one spot to place it");
   press("Control+Alt+D");
-  await expect(page.locator("#now-step")).toHaveText("Chunk 2 of 2 in hand");
+  await expect(page.locator("#now-step")).toHaveText("Slab 2 of 2 in hand");
   press("Control+Alt+A");
-  await expect(page.locator("#now-step")).toHaveText("Chunk 1 of 2 in hand");
+  await expect(page.locator("#now-step")).toHaveText("Slab 1 of 2 in hand");
   press("Control+Alt+S");
   await expect.poll(handCount).toBe(4);
   await expect.poll(() => link.status().set?.chunk).toBe(1);
 
   // the panel's own buttons, to the end: the picking tool takes the hand, the app sees it finished
   await page.locator("#btn-next").click();
-  await expect(page.locator("#now-step")).toHaveText("Chunk 2 of 2 in hand");
+  await expect(page.locator("#now-step")).toHaveText("Slab 2 of 2 in hand");
   await expect(page.locator("#btn-next .ctl-label")).toHaveText("Finish");
   await page.locator("#btn-next").click();
   await expect(title()).toHaveText("Switched to the picking tool");
@@ -224,7 +224,7 @@ test("a map pasted from beside it: the panel says where to click and which pilla
   );
   await page.screenshot({ path: path.join(shots, "addon-panel-anchor-chunk1.png"), animations: "disabled" });
   await page.locator("#btn-next").click();
-  await expect(page.locator("#now-step")).toHaveText("Chunk 2 of 2 in hand");
+  await expect(page.locator("#now-step")).toHaveText("Slab 2 of 2 in hand");
   await page.locator("#btn-next").click();
   await expect(page.locator("#now-detail")).toContainText(
     "one just past the map's north-east corner, and one about 31 cells south of the map.",
