@@ -495,63 +495,63 @@ plans/heartroot-rift-v7 review cliff_unclad 1
 plans/heartroot-rift-v7 review cliff_unclad_low 1
 plans/heartroot-rift-v7 review competing_focals 1
 plans/heartroot-rift-v7 review flat_map 1
-plans/heartroot-rift-v7@4 l1 pieces feature 300
-plans/heartroot-rift-v7@4 l1 pieces fill 475
-plans/heartroot-rift-v7@4 l1 pieces floor 492
-plans/heartroot-rift-v7@4 l1 pieces ledge 56
-plans/heartroot-rift-v7@4 l1 pieces wall 504
-plans/heartroot-rift-v7@4 l1 layer site 1827
+plans/heartroot-rift-v7@4 l1 pieces feature 320
+plans/heartroot-rift-v7@4 l1 pieces fill 463
+plans/heartroot-rift-v7@4 l1 pieces floor 490
+plans/heartroot-rift-v7@4 l1 pieces ledge 59
+plans/heartroot-rift-v7@4 l1 pieces wall 511
+plans/heartroot-rift-v7@4 l1 layer site 1843
 plans/heartroot-rift-v7@4 l1 part floor:floor.bridge_wood 2
 plans/heartroot-rift-v7@4 l1 part floor:floor.flagstone 9
-plans/heartroot-rift-v7@4 l1 part floor:floor.lava 46
-plans/heartroot-rift-v7@4 l1 part floor:floor.rock 435
+plans/heartroot-rift-v7@4 l1 part floor:floor.lava 45
+plans/heartroot-rift-v7@4 l1 part floor:floor.rock 434
 plans/heartroot-rift-v7@4 l1 part rift~b1#rubble0 1
 plans/heartroot-rift-v7@4 l1 part rift~b1#rubble1 1
-plans/heartroot-rift-v7@4 l1 feature accent_light 5
+plans/heartroot-rift-v7@4 l1 feature accent_light 3
 plans/heartroot-rift-v7@4 l1 feature altar 1
 plans/heartroot-rift-v7@4 l1 feature brazier 2
 plans/heartroot-rift-v7@4 l1 feature candles 7
 plans/heartroot-rift-v7@4 l1 feature chest 1
-plans/heartroot-rift-v7@4 l1 feature cluster_tall 33
+plans/heartroot-rift-v7@4 l1 feature cluster_tall 34
 plans/heartroot-rift-v7@4 l1 feature dead_tree 2
-plans/heartroot-rift-v7@4 l1 feature debris 3
+plans/heartroot-rift-v7@4 l1 feature debris 6
 plans/heartroot-rift-v7@4 l1 feature edge_dressing 6
 plans/heartroot-rift-v7@4 l1 feature fire_pit 1
-plans/heartroot-rift-v7@4 l1 feature formation 6
-plans/heartroot-rift-v7@4 l1 feature ground_cover 42
+plans/heartroot-rift-v7@4 l1 feature formation 9
+plans/heartroot-rift-v7@4 l1 feature ground_cover 55
 plans/heartroot-rift-v7@4 l1 feature landmark 1
 plans/heartroot-rift-v7@4 l1 feature lantern 1
-plans/heartroot-rift-v7@4 l1 feature log 3
+plans/heartroot-rift-v7@4 l1 feature log 2
 plans/heartroot-rift-v7@4 l1 feature magic_fire 1
 plans/heartroot-rift-v7@4 l1 feature monolith 4
 plans/heartroot-rift-v7@4 l1 feature pillar 2
-plans/heartroot-rift-v7@4 l1 feature rock 1
+plans/heartroot-rift-v7@4 l1 feature rock 3
 plans/heartroot-rift-v7@4 l1 feature root 28
 plans/heartroot-rift-v7@4 l1 feature root_large 5
-plans/heartroot-rift-v7@4 l1 feature roots_wall 7
-plans/heartroot-rift-v7@4 l1 feature rubble 4
+plans/heartroot-rift-v7@4 l1 feature roots_wall 10
+plans/heartroot-rift-v7@4 l1 feature rubble 5
 plans/heartroot-rift-v7@4 l1 feature sack 2
-plans/heartroot-rift-v7@4 l1 feature small_detail 23
+plans/heartroot-rift-v7@4 l1 feature small_detail 25
 plans/heartroot-rift-v7@4 l1 feature spawn_point 5
 plans/heartroot-rift-v7@4 l1 feature standing_stone 4
 plans/heartroot-rift-v7@4 l1 feature statue_large 1
-plans/heartroot-rift-v7@4 l1 feature stump 6
+plans/heartroot-rift-v7@4 l1 feature stump 4
 plans/heartroot-rift-v7@4 l1 feature torch_floor 2
 plans/heartroot-rift-v7@4 l1 feature torch_wall 18
 plans/heartroot-rift-v7@4 l1 feature tree_large 1
-plans/heartroot-rift-v7@4 l1 feature undergrowth 41
-plans/heartroot-rift-v7@4 l1 feature vines 6
+plans/heartroot-rift-v7@4 l1 feature undergrowth 39
+plans/heartroot-rift-v7@4 l1 feature vines 8
 plans/heartroot-rift-v7@4 l1 feature wall_dressing 1
-plans/heartroot-rift-v7@4 diag info footprint_mismatch 11
+plans/heartroot-rift-v7@4 diag info footprint_mismatch 10
 plans/heartroot-rift-v7@4 diag info landmark_short 1
 plans/heartroot-rift-v7@4 diag info verify_props_overlap 1
 plans/heartroot-rift-v7@4 diag warning verify_prop_floating 2
-plans/heartroot-rift-v7@4 review cave_mass_gaps 1
 plans/heartroot-rift-v7@4 review cave_rock_uncovered 1
-plans/heartroot-rift-v7@4 review cave_wall_thin 1
 plans/heartroot-rift-v7@4 review cliff_unclad 1
 plans/heartroot-rift-v7@4 review cliff_unclad_low 1
 plans/heartroot-rift-v7@4 review competing_focals 1
+plans/heartroot-rift-v7@4 review flat_map 1
+plans/heartroot-rift-v7@4 review rows_or_even_scatter 1
 plans/inn-interior-v1 l1 pieces feature 335
 plans/inn-interior-v1 l1 pieces fill 54
 plans/inn-interior-v1 l1 pieces floor 222

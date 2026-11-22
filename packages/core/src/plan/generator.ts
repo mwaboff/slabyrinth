@@ -293,6 +293,10 @@ const SWITCHES = {
     4,
     "An enclosure's gateway is filled with the longest gate pieces that fit, end to end, as a wide door is; a span no piece fits stays open with a note that says so (compile/realize/structures/enclosures.ts).",
   ),
+  channelFloorWhole: on(
+    4,
+    "A chasm's part-way shelves never split its floor (lava, water, the pit) into pieces that touch only at a corner: a rift or river stays one edge-connected body at its narrowest (resolve/level/chasms.ts wholeFloorShelves).",
+  ),
   lightsOffLandmarks: on(
     4,
     "The floor light that lights a landmark stands clear of the landmark's real outline (a tree's crown is wider than its footprint), never inside it (gen/setpieces.ts lightLandmarks).",

@@ -7,7 +7,7 @@ plans/example-a@4 gen=4 resolved=520c73074bd55344 assets=966 diag=0e/0w/9i slab=
 plans/example-b gen=1 resolved=41a5f54f8d0bdc97 assets=1534 diag=0e/0w/8i slab=867f22918fe7269e diagnostics=5dca1eaf3b5e9726 review=dbf4c073efd27263 reviewNoBuild=dbf4c073efd27263
 plans/example-b@4 gen=4 resolved=8deb320fb138a58b assets=1065 diag=0e/0w/9i slab=15dad90ae39dc06f diagnostics=9f751c89f243ea74 review=dc90ecc834be9df1 reviewNoBuild=dc90ecc834be9df1
 plans/heartroot-rift-v7 gen=3 resolved=40c66133bade6eb1 assets=1954 diag=0e/2w/12i slab=6d984741759f8a5e diagnostics=d714677e7ee77aad review=316583868c761ee9 reviewNoBuild=2c4358fbf273ffc2
-plans/heartroot-rift-v7@4 gen=4 resolved=b46dc5503157d802 assets=1827 diag=0e/2w/13i slab=203ed05139decf99 diagnostics=129d81d300403726 review=8b79958b4b959b34 reviewNoBuild=8b79958b4b959b34
+plans/heartroot-rift-v7@4 gen=4 resolved=9bb4f7a1042ce44c assets=1843 diag=0e/2w/12i slab=0b61f1996ecf5909 diagnostics=47117223d71fe733 review=4ba3434d9cffa477 reviewNoBuild=4ba3434d9cffa477
 plans/inn-interior-v1 gen=4 resolved=6c671838602667c7 assets=811 diag=0e/0w/17i slab=1c739a390b8cbbb7 diagnostics=bca22cf4bbe1da45 review=940cc043acf6b733 reviewNoBuild=940cc043acf6b733
 plans/keep-dungeon-v8 gen=4 resolved=55dbe574b13237a2 assets=1684 diag=0e/0w/14i slab=81bb177ad88d5f63 diagnostics=a51050fd4139cfe4 review=3f5f520b20b4b65b reviewNoBuild=3f5f520b20b4b65b
 plans/l-corridor-route gen=1 resolved=d8bf19c6a822187b assets=99 diag=0e/0w/1i slab=4bbff8db71921d1a diagnostics=6746ac58a9ee7a1b review=a974c347d668745f reviewNoBuild=a974c347d668745f

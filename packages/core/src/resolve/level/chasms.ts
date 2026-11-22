@@ -151,6 +151,17 @@ export function applyChasm(
       return i >= 0 && work.state[i] === CELL.OPEN ? (work.height[i] as number) : null;
     });
   }
+  const isRim = (x: number, y: number): boolean =>
+    [
+      [x + 1, y],
+      [x - 1, y],
+      [x, y + 1],
+      [x, y - 1],
+    ].some(([nx, ny]) => !geoSet.has(`${nx},${ny}`));
+  const wantsShelf = (x: number, y: number): boolean =>
+    shelfQ > 0 && isRim(x, y) && shelfNoise.sample(x / 3, y / 3) > 0.62;
+  // generator 4: the shelves leave the channel's floor whole (`channelFloorWhole`)
+  const shelves = work.profile.channelFloorWhole ? wholeFloorShelves(work, geo.cells, wantsShelf) : null;
   for (const [x, y] of geo.cells) {
     const i = work.idx(x, y);
     if (i < 0) {
@@ -159,13 +170,7 @@ export function applyChasm(
     }
     if (work.state[i] !== CELL.OPEN) continue;
     const cur = work.height[i] as number;
-    const rim = [
-      [x + 1, y],
-      [x - 1, y],
-      [x, y + 1],
-      [x, y - 1],
-    ].some(([nx, ny]) => !geoSet.has(`${nx},${ny}`));
-    if (shelfQ > 0 && rim && shelfNoise.sample(x / 3, y / 3) > 0.62) {
+    if (shelves ? shelves.has(i) : wantsShelf(x, y)) {
       work.height[i] = Math.max(PLAN_LIMITS.minHeight * 4, cur - shelfQ);
       cut.add(i);
       continue;
@@ -267,6 +272,57 @@ export function applyChasm(
     });
   });
   if (reaches) cutFalls(work, op, geo, reaches, geoSet, depthQ, out);
+}
+
+/**
+ * Generator 4 (`channelFloorWhole`): the shelf cells of a chasm (rim cells cut only part-way down, which keep the ground
+ * they were cut from) among those `wantsShelf` picks, in course order, each taken only if the cells cut to the full
+ * depth (which carry the op's floor: lava, water, the pit) stay as many edge-connected bodies as before. At a neck one
+ * or two cells wide every cell is a rim cell; without this a shelf there leaves the floor in two pits that touch only
+ * at a corner, and the review sees a broken rift.
+ */
+function wholeFloorShelves(
+  work: ResolveGrid,
+  cells: ReadonlyArray<readonly [number, number]>,
+  wantsShelf: (x: number, y: number) => boolean,
+): Set<number> {
+  const full = new Set<number>();
+  for (const [x, y] of cells) {
+    const i = work.idx(x, y);
+    if (i >= 0 && work.state[i] === CELL.OPEN) full.add(i);
+  }
+  const bodies = (): number => {
+    const left = new Set(full);
+    let n = 0;
+    for (const start of full) {
+      if (!left.delete(start)) continue;
+      n++;
+      const queue = [start];
+      for (let q = 0; q < queue.length; q++) {
+        const [x, y] = work.cellXY(queue[q] as number);
+        for (const [nx, ny] of [
+          [x + 1, y],
+          [x - 1, y],
+          [x, y + 1],
+          [x, y - 1],
+        ] as const) {
+          const j = work.idx(nx, ny);
+          if (j >= 0 && left.delete(j)) queue.push(j);
+        }
+      }
+    }
+    return n;
+  };
+  const before = bodies();
+  const shelves = new Set<number>();
+  for (const [x, y] of cells) {
+    const i = work.idx(x, y);
+    if (!full.has(i) || !wantsShelf(x, y)) continue;
+    full.delete(i);
+    if (bodies() > before) full.add(i);
+    else shelves.add(i);
+  }
+  return shelves;
 }
 
 /** Cells under the plan's own features (with a one-cell margin): a wandering channel keeps off them when it can. */
