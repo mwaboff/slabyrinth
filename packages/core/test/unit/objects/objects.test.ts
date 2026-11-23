@@ -19,6 +19,8 @@ import {
   piecesOf,
   stall,
   STAND_IN_IDS,
+  STAND_INS,
+  type StandInDef,
   turnStep,
   vessel,
   type BuiltObject,
@@ -310,9 +312,10 @@ describe("placing", () => {
 });
 
 describe("stand-in lexicon", () => {
-  it.each(["wood_town", "generic"])("finds every stand-in in %s", (theme) => {
+  it.each(["wood_town", "generic"])("finds every stand-in in %s (the ship kit aside)", (theme) => {
     const k = createKit(createPlanRoles(cat, 5), theme);
-    const missing = STAND_IN_IDS.filter((id) => k.standIn(id) === null);
+    // the ship kit's stand-ins wait for the owner's import (scripts/palette-ship-assets.json); see vesselKit.test.ts
+    const missing = STAND_IN_IDS.filter((id) => !(STAND_INS[id] as StandInDef).kit && k.standIn(id) === null);
     expect(missing).toEqual([]);
   });
 

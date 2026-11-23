@@ -23,6 +23,14 @@ export interface ObjectKit {
   readonly asked: ReadonlyMap<StandInId, StandIn | null>;
 }
 
+/**
+ * The kit stand-in when the palettes have its pieces (the ship kit, objects/lexicon.ts `kit`), else today's stand-in:
+ * the id a recipe asks for, so a recipe without the kit asks exactly as it did before (same ids, same seeded picks).
+ */
+export function kitOr<K extends StandInId, F extends StandInId>(kit: ObjectKit, want: K, today: F): K | F {
+  return kit.standIn(want) ? want : today;
+}
+
 /** A kit for the theme. The memo lives as long as the kit (one build). */
 export function createKit(roles: PlanRoles, theme: ThemeId): ObjectKit {
   const asked = new Map<StandInId, StandIn | null>();
