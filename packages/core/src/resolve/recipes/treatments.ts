@@ -297,10 +297,10 @@ export const TREATMENTS: readonly TreatmentFamily[] = [
 export const STRUCTURE_TREATMENTS: readonly TreatmentFamily[] = [
   {
     id: "roofPatch",
-    doc: "switch roofPatches: patches of a worn roof re-laid in a second roof kit (worn about 15 %, ramshackle 30-45 %)",
+    doc: "switch roofPatches: patches of a worn roof re-laid in a second roof kit (worn about 15 %, ramshackle 30-45 %); closedWornRoofs: a worn roof's wear is its patches (it has no hole), so most worn roofs draw them",
     options: [
-      { id: "patched", weight: perState(0, 0.4, 0.8, 0), recipes: {} },
-      { id: "plain", weight: perState(1, 0.6, 0.2, 1), recipes: {} },
+      { id: "patched", weight: perState(0, 0.7, 0.85, 0), recipes: {} },
+      { id: "plain", weight: perState(1, 0.3, 0.15, 1), recipes: {} },
     ],
   },
   {

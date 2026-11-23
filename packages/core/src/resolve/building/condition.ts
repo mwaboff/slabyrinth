@@ -256,6 +256,13 @@ function weather(d: DecayWork, hadChimney: boolean): void {
     raggedRoofHole(b, ruin, ts);
     secondRoofHole(ruin, ts, wp);
   }
+  // generator 5 (`closedWornRoofs`): only a ruin's roof is open; a ramshackle one keeps one small ragged hole (drawn
+  // after the generator 3 holes, on its own stream, so every other draw stays as it was)
+  if (b.gen.closedWornRoofs) {
+    const state = buildingSubjectOf(d.b, d.fp, d.vplans, "weathered").state;
+    delete ruin.roofHoles;
+    if (state === "ramshackle" && ts) smallRoofHole(b, ruin, ts);
+  }
   const wins = [
     ...d.faces.ground.filter((g) => isWindow(g.kind)),
     ...d.faces.upper.filter((g) => isWindow(g.kind)),
@@ -313,6 +320,39 @@ function raggedRoofHole(b: BuildingCtx, ruin: RuinProfile, ts: TopStorey): void 
     blob.add(key(pick[0], pick[1]));
   }
   if (blob.size >= 3) ruin.roofHoles = [...blob].map(cellOf);
+}
+
+/**
+ * Generator 5 (`closedWornRoofs`), a ramshackle roof: one small hole of two or three cells grown from a cell off the top
+ * storey's edge (so the eaves and the gable ends stand round it), each next cell a side neighbour drawn at random, so
+ * an L or a bent strip more often than a square (own stream). None on a top storey too small to have an inside.
+ */
+function smallRoofHole(b: BuildingCtx, ruin: RuinProfile, ts: TopStorey): void {
+  const own = new Set(ts.cells.map(([x, y]) => key(x, y)));
+  const inner = ts.cells
+    .filter(([x, y]) => SIDES.every((sd) => own.has(key(x + STEP[sd][0], y + STEP[sd][1]))))
+    .map(([x, y]) => key(x, y))
+    .sort();
+  if (inner.length === 0) return;
+  const rp = createPrng(subSeed(b.seed, "roofhole5"));
+  const innerSet = new Set(inner);
+  const want = 2 + rp.int(WEATHERED.ramshackleHole - 1);
+  const hole = [inner[rp.int(inner.length)] as string];
+  while (hole.length < want) {
+    const front = [
+      ...new Set(
+        hole.flatMap((k) => {
+          const [x, y] = cellOf(k);
+          return SIDES.map((sd) => key(x + STEP[sd][0], y + STEP[sd][1]));
+        }),
+      ),
+    ]
+      .filter((k) => innerSet.has(k) && !hole.includes(k))
+      .sort();
+    if (front.length === 0) break;
+    hole.push(front[rp.int(front.length)] as string);
+  }
+  ruin.roofHoles = hole.sort().map(cellOf);
 }
 
 /** A second fallen patch elsewhere on the same roof, with a clear cell between the two (weather stream). */

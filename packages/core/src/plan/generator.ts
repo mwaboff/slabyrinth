@@ -600,6 +600,11 @@ const SWITCHES = {
     "A level, area or building's stated light, condition and wealth (the plan fields; a building's condition may be ramshackle) win over its words, mood and the place around it, and are what the places inside it vary from; a stated ruined room is wreckage as its words would make it (resolve/character.ts, gen/roomPurpose.ts classifyRoom).",
     "characterCascade",
   ),
+  closedWornRoofs: on(
+    5,
+    "Only a ruin's roof is open: a worn building's roof keeps every piece (its wear shows as patches, in a kit of another colour where its own kit has no worn pieces and none of its tone is near), a ramshackle one has at most one small ragged hole off its eaves with boards under it; and a roof piece over an open cell (a hole, a ruin's lost bay) is laid cell by cell round it, so an opening follows its own ragged cells and never a piece's rectangle (resolve/building/condition.ts, wear.ts, compile/realize/structures/roofPiece.ts, roofs.ts).",
+    "roofPatches",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

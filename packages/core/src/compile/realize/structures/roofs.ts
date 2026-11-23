@@ -124,6 +124,14 @@ export function layRoof(
         { id: `${tag}~deck`, layer: "roof" },
       );
       base = wallTop + 0.5;
+    } else if (first && pitched && b.lv.ctx.profile.closedWornRoofs && st.condition === "weathered") {
+      // generator 5 (`closedWornRoofs`): a ramshackle roof's small hole shows boards under it, not the room
+      const under = new Set(
+        (st.ruin?.roofHoles ?? []).map(([x, y]) => key(x, y)).filter((k) => cells.has(k)),
+      );
+      const deckRoles = [roofRole(kit, "deck"), roofRole(DEFAULT_PART, "deck"), floorRole(top.floor)];
+      if (under.size > 0)
+        layTiles(b, deckRoles, under, wallTop, "floor", { id: `${tag}~deck`, layer: "roof" });
     }
     const closeFlat = (r: Rect | null, at: number): void => {
       if (!r) return;

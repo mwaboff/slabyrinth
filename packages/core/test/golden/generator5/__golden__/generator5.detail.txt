@@ -1125,9 +1125,9 @@ plans/condition-street-v1 g pieces floor 1042
 plans/condition-street-v1 g pieces ledge 192
 plans/condition-street-v1 g pieces link 1
 plans/condition-street-v1 g pieces opening 57
-plans/condition-street-v1 g pieces wall 771
+plans/condition-street-v1 g pieces wall 798
 plans/condition-street-v1 g pieces wall_post 257
-plans/condition-street-v1 g layer roof 396
+plans/condition-street-v1 g layer roof 423
 plans/condition-street-v1 g layer site 1300
 plans/condition-street-v1 g layer storey:0 538
 plans/condition-street-v1 g layer storey:1 351
@@ -1216,7 +1216,7 @@ plans/condition-street-v1 g part ruin~footing 27
 plans/condition-street-v1 g part ruin~gable 16
 plans/condition-street-v1 g part ruin~porch0 1
 plans/condition-street-v1 g part ruin~post 14
-plans/condition-street-v1 g part ruin~roof 34
+plans/condition-street-v1 g part ruin~roof 43
 plans/condition-street-v1 g part ruin~u1window1 2
 plans/condition-street-v1 g part ruin~u1window3 2
 plans/condition-street-v1 g part ruin~vine 34
@@ -1235,7 +1235,7 @@ plans/condition-street-v1 g part shack~light 1
 plans/condition-street-v1 g part shack~porch0 2
 plans/condition-street-v1 g part shack~porchroof0 4
 plans/condition-street-v1 g part shack~post 16
-plans/condition-street-v1 g part shack~roof 40
+plans/condition-street-v1 g part shack~roof 48
 plans/condition-street-v1 g part shack~room0~room#0 1
 plans/condition-street-v1 g part shack~room0~room#1 1
 plans/condition-street-v1 g part shack~room0~room#10 1
@@ -1323,7 +1323,7 @@ plans/condition-street-v1 g part worn~lit 5
 plans/condition-street-v1 g part worn~porch0 2
 plans/condition-street-v1 g part worn~porchroof0 5
 plans/condition-street-v1 g part worn~post 16
-plans/condition-street-v1 g part worn~roof 40
+plans/condition-street-v1 g part worn~roof 50
 plans/condition-street-v1 g part worn~room0~room#0 1
 plans/condition-street-v1 g part worn~room0~room#1 1
 plans/condition-street-v1 g part worn~room0~room#10 1
@@ -5541,9 +5541,9 @@ plans/stated-character-v1 g pieces floor 930
 plans/stated-character-v1 g pieces ledge 176
 plans/stated-character-v1 g pieces link 2
 plans/stated-character-v1 g pieces opening 27
-plans/stated-character-v1 g pieces wall 676
+plans/stated-character-v1 g pieces wall 681
 plans/stated-character-v1 g pieces wall_post 127
-plans/stated-character-v1 g layer roof 518
+plans/stated-character-v1 g layer roof 523
 plans/stated-character-v1 g layer site 1735
 plans/stated-character-v1 g layer storey:0 361
 plans/stated-character-v1 g layer storey:1 60
@@ -5742,7 +5742,7 @@ plans/stated-character-v1 g part shack~footing 19
 plans/stated-character-v1 g part shack~gable 22
 plans/stated-character-v1 g part shack~light 1
 plans/stated-character-v1 g part shack~post 8
-plans/stated-character-v1 g part shack~roof 23
+plans/stated-character-v1 g part shack~roof 28
 plans/stated-character-v1 g part shack~room0~room#0 1
 plans/stated-character-v1 g part shack~room0~room#1 1
 plans/stated-character-v1 g part shack~room0~room#10 1
@@ -6113,9 +6113,9 @@ plans/two-quarters-v1 g pieces floor 1372
 plans/two-quarters-v1 g pieces ledge 228
 plans/two-quarters-v1 g pieces link 1
 plans/two-quarters-v1 g pieces opening 60
-plans/two-quarters-v1 g pieces wall 1548
+plans/two-quarters-v1 g pieces wall 1579
 plans/two-quarters-v1 g pieces wall_post 290
-plans/two-quarters-v1 g layer roof 1142
+plans/two-quarters-v1 g layer roof 1173
 plans/two-quarters-v1 g layer site 2398
 plans/two-quarters-v1 g layer storey:0 776
 plans/two-quarters-v1 g layer storey:1 161
@@ -6135,7 +6135,7 @@ plans/two-quarters-v1 g part bucket~light 1
 plans/two-quarters-v1 g part bucket~porch0 2
 plans/two-quarters-v1 g part bucket~porchroof0 7
 plans/two-quarters-v1 g part bucket~post 4
-plans/two-quarters-v1 g part bucket~roof 40
+plans/two-quarters-v1 g part bucket~roof 54
 plans/two-quarters-v1 g part bucket~room0~room#0 1
 plans/two-quarters-v1 g part bucket~room0~room#1 1
 plans/two-quarters-v1 g part bucket~room0~room#10 1
@@ -6259,7 +6259,7 @@ plans/two-quarters-v1 g part hovel1~floor1 8
 plans/two-quarters-v1 g part hovel1~gable 40
 plans/two-quarters-v1 g part hovel1~light 1
 plans/two-quarters-v1 g part hovel1~post 3
-plans/two-quarters-v1 g part hovel1~roof 80
+plans/two-quarters-v1 g part hovel1~roof 84
 plans/two-quarters-v1 g part hovel1~room0~room#0 1
 plans/two-quarters-v1 g part hovel1~room0~room#1 1
 plans/two-quarters-v1 g part hovel1~room0~room#10 1
@@ -6290,7 +6290,7 @@ plans/two-quarters-v1 g part hovel1~window4 2
 plans/two-quarters-v1 g part hovel1~wing~deck 6
 plans/two-quarters-v1 g part hovel1~wing~gable 8
 plans/two-quarters-v1 g part hovel1~wing~post 2
-plans/two-quarters-v1 g part hovel1~wing~roof 17
+plans/two-quarters-v1 g part hovel1~wing~roof 18
 plans/two-quarters-v1 g part hovel1~wing~wall 5
 plans/two-quarters-v1 g part hovel2~deck 9
 plans/two-quarters-v1 g part hovel2~door0 3
@@ -6300,7 +6300,7 @@ plans/two-quarters-v1 g part hovel2~light 1
 plans/two-quarters-v1 g part hovel2~porch0 2
 plans/two-quarters-v1 g part hovel2~porchroof0 4
 plans/two-quarters-v1 g part hovel2~post 9
-plans/two-quarters-v1 g part hovel2~roof 64
+plans/two-quarters-v1 g part hovel2~roof 61
 plans/two-quarters-v1 g part hovel2~room0~room#0 1
 plans/two-quarters-v1 g part hovel2~room0~room#1 1
 plans/two-quarters-v1 g part hovel2~room0~room#10 1
@@ -6325,7 +6325,7 @@ plans/two-quarters-v1 g part hovel2~wing~deck 3
 plans/two-quarters-v1 g part hovel2~wing~footing 7
 plans/two-quarters-v1 g part hovel2~wing~gable 17
 plans/two-quarters-v1 g part hovel2~wing~post 6
-plans/two-quarters-v1 g part hovel2~wing~roof 15
+plans/two-quarters-v1 g part hovel2~wing~roof 12
 plans/two-quarters-v1 g part hovel2~wing~wall 8
 plans/two-quarters-v1 g part hovel3~deck 12
 plans/two-quarters-v1 g part hovel3~door0 3
@@ -6334,7 +6334,7 @@ plans/two-quarters-v1 g part hovel3~gable 28
 plans/two-quarters-v1 g part hovel3~inner0 2
 plans/two-quarters-v1 g part hovel3~light 1
 plans/two-quarters-v1 g part hovel3~post 12
-plans/two-quarters-v1 g part hovel3~roof 35
+plans/two-quarters-v1 g part hovel3~roof 42
 plans/two-quarters-v1 g part hovel3~room0~room#0 1
 plans/two-quarters-v1 g part hovel3~room0~room#1 1
 plans/two-quarters-v1 g part hovel3~room0~room#10 1
@@ -6385,7 +6385,7 @@ plans/two-quarters-v1 g part pawn~inner0 2
 plans/two-quarters-v1 g part pawn~porch0 2
 plans/two-quarters-v1 g part pawn~porchroof0 4
 plans/two-quarters-v1 g part pawn~post 12
-plans/two-quarters-v1 g part pawn~roof 59
+plans/two-quarters-v1 g part pawn~roof 60
 plans/two-quarters-v1 g part pawn~room0~room#0 1
 plans/two-quarters-v1 g part pawn~room0~room#1 1
 plans/two-quarters-v1 g part pawn~room0~room#10 1
@@ -6476,7 +6476,7 @@ plans/two-quarters-v1 g part town1~light 1
 plans/two-quarters-v1 g part town1~porch0 2
 plans/two-quarters-v1 g part town1~porchroof0 4
 plans/two-quarters-v1 g part town1~post 8
-plans/two-quarters-v1 g part town1~roof 89
+plans/two-quarters-v1 g part town1~roof 99
 plans/two-quarters-v1 g part town1~room0~room#0 1
 plans/two-quarters-v1 g part town1~room0~room#1 1
 plans/two-quarters-v1 g part town1~room0~room#10 1
@@ -6688,9 +6688,9 @@ plans/varied-street-v1 g pieces floor 1111
 plans/varied-street-v1 g pieces ledge 188
 plans/varied-street-v1 g pieces link 1
 plans/varied-street-v1 g pieces opening 102
-plans/varied-street-v1 g pieces wall 1232
+plans/varied-street-v1 g pieces wall 1240
 plans/varied-street-v1 g pieces wall_post 401
-plans/varied-street-v1 g layer roof 786
+plans/varied-street-v1 g layer roof 794
 plans/varied-street-v1 g layer site 2578
 plans/varied-street-v1 g layer storey:0 659
 plans/varied-street-v1 g layer storey:1 268
@@ -6978,7 +6978,7 @@ plans/varied-street-v1 g part shack~light 1
 plans/varied-street-v1 g part shack~porch0 2
 plans/varied-street-v1 g part shack~porchroof0 5
 plans/varied-street-v1 g part shack~post 8
-plans/varied-street-v1 g part shack~roof 36
+plans/varied-street-v1 g part shack~roof 44
 plans/varied-street-v1 g part shack~room0~room#0 1
 plans/varied-street-v1 g part shack~room0~room#1 1
 plans/varied-street-v1 g part shack~room0~room#10 1
@@ -7200,7 +7200,7 @@ plans/varied-street-v1 g feature weapon_rack 6
 plans/varied-street-v1 diag info footprint_mismatch 3
 plans/varied-street-v1 diag info role_missing 2
 plans/varied-street-v1 diag info structure_style_fallback 2
-plans/varied-street-v1 diag info verify_duplicate_removed 1
+plans/varied-street-v1 diag info verify_duplicate_removed 2
 plans/varied-street-v1 diag info verify_prop_nudged 8
 plans/varied-street-v1 diag info verify_props_overlap 1
 plans/varied-street-v1 review cliff_unclad_low 1

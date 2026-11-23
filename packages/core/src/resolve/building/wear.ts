@@ -6,7 +6,8 @@
  *   roof patches  (switch `roofPatches`) small irregular patches of its pitched roofs re-laid as a repair of the same
  *                 roof, its kit's weathered pieces or a kit of its tone and family, else none (resolve/roofKits.ts;
  *                 compile/realize/structures/roofPiece.ts picks the kit): about 10-20 % of the roof worn, 30-45 %
- *                 ramshackle. Never over a roof hole.
+ *                 ramshackle. Never over a roof hole. Generator 5 (`closedWornRoofs`): a roof with neither is patched
+ *                 in another pitched kit (a worn roof's wear shows as patches, not holes).
  *   porch sag     (switch `porchWear`) a roofed porch's outer row sits one step (0.25) lower; the building's own eave
  *                 never sags (structure stays square everywhere else).
  *   mixed posts   (switch `porchWear`) a porch stands on posts of two kinds.
@@ -31,10 +32,16 @@ export const PORCH_SAG = 0.25;
 /** Cells of one small patch, about. */
 const SMALL_PATCH = 3;
 
-/** Whether a roof of `kit` can be patched as a repair: the kit has worn pieces, or another kit reads like it. */
-export function patchable(kit: string): boolean {
+/**
+ * Whether a roof of `kit` can be patched as a repair: the kit has worn pieces, or another kit reads like it; with
+ * `anyKit` (generator 5, `closedWornRoofs`: a worn roof shows its wear as patches, never as holes) any other pitched kit
+ * will do, a repair in what was to hand.
+ */
+export function patchable(kit: string, anyKit = false): boolean {
   if (roofKitInfo(kit)?.weathered === true) return true;
-  return Object.keys(ROOF_KITS).some((k) => k !== kit && ROOF_KITS[k]?.pitched === true && nearKits(k, kit));
+  return Object.keys(ROOF_KITS).some(
+    (k) => k !== kit && ROOF_KITS[k]?.pitched === true && (anyKit || nearKits(k, kit)),
+  );
 }
 
 export function applyWear(
@@ -69,7 +76,7 @@ export function applyWear(
   if (cells.size < 4) return null;
   // a patch is a repair of the same roof (the kit's own weathered pieces, or a kit of its tone and family: the roof-kit
   // facts, resolve/roofKits.ts); a roof with neither is not patched (a patch in another colour reads as a fault)
-  if (!roofed.every((v) => patchable(v.roof.layers[0]?.style ?? ""))) return null;
+  if (!roofed.every((v) => patchable(v.roof.layers[0]?.style ?? "", b.gen.closedWornRoofs))) return null;
   const range = PATCH_SHARE[s.state];
   const want = Math.max(2, Math.round(cells.size * (range[0] + (range[1] - range[0]) * u("share"))));
   const sorted = [...cells].sort();

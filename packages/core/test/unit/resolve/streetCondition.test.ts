@@ -154,7 +154,8 @@ describe("roofKitFacts: no spikes up a hip, patches that read as repairs", () =>
     expect(names.some((n) => /village/i.test(n))).toBe(false);
   });
 
-  it("leaves a village roof unpatched (no kit reads like it)", () => {
+  it("leaves a village roof unpatched (no kit reads like it) before closedWornRoofs (which patches it in another kit)", () => {
+    without("closedWornRoofs");
     const shackOf = (r: ResolvedPlan) => r.levels[0]?.structures?.find((s) => s.id === "shack");
     expect(shackOf(resolvePlan(inKit("village"), pal))?.roofPatch).toBeUndefined();
   });
