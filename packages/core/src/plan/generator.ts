@@ -416,6 +416,14 @@ const SWITCHES = {
     5,
     "A level's water surface and range stay a quarter tile under the dry floors of other levels inside its water's footprint (a ship's hold in the harbour), and a water_level warning names a floor the lowest sensible water would still flood (resolve/level/waterSurface.ts capWaterUnderOtherFloors).",
   ),
+  wholeFloorEdges: on(
+    5,
+    "A floor's ragged pieces (broken-ended boards, gen/pieceFacts.ts `ragged`) are left out where the role has whole ones, so a floor's odd edge row is no comb of notches (compile/realize/floors.ts).",
+  ),
+  dryLandCover: on(
+    5,
+    "Ground cover lays no land plants (grass, flowers, bushes, plant cover) on a cell whose floor lies under its level's water surface (the water plane the GM raises); rocks and rubble may stay (resolve/recipes/ground.ts).",
+  ),
   windowSpanClosed: on(
     5,
     "A window span no window piece of the theme fits (a 1-wide window where the pieces are 2 wide) is built as plain wall, not left as a hole, and the role_missing warning names the width the theme's windows come in (compile/realize/openings.ts).",

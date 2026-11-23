@@ -351,6 +351,11 @@ export const layeredGround: Recipe<"zone"> = {
         ? Math.min(SINK_DEEP_MAX, (SINK_DEEP[0] + (SINK_DEEP[1] - SINK_DEEP[0]) * u) * q.measures.height)
         : Math.min(SINK_MAX, (SINK[0] + (SINK[1] - SINK[0]) * u) * q.measures.height);
     const yawOf = (u: number): number => Math.floor(u * 24) * 15;
+    // generator 5 (`dryLandCover`): a cell whose floor lies under the level's water surface (the plane the GM raises)
+    // takes no land plant; its rocks and rubble only
+    const plane = ctx.profile.dryLandCover ? ctx.level.waterLevel : undefined;
+    const wet = (x: number, y: number): boolean => plane !== undefined && g.top(x, y) < plane - 1e-6;
+    const wetLow = [...rocks, ...lowOf(a.wear > 0 ? piecesOf(slots.rubble) : [])];
     // one layout at a cluster rate `rate`
     const lay = (rate: number): void => {
       out.length = 0;
@@ -366,6 +371,13 @@ export const layeredGround: Recipe<"zone"> = {
       const cy = y + 0.2 + 0.6 * draw("y", x, y);
       const near = a.edgeAt(x, y) <= 1;
       const used = nearUse(x, y);
+      // under the level's water: no land plant, a rock or rubble at most
+      if (wet(x, y)) {
+        const q = wetLow[Math.floor(draw("wet", x, y) * wetLow.length)];
+        if (q)
+          put(lows, q, cx, cy, ground, ground - sunk(q, draw("sink", x, y)), yawOf(draw("lowYaw", x, y)));
+        return;
+      }
       // (outdoors) the open middle has clumps only: an anchored cluster, never a lone flat pair
       if (visible && !near && anchors.length === 0) return;
       if (draw("anchored", x, y) < anchoredAt(near) || (visible && !near)) {

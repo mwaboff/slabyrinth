@@ -15,6 +15,7 @@
  *   remains  a sign of death (a skeleton, a bone pile) a palette lists among plain floor cover: decay, kept out of a
  *            place whose condition or kind does not call for it (switch decayWhereItBelongs, gen/roomTraits.ts
  *            showsDecay).
+ *   ragged   a floor tile with broken, gapped ends (ruined boards): a floor's whole pieces cover the cells instead.
  * Facts about a whole roof kit (its tone, family, spiked corner) are keyed by kit, not piece: resolve/roofKits.ts.
  * A piece the table does not name has no such fact: it is level, post-free and does not glow.
  */
@@ -38,6 +39,8 @@ export interface PieceFacts {
   /** Which end of the piece's length carries the taller post, as it stands unturned: the low end (-x) or the high (+x). */
   readonly endPost?: "low" | "high";
   readonly remains?: true;
+  /** A floor tile with broken, gapped ends (ruined boards): laid as a floor it reads as holes along its row. */
+  readonly ragged?: true;
 }
 
 const light = (
@@ -104,6 +107,13 @@ export const PIECE_FACTS: Readonly<Record<string, PieceFacts>> = {
   // it as ground cover beside the pebbles) ──
   "Skeleton 01": { remains: true },
   "Bone Pile 01": { remains: true },
+
+  // ── ragged floor boards (owner's harbour screenshots 185-188, 2026-11-23: the wharf's edge row, laid with these 2 x 1
+  // pieces between 2 x 2 "Castle Ruins Wood - Large" tiles, showed a comb of notches every two cells, the 2 x 2 body
+  // none) ──
+  "Castle Ruins Wood 1": { ragged: true },
+  "Castle Ruins Wood 2": { ragged: true },
+  "Castle Ruins Wood 3": { ragged: true },
 };
 
 /** The facts of a piece by its name (none for a piece the table does not name). */
@@ -119,6 +129,9 @@ export const glows = (name: string | undefined): boolean => pieceFacts(name).glo
 
 /** Is the piece remains (a skeleton, a bone pile): decay, whatever role a palette lists it under? */
 export const remainsPiece = (name: string | undefined): boolean => pieceFacts(name).remains === true;
+
+/** Is the piece a ragged floor tile (broken, gapped ends)? */
+export const ragged = (name: string | undefined): boolean => pieceFacts(name).ragged === true;
 
 /** May the piece stand in a level run (not a stair rail)? `atEnd`: at a run's end, where an end post belongs. */
 export const levelRunPiece = (name: string | undefined, atEnd: boolean): boolean => {

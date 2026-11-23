@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { realize } from "../../../src/compile";
 import type { MapPlan } from "../../../src/contracts/plan";
 import type { ResolvedLevel } from "../../../src/contracts/resolved";
-import { PIECE_FACTS, levelRunPiece } from "../../../src/gen/pieceFacts";
+import { PIECE_FACTS, levelRunPiece, ragged } from "../../../src/gen/pieceFacts";
 import { lightPiece } from "../../../src/gen/lightReach";
 import { findStandIn } from "../../../src/objects";
 import { bundledPalettes } from "../../../src/palette";
@@ -22,6 +22,7 @@ import { createPlanRoles } from "../../../src/palette/planRoles";
 import { GENERATOR_PROFILES, type GeneratorProfile } from "../../../src/plan/generator";
 import { resolvePlan } from "../../../src/resolve";
 import { loadPlan } from "../../fixtures";
+import { oneLevelPlan } from "../../fixtures/planBuilder";
 
 const pal = bundledPalettes();
 const P5 = GENERATOR_PROFILES[5] as { -readonly [K in keyof GeneratorProfile]: GeneratorProfile[K] };
@@ -138,5 +139,52 @@ describe("glowing decor and bedside lights (interiors-lineup-v1)", () => {
     expect(standing.length).toBeLessThan(
       L.features.filter((f) => f.area === ward?.id && f.type === "bed").length,
     );
+  });
+});
+
+describe("ragged floor boards (wholeFloorEdges)", () => {
+  // a wharf of timber boards nine rows deep: its 2 x 2 tiles leave an odd edge row
+  const wharf = (generator: 4 | 5): MapPlan =>
+    oneLevelPlan({
+      generator,
+      w: 12,
+      h: 9,
+      theme: "wood_town",
+      level: {
+        areas: [
+          {
+            id: "wharf",
+            kind: "courtyard",
+            name: "Wharf",
+            shape: { type: "rect", x: 0, y: 0, w: 12, h: 9 },
+            floor: "bridge_wood",
+            walls: "none",
+          },
+        ],
+      },
+    });
+  const raggedIds = new Set(
+    Object.values(pal.palettes).flatMap((p) =>
+      Object.values(p.roles).flatMap((r) => r.variants.filter((v) => ragged(v.name)).map((v) => v.asset)),
+    ),
+  );
+  const floors = (plan: MapPlan) =>
+    realize(resolvePlan(plan, pal), pal)
+      .levels.flatMap((l) => l.placements)
+      .filter((p) => p.role === "floor");
+
+  it("names the boards the harbour screenshots showed notched", () => {
+    expect(raggedIds.size).toBe(3);
+  });
+
+  it("lays whole pieces along the odd edge row, every cell floored", () => {
+    const laid = floors(wharf(5));
+    expect(laid.filter((p) => raggedIds.has(p.asset))).toEqual([]);
+    expect(new Set(laid.map((p) => `${p.source.cell?.[0]},${p.source.cell?.[1]}`)).size).toBeGreaterThan(0);
+    expect(laid.some((p) => p.source.cell?.[1] === 8)).toBe(true);
+  });
+
+  it("is generator 5's: generator 4 keeps its ragged edge row", () => {
+    expect(floors(wharf(4)).some((p) => raggedIds.has(p.asset))).toBe(true);
   });
 });

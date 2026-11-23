@@ -13,7 +13,12 @@ import type { MapPlan } from "../../../src/contracts/plan";
 import { CELL, type ResolvedPlan } from "../../../src/contracts/resolved";
 import { loadPalettes } from "../../../src/palette";
 import { WalkGraph, walkReachability } from "../../../src/resolve";
-import { expandObjectSites, resolveWithObjects, type ObjectSite } from "../../../src/resolve/objectSite";
+import {
+  GANGWAY_REACH,
+  expandObjectSites,
+  resolveWithObjects,
+  type ObjectSite,
+} from "../../../src/resolve/objectSite";
 import type { MeterPiece } from "../../../src/review";
 import { cloneJson } from "../../../src/util/canonical";
 import { overlapArea, turnedFootprint, type PlanPoint } from "../../../src/util/turn";
@@ -108,11 +113,35 @@ describe("a vessel placed as a site has rooms aboard", () => {
     }
   });
 
-  it("lands every gangway on the wharf", () => {
+  it("runs every gangway square from the moored side to the wharf's edge, over no wharf cell", () => {
     for (const s of harbour.sites) {
-      const landing = s.gangway[s.gangway.length - 1];
-      expect(landing?.[1], s.spec.id).toBeLessThanOrEqual(QUAY_EDGE);
+      expect(s.gangway.length, s.spec.id).toBeGreaterThan(0);
+      expect(s.gangway.length).toBeLessThanOrEqual(GANGWAY_REACH);
+      // between the hull and the quay (port side: north, toward the wharf), one column, the quay's next row beyond
+      for (const c of s.gangway) expect(c[1], s.spec.id).toBeGreaterThan(QUAY_EDGE);
+      expect(new Set(s.gangway.map((c) => c[0])).size).toBe(1);
+      expect(Math.min(...s.gangway.map((c) => c[1]))).toBe(QUAY_EDGE + 1);
     }
+  });
+
+  it("moves a hull asked over the wharf off it, its moored side to the quay's edge", () => {
+    const over = HARBOUR_SPECS.map((s) => ({ ...s, at: [s.at[0], QUAY_EDGE + 2] as const }));
+    const quay = new Set<string>();
+    for (let y = 0; y <= QUAY_EDGE; y++) for (let x = 0; x < 72; x++) quay.add(key([x, y]));
+    for (const s of expandObjectSites(harbourPlan(), over, cat).sites) {
+      expect(
+        s.placed.footprint.filter((c) => quay.has(key(c))),
+        s.spec.id,
+      ).toEqual([]);
+      expect(s.anchor.at[1], s.spec.id).toBeGreaterThan(QUAY_EDGE + 2);
+      expect(s.gangway.length, s.spec.id).toBeLessThanOrEqual(GANGWAY_REACH);
+    }
+  });
+
+  it("builds no gangway when no quay is in reach", () => {
+    const far = HARBOUR_SPECS.map((s) => ({ ...s, at: [s.at[0], s.at[1] + 4] as const }));
+    for (const s of expandObjectSites(harbourPlan(), far, cat).sites)
+      expect(s.gangway, s.spec.id).toEqual([]);
   });
 });
 

@@ -32,6 +32,20 @@ export interface ProofObject {
   readonly placed: PlacedObject;
 }
 
+/**
+ * The palettes with the ship kit's roles (`ship.*`) moved to generator `min` (a theme that lacks the kit, for the
+ * generator that builds): what a recipe builds from its stand-ins alone.
+ */
+export function shipKitAt(palettes: PaletteCatalog, min: number): PaletteCatalog {
+  const out = { ...palettes, palettes: structuredClone(palettes.palettes) };
+  for (const p of Object.values(out.palettes))
+    for (const [name, role] of Object.entries(p.roles)) if (name.startsWith("ship.")) role.minGenerator = min;
+  return out;
+}
+
+/** The palettes as a theme without the ship kit sees them at generator 5. */
+export const withoutShipKit = (palettes: PaletteCatalog): PaletteCatalog => shipKitAt(palettes, 6);
+
 /** The kit the proof builds with (wood_town, generator 5). */
 export function proofKit(palettes: PaletteCatalog): ObjectKit {
   return createKit(createPlanRoles(palettes, 5), "wood_town");

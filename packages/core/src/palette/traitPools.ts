@@ -17,6 +17,8 @@
  *     base asset's;
  *   - piece facts (generator 5, `drawsFreely`): a piece the facts measured in game keep to one place (a stair rail, an
  *     end-post piece, glowing decor) is left out;
+ *   - kits (`KIT_FAMILIES`): a kit's roles (the ship kit) name the thing and lend no piece by shape (a hull tile is no
+ *     floor slab, an anchor no panel); the same asset listed by another role still lends through that role;
  *   - order: role names in code-unit order, then the role's variant order; an asset listed by several roles is one
  *     piece (its first listing), with every role named. The order is a pure function of the palette data.
  * A pick from a pool (`pickFromPool`) is uniform over its distinct pieces and named by hash parts, so it is stable across
@@ -57,6 +59,12 @@ export function drawsFreely(generator: number | undefined, name: string | undefi
   const profile = (GENERATOR_PROFILES as Partial<Record<number, GeneratorProfile>>)[generator];
   return (profile !== undefined && !profile.pieceFacts) || standsAnywhere(name);
 }
+
+/**
+ * Role families that are a kit (the ship kit, scripts/palette-ship-assets.json): asked by their role only (the object
+ * lexicon's `kit` stand-ins), never pooled by shape.
+ */
+export const KIT_FAMILIES: ReadonlySet<string> = new Set(["ship"]);
 
 /** A shape to pool, and which borrow risks the caller accepts (none by default). */
 export interface TraitQuery extends TraitShape {
@@ -153,6 +161,7 @@ export function traitPool(
     path.push(id);
     const pieces = new Map<string, { variant: ResolvedVariant; roles: RoleName[] }>();
     for (const [role, def] of visibleRoles(id)) {
+      if (KIT_FAMILIES.has(roleFamily(role))) continue;
       if (families !== null && !families.has(roleFamily(role))) continue;
       for (const v of usableVariants(def, role, cat, [])) {
         if (v.parts !== undefined || risky.has(v.uuid) || risky.has(v.wanted) || !fits.test(v)) continue;

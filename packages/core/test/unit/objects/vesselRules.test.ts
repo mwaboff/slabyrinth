@@ -17,9 +17,10 @@ import {
   type BuiltObject,
 } from "../../../src/objects";
 import { loadPalettes } from "../../../src/palette";
-import { proofKit } from "./proof";
+import { proofKit, withoutShipKit } from "./proof";
 
-const kit = proofKit(loadPalettes());
+// the stand-in rules: a theme without the ship kit (the kit's own rules are in vesselKit.test.ts)
+const kit = proofKit(withoutShipKit(loadPalettes()));
 const brig = buildObject(vessel, { size: 30, seed: "r" }, kit);
 const barge = buildObject(vessel, { size: 14, seed: "r" }, kit);
 const boat = buildObject(vessel, { size: 6, seed: "r" }, kit);
