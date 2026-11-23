@@ -58,7 +58,18 @@ export interface GroundRoom {
   readonly kind: RoomKind;
   readonly role: RoomRole;
   readonly cells: Vec2[];
+  /** The other kinds it holds a zone of (gen/buildingProgramme.ts ProgrammeRoom.zones). */
+  readonly zones?: readonly RoomKind[];
 }
+
+/** A programme room laid over its cells, as the splitter returns it. */
+const groundRoom = (room: ProgrammeRoom, cells: ReadonlyArray<readonly [number, number]>): GroundRoom => ({
+  name: room.name,
+  kind: room.kind,
+  role: room.role,
+  cells: cells.map(([x, y]) => [x, y] as Vec2),
+  ...(room.zones !== undefined ? { zones: room.zones } : {}),
+});
 
 /** An interior doorway: the cell on one side, the side it opens through, its kind and width. */
 export interface GroundDoorway {
@@ -109,9 +120,7 @@ export function splitGroundStorey(g: GroundStorey): GroundRooms | null {
   const whole = (room: ProgrammeRoom): GroundRooms => ({
     programme: "single",
     layout: "whole",
-    rooms: [
-      { name: room.name, kind: room.kind, role: room.role, cells: all.map(([x, y]) => [x, y] as Vec2) },
-    ],
+    rooms: [groundRoom(room, all)],
     doorways: [],
   });
   const rects = decompose(all);
@@ -308,12 +317,7 @@ class SplitContext {
     return {
       programme: p.id,
       layout: pick.c.layout,
-      rooms: pick.c.rooms.map((l) => ({
-        name: l.room.name,
-        kind: l.room.kind,
-        role: l.room.role,
-        cells: l.cells.map(([x, y]) => [x, y] as Vec2),
-      })),
+      rooms: pick.c.rooms.map((l) => groundRoom(l.room, l.cells)),
       doorways: pick.doorways,
     };
   }

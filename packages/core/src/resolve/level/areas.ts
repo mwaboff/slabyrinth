@@ -9,7 +9,7 @@
  */
 import type { AreaKind, Level, OpeningKind, ThemeId, Vec2, WallMode } from "../../contracts/plan";
 import { CELL } from "../../contracts/resolved";
-import { classifyRoom } from "../../gen/roomPurpose";
+import { classifyRoom, type RoomKind } from "../../gen/roomPurpose";
 import { bandOffsets, routeCenterline } from "../../gen/shapes";
 import { NATURAL_WALL_STYLE, THEME_WALL_STYLE, isNaturalWallStyle } from "../../gen/wallStyles";
 import type { GeneratorProfile } from "../../plan/generator";
@@ -48,6 +48,8 @@ export function areaTable(
   defaultWallHeight: number,
   /** Generator 5 (`buildingRooms`): the synthetic ground-storey rooms and the building each partitions. */
   roomBuilding?: ReadonlyMap<string, string>,
+  /** Generator 5 (`sleepingCorners`): the zones a synthetic room holds besides its own kind. */
+  roomZones?: ReadonlyMap<string, readonly RoomKind[]>,
 ): AreaTable {
   const themes: ThemeId[] = [levelTheme];
   const themeIndex = (t: ThemeId): number => {
@@ -68,8 +70,10 @@ export function areaTable(
     const room = classifyRoom(area, { kinds: profile.roomKinds });
     const interior = td.interior;
     const building = roomBuilding?.get(area.id);
+    const zones = roomZones?.get(area.id);
     areas.push({
       ...(building !== undefined ? { building } : {}),
+      ...(zones !== undefined ? { zones } : {}),
       area,
       index,
       kind: area.kind,

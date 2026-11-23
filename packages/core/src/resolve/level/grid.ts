@@ -33,7 +33,7 @@ import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
 import { SIDES } from "../../gen/gridGeometry";
 import { type CellMask, forEachMaskCell } from "../../gen/mask";
-import type { RoomClass } from "../../gen/roomPurpose";
+import type { RoomClass, RoomKind } from "../../gen/roomPurpose";
 import { type ClipBox, rasterizeShape } from "../../gen/shapes";
 import type { PaletteView } from "../../palette/view";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
@@ -103,6 +103,8 @@ export interface AreaInfo {
    * resolve/structure.ts); its cells are the building's, as a building area's are (`inBuilding`).
    */
   readonly building?: string;
+  /** Generator 5 (`sleepingCorners`): the other kinds the room holds a zone of (a one-room dwelling's bed corner). */
+  readonly zones?: readonly RoomKind[];
 }
 
 /**
@@ -229,6 +231,7 @@ export class ResolveGrid {
       this.levelTheme,
       this.defaultWallHeight,
       ex.work?.roomBuilding,
+      ex.work?.roomZones,
     );
     this.areas = table.areas;
     this.areaIndexById = table.byId;

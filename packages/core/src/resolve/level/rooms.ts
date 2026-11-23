@@ -461,6 +461,7 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
         ...(kind !== undefined ? { kind } : {}),
         ...(lighting !== undefined ? { lighting } : {}),
         ...(ch !== null ? { character: ch } : {}),
+        ...(info.zones !== undefined ? { zones: info.zones } : {}),
         abandoned,
         areaIndex: info.index + 1,
         areaCells: cells,

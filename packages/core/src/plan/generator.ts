@@ -460,6 +460,14 @@ const SWITCHES = {
     5,
     "Every level, zone, building and area has a character (light, condition, wealth) resolved once from what it states, its own words and mood, and the scope around it with a little variety (resolve/character.ts); room light levels, a building's decay and window lights, the treatments' condition and richness, ground wear, a room's prop density and order, and the review read it (ResolvedLevel.character).",
   ),
+  anchorLandings: on(
+    5,
+    "A room whose anchor group (a bed, a counter) finds no spot outside its doors' full clearance keeps only a landing at each door, as a small room does, so a small bedroom still gets its bed (gen/rooms4/furnish.ts).",
+  ),
+  sleepingCorners: on(
+    5,
+    "A one-room dwelling is a room with zones: its programme names a sleeping corner beside the hearth, furnished with a bed or a cot group after the room's own anchor (gen/buildingProgramme.ts, gen/rooms4/furnish.ts).",
+  ),
   plinthUnderPorch: on(
     5,
     "A building's plinth runs under its porches, so a porch stands on the base at the building's floor and not in the air past the plinth's edge (resolve/building/fittings.ts drawPlinth).",

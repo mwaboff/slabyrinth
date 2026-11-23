@@ -95,20 +95,104 @@ export function characterOrder(order: RoomOrder, c: ResolvedCharacter | undefine
   return ORDERS[Math.max(0, Math.min(ORDERS.length - 1, ORDERS.indexOf(order) + step))] as RoomOrder;
 }
 
+/** The room's anchor group and its zones' groups, as placed (see furnishRoom, step 1). */
+interface Anchored {
+  readonly group: PlacedGroup | null;
+  /** The zones' groups (a sleeping corner's bed), in order. */
+  readonly zoneGroups: readonly PlacedGroup[];
+  /** A zone whose kind has a group got none. */
+  readonly missingZone: boolean;
+  /** The standing room before each group, a lane from the main door is kept to each (step 2). */
+  readonly stands: ReadonlyArray<Array<[number, number]>>;
+  /** The room's cleared zone before the groups' standing room was added: the door landings a rug keeps off. */
+  readonly landings: ReadonlySet<number>;
+}
+
+/** The first group of a kind's row that fits, from `first`, then the others in order, then its fallbacks (a cot). */
+function firstGroup(
+  room: Room,
+  t: RoomTraits,
+  first: number,
+  have: ReadonlySet<FeatureType>,
+): { group: PlacedGroup; keep: number } | null {
+  const all = t.groups.map((_, i) => i).filter((i) => t.groups[i]?.fallback !== true);
+  const fallbacks = t.groups.map((_, i) => i).filter((i) => t.groups[i]?.fallback === true);
+  const minimum = new Set(t.minimum);
+  for (const gi of [first, ...all.filter((i) => i !== first), ...fallbacks]) {
+    const g = t.groups[gi];
+    if (g === undefined || have.has(g.anchor.type)) continue;
+    const group = placeGroup(room, g, t.family, minimum);
+    if (group !== null) return { group, keep: g.keep };
+  }
+  return null;
+}
+
+/** A zone's row: its groups with the companions of its minimum set only (a sleeping corner's bed and its stand). */
+function zoneTraits(t: RoomTraits): RoomTraits {
+  const minimum = new Set(t.minimum);
+  return {
+    ...t,
+    groups: t.groups.map((g) => ({
+      ...g,
+      companions: g.companions.filter((c) => minimum.has(c.name)),
+    })) as unknown as RoomTraits["groups"],
+  };
+}
+
+/**
+ * Step 1: the room's anchor group and each zone's (its kind's first group that fits, minimum companions only), each
+ * with standing room; the zones first when `zonesFirst` (a sleeping corner takes its wall, the hearth's work line fits
+ * round it).
+ */
+function anchorGroups(
+  room: Room,
+  t: RoomTraits,
+  first: number,
+  have: ReadonlySet<FeatureType>,
+  zones: readonly RoomKind[],
+  zonesFirst: boolean,
+): Anchored {
+  const landings = new Set(room.zone);
+  const stands: Array<Array<[number, number]>> = [];
+  let own: ReturnType<typeof firstGroup> = null;
+  const placeOwn = (): void => {
+    own = firstGroup(room, t, first, have);
+    // 2. standing room before it, and (below) the way from the door to it
+    if (own !== null) stands.push(keepClear(room, own.group, own.keep));
+  };
+  if (!zonesFirst) placeOwn();
+  const zoneGroups: PlacedGroup[] = [];
+  let missingZone = false;
+  for (const z of zones) {
+    const got = firstGroup(room, zoneTraits(ROOM_TRAITS[z]), 0, have);
+    if (got === null) {
+      missingZone = true;
+      continue;
+    }
+    zoneGroups.push(got.group);
+    stands.push(keepClear(room, got.group, got.keep));
+  }
+  if (zonesFirst) placeOwn();
+  const placed = own as ReturnType<typeof firstGroup>;
+  return { group: placed?.group ?? null, zoneGroups, missingZone, stands, landings };
+}
+
 export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomKind): ScatterResult | null {
   const profile = gridProfile(grid);
   const t = profile.lightRegimes ? standingLightsOnly(ROOM_TRAITS[kind]) : ROOM_TRAITS[kind];
-  const room = new Room(grid, p.areaIndex, p.areaCells, p.seed, p.remaining, {
-    ...(grid.windowOn ? { windowOn: (x: number, y: number, s) => grid.windowOn?.(x, y, s) === true } : {}),
-    compactDoorsBelow: COMPACT_DOORS_BELOW,
-    floorLightsApart: true,
-    junctionPosts: true,
-    // the kind's order (generator 5, characterCascade: one step messier where it is run down, one tidier where it is
-    // rich and kept; loose things only, never structure)
-    ...(profile.placementOrder ? { order: characterOrder(t.order, p.character) } : {}),
-    // a seat or a bed keeps a free cell beside it, so nothing placed after it boxes it in
-    ...(profile.floorGroups ? { standingRoom: true } : {}),
-  });
+  const roomWith = (compactDoorsBelow: number): Room =>
+    new Room(grid, p.areaIndex, p.areaCells, p.seed, p.remaining, {
+      ...(grid.windowOn ? { windowOn: (x: number, y: number, s) => grid.windowOn?.(x, y, s) === true } : {}),
+      compactDoorsBelow,
+      floorLightsApart: true,
+      junctionPosts: true,
+      // the kind's order (generator 5, characterCascade: one step messier where it is run down, one tidier where it is
+      // rich and kept; loose things only, never structure)
+      ...(profile.placementOrder ? { order: characterOrder(t.order, p.character) } : {}),
+      // a seat or a bed keeps a free cell beside it, so nothing placed after it boxes it in
+      ...(profile.floorGroups ? { standingRoom: true } : {}),
+    });
+  let room = roomWith(COMPACT_DOORS_BELOW);
   if (room.cells.length < SMALLEST_FURNISHED || room.wallPairs.length === 0) return null;
 
   // 1. the anchor group: the table's first that no sibling room of this kind has drawn (the first room of a kind gets
@@ -119,22 +203,39 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
   const fresh = all.filter((i) => !drawn.includes(i));
   const first = fresh[0] ?? room.rng.pick(all);
   grid.roomMemory?.set(memo, [...drawn, first]);
-  const fallbacks = t.groups.map((_, i) => i).filter((i) => t.groups[i]?.fallback === true);
   const have = new Set(p.have ?? []);
-  const minimum = new Set(t.minimum);
-  const landings = new Set(room.zone);
-  let group: PlacedGroup | null = null;
-  let stand: Array<[number, number]> = [];
-  for (const gi of [first, ...all.filter((i) => i !== first), ...fallbacks]) {
-    const g = t.groups[gi];
-    if (g === undefined || have.has(g.anchor.type)) continue;
-    group = placeGroup(room, g, t.family, minimum);
-    if (group !== null) {
-      // 2. standing room before it, and (below) the way from the door to it
-      stand = keepClear(room, group, g.keep);
+  // generator 5 (sleepingCorners): the zones of a one-room dwelling (a sleeping corner beside the hearth), each its
+  // kind's anchor group after the room's own
+  const zones = profile.sleepingCorners ? (p.zones ?? []).filter((z) => z !== kind) : [];
+  // generator 5 (anchorLandings): a room whose anchor (or a zone's) finds no spot outside its doors' full clearance
+  // keeps only a landing at each door, as a small room does, so a small bedroom still gets its bed; with zones, the
+  // zones are also tried first. The first way that places every group wins, else the first that places the anchor.
+  const ways: Array<{ compact: number; zonesFirst: boolean }> = [
+    { compact: COMPACT_DOORS_BELOW, zonesFirst: false },
+  ];
+  if (zones.length > 0) ways.push({ compact: COMPACT_DOORS_BELOW, zonesFirst: true });
+  if (profile.anchorLandings && room.cells.length >= COMPACT_DOORS_BELOW)
+    for (const zonesFirst of zones.length > 0 ? [false, true] : [false])
+      ways.push({ compact: Infinity, zonesFirst });
+  let anchored: Anchored | null = null;
+  let fallback: { room: Room; anchored: Anchored } | null = null;
+  for (const [i, way] of ways.entries()) {
+    const r = i === 0 ? room : roomWith(way.compact);
+    const got = anchorGroups(r, t, first, have, zones, way.zonesFirst);
+    if (got.group !== null && !got.missingZone) {
+      room = r;
+      anchored = got;
       break;
     }
+    if (fallback === null || (fallback.anchored.group === null && got.group !== null))
+      fallback = { room: r, anchored: got };
   }
+  if (anchored === null && fallback !== null) {
+    room = fallback.room;
+    anchored = fallback.anchored;
+  }
+  if (anchored === null) return null;
+  const { group, landings } = anchored;
   // 2b. generator 5 (floorGroups): what stands away from the walls (tables in the middle, rows, aisles), placed before
   // the lane to the anchor is drawn so the lane bends round them (the way stays open: keepsWay); the first unit differs
   // between rooms of the kind
@@ -145,7 +246,7 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
     grid.roomMemory?.set(fmemo, [...seen, seen.length]);
     floorUnits = placeFloor(room, t, group, { first: seen.length }).units;
   }
-  if (group !== null) keepLane(room, stand);
+  for (const stand of anchored.stands) keepLane(room, stand);
 
   // 3. a rug under the group (or, with none, near the middle of the room)
   if (t.rug) {
@@ -194,14 +295,15 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
       scene: p.lighting.scene,
       sacred: SACRED_KINDS.has(kind),
       focus: group,
-      units: floorUnits,
+      // (a zone's group, a sleeping corner's bed, is lit as a floor unit is)
+      units: [...anchored.zoneGroups, ...floorUnits],
     });
     const keptClear = room.cells.filter(([x, y]) => room.zone.has(cellKey(x, y)));
     return { placements: room.out, capped: room.capped, keptClear };
   }
-  if (!p.abandoned && group !== null)
-    for (const q of [...group.anchor, ...group.companions])
-      if (q.wantsLight === true && !q.light) lightOn(room, q);
+  if (!p.abandoned)
+    for (const g of [...(group !== null ? [group] : []), ...anchored.zoneGroups])
+      for (const q of [...g.anchor, ...g.companions]) if (q.wantsLight === true && !q.light) lightOn(room, q);
   if (profile.occupancyLights) lightByOccupancy(room, t, { abandoned: p.abandoned, noFire });
   else {
     const floor = room.cells.length;

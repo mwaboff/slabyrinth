@@ -37,6 +37,11 @@ export interface RoomDressParams {
    * per 10 tiles it stops (poor low, modest and up high) and, with condition, its order one step tidier or messier.
    */
   character?: ResolvedCharacter;
+  /**
+   * Generator 5 (sleepingCorners): the other kinds the room holds a zone of (a one-room dwelling's sleeping corner: a
+   * bedroom), each furnished with its kind's anchor group after the room's own (gen/buildingProgramme.ts `zones`).
+   */
+  zones?: readonly RoomKind[];
 }
 
 /**

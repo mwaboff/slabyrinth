@@ -17,7 +17,7 @@
  *   - a kitchen never opens into a sleeping room (`noDoorTo`);
  *   - a chimney breast gets a room with a hearth (`hearth`);
  *   - a small building is one room with zones (two rooms of the programme open to each other), not tiny rooms; a
- *     tiny one is a single room.
+ *     tiny one is a single room, and a dwelling's single room still has a sleeping corner beside its hearth (`zones`).
  *
  * What an optional plan field would add (not in the contract; the owner decides): `Building.rooms` naming the ground
  * storey's rooms in order ("taproom, kitchen, store"), and `Building.interior: "full" | "windows" | "none"` to turn the
@@ -47,6 +47,11 @@ export interface ProgrammeRoom {
   readonly noDoorTo?: readonly RoomKind[];
   /** The doorway into it: a door (a private or closed room) or an open way (default: a door for private rooms). */
   readonly doorway?: "door" | "open";
+  /**
+   * Generator 5 (sleepingCorners): the other kinds it holds a zone of, each furnished with its kind's anchor group
+   * after the room's own (a one-room dwelling's sleeping corner beside its hearth).
+   */
+  readonly zones?: readonly RoomKind[];
 }
 
 export interface Programme {
@@ -88,7 +93,7 @@ const R = (
   role: RoomRole,
   share: readonly [number, number],
   minCells: number,
-  more: Partial<Pick<ProgrammeRoom, "hearth" | "noDoorTo" | "doorway" | "minWidth">> = {},
+  more: Partial<Pick<ProgrammeRoom, "hearth" | "noDoorTo" | "doorway" | "minWidth" | "zones">> = {},
 ): ProgrammeRoom => ({ name, kind, role, share, minCells, ...more });
 
 const NO_SLEEP: readonly RoomKind[] = ["bedroom"];
@@ -300,7 +305,8 @@ export const BUILDING_KINDS = {
       },
     ],
     zones: [R("Kitchen", "kitchen", "public", [0.55, 0.65], 6, { hearth: true }), BEDROOM([0.35, 0.45])],
-    single: R("Kitchen", "kitchen", "public", [1, 1], 4, { hearth: true }),
+    // a one-room dwelling: the hearth zone and a sleeping corner (a bed or a cot) in one room
+    single: R("Kitchen", "kitchen", "public", [1, 1], 4, { hearth: true, zones: ["bedroom"] }),
   },
 } as const satisfies Record<string, BuildingKindRow>;
 

@@ -59,6 +59,7 @@ import { along, faceRuns, key, ringOf } from "./building/footprint";
 import { placePorches } from "./building/porches";
 import { splitGroundStorey } from "./building/rooms";
 import { buildingKind, furnishedCharacter, programmeCharacter } from "../gen/buildingProgramme";
+import type { RoomKind } from "../gen/roomPurpose";
 import { THEME_WALL_STYLE } from "../gen/wallStyles";
 import type { BuildingPlan, StoreyPlan, VolumePlan } from "./building/types";
 import { groundFootprint, planVolumes, volumeSpecs } from "./building/volumes";
@@ -95,6 +96,8 @@ export class StructureWork {
   readonly designs = new Map<string, { design: BuildingDesign; building: Building }>();
   /** Generator 5 (`buildingRooms`): each ground-storey room's area id → the building it partitions. */
   readonly roomBuilding = new Map<string, string>();
+  /** Generator 5 (`sleepingCorners`): a ground-storey room's area id → the other kinds it holds a zone of. */
+  readonly roomZones = new Map<string, readonly RoomKind[]>();
   /** Generator 5 (`buildingRooms`): the interior doorways between a building's rooms (not ways in from outside). */
   readonly interiorOpenings = new Set<string>();
   /** Plan list lengths: synthetic areas / openings / wall runs come after these indices. */
@@ -977,6 +980,7 @@ function addGroundRooms(
     if (shell.theme !== undefined) room.theme = shell.theme;
     areas.push(room);
     work.roomBuilding.set(id, st.id);
+    if (r.zones !== undefined) work.roomZones.set(id, r.zones);
     // generator 5 (characterCascade): the room's character, drawn from its building's
     work.characters?.addArea(room, st.id);
   });
