@@ -24,6 +24,7 @@ import type {
   MapPlan,
   Opening,
   PlanIssue,
+  Plinth,
   RoofType,
   Side,
   Structure,
@@ -41,6 +42,7 @@ import { own } from "../util/own";
 import { roofKitInfo, roofTone } from "./roofKits";
 import { roofInfo } from "./roofTypes";
 import { themeRange, type ThemeRange } from "./themeRange";
+import { drawStructureOption } from "./recipes/treatments";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { OPPOSITE, SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
 import { forEachMaskCell } from "../gen/mask";
@@ -883,6 +885,12 @@ function drawDesigns({ plan, level, list, work, levelTheme, palette }: Expansion
   }
 }
 
+/** (sacredReads) A sacred building's raised base: a tile high, a cell out toward its street face, steps to the door. */
+const SACRED_BASE = { height: 1, margin: 1, approach: "steps", rim: "none" } as const satisfies Omit<
+  Plinth,
+  "sides"
+>;
+
 /** (readableNeighbours) Buildings within this many cells of each other are neighbours on a street. */
 const NEAR_STREET = 12;
 
@@ -1440,15 +1448,35 @@ function planBuilding(
   levelTheme: string,
   inBounds: (x: number, y: number) => boolean,
 ): BuildingPlan | null {
-  const b = startBuilding(plan, written, si, work, levelTheme, inBounds);
+  const b0 = startBuilding(plan, written, si, work, levelTheme, inBounds);
 
   // masses: volumes with their storeys and roofs, and the footprint they stand on
-  const specs = volumeSpecs(b, cellsOfShape);
+  const specs = volumeSpecs(b0, cellsOfShape);
   if (!specs) return null;
-  const volumes = planVolumes(b, specs);
+  const volumes = planVolumes(b0, specs);
   const main = volumes.find((v) => v.on === null) as VolumePlan;
-  const fp = groundFootprint(b, volumes);
+  const fp = groundFootprint(b0, volumes);
   if (!fp) return null;
+
+  // generator 5 (`sacredReads`): a sacred building's raised form, when its treatment draws it: the door at the middle
+  // of its face, no hearth stack, a base with steps toward the street (drawPlinth below)
+  const raised =
+    b0.gen.sacredReads &&
+    drawStructureOption(
+      "sacredForm",
+      buildingSubjectOf(b0, fp, volumes, b0.st.condition ?? b0.profile.condition ?? "intact"),
+      `${b0.seed}|${b0.st.id}`,
+    ) === "raised";
+  const b = raised
+    ? {
+        ...b0,
+        st: { ...b0.st, chimneys: b0.st.chimneys ?? [] },
+        profile: {
+          ...b0.profile,
+          variety: { ...b0.profile.variety, doorPosition: [0.5, 0.5] as [number, number] },
+        },
+      }
+    : b0;
 
   // faces: openings (with a default door), chimneys, the street face, windows, porches
   const faces = new BuildingFaces(b.st.id);
@@ -1471,7 +1499,13 @@ function planBuilding(
   const doorLights =
     decay.condition === "ruined" ? false : doorLightsByLight(b, b.st.lighting?.doors ?? b.profile.doorLight);
   const lights = placeDoorLights(fp, faces, doorLights);
-  const plinth = drawPlinth(b, fp, porches);
+  const plinth = drawPlinth(
+    raised && b.st.plinth === undefined
+      ? { ...b, st: { ...b.st, plinth: { ...SACRED_BASE, sides: [frontage.side] } } }
+      : b,
+    fp,
+    porches,
+  );
   const furniture = drawRoofFurniture(b, decay.ruin);
   const lighting = drawLighting(b, decay.condition, doorLights);
   const reserve = reservedCells(fp, faces.ground, standing, porches, plinth);

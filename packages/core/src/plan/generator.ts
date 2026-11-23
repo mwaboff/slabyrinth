@@ -496,6 +496,18 @@ const SWITCHES = {
     5,
     "Layered ground is laid to a share of what is seen (each piece's inscribed ellipse times the share its kind fills, util/visibleCover.ts; the box measure read 30-42 % where the street showed 10-15 %): the band a tile from an edge gets 1.6 times the place's share, a corner more, the open middle 0.15 times it as anchored clumps only; flat cover (litter, pebbles) lies only within two cells of a door's apron, a lane or a path (resolve/recipes/ground.ts).",
   ),
+  raggedRuins: on(
+    5,
+    "A ruin's breach tapers over two cells each side in stubs of uneven height; the roof is open right across over the breach only and has fallen in partway over its tapers (a ragged edge, and one bay no longer takes most of a small house's roof); the rubble grows with the breach's width; a ruin whose roof is gone keeps no porch post (resolve/building/ruinBays.ts, resolve/recipes/condition.ts, compile/realize/structures/attachments.ts).",
+  ),
+  ramshackleSigns: on(
+    5,
+    'Worn and ramshackle read apart at street distance: a ramshackle building may draw a lean-to shelter on one blank face off the street (detail recipe leanToShelter: a lower roof of its own kit on two kinds of post, plank ends, clutter under it; treatment family "addition"), and boards up three windows in five where a worn one boards one in five (resolve/recipes/condition.ts, resolve/building/condition.ts).',
+  ),
+  sacredReads: on(
+    5,
+    "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

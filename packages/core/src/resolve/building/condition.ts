@@ -48,6 +48,9 @@ export function buildingSubjectOf(
 }
 
 type GrowthLevel = NonNullable<BuildingPlan["growthLevel"]>;
+
+/** (ramshackleSigns) Share of the windows boarded, by condition state (generator 3 boards a third of any weathered). */
+const BOARDED = { worn: 0.2, ramshackle: 0.6 } as const;
 import type { GroundFootprint } from "./volumes";
 import { maxOf, pushAll } from "../../util/lists";
 
@@ -255,7 +258,11 @@ function weather(d: DecayWork, hadChimney: boolean): void {
     ...d.faces.ground.filter((g) => isWindow(g.kind)),
     ...d.faces.upper.filter((g) => isWindow(g.kind)),
   ];
-  const boarded = boardWindows(d.faces, wins, wp);
+  // generator 5 (`ramshackleSigns`): a ramshackle building boards up most of its windows, a worn one few
+  const state = d.b.gen.ramshackleSigns ? buildingSubjectOf(d.b, d.fp, d.vplans, "weathered").state : null;
+  const share =
+    state === "ramshackle" ? BOARDED.ramshackle : state === "worn" ? BOARDED.worn : WEATHERED.boardedShare;
+  const boarded = boardWindows(d.faces, wins, wp, share);
   const bites = biteParapets(vplans, wp);
   const hung = loseHungDetail(b);
   if (hung) lost.push(hung);
@@ -328,8 +335,9 @@ function boardWindows(
   faces: BuildingFaces,
   wins: ReadonlyArray<{ at: readonly [number, number]; side: Side }>,
   wp: Prng,
+  share: number = WEATHERED.boardedShare,
 ): string[] {
-  const boardN = wins.length === 0 ? 0 : Math.max(1, Math.round(wins.length * WEATHERED.boardedShare));
+  const boardN = wins.length === 0 ? 0 : Math.max(1, Math.round(wins.length * share));
   const boarded = wp
     .shuffle(wins.map((w) => faceKey(w.at[0], w.at[1], w.side)))
     .slice(0, boardN)

@@ -8,6 +8,7 @@
  *                   with distance from use. Variants: feet (a fringe), thick (most of the run).
  *   breachRubble    a ruin's rubble graded by distance from each breach, inside and out: big blocks near the wall, piles
  *                   further, small stones furthest; the breach itself stays walkable (the keep-clear rule refuses its way).
+ *   leanToShelter   (family "addition") a ramshackle building's lean-to shelter on one blank face (see below).
  *
  * Pieces, theme's own first, nothing borrowed (a theme without them shows none):
  *   weeds   feature.undergrowth → feature.tall_grass (low: at most LOW_H tall)
@@ -27,9 +28,9 @@ import { isPassage } from "../../gen/openingKinds";
 import { wallStyleInfo } from "../../gen/wallStyles";
 import { hashUnitMixed } from "../../util/hash";
 import { turnedHalfExtents } from "../../util/turn";
-import { framePoint, NORMAL_TURN, type AnchorFrame } from "../anchors";
+import { framePoint, NORMAL_TURN, type AnchorFrame, type FaceAnchor } from "../anchors";
 import { minOf } from "../../util/lists";
-import type { FilledSlot, Recipe, RecipeCtx } from "./types";
+import type { ComposeCtx, FilledSlot, Recipe, RecipeCtx } from "./types";
 
 /** Growth and stones: at most this tall. */
 const LOW_H = 1.4;
@@ -49,6 +50,9 @@ const BANDS = [
   { from: 1.4, to: 2.8, count: [2, 4] },
   { from: 2.8, to: 4.5, count: [3, 5] },
 ] as const;
+
+/** (raggedRuins) Each band's count grows by this share per cell of the breach's width. */
+const RUBBLE_PER_CELL = 0.75;
 
 const piecesOf = (s: FilledSlot | undefined): readonly ArrangePiece[] => s?.pieces ?? [];
 const low = (ps: readonly ArrangePiece[]): ArrangePiece[] =>
@@ -191,6 +195,166 @@ export const wallFootGrowth: Recipe<"face"> = {
   },
 };
 
+/** (ramshackleSigns) A lean-to shelter: this many cells along its face at most, its roof's eave at least this high. */
+const SHELTER_LONG = 3;
+const SHELTER_EAVE = 2;
+/** Posts and clutter of a shelter: at most this long a foot (a post) and this tall (clutter). */
+const POST_FOOT = 0.7;
+const POST_MATCH = 0.3;
+const ROW_SLACK = 0.05;
+const CLUTTER_H = 1.1;
+/** Clutter against the wall: at most this deep, so it stays off the open cell's centre in front of the wall. */
+const CLUTTER_DEEP = 0.4;
+
+/** Where along a face a shelter of `cells` may start: clear of every opening in it (a door's way, a window). */
+function shelterStarts(a: FaceAnchor, cells: number): number[] {
+  const out: number[] = [];
+  for (let x0 = 0; x0 + cells <= Math.floor(a.length); x0++)
+    if (!a.gaps.some((g) => g.from < x0 + cells && x0 < g.to)) out.push(x0);
+  return out;
+}
+
+const shelterCells = (a: FaceAnchor): number => Math.min(SHELTER_LONG, Math.floor(a.length));
+
+/** The face a building's shelter goes on: one of its seen faces off the street with room clear of its openings. */
+function shelterFace(ctx: ComposeCtx, a: FaceAnchor, st: ResolvedStructure): string | null {
+  const faces = ctx.anchors
+    .of("face")
+    .filter(
+      (f) =>
+        f.structure === a.structure &&
+        f.outside &&
+        f.seen &&
+        f.storey === 0 &&
+        f.length >= 2 &&
+        f.height >= SHELTER_EAVE + 1 &&
+        !f.gaps.some((g) => isPassage(g.kind)) &&
+        shelterStarts(f, shelterCells(f)).length > 0 &&
+        normalSide(f.frame) !== st.frontage?.side,
+    )
+    .map((f) => f.key)
+    .sort();
+  return faces[Math.floor(ctx.treatment.jitter("shelterFace") * faces.length)] ?? null;
+}
+
+/** The turn that faces a piece's palette front along local +z (out of the wall). */
+function frontOut(p: ArrangePiece): number {
+  return ({ N: 0, E: 270, S: 180, W: 90 } as const)[p.variant.facing?.front ?? "N"];
+}
+
+/**
+ * Generator 5 (`ramshackleSigns`), plan §11.1, from the owner's screenshots of the condition proof (worn and
+ * ramshackle were hard to tell apart at a glance): a ramshackle building's lean-to shelter on one blank face off the
+ * street, the sign that reads at street distance. Its roof is a row or two of the building's own kit's slopes, lower
+ * than the house's eave and above head height, standing on two posts of different kinds at its outer corners; its ends
+ * are planks (the theme's fence: a lighter material than the house); a few things stand under it against the wall. Its
+ * cells stay walkable (open in front); everything is fastened to the wall (mount "wall"), on quarter turns; a shelter
+ * the keep-clear rule refuses any piece of is left out whole.
+ */
+export const leanToShelter: Recipe<"face"> = {
+  id: "leanToShelter",
+  doc: "a ramshackle building's lean-to shelter on one blank face: plank ends, a lower roof of its own kit on mixed posts",
+  switch: "ramshackleSigns",
+  family: "addition",
+  anchor: "face",
+  tier: () => 1,
+  mount: "wall",
+  blocking: false,
+  thinnable: false,
+  whole: true,
+  when: (a) =>
+    a.structure !== null &&
+    a.outside &&
+    a.seen &&
+    !a.natural &&
+    a.storey === 0 &&
+    a.length >= 2 &&
+    a.height >= SHELTER_EAVE + 1 &&
+    !a.gaps.some((g) => isPassage(g.kind)),
+  slots: {
+    roof: {
+      roles: (a, _t, ctx) => {
+        const st = ctx ? structureOf(ctx, a.structure) : undefined;
+        return st ? [{ role: `roof.${st.roof.style}.slope` }] : [];
+      },
+      fallback: "skip",
+    },
+    posts: {
+      roles: () => [{ role: "porch_post.default" }, { role: "feature.pillar" }],
+      fallback: "skip",
+    },
+    // (a second kind of post, what was to hand)
+    others: { roles: () => [{ role: "feature.pillar" }, { role: "feature.post" }], fallback: "simplify" },
+    planks: { roles: () => [{ role: "wall.fence" }], fallback: "simplify" },
+    clutter: {
+      roles: () => [{ role: "feature.crate" }, { role: "feature.barrel" }, { role: "ruin_prop.default" }],
+      fallback: "simplify",
+    },
+  },
+  compose: (a, slots, ctx) => {
+    const st = structureOf(ctx, a.structure);
+    if (!st || shelterFace(ctx, a, st) !== a.key) return null;
+    const slope = piecesOf(slots.roof).find((p) => p.measures.length <= 1.05 && p.measures.width >= 0.95);
+    const posts = piecesOf(slots.posts).filter((p) => p.measures.length <= POST_FOOT);
+    if (!slope || posts.length === 0) return null;
+    // two kinds of post where the theme has them (what was to hand)
+    const postA = posts[Math.floor(ctx.treatment.jitter("postA") * posts.length)] as ArrangePiece;
+    // (a second kind about as tall, so both reach the eave)
+    const postB =
+      [...posts, ...piecesOf(slots.others).filter((p) => p.measures.length <= POST_FOOT)].find(
+        (p) =>
+          p.variant.wanted !== postA.variant.wanted &&
+          Math.abs(p.measures.height - postA.measures.height) <= POST_MATCH,
+      ) ?? postA;
+    const cells = shelterCells(a);
+    const starts = shelterStarts(a, cells);
+    const x0 = starts[Math.floor(ctx.treatment.jitter("shelterAt") * starts.length)];
+    if (x0 === undefined) return null;
+    const out: Placed[] = [];
+    // posts at the outer corners, on the ground (a footed house's floor stands above it); the eave on their tops, over
+    // head height, and the roof's rows under the house's own eave
+    const depthOf = (rows: number): number => rows - 0.15;
+    const gA = onGround(ctx, a.frame, x0 + 0.15, depthOf(1), postA, 0);
+    const gB = onGround(ctx, a.frame, x0 + cells - 0.15, depthOf(1), postB, 0);
+    if (gA === null || gB === null || Math.abs(gA - gB) > 0.01) return null;
+    const eave = gA + Math.max(SHELTER_EAVE, Math.min(postA.measures.height, postB.measures.height));
+    // (a post a hair over two tiles still leaves a row under a three-tile wall)
+    const rows = Math.min(2, Math.floor(a.height - eave + ROW_SLACK));
+    if (rows < 1) return null;
+    const yaw = frontOut(slope);
+    for (let i = 0; i < cells; i++)
+      for (let r = 0; r < rows; r++)
+        // the outer row lowest; each row a course higher toward the wall
+        out.push({ piece: slope, x: x0 + i + 0.5, z: rows - r - 0.5, y: eave + r, yaw });
+    out.push({ piece: postA, x: x0 + 0.15, z: depthOf(rows), y: gA, yaw: 0 });
+    out.push({ piece: postB, x: x0 + cells - 0.15, z: depthOf(rows), y: gA, yaw: 0 });
+    // plank ends: the theme's fence across each end of the shelter, along its depth
+    const plank = piecesOf(slots.planks).find((p) => p.measures.length <= rows + 0.05);
+    if (plank) {
+      const along = plank.measures.runAxis === "z" ? 0 : 90;
+      for (const x of [x0, x0 + cells])
+        for (let z = plank.measures.length / 2; z <= rows + 1e-6; z += plank.measures.length)
+          out.push({ piece: plank, x, z, y: gA, yaw: along });
+    }
+    // a few things left under it against the wall
+    const clutter = piecesOf(slots.clutter).filter(
+      (p) => p.measures.height <= CLUTTER_H && p.measures.width <= CLUTTER_DEEP,
+    );
+    for (let i = 0; i < Math.min(cells, 3) && clutter.length > 0; i++) {
+      if (ctx.treatment.jitter(`clutter${i}`) < 0.35) continue;
+      const p = clutter[
+        Math.floor(ctx.treatment.jitter(`clutterPiece${i}`) * clutter.length)
+      ] as ArrangePiece;
+      // (its shorter side across the wall's foot)
+      const turn = p.variant.geom.size.z <= p.variant.geom.size.x ? 0 : 90;
+      const z = p.measures.width / 2 + 0.05;
+      const y = onGround(ctx, a.frame, x0 + i + 0.5, z, p, turn);
+      if (y !== null) out.push({ piece: p, x: x0 + i + 0.5, z, y, yaw: turn });
+    }
+    return out;
+  },
+};
+
 export const breachRubble: Recipe<"opening"> = {
   id: "breachRubble",
   doc: "a ruin's rubble graded by distance from each breach: big blocks near, piles further, small stones far (P11)",
@@ -244,8 +408,12 @@ export const breachRubble: Recipe<"opening"> = {
     BANDS.forEach((band, bi) => {
       const pool = grades[bi] ?? [];
       if (pool.length === 0) return;
+      // (raggedRuins: what fell scales with the breach, so a two- or three-cell breach reads from the street)
+      const more = ctx.profile.raggedRuins ? 1 + RUBBLE_PER_CELL * a.width : 1;
       const n = Math.round(
-        (band.count[0] + (band.count[1] - band.count[0]) * ctx.treatment.jitter(`rubble${bi}`)) * ctx.density,
+        (band.count[0] + (band.count[1] - band.count[0]) * ctx.treatment.jitter(`rubble${bi}`)) *
+          ctx.density *
+          more,
       );
       for (let i = 0; i < n; i++) {
         const p = pool[Math.floor(draw("piece", bi, i) * pool.length)] as ArrangePiece;

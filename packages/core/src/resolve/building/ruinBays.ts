@@ -24,6 +24,7 @@ import type { Side } from "../../contracts/plan";
 import { SIDE_STEP as STEP, SIDES } from "../../gen/gridGeometry";
 import { openingTests } from "../../gen/openingKinds";
 import { hashUnitMixed } from "../../util/hash";
+import { pushAll } from "../../util/lists";
 import { drawStructureOption, type Subject } from "../recipes/treatments";
 import { lossOf, type RuinProfile, wallColumns } from "../ruin";
 import type { BuildingCtx } from "./context";
@@ -47,6 +48,15 @@ const STEP_RUN = 6;
 const STEP_SHARE = [0.25, 0.4] as const;
 /** The share of wall columns that stand whole (a level top) the steps leave at least. */
 const LEVEL_SHARE = 0.6;
+/**
+ * Generator 5 (`raggedRuins`), from the owner's screenshots of the condition proof (the east ruin read as a house with a
+ * clean slot cut in it; the west one lost most of its roof though one bay was drawn: the bay took the whole taper):
+ * the tapers' stubs vary by up to RAG_RAGGED tiles; the roof over a taper cell falls in for BITE_NEAR (beside the
+ * breach) or BITE_FAR (further out) of the building's depth.
+ */
+const RAG_RAGGED = 1.5;
+const BITE_NEAR = [0.35, 0.75] as const;
+const BITE_FAR = [0, 0.35] as const;
 
 /** A drawn event before it is applied. */
 interface Event {
@@ -124,7 +134,8 @@ export function ruinBays(
   const used = new Set<Side>();
   for (let i = 0; i < count; i++) {
     const width = wide && i === 0 ? WIDE : u("width", i) < 0.55 ? 2 : 1;
-    const taper = u("taper", i) < 0.5 ? 1 : 2;
+    // (raggedRuins: a breach always tapers over two cells each side, so its sides step down in stubs)
+    const taper = b.gen.raggedRuins ? 2 : u("taper", i) < 0.5 ? 1 : 2;
     let best: { e: Event; score: number } | null = null;
     for (const run of runs) {
       const n = run.cells.length;
@@ -181,7 +192,8 @@ export function ruinBays(
         if (!c || !col) continue;
         const low = lowOf.get(faceKey(c[0], c[1], side)) ?? 0;
         const f = 1 - k / (e.taper + 1);
-        const rag = (u("rag", i, idx) - 0.5) * 0.5;
+        // (raggedRuins: stubs at uneven heights, a stub may stand above the one further from the breach)
+        const rag = (u("rag", i, idx) - 0.5) * (b.gen.raggedRuins ? RAG_RAGGED : 0.5);
         col.top = Math.max(
           low + 0.5,
           Math.min(col.full, half(col.full - (f + rag) * (col.full - low - 0.5))),
@@ -191,20 +203,30 @@ export function ruinBays(
     const [dx, dy] = STEP[side];
     const bay: Array<[number, number]> = [];
     const span = e.run.cells.slice(e.a0 - e.taper, e.a0 + e.width + e.taper);
-    for (const c of span) {
+    span.forEach((c, si) => {
       let x = c[0];
       let y = c[1];
       let last: [number, number] = [x, y];
+      const line: Array<[number, number]> = [];
       while (fp.cellSet.has(key(x, y))) {
-        bay.push([x, y]);
+        line.push([x, y]);
         last = [x, y];
         x -= dx;
         y -= dy;
       }
+      // (raggedRuins) the roof is open right across over the breach only; over its tapers it has fallen in partway, a
+      // deeper bite beside the breach, a shallow one (or none) further out: a ragged roof edge, not a slot
+      const k = si < e.taper ? e.taper - si : si >= e.taper + e.width ? si - e.taper - e.width + 1 : 0;
+      const reach =
+        !b.gen.raggedRuins || k === 0
+          ? line.length
+          : Math.round(line.length * jit(`bite${i}:${si}`, k === 1 ? BITE_NEAR : BITE_FAR));
+      pushAll(bay, line.slice(0, reach));
+      if (b.gen.raggedRuins && k > 0) return;
       // the notch in the opposite wall of the same bay: deepest at the breach's middle, half a tile at its edges
       const opp: Side = ({ N: "S", S: "N", E: "W", W: "E" } as const)[side];
       const col = byKey.get(faceKey(last[0], last[1], opp));
-      if (!col) continue;
+      if (!col) return;
       const low = lowOf.get(faceKey(last[0], last[1], opp)) ?? 0;
       const a = alongOf(side, c);
       const mid =
@@ -215,7 +237,7 @@ export function ruinBays(
       const core = Math.max(0.5, (e.width - 1) / 2) + 0.01;
       const depth = d <= core ? jit(`notch${i}`, NOTCH) : d <= core + 1 ? 0.5 : 0;
       if (depth > 0) col.top = Math.max(low + 1, Math.min(col.top, half(col.full - depth)));
-    }
+    });
     for (const [x, y] of bay) roofHoles.add(key(x, y));
     bays.push({ at: [first[0], first[1]], side, width: e.width, cells: bay });
   });

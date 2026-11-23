@@ -249,6 +249,14 @@ export const TREATMENTS: readonly TreatmentFamily[] = [
     ],
   },
   {
+    id: "addition",
+    doc: "a ramshackle building's lean-to shelter on one blank face: plank ends, a lower roof, posts of two kinds, clutter under it; or none",
+    options: [
+      { id: "leanTo", weight: onBuildings(perState(0, 0, 3, 0)), recipes: { leanToShelter: "one" } },
+      { id: "plain", weight: () => 1, recipes: {} },
+    ],
+  },
+  {
     id: "rubble",
     doc: "a ruin's rubble graded by distance from each breach (big blocks near, piles, small stones far), or none",
     options: [
@@ -316,6 +324,14 @@ export const STRUCTURE_TREATMENTS: readonly TreatmentFamily[] = [
     options: [
       { id: "bays", weight: (s) => (ruined(s) ? 3 : 1), recipes: {} },
       { id: "wide", weight: (s) => (ruined(s) && s.severity >= 2 ? 1.5 : 0), recipes: {} },
+    ],
+  },
+  {
+    id: "sacredForm",
+    doc: "switch sacredReads: how a sacred building reads from the street: raised on a base with steps to a centred door and no hearth stack, or as built",
+    options: [
+      { id: "raised", weight: (s) => (s.role === "sacred" && !ruined(s) ? 3 : 0), recipes: {} },
+      { id: "plain", weight: () => 1, recipes: {} },
     ],
   },
 ];

@@ -117,6 +117,10 @@ export function layPorches(b: StructureCtx): void {
     // weathered one has lost a third of its roof cells
     const worn = legiblyWorn(b);
     const gone = worn && st.condition === "ruined";
+    // generator 5 (`raggedRuins`): a ruin whose roof is gone keeps no porch post either (a lone post read as a roof
+    // remnant on a "roof gone" house)
+    if (gone && lv.ctx.profile.raggedRuins && (st.volumes ?? []).every((v) => v.roof.layers.length === 0))
+      continue;
     const roofCells = gone
       ? []
       : worn

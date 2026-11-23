@@ -32,6 +32,7 @@ import {
 import { resolvePlan } from "../../../src/resolve";
 import { ArrangementRecords } from "../../../src/resolve/level/arrangements";
 import { runRecipes } from "../../../src/resolve/recipes/engine";
+import { leanToShelter } from "../../../src/resolve/recipes/condition";
 import { approachLights, guardianPair } from "../../../src/resolve/recipes/threshold";
 import { ROOF_KITS, roofTone } from "../../../src/resolve/roofKits";
 import { roofInfo } from "../../../src/resolve/roofTypes";
@@ -391,6 +392,109 @@ describe("visibleGround: cover gathered where ground meets something, litter onl
     expect(cover("city").farLitter).toBe(0);
     without("visibleGround");
     expect(cover("city").farLitter).toBeGreaterThan(20);
+  });
+});
+
+describe("raggedRuins: a breach that reads as decay, not a slot", () => {
+  const plan = loadPlan("condition-street-v1");
+  const ruinOf = (id: string) => resolvePlan(plan, pal).levels[0]?.structures?.find((s) => s.id === id);
+
+  it("opens the roof right across over the breach only, partway over its tapers; without the switch the whole span", () => {
+    const on = ruinOf("ruin");
+    const bay = on?.ruin?.bays?.[0];
+    expect(bay).toBeDefined();
+    const depth = 6;
+    const holes = on?.ruin?.roofHoles?.length ?? 0;
+    expect(holes).toBeGreaterThanOrEqual((bay?.width ?? 0) * depth);
+    without("raggedRuins");
+    const off = ruinOf("ruin")?.ruin?.roofHoles?.length ?? 0;
+    expect(holes).toBeLessThan(off);
+    // (without it a two-cell breach took six of the house's nine columns of roof)
+    expect(off).toBeGreaterThanOrEqual(5 * depth);
+  });
+
+  it("steps the breach's sides down over two cells each side", () => {
+    const st = ruinOf("ruin");
+    const bay = st?.ruin?.bays?.[0];
+    if (!st?.ruin || !bay) throw new Error("no bay");
+    const lowered = st.ruin.columns.filter((c) => c.side === bay.side && c.top < c.full - 1e-6).length;
+    expect(lowered).toBeGreaterThanOrEqual(bay.width + 4);
+  });
+
+  it("piles more rubble at a wide breach, and leaves no porch post on a house whose roof is gone", () => {
+    const rubble = (): number =>
+      (resolvePlan(plan, pal).levels[0]?.arrangements ?? [])
+        .filter((a) => a.recipe === "breachRubble" && a.host === "fallen")
+        .reduce((n, a) => n + a.pieces.length, 0);
+    const posts = (): number => namesOf(resolvePlan(plan, pal), "fallen~porch").length;
+    const on = { rubble: rubble(), posts: posts() };
+    expect(on.posts).toBe(0);
+    without("raggedRuins");
+    expect(posts()).toBeGreaterThan(0);
+    expect(on.rubble).toBeGreaterThan(rubble());
+  });
+});
+
+describe("ramshackleSigns: worn and ramshackle read apart", () => {
+  const plan = loadPlan("condition-street-v1");
+  const shelters = (profile: GeneratorProfile) =>
+    runRecipes(bareLevel(plan), new ArrangementRecords(), {
+      planSeed: plan.seed,
+      profile,
+      palette: resolveView(plan, pal),
+      budget: 1e6,
+      families: forced({ addition: { leanToShelter: "one" } }),
+      recipes: [leanToShelter],
+    }).attached;
+
+  it("builds one lean-to shelter per building, a roof of its own kit over head height on posts, off the street face", () => {
+    const on = shelters(generatorProfile(5));
+    const hosts = on.map((a) => a.host);
+    expect(new Set(hosts).size).toBe(hosts.length);
+    expect(on.length).toBeGreaterThan(3);
+    for (const a of on) {
+      const roof = a.pieces.filter((p) => p.role.startsWith("roof."));
+      expect(roof.length).toBeGreaterThan(0);
+      const st = resolvePlan(plan, pal).levels[0]?.structures?.find((s) => s.id === a.host);
+      for (const p of roof) expect(p.role).toBe(`roof.${st?.roof.style}.slope`);
+      // square: quarter turns only
+      for (const p of a.pieces) expect(p.yaw % 90).toBe(0);
+      expect(a.mount).toBe("wall");
+    }
+    expect(shelters({ ...generatorProfile(5), ramshackleSigns: false })).toHaveLength(0);
+  });
+
+  it("draws the shelter for a ramshackle building only, never a worn or kept one", () => {
+    const r = resolvePlan(plan, pal);
+    const states = new Map(
+      (r.levels[0]?.arrangements ?? []).filter((a) => a.recipe === "leanToShelter").map((a) => [a.host, 1]),
+    );
+    expect(states.has("worn")).toBe(false);
+    expect(states.has("kept")).toBe(false);
+  });
+
+  it("boards up most of a ramshackle house's windows and few of a worn one's; without the switch a third of each", () => {
+    const boarded = (id: string): number =>
+      resolvePlan(plan, pal).levels[0]?.structures?.find((s) => s.id === id)?.ruin?.weather?.boarded.length ??
+      0;
+    const on = { worn: boarded("worn"), shack: boarded("shack") };
+    expect(on.shack).toBeGreaterThanOrEqual(on.worn * 2);
+    without("ramshackleSigns");
+    expect(boarded("shack")).toBe(boarded("worn"));
+  });
+});
+
+describe("sacredReads: a shrine reads as a shrine", () => {
+  const plan = loadPlan("condition-street-v1");
+  it("raises the shrine on a base with steps, centres its door and leaves out its chimney; without the switch a cottage", () => {
+    const shrine = () => resolvePlan(plan, pal).levels[0]?.structures?.find((s) => s.id === "shrine");
+    const on = shrine();
+    expect(on?.plinth).toBeDefined();
+    expect(on?.chimneys).toHaveLength(0);
+    without("sacredReads");
+    const off = shrine();
+    expect(off?.plinth).toBeUndefined();
+    expect(off?.chimneys.length).toBeGreaterThan(0);
   });
 });
 
