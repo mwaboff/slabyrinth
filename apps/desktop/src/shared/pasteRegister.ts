@@ -8,14 +8,35 @@
 import { MARKER_ROLE } from "@slabyrinth/core";
 import type { BuildRecord } from "./project";
 
-export const OUT_OF_LINE_MESSAGE =
-  "This build is split into several slabs but has no alignment pillars, so TaleSpire would put every slab's middle under the cursor and pile them on each other. Build again to add the pillars.";
+type PasteFacts = Pick<BuildRecord, "settings" | "levels" | "unmatchedAssets">;
+
+/**
+ * Why a split build's slabs carry no alignment pillars: "noPiece" when the palettes have no pillar piece (the build
+ * names the role among its unmatched assets: building again cannot add one), else "turnedOff" (the build was made
+ * without them); null when the build is one slab or carries them.
+ */
+export function outOfLineCause(record: PasteFacts): "noPiece" | "turnedOff" | null {
+  const slabs = record.levels.reduce((n, l) => n + l.chunks.length, 0);
+  if (slabs <= 1) return null;
+  if (record.unmatchedAssets.some((u) => u.role === MARKER_ROLE)) return "noPiece";
+  return record.settings.markers === "none" ? "turnedOff" : null;
+}
 
 /** True when the build is more than one slab and its slabs carry no alignment pillars. */
-export function pastesOutOfLine(
-  record: Pick<BuildRecord, "settings" | "levels" | "unmatchedAssets">,
-): boolean {
-  const slabs = record.levels.reduce((n, l) => n + l.chunks.length, 0);
-  if (slabs <= 1) return false;
-  return record.settings.markers === "none" || record.unmatchedAssets.some((u) => u.role === MARKER_ROLE);
+export function pastesOutOfLine(record: PasteFacts): boolean {
+  return outOfLineCause(record) !== null;
+}
+
+/** What the build page and the add-on refusal say, by cause. */
+export const OUT_OF_LINE_MESSAGES = {
+  turnedOff:
+    "This build is split into several slabs but has no alignment pillars, so TaleSpire would put every slab's middle under the cursor and pile them on each other. Build again to add the pillars.",
+  noPiece:
+    "This build is split into several slabs, but your palettes have no alignment pillar piece, so the slabs carry none and TaleSpire would put every slab's middle under the cursor and pile them on each other. Building again will not fix it: add a palette that has a pillar piece (role marker.alignment) and build again, or paste the slabs one at a time and move each into place.",
+} as const;
+
+/** The message for a build that pastes out of line ("" when it does not). */
+export function outOfLineMessage(record: PasteFacts): string {
+  const cause = outOfLineCause(record);
+  return cause === null ? "" : OUT_OF_LINE_MESSAGES[cause];
 }

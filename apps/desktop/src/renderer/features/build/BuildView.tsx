@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./build.css";
 import { STEAM_LAUNCH_URL, type CompileDiagnostic, type ExportBundle, type MapPlan } from "@slabyrinth/core";
-import { OUT_OF_LINE_MESSAGE, pastesOutOfLine } from "../../../shared/pasteRegister";
+import { outOfLineCause, outOfLineMessage, pastesOutOfLine } from "../../../shared/pasteRegister";
 import { SendToTaleSpire } from "../talespire/SendToTaleSpire";
 import { pasteSteps } from "../talespire/pasteSteps";
 import { Icon } from "../../ui/Icon";
@@ -1086,10 +1086,12 @@ export function BuildView() {
         {pastesOutOfLine(rec) && (
           <div className="stale" role="alert">
             <Icon name="warn" />
-            <span>{OUT_OF_LINE_MESSAGE}</span>
-            <button className="btn btn--sm" disabled={building} onClick={() => void run(rec.versionNumber)}>
-              Build again
-            </button>
+            <span>{outOfLineMessage(rec)}</span>
+            {outOfLineCause(rec) === "turnedOff" && (
+              <button className="btn btn--sm" disabled={building} onClick={() => void run(rec.versionNumber)}>
+                Build again
+              </button>
+            )}
           </div>
         )}
         {rec.assetSource === "builtin" && (
