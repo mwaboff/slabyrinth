@@ -39,8 +39,10 @@ import { rest } from "../arrange/support";
 import { transform } from "../arrange/transform";
 import { hashUnitMixed } from "../util/hash";
 import { maxOf, minOf, pushAll } from "../util/lists";
-import { floorOver } from "./deck";
+import { pieceFacts } from "../gen/pieceFacts";
+import { floorOver, wholeCellKeys } from "./deck";
 import { kitOr, type ObjectKit } from "./kit";
+import { yawFacing } from "./facing";
 import { MEASURED_PROPS } from "./shipKitGeometry";
 import {
   bodySide,
@@ -135,7 +137,8 @@ const MAST_STATIONS: Readonly<Record<number, readonly number[]>> = {
  *     (`halfYaw`); the halves are nearly symmetric about their own diagonal, so a near miss (round 3) also looks closed;
  *   - curved bow fence: port 12 steps, starboard 18 (`bowFenceYaw`, `bowRailStarboardTurn`);
  *   - rig and props: the bowsprit rises and the shrouds climb toward +z, a set sail bellies toward +z, the boat's bow
- *     is +z (`bowYaw`); the cannon's barrel points -z (`cannonPortYaw`); the stern gallery faces -z with "L" its port
+ *     is +z (`bowYaw`); guns and controls turn by their mesh-read fronts (objects/facing.ts, not this table); the stern
+ *     gallery faces -z with "L" its port
  *     corner;
  *   - NOT settled by the mesh: which face of a side fence or a ship wall is outboard (the recipe keeps the fence's base
  *     lip and the walls' plain face outboard, their posts and mouldings inboard);
@@ -159,8 +162,6 @@ export const SHIP_KIT_FRAME = {
   bowRailStarboardTurn: 90,
   /** Recipe yaw of a piece that climbs or points toward its +z, to climb or point toward the recipe's +z. */
   plusZYaw: 0,
-  /** Recipe yaw of a port cannon (its barrel -z at rot 0, outboard); starboard is turned half round. */
-  cannonPortYaw: 180,
 } as const;
 
 /** A deck's floor thickness: the kit's deck tiles are half a tile thick, laid on the hull's top. */
@@ -225,7 +226,7 @@ export function kitHullOf(kit: ObjectKit): KitHull | null {
     fill: bowFill?.variant.geom.size.x ?? side.variant.geom.size.x,
     sideWidth: side.variant.geom.size.z,
     height: side.variant.geom.size.y,
-    gallery: galleryOf(kit)?.depth ?? 0,
+    gallery: galleryOf(kit)?.reach ?? 0,
   };
 }
 
@@ -349,8 +350,9 @@ function onKitGrid(d: VesselDesign, p: VesselParams, hull: KitHull): VesselDesig
       halfBeam: hb,
       bowTaper: hull.end,
       bowFacets: 2,
-      sternHalf: hb - hull.end / 2,
-      sternTaper: hull.end / 2,
+      // (measured: the kit's stern quarters are square in plan, the rounding below the rim: the decks reach the corners)
+      sternHalf: hb,
+      sternTaper: 0.05,
       sternFacets: 1,
     },
     stern: "transom",
@@ -723,7 +725,7 @@ function kitHullParts(d: VesselDesign, kit: ObjectKit, h: KitHull): Part[] {
 /** The kit's stern gallery (corner, windows, corner: 2 x 2 tiles a storey tall), when it has its pieces. */
 function galleryOf(
   kit: ObjectKit,
-): { depth: number; place: (x0: number, y: number, hb: number) => Placed[] } | null {
+): { depth: number; reach: number; place: (x0: number, y: number, hb: number) => Placed[] } | null {
   const ps = kit.standIn("shipGallery")?.pieces ?? [];
   const named = (v: string): ArrangePiece | undefined => ps.find((p) => p.variant.variant === v);
   const [l, r, w] = [named("corner-left"), named("corner-right"), named("window")];
@@ -731,6 +733,8 @@ function galleryOf(
   const depth = w.measures.width;
   return {
     depth,
+    // a raised deck reaches its end wall: the gallery's solid face (gen/pieceFacts.ts `wallDepth`), not its box
+    reach: pieceFacts(w.variant.name).wallDepth ?? depth,
     place: (x0, y, hb) => {
       const out: Placed[] = [];
       const x = x0 + depth / 2;
@@ -953,7 +957,31 @@ function supportParts(d: VesselDesign, kit: ObjectKit): Part[] {
 }
 
 /** Where the raised deck aft begins: the stern, or forward of the kit's stern gallery (its top is the deck there). */
-const aftFrom = (d: VesselDesign): number => -d.plan.length / 2 + (d.hull?.gallery ?? 0) - (d.hull ? 0 : 2);
+/**
+ * A raised deck reaches its end wall: its cells run up to the whole cell the wall's solid face stands in (the gallery's
+ * face is 0.7 deep, so the deck runs to the stern's last cell, the wall's cap rising over its edge); with a wall a cell
+ * or more deep, the deck stops at the wall.
+ */
+const aftFrom = (d: VesselDesign): number =>
+  -d.plan.length / 2 + Math.floor(d.hull?.gallery ?? 0) - (d.hull ? 0 : 2);
+
+/**
+ * The raised deck aft: inside the planking, from the break to its end wall; on the kit's grid it spans the full beam
+ * inside its rails (the hull below is square there) and reaches the end wall's cell (`aftFrom`), not inset from it.
+ */
+function raisedAft(d: VesselDesign, t: number): XZ[] {
+  const aft = d.aft;
+  if (!aft) return [];
+  if (!d.hull) return deckOutline(d, aft.y, t, aftFrom(d), aft.x);
+  const w = d.plan.halfBeam - t / 2;
+  const a = aftFrom(d);
+  return [
+    [a, -w],
+    [aft.x, -w],
+    [aft.x, w],
+    [a, w],
+  ];
+}
 
 /** The inner outline at deck height (inside the planking), cut to an x range. */
 function deckOutline(d: VesselDesign, y: number, t: number, a: number, b: number): XZ[] {
@@ -972,11 +1000,14 @@ function decksOf(d: VesselDesign, t: number): { surfaces: Surface[]; spaces: Spa
       y: d.fore.y,
       polygon: deckOutline(d, d.fore.y, t, d.fore.x, half + 2),
     });
-  if (d.aft)
+  if (d.aft) surfaces.push({ id: "quarterdeck", y: d.aft.y, polygon: raisedAft(d, t) });
+  // a shell is capped across its whole width at every deck level: under the raised deck the main deck's level runs on
+  // to the hull's end (the kit's hull; the banded hull's break is walled)
+  if (d.aft && d.hull)
     surfaces.push({
-      id: "quarterdeck",
-      y: d.aft.y,
-      polygon: deckOutline(d, d.aft.y, t, aftFrom(d), d.aft.x),
+      id: "under the raised deck",
+      y: d.deck,
+      polygon: deckOutline(d, d.deck, t, -half - 2, d.aft.x),
     });
   const spaces: Space[] =
     d.kind === "ship"
@@ -1027,11 +1058,7 @@ function interiorDecks(d: VesselDesign, t: number): { surfaces: Surface[]; space
     });
   }
   if (d.aft) {
-    surfaces.push({
-      id: "quarterdeck",
-      y: d.aft.y,
-      polygon: deckOutline(d, d.aft.y, t, aftFrom(d), d.aft.x),
-    });
+    surfaces.push({ id: "quarterdeck", y: d.aft.y, polygon: raisedAft(d, t) });
     spaces.push({
       id: "stern cabin",
       floorY: d.deck,
@@ -1053,7 +1080,12 @@ function interiorDecks(d: VesselDesign, t: number): { surfaces: Surface[]; space
 }
 
 /** The decks' tiles (one texture each), the bulkheads across the breaks, and steps up to the raised decks. */
-function deckParts(d: VesselDesign, kit: ObjectKit, surfaces: readonly Surface[]): Part[] {
+function deckParts(
+  d: VesselDesign,
+  kit: ObjectKit,
+  surfaces: readonly Surface[],
+  spaces: readonly Space[],
+): Part[] {
   // one deck texture for the whole vessel: the ship kit's deck tiles, else the wooden floor tiles; with rooms aboard
   // the whole cells are the deck areas' floors (the level lays them) and the recipe lays the margins only
   const deckTiles = {
@@ -1063,6 +1095,27 @@ function deckParts(d: VesselDesign, kit: ObjectKit, surfaces: readonly Surface[]
   const tiles = surfaces
     .flatMap((s) => floorOver(s.polygon, s.y, kit, `${d.seed}:deck`, deckTiles, { wholeCells: !d.interior }))
     .filter((q) => !inGangway(d, q));
+  // a shell is capped across its whole width at every deck level: under a raised deck the main deck's level runs on to
+  // the hull's end (its stern block, under the gallery), the cabin's own floor left to the level that lays it
+  // (with rooms aboard the cap is laid here: the cabin's whole cells are the level's floor)
+  if (d.hull && d.aft && d.interior) {
+    const half = d.plan.length / 2;
+    const cabin = spaces.find((s) => s.floorY === d.deck && s.id === "stern cabin");
+    const raised = surfaces.find((s) => s.id === "quarterdeck");
+    const under = cabin && raised ? wholeCellKeys(raised.polygon) : new Set<string>();
+    const taken = new Set([...(cabin ? wholeCellKeys(cabin.polygon) : [])].filter((k) => under.has(k)));
+    const cap = floorOver(
+      deckOutline(d, d.deck, 2 * KIT_RAIL, -half - 2, d.aft.x),
+      d.deck,
+      kit,
+      `${d.seed}:deck`,
+      deckTiles,
+      {
+        taken,
+      },
+    );
+    pushAll(tiles, cap);
+  }
   const parts = [part("decks", "deck", tiles, { rung: 50, kind: "interior" })];
   // with rooms aboard, the breaks are the cabins' walls and the steps are the level's links
   if (d.interior) return parts;
@@ -1529,8 +1582,9 @@ function stowageParts(d: VesselDesign, kit: ObjectKit, decks: readonly Surface[]
         if (busy.some((b) => Math.abs(b - x) < 1.6)) continue;
         const z = halfWidthAt(main.polygon, x) - cannon.measures.length / 2 - 0.05;
         guns.push(
-          at(cannon, x, d.deck, z, SHIP_KIT_FRAME.cannonPortYaw),
-          at(cannon, x, d.deck, -z, SHIP_KIT_FRAME.cannonPortYaw + 180),
+          // (mounted: muzzle out from the centre line, objects/facing.ts)
+          at(cannon, x, d.deck, z, yawFacing(cannon, [0, 1])),
+          at(cannon, x, d.deck, -z, yawFacing(cannon, [0, -1], 180)),
         );
         busy.push(x);
       }
@@ -1619,7 +1673,13 @@ function stowageParts(d: VesselDesign, kit: ObjectKit, decks: readonly Surface[]
   const helm = kit.piece("shipHelm");
   if (helm && d.kind === "ship") {
     const hx = d.aft ? d.aft.x - 1.5 : -half + 2.5;
-    parts.push(part("helm", "stowage", [at(helm, hx, deckAt(d, hx), 0, 90)], { rung: 100, kind: "detail" }));
+    // (a control: its operator faces the way the vessel travels, its bow +x; objects/facing.ts)
+    parts.push(
+      part("helm", "stowage", [at(helm, hx, deckAt(d, hx), 0, yawFacing(helm, [1, 0], 90))], {
+        rung: 100,
+        kind: "detail",
+      }),
+    );
   }
   const anchor = kit.piece("shipAnchor");
   if (anchor && d.kind === "ship") {
@@ -1649,7 +1709,9 @@ function stowageParts(d: VesselDesign, kit: ObjectKit, decks: readonly Surface[]
     const xs = [-half + 0.8, half - 0.25 * d.plan.bowTaper];
     const lights: Placed[] = [];
     xs.forEach((x, k) => {
-      const z = halfWidthAt(closedOutline(sideAt(d, d.deck)), x);
+      // (on the kit's grid the rail runs straight to the square stern: the lantern hangs on it)
+      const z =
+        d.hull && k === 0 ? d.plan.halfBeam - KIT_RAIL / 2 : halfWidthAt(closedOutline(sideAt(d, d.deck)), x);
       const sides = k === 0 ? [-1, 1] : [1];
       for (const s of sides) lights.push(at(lantern, x, capTop(x) - 0.02, s * z));
     });
@@ -1788,7 +1850,7 @@ export const vessel: ObjectRecipe<VesselParams> = {
     const parts = [
       ...hullParts(d, kit, lod),
       ...supportParts(d, kit),
-      ...deckParts(d, kit, surfaces),
+      ...deckParts(d, kit, surfaces, spaces),
       ...d.masts.flatMap((m, i) => mastParts(d, kit, m, i)),
       ...sparParts(d, kit),
       ...stowageParts(d, kit, surfaces),

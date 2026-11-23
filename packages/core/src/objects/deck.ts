@@ -23,6 +23,24 @@ export interface FloorTiles {
 }
 const PLAIN_FLOOR: FloorTiles = { small: "deckSmall", big: "deck" };
 
+/** The whole cells inside a polygon (every corner inside or within 0.02), as "x,z" keys: what `floorOver` lays whole. */
+export function wholeCellKeys(poly: readonly XZ[]): Set<string> {
+  const out = new Set<string>();
+  if (poly.length < 3) return out;
+  const xs = poly.map((p) => p[0]);
+  const zs = poly.map((p) => p[1]);
+  for (let z = Math.floor(minOf(zs)); z < Math.ceil(maxOf(zs)); z++)
+    for (let x = Math.floor(minOf(xs)); x < Math.ceil(maxOf(xs)); x++)
+      if (
+        insideOrNear(poly, x, z, 0.02) &&
+        insideOrNear(poly, x + 1, z, 0.02) &&
+        insideOrNear(poly, x, z + 1, 0.02) &&
+        insideOrNear(poly, x + 1, z + 1, 0.02)
+      )
+        out.add(`${x},${z}`);
+  return out;
+}
+
 /**
  * Floor tiles over the polygon with their tops at `y` (see the file header); empty when the kit has no floor tile.
  * `wholeCells: false` lays the margins only (the whole cells are an area's floor, laid by the level: objects/site).
@@ -33,7 +51,11 @@ export function floorOver(
   kit: ObjectKit,
   seed: string,
   tiles: FloorTiles = PLAIN_FLOOR,
-  o: { readonly wholeCells?: boolean } = {},
+  o: {
+    readonly wholeCells?: boolean;
+    /** Whole cells another floor covers (a room's, laid by the level): left out, and no margin tile over them. */
+    readonly taken?: ReadonlySet<string>;
+  } = {},
 ): Placed[] {
   // one deck texture: one small tile per deck (seeded), and the large tile of the same family (longest shared name)
   const one = kit.pick(tiles.small, seed);
@@ -78,7 +100,7 @@ export function floorOver(
     z: cz,
     yaw: 0,
   });
-  const used = new Set<string>();
+  const used = new Set<string>([...(o.taken ?? [])].filter((k) => whole.has(k)));
   for (let z = z0; z < z1; z++)
     for (let x = x0; x < x1; x++) {
       if (!whole.has(key(x, z)) || used.has(key(x, z))) continue;
@@ -129,13 +151,11 @@ export function floorOver(
         continue;
       // whole cells laid by the level: a margin tile centred on (or within a hair of) one belongs to that cell's floor
       // (it would stand over another level's floor), so only the ones centred off the whole cells are laid
-      if (
-        o.wholeCells === false &&
+      const near = (s: ReadonlySet<string>): boolean =>
         [-0.05, 0.05].some((ex) =>
-          [-0.05, 0.05].some((ez) => whole.has(key(Math.floor(cx + ex), Math.floor(cz + ez)))),
-        )
-      )
-        continue;
+          [-0.05, 0.05].some((ez) => s.has(key(Math.floor(cx + ex), Math.floor(cz + ez)))),
+        );
+      if ((o.wholeCells === false && near(whole)) || (o.taken !== undefined && near(o.taken))) continue;
       const drop = MARGIN_DROP[k % MARGIN_DROP.length] ?? 0.03;
       k++;
       out.push(tile(one, cx, cz, y - drop));

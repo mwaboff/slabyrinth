@@ -51,8 +51,11 @@ export const MEASURED_PROPS = {
   shroudsClimb: "+z",
   /** A set sail's belly (convex side) faces +z. */
   sailBelly: "+z",
-  /** The cannon's barrel points -z (the part is turned half round in the index). */
-  cannonBarrel: "-z",
+  /**
+   * The cannon's muzzle points +z: the narrow end of its long axis, raised off the floor (round 5; the spike's first
+   * reading, -z, turned the round-4 cannons inboard in the owner's 231). Held in gen/pieceFacts.ts `front`.
+   */
+  cannonBarrel: "+z",
   /** The kit boat's front section points +z. */
   boatBow: "+z",
   /** The stern gallery's outer face (cap and glass) is -z; its "L" corner is rounded at the south-west (port aft). */

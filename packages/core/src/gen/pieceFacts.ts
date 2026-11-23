@@ -44,7 +44,20 @@ export interface PieceFacts {
   readonly shell?: true;
   /** A piece grown over with moss or plants: it reads as a land plant, so it stays off ground under water. */
   readonly grown?: true;
+  /**
+   * The piece's front at rot 0 and what it must face where it is fastened: a gun's muzzle faces OUT from the body it is
+   * mounted on (away from its centre line); a control's operator faces the way the body TRAVELS (objects/facing.ts).
+   */
+  readonly front?: { readonly axis: FrontAxis; readonly faces: "outboard" | "travel" };
+  /**
+   * How deep a wall piece's solid face is from its outer edge, where its box is deeper than its wall (the rest of the
+   * box is open above a sill): a deck that meets it reaches this far (objects/vessel.ts).
+   */
+  readonly wallDepth?: number;
 }
+
+/** A front direction at rot 0 (+z north, +x east). */
+export type FrontAxis = "+x" | "-x" | "+z" | "-z";
 
 const light = (
   reach: number,
@@ -126,6 +139,20 @@ export const PIECE_FACTS: Readonly<Record<string, PieceFacts>> = {
   "Ship bottom back L_Stern": { shell: true },
   "Ship bottom back R_Stern": { shell: true },
   "Ship bottom back Fin 4x2_Rudder": { shell: true },
+
+  // ── fronts, read from the game's meshes (round 5, the mesh spike: the business end of a long piece is the
+  // narrow end raised off the floor; the owner's 226-233 showed round 4's cannons, turned by the opposite reading,
+  // pointing inboard). The helm: its wheel disc stands at the north edge of the tile and its steering box south of it;
+  // the helmsman stands at the wheel facing the box (226-233: turned the other way it faced aft) ──
+  "ship cannon static": { front: { axis: "+z", faces: "outboard" } },
+  "ship cannon up or down": { front: { axis: "+z", faces: "outboard" } },
+  "Ship floor Steering wheel": { front: { axis: "-z", faces: "travel" } },
+
+  // ── the stern gallery (round 5 mesh bands: a full-height wall 0.7 deep at the box's -z edge, a low sill behind it,
+  // nothing above the sill: a raised deck meets the wall, its floor reaching over the sill; hollow like a shell) ──
+  "Ship wall 2x2 decor window unique": { wallDepth: 0.7, shell: true },
+  "Ship wall 2x2 decor corner unique L": { wallDepth: 0.7, shell: true },
+  "Ship wall 2x2 decor corner unique R": { wallDepth: 0.7, shell: true },
 };
 
 /** The facts of a piece by its name (none for a piece the table does not name). */

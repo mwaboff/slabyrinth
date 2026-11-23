@@ -42,12 +42,11 @@ describe("SHIP_KIT_FRAME agrees with the measured kit", () => {
   });
 
   it("points the rig and props as measured", () => {
-    // a piece's +z turned by bowYaw is the bow; the cannon's barrel (-z) turned by cannonPortYaw is port (+z)
+    // a piece's +z turned by bowYaw is the bow; guns and controls turn by their fronts (facing.ts, its own test)
     expect(MEASURED_PROPS.shroudsClimb).toBe("+z");
     expect(MEASURED_PROPS.boatBow).toBe("+z");
-    expect(MEASURED_PROPS.cannonBarrel).toBe("-z");
+    expect(MEASURED_PROPS.cannonBarrel).toBe("+z");
     expect(steps(F.bowYaw)).toBe(0);
-    expect(F.cannonPortYaw).toBe(180);
   });
 
   it("measured the chosen turns clearly better than the next best", () => {
