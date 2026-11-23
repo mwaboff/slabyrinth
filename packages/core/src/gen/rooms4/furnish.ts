@@ -8,9 +8,9 @@
  *   3. a rug under the group;
  *   4. the wall lining (items with their own companions), up to the kind's fill and props per 10 tiles;
  *   5. small things on the furniture, a shelf plank (set by the kind's order: gen/rooms4/order.ts);
- *   6. lights: by the room's light level and regime (gen/rooms4/regimes.ts, switch lightRegimes); else the group's own
- *      (a nightstand's candle, the desk lamp), then the room's lighting rule (by occupancy, gen/rooms4/occupancy.ts, or
- *      generator 4's).
+ *   6. lights: by the room's light level and regime (gen/rooms4/regimes.ts, switch lightRegimes); a room a dress op
+ *      furnishes, the group's own (a nightstand's candle, the desk lamp), then the room's lighting rule (by occupancy,
+ *      gen/rooms4/occupancy.ts, or generator 4's).
  * A room down to SMALLEST_FURNISHED floor cells is furnished: its doors keep a landing only, not the wide clearance of a
  * big room, so the anchor (a cot, a desk) has floor to stand on.
  */
@@ -53,7 +53,7 @@ const FLOOR_CANDLE = (type: FeatureType): boolean => type === "candelabra" || ty
 const STANDING_LIGHT: readonly PieceChoice[] = [{ type: "torch_floor" }, { type: "brazier" }];
 
 /**
- * Generator 5 (lightRegimes): the kind's row with every candle meant to stand on the floor (a candle stand beside an
+ * The kind's row with every candle meant to stand on the floor (a candle stand beside an
  * altar, one in a lounge's corner) made a standing light, or left out of the lining.
  */
 function standingLightsOnly(t: RoomTraits): RoomTraits {
@@ -181,7 +181,7 @@ function anchorGroups(
 
 export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomKind): ScatterResult | null {
   const profile = gridProfile(grid);
-  const t = profile.lightRegimes ? standingLightsOnly(ROOM_TRAITS[kind]) : ROOM_TRAITS[kind];
+  const t = standingLightsOnly(ROOM_TRAITS[kind]);
   const roomWith = (compactDoorsBelow: number): Room =>
     new Room(grid, p.areaIndex, p.areaCells, p.seed, p.remaining, {
       ...(grid.windowOn ? { windowOn: (x: number, y: number, s) => grid.windowOn?.(x, y, s) === true } : {}),
@@ -299,8 +299,8 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
   }
   if (t.shelf) addShelf(room);
 
-  // 6. lights: generator 5 (lightRegimes) by the room's level and regime; else the group's own first, then the room's
-  // rule; an abandoned place keeps its dark
+  // 6. lights: generator 5 (lightRegimes) by the room's level and regime; a room a dress op furnishes (no level drawn
+  // for it: gen/place.ts dressArea) by occupancy, the group's own first; an abandoned place keeps its dark
   const noFire = ROOM_PURPOSE_INFO[t.host].noFire;
   if (profile.lightRegimes && p.lighting !== undefined) {
     lightByRegime(room, t, p.lighting.plan, {

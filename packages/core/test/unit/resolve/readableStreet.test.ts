@@ -2,8 +2,9 @@
  * Generator 5's street-reading round, each switch against its own absence: `ownWallsFirst` (a kept building in a
  * setting-kit style its theme only borrows is built in the theme's own wall), `readableTrims` (contrast drawn more where
  * the theme makes it; own-family posts and bands stand further proud, a band in the wall's own material is doubled, a
- * plinth shows taller), `groundClusters` (anchored clusters, a share of the whole place for every variant, deeper
- * sinking that verify takes as resting in the ground, companions leaning over a path's edge).
+ * plinth shows taller), and the layered ground's clusters (`layeredGround`: anchored clusters, a share of the whole
+ * place for every variant, deeper sinking that verify takes as resting in the ground, companions leaning over a path's
+ * edge).
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { placedBox, planPointOf } from "../../../src/arrange";
@@ -31,7 +32,7 @@ const P5 = GENERATOR_PROFILES[5] as { -readonly [K in keyof GeneratorProfile]: G
 const saved = { ...P5 };
 afterEach(() => Object.assign(P5, saved));
 /** Generator 5 with one switch off, for the rest of the test (restored after it). */
-const without = (name: "ownWallsFirst" | "readableTrims" | "groundClusters"): void => {
+const without = (name: "ownWallsFirst" | "readableTrims"): void => {
   P5[name] = false;
 };
 
@@ -166,7 +167,7 @@ describe("readableTrims", () => {
   });
 });
 
-describe("groundClusters", () => {
+describe("layered ground clusters", () => {
   const plan = { ...loadPlan("ground-and-walls-v1"), generator: 5 as const };
   const view = resolveView(plan, pal);
   const resolved = resolvePlan(plan, pal);
@@ -245,18 +246,10 @@ describe("groundClusters", () => {
     );
     expect(leaning.length).toBeGreaterThan(0);
     for (const b of on) expect(onPath(b.cx, b.cy)).toBe(false);
-    without("groundClusters");
-    const off = boxes(run("layered"));
-    expect(off.every((b) => b.sink <= 0.06)).toBe(true);
-    expect(off.filter((b) => b.h > 0.61)).toEqual([]);
   });
 
   it("gives the edges variant its share of the whole place, gathered at the edges", () => {
-    const on = share(run("edges"));
-    without("groundClusters");
-    const off = share(run("edges"));
-    expect(on).toBeGreaterThan(off * 1.4);
-    expect(on).toBeGreaterThanOrEqual(0.12);
+    expect(share(run("edges"))).toBeGreaterThanOrEqual(0.12);
   });
 
   it("is taken by verify as resting in the ground, a centre on a tile seam included", () => {

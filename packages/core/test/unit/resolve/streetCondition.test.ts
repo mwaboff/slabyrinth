@@ -2,8 +2,8 @@
  * The street and condition round (generator 5) on the varied-street-v1 and condition-street-v1 fixtures, each a fault
  * the owner's screenshots showed, held by the switch that fixes it (the switch off rebuilds the fault):
  *   twinnedPairs   a guardian pair is one piece twinned, both standing or neither (resolve/recipes/threshold.ts).
- *   roofKitFacts   no hip in a kit whose corner is a spiked tip; a roof patch is a repair of the same roof or none
- *                  (resolve/roofKits.ts, resolve/building/wear.ts, compile/realize/structures/roofPiece.ts).
+ *   roofKitFacts   no hip in a kit whose corner is a spiked tip (resolve/roofKits.ts); with roofPatches, a roof patch
+ *                  is a repair of the same roof or none (resolve/building/wear.ts, compile/realize/structures/roofPiece.ts).
  *   leanUnderMain  a lean-to stands under the house's ridge (resolve/structureVariety.ts, resolve/structure.ts).
  */
 import { afterEach, describe, expect, it } from "vitest";
@@ -144,24 +144,19 @@ describe("roofKitFacts: no spikes up a hip, patches that read as repairs", () =>
     })),
   });
 
-  it("patches a slate roof in its own worn pieces, in small groups; without the switch in orange village tiles", () => {
+  // (roofPatches: a patch reads as a repair of the same roof; the earlier patch in another kit was folded into it)
+  it("patches a slate roof in its own worn pieces, in small groups, never in orange village tiles", () => {
     const r = resolvePlan(inKit("slate"), pal);
     const shack = r.levels[0]?.structures?.find((s) => s.id === "shack");
     expect(shack?.roofPatch?.length ?? 0).toBeGreaterThan(4);
     const names = namesOf(r, "shack~");
     expect(names.some((n) => /broken/i.test(n))).toBe(true);
     expect(names.some((n) => /village/i.test(n))).toBe(false);
-    without("roofKitFacts");
-    expect(namesOf(resolvePlan(inKit("slate"), pal), "shack~").some((n) => /village/i.test(n))).toBe(true);
   });
 
-  it("leaves a village roof unpatched (no kit reads like it); without the switch it is patched in grey slate", () => {
+  it("leaves a village roof unpatched (no kit reads like it)", () => {
     const shackOf = (r: ResolvedPlan) => r.levels[0]?.structures?.find((s) => s.id === "shack");
     expect(shackOf(resolvePlan(inKit("village"), pal))?.roofPatch).toBeUndefined();
-    without("roofKitFacts");
-    const off = resolvePlan(inKit("village"), pal);
-    expect(shackOf(off)?.roofPatch?.length ?? 0).toBeGreaterThan(0);
-    expect(namesOf(off, "shack~").some((n) => /haunted roof/i.test(n))).toBe(true);
   });
 
   it("patches only a worn or worse building (the kept house has none)", () => {
@@ -316,7 +311,7 @@ describe("chimneyScale: a chimney's foot fits its face", () => {
   });
 });
 
-describe("visibleGround: cover gathered where ground meets something, litter only near use", () => {
+describe("layeredGround: cover gathered where ground meets something, litter only near use", () => {
   /** The green's cover, by what is seen: in its edge band (a step from an edge) and its open middle. */
   function cover(theme: string): { edge: number; middle: number; farLitter: number } {
     const plan = { ...loadPlan("varied-street-v1"), theme };
@@ -378,20 +373,15 @@ describe("visibleGround: cover gathered where ground meets something, litter onl
     return { edge: edge / (per * edgeCells), middle: middle / (per * (cells.length - edgeCells)), farLitter };
   }
 
-  it("covers the edge band several times as thickly as the open middle; without the switch about evenly", () => {
+  it("covers the edge band several times as thickly as the open middle", () => {
     const on = cover("wood_town");
     expect(on.edge).toBeGreaterThan(0.25);
     expect(on.middle).toBeLessThan(0.1);
     expect(on.edge / on.middle).toBeGreaterThan(3.5);
-    without("visibleGround");
-    const off = cover("wood_town");
-    expect(off.edge / off.middle).toBeLessThan(3);
   });
 
-  it("lays the city's litter only near its doors, lanes and paths; without the switch over the open grass", () => {
+  it("lays the city's litter only near its doors, lanes and paths", () => {
     expect(cover("city").farLitter).toBe(0);
-    without("visibleGround");
-    expect(cover("city").farLitter).toBeGreaterThan(20);
   });
 });
 

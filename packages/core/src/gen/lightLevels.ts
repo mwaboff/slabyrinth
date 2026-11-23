@@ -5,9 +5,9 @@
  * fixtures, the strongest pieces, every used spot marked (a modern clinic); dim is a few pools on the pieces in use with
  * dark between (an intimate taproom); dark is one or none.
  *
- * The plan has no field for it yet, so the scene's level is read from the words it already carries (the title, summary
- * and kind, the level's name, the theme) through one small table, and a room's words nudge its own level a step. A
- * future plan field (`lightLevel` on the plan or a level, and on an area) feeds the same `SceneLight` and nudge.
+ * The plan has no field for it yet, so the level is read from the words a place already carries through one small
+ * table (`lightNamedBy`); the character resolver (resolve/character.ts) is the one reader, and every consumer asks the
+ * character it resolved. A future plan field (`lightLevel` on the plan or a level, and on an area) is stated there.
  */
 import type { LightLevel } from "./roomTraits";
 
@@ -132,8 +132,6 @@ function levelsIn(texts: ReadonlyArray<string | undefined>): LightLevel[] {
     .filter((l): l is LightLevel => l !== undefined);
 }
 
-const clampLevel = (n: number): LightLevel => Math.max(0, Math.min(4, Math.round(n))) as LightLevel;
-
 /**
  * The scene's light: the level its words name (the middle one when they name several), else its theme's, else
  * moderate. `stated` (a future plan field) wins over the words.
@@ -147,21 +145,4 @@ export function sceneLight(p: {
   const middle: LightLevel | undefined = named[Math.floor((named.length - 1) / 2)];
   const level = p.stated ?? middle ?? THEME_LEVEL[p.theme] ?? 2;
   return { level, colour: COLOUR_THEMES.has(p.theme) };
-}
-
-/**
- * A room's own words move its level one step toward the level they name ("Cosy snug" one step dimmer than its kind in
- * the scene, "Bright gallery" one step brighter); 0 when they name none. `stated` (a future area field): the step that
- * reaches it from `base`, unbounded.
- */
-export function roomNudge(
-  texts: ReadonlyArray<string | undefined>,
-  base: LightLevel,
-  stated?: LightLevel,
-): number {
-  if (stated !== undefined) return stated - base;
-  const named = levelsIn(texts);
-  if (named.length === 0) return 0;
-  const mean = named.reduce((a: number, b) => a + b, 0) / named.length;
-  return Math.sign(clampLevel(mean) - base);
 }

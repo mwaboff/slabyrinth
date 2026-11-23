@@ -330,9 +330,9 @@ function checkSupport(
   const support = supports.length ? maxOf(supports.map((q) => q.box.max.y)) : null;
   // a floor or fill piece crossing the thin slice just above the support slack, its body round the prop's base
   // (util/sunk.ts: the ground recipe sinks a piece no deeper than this)
-  // (generator 5, `groundClusters`: an arranged piece sunk with its centre on the seam between two ground tiles is in
+  // (generator 5, `layeredGround`: an arranged piece sunk with its centre on the seam between two ground tiles is in
   // the ground: the tiles are met within SEAM_REACH of the centre)
-  const seam = s.arranged && ctx.profile.groundClusters ? -SEAM_REACH : 0;
+  const seam = s.arranged && ctx.profile.layeredGround ? -SEAM_REACH : 0;
   const inside = solids
     .at(cx, cz, s.p.y + SUPPORT_SLACK, s.p.y + 0.07, seam)
     .filter(

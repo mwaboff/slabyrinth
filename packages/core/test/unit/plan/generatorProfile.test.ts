@@ -156,6 +156,20 @@ describe("generator profiles", () => {
     );
   });
 
+  it("a refinement names an earlier or same-generator switch, and no released generator holds one of its own", () => {
+    for (const [name, decl] of Object.entries(SWITCH_DECLARATIONS)) {
+      if (decl.refines === undefined) continue;
+      const base = (SWITCH_DECLARATIONS as Record<string, (typeof SWITCH_DECLARATIONS)[SwitchName]>)[
+        decl.refines
+      ];
+      expect(base, `${name} refines ${decl.refines}`).toBeDefined();
+      expect(base?.since ?? Infinity, `${name} refines a later switch`).toBeLessThanOrEqual(decl.since);
+      // (a refinement of a switch of its own generator is folded into it before that generator is released)
+      if (base?.since === decl.since)
+        expect(decl.since, `${name}: fold it into ${decl.refines} before release`).toBe(GENERATOR_VERSION);
+    }
+  });
+
   it("every profile carries exactly the declared switches, on from the generator each starts in", () => {
     for (const v of GENERATOR_VERSIONS) {
       const profile = GENERATOR_PROFILES[v];

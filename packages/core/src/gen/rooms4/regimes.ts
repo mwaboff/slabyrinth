@@ -2,9 +2,9 @@
  * Lighting regimes (generator 5, switch `lightRegimes`): a room's lights follow a light level and a regime, not one
  * density for every room.
  *
- * The level (gen/lightLevels.ts, dark 0 to flooded 4) says how many accents the room carries: its kind's default
- * (gen/roomTraits.ts `lighting`) moved by the scene's level and the room's own words, a step either way for variety,
- * held in the kind's range. The regime says where they go; one per room, drawn by weight from those its kind allows,
+ * The level (gen/lightLevels.ts, dark 0 to flooded 4) says how many accents the room carries: its character's
+ * (resolve/character.ts, by `roomLightLevel`: its kind's default moved by the scope around it, a step either way for
+ * variety, held in the kind's range; the level its own words name wins). The regime says where they go; one per room, drawn by weight from those its kind allows,
  * a regime a near room already drew weighing less (neighbours differ):
  *   surfaces    a light on the tables, desks and nightstands in use, the floor groups' first, no wall rhythm; a bright
  *               room adds standing lights beside its groups;
@@ -25,7 +25,7 @@ import { createPrng } from "../../util/prng";
 import { featureInfo } from "../catalog";
 import { EDGE_WALL, SIDES, cellKey } from "../gridGeometry";
 import { outdoorPiece } from "../pieceFacts";
-import { type SceneLight, roomNudge } from "../lightLevels";
+import type { SceneLight } from "../lightLevels";
 import { givesLight, lightOfPool } from "../lightReach";
 import { gridProfile, type GeneratedPlacement } from "../placementGrid";
 import type { RoomKind } from "../roomPurpose";
@@ -37,8 +37,6 @@ import { type Placed, type Room, clampTo, touchShift } from "./room";
 
 /** The measures the regimes light by. */
 export const REGIMES = {
-  /** Light pools per floor tile at each level (dark to flooded): a room's budget of accents. */
-  poolsPerTile: [0, 1 / 30, 1 / 16, 1 / 10, 1 / 6] as const,
   /** Wall lights' pitch (tiles) in a wall-rhythm room at each level. */
   wallPitch: [6, 5, 3.5, 2.5, 1.5] as const,
   /** A passage's lights per tile of its length at each level. */
@@ -70,29 +68,23 @@ const clampTo04 = (n: number, lo: number, hi: number): LightLevel =>
   Math.max(lo, Math.min(hi, Math.round(n))) as LightLevel;
 
 /**
- * A room's level and regime: a pure draw from its kind, the scene, its words and its own seed, so the furnisher and a
- * reader (a test, a proof) draw the same. `neighbours`: rooms of the level drawn before it.
+ * A room's regime at its level: a pure draw from its kind and its own seed, so the furnisher and a reader (a test, a
+ * proof) draw the same. `level`: the room's level as its character resolved it (resolve/character.ts, by
+ * `roomLightLevel`; its words and the scene are not read again here). `neighbours`: rooms of the level drawn before it.
  */
 export function drawLighting(p: {
   readonly kind: RoomKind;
-  readonly scene: SceneLight;
-  readonly words: ReadonlyArray<string | undefined>;
+  readonly level: LightLevel;
   readonly seed: number;
   readonly at: readonly [number, number];
   readonly neighbours: readonly LitNeighbour[];
   readonly abandoned: boolean;
-  /**
-   * Generator 5 (characterCascade): the room's level as its character resolved it (resolve/character.ts, by
-   * `roomLightLevel`); its words and the scene are then not read again here.
-   */
-  readonly level?: LightLevel;
 }): RoomLightPlan {
   const lit = ROOM_TRAITS[p.kind].lighting;
   const rng = createPrng(subSeed(p.seed, "lighting"));
-  const base = clampTo04(lit.level + p.scene.level - 2, 0, 4);
-  const r = rng.next();
-  const variety = r < 0.2 ? -1 : r < 0.8 ? 0 : 1;
-  const level = p.level ?? clampTo04(base + roomNudge(p.words, base) + variety, lit.range[0], lit.range[1]);
+  // (the first draw of this seed is the level's variety, which roomLightLevel makes; the regime draws after it)
+  rng.next();
+  const level = p.level;
   if (p.abandoned) return { level: 0, regime: null };
   const allowed = REGIME_ORDER.filter((g) => (lit.regimes[g] ?? 0) > 0);
   // a dark room has its one light at the door, where its kind allows that
@@ -304,7 +296,7 @@ function standBeside(
 }
 
 /**
- * Generator 5 (characterCascade): what each light level puts in a room, by what its pools cover (gen/lightReach.ts),
+ * What each light level puts in a room, by what its pools cover (gen/lightReach.ts),
  * so the steps read apart in game and the lit floor grows strictly from one to the next:
  *   dark      nothing, or one weak accent on the room's main surface;
  *   dim       the room's main piece only: one standing glow beside it (else a light on its surface);
@@ -443,56 +435,14 @@ export function lightByRegime(
     return;
   }
   const L = plan.level;
-  const budget = Math.max(1, Math.round(n * REGIMES.poolsPerTile[L]));
   const focus = piecesOf(ctx.focus);
-  const units = ctx.units.flatMap((g) => piecesOf(g));
   const stand = (near: readonly Placed[]): boolean => {
     for (const p of standingPieces(room, plan.regime as LightRegime, L, ctx))
       if (standBeside(room, near, p, false, plan.regime === "focal")) return true;
     return false;
   };
-  // generator 5 (characterCascade): each level a visibly different step, by what its pools cover (LEVEL_STEPS)
-  if (gridProfile(room.grid).characterCascade) {
-    lightByLevel(room, L, plan.regime, { ...ctx, focus, units: ctx.units.map((g) => piecesOf(g)), stand });
-    return;
-  }
-  switch (plan.regime) {
-    case "surfaces": {
-      lightSurfaces(room, budget, [...focus, ...units]);
-      if (L >= 3) for (let i = 0; i < ctx.units.length; i += 2) stand(piecesOf(ctx.units[i]));
-      if (L >= 4) wallRhythm(room, room.lights.length + Math.ceil(n / 8), REGIMES.wallPitch[L]);
-      break;
-    }
-    case "threshold": {
-      doorPair(room);
-      if (L >= 2) lightSurfaces(room, budget - 2, [...focus, ...units]);
-      if (L >= 3) stand(focus.length > 0 ? focus : units);
-      break;
-    }
-    case "focal": {
-      const target = focus.length > 0 ? focus : piecesOf(ctx.units[0]);
-      stand(target);
-      lightSurfaces(room, L >= 2 ? budget : 1, target);
-      // the perimeter dim: a wall light or two far apart in a brighter room
-      if (L >= 3) wallRhythm(room, room.lights.length + (L >= 4 ? 2 : 1), 4);
-      break;
-    }
-    case "wallRhythm": {
-      wallRhythm(room, budget, REGIMES.wallPitch[L]);
-      if (L >= 2) lightSurfaces(room, Math.ceil(budget / 2), [...focus, ...units]);
-      break;
-    }
-    case "dimStore": {
-      doorPair(room, 1);
-      break;
-    }
-  }
-  // a lived-in room of 3 tiles or more keeps a light
-  const unlit = (): boolean => room.lights.length === 0;
-  if (unlit() && n >= OCCUPANCY.smallestLit) {
-    lightSurfaces(room, 1, focus);
-    if (unlit()) light(room, { target: 1, radius: Infinity, torchOnly: true, floor: null });
-  }
+  // each level a visibly different step, by what its pools cover (LEVEL_STEPS)
+  lightByLevel(room, L, plan.regime, { ...ctx, focus, units: ctx.units.map((g) => piecesOf(g)), stand });
 }
 
 /**

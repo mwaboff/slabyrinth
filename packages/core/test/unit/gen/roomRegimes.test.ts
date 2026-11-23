@@ -13,11 +13,11 @@ import { describe, expect, it } from "vitest";
 import type { Area, MapPlan, Opening } from "../../../src/contracts/plan";
 import type { ResolvedFeature, ResolvedLevel } from "../../../src/contracts/resolved";
 import { LIGHT_FEATURES, featureInfo } from "../../../src/gen/catalog";
-import { sceneLight } from "../../../src/gen/lightLevels";
 import { classifyRoom, furnishedPurpose } from "../../../src/gen/roomPurpose";
 import { type LitNeighbour, type RoomLightPlan, drawLighting } from "../../../src/gen/rooms4";
 import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
+import { elementCharacter, lightIndex } from "../../../src/resolve/character";
 import { elementSeed, subSeed } from "../../../src/util/hash";
 import { loadPlan } from "../../fixtures";
 import { dungeonPlan } from "../../fixtures/planBuilder";
@@ -84,10 +84,12 @@ const free = (L: ResolvedLevel, id: string, f: ResolvedFeature): boolean => {
   return f.at[0] > b.x && f.at[1] > b.y && f.at[0] + f.size[0] < b.x + b.w && f.at[1] + f.size[1] < b.y + b.h;
 };
 
-/** Each furnished room's light level and regime, drawn as the resolver draws them (resolve/level/rooms.ts). */
+/**
+ * Each furnished room's light level and regime, drawn as the resolver draws them (resolve/level/rooms.ts): the room's
+ * level from its resolved character.
+ */
 function lightingOf(plan: MapPlan, L: ResolvedLevel): Map<string, RoomLightPlan> {
   const lv = plan.levels[0];
-  const scene = sceneLight({ theme: plan.theme, texts: [plan.title, plan.summary, plan.kind, lv?.name] });
   const lit: LitNeighbour[] = [];
   const out = new Map<string, RoomLightPlan>();
   for (const a of L.areas) {
@@ -106,10 +108,11 @@ function lightingOf(plan: MapPlan, L: ResolvedLevel): Map<string, RoomLightPlan>
       cells.reduce((s, c) => s + c[0] + 0.5, 0) / cells.length,
       cells.reduce((s, c) => s + c[1] + 0.5, 0) / cells.length,
     ];
+    const ch = elementCharacter(L, a.id);
+    if (ch === null) throw new Error(`no character for ${a.id}`);
     const d = drawLighting({
       kind: cls.kind ?? cls.purpose,
-      scene,
-      words: [pa?.name, ...(pa?.tags ?? []), pa?.notes],
+      level: lightIndex(ch),
       seed: subSeed(elementSeed(plan.seed, `${L.id}~${a.id}~room`, undefined), "room"),
       at,
       neighbours: lit,

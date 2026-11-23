@@ -35,9 +35,17 @@ import { GENERATOR_VERSIONS, type GeneratorVersion } from "../contracts/plan";
 interface SwitchDeclaration {
   readonly since: GeneratorVersion;
   readonly description: string;
+  /**
+   * The switch of the same open generator this one refines (a later rule over the same behaviour). "This switch on, its
+   * base off" is a state no plan can have, so before the generator is released the refinement is folded into its base
+   * and the base's old path deleted: a test fails while a released generator still holds one
+   * (test/unit/plan/generatorProfile.test.ts).
+   */
+  readonly refines?: string;
 }
 
-const on = (since: GeneratorVersion, description: string): SwitchDeclaration => ({ since, description });
+const on = (since: GeneratorVersion, description: string, refines?: string): SwitchDeclaration =>
+  refines === undefined ? { since, description } : { since, description, refines };
 
 /** Every behaviour switch, grouped by the generator it starts in. The names are what call sites read. */
 const SWITCHES = {
@@ -350,7 +358,7 @@ const SWITCHES = {
   ),
   layeredGround: on(
     5,
-    "Detail recipe: layered ground cover, flat pieces overlapping at free turns and low ones sunk, gathered where the ground meets something, by what the place is (resolve/recipes/ground.ts).",
+    "Detail recipe: layered ground cover by what the place is, laid in clusters: an anchor piece (a bush, a larger rock, a tall tuft) with two to four smaller companions round it, more of them where ground meets a wall, fence or path, flat pieces overlapping at free turns, low pieces leaning over a path's edge, sunk as deep as the floor under them takes it; the cover share is of the whole place's ground for every variant. Outdoors it is laid to a share of what is seen (each piece's inscribed ellipse times the share its kind fills, util/visibleCover.ts; the box measure read 30-42 % where the street showed 10-15 %): the band a tile from an edge gets 1.6 times the place's share, a corner more, the open middle 0.15 times it as anchored clumps only; flat cover (litter, pebbles) lies only within two cells of a door's apron, a lane or a path, and only soil takes a piece deep (resolve/recipes/ground.ts).",
   ),
   ownWallsFirst: on(
     5,
@@ -359,10 +367,6 @@ const SWITCHES = {
   readableTrims: on(
     5,
     "Trims read at street distance: a contrasting trim is drawn more often where the theme has one of its own; a post or band of the wall's own piece family stands further proud (a corner post may then be as thick as a jamb's), a band of the wall's own material is doubled by a second course stepped back under it, and a plinth shows taller and prouder (resolve/recipes/treatments.ts, walls.ts).",
-  ),
-  groundClusters: on(
-    5,
-    "Layered ground is laid in clusters: an anchor piece (a bush, a larger rock, a tall tuft) with two to four smaller companions round it, more of them where ground meets a wall, fence or path, low pieces leaning over a path's edge, sunk deeper where the floor under them takes it; the cover share is of the whole place's ground for every variant (resolve/recipes/ground.ts).",
   ),
   qualityNotes: on(
     5,
@@ -438,7 +442,7 @@ const SWITCHES = {
   ),
   roofPatches: on(
     5,
-    "A worn or ramshackle building's roof has patches re-laid in a second roof kit (its treatment draws whether and how much; resolve/building/wear.ts, compile/realize/structures/roofs.ts).",
+    "A worn or ramshackle building's roof has small irregular patches re-laid as a repair of the same roof: its own kit's weathered pieces, else a kit of the same tone and family (the roof-kit facts, resolve/roofKits.ts), else no patch at all (its treatment draws whether and how much; resolve/building/wear.ts, compile/realize/structures/roofPiece.ts).",
   ),
   porchWear: on(
     5,
@@ -454,7 +458,7 @@ const SWITCHES = {
   ),
   lightRegimes: on(
     5,
-    "A room's lights follow a light level and a regime: the scene's level from the plan's words, each room's from its kind's default and range (gen/lightLevels.ts), and one regime per room drawn from those its kind allows, neighbours differing (lit surfaces, a threshold pair, a focal glow, a wall rhythm, a dim store), with pieces chosen by their reach (gen/lightReach.ts). A light stands on the floor only where it is meant to (a brazier, a lantern stand), never in a lane, a door's apron or a corridor; a corridor is lit at its doors and junctions; a lived-in room of 3 tiles or more keeps a light, an abandoned one its dark (gen/rooms4/regimes.ts).",
+    "A room's lights follow a light level and a regime: the scene's and each room's level as their characters resolve them (resolve/character.ts: its kind's default and range, gen/lightLevels.ts), each level a visibly different step by what its pools cover, and one regime per room drawn from those its kind allows, neighbours differing (lit surfaces, a threshold pair, a focal glow, a wall rhythm, a dim store), with pieces chosen by their reach (gen/lightReach.ts). A light stands on the floor only where it is meant to (a brazier, a lantern stand), never in a lane, a door's apron or a corridor; a corridor is lit at its doors and junctions; a lived-in room of 3 tiles or more keeps a light, an abandoned one its dark (gen/rooms4/regimes.ts).",
   ),
   characterCascade: on(
     5,
@@ -487,6 +491,7 @@ const SWITCHES = {
   sensibleLights: on(
     5,
     "A light must make sense where it stands before it serves a light level (owner: a little less light rather than goofy props): no outdoor piece in a furnished room (gen/pieceFacts.ts `setting`: a street lantern, a beach torch, a campfire), an open fire (a brazier, a floor torch) only in a room whose kind takes fire (a hearth, a forge, a guard room, a hall, an altar), nothing free-standing off the walls but the room's focal piece. Bright and flooded rooms get more candles and lanterns on more of their furniture and more wall lights, never stronger props; where those run out the room stays a little dimmer than its level (gen/rooms4/regimes.ts).",
+    "lightRegimes",
   ),
   pieceFacts: on(
     5,
@@ -506,7 +511,7 @@ const SWITCHES = {
   ),
   roofKitFacts: on(
     5,
-    "Roof choices read the roof-kit facts (resolve/roofKits.ts): a hip roof in a kit whose corner piece is a spiked tip is built as a gable (no row of spikes up its hips); a worn roof is patched only in its own kit's weathered pieces or a kit of the same tone and family, in small irregular groups, else not at all (resolve/building/wear.ts, compile/realize/structures/roofPiece.ts).",
+    "Roof choices read the roof-kit facts (resolve/roofKits.ts): a hip roof in a kit whose corner piece is a spiked tip is built as a gable (no row of spikes up its hips; resolve/structure.ts, resolve/building/volumes.ts).",
   ),
   leanUnderMain: on(
     5,
@@ -524,13 +529,10 @@ const SWITCHES = {
     5,
     "A chimney breast is three wide at its foot only on a gable face of nine cells or more (a third of the face at most); on a smaller house it is one stack (compile/realize/structures/attachments.ts).",
   ),
-  visibleGround: on(
-    5,
-    "Layered ground is laid to a share of what is seen (each piece's inscribed ellipse times the share its kind fills, util/visibleCover.ts; the box measure read 30-42 % where the street showed 10-15 %): the band a tile from an edge gets 1.6 times the place's share, a corner more, the open middle 0.15 times it as anchored clumps only; flat cover (litter, pebbles) lies only within two cells of a door's apron, a lane or a path (resolve/recipes/ground.ts).",
-  ),
   raggedRuins: on(
     5,
     "A ruin's breach tapers over two cells each side in stubs of uneven height; the roof is open right across over the breach only and has fallen in partway over its tapers (a ragged edge, and one bay no longer takes most of a small house's roof); the rubble grows with the breach's width; a ruin whose roof is gone keeps no porch post (resolve/building/ruinBays.ts, resolve/recipes/condition.ts, compile/realize/structures/attachments.ts).",
+    "ruinBays",
   ),
   ramshackleSigns: on(
     5,
@@ -551,6 +553,7 @@ const SWITCHES = {
   roomsKeepALight: on(
     5,
     "A lived-in room of three tiles or more keeps a light at every light level, not only when drawn dark or dim, and its main pieces' tops are asked before a wall: a moderate kitchen whose regime found no sensible place (counters and a cauldron along every wall cell beside its cooking group, no seat, its door landings taking the rest) gets a light on a counter or a wall (gen/rooms4/regimes.ts lightByLevel).",
+    "lightRegimes",
   ),
   topLightFallback: on(
     5,

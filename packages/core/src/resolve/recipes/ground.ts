@@ -59,7 +59,7 @@ const SINK_MAX = 0.05;
 const KEEP_OFF = CELL_FLAG.WATER | CELL_FLAG.PATH | CELL_FLAG.STEPS | CELL_FLAG.LINK;
 
 /**
- * Clusters (generator 5, `groundClusters`): an anchor piece (a bush, a larger rock, a tall tuft: ANCHOR_H tall, at most
+ * Clusters: an anchor piece (a bush, a larger rock, a tall tuft: ANCHOR_H tall, at most
  * ANCHOR_L long) with companions round it, COMPANIONS in the middle and more where ground meets an edge. Low pieces sink
  * SINK_DEEP of their height, at most SINK_DEEP_MAX and never deeper than the thinnest floor piece under them takes them
  * (palette/planRoles.ts `thinnestFloor`, util/sunk.ts: verify takes a piece whose base is inside the floor piece under
@@ -79,8 +79,8 @@ const CORRECTION = [0.5, 3] as const;
 const ANCHORED = { middle: 0.45, edge: 0.7 } as const;
 
 /**
- * Generator 5 (`visibleGround`), measured on the owner's screenshots of the varied street (the box measure said 30-42 %,
- * the street showed 10-15 % spread evenly, litter far from any street): cover is laid to a share of what is SEEN
+ * Outdoors, measured on the owner's screenshots of the varied street (the box measure said 30-42 %, the street showed
+ * 10-15 % spread evenly, litter far from any street): cover is laid to a share of what is SEEN
  * (util/visibleCover.ts), gathered where ground meets something and opened up in the middle:
  *   the edge band (a step from an edge) gets BAND_SHARE times the place's share (at most BAND_MAX), a corner more;
  *   the middle MIDDLE_SHARE times it, as anchored clumps only;
@@ -135,7 +135,7 @@ function pools(
 }
 
 /**
- * (groundClusters) The pieces tall enough to anchor a cluster, from every slot of a natural place: its bushes, then its
+ * The pieces tall enough to anchor a cluster, from every slot of a natural place: its bushes, then its
  * rocks, flowers, tufts and cover of ANCHOR_H, at most ANCHOR_L long; each piece once.
  */
 function anchorsOf(slots: Readonly<Record<string, FilledSlot>>): ArrangePiece[] {
@@ -197,10 +197,9 @@ export const layeredGround: Recipe<"zone"> = {
       fallback: "simplify",
     },
     rock: { roles: (a) => (a.indoor || !a.natural ? [] : [{ role: "feature.rock" }]), fallback: "simplify" },
-    // (groundClusters) a cluster's anchor: a bush, a larger rock or a tall tuft, on natural ground outdoors
+    // a cluster's anchor: a bush, a larger rock or a tall tuft, on natural ground outdoors
     anchor: {
-      roles: (a, _t, ctx) =>
-        a.indoor || !a.natural || ctx?.profile.groundClusters !== true ? [] : [{ role: "feature.bush" }],
+      roles: (a) => (a.indoor || !a.natural ? [] : [{ role: "feature.bush" }]),
       fallback: "simplify",
     },
     rubble: {
@@ -211,15 +210,14 @@ export const layeredGround: Recipe<"zone"> = {
   compose: (a, slots, ctx) => {
     const { flat, low, rocks } = pools(a, slots);
     if (flat.length === 0 && low.length === 0) return null;
-    const clusters = ctx.profile.groundClusters;
     const share = coverOf(a) * (ctx.variant in VARIANT ? VARIANT[ctx.variant as keyof typeof VARIANT] : 1);
     const edgesOnly = ctx.variant === "edges";
     const open = openCells(a, ctx);
     const cells = open.filter(([x, y]) => !edgesOnly || a.edgeAt(x, y) <= 1);
     if (cells.length === 0 || share <= 0) return null;
-    // (visibleGround) the edge and the middle are laid at rates of their own, a corner more than a straight edge
-    // (outdoors only: a room's floor cover keeps its own rule, among furniture the room furnisher places)
-    const visible = ctx.profile.visibleGround && clusters && !a.indoor;
+    // outdoors, the edge and the middle are laid at rates of their own to a share of what is seen, a corner more than a
+    // straight edge (a room's floor cover keeps its own rule, among furniture the room furnisher places)
+    const visible = !a.indoor;
     const outsideAround = (x: number, y: number): number => {
       let n = 0;
       for (const [dx, dy] of AROUND) if (a.classAt(x + dx, y + dy) === 0) n++;
@@ -236,7 +234,7 @@ export const layeredGround: Recipe<"zone"> = {
           : rates.middle;
       return d <= 1 ? NEAR_WEIGHT : d <= NEAR_REACH + 0.5 ? 1.5 : 1;
     };
-    // (visibleGround) where the place is used: within USE_REACH of a door's apron, a lane or a path; flat cover (litter,
+    // (outdoors) where the place is used: within USE_REACH of a door's apron, a lane or a path; flat cover (litter,
     // pebbles) lies only there
     const useCells = new Set<string>();
     if (visible)
@@ -256,24 +254,20 @@ export const layeredGround: Recipe<"zone"> = {
       ps.length === 0 ? 0 : ps.reduce((s, p) => s + p.measures.footprint, 0) / ps.length;
     const mean = meanOf(main);
     const clusterArea = mean * (flat.length > 0 ? 1.45 : 1) + (low.length > 0 ? 0.15 : 0);
-    // (groundClusters) anchored clusters: an anchor piece and its companions, more of them at an edge
-    const anchors = clusters ? anchorsOf(slots) : [];
+    // anchored clusters: an anchor piece and its companions, more of them at an edge
+    const anchors = anchorsOf(slots);
     const companions = [...low, ...flat];
     const anchoredAt = (near: boolean): number =>
       anchors.length === 0 ? 0 : near ? ANCHORED.edge : ANCHORED.middle;
     const areaAt = (near: boolean): number => {
-      if (!clusters) return clusterArea;
       const [c0, c1] = near ? COMPANIONS.edge : COMPANIONS.middle;
       const anchored = meanOf(anchors) + meanOf(companions) * ((c0 + c1) / 2) * 0.8;
       const pa = anchoredAt(near);
       return pa * anchored + (1 - pa) * clusterArea;
     };
-    const total = cells.reduce(
-      (s, [x, y]) => s + weightOf(x, y) * (clusters ? areaAt(a.edgeAt(x, y) <= 1) : 1),
-      0,
-    );
-    // (groundClusters: the share is of the whole place's open ground for every variant; "edges" gathers it at them)
-    const k = clusters ? (share * open.length) / total : (share * cells.length) / (clusterArea * total);
+    const total = cells.reduce((s, [x, y]) => s + weightOf(x, y) * areaAt(a.edgeAt(x, y) <= 1), 0);
+    // (the share is of the whole place's open ground for every variant; "edges" gathers it at them)
+    const k = (share * open.length) / total;
     const g = ctx.anchors.grid;
     const f = a.frame;
     const draw = (what: string, x: number, y: number, i = 0): number =>
@@ -293,7 +287,7 @@ export const layeredGround: Recipe<"zone"> = {
         ((ctx.level.cells.flags[g.index(cx, cy)] ?? 0) & keepOff) === 0
       );
     };
-    // (`lean`, groundClusters: a corner may lie up to PATH_LEAN over a path's edge, never in a lane or an apron)
+    // (`lean`: a corner may lie up to PATH_LEAN over a path's edge, never in a lane or an apron)
     const onGround = (
       px: number,
       py: number,
@@ -319,7 +313,7 @@ export const layeredGround: Recipe<"zone"> = {
         return fits(qx + (px - qx) * t, qy + (py - qy) * t, top, KEEP_OFF);
       });
     };
-    // (groundClusters) how thick the floor is under a piece: the thinnest floor piece at its centre and its corners; an
+    // how thick the floor is under a piece: the thinnest floor piece at its centre and its corners; an
     // outcrop's top is a rock column with no floor piece to sink into (the piece rests on it)
     const outcrops = g.outcropCells();
     const floorUnder = (px: number, py: number, p: ArrangePiece, yaw: number): number => {
@@ -354,11 +348,11 @@ export const layeredGround: Recipe<"zone"> = {
       lean = false,
     ): void => {
       if (!onGround(px, py, p, yaw, top, lean)) return;
-      // (groundClusters) a sunk piece goes no deeper than the floor under it takes it: its thinnest floor piece, less
-      // what the slab's storage step may take (util/sunk.ts, the question verify asks of the built piece)
-      const base = clusters && y < top ? Math.max(y, top - deepestSink(floorUnder(px, py, p, yaw))) : y;
-      // (visibleGround: with cover gathered at edges, a sunk piece's centre keeps SUNK_CLEAR from any other floor
-      // height or missing floor, so verify finds the ground tile it is sunk into under its centre)
+      // a sunk piece goes no deeper than the floor under it takes it: its thinnest floor piece, less what the slab's
+      // storage step may take (util/sunk.ts, the question verify asks of the built piece)
+      const base = y < top ? Math.max(y, top - deepestSink(floorUnder(px, py, p, yaw))) : y;
+      // (outdoors, with cover gathered at edges, a sunk piece's centre keeps SUNK_CLEAR from any other floor height or
+      // missing floor, so verify finds the ground tile it is sunk into under its centre)
       if (
         visible &&
         base < top - 1e-6 &&
@@ -368,10 +362,10 @@ export const layeredGround: Recipe<"zone"> = {
       const q = single(p, yaw)[0] as Placed;
       into.push({ ...q, x: px - f.at[0], z: f.at[1] - py, y: base - f.base });
     };
-    // how deep a low piece sinks: a little (verify's support slack), or (groundClusters) into the ground tile
-    // (visibleGround: only soil takes a piece deep; paving is a thin tile a piece lies on)
+    // how deep a low piece sinks: into the ground tile, or (outdoors on built ground: paving is a thin tile a piece lies
+    // on, only soil takes a piece deep) a little (verify's support slack)
     const sunk = (q: ArrangePiece, u: number): number =>
-      clusters && (!visible || a.natural)
+      !visible || a.natural
         ? Math.min(SINK_DEEP_MAX, (SINK_DEEP[0] + (SINK_DEEP[1] - SINK_DEEP[0]) * u) * q.measures.height)
         : Math.min(SINK_MAX, (SINK[0] + (SINK[1] - SINK[0]) * u) * q.measures.height);
     const yawOf = (u: number): number => Math.floor(u * 24) * 15;
@@ -390,9 +384,9 @@ export const layeredGround: Recipe<"zone"> = {
       const cy = y + 0.2 + 0.6 * draw("y", x, y);
       const near = a.edgeAt(x, y) <= 1;
       const used = nearUse(x, y);
-      // (visibleGround) the open middle has clumps only: an anchored cluster, never a lone flat pair
+      // (outdoors) the open middle has clumps only: an anchored cluster, never a lone flat pair
       if (visible && !near && anchors.length === 0) return;
-      if (clusters && (draw("anchored", x, y) < anchoredAt(near) || (visible && !near))) {
+      if (draw("anchored", x, y) < anchoredAt(near) || (visible && !near)) {
         // an anchor piece, sunk, with its companions round it (flat ones lying, low ones sunk), mixed by hash
         const m = anchors[Math.floor(draw("anchor", x, y) * anchors.length)] as ArrangePiece;
         put(
@@ -407,7 +401,7 @@ export const layeredGround: Recipe<"zone"> = {
         const [c0, c1] = near ? COMPANIONS.edge : COMPANIONS.middle;
         const n = c0 + Math.floor(draw("companions", x, y) * (c1 - c0 + 1));
         const turn0 = draw("ring", x, y) * 2 * Math.PI;
-        // (visibleGround: flat companions, litter and pebbles, only where the place is used)
+        // (outdoors, flat companions, litter and pebbles, only where the place is used)
         const mates = used || low.length === 0 ? companions : low;
         for (let i = 0; i < n && mates.length > 0 && (used || !visible || low.length > 0); i++) {
           const q = mates[Math.floor(draw("companion", x, y, i) * mates.length)] as ArrangePiece;
@@ -431,7 +425,7 @@ export const layeredGround: Recipe<"zone"> = {
       if (flat.length > 0 && used) {
         const m = flat[Math.floor(draw("flat", x, y) * flat.length)] as ArrangePiece;
         const yaw = Math.floor(draw("yaw", x, y) * 24) * 15;
-        put(out, m, cx, cy, ground, ground, yaw, clusters);
+        put(out, m, cx, cy, ground, ground, yaw, true);
         // its partner, of the same kind, overlapping it by 0.2-0.4 of their size at another turn
         const kin = flat.filter((q) => q.role === m.role);
         const n = kin[Math.floor(draw("partner", x, y) * kin.length)] ?? m;
@@ -447,7 +441,7 @@ export const layeredGround: Recipe<"zone"> = {
             ground,
             ground,
             Math.floor(draw("yaw2", x, y) * 24) * 15,
-            clusters,
+            true,
           );
       }
       // low pieces gather at the edges: sunk tufts and rocks, rare in the middle
@@ -478,13 +472,13 @@ export const layeredGround: Recipe<"zone"> = {
           ground,
           ground - sunk(q, draw("sink", x, y, i)),
           Math.floor(draw("lowYaw", x, y, i) * 24) * 15,
-          clusters,
+          true,
         );
       }
     };
     lay(k);
     if (visible) {
-      // (visibleGround) the edge and the middle each corrected to their own share of VISIBLE cover (the pieces' seen
+      // (outdoors) the edge and the middle each corrected to their own share of VISIBLE cover (the pieces' seen
       // area, util/visibleCover.ts), twice, each step within CORRECTION
       const openSet = new Set(open.map(([x, y]) => `${x},${y}`));
       const edgeCells = open.filter(([x, y]) => a.edgeAt(x, y) <= 1).length;
@@ -516,8 +510,8 @@ export const layeredGround: Recipe<"zone"> = {
         fix("middle", middleCells);
         lay(k);
       }
-    } else if (clusters) {
-      // (groundClusters) the estimate is corrected once by what the layout really covered (pieces that did not fit at
+    } else {
+      // (indoors) the estimate is corrected once by what the layout really covered (pieces that did not fit at
       // an edge, a path or a drop): the rate is scaled to the target, within CORRECTION
       const laid = [...out, ...lows].reduce((s, q) => s + q.piece.measures.footprint, 0) * OVERLAP_KEPT;
       const target = share * open.length;
