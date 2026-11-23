@@ -20,6 +20,8 @@ import {
   lengthOf,
   placeEdgeCenterPiece,
   placeEdgePiece,
+  stackUnder,
+  storeyCeiling,
   type CornerStrips,
   type EdgeCtx,
   type Strip,
@@ -267,7 +269,14 @@ function tileWallRun(
           ? Math.max(c.base - 0.5, Math.min(c.base, c.top - count * v.unitHeight))
           : c.base;
         const source = { cell: [c.hostX, c.hostY] as [number, number], elementId: roleName };
-        placeEdgePiece(lv, v, "wall", c, n, { yBase, count, source });
+        // generator 5 (wallsUnderCeiling): inside a building's storey a stack of whole pieces never stands above the
+        // storey's wall top (the floor above): whole pieces from the floor, then one aligned to that top
+        const ceiling = profile.wallsUnderCeiling ? storeyCeiling(lv, c) : null;
+        const hi = ceiling === null ? c.top : Math.min(c.top, ceiling);
+        if (ceiling !== null && yBase + count * v.unitHeight > hi + EPS) {
+          for (const y of stackUnder(c.base, hi, v.unitHeight, c.base - 0.5))
+            placeEdgePiece(lv, v, "wall", c, n, { yBase: y, count: 1, source });
+        } else placeEdgePiece(lv, v, "wall", c, n, { yBase, count, source });
         for (let k = 0; k < n; k++) {
           const ck = edges[i + k];
           if (ck) strips.register(orient, ck.x, ck.y, stripOf(ck, style));

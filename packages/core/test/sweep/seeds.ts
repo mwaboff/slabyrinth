@@ -97,10 +97,10 @@ export const WARNING_BASIS = 150;
  * count that is now lower (lower it) or an entry no seed raises (remove it). The causes, for the next round:
  * - market-street-v3: line_unanchored and prop_floating (the wall at a line's end stops below the rope and the
  *   building's roof deck above it is a floor piece, which verify does not take as holding it: the line and its pieces
- *   hang free); prop_in_wall (an upper storey's window light set at its cell's centre 0.14 into a ground-storey
- *   partition, whose 2-tall pieces stand half a tile through the floor above; a line's lantern 0.33 into a shop roof:
- *   the room pieces in a wing's post went with `postsAtBuildingCorners`; a tailor's bench across a lowered cell and
- *   the raised pavement, prop_sunk, with `tradePropsOnOneFloor`). The lines' own faults are gone at
+ *   hang free); prop_in_wall (a line's lantern 0.33 into a shop roof: the room pieces in a wing's post went with
+ *   `postsAtBuildingCorners`; an upper storey's window light in a ground-storey partition that stood through the floor
+ *   above, with `wallsUnderCeiling`; a tailor's bench across a lowered cell and the raised pavement, prop_sunk, with
+ *   `tradePropsOnOneFloor`). The lines' own faults are gone at
  *   generator 5 (`linesClearCanopies`: a rope through a shop's awning, a lantern into a porch roof or a canopy).
  * (Gone at generator 5: props_overlap between elements is info under `layeredProps`; keep-dungeon's room pieces in a
  * wall's corner post are kept clear by the room-kind furnisher, which asks each piece's outline against the posts.)
@@ -126,8 +126,9 @@ export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, num
     verify_line_unanchored: 5,
     verify_prop_floating: 5,
     // 7 (lines into banners and porch roofs), 13 with the building rooms, 7 (the room pieces in a wing's post), 2 with
-    // `postsAtBuildingCorners`: a window light in a partition poking through the floor above, a lantern in a roof
-    verify_prop_in_wall: 2,
+    // `postsAtBuildingCorners`, 1 with `wallsUnderCeiling` (a partition no longer pokes through the floor above): a
+    // line's lantern in a roof
+    verify_prop_in_wall: 1,
   },
   "old-stones-glade-v6": { verify_prop_floating: 5 },
   "smugglers-grotto-v3": { verify_prop_floating: 16, verify_prop_no_floor: 1 },

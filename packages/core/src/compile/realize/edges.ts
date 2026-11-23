@@ -7,10 +7,10 @@ import type { Placement, PlacementRole, RoleName } from "../../contracts/compile
 import type { Side, ThemeId } from "../../contracts/plan";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { OPPOSITE, SIDE_STEP } from "../../gen/gridGeometry";
-import { sideOrient } from "../../resolve/levelGrid";
+import { partOfBuilding, sideOrient } from "../../resolve/levelGrid";
 import type { WallFace } from "../../resolve/wallFaces";
 import { rotateXZ } from "../geometry";
-import type { RealizeLevel } from "./level";
+import { EPS, type RealizeLevel } from "./level";
 
 /** One edge strip (a wall or door piece occupying the half-cell next to an edge), for corner posts. */
 export interface Strip {
@@ -74,6 +74,41 @@ export class CornerStrips {
     arr.push({ ...s, dir });
     this.map.set(k, arr);
   }
+}
+
+/**
+ * Generator 5 (`wallsUnderCeiling`): the wall top of the building storey a level edge stands in, under a floor: both its
+ * cells part of one building's ground storey (the building's own area or a room it is split into: partOfBuilding) and
+ * a storey above it. The ground storey's floor top plus its wall height, the underside of the floor above. Null for any
+ * other edge (a one-storey building's walls stand into its roof space, which nothing walks).
+ */
+export function storeyCeiling(lv: RealizeLevel, c: EdgeCtx): number | null {
+  const { L, V } = lv;
+  const buildingAt = (x: number, y: number): string | undefined => {
+    const a = L.areas[V.cell(x, y).area - 1];
+    return a === undefined || !partOfBuilding(a) ? undefined : (a.building ?? a.id);
+  };
+  const id = buildingAt(c.hostX, c.hostY);
+  if (id === undefined || buildingAt(c.otherX, c.otherY) !== id) return null;
+  const storeys = L.structures?.find((s) => s.id === id)?.storeys ?? [];
+  const s0 = storeys[0];
+  return s0 === undefined || storeys.length < 2 ? null : s0.floorTop + s0.wallHeight;
+}
+
+/**
+ * Generator 5 (`wallsUnderCeiling`): where pieces `unit` tall stack to cover [lo, hi] without standing above hi: from lo
+ * up while a whole piece fits, then one more aligned to hi (over its own course) when its foot stays at or above
+ * `lowest` (lo, or lo less what may sink into the floor slab); a remainder no piece can close that way is left open.
+ */
+export function stackUnder(lo: number, hi: number, unit: number, lowest: number): number[] {
+  const ys: number[] = [];
+  let y = lo;
+  while (hi - y >= unit - EPS) {
+    ys.push(y);
+    y += unit;
+  }
+  if (hi - y > EPS && hi - unit >= lowest - EPS) ys.push(hi - unit);
+  return ys;
 }
 
 /** A wall face (resolve/wallFaces.ts) as a piece standing on its edge sees it. */

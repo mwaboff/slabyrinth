@@ -563,6 +563,10 @@ const SWITCHES = {
     5,
     "A trade's props outside its door stand on one floor height, where they are pushed against the front as well (resolve/level/grid.ts oneFloorUnder asks each cell its feature base): a bench across a lowered doorway cell and the raised pavement beside it is not set there (resolve/level/market.ts stepTradeProps).",
   ),
+  wallsUnderCeiling: on(
+    5,
+    "A wall inside a building's ground storey (a partition between its rooms, the wall over an interior doorway) never stands above the storey's wall top, the floor above it: the level wall pass asks the storey for its height and lays whole pieces from the floor up, then one more aligned to that top (over its own course, never down into a doorway), where stacking whole pieces stood half a tile or more into the room above (compile/realize/walls.ts, openings.ts).",
+  ),
   sacredReads: on(
     5,
     "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",

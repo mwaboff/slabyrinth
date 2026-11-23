@@ -8,7 +8,16 @@ import type { ResolvedOpening } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { elementTheme } from "../../resolve/levelGrid";
 import type { WallFace } from "../../resolve/wallFaces";
-import { faceEdgeCtx, lenFilter, lengthOf, placeEdgePiece, type CornerStrips, type EdgeCtx } from "./edges";
+import {
+  faceEdgeCtx,
+  lenFilter,
+  lengthOf,
+  placeEdgePiece,
+  stackUnder,
+  storeyCeiling,
+  type CornerStrips,
+  type EdgeCtx,
+} from "./edges";
 import { OPPOSITE } from "../../gen/gridGeometry";
 import {
   isFullHeightOpeningRole,
@@ -213,19 +222,44 @@ function closeAboveLeaf(
     const wv = wr ? pick(wr.variants, `${L.id}:lintel:${ck.x}:${ck.y}`) : undefined;
     if (wv && (wr?.def.mount ?? "half-cell") === "half-cell") {
       const cnt = Math.ceil((wallTop - leafTop) / wv.unitHeight - EPS);
-      placeEdgePiece(lv, wv, "wall", ck, 1, { yBase: leafTop, count: cnt, source });
+      // generator 5 (wallsUnderCeiling): under a building's upper floor the wall over a doorway stops at the storey's
+      // wall top (whole pieces up from the leaf, then one aligned to that top, never down into the doorway; a gap no
+      // wall piece closes that way takes the kit's lintel where it fits, else stays open)
+      const ceiling = lv.ctx.profile.wallsUnderCeiling ? storeyCeiling(lv, ck) : null;
+      const hi = ceiling === null ? wallTop : Math.min(wallTop, ceiling);
+      if (ceiling !== null && leafTop + cnt * wv.unitHeight > hi + EPS) {
+        const ys = stackUnder(leafTop, hi, wv.unitHeight, leafTop);
+        for (const y of ys) placeEdgePiece(lv, wv, "wall", ck, 1, { yBase: y, count: 1, source });
+        if (ys.length === 0) placeLintel(lv, op, ck, leafTop, source, hi);
+      } else placeEdgePiece(lv, wv, "wall", ck, 1, { yBase: leafTop, count: cnt, source });
     }
-  } else if (takesLintel) {
-    // Kit walls are visually taller than their doors (in-game 2026-11-18): close the notch with the kit's lintel piece
-    // when the palette has one (data-driven; absent role = no lintel, no warning).
-    const lr = lookup(
-      L.id,
-      elementTheme(op.theme, ck.theme),
-      [lintelRole(op.wallStyle), THEME_LINTEL_ROLE],
-      lenFilter(1),
-      true,
-    );
-    const lintel = lr ? pick(lr.variants, `${L.id}:lintel:${ck.x}:${ck.y}`) : undefined;
-    if (lintel) placeEdgePiece(lv, lintel, "opening", ck, 1, { yBase: leafTop, count: 1, source });
-  }
+  } else if (takesLintel) placeLintel(lv, op, ck, leafTop, source);
+}
+
+/**
+ * The kit's lintel piece over a leaf (the role chain lintelRole of the opening's wall style, then the theme's), when
+ * the palette has one; with `under`, only a lintel whose top stays at or under it.
+ */
+function placeLintel(
+  lv: RealizeLevel,
+  op: ResolvedOpening,
+  ck: EdgeCtx,
+  leafTop: number,
+  source: { cell: [number, number]; elementId: string },
+  under?: number,
+): void {
+  const { L } = lv;
+  const { lookup, pick } = lv.ctx;
+  // Kit walls are visually taller than their doors (in-game 2026-11-18): close the notch with the kit's lintel piece
+  // when the palette has one (data-driven; absent role = no lintel, no warning).
+  const lr = lookup(
+    L.id,
+    elementTheme(op.theme, ck.theme),
+    [lintelRole(op.wallStyle), THEME_LINTEL_ROLE],
+    lenFilter(1),
+    true,
+  );
+  const lintel = lr ? pick(lr.variants, `${L.id}:lintel:${ck.x}:${ck.y}`) : undefined;
+  if (lintel && (under === undefined || leafTop + lintel.unitHeight <= under + EPS))
+    placeEdgePiece(lv, lintel, "opening", ck, 1, { yBase: leafTop, count: 1, source });
 }
