@@ -18,6 +18,7 @@ import { BUNDLED_ORIENTATION, BUNDLED_PALETTES } from "./bundled";
 import { dict, own } from "../util/own";
 import { parseOrientation, parsePalette, parsePaletteOverride } from "./schema";
 import { withAutoVariants } from "./auto";
+import { EMPTY_EXTENSION, paletteExtension, type PaletteExtension } from "./extension";
 
 export interface PaletteLoadIssue {
   severity: "error" | "warning";
@@ -152,20 +153,30 @@ export function loadPalettes(
 
 /**
  * The palettes a build compiles with: the bundled palettes, the user's palette files and, with the game's scanned
- * asset catalog, what it says of each asset (availability: present, missing, deprecated; names) and the assets a game
- * update added, joined to the roles they classify into as low-weight extra variants (palette/auto.ts). Without a
- * catalog every asset counts as present. Every caller that builds from a catalog goes through here (the app's compile
- * worker and main process, the CLI), so they resolve a plan alike.
+ * asset catalog, what it says of each asset (availability: present, missing, deprecated; names). With a catalog, two
+ * more things come from it:
+ *   - for the released generators 1 to 4, the assets a game update added, joined to the roles they classify into by
+ *     keyword as low-weight extra variants of the palettes (palette/auto.ts; kept as they were, so those generators
+ *     build on a machine with the game installed as they always did);
+ *   - for generator 5 (`catalogExtension`), the palette extension beside the palettes (palette/extension.ts): the
+ *     pieces the shared classifier places surely in loose dressing roles, less `opts.exclude` (the user's "don't use
+ *     this piece" list).
+ * Without a catalog every asset counts as present and the extension is empty. Every caller that builds from a catalog
+ * goes through here (the app's compile worker and main process, the CLI), so they resolve and build a plan alike.
  */
 export function buildPaletteCatalog(
   user: ReadonlyArray<{ source: string; data: unknown }>,
   catalog: AssetCatalog | readonly CatalogAsset[] | null,
-): ReturnType<typeof loadPalettes> {
-  if (catalog === null) return loadPalettes({ user });
+  opts: { exclude?: Iterable<string> } = {},
+): ReturnType<typeof loadPalettes> & { extension: PaletteExtension } {
+  if (catalog === null) return { ...loadPalettes({ user }), extension: EMPTY_EXTENSION };
   const assets: readonly CatalogAsset[] = Array.isArray(catalog)
     ? (catalog as readonly CatalogAsset[])
     : (catalog as AssetCatalog).assets;
-  return loadPalettes({ user, availability: createAvailability(assets), catalog: assets });
+  return {
+    ...loadPalettes({ user, availability: createAvailability(assets), catalog: assets }),
+    extension: paletteExtension(assets, bundledPalettes().palettes, opts.exclude),
+  };
 }
 
 let bundled: PaletteCatalog | null = null;

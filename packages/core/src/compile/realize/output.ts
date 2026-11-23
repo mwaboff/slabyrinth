@@ -6,6 +6,7 @@
 import type { Box3, PlacedAsset, Placement, PlacementRole, PlacementSet } from "../../contracts/compiler";
 import type { LevelId } from "../../contracts/plan";
 import { waterRangeOf } from "../../resolve/level/waterSurface";
+import { extensionOf } from "../../palette/extension";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { MARKER_ROLE } from "../../palette/roles";
 import type { BuildFacts } from "../buildFacts";
@@ -118,6 +119,7 @@ export function finishRealize(ctx: RealizeCtx, out: RealizeOutput): RealizedSet 
       s.count,
     );
   }
+  extensionUsed(ctx, outLevels);
   const diagnostics = [...diag.values()];
   return {
     planId: resolved.planId,
@@ -135,4 +137,34 @@ export function finishRealize(ctx: RealizeCtx, out: RealizeOutput): RealizedSet 
     levelInfo,
     resolvedHash: resolved.hash,
   };
+}
+
+/**
+ * Generator 5 (`catalogExtension`): one info note naming the palette extension's pieces the build placed (and how often),
+ * so the model and the GM see which pieces came from the game library rather than the palettes, and where to exclude
+ * one that looks wrong.
+ */
+function extensionUsed(ctx: RealizeCtx, levels: RealizeOutput["levels"]): void {
+  const ext = extensionOf(ctx.palettes);
+  if (!ctx.profile.catalogExtension || !ext || ext.pieces.length === 0) return;
+  const names = new Map(ext.pieces.map((p) => [p.uuid, p.name]));
+  const used = new Map<string, number>();
+  for (const l of levels)
+    for (const p of l.placements) {
+      const name = names.get(p.asset.toLowerCase());
+      if (name !== undefined) used.set(name, (used.get(name) ?? 0) + 1);
+    }
+  if (used.size === 0) return;
+  const list = [...used].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  ctx.addDiag(
+    {
+      severity: "info",
+      code: "extension_used",
+      message: `Pieces your TaleSpire library added (not in Slabyrinth's palettes yet) were used: ${list
+        .map(([n, c]) => `${n} ×${c}`)
+        .join(", ")}. One that looks wrong can be turned off in Settings ▸ TaleSpire.`,
+      assets: list.map(([n]) => n),
+    },
+    list.reduce((s, [, c]) => s + c, 0),
+  );
 }

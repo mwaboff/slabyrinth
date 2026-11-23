@@ -38,6 +38,14 @@ export type { ParseResult } from "./schema";
 export { BUNDLED_ORIENTATION, BUNDLED_PALETTES } from "./bundled";
 export { featureRoleFits, withAutoVariants } from "./auto";
 export {
+  EMPTY_EXTENSION,
+  EXTENSION_SHARE,
+  extensionOf,
+  isLegacyAutoVariant,
+  paletteExtension,
+} from "./extension";
+export type { ExtensionPiece, PaletteExtension } from "./extension";
+export {
   AUTO_POLICY,
   ROLE_FAMILIES,
   classifyNew,

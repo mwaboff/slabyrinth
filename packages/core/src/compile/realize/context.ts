@@ -19,6 +19,7 @@ import type { ResolvedPlan } from "../../contracts/resolved";
 import { ValueNoise } from "../../gen/noise";
 import { loadOrientation } from "../../palette/load";
 import { own } from "../../util/own";
+import { EXTENSION_SHARE, extensionOf } from "../../palette/extension";
 import { createPlanRoles } from "../../palette/planRoles";
 import { type ResolvedVariant, type ResolveOutcome, type VariantFilter } from "../../palette/resolve";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
@@ -116,8 +117,13 @@ export function createRealizeCtx(
   const hg = resolved.levels.reduce((m, l) => Math.max(m, l.bounds.y + l.bounds.h), 0);
   const frame = new WorldFrame(orientation, hg);
   const profile = generatorProfile(resolved);
-  // the one answer realize builds from and verify judges by (the set carries it)
-  const facts = new BuildFacts(resolved, createPlanRoles(palettes, resolved.generator), profile);
+  // the one answer realize builds from and verify judges by (the set carries it); generator 5 adds the palette
+  // extension's pieces (palette/extension.ts), which `pick` draws in their own stage
+  const facts = new BuildFacts(
+    resolved,
+    createPlanRoles(palettes, resolved.generator, extensionOf(palettes)),
+    profile,
+  );
   const { roles } = facts;
   const { defaultTheme } = roles;
 
@@ -177,7 +183,26 @@ export function createRealizeCtx(
     return null;
   };
 
+  /**
+   * Generator 5 (`catalogExtension`): where a role's answer holds extension pieces, a hash of its own first decides
+   * between the role's own pieces and the extension's, at the extension's share of the weight (at most
+   * EXTENSION_SHARE), then the piece is picked within that set exactly as before. A cell that draws the role's own
+   * pieces gets the same one with or without an extension, so a game update moves only cells that drew an extension
+   * piece. Without extension pieces this is the plain weighted pick.
+   */
   const pick = (vs: ResolvedVariant[], key: string): ResolvedVariant | undefined => {
+    if (!vs.some((v) => v.extension)) return pickWeighted(vs, key);
+    const own = vs.filter((v) => !v.extension);
+    const ext = vs.filter((v) => v.extension);
+    const weightOf = (list: ResolvedVariant[]): number => list.reduce((s, v) => s + Math.max(0, v.weight), 0);
+    const ownW = weightOf(own);
+    const extW = weightOf(ext);
+    if (own.length === 0) return pickWeighted(ext, key);
+    const share = extW <= 0 ? 0 : Math.min(EXTENSION_SHARE, extW / (extW + ownW));
+    return hashUnitUtf16(seed, key, "extension") < share ? pickWeighted(ext, key) : pickWeighted(own, key);
+  };
+
+  const pickWeighted = (vs: ResolvedVariant[], key: string): ResolvedVariant | undefined => {
     const weighted = vs.filter((v) => v.weight > 0);
     const pool = weighted.length ? weighted : vs.slice(0, 1);
     const total = pool.reduce((s, v) => s + v.weight, 0);

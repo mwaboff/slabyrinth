@@ -57,6 +57,8 @@ export interface ResolvedVariant {
   facing: PaletteFacing | undefined;
   /** Assembly pieces placed with this asset (palette `parts`). */
   parts?: NonNullable<PaletteVariant["parts"]>;
+  /** A piece of the palette extension (palette/extension.ts), drawn in its own stage by realize. */
+  extension?: true;
 }
 
 export interface RoleResolution {

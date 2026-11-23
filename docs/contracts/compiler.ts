@@ -558,6 +558,7 @@ export type CompileDiagnosticCode =
   | "chunk_oversize"             // a single cell's placements exceed the limit (cannot split)
   | "chunk_split"                // info: chunk was split adaptively
   | "theme_fallback"             // unknown theme → default palette used
+  | "extension_used"             // info (generator 5): pieces of the user's game library the palettes do not name yet were placed (palette extension); names them
   // ── verify stage: checks the REALIZED tile set (real asset footprints/heights) against the resolved grid ──
   | "verify_cell_obstructed"     // warning: a realized solid intrudes into a cell the 2D map shows as open floor
   | "verify_door_blocked"        // error: no clear standing room in front of a door on a side it serves

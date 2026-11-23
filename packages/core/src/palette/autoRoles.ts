@@ -341,7 +341,9 @@ export interface AutoPiece {
   readonly where: AutoWhere;
   /** The palette variant it joins as (geometry from the catalog, the rest from its sibling). */
   readonly variant: PaletteVariant;
-  /** The sibling it was modelled on, and every fitting sibling's name in this role. */
+  /** The uuid of the palette piece it was modelled on (its sibling nearest in height). */
+  readonly model: string;
+  /** The name of every fitting sibling in this role. */
   readonly siblings: readonly string[];
 }
 
@@ -505,6 +507,7 @@ export function classifyNew(
           role: model.role,
           where: policy.where,
           variant: variantFor(a, model, list),
+          model: model.piece.uuid,
           siblings: [...new Set(list.map((s) => s.piece.name))].sort(byText),
         });
       }

@@ -8,18 +8,25 @@
  * build. The rules, in one place:
  *   - generator: a role introduced after the plan's generator (`minGenerator`) does not exist for it;
  *   - theme fallback: a theme with no palette of its own is asked as the default theme;
- *   - default theme: `generic` when the catalog has it, else its first palette.
+ *   - default theme: `generic` when the catalog has it, else its first palette;
+ *   - generator 5 (`catalogExtension`): the palettes' own pieces only (not the released generators' run-time keyword
+ *     variants, palette/auto.ts), plus, where the caller hands one over (realize and verify, never the resolver), the
+ *     palette extension's pieces after a role's own (palette/extension.ts), each marked `extension`.
  * Answers are memoized for the life of the object (one build, or one palette view).
  */
-import type { RoleName } from "../contracts/compiler";
+import type { Palette, PaletteRole, RoleName } from "../contracts/compiler";
 import type { ThemeId } from "../contracts/plan";
+import { generatorProfile } from "../plan/generator";
 import { minOf } from "../util/lists";
-import { own } from "../util/own";
+import { dict, own } from "../util/own";
+import { isLegacyAutoVariant, type ExtensionPiece, type PaletteExtension } from "./extension";
 import {
   GENERIC_THEME,
   resolveRole,
+  usableVariants,
   type ResolveOutcome,
   type ResolvePalettes,
+  type ResolvedVariant,
   type VariantFilter,
 } from "./resolve";
 import { floorRole } from "./roles";
@@ -49,8 +56,19 @@ export function defaultThemeOf(catalog: ResolvePalettes): ThemeId {
 /**
  * The role answers of `catalog` for `generator`. One build makes one and hands it on (realize puts it on the realized
  * set for verify; the palette view keeps its own per catalog), so its memo lives as long as the build that asks.
+ * `extension` is handed over by realize and verify only (see the rules above).
  */
-export function createPlanRoles(catalog: ResolvePalettes, generator: number): PlanRoles {
+export function createPlanRoles(
+  catalog: ResolvePalettes,
+  generator: number,
+  extension?: PaletteExtension,
+): PlanRoles {
+  const curatedOnly = generatorProfile(generator).catalogExtension;
+  if (curatedOnly) catalog = curatedOf(catalog);
+  const extra =
+    curatedOnly && extension !== undefined && extension.pieces.length > 0
+      ? extensionIndex(extension)
+      : undefined;
   const defaultTheme = defaultThemeOf(catalog);
   const hasPalette = (theme: ThemeId): boolean => own(catalog.palettes, theme) !== undefined;
   const paletteTheme = (theme: ThemeId): ThemeId => (hasPalette(theme) ? theme : defaultTheme);
@@ -67,6 +85,7 @@ export function createPlanRoles(catalog: ResolvePalettes, generator: number): Pl
       let r = answers.get(k);
       if (!r) {
         r = resolveRole(catalog, t, role, filter, generator);
+        if (extra) r = withExtension(r, extra, catalog, filter);
         answers.set(k, r);
       }
       return r;
@@ -82,6 +101,67 @@ export function createPlanRoles(catalog: ResolvePalettes, generator: number): Pl
       return p;
     },
   };
+}
+
+const curated = new WeakMap<ResolvePalettes, ResolvePalettes>();
+
+/** `catalog` without the released generators' run-time keyword variants (palette/extension.ts isLegacyAutoVariant). */
+function curatedOf(catalog: ResolvePalettes): ResolvePalettes {
+  const known = curated.get(catalog);
+  if (known) return known;
+  let changed = false;
+  const palettes: Record<ThemeId, Palette> = dict();
+  for (const [id, p] of Object.entries(catalog.palettes)) {
+    let roles: Palette["roles"] | undefined;
+    for (const [name, def] of Object.entries(p.roles)) {
+      const vs = Array.isArray(def.variants) ? def.variants : [];
+      if (!vs.some(isLegacyAutoVariant)) continue;
+      roles ??= { ...p.roles };
+      roles[name] = { ...def, variants: vs.filter((v) => !isLegacyAutoVariant(v)) };
+    }
+    palettes[id] = roles ? { ...p, roles } : p;
+    changed ||= roles !== undefined;
+  }
+  const out = changed ? { ...catalog, palettes } : catalog;
+  curated.set(catalog, out);
+  return out;
+}
+
+/** Extension pieces by the palette and role they join. */
+function extensionIndex(extension: PaletteExtension): Map<string, ExtensionPiece[]> {
+  const idx = new Map<string, ExtensionPiece[]>();
+  for (const p of extension.pieces) {
+    const k = `${p.theme}\u0000${p.role}`;
+    const list = idx.get(k);
+    if (list) list.push(p);
+    else idx.set(k, [p]);
+  }
+  return idx;
+}
+
+/**
+ * A role answer with the extension pieces of the palette and role that supplied it appended, each only while the piece
+ * it was modelled on is among the answer's variants (a user's palette that replaced the role keeps to its own pieces).
+ */
+function withExtension(
+  out: ResolveOutcome,
+  idx: ReadonlyMap<string, readonly ExtensionPiece[]>,
+  catalog: ResolvePalettes,
+  filter: VariantFilter | undefined,
+): ResolveOutcome {
+  const res = out.resolution;
+  if (!res) return out;
+  const wanted = new Set(res.variants.map((v) => v.wanted));
+  const pieces = (idx.get(`${res.paletteId}\u0000${res.role}`) ?? []).filter(
+    (p) => wanted.has(p.model) && !wanted.has(p.uuid),
+  );
+  if (pieces.length === 0) return out;
+  const def: PaletteRole = { ...res.def, variants: pieces.map((p) => p.variant) };
+  let vs: ResolvedVariant[] = usableVariants(def, res.role, catalog, []);
+  if (filter) vs = vs.filter(filter.test);
+  if (vs.length === 0) return out;
+  const added = vs.map((v): ResolvedVariant => ({ ...v, extension: true }));
+  return { ...out, resolution: { ...res, variants: [...res.variants, ...added] } };
 }
 
 /**

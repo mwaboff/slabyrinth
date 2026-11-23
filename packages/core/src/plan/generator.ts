@@ -632,6 +632,10 @@ const SWITCHES = {
     "Only a ruin's roof is open: a worn building's roof keeps every piece (its wear shows as patches, in a kit of another colour where its own kit has no worn pieces and none of its tone is near), a ramshackle one has at most one small ragged hole off its eaves with boards under it; and a roof piece over an open cell (a hole, a ruin's lost bay) is laid cell by cell round it, so an opening follows its own ragged cells and never a piece's rectangle (resolve/building/condition.ts, wear.ts, compile/realize/structures/roofPiece.ts, roofs.ts).",
     "roofPatches",
   ),
+  catalogExtension: on(
+    5,
+    "Pieces of the user's game the palettes do not name yet join loose dressing roles by the sibling rule (palette/autoRoles.ts, palette/extension.ts), drawn by realize in their own stage at most a quarter of a role's picks; the resolver never sees them, and the released generators' run-time keyword variants (palette/auto.ts) are not used (palette/planRoles.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

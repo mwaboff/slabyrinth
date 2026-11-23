@@ -11,6 +11,7 @@ import type {
   ResolvedLevel,
   ResolvedPlan,
 } from "../../contracts/resolved";
+import { extensionOf } from "../../palette/extension";
 import { createPlanRoles, type PlanRoles } from "../../palette/planRoles";
 import { FLOOR_FAMILY, roleFamily } from "../../palette/roles";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
@@ -83,7 +84,11 @@ export function factsFor(
   profile: GeneratorProfile,
 ): BuildFacts {
   if (set.facts && set.facts.resolved === resolved) return set.facts;
-  return new BuildFacts(resolved, createPlanRoles(palettes, resolved.generator), profile);
+  return new BuildFacts(
+    resolved,
+    createPlanRoles(palettes, resolved.generator, extensionOf(palettes)),
+    profile,
+  );
 }
 
 export function createVerifyCtx(
