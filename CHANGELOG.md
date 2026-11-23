@@ -7,6 +7,26 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 ## [Unreleased]
 
+### Added
+
+- **Rooms furnished by purpose.** A room named for its use is laid out like one: a bed with its nightstand and a light, a bar with stools and a back store, a desk with its chair. Taverns and dining halls get tables with seats in the middle, barracks and wards rows of beds, classrooms rows of desks, stores aisles of stock. New kinds of room: shops, stables, sitting rooms, classrooms, command rooms and infirmary wards. Tidy rooms stay square; lived-in and working rooms look used.
+- **Buildings with rooms inside.** A building's ground floor is split into rooms by what the building is: an inn's taproom with the kitchen behind it, a shop floor and its store, a workshop, a shrine, a guardroom and armoury, a warehouse office, or a home with a kitchen and a bedroom. Small houses are one room with a sleeping corner by the hearth.
+- **Light that follows the mood.** A dim tavern has a few warm pools of light, a hospital ward is lit at every bed, a crypt stays dark. Lights stand where they make sense: candles on tables, lanterns on counters, torches on the walls, fires only where a fire belongs. The AI tells you which board lighting suits the scene.
+- **Towns with character.** Quarters can be rich and bright or poor, run-down and gloomy, and their houses follow with small differences of their own. Neighbouring buildings are drawn to differ in walls, roofs and height.
+- **Streets with detail.** Posts at doors and corners, bands along the floor lines, low plinths and pilasters, and ground cover gathered in clusters along walls and paths, chosen per building so a street repeats a few treatments, never one.
+- **Wear and ruins.** Worn houses get patched roofs and growth at their feet; ramshackle ones get boarded windows and a lean-to. A ruin loses a few whole bays, roof and all, with rubble spilling from the breach. Temples and grand buildings get a pair of statues at the door and lights along the approach.
+- **A review that knows rooms and dungeons.** The AI's design review judges each room by its kind, and a dungeon by its layout: rooms all of one size, too much corridor, empty dead ends, a single way in, a drop with no way back up.
+
+### Changed
+
+- The water height the build suggests stays below the floor of a cellar or lower level standing in the water.
+- Maps you made with earlier versions rebuild unchanged. The new rules are for new maps only.
+
+### Known limits
+
+- Upper storeys of buildings are still empty shells; only the ground floor is furnished.
+- The new rooms, lights, streets and ruins have been checked by the app's own tests but not yet looked at in TaleSpire.
+
 ## [0.3.0] - 2026-11-22
 
 ### Added
