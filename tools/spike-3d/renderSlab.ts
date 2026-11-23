@@ -34,6 +34,15 @@ const tScene = performance.now();
 lib.releaseBundles();
 let meshes = scene.placed.map((p) => p.mesh);
 if (noFloor) meshes = scene.placed.filter((p) => !/^(Dungeon Floor)/.test(p.name)).map((p) => p.mesh);
+const crop = args.find((a) => a.startsWith("--crop="));
+if (crop) {
+  // --crop=x0,z0,x1,z1 keeps the pieces whose stored position lies in that plan rectangle (tiles)
+  const [x0, z0, x1, z1] = crop.slice(7).split(",").map(Number) as [number, number, number, number];
+  meshes = scene.placed
+    .filter((p) => p.pos[0] >= x0 && p.pos[0] <= x1 && p.pos[2] >= z0 && p.pos[2] <= z1)
+    .filter((p) => !noFloor || !/^(Dungeon Floor)/.test(p.name))
+    .map((p) => p.mesh);
+}
 const tris = meshes.reduce((n, m) => n + m.indices.length / 3, 0);
 mkdirSync(dirname(prefix), { recursive: true });
 const timings: string[] = [];
