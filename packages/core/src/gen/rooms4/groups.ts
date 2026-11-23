@@ -12,7 +12,7 @@
  */
 import type { Rotation, Side } from "../../contracts/plan";
 import { featureInfo, rotatedSize } from "../catalog";
-import type { GeneratedPlacement } from "../placementGrid";
+import { gridProfile, type GeneratedPlacement } from "../placementGrid";
 import { EDGE_WALL, INWARD, SIDES, SIDE_ROT, cellKey, footprintCells, stepSide } from "../gridGeometry";
 import type {
   AnchorPlace,
@@ -827,8 +827,11 @@ export function rugUnder(room: Room, g: PlacedGroup, landings: ReadonlySet<numbe
  * False when the theme has no light for it, the top is uneven, or the ceiling is too low.
  */
 export function lightOn(room: Room, q: Placed): boolean {
-  const lamp = featureInfo(q.type).topLight === "lantern" ? "candelabra" : "candles";
-  const variant = lamp === "candelabra" ? "lantern" : undefined;
+  const lantern = featureInfo(q.type).topLight === "lantern";
+  // generator 5 (topLightFallback): a piece that takes a lantern takes a single candle where the theme has no lantern
+  const fallback = lantern && !room.has("candelabra", "lantern") && gridProfile(room.grid).topLightFallback;
+  const lamp = lantern || fallback ? "candelabra" : "candles";
+  const variant = lamp === "candelabra" ? (fallback ? "candle" : "lantern") : undefined;
   const ext = room.piece(q.type, q.variant);
   if (!ext || ext.mixed || ext.hMax - ext.h > 0.15 || !room.has(lamp, variant)) return false;
   const cx = clampTo(q.centre[0], q.at[0], q.size[0]);

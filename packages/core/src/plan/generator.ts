@@ -548,6 +548,14 @@ const SWITCHES = {
     5,
     "The detail recipes keep clear of what a wall-hung feature's piece really covers, its widest variant's outline turned with it, not only its cells: a corner post or a band no longer stands in the end of a wall rack wider than its cell (resolve/recipes/keepClear.ts).",
   ),
+  roomsKeepALight: on(
+    5,
+    "A lived-in room of three tiles or more keeps a light at every light level, not only when drawn dark or dim, and its main pieces' tops are asked before a wall: a moderate kitchen whose regime found no sensible place (counters and a cauldron along every wall cell beside its cooking group, no seat, its door landings taking the rest) gets a light on a counter or a wall (gen/rooms4/regimes.ts lightByLevel).",
+  ),
+  topLightFallback: on(
+    5,
+    "A piece whose top takes a lantern (a counter, a workbench) takes a single candle where the theme has no lantern piece, so a work surface still holds a light (a ship's galley: gen/rooms4/groups.ts lightOn).",
+  ),
   sacredReads: on(
     5,
     "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",

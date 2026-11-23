@@ -346,6 +346,10 @@ function lightByLevel(
     // a lived-in room of 3 tiles or more keeps a light
     if (room.lights.length > 0 || room.cells.length < OCCUPANCY.smallestLit) return;
     lightSurfaces(room, 1, main);
+    // generator 5 (roomsKeepALight): then a light on any of its main pieces that takes one (a work counter), before a
+    // wall light
+    if (room.lights.length === 0 && gridProfile(room.grid).roomsKeepALight)
+      lightSurfaces(room, 1, main, true);
     if (room.lights.length === 0) light(room, { target: 1, radius: Infinity, torchOnly: true, floor: null });
   };
   // a dim store keeps its one light at the door, at any level
@@ -384,6 +388,8 @@ function lightByLevel(
       wallRhythm(room, room.lights.length + Math.ceil(room.cells.length / 6), LEVEL_STEPS.wallPitch[L]);
     }
     if (L >= 4) wallRhythm(room, room.lights.length + Math.ceil(room.cells.length / 4), 1.5);
+    // generator 5 (roomsKeepALight): at every level, as at dark and dim
+    if (gridProfile(room.grid).roomsKeepALight) keepsALight();
     return;
   }
   if (L >= 3) {
@@ -406,6 +412,7 @@ function lightByLevel(
       }
     wallRhythm(room, room.lights.length + Math.ceil(room.cells.length / 4), LEVEL_STEPS.wallPitch[L]);
   }
+  if (gridProfile(room.grid).roomsKeepALight) keepsALight();
 }
 
 /** Wall lights at `pitch` (tiles), darkest wall first, until the room has `target` lights. */
