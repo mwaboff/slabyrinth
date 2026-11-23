@@ -154,6 +154,24 @@ export const STAND_INS = {
     target: { length: 1.3, height: 0.3 },
     simplify: "plank",
   },
+  rail: {
+    doc: "a level railing section about 1 long (a bulwark rail): the role's first piece is the level one (rail calibration: railing 01 A level, B a stair rail, C with a newel post)",
+    roles: ["wall.railing"],
+    shape: { trait: "panel", kind: "prop", where: { length: [0.9, 1.2], height: [0.5, 0.9] } },
+    target: { length: 1.03, height: 0.73 },
+  },
+  fitting: {
+    doc: "a small deck fitting about 0.4 across (a bucket, a coil, a belaying block)",
+    roles: ["feature.clutter"],
+    shape: { trait: "clutter", kind: "prop", where: { extent: [0.35, 0.5], height: [0.3, 0.5] } },
+    target: { extent: 0.42, height: 0.39 },
+  },
+  lantern: {
+    doc: "a small hanging or hand lantern under 0.8 tall",
+    roles: ["feature.overhead", "feature.lantern"],
+    shape: { trait: "clutter", kind: "prop", where: { height: [0.4, 0.8], length: [0.1, 0.45] } },
+    target: { height: 0.68, length: 0.39 },
+  },
   stool: {
     doc: "a stool or small seat",
     roles: ["stall.seat", "feature.stool"],
