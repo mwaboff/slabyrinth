@@ -805,14 +805,14 @@ plans/chimney-lineup-v1 g part h6~window5 1
 plans/chimney-lineup-v1 review dead_space 1
 plans/chimney-lineup-v1 review roof_squat 1
 plans/chimney-lineup-v1 review symmetry 1
-plans/chimney-lineup-v1@5 g pieces feature 939
+plans/chimney-lineup-v1@5 g pieces feature 940
 plans/chimney-lineup-v1@5 g pieces floor 568
 plans/chimney-lineup-v1@5 g pieces ledge 188
 plans/chimney-lineup-v1@5 g pieces opening 37
 plans/chimney-lineup-v1@5 g pieces wall 812
-plans/chimney-lineup-v1@5 g pieces wall_post 167
+plans/chimney-lineup-v1@5 g pieces wall_post 171
 plans/chimney-lineup-v1@5 g layer roof 549
-plans/chimney-lineup-v1@5 g layer site 1618
+plans/chimney-lineup-v1@5 g layer site 1623
 plans/chimney-lineup-v1@5 g layer storey:0 415
 plans/chimney-lineup-v1@5 g layer storey:1 129
 plans/chimney-lineup-v1@5 g part floor:floor.grass 352
@@ -864,8 +864,6 @@ plans/chimney-lineup-v1@5 g part h2~room0~room#1 1
 plans/chimney-lineup-v1@5 g part h2~room0~room#10 1
 plans/chimney-lineup-v1@5 g part h2~room0~room#11 1
 plans/chimney-lineup-v1@5 g part h2~room0~room#12 1
-plans/chimney-lineup-v1@5 g part h2~room0~room#13 1
-plans/chimney-lineup-v1@5 g part h2~room0~room#14 1
 plans/chimney-lineup-v1@5 g part h2~room0~room#2 1
 plans/chimney-lineup-v1@5 g part h2~room0~room#3 1
 plans/chimney-lineup-v1@5 g part h2~room0~room#4 1
@@ -1098,6 +1096,7 @@ plans/chimney-lineup-v1@5 g part jambPosts@face:B:h6:main:0:out:S:15:64:op:h6~do
 plans/chimney-lineup-v1@5 g part jambPosts@face:B:h6:main:0:out:W:64:10:op:h6~window5 4
 plans/chimney-lineup-v1@5 g part jambPosts@face:B:h6:main:0:out:W:64:4:op:h6~window4 4
 plans/chimney-lineup-v1@5 g part jambPosts@face:L:N:9:13:op:h2~inner1 2
+plans/chimney-lineup-v1@5 g part jambPosts@face:L:S:9:13:op:h2~inner1 2
 plans/chimney-lineup-v1@5 g part jambPosts@face:L:W:55:5:op:h5~inner1 4
 plans/chimney-lineup-v1@5 g part jambPosts@face:L:W:69:4:op:h6~inner0 2
 plans/chimney-lineup-v1@5 g feature barrel 6
@@ -1107,8 +1106,8 @@ plans/chimney-lineup-v1@5 g feature brazier 2
 plans/chimney-lineup-v1@5 g feature candelabra 7
 plans/chimney-lineup-v1@5 g feature candles 3
 plans/chimney-lineup-v1@5 g feature cauldron 1
-plans/chimney-lineup-v1@5 g feature chair 8
-plans/chimney-lineup-v1@5 g feature chest 1
+plans/chimney-lineup-v1@5 g feature chair 5
+plans/chimney-lineup-v1@5 g feature chest 2
 plans/chimney-lineup-v1@5 g feature clutter 53
 plans/chimney-lineup-v1@5 g feature counter 11
 plans/chimney-lineup-v1@5 g feature crate 3
@@ -1935,14 +1934,14 @@ plans/example-b@5 diag info verify_water_level 1
 plans/example-b@5 review flat_map 1
 plans/example-b@5 review focal_unlit 2
 plans/example-b@5 review rows_or_even_scatter 1
-plans/ground-and-walls-v1 g pieces feature 1176
+plans/ground-and-walls-v1 g pieces feature 1170
 plans/ground-and-walls-v1 g pieces floor 1018
 plans/ground-and-walls-v1 g pieces ledge 188
 plans/ground-and-walls-v1 g pieces opening 35
 plans/ground-and-walls-v1 g pieces wall 796
 plans/ground-and-walls-v1 g pieces wall_post 212
 plans/ground-and-walls-v1 g layer roof 520
-plans/ground-and-walls-v1 g layer site 2418
+plans/ground-and-walls-v1 g layer site 2412
 plans/ground-and-walls-v1 g layer storey:0 378
 plans/ground-and-walls-v1 g layer storey:1 109
 plans/ground-and-walls-v1 g part floor:floor.dirt 25
@@ -2184,9 +2183,6 @@ plans/ground-and-walls-v1 g part s5~room0~room#0 1
 plans/ground-and-walls-v1 g part s5~room0~room#1 1
 plans/ground-and-walls-v1 g part s5~room0~room#10 1
 plans/ground-and-walls-v1 g part s5~room0~room#11 1
-plans/ground-and-walls-v1 g part s5~room0~room#12 1
-plans/ground-and-walls-v1 g part s5~room0~room#13 1
-plans/ground-and-walls-v1 g part s5~room0~room#14 1
 plans/ground-and-walls-v1 g part s5~room0~room#2 1
 plans/ground-and-walls-v1 g part s5~room0~room#3 1
 plans/ground-and-walls-v1 g part s5~room0~room#4 1
@@ -2258,15 +2254,15 @@ plans/ground-and-walls-v1 g part s6~window1 1
 plans/ground-and-walls-v1 g part s6~window2 1
 plans/ground-and-walls-v1 g feature barrel 5
 plans/ground-and-walls-v1 g feature bed 7
-plans/ground-and-walls-v1 g feature bench 4
+plans/ground-and-walls-v1 g feature bench 6
 plans/ground-and-walls-v1 g feature bookshelf 1
 plans/ground-and-walls-v1 g feature brazier 1
 plans/ground-and-walls-v1 g feature candelabra 10
 plans/ground-and-walls-v1 g feature candles 6
 plans/ground-and-walls-v1 g feature cauldron 2
-plans/ground-and-walls-v1 g feature chair 29
-plans/ground-and-walls-v1 g feature chest 9
-plans/ground-and-walls-v1 g feature clutter 62
+plans/ground-and-walls-v1 g feature chair 26
+plans/ground-and-walls-v1 g feature chest 8
+plans/ground-and-walls-v1 g feature clutter 61
 plans/ground-and-walls-v1 g feature counter 8
 plans/ground-and-walls-v1 g feature crate 10
 plans/ground-and-walls-v1 g feature desk 1
@@ -5449,12 +5445,12 @@ plans/stall-lineup-v1@5 g feature well 1
 plans/stall-lineup-v1@5 diag info footprint_mismatch 1
 plans/stall-lineup-v1@5 review flat_map 1
 plans/stall-lineup-v1@5 review focal_unlit 1
-plans/stated-character-v1 workings pieces feature 78
+plans/stated-character-v1 workings pieces feature 76
 plans/stated-character-v1 workings pieces floor 36
 plans/stated-character-v1 workings pieces opening 2
 plans/stated-character-v1 workings pieces wall 34
 plans/stated-character-v1 workings pieces wall_post 6
-plans/stated-character-v1 workings layer site 156
+plans/stated-character-v1 workings layer site 154
 plans/stated-character-v1 workings part bunks~room#0 1
 plans/stated-character-v1 workings part bunks~room#1 1
 plans/stated-character-v1 workings part bunks~room#10 1
@@ -5504,8 +5500,6 @@ plans/stated-character-v1 workings part mess~room#32 1
 plans/stated-character-v1 workings part mess~room#33 1
 plans/stated-character-v1 workings part mess~room#34 1
 plans/stated-character-v1 workings part mess~room#35 1
-plans/stated-character-v1 workings part mess~room#36 1
-plans/stated-character-v1 workings part mess~room#37 1
 plans/stated-character-v1 workings part mess~room#4 1
 plans/stated-character-v1 workings part mess~room#5 1
 plans/stated-character-v1 workings part mess~room#6 1
@@ -5764,18 +5758,19 @@ plans/stated-character-v1 workings feature armor_stand 1
 plans/stated-character-v1 workings feature barrel 3
 plans/stated-character-v1 workings feature bench 3
 plans/stated-character-v1 workings feature bookshelf 6
+plans/stated-character-v1 workings feature brazier 1
 plans/stated-character-v1 workings feature bunk_bed 5
 plans/stated-character-v1 workings feature candelabra 1
 plans/stated-character-v1 workings feature candles 3
 plans/stated-character-v1 workings feature chair 8
 plans/stated-character-v1 workings feature chest 5
-plans/stated-character-v1 workings feature clutter 20
+plans/stated-character-v1 workings feature clutter 17
 plans/stated-character-v1 workings feature crate 1
 plans/stated-character-v1 workings feature desk 1
 plans/stated-character-v1 workings feature rug 2
-plans/stated-character-v1 workings feature shelf_line 8
+plans/stated-character-v1 workings feature shelf_line 7
 plans/stated-character-v1 workings feature table 2
-plans/stated-character-v1 workings feature torch_wall 7
+plans/stated-character-v1 workings feature torch_wall 8
 plans/stated-character-v1 workings feature weapon_rack 2
 plans/stated-character-v1 g feature bar_counter 3
 plans/stated-character-v1 g feature barrel 8
@@ -5800,7 +5795,7 @@ plans/stated-character-v1 g feature torch_wall 6
 plans/stated-character-v1 diag info footprint_mismatch 5
 plans/stated-character-v1 diag info structure_style_fallback 2
 plans/stated-character-v1 diag info verify_duplicate_removed 1
-plans/stated-character-v1 diag info verify_prop_nudged 4
+plans/stated-character-v1 diag info verify_prop_nudged 3
 plans/stated-character-v1 review cliff_unclad_low 1
 plans/stated-character-v1 review drop_trap_dead 1
 plans/stated-character-v1 review pieces_substituted 1
@@ -6106,17 +6101,17 @@ plans/three-step-glen-v1@5 review focal_unlit 1
 plans/three-step-glen-v1@5 review landmark_against_wall 1
 plans/three-step-glen-v1@5 review rows_or_even_scatter 2
 plans/three-step-glen-v1@5 review straight_natural 1
-plans/two-quarters-v1 g pieces feature 898
+plans/two-quarters-v1 g pieces feature 899
 plans/two-quarters-v1 g pieces fill 80
 plans/two-quarters-v1 g pieces floor 1372
 plans/two-quarters-v1 g pieces ledge 228
 plans/two-quarters-v1 g pieces link 1
 plans/two-quarters-v1 g pieces opening 60
 plans/two-quarters-v1 g pieces wall 1579
-plans/two-quarters-v1 g pieces wall_post 290
+plans/two-quarters-v1 g pieces wall_post 288
 plans/two-quarters-v1 g layer roof 1173
-plans/two-quarters-v1 g layer site 2398
-plans/two-quarters-v1 g layer storey:0 776
+plans/two-quarters-v1 g layer site 2399
+plans/two-quarters-v1 g layer storey:0 774
 plans/two-quarters-v1 g layer storey:1 161
 plans/two-quarters-v1 g part bucket~deck 22
 plans/two-quarters-v1 g part bucket~door0 1
@@ -6371,7 +6366,6 @@ plans/two-quarters-v1 g part jambPosts@face:B:swan:front:0:out:N:8:6:op:swan~win
 plans/two-quarters-v1 g part jambPosts@face:B:swan:front:0:out:S:11:3:op:swan~door0 2
 plans/two-quarters-v1 g part jambPosts@face:B:swan:front:0:out:W:3:8:op:swan~window2 4
 plans/two-quarters-v1 g part jambPosts@face:B:town2:lean:0:out:W:4:20:op:town2~window3 4
-plans/two-quarters-v1 g part jambPosts@face:B:town2:main:0:out:N:20:6:op:town2~door0 2
 plans/two-quarters-v1 g part jambPosts@face:B:town2:main:0:out:N:20:6:op:town2~window0 2
 plans/two-quarters-v1 g part jambPosts@face:B:town2:main:0:out:S:26:6:op:town2~window2 2
 plans/two-quarters-v1 g part jambPosts@face:B:town3:main:0:out:N:20:26:op:town3~door0 2
@@ -6535,6 +6529,7 @@ plans/two-quarters-v1 g part town2~room0~room#1 1
 plans/two-quarters-v1 g part town2~room0~room#10 1
 plans/two-quarters-v1 g part town2~room0~room#11 1
 plans/two-quarters-v1 g part town2~room0~room#12 1
+plans/two-quarters-v1 g part town2~room0~room#13 1
 plans/two-quarters-v1 g part town2~room0~room#2 1
 plans/two-quarters-v1 g part town2~room0~room#3 1
 plans/two-quarters-v1 g part town2~room0~room#4 1
@@ -6626,14 +6621,14 @@ plans/two-quarters-v1 g feature bar_counter 6
 plans/two-quarters-v1 g feature barrel 22
 plans/two-quarters-v1 g feature bed 9
 plans/two-quarters-v1 g feature bench 2
-plans/two-quarters-v1 g feature bookshelf 2
+plans/two-quarters-v1 g feature bookshelf 3
 plans/two-quarters-v1 g feature brazier 2
 plans/two-quarters-v1 g feature candelabra 11
 plans/two-quarters-v1 g feature candles 5
 plans/two-quarters-v1 g feature cauldron 2
-plans/two-quarters-v1 g feature chair 8
+plans/two-quarters-v1 g feature chair 5
 plans/two-quarters-v1 g feature chest 5
-plans/two-quarters-v1 g feature clutter 102
+plans/two-quarters-v1 g feature clutter 105
 plans/two-quarters-v1 g feature counter 12
 plans/two-quarters-v1 g feature crate 17
 plans/two-quarters-v1 g feature desk 1
@@ -6646,7 +6641,7 @@ plans/two-quarters-v1 g feature torch_wall 16
 plans/two-quarters-v1 diag info footprint_mismatch 3
 plans/two-quarters-v1 diag info structure_style_fallback 1
 plans/two-quarters-v1 diag info verify_duplicate_removed 2
-plans/two-quarters-v1 diag info verify_prop_nudged 18
+plans/two-quarters-v1 diag info verify_prop_nudged 19
 plans/two-quarters-v1 review cliff_unclad_low 1
 plans/two-quarters-v1 review pieces_substituted 1
 plans/two-quarters-v1 review roofs_alike 1

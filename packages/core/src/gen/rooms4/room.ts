@@ -420,16 +420,22 @@ export class Room {
     let lost = 0;
     for (const k of this.reach) if (!after.has(k) && !extra.has(k)) lost++;
     if (lost > 0) return null;
-    if (gridProfile(this.grid).doorsStayJoined && this.doorPairs.length > 1) {
-      const main = this.doorPairs.reduce((a, b) =>
-        Math.hypot(b[0] + 0.5 - this.entry[0], b[1] + 0.5 - this.entry[1]) <
-        Math.hypot(a[0] + 0.5 - this.entry[0], a[1] + 0.5 - this.entry[1])
-          ? b
-          : a,
+    // (every way in counts: a door, and an open archway or a flight of steps, which are thresholds but no door pair: an
+    // inn's kitchen opens off its taproom through an archway)
+    if (gridProfile(this.grid).doorsStayJoined && this.thresholds.length > 1) {
+      const doors: ReadonlyArray<readonly [number, number]> =
+        this.doorPairs.length > 0 ? this.doorPairs.map(([x, y]) => [x, y] as const) : this.thresholds;
+      const main = doors.reduce<readonly [number, number]>(
+        (a, b) =>
+          Math.hypot(b[0] + 0.5 - this.entry[0], b[1] + 0.5 - this.entry[1]) <
+          Math.hypot(a[0] + 0.5 - this.entry[0], a[1] + 0.5 - this.entry[1])
+            ? b
+            : a,
+        doors[0] as readonly [number, number],
       );
       const before = this.walk(new Set(), [main[0], main[1]]);
       const now = this.walk(extra, [main[0], main[1]]);
-      for (const [x, y] of this.doorPairs)
+      for (const [x, y] of this.thresholds)
         if (before.has(cellKey(x, y)) && !now.has(cellKey(x, y))) return null;
     }
     return after;

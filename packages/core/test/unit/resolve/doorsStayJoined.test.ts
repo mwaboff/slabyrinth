@@ -11,9 +11,9 @@ import { EDGE, type ResolvedLevel } from "../../../src/contracts/resolved";
 import { isPassage } from "../../../src/gen/openingKinds";
 import { bundledPalettes } from "../../../src/palette";
 import { GENERATOR_PROFILES, type GeneratorProfile } from "../../../src/plan/generator";
-import { resolvePlan } from "../../../src/resolve";
+import { checkPlayability, resolvePlan } from "../../../src/resolve";
 import { LevelGrid } from "../../../src/resolve/levelGrid";
-import type { StoredPlan } from "../../fixtures";
+import { loadPlan, type StoredPlan } from "../../fixtures";
 import { sweepPlan, sweepSeeds } from "../../sweep/seeds";
 
 const pal = bundledPalettes();
@@ -104,5 +104,16 @@ describe("a room's doorways stay joined (doorsStayJoined)", () => {
     P5.doorsStayJoined = false;
     const off = measure(["varied-street-v1"], sweepSeeds(2));
     expect(off.some((s) => s.includes('"Taproom"'))).toBe(true);
+  }, 30_000);
+
+  it("an archway counts as a way in: the inn's kitchen archway stays joined (stated-character-v1, hall seed 35)", () => {
+    // its taproom's bar stools, a table, a chair and a bench closed the kitchen's archway off: the archway is an open
+    // edge, a threshold but no door pair, and the check asked the door pairs only
+    const plan = structuredClone(loadPlan("stated-character-v1"));
+    for (const L of plan.levels)
+      for (const st of L.structures ?? []) if (st.id === "hall") Object.assign(st, { seed: 35 });
+    const r = resolvePlan(plan, pal);
+    expect(checkPlayability(plan, r).filter((i) => i.code === "unreachable")).toEqual([]);
+    expect(r.levels.flatMap((L) => cutDoors("stated@35", L))).toEqual([]);
   }, 30_000);
 });
