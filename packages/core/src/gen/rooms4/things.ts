@@ -3,7 +3,7 @@
  * on it, and a rug.
  */
 import type { Side } from "../../contracts/plan";
-import type { GeneratedPlacement } from "../placementGrid";
+import { gridProfile, type GeneratedPlacement } from "../placementGrid";
 import { EDGE_WALL, SIDES, SIDE_ROT, SIDE_STEP, cellKey, footprintCells } from "../gridGeometry";
 import { surfaceCount, type SurfaceLoad } from "../surfaces";
 import { isNaturalWallStyle } from "../wallStyles";
@@ -148,6 +148,27 @@ function clearOfEndWalls(room: Room, p: Placed, px: number, py: number, reach: n
   return [qx, qy];
 }
 
+/**
+ * Where the wall on side `s` of cell (x, y) ends along `along`: at its low end (toward -along) and its high end, the
+ * wall does not go on into the next cell (that cell has no wall on its side `s`, or a wall or opening stands between
+ * the two: a corner, a doorway, a window).
+ */
+function wallEnds(
+  room: Room,
+  x: number,
+  y: number,
+  s: Side,
+  along: readonly [number, number],
+): { lo: boolean; hi: boolean } {
+  const g = room.grid;
+  const goesOn = (sign: 1 | -1): boolean => {
+    const [dx, dy] = [along[0] * sign, along[1] * sign];
+    const across = SIDES.find((q) => SIDE_STEP[q][0] === dx && SIDE_STEP[q][1] === dy);
+    return across !== undefined && g.edge(x, y, across) === 0 && g.edge(x + dx, y + dy, s) === EDGE_WALL;
+  };
+  return { lo: !goesOn(-1), hi: !goesOn(1) };
+}
+
 /** A shelf plank along one stretch of wall with small things on it (the reference's built-in shelving). */
 export function addShelf(room: Room): void {
   const g = room.grid;
@@ -189,10 +210,31 @@ export function addShelf(room: Room): void {
   const run = room.rng.pick(runs.slice(0, 2));
   const len = Math.min(run.length, 3 + room.rng.int(4));
   const start = room.rng.int(run.length - len + 1);
+  // generator 5 (shelvesWithinWalls): a plank wider than its cell (the palette's widest, "wall rack 04" is 1.35) stands
+  // inward where its wall ends (a corner, a doorway, a window), so it never reaches past the wall; where the wall is
+  // shorter than the plank both ways it is left out
+  const within = gridProfile(g).shelvesWithinWalls;
+  const over = Math.max(0, ((room.piece("shelf_line")?.wMax ?? 1) - 1) / 2);
   for (const [x, y, s] of run.slice(start, start + len)) {
     const turn = SIDE_ROT[s];
-    if (!room.push({ type: "shelf_line", at: [x, y], size: [1, 1], rot: turn, rotFine: turn, wall: s }))
-      return;
+    const plank: GeneratedPlacement = {
+      type: "shelf_line",
+      at: [x, y],
+      size: [1, 1],
+      rot: turn,
+      rotFine: turn,
+      wall: s,
+    };
+    if (within && over > 0) {
+      const along: readonly [number, number] = s === "N" || s === "S" ? [1, 0] : [0, 1];
+      const ends = wallEnds(room, x, y, s, along);
+      if (ends.lo && ends.hi) continue;
+      if (ends.lo || ends.hi) {
+        const shift = ends.lo ? over : -over;
+        plank.offset = [along[0] * shift, along[1] * shift];
+      }
+    }
+    if (!room.push(plank)) return;
     room.hung.add(cellKey(x, y) * 4 + SIDES.indexOf(s));
     const hosted = g.wallHosted?.(x, y, s) ?? false;
     // the things stand against the wall on the plank (0.18 deep), 0.09 off its back face: over its middle

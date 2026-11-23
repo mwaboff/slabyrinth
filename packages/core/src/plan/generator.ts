@@ -567,6 +567,10 @@ const SWITCHES = {
     5,
     "A wall inside a building's ground storey (a partition between its rooms, the wall over an interior doorway) never stands above the storey's wall top, the floor above it: the level wall pass asks the storey for its height and lays whole pieces from the floor up, then one more aligned to that top (over its own course, never down into a doorway), where stacking whole pieces stood half a tile or more into the room above (compile/realize/walls.ts, openings.ts).",
   ),
+  shelvesWithinWalls: on(
+    5,
+    "A shelf plank wider than its cell (the palette's widest variant, asked of the palette) stands inward where the wall it hangs on ends (a corner, a doorway, a window), so it never reaches past the wall; on a stretch of wall shorter than the plank both ways it is left out (gen/rooms4/things.ts addShelf).",
+  ),
   sacredReads: on(
     5,
     "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",

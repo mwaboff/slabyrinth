@@ -105,7 +105,10 @@ describe("postsAtBuildingCorners", () => {
   it("a corner trim post keeps clear of a wall rack wider than its cell (featureOutlinesClear)", () => {
     const seeds = sweepSeeds(5);
     expect(measure(["inn-interior-v1"], seeds).inPost).toEqual([]);
+    // (with `shelvesWithinWalls` a rack no longer reaches past the wall's end where the corner post stands, so both
+    // are off to show the post in the rack's end)
     P5.featureOutlinesClear = false;
+    P5.shelvesWithinWalls = false;
     const off = measure(["inn-interior-v1"], seeds).inPost;
     expect(off.filter((s) => s.includes(" in cornerPosts@")).length).toBeGreaterThan(3);
   }, 120_000);

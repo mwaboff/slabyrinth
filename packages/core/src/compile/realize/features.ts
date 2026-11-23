@@ -446,7 +446,12 @@ function mountOnWall(lv: RealizeLevel, f: ResolvedFeature, asset: FeatureAsset, 
   const inward = (hostedHere ? 0.5 : 0) + (v.geom.originAt === "center" ? mountAxisDepth / 2 : 0);
   const ix = s === "W" ? inward : s === "E" ? -inward : 0;
   const iy = s === "N" ? inward : s === "S" ? -inward : 0;
-  const p = frame.point(px + ix, py + iy);
+  // generator 5 (shelvesWithinWalls): a sub-cell offset along the wall moves the piece along it (a plank stands
+  // inward where its wall ends); across the wall the piece stays on its mounting plane
+  const along = lv.ctx.profile.shelvesWithinWalls ? (f.offset ?? [0, 0]) : [0, 0];
+  const ax = s === "N" || s === "S" ? (along[0] ?? 0) : 0;
+  const ay = s === "W" || s === "E" ? (along[1] ?? 0) : 0;
+  const p = frame.point(px + ix + ax, py + iy + ay);
   // ResolvedFeature.baseHeight is ABSOLUTE: elevation + floor thickness + cell height + lift (resolver featureBase)
   emit(v, "feature", p.x, f.baseHeight, p.z, deg, { cell: [f.at[0], f.at[1]], elementId: f.id });
 }

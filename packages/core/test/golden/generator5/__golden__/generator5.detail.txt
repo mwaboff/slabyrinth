@@ -4,9 +4,9 @@ plans/building-rooms-street-v1 g pieces floor 571
 plans/building-rooms-street-v1 g pieces ledge 134
 plans/building-rooms-street-v1 g pieces opening 53
 plans/building-rooms-street-v1 g pieces wall 692
-plans/building-rooms-street-v1 g pieces wall_post 118
+plans/building-rooms-street-v1 g pieces wall_post 120
 plans/building-rooms-street-v1 g layer roof 416
-plans/building-rooms-street-v1 g layer site 1038
+plans/building-rooms-street-v1 g layer site 1040
 plans/building-rooms-street-v1 g layer storey:0 352
 plans/building-rooms-street-v1 g layer storey:1 209
 plans/building-rooms-street-v1 g part cottage~chimney 7
@@ -459,9 +459,9 @@ plans/chimney-lineup-v1@5 g pieces floor 568
 plans/chimney-lineup-v1@5 g pieces ledge 188
 plans/chimney-lineup-v1@5 g pieces opening 37
 plans/chimney-lineup-v1@5 g pieces wall 812
-plans/chimney-lineup-v1@5 g pieces wall_post 159
+plans/chimney-lineup-v1@5 g pieces wall_post 165
 plans/chimney-lineup-v1@5 g layer roof 549
-plans/chimney-lineup-v1@5 g layer site 1617
+plans/chimney-lineup-v1@5 g layer site 1623
 plans/chimney-lineup-v1@5 g layer storey:0 415
 plans/chimney-lineup-v1@5 g layer storey:1 123
 plans/chimney-lineup-v1@5 g part floor:floor.grass 352
@@ -748,8 +748,8 @@ plans/chimney-lineup-v1@5 g part jambPosts@face:B:h6:main:0:out:S:15:64:op:h6~do
 plans/chimney-lineup-v1@5 g part jambPosts@face:B:h6:main:0:out:W:64:10:op:h6~window5 4
 plans/chimney-lineup-v1@5 g part jambPosts@face:B:h6:main:0:out:W:64:4:op:h6~window4 4
 plans/chimney-lineup-v1@5 g part jambPosts@face:L:E:55:5:op:h5~inner1 2
-plans/chimney-lineup-v1@5 g part jambPosts@face:L:N:9:13:op:h2~inner1 2
-plans/chimney-lineup-v1@5 g part jambPosts@face:L:W:55:5:op:h5~inner1 2
+plans/chimney-lineup-v1@5 g part jambPosts@face:L:N:9:13:op:h2~inner1 4
+plans/chimney-lineup-v1@5 g part jambPosts@face:L:W:55:5:op:h5~inner1 4
 plans/chimney-lineup-v1@5 g part jambPosts@face:L:W:69:4:op:h6~inner0 2
 plans/chimney-lineup-v1@5 g feature barrel 4
 plans/chimney-lineup-v1@5 g feature bed 8
@@ -1333,14 +1333,14 @@ plans/example-b@5 diag info verify_water_level 1
 plans/example-b@5 review flat_map 1
 plans/example-b@5 review focal_unlit 2
 plans/example-b@5 review rows_or_even_scatter 1
-plans/ground-and-walls-v1 g pieces feature 1170
+plans/ground-and-walls-v1 g pieces feature 1174
 plans/ground-and-walls-v1 g pieces floor 1018
 plans/ground-and-walls-v1 g pieces ledge 188
 plans/ground-and-walls-v1 g pieces opening 35
 plans/ground-and-walls-v1 g pieces wall 796
 plans/ground-and-walls-v1 g pieces wall_post 214
 plans/ground-and-walls-v1 g layer roof 520
-plans/ground-and-walls-v1 g layer site 2412
+plans/ground-and-walls-v1 g layer site 2416
 plans/ground-and-walls-v1 g layer storey:0 380
 plans/ground-and-walls-v1 g layer storey:1 109
 plans/ground-and-walls-v1 g part floor:floor.dirt 25
@@ -2164,8 +2164,8 @@ plans/inn-interior-v1@5 l1 pieces fill 54
 plans/inn-interior-v1@5 l1 pieces floor 222
 plans/inn-interior-v1@5 l1 pieces opening 11
 plans/inn-interior-v1@5 l1 pieces wall 149
-plans/inn-interior-v1@5 l1 pieces wall_post 68
-plans/inn-interior-v1@5 l1 layer site 795
+plans/inn-interior-v1@5 l1 pieces wall_post 69
+plans/inn-interior-v1@5 l1 layer site 796
 plans/inn-interior-v1@5 l1 part armoury~room#0 1
 plans/inn-interior-v1@5 l1 part armoury~room#1 1
 plans/inn-interior-v1@5 l1 part armoury~room#10 1
@@ -5122,7 +5122,7 @@ plans/three-step-glen-v1@5 review focal_unlit 1
 plans/three-step-glen-v1@5 review landmark_against_wall 1
 plans/three-step-glen-v1@5 review rows_or_even_scatter 2
 plans/three-step-glen-v1@5 review straight_natural 1
-plans/two-quarters-v1 g pieces feature 890
+plans/two-quarters-v1 g pieces feature 895
 plans/two-quarters-v1 g pieces fill 80
 plans/two-quarters-v1 g pieces floor 1372
 plans/two-quarters-v1 g pieces ledge 228
@@ -5131,7 +5131,7 @@ plans/two-quarters-v1 g pieces opening 60
 plans/two-quarters-v1 g pieces wall 1548
 plans/two-quarters-v1 g pieces wall_post 290
 plans/two-quarters-v1 g layer roof 1142
-plans/two-quarters-v1 g layer site 2390
+plans/two-quarters-v1 g layer site 2395
 plans/two-quarters-v1 g layer storey:0 776
 plans/two-quarters-v1 g layer storey:1 161
 plans/two-quarters-v1 g part bucket~deck 22
@@ -5694,7 +5694,7 @@ plans/two-rooms-door@5 l1 feature bed 1
 plans/two-rooms-door@5 l1 feature rug 1
 plans/two-rooms-door@5 l1 feature torch_wall 6
 plans/two-rooms-door@5 review flat_map 1
-plans/varied-street-v1 g pieces feature 1350
+plans/varied-street-v1 g pieces feature 1351
 plans/varied-street-v1 g pieces fill 72
 plans/varied-street-v1 g pieces floor 1111
 plans/varied-street-v1 g pieces ledge 188
@@ -5703,7 +5703,7 @@ plans/varied-street-v1 g pieces opening 102
 plans/varied-street-v1 g pieces wall 1232
 plans/varied-street-v1 g pieces wall_post 401
 plans/varied-street-v1 g layer roof 786
-plans/varied-street-v1 g layer site 2576
+plans/varied-street-v1 g layer site 2577
 plans/varied-street-v1 g layer storey:0 659
 plans/varied-street-v1 g layer storey:1 268
 plans/varied-street-v1 g layer storey:2 168
