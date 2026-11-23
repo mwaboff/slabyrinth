@@ -121,7 +121,7 @@ describe("size tiers", () => {
       "bounds_exceeded",
       "bounds_exceeded",
     ]);
-  });
+  }, 30_000); // three applies of a 400-cell plan: about 2.5 s locally under a parallel run
 
   it("a plan within the standard limits validates the same whatever tier is active", () => {
     for (const name of ["keep-dungeon-v8", "market-street-v3", "example-a"] as const) {

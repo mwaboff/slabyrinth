@@ -510,7 +510,7 @@ describe("core guards", () => {
         expect(await typedGuardHits("packages/core/src/compile/x.ts", typed(body)), body).toEqual([
           expect.stringContaining("slabyrinth/element-theme"),
         ]);
-    });
+    }, 30_000); // type-aware lint of three snippets: about 2.5 s locally under a parallel run
     it("with types: leaves the readers' own argument, a structure's theme and a write alone", async () => {
       for (const body of [
         "use(themeAt(f.theme, 1, 2));",
@@ -519,7 +519,7 @@ describe("core guards", () => {
         'f.theme = "x";',
       ])
         expect(await typedGuardHits("packages/core/src/review/x.ts", typed(body)), body).toEqual([]);
-    });
+    }, 30_000); // type-aware lint of four snippets: about 2.5 s locally under a parallel run
   });
 
   describe("slabyrinth/hash-unit: a draw from a hash goes through util/hash.ts", () => {

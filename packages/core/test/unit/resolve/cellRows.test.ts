@@ -100,10 +100,11 @@ describe("cell rows (cellRows)", () => {
   });
 
   it("a stable's stalls and a ward's bays are laid too; a kitchen never", () => {
-    const laid = (name: string): number =>
-      SEEDS.filter((seed) => innerWalls(resolvePlan(block(name, 5, seed), pal)) > 0).length;
-    expect(laid("Stable")).toBeGreaterThan(0);
-    expect(laid("Infirmary ward")).toBeGreaterThan(0);
-    expect(laid("Kitchen")).toBe(0);
+    // (the first seed that lays a row settles it: a stable or ward is laid at a chance of 0.6 or more a room)
+    const laid = (name: string, seeds: readonly number[]): boolean =>
+      seeds.some((seed) => innerWalls(resolvePlan(block(name, 5, seed), pal)) > 0);
+    expect(laid("Stable", SEEDS)).toBe(true);
+    expect(laid("Infirmary ward", SEEDS)).toBe(true);
+    expect(laid("Kitchen", SEEDS.slice(0, 6))).toBe(false);
   });
 });

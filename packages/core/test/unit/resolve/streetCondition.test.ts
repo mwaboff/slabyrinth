@@ -244,6 +244,7 @@ describe("readableNeighbours: neighbours and buildings of one wall differ on two
       expect(off).toBeGreaterThan(6);
       expect(on).toBeLessThanOrEqual(off / 4);
     },
+    30_000, // two streets per seed resolved: 3 to 3.5 s locally under a parallel run; Windows CI runs about twice that
   );
   it("draws the fixture's baker, tavern and corner house apart (they were one stone house with an orange roof)", () => {
     const three = ["baker", "tavern", "corner"];
@@ -274,12 +275,12 @@ describe("themeOwnRange: a theme's own walls and roofs first", () => {
     expect(count("wood_town", cityFlat)).toBe(0);
     without("themeOwnRange");
     expect(count("city", cityFlat)).toBe(0);
-  });
+  }, 30_000); // 18 streets resolved: about 4.5 s locally under a parallel run; Windows CI runs about twice that
   it("builds fewer houses in the borrowed castle stone than without the switch", () => {
     const on = count("wood_town", borrowedStone);
     without("themeOwnRange");
     expect(on).toBeLessThan(count("wood_town", borrowedStone));
-  });
+  }, 30_000); // 12 streets resolved: about 2.8 s locally under a parallel run
 });
 
 describe("chimneyScale: a chimney's foot fits its face", () => {
