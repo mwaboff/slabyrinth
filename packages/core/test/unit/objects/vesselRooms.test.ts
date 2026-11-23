@@ -38,14 +38,14 @@ const isHull = (s: ObjectSite, id: string): boolean =>
   id === s.spec.id || id.startsWith(`${s.spec.id}#`) || id.startsWith(`${s.spec.id}@`);
 
 describe("a vessel placed as a site has rooms aboard", () => {
-  it("lays the brig out by its programme: hold, berth and galley below; captain's cabin aft; forecastle forward", () => {
+  it("lays the brig out by its programme: hold and berth below, captain's cabin aft under the quarterdeck", () => {
+    // the ship kit's hull: no raised forecastle (its bow is a curved bulwark at the main deck); the deck below is the
+    // cells between the side tiles (4 across on a beam of 10), where the splitter makes a hold and a berth
     const names = site("brig").rooms.map((r) => r.name);
-    expect(names).toEqual(
-      expect.arrayContaining(["Hold", "Crew berth", "Galley", "Captain's cabin", "Forecastle berth"]),
-    );
-    const below = site("brig").rooms.filter((r) => r.level === "harbour");
-    expect(below.map((r) => r.name)).toEqual(expect.arrayContaining(["Hold", "Crew berth", "Galley"]));
-    expect(site("brig").decks.map((d) => d.name)).toEqual(["Main deck", "Quarterdeck", "Forecastle deck"]);
+    expect(names).toEqual(expect.arrayContaining(["Hold", "Crew berth", "Captain's cabin"]));
+    const below = site("brig").rooms.filter((r) => r.level === "quay~below");
+    expect(below.map((r) => r.name)).toEqual(expect.arrayContaining(["Hold", "Crew berth"]));
+    expect(site("brig").decks.map((d) => d.name)).toEqual(["Main deck", "Quarterdeck"]);
   });
 
   it("gives the barge a cabin aft and one open hold", () => {

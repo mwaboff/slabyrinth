@@ -8,7 +8,15 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { PaletteCatalog } from "../../../src/contracts/compiler";
-import { buildObject, createKit, piecesOf, vessel, type BuiltObject } from "../../../src/objects";
+import { placedBox } from "../../../src/arrange";
+import {
+  buildObject,
+  createKit,
+  piecesOf,
+  vessel,
+  vesselDesign,
+  type BuiltObject,
+} from "../../../src/objects";
 import { loadPalettes } from "../../../src/palette";
 import { createPlanRoles } from "../../../src/palette/planRoles";
 import { withoutShipKit } from "./proof";
@@ -71,24 +79,54 @@ describe("the vessel recipe asks for the ship kit first", () => {
     const o = brig(kitCat);
     expect(roleCount(o, "ship.mast")).toBeGreaterThan(4);
     expect(roleCount(o, "ship.sail_set")).toBeGreaterThan(0);
-    expect(roleCount(o, "ship.sail_furled")).toBeGreaterThan(0);
     expect(roleCount(o, "ship.deck")).toBeGreaterThan(10);
     expect(shipRoles(o)).toEqual(
       expect.arrayContaining([
         "ship.anchor",
+        "ship.bowsprit",
+        "ship.cannon",
         "ship.cargo",
         "ship.deck",
         "ship.grating",
         "ship.helm",
+        "ship.hull_bow",
+        "ship.hull_side",
+        "ship.hull_stern",
         "ship.lantern",
         "ship.mast",
-        "ship.sail_furled",
+        "ship.rail",
+        "ship.rail_bow",
         "ship.sail_set",
-        "ship.spar",
+        "ship.shrouds",
+        "ship.wall",
+        "ship.wall_stern",
       ]),
     );
+    // furled: the kit's furled sails under the yards, no set one
+    const furled = brig(kitCat, { sails: "furled" });
+    expect(roleCount(furled, "ship.sail_furled")).toBeGreaterThan(0);
+    expect(roleCount(furled, "ship.sail_set")).toBe(0);
     // no banner or wall dressing stands in for a sail when the kit has sails
     expect(piecesOf(o).some((q) => q.piece.role.startsWith("feature.banner"))).toBe(false);
+  });
+
+  it("lays the kit's hull on the grid at its real sizes: whole sections, tiles on whole cells and quarter turns", () => {
+    const d = vesselDesign(
+      { size: 30, seed: "kit-brig" },
+      createKit(createPlanRoles(kitCat, 5), "wood_town"),
+    );
+    expect(d.hull).not.toBeNull();
+    // bow block 4 + side sections of 4 + stern block 4; two 4-wide bow halves and a 2-wide filler (the rudder's)
+    expect((d.plan.length - 8) % 4).toBe(0);
+    expect(2 * d.plan.halfBeam).toBe(10);
+    const o = brig(kitCat);
+    const tiles = piecesOf(o).filter((q) => q.piece.role.startsWith("ship.hull"));
+    expect(tiles.length).toBe(2 * ((d.plan.length - 8) / 4) + 6);
+    for (const q of tiles) {
+      expect(q.yaw % 90).toBe(0);
+      const b = placedBox(q);
+      for (const v of [b.min.x, b.min.z]) expect(Math.abs(v - Math.round(v))).toBeLessThan(1e-6);
+    }
   });
 
   it("uses today's stand-ins, and no ship piece, when the palettes lack the kit", () => {

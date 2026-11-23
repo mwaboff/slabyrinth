@@ -37,15 +37,19 @@ import {
   structureOnAxis,
 } from "../../fixtures/quality";
 import { handLevel, handPlan } from "../compile/handResolved";
-import { FLOOR_TOP, objectsProof, proofKit } from "./proof";
+import { FLOOR_TOP, objectsProof, proofKit, withoutShipKit } from "./proof";
 
 const cat = loadPalettes();
-const kit = proofKit(cat);
+// the stand-ins' rules: a theme without the ship kit (the kit's hull is built and held to the same rules below)
+const kit = proofKit(withoutShipKit(cat));
+const shipKit = proofKit(cat);
 const build = {
   boat: () => buildObject(vessel, { size: 6, seed: "t-boat" }, kit),
   barge: () => buildObject(vessel, { size: 14, seed: "t-barge" }, kit),
   brig: () => buildObject(vessel, { size: 30, seed: "t-brig" }, kit),
   stall: () => buildObject(stall, { size: 3, seed: "t-stall", budget: 100 }, kit),
+  "kit barge": () => buildObject(vessel, { size: 14, seed: "t-barge" }, shipKit),
+  "kit brig": () => buildObject(vessel, { size: 30, seed: "t-brig", sails: "set" }, shipKit),
 };
 
 /** The object alone on a plain floor, realized; `keep` picks the parts built. */

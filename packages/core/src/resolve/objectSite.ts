@@ -378,8 +378,10 @@ function expandVessel(
     seed: spec.seed ?? `${String(plan.seed)}:${spec.id}`,
     ...(spec.condition !== undefined ? { condition: spec.condition } : {}),
     interior: true,
+    // a moored vessel's sails are furled unless the spec sets them (a variant under sail)
+    sails: options.sails ?? "furled",
   };
-  const design = vesselDesign(params);
+  const design = vesselDesign(params, kit);
   if (design.kind === "boat")
     return plainVessel(plan, spec, deckLevel, buildObject(vessel, params, kit), design);
   const kind = design.kind;
@@ -644,9 +646,15 @@ function expandVessel(
   const blocked = [...placed.footprint, ...placed.keepClear].filter((c) => !gangSet.has(key(c)));
   // the plan's own features never stand in the object (on any of its levels)
   const blockSet = new Set(blocked.map(key));
-  const hullLevel = holdLevel;
+  // the hull stands with the level its keel rests on: the highest at or under the keel (a deep berth's bed), else the
+  // hold's
+  const keel = base - design.draft;
+  const under = plan.levels
+    .filter((l) => l.elevation <= keel + 0.05)
+    .sort((a, b) => b.elevation - a.elevation)[0];
+  const hullLevel = under && under.elevation < holdLevel.elevation ? under : holdLevel;
   for (const lv of plan.levels)
-    if (areaIds.has(lv.id) || lv.id === holdLevel.id)
+    if (areaIds.has(lv.id) || lv.id === holdLevel.id || lv.id === hullLevel.id)
       lv.features = lv.features.filter((f) => !blockSet.has(key([Math.floor(f.at[0]), Math.floor(f.at[1])])));
   return {
     spec,

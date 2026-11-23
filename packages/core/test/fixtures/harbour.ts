@@ -1,9 +1,9 @@
 /**
  * The harbour fixture (generator 5, vessel rooms): an original scene built in code. A timber wharf along the north of
- * the board on level "quay" (elevation 0), the harbour basin's bed (mud) on level "harbour" one storey down, under the
- * wharf too, and two vessels moored port side to the wharf, bows east: a brig (30 long: a hold, crew berth and galley
- * below, the captain's cabin aft under the quarterdeck, a forecastle berth under the fore deck) and a barge (16 long: a
- * cabin aft, an open hold, a foredeck). No plan word asks for objects yet: the specs go to the site stage directly
+ * the board on level "quay" (elevation 0), the harbour basin's bed (mud) on level "harbour" deep under it (a ship's
+ * keel rests on it), under the wharf too, and two vessels moored port side to the wharf, bows east: a brig (30 long: a
+ * hold, crew berth and galley below, the captain's cabin aft under the quarterdeck) and a barge (16 long: a cabin aft,
+ * an open hold, a foredeck). Their decks below stand on a level the site stage adds one storey under the quay. No plan word asks for objects yet: the specs go to the site stage directly
  * (resolve/objectSite.ts `resolveWithObjects`), as a future plan field would pass them.
  *
  * The board water is a TaleSpire board setting (never in the slab): the vessels' waterline is about 0.75 under the quay
@@ -55,7 +55,8 @@ export function harbourPlan(): MapPlan {
       {
         id: "harbour",
         name: "Harbour basin",
-        elevation: -2.5,
+        // deep enough for a ship: the ship kit's hull is 5 deep under its deck, its keel on the bed
+        elevation: -5.5,
         bounds,
         base: { type: "void" },
         areas: [
