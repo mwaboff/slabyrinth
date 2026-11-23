@@ -7,7 +7,6 @@ import { buildModel } from "../features/build/model";
 import { initPaste, pasteReducer, type PasteEvent, type PasteState } from "../features/build/pasteMachine";
 import { useApp } from "./app";
 import { latestBuild, useProject } from "./project";
-import { useSettings } from "./settings";
 
 interface BuildState {
   bundle: ExportBundle | null;
@@ -65,17 +64,10 @@ export const useBuild = create<BuildState>((set, get) => ({
     if (get().building) return;
     set({ building: true, progress: null, error: null });
     try {
-      const s = useSettings.getState().settings;
-      const options = s
-        ? {
-            levelLayout: s.talespire.levelLayout,
-            alignment: s.talespire.alignmentMarkers ? ("multi-chunk" as const) : ("none" as const),
-          }
-        : undefined;
-      const bundle = await call("compile:run", {
-        ...(version !== undefined ? { version } : {}),
-        ...(options ? { options } : {}),
-      });
+      // No options: main reads the TaleSpire settings (BuildService.defaultOptions), the one place they become chunk
+      // options. A copy here once turned "no pillars on single-slab builds" into alignment "none", so split builds
+      // carried no pillars and every slab landed centred on the cursor (owner, 0.3.0).
+      const bundle = await call("compile:run", version !== undefined ? { version } : {});
       set({ bundle });
       await useProject.getState().refresh();
       set({ pasteFor: null });

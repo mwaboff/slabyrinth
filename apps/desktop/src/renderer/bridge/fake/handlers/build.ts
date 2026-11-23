@@ -48,11 +48,16 @@ export function buildHandlers(s: FakeState): HandlerGroup<BuildChannels> {
           await s.sleep(STEP_MS);
         }
       }
-      const layout = options?.levelLayout ?? s.settings.talespire.levelLayout;
+      // main's BuildService.defaultOptions: the settings, under what the request names
+      const ts = s.settings.talespire;
+      const defaults = {
+        levelLayout: ts.levelLayout,
+        alignment: ts.alignmentMarkers ? ("always" as const) : ("multi-chunk" as const),
+      };
       const { bundle, record, slabText } = fakeCompile(
         plan,
         v,
-        { ...options, levelLayout: layout },
+        { ...defaults, ...options },
         new Date().toISOString(),
         s.catalogState === "no_install" ? "builtin" : "install",
       );

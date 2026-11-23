@@ -158,7 +158,7 @@ export function fakeCompile(
         i === 0
           ? "Paste anywhere flat; this sets the alignment pillars."
           : "Paste on the same alignment pillars as slab 1.",
-      hasAlignmentMarkers: n > 1 || opts.alignment === "always",
+      hasAlignmentMarkers: opts.alignment !== "none" && (n > 1 || opts.alignment === "always"),
       label: n === 1 ? "Whole map" : (LABELS[n]?.[i] ?? `Part ${i + 1}`),
       columns: `${colLetters(x0 - x)}–${colLetters(x1 - x)}`,
       offsetFromFirst: { x: x0 - x, y: 0, z: 0 },
