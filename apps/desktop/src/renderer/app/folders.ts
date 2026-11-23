@@ -28,7 +28,6 @@ export async function pickProjectsFolder(): Promise<PickOutcome> {
   const r = await call("dialog:pickFolder", { purpose: "projects" });
   if (r === null) return null;
   if (!r.valid) return { ok: false, message: r.message };
-  const s = useSettings.getState().settings;
-  if (s) await useSettings.getState().update({ projects: { ...s.projects, folder: r.path } });
+  await useSettings.getState().update({ projects: { folder: r.path } });
   return { ok: true, path: r.path };
 }

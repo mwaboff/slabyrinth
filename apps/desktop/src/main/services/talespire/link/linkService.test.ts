@@ -24,8 +24,13 @@ afterEach(async () => {
   for (const d of dirs.splice(0)) await fsp.rm(d, { recursive: true, force: true });
 });
 
-function record(chunks: Array<{ id: string; x1: number; y1: number }>): BuildRecord {
+function record(
+  chunks: Array<{ id: string; x1: number; y1: number }>,
+  markers: BuildRecord["settings"]["markers"] = "multi-chunk",
+): BuildRecord {
   return {
+    settings: { markers },
+    unmatchedAssets: [],
     levels: [
       {
         levelId: "l1",
@@ -60,6 +65,8 @@ async function rig(
     assets?: number[];
     testDir?: boolean;
     anchor?: Anchor;
+    /** The build's alignment setting (default "multi-chunk"). */
+    markers?: BuildRecord["settings"]["markers"];
     /** Where the token file goes, under the temp root (default talespire-link.json). */
     tokenFile?: string;
     /** chunksForSend waits for this (a recompile that takes a while). */
@@ -107,7 +114,10 @@ async function rig(
       chunksForSend: async () => {
         await opts.gate;
         return {
-          record: record(assets.map((_, i) => ({ id: `l1-0${String(i + 1)}`, x1: 30, y1: 20 }))),
+          record: record(
+            assets.map((_, i) => ({ id: `l1-0${String(i + 1)}`, x1: 30, y1: 20 })),
+            opts.markers,
+          ),
           ...(opts.anchor ? { pasteAnchor: opts.anchor } : {}),
           chunks: assets.map((n, i) => ({
             id: `l1-0${String(i + 1)}`,
@@ -246,6 +256,31 @@ describe("send this build to the add-on", () => {
     await waitFor(() => r.service.linkStatus().helper.state === "connected");
     await expect(r.service.send("b1")).rejects.toMatchObject({ code: "validation", message: /no assets/ });
     expect(addon.state().set).toBeNull();
+  });
+
+  it("never sends a split build without alignment pillars (each slab would land centred on the cursor)", async () => {
+    const r = await rig({ markers: "none" });
+    const token = (
+      JSON.parse(await fsp.readFile(path.join(r.root, "talespire-link.json"), "utf8")) as { token: string }
+    ).token;
+    const addon = await connectAddon(r.service.linkStatus().server.port, token);
+    await waitFor(() => r.service.linkStatus().helper.state === "connected");
+    await expect(r.service.send("b1")).rejects.toMatchObject({
+      code: "validation",
+      message: /no alignment pillars.*Build again/,
+    });
+    expect(addon.state().set).toBeNull();
+  });
+
+  it('one slab built with alignment "none" is sent: it needs no pillars', async () => {
+    const r = await rig({ markers: "none", assets: [4] });
+    await r.service.install();
+    const token = (
+      JSON.parse(await fsp.readFile(path.join(r.root, "talespire-link.json"), "utf8")) as { token: string }
+    ).token;
+    await connectAddon(r.service.linkStatus().server.port, token);
+    await waitFor(() => r.service.linkStatus().helper.state === "connected");
+    expect(await r.service.send("b1")).toEqual({ chunks: 1 });
   });
 });
 

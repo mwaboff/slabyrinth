@@ -27,6 +27,11 @@ Release notes, which the app shows under "What's new" when it offers that update
 - Rich and poor read from the street. A poor building leans to rough plank walls and odd-matched roofs, a rich one to dressed stone, a quarter's roofs alike and more trim; a lavish house gets a lit approach or a pair of statues at its door. Worn roofs show patches, not holes; only a ruin's roof is open. Roofs fit their house: no tall one-sided roof over a deep house, and no flat tops in a timber village unless asked for.
 - Maps you made with earlier versions rebuild unchanged. The new rules are for new maps only.
 
+### Fixed
+
+- Maps of several slabs now carry their two alignment pillars again, so the slabs land in line instead of piling up under the cursor. A build made without them says so and asks you to build again; the add-on will not send it.
+- Settings that could not be saved now save: the TaleSpire level layout and alignment pillar options (in Settings and on the build page), the spending warnings, and the projects folder.
+
 ### Known limits
 
 - Upper storeys of buildings are still empty shells; only the ground floor is furnished.

@@ -3,6 +3,7 @@ import * as path from "node:path";
 import type { AppSettings } from "../../shared/project";
 import { emptyUsage } from "../../shared/schemas/common";
 import { BASE_URL_PROVIDERS, settingsSchema, type SettingsPatch } from "../../shared/schemas/settings";
+import { applySettingsPatch, deepMerge } from "../../shared/settingsPatch";
 import type { Cost, Usage } from "../agent/provider/types";
 import type { Logger } from "../logger";
 import { writeFileAtomic } from "../util/atomicWrite";
@@ -53,17 +54,6 @@ export function defaultSettings(projectsFolder: string): AppSettings {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-/** Deep merge of plain objects; arrays and scalars replace; `undefined` is skipped. */
-export function deepMerge<T>(base: T, patch: unknown): T {
-  if (!isRecord(base) || !isRecord(patch)) return (patch === undefined ? base : patch) as T;
-  const out: Record<string, unknown> = { ...base };
-  for (const [k, v] of Object.entries(patch)) {
-    if (v === undefined) continue;
-    out[k] = isRecord(out[k]) && isRecord(v) ? deepMerge(out[k], v) : v;
-  }
-  return out as T;
 }
 
 export interface SettingsStoreOptions {
@@ -130,19 +120,7 @@ export class SettingsStore {
 
   /** Renderer-facing update (already validated with settingsPatchSchema). */
   async update(patch: SettingsPatch): Promise<AppSettings> {
-    return this.updateInternal((s) => {
-      const { defaultSystem, ...rest } = patch;
-      const next = deepMerge(s, rest);
-      // Replaced whole, never merged (a stale otherName must not survive a switch to another system).
-      if (defaultSystem !== undefined)
-        next.defaultSystem =
-          defaultSystem === null
-            ? null
-            : defaultSystem.otherName === undefined
-              ? { system: defaultSystem.system }
-              : { system: defaultSystem.system, otherName: defaultSystem.otherName };
-      return next;
-    });
+    return this.updateInternal((s) => applySettingsPatch(s, patch));
   }
 
   /** Main-side update of any field (recent projects, lastScanAt, spend totals, installPath). */

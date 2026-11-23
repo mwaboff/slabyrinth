@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./build.css";
 import { STEAM_LAUNCH_URL, type CompileDiagnostic, type ExportBundle, type MapPlan } from "@slabyrinth/core";
+import { OUT_OF_LINE_MESSAGE, pastesOutOfLine } from "../../../shared/pasteRegister";
 import { SendToTaleSpire } from "../talespire/SendToTaleSpire";
 import { pasteSteps } from "../talespire/pasteSteps";
 import { Icon } from "../../ui/Icon";
@@ -942,7 +943,7 @@ export function BuildToolbar() {
                     className="menu__item"
                     onClick={() => {
                       setOpen(false);
-                      void update({ talespire: { ...s.talespire, levelLayout: v } }).then(() => run());
+                      void update({ talespire: { levelLayout: v } }).then(() => run());
                     }}
                   >
                     {l}
@@ -1079,6 +1080,15 @@ export function BuildView() {
             </button>
             <button className="btn btn--sm" onClick={() => void approve(snap.head, true)}>
               Approve v{snap.head} & rebuild
+            </button>
+          </div>
+        )}
+        {pastesOutOfLine(rec) && (
+          <div className="stale" role="alert">
+            <Icon name="warn" />
+            <span>{OUT_OF_LINE_MESSAGE}</span>
+            <button className="btn btn--sm" disabled={building} onClick={() => void run(rec.versionNumber)}>
+              Build again
             </button>
           </div>
         )}

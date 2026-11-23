@@ -410,7 +410,7 @@ export function Setup() {
                       key={v}
                       role="radio"
                       aria-checked={theme === v}
-                      onClick={() => settings && void update({ ui: { ...settings.ui, theme: v } })}
+                      onClick={() => void update({ ui: { theme: v } })}
                     >
                       {l}
                     </button>

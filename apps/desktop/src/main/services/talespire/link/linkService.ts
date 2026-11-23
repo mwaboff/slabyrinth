@@ -11,6 +11,7 @@ import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { z } from "zod";
 import type { AddonStatus, LinkStatus } from "../../../../shared/ipc";
+import { OUT_OF_LINE_MESSAGE, pastesOutOfLine } from "../../../../shared/pasteRegister";
 import type { Logger } from "../../../logger";
 import { writeFileAtomic } from "../../../util/atomicWrite";
 import { AppFailure, isNodeError } from "../../../util/errors";
@@ -284,6 +285,8 @@ export class TaleSpireLinkService {
         "The TaleSpire add-on disconnected while the map was being prepared. Open Slabyrinth Helper in TaleSpire and send again.",
       );
     if (chunks.length === 0) throw new AppFailure("validation", "This build has no slabs.");
+    // slabs without the shared pillars would each land centred on the cursor: never hand those out one by one
+    if (pastesOutOfLine(record)) throw new AppFailure("validation", OUT_OF_LINE_MESSAGE);
     if (chunks.length > MAX_CHUNKS)
       throw new AppFailure(
         "validation",
