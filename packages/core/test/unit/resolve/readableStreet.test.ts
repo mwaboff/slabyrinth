@@ -264,3 +264,35 @@ describe("groundClusters", () => {
     expect(bad).toEqual([]);
   });
 });
+
+describe("varied-street-v1: a street left to its styles' draw", () => {
+  for (const theme of ["wood_town", "city"]) {
+    const plan = { ...loadPlan("varied-street-v1"), theme, generator: 5 as const };
+    const resolved = resolvePlan(plan, pal);
+    const L = resolved.levels[0] as ResolvedLevel;
+    const houses = (L.structures ?? []).filter((s) => s.kind === "building");
+
+    it(`${theme}: varies storeys, roofs, archetypes and wall materials`, () => {
+      const d = houses.map((s) => s.design).filter((x) => x !== undefined);
+      expect(d).toHaveLength(houses.length);
+      expect(new Set(d.map((x) => x.storeys)).size).toBeGreaterThanOrEqual(3);
+      expect(new Set(d.map((x) => x.roof)).size).toBeGreaterThanOrEqual(3);
+      expect(new Set(d.map((x) => x.archetype)).size).toBeGreaterThanOrEqual(3);
+      expect(new Set(d.map((x) => x.material)).size).toBeGreaterThanOrEqual(2);
+    });
+
+    it(`${theme}: its detail recipes meet the hard rules and the build has no verify warning`, () => {
+      const bundle = compileResolved(resolved, pal, slabCodec, { createdAt: "t" });
+      expect(bundle.diagnostics.filter((x) => x.severity !== "info")).toEqual([]);
+      const set = realize(resolved, pal, {});
+      const everything = piecesOf(set, () => true);
+      const ps = piecesOf(set, (e) =>
+        /^(layeredGround|bandCourses|jambPosts|cornerPosts|plinths|pilasters)@/.test(e),
+      );
+      expect(ps.length).toBeGreaterThan(100);
+      expect(coplanarShare(ps)).toBe(0);
+      expect(duplicateCount(ps)).toBe(0);
+      expect(restContact(ps, everything)).toEqual([]);
+    }, 120_000);
+  }
+});

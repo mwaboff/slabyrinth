@@ -41,6 +41,7 @@ plans/three-step-glen-v1 gen=3 resolved=2cbba20d1d883807 assets=1499 diag=0e/0w/
 plans/three-step-glen-v1@5 gen=5 resolved=e919e7c009c9c17a assets=1507 diag=0e/0w/11i slab=066afa346b82d635 diagnostics=103b4f997be4963c review=cfc126625305e91e reviewNoBuild=cfc126625305e91e
 plans/two-rooms-door gen=1 resolved=a2765d4b11f62736 assets=52 diag=0e/0w/0i slab=cb81ec758ca4642d diagnostics=4f53cda18c2baa0c review=fd4fe82567fdc398 reviewNoBuild=fd4fe82567fdc398
 plans/two-rooms-door@5 gen=5 resolved=f23aa72d5bb7a08f assets=89 diag=0e/0w/0i slab=f2dad1a6264bd662 diagnostics=4f53cda18c2baa0c review=602717892506c777 reviewNoBuild=602717892506c777
+plans/varied-street-v1 gen=5 resolved=ded5c43ec8a7d651 assets=3775 diag=0e/0w/5i slab=29ef409e29995425 diagnostics=3bcd824cc6a160a7 review=e2348b497fc65000 reviewNoBuild=681373fac1dc1edf
 plans/wall-recipes-v1 gen=5 resolved=c438f11d1234f864 assets=1283 diag=0e/0w/2i slab=dc8b4f420a7d0038 diagnostics=b125e8a395af1afe review=42dbc4365e7de306 reviewNoBuild=d306a5c1c3133b58
 gen/dressed-cave gen=1 resolved=3bbe07af73e6934f assets=1166 diag=0e/0w/5i slab=371045856ac7b4ff diagnostics=138ebe0def79ae81 review=b71fb078fbf3c972 reviewNoBuild=b71fb078fbf3c972
 gen/dressed-cave@5 gen=5 resolved=f2785040e7e334cb assets=1593 diag=0e/0w/6i slab=ffde732fd3776876 diagnostics=a2148166a6d2e6ef review=54d7d4158b9b6bb1 reviewNoBuild=54d7d4158b9b6bb1
