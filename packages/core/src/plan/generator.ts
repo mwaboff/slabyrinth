@@ -644,6 +644,11 @@ const SWITCHES = {
     5,
     "A blocking rubble pile at a rough wall's foot or a doorway's jamb never cuts the floor round it: where the open cells it touches would no longer meet round it (resolve/level/features.ts cutsFloor), it is low debris instead (resolve/level/rooms.ts stepWallFootRubble; a corner pile closed the strip between a cell's bunk and a ladder's opening, keep-dungeon-v8).",
   ),
+  roofFormsFit: on(
+    5,
+    "A drawn building's roof form fits its theme and its footprint: a shed is its main roof only over a span the roof-type table allows (resolve/roofTypes.ts maxSpan: 3 cells; deeper, its high side stood as a bare wall taller than the house), else a gable; a skirt in a kit whose corner is a spiked tip is a gable too (its corners stood as spikes, as a hip's ridges did: roofKitFacts); and a theme with no flat roof kit of its own (themeRange: wood_town's flat tops were laid in floor tiles) draws flat roofs at a small share of their weight, so a timber village is pitched unless the plan says otherwise (resolve/structure.ts drawDesigns).",
+    "themeOwnRange",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

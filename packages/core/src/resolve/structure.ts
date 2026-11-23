@@ -79,7 +79,7 @@ import {
   type Weights,
   designable,
   designSpaceFor,
-  drawDesign,
+  drawDesign as drawDesignOf,
   expandDesign,
   lowerMassReachesMain,
 } from "./structureVariety";
@@ -841,9 +841,25 @@ function drawDesigns({ plan, level, list, work, levelTheme, palette }: Expansion
     // generator 5 (`themeOwnRange`): the theme's own walls and roofs first (resolve/themeRange.ts)
     const theme = st.theme ?? levelTheme;
     const range = profile.themeOwnRange && palette ? themeRange(palette, theme, profile.ownWallsFirst) : null;
-    const drawSpace = range ? ownRangeSpace(space, range) : space;
+    const drawSpace = range ? ownRangeSpace(space, range, profile.roofFormsFit) : space;
     const look = (dd: BuildingDesign): StreetLook =>
       streetLook(dd, space, style0?.roof.kit ?? "", profile, range);
+    // generator 5 (`roofFormsFit`): a roof form deeper than its type allows (a shed over a house's depth) is a gable
+    const depth = front === "N" || front === "S" ? r.h : r.w;
+    // and a skirt (a ring of slopes round a flat top) in a kit whose corner piece is a spiked tip is a gable, as a hip
+    // in one is (`roofKitFacts`): its four corners stood as spikes
+    const kitOf = (dd: BuildingDesign): string =>
+      dd.roofKit !== undefined && dd.roofKit !== ""
+        ? dd.roofKit
+        : (space.pitchedKit ?? style0?.roof.kit ?? "");
+    const fit = (dd: BuildingDesign): BuildingDesign =>
+      profile.roofFormsFit &&
+      (depth > (roofInfo(designRoofType(dd.roof))?.maxSpan ?? Infinity) ||
+        (dd.roof === "skirt" && roofKitInfo(kitOf(dd))?.cornerTip === true))
+        ? { ...dd, roof: "gable" }
+        : dd;
+    const drawDesign = (...args: Parameters<typeof drawDesignOf>): BuildingDesign =>
+      fit(drawDesignOf(...args));
     let d = drawDesign(drawSpace, subSeed(seed, "design0"), st.use, r.w, r.h, st.character);
     if (profile.readableNeighbours) {
       // generator 5 (`readableNeighbours`): two axes read from the street apart from every neighbour and every
@@ -988,8 +1004,14 @@ const BORROWED_WALL = 1 / 3;
 /** (themeOwnRange) A theme whose own roof is flat draws flat roofs at this share of the pitched roofs' weight. */
 const OWN_FLAT = 0.8;
 
-/** A design space drawn in the theme's own range first (see `themeOwnRange`). */
-function ownRangeSpace(space: DesignSpace, range: ThemeRange): DesignSpace {
+/** (roofFormsFit) A theme with no flat roof kit of its own draws flat roofs at this share of their weight. */
+const FOREIGN_FLAT = 0.15;
+
+/**
+ * A design space drawn in the theme's own range first (see `themeOwnRange`); with `formsFit` (`roofFormsFit`), a theme
+ * that has no flat roof kit of its own draws flat roofs at FOREIGN_FLAT of their weight.
+ */
+function ownRangeSpace(space: DesignSpace, range: ThemeRange, formsFit = false): DesignSpace {
   const scaled = (w: Weights | undefined): Weights | undefined =>
     w
       ? Object.fromEntries(Object.entries(w).map(([m, v]) => [m, range.ownWall(m) ? v : v * BORROWED_WALL]))
@@ -1009,6 +1031,9 @@ function ownRangeSpace(space: DesignSpace, range: ThemeRange): DesignSpace {
     out.roofs = { ...space.roofs, flat: pitched * OWN_FLAT };
     out.roofSurfaces = { [flatKit]: 1 };
   }
+  const flatW = space.roofs.flat;
+  if (formsFit && flatKit === undefined && flatW !== undefined)
+    out.roofs = { ...out.roofs, flat: flatW * FOREIGN_FLAT };
   return out;
 }
 
