@@ -125,7 +125,16 @@ export function runRecipes(
     defaultTheme: palette.defaultTheme,
     boardEdgeIsExit: profile.boardEdgeExits,
   });
-  const clear = new KeepClear(level, anchors.grid, anchors.of("zone"), heightOf);
+  const outlineOf = profile.featureOutlinesClear
+    ? (f: ResolvedFeature): { w: number; d: number } | null => {
+        // a piece hung on a wall is laid flush and centred along it, so its outline is where it reaches; a tree's crown
+        // or a loose piece's outline is not a column from the ground (cover lies under a crown)
+        if (f.wall === undefined) return null;
+        const p = palette.roomPiece(grid.themeAt(f.theme, f.at[0], f.at[1]), f.type, f.variant);
+        return p ? { w: p.wMax, d: p.dMax } : null;
+      }
+    : undefined;
+  const clear = new KeepClear(level, anchors.grid, anchors.of("zone"), heightOf, outlineOf);
   const rctx: RecipeCtx = { level, anchors, roles, profile };
   const treatments = drawTreatments({
     planSeed: run.planSeed,

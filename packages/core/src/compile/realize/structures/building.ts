@@ -23,6 +23,7 @@ import {
   chimneyWalls,
   foreignCells,
   mainVolumeId,
+  storeyFill,
   storeyWallFaces,
   structureNeighbours,
   volumeTag,
@@ -155,6 +156,8 @@ function layStoreys(b: StructureCtx, shape: BuildingShape): LitWindow[] {
         ...(caps ? { caps } : {}),
         ...(arches ? { arches } : {}),
         ...(doorUse !== undefined ? { doorUse } : {}),
+        // generator 5: posts at the corners of the building's outline only, the walk storeyWallFaces reads
+        ...(lv.ctx.profile.postsAtBuildingCorners ? { filled: storeyFill(st, nb, v, sp) } : {}),
       });
     });
   }

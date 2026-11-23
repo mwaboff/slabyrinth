@@ -73,6 +73,11 @@ export interface CourseArgs {
   windows: LitWindow[];
   /** Door family for the building's use (resolve/building/parts.ts), tried before the wall style's doors. */
   doorUse?: string;
+  /**
+   * Generator 5 (postsAtBuildingCorners): the cells filled at this storey (resolve/structureFaces.ts `storeyFill`): a
+   * corner post stands only where none round the corner is. Absent, the storey's own cells alone are asked.
+   */
+  filled?: (x: number, y: number) => boolean;
 }
 
 /** The wall chain of a style: its facade, its wall, the theme's wall. */
@@ -282,6 +287,7 @@ function layCornerPosts(b: StructureCtx, a: CourseArgs, mainBase: number): void 
   const { frame, pick } = b.lv.ctx;
   const style = a.walls;
   const capAt = capOf(a);
+  const filled = a.filled ?? ((x: number, y: number): boolean => a.own.has(key(x, y)));
   for (const k of a.own) {
     const [cx, cy] = cellOfKey(k);
     for (const [dx, dy] of [
@@ -290,8 +296,7 @@ function layCornerPosts(b: StructureCtx, a: CourseArgs, mainBase: number): void 
       [-1, 1],
       [1, 1],
     ] as const) {
-      if (a.own.has(key(cx + dx, cy)) || a.own.has(key(cx, cy + dy)) || a.own.has(key(cx + dx, cy + dy)))
-        continue;
+      if (filled(cx + dx, cy) || filled(cx, cy + dy) || filled(cx + dx, cy + dy)) continue;
       const px = dx < 0 ? cx - 0.5 : cx + 1;
       const py = dy < 0 ? cy - 0.5 : cy + 1;
       // upper courses close the floor band

@@ -97,9 +97,9 @@ export const WARNING_BASIS = 150;
  * count that is now lower (lower it) or an entry no seed raises (remove it). The causes, for the next round:
  * - market-street-v3: line_unanchored and prop_floating (the wall at a line's end stops below the rope and the
  *   building's roof deck above it is a floor piece, which verify does not take as holding it: the line and its pieces
- *   hang free); prop_in_wall (a room piece of a shop, reeve's or butcher's ground storey against the wall post a
- *   volume stands at its own corner where two volumes meet in a straight wall: the furnisher asks the level's wall
- *   junctions, realize builds a post per volume corner); prop_sunk (a tailor's bench outside its door, pushed against
+ *   hang free); prop_in_wall (an upper storey's window light set at its cell's centre 0.14 into a ground-storey
+ *   partition, whose 2-tall pieces stand half a tile through the floor above; a line's lantern 0.33 into a shop roof:
+ *   the room pieces in a wing's post went with `postsAtBuildingCorners`); prop_sunk (a tailor's bench outside its door, pushed against
  *   the front, reaches 0.16 into the raised pavement cell in front of the building). The lines' own faults are gone at
  *   generator 5 (`linesClearCanopies`: a rope through a shop's awning, a lantern into a porch roof or a canopy).
  * (Gone at generator 5: props_overlap between elements is info under `layeredProps`; keep-dungeon's room pieces in a
@@ -127,8 +127,9 @@ export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, num
     verify_prop_floating: 5,
     // 28 then 76 (ropes through shop awnings once `plinthUnderPorch` lowered them): the tailor's bench alone now
     verify_prop_sunk: 6,
-    // 7 (lines into banners and porch roofs), 13 with the building rooms: the room pieces alone now
-    verify_prop_in_wall: 7,
+    // 7 (lines into banners and porch roofs), 13 with the building rooms, 7 (the room pieces in a wing's post), 2 with
+    // `postsAtBuildingCorners`: a window light in a partition poking through the floor above, a lantern in a roof
+    verify_prop_in_wall: 2,
   },
   "old-stones-glade-v6": { verify_prop_floating: 5 },
   "smugglers-grotto-v3": { verify_prop_floating: 16, verify_prop_no_floor: 1 },

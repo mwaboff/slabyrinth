@@ -64,6 +64,12 @@ export class KeepClear {
     private readonly g: LevelGrid,
     zones: readonly ZoneAnchor[],
     heightOf: (f: ResolvedFeature) => number | null,
+    /**
+     * Generator 5 (`featureOutlinesClear`): the widest outline (tiles, unturned) of a wall-hung feature's piece, so its
+     * box is the piece's true footprint where that reaches past its cells (a wall rack wider than its cell); null or
+     * absent, its cells.
+     */
+    outlineOf?: (f: ResolvedFeature) => { w: number; d: number } | null,
   ) {
     const n = g.w * g.h;
     for (let i = 0; i < n; i++)
@@ -89,12 +95,22 @@ export class KeepClear {
       const oy = f.offset?.[1] ?? 0;
       // (baseHeight is absolute: it holds the level's elevation already)
       const base = f.baseHeight;
+      // the piece's outline about its footprint's centre, turned with it, where it reaches past the cells
+      const o = outlineOf?.(f) ?? null;
+      const square = f.rotFine % 90 !== 0;
+      const turned = f.rot === 90 || f.rot === 270;
+      const ex = o === null ? 0 : square ? Math.max(o.w, o.d) : turned ? o.d : o.w;
+      const ey = o === null ? 0 : square ? Math.max(o.w, o.d) : turned ? o.w : o.d;
+      const hx = Math.max(f.size[0], ex) / 2;
+      const hy = Math.max(f.size[1], ey) / 2;
+      const cx = f.at[0] + f.size[0] / 2 + ox;
+      const cy = f.at[1] + f.size[1] / 2 + oy;
       this.boxes.push({
         box: {
-          x0: f.at[0] + ox,
-          y0: f.at[1] + oy,
-          x1: f.at[0] + f.size[0] + ox,
-          y1: f.at[1] + f.size[1] + oy,
+          x0: cx - hx,
+          y0: cy - hy,
+          x1: cx + hx,
+          y1: cy + hy,
           z0: base,
           z1: base + (heightOf(f) ?? FEATURE_HEIGHT),
         },

@@ -540,6 +540,14 @@ const SWITCHES = {
     5,
     "An overhead line keeps clear of the canopies and awnings over shop fronts at their built height (resolve/building/canopy.ts, the answer realize lays them by): its rope is raised over one it passes above, as high as its wall anchors hold it, and hangs nothing over it; a line its anchors cannot hold that high is dropped (resolve/level/market.ts stepLine).",
   ),
+  postsAtBuildingCorners: on(
+    5,
+    "A building's corner posts stand at the corners of its outline only: where no cell round the corner is filled at that storey (its own, another volume's, an earlier building's: resolve/structureFaces.ts storeyFill, the walk its walls are laid by). Where two volumes meet in a straight wall, or a wing's corner meets the main volume's wall, no post is laid half a tile into the next volume's room.",
+  ),
+  featureOutlinesClear: on(
+    5,
+    "The detail recipes keep clear of what a wall-hung feature's piece really covers, its widest variant's outline turned with it, not only its cells: a corner post or a band no longer stands in the end of a wall rack wider than its cell (resolve/recipes/keepClear.ts).",
+  ),
   sacredReads: on(
     5,
     "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",

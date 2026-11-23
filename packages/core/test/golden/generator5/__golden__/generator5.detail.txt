@@ -4,9 +4,9 @@ plans/building-rooms-street-v1 g pieces floor 571
 plans/building-rooms-street-v1 g pieces ledge 134
 plans/building-rooms-street-v1 g pieces opening 53
 plans/building-rooms-street-v1 g pieces wall 696
-plans/building-rooms-street-v1 g pieces wall_post 120
+plans/building-rooms-street-v1 g pieces wall_post 118
 plans/building-rooms-street-v1 g layer roof 416
-plans/building-rooms-street-v1 g layer site 1042
+plans/building-rooms-street-v1 g layer site 1040
 plans/building-rooms-street-v1 g layer storey:0 352
 plans/building-rooms-street-v1 g layer storey:1 209
 plans/building-rooms-street-v1 g part cottage~chimney 7
@@ -457,10 +457,10 @@ plans/chimney-lineup-v1@5 g pieces floor 568
 plans/chimney-lineup-v1@5 g pieces ledge 188
 plans/chimney-lineup-v1@5 g pieces opening 37
 plans/chimney-lineup-v1@5 g pieces wall 813
-plans/chimney-lineup-v1@5 g pieces wall_post 181
+plans/chimney-lineup-v1@5 g pieces wall_post 161
 plans/chimney-lineup-v1@5 g layer roof 549
-plans/chimney-lineup-v1@5 g layer site 1621
-plans/chimney-lineup-v1@5 g layer storey:0 429
+plans/chimney-lineup-v1@5 g layer site 1615
+plans/chimney-lineup-v1@5 g layer storey:0 415
 plans/chimney-lineup-v1@5 g layer storey:1 123
 plans/chimney-lineup-v1@5 g part floor:floor.grass 352
 plans/chimney-lineup-v1@5 g part floor:floor.wood_plank 98
@@ -471,13 +471,13 @@ plans/chimney-lineup-v1@5 g part h1~floor1 6
 plans/chimney-lineup-v1@5 g part h1~footing 9
 plans/chimney-lineup-v1@5 g part h1~lean~deck 4
 plans/chimney-lineup-v1@5 g part h1~lean~footing 5
-plans/chimney-lineup-v1@5 g part h1~lean~post 4
+plans/chimney-lineup-v1@5 g part h1~lean~post 2
 plans/chimney-lineup-v1@5 g part h1~lean~roof 5
 plans/chimney-lineup-v1@5 g part h1~lean~wall 4
 plans/chimney-lineup-v1@5 g part h1~light 1
 plans/chimney-lineup-v1@5 g part h1~porch0 2
 plans/chimney-lineup-v1@5 g part h1~porchroof0 3
-plans/chimney-lineup-v1@5 g part h1~post 8
+plans/chimney-lineup-v1@5 g part h1~post 6
 plans/chimney-lineup-v1@5 g part h1~roof 30
 plans/chimney-lineup-v1@5 g part h1~room0~room#0 1
 plans/chimney-lineup-v1@5 g part h1~room0~room#1 1
@@ -546,7 +546,7 @@ plans/chimney-lineup-v1@5 g part h3~deck 12
 plans/chimney-lineup-v1@5 g part h3~door0 1
 plans/chimney-lineup-v1@5 g part h3~gable 28
 plans/chimney-lineup-v1@5 g part h3~light 1
-plans/chimney-lineup-v1@5 g part h3~post 8
+plans/chimney-lineup-v1@5 g part h3~post 6
 plans/chimney-lineup-v1@5 g part h3~roof 36
 plans/chimney-lineup-v1@5 g part h3~room0~room#0 1
 plans/chimney-lineup-v1@5 g part h3~room0~room#1 1
@@ -575,7 +575,7 @@ plans/chimney-lineup-v1@5 g part h3~window1 1
 plans/chimney-lineup-v1@5 g part h3~window2 1
 plans/chimney-lineup-v1@5 g part h3~wing~deck 2
 plans/chimney-lineup-v1@5 g part h3~wing~gable 8
-plans/chimney-lineup-v1@5 g part h3~wing~post 8
+plans/chimney-lineup-v1@5 g part h3~wing~post 4
 plans/chimney-lineup-v1@5 g part h3~wing~roof 10
 plans/chimney-lineup-v1@5 g part h3~wing~wall 8
 plans/chimney-lineup-v1@5 g part h4~chimney 10
@@ -586,13 +586,13 @@ plans/chimney-lineup-v1@5 g part h4~footing 17
 plans/chimney-lineup-v1@5 g part h4~lean~deck 3
 plans/chimney-lineup-v1@5 g part h4~lean~footing 9
 plans/chimney-lineup-v1@5 g part h4~lean~gable 16
-plans/chimney-lineup-v1@5 g part h4~lean~post 4
+plans/chimney-lineup-v1@5 g part h4~lean~post 2
 plans/chimney-lineup-v1@5 g part h4~lean~roof 17
 plans/chimney-lineup-v1@5 g part h4~lean~wall 5
 plans/chimney-lineup-v1@5 g part h4~light 1
 plans/chimney-lineup-v1@5 g part h4~porch0 2
 plans/chimney-lineup-v1@5 g part h4~porchroof0 10
-plans/chimney-lineup-v1@5 g part h4~post 4
+plans/chimney-lineup-v1@5 g part h4~post 2
 plans/chimney-lineup-v1@5 g part h4~roof 34
 plans/chimney-lineup-v1@5 g part h4~room0~room#0 1
 plans/chimney-lineup-v1@5 g part h4~room0~room#1 1
@@ -742,8 +742,8 @@ plans/chimney-lineup-v1@5 g part jambPosts@face:B:h6:main:0:out:W:64:10:op:h6~wi
 plans/chimney-lineup-v1@5 g part jambPosts@face:B:h6:main:0:out:W:64:4:op:h6~window4 4
 plans/chimney-lineup-v1@5 g part jambPosts@face:L:E:55:5:op:h5~inner1 2
 plans/chimney-lineup-v1@5 g part jambPosts@face:L:E:69:4:op:h6~inner0 2
-plans/chimney-lineup-v1@5 g part jambPosts@face:L:N:9:13:op:h2~inner1 4
-plans/chimney-lineup-v1@5 g part jambPosts@face:L:W:55:5:op:h5~inner1 4
+plans/chimney-lineup-v1@5 g part jambPosts@face:L:N:9:13:op:h2~inner1 2
+plans/chimney-lineup-v1@5 g part jambPosts@face:L:W:55:5:op:h5~inner1 2
 plans/chimney-lineup-v1@5 g part jambPosts@face:L:W:69:4:op:h6~inner0 2
 plans/chimney-lineup-v1@5 g feature barrel 4
 plans/chimney-lineup-v1@5 g feature bed 8
@@ -1326,15 +1326,15 @@ plans/example-b@5 diag info verify_water_level 1
 plans/example-b@5 review flat_map 1
 plans/example-b@5 review focal_unlit 2
 plans/example-b@5 review rows_or_even_scatter 1
-plans/ground-and-walls-v1 g pieces feature 1171
+plans/ground-and-walls-v1 g pieces feature 1167
 plans/ground-and-walls-v1 g pieces floor 1018
 plans/ground-and-walls-v1 g pieces ledge 188
 plans/ground-and-walls-v1 g pieces opening 35
 plans/ground-and-walls-v1 g pieces wall 797
-plans/ground-and-walls-v1 g pieces wall_post 228
+plans/ground-and-walls-v1 g pieces wall_post 214
 plans/ground-and-walls-v1 g layer roof 520
-plans/ground-and-walls-v1 g layer site 2414
-plans/ground-and-walls-v1 g layer storey:0 394
+plans/ground-and-walls-v1 g layer site 2410
+plans/ground-and-walls-v1 g layer storey:0 380
 plans/ground-and-walls-v1 g layer storey:1 109
 plans/ground-and-walls-v1 g part floor:floor.dirt 25
 plans/ground-and-walls-v1 g part floor:floor.flagstone 56
@@ -1441,7 +1441,7 @@ plans/ground-and-walls-v1 g part s2~door0 3
 plans/ground-and-walls-v1 g part s2~footing 14
 plans/ground-and-walls-v1 g part s2~gable 4
 plans/ground-and-walls-v1 g part s2~light 1
-plans/ground-and-walls-v1 g part s2~post 8
+plans/ground-and-walls-v1 g part s2~post 6
 plans/ground-and-walls-v1 g part s2~roof 18
 plans/ground-and-walls-v1 g part s2~room0~room#0 1
 plans/ground-and-walls-v1 g part s2~room0~room#1 1
@@ -1468,7 +1468,7 @@ plans/ground-and-walls-v1 g part s2~window2 2
 plans/ground-and-walls-v1 g part s2~window3 2
 plans/ground-and-walls-v1 g part s2~wing~deck 3
 plans/ground-and-walls-v1 g part s2~wing~footing 7
-plans/ground-and-walls-v1 g part s2~wing~post 4
+plans/ground-and-walls-v1 g part s2~wing~post 2
 plans/ground-and-walls-v1 g part s2~wing~roof 10
 plans/ground-and-walls-v1 g part s2~wing~wall 4
 plans/ground-and-walls-v1 g part s3~deck 12
@@ -1477,11 +1477,11 @@ plans/ground-and-walls-v1 g part s3~floor1 12
 plans/ground-and-walls-v1 g part s3~gable 48
 plans/ground-and-walls-v1 g part s3~lean~deck 3
 plans/ground-and-walls-v1 g part s3~lean~gable 16
-plans/ground-and-walls-v1 g part s3~lean~post 4
+plans/ground-and-walls-v1 g part s3~lean~post 2
 plans/ground-and-walls-v1 g part s3~lean~roof 25
 plans/ground-and-walls-v1 g part s3~lean~wall 4
 plans/ground-and-walls-v1 g part s3~light 1
-plans/ground-and-walls-v1 g part s3~post 8
+plans/ground-and-walls-v1 g part s3~post 4
 plans/ground-and-walls-v1 g part s3~roof 97
 plans/ground-and-walls-v1 g part s3~room0~room#0 1
 plans/ground-and-walls-v1 g part s3~room0~room#1 1
@@ -1603,13 +1603,13 @@ plans/ground-and-walls-v1 g part s6~gable 12
 plans/ground-and-walls-v1 g part s6~lean~deck 5
 plans/ground-and-walls-v1 g part s6~lean~footing 6
 plans/ground-and-walls-v1 g part s6~lean~gable 10
-plans/ground-and-walls-v1 g part s6~lean~post 4
+plans/ground-and-walls-v1 g part s6~lean~post 2
 plans/ground-and-walls-v1 g part s6~lean~roof 8
 plans/ground-and-walls-v1 g part s6~lean~wall 4
 plans/ground-and-walls-v1 g part s6~light 1
 plans/ground-and-walls-v1 g part s6~porch0 2
 plans/ground-and-walls-v1 g part s6~porchroof0 3
-plans/ground-and-walls-v1 g part s6~post 4
+plans/ground-and-walls-v1 g part s6~post 2
 plans/ground-and-walls-v1 g part s6~roof 61
 plans/ground-and-walls-v1 g part s6~room0~room#0 1
 plans/ground-and-walls-v1 g part s6~room0~room#1 1
@@ -2154,8 +2154,8 @@ plans/inn-interior-v1@5 l1 pieces fill 54
 plans/inn-interior-v1@5 l1 pieces floor 222
 plans/inn-interior-v1@5 l1 pieces opening 11
 plans/inn-interior-v1@5 l1 pieces wall 149
-plans/inn-interior-v1@5 l1 pieces wall_post 69
-plans/inn-interior-v1@5 l1 layer site 796
+plans/inn-interior-v1@5 l1 pieces wall_post 68
+plans/inn-interior-v1@5 l1 layer site 795
 plans/inn-interior-v1@5 l1 part armoury~room#0 1
 plans/inn-interior-v1@5 l1 part armoury~room#1 1
 plans/inn-interior-v1@5 l1 part armoury~room#10 1
@@ -3374,10 +3374,10 @@ plans/market-street-v3@5 g pieces floor 935
 plans/market-street-v3@5 g pieces ledge 144
 plans/market-street-v3@5 g pieces opening 100
 plans/market-street-v3@5 g pieces wall 1694
-plans/market-street-v3@5 g pieces wall_post 254
+plans/market-street-v3@5 g pieces wall_post 235
 plans/market-street-v3@5 g layer roof 1219
 plans/market-street-v3@5 g layer site 1615
-plans/market-street-v3@5 g layer storey:0 866
+plans/market-street-v3@5 g layer storey:0 847
 plans/market-street-v3@5 g layer storey:1 163
 plans/market-street-v3@5 g part apothecary~canopy 4
 plans/market-street-v3@5 g part apothecary~deck 10
@@ -3386,7 +3386,7 @@ plans/market-street-v3@5 g part apothecary~footing 16
 plans/market-street-v3@5 g part apothecary~light 1
 plans/market-street-v3@5 g part apothecary~porch0 2
 plans/market-street-v3@5 g part apothecary~porchroof0 3
-plans/market-street-v3@5 g part apothecary~post 4
+plans/market-street-v3@5 g part apothecary~post 3
 plans/market-street-v3@5 g part apothecary~roof 78
 plans/market-street-v3@5 g part apothecary~room0~room#0 1
 plans/market-street-v3@5 g part apothecary~room0~room#1 1
@@ -3425,7 +3425,7 @@ plans/market-street-v3@5 g part baker~gable 10
 plans/market-street-v3@5 g part baker~light 1
 plans/market-street-v3@5 g part baker~porch0 2
 plans/market-street-v3@5 g part baker~porchroof0 10
-plans/market-street-v3@5 g part baker~post 4
+plans/market-street-v3@5 g part baker~post 3
 plans/market-street-v3@5 g part baker~roof 27
 plans/market-street-v3@5 g part baker~room0~room#0 1
 plans/market-street-v3@5 g part baker~room0~room#1 1
@@ -3556,11 +3556,11 @@ plans/market-street-v3@5 g part cooper~gable 12
 plans/market-street-v3@5 g part cooper~lean~deck 5
 plans/market-street-v3@5 g part cooper~lean~footing 13
 plans/market-street-v3@5 g part cooper~lean~gable 10
-plans/market-street-v3@5 g part cooper~lean~post 4
+plans/market-street-v3@5 g part cooper~lean~post 2
 plans/market-street-v3@5 g part cooper~lean~roof 9
 plans/market-street-v3@5 g part cooper~lean~wall 5
 plans/market-street-v3@5 g part cooper~light 1
-plans/market-street-v3@5 g part cooper~post 4
+plans/market-street-v3@5 g part cooper~post 2
 plans/market-street-v3@5 g part cooper~roof 25
 plans/market-street-v3@5 g part cooper~room0~room#0 1
 plans/market-street-v3@5 g part cooper~room0~room#1 1
@@ -3593,7 +3593,7 @@ plans/market-street-v3@5 g part inn~inner0 2
 plans/market-street-v3@5 g part inn~light 1
 plans/market-street-v3@5 g part inn~porch0 2
 plans/market-street-v3@5 g part inn~porchroof0 3
-plans/market-street-v3@5 g part inn~post 8
+plans/market-street-v3@5 g part inn~post 6
 plans/market-street-v3@5 g part inn~roof 119
 plans/market-street-v3@5 g part inn~room0~room#0 1
 plans/market-street-v3@5 g part inn~room0~room#1 1
@@ -3655,7 +3655,7 @@ plans/market-street-v3@5 g part inn~window5 1
 plans/market-street-v3@5 g part inn~wing~deck 8
 plans/market-street-v3@5 g part inn~wing~footing 12
 plans/market-street-v3@5 g part inn~wing~gable 10
-plans/market-street-v3@5 g part inn~wing~post 8
+plans/market-street-v3@5 g part inn~wing~post 4
 plans/market-street-v3@5 g part inn~wing~roof 35
 plans/market-street-v3@5 g part inn~wing~wall 12
 plans/market-street-v3@5 g part jambPosts@face:B:cobbler:main:0:out:S:30:1:op:cobbler~window1 1
@@ -3801,7 +3801,7 @@ plans/market-street-v3@5 g part smith~floor1 17
 plans/market-street-v3@5 g part smith~gable 12
 plans/market-street-v3@5 g part smith~inner0 1
 plans/market-street-v3@5 g part smith~inner1 1
-plans/market-street-v3@5 g part smith~post 6
+plans/market-street-v3@5 g part smith~post 4
 plans/market-street-v3@5 g part smith~roof 81
 plans/market-street-v3@5 g part smith~room0~room#0 1
 plans/market-street-v3@5 g part smith~room0~room#1 1
@@ -3850,7 +3850,7 @@ plans/market-street-v3@5 g part smith~window7 1
 plans/market-street-v3@5 g part smith~window8 1
 plans/market-street-v3@5 g part smith~wing~deck 4
 plans/market-street-v3@5 g part smith~wing~gable 8
-plans/market-street-v3@5 g part smith~wing~post 7
+plans/market-street-v3@5 g part smith~wing~post 4
 plans/market-street-v3@5 g part smith~wing~roof 24
 plans/market-street-v3@5 g part smith~wing~wall 18
 plans/market-street-v3@5 g part tailor~canopy 5
@@ -3860,7 +3860,7 @@ plans/market-street-v3@5 g part tailor~floor1 12
 plans/market-street-v3@5 g part tailor~footing 27
 plans/market-street-v3@5 g part tailor~porch0 2
 plans/market-street-v3@5 g part tailor~porchroof0 3
-plans/market-street-v3@5 g part tailor~post 4
+plans/market-street-v3@5 g part tailor~post 2
 plans/market-street-v3@5 g part tailor~roof 70
 plans/market-street-v3@5 g part tailor~room0~room#0 1
 plans/market-street-v3@5 g part tailor~room0~room#1 1
@@ -5104,17 +5104,17 @@ plans/three-step-glen-v1@5 review focal_unlit 1
 plans/three-step-glen-v1@5 review landmark_against_wall 1
 plans/three-step-glen-v1@5 review rows_or_even_scatter 2
 plans/three-step-glen-v1@5 review straight_natural 1
-plans/two-quarters-v1 g pieces feature 890
+plans/two-quarters-v1 g pieces feature 885
 plans/two-quarters-v1 g pieces fill 80
 plans/two-quarters-v1 g pieces floor 1372
 plans/two-quarters-v1 g pieces ledge 228
 plans/two-quarters-v1 g pieces link 1
 plans/two-quarters-v1 g pieces opening 60
 plans/two-quarters-v1 g pieces wall 1550
-plans/two-quarters-v1 g pieces wall_post 321
+plans/two-quarters-v1 g pieces wall_post 290
 plans/two-quarters-v1 g layer roof 1142
-plans/two-quarters-v1 g layer site 2392
-plans/two-quarters-v1 g layer storey:0 807
+plans/two-quarters-v1 g layer site 2387
+plans/two-quarters-v1 g layer storey:0 776
 plans/two-quarters-v1 g layer storey:1 161
 plans/two-quarters-v1 g part bucket~deck 22
 plans/two-quarters-v1 g part bucket~door0 1
@@ -5125,13 +5125,13 @@ plans/two-quarters-v1 g part bucket~inner0 2
 plans/two-quarters-v1 g part bucket~lean~deck 5
 plans/two-quarters-v1 g part bucket~lean~footing 11
 plans/two-quarters-v1 g part bucket~lean~gable 18
-plans/two-quarters-v1 g part bucket~lean~post 8
+plans/two-quarters-v1 g part bucket~lean~post 4
 plans/two-quarters-v1 g part bucket~lean~roof 19
 plans/two-quarters-v1 g part bucket~lean~wall 6
 plans/two-quarters-v1 g part bucket~light 1
 plans/two-quarters-v1 g part bucket~porch0 2
 plans/two-quarters-v1 g part bucket~porchroof0 7
-plans/two-quarters-v1 g part bucket~post 8
+plans/two-quarters-v1 g part bucket~post 4
 plans/two-quarters-v1 g part bucket~roof 40
 plans/two-quarters-v1 g part bucket~room0~room#0 1
 plans/two-quarters-v1 g part bucket~room0~room#1 1
@@ -5255,7 +5255,7 @@ plans/two-quarters-v1 g part hovel1~door0 1
 plans/two-quarters-v1 g part hovel1~floor1 8
 plans/two-quarters-v1 g part hovel1~gable 40
 plans/two-quarters-v1 g part hovel1~light 1
-plans/two-quarters-v1 g part hovel1~post 4
+plans/two-quarters-v1 g part hovel1~post 3
 plans/two-quarters-v1 g part hovel1~roof 80
 plans/two-quarters-v1 g part hovel1~room0~room#0 1
 plans/two-quarters-v1 g part hovel1~room0~room#1 1
@@ -5288,7 +5288,7 @@ plans/two-quarters-v1 g part hovel1~window3 2
 plans/two-quarters-v1 g part hovel1~window4 2
 plans/two-quarters-v1 g part hovel1~wing~deck 6
 plans/two-quarters-v1 g part hovel1~wing~gable 8
-plans/two-quarters-v1 g part hovel1~wing~post 4
+plans/two-quarters-v1 g part hovel1~wing~post 2
 plans/two-quarters-v1 g part hovel1~wing~roof 17
 plans/two-quarters-v1 g part hovel1~wing~wall 5
 plans/two-quarters-v1 g part hovel2~deck 9
@@ -5298,7 +5298,7 @@ plans/two-quarters-v1 g part hovel2~gable 32
 plans/two-quarters-v1 g part hovel2~light 1
 plans/two-quarters-v1 g part hovel2~porch0 2
 plans/two-quarters-v1 g part hovel2~porchroof0 4
-plans/two-quarters-v1 g part hovel2~post 12
+plans/two-quarters-v1 g part hovel2~post 9
 plans/two-quarters-v1 g part hovel2~roof 64
 plans/two-quarters-v1 g part hovel2~room0~room#0 1
 plans/two-quarters-v1 g part hovel2~room0~room#1 1
@@ -5323,7 +5323,7 @@ plans/two-quarters-v1 g part hovel2~window1 1
 plans/two-quarters-v1 g part hovel2~wing~deck 3
 plans/two-quarters-v1 g part hovel2~wing~footing 7
 plans/two-quarters-v1 g part hovel2~wing~gable 17
-plans/two-quarters-v1 g part hovel2~wing~post 12
+plans/two-quarters-v1 g part hovel2~wing~post 6
 plans/two-quarters-v1 g part hovel2~wing~roof 15
 plans/two-quarters-v1 g part hovel2~wing~wall 8
 plans/two-quarters-v1 g part hovel3~deck 12
@@ -5435,7 +5435,7 @@ plans/two-quarters-v1 g part swan~gable 16
 plans/two-quarters-v1 g part swan~light 1
 plans/two-quarters-v1 g part swan~porch0 2
 plans/two-quarters-v1 g part swan~porchroof0 10
-plans/two-quarters-v1 g part swan~post 4
+plans/two-quarters-v1 g part swan~post 3
 plans/two-quarters-v1 g part swan~roof 26
 plans/two-quarters-v1 g part swan~room0~room#0 1
 plans/two-quarters-v1 g part swan~room0~room#1 1
@@ -5463,7 +5463,7 @@ plans/two-quarters-v1 g part swan~window2 1
 plans/two-quarters-v1 g part swan~wing~deck 3
 plans/two-quarters-v1 g part swan~wing~footing 6
 plans/two-quarters-v1 g part swan~wing~gable 2
-plans/two-quarters-v1 g part swan~wing~post 4
+plans/two-quarters-v1 g part swan~wing~post 2
 plans/two-quarters-v1 g part swan~wing~roof 7
 plans/two-quarters-v1 g part swan~wing~wall 4
 plans/two-quarters-v1 g part town1~deck 22
@@ -5517,11 +5517,11 @@ plans/two-quarters-v1 g part town2~inner1 2
 plans/two-quarters-v1 g part town2~lean~deck 3
 plans/two-quarters-v1 g part town2~lean~footing 10
 plans/two-quarters-v1 g part town2~lean~gable 16
-plans/two-quarters-v1 g part town2~lean~post 8
+plans/two-quarters-v1 g part town2~lean~post 4
 plans/two-quarters-v1 g part town2~lean~roof 13
 plans/two-quarters-v1 g part town2~lean~wall 5
 plans/two-quarters-v1 g part town2~light 1
-plans/two-quarters-v1 g part town2~post 12
+plans/two-quarters-v1 g part town2~post 8
 plans/two-quarters-v1 g part town2~roof 28
 plans/two-quarters-v1 g part town2~room0~room#0 1
 plans/two-quarters-v1 g part town2~room0~room#1 1
@@ -5671,17 +5671,17 @@ plans/two-rooms-door@5 l1 feature bed 1
 plans/two-rooms-door@5 l1 feature rug 1
 plans/two-rooms-door@5 l1 feature torch_wall 6
 plans/two-rooms-door@5 review flat_map 1
-plans/varied-street-v1 g pieces feature 1345
+plans/varied-street-v1 g pieces feature 1344
 plans/varied-street-v1 g pieces fill 72
 plans/varied-street-v1 g pieces floor 1111
 plans/varied-street-v1 g pieces ledge 188
 plans/varied-street-v1 g pieces link 1
 plans/varied-street-v1 g pieces opening 102
 plans/varied-street-v1 g pieces wall 1235
-plans/varied-street-v1 g pieces wall_post 431
+plans/varied-street-v1 g pieces wall_post 402
 plans/varied-street-v1 g layer roof 786
-plans/varied-street-v1 g layer site 2574
-plans/varied-street-v1 g layer storey:0 688
+plans/varied-street-v1 g layer site 2573
+plans/varied-street-v1 g layer storey:0 659
 plans/varied-street-v1 g layer storey:1 269
 plans/varied-street-v1 g layer storey:2 168
 plans/varied-street-v1 g part baker~canopy 6
@@ -5691,12 +5691,12 @@ plans/varied-street-v1 g part baker~floor1 13
 plans/varied-street-v1 g part baker~footing 14
 plans/varied-street-v1 g part baker~lean~deck 5
 plans/varied-street-v1 g part baker~lean~footing 7
-plans/varied-street-v1 g part baker~lean~post 4
+plans/varied-street-v1 g part baker~lean~post 2
 plans/varied-street-v1 g part baker~lean~roof 7
 plans/varied-street-v1 g part baker~lean~wall 4
 plans/varied-street-v1 g part baker~porch0 2
 plans/varied-street-v1 g part baker~porchroof0 3
-plans/varied-street-v1 g part baker~post 4
+plans/varied-street-v1 g part baker~post 2
 plans/varied-street-v1 g part baker~roof 63
 plans/varied-street-v1 g part baker~room0~room#0 1
 plans/varied-street-v1 g part baker~room0~room#1 1
@@ -5757,7 +5757,7 @@ plans/varied-street-v1 g part farm~footing 20
 plans/varied-street-v1 g part farm~gable 8
 plans/varied-street-v1 g part farm~inner0 2
 plans/varied-street-v1 g part farm~light 1
-plans/varied-street-v1 g part farm~post 4
+plans/varied-street-v1 g part farm~post 3
 plans/varied-street-v1 g part farm~roof 36
 plans/varied-street-v1 g part farm~room0~room#0 1
 plans/varied-street-v1 g part farm~room0~room#1 1
@@ -5798,7 +5798,7 @@ plans/varied-street-v1 g part farm~window7 1
 plans/varied-street-v1 g part farm~wing~deck 9
 plans/varied-street-v1 g part farm~wing~footing 11
 plans/varied-street-v1 g part farm~wing~gable 4
-plans/varied-street-v1 g part farm~wing~post 4
+plans/varied-street-v1 g part farm~wing~post 2
 plans/varied-street-v1 g part farm~wing~roof 12
 plans/varied-street-v1 g part farm~wing~wall 7
 plans/varied-street-v1 g part floor:floor.dirt 45
@@ -5926,12 +5926,12 @@ plans/varied-street-v1 g part narrow~footing 12
 plans/varied-street-v1 g part narrow~lean~deck 5
 plans/varied-street-v1 g part narrow~lean~footing 7
 plans/varied-street-v1 g part narrow~lean~gable 10
-plans/varied-street-v1 g part narrow~lean~post 4
+plans/varied-street-v1 g part narrow~lean~post 2
 plans/varied-street-v1 g part narrow~lean~roof 7
 plans/varied-street-v1 g part narrow~lean~wall 4
 plans/varied-street-v1 g part narrow~light 1
 plans/varied-street-v1 g part narrow~lit 4
-plans/varied-street-v1 g part narrow~post 12
+plans/varied-street-v1 g part narrow~post 10
 plans/varied-street-v1 g part narrow~roof 24
 plans/varied-street-v1 g part narrow~room0~room#0 1
 plans/varied-street-v1 g part narrow~room0~room#1 1
@@ -5994,11 +5994,11 @@ plans/varied-street-v1 g part squat~gable 10
 plans/varied-street-v1 g part squat~lean~deck 6
 plans/varied-street-v1 g part squat~lean~footing 8
 plans/varied-street-v1 g part squat~lean~gable 12
-plans/varied-street-v1 g part squat~lean~post 4
+plans/varied-street-v1 g part squat~lean~post 2
 plans/varied-street-v1 g part squat~lean~roof 8
 plans/varied-street-v1 g part squat~lean~wall 5
 plans/varied-street-v1 g part squat~light 1
-plans/varied-street-v1 g part squat~post 8
+plans/varied-street-v1 g part squat~post 4
 plans/varied-street-v1 g part squat~roof 28
 plans/varied-street-v1 g part squat~room0~room#0 1
 plans/varied-street-v1 g part squat~room0~room#1 1
@@ -6029,11 +6029,11 @@ plans/varied-street-v1 g part tavern~inner1 2
 plans/varied-street-v1 g part tavern~lean~deck 3
 plans/varied-street-v1 g part tavern~lean~footing 10
 plans/varied-street-v1 g part tavern~lean~gable 16
-plans/varied-street-v1 g part tavern~lean~post 4
+plans/varied-street-v1 g part tavern~lean~post 2
 plans/varied-street-v1 g part tavern~lean~roof 48
 plans/varied-street-v1 g part tavern~lean~wall 5
 plans/varied-street-v1 g part tavern~light 1
-plans/varied-street-v1 g part tavern~post 8
+plans/varied-street-v1 g part tavern~post 4
 plans/varied-street-v1 g part tavern~roof 79
 plans/varied-street-v1 g part tavern~room0~room#0 1
 plans/varied-street-v1 g part tavern~room0~room#1 1
@@ -6094,13 +6094,13 @@ plans/varied-street-v1 g part workshop~gable 14
 plans/varied-street-v1 g part workshop~inner1 1
 plans/varied-street-v1 g part workshop~lean~deck 5
 plans/varied-street-v1 g part workshop~lean~gable 18
-plans/varied-street-v1 g part workshop~lean~post 4
+plans/varied-street-v1 g part workshop~lean~post 2
 plans/varied-street-v1 g part workshop~lean~roof 18
 plans/varied-street-v1 g part workshop~lean~wall 5
 plans/varied-street-v1 g part workshop~light 1
 plans/varied-street-v1 g part workshop~porch0 2
 plans/varied-street-v1 g part workshop~porchroof0 10
-plans/varied-street-v1 g part workshop~post 8
+plans/varied-street-v1 g part workshop~post 4
 plans/varied-street-v1 g part workshop~roof 38
 plans/varied-street-v1 g part workshop~room0~room#0 1
 plans/varied-street-v1 g part workshop~room0~room#1 1
@@ -6404,11 +6404,11 @@ gen/dressed-cave review bare_ground 1
 gen/dressed-cave review flat_map 1
 gen/dressed-cave review floor_patchwork 1
 gen/dressed-cave review rows_or_even_scatter 1
-gen/dressed-cave@5 l1 pieces feature 615
+gen/dressed-cave@5 l1 pieces feature 614
 gen/dressed-cave@5 l1 pieces fill 410
 gen/dressed-cave@5 l1 pieces floor 404
 gen/dressed-cave@5 l1 pieces wall 408
-gen/dressed-cave@5 l1 layer site 1837
+gen/dressed-cave@5 l1 layer site 1836
 gen/dressed-cave@5 l1 part floor:floor.bridge_wood 4
 gen/dressed-cave@5 l1 part floor:floor.lava 17
 gen/dressed-cave@5 l1 part floor:floor.rock 383
@@ -6492,11 +6492,11 @@ gen/dressed-cave-v2 review bare_ground 1
 gen/dressed-cave-v2 review competing_focals 1
 gen/dressed-cave-v2 review flat_map 1
 gen/dressed-cave-v2 review floor_patchwork 1
-gen/dressed-cave-v2@5 l1 pieces feature 1041
+gen/dressed-cave-v2@5 l1 pieces feature 1040
 gen/dressed-cave-v2@5 l1 pieces fill 560
 gen/dressed-cave-v2@5 l1 pieces floor 530
 gen/dressed-cave-v2@5 l1 pieces wall 561
-gen/dressed-cave-v2@5 l1 layer site 2692
+gen/dressed-cave-v2@5 l1 layer site 2691
 gen/dressed-cave-v2@5 l1 part floor:floor.bridge_wood 3
 gen/dressed-cave-v2@5 l1 part floor:floor.lava 30
 gen/dressed-cave-v2@5 l1 part floor:floor.rock 483

@@ -220,12 +220,29 @@ export function storeyWallFaces(
   v: ResolvedVolume,
   sp: VolumeStorey,
 ): FaceCell[] {
-  const keptWhole = st.condition === "ruined" && st.ruin?.keep === v.id;
+  const filled = storeyFill(st, nb, v, sp);
   return faceCells(setOf(sp.cells)).filter((f) => {
     const [dx, dy] = SIDE_STEP[f.face];
-    if (keptWhole && !nb.party(sp, f.x + dx, f.y + dy)) return true;
-    return !nb.covered(v, sp, f.x + dx, f.y + dy);
+    return !filled(f.x + dx, f.y + dy);
   });
+}
+
+/**
+ * Is cell (x, y) filled at this storey: one of the storey's own cells, or a cell another volume (or an earlier
+ * building) covers, so no wall of this storey faces it (`storeyWallFaces`). Generator 5 (`postsAtBuildingCorners`)
+ * lays a storey's corner posts only where no cell round the corner is filled: at a corner of the building's outline,
+ * never where two volumes meet in a straight wall or one volume's corner meets another's wall (a post there stood half a
+ * tile into the next volume's room).
+ */
+export function storeyFill(
+  st: ResolvedStructure,
+  nb: ReturnType<typeof structureNeighbours>,
+  v: ResolvedVolume,
+  sp: VolumeStorey,
+): (x: number, y: number) => boolean {
+  const own = setOf(sp.cells);
+  const keptWhole = st.condition === "ruined" && st.ruin?.keep === v.id;
+  return (x, y) => own.has(key(x, y)) || (keptWhole ? nb.party(sp, x, y) : nb.covered(v, sp, x, y));
 }
 
 /** One face cell of an opening: the opening, its first face cell and this cell's index along it. */
