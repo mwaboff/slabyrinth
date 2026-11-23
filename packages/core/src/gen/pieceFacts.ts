@@ -11,7 +11,8 @@
  *   glows    it shows a visible glow but lights nothing (a green-glowing jug): read as a light, so it is kept out of an
  *            ordinary room's clutter, where it looks like a broken lamp (the room kinds whose row says `glow` take it);
  *   sloped   a raking piece (a stair's handrail): it stands only on a stair, never along a level run;
- *   endPost  a level piece with a taller post at one end (a newel): only at a run's end, turned so the post is the end.
+ *   endPost  a level piece with a taller post at one end (a newel): only at a run's end, turned so the post is the end;
+ *   ragged   a floor tile with broken, gapped ends (ruined boards): a floor's whole pieces cover the cells instead.
  * Facts about a whole roof kit (its tone, family, spiked corner) are keyed by kit, not piece: resolve/roofKits.ts.
  * A piece the table does not name has no such fact: it is level, post-free and does not glow.
  */
@@ -34,6 +35,8 @@ export interface PieceFacts {
   readonly sloped?: true;
   /** Which end of the piece's length carries the taller post, as it stands unturned: the low end (-x) or the high (+x). */
   readonly endPost?: "low" | "high";
+  /** A floor tile with broken, gapped ends (ruined boards): laid as a floor it reads as holes along its row. */
+  readonly ragged?: true;
 }
 
 const light = (
@@ -95,6 +98,13 @@ export const PIECE_FACTS: Readonly<Record<string, PieceFacts>> = {
   "railing 01 B": { sloped: true },
   // C: level, with a newel post rising above the rail at one end (the run's west end, unturned: its low end)
   "railing 01 C": { endPost: "low" },
+
+  // ── ragged floor boards (owner's harbour screenshots 185-188, 2026-11-23: the wharf's edge row, laid with these 2 x 1
+  // pieces between 2 x 2 "Castle Ruins Wood - Large" tiles, showed a comb of notches every two cells, the 2 x 2 body
+  // none) ──
+  "Castle Ruins Wood 1": { ragged: true },
+  "Castle Ruins Wood 2": { ragged: true },
+  "Castle Ruins Wood 3": { ragged: true },
 };
 
 /** The facts of a piece by its name (none for a piece the table does not name). */
@@ -107,6 +117,9 @@ export const outdoorPiece = (name: string | undefined): boolean =>
 
 /** Does the piece only glow (it lights nothing and looks like a light)? */
 export const glows = (name: string | undefined): boolean => pieceFacts(name).glows === true;
+
+/** Is the piece a ragged floor tile (broken, gapped ends)? */
+export const ragged = (name: string | undefined): boolean => pieceFacts(name).ragged === true;
 
 /** May the piece stand in a level run (not a stair rail)? `atEnd`: at a run's end, where an end post belongs. */
 export const levelRunPiece = (name: string | undefined, atEnd: boolean): boolean => {

@@ -153,3 +153,33 @@ describe("layered ground on ground-and-walls-v1", () => {
     expect(run(1e6, off).attached).toEqual([]);
   });
 });
+
+describe("ground under the level's water (generator 5, dryLandCover)", () => {
+  const plants = new Set(["feature.tall_grass", "feature.flowers", "feature.bush", "feature.ground_cover"]);
+  const roles = (level: ResolvedLevel, profile = generatorProfile(5)): string[] =>
+    runRecipes(level, new ArrangementRecords(), {
+      planSeed: plan.seed,
+      profile,
+      palette: view,
+      budget: 1e6,
+      families: LAYERED,
+      recipes: [layeredGround],
+    }).attached.flatMap((x) => x.pieces.map((p) => p.role));
+  // the same ground with the board's water plane above all of it (a flooded field, a harbour's bed)
+  const flooded: ResolvedLevel = { ...bare, waterLevel: bare.elevation + 10 };
+
+  it("lays land plants on dry ground", () => {
+    expect(roles(bare).some((r) => plants.has(r))).toBe(true);
+  });
+
+  it("lays no land plant under the water plane; rocks and rubble may stay", () => {
+    const wet = roles(flooded);
+    expect(wet.filter((r) => plants.has(r))).toEqual([]);
+    expect(wet.every((r) => ["feature.rock", "feature.rubble", "feature.debris"].includes(r))).toBe(true);
+  });
+
+  it("keeps the earlier cover with the switch off", () => {
+    const off = { ...generatorProfile(5), dryLandCover: false };
+    expect(roles(flooded, off)).toEqual(roles(bare, off));
+  });
+});

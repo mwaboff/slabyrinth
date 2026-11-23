@@ -8,6 +8,7 @@
 import type { Material } from "../../contracts/plan";
 import { CELL_FLAG } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
+import { ragged } from "../../gen/pieceFacts";
 import type { ResolvedVariant, RoleResolution } from "../../palette/resolve";
 import { ONE_CELL, ONE_CELL_PLAIN } from "../../palette/filters";
 import {
@@ -203,8 +204,9 @@ function layFloorTile(pass: FloorPass, c: LevelCell, lx: number, ly: number): bo
   const x = L.bounds.x + lx;
   const y = L.bounds.y + ly;
   const role = floorRole(laidMaterial(pass, c, x, y) ?? "");
-  const res = lookup(L.id, c.theme, [role]);
-  if (!res) return false;
+  const found = lookup(L.id, c.theme, [role]);
+  if (!found) return false;
+  const res = profile.wholeFloorEdges ? wholePieces(found) : found;
   // families on natural ground only: built floors (flagstone, planks) keep their regular laying
   const fams = c.material !== null && isCliffGround(c.material) ? familiesOf(res.variants) : [];
   const fam = familyOf(fams, x, y);
@@ -278,6 +280,15 @@ function layFloorTile(pass: FloorPass, c: LevelCell, lx: number, ly: number): bo
     return true;
   }
   return false;
+}
+
+/**
+ * Generator 5 (`wholeFloorEdges`): the role without its ragged pieces (gen/pieceFacts.ts), when it has whole ones; a
+ * role of ragged pieces only keeps them.
+ */
+function wholePieces(res: RoleResolution): RoleResolution {
+  const whole = res.variants.filter((v) => !ragged(v.name));
+  return whole.length === res.variants.length || whole.length === 0 ? res : { ...res, variants: whole };
 }
 
 /**

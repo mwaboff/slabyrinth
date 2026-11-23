@@ -41,6 +41,8 @@ import {
 } from "../contracts/resolved";
 import { planPointOf, type Placed } from "../arrange";
 import { SIDE_STEP, SIDES } from "../gen/gridGeometry";
+import { forEachMaskCell } from "../gen/mask";
+import { rasterizeShape } from "../gen/shapes";
 import type { RoomKind } from "../gen/roomPurpose";
 import {
   buildObject,
@@ -64,6 +66,7 @@ import { h32Utf16 } from "../util/hash";
 import { maxOf, minOf, pushAll } from "../util/lists";
 import { rotateXZ } from "../util/turn";
 import { splitGroundStorey, type GroundStorey } from "./building/rooms";
+import { isWater } from "./materials";
 import { resolvePlan, resolvedHash, type ResolveOptions } from "./resolvePlan";
 
 /** What a vessel spec may set beyond its size (the recipe's parameters), and the side it is moored by. */
@@ -293,8 +296,77 @@ function holdRooms(
 const seedOf = (plan: MapPlan, spec: ObjectSpec): number =>
   h32Utf16(String(spec.seed ?? `${String(plan.seed)}:${spec.id}`));
 
+/** How far (cells) a vessel is moved off the quay at most, before it is left where it was asked. */
+const BERTH_SHIFT = 8;
+
+/**
+ * Where a moored vessel lies: at its asked point, or moved away from its moored side, a cell at a time, until its hull
+ * stands clear of the quay (the landing's cells): a hull never eats the wharf it is moored to. Unmoved when no shift
+ * within BERTH_SHIFT clears it.
+ */
+function offTheQuay(
+  built: BuiltObject,
+  asked: readonly [number, number],
+  turn: number,
+  landing: ReadonlySet<string>,
+  side: 1 | -1,
+): readonly [number, number] {
+  const hits = (p: readonly [number, number]): boolean =>
+    placeObject(built, { id: "berth", anchor: { at: p, base: 0, turn } }).footprint.some((c) =>
+      landing.has(key(c)),
+    );
+  if (!hits(asked)) return asked;
+  // the whole-cell step toward the moored side (the largest port-ward station), taken the other way
+  const layout = new VesselLayout(asked, turn);
+  const toward = [...SIDES]
+    .map((s) => SIDE_STEP[s])
+    .sort(
+      (p, q) =>
+        side *
+        (layout.station([asked[0] + q[0], asked[1] + q[1]]).z -
+          layout.station([asked[0] + p[0], asked[1] + p[1]]).z),
+    )[0];
+  if (!toward) return asked;
+  for (let k = 1; k <= BERTH_SHIFT; k++) {
+    const p: readonly [number, number] = [asked[0] - k * toward[0], asked[1] - k * toward[1]];
+    if (!hits(p)) return p;
+  }
+  return asked;
+}
+
+/** How many cells a gangway may cross between the hull and the quay; further, the vessel has none. */
+export const GANGWAY_REACH = 3;
+
+/**
+ * The cells a gangway may land on, per level: the plan's own dry ground (every area with a floor that is not water),
+ * before any object adds its decks.
+ */
+function landingsOf(plan: MapPlan): Map<LevelId, Set<string>> {
+  const out = new Map<LevelId, Set<string>>();
+  for (const lv of plan.levels) {
+    const s = new Set<string>();
+    const clip = {
+      x0: lv.bounds.x,
+      y0: lv.bounds.y,
+      x1: lv.bounds.x + lv.bounds.w - 1,
+      y1: lv.bounds.y + lv.bounds.h - 1,
+    };
+    for (const a of lv.areas) {
+      if (a.floor === "none" || (a.floor !== undefined && isWater(a.floor))) continue;
+      forEachMaskCell(rasterizeShape(a.shape, { planSeed: plan.seed, clip }), (x, y) => s.add(key([x, y])));
+    }
+    out.set(lv.id, s);
+  }
+  return out;
+}
+
 /** One vessel expanded into the plan (see the file header). */
-function expandVessel(plan: MapPlan, spec: ObjectSpec, palettes: ResolvePalettes): ObjectSite {
+function expandVessel(
+  plan: MapPlan,
+  spec: ObjectSpec,
+  palettes: ResolvePalettes,
+  landing: ReadonlySet<string>,
+): ObjectSite {
   const deckLevel = plan.levels.find((l) => l.id === spec.level);
   if (!deckLevel) throw new Error(`object ${spec.id}: no level ${spec.level}`);
   const theme = deckLevel.theme ?? plan.theme;
@@ -313,7 +385,7 @@ function expandVessel(plan: MapPlan, spec: ObjectSpec, palettes: ResolvePalettes
   const kind = design.kind;
   const first = buildObject(vessel, params, kit);
   const turn = objectTurn(first, spec.heading);
-  const at = spec.at;
+  const at = offTheQuay(first, spec.at, turn, landing, moored === "port" ? 1 : -1);
   const layout = new VesselLayout(at, turn);
   const E = deckLevel.elevation;
   // a frame height (relative to the main deck) → the level whose floor is there
@@ -506,12 +578,10 @@ function expandVessel(plan: MapPlan, spec: ObjectSpec, palettes: ResolvePalettes
     );
   }
 
-  // ── the gangway: from the main deck's edge across the bulwark to the landing beside the hull ──
+  // ── the gangway: from the main deck's edge on the moored side, square across, to the quay it is moored to ──
   const side = moored === "port" ? 1 : -1;
   const gangway: Vec2[] = [];
   let gangwayAt: number | null = null;
-  const placed0 = placeObject(first, { id: spec.id, anchor: { at, base: 0, turn } });
-  const near = new Set([...placed0.footprint, ...placed0.keepClear].map(key));
   if (mainCells.length > 0) {
     const used = new Set(links.map((l) => key(l.from.at)));
     const candidates = byMiddle(mainCells).filter(
@@ -524,6 +594,9 @@ function expandVessel(plan: MapPlan, spec: ObjectSpec, palettes: ResolvePalettes
       const best = row.sort((p, q) => side * (layout.station(q).z - layout.station(p).z))[0];
       return best ?? null;
     };
+    // the shortest crossing to the landing (the level's own dry ground at deck height), nearest midships first; the
+    // landing's cell stays the quay's (the gangway is only the cells between)
+    let best: { cells: Vec2[]; at: number } | null = null;
     for (const c of candidates) {
       const edge = outermost(c);
       if (!edge || used.has(key(edge))) continue;
@@ -532,16 +605,21 @@ function expandVessel(plan: MapPlan, spec: ObjectSpec, palettes: ResolvePalettes
         return side * (layout.station(n).z - layout.station(edge).z) > 0.5;
       });
       if (!step) continue;
+      const cells: Vec2[] = [];
       let cur: Vec2 = [edge[0] + step[0], edge[1] + step[1]];
-      while (near.has(key(cur)) && gangway.length < 6) {
-        gangway.push(cur);
+      while (!landing.has(key(cur)) && cells.length < GANGWAY_REACH) {
+        cells.push(cur);
         cur = [cur[0] + step[0], cur[1] + step[1]];
       }
-      gangway.push(cur);
-      gangwayAt = layout.station(edge).x;
-      break;
+      if (!landing.has(key(cur))) continue;
+      if (!best || cells.length < best.cells.length) best = { cells, at: layout.station(edge).x };
+      if (best.cells.length <= 1) break;
     }
-    if (gangway.length > 0) {
+    if (best) {
+      pushAll(gangway, best.cells);
+      gangwayAt = best.at;
+    }
+    if (gangway.length > 0)
       addArea(deckLevel, {
         id: `${spec.id}~gangway`,
         kind: "courtyard",
@@ -550,8 +628,7 @@ function expandVessel(plan: MapPlan, spec: ObjectSpec, palettes: ResolvePalettes
         floor: "wood_plank",
         walls: "none",
       });
-      if (gangwayAt !== null) clear.push(gangwayAt);
-    }
+    if (gangwayAt !== null) clear.push(gangwayAt);
   }
   pushAll(plan.links, links);
 
@@ -567,6 +644,7 @@ function expandVessel(plan: MapPlan, spec: ObjectSpec, palettes: ResolvePalettes
   const blocked = [...placed.footprint, ...placed.keepClear].filter((c) => !gangSet.has(key(c)));
   // the plan's own features never stand in the object (on any of its levels)
   const blockSet = new Set(blocked.map(key));
+  const hullLevel = holdLevel;
   for (const lv of plan.levels)
     if (areaIds.has(lv.id) || lv.id === holdLevel.id)
       lv.features = lv.features.filter((f) => !blockSet.has(key([Math.floor(f.at[0]), Math.floor(f.at[1])])));
@@ -576,7 +654,7 @@ function expandVessel(plan: MapPlan, spec: ObjectSpec, palettes: ResolvePalettes
     placed,
     anchor: { at, base, turn },
     deckElevation: E,
-    hullLevel: holdLevel.id,
+    hullLevel: hullLevel.id,
     areas: areaIds,
     rooms,
     decks,
@@ -632,7 +710,8 @@ export function expandObjectSites(
   palettes: ResolvePalettes,
 ): { plan: MapPlan; sites: ObjectSite[] } {
   const out = cloneJson(plan);
-  const sites = specs.map((s) => expandVessel(out, s, palettes));
+  const landings = landingsOf(plan);
+  const sites = specs.map((s) => expandVessel(out, s, palettes, landings.get(s.level) ?? new Set()));
   return { plan: out, sites };
 }
 
@@ -735,7 +814,13 @@ export function resolveWithObjects(
   opts: ResolveOptions = {},
 ): { resolved: ResolvedPlan; plan: MapPlan; sites: ObjectSite[] } {
   const ex = expandObjectSites(plan, specs, palettes);
-  const resolved = placeObjectSites(resolvePlan(ex.plan, palettes, opts), ex.sites);
+  // afloat: the board's one water plane at the lowest waterline (none sits above the water), unless the caller says
+  const lines = ex.sites.map((s) => s.anchor.base);
+  const plane = opts.waterPlane ?? (lines.length > 0 ? minOf(lines) : undefined);
+  const resolved = placeObjectSites(
+    resolvePlan(ex.plan, palettes, { ...opts, ...(plane !== undefined ? { waterPlane: plane } : {}) }),
+    ex.sites,
+  );
   return { resolved, plan: ex.plan, sites: ex.sites };
 }
 

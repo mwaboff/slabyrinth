@@ -1732,13 +1732,13 @@ plans/example-a review floor_patchwork 1
 plans/example-a review furniture_adrift 1
 plans/example-a review room_unlit 1
 plans/example-a review single_route 1
-plans/example-a@5 l2 pieces feature 71
+plans/example-a@5 l2 pieces feature 45
 plans/example-a@5 l2 pieces fill 29
 plans/example-a@5 l2 pieces floor 129
 plans/example-a@5 l2 pieces link 9
 plans/example-a@5 l2 pieces wall 255
 plans/example-a@5 l2 pieces wall_post 6
-plans/example-a@5 l2 layer site 499
+plans/example-a@5 l2 layer site 473
 plans/example-a@5 l2 part c3~room#0 1
 plans/example-a@5 l2 part chapel~room#0 1
 plans/example-a@5 l2 part chapel~room#1 1
@@ -1901,15 +1901,15 @@ plans/example-b review flat_map 1
 plans/example-b review focus_unreached 1
 plans/example-b review rows_or_even_scatter 3
 plans/example-b review straight_natural 1
-plans/example-b@5 g pieces feature 386
+plans/example-b@5 g pieces feature 270
 plans/example-b@5 g pieces fill 59
-plans/example-b@5 g pieces floor 794
+plans/example-b@5 g pieces floor 797
 plans/example-b@5 g pieces ledge 35
 plans/example-b@5 g pieces opening 1
 plans/example-b@5 g pieces wall 14
 plans/example-b@5 g pieces wall_post 6
-plans/example-b@5 g layer site 1295
-plans/example-b@5 g part floor:floor.bridge_wood 6
+plans/example-b@5 g layer site 1182
+plans/example-b@5 g part floor:floor.bridge_wood 9
 plans/example-b@5 g part floor:floor.dirt 136
 plans/example-b@5 g part floor:floor.flagstone 20
 plans/example-b@5 g part floor:floor.grass 401
@@ -2340,11 +2340,11 @@ plans/heartroot-rift-v7 review competing_focals 1
 plans/heartroot-rift-v7 review flat_map 1
 plans/heartroot-rift-v7@5 l1 pieces feature 626
 plans/heartroot-rift-v7@5 l1 pieces fill 463
-plans/heartroot-rift-v7@5 l1 pieces floor 490
+plans/heartroot-rift-v7@5 l1 pieces floor 491
 plans/heartroot-rift-v7@5 l1 pieces ledge 59
 plans/heartroot-rift-v7@5 l1 pieces wall 511
-plans/heartroot-rift-v7@5 l1 layer site 2149
-plans/heartroot-rift-v7@5 l1 part floor:floor.bridge_wood 2
+plans/heartroot-rift-v7@5 l1 layer site 2150
+plans/heartroot-rift-v7@5 l1 part floor:floor.bridge_wood 3
 plans/heartroot-rift-v7@5 l1 part floor:floor.flagstone 9
 plans/heartroot-rift-v7@5 l1 part floor:floor.lava 45
 plans/heartroot-rift-v7@5 l1 part floor:floor.rock 434
@@ -5602,11 +5602,11 @@ plans/three-step-glen-v1 review rows_or_even_scatter 2
 plans/three-step-glen-v1 review straight_natural 1
 plans/three-step-glen-v1@5 glen pieces feature 324
 plans/three-step-glen-v1@5 glen pieces fill 368
-plans/three-step-glen-v1@5 glen pieces floor 591
+plans/three-step-glen-v1@5 glen pieces floor 590
 plans/three-step-glen-v1@5 glen pieces ledge 226
 plans/three-step-glen-v1@5 glen pieces wall 3
-plans/three-step-glen-v1@5 glen layer site 1512
-plans/three-step-glen-v1@5 glen part floor:floor.bridge_wood 3
+plans/three-step-glen-v1@5 glen layer site 1511
+plans/three-step-glen-v1@5 glen part floor:floor.bridge_wood 2
 plans/three-step-glen-v1@5 glen part floor:floor.dirt 92
 plans/three-step-glen-v1@5 glen part floor:floor.grass 218
 plans/three-step-glen-v1@5 glen part floor:floor.rock 118
@@ -7071,10 +7071,10 @@ gen/dressed-cave review floor_patchwork 1
 gen/dressed-cave review rows_or_even_scatter 1
 gen/dressed-cave@5 l1 pieces feature 614
 gen/dressed-cave@5 l1 pieces fill 410
-gen/dressed-cave@5 l1 pieces floor 404
+gen/dressed-cave@5 l1 pieces floor 407
 gen/dressed-cave@5 l1 pieces wall 408
-gen/dressed-cave@5 l1 layer site 1836
-gen/dressed-cave@5 l1 part floor:floor.bridge_wood 4
+gen/dressed-cave@5 l1 layer site 1839
+gen/dressed-cave@5 l1 part floor:floor.bridge_wood 7
 gen/dressed-cave@5 l1 part floor:floor.lava 17
 gen/dressed-cave@5 l1 part floor:floor.rock 383
 gen/dressed-cave@5 l1 part tunnel~room#0 1
@@ -7159,10 +7159,10 @@ gen/dressed-cave-v2 review flat_map 1
 gen/dressed-cave-v2 review floor_patchwork 1
 gen/dressed-cave-v2@5 l1 pieces feature 1040
 gen/dressed-cave-v2@5 l1 pieces fill 560
-gen/dressed-cave-v2@5 l1 pieces floor 530
+gen/dressed-cave-v2@5 l1 pieces floor 531
 gen/dressed-cave-v2@5 l1 pieces wall 561
-gen/dressed-cave-v2@5 l1 layer site 2691
-gen/dressed-cave-v2@5 l1 part floor:floor.bridge_wood 3
+gen/dressed-cave-v2@5 l1 layer site 2692
+gen/dressed-cave-v2@5 l1 part floor:floor.bridge_wood 4
 gen/dressed-cave-v2@5 l1 part floor:floor.lava 30
 gen/dressed-cave-v2@5 l1 part floor:floor.rock 483
 gen/dressed-cave-v2@5 l1 part floor:floor.stone_tile 14
@@ -7521,12 +7521,12 @@ gen/hillside-v5 review cliff_unclad_low 1
 gen/hillside-v5 review straight_natural 1
 gen/hillside-v5@5 hill pieces feature 221
 gen/hillside-v5@5 hill pieces fill 253
-gen/hillside-v5@5 hill pieces floor 371
+gen/hillside-v5@5 hill pieces floor 376
 gen/hillside-v5@5 hill pieces ledge 52
 gen/hillside-v5@5 hill pieces link 4
 gen/hillside-v5@5 hill pieces wall 29
-gen/hillside-v5@5 hill layer site 930
-gen/hillside-v5@5 hill part floor:floor.bridge_wood 6
+gen/hillside-v5@5 hill layer site 935
+gen/hillside-v5@5 hill part floor:floor.bridge_wood 11
 gen/hillside-v5@5 hill part floor:floor.dirt 40
 gen/hillside-v5@5 hill part floor:floor.grass 221
 gen/hillside-v5@5 hill part floor:floor.rock 38
