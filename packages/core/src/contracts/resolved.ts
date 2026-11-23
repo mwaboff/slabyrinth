@@ -439,6 +439,38 @@ export interface ResolvedLevel {
    * instance is one element, so its own pieces may overlap. Absent when there are none.
    */
   arrangements?: ResolvedArrangement[];
+  /**
+   * Generator 5: the character of the level and of each zone, building and area on it (light, condition, wealth),
+   * keyed by element id (the level's own id for the scene). Resolved once from what each scope states, its words and
+   * what it inherits from the scope around it (resolve/character.ts); every consumer reads it, never the words.
+   */
+  character?: Record<ElementId, ResolvedCharacter>;
+}
+
+/** How many light accents mark the places in use (never the scene's brightness: the GM's board setting). */
+export type CharacterLight = "dark" | "dim" | "moderate" | "bright" | "flooded";
+/** Upkeep. */
+export type CharacterCondition = "intact" | "weathered" | "ramshackle" | "ruined";
+/** Status: material and trim richness, furnishing, cleanliness. */
+export type CharacterWealth = "poor" | "modest" | "wealthy" | "lavish";
+/** The colour of the light pieces a place prefers. */
+export type CharacterTone = "warm" | "cold" | "coloured";
+/** Where an axis's value came from: a field, the subject's own words or mood, its parent (drawn), or the default. */
+export type CharacterSource = "stated" | "words" | "inherited" | "default";
+
+/** One subject's character (ResolvedLevel.character). */
+export interface ResolvedCharacter {
+  light: CharacterLight;
+  condition: CharacterCondition;
+  /** A ruin's severity, 1 (crumbling) .. 3 (collapsed); ruined only. */
+  severity?: 1 | 2 | 3;
+  /** A ruin's stage, when its words say (squatters: reoccupied); ruined only. */
+  stage?: "abandoned" | "reoccupied";
+  wealth: CharacterWealth;
+  tone: CharacterTone;
+  /** The scope it inherits from (the level, a zone or a building); absent for the level. */
+  parent?: ElementId;
+  sources: { light: CharacterSource; condition: CharacterSource; wealth: CharacterSource };
 }
 
 /**

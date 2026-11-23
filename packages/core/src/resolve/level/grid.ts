@@ -53,6 +53,7 @@ import {
 import { isWater, materialOrdinal } from "../materials";
 import type { ThemeDefaults } from "../themes";
 import { type StructureWork, expandStructures } from "../structure";
+import { type CharacterMap, resolveCharacters } from "../character";
 import { areaTable } from "./areas";
 import { MAX_LEVEL_SIDE } from "../../plan/sizeTiers";
 
@@ -169,6 +170,8 @@ export class ResolveGrid {
   readonly ctx: LevelContext;
   /** Buildings and enclosures (resolve/structure.ts); null when the level has none. */
   readonly structs: StructureWork | null;
+  /** Generator 5 (characterCascade): every subject's character, resolved before anything reads it (resolve/character.ts). */
+  readonly characters: CharacterMap | null;
   /**
    * The next level up by elevation, linked once every level's areas are laid (resolvePlan.ts, after phase 1): where it
    * has floor, its elevation is this level's ceiling (`ceilingAt`). Null for the top level.
@@ -182,6 +185,8 @@ export class ResolveGrid {
     this.li = ctx.levelIndex;
     const planLevel = ctx.plan.levels[ctx.levelIndex] as Level;
     const lb = planLevel.bounds;
+    // the character of every scope, before the buildings are planned (they read their condition from it)
+    this.characters = resolveCharacters(ctx.plan, ctx.levelIndex);
     // structures add synthetic areas / openings / wall runs after the plan's own (resolve/structure.ts)
     const ex = expandStructures(
       ctx.plan,
@@ -189,6 +194,7 @@ export class ResolveGrid {
       ctx.levelIndex,
       ctx.issues,
       (x, y) => x >= lb.x && y >= lb.y && x < lb.x + lb.w && y < lb.y + lb.h,
+      this.characters,
     );
     const level = ex.level;
     this.structs = ex.work;

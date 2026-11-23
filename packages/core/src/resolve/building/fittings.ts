@@ -11,6 +11,7 @@ import { type BuildingFaces, GROUND_FACES } from "./faces";
 import { alongFace, cellOf, faceKey, faceRuns, key, ringOf } from "./footprint";
 import type { BuildingPlan, Chimney, GroundOpening, Porch } from "./types";
 import type { GroundFootprint } from "./volumes";
+import { characterAt, lightIndex } from "../character";
 
 /**
  * The face of a plinth when neither the plan nor the building style names one. Neither the palette nor the theme
@@ -159,13 +160,29 @@ export function drawLighting(
     doors: doorLights,
     strips: st.lighting?.strips ?? prng2.chance(pl.strips),
   };
+  // generator 5 (characterCascade): its light level, not its upkeep, scales the share of windows lit (worn is not dark;
+  // a ruin still has nobody in it)
+  const ch = characterAt(b.work, st.id);
   if (condition === "ruined") {
     lighting.windows = "none";
     lighting.strips = false;
-  } else if (condition === "weathered")
+  } else if (ch !== null)
+    lighting.lit = Math.min(1, Math.round(lighting.lit * WINDOWS_LIT_BY_LIGHT[lightIndex(ch)] * 100) / 100);
+  else if (condition === "weathered")
     // most windows dark
     lighting.lit = Math.round(lighting.lit * (b.gen.legibleCondition ? 15 : 30)) / 100;
   return lighting;
+}
+
+/** A building's lit-window share multiplier by its light level (dark .. flooded). */
+export const WINDOWS_LIT_BY_LIGHT = [0.25, 0.6, 1, 1.4, 1.8] as const;
+
+/** Whether a building of this light level has lights at its doors (generator 5): none at dark unless the plan asks. */
+export function doorLightsByLight(b: BuildingCtx, drawn: boolean): boolean {
+  const ch = characterAt(b.work, b.st.id);
+  if (ch === null || b.st.lighting?.doors !== undefined) return drawn;
+  const level = lightIndex(ch);
+  return level === 0 ? false : level >= 3 ? true : drawn;
 }
 
 /**

@@ -80,13 +80,18 @@ export function drawLighting(p: {
   readonly at: readonly [number, number];
   readonly neighbours: readonly LitNeighbour[];
   readonly abandoned: boolean;
+  /**
+   * Generator 5 (characterCascade): the room's level as its character resolved it (resolve/character.ts, by
+   * `roomLightLevel`); its words and the scene are then not read again here.
+   */
+  readonly level?: LightLevel;
 }): RoomLightPlan {
   const lit = ROOM_TRAITS[p.kind].lighting;
   const rng = createPrng(subSeed(p.seed, "lighting"));
   const base = clampTo04(lit.level + p.scene.level - 2, 0, 4);
   const r = rng.next();
   const variety = r < 0.2 ? -1 : r < 0.8 ? 0 : 1;
-  const level = clampTo04(base + roomNudge(p.words, base) + variety, lit.range[0], lit.range[1]);
+  const level = p.level ?? clampTo04(base + roomNudge(p.words, base) + variety, lit.range[0], lit.range[1]);
   if (p.abandoned) return { level: 0, regime: null };
   const allowed = REGIME_ORDER.filter((g) => (lit.regimes[g] ?? 0) > 0);
   // a dark room has its one light at the door, where its kind allows that
@@ -104,6 +109,25 @@ export function drawLighting(p: {
     if (x < 0) return { level, regime: allowed[i] as LightRegime };
   }
   return { level, regime: allowed[allowed.length - 1] ?? "surfaces" };
+}
+
+/**
+ * A room's light level (generator 5, the character resolver's room rule): its kind's default shifted by how far the
+ * scope around it (`parent`) sits from moderate, a step either way for variety (about 20 % each, the same draw
+ * `drawLighting` makes from the room's seed), held in the kind's range. `named`: the level the room's own words name,
+ * which wins unclamped ("Dim taproom" stays dim in a bright building).
+ */
+export function roomLightLevel(
+  kind: RoomKind,
+  parent: LightLevel,
+  seed: number,
+  named?: LightLevel,
+): LightLevel {
+  if (named !== undefined) return named;
+  const lit = ROOM_TRAITS[kind].lighting;
+  const r = createPrng(subSeed(seed, "lighting")).next();
+  const variety = r < 0.2 ? -1 : r < 0.8 ? 0 : 1;
+  return clampTo04(clampTo04(lit.level + parent - 2, 0, 4) + variety, lit.range[0], lit.range[1]);
 }
 
 /** A surface people sit or work at, or a nightstand: what a regime lights first. */

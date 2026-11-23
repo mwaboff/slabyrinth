@@ -29,6 +29,7 @@ import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed, h32, hashUnit, subSeed } from "../../util/hash";
 import { maxOf, minOf } from "../../util/lists";
+import { characterAt, lightIndex } from "../character";
 import { FAMILY_ROTATION, purposeFloor } from "../interiorFloors";
 import { isBuiltFloor } from "../materials";
 import type { FeatureWork } from "./features";
@@ -402,12 +403,16 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
   const grid = features.placementGrid();
   if (grid.piece4 === undefined) return;
   // generator 5 (lightRegimes): the scene's light level from the plan's words, and the rooms lit so far
-  const scene = work.profile.lightRegimes
-    ? sceneLight({
-        theme: work.plan.theme,
-        texts: [work.plan.title, work.plan.summary, work.plan.kind, work.level.name],
-      })
-    : undefined;
+  // (generator 5, characterCascade: the scene and each room as their characters resolved them, resolve/character.ts)
+  const sceneCh = characterAt(work, work.level.id);
+  const scene = !work.profile.lightRegimes
+    ? undefined
+    : sceneCh !== null
+      ? { level: lightIndex(sceneCh), colour: sceneCh.tone === "coloured" }
+      : sceneLight({
+          theme: work.plan.theme,
+          texts: [work.plan.title, work.plan.summary, work.plan.kind, work.level.name],
+        });
   const lit: LitNeighbour[] = [];
   for (const info of work.areas) {
     if (info.kind !== "room" && info.kind !== "corridor") continue;
@@ -431,6 +436,7 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
     if (info.kind === "room" && furnishedPurpose(purpose) && lightly && !dressed.has(area.id)) {
       // the room's light level and regime, its near rooms' regimes weighing less
       let lighting: { plan: RoomLightPlan; scene: SceneLight } | undefined;
+      const ch = characterAt(work, area.id);
       if (scene !== undefined) {
         const at: [number, number] = [
           cells.reduce((a, c) => a + c[0] + 0.5, 0) / cells.length,
@@ -444,6 +450,7 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
           at,
           neighbours: lit,
           abandoned,
+          ...(ch !== null ? { level: lightIndex(ch) } : {}),
         });
         if (plan.regime !== null) lit.push({ at, regime: plan.regime });
         lighting = { plan, scene };
@@ -453,6 +460,7 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
         purpose,
         ...(kind !== undefined ? { kind } : {}),
         ...(lighting !== undefined ? { lighting } : {}),
+        ...(ch !== null ? { character: ch } : {}),
         abandoned,
         areaIndex: info.index + 1,
         areaCells: cells,

@@ -19,7 +19,7 @@
  */
 import type { MapPlan, Vec2 } from "../contracts/plan";
 import type { ResolvedFeature, ResolvedLevel, ResolvedPlan, ResolvedStructure } from "../contracts/resolved";
-import { sceneMeantDim } from "./lights";
+import { sceneMeantDim, subjectMeantDim } from "./lights";
 import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
 import { isPassage } from "../gen/openingKinds";
@@ -137,7 +137,7 @@ export function qualityNotes(
     const buildings = (L.structures ?? []).filter((s) => s.kind === "building");
 
     const unlit = buildings
-      .filter((s) => s.lighting?.doors !== true && !dimScene)
+      .filter((s) => s.lighting?.doors !== true && !dimScene && !subjectMeantDim(L, s.id))
       .map((s) => ({ s, n: buildingDoors(L, s, gives).filter((d) => !d.lit).length }))
       .filter((x) => x.n >= Q.unlitDoors);
     if (unlit.length > 0)

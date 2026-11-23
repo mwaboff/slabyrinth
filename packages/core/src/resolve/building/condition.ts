@@ -27,6 +27,7 @@ import { alongFace, cellOf, faceKey, faceRuns, key, ringOf } from "./footprint";
 import type { BuildingPlan, Chimney, GroundOpening, Porch, VolumePlan } from "./types";
 import { buildingSubject, type Subject } from "../recipes/treatments";
 import { ruinBays } from "./ruinBays";
+import { characterAt, structureCondition } from "../character";
 
 /** A building as the treatments see it (generator 5): its condition state and role from its plan words. */
 export function buildingSubjectOf(
@@ -42,6 +43,7 @@ export function buildingSubjectOf(
     st.theme ?? b.levelTheme,
     Math.max(1, maxOf(vplans.map((v) => v.storeys.length))),
     { condition, name: st.name, tags: st.tags, notes: st.notes, use: st.use },
+    characterAt(b.work, st.id),
   );
 }
 
@@ -84,7 +86,9 @@ export function applyCondition(
   porches: readonly Porch[] = [],
 ): Decay {
   const { st, profile, seed } = b;
-  const condition = st.condition ?? profile.condition ?? "intact";
+  // generator 5 (characterCascade): the condition its character resolved (stated, worded or drawn from its district)
+  const ch = characterAt(b.work, st.id);
+  const condition = ch !== null ? structureCondition(ch) : (st.condition ?? profile.condition ?? "intact");
   const legible = b.gen.legibleCondition;
   const prng4 = createPrng(subSeed(seed, "condition"));
   const debris: BuildingPlan["debris"] = [];

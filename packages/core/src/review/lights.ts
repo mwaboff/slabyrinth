@@ -11,7 +11,8 @@
  * Released generators count every light feature and hold every room to light.
  */
 import type { MapPlan } from "../contracts/plan";
-import type { ResolvedArea, ResolvedFeature, ResolvedPlan } from "../contracts/resolved";
+import type { ResolvedArea, ResolvedFeature, ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
+import { elementCharacter, lightIndex } from "../resolve/character";
 import { LIGHT_FEATURES } from "../gen/catalog";
 import { sceneLight } from "../gen/lightLevels";
 import { givesLight, lightOfPool } from "../gen/lightReach";
@@ -69,6 +70,15 @@ export function lightGiver(
 /** Is a room meant to be dim (its drawn light level dim or dark)? Never for a released generator. */
 export const roomMeantDim = (a: ResolvedArea | undefined): boolean =>
   a?.lightLevel !== undefined && a.lightLevel <= DIM_LEVEL;
+
+/**
+ * Is a subject meant to be dim (generator 5, characterCascade: its own character's light is dim or dark)? Each subject
+ * is judged against its own character: a dim quarter's houses keep their doors dark on purpose.
+ */
+export function subjectMeantDim(L: Pick<ResolvedLevel, "character">, id: string): boolean {
+  const c = elementCharacter(L, id);
+  return c !== null && lightIndex(c) <= DIM_LEVEL;
+}
 
 /** Is the scene meant to be dim (generator 5: its words name a dim or dark level)? */
 export function sceneMeantDim(plan: MapPlan): boolean {

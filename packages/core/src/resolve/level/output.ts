@@ -221,6 +221,8 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
   // generator 5: what the room furnisher kept clear (gen/rooms4/furnish.ts; empty otherwise)
   const kept = s.features.keptClear;
   if (kept.length > 0) lvl.keptClear = kept;
+  // generator 5 (characterCascade): every subject's character (resolve/character.ts)
+  if (work.characters !== null) lvl.character = Object.fromEntries(work.characters);
   if (work.structs) Object.assign(lvl, work.structs.finish(work.level.elevation));
   // the walls of a built interior vary in height (resolve/wallTops.ts)
   if (work.profile.interiorWallTops && work.level.base.type === "solid") {

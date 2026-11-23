@@ -73,5 +73,39 @@ export function buildingState(w: BuildingWords): BuildingState {
   };
 }
 
+/** Upkeep words other than ramshackle's (generator 5, the character resolver, resolve/character.ts). */
+const WEATHERED = /\b(weathered|worn|shabby|faded|neglected|grimy|peeling|battered|timeworn|downtrodden)\b/;
+const INTACT =
+  /\b(pristine|immaculate|spotless|well-kept|well-tended|tidy|polished|restored|well-maintained)\b/;
+const RUINED = /\b(ruined|ruins)\b/;
+
+/**
+ * The upkeep words name, worst first (ruined only when `ruins` allows: a building's words never make it a ruin),
+ * undefined when they name none.
+ */
+export function conditionNamedBy(
+  texts: ReadonlyArray<string | undefined>,
+  opts: { readonly ruins: boolean },
+): "intact" | "weathered" | "ramshackle" | "ruined" | undefined {
+  const text = texts.join(" ").toLowerCase();
+  if (opts.ruins && RUINED.test(text)) return "ruined";
+  if (RAMSHACKLE.test(text)) return "ramshackle";
+  if (WEATHERED.test(text)) return "weathered";
+  if (INTACT.test(text)) return "intact";
+  return undefined;
+}
+
+/** A ruin's severity and stage as its words say (severity 2 and no stage when they say neither). */
+export function ruinNamedBy(texts: ReadonlyArray<string | undefined>): {
+  readonly severity: 1 | 2 | 3;
+  readonly reoccupied: boolean;
+} {
+  const text = texts.join(" ").toLowerCase();
+  return {
+    severity: COLLAPSED.test(text) ? 3 : CRUMBLING.test(text) ? 1 : 2,
+    reoccupied: REOCCUPIED.test(text),
+  };
+}
+
 /** The coarse wear a state stands for (0 kept up, 1 worn or ramshackle, 2 ruined). */
 export const wearOfState = (s: ConditionState): 0 | 1 | 2 => (s === "ruined" ? 2 : s === "kept" ? 0 : 1);

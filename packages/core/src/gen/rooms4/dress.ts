@@ -4,6 +4,7 @@
  * room-kind table instead (gen/rooms4/furnish.ts).
  */
 import type { FeatureType } from "../../contracts/plan";
+import type { ResolvedCharacter } from "../../contracts/resolved";
 import { gridProfile, type PlacementGrid, type ScatterResult } from "../placementGrid";
 import { ROOM_PURPOSE_INFO, type FurnishedPurpose, type RoomKind } from "../roomPurpose";
 import { SURFACE_LOAD } from "../surfaces";
@@ -31,6 +32,11 @@ export interface RoomDressParams {
   kind?: RoomKind;
   /** Generator 5 (lightRegimes): the room's light level and regime (gen/rooms4/regimes.ts drawLighting), the scene's. */
   lighting?: { plan: RoomLightPlan; scene: SceneLight };
+  /**
+   * Generator 5 (characterCascade): the room's character (resolve/character.ts). Wealth sets where in its kind's props
+   * per 10 tiles it stops (poor low, modest and up high) and, with condition, its order one step tidier or messier.
+   */
+  character?: ResolvedCharacter;
 }
 
 /**

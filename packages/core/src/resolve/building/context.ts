@@ -12,6 +12,7 @@ import type { Building, MapPlan, PlanIssue, Vec2 } from "../../contracts/plan";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
 import { elementSeed, subSeed } from "../../util/hash";
 import { createPrng, type Prng } from "../../util/prng";
+import type { CharacterMap } from "../character";
 import {
   DEFAULT_STRUCTURE_STYLE,
   STRUCTURE_STYLES,
@@ -38,6 +39,8 @@ export interface BuildingWork {
   readonly designs: Map<string, { design: BuildingDesign; building: Building }>;
   /** Footprint cells of the buildings planned so far ("x,y" → building id). */
   occupied(): Map<string, string>;
+  /** Generator 5 (characterCascade): the level's characters (resolve/character.ts `characterAt`); null when off. */
+  readonly characters: CharacterMap | null;
 }
 
 export interface BuildingCtx {

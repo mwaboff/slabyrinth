@@ -56,7 +56,7 @@ import { briefNotes } from "./brief";
 import { caveNaturalChecks, caveWallChecks } from "./caveWall";
 import { caveMassReviewNotes } from "./caveMass";
 import { interiorNotes } from "./interiors";
-import { lightGiver, roomMeantDim, sceneMeantDim } from "./lights";
+import { lightGiver, roomMeantDim, sceneMeantDim, subjectMeantDim } from "./lights";
 import { roofGapNotes } from "./roofGaps";
 import { reviewBuild } from "./reviewBuild";
 import { stallNotes } from "./stalls";
@@ -1542,7 +1542,11 @@ function focalLights(c: Ctx): DesignNote[] {
   // generator 5: a focal piece in a room (or a scene) meant to be dim is not in the dark by mistake
   const meantDim = (f: ResolvedFeature): boolean => {
     const a = c.L.areas.find((x) => x.id === f.area);
-    return roomMeantDim(a) || (a?.kind !== "room" && a?.kind !== "corridor" && sceneMeantDim(c.plan));
+    return (
+      roomMeantDim(a) ||
+      (a?.kind !== "room" && a?.kind !== "corridor" && sceneMeantDim(c.plan)) ||
+      (a !== undefined && a.kind !== "room" && a.kind !== "corridor" && subjectMeantDim(c.L, a.id))
+    );
   };
   const gap = (a: (typeof lights)[number], b: (typeof lights)[number]): number => {
     const dx = Math.max(a.at[0] - (b.at[0] + b.size[0] - 1), b.at[0] - (a.at[0] + a.size[0] - 1), 0);

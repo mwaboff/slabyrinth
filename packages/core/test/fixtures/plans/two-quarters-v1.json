@@ -1,0 +1,164 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 5,
+  "id": "b3f1c6a2-58d4-4e7b-9a10-2c7e5d8f9b31",
+  "title": "two-quarters-v1",
+  "kind": "outdoor",
+  "seed": 5203,
+  "theme": "wood_town",
+  "summary": "One street that runs from a merchants' quarter into the rookery: an inn and a shop in each, the other houses left to their quarter's draw.",
+  "levels": [
+    {
+      "id": "g",
+      "name": "High Street",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 84, "h": 32 },
+      "base": { "type": "ground", "material": "grass" },
+      "areas": [
+        {
+          "id": "uptown",
+          "kind": "zone",
+          "name": "Merchants' quarter",
+          "notes": "Wealthy, well-kept and bright: the rich end of the street.",
+          "shape": { "type": "rect", "x": 0, "y": 0, "w": 42, "h": 32 }
+        },
+        {
+          "id": "rookery",
+          "kind": "zone",
+          "name": "The Rookery",
+          "notes": "Poor, run-down and gloomy: the street's downtrodden end.",
+          "shape": { "type": "rect", "x": 42, "y": 0, "w": 42, "h": 32 }
+        },
+        {
+          "id": "square",
+          "kind": "courtyard",
+          "name": "Market square",
+          "floor": "cobble",
+          "walls": "none",
+          "shape": { "type": "rect", "x": 14, "y": 17, "w": 12, "h": 3 }
+        },
+        {
+          "id": "yard",
+          "kind": "courtyard",
+          "name": "Back yard",
+          "floor": "dirt",
+          "walls": "none",
+          "shape": { "type": "rect", "x": 57, "y": 17, "w": 12, "h": 3 }
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [],
+      "labels": [],
+      "terrain": [
+        {
+          "id": "street",
+          "op": "path",
+          "points": [
+            [0, 15],
+            [83, 15]
+          ],
+          "width": 3,
+          "material": "gravel"
+        }
+      ],
+      "structures": [
+        {
+          "id": "swan",
+          "name": "The Gilded Swan",
+          "style": "cottage",
+          "use": "tavern",
+          "notes": "A bright, prosperous inn.",
+          "seed": 21,
+          "wings": [{ "x": 2, "y": 4, "w": 9, "h": 7 }],
+          "storeys": 2,
+          "front": "S"
+        },
+        {
+          "id": "goldsmith",
+          "name": "Goldsmith",
+          "style": "cottage",
+          "use": "shop",
+          "seed": 22,
+          "wings": [{ "x": 14, "y": 5, "w": 7, "h": 6 }],
+          "storeys": 2,
+          "front": "S"
+        },
+        {
+          "id": "town1",
+          "name": "Townhouse",
+          "style": "cottage",
+          "use": "townhouse",
+          "seed": 23,
+          "wings": [{ "x": 24, "y": 4, "w": 7, "h": 7 }],
+          "front": "S"
+        },
+        {
+          "id": "town2",
+          "name": "Townhouse",
+          "style": "cottage",
+          "use": "townhouse",
+          "seed": 24,
+          "wings": [{ "x": 4, "y": 20, "w": 8, "h": 7 }],
+          "front": "N"
+        },
+        {
+          "id": "town3",
+          "name": "Townhouse",
+          "style": "cottage",
+          "use": "townhouse",
+          "seed": 25,
+          "wings": [{ "x": 26, "y": 20, "w": 8, "h": 6 }],
+          "front": "N"
+        },
+        {
+          "id": "bucket",
+          "name": "The Leaky Bucket",
+          "style": "cottage",
+          "use": "tavern",
+          "notes": "A dim, smoky drinking den.",
+          "seed": 31,
+          "wings": [{ "x": 45, "y": 4, "w": 9, "h": 7 }],
+          "front": "S"
+        },
+        {
+          "id": "pawn",
+          "name": "Pawnbroker",
+          "style": "cottage",
+          "use": "shop",
+          "seed": 32,
+          "wings": [{ "x": 57, "y": 5, "w": 6, "h": 6 }],
+          "front": "S"
+        },
+        {
+          "id": "hovel1",
+          "name": "Lodging house",
+          "style": "cottage",
+          "use": "house",
+          "seed": 33,
+          "wings": [{ "x": 66, "y": 4, "w": 8, "h": 7 }],
+          "front": "S"
+        },
+        {
+          "id": "hovel2",
+          "name": "Cottage",
+          "style": "cottage",
+          "use": "house",
+          "seed": 36,
+          "wings": [{ "x": 48, "y": 20, "w": 7, "h": 6 }],
+          "front": "N"
+        },
+        {
+          "id": "hovel3",
+          "name": "Cottage",
+          "style": "cottage",
+          "use": "house",
+          "seed": 38,
+          "wings": [{ "x": 70, "y": 20, "w": 8, "h": 6 }],
+          "front": "N"
+        }
+      ]
+    }
+  ],
+  "links": []
+}

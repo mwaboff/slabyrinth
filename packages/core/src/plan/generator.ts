@@ -456,6 +456,10 @@ const SWITCHES = {
     5,
     "A room's lights follow a light level and a regime: the scene's level from the plan's words, each room's from its kind's default and range (gen/lightLevels.ts), and one regime per room drawn from those its kind allows, neighbours differing (lit surfaces, a threshold pair, a focal glow, a wall rhythm, a dim store), with pieces chosen by their reach (gen/lightReach.ts). A light stands on the floor only where it is meant to (a brazier, a lantern stand), never in a lane, a door's apron or a corridor; a corridor is lit at its doors and junctions; a lived-in room of 3 tiles or more keeps a light, an abandoned one its dark (gen/rooms4/regimes.ts).",
   ),
+  characterCascade: on(
+    5,
+    "Every level, zone, building and area has a character (light, condition, wealth) resolved once from what it states, its own words and mood, and the scope around it with a little variety (resolve/character.ts); room light levels, a building's decay and window lights, the treatments' condition and richness, ground wear, a room's prop density and order, and the review read it (ResolvedLevel.character).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

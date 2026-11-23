@@ -26,6 +26,7 @@ import { featureInfo } from "../../gen/catalog";
 import { NEIGHBOURS4, OPPOSITE, SIDE_STEP, SIDES } from "../../gen/gridGeometry";
 import { isPassage } from "../../gen/openingKinds";
 import { MATERIAL_INFO } from "../materials";
+import { characterWear, elementCharacter } from "../character";
 import type { LevelGrid } from "../levelGrid";
 import { ZONE, type ZoneAnchor, type ZoneDoor } from "./types";
 
@@ -79,7 +80,11 @@ export function zoneAnchors(L: ResolvedLevel, g: LevelGrid): ZoneAnchor[] {
       longAxis: z.longAxis,
       indoor: area.kind === "room" || area.kind === "corridor",
       natural: z.natural,
-      wear: area.abandoned === true || area.purpose === "ruin" ? 2 : area.finish === "rough" ? 1 : 0,
+      wear: Math.max(
+        area.abandoned === true || area.purpose === "ruin" ? 2 : area.finish === "rough" ? 1 : 0,
+        // generator 5 (characterCascade): as worn as its character, whichever is worse (layered ground's wear)
+        characterWear(elementCharacter(L, area.id)),
+      ) as 0 | 1 | 2,
       edgeAt: (x, y) => {
         const i = index(x, y);
         return i >= 0 && (L.cells.area[i] ?? 0) === a ? (edge[i] ?? Infinity) : Infinity;

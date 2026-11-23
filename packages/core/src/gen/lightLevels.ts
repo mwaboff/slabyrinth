@@ -80,6 +80,48 @@ const WORD_LEVEL: ReadonlyMap<string, LightLevel> = new Map(
   LIGHT_LEVEL_NAMES.flatMap((name, i) => LEVEL_WORDS[name].map((w) => [w, i as LightLevel] as const)),
 );
 
+/**
+ * Words above that name a setting rather than a mood (generator 5, the character resolver): they set a scene's, a
+ * district's or a building's level, never a room's, whose kind already says it (a room named "Cellar" is a cellar).
+ */
+const SETTING_WORDS: ReadonlySet<string> = new Set([
+  "secret",
+  "hidden",
+  "night",
+  "midnight",
+  "dungeon",
+  "crypt",
+  "catacomb",
+  "catacombs",
+  "cellar",
+  "lair",
+  "hospital",
+  "clinic",
+  "neon",
+  "modern",
+]);
+
+/**
+ * The level words name (the middle one when they name several), undefined when they name none. `settings: false`
+ * reads mood words only (a room). The character resolver's light words (resolve/character.ts).
+ */
+export function lightNamedBy(
+  texts: ReadonlyArray<string | undefined>,
+  opts: { readonly settings: boolean },
+): LightLevel | undefined {
+  const named = wordsOf(texts)
+    .filter((w) => opts.settings || !SETTING_WORDS.has(w))
+    .map((w) => WORD_LEVEL.get(w))
+    .filter((l): l is LightLevel => l !== undefined)
+    .sort((a, b) => a - b);
+  return named[Math.floor((named.length - 1) / 2)];
+}
+
+/** A theme's level when nothing names one (dungeons and caves dim, towns moderate, the modern city bright). */
+export const themeLight = (theme: string): LightLevel => THEME_LEVEL[theme] ?? 2;
+/** Whether a theme's places may take coloured light (a dungeon, a cave). */
+export const colourTheme = (theme: string): boolean => COLOUR_THEMES.has(theme);
+
 const wordsOf = (texts: ReadonlyArray<string | undefined>): string[] =>
   texts.flatMap((t) => (t ?? "").toLowerCase().split(/[^a-z-]+/)).filter((w) => w.length > 0);
 

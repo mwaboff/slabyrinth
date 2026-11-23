@@ -42,10 +42,12 @@ import { withWings } from "../plan/building";
 import { rasterizeShape } from "../gen/shapes";
 import { elementSeed, subSeed } from "../util/hash";
 import { applyCondition, buildingSubjectOf } from "./building/condition";
+import type { CharacterMap } from "./character";
 import { applyWear } from "./building/wear";
 import { startBuilding } from "./building/context";
 import { BuildingFaces, drawFrontage, placeChimneys, placeOpenings, placeWindows } from "./building/faces";
 import {
+  doorLightsByLight,
   drawLighting,
   drawPlinth,
   drawRoofFurniture,
@@ -101,6 +103,8 @@ export class StructureWork {
     li: number,
     issues: PlanIssue[],
     private readonly gen: GeneratorProfile,
+    /** Generator 5 (characterCascade): the level's characters (resolve/character.ts); null when off. */
+    readonly characters: CharacterMap | null = null,
   ) {
     this.li = li;
     this.levelId = level.id;
@@ -588,10 +592,11 @@ export function expandStructures(
   li: number,
   issues: PlanIssue[],
   inBounds: (x: number, y: number) => boolean,
+  characters: CharacterMap | null = null,
 ): { level: Level; work: StructureWork | null } {
   const list = (level.structures ?? []).map(withWings);
   if (list.length === 0 || !generatorProfile(plan).buildings) return { level, work: null };
-  const x = startExpansion(plan, level, li, issues, inBounds, list);
+  const x = startExpansion(plan, level, li, issues, inBounds, list, characters);
   addEnclosureYards(x);
   markNeighbourPlots(x);
   drawDesigns(x);
@@ -612,8 +617,9 @@ function startExpansion(
   issues: PlanIssue[],
   inBounds: (x: number, y: number) => boolean,
   list: Structure[],
+  characters: CharacterMap | null,
 ) {
-  const work = new StructureWork(level, li, issues, generatorProfile(plan));
+  const work = new StructureWork(level, li, issues, generatorProfile(plan), characters);
   const areas: Area[] = [];
   const openings: Opening[] = [];
   const walls: WallRun[] = [];
@@ -1155,7 +1161,8 @@ function planBuilding(
   const standing = decay.condition === "intact" ? chimneys : [];
 
   // fittings, and the cells kept free of dressing
-  const doorLights = decay.condition === "ruined" ? false : (b.st.lighting?.doors ?? b.profile.doorLight);
+  const doorLights =
+    decay.condition === "ruined" ? false : doorLightsByLight(b, b.st.lighting?.doors ?? b.profile.doorLight);
   const lights = placeDoorLights(fp, faces, doorLights);
   const plinth = drawPlinth(b, fp);
   const furniture = drawRoofFurniture(b, decay.ruin);

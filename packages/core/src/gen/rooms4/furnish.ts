@@ -18,7 +18,14 @@ import { cellKey } from "../gridGeometry";
 import { gridProfile, type PlacementGrid, type ScatterResult } from "../placementGrid";
 import { ROOM_PURPOSE_INFO, type RoomKind } from "../roomPurpose";
 import type { FeatureType } from "../../contracts/plan";
-import { ROOM_TRAITS, type Companion, type PieceChoice, type RoomTraits } from "../roomTraits";
+import type { ResolvedCharacter } from "../../contracts/resolved";
+import {
+  ROOM_TRAITS,
+  type Companion,
+  type PieceChoice,
+  type RoomOrder,
+  type RoomTraits,
+} from "../roomTraits";
 import { SURFACE_LOAD } from "../surfaces";
 import type { RoomDressParams } from "./dress";
 import { keepClear, keepLane, lightOn, placeGroup, placeLining, rugUnder, type PlacedGroup } from "./groups";
@@ -60,6 +67,34 @@ function standingLightsOnly(t: RoomTraits): RoomTraits {
   };
 }
 
+/** Where in its kind's props per 10 tiles a room stops, by wealth (poor .. lavish): 0 the low end, 1 the high. */
+export const WEALTH_PROPS = { poor: 0.25, modest: 1, wealthy: 1, lavish: 1 } as const;
+const ORDERS: readonly RoomOrder[] = ["tidy", "lived", "working", "messy"];
+
+/** The kind's props per 10 tiles a room of this character stops at. */
+export function propsPer10(t: RoomTraits, c: ResolvedCharacter | undefined): number {
+  const share = c === undefined ? 1 : WEALTH_PROPS[c.wealth];
+  return t.props10[0] + (t.props10[1] - t.props10[0]) * share;
+}
+
+/**
+ * The kind's order moved at most one step by character: messier in a ramshackle or ruined room or a weathered poor one,
+ * tidier in a wealthy or lavish intact one.
+ */
+export function characterOrder(order: RoomOrder, c: ResolvedCharacter | undefined): RoomOrder {
+  if (c === undefined) return order;
+  const rich = c.wealth === "wealthy" || c.wealth === "lavish";
+  const step =
+    c.condition === "ramshackle" ||
+    c.condition === "ruined" ||
+    (c.condition === "weathered" && c.wealth === "poor")
+      ? 1
+      : rich && c.condition === "intact"
+        ? -1
+        : 0;
+  return ORDERS[Math.max(0, Math.min(ORDERS.length - 1, ORDERS.indexOf(order) + step))] as RoomOrder;
+}
+
 export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomKind): ScatterResult | null {
   const profile = gridProfile(grid);
   const t = profile.lightRegimes ? standingLightsOnly(ROOM_TRAITS[kind]) : ROOM_TRAITS[kind];
@@ -68,8 +103,9 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
     compactDoorsBelow: COMPACT_DOORS_BELOW,
     floorLightsApart: true,
     junctionPosts: true,
-    // the kind's order, never the building's condition
-    ...(profile.placementOrder ? { order: t.order } : {}),
+    // the kind's order (generator 5, characterCascade: one step messier where it is run down, one tidier where it is
+    // rich and kept; loose things only, never structure)
+    ...(profile.placementOrder ? { order: characterOrder(t.order, p.character) } : {}),
     // a seat or a bed keeps a free cell beside it, so nothing placed after it boxes it in
     ...(profile.floorGroups ? { standingRoom: true } : {}),
   });
@@ -120,7 +156,7 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
   // 4. the wall lining, up to the kind's fill and its props per 10 tiles
   const n = room.cells.length;
   const maxBlock = Math.max(2, Math.round(n * t.fill * FILL_GAIN * Math.min(2, Math.max(0.2, p.density))));
-  const maxProps = (t.props10[1] * n) / 10;
+  const maxProps = (propsPer10(t, p.character) * n) / 10;
   let fails = 0;
   let guard = 0;
   const counts = new Map<Spec, number>();

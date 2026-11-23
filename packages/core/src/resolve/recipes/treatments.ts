@@ -32,7 +32,8 @@
  *              its main door, a light pair at its approach, both, or plain.
  */
 import type { ThemeId, Vec2 } from "../../contracts/plan";
-import type { ResolvedLevel } from "../../contracts/resolved";
+import type { ResolvedCharacter, ResolvedLevel } from "../../contracts/resolved";
+import { conditionState, elementCharacter, wealthIndex } from "../character";
 import {
   buildingState,
   wearOfState,
@@ -87,6 +88,36 @@ export interface Subject {
    * is drawn more often. Absent: not asked.
    */
   readonly contrastOwn?: boolean;
+  /**
+   * Generator 5 (`characterCascade`): its wealth, 0 poor .. 3 lavish (resolve/character.ts). It reweights every
+   * family's plain option (WEALTH_WEIGHT.plain: more at poor, less at lavish, never none), a contrasting trim and the
+   * richest frame and course options. Absent: not asked (weights as they were).
+   */
+  readonly wealth?: 0 | 1 | 2 | 3;
+}
+
+/** Wealth's multipliers (poor, modest, wealthy, lavish) on the options it reweights; modest leaves them as they were. */
+export const WEALTH_WEIGHT = {
+  plain: [1.8, 1, 0.7, 0.45],
+  contrast: [0.5, 1, 1.5, 2],
+  rich: [0.5, 1, 1.4, 1.8],
+} as const;
+/** The options wealth reads as the richest of their family. */
+const RICH_OPTIONS: ReadonlySet<string> = new Set([
+  "frame:framed",
+  "frame:pilasters",
+  "courses:banded",
+  "courses:firstFloor",
+]);
+
+/** An option's weight for a subject, with its wealth's multiplier where it has one. */
+function weightOf(f: TreatmentFamily, o: TreatmentOption, s: Subject): number {
+  const w = Math.max(0, o.weight(s));
+  if (s.wealth === undefined || w === 0) return w;
+  if (o.id === "plain") return w * WEALTH_WEIGHT.plain[s.wealth];
+  if (o.contrast === true) return w * WEALTH_WEIGHT.contrast[s.wealth];
+  if (RICH_OPTIONS.has(`${f.id}:${o.id}`)) return w * WEALTH_WEIGHT.rich[s.wealth];
+  return w;
 }
 
 export interface TreatmentOption {
@@ -309,7 +340,7 @@ export function drawStructureOption(family: string, s: Subject, seed: string): s
 
 /** The option a draw `u` (0..1) picks from a family's weights for a subject, null when every weight is 0. */
 function pickOption(f: TreatmentFamily, s: Subject, u0: number): TreatmentOption | null {
-  const ws = f.options.map((o) => Math.max(0, o.weight(s)));
+  const ws = f.options.map((o) => weightOf(f, o, s));
   const total = ws.reduce((a, b) => a + b, 0);
   if (total <= 0) return null;
   let u = u0 * total;
@@ -327,9 +358,12 @@ export function buildingSubject(
   theme: ThemeId,
   storeys: number,
   words: BuildingWords,
+  character: ResolvedCharacter | null = null,
 ): Subject {
   const st = buildingState(words);
   const condition = words.condition ?? "intact";
+  // generator 5 (characterCascade): its state and wealth as its character resolved them; its role stays its words'
+  const state = character !== null ? conditionState(character) : st.state;
   return {
     id,
     kind: "building",
@@ -340,10 +374,11 @@ export function buildingSubject(
     condition,
     indoor: true,
     natural: false,
-    wear: wearOfState(st.state),
-    state: st.state,
-    severity: st.severity,
+    wear: wearOfState(state),
+    state,
+    severity: character !== null ? (character.severity ?? 0) : st.severity,
     role: st.sacred ? "sacred" : st.formal ? "formal" : null,
+    ...(character !== null ? { wealth: wealthIndex(character) } : {}),
   };
 }
 
@@ -540,6 +575,7 @@ function subjectsOf(
         st.theme,
         Math.max(st.storeys.length, maxOf(vols.map((v) => v.storeys.length))),
         { ...words?.get(st.id), condition },
+        elementCharacter(L, st.id),
       ),
       walls,
     });
@@ -549,6 +585,10 @@ function subjectsOf(
     const area = L.areas.find((q) => q.id === z.area);
     if (!area || built.has(area.id)) continue;
     const bb = area.bbox;
+    // generator 5 (characterCascade): an area is as worn as its floor says or its character, whichever is worse
+    const ch = elementCharacter(L, area.id);
+    const state =
+      ch !== null && wearOfState(conditionState(ch)) >= z.wear ? conditionState(ch) : stateOfArea(z.wear);
     out.push({
       id: area.id,
       kind: "area",
@@ -556,13 +596,14 @@ function subjectsOf(
       theme: area.theme,
       storeys: 1,
       walls: areaWalls.get(area.id) ?? [],
-      condition: z.wear === 2 ? "ruined" : "intact",
+      condition: state === "ruined" ? "ruined" : "intact",
       indoor: z.indoor,
       natural: z.natural,
       wear: z.wear,
-      state: stateOfArea(z.wear),
-      severity: z.wear === 2 ? 2 : 0,
+      state,
+      severity: state === "ruined" ? (ch?.severity ?? 2) : 0,
       role: null,
+      ...(ch !== null ? { wealth: wealthIndex(ch) } : {}),
     });
   }
   out.push({
