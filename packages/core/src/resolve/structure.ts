@@ -182,6 +182,16 @@ export class StructureWork {
     for (const b of this.buildings) {
       // never below the ground in front of a door (a raised pavement): the floor is level with it or above
       const plinthQ = Math.round((b.plinth?.height ?? 0) * 4);
+      // generator 5 (plinthUnderPorch): the ground in front is the first cell past the building's own pad (its porch
+      // and plinth), never a cell of the pad itself, which afterAreas already raised by the plinth (counted twice, a
+      // porch-fronted plinth stood two tiles up)
+      const own = this.gen.plinthUnderPorch
+        ? new Set<string>([
+            ...b.cellSet,
+            ...b.porches.flatMap((p) => p.cells.map((c) => key(c[0], c[1]))),
+            ...(b.plinth?.cells ?? []).map((c) => key(c[0], c[1])),
+          ])
+        : null;
       let front = -Infinity;
       for (const g of b.ground) {
         if (!isPassage(g.kind)) continue;
@@ -189,7 +199,8 @@ export class StructureWork {
         for (let k = 0; k < g.width; k++) {
           const ax = g.side === "N" || g.side === "S" ? g.at[0] + k : g.at[0];
           const ay = g.side === "N" || g.side === "S" ? g.at[1] : g.at[1] + k;
-          const reach = 2 + (b.plinth ? b.plinth.margin : 0);
+          let reach = 2 + (b.plinth ? b.plinth.margin : 0);
+          while (own?.has(key(ax + dx * reach, ay + dy * reach)) === true && reach < 16) reach++;
           const i = w.idx(ax + dx * reach, ay + dy * reach);
           if (i >= 0 && w.state[i] === CELL.OPEN) front = Math.max(front, w.height[i] as number);
         }
@@ -1302,7 +1313,7 @@ function planBuilding(
   const doorLights =
     decay.condition === "ruined" ? false : doorLightsByLight(b, b.st.lighting?.doors ?? b.profile.doorLight);
   const lights = placeDoorLights(fp, faces, doorLights);
-  const plinth = drawPlinth(b, fp);
+  const plinth = drawPlinth(b, fp, porches);
   const furniture = drawRoofFurniture(b, decay.ruin);
   const lighting = drawLighting(b, decay.condition, doorLights);
   const reserve = reservedCells(fp, faces.ground, standing, porches, plinth);

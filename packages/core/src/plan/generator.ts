@@ -460,6 +460,10 @@ const SWITCHES = {
     5,
     "Every level, zone, building and area has a character (light, condition, wealth) resolved once from what it states, its own words and mood, and the scope around it with a little variety (resolve/character.ts); room light levels, a building's decay and window lights, the treatments' condition and richness, ground wear, a room's prop density and order, and the review read it (ResolvedLevel.character).",
   ),
+  plinthUnderPorch: on(
+    5,
+    "A building's plinth runs under its porches, so a porch stands on the base at the building's floor and not in the air past the plinth's edge (resolve/building/fittings.ts drawPlinth).",
+  ),
   buildingRooms: on(
     5,
     "A building's ground storey is split into the rooms of a programme drawn for its kind (an inn's taproom at the street door with its kitchen and store behind, a shop floor and its store, a workshop, a house's kitchen or hall and a bedroom; gen/buildingProgramme.ts): synthetic room areas over the footprint with walls between them and interior doorways, every room reached from the street door, no partition through a window or door, a chimney breast in a hearth room; a small building is one room with zones, a tiny one a single room. The room stage furnishes and lights them like any room. Ruins, open buildings and footprints the plan's own rooms cover stay as they are; upper storeys are untouched (resolve/building/rooms.ts).",

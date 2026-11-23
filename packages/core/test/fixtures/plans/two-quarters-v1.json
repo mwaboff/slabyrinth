@@ -144,7 +144,7 @@
           "name": "Cottage",
           "style": "cottage",
           "use": "house",
-          "seed": 36,
+          "seed": 34,
           "wings": [{ "x": 48, "y": 20, "w": 7, "h": 6 }],
           "front": "N"
         },
@@ -153,7 +153,7 @@
           "name": "Cottage",
           "style": "cottage",
           "use": "house",
-          "seed": 38,
+          "seed": 35,
           "wings": [{ "x": 70, "y": 20, "w": 8, "h": 6 }],
           "front": "N"
         }

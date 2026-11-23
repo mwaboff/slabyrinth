@@ -48,7 +48,11 @@ export function placeDoorLights(
  * a stoop toward the street), never into a neighbour's plot or the ring its walls stand in; cells past the level edge
  * or in another building are left off with a warning.
  */
-export function drawPlinth(b: BuildingCtx, fp: GroundFootprint): BuildingPlan["plinth"] {
+export function drawPlinth(
+  b: BuildingCtx,
+  fp: GroundFootprint,
+  porches: readonly Porch[] = [],
+): BuildingPlan["plinth"] {
   const { st, profile, prng2 } = b;
   const pp = profile.plinth;
   const pIn =
@@ -64,7 +68,10 @@ export function drawPlinth(b: BuildingCtx, fp: GroundFootprint): BuildingPlan["p
   if (!pIn) return null;
   const { cellSet } = fp;
   const margin = pIn.margin ?? pp?.margin ?? 1;
-  let pcells = new Set(cellSet);
+  // generator 5 (plinthUnderPorch): the base runs under the porches too, so a porch stands on it at the building's
+  // floor instead of in the air past its edge (which left a face of two tiles with nothing under it)
+  const under = b.gen.plinthUnderPorch ? porches.flatMap((q) => q.cells.map(([x, y]) => key(x, y))) : [];
+  let pcells = new Set([...cellSet, ...under]);
   const sides = pIn.sides;
   for (let m = 0; m < margin; m++) {
     if (!sides) pcells = new Set([...pcells, ...ringOf(pcells)]);
