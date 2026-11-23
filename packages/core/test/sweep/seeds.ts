@@ -160,32 +160,49 @@ export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, num
 };
 
 /**
- * Playability issues that are the stored plan's own (see `playability`), per plan: "<code> <level>/<element>" -> why.
- * Allowed for the plan whatever the seed (not counted per seed: the plan, not the build, has no way there); a sweep of
- * at least WARNING_BASIS seeds fails on an entry no seed raises (remove it), and every unlisted one fails.
+ * Playability issues that are the stored plan's own (see `playability`), per plan: "<code> <level>/<element>" -> the
+ * seeds that raise it and why. Counted the way KNOWN_WARNINGS is: a sweep of at most WARNING_BASIS seeds fails when
+ * more seeds raise an entry than it allows, one of at least WARNING_BASIS seeds when fewer do (lower it, or remove it at
+ * 0), and every unlisted issue fails. The count holds the seeded part of a plan's own walk too (hillside's ragged
+ * plateau edge): a terrain change that cuts the walkway on more seeds fails. Counts measured at 150 seeds plus each
+ * plan's once-failed seeds (docs: test/sweep/run.ts prints them per plan).
  */
-export const KNOWN_PLAN_ISSUES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+export const KNOWN_PLAN_ISSUES: Readonly<
+  Record<string, Readonly<Record<string, { readonly seeds: number; readonly why: string }>>>
+> = {
   "dungeon-complex-v1": {
-    "route_dead_end l1/to_vault":
-      "the route to the treasury (bend vh) ends at a wall or another room, never opening into the passage it starts from",
-    "unreachable l1/to_vault":
-      "the route that never opens into the passage (route_dead_end) has no other way in",
-    "unreachable l1/vault": "the treasury's only way in is that route",
+    "route_dead_end l1/to_vault": {
+      seeds: 150,
+      why: "the route to the treasury (bend vh) ends at a wall or another room, never opening into the passage it starts from",
+    },
+    "unreachable l1/to_vault": {
+      seeds: 150,
+      why: "the route that never opens into the passage (route_dead_end) has no other way in",
+    },
+    "unreachable l1/vault": { seeds: 150, why: "the treasury's only way in is that route" },
   },
   "keep-dungeon-v8": {
-    "route_dead_end l2/pass":
-      "the crypt passage's route never opens into the cell block's hall (it is reached by the crypt stairs instead)",
+    "route_dead_end l2/pass": {
+      seeds: 150,
+      why: "the crypt passage's route never opens into the cell block's hall (it is reached by the crypt stairs instead)",
+    },
   },
   "hillside-v5": {
-    "unreachable hill/walk":
-      "the walkway lands on the plateau's ragged edge with no path, ramp or link up the cliff: for some seeds the edge's pocket under its top meets neither the plateau nor the lowland",
-    "unreachable hill/tower": "the watchtower's only way is that walkway",
-    "area_sealed hill/tower":
-      "for a seed the walkway, sloped to where it meets the ragged edge, meets the tower's deck a tile above it and the joint is walled",
+    "unreachable hill/walk": {
+      seeds: 33,
+      why: "the walkway lands on the plateau's ragged edge with no path, ramp or link up the cliff: for some seeds the edge's pocket under its top meets neither the plateau nor the lowland",
+    },
+    "unreachable hill/tower": { seeds: 33, why: "the watchtower's only way is that walkway" },
+    "area_sealed hill/tower": {
+      seeds: 1,
+      why: "for a seed the walkway, sloped to where it meets the ragged edge, meets the tower's deck a tile above it and the joint is walled",
+    },
   },
   e2e: {
-    "feature_not_at_wall l1/shelf_mid":
-      "the e2e plan leaves a bookshelf in the middle of the hall on purpose (apps/desktop/e2e/uiScript.ts)",
+    "feature_not_at_wall l1/shelf_mid": {
+      seeds: 154,
+      why: "the e2e plan leaves a bookshelf in the middle of the hall on purpose (apps/desktop/e2e/uiScript.ts)",
+    },
   },
 };
 
@@ -291,7 +308,8 @@ export function sweepFailures(
 
 /**
  * The plan's own playability issues of a plan's builds against KNOWN_PLAN_ISSUES: `failed`, one not listed for the
- * plan; `stale` (`basisSeeds` at least WARNING_BASIS), a listed one no seed raised.
+ * plan, or (`basisSeeds` at most WARNING_BASIS) on more seeds than its entry allows; `stale` (`basisSeeds` at least
+ * WARNING_BASIS), an entry raised by fewer seeds than it lists.
  */
 export function unexpectedPlanIssues(
   label: string,
@@ -299,19 +317,25 @@ export function unexpectedPlanIssues(
   basisSeeds?: number,
 ): { failed: string[]; stale: string[] } {
   const known = KNOWN_PLAN_ISSUES[label] ?? {};
-  const failed = [...planOwn]
-    .filter(([key]) => known[key] === undefined)
-    .map(
-      ([key, at]) =>
+  const failed: string[] = [];
+  for (const [key, at] of planOwn) {
+    const allowed = known[key]?.seeds;
+    if (allowed === undefined)
+      failed.push(
         `${label}@${at.seeds.slice(0, 3).join(", ")}: the plan's own ${key} on ${String(at.seeds.length)} seed(s) (${at.first})`,
-    );
+      );
+    else if (basisSeeds !== undefined && basisSeeds <= WARNING_BASIS && at.seeds.length > allowed)
+      failed.push(
+        `${label}: the plan's own ${key} on ${String(at.seeds.length)} seeds, KNOWN_PLAN_ISSUES allows ${String(allowed)}`,
+      );
+  }
   const stale =
     basisSeeds !== undefined && basisSeeds >= WARNING_BASIS
-      ? Object.keys(known)
-          .filter((key) => !planOwn.has(key))
+      ? Object.entries(known)
+          .filter(([key, k]) => (planOwn.get(key)?.seeds.length ?? 0) < k.seeds)
           .map(
-            (key) =>
-              `${label}: the plan's own ${key} is raised by no seed now (remove it in KNOWN_PLAN_ISSUES)`,
+            ([key, k]) =>
+              `${label}: the plan's own ${key} now on ${String(planOwn.get(key)?.seeds.length ?? 0)} seeds (listed ${String(k.seeds)}: lower or remove it in KNOWN_PLAN_ISSUES)`,
           )
       : [];
   return { failed, stale };

@@ -126,7 +126,7 @@ for (const r of runs) {
       byCode.set(code, [...(byCode.get(code) ?? []), key.slice(key.indexOf("@") + 1)]);
   for (const [code, at] of byCode)
     console.log(`  warning ${code}: ${String(at.length)} seed(s), e.g. ${at.slice(0, 3).join(", ")}`);
-  // and the plan's own playability issues (allowed per plan in KNOWN_PLAN_ISSUES, not counted)
+  // and the plan's own playability issues (allowed per plan and counted in KNOWN_PLAN_ISSUES)
   for (const [key, at] of collect.planOwn)
     console.log(`  plan's own ${key}: ${String(at.seeds.length)} seed(s)`);
 }
