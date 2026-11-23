@@ -468,6 +468,14 @@ const SWITCHES = {
     5,
     "A one-room dwelling is a room with zones: its programme names a sleeping corner beside the hearth, furnished with a bed or a cot group after the room's own anchor (gen/buildingProgramme.ts, gen/rooms4/furnish.ts).",
   ),
+  bedsideLights: on(
+    5,
+    "In a bright or flooded room a group whose companion carries a light (a bed and its nightstand) keeps the cell at its head for a standing light, which the room's lights then stand there, so the wall lining and the standing room never take it first (gen/rooms4/groups.ts, gen/rooms4/regimes.ts).",
+  ),
+  pieceFacts: on(
+    5,
+    "Piece choice reads the one table of facts measured in game (gen/pieceFacts.ts): a run of wall, fence or railing takes level pieces only, a piece with a taller end post only at a run's end, turned so the post ends the run, and a raking stair rail never stands on a level run (in the wall runs and the objects' stand-ins); a piece that only glows is kept out of an ordinary room's things (compile/realize/walls.ts, compile/realize/features.ts, objects/lexicon.ts).",
+  ),
   plinthUnderPorch: on(
     5,
     "A building's plinth runs under its porches, so a porch stands on the base at the building's floor and not in the air past the plinth's edge (resolve/building/fittings.ts drawPlinth).",

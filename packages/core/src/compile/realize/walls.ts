@@ -6,7 +6,8 @@
  * wall and opening passes register them) for the corner posts. Writes: wall and wall_post placements, `CornerStrips`;
  * returns the full-cell columns its runs gathered (built by the rock wall pass).
  */
-import type { ThemeId } from "../../contracts/plan";
+import type { Side, ThemeId } from "../../contracts/plan";
+import { pieceFacts } from "../../gen/pieceFacts";
 import { EDGE } from "../../contracts/resolved";
 import type { ResolvedVariant, RoleResolution } from "../../palette/resolve";
 import { RUINED_WALL_ROLE, THEME_POST_ROLE, postRole, wallRole } from "../../palette/roles";
@@ -202,6 +203,18 @@ function tileWallRun(
   const lengths = [...new Set(res.variants.filter((v) => v.weight > 0).map(lengthOf))].sort((a, b) => b - a);
   const greedy = res.def.greedyTiling !== false;
   const pickKey = (c: EdgeCtx | undefined): string => `${L.id}:${orient}wall:${c?.x ?? 0}:${c?.y ?? 0}`;
+  // generator 5 (pieceFacts): a run takes level pieces (gen/pieceFacts.ts), an end-post piece only at its ends
+  const choose = (
+    vs: ResolvedVariant[],
+    at: number,
+    n: number,
+  ): { v?: ResolvedVariant | undefined; halfTurn: boolean } => {
+    if (!profile.pieceFacts) return { v: pick(vs, pickKey(edges[at])), halfTurn: false };
+    const ends = edgeCenter ? runEnds(orient, at === 0, at + n === edges.length) : [];
+    const pool = runPool(lv, vs, orient, ends);
+    const v = pick(pool.length > 0 ? pool : vs, pickKey(edges[at]));
+    return { v, halfTurn: v !== undefined && ends.length > 0 && endPostTurn(lv, v, orient, ends) === true };
+  };
   let i = 0;
   while (i < edges.length) {
     const remaining = edges.length - i;
@@ -211,10 +224,18 @@ function tileWallRun(
       // free-standing low walls/fences/railings: a run shorter than the shortest piece gets that piece centred over
       // it (it overhangs a little), rather than a gap
       const r = lookup(L.id, theme, [roleName], lenFilter(shortest), true);
-      const v = r ? pick(r.variants, pickKey(edges[i])) : undefined;
+      const { v, halfTurn } = r ? choose(r.variants, i, remaining) : { halfTurn: false };
       const c = edges[i];
       if (v && c) {
-        placeEdgeCenterPiece(lv, v, "wall", c, remaining, { cell: [c.hostX, c.hostY], elementId: roleName });
+        placeEdgeCenterPiece(
+          lv,
+          v,
+          "wall",
+          c,
+          remaining,
+          { cell: [c.hostX, c.hostY], elementId: roleName },
+          halfTurn,
+        );
         i += remaining;
         continue;
       }
@@ -222,13 +243,22 @@ function tileWallRun(
     let done = false;
     for (const n of [...cands, 1]) {
       const r = lookup(L.id, theme, [roleName], lenFilter(n), n !== 1);
-      let v = r ? pick(r.variants, pickKey(edges[i])) : undefined;
+      const chosen = r ? choose(r.variants, i, n) : { halfTurn: false };
+      let v = chosen.v;
       const c = edges[i];
       if (!v || !c) continue;
       const broken = style === THEME_WALL_STYLE && n >= 2 ? brokenTop(pass, orient, c, n, theme) : null;
       if (broken) v = broken;
       if (edgeCenter)
-        placeEdgeCenterPiece(lv, v, "wall", c, n, { cell: [c.hostX, c.hostY], elementId: roleName });
+        placeEdgeCenterPiece(
+          lv,
+          v,
+          "wall",
+          c,
+          n,
+          { cell: [c.hostX, c.hostY], elementId: roleName },
+          chosen.halfTurn,
+        );
       else {
         const count = Math.max(1, Math.ceil((c.top - c.base) / v.unitHeight - EPS));
         // generator 4: a wall a quarter or half a tile short of whole pieces sinks into the floor slab so its top
@@ -249,6 +279,51 @@ function tileWallRun(
     }
     if (!done) i++;
   }
+}
+
+/** The plan sides of a run's ends a piece stands at: its first edge's end (west, north), its last's (east, south). */
+function runEnds(orient: "h" | "v", first: boolean, last: boolean): Side[] {
+  const out: Side[] = [];
+  if (first) out.push(orient === "h" ? "W" : "N");
+  if (last) out.push(orient === "h" ? "E" : "S");
+  return out;
+}
+
+/**
+ * Generator 5 (pieceFacts): does an end-post piece (gen/pieceFacts.ts) placed centred on a run (placeEdgeCenterPiece's
+ * turn) put its post at one of the run's ends `ends`: unturned (false), turned half round (true), or neither (null)?
+ */
+function endPostTurn(
+  lv: RealizeLevel,
+  v: ResolvedVariant,
+  orient: "h" | "v",
+  ends: readonly Side[],
+): boolean | null {
+  const post = pieceFacts(v.name).endPost;
+  if (post === undefined || v.geom.lengthAxis !== "x" || ends.length === 0) return null;
+  const { frame } = lv.ctx;
+  const steps = (orient === "h" ? 0 : frame.stepsForQuarters(1)) + Math.round(v.rot / 15);
+  const side = frame.worldSide(frame.dirAfter(post === "low" ? "W" : "E", steps));
+  if (ends.includes(side)) return false;
+  if (ends.includes(OPPOSITE[side])) return true;
+  return null;
+}
+
+/**
+ * Generator 5 (pieceFacts): the pieces a run may take at this place: never a stair rail (sloped), an end-post piece
+ * only at a run's end where its post can end the run (`ends`: the run's ends the piece stands at).
+ */
+function runPool(
+  lv: RealizeLevel,
+  vs: readonly ResolvedVariant[],
+  orient: "h" | "v",
+  ends: readonly Side[],
+): ResolvedVariant[] {
+  return vs.filter((v) => {
+    const f = pieceFacts(v.name);
+    if (f.sloped === true) return false;
+    return f.endPost === undefined || endPostTurn(lv, v, orient, ends) !== null;
+  });
 }
 
 /**

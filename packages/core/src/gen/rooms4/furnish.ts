@@ -44,6 +44,8 @@ const SACRED_KINDS: ReadonlySet<RoomKind> = new Set<RoomKind>(["shrine", "crypt"
 export const SMALLEST_FURNISHED = 3;
 /** A room of fewer floor cells keeps only a landing at each door (gen/rooms4/room.ts RoomOpts). */
 const COMPACT_DOORS_BELOW = 9;
+/** The light level (bright) from which a group whose companion carries a light keeps a cell for a standing light. */
+const BEDSIDE_LEVEL = 3;
 
 /** A candle is a light for a table top: one standing on a floor reads as a flame dropped there. */
 const FLOOR_CANDLE = (type: FeatureType): boolean => type === "candelabra" || type === "candles";
@@ -191,6 +193,10 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
       ...(profile.placementOrder ? { order: characterOrder(t.order, p.character) } : {}),
       // a seat or a bed keeps a free cell beside it, so nothing placed after it boxes it in
       ...(profile.floorGroups ? { standingRoom: true } : {}),
+      // a bright room's bed keeps the cell at its head for its standing light (its light is part of the group)
+      ...(profile.bedsideLights && (p.lighting?.plan.level ?? 0) >= BEDSIDE_LEVEL
+        ? { bedsideLights: true }
+        : {}),
     });
   let room = roomWith(COMPACT_DOORS_BELOW);
   if (room.cells.length < SMALLEST_FURNISHED || room.wallPairs.length === 0) return null;

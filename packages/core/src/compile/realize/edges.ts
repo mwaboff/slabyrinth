@@ -207,7 +207,10 @@ function boxShift(v: ResolvedVariant, cwDeg: number): { x: number; y: number; z:
   };
 }
 
-/** Places one piece centred over `len` edges (free-standing low walls, fences, railings, gates). */
+/**
+ * Places one piece centred over `len` edges (free-standing low walls, fences, railings, gates); `halfTurn` turns it
+ * half round (generator 5: an end-post rail at the far end of its run, compile/realize/walls.ts).
+ */
 export function placeEdgeCenterPiece(
   lv: RealizeLevel,
   v: ResolvedVariant,
@@ -215,6 +218,7 @@ export function placeEdgeCenterPiece(
   first: EdgeLine,
   len: number,
   source: Placement["source"],
+  halfTurn = false,
 ): void {
   const { emit } = lv;
   const { frame } = lv.ctx;
@@ -223,7 +227,7 @@ export function placeEdgeCenterPiece(
   const c = frame.point(along.x, along.y);
   const runsEW = first.orient === "h";
   const axisFix = v.geom.lengthAxis === "z" ? 6 : 0;
-  const steps = ((runsEW ? 0 : frame.stepsForQuarters(1)) + axisFix) % 24;
+  const steps = ((runsEW ? 0 : frame.stepsForQuarters(1)) + axisFix + (halfTurn ? 12 : 0)) % 24;
   const deg = steps * 15 + v.rot;
   const off =
     v.geom.originAt === "minCorner"

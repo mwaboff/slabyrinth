@@ -236,13 +236,19 @@ function standBeside(
   const R = REGIMES.standReach;
   const byDoor = (x: number, y: number): boolean =>
     room.thresholds.some(([tx, ty]) => Math.abs(tx - x) <= 1 && Math.abs(ty - y) <= 1);
+  // (generator 5, bedsideLights: a cell its group kept for its light, RoomOpts.bedsideLights, comes first)
+  const kept = (x: number, y: number): boolean => room.lightSpots.has(cellKey(x, y));
   const spots = room.cells
     .filter(([x, y]) => cells.some(([cx, cy]) => Math.max(Math.abs(cx - x), Math.abs(cy - y)) <= R))
-    .filter(([x, y]) => room.free(x, y) && !room.zone.has(cellKey(x, y)) && !byDoor(x, y) && !postBy(x, y))
+    .filter(
+      ([x, y]) =>
+        kept(x, y) || (room.free(x, y) && !room.zone.has(cellKey(x, y)) && !byDoor(x, y) && !postBy(x, y)),
+    )
     .map(([x, y]) => {
       const walls = SIDES.filter((s) => room.grid.edge(x, y, s) !== 0).length;
       const d = Math.hypot(x + 0.5 - mid[0], y + 0.5 - mid[1]);
-      return { at: [x, y] as [number, number], score: d - (walls > 0 ? 0.6 : 0) + room.rng.next() * 0.2 };
+      const score = d - (walls > 0 ? 0.6 : 0) + room.rng.next() * 0.2 - (kept(x, y) ? 10 : 0);
+      return { at: [x, y] as [number, number], score };
     })
     .sort((a, b) => a.score - b.score);
   const [ax, ay] = room.cells[0] ?? [0, 0];
@@ -259,6 +265,7 @@ function standBeside(
     if (room.grid.blocksWayIn?.(piece.type, at, [1, 1], piece.variant, { rotFine: 0, offset: fit }) === true)
       continue;
     if (!room.push(p)) return false;
+    room.lightSpots.delete(cellKey(at[0], at[1]));
     if (featureInfo(piece.type).blocking) {
       room.taken.add(cellKey(at[0], at[1]));
       room.blockCells++;

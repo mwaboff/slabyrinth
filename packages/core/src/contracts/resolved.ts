@@ -106,6 +106,12 @@ export interface ResolvedArea {
    * every other area.
    */
   building?: string;
+  /**
+   * Generator 5 (roomKinds): the finer kind a furnished room is furnished as, when it differs from `purpose` (a "ward"
+   * hosted by "laboratory", a "shop" by "storeroom"; the core's room-kind table, gen/roomTraits.ts). Compile reads it
+   * where a kind's row decides (a piece that only glows stays out of a ward's things). Absent otherwise.
+   */
+  roomKind?: string;
 }
 
 /** What a room is for (generator 4): the plan contract's list (Area.purpose), re-exported for readers of this one. */

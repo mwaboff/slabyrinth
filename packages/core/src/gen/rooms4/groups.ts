@@ -624,9 +624,32 @@ export function tryGroup(
       if (f.k > 0) for (const q of anchor) q.unbacked = true;
       const companions = commitPicks(room, f, picks);
       room.reach = room.walk(new Set());
+      // generator 5 (bedsideLights): the group's light is part of it: a cell at its head kept for a standing light
+      if (room.opts.bedsideLights === true && g.companions.some((c) => c.light === true))
+        keepLightSpot(room, f);
       return { frame: f, anchor, companions };
     }
   return null;
+}
+
+/**
+ * Generator 5 (RoomOpts.bedsideLights): keep a cell at the group's head for its standing light (gen/rooms4/regimes.ts
+ * stands it there): a free head cell off the kept-clear floor and the door landings, open to the anchor; none when a
+ * neighbour's kept cell already stands at its head (two beds share the lamp between them).
+ */
+function keepLightSpot(room: Room, f: Frame): void {
+  const heads = slotCells(f, "head");
+  if (heads.some(([x, y]) => room.lightSpots.has(cellKey(x, y)))) return;
+  for (const cell of heads) {
+    const k = cellKey(cell[0], cell[1]);
+    if (!room.free(cell[0], cell[1]) || room.zone.has(k)) continue;
+    if (room.grid.edge(cell[0], cell[1], sideOf(towardAnchor(f, "head", cell))) === EDGE_WALL) continue;
+    if (room.thresholds.some(([tx, ty]) => Math.abs(tx - cell[0]) <= 1 && Math.abs(ty - cell[1]) <= 1))
+      continue;
+    room.used.add(k);
+    room.lightSpots.add(k);
+    return;
+  }
 }
 
 /** A wall-lining item, with the companions it brings (a bunk its chest) where they fit. */

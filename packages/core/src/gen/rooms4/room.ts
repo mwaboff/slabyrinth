@@ -168,6 +168,11 @@ export interface RoomOpts {
    * takes later (the free tile in front of every station), so no seat is boxed in by what comes after it.
    */
   standingRoom?: boolean;
+  /**
+   * Generator 5 (bedsideLights, a bright room): a group whose companion carries a light (a bed's nightstand) keeps a
+   * cell at its head for a standing light (`lightSpots`), so the lining and the standing room never take it first.
+   */
+  bedsideLights?: boolean;
 }
 
 export class Room {
@@ -191,6 +196,8 @@ export class Room {
   readonly windowPairs: Array<[number, number, Side]> = [];
   /** The same as keys (cell key × 4 + side index). */
   readonly windows = new Set<number>();
+  /** Generator 5 (RoomOpts.bedsideLights): cells kept for a group's standing light (held in `used` until it stands). */
+  readonly lightSpots = new Set<number>();
 
   /**
    * Generator 5 (RoomOpts.junctionPosts): does a post stand at vertex (vx, vy): walls meet there both ways (a corner, a
@@ -388,6 +395,7 @@ export class Room {
         const [nx, ny] = stepSide(x, y, s);
         const k = cellKey(nx, ny);
         if (own.has(k) || !this.inRoom.has(k) || this.blocked(nx, ny) || !this.reach.has(k)) continue;
+        if (this.lightSpots.has(k)) continue;
         this.zone.add(k);
         return true;
       }

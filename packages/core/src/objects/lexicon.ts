@@ -16,6 +16,8 @@
 import type { RoleName } from "../contracts/compiler";
 import type { ThemeId } from "../contracts/plan";
 import { fromPool, fromVariant, type ArrangePiece } from "../arrange/piece";
+import { glows, levelRunPiece } from "../gen/pieceFacts";
+import { generatorProfile } from "../plan/generator";
 import type { PlanRoles } from "../palette/planRoles";
 import { measurePiece, type MeasureId, type MeasureRange, type TraitShape } from "../palette/traits";
 import { own } from "../util/own";
@@ -155,7 +157,7 @@ export const STAND_INS = {
     simplify: "plank",
   },
   rail: {
-    doc: "a level railing section about 1 long (a bulwark rail): the role's first piece is the level one (rail calibration: railing 01 A level, B a stair rail, C with a newel post)",
+    doc: "a level railing section about 1 long (a bulwark rail): level pieces only (gen/pieceFacts.ts, rail calibration: railing 01 A level, B a stair rail, C with a newel post)",
     roles: ["wall.railing"],
     shape: { trait: "panel", kind: "prop", where: { length: [0.9, 1.2], height: [0.5, 0.9] } },
     target: { length: 1.03, height: 0.73 },
@@ -273,11 +275,15 @@ function fromRoles(
   theme: ThemeId,
   def: StandInDef,
 ): { pieces: ArrangePiece[]; role: RoleName } {
+  // generator 5 (pieceFacts): a part stands in runs and anywhere, so no stair rail, end-post piece or glowing decor
+  const plain = generatorProfile(roles.generator).pieceFacts
+    ? (name: string | undefined): boolean => levelRunPiece(name, false) && !glows(name)
+    : (): boolean => true;
   for (const role of def.roles) {
     const res = roles.resolve(theme, role).resolution;
     if (!res) continue;
     const pieces = res.variants
-      .filter((v) => v.parts === undefined && fitsRole(v.geom, def.shape))
+      .filter((v) => v.parts === undefined && fitsRole(v.geom, def.shape) && plain(v.name))
       .map((v) => fromVariant(res.paletteId, res.role, v));
     if (pieces.length > 0) return { pieces, role: res.role };
   }

@@ -307,7 +307,7 @@ plans/building-rooms-street-v1 g feature torch_wall 6
 plans/building-rooms-street-v1 g feature weapon_rack 4
 plans/building-rooms-street-v1 diag info footprint_mismatch 3
 plans/building-rooms-street-v1 diag info structure_style_fallback 1
-plans/building-rooms-street-v1 diag info verify_prop_nudged 3
+plans/building-rooms-street-v1 diag info verify_prop_nudged 7
 plans/building-rooms-street-v1 diag info verify_props_overlap 1
 plans/building-rooms-street-v1 review pieces_substituted 1
 plans/building-rooms-street-v1 review roofs_alike 1
@@ -1045,7 +1045,7 @@ plans/condition-street-v1 g feature table 2
 plans/condition-street-v1 g feature torch_floor 2
 plans/condition-street-v1 g feature torch_wall 6
 plans/condition-street-v1 diag info footprint_mismatch 2
-plans/condition-street-v1 diag info verify_prop_nudged 7
+plans/condition-street-v1 diag info verify_prop_nudged 5
 plans/condition-street-v1 review dead_space 1
 plans/condition-street-v1 review straight_natural 1
 plans/enclosure-gates-v1 g pieces feature 3
@@ -1684,7 +1684,7 @@ plans/ground-and-walls-v1 diag info footprint_mismatch 2
 plans/ground-and-walls-v1 diag info role_missing 1
 plans/ground-and-walls-v1 diag info structure_style_fallback 2
 plans/ground-and-walls-v1 diag info verify_duplicate_removed 1
-plans/ground-and-walls-v1 diag info verify_prop_nudged 9
+plans/ground-and-walls-v1 diag info verify_prop_nudged 8
 plans/ground-and-walls-v1 review blank_lot 1
 plans/ground-and-walls-v1 review pieces_substituted 1
 plans/ground-and-walls-v1 review roof_squat 1
@@ -2500,16 +2500,16 @@ plans/inn-interior-v1@5 l1 feature torch_floor 2
 plans/inn-interior-v1@5 l1 feature torch_wall 15
 plans/inn-interior-v1@5 l1 feature weapon_rack 5
 plans/inn-interior-v1@5 diag info footprint_mismatch 3
-plans/inn-interior-v1@5 diag info verify_prop_nudged 9
+plans/inn-interior-v1@5 diag info verify_prop_nudged 10
 plans/inn-interior-v1@5 review flat_map 1
 plans/inn-interior-v1@5 review rooms_same_size 1
 plans/inn-interior-v1@5 review single_route 1
-plans/interiors-lineup-v1 l1 pieces feature 392
+plans/interiors-lineup-v1 l1 pieces feature 394
 plans/interiors-lineup-v1 l1 pieces floor 217
 plans/interiors-lineup-v1 l1 pieces opening 18
 plans/interiors-lineup-v1 l1 pieces wall 157
 plans/interiors-lineup-v1 l1 pieces wall_post 41
-plans/interiors-lineup-v1 l1 layer site 825
+plans/interiors-lineup-v1 l1 layer site 827
 plans/interiors-lineup-v1 l1 part chart~room#0 1
 plans/interiors-lineup-v1 l1 part chart~room#1 1
 plans/interiors-lineup-v1 l1 part chart~room#10 1
@@ -2898,6 +2898,8 @@ plans/interiors-lineup-v1 l1 part ward~room#21 1
 plans/interiors-lineup-v1 l1 part ward~room#22 1
 plans/interiors-lineup-v1 l1 part ward~room#23 1
 plans/interiors-lineup-v1 l1 part ward~room#24 1
+plans/interiors-lineup-v1 l1 part ward~room#25 1
+plans/interiors-lineup-v1 l1 part ward~room#26 1
 plans/interiors-lineup-v1 l1 part ward~room#3 1
 plans/interiors-lineup-v1 l1 part ward~room#4 1
 plans/interiors-lineup-v1 l1 part ward~room#5 1
@@ -2911,7 +2913,7 @@ plans/interiors-lineup-v1 l1 feature barrel 13
 plans/interiors-lineup-v1 l1 feature bed 6
 plans/interiors-lineup-v1 l1 feature bench 6
 plans/interiors-lineup-v1 l1 feature bookshelf 19
-plans/interiors-lineup-v1 l1 feature brazier 14
+plans/interiors-lineup-v1 l1 feature brazier 15
 plans/interiors-lineup-v1 l1 feature candelabra 4
 plans/interiors-lineup-v1 l1 feature candles 18
 plans/interiors-lineup-v1 l1 feature cauldron 1
@@ -2926,9 +2928,10 @@ plans/interiors-lineup-v1 l1 feature sack 5
 plans/interiors-lineup-v1 l1 feature shelf_line 40
 plans/interiors-lineup-v1 l1 feature stool 3
 plans/interiors-lineup-v1 l1 feature table 8
+plans/interiors-lineup-v1 l1 feature torch_floor 1
 plans/interiors-lineup-v1 l1 feature torch_wall 22
 plans/interiors-lineup-v1 diag info footprint_mismatch 3
-plans/interiors-lineup-v1 diag info verify_prop_nudged 11
+plans/interiors-lineup-v1 diag info verify_prop_nudged 12
 plans/interiors-lineup-v1 review flat_map 1
 plans/interiors-lineup-v1 review no_focal_point 1
 plans/keep-dungeon-v8 l3 pieces feature 41
@@ -3924,7 +3927,7 @@ plans/market-street-v3@5 diag info footprint_mismatch 4
 plans/market-street-v3@5 diag info role_missing 1
 plans/market-street-v3@5 diag info structure_style_fallback 2
 plans/market-street-v3@5 diag info verify_duplicate_removed 1
-plans/market-street-v3@5 diag info verify_prop_nudged 19
+plans/market-street-v3@5 diag info verify_prop_nudged 18
 plans/market-street-v3@5 diag warning verify_prop_sunk 1
 plans/market-street-v3@5 review floor_patchwork 1
 plans/market-street-v3@5 review focal_unlit 1
@@ -4630,11 +4633,25 @@ plans/purpose-lineup-v1@5 l1 feature torch_floor 2
 plans/purpose-lineup-v1@5 l1 feature torch_wall 14
 plans/purpose-lineup-v1@5 l1 feature weapon_rack 7
 plans/purpose-lineup-v1@5 diag info footprint_mismatch 2
-plans/purpose-lineup-v1@5 diag info verify_prop_nudged 1
+plans/purpose-lineup-v1@5 diag info verify_prop_nudged 2
 plans/purpose-lineup-v1@5 review corridor_heavy 1
 plans/purpose-lineup-v1@5 review flat_map 1
 plans/purpose-lineup-v1@5 review rooms_same_size 1
 plans/purpose-lineup-v1@5 review single_route 1
+plans/railed-terrace-v1 g pieces fill 48
+plans/railed-terrace-v1 g pieces floor 101
+plans/railed-terrace-v1 g pieces ledge 68
+plans/railed-terrace-v1 g pieces wall 57
+plans/railed-terrace-v1 g pieces wall_post 4
+plans/railed-terrace-v1 g layer site 278
+plans/railed-terrace-v1 g part floor:floor.dirt 27
+plans/railed-terrace-v1 g part floor:floor.grass 62
+plans/railed-terrace-v1 g part floor:floor.wood_plank 12
+plans/railed-terrace-v1 review bare_ground 1
+plans/railed-terrace-v1 review board_rectangular 1
+plans/railed-terrace-v1 review dead_space 1
+plans/railed-terrace-v1 review flat_map 1
+plans/railed-terrace-v1 review straight_natural 1
 plans/single-room l1 pieces feature 5
 plans/single-room l1 pieces floor 12
 plans/single-room l1 pieces wall 14
@@ -5642,7 +5659,7 @@ plans/two-quarters-v1 g feature torch_wall 14
 plans/two-quarters-v1 diag info footprint_mismatch 1
 plans/two-quarters-v1 diag info structure_style_fallback 1
 plans/two-quarters-v1 diag info verify_duplicate_removed 1
-plans/two-quarters-v1 diag info verify_prop_nudged 10
+plans/two-quarters-v1 diag info verify_prop_nudged 13
 plans/two-quarters-v1 review cliff_unclad_low 1
 plans/two-quarters-v1 review roof_squat 1
 plans/two-quarters-v1 review roofs_alike 1
@@ -5677,18 +5694,18 @@ plans/two-rooms-door@5 l1 feature bed 1
 plans/two-rooms-door@5 l1 feature rug 1
 plans/two-rooms-door@5 l1 feature torch_wall 6
 plans/two-rooms-door@5 review flat_map 1
-plans/varied-street-v1 g pieces feature 1030
+plans/varied-street-v1 g pieces feature 1028
 plans/varied-street-v1 g pieces fill 4
 plans/varied-street-v1 g pieces floor 1107
 plans/varied-street-v1 g pieces ledge 223
 plans/varied-street-v1 g pieces link 2
 plans/varied-street-v1 g pieces opening 72
 plans/varied-street-v1 g pieces wall 1163
-plans/varied-street-v1 g pieces wall_post 375
+plans/varied-street-v1 g pieces wall_post 373
 plans/varied-street-v1 g layer roof 730
-plans/varied-street-v1 g layer site 2244
+plans/varied-street-v1 g layer site 2242
 plans/varied-street-v1 g layer storey:0 697
-plans/varied-street-v1 g layer storey:1 243
+plans/varied-street-v1 g layer storey:1 241
 plans/varied-street-v1 g layer storey:2 62
 plans/varied-street-v1 g part baker~canopy 6
 plans/varied-street-v1 g part baker~deck 13
@@ -5917,7 +5934,6 @@ plans/varied-street-v1 g part narrow~room0~room#10 1
 plans/varied-street-v1 g part narrow~room0~room#11 1
 plans/varied-street-v1 g part narrow~room0~room#12 1
 plans/varied-street-v1 g part narrow~room0~room#13 1
-plans/varied-street-v1 g part narrow~room0~room#14 1
 plans/varied-street-v1 g part narrow~room0~room#2 1
 plans/varied-street-v1 g part narrow~room0~room#3 1
 plans/varied-street-v1 g part narrow~room0~room#4 1
@@ -6107,19 +6123,19 @@ plans/varied-street-v1 g feature bar_counter 5
 plans/varied-street-v1 g feature barrel 16
 plans/varied-street-v1 g feature bed 5
 plans/varied-street-v1 g feature bookshelf 1
-plans/varied-street-v1 g feature brazier 9
+plans/varied-street-v1 g feature brazier 10
 plans/varied-street-v1 g feature bunk_bed 2
 plans/varied-street-v1 g feature candelabra 4
 plans/varied-street-v1 g feature candles 3
 plans/varied-street-v1 g feature cauldron 3
 plans/varied-street-v1 g feature chair 2
 plans/varied-street-v1 g feature chest 4
-plans/varied-street-v1 g feature clutter 59
-plans/varied-street-v1 g feature counter 9
+plans/varied-street-v1 g feature clutter 57
+plans/varied-street-v1 g feature counter 8
 plans/varied-street-v1 g feature crate 22
 plans/varied-street-v1 g feature forge 1
 plans/varied-street-v1 g feature rug 2
-plans/varied-street-v1 g feature sack 8
+plans/varied-street-v1 g feature sack 9
 plans/varied-street-v1 g feature shelf_line 30
 plans/varied-street-v1 g feature stool 2
 plans/varied-street-v1 g feature table 1
@@ -6129,7 +6145,7 @@ plans/varied-street-v1 diag info footprint_mismatch 1
 plans/varied-street-v1 diag info role_missing 2
 plans/varied-street-v1 diag info structure_style_fallback 2
 plans/varied-street-v1 diag info verify_duplicate_removed 1
-plans/varied-street-v1 diag info verify_prop_nudged 9
+plans/varied-street-v1 diag info verify_prop_nudged 7
 plans/varied-street-v1 diag info verify_props_overlap 1
 plans/varied-street-v1 review pieces_substituted 1
 plans/varied-street-v1 review roof_squat 1
@@ -6304,7 +6320,7 @@ plans/wall-recipes-v1 g feature torch_wall 8
 plans/wall-recipes-v1 diag info footprint_mismatch 3
 plans/wall-recipes-v1 diag info structure_style_fallback 1
 plans/wall-recipes-v1 diag info verify_duplicate_removed 1
-plans/wall-recipes-v1 diag info verify_prop_nudged 7
+plans/wall-recipes-v1 diag info verify_prop_nudged 6
 plans/wall-recipes-v1 review bare_ground 1
 plans/wall-recipes-v1 review flat_map 1
 plans/wall-recipes-v1 review pieces_substituted 1

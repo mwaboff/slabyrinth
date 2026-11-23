@@ -10,6 +10,8 @@ import type { Side, ThemeId } from "../../contracts/plan";
 import { EDGE, type ResolvedFeature } from "../../contracts/resolved";
 import { featureInfo, isBandRock, isLandmark } from "../../gen/catalog";
 import { stallPieceOf } from "../../gen/market";
+import { glows } from "../../gen/pieceFacts";
+import { roomTakesGlow } from "../../gen/roomTraits";
 import { featureRoles } from "../../gen/surfaces";
 import { footprintFromGeom, type ResolvedVariant, type RoleResolution } from "../../palette/resolve";
 import { featureRole } from "../../palette/roles";
@@ -239,6 +241,16 @@ function featurePool(
         role: featureRole(f.type),
         elementId: f.id,
       });
+  }
+  // generator 5 (pieceFacts): a piece that only glows (gen/pieceFacts.ts) reads as a light that lights nothing, so a
+  // furnished room's things leave it out unless its kind's row takes glowing things (a laboratory)
+  if (profile.pieceFacts && featureInfo(f.type).light !== true && f.area !== undefined) {
+    const area = L.areas.find((a) => a.id === f.area);
+    const kind = area?.roomKind ?? area?.purpose;
+    if (kind !== undefined && !roomTakesGlow(kind)) {
+      const plain = pool.filter((u) => !glows(u.name));
+      if (plain.length > 0) pool = plain;
+    }
   }
   return pool;
 }

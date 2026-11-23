@@ -196,6 +196,11 @@ export interface RoomTraits {
   readonly floor: readonly FloorPlan[];
   /** Generator 5: its light level and the regimes it may draw (switch lightRegimes). */
   readonly lighting: RoomLighting;
+  /**
+   * Generator 5 (pieceFacts): its things may glow (a laboratory's coloured jars); in every other room a piece that only
+   * glows (gen/pieceFacts.ts) reads as a broken light and is left out.
+   */
+  readonly glow?: true;
 }
 
 // ───────────────────────────── pieces and their stand-ins ─────────────────────────────
@@ -695,6 +700,7 @@ const BASE_TRAITS: Readonly<Record<RoomKind, BaseTraits>> = {
     shelf: true,
     rug: false,
     lights: { per10: [1.5, 3], onSurfaces: true, doorPair: false },
+    glow: true,
     props10: [25, 40],
     fill: 0.3,
     minimum: ["bench", "stool", "light"],
@@ -1149,6 +1155,10 @@ export const ROOM_KINDS = Object.keys(ROOM_TRAITS) as RoomKind[];
 
 /** The row of a kind. */
 export const roomTraits = (kind: RoomKind): RoomTraits => ROOM_TRAITS[kind];
+
+/** May a room of this kind (or purpose: the resolved area's `roomKind`, else its `purpose`) show glowing things? */
+export const roomTakesGlow = (kind: string): boolean =>
+  Object.hasOwn(ROOM_TRAITS, kind) && ROOM_TRAITS[kind as RoomKind].glow === true;
 
 /** True when the kind is a new one (hosted by a purpose; gen/roomPurpose.ts NEW_KIND_INFO). */
 export const isNewRoomKind = (kind: RoomKind): kind is NewRoomKind => Object.hasOwn(NEW_KIND_INFO, kind);
