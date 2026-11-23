@@ -591,6 +591,20 @@ const SWITCHES = {
     5,
     "A long room of a kind with a cell row in the room-kind table (prison cells, stable stalls, ward bays, bunk alcoves: gen/roomTraits.ts CELL_ROWS) is, drawn per room with a plain option, lined along one or both long walls with like cells: partitions between them, a shared front on the aisle (bars, a wall, a half wall or none) with a doorway in each at the row's pitch, each cell dressed with its kit, one left empty now and then and one in disorder, the aisle with its own set and lights (resolve/level/cellRows.ts, rooms.ts dressCellRow).",
   ),
+  decayWhereItBelongs: on(
+    5,
+    "Rubble, debris and remains belong only where a place's condition or kind calls for them (gen/roomTraits.ts showsDecay): a room in use (a furnished purpose, not abandoned) that is intact or weathered and not of a kind that keeps its dead (a crypt, cells) gets no rubble or debris at its wall foot, no rubble or remains in its layered ground (a piece the facts call remains, gen/pieceFacts.ts, is left out of its floor cover) and no remains in a dead end's set; and no wall-foot pile stands on a cell a room's furnisher kept clear (the way through, a hall's axis, standing room). Ramshackle, ruined and abandoned rooms, crypts and cells, passages and the plan's own collapses and dress ops keep theirs (resolve/level/rooms.ts, resolve/recipes/ground.ts, resolve/level/deadEnds.ts).",
+    "keptRoomsClean",
+  ),
+  lightsAgainstSomething: on(
+    5,
+    "A light on a room's floor stands against a wall or a window, or beside a piece that is no light (furniture, a pier), whichever pass forms it (gen/rooms4/lights.ts floorLight: the generator-4 rounds, lights by occupancy, a cell row's aisle; gen/rooms4/regimes.ts standBeside, the focal glow too), and an open fire only where the room's kind takes one when the kind is known (a cell row's aisle asks its kit's row); where none fits the room stays a little dimmer (owner: no brazier in the middle of a ward's or a stable's aisle).",
+    "sensibleLights",
+  ),
+  doorsStayJoined: on(
+    5,
+    "A room's furnisher never cuts one of its doorways off from its main door: the way check walks from the main door, not from every doorway at once (a bar's stool and a chest no longer close the way to the kitchen door behind the bar), and a blocking companion (a seat, a stand) keeps off the doors' landings as its anchor does (gen/rooms4/room.ts keepsWay, groups.ts pickCompanion).",
+  ),
   sacredReads: on(
     5,
     "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",

@@ -11,7 +11,10 @@
  *   glows    it shows a visible glow but lights nothing (a green-glowing jug): read as a light, so it is kept out of an
  *            ordinary room's clutter, where it looks like a broken lamp (the room kinds whose row says `glow` take it);
  *   sloped   a raking piece (a stair's handrail): it stands only on a stair, never along a level run;
- *   endPost  a level piece with a taller post at one end (a newel): only at a run's end, turned so the post is the end.
+ *   endPost  a level piece with a taller post at one end (a newel): only at a run's end, turned so the post is the end;
+ *   remains  a sign of death (a skeleton, a bone pile) a palette lists among plain floor cover: decay, kept out of a
+ *            place whose condition or kind does not call for it (switch decayWhereItBelongs, gen/roomTraits.ts
+ *            showsDecay).
  * Facts about a whole roof kit (its tone, family, spiked corner) are keyed by kit, not piece: resolve/roofKits.ts.
  * A piece the table does not name has no such fact: it is level, post-free and does not glow.
  */
@@ -34,6 +37,7 @@ export interface PieceFacts {
   readonly sloped?: true;
   /** Which end of the piece's length carries the taller post, as it stands unturned: the low end (-x) or the high (+x). */
   readonly endPost?: "low" | "high";
+  readonly remains?: true;
 }
 
 const light = (
@@ -95,6 +99,11 @@ export const PIECE_FACTS: Readonly<Record<string, PieceFacts>> = {
   "railing 01 B": { sloped: true },
   // C: level, with a newel post rising above the rail at one end (the run's west end, unturned: its low end)
   "railing 01 C": { endPost: "low" },
+
+  // ── remains (grand-hall proof, 2026-11-23, image 192: a skeleton on a kept dining hall's floor; stone_dungeon lists
+  // it as ground cover beside the pebbles) ──
+  "Skeleton 01": { remains: true },
+  "Bone Pile 01": { remains: true },
 };
 
 /** The facts of a piece by its name (none for a piece the table does not name). */
@@ -107,6 +116,9 @@ export const outdoorPiece = (name: string | undefined): boolean =>
 
 /** Does the piece only glow (it lights nothing and looks like a light)? */
 export const glows = (name: string | undefined): boolean => pieceFacts(name).glows === true;
+
+/** Is the piece remains (a skeleton, a bone pile): decay, whatever role a palette lists it under? */
+export const remainsPiece = (name: string | undefined): boolean => pieceFacts(name).remains === true;
 
 /** May the piece stand in a level run (not a stair rail)? `atEnd`: at a run's end, where an end post belongs. */
 export const levelRunPiece = (name: string | undefined, atEnd: boolean): boolean => {

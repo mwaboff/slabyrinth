@@ -26,7 +26,7 @@ import {
   dressSet,
   lightArea,
 } from "../../gen/rooms4";
-import { ROOM_TRAITS } from "../../gen/roomTraits";
+import { ROOM_TRAITS, roomTakesFire, showsDecay } from "../../gen/roomTraits";
 import type { CellRowRecord, CellRowRecords } from "./cellRows";
 import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
@@ -287,17 +287,28 @@ export function stepWallFootRubble(
     if (k === undefined) {
       const condition = characterAt(work, a.area.id)?.condition ?? "intact";
       k =
-        a.kind === "room" &&
-        furnishedPurpose(a.room.purpose) &&
-        !a.room.abandoned &&
-        condition === "intact" &&
-        !dressed.has(a.area.id);
+        !dressed.has(a.area.id) &&
+        (work.profile.decayWhereItBelongs
+          ? // generator 5 (decayWhereItBelongs): the one question, kept or weathered (gen/roomTraits.ts showsDecay)
+            !showsDecay({
+              room: a.kind === "room",
+              purpose: a.room.purpose,
+              kind: a.room.kind ?? a.room.purpose,
+              abandoned: a.room.abandoned,
+              condition,
+            })
+          : a.kind === "room" &&
+            furnishedPurpose(a.room.purpose) &&
+            !a.room.abandoned &&
+            condition === "intact");
       kept.set(a.area.id, k);
     }
     return k;
   };
   const plain = (i: number): boolean => {
     if (i < 0 || work.state[i] !== CELL.OPEN || features.occupied(i)) return false;
+    // generator 5 (decayWhereItBelongs): nothing on a cell a room's furnisher kept clear (the way through, an axis)
+    if (work.profile.decayWhereItBelongs && features.isKeptClear(i)) return false;
     const f = work.flags[i] as number;
     if (
       f &
@@ -494,6 +505,9 @@ function dressCellRow(
     every: RECIPES.roomLightEvery,
     abandoned,
     ...(work.profile.occupancyLights ? { occupancy: {} } : {}),
+    // generator 5 (lightsAgainstSomething): an open fire only where the row's kind takes one (a guard's aisle, not a
+    // ward's or a stable's)
+    ...(work.profile.lightsAgainstSomething ? { fire: roomTakesFire(row.spec.kit) } : {}),
   });
   return commit(`${area.id}~room`, lit);
 }

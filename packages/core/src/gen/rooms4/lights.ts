@@ -5,7 +5,12 @@
  */
 import type { FeatureType, Side } from "../../contracts/plan";
 import { featureInfo } from "../catalog";
-import type { GeneratedPlacement, PlacementGrid, ScatterResult } from "../placementGrid";
+import {
+  gridProfile,
+  type GeneratedPlacement,
+  type PlacementGrid,
+  type ScatterResult,
+} from "../placementGrid";
 import { EDGE_WALL, SIDES, SIDE_ROT, cellKey } from "../gridGeometry";
 import type { LightLevel } from "../roomTraits";
 import { ROOM_DRESS } from "./recipes";
@@ -181,6 +186,11 @@ export function wallTorch(room: Room, [x, y, s]: [number, number, Side]): LightS
  */
 function floorLight(room: Room, wx: number, wy: number, kind: LightOpts["floor"]): LightStep {
   if (kind === null || !room.has(kind)) return "none";
+  // generator 5 (lightsAgainstSomething): whoever asks, a floor light stands against a wall or a piece, never free in
+  // the middle of a floor, and a fire only where the room's kind takes one (RoomOpts.sensibleLights); where none fits
+  // the room stays a little dimmer
+  const sense = gridProfile(room.grid).lightsAgainstSomething;
+  if (sense && kind === "brazier" && room.opts.sensibleLights?.fire === false) return "none";
   const near = ([x, y]: readonly [number, number]): number => Math.hypot(x - wx, y - wy);
   // generator 5: a cell from whatever the level already holds (its outline may overhang its own cells)
   const apart = ([x, y]: readonly [number, number]): boolean => {
@@ -191,7 +201,14 @@ function floorLight(room: Room, wx: number, wy: number, kind: LightOpts["floor"]
     return true;
   };
   const spots = room.cells
-    .filter((c) => room.free(c[0], c[1]) && !room.zone.has(cellKey(c[0], c[1])) && near(c) <= 3 && apart(c))
+    .filter(
+      (c) =>
+        room.free(c[0], c[1]) &&
+        !room.zone.has(cellKey(c[0], c[1])) &&
+        near(c) <= 3 &&
+        apart(c) &&
+        (!sense || room.against(c[0], c[1])),
+    )
     .sort((a, b) => near(a) - near(b));
   if (kind === "candles") {
     const at = spots[0];
@@ -205,6 +222,7 @@ function floorLight(room: Room, wx: number, wy: number, kind: LightOpts["floor"]
     };
     if (!room.push(candles)) return "full";
     room.used.add(cellKey(at[0], at[1]));
+    room.floorLights.add(cellKey(at[0], at[1]));
     room.lights.push([at[0], at[1]]);
     return "lit";
   }
@@ -220,6 +238,7 @@ function floorLight(room: Room, wx: number, wy: number, kind: LightOpts["floor"]
     bp.offset = [shift[0] as number, shift[1] as number];
     if (!room.push(bp)) return "full";
     room.taken.add(cellKey(x, y));
+    room.floorLights.add(cellKey(x, y));
     room.blockCells++;
     room.reach = after;
     room.lights.push([x, y]);
@@ -264,16 +283,17 @@ export function lightArea(
     abandoned: boolean;
     /** `passageLevel` (generator 5, lightRegimes): a passage lit at its doors or junctions at the scene's level. */
     occupancy?: { length?: number; passageLevel?: LightLevel };
+    /**
+     * Generator 5 (lightsAgainstSomething): whether an open fire belongs in the place, when its kind is known (a cell
+     * row's aisle: its kit's row of the room-kind table); absent, unknown.
+     */
+    fire?: boolean;
   },
 ): ScatterResult {
-  const room = new Room(
-    grid,
-    p.areaIndex,
-    p.areaCells,
-    p.seed,
-    p.remaining,
-    p.occupancy === undefined ? {} : { floorLightsApart: true, junctionPosts: true },
-  );
+  const room = new Room(grid, p.areaIndex, p.areaCells, p.seed, p.remaining, {
+    ...(p.occupancy === undefined ? {} : { floorLightsApart: true, junctionPosts: true }),
+    ...(p.fire !== undefined ? { sensibleLights: { fire: p.fire } } : {}),
+  });
   const n = room.cells.length;
   const smallest = p.occupancy === undefined ? 6 : OCCUPANCY.smallestLit;
   if (n < smallest || grid.piece4 === undefined) return { placements: [], capped: false };

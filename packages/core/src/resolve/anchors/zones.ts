@@ -25,6 +25,7 @@ import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
 import { NEIGHBOURS4, OPPOSITE, SIDE_STEP, SIDES } from "../../gen/gridGeometry";
 import { isPassage } from "../../gen/openingKinds";
+import { showsDecay } from "../../gen/roomTraits";
 import { MATERIAL_INFO } from "../materials";
 import { characterWear, elementCharacter } from "../character";
 import type { LevelGrid } from "../levelGrid";
@@ -85,6 +86,13 @@ export function zoneAnchors(L: ResolvedLevel, g: LevelGrid): ZoneAnchor[] {
         // generator 5 (characterCascade): as worn as its character, whichever is worse (layered ground's wear)
         characterWear(elementCharacter(L, area.id)),
       ) as 0 | 1 | 2,
+      decay: showsDecay({
+        room: area.kind === "room",
+        purpose: area.purpose,
+        kind: area.roomKind ?? area.purpose,
+        abandoned: area.abandoned,
+        condition: elementCharacter(L, area.id)?.condition,
+      }),
       edgeAt: (x, y) => {
         const i = index(x, y);
         return i >= 0 && (L.cells.area[i] ?? 0) === a ? (edge[i] ?? Infinity) : Infinity;

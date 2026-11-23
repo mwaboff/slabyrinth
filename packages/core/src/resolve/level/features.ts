@@ -113,6 +113,11 @@ export class FeatureWork {
     }
   }
 
+  /** Was cell `i` kept clear by a room's furnisher (keepClearOf)? */
+  isKeptClear(i: number): boolean {
+    return this.keptClearCells.has(i);
+  }
+
   /** The cells kept clear so far (keepClearOf), ascending. */
   get keptClear(): number[] {
     return [...this.keptClearCells].sort((a, b) => a - b);

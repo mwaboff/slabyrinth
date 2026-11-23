@@ -53,6 +53,8 @@ export interface DeadEndOption {
   readonly group: GroupSpec | null;
   /** The small things on its top (a chest's coins, a barrel's goods). */
   readonly family: Family;
+  /** Generator 5 (decayWhereItBelongs): it shows decay (remains), drawn only where the room shows it (showsDecay). */
+  readonly decay?: true;
 }
 
 const LOOT: readonly PieceChoice[] = [P("chest"), P("crate", "small"), P("crate")];
@@ -76,6 +78,7 @@ export const DEAD_END_OPTIONS: readonly DeadEndOption[] = [
       C("skull", [P("skull_pile"), P("bones")], "head", { facing: "same", gap: 0.1, chance: 0.6 }),
     ]),
     family: "store",
+    decay: true,
   },
   {
     // stores left in a side room: barrels and a crate
@@ -98,9 +101,19 @@ export const DEAD_END_OPTIONS: readonly DeadEndOption[] = [
   { name: "plain", weight: { kept: 1, abandoned: 1 }, group: null, family: "store" },
 ];
 
-/** The dead-end option for a draw u in [0, 1): by weight, for a kept or an abandoned room; `plain` only when allowed. */
-export function drawDeadEnd(u: number, abandoned: boolean, plainAllowed: boolean): DeadEndOption {
-  const pool = DEAD_END_OPTIONS.filter((o) => plainAllowed || o.group !== null);
+/**
+ * The dead-end option for a draw u in [0, 1): by weight, for a kept or an abandoned room; `plain` only when allowed, a
+ * set that shows decay only where `decay` (generator 5, decayWhereItBelongs: the room shows it).
+ */
+export function drawDeadEnd(
+  u: number,
+  abandoned: boolean,
+  plainAllowed: boolean,
+  decay = true,
+): DeadEndOption {
+  const pool = DEAD_END_OPTIONS.filter(
+    (o) => (plainAllowed || o.group !== null) && (decay || o.decay !== true),
+  );
   const w = pool.map((o) => (abandoned ? o.weight.abandoned : o.weight.kept));
   let r = u * w.reduce((a, b) => a + b, 0);
   for (let i = 0; i < pool.length; i++) {
