@@ -42,6 +42,12 @@ export interface StandInDef {
    * is null and the recipe uses today's stand-in (objects/kit.ts `kitOr`).
    */
   readonly kit?: true;
+  /**
+   * The stand-in's form in a kit family (`ship`: the ship kit's deck tile for `deck`): an object whose kit prefers that
+   * family (objects/kit.ts `createKit`'s `prefer`, from the object's own kit data) gets the form when the palettes have
+   * it, else this stand-in. A recipe asks for `deck`, never for a kit's piece by name.
+   */
+  readonly forms?: Readonly<Record<string, string>>;
 }
 
 /** Wood and timber come from structure and fittings, never from furniture or nature of the right shape. */
@@ -111,6 +117,7 @@ export const STAND_INS = {
     families: ["floor"],
     target: { length: 2, width: 2 },
     simplify: "deckSmall",
+    forms: { ship: "shipDeck" },
   },
   deckSmall: {
     doc: "a 1 x 1 wooden floor tile (the deck's margins and steps)",
@@ -118,6 +125,7 @@ export const STAND_INS = {
     shape: { trait: "slab", kind: "tile", where: { length: [0.9, 1.1], width: [0.9, 1.1] } },
     families: ["floor", "step"],
     target: { length: 1, width: 1 },
+    forms: { ship: "shipDeckSmall" },
   },
   hatch: {
     doc: "a flat square wooden piece about 1 across (a hatch cover, a fighting top, a grating)",
@@ -421,6 +429,14 @@ export const STAND_INS = {
     shape: { trait: "beam", kind: "prop", where: { length: [1.5, 2.1], height: [0.6, 1] } },
     target: { length: 1.8, height: 0.76 },
     kit: true,
+  },
+  gun: {
+    doc: "a mounted gun on its carriage (a cannon): the plain catalog has none outside a kit, so only a kit's form",
+    roles: [],
+    shape: { trait: "beam", kind: "prop", where: { length: [1.5, 2.1], height: [0.6, 1] } },
+    target: { length: 1.8, height: 0.76 },
+    kit: true,
+    forms: { ship: "shipCannon" },
   },
 } as const satisfies Record<string, StandInDef>;
 

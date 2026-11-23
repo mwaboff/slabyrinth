@@ -291,6 +291,28 @@ export function at(piece: ArrangePiece, x: number, y: number, z: number, yaw = 0
   return { piece, x, y, z, yaw: snapYaw(yaw) };
 }
 
+/**
+ * A column of upright pieces from the ground (y 0, the floor the object stands on) up to `height` (a deck's underside):
+ * whole pieces stacked from the ground, the tallest that still fits each step chosen from `candidates`, so a column
+ * never reaches below the ground nor above its height; the last gap a candidate cannot fill (shorter than every
+ * piece) is left. Empty when no candidate fits at all. Pieces are given as bottoms (y) for `at`.
+ */
+export function columnTo(
+  candidates: readonly ArrangePiece[],
+  height: number,
+): { piece: ArrangePiece; y: number }[] {
+  const byHeight = [...candidates].sort((a, b) => b.variant.geom.size.y - a.variant.geom.size.y);
+  const out: { piece: ArrangePiece; y: number }[] = [];
+  for (let y = 0; ;) {
+    const p = byHeight.find((q) => y + q.variant.geom.size.y <= height + 0.02);
+    if (!p) break;
+    out.push({ piece: p, y });
+    y += p.variant.geom.size.y;
+    if (y >= height - 0.05) break;
+  }
+  return out;
+}
+
 /** A part (the helper recipes use): pieces of one composition, in a slot, with its rung, kind and hold. */
 export function part(
   name: string,
