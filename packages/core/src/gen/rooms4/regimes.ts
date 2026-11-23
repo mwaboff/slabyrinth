@@ -343,7 +343,8 @@ function lightByLevel(
   lightSurfaces(room, all.length, all);
   beside(main, medium, lamp);
   if (L >= 3) {
-    for (const g of ctx.units) beside(g, lamp, medium);
+    // (a weak floor torch where a lamp has no room: rows of beds in a ward stand close)
+    for (const g of ctx.units) beside(g, lamp, medium, torch);
     // (a room lit by its surfaces keeps its walls dark below flooded: its pools stand at the groups)
     if (regime !== "surfaces")
       wallRhythm(room, room.lights.length + Math.ceil(room.cells.length / 6), LEVEL_STEPS.wallPitch[L]);

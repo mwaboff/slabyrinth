@@ -1134,7 +1134,9 @@ const ORDER_FLOOR_LIGHT: Readonly<Record<RoomKind, Pick<RoomTraits, "order" | "f
   ward: {
     order: "tidy",
     floor: [{ mode: "wallRows", units: [WARD_BED], pitch: [2, 2], share: 0.45, minCells: 20 }],
-    lighting: LIT(3, [2, 4], { wallRhythm: 2, surfaces: 1 }),
+    // (a ward is never below bright: the owner's hospital "with a ton of light"; at bright every bed's group gets a
+    // standing light that lights the floor, not only a candle on its nightstand)
+    lighting: LIT(3, [3, 4], { wallRhythm: 2, surfaces: 1 }),
   },
 };
 

@@ -8,9 +8,19 @@ import { realize } from "../../../src/compile";
 import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { elementCharacter } from "../../../src/resolve/character";
+import { loadPlan } from "../../fixtures";
 import { LIGHT_LINEUP_LEVELS, lightLineupPlan, litCells } from "../../fixtures/lightLevels";
 
 const pal = bundledPalettes();
+
+describe.each(["wood_town", "stone_dungeon"])("the sick ward in %s", (theme) => {
+  it("is bright or flooded (its kind's range starts at bright)", () => {
+    const resolved = resolvePlan({ ...loadPlan("interiors-lineup-v1"), theme }, pal);
+    const L = resolved.levels.find((l) => l.areas.some((a) => a.id === "ward"));
+    if (!L) throw new Error("no ward");
+    expect(L.areas.find((a) => a.id === "ward")?.lightLevel ?? 0).toBeGreaterThanOrEqual(3);
+  });
+});
 
 describe.each(["wood_town", "stone_dungeon"])("light levels in %s", (theme) => {
   const resolved = resolvePlan(lightLineupPlan(theme), pal);
