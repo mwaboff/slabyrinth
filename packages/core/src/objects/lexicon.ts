@@ -9,6 +9,8 @@
  *   2. its shape as a trait pool of the theme (palette/traitPools.ts: the theme's own palettes first, generic last);
  *   3. simplify: the stand-in it falls back to (`simplify`, a plainer part: rope → plank);
  *   4. skip: null, and the recipe leaves the part out (a wrong object is worse than none).
+ * A kit stand-in (`kit`, the ship kit) takes step 1 only: its role names the thing, so no pool piece of its shape and
+ * no plainer form stands in for it; the recipe asks for it first and falls back to today's stand-in (`kitOr`).
  * Candidates are ranked by how near their measures are to the wanted ones (`target`), so the most fitting piece comes
  * first; the candidates within `NEAR` of the best are the mix a recipe may vary over. A piece from another palette than
  * the theme's is "borrowed". Pure function of the palettes: memoized per kit (objects/kit.ts).
@@ -35,6 +37,12 @@ export interface StandInDef {
   readonly target: Partial<Record<MeasureId, number>>;
   /** The stand-in to use when no piece has this one's shape. */
   readonly simplify?: string;
+  /**
+   * A kit piece (the ship kit, scripts/palette-ship-assets.json): found through its roles only, never a trait pool or
+   * a plainer form, and every piece the role lists stands in (the role names the thing). Absent from the palettes, it
+   * is null and the recipe uses today's stand-in (objects/kit.ts `kitOr`).
+   */
+  readonly kit?: true;
 }
 
 /** Wood and timber come from structure and fittings, never from furniture or nature of the right shape. */
@@ -213,6 +221,112 @@ export const STAND_INS = {
     target: { length: 1, height: 0.45 },
     simplify: "cloth",
   },
+  // ── the ship kit (generator 5): the game's own ship pieces, asked first by the vessel recipe ──
+  shipDeck: {
+    doc: "a 2 x 2 ship deck tile",
+    roles: ["ship.deck"],
+    shape: { trait: "slab", kind: "tile", where: { length: [1.9, 2.1], width: [1.9, 2.1] } },
+    target: { length: 2, width: 2 },
+    kit: true,
+  },
+  shipDeckSmall: {
+    doc: "a 1 x 1 ship deck tile",
+    roles: ["ship.deck"],
+    shape: { trait: "slab", kind: "tile", where: { length: [0.9, 1.1], width: [0.9, 1.1] } },
+    target: { length: 1, width: 1 },
+    kit: true,
+  },
+  shipMast: {
+    doc: "a mast section about 2 tall (the kit's base, mid and top pieces, by their variant)",
+    roles: ["ship.mast"],
+    shape: { trait: "post", kind: "prop", where: { height: [1.8, 2.6], length: [0.5, 1.4] } },
+    target: { height: 2, length: 0.72 },
+    kit: true,
+  },
+  shipSpar: {
+    doc: "an upright ship beam about 2 tall and 0.25 across (a stanchion, a frame post)",
+    roles: ["ship.spar"],
+    shape: { trait: "post", kind: "prop", where: { height: [1.5, 2.4], length: [0.15, 0.4] } },
+    target: { height: 2, length: 0.25 },
+    kit: true,
+  },
+  shipSail: {
+    doc: "a set sail panel about 1 to 2 wide and 2 tall",
+    roles: ["ship.sail_set"],
+    shape: { trait: "panel", kind: "prop", where: { length: [0.9, 2.2], height: [1.8, 2.2] } },
+    target: { length: 1.03, height: 2 },
+    kit: true,
+  },
+  shipFurled: {
+    doc: "a furled sail hanging under a yard, about 1 to 2 long",
+    roles: ["ship.sail_furled"],
+    shape: { trait: "beam", kind: "prop", where: { length: [0.9, 2.2], height: [0.3, 1] } },
+    target: { length: 2.03, height: 0.9 },
+    kit: true,
+  },
+  shipRope: {
+    doc: "a ship's line lying straight, about 2 long",
+    roles: ["ship.rope"],
+    shape: { trait: "beam", kind: "prop", where: { length: [1.4, 2.6], height: [0.03, 0.2] } },
+    target: { length: 2, height: 0.13 },
+    kit: true,
+  },
+  shipLantern: {
+    doc: "a ship's hanging lantern",
+    roles: ["ship.lantern"],
+    shape: { trait: "clutter", kind: "prop", where: { height: [0.4, 0.9] } },
+    target: { height: 0.68 },
+    kit: true,
+  },
+  shipGrating: {
+    doc: "a 2 x 2 hatch grating tile",
+    roles: ["ship.grating"],
+    shape: { trait: "slab", kind: "tile", where: { length: [1.9, 2.1], width: [1.9, 2.1] } },
+    target: { length: 2, width: 2 },
+    kit: true,
+  },
+  shipCargo: {
+    doc: "ship's cargo: a dark crate or a barrel",
+    roles: ["ship.cargo"],
+    shape: { trait: "block", kind: "prop", where: { height: [0.45, 1.1] } },
+    target: { height: 0.76 },
+    kit: true,
+  },
+  shipCoil: {
+    doc: "a coil of rope lying on the deck",
+    roles: ["ship.fitting"],
+    shape: { trait: "clutter", kind: "prop", where: { length: [0.5, 0.9], height: [0.05, 0.3] } },
+    target: { length: 0.69 },
+    kit: true,
+  },
+  shipHelm: {
+    doc: "the helm: a steering wheel on its 2 x 1 deck tile",
+    roles: ["ship.helm"],
+    shape: { trait: "slab", kind: "tile", where: { length: [1.9, 2.1], width: [0.9, 1.1] } },
+    target: { length: 2, width: 1 },
+    kit: true,
+  },
+  shipAnchor: {
+    doc: "an anchor hung on its end",
+    roles: ["ship.anchor"],
+    shape: { trait: "panel", kind: "prop", where: { height: [0.9, 1.8] } },
+    target: { height: 1.35 },
+    kit: true,
+  },
+  shipCapstan: {
+    doc: "a capstan or anchor wheel",
+    roles: ["ship.capstan"],
+    shape: { trait: "block", kind: "prop", where: { height: [0.6, 1.2] } },
+    target: { height: 0.92 },
+    kit: true,
+  },
+  shipBoat: {
+    doc: "the kit boat's sections (bow, mid, stern, by their variant), about 2.4 wide",
+    roles: ["ship.boat"],
+    shape: { trait: "block", kind: "prop", where: { height: [1, 2], length: [1.8, 2.8] } },
+    target: { height: 1.44, length: 2.37 },
+    kit: true,
+  },
 } as const satisfies Record<string, StandInDef>;
 
 export type StandInId = keyof typeof STAND_INS;
@@ -275,10 +389,12 @@ function fromRoles(
   theme: ThemeId,
   def: StandInDef,
 ): { pieces: ArrangePiece[]; role: RoleName } {
-  // generator 5 (pieceFacts): a part stands in runs and anywhere, so no stair rail, end-post piece or glowing decor
-  const plain = generatorProfile(roles.generator).pieceFacts
-    ? (name: string | undefined): boolean => levelRunPiece(name, false) && !glows(name)
-    : (): boolean => true;
+  // generator 5 (pieceFacts): a part stands in runs and anywhere, so no stair rail, end-post piece or glowing decor;
+  // a kit role names the thing itself (a ship's lantern is meant to glow)
+  const plain =
+    generatorProfile(roles.generator).pieceFacts && def.kit !== true
+      ? (name: string | undefined): boolean => levelRunPiece(name, false) && !glows(name)
+      : (): boolean => true;
   for (const role of def.roles) {
     const res = roles.resolve(theme, role).resolution;
     if (!res) continue;
@@ -304,6 +420,7 @@ export function findStandIn(
   let source: StandInSource = "role";
   let found = viaRoles.pieces;
   let role = viaRoles.role;
+  if (found.length === 0 && def.kit === true) return null;
   if (found.length === 0) {
     const pool = roles.pool(theme, { ...def.shape, ...(def.families ? { families: def.families } : {}) });
     found = pool.pieces.map((p) => fromPool(pool, p));

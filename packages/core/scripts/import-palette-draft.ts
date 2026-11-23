@@ -357,6 +357,9 @@ function roleSettings(role: string): Partial<PaletteRole> {
       return { mount: "half-cell", rotation: "facing" };
     case "marker":
       return { rotation: "fixed" };
+    case "ship":
+      // the ship kit is placed by object recipes (objects/vessel.ts), which turn every piece themselves
+      return { rotation: "inherit" };
     case "feature":
       // goods and the pieces of an overhead line turn as the generator set them (a line runs along x or y)
       if (name === "overhead" || name === "goods" || name === "clutter") return { rotation: "inherit" };
@@ -601,6 +604,9 @@ async function main(): Promise<void> {
     // room dressing (generator 4): clutter families and the shelf plank
     ...(JSON.parse(readFileSync(join(here, "palette-room-assets.json"), "utf8")) as { entries: ExtraEntry[] })
       .entries,
+    // the ship kit (generator 5): hull, deck, mast, sail, line and fitting pieces for the vessel recipe (objects/)
+    ...(JSON.parse(readFileSync(join(here, "palette-ship-assets.json"), "utf8")) as { entries: ExtraEntry[] })
+      .entries,
   ];
   for (const x of extras) {
     const v: PaletteVariant = {
@@ -677,7 +683,8 @@ async function main(): Promise<void> {
       Object.entries(r)
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([k, d]): [string, PaletteRole] => {
-          const minGenerator = ROLE_MIN_GENERATOR[k];
+          // every role of the ship kit (palette-ship-assets.json) is generator 5's
+          const minGenerator = ROLE_MIN_GENERATOR[k] ?? (k.startsWith("ship.") ? 5 : undefined);
           return [k, minGenerator === undefined ? d : { minGenerator, ...d }];
         }),
     );

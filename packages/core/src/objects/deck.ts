@@ -11,24 +11,42 @@ import { maxOf, minOf } from "../util/lists";
 import { signedArea } from "../util/turn";
 import { insideOrNear } from "./outline";
 import type { ObjectKit } from "./kit";
+import type { StandInId } from "./lexicon";
 
 const MARGIN_PITCH = 0.4;
 const MARGIN_DROP = [0.04, 0.08, 0.12] as const;
 
-/** Floor tiles over the polygon with their tops at `y` (see the file header); empty when the kit has no floor tile. */
-export function floorOver(poly: readonly XZ[], y: number, kit: ObjectKit, seed: string): Placed[] {
+/** The stand-ins a floor is laid from: its 1 x 1 tile and its 2 x 2 tile (a vessel asks the ship kit's first). */
+export interface FloorTiles {
+  readonly small: StandInId;
+  readonly big: StandInId;
+}
+const PLAIN_FLOOR: FloorTiles = { small: "deckSmall", big: "deck" };
+
+/**
+ * Floor tiles over the polygon with their tops at `y` (see the file header); empty when the kit has no floor tile.
+ * `wholeCells: false` lays the margins only (the whole cells are an area's floor, laid by the level: objects/site).
+ */
+export function floorOver(
+  poly: readonly XZ[],
+  y: number,
+  kit: ObjectKit,
+  seed: string,
+  tiles: FloorTiles = PLAIN_FLOOR,
+  o: { readonly wholeCells?: boolean } = {},
+): Placed[] {
   // one deck texture: one small tile per deck (seeded), and the large tile of the same family (longest shared name)
-  const one = kit.pick("deckSmall", seed);
+  const one = kit.pick(tiles.small, seed);
   if (!one) return [];
-  const big = kit.standIn("deck");
+  const big = kit.standIn(tiles.big);
   const shared = (a: string, b: string): number => {
     let i = 0;
     while (i < a.length && a[i] === b[i]) i++;
     return i;
   };
   const twoPiece =
-    big && big.id === "deck"
-      ? [...kit.mix("deck")].sort(
+    big && big.id === tiles.big
+      ? [...kit.mix(tiles.big)].sort(
           (a, b) =>
             shared(b.variant.name ?? "", one.variant.name ?? "") -
             shared(a.variant.name ?? "", one.variant.name ?? ""),
@@ -64,6 +82,10 @@ export function floorOver(poly: readonly XZ[], y: number, kit: ObjectKit, seed: 
   for (let z = z0; z < z1; z++)
     for (let x = x0; x < x1; x++) {
       if (!whole.has(key(x, z)) || used.has(key(x, z))) continue;
+      if (o.wholeCells === false) {
+        used.add(key(x, z));
+        continue;
+      }
       const block = [key(x, z), key(x + 1, z), key(x, z + 1), key(x + 1, z + 1)];
       if (two && block.every((k) => whole.has(k) && !used.has(k))) {
         block.forEach((k) => used.add(k));
@@ -103,6 +125,15 @@ export function floorOver(poly: readonly XZ[], y: number, kit: ObjectKit, seed: 
       if (!corners.every(([px, pz]) => insideOrNear(poly, px, pz, 0.02))) continue;
       if (
         corners.every(([px, pz]) => covered(px + 1e-3 * Math.sign(cx - px), pz + 1e-3 * Math.sign(cz - pz)))
+      )
+        continue;
+      // whole cells laid by the level: a margin tile centred on (or within a hair of) one belongs to that cell's floor
+      // (it would stand over another level's floor), so only the ones centred off the whole cells are laid
+      if (
+        o.wholeCells === false &&
+        [-0.05, 0.05].some((ex) =>
+          [-0.05, 0.05].some((ez) => whole.has(key(Math.floor(cx + ex), Math.floor(cz + ez)))),
+        )
       )
         continue;
       const drop = MARGIN_DROP[k % MARGIN_DROP.length] ?? 0.03;
