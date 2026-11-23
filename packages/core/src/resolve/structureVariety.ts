@@ -596,7 +596,11 @@ export function expandDesign(
                 : {}),
             },
           ],
-          roof: { type: "shed", low, ...(pitchedKit !== undefined ? { style: pitchedKit } : {}) },
+          // (generator 5, `leanUnderMain`: flat beside a flat-roofed house, as every second mass is)
+          roof:
+            profile.leanUnderMain && second === flat
+              ? flat
+              : { type: "shed", low, ...(pitchedKit !== undefined ? { style: pitchedKit } : {}) },
         },
       ];
       break;
@@ -671,21 +675,23 @@ export function expandDesign(
  *    top storey is lowered, and when it cannot go lower the main walls rise by half a tile (at most a tile).
  * The heights are those of the resolver (footing course, floor thickness, deck), the roof rise the roof module's own.
  */
+/** A volume's wall top above the ground (its footing course, storeys and the floors between them). */
+function wallTopOf(v: Volume, footing: number): number {
+  const FLOOR = 0.5;
+  let t = 0;
+  (Array.isArray(v.storeys) ? v.storeys : []).forEach((s, i) => {
+    const foot = i === 0 && v.on === undefined ? (s.footing === "none" ? 0 : footing) : 0;
+    t += (i > 0 ? FLOOR : 0) + foot + (s.height ?? 2);
+  });
+  return t;
+}
+
 /** The pitched ground volumes of a design with their wall tops and ridges (tiles above the ground), highest first. */
 function pitchedRidges(
   volumes: readonly Volume[],
   opts: { footing: number; deck: boolean },
 ): Array<{ v: Volume; wall: number; ridge: number }> {
-  const FLOOR = 0.5;
-  const list = (v: Volume): Storey[] => (Array.isArray(v.storeys) ? v.storeys : []);
-  const wallOf = (v: Volume): number => {
-    let t = 0;
-    list(v).forEach((s, i) => {
-      const foot = i === 0 && v.on === undefined ? (s.footing === "none" ? 0 : opts.footing) : 0;
-      t += (i > 0 ? FLOOR : 0) + foot + (s.height ?? 2);
-    });
-    return t;
-  };
+  const wallOf = (v: Volume): number => wallTopOf(v, opts.footing);
   const riseOf = (v: Volume): number => {
     const r = v.roof;
     if (!r || r === "none") return -1;
@@ -712,9 +718,12 @@ export function lowerMassReachesMain(b: Building, opts: { footing: number; deck:
   const main = ground[0];
   if (!main) return false;
   const ridges = pitchedRidges(ground, opts);
-  const top = ridges.find((m) => m.v === main)?.ridge;
-  if (top === undefined) return false;
-  return ridges.some((m) => m.v !== main && m.ridge > top - 1 + 1e-9);
+  // the main mass's ridge, or (a flat or open top) its wall top: a pitched lower mass must stay a tile under the one and
+  // under the other
+  const pitchedMain = ridges.find((m) => m.v === main);
+  if (pitchedMain) return ridges.some((m) => m.v !== main && m.ridge > pitchedMain.ridge - 1 + 1e-9);
+  const wall = wallTopOf(main, opts.footing);
+  return ridges.some((m) => m.v !== main && m.ridge > wall + 1e-9);
 }
 
 function balanceRoofs(volumes: Volume[], d: BuildingDesign, opts: { footing: number; deck: boolean }): void {

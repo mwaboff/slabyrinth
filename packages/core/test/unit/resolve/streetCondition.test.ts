@@ -9,7 +9,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { realize } from "../../../src/compile";
 import type { MapPlan } from "../../../src/contracts/plan";
-import type { ResolvedLevel, ResolvedPlan } from "../../../src/contracts/resolved";
+import type { ResolvedLevel, ResolvedPlan, ResolvedStructure } from "../../../src/contracts/resolved";
+import { wallStyleInfo } from "../../../src/gen/wallStyles";
 import { bundledPalettes } from "../../../src/palette";
 import { resolveView } from "../../../src/palette/view";
 import {
@@ -22,8 +23,10 @@ import { resolvePlan } from "../../../src/resolve";
 import { ArrangementRecords } from "../../../src/resolve/level/arrangements";
 import { runRecipes } from "../../../src/resolve/recipes/engine";
 import { approachLights, guardianPair } from "../../../src/resolve/recipes/threshold";
-import { ROOF_KITS } from "../../../src/resolve/roofKits";
+import { ROOF_KITS, roofTone } from "../../../src/resolve/roofKits";
+import { roofInfo } from "../../../src/resolve/roofTypes";
 import { loadPlan } from "../../fixtures";
+import { sweepSeed } from "../../sweep/seeds";
 import { forced } from "../../fixtures/treatments";
 
 const pal = bundledPalettes();
@@ -153,6 +156,152 @@ describe("roofKitFacts: no spikes up a hip, patches that read as repairs", () =>
   it("patches only a worn or worse building (the kept house has none)", () => {
     const r = resolvePlan(inKit("slate"), pal);
     expect(r.levels[0]?.structures?.find((s) => s.id === "kept")?.roofPatch).toBeUndefined();
+  });
+});
+
+/** The varied street at sweep seed `i` (the buildings' own seeds dropped, so each draws anew), in a theme. */
+function streetAt(i: number, theme: string): MapPlan {
+  const plan = loadPlan("varied-street-v1");
+  return {
+    ...plan,
+    theme,
+    seed: sweepSeed(i),
+    levels: plan.levels.map((L) => ({
+      ...L,
+      structures: (L.structures ?? []).map((s) => {
+        const rest = { ...s } as typeof s & { seed?: number };
+        delete rest.seed;
+        return rest;
+      }),
+    })),
+  };
+}
+
+/** What a built building shows the street, read off the resolved structure (not the draw). */
+function builtLook(s: ResolvedStructure): { wall: string; roof: string; form: string; storeys: number } {
+  const wall = (w: string | null): string => (wallStyleInfo(w)?.settingKit === true ? "theme" : (w ?? "-"));
+  const flat = roofInfo(s.roof.type)?.pitched !== true;
+  return {
+    wall:
+      s.storeys.length > 1
+        ? `${wall(s.storeys[0]?.walls ?? null)}/${wall(s.storeys[s.storeys.length - 1]?.walls ?? null)}`
+        : wall(s.storeys[0]?.walls ?? null),
+    roof: flat ? `flat:${s.roof.style}` : roofTone(s.roof.style),
+    form: s.roof.type,
+    storeys: s.storeys.length,
+  };
+}
+
+/**
+ * Pairs of drawn buildings (of `ids` when given), neighbours (within twelve cells) or of one built wall, apart on
+ * fewer than two axes.
+ */
+function unreadablePairs(r: ResolvedPlan, ids?: readonly string[]): number {
+  const bs = (r.levels[0]?.structures ?? []).filter(
+    (s) => s.kind === "building" && s.design && (!ids || ids.includes(s.id)),
+  );
+  const box = (s: ResolvedStructure) => {
+    const xs = s.cells.map((c) => c[0]);
+    const ys = s.cells.map((c) => c[1]);
+    return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+  };
+  let n = 0;
+  for (let i = 0; i < bs.length; i++)
+    for (let j = i + 1; j < bs.length; j++) {
+      const a = bs[i] as ResolvedStructure;
+      const b = bs[j] as ResolvedStructure;
+      const p = box(a);
+      const q = box(b);
+      const near = p.x0 - 12 <= q.x1 && q.x0 - 12 <= p.x1 && p.y0 - 12 <= q.y1 && q.y0 - 12 <= p.y1;
+      const la = builtLook(a);
+      const lb = builtLook(b);
+      const apart =
+        (la.wall !== lb.wall ? 1 : 0) +
+        (la.roof !== lb.roof ? 1 : 0) +
+        (la.form !== lb.form ? 1 : 0) +
+        (la.storeys !== lb.storeys ? 1 : 0);
+      if ((near || la.wall === lb.wall) && apart < 2) n++;
+    }
+  return n;
+}
+
+describe("readableNeighbours: neighbours and buildings of one wall differ on two readable axes", () => {
+  const SEEDS = [0, 1, 2, 3, 4, 5];
+  const total = (theme: string): number =>
+    SEEDS.reduce((s, i) => s + unreadablePairs(resolvePlan(streetAt(i, theme), pal)), 0);
+  it.each(["wood_town", "city"])(
+    "%s: over seeds, far fewer look-alike pairs than without the switch",
+    (theme) => {
+      const on = total(theme);
+      without("readableNeighbours");
+      const off = total(theme);
+      expect(off).toBeGreaterThan(6);
+      expect(on).toBeLessThanOrEqual(off / 4);
+    },
+  );
+  it("draws the fixture's baker, tavern and corner house apart (they were one stone house with an orange roof)", () => {
+    const three = ["baker", "tavern", "corner"];
+    for (const theme of ["wood_town", "city"]) {
+      const r = resolvePlan({ ...loadPlan("varied-street-v1"), theme }, pal);
+      expect(unreadablePairs(r, three)).toBe(0);
+    }
+    without("readableNeighbours");
+    expect(unreadablePairs(resolvePlan(loadPlan("varied-street-v1"), pal), three)).toBeGreaterThan(0);
+  });
+});
+
+describe("themeOwnRange: a theme's own walls and roofs first", () => {
+  const SEEDS = [0, 1, 2, 3, 4, 5];
+  const count = (theme: string, test: (s: ResolvedStructure) => boolean): number =>
+    SEEDS.reduce(
+      (n, i) =>
+        n +
+        (resolvePlan(streetAt(i, theme), pal).levels[0]?.structures ?? []).filter(
+          (s) => s.kind === "building" && s.design && test(s),
+        ).length,
+      0,
+    );
+  const cityFlat = (s: ResolvedStructure): boolean => s.roof.type === "flat" && s.roof.style === "city";
+  const borrowedStone = (s: ResolvedStructure): boolean => s.storeys.some((q) => q.walls === "stone");
+  it("roofs part of the city's houses flat in its own kit; wood_town (no flat kit of its own) none", () => {
+    expect(count("city", cityFlat)).toBeGreaterThan(8);
+    expect(count("wood_town", cityFlat)).toBe(0);
+    without("themeOwnRange");
+    expect(count("city", cityFlat)).toBe(0);
+  });
+  it("builds fewer houses in the borrowed castle stone than without the switch", () => {
+    const on = count("wood_town", borrowedStone);
+    without("themeOwnRange");
+    expect(on).toBeLessThan(count("wood_town", borrowedStone));
+  });
+});
+
+describe("chimneyScale: a chimney's foot fits its face", () => {
+  it("stands a one-wide stack on a face under nine cells; without the switch a three-wide foot", () => {
+    const plan = loadPlan("varied-street-v1");
+    /** Chimneys of buildings whose chimney face is under nine cells, by the columns their pieces stand in. */
+    const widest = (): number => {
+      const r = resolvePlan(plan, pal);
+      const set = realize(r, pal, {});
+      let most = 0;
+      for (const s of r.levels[0]?.structures ?? []) {
+        for (const c of s.chimneys) {
+          const line = c.side === "N" || c.side === "S" ? 1 : 0;
+          const on = s.cells.filter((q) => q[line] === c.at[line]).map((q) => q[1 - line] ?? 0);
+          if (Math.max(...on) - Math.min(...on) + 1 >= 9) continue;
+          const cols = new Set(
+            (set.levels[0]?.placements ?? [])
+              .filter((p) => p.source.elementId === `${s.id}~chimney`)
+              .map((p) => `${p.x.toFixed(1)},${p.z.toFixed(1)}`),
+          );
+          most = Math.max(most, cols.size);
+        }
+      }
+      return most;
+    };
+    expect(widest()).toBe(1);
+    without("chimneyScale");
+    expect(widest()).toBe(3);
   });
 });
 

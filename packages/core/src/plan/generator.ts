@@ -480,6 +480,18 @@ const SWITCHES = {
     5,
     "A drawn lean-to stands on the house's own footing (it stood a footing course higher), and a drawn design whose lower mass (a lean-to, a wing, a twin's second half) would still reach the main ridge is drawn again (resolve/structureVariety.ts, resolve/structure.ts).",
   ),
+  readableNeighbours: on(
+    5,
+    "A drawn building differs from each neighbour (within twelve cells) and from every building of the same built wall on its level on at least two axes read from the street: built wall, roof colour, roof form and storeys; a draw that cannot is the one with the fewest such pairs (resolve/structure.ts drawDesigns).",
+  ),
+  themeOwnRange: on(
+    5,
+    "The style draw takes the theme's own range first (resolve/themeRange.ts): wall materials the theme's palettes build themselves keep their weight and borrowed ones a third of it; a theme whose own roof kit is flat (the city's) draws flat roofs in it beside the pitched ones (resolve/structure.ts drawDesigns).",
+  ),
+  chimneyScale: on(
+    5,
+    "A chimney breast is three wide at its foot only on a gable face of nine cells or more (a third of the face at most); on a smaller house it is one stack (compile/realize/structures/attachments.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

@@ -34,6 +34,9 @@ import { openingFace } from "./openings";
 import { layTiles, placeProp, setOf, wallProp } from "./pieces";
 import { maxOf, minOf } from "../../../util/lists";
 
+/** (chimneyScale) The shortest face a chimney breast's three-wide foot stands on. */
+const BREAST_FACE = 9;
+
 /** Chimneys: a breast of blocks in the wall line, from the ground past the main roof, a pot on top. */
 export function layChimneys(b: StructureCtx, roofTop: number): void {
   const { st, lv } = b;
@@ -54,7 +57,15 @@ export function layChimneys(b: StructureCtx, roofTop: number): void {
     const hi = roofTop + (chimneyBreast ? 0.5 : 1.5);
     const n = Math.max(1, Math.ceil((hi - lo) / v.unitHeight - EPS));
     const source = { cell: [c.at[0], c.at[1]] as [number, number], elementId: `${st.id}~chimney` };
-    if (chimneyBreast) {
+    // generator 5 (`chimneyScale`): the three-wide foot only on a face of BREAST_FACE cells or more (a third of it at
+    // most); a smaller house has one stack
+    const faceLength = (): number => {
+      const along = c.side === "N" || c.side === "S" ? 0 : 1;
+      const line = c.side === "N" || c.side === "S" ? 1 : 0;
+      const on = st.cells.filter((q) => q[line] === c.at[line]).map((q) => q[along]);
+      return on.length === 0 ? 0 : maxOf(on) - minOf(on) + 1;
+    };
+    if (chimneyBreast && (!lv.ctx.profile.chimneyScale || faceLength() >= BREAST_FACE)) {
       const [dx, dy] = SIDE_STEP[c.side];
       const lat: Array<[number, number]> = [
         [c.at[0] + Math.abs(dy), c.at[1] + Math.abs(dx)],

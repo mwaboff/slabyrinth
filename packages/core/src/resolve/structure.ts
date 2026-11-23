@@ -24,6 +24,7 @@ import type {
   MapPlan,
   Opening,
   PlanIssue,
+  RoofType,
   Side,
   Structure,
   TerrainOp,
@@ -34,6 +35,12 @@ import type {
 } from "../contracts/plan";
 import { BUILD_CONSTANTS } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
+import { wallStyleInfo } from "../gen/wallStyles";
+import type { PaletteView } from "../palette/view";
+import { own } from "../util/own";
+import { roofKitInfo, roofTone } from "./roofKits";
+import { roofInfo } from "./roofTypes";
+import { themeRange, type ThemeRange } from "./themeRange";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { OPPOSITE, SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
 import { forEachMaskCell } from "../gen/mask";
@@ -64,6 +71,8 @@ import type { BuildingPlan, StoreyPlan, VolumePlan } from "./building/types";
 import { groundFootprint, planVolumes, volumeSpecs } from "./building/volumes";
 import {
   type BuildingDesign,
+  type DesignSpace,
+  type Weights,
   designable,
   designSpaceFor,
   drawDesign,
@@ -612,10 +621,12 @@ export function expandStructures(
   issues: PlanIssue[],
   inBounds: (x: number, y: number) => boolean,
   characters: CharacterMap | null = null,
+  /** The palettes as the resolver sees them (generator 5's style draw asks a theme's own range); absent: not asked. */
+  palette: PaletteView | null = null,
 ): { level: Level; work: StructureWork | null } {
   const list = (level.structures ?? []).map(withWings);
   if (list.length === 0 || !generatorProfile(plan).buildings) return { level, work: null };
-  const x = startExpansion(plan, level, li, issues, inBounds, list, characters);
+  const x = startExpansion(plan, level, li, issues, inBounds, list, characters, palette);
   addEnclosureYards(x);
   markNeighbourPlots(x);
   drawDesigns(x);
@@ -637,6 +648,7 @@ function startExpansion(
   inBounds: (x: number, y: number) => boolean,
   list: Structure[],
   characters: CharacterMap | null,
+  palette: PaletteView | null,
 ) {
   const work = new StructureWork(level, li, issues, generatorProfile(plan), characters);
   const areas: Area[] = [];
@@ -657,7 +669,20 @@ function startExpansion(
     return out.sort((a, b) => a[1] - b[1] || a[0] - b[0]);
   };
   const levelTheme = level.theme ?? plan.theme;
-  return { plan, level, inBounds, list, work, areas, openings, walls, terrain, cellsOfShape, levelTheme };
+  return {
+    plan,
+    level,
+    inBounds,
+    list,
+    work,
+    areas,
+    openings,
+    walls,
+    terrain,
+    cellsOfShape,
+    levelTheme,
+    palette,
+  };
 }
 
 type Expansion = ReturnType<typeof startExpansion>;
@@ -723,11 +748,12 @@ function markNeighbourPlots({ list, work, cellsOfShape }: Expansion): void {
  * Variety: draw a design for every building whose shape and looks the plan leaves to its style, in list order,
  * re-rolling while it would repeat a neighbour (within two cells) on archetype + material or storey count.
  */
-function drawDesigns({ plan, level, list, work }: Expansion): void {
+function drawDesigns({ plan, level, list, work, levelTheme, palette }: Expansion): void {
   const placed: Array<{
     r: { x: number; y: number; w: number; h: number };
     d: BuildingDesign;
     space: unknown;
+    look: StreetLook;
   }> = [];
   const designedCount = list.filter(
     (st) => st.kind !== "enclosure" && structureStyle(st.style)?.design && designable(st),
@@ -775,7 +801,48 @@ function drawDesigns({ plan, level, list, work }: Expansion): void {
       // generator 5 (`leanUnderMain`): a lower mass reaching the main ridge is drawn again too
       (profile.leanUnderMain &&
         lowerMassReachesMain(expand(dd), { footing, deck: style0?.roof.deck ?? false }));
-    let d = drawDesign(space, subSeed(seed, "design0"), st.use, r.w, r.h, st.character);
+    // generator 5 (`themeOwnRange`): the theme's own walls and roofs first (resolve/themeRange.ts)
+    const theme = st.theme ?? levelTheme;
+    const range = profile.themeOwnRange && palette ? themeRange(palette, theme, profile.ownWallsFirst) : null;
+    const drawSpace = range ? ownRangeSpace(space, range) : space;
+    const look = (dd: BuildingDesign): StreetLook =>
+      streetLook(dd, space, style0?.roof.kit ?? "", profile, range);
+    let d = drawDesign(drawSpace, subSeed(seed, "design0"), st.use, r.w, r.h, st.character);
+    if (profile.readableNeighbours) {
+      // generator 5 (`readableNeighbours`): two axes read from the street apart from every neighbour and every
+      // building of the same built wall; the earlier rules still hold; the draw with the fewest failures is kept
+      const failures = (dd: BuildingDesign): number => {
+        const mine = look(dd);
+        const unread = placed.filter((p) => {
+          const theirs = p.look;
+          const nearby =
+            p.r.x - NEAR_STREET < r.x + r.w &&
+            r.x - NEAR_STREET < p.r.x + p.r.w &&
+            p.r.y - NEAR_STREET < r.y + r.h &&
+            r.y - NEAR_STREET < p.r.y + p.r.h;
+          return (nearby || theirs.wall === mine.wall) && lookAxesApart(theirs, mine) < 2;
+        }).length;
+        const old = near.some(
+          (p) =>
+            (p.d.archetype === dd.archetype && p.d.material === dd.material) || p.d.storeys === dd.storeys,
+        );
+        return unread * 2 + (old ? 1 : 0) + (lowAgainst(dd) ? 4 : 0);
+      };
+      let best = d;
+      let bestN = failures(d);
+      for (let k = 1; k < 16 && bestN > 0; k++) {
+        const next = drawDesign(drawSpace, subSeed(seed, `design${k}`), st.use, r.w, r.h, st.character);
+        const n = failures(next);
+        if (n < bestN) {
+          best = next;
+          bestN = n;
+        }
+      }
+      d = lowAgainst(best) ? { ...best, archetype: "box" } : best;
+      placed.push({ r, d, space, look: look(d) });
+      work.designs.set(st.id, { design: d, building: expand(d) });
+      continue;
+    }
     for (let k = 1; k < 16; k++) {
       // tone: neighbours differ in wall tone, and at most a share of the street is dark-walled
       const tone = (x: BuildingDesign): string => space.tones?.[x.material] ?? "mid";
@@ -807,13 +874,99 @@ function drawDesigns({ plan, level, list, work }: Expansion): void {
         (space.tones !== undefined && tone(d) === "dark" && darkNow >= darkCap) ||
         lowAgainst(d);
       if (!clash) break;
-      d = drawDesign(space, subSeed(seed, `design${k}`), st.use, r.w, r.h, st.character);
+      d = drawDesign(drawSpace, subSeed(seed, `design${k}`), st.use, r.w, r.h, st.character);
     }
     // every draw put a low mass against a neighbour: the last one keeps one mass (a plain box)
     if (lowAgainst(d)) d = { ...d, archetype: "box" };
-    placed.push({ r, d, space });
+    placed.push({ r, d, space, look: look(d) });
     work.designs.set(st.id, { design: d, building: expand(d) });
   }
+}
+
+/** (readableNeighbours) Buildings within this many cells of each other are neighbours on a street. */
+const NEAR_STREET = 12;
+
+/** What a building shows a street: its built wall, roof colour, roof form and storeys (the readable axes). */
+interface StreetLook {
+  readonly wall: string;
+  readonly roofColour: string;
+  readonly roofForm: string;
+  readonly storeys: number;
+}
+
+/** How many readable axes two looks differ on. */
+const lookAxesApart = (a: StreetLook, b: StreetLook): number =>
+  (a.wall !== b.wall ? 1 : 0) +
+  (a.roofColour !== b.roofColour ? 1 : 0) +
+  (a.roofForm !== b.roofForm ? 1 : 0) +
+  (a.storeys !== b.storeys ? 1 : 0);
+
+/**
+ * A design as the street reads it: the wall it is built in (a setting-kit material in the theme's own wall under
+ * `ownWallsFirst`), its roof's colour (the kit's tone; a flat roof its surface) and form (a hip in a tipped kit is
+ * built as a gable, `roofKitFacts`), its storeys.
+ */
+function streetLook(
+  d: BuildingDesign,
+  space: DesignSpace,
+  styleKit: string,
+  profile: GeneratorProfile,
+  range: ThemeRange | null,
+): StreetLook {
+  const built = (m: string): string =>
+    profile.ownWallsFirst && wallStyleInfo(m)?.settingKit === true && range?.ownWall(m) !== false
+      ? THEME_WALL_STYLE
+      : m;
+  const kit = d.roofKit !== undefined && d.roofKit !== "" ? d.roofKit : (space.pitchedKit ?? styleKit);
+  const info = roofInfo(designRoofType(d.roof));
+  const flat = info?.flat === true || info?.bare === true;
+  // (a cross gable is gables from the street: the form is the built type)
+  const type = designRoofType(d.roof);
+  const form = flat
+    ? "flat"
+    : profile.roofKitFacts && info?.ends === "hip" && roofKitInfo(kit)?.cornerTip === true
+      ? "gable"
+      : type;
+  return {
+    // (a house of one storey shows its ground storey's walls only)
+    wall: d.storeys > 1 ? `${built(d.baseMaterial)}/${built(d.material)}` : built(d.baseMaterial),
+    roofColour: flat ? `flat:${d.roofSurface}` : roofTone(kit),
+    roofForm: form,
+    storeys: d.storeys,
+  };
+}
+
+/** The plan roof type a design's roof word builds (a cross gable is gables, a skirted spire starts with a skirt). */
+const DESIGN_ROOF_TYPES: Readonly<Record<string, string>> = { gable_cross: "gable", skirt_spire: "skirt" };
+const designRoofType = (roof: string): RoofType => (own(DESIGN_ROOF_TYPES, roof) ?? roof) as RoofType;
+
+/** (themeOwnRange) Borrowed wall materials keep this share of their weight. */
+const BORROWED_WALL = 1 / 3;
+/** (themeOwnRange) A theme whose own roof is flat draws flat roofs at this share of the pitched roofs' weight. */
+const OWN_FLAT = 0.8;
+
+/** A design space drawn in the theme's own range first (see `themeOwnRange`). */
+function ownRangeSpace(space: DesignSpace, range: ThemeRange): DesignSpace {
+  const scaled = (w: Weights | undefined): Weights | undefined =>
+    w
+      ? Object.fromEntries(Object.entries(w).map(([m, v]) => [m, range.ownWall(m) ? v : v * BORROWED_WALL]))
+      : undefined;
+  const out: { -readonly [K in keyof DesignSpace]: DesignSpace[K] } = { ...space };
+  const materials = scaled(space.materials);
+  if (materials) out.materials = materials;
+  const baseMaterials = scaled(space.baseMaterials);
+  if (baseMaterials) out.baseMaterials = baseMaterials;
+  if (range.pitchedKits.length > 0 && space.roofKits)
+    out.roofKits = Object.fromEntries(range.pitchedKits.map((k) => [k, space.roofKits?.[k] ?? 1]));
+  const flatKit = range.flatKits[0];
+  if (range.pitchedKits.length === 0 && flatKit !== undefined && space.roofs.flat === undefined) {
+    const pitched = Object.entries(space.roofs)
+      .filter(([k]) => roofInfo(designRoofType(k))?.pitched === true)
+      .reduce((s, [, v]) => s + v, 0);
+    out.roofs = { ...space.roofs, flat: pitched * OWN_FLAT };
+    out.roofSurfaces = { [flatKit]: 1 };
+  }
+  return out;
 }
 
 /**
