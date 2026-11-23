@@ -58,7 +58,7 @@ in the same PR and say why.
   `util/sunk.ts`, and the trait tables (`gen/catalog.ts`, `gen/openingKinds.ts`, `gen/wallStyles.ts`,
   `resolve/materials.ts`, `resolve/roofTypes.ts`, `plan/links.ts`, `gen/roomPurpose.ts`, `gen/roomTraits.ts`,
   `gen/pieceFacts.ts`, `resolve/roofKits.ts`, `resolve/themes.ts`, `gen/buildingProgramme.ts`,
-  `gen/buildingCondition.ts`).
+  `gen/buildingCondition.ts`, `resolve/wealthLooks.ts`).
 - Fix a visual report by measuring the build first (a test or the detail golden), not by eye.
 - One writer in the working tree at a time; commit each passing unit on a branch.
 - Report what you verified separately from what you assumed.

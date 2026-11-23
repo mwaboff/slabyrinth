@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { realize } from "../../../src/compile";
 import type { MapPlan } from "../../../src/contracts/plan";
 import type { ResolvedPlan, ResolvedStructure } from "../../../src/contracts/resolved";
+import { wallStyleInfo } from "../../../src/gen/wallStyles";
 import { bundledPalettes } from "../../../src/palette";
 import { GENERATOR_PROFILES, type GeneratorProfile, type SwitchName } from "../../../src/plan/generator";
 import { resolvePlan } from "../../../src/resolve";
@@ -248,4 +249,40 @@ describe("wealthLooks: the four wealth steps read apart from the street", () => 
     };
     expect(desert()).toBe(0);
   });
+
+  it("reads each building's own wealth, mixed in one street (no quarter or town path): poor ones rough, lavish ones fine and lit", () => {
+    // every other building of the varied street stated poor, the rest lavish (a shop, a manor, a tavern, a shack among
+    // them); no words change: only the plan's wealth field, read through the building's character
+    const tally = { poor: { rough: 0, fine: 0, lit: 0, n: 0 }, lavish: { rough: 0, fine: 0, lit: 0, n: 0 } };
+    for (const i of [0, 1, 2, 3]) {
+      const plan = streetAtWealth(i, "modest", "wood_town");
+      const L0 = plan.levels[0];
+      if (!L0) throw new Error("no level");
+      L0.structures = (L0.structures ?? []).map((s, k) =>
+        s.kind === "enclosure" ? s : { ...s, wealth: k % 2 === 0 ? "poor" : "lavish" },
+      );
+      const L = resolvePlan(plan, pal).levels[0];
+      for (const st of L?.structures ?? []) {
+        const w = L?.character?.[st.id]?.wealth;
+        if (!st.design || (w !== "poor" && w !== "lavish")) continue;
+        const t = tally[w];
+        t.n++;
+        for (const m of [st.design.baseMaterial, st.design.material]) {
+          const f = wallStyleInfo(m)?.finish;
+          if (f === "rough") t.rough++;
+          if (f === "fine") t.fine++;
+        }
+        const door = (L?.arrangements ?? []).some(
+          (a) => a.host === st.id && (a.recipe === "approachLights" || a.recipe === "guardianPair"),
+        );
+        if (door) t.lit++;
+      }
+    }
+    const { poor, lavish } = tally;
+    expect(poor.n).toBeGreaterThan(8);
+    expect(lavish.n).toBeGreaterThan(8);
+    expect(poor.rough / poor.n).toBeGreaterThan(lavish.rough / lavish.n + 0.4);
+    expect(lavish.fine / lavish.n).toBeGreaterThan(poor.fine / poor.n + 0.3);
+    expect(lavish.lit / lavish.n).toBeGreaterThan(poor.lit / poor.n + 0.3);
+  }, 30_000); // (four street builds)
 });
