@@ -13,6 +13,7 @@ import type { MapPlan } from "../contracts/plan";
 import type { ResolvedPlan } from "../contracts/resolved";
 import { generatorProfile } from "../plan/generator";
 import { emptyDeadEnds, mapLayout, type LevelLayout } from "./layout";
+import { noteAction } from "./noteActions";
 import type { DesignNote } from "./review";
 import { REVIEW, capped } from "./thresholds";
 
@@ -44,8 +45,7 @@ export function layoutNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[]
       cell: first.cell,
       elementIds: empty.slice(0, 6).map((r) => r.id),
       message: `${empty.length} rooms are dead ends with nothing in them: ${listed(empty.map((r) => `${r.name} (${r.id})`))}`,
-      action:
-        "give a dead end something worth the walk (a chest, remains, a shrine, a trap, a view), or open it onto another room",
+      action: noteAction("dead_end_empty"),
     });
 
   const judged = (pick: (l: LevelLayout) => boolean): LevelLayout | undefined => m.levels.find(pick);
@@ -59,8 +59,7 @@ export function layoutNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[]
       cell: (alike.rooms[0] as LevelLayout["rooms"][number]).cell,
       elementIds: alike.rooms.slice(0, 6).map((r) => r.id),
       message: `the ${alike.rooms.length} rooms of ${alike.levelId} are all near one size (the largest is ${alike.sizeRatio.toFixed(1)} times the median)`,
-      action:
-        "one option: make one room a set piece about twice the others, and a few small ones beside it (a closet, a cell, a niche)",
+      action: noteAction("rooms_same_size"),
     });
 
   const heavy = judged((l) => l.corridorShare > T.corridorShare);
@@ -72,7 +71,7 @@ export function layoutNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[]
       cell: (heavy.rooms[0] as LevelLayout["rooms"][number]).cell,
       elementIds: [],
       message: `corridors take ${Math.round(heavy.corridorShare * 100)} % of the floor of ${heavy.levelId}`,
-      action: "one option: let more rooms touch, with a door in a shared wall, and keep corridors short",
+      action: noteAction("corridor_heavy"),
     });
 
   if (gen.entrancesReview && m.rooms >= T.entrancesRooms && m.entrances <= T.entrances) {
@@ -84,8 +83,7 @@ export function layoutNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[]
       ...(at ? { cell: at.cell } : {}),
       elementIds: [],
       message: `${m.rooms} rooms have one way in`,
-      action:
-        "one option: add a second way in at another height or side (a back door, a drain, a stair from above), with one lit main entrance",
+      action: noteAction("entrances_few"),
     });
   }
 
@@ -98,8 +96,7 @@ export function layoutNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[]
       cell: dead.cell,
       elementIds: m.noWayBack.slice(0, 6).map((a) => a.id),
       message: `${listed(m.noWayBack.map((a) => `${a.name} (${a.id})`))} can be dropped into but has no way back out`,
-      action:
-        "give the low side of the drop its own way on (a stair, a ladder, a door to the rest of the map), unless a one-way trap is meant",
+      action: noteAction("drop_trap_dead"),
     });
   return out;
 }

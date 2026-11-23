@@ -432,14 +432,72 @@ const SP_1_13_0 = [
 ].reduce((text, [from, to]) => revise(text, from as string, to as string), SP_1_12_0);
 
 /**
- * sp-1.14.0 (WORKING, opened with generator 5; unreleased): sp-1.13.0 with the working principles (dp-1.4.0, the
- * live DESIGN_PRINCIPLES). It starts equal to sp-1.13.0. Add revisions below; principles go in designPrinciples.ts,
- * how-to here, field facts in tools.ts; say each thing once. Freeze a copy of all three when generator 5 ships.
+ * Generator 5's how-to for the words a plan already carries (sp-1.14.0): where the character of a place is read and
+ * which words set it. Every word list here is checked against the tables that read it (test/unit/agent/taughtWords
+ * .test.ts), so the text and the resolver cannot drift: gen/lightLevels.ts, gen/buildingCondition.ts and the wealth
+ * and mood tables of resolve/character.ts.
  */
-const SP_1_14_0 = [[DP_1_3_0, DESIGN_PRINCIPLES]].reduce(
-  (text, [from, to]) => revise(text, from as string, to as string),
-  SP_1_13_0,
-);
+export const CHARACTER_GUIDANCE = `# Light, upkeep and wealth
+
+The generator reads every place's character from words the plan already carries, then lights, wears and furnishes it to match. There is no field for it: the words are the control.
+
+- Where words are read. The scene: the map's title and the level's name (light also from the map's summary and kind; upkeep and wealth also from the level's notes). A quarter: a zone's name, tags and notes. A building: its name, tags, notes and use. A room, yard or other area: its name, tags and notes. A place that says nothing takes its value from the smallest zone or building around it, now and then a step either way, so a street varies by itself; a ruin is never drawn that way.
+- Light words: dark, unlit, lightless → dark; dim, gloomy, shadowy, candlelit, intimate, smoky → dim; bright, lively, festive, gleaming → bright; brilliant, blazing, floodlit → flooded. Abandoned, derelict, forgotten and lost read as dark too, so "The Lost Mine" is a dark scene.
+- Setting words, for a scene, a quarter or a building only: dungeon, crypt, cellar, night → dim; hospital, clinic, modern, neon → flooded. A room starts from its kind (a ward bright, a tavern dim, a store room or a crypt dark), moved by the light around it; a light word of its own overrides that.
+- Upkeep words: pristine, tidy, well-kept → intact; weathered, worn, shabby, neglected, grimy → weathered; ramshackle, dilapidated, run-down, shanty, makeshift → ramshackle; ruined, ruins → ruined. A building's words stop short of a ruin: only condition "ruined" or style ruin makes one, and then crumbling makes it a light ruin and collapsed or razed a heavy one. A worn or ramshackle place shows its age in patched roofs, boarded windows, a lean-to, things left about and growth at its foot, not in darkness.
+- Wealth words: poor, slum, impoverished, humble → poor; wealthy, rich, prosperous, noble → wealthy; lavish, opulent, luxurious, royal → lavish. Wealth sets how plain or rich the trims and the rooms' contents are.
+- Mood words set several at once: cosy, snug → dim, warm; grim, bleak, dreary → dim, weathered, cold; clinical, sterile → flooded, intact, cold; festive, carnival → bright, coloured; sinister, eerie → dark, coloured; downtrodden → dim, weathered, poor; opulent, palatial → bright, intact, lavish.
+- Towns by quarter. Lay a zone over each quarter and give it its character in tags or notes (a market quarter tagged wealthy and bright; the docks tagged poor, run-down and gloomy); its buildings take it with small variations of their own. Give a single building words only where it stands apart (a candlelit shrine in the slums).`;
+
+/** sp-1.14.0's revisions of sp-1.13.0's how-to (generator 5): rooms by kind, building rooms, pitfalls, character. */
+const SP_1_14_0_REVISIONS: ReadonlyArray<readonly [string, string]> = [
+  [DP_1_3_0, DESIGN_PRINCIPLES],
+  // rooms: generator 5's kinds and the words that pick them (checked against gen/roomPurpose.ts)
+  [
+    "- Rooms dress themselves (generator 4). Name every room for its use (Kitchen, Guard room, Library, Barracks) and leave its floor off: a room whose name, tags or notes say what it is for gets furniture, things on it, lights and, on a solid-base level, its own floor, differently in every room; a crypt, cells or a derelict or ruined room stays sparse and dark. A room you furnish yourself (2 or more features per 10 floor tiles) keeps your furniture and only gets lights. A dress op with a room preset (density 0.5 to 0.8) chooses the purpose or the amount; roomDress: false on the level turns the default off. A building's ground storey is dressed only by a dress op.",
+    "- Rooms dress themselves. Name every room for its use (Kitchen, Guard room, Infirmary, Shop) and leave its floor off: the name, else a tag, else the start of the notes picks its kind, and the kind decides its anchor and companions, what stands in its middle, its floor, how tidy it is and its lights, differently in every room. Room words: tavern (taproom, tavern, inn, bar), dining (hall, refectory, mess, banquet), kitchen (kitchen, scullery, bakery), library (library, archive), study (study, office), lounge (parlour, lounge, salon), classroom (classroom, schoolroom, scriptorium), command (command, chartroom, warroom), armoury (armoury, arsenal), barracks (guardroom, barracks, dormitory, bunkroom), bedroom (bedroom, bedchamber, quarters), storeroom (storeroom, pantry, cellar, hold), shop (shop, emporium, showroom), stable (stable, kennel, barn), shrine (shrine, chapel, temple), crypt (crypt, tomb, ossuary), prison (cells, prison, gaol), forge (forge, smithy, workshop), laboratory (laboratory, alchemy), ward (infirmary, ward, sickbay), treasury (treasury, vault), washroom (bath, washroom, latrine), throne room (throne, audience). A hall is a dining hall; a way through is a hallway, landing, gallery or antechamber and stays bare. A crypt, cells, or a room named derelict, looted or abandoned stays sparse and dark; a ruined or collapsed room is rubble. A room you furnish yourself (2 or more features per 10 floor tiles) keeps your furniture and only gets lights, so place props by hand only for the story (a body by the door, a letter on the desk). A dress op with a room preset (density 0.5 to 0.8) chooses the purpose or the amount; roomDress: false on the level turns the default off.",
+  ],
+  // a building's ground storey: rooms by its kind (checked against gen/buildingProgramme.ts)
+  [
+    "- The ground storey is an area with the building's id: name it, key it, dress it like a room, and lead paths to the cell in front of its door (connect that cell, not the building, or the path runs through the house).",
+    "- The ground storey is an area with the building's id: name it, key it, and lead paths to the cell in front of its door (connect that cell, not the building, or the path runs through the house). The generator splits it into rooms and furnishes them by the building's kind, read from its use, then its name and tags, then its notes. Building words: inn, tavern, pub → a taproom at the street door with the kitchen behind and often a store; shop, baker, apothecary, merchant → a shop floor and its store, sometimes a workroom or a bedroom; smithy, carpenter, mill → a workshop and its store; temple, shrine, chapel → a shrine and a study; guardhouse, barracks, garrison → a guardroom and an armoury; warehouse, barn, granary → a store room and an office. Anything else is a home: a kitchen or a hall with a bedroom, sometimes a parlour or a pantry. Under about 32 floor cells it is one room with a corner for each use, under 16 a single room; a ruin keeps its rubble. Your own rooms or corridors in the footprint, a dress op on the building or features inside it replace the generated rooms, so add them only when the story needs a particular layout.",
+  ],
+  [
+    "fortified → style keep. A ruined tower is style tower with condition ruined.",
+    'fortified → style keep. Only condition "ruined" or style ruin makes a ruin; upkeep words in the name or notes refine the rest (see Light, upkeep and wealth). A ruined tower is style tower with condition ruined.',
+  ],
+  // treatments are drawn per building: say what is left to the draw
+  [
+    "A terrace of buildings may share side walls (plots touching) or leave a one- or two-cell alley.",
+    "A terrace of buildings may share side walls (plots touching) or leave a one- or two-cell alley. Trims, ground cover, growth, patches and wear are drawn per building from its condition, wealth and neighbours; there is no field for them, so steer a street with condition and words and leave the rest to the draw.",
+  ],
+  // pitfalls the code confirms: windows, overlapping features, size, custom hints, water under another level's floor
+  [
+    "Two areas need a shared boundary to have a door between them.",
+    "Two areas need a shared boundary to have a door between them. A window needs a wall span its theme's window pieces fit, usually 2 cells (width 2): a span no window piece fits is built as plain wall, and the build's role_missing warning says which width fits.",
+  ],
+  [
+    "Wall decorations (torch_wall, banner_wall, painting_wall) need wall: side.",
+    "Wall decorations (torch_wall, banner_wall, painting_wall) need wall: side. Two blocking features cannot share a cell (feature_overlap), so nothing tall is built by stacking pieces. Leave size off for a named type: a piece keeps its own footprint whatever size says.",
+  ],
+  [
+    "The app finds the closest asset by name in the GM's installed game, including assets added by game updates, and compile_preview",
+    'The app searches the GM\'s installed game, including assets added by game updates, for an asset whose name holds the hint\'s last word as a whole word (a plain noun the game would use: "wheel", "anchor", "skull") and whose footprint is near the size you gave, and compile_preview',
+  ],
+  [
+    "(a dry pit or lava rift on the same map would be flooded, and the checks warn)",
+    "(a dry pit or lava rift on the same map would be flooded, and so would a cellar of another level under the water: the checks warn)",
+  ],
+  // the character section, after the set dressing
+  ["\n\n# Finishing a turn", `\n\n${CHARACTER_GUIDANCE}\n\n# Finishing a turn`],
+];
+
+/**
+ * sp-1.14.0 (WORKING, opened with generator 5; unreleased): sp-1.13.0 with the working principles (dp-1.4.0, the
+ * live DESIGN_PRINCIPLES) and generator 5's how-to above. Principles go in designPrinciples.ts, how-to here, field
+ * facts in tools.ts; say each thing once. Freeze a copy of all three when generator 5 ships.
+ */
+const SP_1_14_0 = SP_1_14_0_REVISIONS.reduce((text, [from, to]) => revise(text, from, to), SP_1_13_0);
 
 export const SYSTEM_PROMPT_VERSION = "sp-1.14.0";
 

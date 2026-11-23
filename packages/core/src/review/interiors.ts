@@ -33,6 +33,7 @@ import { type RoomClass, type RoomKind, classifyRoom, furnishedPurpose } from ".
 import { roomTargets } from "../gen/roomTraits";
 import { generatorProfile } from "../plan/generator";
 import { roomMeantDim } from "./lights";
+import { noteAction } from "./noteActions";
 import type { DesignNote } from "./review";
 import { REVIEW, capped } from "./thresholds";
 
@@ -332,7 +333,7 @@ export function interiorNotes(
               .join(" or ")})`,
         )
         .join(", ")}`,
-      action: "add the anchor piece (the bed, the counter, the desk), or rename the room for what it holds",
+      action: noteAction("anchor_missing"),
     });
   return out;
 }

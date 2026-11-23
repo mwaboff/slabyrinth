@@ -27,6 +27,7 @@ import { LevelGrid } from "../resolve/levelGrid";
 import { maxOf, minOf } from "../util/lists";
 import { centreOf, neighbourGroups } from "../resolve/neighbours";
 import { buildingDoors, openingCell, roomLane } from "./qualityMap";
+import { noteAction } from "./noteActions";
 import type { DesignNote } from "./review";
 import { REVIEW, capped } from "./thresholds";
 
@@ -127,7 +128,7 @@ export function qualityNotes(
       cell: first.cell,
       elementIds: [...lanes.map((b) => b.room), ...features].slice(0, 12),
       message: `the way between the doors of ${listed(lanes.map((b) => `${b.name} (${b.room})`))} is ${lanes.some((b) => b.cut) ? "cut off" : "blocked"} by ${listed(features)}`,
-      action: `keep a clear lane between a room's doors: move ${listed(features, 3)} against a wall`,
+      action: noteAction("lane_blocked", listed(features, 3)),
     });
   }
 
@@ -148,7 +149,7 @@ export function qualityNotes(
         cell: centreOf(unlit.map((x) => x.s)),
         elementIds: unlit.map((x) => x.s.id),
         message: `${unlit.length} building(s) have outside doors with no light by them: ${listed(unlit.map((x) => `${x.s.id} (${x.n})`))}`,
-        action: "set lighting.doors on them, or stand a light beside each outside door",
+        action: noteAction("doors_unlit"),
       });
 
     const flat = buildings.filter(
@@ -165,7 +166,7 @@ export function qualityNotes(
         cell: centreOf(flat),
         elementIds: flat.map((s) => s.id),
         message: `${flat.length} large building(s) have nothing above the roofline: ${listed(flat.map((s) => s.id))}`,
-        action: "give each something above its roof: chimneys, a taller volume or tower, or roofFurniture",
+        action: noteAction("silhouette_flat"),
       });
 
     // the treatment each building drew: neighbours dressed differently do not read alike
@@ -184,8 +185,7 @@ export function qualityNotes(
         cell: centreOf(row),
         elementIds: row.map((s) => s.id),
         message: `${row.length} neighbouring buildings have the same storeys (${storeysOf(row[0] as ResolvedStructure)}) and walls: ${listed(row.map((s) => s.id))}`,
-        action:
-          "vary the row: change storeys (one at least twice another) and wall styles between neighbours",
+        action: noteAction("facades_alike"),
       });
   }
   return out;
