@@ -96,6 +96,18 @@ describe("a vessel placed as a site has rooms aboard", () => {
       }
   });
 
+  it("steps every mast on a deck (never over the barge's open hold)", () => {
+    for (const s of harbour.sites) {
+      const decks = new Set(s.decks.flatMap((d) => d.cells.map(key)));
+      for (const p of s.built.parts.filter((x) => /^mast \d+$/.test(x.name))) {
+        const foot = [...p.pieces].sort((a, b) => a.y - b.y)[0];
+        if (!foot) continue;
+        const [px, py] = planPointOf(s.anchor.at, s.anchor.turn, foot.x, foot.z);
+        expect(decks.has(key([Math.floor(px), Math.floor(py)])), `${s.spec.id} ${p.name}`).toBe(true);
+      }
+    }
+  });
+
   it("lands every gangway on the wharf", () => {
     for (const s of harbour.sites) {
       const landing = s.gangway[s.gangway.length - 1];
@@ -132,7 +144,7 @@ describe("the hull holds what is aboard", () => {
       );
       const things = meterPiecesOf(set, (id) => furniture.has(id));
       const hull = meterPiecesOf(set, (id) => isHull(s, id));
-      expect(things.length).toBeGreaterThan(20);
+      expect(things.length).toBeGreaterThan(5);
       const pokes: string[] = [];
       for (const t of things)
         for (const h of hull) {

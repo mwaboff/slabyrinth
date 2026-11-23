@@ -221,13 +221,20 @@ export function vesselDesign(p: VesselParams): VesselDesign {
     const up = (r: Raised | null): Raised | null => (r ? { x: r.x, y: deck + STOREY } : null);
     // a barge: a cabin aft under a raised deck, the hold open to the sky from it to a short foredeck
     const aft = kind === "barge" ? { x: Math.round(-0.25 * L), y: deck + STOREY } : up(base.aft);
+    const openHold: readonly [number, number] | null =
+      kind === "barge" && aft ? [aft.x, Math.round(0.06 * L)] : null;
+    // a mast never stands over the open hold (no deck there): it steps on the foredeck just forward of it
+    const masts = base.masts.map((m) =>
+      openHold && m.x > openHold[0] - 1 && m.x < openHold[1] + 1 ? { ...m, x: openHold[1] + 1 } : m,
+    );
     return {
       ...base,
       interior: true,
       draft: STOREY + HOLD_SINK - deck,
       fore: up(base.fore),
       aft,
-      openHold: kind === "barge" && aft ? [aft.x, Math.round(0.22 * L)] : null,
+      masts,
+      openHold,
     };
   }
   if (kind === "boat") {
