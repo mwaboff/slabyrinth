@@ -5529,7 +5529,7 @@ plans/two-rooms-door@5 l1 feature bed 1
 plans/two-rooms-door@5 l1 feature rug 1
 plans/two-rooms-door@5 l1 feature torch_wall 6
 plans/two-rooms-door@5 review flat_map 1
-plans/varied-street-v1 g pieces feature 1010
+plans/varied-street-v1 g pieces feature 1009
 plans/varied-street-v1 g pieces fill 4
 plans/varied-street-v1 g pieces floor 1107
 plans/varied-street-v1 g pieces ledge 223
@@ -5539,7 +5539,7 @@ plans/varied-street-v1 g pieces wall 1163
 plans/varied-street-v1 g pieces wall_post 374
 plans/varied-street-v1 g layer roof 730
 plans/varied-street-v1 g layer site 2222
-plans/varied-street-v1 g layer storey:0 699
+plans/varied-street-v1 g layer storey:0 698
 plans/varied-street-v1 g layer storey:1 242
 plans/varied-street-v1 g layer storey:2 62
 plans/varied-street-v1 g part baker~canopy 6
@@ -5646,7 +5646,6 @@ plans/varied-street-v1 g part floor:floor.grass 477
 plans/varied-street-v1 g part floor:floor.gravel 215
 plans/varied-street-v1 g part floor:floor.rock 18
 plans/varied-street-v1 g part floor:floor.wood_plank 120
-plans/varied-street-v1 g part guardianPair@face:B:manor:podium:0:out:S:15:23:op:manor~door0 1
 plans/varied-street-v1 g part jambPosts@face:B:corner:main:0:out:N:22:45:op:corner~door0 2
 plans/varied-street-v1 g part jambPosts@face:B:manor:podium:0:out:E:31:7:op:manor~window2 4
 plans/varied-street-v1 g part jambPosts@face:B:manor:podium:0:out:E:31:7:op:manor~window3 4

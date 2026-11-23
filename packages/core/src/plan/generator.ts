@@ -468,6 +468,10 @@ const SWITCHES = {
     5,
     "A building's ground storey is split into the rooms of a programme drawn for its kind (an inn's taproom at the street door with its kitchen and store behind, a shop floor and its store, a workshop, a house's kitchen or hall and a bedroom; gen/buildingProgramme.ts): synthetic room areas over the footprint with walls between them and interior doorways, every room reached from the street door, no partition through a window or door, a chimney breast in a hearth room; a small building is one room with zones, a tiny one a single room. The room stage furnishes and lights them like any room. Ruins, open buildings and footprints the plan's own rooms cover stay as they are; upper storeys are untouched (resolve/building/rooms.ts).",
   ),
+  twinnedPairs: on(
+    5,
+    "A mirrored pair (a guardian pair, approach lights) is one piece twinned, both standing or neither: the pair takes the nearest offset where both sides are clear, and the keep-clear rule refusing one side refuses the pair (resolve/recipes/threshold.ts, a recipe's `whole`).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

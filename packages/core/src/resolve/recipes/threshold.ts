@@ -142,8 +142,38 @@ function vertexNear(
   return best;
 }
 
-/** A mirrored pair at about (±x, z), each on a grid vertex, or null when either side has no ground under it. */
+/**
+ * A mirrored pair at about (±x, z), each on a grid vertex, or null when either side has no ground under it. Generator 5
+ * (`twinnedPairs`, the engine hands `clearAt`): one piece twinned, both sides clear or neither; when the drawn offset
+ * is refused on either side, the nearest offset within `along`, then up to TWIN_OUT further out, where both are clear.
+ */
 function pair(
+  ctx: ComposeCtx,
+  a: { frame: AnchorFrame },
+  p: ArrangePiece,
+  x0: number,
+  z0: number,
+  along: readonly [number, number],
+): Placed[] | null {
+  const clearAt = ctx.clearAt;
+  if (!clearAt) return pairAt(ctx, a, p, x0, z0, along);
+  const tries: Array<[number, number]> = [];
+  for (let dz = 0; dz <= TWIN_OUT + 1e-9; dz += 0.5)
+    for (let dx = 0; dx <= along[1] - along[0] + 1e-9; dx += 0.5)
+      for (const x of dx === 0 ? [x0] : [x0 + dx, x0 - dx])
+        if (x >= along[0] - 1e-9 && x <= along[1] + 1e-9) tries.push([x, z0 + dz]);
+  for (const [x, z] of tries) {
+    const out = pairAt(ctx, a, p, x, z, along);
+    if (out && out.every(clearAt)) return out;
+  }
+  return null;
+}
+
+/** How much further out from the wall than drawn a twinned pair may stand to find both sides clear. */
+const TWIN_OUT = 1.5;
+
+/** A mirrored pair at about (±x, z) (see `pair`). */
+function pairAt(
   ctx: ComposeCtx,
   a: { frame: AnchorFrame },
   p: ArrangePiece,
@@ -181,6 +211,7 @@ export const guardianPair: Recipe<"opening"> = {
   mount: "floor",
   blocking: true,
   thinnable: false,
+  whole: true,
   when: (a, ctx) => doorAnchor(a) && isPassage(a.openingKind) && isMain(a, ctx),
   slots: {
     guardian: {
@@ -221,6 +252,7 @@ export const approachLights: Recipe<"opening"> = {
   mount: "floor",
   blocking: true,
   thinnable: false,
+  whole: true,
   when: (a, ctx) => doorAnchor(a) && isPassage(a.openingKind) && isMain(a, ctx),
   slots: {
     light: {
