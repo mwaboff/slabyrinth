@@ -12,7 +12,7 @@ import type { ThemeId } from "../../contracts/plan";
 import type { PlanRoles } from "../../palette/planRoles";
 import { GENERIC_THEME } from "../../palette/resolve";
 import { fitsShape } from "../../palette/traits";
-import type { FilledSlot, SlotSpec } from "./types";
+import type { FilledSlot, RecipeCtx, SlotSpec } from "./types";
 
 /** The pieces of one slot at one anchor, or null when the slot (and so the recipe there) must be skipped. */
 export function fillSlot<A>(
@@ -21,11 +21,12 @@ export function fillSlot<A>(
   spec: SlotSpec<A>,
   a: A,
   trim: string,
+  ctx?: RecipeCtx,
 ): FilledSlot | null {
   const t = roles.paletteTheme(theme);
-  const shape = spec.shape?.(a, trim) ?? null;
+  const shape = spec.shape?.(a, trim, ctx) ?? null;
   const min = Math.max(1, spec.min ?? 1);
-  for (const r of spec.roles?.(a, trim) ?? []) {
+  for (const r of spec.roles?.(a, trim, ctx) ?? []) {
     const res = roles.resolve(t, r.role).resolution;
     if (!res) continue;
     if (r.own === true && res.paletteId === GENERIC_THEME && t !== GENERIC_THEME) continue;

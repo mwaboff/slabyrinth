@@ -6,7 +6,7 @@
   "kind": "outdoor",
   "seed": 6311,
   "theme": "wood_town",
-  "summary": "Ground and walls line-up: a grass yard with a gravel path, a fenced plot, a ruined chapel, a large stone hall, and a street of six two-storey houses in brick, stone and plaster.",
+  "summary": "Ground and walls line-up: a grass yard with a gravel path, a fenced plot, a ruined chapel, a large stone hall, and a street of six cottages whose walls, storeys and roofs are left to the style's draw.",
   "levels": [
     {
       "id": "g",
@@ -138,7 +138,7 @@
         },
         {
           "id": "s1",
-          "name": "Brick house",
+          "name": "House 1",
           "style": "cottage",
           "seed": 51,
           "wings": [
@@ -149,19 +149,11 @@
               "h": 6
             }
           ],
-          "storeys": [
-            {
-              "walls": "brick"
-            },
-            {
-              "walls": "brick"
-            }
-          ],
           "front": "N"
         },
         {
           "id": "s2",
-          "name": "Stone house",
+          "name": "House 2",
           "style": "cottage",
           "seed": 52,
           "wings": [
@@ -172,19 +164,11 @@
               "h": 6
             }
           ],
-          "storeys": [
-            {
-              "walls": "stone"
-            },
-            {
-              "walls": "stone"
-            }
-          ],
           "front": "N"
         },
         {
           "id": "s3",
-          "name": "Plaster house",
+          "name": "House 3",
           "style": "cottage",
           "seed": 53,
           "wings": [
@@ -195,19 +179,11 @@
               "h": 6
             }
           ],
-          "storeys": [
-            {
-              "walls": "plaster"
-            },
-            {
-              "walls": "plaster"
-            }
-          ],
           "front": "N"
         },
         {
           "id": "s4",
-          "name": "Brick house",
+          "name": "House 4",
           "style": "cottage",
           "seed": 54,
           "wings": [
@@ -218,19 +194,11 @@
               "h": 6
             }
           ],
-          "storeys": [
-            {
-              "walls": "brick"
-            },
-            {
-              "walls": "brick"
-            }
-          ],
           "front": "N"
         },
         {
           "id": "s5",
-          "name": "Stone house",
+          "name": "House 5",
           "style": "cottage",
           "seed": 55,
           "wings": [
@@ -241,19 +209,11 @@
               "h": 6
             }
           ],
-          "storeys": [
-            {
-              "walls": "stone"
-            },
-            {
-              "walls": "stone"
-            }
-          ],
           "front": "N"
         },
         {
           "id": "s6",
-          "name": "Plaster house",
+          "name": "House 6",
           "style": "cottage",
           "seed": 56,
           "wings": [
@@ -262,14 +222,6 @@
               "y": 22,
               "w": 7,
               "h": 6
-            }
-          ],
-          "storeys": [
-            {
-              "walls": "plaster"
-            },
-            {
-              "walls": "plaster"
             }
           ],
           "front": "N"

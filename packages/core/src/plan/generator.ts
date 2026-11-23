@@ -352,6 +352,18 @@ const SWITCHES = {
     5,
     "Detail recipe: layered ground cover, flat pieces overlapping at free turns and low ones sunk, gathered where the ground meets something, by what the place is (resolve/recipes/ground.ts).",
   ),
+  ownWallsFirst: on(
+    5,
+    "A building's walls in a style whose only pieces in its theme are another setting's kit borrowed from the generic palette (gen/wallStyles.ts `settingKit`: desert plaster, an abandoned village's planks) are built in the theme's own wall instead, and its trims ask the theme's own posts (compile/realize/structures/context.ts, resolve/recipes/walls.ts).",
+  ),
+  readableTrims: on(
+    5,
+    "Trims read at street distance: a contrasting trim is drawn more often where the theme has one of its own; a post or band of the wall's own piece family stands further proud (a corner post may then be as thick as a jamb's), a band of the wall's own material is doubled by a second course stepped back under it, and a plinth shows taller and prouder (resolve/recipes/treatments.ts, walls.ts).",
+  ),
+  groundClusters: on(
+    5,
+    "Layered ground is laid in clusters: an anchor piece (a bush, a larger rock, a tall tuft) with two to four smaller companions round it, more of them where ground meets a wall, fence or path, low pieces leaning over a path's edge, sunk deeper where the floor under them takes it; the cover share is of the whole place's ground for every variant (resolve/recipes/ground.ts).",
+  ),
   qualityNotes: on(
     5,
     "The review advises from the quality meter where plan words can act: a blocked lane between a room's doors, unlit outside doors, a flat roofline, alike facades in a row (review/qualityNotes.ts).",

@@ -8,6 +8,8 @@ import type { CompileDiagnostic, RoleName } from "../../../contracts/compiler";
 import type { ThemeId } from "../../../contracts/plan";
 import type { ResolvedStructure } from "../../../contracts/resolved";
 import type { RoleResolution, VariantFilter } from "../../../palette/resolve";
+import { isSettingKitRole } from "../../../gen/wallStyles";
+import { GENERIC_THEME } from "../../../palette/resolve";
 import { isStyleLookRole } from "../../../palette/roles";
 import { structureStyle } from "../../../resolve/structureStyles";
 import { hashUnitUtf16 } from "../../../util/hash";
@@ -47,7 +49,7 @@ export function enclosureCtx(lv: RealizeLevel, st: ResolvedStructure): Structure
  * drawn with a town door).
  */
 export function buildingCtx(lv: RealizeLevel, st: ResolvedStructure): StructureCtx {
-  const base = themeLookup(lv, st);
+  const base = ownWallsFirst(lv, st, themeLookup(lv, st));
   const seen = new Set<string>();
   const era = structureStyle(st.style)?.era;
   const eraRoles = era?.roles.map((p) => new RegExp(p));
@@ -90,6 +92,34 @@ export function buildingCtx(lv: RealizeLevel, st: ResolvedStructure): StructureC
     return r;
   };
   return { lv, st, theme: st.theme, lookup };
+}
+
+/**
+ * Generator 5 (`ownWallsFirst`): a kept-up building's lookup that passes over a role of a setting-kit style (gen/
+ * wallStyles.ts `settingKit`) its theme only borrows from the generic palette, so the chain goes on to the theme's own
+ * wall or post. A weathered or ruined building keeps the borrowed kit (an abandoned village's planks suit it).
+ */
+const OPENING_ROLE = /^(window|opening|door)\b/;
+
+function ownWallsFirst(lv: RealizeLevel, st: ResolvedStructure, base: StructureLookup): StructureLookup {
+  if (!lv.ctx.profile.ownWallsFirst || st.theme === GENERIC_THEME || (st.condition ?? "intact") !== "intact")
+    return base;
+  return (roles, filter, quiet) => {
+    let passed = false;
+    for (const role of roles) {
+      const r = base([role], filter, true);
+      if (!r) continue;
+      // (asked for the kit's style: what the generic palette answers, its own fallback role included, is borrowed;
+      // openings keep their chain: a window or door the theme lacks is better borrowed than missing)
+      if (r.paletteId === GENERIC_THEME && isSettingKitRole(role) && !OPENING_ROLE.test(role)) {
+        passed = true;
+        continue;
+      }
+      return r;
+    }
+    // nothing but borrowed kit: none (the caller builds without it); nothing at all: the chain's own diagnostics
+    return passed ? null : base(roles, filter, quiet);
+  };
 }
 
 /** An info diagnostic of this level. */

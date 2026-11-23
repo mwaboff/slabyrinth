@@ -35,12 +35,12 @@ import {
   type ArrangePiece,
 } from "../../arrange";
 import { isGap, isPassage, isSecret } from "../../gen/openingKinds";
-import { isLowWallStyle, wallStyleInfo } from "../../gen/wallStyles";
+import { THEME_WALL_STYLE, isLowWallStyle, wallStyleInfo } from "../../gen/wallStyles";
 import { THEME_POST_ROLE, floorRole, partRole, postRole } from "../../palette/roles";
 import type { TraitQuery } from "../../palette/traitPools";
 import { hashUnitMixed } from "../../util/hash";
 import { baysOf, blankStretches, type FaceEnd, type FaceGap } from "../anchors";
-import type { ComposeCtx, FilledSlot, Recipe, SlotRole } from "./types";
+import type { ComposeCtx, FilledSlot, Recipe, RecipeCtx, SlotRole } from "./types";
 
 /** Role families structure may borrow from (no furniture, signs or rubble of the right shape). */
 const STRUCTURE = [
@@ -76,13 +76,51 @@ const PILASTER_PITCH = [2, 3] as const;
 const within = (ctx: ComposeCtx, what: string, [lo, hi]: readonly [number, number]): number =>
   lo + (hi - lo) * ctx.treatment.jitter(what);
 
-/** The post roles of a trim style: the theme's own slender pillar (own trims only), then the style's post chain. */
-const postRoles = (style: string, trim: string): SlotRole[] => [
-  ...(trim === style ? [{ role: "feature.pillar", own: true }] : []),
-  { role: partRole("facade_post", trim) },
-  { role: postRole(trim) },
-  { role: THEME_POST_ROLE },
-];
+/**
+ * The post roles of a trim style: the theme's own slender pillar (own trims only), then the style's post chain. A
+ * setting-kit style's posts (gen/wallStyles.ts) come from the theme's own palettes only (`ownWallsFirst`: its walls are
+ * then the theme's own, and so are its posts).
+ */
+const postRoles = (style: string, trim: string, ctx?: RecipeCtx): SlotRole[] => {
+  const own = ctx?.profile.ownWallsFirst === true && wallStyleInfo(trim)?.settingKit === true;
+  return [
+    ...(trim === style ? [{ role: "feature.pillar", own: true }] : []),
+    { role: partRole("facade_post", trim), ...(own ? { own } : {}) },
+    { role: postRole(trim), ...(own ? { own } : {}) },
+    { role: THEME_POST_ROLE },
+  ];
+};
+
+/** Readable trims (generator 5, `readableTrims`): how far a post or band of the wall's own piece family stands proud. */
+const RELIEF_PROUD = 0.42;
+/**
+ * A corner post is at most this thick (so it never doubles its wall's own corner filler, and its box keeps clear of the
+ * free centre of the outside cells next to the corner, which a thicker one covers: keepClear "open").
+ */
+const CORNER_THICK = 0.35;
+/** ... a doubled band's second course: stepped back this much under the first, with this shadow gap between them. */
+const BAND_STEP = 0.12;
+const BAND_GAP = 0.04;
+/** ... a plinth shows this much and stands this proud. */
+const PLINTH_SHOW_RELIEF = [0.35, 0.5] as const;
+const PLINTH_PROUD_RELIEF = [0.18, 0.28] as const;
+
+const readable = (ctx: RecipeCtx | undefined): boolean => ctx?.profile.readableTrims === true;
+
+/**
+ * A trim piece of the wall's own piece family (its style's post, or the theme's post on the theme's wall or a wall
+ * built in it): at a street's distance it reads only by relief.
+ */
+function sameFamily(piece: ArrangePiece, style: string): boolean {
+  const suffix = piece.role.split(".").pop();
+  if (piece.role === THEME_POST_ROLE)
+    return style === THEME_WALL_STYLE || wallStyleInfo(style)?.settingKit === true;
+  return suffix === style && (piece.role.startsWith("facade_post.") || piece.role.startsWith("wall_post."));
+}
+
+/** How far a post stands proud at most: `RELIEF_PROUD` for one of the wall's own family under readableTrims. */
+const postProud = (post: ArrangePiece, style: string, ctx: ComposeCtx): number =>
+  readable(ctx) && sameFamily(post, style) ? RELIEF_PROUD : PROUD;
 
 /** A post up to `height` tall and at most `thick` across. */
 const postShape = (height: number, thick: number): TraitQuery => ({
@@ -155,11 +193,11 @@ function postColumn(post: ArrangePiece, height: number): Arrangement {
   return [...col, ...transform(single(post), { dy: height - h })];
 }
 
-/** Its depth across the wall (local z at yaw 0) and how far its centre stands from the surface (`PROUD` at most). */
-function proudOf(post: ArrangePiece): { across: number; along: number; z: number } {
+/** Its depth across the wall (local z at yaw 0) and how far its centre stands from the surface (`max` at most). */
+function proudOf(post: ArrangePiece, max = PROUD): { across: number; along: number; z: number } {
   const across = post.variant.geom.size.z;
   const along = post.variant.geom.size.x;
-  return { across, along, z: Math.min(across, PROUD) - across / 2 };
+  return { across, along, z: Math.min(across, max) - across / 2 };
 }
 
 /** A straight run along a wall: a face or a storey line. */
@@ -230,7 +268,7 @@ export const jambPosts: Recipe<"opening"> = {
     a.head >= 1.2,
   slots: {
     post: {
-      roles: (a, trim) => postRoles(a.style, trim),
+      roles: (a, trim, ctx) => postRoles(a.style, trim, ctx),
       shape: (a) => postShape(a.head, 0.62),
       fallback: "skip",
     },
@@ -239,7 +277,7 @@ export const jambPosts: Recipe<"opening"> = {
     if (ctx.variant === "doors" && !isPassage(a.openingKind)) return null;
     const post = choose(slots.post, ctx, "post");
     if (!post) return null;
-    const { along, z } = proudOf(post);
+    const { along, z } = proudOf(post, postProud(post, a.style, ctx));
     const column = postColumn(post, a.head);
     // a jamb gets its post when the blank beside it takes one; a narrow pier between two openings takes one post,
     // the one of the opening on its left
@@ -278,17 +316,18 @@ export const cornerPosts: Recipe<"corner"> = {
     ),
   slots: {
     post: {
-      roles: (a, trim) => postRoles(a.style, trim),
-      shape: (a) => postShape(a.height, 0.35),
+      roles: (a, trim, ctx) => postRoles(a.style, trim, ctx),
+      shape: (a) => postShape(a.height, CORNER_THICK),
       fallback: "skip",
     },
   },
   compose: (a, slots, ctx) => {
     const post = choose(slots.post, ctx, "post");
     if (!post) return null;
-    const { across, z } = proudOf(post);
+    const max = postProud(post, a.style, ctx);
+    const { across, z } = proudOf(post, max);
     // diagonally off the corner: as proud of the first face (local -x) as of the second (local +z)
-    const o = Math.max(z, across / 2 - PROUD);
+    const o = Math.max(z, across / 2 - max);
     return transform(postColumn(post, a.height), { dx: -o, dz: o });
   },
 };
@@ -312,7 +351,7 @@ export const pilasters: Recipe<"face"> = {
     blankStretches(a.length, a.gaps).some(([f, t]) => t - f > PILASTER_RUN),
   slots: {
     post: {
-      roles: (a, trim) => postRoles(a.style, trim),
+      roles: (a, trim, ctx) => postRoles(a.style, trim, ctx),
       shape: (a) => postShape(a.height, 0.62),
       fallback: "skip",
     },
@@ -320,7 +359,7 @@ export const pilasters: Recipe<"face"> = {
   compose: (a, slots, ctx) => {
     const post = choose(slots.post, ctx, "post");
     if (!post) return null;
-    const { along, z } = proudOf(post);
+    const { along, z } = proudOf(post, postProud(post, a.style, ctx));
     const column = postColumn(post, a.height);
     const pitch = within(ctx, "pilasterPitch", PILASTER_PITCH) / ctx.density;
     const long = blankStretches(a.length, a.gaps).map(([f, t]) => t - f > PILASTER_RUN);
@@ -359,37 +398,56 @@ export const bandCourses: Recipe<"storeyLine"> = {
     if (ctx.variant === "first" && a.storey !== 1) return null;
     const beam = choose(slots.band, ctx, "band");
     const slab = choose(slots.slab, ctx, "slab");
+    // readableTrims: a band in the wall's own material stands fully proud and is doubled (see `doubled`)
+    const relief = readable(ctx) && ctx.trim === a.style;
     if (beam) {
       const m = beam.measures;
-      const proud = Math.min(PROUD, m.width) * (0.7 + 0.3 * ctx.treatment.jitter("bandProud"));
+      const proud = relief
+        ? Math.min(PROUD, m.width)
+        : Math.min(PROUD, m.width) * (0.7 + 0.3 * ctx.treatment.jitter("bandProud"));
       const module = transform(single(beam, m.runAxis === "z" ? 90 : 0), {
         // centred in the floor's thickness under the line
         dz: proud - m.width / 2,
         dy: -0.25 - m.height / 2,
       });
-      const arr = course(a, module, {
+      const p = {
         proud,
         depth: m.width,
         pitch: m.length * 0.97,
         from: kin(slots.band, beam),
         seed: `${ctx.seed}|band`,
-      });
+      };
+      const arr = [...course(a, module, p), ...(relief ? doubled(a, module, p, m.height) : [])];
       return arr.length > 0 ? arr : null;
     }
     if (!slab) return null;
     const g = slab.variant.geom.size;
-    const proud = within(ctx, "bandProud", SLAB_PROUD);
+    const proud = relief ? SLAB_PROUD[1] : within(ctx, "bandProud", SLAB_PROUD);
     const module = transform(single(slab), { dz: proud - g.z / 2, dy: -g.y - UNDER_FLOOR });
-    const arr = course(a, module, {
-      proud,
-      depth: g.z,
-      pitch: g.x,
-      from: kin(slots.slab, slab),
-      seed: `${ctx.seed}|band`,
-    });
+    const p = { proud, depth: g.z, pitch: g.x, from: kin(slots.slab, slab), seed: `${ctx.seed}|band` };
+    const arr = [...course(a, module, p), ...(relief ? doubled(a, module, p, g.y) : [])];
     return arr.length > 0 ? arr : null;
   },
 };
+
+/**
+ * A band's second course (readableTrims): the same module stepped BAND_STEP back and its own height and a shadow gap
+ * lower, so a band in the wall's own material reads by its stepped profile.
+ */
+function doubled(
+  run: Run,
+  module: Arrangement,
+  p: { proud: number; depth: number; pitch: number; from: readonly ArrangePiece[]; seed: string },
+  height: number,
+): Arrangement {
+  const proud = p.proud - BAND_STEP;
+  if (proud <= 0.05) return [];
+  return course(run, transform(module, { dz: -BAND_STEP, dy: -(height + BAND_GAP) }), {
+    ...p,
+    proud,
+    seed: `${p.seed}|2`,
+  });
+}
 
 export const plinths: Recipe<"face"> = {
   id: "plinths",
@@ -422,10 +480,14 @@ export const plinths: Recipe<"face"> = {
     const m = piece.measures;
     const turned = m.runAxis === "z";
     const depth = turned ? piece.variant.geom.size.x : piece.variant.geom.size.z;
-    // never through the wall to show inside: its back stays IN_WALL behind the surface at most
-    const proud = Math.min(depth, Math.max(depth - IN_WALL, within(ctx, "plinthProud", PLINTH_PROUD)));
-    if (proud > PLINTH_PROUD[1] + 0.12) return null;
-    const show = Math.min(m.height, within(ctx, "plinthShow", PLINTH_SHOW));
+    // never through the wall to show inside: its back stays IN_WALL behind the surface at most (readableTrims: a
+    // taller, prouder step that changes the building's foot at a distance)
+    const [proudRange, showRange] = readable(ctx)
+      ? [PLINTH_PROUD_RELIEF, PLINTH_SHOW_RELIEF]
+      : [PLINTH_PROUD, PLINTH_SHOW];
+    const proud = Math.min(depth, Math.max(depth - IN_WALL, within(ctx, "plinthProud", proudRange)));
+    if (proud > proudRange[1] + 0.12) return null;
+    const show = Math.min(m.height, within(ctx, "plinthShow", showRange));
     const module = transform(single(piece, turned ? 90 : 0), { dz: proud - depth / 2, dy: show - m.height });
     // doors break it; windows sit on it
     const run: Run = { ...a, gaps: a.gaps.filter((g) => isPassage(g.kind)) };

@@ -28,6 +28,7 @@ import {
   PROP_OVERLAP_MIN_AREA,
   PROP_OVERLAP_SHARE,
   PROP_SAME_SPOT_SHARE,
+  SEAM_REACH,
   SUPPORT_SLACK,
 } from "./limits";
 import { OverheadLines } from "./lines";
@@ -327,8 +328,11 @@ function checkSupport(
     );
   const support = supports.length ? maxOf(supports.map((q) => q.box.max.y)) : null;
   // a floor or fill piece crossing the thin slice just above the support slack, starting below the prop's base
+  // (generator 5, `groundClusters`: an arranged piece sunk with its centre on the seam between two ground tiles is in
+  // the ground: the tiles are met within SEAM_REACH of the centre)
+  const seam = s.arranged && ctx.profile.groundClusters ? -SEAM_REACH : 0;
   const inside = solids
-    .at(cx, cz, s.p.y + SUPPORT_SLACK, s.p.y + 0.07, 0)
+    .at(cx, cz, s.p.y + SUPPORT_SLACK, s.p.y + 0.07, seam)
     .filter((q) => q.levelId === L.id && (q.role === "floor" || q.role === "fill") && q.box.min.y < s.p.y);
   const cell: [number, number] = [Math.floor(pc.px), Math.floor(pc.py)];
   // an arrangement's piece sunk into the floor on purpose (arrange/ `sink`) stands in what it is sunk into

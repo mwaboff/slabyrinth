@@ -25,6 +25,7 @@ import {
 import type { ResolvedArrangement, ResolvedFeature, ResolvedLevel } from "../../contracts/resolved";
 import type { BuildingWords } from "../../gen/buildingCondition";
 import { isPassage, isWindow } from "../../gen/openingKinds";
+import { GENERIC_THEME } from "../../palette/resolve";
 import type { PaletteView } from "../../palette/view";
 import { THEME_WALL_ROLE, partRole, postRole, wallRole } from "../../palette/roles";
 import { THEME_WALL_STYLE } from "../../gen/wallStyles";
@@ -125,7 +126,7 @@ export function runRecipes(
     boardEdgeIsExit: profile.boardEdgeExits,
   });
   const clear = new KeepClear(level, anchors.grid, anchors.of("zone"), heightOf);
-  const rctx: RecipeCtx = { level, anchors, roles };
+  const rctx: RecipeCtx = { level, anchors, roles, profile };
   const treatments = drawTreatments({
     planSeed: run.planSeed,
     level,
@@ -138,6 +139,18 @@ export function runRecipes(
         (role) => !!roles.resolve(t, role).resolution,
       );
     },
+    // generator 5 (`readableTrims`): which trims the theme makes itself (not borrowed from the generic palette)
+    ...(profile.readableTrims
+      ? {
+          hasOwnTrim: (theme: string, style: string) => {
+            const t = roles.paletteTheme(theme);
+            return [partRole("facade_post", style), postRole(style)].some((role) => {
+              const res = roles.resolve(t, role).resolution;
+              return !!res && (res.paletteId !== GENERIC_THEME || t === GENERIC_THEME);
+            });
+          },
+        }
+      : {}),
     ...(run.families ? { families: run.families } : {}),
     ...(run.words ? { words: run.words } : {}),
   });
@@ -220,11 +233,11 @@ function propose<K extends AnchorKind>(r: Recipe<K>, c: ProposeCtx): void {
     for (const name of Object.keys(r.slots).sort()) {
       const spec = r.slots[name];
       if (!spec) continue;
-      let filled = fillSlot(c.rctx.roles, a.theme, spec, a, trim);
+      let filled = fillSlot(c.rctx.roles, a.theme, spec, a, trim, c.rctx);
       // a contrast the theme cannot make in this slot falls back to the wall's own material, for the whole recipe
       if (!filled && trim !== own) {
         trim = own;
-        filled = fillSlot(c.rctx.roles, a.theme, spec, a, trim);
+        filled = fillSlot(c.rctx.roles, a.theme, spec, a, trim, c.rctx);
       }
       if (!filled) {
         missing = name;
@@ -306,8 +319,11 @@ function blocksOf(local: Arrangement, f: AnchorFrame, block: number | undefined)
  */
 const FLAT = 0.5;
 const GAP = 0.035;
-const AREA = 0.05;
+// (judged here at 0.8 of the meter's 0.05: a turned piece's plan box here and its world box there differ by rounding)
+const AREA = 0.04;
 const STEP = 0.04;
+/** ... at most this many times (a clustered cover can lie several deep). */
+const STEPS = 10;
 
 /**
  * A recipe instance (block `block`) at an anchor before the budget: the arrangement less the pieces the keep-clear rule
@@ -360,7 +376,7 @@ function separate(p: Composed, tops: PlanBox[]): Arrangement {
   return p.arr.map((piece) => {
     if (piece.piece.variant.geom.size.y > FLAT) return piece;
     let q = piece;
-    for (let k = 0; k < 6; k++) {
+    for (let k = 0; k < STEPS; k++) {
       const b = planBox(f.at, f.turn, f.base, q);
       if (!tops.some((o) => Math.abs(o.z1 - b.z1) < GAP && overlapArea(o, b) >= AREA)) break;
       q = { ...q, y: q.y + p.dir * STEP };

@@ -12,7 +12,7 @@ import type { RoleName } from "../../contracts/compiler";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import type { TraitQuery } from "../../palette/traitPools";
 import type { PlanRoles } from "../../palette/planRoles";
-import type { SwitchName } from "../../plan/generator";
+import type { GeneratorProfile, SwitchName } from "../../plan/generator";
 import type { AnchorKind, AnchorOf, LevelAnchors } from "../anchors";
 import type { Treatment } from "./treatments";
 
@@ -35,9 +35,12 @@ export interface SlotRole {
 /** The pieces one slot of a recipe needs. */
 export interface SlotSpec<A> {
   /** Roles asked first, in order (style-aware: a function of the anchor); every piece must also fit `shape`. */
-  readonly roles?: (a: A, trim: string) => readonly SlotRole[];
-  /** The shape the slot's pieces have; the theme's own pieces of it (palette/traitPools.ts) come after the roles. */
-  readonly shape?: (a: A, trim: string) => TraitQuery | null;
+  readonly roles?: (a: A, trim: string, ctx?: RecipeCtx) => readonly SlotRole[];
+  /**
+   * The shape the slot's pieces have; the theme's own pieces of it (palette/traitPools.ts) come after the roles. (`ctx`:
+   * the level's, when the engine fills the slot: a shape may read a switch.)
+   */
+  readonly shape?: (a: A, trim: string, ctx?: RecipeCtx) => TraitQuery | null;
   /** Fewest distinct pieces a source must offer to supply the slot (default 1). */
   readonly min?: number;
   readonly fallback: SlotFallback;
@@ -57,6 +60,8 @@ export interface RecipeCtx {
   readonly level: ResolvedLevel;
   readonly anchors: LevelAnchors;
   readonly roles: PlanRoles;
+  /** The plan's generator: a recipe reads the switches of the behaviour it changes where it differs. */
+  readonly profile: GeneratorProfile;
 }
 
 /** What `compose` is told besides the anchor and its pieces. */

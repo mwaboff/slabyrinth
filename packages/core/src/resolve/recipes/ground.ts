@@ -49,6 +49,25 @@ const SINK_MAX = 0.05;
 /** Cells no piece of the cover reaches onto: water, a path, a stair, a link. */
 const KEEP_OFF = CELL_FLAG.WATER | CELL_FLAG.PATH | CELL_FLAG.STEPS | CELL_FLAG.LINK;
 
+/**
+ * Clusters (generator 5, `groundClusters`): an anchor piece (a bush, a larger rock, a tall tuft: ANCHOR_H tall, at most
+ * ANCHOR_L long) with companions round it, COMPANIONS in the middle and more where ground meets an edge. Low pieces sink
+ * SINK_DEEP of their height, at most SINK_DEEP_MAX (ground tiles are half a tile thick: verify takes a piece sunk into a
+ * floor piece under its centre as resting in it), and a low or flat companion may lean PATH_LEAN over a path's edge
+ * (its centre stays on the ground), so the path's line breaks up.
+ */
+const ANCHOR_H = [0.45, 1.25] as const;
+const ANCHOR_L = 2;
+const COMPANIONS = { middle: [2, 3], edge: [3, 4] } as const;
+const SINK_DEEP = [0.3, 0.5] as const;
+const SINK_DEEP_MAX = 0.3;
+const PATH_LEAN = 0.35;
+/** A layout's footprints, less what they lie over each other (about this share kept); its rate corrected within these. */
+const OVERLAP_KEPT = 0.75;
+const CORRECTION = [0.5, 3] as const;
+/** Share of a natural place's clusters that are anchored (the rest are the flat-pair clusters). */
+const ANCHORED = { middle: 0.45, edge: 0.7 } as const;
+
 const flatOf = (ps: readonly ArrangePiece[]): ArrangePiece[] =>
   ps.filter((p) => p.measures.height <= FLAT_H && p.measures.footprint >= 0.05);
 const lowOf = (ps: readonly ArrangePiece[]): ArrangePiece[] =>
@@ -75,6 +94,24 @@ function pools(
     ],
     rocks: lowOf(piecesOf(slots.rock)),
   };
+}
+
+/**
+ * (groundClusters) The pieces tall enough to anchor a cluster, from every slot of a natural place: its bushes, then its
+ * rocks, flowers, tufts and cover of ANCHOR_H, at most ANCHOR_L long; each piece once.
+ */
+function anchorsOf(slots: Readonly<Record<string, FilledSlot>>): ArrangePiece[] {
+  const seen = new Set<string>();
+  return ["anchor", "rock", "bloom", "grass", "cover"]
+    .flatMap((k) => piecesOf(slots[k]))
+    .filter((p) => {
+      const k = `${p.role}|${p.variant.wanted}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return (
+        p.measures.height >= ANCHOR_H[0] && p.measures.height <= ANCHOR_H[1] && p.measures.length <= ANCHOR_L
+      );
+    });
 }
 
 /** The cover share the place asks, before the variant. */
@@ -122,6 +159,12 @@ export const layeredGround: Recipe<"zone"> = {
       fallback: "simplify",
     },
     rock: { roles: (a) => (a.indoor || !a.natural ? [] : [{ role: "feature.rock" }]), fallback: "simplify" },
+    // (groundClusters) a cluster's anchor: a bush, a larger rock or a tall tuft, on natural ground outdoors
+    anchor: {
+      roles: (a, _t, ctx) =>
+        a.indoor || !a.natural || ctx?.profile.groundClusters !== true ? [] : [{ role: "feature.bush" }],
+      fallback: "simplify",
+    },
     rubble: {
       roles: (a) => (a.wear > 0 ? [{ role: "feature.rubble" }, { role: "feature.debris" }] : []),
       fallback: "simplify",
@@ -130,9 +173,11 @@ export const layeredGround: Recipe<"zone"> = {
   compose: (a, slots, ctx) => {
     const { flat, low, rocks } = pools(a, slots);
     if (flat.length === 0 && low.length === 0) return null;
+    const clusters = ctx.profile.groundClusters;
     const share = coverOf(a) * (ctx.variant in VARIANT ? VARIANT[ctx.variant as keyof typeof VARIANT] : 1);
     const edgesOnly = ctx.variant === "edges";
-    const cells = openCells(a, ctx).filter(([x, y]) => !edgesOnly || a.edgeAt(x, y) <= 1);
+    const open = openCells(a, ctx);
+    const cells = open.filter(([x, y]) => !edgesOnly || a.edgeAt(x, y) <= 1);
     if (cells.length === 0 || share <= 0) return null;
     const weightOf = (x: number, y: number): number => {
       const d = a.edgeAt(x, y);
@@ -141,10 +186,28 @@ export const layeredGround: Recipe<"zone"> = {
     // a cluster covers about its main flat piece and (three times in four) a partner, less their overlap and what
     // is left out at a path or a drop
     const main = flat.length > 0 ? flat : low;
-    const mean = main.reduce((s, p) => s + p.measures.footprint, 0) / main.length;
+    const meanOf = (ps: readonly ArrangePiece[]): number =>
+      ps.length === 0 ? 0 : ps.reduce((s, p) => s + p.measures.footprint, 0) / ps.length;
+    const mean = meanOf(main);
     const clusterArea = mean * (flat.length > 0 ? 1.45 : 1) + (low.length > 0 ? 0.15 : 0);
-    const total = cells.reduce((s, [x, y]) => s + weightOf(x, y), 0);
-    const k = (share * cells.length) / (clusterArea * total);
+    // (groundClusters) anchored clusters: an anchor piece and its companions, more of them at an edge
+    const anchors = clusters ? anchorsOf(slots) : [];
+    const companions = [...low, ...flat];
+    const anchoredAt = (near: boolean): number =>
+      anchors.length === 0 ? 0 : near ? ANCHORED.edge : ANCHORED.middle;
+    const areaAt = (near: boolean): number => {
+      if (!clusters) return clusterArea;
+      const [c0, c1] = near ? COMPANIONS.edge : COMPANIONS.middle;
+      const anchored = meanOf(anchors) + meanOf(companions) * ((c0 + c1) / 2) * 0.8;
+      const pa = anchoredAt(near);
+      return pa * anchored + (1 - pa) * clusterArea;
+    };
+    const total = cells.reduce(
+      (s, [x, y]) => s + weightOf(x, y) * (clusters ? areaAt(a.edgeAt(x, y) <= 1) : 1),
+      0,
+    );
+    // (groundClusters: the share is of the whole place's open ground for every variant; "edges" gathers it at them)
+    const k = clusters ? (share * open.length) / total : (share * cells.length) / (clusterArea * total);
     const g = ctx.anchors.grid;
     const f = a.frame;
     const draw = (what: string, x: number, y: number, i = 0): number =>
@@ -153,24 +216,41 @@ export const layeredGround: Recipe<"zone"> = {
     const lows: Placed[] = [];
     const recent = new Map<readonly ArrangePiece[], number[]>();
     // a piece lies wholly on this place's own floor at the cluster's height (never over water, a path, a drop or a wall)
-    const onGround = (px: number, py: number, p: ArrangePiece, yaw: number, top: number): boolean => {
+    const fits = (qx: number, qy: number, top: number, keepOff: number): boolean => {
+      const cx = Math.floor(qx);
+      const cy = Math.floor(qy);
+      const c = g.cell(cx, cy);
+      return (
+        c.floor &&
+        a.classAt(cx, cy) !== 0 &&
+        Math.abs(g.top(cx, cy) - top) < 0.01 &&
+        ((ctx.level.cells.flags[g.index(cx, cy)] ?? 0) & keepOff) === 0
+      );
+    };
+    // (`lean`, groundClusters: a corner may lie up to PATH_LEAN over a path's edge, never in a lane or an apron)
+    const onGround = (
+      px: number,
+      py: number,
+      p: ArrangePiece,
+      yaw: number,
+      top: number,
+      lean = false,
+    ): boolean => {
       const h = turnedHalfExtents(p.variant.geom.size.x, p.variant.geom.size.z, yaw);
+      if (!fits(px, py, top, KEEP_OFF)) return false;
       return [
         [px - h.x, py - h.z],
         [px + h.x, py - h.z],
         [px - h.x, py + h.z],
         [px + h.x, py + h.z],
-        [px, py],
       ].every(([qx = 0, qy = 0]) => {
-        const cx = Math.floor(qx);
-        const cy = Math.floor(qy);
-        const c = g.cell(cx, cy);
-        return (
-          c.floor &&
-          a.classAt(cx, cy) !== 0 &&
-          Math.abs(g.top(cx, cy) - top) < 0.01 &&
-          ((ctx.level.cells.flags[g.index(cx, cy)] ?? 0) & KEEP_OFF) === 0
-        );
+        if (fits(qx, qy, top, KEEP_OFF)) return true;
+        if (!lean || !fits(qx, qy, top, KEEP_OFF & ~CELL_FLAG.PATH)) return false;
+        if ((a.classAt(Math.floor(qx), Math.floor(qy)) & (ZONE.LANE | ZONE.DOOR)) !== 0) return false;
+        // the corner pulled PATH_LEAN back toward the centre is off the path
+        const d = Math.hypot(px - qx, py - qy);
+        const t = d <= PATH_LEAN ? 1 : PATH_LEAN / d;
+        return fits(qx + (px - qx) * t, qy + (py - qy) * t, top, KEEP_OFF);
       });
     };
     const put = (
@@ -181,22 +261,70 @@ export const layeredGround: Recipe<"zone"> = {
       top: number,
       y: number,
       yaw: number,
+      lean = false,
     ): void => {
-      if (!onGround(px, py, p, yaw, top)) return;
+      if (!onGround(px, py, p, yaw, top, lean)) return;
       const q = single(p, yaw)[0] as Placed;
       into.push({ ...q, x: px - f.at[0], z: f.at[1] - py, y: y - f.base });
     };
-    for (const [x, y] of cells) {
-      const p = Math.min(0.85, k * weightOf(x, y) * ctx.density);
-      if (draw("keep", x, y) >= p) continue;
+    // how deep a low piece sinks: a little (verify's support slack), or (groundClusters) into the ground tile
+    const sunk = (q: ArrangePiece, u: number): number =>
+      clusters
+        ? Math.min(SINK_DEEP_MAX, (SINK_DEEP[0] + (SINK_DEEP[1] - SINK_DEEP[0]) * u) * q.measures.height)
+        : Math.min(SINK_MAX, (SINK[0] + (SINK[1] - SINK[0]) * u) * q.measures.height);
+    const yawOf = (u: number): number => Math.floor(u * 24) * 15;
+    // one layout at a cluster rate `rate`
+    const lay = (rate: number): void => {
+      out.length = 0;
+      lows.length = 0;
+      recent.clear();
+      for (const [x, y] of cells) layCell(rate, x, y);
+    };
+    const layCell = (rate: number, x: number, y: number): void => {
+      const p = Math.min(0.85, rate * weightOf(x, y) * ctx.density);
+      if (draw("keep", x, y) >= p) return;
       const ground = g.top(x, y);
       const cx = x + 0.2 + 0.6 * draw("x", x, y);
       const cy = y + 0.2 + 0.6 * draw("y", x, y);
       const near = a.edgeAt(x, y) <= 1;
+      if (clusters && draw("anchored", x, y) < anchoredAt(near)) {
+        // an anchor piece, sunk, with its companions round it (flat ones lying, low ones sunk), mixed by hash
+        const m = anchors[Math.floor(draw("anchor", x, y) * anchors.length)] as ArrangePiece;
+        put(
+          lows,
+          m,
+          cx,
+          cy,
+          ground,
+          ground - sunk(m, draw("anchorSink", x, y)),
+          yawOf(draw("anchorYaw", x, y)),
+        );
+        const [c0, c1] = near ? COMPANIONS.edge : COMPANIONS.middle;
+        const n = c0 + Math.floor(draw("companions", x, y) * (c1 - c0 + 1));
+        const turn0 = draw("ring", x, y) * 2 * Math.PI;
+        for (let i = 0; i < n && companions.length > 0; i++) {
+          const q = companions[Math.floor(draw("companion", x, y, i) * companions.length)] as ArrangePiece;
+          const ang = turn0 + (i * 2 * Math.PI) / n + (draw("ringJit", x, y, i) - 0.5) * 0.9;
+          const r = 0.4 * m.measures.length + 0.3 * q.measures.length + 0.15 * draw("ringR", x, y, i);
+          const isFlat = q.measures.height <= FLAT_H;
+          const top = isFlat ? ground : ground - sunk(q, draw("sink", x, y, i));
+          put(
+            isFlat ? out : lows,
+            q,
+            cx + Math.cos(ang) * r,
+            cy + Math.sin(ang) * r,
+            ground,
+            top,
+            yawOf(draw("lowYaw", x, y, i)),
+            true,
+          );
+        }
+        return;
+      }
       if (flat.length > 0) {
         const m = flat[Math.floor(draw("flat", x, y) * flat.length)] as ArrangePiece;
         const yaw = Math.floor(draw("yaw", x, y) * 24) * 15;
-        put(out, m, cx, cy, ground, ground, yaw);
+        put(out, m, cx, cy, ground, ground, yaw, clusters);
         // its partner, of the same kind, overlapping it by 0.2-0.4 of their size at another turn
         const kin = flat.filter((q) => q.role === m.role);
         const n = kin[Math.floor(draw("partner", x, y) * kin.length)] ?? m;
@@ -212,6 +340,7 @@ export const layeredGround: Recipe<"zone"> = {
             ground,
             ground,
             Math.floor(draw("yaw2", x, y) * 24) * 15,
+            clusters,
           );
       }
       // low pieces gather at the edges: sunk tufts and rocks, rare in the middle
@@ -232,7 +361,6 @@ export const layeredGround: Recipe<"zone"> = {
           li = (li + 1) % lowPool.length;
         recent.set(lowPool, [...last.slice(-1), li]);
         const q = lowPool[li] as ArrangePiece;
-        const sink = SINK[0] + (SINK[1] - SINK[0]) * draw("sink", x, y, i);
         const ang = draw("lowDir", x, y, i) * 2 * Math.PI;
         const r = 0.25 + 0.2 * draw("lowR", x, y, i);
         put(
@@ -241,10 +369,19 @@ export const layeredGround: Recipe<"zone"> = {
           cx + Math.cos(ang) * r,
           cy + Math.sin(ang) * r,
           ground,
-          ground - Math.min(SINK_MAX, sink * q.measures.height),
+          ground - sunk(q, draw("sink", x, y, i)),
           Math.floor(draw("lowYaw", x, y, i) * 24) * 15,
+          clusters,
         );
       }
+    };
+    lay(k);
+    // (groundClusters) the estimate is corrected once by what the layout really covered (pieces that did not fit at an
+    // edge, a path or a drop): the rate is scaled to the target, within CORRECTION
+    if (clusters) {
+      const laid = [...out, ...lows].reduce((s, q) => s + q.piece.measures.footprint, 0) * OVERLAP_KEPT;
+      const target = share * open.length;
+      if (laid > 0) lay(k * Math.min(CORRECTION[1], Math.max(CORRECTION[0], target / laid)));
     }
     const all: Arrangement = [...out, ...lows];
     return all.length > 0 ? all : null;
