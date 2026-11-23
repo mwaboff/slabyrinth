@@ -17,11 +17,24 @@ const MARGIN_DROP = [0.04, 0.08, 0.12] as const;
 
 /** Floor tiles over the polygon with their tops at `y` (see the file header); empty when the kit has no floor tile. */
 export function floorOver(poly: readonly XZ[], y: number, kit: ObjectKit, seed: string): Placed[] {
-  const small = kit.standIn("deckSmall");
-  const one = small?.pieces[0];
+  // one deck texture: one small tile per deck (seeded), and the large tile of the same family (longest shared name)
+  const one = kit.pick("deckSmall", seed);
   if (!one) return [];
   const big = kit.standIn("deck");
-  const two = big && big.id === "deck" ? big : null;
+  const shared = (a: string, b: string): number => {
+    let i = 0;
+    while (i < a.length && a[i] === b[i]) i++;
+    return i;
+  };
+  const twoPiece =
+    big && big.id === "deck"
+      ? [...kit.mix("deck")].sort(
+          (a, b) =>
+            shared(b.variant.name ?? "", one.variant.name ?? "") -
+            shared(a.variant.name ?? "", one.variant.name ?? ""),
+        )[0]
+      : undefined;
+  const two = twoPiece ? { pieces: [twoPiece] } : null;
   const xs = poly.map((p) => p[0]);
   const zs = poly.map((p) => p[1]);
   const x0 = Math.floor(minOf(xs));
@@ -54,11 +67,11 @@ export function floorOver(poly: readonly XZ[], y: number, kit: ObjectKit, seed: 
       const block = [key(x, z), key(x + 1, z), key(x, z + 1), key(x + 1, z + 1)];
       if (two && block.every((k) => whole.has(k) && !used.has(k))) {
         block.forEach((k) => used.add(k));
-        const p = kit.pick("deck", seed, x, z) ?? two.pieces[0];
+        const p = two.pieces[0];
         if (p) out.push(tile(p, x + 1, z + 1, y));
       } else {
         used.add(key(x, z));
-        out.push(tile(kit.pick("deckSmall", seed, x, z) ?? one, x + 0.5, z + 0.5, y));
+        out.push(tile(one, x + 0.5, z + 0.5, y));
       }
     }
   // margins: along every side, 1 x 1 tiles pushed out to touch the outline with a corner
@@ -94,7 +107,7 @@ export function floorOver(poly: readonly XZ[], y: number, kit: ObjectKit, seed: 
         continue;
       const drop = MARGIN_DROP[k % MARGIN_DROP.length] ?? 0.03;
       k++;
-      out.push(tile(kit.pick("deckSmall", seed, "margin", i, j) ?? one, cx, cz, y - drop));
+      out.push(tile(one, cx, cz, y - drop));
     }
   }
   return out;

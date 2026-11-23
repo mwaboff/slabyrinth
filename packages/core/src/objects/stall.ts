@@ -13,6 +13,7 @@
  */
 import { lengthwise, single, type Arrangement, type Placed, type XZ } from "../arrange/piece";
 import { run } from "../arrange/along";
+import { twin } from "../arrange/copies";
 import { vary } from "../arrange/modifiers";
 import { polyline } from "../arrange/path";
 import { rest } from "../arrange/support";
@@ -110,31 +111,40 @@ export const stall: ObjectRecipe<StallParams> = {
       for (const x of cells)
         for (const z of [-0.5, 0.5]) roof.push(at(kit.pick("canopy", seed, x, z) ?? canopy, x, postTop, z));
     const plank = kit.piece("plank");
+    // the ridge beam under the canopy's back edge, from back post to back post, its top flush with theirs
     const ridge = plank
       ? transform(
           run(lengthwise(plank), {
             path: polyline([
-              [-hw, -0.9],
-              [hw, -0.9],
+              [-hw + 0.25, -0.75],
+              [hw - 0.25, -0.75],
             ]),
           }),
-          { dy: postTop + (canopy?.variant.geom.size.y ?? 0) },
+          // a little below the posts' tops, so a lift against flicker (at most 0.08) keeps it under the canopy
+          { dy: postTop - plank.variant.geom.size.y - 0.08 },
         )
       : [];
+    // the sign, two-faced: a copy turned back to back behind it, so it reads from the street and from the stall
     const sign = kit.piece("sign");
-    const signs: Placed[] = sign
-      ? [
-          at(
-            sign,
-            -hw / 2,
-            postTop - sign.variant.geom.size.y - 0.02,
-            1.05,
-            sign.measures.runAxis === "z" ? 90 : 0,
-          ),
-        ]
+    const signs: Arrangement = sign
+      ? twin(
+          [
+            at(
+              sign,
+              -hw / 2,
+              postTop - sign.variant.geom.size.y - 0.02,
+              1.05,
+              sign.measures.runAxis === "z" ? 90 : 0,
+            ),
+          ],
+          {
+            offset: [0, sign.measures.width],
+          },
+        )
       : [];
     const torn = condition === "derelict" ? vary(roof, { seed, empty: 0.35 }) : roof;
-    parts.push(part("canopy", "top", [...torn, ...ridge]));
+    parts.push(part("canopy", "top", torn));
+    if (ridge.length > 0) parts.push(part("ridge beam", "top", ridge, { hold: "fastened" }));
     if (signs.length > 0) parts.push(part("sign", "top", signs, { hold: "fastened" }));
 
     // rear (50): stock behind the counter

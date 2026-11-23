@@ -66,6 +66,8 @@ export interface BodyPlan {
   readonly sternTaper: number;
   /** Fewest facets in the bow taper (more: a rounder bow). */
   readonly bowFacets?: number;
+  /** Fewest facets in the stern taper (1: a transom's short knuckle; 4 or more: a round stern). */
+  readonly sternFacets?: number;
 }
 
 /**
@@ -75,7 +77,7 @@ export interface BodyPlan {
 export function bodySide(b: BodyPlan): XZ[] {
   const half = b.length / 2;
   const bow = taperFacets(b.bowTaper, b.halfBeam, b.bowFacets ?? 2);
-  const stern = taperFacets(b.sternTaper, Math.max(0, b.halfBeam - b.sternHalf), 2);
+  const stern = taperFacets(b.sternTaper, Math.max(0, b.halfBeam - b.sternHalf), b.sternFacets ?? 2);
   const xs = -half + (stern[stern.length - 1]?.[0] ?? 0);
   const xb = half - (bow[bow.length - 1]?.[0] ?? 0);
   const pts: XZ[] = [[-half, b.sternHalf]];

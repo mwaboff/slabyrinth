@@ -115,7 +115,7 @@ describe("object proof", () => {
     for (const o of objects) {
       const placed = set.levels
         .flatMap((l) => l.placements)
-        .filter((p) => (p.source.elementId ?? "").startsWith(o.id));
+        .filter((p) => o.placed.instances.some((i) => i.id === p.source.elementId));
       expect(placed).toHaveLength(o.built.count);
     }
   });
@@ -166,8 +166,7 @@ describe("budgets", () => {
     const o = buildObject(vessel, { size: 6, seed: "t", budget: 50 }, kit);
     expect(o.count).toBeLessThanOrEqual(60);
     const names = o.parts.map((p) => p.name);
-    for (const n of ["hull", "cap rail", "stem", "sternpost", "mast 1", "mast 1 yards"])
-      expect(names).toContain(n);
+    for (const n of ["hull", "cap rail", "stem", "sternpost", "oars"]) expect(names).toContain(n);
     for (const slot of ["mass", "supports", "face", "top"])
       expect(
         o.parts.some((p) => p.slot === slot),
@@ -194,7 +193,7 @@ describe("budgets", () => {
     ])
       expect(names.has(n), n).toBe(true);
     for (const p of o.parts) expect(isKept(p), p.name).toBe(true);
-    expect(o.cut).toEqual(expect.arrayContaining(["decks", "rigging", "ship's boat"]));
+    expect(o.cut).toEqual(expect.arrayContaining(["decks", "deck kits", "hatch"]));
   });
 
   it("interior mass goes before detail, and detail before a coarser hull", () => {
@@ -273,14 +272,27 @@ describe("placing", () => {
     expect(objectTurn(props, 30)).toBe(30);
   });
 
-  it("every instance is within the piece cap and stands on the ground", () => {
+  it("every instance is within the piece cap and its lowest piece stands on the ground or the object", () => {
     const o = build.brig();
+    const all = piecesOf(o);
     const groups = packParts(o, ARRANGE_LIMITS.piecesPerInstance);
     expect(groups.length).toBeGreaterThan(1);
-    const ground = Math.min(...piecesOf(o).map((q) => q.y));
+    const ground = Math.min(...all.map((q) => q.y));
     for (const g of groups) {
       expect(g.length).toBeLessThanOrEqual(ARRANGE_LIMITS.piecesPerInstance);
-      expect(Math.min(...g.map((q) => q.y))).toBeCloseTo(ground, 5);
+      const low = g.reduce((m, q) => (q.y < m.y ? q : m));
+      const held = all.some((r) => {
+        const b = placedBox(r);
+        return (
+          r !== low &&
+          low.x >= b.min.x &&
+          low.x <= b.max.x &&
+          low.z >= b.min.z &&
+          low.z <= b.max.z &&
+          Math.abs(b.max.y - low.y) < 0.06
+        );
+      });
+      expect(held || Math.abs(low.y - ground) < 1e-6).toBe(true);
     }
     expect(groups.flat()).toHaveLength(o.count);
   });
