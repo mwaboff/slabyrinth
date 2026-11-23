@@ -1773,13 +1773,13 @@ plans/example-a@5 l2 part floor:floor.cobble 32
 plans/example-a@5 l2 part floor:floor.rock 39
 plans/example-a@5 l2 part landing~room#0 1
 plans/example-a@5 l2 part landing~room#1 1
-plans/example-a@5 l1 pieces feature 88
+plans/example-a@5 l1 pieces feature 89
 plans/example-a@5 l1 pieces fill 100
 plans/example-a@5 l1 pieces floor 95
 plans/example-a@5 l1 pieces opening 4
 plans/example-a@5 l1 pieces wall 150
 plans/example-a@5 l1 pieces wall_post 27
-plans/example-a@5 l1 layer site 464
+plans/example-a@5 l1 layer site 465
 plans/example-a@5 l1 part c1~a 1
 plans/example-a@5 l1 part c1~b 1
 plans/example-a@5 l1 part c1~room#0 1
@@ -1852,7 +1852,7 @@ plans/example-a@5 l1 feature chair 4
 plans/example-a@5 l1 feature chest 3
 plans/example-a@5 l1 feature clutter 12
 plans/example-a@5 l1 feature coffin 2
-plans/example-a@5 l1 feature debris 13
+plans/example-a@5 l1 feature debris 14
 plans/example-a@5 l1 feature pillar 8
 plans/example-a@5 l1 feature rubble 3
 plans/example-a@5 l1 feature rug 1
@@ -3628,25 +3628,25 @@ plans/keep-dungeon-v8 diag info verify_props_overlap 2
 plans/keep-dungeon-v8 review focal_unlit 2
 plans/keep-dungeon-v8 review furniture_adrift 1
 plans/keep-dungeon-v8 review room_bare 1
-plans/keep-dungeon-v8@5 l3 pieces feature 60
+plans/keep-dungeon-v8@5 l3 pieces feature 64
 plans/keep-dungeon-v8@5 l3 pieces fill 45
 plans/keep-dungeon-v8@5 l3 pieces floor 39
 plans/keep-dungeon-v8@5 l3 pieces link 4
 plans/keep-dungeon-v8@5 l3 pieces wall 41
 plans/keep-dungeon-v8@5 l3 pieces wall_post 8
-plans/keep-dungeon-v8@5 l3 layer site 197
+plans/keep-dungeon-v8@5 l3 layer site 201
 plans/keep-dungeon-v8@5 l3 part ante~room#0 1
 plans/keep-dungeon-v8@5 l3 part ante~room#1 1
 plans/keep-dungeon-v8@5 l3 part floor:floor.flagstone 13
 plans/keep-dungeon-v8@5 l3 part floor:floor.marble 26
-plans/keep-dungeon-v8@5 l2 pieces feature 144
+plans/keep-dungeon-v8@5 l2 pieces feature 146
 plans/keep-dungeon-v8@5 l2 pieces fill 167
 plans/keep-dungeon-v8@5 l2 pieces floor 226
 plans/keep-dungeon-v8@5 l2 pieces link 32
 plans/keep-dungeon-v8@5 l2 pieces opening 5
 plans/keep-dungeon-v8@5 l2 pieces wall 157
 plans/keep-dungeon-v8@5 l2 pieces wall_post 26
-plans/keep-dungeon-v8@5 l2 layer site 757
+plans/keep-dungeon-v8@5 l2 layer site 759
 plans/keep-dungeon-v8@5 l2 part cell_e1~room#0 1
 plans/keep-dungeon-v8@5 l2 part cell_e1~room#1 1
 plans/keep-dungeon-v8@5 l2 part cell_e2~room#0 1
@@ -3677,15 +3677,15 @@ plans/keep-dungeon-v8@5 l1 part landing~room#1 1
 plans/keep-dungeon-v8@5 l1 part landing~room#2 1
 plans/keep-dungeon-v8@5 l1 part landing~room#3 1
 plans/keep-dungeon-v8@5 l3 feature altar 2
-plans/keep-dungeon-v8@5 l3 feature bench 5
+plans/keep-dungeon-v8@5 l3 feature bench 4
 plans/keep-dungeon-v8@5 l3 feature candelabra 2
 plans/keep-dungeon-v8@5 l3 feature candles 1
 plans/keep-dungeon-v8@5 l3 feature chest 4
-plans/keep-dungeon-v8@5 l3 feature clutter 7
-plans/keep-dungeon-v8@5 l3 feature debris 4
-plans/keep-dungeon-v8@5 l3 feature rubble 2
+plans/keep-dungeon-v8@5 l3 feature clutter 10
+plans/keep-dungeon-v8@5 l3 feature debris 5
+plans/keep-dungeon-v8@5 l3 feature rubble 1
 plans/keep-dungeon-v8@5 l3 feature rug 1
-plans/keep-dungeon-v8@5 l3 feature shelf_line 4
+plans/keep-dungeon-v8@5 l3 feature shelf_line 6
 plans/keep-dungeon-v8@5 l3 feature statue 1
 plans/keep-dungeon-v8@5 l3 feature torch_floor 2
 plans/keep-dungeon-v8@5 l3 feature torch_wall 14
@@ -3694,11 +3694,11 @@ plans/keep-dungeon-v8@5 l2 feature bed 2
 plans/keep-dungeon-v8@5 l2 feature brazier 2
 plans/keep-dungeon-v8@5 l2 feature bunk_bed 4
 plans/keep-dungeon-v8@5 l2 feature cave_in 2
-plans/keep-dungeon-v8@5 l2 feature coffin 4
-plans/keep-dungeon-v8@5 l2 feature debris 44
+plans/keep-dungeon-v8@5 l2 feature coffin 3
+plans/keep-dungeon-v8@5 l2 feature debris 46
 plans/keep-dungeon-v8@5 l2 feature rock 1
-plans/keep-dungeon-v8@5 l2 feature rubble 20
-plans/keep-dungeon-v8@5 l2 feature sarcophagus 19
+plans/keep-dungeon-v8@5 l2 feature rubble 17
+plans/keep-dungeon-v8@5 l2 feature sarcophagus 14
 plans/keep-dungeon-v8@5 l2 feature statue_large 1
 plans/keep-dungeon-v8@5 l2 feature stocks 2
 plans/keep-dungeon-v8@5 l2 feature torch_wall 10
@@ -3719,8 +3719,9 @@ plans/keep-dungeon-v8@5 l1 feature throne 1
 plans/keep-dungeon-v8@5 l1 feature torch_wall 21
 plans/keep-dungeon-v8@5 l1 feature weapon_rack 3
 plans/keep-dungeon-v8@5 l1 feature web 2
-plans/keep-dungeon-v8@5 diag info footprint_mismatch 10
+plans/keep-dungeon-v8@5 diag info footprint_mismatch 9
 plans/keep-dungeon-v8@5 diag info secret_door_plug 1
+plans/keep-dungeon-v8@5 diag info verify_prop_nudged 1
 plans/keep-dungeon-v8@5 diag info verify_props_overlap 2
 plans/keep-dungeon-v8@5 review anchor_missing 1
 plans/l-corridor-route l1 pieces feature 1
@@ -4622,12 +4623,12 @@ plans/multi-level-stairs@5 ground part foyer~room#2 1
 plans/multi-level-stairs@5 ground part foyer~room#3 1
 plans/multi-level-stairs@5 ground part foyer~room#4 1
 plans/multi-level-stairs@5 ground part foyer~room#5 1
-plans/multi-level-stairs@5 study_lvl pieces feature 34
+plans/multi-level-stairs@5 study_lvl pieces feature 32
 plans/multi-level-stairs@5 study_lvl pieces floor 19
 plans/multi-level-stairs@5 study_lvl pieces link 2
 plans/multi-level-stairs@5 study_lvl pieces wall 16
 plans/multi-level-stairs@5 study_lvl pieces wall_post 4
-plans/multi-level-stairs@5 study_lvl layer site 75
+plans/multi-level-stairs@5 study_lvl layer site 73
 plans/multi-level-stairs@5 study_lvl part floor:floor.wood_plank 19
 plans/multi-level-stairs@5 study_lvl part study~room#0 1
 plans/multi-level-stairs@5 study_lvl part study~room#1 1
@@ -4649,7 +4650,6 @@ plans/multi-level-stairs@5 study_lvl part study~room#23 1
 plans/multi-level-stairs@5 study_lvl part study~room#24 1
 plans/multi-level-stairs@5 study_lvl part study~room#25 1
 plans/multi-level-stairs@5 study_lvl part study~room#26 1
-plans/multi-level-stairs@5 study_lvl part study~room#27 1
 plans/multi-level-stairs@5 study_lvl part study~room#3 1
 plans/multi-level-stairs@5 study_lvl part study~room#4 1
 plans/multi-level-stairs@5 study_lvl part study~room#5 1
@@ -4664,15 +4664,15 @@ plans/multi-level-stairs@5 roof layer site 50
 plans/multi-level-stairs@5 roof part floor:floor.flagstone 18
 plans/multi-level-stairs@5 ground feature statue 1
 plans/multi-level-stairs@5 ground feature torch_wall 6
-plans/multi-level-stairs@5 study_lvl feature armor_stand 1
-plans/multi-level-stairs@5 study_lvl feature bookshelf 10
+plans/multi-level-stairs@5 study_lvl feature armor_stand 3
+plans/multi-level-stairs@5 study_lvl feature bookshelf 8
 plans/multi-level-stairs@5 study_lvl feature candles 1
 plans/multi-level-stairs@5 study_lvl feature chair 2
-plans/multi-level-stairs@5 study_lvl feature chest 4
-plans/multi-level-stairs@5 study_lvl feature clutter 6
+plans/multi-level-stairs@5 study_lvl feature chest 3
+plans/multi-level-stairs@5 study_lvl feature clutter 4
 plans/multi-level-stairs@5 study_lvl feature desk 1
 plans/multi-level-stairs@5 study_lvl feature rug 1
-plans/multi-level-stairs@5 study_lvl feature shelf_line 3
+plans/multi-level-stairs@5 study_lvl feature shelf_line 5
 plans/multi-level-stairs@5 study_lvl feature table 1
 plans/multi-level-stairs@5 roof feature custom 1
 plans/multi-level-stairs@5 diag info footprint_mismatch 2
@@ -5962,12 +5962,12 @@ plans/three-step-glen-v1 review board_edge_bare 1
 plans/three-step-glen-v1 review landmark_against_wall 1
 plans/three-step-glen-v1 review rows_or_even_scatter 2
 plans/three-step-glen-v1 review straight_natural 1
-plans/three-step-glen-v1@5 glen pieces feature 324
+plans/three-step-glen-v1@5 glen pieces feature 337
 plans/three-step-glen-v1@5 glen pieces fill 368
 plans/three-step-glen-v1@5 glen pieces floor 590
 plans/three-step-glen-v1@5 glen pieces ledge 226
 plans/three-step-glen-v1@5 glen pieces wall 3
-plans/three-step-glen-v1@5 glen layer site 1511
+plans/three-step-glen-v1@5 glen layer site 1524
 plans/three-step-glen-v1@5 glen part floor:floor.bridge_wood 2
 plans/three-step-glen-v1@5 glen part floor:floor.dirt 92
 plans/three-step-glen-v1@5 glen part floor:floor.grass 218
@@ -6094,21 +6094,21 @@ plans/three-step-glen-v1@5 glen part glen~bands4#9 1
 plans/three-step-glen-v1@5 glen feature accent_light 1
 plans/three-step-glen-v1@5 glen feature cliff_crest 28
 plans/three-step-glen-v1@5 glen feature cliff_face 40
-plans/three-step-glen-v1@5 glen feature cluster_tall 33
+plans/three-step-glen-v1@5 glen feature cluster_tall 36
 plans/three-step-glen-v1@5 glen feature dead_tree 1
 plans/three-step-glen-v1@5 glen feature edge_dressing 22
 plans/three-step-glen-v1@5 glen feature formation 1
-plans/three-step-glen-v1@5 glen feature ground_cover 31
+plans/three-step-glen-v1@5 glen feature ground_cover 32
 plans/three-step-glen-v1@5 glen feature landmark 1
 plans/three-step-glen-v1@5 glen feature reeds 47
 plans/three-step-glen-v1@5 glen feature root 16
-plans/three-step-glen-v1@5 glen feature small_detail 7
-plans/three-step-glen-v1@5 glen feature undergrowth 47
+plans/three-step-glen-v1@5 glen feature small_detail 9
+plans/three-step-glen-v1@5 glen feature undergrowth 49
 plans/three-step-glen-v1@5 diag info footprint_mismatch 9
 plans/three-step-glen-v1@5 diag info verify_props_overlap 1
 plans/three-step-glen-v1@5 diag info verify_water_level 1
 plans/three-step-glen-v1@5 review bare_ground 1
-plans/three-step-glen-v1@5 review focal_unlit 1
+plans/three-step-glen-v1@5 review cliff_straight 1
 plans/three-step-glen-v1@5 review landmark_against_wall 1
 plans/three-step-glen-v1@5 review rows_or_even_scatter 2
 plans/three-step-glen-v1@5 review straight_natural 1
@@ -7849,13 +7849,13 @@ gen/hillside-v5 review cliff_even_spacing 1
 gen/hillside-v5 review cliff_unclad 1
 gen/hillside-v5 review cliff_unclad_low 1
 gen/hillside-v5 review straight_natural 1
-gen/hillside-v5@5 hill pieces feature 221
-gen/hillside-v5@5 hill pieces fill 253
+gen/hillside-v5@5 hill pieces feature 217
+gen/hillside-v5@5 hill pieces fill 255
 gen/hillside-v5@5 hill pieces floor 376
-gen/hillside-v5@5 hill pieces ledge 52
+gen/hillside-v5@5 hill pieces ledge 53
 gen/hillside-v5@5 hill pieces link 4
 gen/hillside-v5@5 hill pieces wall 29
-gen/hillside-v5@5 hill layer site 935
+gen/hillside-v5@5 hill layer site 934
 gen/hillside-v5@5 hill part floor:floor.bridge_wood 11
 gen/hillside-v5@5 hill part floor:floor.dirt 40
 gen/hillside-v5@5 hill part floor:floor.grass 221
@@ -7864,15 +7864,12 @@ gen/hillside-v5@5 hill part floor:floor.water_shallow 1
 gen/hillside-v5@5 hill part floor:floor.wood_plank 6
 gen/hillside-v5@5 hill part hill~bands0#0 1
 gen/hillside-v5@5 hill part hill~bands0#1 1
-gen/hillside-v5@5 hill part hill~bands0#10 1
 gen/hillside-v5@5 hill part hill~bands0#2 1
 gen/hillside-v5@5 hill part hill~bands0#3 1
 gen/hillside-v5@5 hill part hill~bands0#4 1
 gen/hillside-v5@5 hill part hill~bands0#5 1
 gen/hillside-v5@5 hill part hill~bands0#6 1
 gen/hillside-v5@5 hill part hill~bands0#7 1
-gen/hillside-v5@5 hill part hill~bands0#8 1
-gen/hillside-v5@5 hill part hill~bands0#9 1
 gen/hillside-v5@5 hill part hill~bands1#0 1
 gen/hillside-v5@5 hill part hill~bands1#1 1
 gen/hillside-v5@5 hill part hill~bands1#10 1
@@ -7902,11 +7899,6 @@ gen/hillside-v5@5 hill part hill~bands1#31 1
 gen/hillside-v5@5 hill part hill~bands1#32 1
 gen/hillside-v5@5 hill part hill~bands1#33 1
 gen/hillside-v5@5 hill part hill~bands1#34 1
-gen/hillside-v5@5 hill part hill~bands1#35 1
-gen/hillside-v5@5 hill part hill~bands1#36 1
-gen/hillside-v5@5 hill part hill~bands1#37 1
-gen/hillside-v5@5 hill part hill~bands1#38 1
-gen/hillside-v5@5 hill part hill~bands1#39 1
 gen/hillside-v5@5 hill part hill~bands1#4 1
 gen/hillside-v5@5 hill part hill~bands1#5 1
 gen/hillside-v5@5 hill part hill~bands1#6 1
@@ -7938,26 +7930,26 @@ gen/hillside-v5@5 hill part hill~bands3#8 1
 gen/hillside-v5@5 hill part hill~bands3#9 1
 gen/hillside-v5@5 hill feature accent_light 1
 gen/hillside-v5@5 hill feature campfire 1
-gen/hillside-v5@5 hill feature cliff_crest 37
-gen/hillside-v5@5 hill feature cliff_face 25
+gen/hillside-v5@5 hill feature cliff_crest 30
+gen/hillside-v5@5 hill feature cliff_face 24
 gen/hillside-v5@5 hill feature cluster_tall 13
 gen/hillside-v5@5 hill feature edge_dressing 10
 gen/hillside-v5@5 hill feature formation 4
-gen/hillside-v5@5 hill feature ground_cover 5
+gen/hillside-v5@5 hill feature ground_cover 7
 gen/hillside-v5@5 hill feature landmark 1
 gen/hillside-v5@5 hill feature reeds 16
 gen/hillside-v5@5 hill feature root 8
 gen/hillside-v5@5 hill feature signpost 1
-gen/hillside-v5@5 hill feature small_detail 6
+gen/hillside-v5@5 hill feature small_detail 7
 gen/hillside-v5@5 hill feature standing_stone 1
 gen/hillside-v5@5 hill feature torch_floor 1
-gen/hillside-v5@5 hill feature undergrowth 20
+gen/hillside-v5@5 hill feature undergrowth 18
 gen/hillside-v5@5 diag info footprint_mismatch 7
 gen/hillside-v5@5 diag info verify_props_overlap 1
 gen/hillside-v5@5 diag info verify_water_level 1
 gen/hillside-v5@5 review bare_ground 1
-gen/hillside-v5@5 review cliff_buries_ground 1
-gen/hillside-v5@5 review cliff_straight 1
+gen/hillside-v5@5 review cliff_unclad 1
+gen/hillside-v5@5 review focal_unlit 1
 gen/hillside-v5@5 review rift_broken 1
 gen/hillside-v5@5 review rise_timid 1
 gen/hillside-v5@5 review water_on_edge 1
