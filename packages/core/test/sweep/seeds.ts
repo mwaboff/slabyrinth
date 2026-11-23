@@ -95,15 +95,19 @@ export const WARNING_BASIS = 150;
  * code -> how many of the WARNING_BASIS sweep seeds (and the once-failed ones) raise it. Every other warning fails the
  * sweep, and so does a count that grows. The list only shrinks: a sweep of at least WARNING_BASIS seeds fails on a
  * count that is now lower (lower it) or an entry no seed raises (remove it). The causes, for the next round:
- * - market-street-v3 (overhead lines against what stands under them): prop_in_wall (a rope of lights into a wall
- *   banner, a hung lantern into a building's main roof), prop_sunk (a rope into a covered stall's tent roof),
- *   line_unanchored and prop_floating (no wall or post reaches a line's height at an end: the line and its pieces
- *   hang free), cliff_gap (a 2-tile cliff edge with no rock in front).
+ * - market-street-v3: line_unanchored and prop_floating (the wall at a line's end stops below the rope and the
+ *   building's roof deck above it is a floor piece, which verify does not take as holding it: the line and its pieces
+ *   hang free); prop_in_wall (a room piece of a shop, reeve's or butcher's ground storey against the wall post a
+ *   volume stands at its own corner where two volumes meet in a straight wall: the furnisher asks the level's wall
+ *   junctions, realize builds a post per volume corner); prop_sunk (a tailor's bench outside its door, pushed against
+ *   the front, reaches 0.16 into the raised pavement cell in front of the building). The lines' own faults are gone at
+ *   generator 5 (`linesClearCanopies`: a rope through a shop's awning, a lantern into a porch roof or a canopy).
  * (Gone at generator 5: props_overlap between elements is info under `layeredProps`; keep-dungeon's room pieces in a
  * wall's corner post are kept clear by the room-kind furnisher, which asks each piece's outline against the posts.)
  * - dressed-cave, heartroot-rift-v7 mount_no_wall: a dress op's thorn vines hung on a cave wall edge with no wall
  *   piece (the room recipe's board-edge torches are fixed: `mountsOnBuiltWalls`).
- * - market-street-v3, three-step-glen-v1, terraced-hill cliff_gap: a 2-tile cliff edge with no rock in front.
+ * - three-step-glen-v1, terraced-hill cliff_gap: a 2-tile cliff edge with no rock in front (market-street-v3's went
+ *   with `plinthUnderPorch`: a porch-fronted plinth is no longer raised twice).
  * - heartroot-rift-v7, dressed-cave(-v2), hillside-v5, smugglers-grotto-v3 prop_no_floor: a dress piece (a swamp tree base, a
  *   boulder, a moss rock) anchored on a cell whose centre has no floor piece under it (a ragged cave edge, an outcrop).
  * - smugglers-grotto-v3, sea-grotto, old-stones-glade-v6 prop_floating: a landing's lantern and candles 0.42 above the
@@ -117,11 +121,14 @@ export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, num
     verify_prop_floating: 4,
   },
   "market-street-v3": {
-    verify_line_unanchored: 12,
-    verify_prop_floating: 12,
-    verify_prop_sunk: 28,
+    // 12; 6 once the street draw (`readableNeighbours`, `themeOwnRange`) stood other buildings at the line ends; 5
+    // with `linesClearCanopies`
+    verify_line_unanchored: 5,
+    verify_prop_floating: 5,
+    // 28 then 76 (ropes through shop awnings once `plinthUnderPorch` lowered them): the tailor's bench alone now
+    verify_prop_sunk: 6,
+    // 7 (lines into banners and porch roofs), 13 with the building rooms: the room pieces alone now
     verify_prop_in_wall: 7,
-    verify_cliff_gap: 4,
   },
   "old-stones-glade-v6": { verify_prop_floating: 5 },
   "smugglers-grotto-v3": { verify_prop_floating: 16, verify_prop_no_floor: 1 },

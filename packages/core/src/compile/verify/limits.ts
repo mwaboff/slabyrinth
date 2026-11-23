@@ -68,8 +68,8 @@ export const NUDGE_MAX = 0.5;
 export const NUDGE_FOOTPRINT_SLACK = 0.1;
 /** A pushed prop clears the wall by this much. */
 export const NUDGE_CLEARANCE = 0.01;
-/** What a prop stands on may reach this far above the prop's base. */
-export const SUPPORT_SLACK = 0.06;
+/** What a prop stands on may reach this far above the prop's base (util/sunk.ts: the resolver asks the same). */
+export { SUPPORT_SLACK } from "../../util/sunk";
 /** A sunk arranged piece is in the ground tiles met within this of its centre (a centre on a seam between two). */
 export const SEAM_REACH = 0.02;
 /** A prop this far or more above what is under it floats. */

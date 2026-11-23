@@ -35,7 +35,7 @@ import { OverheadLines } from "./lines";
 import { wallish } from "./walls";
 import { elementRef, fmt, round2, round4, solidLabel } from "./words";
 import { maxOf } from "../../util/lists";
-import { baseInFloor } from "../../util/sunk";
+import { baseInFloor, restsOn } from "../../util/sunk";
 
 /** The codes this file emits (VERIFY_CODES is the union of every check's list; lines.ts has its own). */
 export const PROP_CODES = [
@@ -325,7 +325,7 @@ function checkSupport(
           q.role === "ledge" ||
           q.role === "link" ||
           q.role === "feature") &&
-        q.box.max.y <= s.p.y + SUPPORT_SLACK,
+        restsOn(s.p.y, q.box.max.y),
     );
   const support = supports.length ? maxOf(supports.map((q) => q.box.max.y)) : null;
   // a floor or fill piece crossing the thin slice just above the support slack, its body round the prop's base

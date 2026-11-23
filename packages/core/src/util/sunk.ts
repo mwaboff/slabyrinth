@@ -17,3 +17,13 @@ export const deepestSink = (thickness: number): number => Math.max(0, thickness 
 
 /** Whether a piece's base at height `base` is inside a floor piece whose underside is at `underside`. */
 export const baseInFloor = (base: number, underside: number): boolean => underside < base;
+
+/** A base this far below the top of what is under it still rests on it (verify's support slack). */
+export const SUPPORT_SLACK = 0.06;
+
+/**
+ * Whether a piece's base at height `base` rests on, or stands clear above, something whose top is at `top` (and is not
+ * in it): verify's support test (compile/verify/props.ts), and how an overhead line's rope may cross a canopy
+ * (resolve/level/market.ts).
+ */
+export const restsOn = (base: number, top: number): boolean => top <= base + SUPPORT_SLACK;

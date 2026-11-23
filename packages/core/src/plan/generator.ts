@@ -536,6 +536,10 @@ const SWITCHES = {
     5,
     'Worn and ramshackle read apart at street distance: a ramshackle building may draw a lean-to shelter on one blank face off the street (detail recipe leanToShelter: a lower roof of its own kit on two kinds of post, plank ends, clutter under it; treatment family "addition"), and boards up three windows in five where a worn one boards one in five (resolve/recipes/condition.ts, resolve/building/condition.ts).',
   ),
+  linesClearCanopies: on(
+    5,
+    "An overhead line keeps clear of the canopies and awnings over shop fronts at their built height (resolve/building/canopy.ts, the answer realize lays them by): its rope is raised over one it passes above, as high as its wall anchors hold it, and hangs nothing over it; a line its anchors cannot hold that high is dropped (resolve/level/market.ts stepLine).",
+  ),
   sacredReads: on(
     5,
     "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",

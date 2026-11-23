@@ -3368,7 +3368,7 @@ plans/market-street-v3 diag info verify_prop_nudged 10
 plans/market-street-v3 review focal_unlit 1
 plans/market-street-v3 review pieces_substituted 1
 plans/market-street-v3 review roofs_alike 1
-plans/market-street-v3@5 g pieces feature 622
+plans/market-street-v3@5 g pieces feature 606
 plans/market-street-v3@5 g pieces fill 130
 plans/market-street-v3@5 g pieces floor 935
 plans/market-street-v3@5 g pieces ledge 144
@@ -3376,7 +3376,7 @@ plans/market-street-v3@5 g pieces opening 100
 plans/market-street-v3@5 g pieces wall 1694
 plans/market-street-v3@5 g pieces wall_post 254
 plans/market-street-v3@5 g layer roof 1219
-plans/market-street-v3@5 g layer site 1631
+plans/market-street-v3@5 g layer site 1615
 plans/market-street-v3@5 g layer storey:0 866
 plans/market-street-v3@5 g layer storey:1 163
 plans/market-street-v3@5 g part apothecary~canopy 4
@@ -3904,7 +3904,7 @@ plans/market-street-v3@5 g feature flowers 1
 plans/market-street-v3@5 g feature forge 2
 plans/market-street-v3@5 g feature lantern 12
 plans/market-street-v3@5 g feature line_post 2
-plans/market-street-v3@5 g feature overhead 34
+plans/market-street-v3@5 g feature overhead 18
 plans/market-street-v3@5 g feature rug 2
 plans/market-street-v3@5 g feature sack 14
 plans/market-street-v3@5 g feature shelf_line 47
@@ -3921,8 +3921,7 @@ plans/market-street-v3@5 diag info footprint_mismatch 5
 plans/market-street-v3@5 diag info role_missing 1
 plans/market-street-v3@5 diag info structure_style_fallback 2
 plans/market-street-v3@5 diag info verify_duplicate_removed 1
-plans/market-street-v3@5 diag info verify_prop_nudged 14
-plans/market-street-v3@5 diag warning verify_prop_sunk 1
+plans/market-street-v3@5 diag info verify_prop_nudged 8
 plans/market-street-v3@5 review floor_patchwork 1
 plans/market-street-v3@5 review focal_unlit 1
 plans/market-street-v3@5 review pieces_substituted 1

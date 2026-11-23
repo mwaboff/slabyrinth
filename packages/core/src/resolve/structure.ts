@@ -53,6 +53,7 @@ import { elementSeed, subSeed } from "../util/hash";
 import { applyCondition, buildingSubjectOf } from "./building/condition";
 import { type CharacterMap, characterAt } from "./character";
 import { applyWear } from "./building/wear";
+import { frontCanopies, type FrontCanopy } from "./building/canopy";
 import { startBuilding } from "./building/context";
 import { BuildingFaces, drawFrontage, placeChimneys, placeOpenings, placeWindows } from "./building/faces";
 import {
@@ -84,6 +85,10 @@ import {
 } from "./structureVariety";
 import { structureStyle } from "./structureStyles";
 import { maxOf, minOf } from "../util/lists";
+
+/** A building's ground floor plane (absolute tiles): its pad over the level's floor; storeys stand on it. */
+const groundFloorBase = (b: BuildingPlan, elevation: number): number =>
+  elevation + BUILD_CONSTANTS.floorThickness + (b.pad ?? 0) / 4;
 
 interface EnclosurePlan {
   st: Enclosure;
@@ -384,6 +389,33 @@ export class StructureWork {
     return this.reservedMask !== null && this.reservedMask[i] === 1;
   }
 
+  /**
+   * Every building's canopies and awnings over its street front (resolve/building/canopy.ts, the answer realize lays
+   * them by), at the heights `finish` gives the building: read once the pads are known (after `afterTerrain`).
+   */
+  canopies(elevation: number): Array<{ canopy: FrontCanopy; theme: string }> {
+    return this.buildings.flatMap((b) => {
+      const base = groundFloorBase(b, elevation);
+      const foreign = new Set<string>();
+      for (const o of this.buildings) if (o !== b) for (const k of o.cellSet) foreign.add(k);
+      const design = this.designs.get(b.st.id)?.design;
+      return frontCanopies(
+        {
+          cells: b.cells,
+          frontage: b.frontage,
+          condition: b.condition,
+          design,
+          storeys: b.storeys.map((s) => ({
+            floorTop: base + s.relFloor,
+            footing: s.footing,
+            walls: s.walls,
+          })),
+        },
+        foreign,
+      ).map((canopy) => ({ canopy, theme: b.theme }));
+    });
+  }
+
   /** Records for ResolvedLevel and issue paths that point at synthetic elements (called once, from toResolved). */
   finish(elevation: number): Pick<ResolvedLevel, "structures" | "reserved"> {
     this.remapIssues();
@@ -408,7 +440,7 @@ export class StructureWork {
       });
     }
     for (const b of this.buildings) {
-      const base = elevation + BUILD_CONSTANTS.floorThickness + (b.pad ?? 0) / 4;
+      const base = groundFloorBase(b, elevation);
       const storeys: ResolvedStructure["storeys"] = b.storeys.map((s) => ({
         floorTop: base + s.relFloor,
         footing: s.footing,
