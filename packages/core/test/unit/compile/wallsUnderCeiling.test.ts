@@ -57,6 +57,8 @@ describe("walls under a building's upper floor (generator 5, wallsUnderCeiling)"
       loadPlan("building-rooms-street-v1"),
       loadPlan("two-quarters-v1"),
       loadPlan("varied-street-v1"),
+      // a two-storey infirmary whose ward is lined with bays (generator 5, cellRows): its partitions stop at the storey
+      ...[21, 1, 3].map((seed) => ({ ...loadPlan("cell-rows-town-v1"), seed })),
     ];
     for (const plan of plans) expect(overCeiling(plan), plan.title).toEqual([]);
   });

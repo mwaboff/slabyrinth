@@ -245,8 +245,49 @@ export const BUILDING_KINDS = {
     ],
     single: R("Guardroom", "barracks", "public", [1, 1], 4, { hearth: true }),
   },
+  // generator 5 (cellRows): a stable is stalls (its room a stable, lined with stalls) and a tack room; an infirmary a
+  // ward (lined with bays) and a store. Both rows come before the barn, whose words they once fell under
+  stable: {
+    words: /\b(stables?|byres?|livery|liveries|kennels?|mews|cowsheds?)\b/,
+    programmes: [
+      {
+        id: "stalls-tack",
+        weight: 1,
+        minCells: 40,
+        rooms: [
+          // (a room is furnished by its name's words: "stalls" is a market's word, "stable" the kind's)
+          R("Stable", "stable", "public", [0.72, 0.82], 30),
+          R("Tack store", "storeroom", "service", [0.18, 0.28], 6, { doorway: "door", minWidth: 2 }),
+        ],
+      },
+    ],
+    zones: [
+      R("Stable", "stable", "public", [0.7, 0.8], 9),
+      R("Tack store", "storeroom", "service", [0.2, 0.3], 4),
+    ],
+    single: R("Stable", "stable", "public", [1, 1], 4),
+  },
+  infirmary: {
+    words: /\b(infirmar(y|ies)|hospitals?|hospices?|sickhouses?|sickrooms?|clinics?|lazarettos?)\b/,
+    programmes: [
+      {
+        id: "ward-store",
+        weight: 1,
+        minCells: 40,
+        rooms: [
+          R("Ward", "ward", "public", [0.72, 0.82], 30),
+          R("Store room", "storeroom", "service", [0.18, 0.28], 6, { doorway: "door", minWidth: 2 }),
+        ],
+      },
+    ],
+    zones: [
+      R("Ward", "ward", "public", [0.7, 0.8], 9),
+      R("Store room", "storeroom", "service", [0.2, 0.3], 4),
+    ],
+    single: R("Ward", "ward", "public", [1, 1], 4),
+  },
   barn: {
-    words: /\b(warehouses?|storehouses?|granar(y|ies)|barns?|stables?|byres?|sheds?|depot|livery)\b/,
+    words: /\b(warehouses?|storehouses?|granar(y|ies)|barns?|sheds?|depot)\b/,
     programmes: [
       {
         id: "store-office",

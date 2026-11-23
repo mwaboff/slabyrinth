@@ -9,7 +9,10 @@
  * two, the cells' width and depth within the kind's ranges, the front by weight; per cell, one left empty now and then
  * and one in disorder. Left alone: a room the plan furnishes or dresses, a room that is not a rectangle of one floor
  * height, a room too narrow to keep its aisle. A slot before a doorway of the room is skipped, so every door keeps its
- * landing on the aisle.
+ * landing on the aisle. Any level and any room: a plan room underground or on a town level, or a room a building's
+ * ground storey is split into (resolve/building/rooms.ts); the walls and openings round it are read from the grid's
+ * edges (whatever stands there: rock, a shell wall, a partition), never assumed. Inside a building the partitions are
+ * level edges within its storey, so the build stops them at the storey's wall top (wallsUnderCeiling).
  * Reads: the room's cells, class and walls, the openings already placed. Writes: the partition and front edges (walls),
  * the cells' doorways (the level's openings) and the rows for the furnisher (CellRowRecords).
  */
@@ -17,7 +20,7 @@ import type { OpeningKind, Side, WallStyle } from "../../contracts/plan";
 import { CELL_FLAG, EDGE, type ResolvedOpening } from "../../contracts/resolved";
 import type { RoomKind } from "../../gen/roomPurpose";
 import { cellRowOf, type CellFront, type CellRowSpec } from "../../gen/roomTraits";
-import { isGap } from "../../gen/openingKinds";
+import { isGap, isPassage } from "../../gen/openingKinds";
 import { THEME_WALL_STYLE, isLowWallStyle } from "../../gen/wallStyles";
 import { elementSeed } from "../../util/hash";
 import { maxOf, minOf } from "../../util/lists";
@@ -74,7 +77,7 @@ function drawFront(rng: Prng, fronts: CellRowSpec["fronts"]): CellFront {
 }
 
 export function stepCellRows(work: ResolveGrid, openings: ResolvedOpening[], records: CellRowRecords): void {
-  if (!work.profile.cellRows || work.level.roomDress === false || work.level.base.type !== "solid") return;
+  if (!work.profile.cellRows || work.level.roomDress === false) return;
   const dressed = new Set(
     work.level.terrain.flatMap((op) => (op.op === "dress" && op.area !== undefined ? [op.area] : [])),
   );
@@ -128,11 +131,28 @@ function layRoom(
       const [x, y] = at(a, c);
       for (const s of ["N", "S", "W", "E"] as const) {
         const ed = work.sideEdge(x, y, s);
-        if (ed === null || (ed.e.kind[ed.i] !== EDGE.OPENING && ed.e.opened[ed.i] !== 1)) continue;
+        if (ed === null) continue;
+        // a way through: a gap, or an opening a person walks through (a window in a building's wall is none)
+        const door =
+          ed.e.opened[ed.i] === 1 ||
+          (ed.e.kind[ed.i] === EDGE.OPENING && isPassage(openings[ed.e.ref[ed.i] as number]?.kind ?? "door"));
+        if (!door) continue;
         landing.add(key([x, y]));
         landing.add(
           key(s === "N" ? [x, y + 1] : s === "S" ? [x, y - 1] : s === "W" ? [x + 1, y] : [x - 1, y]),
         );
+        // and the cells either side of it along its wall: no partition ends at a door's jamb (its frame stands there)
+        const along: XY[] =
+          s === "N" || s === "S"
+            ? [
+                [x - 1, y],
+                [x + 1, y],
+              ]
+            : [
+                [x, y - 1],
+                [x, y + 1],
+              ];
+        for (const c of along) landing.add(key(c));
       }
     }
   const front = drawFront(rng, spec.fronts);

@@ -405,6 +405,17 @@ export class FeatureWork {
               const ed = work.sideEdge(x, y, s);
               if (!ed) return false;
               const [a, b] = work.edgeCells(ed.orient, ed.i);
+              // generator 5 (cellRows): a wall inside one room (a cell row's partition or front) stands across its line,
+              // so each side keeps its strip clear
+              if (
+                work.profile.cellRows &&
+                ed.e.kind[ed.i] === EDGE.WALL &&
+                a >= 0 &&
+                b >= 0 &&
+                work.ownerAt(a) !== undefined &&
+                work.ownerAt(a) === work.ownerAt(b)
+              )
+                return true;
               const forced = ed.e.hostSet[ed.i] as number;
               const host = forced >= 0 ? forced : work.hostOf(a, b, ed.e.run[ed.i] === 1);
               return host === (s === "N" || s === "W" ? 1 : 0);

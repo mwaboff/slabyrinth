@@ -9,6 +9,7 @@ import { CELL, EDGE, type ResolvedPlan } from "../../../src/contracts/resolved";
 import { CELL_ROWS } from "../../../src/gen/roomTraits";
 import { bundledPalettes } from "../../../src/palette";
 import { WalkGraph, resolvePlan } from "../../../src/resolve";
+import { loadPlan } from "../../fixtures";
 import { dungeonPlan } from "../../fixtures/planBuilder";
 
 const pal = bundledPalettes();
@@ -29,10 +30,10 @@ const block = (name: string, generator: 4 | 5, seed: number): MapPlan =>
   });
 
 /** Walls standing between two cells of the room (its partitions and fronts). */
-function innerWalls(r: ResolvedPlan): number {
+function innerWalls(r: ResolvedPlan, room = "room"): number {
   const L = r.levels[0];
   if (!L) return 0;
-  const ai = L.areas.findIndex((a) => a.id === "room") + 1;
+  const ai = L.areas.findIndex((a) => a.id === room) + 1;
   const W = L.bounds.w;
   let n = 0;
   for (let i = 0; i < L.cells.area.length; i++) {
@@ -107,4 +108,31 @@ describe("cell rows (cellRows)", () => {
     expect(laid("Infirmary ward", SEEDS)).toBe(true);
     expect(laid("Kitchen", SEEDS.slice(0, 6))).toBe(false);
   });
+
+  it("in a town: a stable building's stalls, an infirmary's bays and a street-level barracks, every cell reached", () => {
+    // cell-rows-town-v1: the rooms the stable and the infirmary are split into, and a plan room on the ground level
+    const rooms = ["stables~room0", "infirmary~room0", "barracks"];
+    const laidIn = new Set<string>();
+    for (const seed of SEEDS.slice(0, 8)) {
+      const r = resolvePlan({ ...loadPlan("cell-rows-town-v1"), seed }, pal);
+      expect(r.issues.filter((i) => i.severity === "error")).toEqual([]);
+      const L = r.levels[0];
+      if (!L) throw new Error("no level");
+      const g = new WalkGraph(r);
+      const d = g.byId.get(L.id);
+      if (!d) throw new Error("no walk level");
+      // from the lane in front of the buildings
+      const reached = g.flood([[d.li, g.idx(d, 8, 13)]], { secret: false, ignoreFeatures: true })[d.li];
+      for (const id of rooms) {
+        if (innerWalls(r, id) === 0) continue;
+        laidIn.add(id);
+        const ai = L.areas.findIndex((a) => a.id === id) + 1;
+        L.cells.area.forEach((a, i) => {
+          if (a === ai && L.cells.state[i] === CELL.OPEN)
+            expect(reached?.[i], `seed ${seed} ${id} cell ${i}`).toBe(1);
+        });
+      }
+    }
+    expect([...laidIn].sort()).toEqual([...rooms].sort());
+  }, 30_000); // 8 town levels with three buildings resolved: about 1.5 s locally under a parallel run
 });

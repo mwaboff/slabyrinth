@@ -1,0 +1,76 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 5,
+  "id": "8c4d1e6f-3a5b-4c7d-8e9f-1b2c3d4e5f63",
+  "title": "cell-rows-town-v1",
+  "kind": "town",
+  "seed": 21,
+  "theme": "wood_town",
+  "summary": "Cell rows in a town: a livery stable, an infirmary and a guardhouse fronting a lane, and a walled barracks hall built as a room of the street level.",
+  "links": [],
+  "levels": [
+    {
+      "id": "g",
+      "name": "Farrier's Row",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 52, "h": 26 },
+      "base": { "type": "ground", "material": "grass" },
+      "areas": [
+        { "id": "lane", "kind": "zone", "name": "Farrier's Row", "shape": { "type": "rect", "x": 0, "y": 12, "w": 52, "h": 4 } },
+        {
+          "id": "barracks",
+          "kind": "room",
+          "name": "Barracks",
+          "key": "4",
+          "shape": { "type": "rect", "x": 18, "y": 17, "w": 15, "h": 8 }
+        }
+      ],
+      "openings": [{ "id": "barracks_door", "kind": "door", "between": ["barracks", "@outside"], "position": 0.5 }],
+      "walls": [],
+      "features": [],
+      "labels": [],
+      "terrain": [
+        {
+          "id": "road",
+          "op": "path",
+          "points": [[0, 13], [51, 13]],
+          "width": 3,
+          "material": "cobble",
+          "style": "straight"
+        }
+      ],
+      "structures": [
+        {
+          "id": "stables",
+          "name": "Livery stables",
+          "use": "stables",
+          "style": "cottage",
+          "seed": 31,
+          "wings": [{ "x": 1, "y": 1, "w": 15, "h": 10, "ridge": "ew" }],
+          "storeys": [{}],
+          "front": "S"
+        },
+        {
+          "id": "infirmary",
+          "name": "Infirmary",
+          "use": "infirmary",
+          "style": "cottage",
+          "seed": 32,
+          "wings": [{ "x": 18, "y": 1, "w": 15, "h": 10, "ridge": "ew" }],
+          "storeys": [{}, {}],
+          "front": "S"
+        },
+        {
+          "id": "guard",
+          "name": "Guardhouse",
+          "use": "guardhouse",
+          "style": "cottage",
+          "seed": 33,
+          "wings": [{ "x": 35, "y": 1, "w": 15, "h": 10, "ridge": "ew" }],
+          "storeys": [{ "walls": "stone" }, {}],
+          "front": "S"
+        }
+      ]
+    }
+  ]
+}

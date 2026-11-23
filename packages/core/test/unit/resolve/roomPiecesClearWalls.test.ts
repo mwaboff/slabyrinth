@@ -33,7 +33,8 @@ const meets = (a: Box3, b: Box3): boolean =>
   span(a.min.x, a.max.x, b.min.x, b.max.x) > PROP_IN_WALL_MIN &&
   span(a.min.z, a.max.z, b.min.z, b.max.z) > PROP_IN_WALL_MIN &&
   span(a.min.y, a.max.y, b.min.y, b.max.y) > PROP_IN_WALL_HEIGHT;
-const ROOM_PIECE = /~room#\d+$/;
+/** A piece the room furnisher placed: a room's own, a cell's of a cell row, its aisle's, a dead end's set. */
+const ROOM_PIECE = /~(room|cell\d+|aisle|deadend)#\d+$/;
 
 /** Over the plans and seeds: the room pieces built, those meeting a built post, and those verify finds in a wall. */
 function measure(
@@ -83,6 +84,8 @@ describe("postsAtBuildingCorners", () => {
       "two-quarters-v1",
       "keep-dungeon-v8",
       "inn-interior-v1",
+      // cell rows in buildings (a stable, an infirmary) and in a room of a town level (generator 5, cellRows)
+      "cell-rows-town-v1",
     ];
     const on = measure(plans, sweepSeeds(5));
     expect(on.pieces).toBeGreaterThan(800);
