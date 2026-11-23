@@ -124,25 +124,3 @@ export const colourTheme = (theme: string): boolean => COLOUR_THEMES.has(theme);
 
 const wordsOf = (texts: ReadonlyArray<string | undefined>): string[] =>
   texts.flatMap((t) => (t ?? "").toLowerCase().split(/[^a-z-]+/)).filter((w) => w.length > 0);
-
-/** The levels the words name, in order. */
-function levelsIn(texts: ReadonlyArray<string | undefined>): LightLevel[] {
-  return wordsOf(texts)
-    .map((w) => WORD_LEVEL.get(w))
-    .filter((l): l is LightLevel => l !== undefined);
-}
-
-/**
- * The scene's light: the level its words name (the middle one when they name several), else its theme's, else
- * moderate. `stated` (a future plan field) wins over the words.
- */
-export function sceneLight(p: {
-  readonly theme: string;
-  readonly texts: ReadonlyArray<string | undefined>;
-  readonly stated?: LightLevel;
-}): SceneLight {
-  const named = levelsIn(p.texts).sort((a, b) => a - b);
-  const middle: LightLevel | undefined = named[Math.floor((named.length - 1) / 2)];
-  const level = p.stated ?? middle ?? THEME_LEVEL[p.theme] ?? 2;
-  return { level, colour: COLOUR_THEMES.has(p.theme) };
-}

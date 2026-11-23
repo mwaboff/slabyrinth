@@ -9,7 +9,8 @@ import { ROOM_KINDS, roomTargets, roomTraits } from "../../../src/gen/roomTraits
 import { bundledPalettes } from "../../../src/palette";
 import { resolvePlan } from "../../../src/resolve";
 import { reviewDesign } from "../../../src/review";
-import { lightGiver } from "../../../src/review/lights";
+import { elementCharacter } from "../../../src/resolve/character";
+import { lightGiver, sceneMeantDim } from "../../../src/review/lights";
 import { dungeonPlan } from "../../fixtures/planBuilder";
 
 const pal = bundledPalettes();
@@ -66,6 +67,30 @@ describe("lights in the review (generator 5)", () => {
     };
     expect(unlit(2)).toBe(true);
     expect(unlit(1)).toBe(false);
+  });
+
+  it("a dungeon scene its mood makes bright is not meant dim; the review reads the scene's character", () => {
+    const scene = (notes: string) => {
+      const p = dungeonPlan({
+        generator: 5,
+        w: 18,
+        h: 10,
+        title: "The lower halls",
+        summary: "Two rooms.",
+        kind: "building",
+        level: { name: "Halls", notes },
+        areas: [{ id: "a", kind: "room", name: "Bedroom", shape: { type: "rect", x: 1, y: 1, w: 6, h: 6 } }],
+      });
+      const L = resolvePlan(p, pal).levels[0];
+      if (!L) throw new Error("no level");
+      return { p, L };
+    };
+    // (the words name no light; the mood "clinical" floods it, where the theme alone would leave a dungeon dim)
+    const bright = scene("Kept clinical and white.");
+    expect(elementCharacter(bright.L, bright.L.id)?.light).toBe("flooded");
+    expect(sceneMeantDim(bright.p, bright.L)).toBe(false);
+    const plain = scene("Old halls.");
+    expect(sceneMeantDim(plain.p, plain.L)).toBe(true);
   });
 
   it("a kind whose floor column lays out groups stands its furniture free on purpose", () => {

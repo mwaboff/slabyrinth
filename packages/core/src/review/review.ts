@@ -1544,7 +1544,7 @@ function focalLights(c: Ctx): DesignNote[] {
     const a = c.L.areas.find((x) => x.id === f.area);
     return (
       roomMeantDim(a) ||
-      (a?.kind !== "room" && a?.kind !== "corridor" && sceneMeantDim(c.plan)) ||
+      (a?.kind !== "room" && a?.kind !== "corridor" && sceneMeantDim(c.plan, c.L)) ||
       (a !== undefined && a.kind !== "room" && a.kind !== "corridor" && subjectMeantDim(c.L, a.id))
     );
   };

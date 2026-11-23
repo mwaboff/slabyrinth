@@ -391,6 +391,20 @@ const genericThemeRule = selectorRule("The fallback theme is GENERIC_THEME.", [
 ]);
 
 /**
+ * A place's light is read from its words once, by the character resolver (resolve/character.ts); every other reader
+ * asks the character it resolved (characterAt during resolve, elementCharacter after it), so the build and the review
+ * never disagree about how lit a place is meant to be.
+ */
+const lightWordsRule = selectorRule("A place's light words are read only by resolve/character.ts.", [
+  {
+    selector:
+      "ImportDeclaration[source.value=/lightLevels$/] > ImportSpecifier[imported.name='lightNamedBy']",
+    message:
+      "Ask the place's resolved character (resolve/character.ts characterAt, elementCharacter, lightIndex) instead of reading its words again.",
+  },
+]);
+
+/**
  * Behaviour that differs between generators is a named switch (plan/generator.ts SWITCHES, read through
  * generatorProfile), never a comparison of the plan's generator with a version number: the switch table is the one
  * changelog of the generators, and a number compared elsewhere is a behaviour it does not list.
@@ -642,6 +656,7 @@ const slabyrinthPlugin = {
     "feature-lists": featureListRule,
     sides: sidesRule,
     "generic-theme": genericThemeRule,
+    "light-words": lightWordsRule,
     "generator-switches": generatorSwitchRule,
     "review-weights": reviewWeightRule,
   },
@@ -789,6 +804,12 @@ export default tseslint.config(
     files: ["packages/core/src/{gen,resolve,plan,compile,review,render,text}/**/*.ts"],
     ignores: ["packages/core/src/compile/calibration.ts"],
     rules: { "slabyrinth/generic-theme": "error" },
+  },
+  {
+    // the one reader of a place's light words
+    files: ["packages/core/src/**/*.ts"],
+    ignores: ["packages/core/src/resolve/character.ts"],
+    rules: { "slabyrinth/light-words": "error" },
   },
   {
     // the switch table itself; tests may build plans of any generator

@@ -116,8 +116,6 @@ export function qualityNotes(
   gives?: (f: ResolvedFeature) => boolean,
 ): DesignNote[] {
   const out: DesignNote[] = [];
-  // generator 5: a scene meant to be dim keeps its doors dark on purpose
-  const dimScene = sceneMeantDim(plan);
   const lanes = resolved.levels.flatMap((L) => blockedLanes(plan, L).map((b) => ({ ...b, levelId: L.id })));
   const first = lanes[0];
   if (first) {
@@ -135,6 +133,8 @@ export function qualityNotes(
 
   for (const L of resolved.levels) {
     const buildings = (L.structures ?? []).filter((s) => s.kind === "building");
+    // generator 5: a scene meant to be dim keeps its doors dark on purpose
+    const dimScene = sceneMeantDim(plan, L);
 
     const unlit = buildings
       .filter((s) => s.lighting?.doors !== true && !dimScene && !subjectMeantDim(L, s.id))

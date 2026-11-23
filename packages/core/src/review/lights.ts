@@ -6,15 +6,14 @@
  *                 `givesLight` of the weakest piece its palette pool holds, as the regimes choose them): a stone
  *                 lantern is a light feature that emits nothing in game.
  *   meant dim     a room whose drawn light level (ResolvedArea.lightLevel) is dim or dark carries few or no accents on
- *                 purpose (the owner: brightness follows the mood of the room and the scene); outside, the scene's
- *                 level from the plan's words (gen/lightLevels.ts sceneLight). A dim place without a light is no fault.
+ *                 purpose (the owner: brightness follows the mood of the room and the scene); outside, the scene's or
+ *                 the building's character (resolve/character.ts). A dim place without a light is no fault.
  * Released generators count every light feature and hold every room to light.
  */
 import type { MapPlan } from "../contracts/plan";
 import type { ResolvedArea, ResolvedFeature, ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
 import { elementCharacter, lightIndex } from "../resolve/character";
 import { LIGHT_FEATURES } from "../gen/catalog";
-import { sceneLight } from "../gen/lightLevels";
 import { givesLight, lightOfPool } from "../gen/lightReach";
 import { featureRoles } from "../gen/surfaces";
 import { createPlanRoles } from "../palette/planRoles";
@@ -80,8 +79,10 @@ export function subjectMeantDim(L: Pick<ResolvedLevel, "character">, id: string)
   return c !== null && lightIndex(c) <= DIM_LEVEL;
 }
 
-/** Is the scene meant to be dim (generator 5: its words name a dim or dark level)? */
-export function sceneMeantDim(plan: MapPlan): boolean {
-  if (!generatorProfile(plan).lightRegimes) return false;
-  return sceneLight({ theme: plan.theme, texts: [plan.title, plan.summary, plan.kind] }).level <= DIM_LEVEL;
+/**
+ * Is a level's scene meant to be dim (generator 5: the scene's character, the level's own record, is dim or dark)? The
+ * same answer the build lit it by (resolve/character.ts), never the plan's words read again.
+ */
+export function sceneMeantDim(plan: MapPlan, L: Pick<ResolvedLevel, "id" | "character">): boolean {
+  return generatorProfile(plan).lightRegimes && subjectMeantDim(L, L.id);
 }

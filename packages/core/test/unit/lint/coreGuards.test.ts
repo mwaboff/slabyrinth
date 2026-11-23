@@ -324,6 +324,18 @@ describe("core guards", () => {
     });
   });
 
+  describe("slabyrinth/light-words: a place's light words have one reader", () => {
+    const code = 'import { lightNamedBy } from "../gen/lightLevels";';
+    it("reports a reader of the light words outside the character resolver", async () => {
+      expect(await guardHits("packages/core/src/review/lights.ts", code)).toEqual([
+        expect.stringContaining("slabyrinth/light-words"),
+      ]);
+    });
+    it("leaves the character resolver alone", async () => {
+      expect(await guardHits("packages/core/src/resolve/character.ts", code)).toEqual([]);
+    });
+  });
+
   describe("slabyrinth/generator-switches: generator behaviour is a switch", () => {
     it("reports a generator compared with a version, and a switch on the generator", async () => {
       const cases: Array<[string, string]> = [
