@@ -89,6 +89,8 @@ const MIDDLE_SHARE = 0.15;
 const USE_REACH = 2;
 /** A cell with more than three of its eight neighbours off the place (an inner corner) weighs this much more each. */
 const CORNER_STEP = 0.5;
+/** A sunk piece's centre stands at least this far from another floor height or a missing floor. */
+const SUNK_CLEAR = 0.35;
 const CORNER_MAX = 2;
 const AROUND = [
   [-1, -1],
@@ -325,12 +327,21 @@ export const layeredGround: Recipe<"zone"> = {
       lean = false,
     ): void => {
       if (!onGround(px, py, p, yaw, top, lean)) return;
+      // (visibleGround: with cover gathered at edges, a sunk piece's centre keeps SUNK_CLEAR from any other floor
+      // height or missing floor, so verify finds the ground tile it is sunk into under its centre)
+      if (
+        visible &&
+        y < top - 1e-6 &&
+        !AROUND.every(([dx, dy]) => fits(px + dx * SUNK_CLEAR, py + dy * SUNK_CLEAR, top, KEEP_OFF))
+      )
+        return;
       const q = single(p, yaw)[0] as Placed;
       into.push({ ...q, x: px - f.at[0], z: f.at[1] - py, y: y - f.base });
     };
     // how deep a low piece sinks: a little (verify's support slack), or (groundClusters) into the ground tile
+    // (visibleGround: only soil takes a piece deep; paving is a thin tile a piece lies on)
     const sunk = (q: ArrangePiece, u: number): number =>
-      clusters
+      clusters && (!visible || a.natural)
         ? Math.min(SINK_DEEP_MAX, (SINK_DEEP[0] + (SINK_DEEP[1] - SINK_DEEP[0]) * u) * q.measures.height)
         : Math.min(SINK_MAX, (SINK[0] + (SINK[1] - SINK[0]) * u) * q.measures.height);
     const yawOf = (u: number): number => Math.floor(u * 24) * 15;

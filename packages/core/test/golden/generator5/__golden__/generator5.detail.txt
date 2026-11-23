@@ -1,4 +1,4 @@
-plans/building-rooms-street-v1 g pieces feature 418
+plans/building-rooms-street-v1 g pieces feature 408
 plans/building-rooms-street-v1 g pieces fill 48
 plans/building-rooms-street-v1 g pieces floor 571
 plans/building-rooms-street-v1 g pieces ledge 134
@@ -6,7 +6,7 @@ plans/building-rooms-street-v1 g pieces opening 53
 plans/building-rooms-street-v1 g pieces wall 696
 plans/building-rooms-street-v1 g pieces wall_post 122
 plans/building-rooms-street-v1 g layer roof 416
-plans/building-rooms-street-v1 g layer site 1065
+plans/building-rooms-street-v1 g layer site 1055
 plans/building-rooms-street-v1 g layer storey:0 352
 plans/building-rooms-street-v1 g layer storey:1 209
 plans/building-rooms-street-v1 g part cottage~chimney 7
@@ -462,14 +462,14 @@ plans/chimney-lineup-v1 g part h6~window5 1
 plans/chimney-lineup-v1 review dead_space 1
 plans/chimney-lineup-v1 review roof_squat 1
 plans/chimney-lineup-v1 review symmetry 1
-plans/chimney-lineup-v1@5 g pieces feature 915
+plans/chimney-lineup-v1@5 g pieces feature 906
 plans/chimney-lineup-v1@5 g pieces floor 568
 plans/chimney-lineup-v1@5 g pieces ledge 188
 plans/chimney-lineup-v1@5 g pieces opening 37
 plans/chimney-lineup-v1@5 g pieces wall 813
 plans/chimney-lineup-v1@5 g pieces wall_post 189
 plans/chimney-lineup-v1@5 g layer roof 549
-plans/chimney-lineup-v1@5 g layer site 1603
+plans/chimney-lineup-v1@5 g layer site 1594
 plans/chimney-lineup-v1@5 g layer storey:0 429
 plans/chimney-lineup-v1@5 g layer storey:1 129
 plans/chimney-lineup-v1@5 g part floor:floor.grass 352
@@ -1044,13 +1044,13 @@ plans/enclosure-gates-v1 review bare_ground 1
 plans/enclosure-gates-v1 review flat_map 1
 plans/enclosure-gates-v1 review focal_unlit 1
 plans/enclosure-gates-v1 review pieces_substituted 1
-plans/enclosure-gates-v1@5 g pieces feature 206
+plans/enclosure-gates-v1@5 g pieces feature 203
 plans/enclosure-gates-v1@5 g pieces floor 474
 plans/enclosure-gates-v1@5 g pieces ledge 120
 plans/enclosure-gates-v1@5 g pieces opening 4
 plans/enclosure-gates-v1@5 g pieces wall 60
 plans/enclosure-gates-v1@5 g pieces wall_post 13
-plans/enclosure-gates-v1@5 g layer site 877
+plans/enclosure-gates-v1@5 g layer site 874
 plans/enclosure-gates-v1@5 g part floor:floor.dirt 170
 plans/enclosure-gates-v1@5 g part floor:floor.grass 250
 plans/enclosure-gates-v1@5 g part floor:floor.gravel 54
@@ -1106,13 +1106,13 @@ plans/example-a review floor_patchwork 1
 plans/example-a review furniture_adrift 1
 plans/example-a review room_unlit 1
 plans/example-a review single_route 1
-plans/example-a@5 l2 pieces feature 73
+plans/example-a@5 l2 pieces feature 71
 plans/example-a@5 l2 pieces fill 29
 plans/example-a@5 l2 pieces floor 129
 plans/example-a@5 l2 pieces link 9
 plans/example-a@5 l2 pieces wall 255
 plans/example-a@5 l2 pieces wall_post 6
-plans/example-a@5 l2 layer site 501
+plans/example-a@5 l2 layer site 499
 plans/example-a@5 l2 part c3~room#0 1
 plans/example-a@5 l2 part chapel~room#0 1
 plans/example-a@5 l2 part chapel~room#1 1
@@ -1276,14 +1276,14 @@ plans/example-b review flat_map 1
 plans/example-b review focus_unreached 1
 plans/example-b review rows_or_even_scatter 3
 plans/example-b review straight_natural 1
-plans/example-b@5 g pieces feature 391
+plans/example-b@5 g pieces feature 386
 plans/example-b@5 g pieces fill 59
 plans/example-b@5 g pieces floor 794
 plans/example-b@5 g pieces ledge 35
 plans/example-b@5 g pieces opening 1
 plans/example-b@5 g pieces wall 14
 plans/example-b@5 g pieces wall_post 6
-plans/example-b@5 g layer site 1300
+plans/example-b@5 g layer site 1295
 plans/example-b@5 g part floor:floor.bridge_wood 6
 plans/example-b@5 g part floor:floor.dirt 136
 plans/example-b@5 g part floor:floor.flagstone 20
@@ -1308,14 +1308,14 @@ plans/example-b@5 diag info verify_water_level 1
 plans/example-b@5 review flat_map 1
 plans/example-b@5 review focal_unlit 2
 plans/example-b@5 review rows_or_even_scatter 1
-plans/ground-and-walls-v1 g pieces feature 1177
+plans/ground-and-walls-v1 g pieces feature 1148
 plans/ground-and-walls-v1 g pieces floor 1018
 plans/ground-and-walls-v1 g pieces ledge 188
 plans/ground-and-walls-v1 g pieces opening 35
 plans/ground-and-walls-v1 g pieces wall 797
 plans/ground-and-walls-v1 g pieces wall_post 230
 plans/ground-and-walls-v1 g layer roof 520
-plans/ground-and-walls-v1 g layer site 2420
+plans/ground-and-walls-v1 g layer site 2391
 plans/ground-and-walls-v1 g layer storey:0 396
 plans/ground-and-walls-v1 g layer storey:1 109
 plans/ground-and-walls-v1 g part floor:floor.dirt 25
@@ -1664,12 +1664,12 @@ plans/heartroot-rift-v7 review cliff_unclad 1
 plans/heartroot-rift-v7 review cliff_unclad_low 1
 plans/heartroot-rift-v7 review competing_focals 1
 plans/heartroot-rift-v7 review flat_map 1
-plans/heartroot-rift-v7@5 l1 pieces feature 650
+plans/heartroot-rift-v7@5 l1 pieces feature 626
 plans/heartroot-rift-v7@5 l1 pieces fill 463
 plans/heartroot-rift-v7@5 l1 pieces floor 490
 plans/heartroot-rift-v7@5 l1 pieces ledge 59
 plans/heartroot-rift-v7@5 l1 pieces wall 511
-plans/heartroot-rift-v7@5 l1 layer site 2173
+plans/heartroot-rift-v7@5 l1 layer site 2149
 plans/heartroot-rift-v7@5 l1 part floor:floor.bridge_wood 2
 plans/heartroot-rift-v7@5 l1 part floor:floor.flagstone 9
 plans/heartroot-rift-v7@5 l1 part floor:floor.lava 45
@@ -4008,11 +4008,11 @@ plans/old-stones-glade-v6 review competing_focals 1
 plans/old-stones-glade-v6 review flat_map 1
 plans/old-stones-glade-v6 review rows_or_even_scatter 1
 plans/old-stones-glade-v6 review straight_natural 2
-plans/old-stones-glade-v6@5 g pieces feature 471
+plans/old-stones-glade-v6@5 g pieces feature 469
 plans/old-stones-glade-v6@5 g pieces fill 248
 plans/old-stones-glade-v6@5 g pieces floor 494
 plans/old-stones-glade-v6@5 g pieces ledge 49
-plans/old-stones-glade-v6@5 g layer site 1262
+plans/old-stones-glade-v6@5 g layer site 1260
 plans/old-stones-glade-v6@5 g part floor:floor.dirt 108
 plans/old-stones-glade-v6@5 g part floor:floor.grass 330
 plans/old-stones-glade-v6@5 g part g~bands1#0 1
@@ -4175,13 +4175,13 @@ plans/outdoor-scatter review board_rectangular 1
 plans/outdoor-scatter review flat_map 1
 plans/outdoor-scatter review pieces_substituted 1
 plans/outdoor-scatter review rows_or_even_scatter 2
-plans/outdoor-scatter@5 g pieces feature 66
+plans/outdoor-scatter@5 g pieces feature 62
 plans/outdoor-scatter@5 g pieces floor 319
 plans/outdoor-scatter@5 g pieces ledge 31
 plans/outdoor-scatter@5 g pieces opening 1
 plans/outdoor-scatter@5 g pieces wall 11
 plans/outdoor-scatter@5 g pieces wall_post 6
-plans/outdoor-scatter@5 g layer site 434
+plans/outdoor-scatter@5 g layer site 430
 plans/outdoor-scatter@5 g part floor:floor.dirt 144
 plans/outdoor-scatter@5 g part floor:floor.grass 167
 plans/outdoor-scatter@5 g part floor:floor.wood_plank 8
@@ -4641,11 +4641,11 @@ plans/smugglers-grotto-v3 diag info verify_water_level 1
 plans/smugglers-grotto-v3 review cliff_unclad_low 1
 plans/smugglers-grotto-v3 review flat_map 1
 plans/smugglers-grotto-v3 review rise_timid 1
-plans/smugglers-grotto-v3@5 l1 pieces feature 547
+plans/smugglers-grotto-v3@5 l1 pieces feature 532
 plans/smugglers-grotto-v3@5 l1 pieces fill 446
 plans/smugglers-grotto-v3@5 l1 pieces floor 342
 plans/smugglers-grotto-v3@5 l1 pieces wall 879
-plans/smugglers-grotto-v3@5 l1 layer site 2214
+plans/smugglers-grotto-v3@5 l1 layer site 2199
 plans/smugglers-grotto-v3@5 l1 part floor:floor.rock 232
 plans/smugglers-grotto-v3@5 l1 feature accent_light 2
 plans/smugglers-grotto-v3@5 l1 feature chest 1
@@ -4854,12 +4854,12 @@ plans/three-step-glen-v1 review board_edge_bare 1
 plans/three-step-glen-v1 review landmark_against_wall 1
 plans/three-step-glen-v1 review rows_or_even_scatter 2
 plans/three-step-glen-v1 review straight_natural 1
-plans/three-step-glen-v1@5 glen pieces feature 327
+plans/three-step-glen-v1@5 glen pieces feature 324
 plans/three-step-glen-v1@5 glen pieces fill 368
 plans/three-step-glen-v1@5 glen pieces floor 591
 plans/three-step-glen-v1@5 glen pieces ledge 226
 plans/three-step-glen-v1@5 glen pieces wall 3
-plans/three-step-glen-v1@5 glen layer site 1515
+plans/three-step-glen-v1@5 glen layer site 1512
 plans/three-step-glen-v1@5 glen part floor:floor.bridge_wood 3
 plans/three-step-glen-v1@5 glen part floor:floor.dirt 92
 plans/three-step-glen-v1@5 glen part floor:floor.grass 218
@@ -5004,7 +5004,7 @@ plans/three-step-glen-v1@5 review focal_unlit 1
 plans/three-step-glen-v1@5 review landmark_against_wall 1
 plans/three-step-glen-v1@5 review rows_or_even_scatter 2
 plans/three-step-glen-v1@5 review straight_natural 1
-plans/two-quarters-v1 g pieces feature 896
+plans/two-quarters-v1 g pieces feature 875
 plans/two-quarters-v1 g pieces fill 80
 plans/two-quarters-v1 g pieces floor 1372
 plans/two-quarters-v1 g pieces ledge 228
@@ -5013,7 +5013,7 @@ plans/two-quarters-v1 g pieces opening 60
 plans/two-quarters-v1 g pieces wall 1550
 plans/two-quarters-v1 g pieces wall_post 319
 plans/two-quarters-v1 g layer roof 1142
-plans/two-quarters-v1 g layer site 2398
+plans/two-quarters-v1 g layer site 2377
 plans/two-quarters-v1 g layer storey:0 805
 plans/two-quarters-v1 g layer storey:1 161
 plans/two-quarters-v1 g part bucket~deck 22
@@ -5557,7 +5557,7 @@ plans/two-rooms-door@5 l1 feature bed 1
 plans/two-rooms-door@5 l1 feature rug 1
 plans/two-rooms-door@5 l1 feature torch_wall 6
 plans/two-rooms-door@5 review flat_map 1
-plans/varied-street-v1 g pieces feature 1370
+plans/varied-street-v1 g pieces feature 1312
 plans/varied-street-v1 g pieces fill 72
 plans/varied-street-v1 g pieces floor 1111
 plans/varied-street-v1 g pieces ledge 188
@@ -5566,7 +5566,7 @@ plans/varied-street-v1 g pieces opening 102
 plans/varied-street-v1 g pieces wall 1235
 plans/varied-street-v1 g pieces wall_post 432
 plans/varied-street-v1 g layer roof 786
-plans/varied-street-v1 g layer site 2599
+plans/varied-street-v1 g layer site 2541
 plans/varied-street-v1 g layer storey:0 688
 plans/varied-street-v1 g layer storey:1 270
 plans/varied-street-v1 g layer storey:2 168
@@ -6042,14 +6042,14 @@ plans/varied-street-v1 review pieces_substituted 1
 plans/varied-street-v1 review roof_squat 1
 plans/varied-street-v1 review silhouette_flat 1
 plans/varied-street-v1 review straight_natural 1
-plans/wall-recipes-v1 g pieces feature 505
+plans/wall-recipes-v1 g pieces feature 503
 plans/wall-recipes-v1 g pieces floor 377
 plans/wall-recipes-v1 g pieces ledge 56
 plans/wall-recipes-v1 g pieces opening 29
 plans/wall-recipes-v1 g pieces wall 361
 plans/wall-recipes-v1 g pieces wall_post 115
 plans/wall-recipes-v1 g layer roof 200
-plans/wall-recipes-v1 g layer site 877
+plans/wall-recipes-v1 g layer site 875
 plans/wall-recipes-v1 g layer storey:0 162
 plans/wall-recipes-v1 g layer storey:1 204
 plans/wall-recipes-v1 g part floor:floor.flagstone 12
@@ -6257,11 +6257,11 @@ gen/dressed-cave review bare_ground 1
 gen/dressed-cave review flat_map 1
 gen/dressed-cave review floor_patchwork 1
 gen/dressed-cave review rows_or_even_scatter 1
-gen/dressed-cave@5 l1 pieces feature 627
+gen/dressed-cave@5 l1 pieces feature 615
 gen/dressed-cave@5 l1 pieces fill 410
 gen/dressed-cave@5 l1 pieces floor 404
 gen/dressed-cave@5 l1 pieces wall 408
-gen/dressed-cave@5 l1 layer site 1849
+gen/dressed-cave@5 l1 layer site 1837
 gen/dressed-cave@5 l1 part floor:floor.bridge_wood 4
 gen/dressed-cave@5 l1 part floor:floor.lava 17
 gen/dressed-cave@5 l1 part floor:floor.rock 383
@@ -6345,11 +6345,11 @@ gen/dressed-cave-v2 review bare_ground 1
 gen/dressed-cave-v2 review competing_focals 1
 gen/dressed-cave-v2 review flat_map 1
 gen/dressed-cave-v2 review floor_patchwork 1
-gen/dressed-cave-v2@5 l1 pieces feature 1093
+gen/dressed-cave-v2@5 l1 pieces feature 1041
 gen/dressed-cave-v2@5 l1 pieces fill 560
 gen/dressed-cave-v2@5 l1 pieces floor 530
 gen/dressed-cave-v2@5 l1 pieces wall 561
-gen/dressed-cave-v2@5 l1 layer site 2744
+gen/dressed-cave-v2@5 l1 layer site 2692
 gen/dressed-cave-v2@5 l1 part floor:floor.bridge_wood 3
 gen/dressed-cave-v2@5 l1 part floor:floor.lava 30
 gen/dressed-cave-v2@5 l1 part floor:floor.rock 483
@@ -6426,11 +6426,11 @@ gen/dressed-forest review cliff_even_spacing 1
 gen/dressed-forest review flat_map 1
 gen/dressed-forest review rows_or_even_scatter 2
 gen/dressed-forest review straight_natural 2
-gen/dressed-forest@5 g pieces feature 493
+gen/dressed-forest@5 g pieces feature 489
 gen/dressed-forest@5 g pieces fill 48
 gen/dressed-forest@5 g pieces floor 389
 gen/dressed-forest@5 g pieces ledge 42
-gen/dressed-forest@5 g layer site 972
+gen/dressed-forest@5 g layer site 968
 gen/dressed-forest@5 g part floor:floor.dirt 114
 gen/dressed-forest@5 g part floor:floor.grass 275
 gen/dressed-forest@5 g part g~bands1#0 1
@@ -6523,11 +6523,11 @@ gen/dressed-forest-v4 review competing_focals 1
 gen/dressed-forest-v4 review flat_map 1
 gen/dressed-forest-v4 review rows_or_even_scatter 1
 gen/dressed-forest-v4 review straight_natural 1
-gen/dressed-forest-v4@5 g pieces feature 572
+gen/dressed-forest-v4@5 g pieces feature 570
 gen/dressed-forest-v4@5 g pieces fill 248
 gen/dressed-forest-v4@5 g pieces floor 466
 gen/dressed-forest-v4@5 g pieces ledge 47
-gen/dressed-forest-v4@5 g layer site 1333
+gen/dressed-forest-v4@5 g layer site 1331
 gen/dressed-forest-v4@5 g part floor:floor.dirt 91
 gen/dressed-forest-v4@5 g part floor:floor.grass 319
 gen/dressed-forest-v4@5 g part g~bands1#0 1
@@ -6707,13 +6707,13 @@ gen/hillside-v5 review cliff_even_spacing 1
 gen/hillside-v5 review cliff_unclad 1
 gen/hillside-v5 review cliff_unclad_low 1
 gen/hillside-v5 review straight_natural 1
-gen/hillside-v5@5 hill pieces feature 226
+gen/hillside-v5@5 hill pieces feature 221
 gen/hillside-v5@5 hill pieces fill 253
 gen/hillside-v5@5 hill pieces floor 371
 gen/hillside-v5@5 hill pieces ledge 52
 gen/hillside-v5@5 hill pieces link 4
 gen/hillside-v5@5 hill pieces wall 29
-gen/hillside-v5@5 hill layer site 935
+gen/hillside-v5@5 hill layer site 930
 gen/hillside-v5@5 hill part floor:floor.bridge_wood 6
 gen/hillside-v5@5 hill part floor:floor.dirt 40
 gen/hillside-v5@5 hill part floor:floor.grass 221
@@ -6856,11 +6856,11 @@ gen/sea-grotto diag info verify_water_level 1
 gen/sea-grotto review cliff_unclad_low 1
 gen/sea-grotto review flat_map 1
 gen/sea-grotto review rise_timid 1
-gen/sea-grotto@5 l1 pieces feature 564
+gen/sea-grotto@5 l1 pieces feature 543
 gen/sea-grotto@5 l1 pieces fill 409
 gen/sea-grotto@5 l1 pieces floor 340
 gen/sea-grotto@5 l1 pieces wall 857
-gen/sea-grotto@5 l1 layer site 2170
+gen/sea-grotto@5 l1 layer site 2149
 gen/sea-grotto@5 l1 part floor:floor.rock 240
 gen/sea-grotto@5 l1 feature accent_light 4
 gen/sea-grotto@5 l1 feature chest 1
@@ -7015,11 +7015,11 @@ gen/terraced-hill diag info verify_props_overlap 1
 gen/terraced-hill diag info verify_water_level 1
 gen/terraced-hill review rows_or_even_scatter 2
 gen/terraced-hill review straight_natural 1
-gen/terraced-hill@5 hill pieces feature 558
+gen/terraced-hill@5 hill pieces feature 556
 gen/terraced-hill@5 hill pieces fill 116
 gen/terraced-hill@5 hill pieces floor 518
 gen/terraced-hill@5 hill pieces ledge 121
-gen/terraced-hill@5 hill layer site 1313
+gen/terraced-hill@5 hill layer site 1311
 gen/terraced-hill@5 hill part floor:floor.dirt 62
 gen/terraced-hill@5 hill part floor:floor.grass 301
 gen/terraced-hill@5 hill part floor:floor.rock 118
