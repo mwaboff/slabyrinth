@@ -1048,13 +1048,13 @@ plans/condition-street-v1 review cliff_unclad_low 1
 plans/condition-street-v1 review dead_space 1
 plans/condition-street-v1 review straight_natural 2
 plans/condition-street-v1 review weathered_same_as_intact 1
-plans/dungeon-complex-v1 l1 pieces feature 208
+plans/dungeon-complex-v1 l1 pieces feature 226
 plans/dungeon-complex-v1 l1 pieces fill 193
 plans/dungeon-complex-v1 l1 pieces floor 229
 plans/dungeon-complex-v1 l1 pieces opening 5
-plans/dungeon-complex-v1 l1 pieces wall 352
-plans/dungeon-complex-v1 l1 pieces wall_post 66
-plans/dungeon-complex-v1 l1 layer site 1053
+plans/dungeon-complex-v1 l1 pieces wall 351
+plans/dungeon-complex-v1 l1 pieces wall_post 65
+plans/dungeon-complex-v1 l1 layer site 1069
 plans/dungeon-complex-v1 l1 part cells~room#0 1
 plans/dungeon-complex-v1 l1 part cells~room#1 1
 plans/dungeon-complex-v1 l1 part cells~room#2 1
@@ -1082,7 +1082,25 @@ plans/dungeon-complex-v1 l1 part hall~room#1 1
 plans/dungeon-complex-v1 l1 part hall~room#10 1
 plans/dungeon-complex-v1 l1 part hall~room#100 1
 plans/dungeon-complex-v1 l1 part hall~room#101 1
+plans/dungeon-complex-v1 l1 part hall~room#102 1
+plans/dungeon-complex-v1 l1 part hall~room#103 1
+plans/dungeon-complex-v1 l1 part hall~room#104 1
+plans/dungeon-complex-v1 l1 part hall~room#105 1
+plans/dungeon-complex-v1 l1 part hall~room#106 1
+plans/dungeon-complex-v1 l1 part hall~room#107 1
+plans/dungeon-complex-v1 l1 part hall~room#108 1
+plans/dungeon-complex-v1 l1 part hall~room#109 1
 plans/dungeon-complex-v1 l1 part hall~room#11 1
+plans/dungeon-complex-v1 l1 part hall~room#110 1
+plans/dungeon-complex-v1 l1 part hall~room#111 1
+plans/dungeon-complex-v1 l1 part hall~room#112 1
+plans/dungeon-complex-v1 l1 part hall~room#113 1
+plans/dungeon-complex-v1 l1 part hall~room#114 1
+plans/dungeon-complex-v1 l1 part hall~room#115 1
+plans/dungeon-complex-v1 l1 part hall~room#116 1
+plans/dungeon-complex-v1 l1 part hall~room#117 1
+plans/dungeon-complex-v1 l1 part hall~room#118 1
+plans/dungeon-complex-v1 l1 part hall~room#119 1
 plans/dungeon-complex-v1 l1 part hall~room#12 1
 plans/dungeon-complex-v1 l1 part hall~room#13 1
 plans/dungeon-complex-v1 l1 part hall~room#14 1
@@ -1245,25 +1263,27 @@ plans/dungeon-complex-v1 l1 part vault~room#9 1
 plans/dungeon-complex-v1 l1 feature armor_stand 3
 plans/dungeon-complex-v1 l1 feature barrel 8
 plans/dungeon-complex-v1 l1 feature bed 1
-plans/dungeon-complex-v1 l1 feature bench 7
+plans/dungeon-complex-v1 l1 feature bench 3
 plans/dungeon-complex-v1 l1 feature bunk_bed 5
 plans/dungeon-complex-v1 l1 feature candelabra 1
-plans/dungeon-complex-v1 l1 feature candles 10
-plans/dungeon-complex-v1 l1 feature chair 38
-plans/dungeon-complex-v1 l1 feature chest 7
-plans/dungeon-complex-v1 l1 feature clutter 44
+plans/dungeon-complex-v1 l1 feature candles 11
+plans/dungeon-complex-v1 l1 feature chair 36
+plans/dungeon-complex-v1 l1 feature chest 12
+plans/dungeon-complex-v1 l1 feature clutter 53
 plans/dungeon-complex-v1 l1 feature crate 14
 plans/dungeon-complex-v1 l1 feature debris 23
+plans/dungeon-complex-v1 l1 feature pillar 6
 plans/dungeon-complex-v1 l1 feature rubble 1
 plans/dungeon-complex-v1 l1 feature rug 2
-plans/dungeon-complex-v1 l1 feature shelf_line 10
+plans/dungeon-complex-v1 l1 feature shelf_line 8
 plans/dungeon-complex-v1 l1 feature statue 2
-plans/dungeon-complex-v1 l1 feature table 10
+plans/dungeon-complex-v1 l1 feature stool 4
+plans/dungeon-complex-v1 l1 feature table 11
 plans/dungeon-complex-v1 l1 feature torch_wall 15
 plans/dungeon-complex-v1 l1 feature weapon_rack 5
 plans/dungeon-complex-v1 diag info footprint_mismatch 2
 plans/dungeon-complex-v1 diag info role_missing 1
-plans/dungeon-complex-v1 diag info verify_prop_nudged 4
+plans/dungeon-complex-v1 diag info verify_prop_nudged 3
 plans/dungeon-complex-v1 review flat_map 1
 plans/dungeon-complex-v1 review room_bare 1
 plans/dungeon-complex-v1 review single_route 1

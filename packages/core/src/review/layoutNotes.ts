@@ -8,10 +8,15 @@
  *   corridor_heavy   corridors over 30 % of a complex's floor                     (switch corridorShareReview; Q1)
  *   entrances_few    12 rooms or more with one way in                             (switch entrancesReview; Q5)
  *   drop_trap_dead   an area reached by a one-way drop with no walk back           (switch wayBackReview; Q6)
+ *   hall_unbroken    a room of hall size with no column, height change or water,
+ *                    that the generator does not lay out as a hall                (switch grandHalls; Q12)
  */
-import type { MapPlan } from "../contracts/plan";
-import type { ResolvedPlan } from "../contracts/resolved";
+import type { MapPlan, Vec2 } from "../contracts/plan";
+import { CELL_FLAG, type ResolvedPlan } from "../contracts/resolved";
+import { featureInfo } from "../gen/catalog";
+import { HALL_SIZE, hallPlanOf } from "../gen/roomTraits";
 import { generatorProfile } from "../plan/generator";
+import { floorCells } from "../resolve";
 import { emptyDeadEnds, mapLayout, type LevelLayout } from "./layout";
 import { noteAction } from "./noteActions";
 import type { DesignNote } from "./review";
@@ -22,6 +27,33 @@ const rank = (weight: number, n: number): number => weight * capped(0.8 + n / 3)
 const listed = (xs: readonly string[], most = 6): string =>
   xs.slice(0, most).join(", ") + (xs.length > most ? ` and ${String(xs.length - most)} more` : "");
 
+/**
+ * Rooms of hall size (gen/roomTraits.ts HALL_SIZE) with nothing to break them: no column (a feature that carries a
+ * hall), one floor height, no water, and not laid out as a hall by the generator (hallPlanOf: a great hall, a throne
+ * room, a nave of that size get their columns, or keep their axis on purpose when the plain option is drawn).
+ */
+function unbrokenHalls(
+  resolved: ResolvedPlan,
+): Array<{ levelId: string; id: string; name: string; cells: number; cell: Vec2 }> {
+  const out: Array<{ levelId: string; id: string; name: string; cells: number; cell: Vec2 }> = [];
+  for (const L of resolved.levels) {
+    const floors = floorCells(L);
+    L.areas.forEach((a, ai) => {
+      if (a.kind !== "room" || a.building !== undefined) return;
+      const cells = floors.get(ai) ?? [];
+      const across = Math.min(a.bbox.w, a.bbox.h);
+      if (cells.length < HALL_SIZE.minCells || across < HALL_SIZE.minWidth) return;
+      if (hallPlanOf(a.roomKind ?? a.purpose, cells.length, across) !== undefined) return;
+      if (L.features.some((f) => f.area === a.id && featureInfo(f.type).carriesHall === true)) return;
+      if (new Set(cells.map((i) => L.cells.height[i])).size > 1) return;
+      for (let i = 0; i < L.cells.area.length; i++)
+        if (L.cells.area[i] === ai + 1 && ((L.cells.flags[i] as number) & CELL_FLAG.WATER) !== 0) return;
+      out.push({ levelId: L.id, id: a.id, name: a.name ?? a.id, cells: cells.length, cell: a.anchor });
+    });
+  }
+  return out;
+}
+
 export function layoutNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[] {
   const gen = generatorProfile(plan);
   if (
@@ -29,7 +61,8 @@ export function layoutNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[]
     !gen.roomSizeReview &&
     !gen.corridorShareReview &&
     !gen.entrancesReview &&
-    !gen.wayBackReview
+    !gen.wayBackReview &&
+    !gen.grandHalls
   )
     return [];
   const m = mapLayout(resolved, plan.entryLevel);
@@ -86,6 +119,18 @@ export function layoutNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[]
       action: noteAction("entrances_few"),
     });
   }
+
+  const hall = gen.grandHalls ? unbrokenHalls(resolved)[0] : undefined;
+  if (hall)
+    out.push({
+      code: "hall_unbroken",
+      levelId: hall.levelId,
+      score: T.weights.hall,
+      cell: hall.cell,
+      elementIds: [hall.id],
+      message: `${hall.name} (${hall.id}) is a big open hall, ${hall.cells} tiles, with nothing to break it (no column, no change of floor height, no water)`,
+      action: noteAction("hall_unbroken"),
+    });
 
   const dead = m.noWayBack[0];
   if (gen.wayBackReview && dead)

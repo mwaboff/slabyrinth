@@ -19,6 +19,7 @@ export const ADVISED_CODES = [
   "corridor_heavy",
   "entrances_few",
   "drop_trap_dead",
+  "hall_unbroken",
 ] as const satisfies readonly DesignNoteCode[];
 export type AdvisedCode = (typeof ADVISED_CODES)[number];
 
@@ -41,6 +42,8 @@ export const NOTE_ACTIONS: Readonly<Record<AdvisedCode, string>> = {
     'one option: add a second way in at another side or height (a door to "@outside", a drain, a stair from above), and light the main one (torch_wall either side)',
   drop_trap_dead:
     "give the low side of the drop its own way on (a stair, a ladder, a door to the rest of the map), unless a one-way trap is meant",
+  hall_unbroken:
+    "one option: name it for its use (a great hall, a throne room, a temple) so it is laid out as a hall with columns, or add pillar features in pairs at the third points of its long axis, or a raised dais (floorHeight) at its far end",
 };
 
 /** A note's action, with `{features}` filled in. */

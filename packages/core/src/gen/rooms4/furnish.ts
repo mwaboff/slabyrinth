@@ -22,6 +22,7 @@ import type { FeatureType } from "../../contracts/plan";
 import type { ResolvedCharacter } from "../../contracts/resolved";
 import {
   ROOM_TRAITS,
+  hallPlanOf,
   type Companion,
   type PieceChoice,
   type RoomOrder,
@@ -30,7 +31,7 @@ import {
 import { SURFACE_LOAD } from "../surfaces";
 import type { RoomDressParams } from "./dress";
 import { keepClear, keepLane, lightOn, placeGroup, placeLining, rugUnder, type PlacedGroup } from "./groups";
-import { placeFloor } from "./floor";
+import { box, placeFloor } from "./floor";
 import { light, lightTarget } from "./lights";
 import { lightByOccupancy } from "./occupancy";
 import { lightByRegime } from "./regimes";
@@ -65,6 +66,16 @@ function standingLightsOnly(t: RoomTraits): RoomTraits {
     })) as unknown as RoomTraits["groups"],
     lining: t.lining.filter((s) => !FLOOR_CANDLE(s.type)),
   };
+}
+
+/**
+ * The kind's row for a hall: its free-standing anchor groups left out when it has others (the axis stays clear), and
+ * the rest set at the far end of the axis (the high table, the throne, the altar the axis leads to).
+ */
+function atTheWalls(t: RoomTraits): RoomTraits {
+  const walled = t.groups.filter((g) => g.place !== "axis" && g.place !== "free");
+  const groups = (walled.length === 0 ? t.groups : walled).map((g) => ({ ...g, place: "axisEnd" as const }));
+  return { ...t, groups: groups as unknown as RoomTraits["groups"] };
 }
 
 /** Where in its kind's props per 10 tiles a room stops, by wealth (poor .. lavish): 0 the low end, 1 the high. */
@@ -179,7 +190,7 @@ function anchorGroups(
 
 export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomKind): ScatterResult | null {
   const profile = gridProfile(grid);
-  const t = standingLightsOnly(ROOM_TRAITS[kind]);
+  const base = standingLightsOnly(ROOM_TRAITS[kind]);
   const roomWith = (compactDoorsBelow: number): Room =>
     new Room(grid, p.areaIndex, p.areaCells, p.seed, p.remaining, {
       ...(grid.windowOn ? { windowOn: (x: number, y: number, s) => grid.windowOn?.(x, y, s) === true } : {}),
@@ -188,7 +199,7 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
       junctionPosts: true,
       // the kind's order (generator 5, characterCascade: one step messier where it is run down, one tidier where it is
       // rich and kept; loose things only, never structure)
-      ...(profile.placementOrder ? { order: characterOrder(t.order, p.character) } : {}),
+      ...(profile.placementOrder ? { order: characterOrder(base.order, p.character) } : {}),
       // a seat or a bed keeps a free cell beside it, so nothing placed after it boxes it in
       ...(profile.floorGroups ? { standingRoom: true } : {}),
       ...(profile.freeCounters ? { freeCounters: true } : {}),
@@ -198,13 +209,17 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
       // nightstand's candle and the walls)
       ...(profile.bedsideLights &&
       (p.lighting?.plan.level ?? 0) >= BEDSIDE_LEVEL &&
-      (!profile.sensibleLights || t.fire === true)
+      (!profile.sensibleLights || base.fire === true)
         ? { bedsideLights: true }
         : {}),
-      ...(profile.sensibleLights ? { sensibleLights: { fire: t.fire === true } } : {}),
+      ...(profile.sensibleLights ? { sensibleLights: { fire: base.fire === true } } : {}),
     });
   let room = roomWith(COMPACT_DOORS_BELOW);
   if (room.cells.length < SMALLEST_FURNISHED || room.wallPairs.length === 0) return null;
+  // generator 5 (grandHalls): a room laid out as a hall keeps its axis clear, so its anchor stands at a wall (the high
+  // table, the throne, the altar at the far end), never free on the axis
+  const asHall = profile.grandHalls && hallPlanOf(kind, room.cells.length, box(room).across) !== undefined;
+  const t = asHall ? atTheWalls(base) : base;
 
   // 1. the anchor group: the table's first that no sibling room of this kind has drawn (the first room of a kind gets
   // the preferred group; once all are drawn, any), then the others in order

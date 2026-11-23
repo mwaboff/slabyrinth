@@ -94,7 +94,8 @@ describe("lights in the review (generator 5)", () => {
   });
 
   it("a kind whose floor column lays out groups stands its furniture free on purpose", () => {
+    // (a hall plan alone does not: only a room big enough to be a hall is laid out by it, generator 5 grandHalls)
     for (const k of ROOM_KINDS)
-      if (roomTraits(k).floor.length > 0) expect(roomTargets(k).floorGroups).toBe(true);
+      if (roomTraits(k).floor.some((p) => p.mode !== "hall")) expect(roomTargets(k).floorGroups).toBe(true);
   });
 });

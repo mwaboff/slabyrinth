@@ -402,7 +402,7 @@ export const REVIEW = {
     /** entrances_few: a map of this many rooms or more with at most `entrances` ways in. */
     entrancesRooms: 12,
     entrances: 1,
-    weights: { deadEnd: 2.5, sizeMix: 2, corridor: 2, entrances: 2, wayBack: 3.5 },
+    weights: { deadEnd: 2.5, sizeMix: 2, corridor: 2, entrances: 2, wayBack: 3.5, hall: 2 },
   },
   /** Market stalls (generator 4, review/stalls.ts). */
   stalls: {

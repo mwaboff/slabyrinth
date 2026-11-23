@@ -164,7 +164,8 @@ export type DesignNoteCode =
   | "rooms_same_size"
   | "corridor_heavy"
   | "entrances_few"
-  | "drop_trap_dead";
+  | "drop_trap_dead"
+  | "hall_unbroken";
 
 /** Bare face by class (gen/cover.ts: what really hides the face), for the cliff checks and for proofs and tests. */
 export interface CliffCoverage {

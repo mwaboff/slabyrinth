@@ -18,7 +18,7 @@ import type { Side } from "../../contracts/plan";
 import { featureInfo } from "../catalog";
 import { gridProfile } from "../placementGrid";
 import { EDGE_WALL, INWARD, SIDES, cellKey, stepSide } from "../gridGeometry";
-import type { FloorPlan, FloorUnit, GroupSpec, RoomTraits } from "../roomTraits";
+import type { FloorPlan, FloorUnit, GroupSpec, HallColumns, RoomTraits } from "../roomTraits";
 import { maxOf, minOf, pushAll } from "../../util/lists";
 import {
   ALONG,
@@ -56,7 +56,11 @@ const groupOf = (u: FloorUnit): GroupSpec => ({
 });
 
 /** The room's box: its long-axis side (a frame on "N" runs along x), its size across and along. */
-function box(room: Room): { long: Side; across: number; along: number } {
+export function box(room: { readonly cells: ReadonlyArray<readonly [number, number]> }): {
+  long: Side;
+  across: number;
+  along: number;
+} {
   const xs = room.cells.map((c) => c[0]);
   const ys = room.cells.map((c) => c[1]);
   const w = maxOf(xs) - minOf(xs) + 1;
@@ -218,12 +222,17 @@ export function placeFloor(
   const n = room.cells.length;
   const profile = gridProfile(room.grid);
   // the plans this room lays: its size in range, the plan's switch on
-  const plans = t.floor.filter(
+  const across = box(room).across;
+  const fits = t.floor.filter(
     (plan) =>
       n >= plan.minCells &&
       n <= (plan.maxCells ?? Infinity) &&
+      (plan.mode !== "hall" || across >= (plan.minWidth ?? 0)) &&
       (plan.switch === undefined || profile[plan.switch]),
   );
+  // a room laid out as a hall is read as one: its hall plan alone
+  const halls = fits.filter((plan) => plan.mode === "hall");
+  const plans = halls.length > 0 ? halls : fits;
   if (plans.length > 0) {
     // the way through between the room's doorways stays open: nothing stands on it
     const ds = doorways(room);
@@ -240,7 +249,9 @@ export function placeFloor(
           ? placeRows(room, t, plan, focus)
           : plan.mode === "wallRows"
             ? placeWallRows(room, t, plan, b.long)
-            : placeIsland(room, t, plan, b.long);
+            : plan.mode === "hall"
+              ? placeHall(room, t, plan)
+              : placeIsland(room, t, plan, b.long);
     pushAll(units, placed);
   }
   return { units };
@@ -403,6 +414,125 @@ function placeWallRows(room: Room, t: RoomTraits, plan: FloorPlan, long: Side): 
       out.push(g);
     }
   }
+  return out;
+}
+
+/** A hall's measures (techniques pier-grid-hall, pillars-at-thirds). */
+export const HALL = {
+  /** Cells from an end wall to the nearest pier (a pier never stands in the doorway's landing or against the dais). */
+  endMargin: 2,
+  /** A hall at least this long takes a pair of columns at each third point of its length (Q12: 15; 12 here). */
+  thirdsLength: 12,
+  /** The room must fill this share of its box to be laid as a hall (a rectangle, not an L). */
+  fill: 0.9,
+} as const;
+
+/** The column option of a hall, drawn by weight (FloorPlan.columns); plain without the table or a column piece. */
+function drawColumns(room: Room, plan: FloorPlan): HallColumns {
+  const w = plan.columns;
+  if (w === undefined || !room.has("pillar")) return "plain";
+  const opts = (["piers", "thirds", "plain"] as const).filter((o) => w[o] > 0);
+  let r = room.rng.next() * opts.reduce((a, o) => a + w[o], 0);
+  for (const o of opts) {
+    r -= w[o];
+    if (r < 0) return o;
+  }
+  return "plain";
+}
+
+/**
+ * A hall (FloorPlan mode "hall"): the room read as one. Its long axis is kept clear end to end (the nave between the
+ * column lines, which stand at the third points across); the columns (drawn per room: a pier at every bay, a pair at
+ * each third point of the length, or none) divide it into bays; the units (long tables, benches) stand along the axis
+ * in the side bays, one per bay where it fits, so nothing stands in the aisle.
+ */
+function placeHall(room: Room, t: RoomTraits, plan: FloorPlan): PlacedGroup[] {
+  const b = box(room);
+  if (room.cells.length < HALL.fill * b.across * b.along) return [];
+  const x0 = minOf(room.cells.map((c) => c[0]));
+  const y0 = minOf(room.cells.map((c) => c[1]));
+  // (along, across) in the room's box to a cell
+  const at = (a: number, c: number): XY => (b.long === "N" ? [x0 + a, y0 + c] : [x0 + c, y0 + a]);
+  const third = Math.floor(b.across / 3);
+  const lines = [third, b.across - 1 - third] as const;
+  const option = drawColumns(room, plan);
+  // the columns along the length: every bay, or the third points
+  const pitch = plan.pitch[0] + Math.floor(room.rng.next() * (plan.pitch[1] - plan.pitch[0] + 1));
+  let stations: number[] = [];
+  if (option === "piers") {
+    const k = Math.floor((b.along - 1 - 2 * HALL.endMargin) / pitch) + 1;
+    const start = Math.floor((b.along - 1 - (k - 1) * pitch) / 2);
+    stations = Array.from({ length: Math.max(0, k) }, (_, i) => start + i * pitch);
+  } else if (option === "thirds" && b.along >= HALL.thirdsLength) {
+    const s = Math.floor(b.along / 3);
+    stations = [s, b.along - 1 - s];
+  }
+  // a pair across the axis at each station, both or neither (the hall stays mirrored about its axis)
+  const pillar = placeableSpec(room, { type: "pillar", weight: 1 });
+  const placed: number[] = [];
+  if (pillar !== null)
+    for (const a of stations) {
+      const pair = lines.map((c) => at(a, c));
+      if (!pair.every(([x, y]) => room.free(x, y) && !room.zone.has(cellKey(x, y)) && !room.blocked(x, y)))
+        continue;
+      const after = room.keepsWay(pair);
+      if (after === null) continue;
+      if (
+        !pair.every(([x, y]) => room.push({ type: "pillar", at: [x, y], size: [1, 1], rot: 0, rotFine: 0 }))
+      )
+        break;
+      for (const [x, y] of pair) room.taken.add(cellKey(x, y));
+      room.blockCells += 2;
+      room.reach = after;
+      placed.push(a);
+    }
+  // the axis: the nave between the column lines, clear from end to end
+  for (let a = 0; a < b.along; a++)
+    for (let c = lines[0] + 1; c < lines[1]; c++) {
+      const [x, y] = at(a, c);
+      if (room.inRoom.has(cellKey(x, y))) room.zone.add(cellKey(x, y));
+    }
+  // the bays: between the columns (and the end walls), or at the plan's pitch in a hall without columns
+  const bounds = placed.length > 0 ? [-1, ...placed, b.along] : [];
+  const centres =
+    bounds.length > 0
+      ? bounds.slice(1).map((e, i) => ((bounds[i] as number) + e) / 2)
+      : Array.from(
+          { length: Math.max(1, Math.floor((b.along - 2 * HALL.endMargin) / pitch)) },
+          (_, i) => HALL.endMargin + (i + 0.5) * pitch,
+        );
+  const bands = [
+    [1, lines[0] - 1],
+    [lines[1] + 1, b.across - 2],
+  ] as const;
+  const out: PlacedGroup[] = [];
+  const n = room.cells.length;
+  let used = 0;
+  let last: FloorUnit | undefined;
+  for (const centre of centres)
+    for (const [lo, hi] of bands) {
+      if (hi < lo) continue;
+      const unit = last === undefined ? plan.units[0] : drawUnit(room, plan.units, last);
+      last = unit;
+      const spec = placeableSpec(room, unit.anchor);
+      if (spec === null || used + unitArea(spec, true) > plan.share * n) continue;
+      const mid = (lo + hi) / 2;
+      const spots: AnchorCand[] = [];
+      for (let a = 0; a < b.along; a++)
+        for (let c = lo; c <= hi; c++) {
+          const cell = at(a, c);
+          const s = freeSpot(room, spec, b.long, cell, 0);
+          if (s === null) continue;
+          const m = room.meanOf(s.cand.cells);
+          const [ma, mc] = b.long === "N" ? [m[0] - x0, m[1] - y0] : [m[1] - y0, m[0] - x0];
+          spots.push({ ...s, score: -Math.abs(ma - 0.5 - centre) - 0.3 * Math.abs(mc - 0.5 - mid) });
+        }
+      const g = spots.length === 0 ? null : tryGroup(room, groupOf(unit), spec, spots, t.family, NONE);
+      if (g === null) continue;
+      used += unitArea(spec, true);
+      keepClear(room, g, 0);
+      out.push(g);
+    }
   return out;
 }
 

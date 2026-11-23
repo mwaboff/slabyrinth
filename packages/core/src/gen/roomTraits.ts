@@ -50,9 +50,11 @@ export interface PieceChoice {
  *   free        free-standing parallel to the wall facing the door, its back side a staff lane (a bar, a shop counter),
  *               else as facingDoor;
  *   axis        free-standing on the room's long axis with a tile clear all round (a dining table, a chart table),
- *               else as farWall.
+ *               else as farWall;
+ *   axisEnd     generator 5 (grandHalls): against the end wall of the long axis farthest from the way in, on the axis
+ *               (a hall's high table, throne or altar, the focal end its clear axis leads to).
  */
-export type AnchorPlace = "facingDoor" | "farWall" | "window" | "free" | "axis";
+export type AnchorPlace = "facingDoor" | "farWall" | "window" | "free" | "axis" | "axisEnd";
 
 /**
  * Where a companion stands, in the anchor's frame (its back to a wall or to the staff lane, its face toward the room):
@@ -133,11 +135,14 @@ export interface FloorUnit {
  *   rows      units in strict lines facing the room's focus (desks and their chairs facing the master's desk);
  *   wallRows  units in a row along each long wall at `pitch` with an aisle down the middle (bunks, beds, stalls,
  *             stacks of stock);
- *   island    free-standing units on the room's long axis (a work table, a middle row of stock).
+ *   island    free-standing units on the room's long axis (a work table, a middle row of stock);
+ *   hall      generator 5 (switch grandHalls; techniques int-grand-hall, pier-grid-hall, pillars-at-thirds): a big room
+ *             read as one, its long axis kept clear from end to end, the column lines (`columns`, drawn per room) at
+ *             the third points across dividing it into bays at `pitch`, the units set along the axis in the side bays.
  * `share` caps the floor the units and their seats take; a room under `minCells` floor tiles keeps what it has.
  */
 export interface FloorPlan {
-  readonly mode: "groups" | "rows" | "wallRows" | "island";
+  readonly mode: "groups" | "rows" | "wallRows" | "island" | "hall";
   readonly units: readonly [FloorUnit, ...FloorUnit[]];
   readonly pitch: readonly [number, number];
   readonly share: number;
@@ -149,7 +154,15 @@ export interface FloorPlan {
   readonly maxCells?: number;
   /** The generator-5 switch the plan came with; the plan is laid only where it is on. */
   readonly switch?: SwitchName;
+  /**
+   * Hall only: how its columns stand, drawn per room by weight: `piers` a pier at every bay (pitch drawn in `pitch`),
+   * `thirds` a pair at each third point of the length, `plain` none (the axis and the bays are kept all the same).
+   */
+  readonly columns?: Readonly<Record<HallColumns, number>>;
 }
+
+/** How a hall's columns stand (FloorPlan.columns). */
+export type HallColumns = "piers" | "thirds" | "plain";
 
 /**
  * Generator 5 (switch `lightRegimes`): light levels on one scale, dark (0) to flooded (4). The scene has one
@@ -1085,6 +1098,31 @@ const WORK_TABLE = U(
   false,
 );
 const LAB_BENCH = U("bench", A("table", { top: "shelf" }), [seatsFront("stool", STOOL, 0.25)], 1);
+/** A bench along a hall's bay: courtiers waiting on a throne, the faithful in a nave. */
+const BAY_BENCH = U("bench", A("bench", { run: 2 }), [], 3, false);
+const BAY_BENCH_SHORT = U("bench", A("bench"), [], 1, false);
+
+/**
+ * Generator 5 (grandHalls): when a room is laid out as a hall: at least `minCells` floor tiles and `minWidth` across its
+ * long axis (the column lines at the third points leave a nave two wide). The review's `hall_unbroken` asks the same
+ * (hallPlanOf), so a hall the generator lays out is never faulted for want of columns.
+ */
+export const HALL_SIZE = { minCells: 120, minWidth: 10 } as const;
+
+const hall = (
+  units: FloorPlan["units"],
+  pitch: readonly [number, number],
+  columns: Readonly<Record<HallColumns, number>>,
+): FloorPlan => ({
+  mode: "hall",
+  units,
+  pitch,
+  share: 0.3,
+  minCells: HALL_SIZE.minCells,
+  minWidth: HALL_SIZE.minWidth,
+  columns,
+  switch: "grandHalls",
+});
 
 const floorGroups = (
   units: FloorPlan["units"],
@@ -1117,7 +1155,11 @@ const ORDER_FLOOR_LIGHT: Readonly<Record<RoomKind, Pick<RoomTraits, "order" | "f
   },
   dining: {
     order: "lived",
-    floor: [floorGroups([LONG_TABLE, TABLE_GROUP], 0.35, 24, 0.15)],
+    floor: [
+      floorGroups([LONG_TABLE, TABLE_GROUP], 0.35, 24, 0.15),
+      // a great hall: long tables in the bays either side of a clear axis to the high table
+      hall([LONG_TABLE, TABLE_GROUP], [5, 6], { piers: 3, thirds: 2, plain: 1 }),
+    ],
     lighting: LIT(2, [1, 3], { surfaces: 3, focal: 1, wallRhythm: 1 }),
   },
   kitchen: {
@@ -1154,7 +1196,12 @@ const ORDER_FLOOR_LIGHT: Readonly<Record<RoomKind, Pick<RoomTraits, "order" | "f
     ],
     lighting: LIT(0, [0, 1], { dimStore: 1 }),
   },
-  shrine: { order: "tidy", floor: [], lighting: LIT(2, [1, 3], { focal: 3, threshold: 1 }) },
+  shrine: {
+    order: "tidy",
+    // a temple nave: benches in the bays, the axis clear to the altar
+    floor: [hall([BAY_BENCH, BAY_BENCH_SHORT], [4, 5], { piers: 2, thirds: 2, plain: 1 })],
+    lighting: LIT(2, [1, 3], { focal: 3, threshold: 1 }),
+  },
   crypt: { order: "messy", floor: [], lighting: LIT(0, [0, 1], { dimStore: 1 }) },
   prison: { order: "messy", floor: [], lighting: LIT(0, [0, 1], { threshold: 1, dimStore: 1 }) },
   forge: { order: "working", floor: [], lighting: LIT(2, [1, 3], { focal: 3 }) },
@@ -1167,7 +1214,8 @@ const ORDER_FLOOR_LIGHT: Readonly<Record<RoomKind, Pick<RoomTraits, "order" | "f
   washroom: { order: "working", floor: [], lighting: LIT(1, [0, 2], { threshold: 1, dimStore: 1 }) },
   throne_room: {
     order: "tidy",
-    floor: [],
+    // an audience hall: piers down a clear axis to the throne, benches in the bays
+    floor: [hall([BAY_BENCH, BAY_BENCH_SHORT], [4, 6], { piers: 3, thirds: 1, plain: 1 })],
     lighting: LIT(3, [2, 4], { focal: 2, wallRhythm: 2, threshold: 1 }),
   },
   shop: {
@@ -1230,6 +1278,18 @@ export const roomTakesFire = (kind: string): boolean =>
 export const roomTakesGlow = (kind: string): boolean =>
   Object.hasOwn(ROOM_TRAITS, kind) && ROOM_TRAITS[kind as RoomKind].glow === true;
 
+/**
+ * Generator 5 (grandHalls): the hall plan a room of this kind is laid out by, given its floor tiles and its width
+ * across its long axis; none when the kind has none or the room is too small or too narrow for it. The furnisher
+ * (gen/rooms4/floor.ts) and the review (`hall_unbroken`) both ask this.
+ */
+export function hallPlanOf(kind: string | undefined, cells: number, across: number): FloorPlan | undefined {
+  if (kind === undefined || !Object.hasOwn(ROOM_TRAITS, kind)) return undefined;
+  return ROOM_TRAITS[kind as RoomKind].floor.find(
+    (p) => p.mode === "hall" && cells >= p.minCells && across >= (p.minWidth ?? 0),
+  );
+}
+
 /** True when the kind is a new one (hosted by a purpose; gen/roomPurpose.ts NEW_KIND_INFO). */
 export const isNewRoomKind = (kind: RoomKind): kind is NewRoomKind => Object.hasOwn(NEW_KIND_INFO, kind);
 
@@ -1256,8 +1316,9 @@ export function roomTargets(kind: RoomKind): RoomTargets {
     lightsPer10: t.lights.per10,
     props10: t.props10,
     anchors: [...new Set(t.groups.map((g) => g.anchor.type))],
-    // (generator 5 floor groups: a kind whose `floor` column lays anything out stands furniture free on purpose)
-    floorGroups: t.layout === "floorGroups" || t.floor.length > 0,
+    // (generator 5 floor groups: a kind whose `floor` column lays anything out stands furniture free on purpose; a
+    // hall's bays only in a room big enough to be one)
+    floorGroups: t.layout === "floorGroups" || t.floor.some((p) => p.mode !== "hall"),
     stationRows: t.layout === "stationRows",
   };
 }

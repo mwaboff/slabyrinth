@@ -583,6 +583,10 @@ const SWITCHES = {
     5,
     "A group's companion set beside its anchor (a cell's bucket at the head of its cot) keeps out of the 0.5 square a corner post takes at a corner of its cell, as a piece pushed into a corner does: it steps out of the post the short way, and where that would take it further out of its cell it stands elsewhere or not at all (gen/rooms4/groups.ts poseAt).",
   ),
+  grandHalls: on(
+    5,
+    "A great hall, a throne room or a temple nave of at least 120 floor tiles and 10 across is laid out as a hall (the room-kind table's floor plan of mode hall, gen/roomTraits.ts): its long axis kept clear end to end, column pairs at the third points across drawn per room (a pier at every bay, a pair at each third point of the length, or none), long tables or benches along the axis in the side bays, and its anchor (the high table, the throne, the altar) at a wall, never free on the axis (gen/rooms4/floor.ts placeHall).",
+  ),
   sacredReads: on(
     5,
     "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",

@@ -193,6 +193,12 @@ function scoreSpot(
     const facing = dEntry > 0 ? dot(f.n, toDoor) / dEntry : 0;
     const [lo, hi] = GROUPS.doorView;
     score += facing * 1.2 + (dEntry >= lo && dEntry <= hi ? 0.8 : -0.15 * Math.min(Math.abs(dEntry - 5), 4));
+  } else if (place === "axisEnd") {
+    // generator 5 (grandHalls): on the room's long axis, as far from the way in as the room goes, facing down the axis
+    const box = rectOf(room.cells);
+    const alongX = box.size[0] >= box.size[1];
+    const off = alongX ? Math.abs(mid[1] - room.centroid[1]) : Math.abs(mid[0] - room.centroid[0]);
+    score += dEntry * 0.5 - off * 1.5;
   } else score += dEntry * 0.35;
   if (place === "window" && atWindow) score += 2;
   return score;
