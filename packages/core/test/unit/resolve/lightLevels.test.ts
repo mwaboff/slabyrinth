@@ -40,7 +40,7 @@ describe.each(["wood_town", "stone_dungeon"])("light levels in %s", (theme) => {
     expect(rooms.map((id) => L.areas.find((a) => a.id === id)?.lightLevel)).toEqual([0, 1, 2, 3, 4]);
   });
 
-  it("lights strictly more of the same room's floor at each level", () => {
+  it("lights more of the same room's floor at each level (adjacent levels may tie)", () => {
     const lit = rooms.map((id) => litCells(L, set, id));
     const what = rooms
       .map((id) =>
@@ -52,7 +52,11 @@ describe.each(["wood_town", "stone_dungeon"])("light levels in %s", (theme) => {
           .join(" "),
       )
       .join(" | ");
+    // (sensibleLights: adjacent levels may tie where the sensible pieces run out, never fall back; two steps apart
+    // always differ)
     for (let i = 1; i < lit.length; i++)
-      expect(lit[i], `${rooms[i]} ${lit.join(",")} :: ${what}`).toBeGreaterThan(lit[i - 1] ?? 0);
+      expect(lit[i], `${rooms[i]} ${lit.join(",")} :: ${what}`).toBeGreaterThanOrEqual(lit[i - 1] ?? 0);
+    for (let i = 2; i < lit.length; i++)
+      expect(lit[i], `${rooms[i]} ${lit.join(",")} :: ${what}`).toBeGreaterThan(lit[i - 2] ?? 0);
   });
 });

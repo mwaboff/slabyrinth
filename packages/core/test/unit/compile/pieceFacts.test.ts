@@ -7,7 +7,8 @@
  *     slanted deck rails);
  *   - glowing decor: "jug green" lights nothing and read as a broken light on the ward's nightstands; it stays out of
  *     every room but a laboratory's things;
- *   - a bright ward's beds each get a standing light at the head: the bed group keeps the cell for it.
+ *   - a bright ward's beds are each lit at the head: by the nightstand's candle or a wall light (sensibleLights; a
+ *     standing lamp on a ward's floor does not belong there), and where fire belongs the group keeps a cell for one.
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { realize } from "../../../src/compile";
@@ -106,7 +107,8 @@ describe("glowing decor and bedside lights (interiors-lineup-v1)", () => {
       expect(ward?.lightLevel ?? 0).toBeGreaterThanOrEqual(3);
       const inWard = L.features.filter((f) => f.area === ward?.id);
       const beds = inWard.filter((f) => f.type === "bed");
-      const standing = inWard.filter((f) => ["torch_floor", "brazier", "lantern"].includes(f.type));
+      // (sensibleLights: a nightstand's candle or a wall light beside the bed, never a lamp on the ward's floor)
+      const standing = inWard.filter((f) => ["candelabra", "candles", "torch_wall"].includes(f.type));
       expect(beds.length).toBeGreaterThanOrEqual(2);
       for (const b of beds) {
         const cells: Array<[number, number]> = [];
@@ -122,6 +124,7 @@ describe("glowing decor and bedside lights (interiors-lineup-v1)", () => {
   it("without the switches the jug sits on the ward's nightstands and a bed goes unlit", () => {
     P5.pieceFacts = false;
     P5.bedsideLights = false;
+    P5.sensibleLights = false;
     const resolved = resolvePlan({ ...interiors, theme: "wood_town" }, pal);
     const jugs = realize(resolved, pal)
       .levels.flatMap((l) => l.placements)

@@ -196,9 +196,14 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
       ...(profile.freeCounters ? { freeCounters: true } : {}),
       ...(profile.freeCounters && p.mainDoor !== undefined ? { mainDoor: p.mainDoor } : {}),
       // a bright room's bed keeps the cell at its head for its standing light (its light is part of the group)
-      ...(profile.bedsideLights && (p.lighting?.plan.level ?? 0) >= BEDSIDE_LEVEL
+      // (generator 5, sensibleLights: only where a standing fire makes sense; elsewhere a bed is lit by its
+      // nightstand's candle and the walls)
+      ...(profile.bedsideLights &&
+      (p.lighting?.plan.level ?? 0) >= BEDSIDE_LEVEL &&
+      (!profile.sensibleLights || t.fire === true)
         ? { bedsideLights: true }
         : {}),
+      ...(profile.sensibleLights ? { sensibleLights: { fire: t.fire === true } } : {}),
     });
   let room = roomWith(COMPACT_DOORS_BELOW);
   if (room.cells.length < SMALLEST_FURNISHED || room.wallPairs.length === 0) return null;

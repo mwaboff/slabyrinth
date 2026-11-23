@@ -180,6 +180,12 @@ export interface RoomOpts {
   freeCounters?: boolean;
   /** Generator 5 (freeCounters): the cell inside the main door, the room's entry when it is one of its doorways. */
   mainDoor?: readonly [number, number];
+  /**
+   * Generator 5 (sensibleLights): only lights that make sense here stand in the room: no outdoor piece
+   * (gen/pieceFacts.ts `setting`), an open fire only where `fire` (the kind's row), and nothing free-standing off the
+   * walls but the room's focal piece.
+   */
+  sensibleLights?: { readonly fire: boolean };
 }
 
 export class Room {

@@ -306,7 +306,8 @@ describe("lighting regimes (generator 5, lightRegimes)", () => {
       for (const [id, d] of lighting) {
         const ls = lightsIn(L, id);
         const wall = ls.filter((f) => f.wall !== undefined);
-        if (d.regime === "surfaces" && d.level < 4)
+        // (sensibleLights: a bright room's extra light is on its walls, not lamps on its floor)
+        if (d.regime === "surfaces" && d.level < 3)
           expect(wall.length, `${theme} ${id} surfaces: no wall lights`).toBe(0);
         if (d.regime === "dimStore") expect(ls.length, `${theme} ${id} dim store`).toBeLessThanOrEqual(1);
         if (d.regime === "threshold") {

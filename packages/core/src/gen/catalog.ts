@@ -25,6 +25,11 @@ export interface FeatureInfo {
   /** Light source: it lights the cells round it (LIGHT_FEATURES; the lighting passes and the review count it). */
   light?: boolean;
   /**
+   * Generator 5 (sensibleLights): an open fire standing on a floor (a brazier, a floor torch, a camp fire): it belongs
+   * only in a room whose kind takes fire (gen/roomTraits.ts `fire`: a hearth, a forge, a guard room, a hall, an altar).
+   */
+  openFire?: boolean;
+  /**
    * A statement piece that gives the map its skyline: one per dress op with a clear ring round it (gen/setpieces.ts),
    * its cells marked so other dressing keeps an apron off it (resolve/level/features.ts), and a note when its asset
    * stands under 3 tiles (compile/realize/features.ts).
@@ -179,7 +184,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
     focusPiece: true,
     wantsLight: true,
   }),
-  brazier: F("Brazier", "architecture", { light: true }),
+  brazier: F("Brazier", "architecture", { light: true, openFire: true }),
   torch_wall: F("Wall torch", "architecture", { blocking: false, wallMounted: true, light: true }),
   candelabra: F("Candelabra", "furniture", { light: true }),
   banner_wall: F("Banner", "architecture", { blocking: false, wallMounted: true }),
@@ -263,6 +268,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   }),
   campfire: F("Campfire", "outdoor", {
     light: true,
+    openFire: true,
     groundCause: "litter",
     focal: "lesser",
     focusPiece: true,
@@ -354,12 +360,13 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
     clusters: true,
   }),
   spawn_point: F("Spawn point", "hazard", { blocking: false, gmOnly: true, glyph: "trap_plate" }),
-  torch_floor: F("Floor torch", "architecture", { light: true, glyph: "brazier" }),
+  torch_floor: F("Floor torch", "architecture", { light: true, openFire: true, glyph: "brazier" }),
   lantern: F("Lantern", "architecture", { light: true, glyph: "brazier" }),
   magic_fire: F("Magic fire", "architecture", { light: true, glyph: "campfire", focusPiece: true }),
-  lava_glow: F("Lava glow", "hazard", { blocking: false, light: true, glyph: "brazier" }),
+  lava_glow: F("Lava glow", "hazard", { blocking: false, light: true, openFire: true, glyph: "brazier" }),
   fire_pit: F("Fire pit", "outdoor", {
     light: true,
+    openFire: true,
     groundCause: "litter",
     glyph: "campfire",
     focal: "lesser",

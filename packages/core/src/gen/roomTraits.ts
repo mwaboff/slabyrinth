@@ -206,7 +206,24 @@ export interface RoomTraits {
    * glows (gen/pieceFacts.ts) reads as a broken light and is left out.
    */
   readonly glow?: true;
+  /**
+   * Generator 5 (sensibleLights): an open fire belongs here (a hearth, a forge, a guard room, a hall, an altar): a
+   * brazier or a floor torch may light it. Every other room is lit by candles and lanterns on its furniture and lights
+   * on its walls.
+   */
+  readonly fire?: true;
 }
+
+/** Generator 5 (sensibleLights): the kinds an open fire belongs in (`RoomTraits.fire`). */
+const FIRE_KINDS: ReadonlySet<RoomKind> = new Set<RoomKind>([
+  "tavern",
+  "dining",
+  "kitchen",
+  "barracks",
+  "forge",
+  "shrine",
+  "throne_room",
+]);
 
 // ───────────────────────────── pieces and their stand-ins ─────────────────────────────
 
@@ -1180,7 +1197,10 @@ const ORDER_FLOOR_LIGHT: Readonly<Record<RoomKind, Pick<RoomTraits, "order" | "f
 };
 
 export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = Object.fromEntries(
-  (Object.keys(BASE_TRAITS) as RoomKind[]).map((k) => [k, { ...BASE_TRAITS[k], ...ORDER_FLOOR_LIGHT[k] }]),
+  (Object.keys(BASE_TRAITS) as RoomKind[]).map((k) => [
+    k,
+    { ...BASE_TRAITS[k], ...ORDER_FLOOR_LIGHT[k], ...(FIRE_KINDS.has(k) ? { fire: true } : {}) },
+  ]),
 ) as Record<RoomKind, RoomTraits>;
 
 /** The kinds the table covers, every furnished purpose first, then the new kinds. */
@@ -1188,6 +1208,10 @@ export const ROOM_KINDS = Object.keys(ROOM_TRAITS) as RoomKind[];
 
 /** The row of a kind. */
 export const roomTraits = (kind: RoomKind): RoomTraits => ROOM_TRAITS[kind];
+
+/** Does an open fire belong in a room of this kind (or purpose: the resolved area's `roomKind`, else its `purpose`)? */
+export const roomTakesFire = (kind: string): boolean =>
+  Object.hasOwn(ROOM_TRAITS, kind) && ROOM_TRAITS[kind as RoomKind].fire === true;
 
 /** May a room of this kind (or purpose: the resolved area's `roomKind`, else its `purpose`) show glowing things? */
 export const roomTakesGlow = (kind: string): boolean =>

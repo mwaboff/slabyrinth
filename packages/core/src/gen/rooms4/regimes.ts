@@ -23,7 +23,8 @@ import { subSeed } from "../../util/hash";
 import { maxOf, minOf } from "../../util/lists";
 import { createPrng } from "../../util/prng";
 import { featureInfo } from "../catalog";
-import { SIDES, cellKey } from "../gridGeometry";
+import { EDGE_WALL, SIDES, cellKey } from "../gridGeometry";
+import { outdoorPiece } from "../pieceFacts";
 import { type SceneLight, roomNudge } from "../lightLevels";
 import { givesLight, lightOfPool } from "../lightReach";
 import { gridProfile, type GeneratedPlacement } from "../placementGrid";
@@ -166,15 +167,34 @@ function lampOn(room: Room, q: Placed): boolean {
   return lightOn(room, q);
 }
 
-/** Light up to `k` surfaces, those of `first` (the focal and floor groups) before the rest. */
-function lightSurfaces(room: Room, k: number, first: readonly Placed[]): void {
+/**
+ * Light up to `k` surfaces, those of `first` (the focal and floor groups) before the rest; `any`: every piece that
+ * takes a light on its top (a chest, a counter, a shelf's end), not only those people sit or work at (generator 5,
+ * sensibleLights: a bright room is lit by more sensible pieces, not by stronger ones).
+ */
+function lightSurfaces(room: Room, k: number, first: readonly Placed[], any = false): void {
   if (k <= 0) return;
   const rest = room.placed.filter((q) => !first.includes(q));
   let done = 0;
   for (const q of [...first, ...rest]) {
     if (done >= k) return;
-    if (!q.light && SURFACE(q) && lampOn(room, q)) done++;
+    const surface = SURFACE(q) || (any && featureInfo(q.type).topLight !== undefined);
+    if (!q.light && surface && lampOn(room, q)) done++;
   }
+}
+
+/**
+ * Generator 5 (sensibleLights): may this light stand in this room at all: none of the pieces it may be built as is an
+ * outdoor one (gen/pieceFacts.ts `setting`: a street lantern, a beach torch), and an open fire only where the room's
+ * kind takes fire (RoomOpts.sensibleLights)? True without the switch.
+ */
+function sensible(room: Room, piece: { type: FeatureType; variant?: string }): boolean {
+  const rule = room.opts.sensibleLights;
+  if (rule === undefined) return true;
+  if (featureInfo(piece.type).openFire === true && !rule.fire) return false;
+  const [x, y] = room.cells[0] ?? [0, 0];
+  const pool = room.grid.lightPieces?.(piece.type, x, y, piece.variant);
+  return pool !== undefined && !pool.names.some((n) => outdoorPiece(n));
 }
 
 /** A piece meant to stand on a floor and light round it, for this room, strongest first where the level asks. */
@@ -207,6 +227,7 @@ function standingPieces(
     const pool = room.grid.lightPieces?.(c.type, x, y, c.variant);
     return (
       pool !== undefined &&
+      sensible(room, c) &&
       givesLight(lightOfPool(pool.names, c.type)) &&
       lightOfPool(pool.names, c.type).reach >= 0.5
     );
@@ -223,8 +244,12 @@ function standBeside(
   piece: { type: FeatureType; variant?: string },
   /** Keep off cells with a wall post at a corner (an inner corner's post reaches into the cell). */
   offPosts = false,
+  /** The room's own focal piece (a hearth's fire): it may stand off the walls. */
+  focal = false,
 ): boolean {
-  if (near.length === 0) return false;
+  if (near.length === 0 || !sensible(room, piece)) return false;
+  // generator 5 (sensibleLights): nothing free-standing in the middle of a floor but the room's focal piece
+  const atWallOnly = room.opts.sensibleLights !== undefined && !focal;
   const posts = offPosts ? room.postAt : undefined;
   const postBy = (x: number, y: number): boolean =>
     posts !== undefined && (posts(x, y) || posts(x + 1, y) || posts(x, y + 1) || posts(x + 1, y + 1));
@@ -250,6 +275,7 @@ function standBeside(
       const score = d - (walls > 0 ? 0.6 : 0) + room.rng.next() * 0.2 - (kept(x, y) ? 10 : 0);
       return { at: [x, y] as [number, number], score };
     })
+    .filter(({ at: [x, y] }) => !atWallOnly || SIDES.some((s) => room.grid.edge(x, y, s) === EDGE_WALL))
     .sort((a, b) => a.score - b.score);
   const [ax, ay] = room.cells[0] ?? [0, 0];
   const pool = room.grid.lightPieces?.(piece.type, ax, ay, piece.variant);
@@ -349,6 +375,17 @@ function lightByLevel(
   else if (regime === "wallRhythm") wallRhythm(room, 2, REGIMES.wallPitch[L]);
   lightSurfaces(room, all.length, all);
   beside(main, medium, lamp);
+  // generator 5 (sensibleLights): brighter indoors is more sensible pieces on more surfaces and walls, never stronger
+  // outdoor ones; where those run out the room stays a little dimmer than its level
+  if (room.opts.sensibleLights !== undefined) {
+    if (L >= 3) {
+      lightSurfaces(room, Infinity, all, true);
+      for (const g of ctx.units) beside(g, medium, torch);
+      wallRhythm(room, room.lights.length + Math.ceil(room.cells.length / 6), LEVEL_STEPS.wallPitch[L]);
+    }
+    if (L >= 4) wallRhythm(room, room.lights.length + Math.ceil(room.cells.length / 4), 1.5);
+    return;
+  }
   if (L >= 3) {
     // (a weak floor torch where a lamp has no room: rows of beds in a ward stand close)
     for (const g of ctx.units) beside(g, lamp, medium, torch);
@@ -404,7 +441,7 @@ export function lightByRegime(
   const units = ctx.units.flatMap((g) => piecesOf(g));
   const stand = (near: readonly Placed[]): boolean => {
     for (const p of standingPieces(room, plan.regime as LightRegime, L, ctx))
-      if (standBeside(room, near, p)) return true;
+      if (standBeside(room, near, p, false, plan.regime === "focal")) return true;
     return false;
   };
   // generator 5 (characterCascade): each level a visibly different step, by what its pools cover (LEVEL_STEPS)

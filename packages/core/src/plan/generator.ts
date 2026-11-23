@@ -484,6 +484,10 @@ const SWITCHES = {
     5,
     "In a bright or flooded room a group whose companion carries a light (a bed and its nightstand) keeps the cell at its head for a standing light, which the room's lights then stand there, so the wall lining and the standing room never take it first (gen/rooms4/groups.ts, gen/rooms4/regimes.ts).",
   ),
+  sensibleLights: on(
+    5,
+    "A light must make sense where it stands before it serves a light level (owner: a little less light rather than goofy props): no outdoor piece in a furnished room (gen/pieceFacts.ts `setting`: a street lantern, a beach torch, a campfire), an open fire (a brazier, a floor torch) only in a room whose kind takes fire (a hearth, a forge, a guard room, a hall, an altar), nothing free-standing off the walls but the room's focal piece. Bright and flooded rooms get more candles and lanterns on more of their furniture and more wall lights, never stronger props; where those run out the room stays a little dimmer than its level (gen/rooms4/regimes.ts).",
+  ),
   pieceFacts: on(
     5,
     "Piece choice reads the one table of facts measured in game (gen/pieceFacts.ts): a run of wall, fence or railing takes level pieces only, a piece with a taller end post only at a run's end, turned so the post ends the run, and a raking stair rail never stands on a level run (in the wall runs and the objects' stand-ins); a piece that only glows is kept out of an ordinary room's things (compile/realize/walls.ts, compile/realize/features.ts, objects/lexicon.ts).",
