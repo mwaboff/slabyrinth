@@ -5,6 +5,7 @@
  * outline.ts and deck.ts shared geometry, place.ts the placement, `OBJECT_RECIPES` the recipes. Nothing in the plan
  * asks for them yet (that needs a plan word: the owner's call).
  */
+import { platform } from "./platform";
 import { stall } from "./stall";
 import { vessel } from "./vessel";
 
@@ -17,6 +18,8 @@ export * from "./place";
 export * from "./vessel";
 export * from "./vesselProgramme";
 export * from "./stall";
+export * from "./platform";
+export * from "./facing";
 
-export const OBJECT_RECIPES = { vessel, stall } as const;
+export const OBJECT_RECIPES = { vessel, stall, platform } as const;
 export type ObjectKind = keyof typeof OBJECT_RECIPES;

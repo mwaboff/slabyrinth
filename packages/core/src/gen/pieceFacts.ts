@@ -15,7 +15,10 @@
  *   remains  a sign of death (a skeleton, a bone pile) a palette lists among plain floor cover: decay, kept out of a
  *            place whose condition or kind does not call for it (switch decayWhereItBelongs, gen/roomTraits.ts
  *            showsDecay).
- *   ragged   a floor tile with broken, gapped ends (ruined boards): a floor's whole pieces cover the cells instead.
+ *   ragged   a floor tile with broken, gapped ends (ruined boards): a floor's whole pieces cover the cells instead;
+ *   grown    grown over with moss or plants: it reads as a land plant (kept off ground under water);
+ *   shell    a hollow shell (a hull's curved planking): its box encloses the decks and rooms inside it, so it neither
+ *            rises "through" a floor it surrounds nor counts as solid to what stands within.
  * Facts about a whole roof kit (its tone, family, spiked corner) are keyed by kit, not piece: resolve/roofKits.ts.
  * A piece the table does not name has no such fact: it is level, post-free and does not glow.
  */
@@ -41,7 +44,24 @@ export interface PieceFacts {
   readonly remains?: true;
   /** A floor tile with broken, gapped ends (ruined boards): laid as a floor it reads as holes along its row. */
   readonly ragged?: true;
+  /** A hollow shell (a hull's planking): its box encloses what stands inside it, a floor or a room, without meeting it. */
+  readonly shell?: true;
+  /** A piece grown over with moss or plants: it reads as a land plant, so it stays off ground under water. */
+  readonly grown?: true;
+  /**
+   * The piece's front at rot 0 and what it must face where it is fastened: a gun's muzzle faces OUT from the body it is
+   * mounted on (away from its centre line); a control's operator faces the way the body TRAVELS (objects/facing.ts).
+   */
+  readonly front?: { readonly axis: FrontAxis; readonly faces: "outboard" | "travel" };
+  /**
+   * How deep a wall piece's solid face is from its outer edge, where its box is deeper than its wall (the rest of the
+   * box is open above a sill): a deck that meets it reaches this far (objects/vessel.ts).
+   */
+  readonly wallDepth?: number;
 }
+
+/** A front direction at rot 0 (+z north, +x east). */
+export type FrontAxis = "+x" | "-x" | "+z" | "-z";
 
 const light = (
   reach: number,
@@ -114,6 +134,34 @@ export const PIECE_FACTS: Readonly<Record<string, PieceFacts>> = {
   "Castle Ruins Wood 1": { ragged: true },
   "Castle Ruins Wood 2": { ragged: true },
   "Castle Ruins Wood 3": { ragged: true },
+
+  // ── grown pieces (harbour screenshots 205-208: the only pieces left on the bed under the water plane were rocks;
+  // this one read as green tufts, like the plants the rule keeps off) ──
+  "Moss Rock 01": { grown: true },
+
+  // ── hollow hull shells (owner's ship screenshots 205-210, 2026-11-23: the ship kit's "Ship bottom" tiles are curved
+  // planked shells from the keel to the gunwale, open inside; a ship's decks and rooms stand within their boxes) ──
+  "Ship bottom side 4x2_Port and Starboard": { shell: true },
+  "Ship bottom front L_Bow": { shell: true },
+  "Ship bottom front R_Bow": { shell: true },
+  "Ship bottom front filler 4x2_Bow": { shell: true },
+  "Ship bottom back L_Stern": { shell: true },
+  "Ship bottom back R_Stern": { shell: true },
+  "Ship bottom back Fin 4x2_Rudder": { shell: true },
+
+  // ── fronts, read from the game's meshes (round 5, the mesh spike: the business end of a long piece is the
+  // narrow end raised off the floor; the owner's 226-233 showed round 4's cannons, turned by the opposite reading,
+  // pointing inboard). The helm: its wheel disc stands at the north edge of the tile and its steering box south of it;
+  // the helmsman stands at the wheel facing the box (226-233: turned the other way it faced aft) ──
+  "ship cannon static": { front: { axis: "+z", faces: "outboard" } },
+  "ship cannon up or down": { front: { axis: "+z", faces: "outboard" } },
+  "Ship floor Steering wheel": { front: { axis: "-z", faces: "travel" } },
+
+  // ── the stern gallery (round 5 mesh bands: a full-height wall 0.7 deep at the box's -z edge, a low sill behind it,
+  // nothing above the sill: a raised deck meets the wall, its floor reaching over the sill; hollow like a shell) ──
+  "Ship wall 2x2 decor window unique": { wallDepth: 0.7, shell: true },
+  "Ship wall 2x2 decor corner unique L": { wallDepth: 0.7, shell: true },
+  "Ship wall 2x2 decor corner unique R": { wallDepth: 0.7, shell: true },
 };
 
 /** The facts of a piece by its name (none for a piece the table does not name). */
@@ -129,6 +177,12 @@ export const glows = (name: string | undefined): boolean => pieceFacts(name).glo
 
 /** Is the piece remains (a skeleton, a bone pile): decay, whatever role a palette lists it under? */
 export const remainsPiece = (name: string | undefined): boolean => pieceFacts(name).remains === true;
+
+/** Is the piece grown over with moss or plants (it reads as a plant)? */
+export const grown = (name: string | undefined): boolean => pieceFacts(name).grown === true;
+
+/** Is the piece a hollow shell whose box encloses what stands inside it? */
+export const shell = (name: string | undefined): boolean => pieceFacts(name).shell === true;
 
 /** Is the piece a ragged floor tile (broken, gapped ends)? */
 export const ragged = (name: string | undefined): boolean => pieceFacts(name).ragged === true;

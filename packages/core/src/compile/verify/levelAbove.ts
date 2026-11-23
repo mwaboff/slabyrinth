@@ -7,6 +7,7 @@
 import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import { BUILD_CONSTANTS } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
+import { shell } from "../../gen/pieceFacts";
 import type { VerifyCtx } from "./context";
 import type { Solid, SolidIndex } from "./grid";
 import { POKE_TOLERANCE } from "./limits";
@@ -30,6 +31,8 @@ export function checkLevelAbove(ctx: VerifyCtx, solids: SolidIndex): void {
     const hits: Solid[] = [];
     for (const s of solids.all) {
       if (s.levelId !== L.id || s.role === "link" || s.box.max.y <= U.elevation + POKE_TOLERANCE) continue;
+      // a hollow shell (a hull's planking, gen/pieceFacts.ts) rises round the floors inside it, not through them
+      if (shell(s.name)) continue;
       const pc = solids.toPlan((s.box.min.x + s.box.max.x) / 2, (s.box.min.z + s.box.max.z) / 2);
       if (gu.cell(Math.floor(pc.px), Math.floor(pc.py)).floor) hits.push(s);
     }

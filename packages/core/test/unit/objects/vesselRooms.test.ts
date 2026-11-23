@@ -11,6 +11,7 @@ import { realize } from "../../../src/compile";
 import { verifyBuild } from "../../../src/compile/verify/verify";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { CELL, type ResolvedPlan } from "../../../src/contracts/resolved";
+import { shell } from "../../../src/gen/pieceFacts";
 import { loadPalettes } from "../../../src/palette";
 import { WalkGraph, walkReachability } from "../../../src/resolve";
 import {
@@ -38,14 +39,14 @@ const isHull = (s: ObjectSite, id: string): boolean =>
   id === s.spec.id || id.startsWith(`${s.spec.id}#`) || id.startsWith(`${s.spec.id}@`);
 
 describe("a vessel placed as a site has rooms aboard", () => {
-  it("lays the brig out by its programme: hold, berth and galley below; captain's cabin aft; forecastle forward", () => {
+  it("lays the brig out by its programme: hold and berth below, captain's cabin aft under the quarterdeck", () => {
+    // the ship kit's hull: no raised forecastle (its bow is a curved bulwark at the main deck); the deck below is the
+    // cells between the side tiles (4 across on a beam of 10), where the splitter makes a hold and a berth
     const names = site("brig").rooms.map((r) => r.name);
-    expect(names).toEqual(
-      expect.arrayContaining(["Hold", "Crew berth", "Galley", "Captain's cabin", "Forecastle berth"]),
-    );
-    const below = site("brig").rooms.filter((r) => r.level === "harbour");
-    expect(below.map((r) => r.name)).toEqual(expect.arrayContaining(["Hold", "Crew berth", "Galley"]));
-    expect(site("brig").decks.map((d) => d.name)).toEqual(["Main deck", "Quarterdeck", "Forecastle deck"]);
+    expect(names).toEqual(expect.arrayContaining(["Hold", "Crew berth", "Captain's cabin"]));
+    const below = site("brig").rooms.filter((r) => r.level === "quay~below");
+    expect(below.map((r) => r.name)).toEqual(expect.arrayContaining(["Hold", "Crew berth"]));
+    expect(site("brig").decks.map((d) => d.name)).toEqual(["Main deck", "Quarterdeck"]);
   });
 
   it("gives the barge a cabin aft and one open hold", () => {
@@ -172,7 +173,14 @@ describe("the hull holds what is aboard", () => {
         ),
       );
       const things = meterPiecesOf(set, (id) => furniture.has(id));
-      const hull = meterPiecesOf(set, (id) => isHull(s, id));
+      // (the kit's hull tiles are hollow shells round the rooms, gen/pieceFacts.ts `shell`: the next test holds the
+      // rooms inside them; every other hull piece is solid)
+      const shells = new Set(
+        Object.values(cat.palettes).flatMap((p) =>
+          Object.values(p.roles).flatMap((r) => r.variants.filter((v) => shell(v.name)).map((v) => v.asset)),
+        ),
+      );
+      const hull = meterPiecesOf(set, (id) => isHull(s, id)).filter((h) => !shells.has(h.asset));
       expect(things.length).toBeGreaterThan(5);
       const pokes: string[] = [];
       for (const t of things)
@@ -182,6 +190,24 @@ describe("the hull holds what is aboard", () => {
           if (overlapArea(footprint(t), footprint(h)) > 0.01) pokes.push(`${t.asset} into ${h.asset}`);
         }
       expect(pokes, s.spec.id).toEqual([]);
+    }
+  });
+
+  it("keeps every room below deck at least a cell inside the hull's shell", () => {
+    for (const s of harbour.sites) {
+      const foot = new Set(s.placed.footprint.map(key));
+      const below = s.rooms.filter((r) => r.level !== s.spec.level);
+      expect(below.length, s.spec.id).toBeGreaterThan(0);
+      for (const r of below)
+        for (const c of r.cells)
+          for (const [dx, dy] of [
+            [0, 0],
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ] as const)
+            expect(foot.has(key([c[0] + dx, c[1] + dy])), `${r.name} ${key(c)}`).toBe(true);
     }
   });
 
