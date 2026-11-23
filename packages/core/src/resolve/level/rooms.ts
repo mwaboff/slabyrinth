@@ -260,7 +260,8 @@ function roomsOpeningOnCorridors(
  * (about 1 pile per 10 floor tiles of a room, the reference interior has 1.1). Low debris mostly; blocking rubble only
  * in a corner or at a jamb of a room, never in a corridor, and never reaching over the cells in front of a doorway
  * (FeatureWork.addGenerated refuses it; a jamb then gets debris). Never on a link, steps, a doorway cell, a cell that
- * holds a feature, or a collapse rim.
+ * holds a feature, or a collapse rim; and (generator 5, `pilesKeepWay`) blocking rubble never where it would cut the
+ * floor round it (FeatureWork.cutsFloor): debris instead.
  */
 export function stepWallFootRubble(
   work: ResolveGrid,
@@ -347,6 +348,9 @@ export function stepWallFootRubble(
     const size = rotatedSize(info[type].size, 0);
     const c: Vec2 = [x, y];
     if (work.featureProblem(type, c, size, undefined) !== null) return false;
+    // generator 5 (pilesKeepWay): a blocking pile never cuts the floor round it (a corner beside a bunk and a ladder's
+    // opening is the only way along a strip)
+    if (work.profile.pilesKeepWay && info[type].blocking && features.cutsFloor(c, size)) return false;
     const rf: ResolvedFeature = {
       id: `walls#foot${n}`,
       type,
@@ -376,7 +380,12 @@ export function stepWallFootRubble(
     if (walls === 0) continue;
     const p = walls >= 2 ? WALL_FOOT.corner : WALL_FOOT.oneWall;
     if (u("foot", i) >= p) continue;
-    const block = walls >= 2 && !inCorridor(i) && u("blk", i) < WALL_FOOT.blocking;
+    // (generator 5, pilesKeepWay: where rubble would cut the floor, low debris softens the corner instead)
+    const block =
+      walls >= 2 &&
+      !inCorridor(i) &&
+      u("blk", i) < WALL_FOOT.blocking &&
+      !(work.profile.pilesKeepWay && features.cutsFloor([x, y], rotatedSize(info.rubble.size, 0)));
     put(i, block ? "rubble" : "debris");
   }
   // either side of about half the doorways: the cells flanking the opening along its wall

@@ -1,7 +1,9 @@
 /**
  * The seed sweep: a plan must build cleanly for any seed. Every stored plan (test/fixtures: the hand-written plans,
  * the proof plans and the generator test plans) and the plan the desktop e2e test builds, built under the newest
- * generator with fixed lists of other seeds, has no verify error, and no warning but those KNOWN_WARNINGS still lists.
+ * generator with fixed lists of other seeds, has no verify error, and no warning but those KNOWN_WARNINGS still lists;
+ * the warnings include the playability issues (resolve/playability.ts) the build causes, and the plan's own playability
+ * issues are allowed per plan by KNOWN_PLAN_ISSUES (`playability` says whose an issue is).
  * The goldens pin one seed per plan; a fault that shows for a few seeds in a hundred only shows across many (a stored
  * seed is the one the plan was revised at until it built cleanly, so it says little about the others).
  *
@@ -15,9 +17,10 @@
 import { completeAuthoredPlan } from "../../src/agent/executor";
 import { compileResolved } from "../../src/compile";
 import type { CompileDiagnostic } from "../../src/contracts/compiler";
-import { GENERATOR_VERSION, type MapPlan } from "../../src/contracts/plan";
+import { GENERATOR_VERSION, type MapPlan, type PlanIssue } from "../../src/contracts/plan";
+import type { ResolvedPlan } from "../../src/contracts/resolved";
 import { bundledPalettes } from "../../src/palette";
-import { resolvePlan } from "../../src/resolve/index";
+import { checkPlayability, resolvePlan } from "../../src/resolve/index";
 import { slabCodec } from "../../src/slab";
 import { GENERATOR_TEST_PLANS, loadPlan, STORED_PLANS, type StoredPlan } from "../fixtures";
 
@@ -112,6 +115,13 @@ export const WARNING_BASIS = 150;
  *   boulder, a moss rock) anchored on a cell whose centre has no floor piece under it (a ragged cave edge, an outcrop).
  * - smugglers-grotto-v3, sea-grotto, old-stones-glade-v6 prop_floating: a landing's lantern and candles 0.42 above the
  *   floor under their centre (the landing's lower step), pebbles 0.5 above a step.
+ * - hillside-v5 play_unreachable (the playability the build causes, `playability`): the plan's walkway climbs from its
+ *   watchtower to a plateau whose edge is ragged, with no path, ramp or link up the cliff; where the walkway's top
+ *   meets a pocket of that edge, the plan's own walk reaches it only across the foot of the cliff, and the plateau's
+ *   rock band covers that foot with its rocks (the band's job: it keeps a gap only for links, paths and, with
+ *   `bandsClearBridges`, decks). Which cells of a cliff's foot are a way is the terrain's to say, not the band's; the
+ *   seeds where the plan itself has no way up are its own (KNOWN_PLAN_ISSUES). 82 before `bandsClearBridges` (a face
+ *   rock over the walkway's top).
  */
 export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
   "heartroot-rift-v7": {
@@ -139,9 +149,39 @@ export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, num
     verify_prop_floating: 1,
   },
   "dressed-cave-v2": { verify_prop_no_floor: 17 },
-  "hillside-v5": { verify_prop_no_floor: 10 },
+  "hillside-v5": { verify_prop_no_floor: 10, play_unreachable: 59 },
   "sea-grotto": { verify_prop_floating: 19 },
   "terraced-hill": { verify_cliff_gap: 1 },
+};
+
+/**
+ * Playability issues that are the stored plan's own (see `playability`), per plan: "<code> <level>/<element>" -> why.
+ * Allowed for the plan whatever the seed (not counted per seed: the plan, not the build, has no way there); a sweep of
+ * at least WARNING_BASIS seeds fails on an entry no seed raises (remove it), and every unlisted one fails.
+ */
+export const KNOWN_PLAN_ISSUES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  "dungeon-complex-v1": {
+    "route_dead_end l1/to_vault":
+      "the route to the treasury (bend vh) ends at a wall or another room, never opening into the passage it starts from",
+    "unreachable l1/to_vault":
+      "the route that never opens into the passage (route_dead_end) has no other way in",
+    "unreachable l1/vault": "the treasury's only way in is that route",
+  },
+  "keep-dungeon-v8": {
+    "route_dead_end l2/pass":
+      "the crypt passage's route never opens into the cell block's hall (it is reached by the crypt stairs instead)",
+  },
+  "hillside-v5": {
+    "unreachable hill/walk":
+      "the walkway lands on the plateau's ragged edge with no path, ramp or link up the cliff: for some seeds the edge's pocket under its top meets neither the plateau nor the lowland",
+    "unreachable hill/tower": "the watchtower's only way is that walkway",
+    "area_sealed hill/tower":
+      "for a seed the walkway, sloped to where it meets the ragged edge, meets the tower's deck a tile above it and the joint is walled",
+  },
+  e2e: {
+    "feature_not_at_wall l1/shelf_mid":
+      "the e2e plan leaves a bookshelf in the middle of the hall on purpose (apps/desktop/e2e/uiScript.ts)",
+  },
 };
 
 /** The diagnostics of one severity a build has, as a failure (codes sorted and distinct); null when it has none. */
@@ -158,33 +198,118 @@ function problems(
 
 /** Builds a plan; null when it has no verify (or any) error. */
 export function buildErrors(plan: MapPlan): SweepFailure | null {
-  return problems(buildDiagnostics(plan), "error");
+  return problems(build(plan).diagnostics, "error");
 }
 
-function buildDiagnostics(plan: MapPlan): CompileDiagnostic[] {
+function build(plan: MapPlan): { resolved: ResolvedPlan; diagnostics: CompileDiagnostic[] } {
   const pal = bundledPalettes();
-  return compileResolved(resolvePlan(plan, pal), pal, slabCodec, { createdAt: "sweep", plan }).diagnostics;
+  const resolved = resolvePlan(plan, pal);
+  const { diagnostics } = compileResolved(resolved, pal, slabCodec, { createdAt: "sweep", plan });
+  return { resolved, diagnostics };
 }
+
+/** The prefix of a playability code the build causes, among a build's warning codes ("play_unreachable"). */
+export const PLAY_PREFIX = "play_";
+
+/** A playability issue's key: code, level and element ("unreachable l2/crypt"). */
+const playKey = (i: PlanIssue): string => `${i.code} ${i.levelId ?? ""}/${i.elementId ?? ""}`;
 
 /**
- * Every failing build of `name` over `seeds`, as "<plan>@<seed>" -> failure; `warnings` collects the builds with
- * warnings the same way (ENVIRONMENT_WARNINGS left out), for `unexpectedWarnings`.
+ * The playability issues of a build (resolve/playability.ts `checkPlayability`: its warnings and errors; the verify
+ * stage leaves out what it reports, so the diagnostics never show them), split by whose they are. `own`: those the
+ * same resolved plan raises with only the plan's own features on it, every generated one left out (a room's furniture,
+ * a dress op's rubble, a scatter, a cliff band's rock): the plan has no way there, whatever is placed. `built`: the
+ * rest, matched by code, level and element: something generation placed cut a way the plan had.
+ */
+export function playability(plan: MapPlan, resolved: ResolvedPlan): { own: PlanIssue[]; built: PlanIssue[] } {
+  const serious = (issues: PlanIssue[]): PlanIssue[] => issues.filter((i) => i.severity !== "info");
+  const bare: ResolvedPlan = {
+    ...resolved,
+    levels: resolved.levels.map((l) => ({
+      ...l,
+      features: l.features.filter((f) => f.generatedBy === undefined),
+    })),
+  };
+  const planOwn = new Set(serious(checkPlayability(plan, bare)).map(playKey));
+  const all = serious(checkPlayability(plan, resolved));
+  return {
+    own: all.filter((i) => planOwn.has(playKey(i))),
+    built: all.filter((i) => !planOwn.has(playKey(i))),
+  };
+}
+
+/** What a sweep collects beside the failures: builds with warnings, and the plan's own playability issues. */
+export interface SweepCollect {
+  /** "<plan>@<seed>" -> the build's warning codes (ENVIRONMENT_WARNINGS left out; `play_<code>` for playability). */
+  warnings: Record<string, SweepFailure>;
+  /** The plan's own playability issues (`playability`): key -> the seeds that raise it and the first message. */
+  planOwn: Map<string, { seeds: number[]; first: string }>;
+}
+
+/** An empty collection for `sweepFailures`. */
+export const sweepCollect = (): SweepCollect => ({ warnings: {}, planOwn: new Map() });
+
+/**
+ * Every failing build of `name` over `seeds`, as "<plan>@<seed>" -> failure; `collect.warnings` gathers the builds with
+ * warnings the same way (ENVIRONMENT_WARNINGS left out), the playability issues the build causes among them as
+ * `play_<code>`, for `unexpectedWarnings`; `collect.planOwn` the plan's own, for `unexpectedPlanIssues`.
  */
 export function sweepFailures(
   label: string,
   seeds: readonly number[],
   planOf: (seed: number) => MapPlan,
-  warnings?: Record<string, SweepFailure>,
+  collect?: SweepCollect,
 ): Record<string, SweepFailure> {
   const out: Record<string, SweepFailure> = {};
   for (const seed of seeds) {
-    const diagnostics = buildDiagnostics(planOf(seed));
+    const plan = planOf(seed);
+    const { resolved, diagnostics } = build(plan);
     const f = problems(diagnostics, "error");
     if (f) out[`${label}@${String(seed)}`] = f;
-    const w = warnings && problems(diagnostics, "warning");
-    if (w) warnings[`${label}@${String(seed)}`] = w;
+    if (!collect) continue;
+    const play = playability(plan, resolved);
+    for (const i of play.own) {
+      const at = collect.planOwn.get(playKey(i)) ?? { seeds: [], first: i.message };
+      at.seeds.push(seed);
+      collect.planOwn.set(playKey(i), at);
+    }
+    const w = problems(diagnostics, "warning");
+    const codes = [...(w?.codes ?? []), ...play.built.map((i) => `${PLAY_PREFIX}${i.code}`)];
+    if (codes.length > 0)
+      collect.warnings[`${label}@${String(seed)}`] = {
+        codes: [...new Set(codes)].sort(),
+        first: w?.first ?? play.built[0]?.message ?? "",
+      };
   }
   return out;
+}
+
+/**
+ * The plan's own playability issues of a plan's builds against KNOWN_PLAN_ISSUES: `failed`, one not listed for the
+ * plan; `stale` (`basisSeeds` at least WARNING_BASIS), a listed one no seed raised.
+ */
+export function unexpectedPlanIssues(
+  label: string,
+  planOwn: SweepCollect["planOwn"],
+  basisSeeds?: number,
+): { failed: string[]; stale: string[] } {
+  const known = KNOWN_PLAN_ISSUES[label] ?? {};
+  const failed = [...planOwn]
+    .filter(([key]) => known[key] === undefined)
+    .map(
+      ([key, at]) =>
+        `${label}@${at.seeds.slice(0, 3).join(", ")}: the plan's own ${key} on ${String(at.seeds.length)} seed(s) (${at.first})`,
+    );
+  const stale =
+    basisSeeds !== undefined && basisSeeds >= WARNING_BASIS
+      ? Object.keys(known)
+          .filter((key) => !planOwn.has(key))
+          .map(
+            (key) =>
+              `${label}: the plan's own ${key} is raised by no seed now (remove it in KNOWN_PLAN_ISSUES)`,
+          )
+      : [];
+  return { failed, stale };
 }
 
 /**
@@ -233,9 +358,16 @@ export function sweepOne(
   seed: number,
   planOf: (seed: number) => MapPlan,
 ): { failed: string[]; stale: string[] } {
-  const warned: Record<string, SweepFailure> = {};
-  const errors = unexpected(label, [seed], sweepFailures(label, [seed], planOf, warned));
-  return { failed: [...errors.failed, ...unexpectedWarnings(label, warned).failed], stale: errors.stale };
+  const collect = sweepCollect();
+  const errors = unexpected(label, [seed], sweepFailures(label, [seed], planOf, collect));
+  return {
+    failed: [
+      ...errors.failed,
+      ...unexpectedWarnings(label, collect.warnings).failed,
+      ...unexpectedPlanIssues(label, collect.planOwn).failed,
+    ],
+    stale: errors.stale,
+  };
 }
 
 /** The failures not listed in KNOWN_FAILURES (or listed with other codes), and the listed ones that passed. */

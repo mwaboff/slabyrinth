@@ -371,6 +371,16 @@ export class Room {
           for (let dx = -1; dx <= 1; dx++) this.zone.add(cellKey(x + dx, y + dy));
         this.zone.add(cellKey(x + inward[0] * 2, y + inward[1] * 2));
       }
+      // generator 5 (landingsKeepClear): a cell people step on or off a link from is a way in: a stair's landing, the
+      // floor round a ladder's opening (the opening is no floor of the room, so no edge above found it)
+      if (g.landing?.(x, y) === true && !seen.has(cellKey(x, y))) {
+        seen.add(cellKey(x, y));
+        this.thresholds.push([x, y]);
+        if (compact) this.zone.add(cellKey(x, y));
+        else
+          for (let dy = -1; dy <= 1; dy++)
+            for (let dx = -1; dx <= 1; dx++) this.zone.add(cellKey(x + dx, y + dy));
+      }
     }
   }
 

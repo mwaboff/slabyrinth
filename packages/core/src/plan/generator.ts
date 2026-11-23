@@ -632,6 +632,18 @@ const SWITCHES = {
     "Only a ruin's roof is open: a worn building's roof keeps every piece (its wear shows as patches, in a kit of another colour where its own kit has no worn pieces and none of its tone is near), a ramshackle one has at most one small ragged hole off its eaves with boards under it; and a roof piece over an open cell (a hole, a ruin's lost bay) is laid cell by cell round it, so an opening follows its own ragged cells and never a piece's rectangle (resolve/building/condition.ts, wear.ts, compile/realize/structures/roofPiece.ts, roofs.ts).",
     "roofPatches",
   ),
+  landingsKeepClear: on(
+    5,
+    "The foot and the landing of a flight of stairs or a ramp (the cells before its first step and beyond its last, plan/links.ts linkLandingsOnLevel) are ways in like a door's sides: nothing generated and blocking stands in them or reaches over them (resolve/level/features.ts inWayIn; a study's chair and a dress op's rubble on a stair's landing cut off every level above it); and a room's furnisher counts those cells as ways in, keeping them joined to its doors (gen/rooms4/room.ts findThresholds: the opening above a ladder is no floor of the room, so its edges never made it a doorway).",
+  ),
+  bandsClearBridges: on(
+    5,
+    "A cliff's rock band keeps off a bridge's deck, no cell of a rock's box over it, and leaves a gap where a deck meets the edge, as it does for links and paths (gen/cliffband.ts fitTurned, route; a cliff face set over the top of a plank walkway climbing to a plateau cut the walkway and its watchtower off, hillside-v5).",
+  ),
+  pilesKeepWay: on(
+    5,
+    "A blocking rubble pile at a rough wall's foot or a doorway's jamb never cuts the floor round it: where the open cells it touches would no longer meet round it (resolve/level/features.ts cutsFloor), it is low debris instead (resolve/level/rooms.ts stepWallFootRubble; a corner pile closed the strip between a cell's bunk and a ladder's opening, keep-dungeon-v8).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */
