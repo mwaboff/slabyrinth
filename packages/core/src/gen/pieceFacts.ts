@@ -113,3 +113,11 @@ export const levelRunPiece = (name: string | undefined, atEnd: boolean): boolean
   const f = pieceFacts(name);
   return f.sloped !== true && (f.endPost === undefined || atEnd);
 };
+
+/**
+ * May the piece stand anywhere, as a free part drawn for its shape (a pool's piece, a recipe slot's, a stand-in): no
+ * stair rail, no end-post piece (its post would end a run in the middle) and no glowing decor. The places that know
+ * more (a run's end, a room whose kind takes glowing things) ask the facts themselves.
+ */
+export const standsAnywhere = (name: string | undefined): boolean =>
+  levelRunPiece(name, false) && !glows(name);

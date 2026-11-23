@@ -15,6 +15,8 @@
  *   - borrow risk: a piece any role of the chain lists as a door, stairs, light, GM-only or marker piece is left out,
  *     unless the query allows that risk (`allow`). Assembly variants (`parts`) are left out: their geometry is only the
  *     base asset's;
+ *   - piece facts (generator 5, `drawsFreely`): a piece the facts measured in game keep to one place (a stair rail, an
+ *     end-post piece, glowing decor) is left out;
  *   - order: role names in code-unit order, then the role's variant order; an asset listed by several roles is one
  *     piece (its first listing), with every role named. The order is a pure function of the palette data.
  * A pick from a pool (`pickFromPool`) is uniform over its distinct pieces and named by hash parts, so it is stable across
@@ -22,6 +24,8 @@
  */
 import type { PaletteRole, RoleName } from "../contracts/compiler";
 import type { ThemeId } from "../contracts/plan";
+import { standsAnywhere } from "../gen/pieceFacts";
+import { GENERATOR_PROFILES, type GeneratorProfile } from "../plan/generator";
 import { hashUnit } from "../util/hash";
 import { own } from "../util/own";
 import { traitFilter } from "./filters";
@@ -41,6 +45,18 @@ import {
   type PieceMeasures,
   type TraitShape,
 } from "./traits";
+
+/**
+ * Generator 5 (`pieceFacts`): may a piece be drawn for its shape where a pool of candidates is formed (a trait pool, a
+ * recipe slot's roles, an object part's stand-in roles)? Only a piece that stands anywhere (gen/pieceFacts.ts
+ * `standsAnywhere`: no stair rail, end-post piece or glowing decor). Every piece for a released generator, and for a
+ * pool asked with no generator; a generator no profile knows yet (a palette's future `minGenerator`) keeps the facts.
+ */
+export function drawsFreely(generator: number | undefined, name: string | undefined): boolean {
+  if (generator === undefined) return true;
+  const profile = (GENERATOR_PROFILES as Partial<Record<number, GeneratorProfile>>)[generator];
+  return (profile !== undefined && !profile.pieceFacts) || standsAnywhere(name);
+}
 
 /** A shape to pool, and which borrow risks the caller accepts (none by default). */
 export interface TraitQuery extends TraitShape {
@@ -140,6 +156,7 @@ export function traitPool(
       if (families !== null && !families.has(roleFamily(role))) continue;
       for (const v of usableVariants(def, role, cat, [])) {
         if (v.parts !== undefined || risky.has(v.uuid) || risky.has(v.wanted) || !fits.test(v)) continue;
+        if (!drawsFreely(generator, v.name)) continue;
         const seen = pieces.get(v.uuid);
         if (seen === undefined) pieces.set(v.uuid, { variant: v, roles: [role] });
         else if (!seen.roles.includes(role)) seen.roles.push(role);

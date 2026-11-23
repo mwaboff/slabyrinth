@@ -1,7 +1,8 @@
 /**
  * Filling a recipe's slot, in one order for every recipe (the plan's slot rule):
  *   1. its roles, in order: the first role whose usable pieces fit the slot's shape supplies them (a role marked `own`
- *      only from the theme's own palettes, so a theme never borrows another kit's piece by name);
+ *      only from the theme's own palettes, so a theme never borrows another kit's piece by name; generator 5, a piece
+ *      the facts keep to one place left out: palette/traitPools.ts `drawsFreely`, as every pool does);
  *   2. the theme's own pieces of the shape (palette/traitPools.ts with `stopAt: "theme"`), when there are `min`;
  *   3. the fallback: the pieces of the shape along the whole chain, generic included ("borrow"), an empty slot the recipe composes without
  *      ("simplify"), or nothing, so the recipe is left out at that anchor ("skip").
@@ -11,6 +12,7 @@ import { fromPool, fromVariant, type ArrangePiece } from "../../arrange";
 import type { ThemeId } from "../../contracts/plan";
 import type { PlanRoles } from "../../palette/planRoles";
 import { GENERIC_THEME } from "../../palette/resolve";
+import { drawsFreely } from "../../palette/traitPools";
 import { fitsShape } from "../../palette/traits";
 import type { FilledSlot, RecipeCtx, SlotSpec } from "./types";
 
@@ -31,7 +33,13 @@ export function fillSlot<A>(
     if (!res) continue;
     if (r.own === true && res.paletteId === GENERIC_THEME && t !== GENERIC_THEME) continue;
     const pieces: ArrangePiece[] = res.variants
-      .filter((v) => v.weight > 0 && v.parts === undefined && (shape === null || fitsShape(v.geom, shape)))
+      .filter(
+        (v) =>
+          v.weight > 0 &&
+          v.parts === undefined &&
+          (shape === null || fitsShape(v.geom, shape)) &&
+          drawsFreely(roles.generator, v.name),
+      )
       .map((v) => fromVariant(t, r.role, v));
     if (pieces.length > 0) return { pieces, source: "role" };
   }

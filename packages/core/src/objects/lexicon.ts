@@ -18,9 +18,8 @@
 import type { RoleName } from "../contracts/compiler";
 import type { ThemeId } from "../contracts/plan";
 import { fromPool, fromVariant, type ArrangePiece } from "../arrange/piece";
-import { glows, levelRunPiece } from "../gen/pieceFacts";
-import { generatorProfile } from "../plan/generator";
 import type { PlanRoles } from "../palette/planRoles";
+import { drawsFreely } from "../palette/traitPools";
 import { measurePiece, type MeasureId, type MeasureRange, type TraitShape } from "../palette/traits";
 import { own } from "../util/own";
 
@@ -389,12 +388,9 @@ function fromRoles(
   theme: ThemeId,
   def: StandInDef,
 ): { pieces: ArrangePiece[]; role: RoleName } {
-  // generator 5 (pieceFacts): a part stands in runs and anywhere, so no stair rail, end-post piece or glowing decor;
-  // a kit role names the thing itself (a ship's lantern is meant to glow)
-  const plain =
-    generatorProfile(roles.generator).pieceFacts && def.kit !== true
-      ? (name: string | undefined): boolean => levelRunPiece(name, false) && !glows(name)
-      : (): boolean => true;
+  // generator 5 (pieceFacts): a part stands in runs and anywhere, so no stair rail, end-post piece or glowing decor
+  // (the rule every pool keeps); a kit role names the thing itself (a ship's lantern is meant to glow)
+  const plain = (name: string | undefined): boolean => def.kit === true || drawsFreely(roles.generator, name);
   for (const role of def.roles) {
     const res = roles.resolve(theme, role).resolution;
     if (!res) continue;
