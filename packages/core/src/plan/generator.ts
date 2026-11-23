@@ -468,6 +468,18 @@ const SWITCHES = {
     5,
     "A one-room dwelling is a room with zones: its programme names a sleeping corner beside the hearth, furnished with a bed or a cot group after the room's own anchor (gen/buildingProgramme.ts, gen/rooms4/furnish.ts).",
   ),
+  freeCounters: on(
+    5,
+    "A free-standing anchor (a shop counter, a bar) stands free facing the main door wherever it can: its staff lane may run along a window wall, and with no room for a lane two rows deep it keeps one row behind it (its back store left out) before it falls back to standing against a wall (gen/rooms4/groups.ts).",
+  ),
+  roomMiddles: on(
+    5,
+    "A study, office or library gets a floor group between its shelved walls (a reading table with its chairs, or a low table and seats), as many as its floor takes, and a small parlour (18 to 29 tiles) a seating group off its walls (gen/roomTraits.ts floor plans).",
+  ),
+  keptRoomsClean: on(
+    5,
+    "A room in use and kept intact (a furnished purpose, not abandoned, its character's condition intact: resolve/character.ts) has no rubble or debris at the foot of its rough walls or at its doorways, whatever its stone; worn, ruined and abandoned rooms and passages keep it (resolve/level/rooms.ts stepWallFootRubble).",
+  ),
   bedsideLights: on(
     5,
     "In a bright or flooded room a group whose companion carries a light (a bed and its nightstand) keeps the cell at its head for a standing light, which the room's lights then stand there, so the wall lining and the standing room never take it first (gen/rooms4/groups.ts, gen/rooms4/regimes.ts).",

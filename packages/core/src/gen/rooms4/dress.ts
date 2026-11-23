@@ -42,6 +42,11 @@ export interface RoomDressParams {
    * bedroom), each furnished with its kind's anchor group after the room's own (gen/buildingProgramme.ts `zones`).
    */
   zones?: readonly RoomKind[];
+  /**
+   * Generator 5 (freeCounters): the cell inside the room's main door (the way in from outside or a passage), which
+   * anchors face and the lane starts from; absent: the mean of its doors.
+   */
+  mainDoor?: [number, number];
 }
 
 /**

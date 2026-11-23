@@ -14,7 +14,7 @@ import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { SIDES, SIDE_STEP } from "../../gen/gridGeometry";
 import { isGap, openingWidth } from "../../gen/openingKinds";
-import type { ScatterResult } from "../../gen/placementGrid";
+import type { PlacementGrid, ScatterResult } from "../../gen/placementGrid";
 import { furnishedPurpose } from "../../gen/roomPurpose";
 import { type SceneLight, sceneLight } from "../../gen/lightLevels";
 import {
@@ -34,7 +34,7 @@ import { FAMILY_ROTATION, purposeFloor } from "../interiorFloors";
 import { isBuiltFloor } from "../materials";
 import type { FeatureWork } from "./features";
 import type { FloorOpeningRecords } from "./floorOpenings";
-import type { ReadOnly, ResolveGrid } from "./grid";
+import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
 
 /** Room floors and the step above the corridor (stepRoomFloors). */
 const ROOM_FLOORS = {
@@ -273,6 +273,26 @@ export function stepWallFootRubble(
     return se !== null && se.e.kind[se.i] === EDGE.WALL && isUnevenWallStyle(se.e.style[se.i]);
   };
   const sides = SIDES;
+  // a room someone uses (a furnished purpose, not abandoned) whose character is intact (resolve/character.ts) and the
+  // plan does not dress itself (a dress op over a hall as a ruin keeps its rubble)
+  const dressed = new Set(
+    work.level.terrain.flatMap((op) => (op.op === "dress" && op.area ? [op.area] : [])),
+  );
+  const kept = new Map<string, boolean>();
+  const keptRoom = (a: AreaInfo): boolean => {
+    let k = kept.get(a.area.id);
+    if (k === undefined) {
+      const condition = characterAt(work, a.area.id)?.condition ?? "intact";
+      k =
+        a.kind === "room" &&
+        furnishedPurpose(a.room.purpose) &&
+        !a.room.abandoned &&
+        condition === "intact" &&
+        !dressed.has(a.area.id);
+      kept.set(a.area.id, k);
+    }
+    return k;
+  };
   const plain = (i: number): boolean => {
     if (i < 0 || work.state[i] !== CELL.OPEN || features.occupied(i)) return false;
     const f = work.flags[i] as number;
@@ -289,7 +309,10 @@ export function stepWallFootRubble(
       return false;
     // only a rough interior has rubble at the wall foot: not a kept-up timber or plaster room (unless abandoned), and
     // not a cell outside every room (the same rule the compiler reads back, resolve/wallTops.ts roughCells)
-    if (work.areaAt(i)?.rough !== true) return false;
+    const shown = work.areaAt(i);
+    if (shown?.rough !== true) return false;
+    // generator 5 (keptRoomsClean): a room in use and kept intact has no rubble, whatever its stone (a shop, a ward)
+    if (work.profile.keptRoomsClean && keptRoom(shown)) return false;
     const [x, y] = work.cellXY(i);
     for (const s of sides) {
       const k = work.edgeKindAt(x, y, s);
@@ -380,6 +403,26 @@ export function stepWallFootRubble(
   });
 }
 
+/**
+ * Generator 5 (freeCounters): a room's main door, the cell inside a doorway that leads out of the rooms (to the street,
+ * a yard, a passage or no area at all) rather than into another room; none when every doorway leads into a room.
+ */
+function mainDoorOf(
+  work: ResolveGrid,
+  grid: PlacementGrid,
+  cells: ReadonlyArray<readonly [number, number]>,
+): { mainDoor?: [number, number] } {
+  for (const [x, y] of cells)
+    for (const s of SIDES) {
+      if (work.edgeKindAt(x, y, s) !== EDGE.OPENING || grid.windowOn?.(x, y, s) === true) continue;
+      const [dx, dy] = SIDE_STEP[s];
+      const across = work.idx(x + dx, y + dy);
+      const kind = across < 0 ? undefined : work.areaAt(across)?.kind;
+      if (kind !== "room") return { mainDoor: [x, y] };
+    }
+  return {};
+}
+
 /** The length of a passage: the long side of the box round its cells (a bent passage counts its longer leg). */
 function lengthOf(cells: ReadonlyArray<readonly [number, number]>): number {
   const xs = cells.map((c) => c[0]);
@@ -462,6 +505,8 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
         ...(lighting !== undefined ? { lighting } : {}),
         ...(ch !== null ? { character: ch } : {}),
         ...(info.zones !== undefined ? { zones: info.zones } : {}),
+        // generator 5 (freeCounters): the way in from outside or a passage, which a counter faces
+        ...(work.profile.freeCounters ? mainDoorOf(work, grid, cells) : {}),
         abandoned,
         areaIndex: info.index + 1,
         areaCells: cells,

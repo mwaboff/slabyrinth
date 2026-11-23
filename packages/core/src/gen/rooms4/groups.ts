@@ -207,7 +207,9 @@ export function wallSpots(room: Room, spec: Spec, place: AnchorPlace, k: number)
   // a low anchor may stand at a window (a desk under the light); a tall one never stands across one
   const low = (room.piece(spec.type, spec.variant)?.hMax ?? 2) <= GROUPS.windowSill;
   const out: AnchorCand[] = [];
-  const backs = k === 0 && low ? [...room.wallPairs, ...room.windowPairs] : room.wallPairs;
+  // generator 5 (freeCounters): a free-standing anchor's back is its staff lane, so a window behind the lane is no bar
+  const laneOnWindow = k > 0 && room.opts.freeCounters === true;
+  const backs = (k === 0 && low) || laneOnWindow ? [...room.wallPairs, ...room.windowPairs] : room.wallPairs;
   for (const [x, y, s] of backs) {
     const f: Frame = { side: s, u: ALONG[s], n: INWARD[s] as XY, origin: [x, y], k, L, D };
     let ok = true;
@@ -216,7 +218,7 @@ export function wallSpots(room: Room, spec: Spec, place: AnchorPlace, k: number)
     for (let i = 0; i < L && ok; i++) {
       const [cx, cy] = frameCell(f, i, 0);
       if (!room.inRoom.has(cellKey(cx, cy))) ok = false;
-      else if (k === 0 && low && room.windowAt(cx, cy, s)) atWindow = true;
+      else if (((k === 0 && low) || laneOnWindow) && room.windowAt(cx, cy, s)) atWindow = true;
       else if (room.grid.edge(cx, cy, s) !== EDGE_WALL) ok = false;
     }
     if (!ok) continue;
@@ -241,7 +243,11 @@ export function wallSpots(room: Room, spec: Spec, place: AnchorPlace, k: number)
     const a = anchorAt(room, spec, f, k === 0);
     if (a === null) continue;
     const cand: Cand = { ...a, corner: room.cornerPairs.has(cellKey(x, y)) };
-    out.push({ frame: f, cand, score: scoreSpot(room, f, a.cells, place, atWindow) });
+    let score = scoreSpot(room, f, a.cells, place, atWindow);
+    // generator 5 (freeCounters): a free-standing anchor is reached round both ends, not set against a side wall
+    if (laneOnWindow)
+      for (const i of [-1, L]) if (!room.inRoom.has(cellKey(...frameCell(f, i, k)))) score -= 1;
+    out.push({ frame: f, cand, score });
   }
   return out;
 }
@@ -570,6 +576,9 @@ export function placeGroup(
       : g.place === "free"
         ? wallSpots(room, spec, g.place, behind)
         : wallSpots(room, spec, g.place, 0);
+  // generator 5 (freeCounters): with no room for a lane two rows deep, one row behind it (its back store left out)
+  if (spots.length === 0 && g.place === "free" && behind > 1 && room.opts.freeCounters === true)
+    spots = wallSpots(room, spec, g.place, 1);
   // a free-standing anchor with no room to stand free stands against the wall it would face from
   if (spots.length === 0 && g.place === "free") spots = wallSpots(room, spec, "facingDoor", 0);
   if (spots.length === 0 && g.place === "axis") spots = wallSpots(room, spec, "farWall", 0);

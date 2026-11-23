@@ -52,7 +52,7 @@
           "material": "wood_plank",
           "edge": "clean"
         },
-        { "id": "steps", "op": "stairs", "from": [5, 10], "to": [5, 8], "width": 2 }
+        { "id": "steps", "op": "stairs", "from": [5, 10], "to": [5, 7], "width": 2 }
       ],
       "labels": []
     }

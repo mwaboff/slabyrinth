@@ -173,6 +173,13 @@ export interface RoomOpts {
    * cell at its head for a standing light (`lightSpots`), so the lining and the standing room never take it first.
    */
   bedsideLights?: boolean;
+  /**
+   * Generator 5 (freeCounters): a free-standing anchor (a shop counter, a bar) may keep its staff lane along a window
+   * wall, and with no room for a lane two rows deep stands free with one row behind it before it takes a wall.
+   */
+  freeCounters?: boolean;
+  /** Generator 5 (freeCounters): the cell inside the main door, the room's entry when it is one of its doorways. */
+  mainDoor?: readonly [number, number];
 }
 
 export class Room {
@@ -276,6 +283,9 @@ export class Room {
     this.centroid = [sx / n, sy / n];
     this.findThresholds();
     this.entry = this.thresholds.length > 0 ? this.meanOf(this.thresholds) : this.centroid;
+    const main = opts.mainDoor;
+    if (main !== undefined && this.thresholds.some(([x, y]) => x === main[0] && y === main[1]))
+      this.entry = [main[0] + 0.5, main[1] + 0.5];
     this.reach = this.walk(new Set());
     for (const [lx, ly] of grid.lightCells?.() ?? [])
       if (this.inRoom.has(cellKey(lx, ly))) this.lights.push([lx, ly]);

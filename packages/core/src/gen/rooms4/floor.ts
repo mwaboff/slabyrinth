@@ -16,6 +16,7 @@
  */
 import type { Side } from "../../contracts/plan";
 import { featureInfo } from "../catalog";
+import { gridProfile } from "../placementGrid";
 import { EDGE_WALL, INWARD, SIDES, cellKey, stepSide } from "../gridGeometry";
 import type { FloorPlan, FloorUnit, GroupSpec, RoomTraits } from "../roomTraits";
 import { maxOf, minOf, pushAll } from "../../util/lists";
@@ -215,14 +216,21 @@ export function placeFloor(
 ): FloorResult {
   const units: PlacedGroup[] = [];
   const n = room.cells.length;
-  if (t.floor.some((plan) => n >= plan.minCells)) {
+  const profile = gridProfile(room.grid);
+  // the plans this room lays: its size in range, the plan's switch on
+  const plans = t.floor.filter(
+    (plan) =>
+      n >= plan.minCells &&
+      n <= (plan.maxCells ?? Infinity) &&
+      (plan.switch === undefined || profile[plan.switch]),
+  );
+  if (plans.length > 0) {
     // the way through between the room's doorways stays open: nothing stands on it
     const ds = doorways(room);
     for (let i = 0; i < ds.length; i++)
       for (let j = i + 1; j < ds.length; j++) keepThrough(room, ds[i] as XY, ds[j] as XY);
   }
-  for (const plan of t.floor) {
-    if (n < plan.minCells) continue;
+  for (const plan of plans) {
     const b = box(room);
     if (plan.minWidth !== undefined && b.across < plan.minWidth) continue;
     const placed =

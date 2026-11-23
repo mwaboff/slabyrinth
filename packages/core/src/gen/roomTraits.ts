@@ -32,6 +32,7 @@
  * by a wrong one.
  */
 import type { FeatureType } from "../contracts/plan";
+import type { SwitchName } from "../plan/generator";
 import { NEW_KIND_INFO, type FurnishedPurpose, type NewRoomKind, type RoomKind } from "./roomPurpose";
 import type { Family, Spec } from "./rooms4/recipes";
 
@@ -144,6 +145,10 @@ export interface FloorPlan {
   readonly turned?: number;
   /** Island only: the room must be at least this many tiles across its long axis. */
   readonly minWidth?: number;
+  /** A room over this many floor tiles leaves the plan to the kind's others. */
+  readonly maxCells?: number;
+  /** The generator-5 switch the plan came with; the plan is laid only where it is on. */
+  readonly switch?: SwitchName;
 }
 
 /**
@@ -1011,6 +1016,13 @@ const LOW_TABLE = U(
   ],
   2,
 );
+/** A reading or writing table in the middle of a study, chairs at it, a lamp on it. */
+const READING_TABLE = U(
+  "reading table",
+  A("table", { top: "study" }),
+  [seatsFront("chair", CHAIR, 0.2), seatsBack(CHAIR, 0.6)],
+  3,
+);
 const DISPLAY = U("display", A("table", { top: "store" }), [], 3, false);
 const STOCK_BARREL = U("stock", A("barrel", { top: "store" }), [], 1, false);
 const PUPIL_DESK = U("desk", A("desk", { top: "study" }), [seatsFront("chair", CHAIR, 0.18)], 1);
@@ -1056,6 +1068,15 @@ const floorGroups = (
   turned: number,
 ): FloorPlan => ({ mode: "groups", units, pitch: [2, 3], share, minCells, turned });
 
+/**
+ * Generator 5 (roomMiddles): what stands in the middle of a study, office or library between its shelved walls (a
+ * reading table with its chairs, a low table and seats), as many as its floor takes at `share`.
+ */
+const studyMiddle = (units: FloorPlan["units"], share: number): FloorPlan => ({
+  ...floorGroups(units, share, 24, 0.3),
+  switch: "roomMiddles",
+});
+
 const LIT = (
   level: LightLevel,
   range: readonly [LightLevel, LightLevel],
@@ -1079,8 +1100,16 @@ const ORDER_FLOOR_LIGHT: Readonly<Record<RoomKind, Pick<RoomTraits, "order" | "f
     floor: [{ mode: "island", units: [WORK_TABLE], pitch: [2, 3], share: 0.12, minCells: 30 }],
     lighting: LIT(2, [1, 3], { focal: 3, surfaces: 1, wallRhythm: 1 }),
   },
-  library: { order: "tidy", floor: [], lighting: LIT(2, [2, 3], { surfaces: 3, wallRhythm: 1 }) },
-  study: { order: "tidy", floor: [], lighting: LIT(2, [1, 3], { surfaces: 3, focal: 1 }) },
+  library: {
+    order: "tidy",
+    floor: [studyMiddle([READING_TABLE, LOW_TABLE], 0.2)],
+    lighting: LIT(2, [2, 3], { surfaces: 3, wallRhythm: 1 }),
+  },
+  study: {
+    order: "tidy",
+    floor: [studyMiddle([READING_TABLE, LOW_TABLE], 0.18)],
+    lighting: LIT(2, [1, 3], { surfaces: 3, focal: 1 }),
+  },
   armoury: {
     order: "working",
     floor: [],
@@ -1128,7 +1157,11 @@ const ORDER_FLOOR_LIGHT: Readonly<Record<RoomKind, Pick<RoomTraits, "order" | "f
   },
   lounge: {
     order: "lived",
-    floor: [floorGroups([LOW_TABLE, TABLE_GROUP], 0.22, 30, 0.5)],
+    floor: [
+      floorGroups([LOW_TABLE, TABLE_GROUP], 0.22, 30, 0.5),
+      // a small parlour (a house's front room) still gets a seating group off its walls
+      { ...floorGroups([TABLE_GROUP, LOW_TABLE], 0.3, 18, 0.5), maxCells: 29, switch: "roomMiddles" },
+    ],
     lighting: LIT(1, [1, 3], { focal: 2, surfaces: 2 }),
   },
   classroom: {

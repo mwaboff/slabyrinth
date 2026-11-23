@@ -193,6 +193,8 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
       ...(profile.placementOrder ? { order: characterOrder(t.order, p.character) } : {}),
       // a seat or a bed keeps a free cell beside it, so nothing placed after it boxes it in
       ...(profile.floorGroups ? { standingRoom: true } : {}),
+      ...(profile.freeCounters ? { freeCounters: true } : {}),
+      ...(profile.freeCounters && p.mainDoor !== undefined ? { mainDoor: p.mainDoor } : {}),
       // a bright room's bed keeps the cell at its head for its standing light (its light is part of the group)
       ...(profile.bedsideLights && (p.lighting?.plan.level ?? 0) >= BEDSIDE_LEVEL
         ? { bedsideLights: true }
