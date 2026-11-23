@@ -123,6 +123,21 @@ describe("slab tier of the quality meter", () => {
     expect(coplanarShare(stepped)).toBe(0);
   });
 
+  it("coplanar flat tops: planks turned 45° side by side are judged by their true footprints when sized", () => {
+    // two 2 × 0.25 planks at 45°, centres 0.3 apart across their length: boxes overlap widely, the planks do not
+    const h = (2 * Math.SQRT1_2 + 0.25 * Math.SQRT1_2) / 2;
+    const d = 0.3 * Math.SQRT1_2;
+    const plank = (c: number, sized: boolean): MeterPiece =>
+      piece("plank", c - h, 0, c - h, [2 * h, 0.1, 2 * h], {
+        rot: 45,
+        ...(sized ? { size: { x: 2, z: 0.25 } } : {}),
+      });
+    expect(coplanarShare([plank(0, false), plank(d, false)])).toBe(1);
+    expect(coplanarShare([plank(0, true), plank(d, true)])).toBe(0);
+    // laid over each other they still flicker
+    expect(coplanarShare([plank(0, true), plank(0.02, true)])).toBe(1);
+  });
+
   it("stamped groups: four identical dressing pieces at one heading, broken by one turned", () => {
     const row = (rot4: number): MeterPiece[] =>
       [0, 1, 2, 3].map((k) => piece("crate", k, 0, 0, undefined, { rot: k === 3 ? rot4 : 0, loose: true }));

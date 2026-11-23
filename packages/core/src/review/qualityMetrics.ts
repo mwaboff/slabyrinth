@@ -221,7 +221,7 @@ export const QUALITY_METRICS = [
     id: "coplanar_share",
     label: "coplanar flat tops",
     definition:
-      "flat pieces (box height ≤ 0.5) whose top lies within 0.02 of an overlapping (≥ 0.05 tile²) flat top / flat pieces",
+      "flat pieces (box height ≤ 0.5) whose top lies within 0.02 of an overlapping (≥ 0.05 tile², true footprints for pieces off the quarter turns when their size is known) flat top / flat pieces",
     unit: "share",
     tier: "slab",
     target: null,

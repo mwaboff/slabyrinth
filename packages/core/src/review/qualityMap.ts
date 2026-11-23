@@ -81,7 +81,9 @@ export function meterPieces(set: PlacementSet, levelId?: string): MeterPiece[] {
     if (levelId !== undefined && L.levelId !== levelId) continue;
     for (const p of L.placements) {
       if (p.role === "marker") continue;
+      const size = set.placed?.get(p)?.geom.size;
       out.push({
+        ...(size !== undefined ? { size: { x: size.x, z: size.z } } : {}),
         asset: p.asset,
         y: p.y,
         rot: p.rot,

@@ -108,8 +108,8 @@ function regionOf(area: ScatterParams["area"]): Region {
   };
 }
 
-/** Even-odd test of a point against a polygon. */
-function inPolygon(pts: readonly XZ[], x: number, z: number): boolean {
+/** Even-odd test of a point against a polygon (also objects/: decks and footprints). */
+export function inPolygon(pts: readonly XZ[], x: number, z: number): boolean {
   let inside = false;
   for (let i = 0, k = pts.length - 1; i < pts.length; k = i++) {
     const [xi, zi] = pts[i] ?? [0, 0];
@@ -120,7 +120,7 @@ function inPolygon(pts: readonly XZ[], x: number, z: number): boolean {
 }
 
 /** Distance from a point to the nearest side of a polygon. */
-function edgeDistance(pts: readonly XZ[], x: number, z: number): number {
+export function edgeDistance(pts: readonly XZ[], x: number, z: number): number {
   let best = Infinity;
   for (let i = 0, k = pts.length - 1; i < pts.length; k = i++) {
     const [ax, az] = pts[k] ?? [0, 0];

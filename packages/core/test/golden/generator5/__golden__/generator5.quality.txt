@@ -13,7 +13,7 @@ plans/cave@5 symmetry_dressing 0.3
 plans/cave@5 distinct_assets 20
 plans/cave@5 top_asset_share 0.156
 plans/cave@5 largest_kit_share –
-plans/cave@5 coplanar_share 0.01
+plans/cave@5 coplanar_share 0
 plans/cave@5 stamped_groups 0
 plans/cave@5 exact_duplicates 0
 plans/cave@5 props_near_wall –
@@ -272,7 +272,7 @@ plans/heartroot-rift-v7@5 symmetry_dressing 0.061
 plans/heartroot-rift-v7@5 distinct_assets 84
 plans/heartroot-rift-v7@5 top_asset_share 0.278
 plans/heartroot-rift-v7@5 largest_kit_share –
-plans/heartroot-rift-v7@5 coplanar_share 0.007
+plans/heartroot-rift-v7@5 coplanar_share 0
 plans/heartroot-rift-v7@5 stamped_groups 0
 plans/heartroot-rift-v7@5 exact_duplicates 0
 plans/heartroot-rift-v7@5 props_near_wall –
@@ -346,7 +346,7 @@ plans/interiors-lineup-v1 symmetry_dressing 0.189
 plans/interiors-lineup-v1 distinct_assets 59
 plans/interiors-lineup-v1 top_asset_share 0.166
 plans/interiors-lineup-v1 largest_kit_share –
-plans/interiors-lineup-v1 coplanar_share 0.1
+plans/interiors-lineup-v1 coplanar_share 0.095
 plans/interiors-lineup-v1 stamped_groups 9
 plans/interiors-lineup-v1 exact_duplicates 0
 plans/interiors-lineup-v1 props_near_wall 0.868
@@ -383,7 +383,7 @@ plans/keep-dungeon-v8@5 symmetry_dressing 0.118
 plans/keep-dungeon-v8@5 distinct_assets 59
 plans/keep-dungeon-v8@5 top_asset_share 0.158
 plans/keep-dungeon-v8@5 largest_kit_share –
-plans/keep-dungeon-v8@5 coplanar_share 0.013
+plans/keep-dungeon-v8@5 coplanar_share 0.006
 plans/keep-dungeon-v8@5 stamped_groups 3
 plans/keep-dungeon-v8@5 exact_duplicates 0
 plans/keep-dungeon-v8@5 props_near_wall 0.598
@@ -457,7 +457,7 @@ plans/market-street-v3@5 symmetry_dressing 0.085
 plans/market-street-v3@5 distinct_assets 94
 plans/market-street-v3@5 top_asset_share 0.112
 plans/market-street-v3@5 largest_kit_share –
-plans/market-street-v3@5 coplanar_share 0.013
+plans/market-street-v3@5 coplanar_share 0.005
 plans/market-street-v3@5 stamped_groups 0
 plans/market-street-v3@5 exact_duplicates 0
 plans/market-street-v3@5 props_near_wall –
@@ -531,7 +531,7 @@ plans/night-market-v1@5 symmetry_dressing 0.123
 plans/night-market-v1@5 distinct_assets 41
 plans/night-market-v1@5 top_asset_share 0.69
 plans/night-market-v1@5 largest_kit_share –
-plans/night-market-v1@5 coplanar_share 0.005
+plans/night-market-v1@5 coplanar_share 0.002
 plans/night-market-v1@5 stamped_groups 0
 plans/night-market-v1@5 exact_duplicates 0
 plans/night-market-v1@5 props_near_wall –
@@ -568,7 +568,7 @@ plans/old-stones-glade-v6@5 symmetry_dressing 0.064
 plans/old-stones-glade-v6@5 distinct_assets 43
 plans/old-stones-glade-v6@5 top_asset_share 0.198
 plans/old-stones-glade-v6@5 largest_kit_share –
-plans/old-stones-glade-v6@5 coplanar_share 0.002
+plans/old-stones-glade-v6@5 coplanar_share 0
 plans/old-stones-glade-v6@5 stamped_groups 0
 plans/old-stones-glade-v6@5 exact_duplicates 0
 plans/old-stones-glade-v6@5 props_near_wall –
@@ -716,7 +716,7 @@ plans/smugglers-grotto-v3@5 symmetry_dressing 0.047
 plans/smugglers-grotto-v3@5 distinct_assets 49
 plans/smugglers-grotto-v3@5 top_asset_share 0.293
 plans/smugglers-grotto-v3@5 largest_kit_share –
-plans/smugglers-grotto-v3@5 coplanar_share 0.015
+plans/smugglers-grotto-v3@5 coplanar_share 0.009
 plans/smugglers-grotto-v3@5 stamped_groups 0
 plans/smugglers-grotto-v3@5 exact_duplicates 0
 plans/smugglers-grotto-v3@5 props_near_wall –
@@ -753,7 +753,7 @@ plans/stall-lineup-v1@5 symmetry_dressing 0.3
 plans/stall-lineup-v1@5 distinct_assets 37
 plans/stall-lineup-v1@5 top_asset_share 0.163
 plans/stall-lineup-v1@5 largest_kit_share –
-plans/stall-lineup-v1@5 coplanar_share 0.059
+plans/stall-lineup-v1@5 coplanar_share 0.05
 plans/stall-lineup-v1@5 stamped_groups 0
 plans/stall-lineup-v1@5 exact_duplicates 0
 plans/stall-lineup-v1@5 props_near_wall –
@@ -938,7 +938,7 @@ gen/dressed-cave@5 symmetry_dressing 0.047
 gen/dressed-cave@5 distinct_assets 69
 gen/dressed-cave@5 top_asset_share 0.289
 gen/dressed-cave@5 largest_kit_share –
-gen/dressed-cave@5 coplanar_share 0.014
+gen/dressed-cave@5 coplanar_share 0.006
 gen/dressed-cave@5 stamped_groups 0
 gen/dressed-cave@5 exact_duplicates 0
 gen/dressed-cave@5 props_near_wall –
@@ -975,7 +975,7 @@ gen/dressed-cave-v2@5 symmetry_dressing 0.032
 gen/dressed-cave-v2@5 distinct_assets 79
 gen/dressed-cave-v2@5 top_asset_share 0.268
 gen/dressed-cave-v2@5 largest_kit_share –
-gen/dressed-cave-v2@5 coplanar_share 0.01
+gen/dressed-cave-v2@5 coplanar_share 0.005
 gen/dressed-cave-v2@5 stamped_groups 0
 gen/dressed-cave-v2@5 exact_duplicates 0
 gen/dressed-cave-v2@5 props_near_wall –
@@ -1012,7 +1012,7 @@ gen/dressed-forest@5 symmetry_dressing 0.075
 gen/dressed-forest@5 distinct_assets 43
 gen/dressed-forest@5 top_asset_share 0.207
 gen/dressed-forest@5 largest_kit_share –
-gen/dressed-forest@5 coplanar_share 0.026
+gen/dressed-forest@5 coplanar_share 0.005
 gen/dressed-forest@5 stamped_groups 0
 gen/dressed-forest@5 exact_duplicates 0
 gen/dressed-forest@5 props_near_wall –
@@ -1049,7 +1049,7 @@ gen/dressed-forest-v4@5 symmetry_dressing 0.066
 gen/dressed-forest-v4@5 distinct_assets 42
 gen/dressed-forest-v4@5 top_asset_share 0.189
 gen/dressed-forest-v4@5 largest_kit_share –
-gen/dressed-forest-v4@5 coplanar_share 0.022
+gen/dressed-forest-v4@5 coplanar_share 0.005
 gen/dressed-forest-v4@5 stamped_groups 0
 gen/dressed-forest-v4@5 exact_duplicates 0
 gen/dressed-forest-v4@5 props_near_wall –
@@ -1086,7 +1086,7 @@ gen/hillside-v5@5 symmetry_dressing 0.076
 gen/hillside-v5@5 distinct_assets 52
 gen/hillside-v5@5 top_asset_share 0.26
 gen/hillside-v5@5 largest_kit_share –
-gen/hillside-v5@5 coplanar_share 0.005
+gen/hillside-v5@5 coplanar_share 0.003
 gen/hillside-v5@5 stamped_groups 0
 gen/hillside-v5@5 exact_duplicates 0
 gen/hillside-v5@5 props_near_wall –
@@ -1123,7 +1123,7 @@ gen/sea-grotto@5 symmetry_dressing 0.049
 gen/sea-grotto@5 distinct_assets 50
 gen/sea-grotto@5 top_asset_share 0.277
 gen/sea-grotto@5 largest_kit_share –
-gen/sea-grotto@5 coplanar_share 0.018
+gen/sea-grotto@5 coplanar_share 0.01
 gen/sea-grotto@5 stamped_groups 0
 gen/sea-grotto@5 exact_duplicates 0
 gen/sea-grotto@5 props_near_wall –
@@ -1160,7 +1160,7 @@ gen/terraced-hill@5 symmetry_dressing 0.072
 gen/terraced-hill@5 distinct_assets 41
 gen/terraced-hill@5 top_asset_share 0.12
 gen/terraced-hill@5 largest_kit_share –
-gen/terraced-hill@5 coplanar_share 0.014
+gen/terraced-hill@5 coplanar_share 0.011
 gen/terraced-hill@5 stamped_groups 0
 gen/terraced-hill@5 exact_duplicates 0
 gen/terraced-hill@5 props_near_wall –

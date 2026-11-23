@@ -14,6 +14,7 @@
  * build in the golden run.
  */
 import type { Box3 } from "../contracts/compiler";
+import { overlapArea, turnedFootprint, type PlanPoint } from "../util/turn";
 
 /** One placed piece, as the slab tier sees it. */
 export interface MeterPiece {
@@ -25,6 +26,11 @@ export interface MeterPiece {
   readonly rot: number;
   /** World axis-aligned box, tiles. */
   readonly box: Box3;
+  /**
+   * The piece's own plan size before its turn (x by z), when known. With it, a piece off the quarter turns is judged
+   * by its true turned footprint where plan overlap matters (coplanar tops); without it, by its box.
+   */
+  readonly size?: { readonly x: number; readonly z: number };
   /** A TaleSpire tile (grid-snapped structure) rather than a prop. */
   readonly tile: boolean;
   /** Loose dressing (furniture, clutter, lights, plants) rather than a prop used as structure. Absent = unknown. */
@@ -159,13 +165,32 @@ export function boxesOverlap(a: Box3, b: Box3, eps: number = T.overlapEps): bool
   );
 }
 
-/** Are two flat boxes' tops within `coplanarGap` of each other over at least `coplanarArea` of plan? */
-function coplanarTops(a: Box3, b: Box3): boolean {
+/** A piece's plan footprint: its true turned rectangle when its size is known and it is off the quarter turns. */
+function footprint(p: MeterPiece): PlanPoint[] | null {
+  if (p.size === undefined || !offQuarter(p.rot)) return null;
+  const c = centre(p.box);
+  return turnedFootprint(c.x, c.z, p.size.x, p.size.z, p.rot);
+}
+
+/** Are two flat pieces' tops within `coplanarGap` of each other over at least `coplanarArea` of plan? */
+function coplanarTops(p: MeterPiece, q: MeterPiece): boolean {
+  const a = p.box;
+  const b = q.box;
   const flat = (x: Box3): boolean => x.max.y - x.min.y <= T.flatHeight;
   if (!flat(a) || !flat(b) || Math.abs(a.max.y - b.max.y) >= T.coplanarGap) return false;
   const ox = Math.max(0, depth(a.min.x, a.max.x, b.min.x, b.max.x));
   const oz = Math.max(0, depth(a.min.z, a.max.z, b.min.z, b.max.z));
-  return ox * oz >= T.coplanarArea;
+  if (ox * oz < T.coplanarArea) return false; // the boxes hold the footprints: no more overlap than this
+  const fp = footprint(p);
+  const fq = footprint(q);
+  if (fp === null && fq === null) return true;
+  const rect = (x: Box3): PlanPoint[] => [
+    [x.min.x, x.min.z],
+    [x.max.x, x.min.z],
+    [x.max.x, x.max.z],
+    [x.min.x, x.max.z],
+  ];
+  return overlapArea(fp ?? rect(a), fq ?? rect(b)) >= T.coplanarArea;
 }
 
 const centre = (b: Box3): { x: number; y: number; z: number } => ({
@@ -313,7 +338,7 @@ export function slabMeter(pieces: readonly MeterPiece[]): SlabMeterValues {
         Math.abs(p.box.min.z - q.box.min.z) < T.duplicateEps &&
         offBy(p.rot - q.rot, 360) < T.axisEps;
       if (dup) duplicates++;
-      else if (coplanarTops(p.box, q.box)) {
+      else if (coplanarTops(p, q)) {
         coplanar[i] = 1;
         coplanar[j] = 1;
       }
