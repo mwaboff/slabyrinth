@@ -24,6 +24,9 @@ describe("plinthUnderPorch", () => {
     ).length;
 
   it("a porch stands on the plinth: no cliff gap; without the switch the porch stands past its edge", () => {
+    // (the street as it was drawn when the fault was found: the later draw rules pick other designs for hovel2)
+    P5.readableNeighbours = false;
+    P5.themeOwnRange = false;
     const hovel = resolvePlan(plan, pal).levels[0]?.structures?.find((s) => s.id === "hovel2");
     expect(hovel?.plinth).toBeDefined();
     expect((hovel?.porches.length ?? 0) > 0).toBe(true);

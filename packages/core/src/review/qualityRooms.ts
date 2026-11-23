@@ -45,6 +45,7 @@ import { emptyDeadEnds, mapLayout } from "./layout";
 import { nearBoundary } from "./qualityMap";
 import { maxOf, minOf } from "../util/lists";
 import { REVIEW } from "./thresholds";
+import { COVER_RASTER, coverKind, coveredSamples, type CoverShape } from "../util/visibleCover";
 
 export const ROOM_METER = {
   /** Rooms judged for near-wall share need this many blockers (the review's adriftMin). */
@@ -236,33 +237,29 @@ function groundTally(
     open.add(key(L.bounds.x + (i % W), L.bounds.y + Math.floor(i / W)));
   }
   if (open.size === 0) return;
-  const hit = new Set<string>();
+  // what each piece is SEEN to cover (its inscribed ellipse times its kind's fill, util/visibleCover.ts), not its box:
+  // the boxes read 30-42 % where the owner's screenshots of the varied street showed 10-15 %
+  const shapes: CoverShape[] = [];
   if (ground.size > 0)
     for (const p of set.levels.find((l) => l.levelId === L.id)?.placements ?? []) {
       if (!ground.has(p.source.elementId ?? "")) continue;
+      const info = set.placed?.get(p);
+      const geom = info?.geom;
+      if (!geom) continue;
       const b = placedBox(set, p);
-      const a = frame.point(b.min.x, b.min.z);
-      const c = frame.point(b.max.x, b.max.z);
-      const x0 = Math.min(a.x, c.x);
-      const x1 = Math.max(a.x, c.x);
-      const y0 = Math.min(a.z, c.z);
-      const y1 = Math.max(a.z, c.z);
-      for (let y = Math.floor(y0); y < y1; y++)
-        for (let x = Math.floor(x0); x < x1; x++)
-          for (const [sx, sy] of [
-            [0.25, 0.25],
-            [0.75, 0.25],
-            [0.25, 0.75],
-            [0.75, 0.75],
-          ] as const) {
-            const px = x + sx;
-            const py = y + sy;
-            if (px > x0 && px < x1 && py > y0 && py < y1 && open.has(key(x, y)))
-              hit.add(`${x},${y},${sx},${sy}`);
-          }
+      const c = frame.point((b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2);
+      shapes.push({
+        x: c.x,
+        y: c.z,
+        sx: geom.size.x,
+        sz: geom.size.z,
+        yaw: p.rot,
+        kind: coverKind(p.role === "feature" ? info.name : p.role, geom.size.y),
+      });
     }
-  t.n += hit.size;
-  t.of += open.size * 4;
+  const hit = coveredSamples(shapes, (x, y) => open.has(key(x, y)));
+  t.n += hit.size / (COVER_RASTER * COVER_RASTER);
+  t.of += open.size;
 }
 
 /** The room and layout rows of the meter over a realized build. */

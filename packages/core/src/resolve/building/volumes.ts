@@ -8,6 +8,7 @@ import type { BuiltRoofType, ResolvedVolume } from "../../contracts/resolved";
 import type { rasterizeShape } from "../../gen/shapes";
 import type { Prng } from "../../util/prng";
 import { defaultRidge, type RoofWing } from "../roof";
+import { roofKitInfo } from "../roofKits";
 import { roofInfo } from "../roofTypes";
 import type { WindowDensity } from "../structureStyles";
 import type { BuildingCtx } from "./context";
@@ -317,6 +318,14 @@ function resolveRoof(b: BuildingCtx, spec: VolumeSpec, prng2: Prng): VolumePlan[
       );
       type = "flat";
     }
+    // generator 5 (`roofKitFacts`): a hip in a kit whose corner piece is a spiked tip would stand a row of spikes up each
+    // hip ridge; it is built as a gable of the kit (the requested type stays recorded)
+    if (
+      b.gen.roofKitFacts &&
+      roofInfo(type)?.ends === "hip" &&
+      roofKitInfo(l.style ?? kit)?.cornerTip === true
+    )
+      type = "gable";
     if (roofInfo(type)?.ends === "gable" && spec.rects.length > 1 && layers.length === 0)
       b.issue(
         "info",

@@ -258,7 +258,21 @@ function propose<K extends AnchorKind>(r: Recipe<K>, c: ProposeCtx): void {
     const groups = (density: number): Map<string, Arrangement> => {
       let g = memo.get(density);
       if (!g) {
-        const cctx: ComposeCtx = { ...c.rctx, seed, density, variant, treatment: t, trim };
+        // (twinnedPairs) the keep-clear rule as the recipe sees it: in its own axes, mirrored as the engine will mirror
+        const clearAt = (p: Arrangement[number]): boolean =>
+          c.clear.refuse(
+            planBox(f.at, f.turn, f.base, f.mirror === true ? { ...p, x: -p.x } : p),
+            r.underfoot === true,
+          ) === null;
+        const cctx: ComposeCtx = {
+          ...c.rctx,
+          seed,
+          density,
+          variant,
+          treatment: t,
+          trim,
+          ...(c.rctx.profile.twinnedPairs ? { clearAt } : {}),
+        };
         const arr = r.compose(a, slots, cctx) ?? [];
         const local = f.mirror === true ? mirror(arr, { axis: "x", keep: false }) : arr;
         g = blocksOf(local, f, r.block);
@@ -348,6 +362,8 @@ function instanceOf<K extends AnchorKind>(
   for (const [why, n] of refused)
     c.skipped.push({ recipe: r.id, anchor: a.key, why: `${n} piece${n > 1 ? "s" : ""} in a ${why}` });
   if (kept.length === 0) return null;
+  // (twinnedPairs) a pair stands whole or not at all
+  if (r.whole === true && c.rctx.profile.twinnedPairs && kept.length < local.length) return null;
   return {
     arr: kept,
     frame: f,

@@ -427,7 +427,7 @@ export const QUALITY_METRICS = [
     id: "ground_cover",
     label: "natural ground covered",
     definition:
-      "open natural ground outside rooms and corridors (no path, water, steps or link) under a layered-ground piece / that ground (4 samples a cell)",
+      "open natural ground outside rooms and corridors (no path, water, steps or link) a layered-ground piece is seen to cover (its inscribed ellipse times its kind's fill, util/visibleCover.ts; 100 samples a cell) / that ground",
     unit: "share",
     tier: "map",
     target: { min: 0.1, max: 0.4 },

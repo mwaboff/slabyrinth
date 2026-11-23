@@ -12,6 +12,7 @@
  *            ordinary room's clutter, where it looks like a broken lamp (the room kinds whose row says `glow` take it);
  *   sloped   a raking piece (a stair's handrail): it stands only on a stair, never along a level run;
  *   endPost  a level piece with a taller post at one end (a newel): only at a run's end, turned so the post is the end.
+ * Facts about a whole roof kit (its tone, family, spiked corner) are keyed by kit, not piece: resolve/roofKits.ts.
  * A piece the table does not name has no such fact: it is level, post-free and does not glow.
  */
 import type { LightPiece } from "./lightReach";

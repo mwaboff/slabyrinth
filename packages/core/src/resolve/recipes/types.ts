@@ -76,6 +76,11 @@ export interface ComposeCtx extends RecipeCtx {
   readonly treatment: Treatment;
   /** The style the subject's trims are made in (its own wall style unless the treatment contrasts). */
   readonly trim: string;
+  /**
+   * Whether the keep-clear rule lets a piece stand where the recipe would put it (in the anchor's frame, before the
+   * engine mirrors it), so a recipe can look for a place that is clear (generator 5, `twinnedPairs`).
+   */
+  readonly clearAt?: (p: Arrangement[number]) => boolean;
 }
 
 export interface Recipe<K extends AnchorKind = AnchorKind> {
@@ -104,6 +109,11 @@ export interface Recipe<K extends AnchorKind = AnchorKind> {
    * own focus, so the budget thins and drops calm blocks first and no instance passes its piece cap.
    */
   readonly block?: number;
+  /**
+   * Its pieces stand together or not at all (a mirrored pair): when the keep-clear rule refuses one, the instance is
+   * left out instead of standing as a remnant (read under `twinnedPairs`).
+   */
+  readonly whole?: boolean;
   /** Whether it applies at an anchor (theme-neutral conditions). */
   readonly when: (a: AnchorOf<K>, ctx: RecipeCtx) => boolean;
   readonly slots: Readonly<Record<string, SlotSpec<AnchorOf<K>>>>;

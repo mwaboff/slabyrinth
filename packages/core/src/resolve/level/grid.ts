@@ -203,6 +203,7 @@ export class ResolveGrid {
       ctx.issues,
       (x, y) => x >= lb.x && y >= lb.y && x < lb.x + lb.w && y < lb.y + lb.h,
       this.characters,
+      ctx.palette,
     );
     const level = ex.level;
     this.structs = ex.work;

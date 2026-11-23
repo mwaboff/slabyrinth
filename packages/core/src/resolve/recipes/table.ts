@@ -3,7 +3,7 @@
  * it). A new recipe is one entry here (its own file by kind: walls.ts, ground.ts, ...), its switch in
  * plan/generator.ts, its option in a treatment family (treatments.ts) and its test; nothing else changes.
  */
-import { breachRubble, wallFootGrowth } from "./condition";
+import { breachRubble, leanToShelter, wallFootGrowth } from "./condition";
 import { layeredGround } from "./ground";
 import { approachLights, guardianPair } from "./threshold";
 import type { AnyRecipe } from "./types";
@@ -18,6 +18,7 @@ export const RECIPES: readonly AnyRecipe[] = [
   layeredGround,
   wallFootGrowth,
   breachRubble,
+  leanToShelter,
   guardianPair,
   approachLights,
 ];
