@@ -14,6 +14,9 @@ import { isPitchedRoof } from "../../src/resolve/roofTypes";
 import { sweepSeed } from "../sweep/seeds";
 import { loadPlan } from "./index";
 
+/** The recipes that dress a door (counted as dressed doors, not as trims). */
+const DOOR_RECIPES: ReadonlySet<string> = new Set(["approachLights", "guardianPair"]);
+
 export interface WealthRow {
   readonly wealth: PlaceWealth;
   readonly buildings: number;
@@ -64,10 +67,10 @@ export function wealthSteps(pal: PaletteCatalog, seeds: number, theme = "wood_to
         if (st.kind !== "building" || !st.design) continue;
         buildings++;
         const mine = (L.arrangements ?? []).filter((a) => a.host === st.id && a.recipe !== "layeredGround");
-        trims += mine.reduce((n, a) => n + a.pieces.length, 0);
+        trims += mine.filter((a) => !DOOR_RECIPES.has(a.recipe)).reduce((n, a) => n + a.pieces.length, 0);
         const t = mine[0]?.treatment ?? "";
         if (t.includes("trim:contrast")) contrast++;
-        if (mine.some((a) => a.recipe === "approachLights" || a.recipe === "guardianPair")) dressed++;
+        if (mine.some((a) => DOOR_RECIPES.has(a.recipe))) dressed++;
         for (const m of [st.design.baseMaterial, st.design.material])
           finish[wallStyleInfo(m)?.finish ?? "plain"]++;
         if (isPitchedRoof(st.roof.type)) kits.set(st.roof.style, (kits.get(st.roof.style) ?? 0) + 1);

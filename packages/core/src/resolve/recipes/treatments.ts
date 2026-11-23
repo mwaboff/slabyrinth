@@ -108,11 +108,12 @@ export const WEALTH_WEIGHT = {
 /**
  * Generator 5 (`wealthLooks`): firmer multipliers, so each wealth step reads apart from the one below (the stated
  * character proof measured a modest house as plain as a poor one, a lavish one with fewer trims than a wealthy one).
+ * Modest, the scene's default, leaves the weights as they were (a map that states no wealth draws as before).
  */
 export const WEALTH_WEIGHT_FIRM = {
-  plain: [4, 1.6, 0.5, 0.08],
-  contrast: [0.2, 0.7, 1.6, 3.5],
-  rich: [0.3, 0.8, 1.8, 4.5],
+  plain: [4, 1, 0.5, 0.06],
+  contrast: [0.2, 1, 1.8, 3.5],
+  rich: [0.3, 1, 1.8, 5],
 } as const;
 /** The options wealth reads as the richest of their family. */
 const RICH_OPTIONS: ReadonlySet<string> = new Set([

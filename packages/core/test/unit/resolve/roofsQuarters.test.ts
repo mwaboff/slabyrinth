@@ -286,3 +286,41 @@ describe("wealthLooks: the four wealth steps read apart from the street", () => 
     expect(lavish.lit / lavish.n).toBeGreaterThan(poor.lit / poor.n + 0.3);
   }, 30_000); // (four street builds)
 });
+
+describe("wealthLooks leaves modest as the style's own draw (modest is the scene default)", () => {
+  const plans: StoredPlan[] = ["varied-street-v1", "ground-and-walls-v1", "building-rooms-street-v1"];
+  /** The plan with its levels and every building stated modest (nothing can spread off it). */
+  const allModest = (name: StoredPlan): MapPlan => {
+    const plan = structuredClone(loadPlan(name));
+    for (const L of plan.levels) {
+      Object.assign(L, { wealth: "modest" });
+      for (const st of L.structures ?? [])
+        if (st.kind !== "enclosure") Object.assign(st, { wealth: "modest" });
+    }
+    return plan;
+  };
+
+  it.each(plans)("%s stated modest throughout builds exactly as without the switch", (name) => {
+    const on = JSON.stringify(resolvePlan(allModest(name), pal).levels);
+    without("wealthLooks");
+    expect(JSON.stringify(resolvePlan(allModest(name), pal).levels)).toBe(on);
+  });
+
+  it.each(plans)("%s stating no wealth: its modest buildings draw the same treatment and design", (name) => {
+    const looks = (): Map<string, string> => {
+      const L = resolvePlan(loadPlan(name), pal).levels[0];
+      const out = new Map<string, string>();
+      for (const st of L?.structures ?? []) {
+        if (st.kind !== "building" || L?.character?.[st.id]?.wealth !== "modest") continue;
+        const t = (L.arrangements ?? []).find((a) => a.host === st.id)?.treatment ?? "-";
+        out.set(st.id, `${t} | ${JSON.stringify(st.design ?? null)}`);
+      }
+      return out;
+    };
+    const on = looks();
+    without("wealthLooks");
+    const off = looks();
+    expect(on.size).toBeGreaterThan(0);
+    expect([...on]).toEqual([...on].map(([id]) => [id, off.get(id)]));
+  });
+});
