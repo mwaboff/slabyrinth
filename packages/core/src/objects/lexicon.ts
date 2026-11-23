@@ -1,0 +1,303 @@
+/**
+ * The stand-in lexicon (technique M13): one table of the parts objects are built from ("a plank", "a pole", "cloth"),
+ * each a list of palette roles that name the thing and a shape every candidate must have. Every object recipe asks the
+ * lexicon, never its own query, so all objects in one theme share their stand-ins.
+ *
+ * How a stand-in is found, in order (the first that yields a piece wins):
+ *   1. its roles, each resolved in the theme through the palette's own fallback chain (the theme's pieces first, then
+ *      what it extends, then generic), keeping the variants of the shape's kind and measure ranges;
+ *   2. its shape as a trait pool of the theme (palette/traitPools.ts: the theme's own palettes first, generic last);
+ *   3. simplify: the stand-in it falls back to (`simplify`, a plainer part: rope → plank);
+ *   4. skip: null, and the recipe leaves the part out (a wrong object is worse than none).
+ * Candidates are ranked by how near their measures are to the wanted ones (`target`), so the most fitting piece comes
+ * first; the candidates within `NEAR` of the best are the mix a recipe may vary over. A piece from another palette than
+ * the theme's is "borrowed". Pure function of the palettes: memoized per kit (objects/kit.ts).
+ */
+import type { RoleName } from "../contracts/compiler";
+import type { ThemeId } from "../contracts/plan";
+import { fromPool, fromVariant, type ArrangePiece } from "../arrange/piece";
+import type { PlanRoles } from "../palette/planRoles";
+import { measurePiece, type MeasureId, type MeasureRange, type TraitShape } from "../palette/traits";
+import { own } from "../util/own";
+
+/** One stand-in: what it is, the roles that name it, the shape it must have, the measures wanted, its plainer form. */
+export interface StandInDef {
+  readonly doc: string;
+  /** Palette roles that name the thing, asked first, in order. */
+  readonly roles: readonly RoleName[];
+  /** The shape every candidate must have (role pieces are filtered by it; the trait pool asks for it). */
+  readonly shape: TraitShape;
+  /** Role families that may lend pieces to the trait-pool step (structure borrows from structure). */
+  readonly families?: readonly string[];
+  /** The measures wanted: candidates are ranked by their distance from these (ratio, both ways). */
+  readonly target: Partial<Record<MeasureId, number>>;
+  /** The stand-in to use when no piece has this one's shape. */
+  readonly simplify?: string;
+}
+
+/** Wood and timber come from structure and fittings, never from furniture or nature of the right shape. */
+const TIMBER_FAMILIES = ["stall", "pier", "porch_post", "ruin_prop", "roof", "wall_post", "facade_post"];
+
+export const STAND_INS = {
+  plank: {
+    doc: "a thin long board lying down (a strake, a rail, a spar): about 2 long, under 0.3 thick and tall",
+    roles: ["stall.ridge"],
+    shape: {
+      trait: "beam",
+      kind: "prop",
+      where: { length: [1.4, 2.6], height: [0.06, 0.3], width: [0.06, 0.3] },
+    },
+    families: TIMBER_FAMILIES,
+    target: { length: 2, height: 0.15, width: 0.13 },
+  },
+  timber: {
+    doc: "a heavy squared timber lying down (a keel, a bowsprit, a wale): about 2 long, 0.3 to 0.7 thick",
+    roles: ["ruin_prop.default", "feature.log"],
+    shape: {
+      trait: "beam",
+      kind: "prop",
+      where: { length: [1.4, 2.6], height: [0.3, 0.75], width: [0.3, 0.75] },
+    },
+    families: TIMBER_FAMILIES,
+    target: { length: 2, height: 0.5, width: 0.5 },
+    simplify: "plank",
+  },
+  pole: {
+    doc: "a tall thin upright (a mast section, a stem post): 3 or more tall, under 0.4 across",
+    roles: ["feature.line_post"],
+    shape: { trait: "post", kind: "prop", where: { height: [2.8, 5], length: [0.12, 0.45] } },
+    families: ["feature"],
+    target: { height: 3.6, length: 0.28 },
+    simplify: "post",
+  },
+  post: {
+    doc: "a timber post about 2 tall and under 0.35 across (a stanchion, a short mast section)",
+    roles: ["porch_post.default", "feature.mine_support"],
+    shape: { trait: "post", kind: "prop", where: { height: [1.5, 2.4], length: [0.12, 0.36] } },
+    families: TIMBER_FAMILIES,
+    target: { height: 2, length: 0.26 },
+  },
+  rope: {
+    doc: "a rope or line lying straight, about 2 long and under 0.2 thick (rigging, furled-sail lashing)",
+    roles: ["feature.overhead"],
+    shape: {
+      trait: "beam",
+      kind: "prop",
+      where: { length: [1.4, 2.6], height: [0.03, 0.2], width: [0.03, 0.2] },
+    },
+    families: ["feature"],
+    target: { length: 2, height: 0.12, width: 0.12 },
+    simplify: "plank",
+  },
+  cloth: {
+    doc: "a hanging cloth on edge, about 1 wide and 1.3 tall (a sail panel, a pennant, an awning skirt)",
+    roles: ["feature.wall_dressing", "feature.banner_wall", "feature.signage"],
+    shape: { trait: "panel", kind: "prop", where: { length: [0.7, 1.6], height: [0.9, 1.8] } },
+    target: { length: 1, height: 1.3 },
+  },
+  deck: {
+    doc: "a 2 x 2 wooden floor tile (a deck, a counter top)",
+    roles: ["floor.wood_plank", "floor.bridge_wood"],
+    shape: { trait: "slab", kind: "tile", where: { length: [1.9, 2.1], width: [1.9, 2.1] } },
+    families: ["floor"],
+    target: { length: 2, width: 2 },
+    simplify: "deckSmall",
+  },
+  deckSmall: {
+    doc: "a 1 x 1 wooden floor tile (the deck's margins and steps)",
+    roles: ["floor.wood_plank", "step.wood_plank", "floor.bridge_wood"],
+    shape: { trait: "slab", kind: "tile", where: { length: [0.9, 1.1], width: [0.9, 1.1] } },
+    families: ["floor", "step"],
+    target: { length: 1, width: 1 },
+  },
+  hatch: {
+    doc: "a flat square wooden piece about 1 across (a hatch cover, a fighting top, a grating)",
+    roles: ["roof_clutter.storage"],
+    shape: { trait: "slab", kind: "prop", where: { length: [0.8, 1.3], height: [0.1, 0.4] } },
+    target: { length: 1, width: 1, height: 0.25 },
+  },
+  crate: {
+    doc: "a crate about 1 across",
+    roles: ["feature.crate"],
+    shape: { trait: "block", kind: "prop", where: { height: [0.75, 1.1] } },
+    target: { height: 0.95 },
+  },
+  smallCrate: {
+    doc: "a small crate about 0.5 across",
+    roles: ["feature.crate"],
+    shape: { trait: "clutter", kind: "prop", where: { extent: [0.35, 0.6] } },
+    target: { extent: 0.52 },
+  },
+  barrel: {
+    doc: "a barrel or cask standing up",
+    roles: ["feature.barrel"],
+    shape: { trait: "post", kind: "prop", where: { height: [0.5, 1] } },
+    target: { height: 0.76 },
+    simplify: "smallCrate",
+  },
+  sack: {
+    doc: "a sack standing up",
+    roles: ["feature.sack", "feature.goods"],
+    shape: { trait: "clutter", kind: "prop", where: { height: [0.4, 0.65] } },
+    target: { height: 0.6, length: 0.33 },
+  },
+  goods: {
+    doc: "small wares on show (a basket, a loaf, a jug)",
+    roles: ["feature.goods"],
+    shape: { trait: "clutter", kind: "prop", where: { extent: [0.15, 0.6] } },
+    target: { extent: 0.35 },
+  },
+  bench: {
+    doc: "a plain bench about 1.3 long (a thwart, a vendor's seat)",
+    roles: ["feature.bench", "feature.seating"],
+    shape: { trait: "beam", kind: "prop", where: { length: [0.9, 1.8], height: [0.15, 0.6] } },
+    target: { length: 1.3, height: 0.3 },
+    simplify: "plank",
+  },
+  stool: {
+    doc: "a stool or small seat",
+    roles: ["stall.seat", "feature.stool"],
+    shape: { trait: "clutter", kind: "prop", where: { height: [0.25, 0.6] } },
+    target: { height: 0.5 },
+  },
+  shelter: {
+    doc: "a small hide or canvas shelter (a deck awning, a lean-to)",
+    roles: ["feature.tent"],
+    shape: { trait: "block", kind: "prop", where: { height: [1, 1.8] } },
+    target: { height: 1.4, length: 1.3 },
+  },
+  counter: {
+    doc: "a 1 x 1 counter or table-top tile (a stall front)",
+    roles: ["stall.counter", "feature.counter", "feature.bar_counter"],
+    shape: { trait: "slab", kind: "tile", where: { length: [0.9, 1.1], width: [0.9, 1.1] } },
+    target: { length: 1, height: 0.5 },
+    simplify: "crate",
+  },
+  corner: {
+    doc: "a square post about 2 tall and 0.5 across, on the tile grid (a stall's corner post)",
+    roles: ["stall.post", "pier.wood_plank", "pier.bridge_wood"],
+    shape: { trait: "post", kind: "tile", where: { height: [1.8, 2.2], length: [0.4, 0.6] } },
+    target: { height: 2, length: 0.5 },
+    simplify: "post",
+  },
+  canopy: {
+    doc: "a 1 x 1 cloth roof tile (an awning, a stall canopy)",
+    roles: ["canopy.awning", "stall.canopy"],
+    shape: { trait: "slab", kind: "tile", where: { length: [0.9, 1.1], width: [0.9, 1.1] } },
+    target: { length: 1, height: 0.5 },
+  },
+  sign: {
+    doc: "a small flat sign board (a shop sign)",
+    roles: ["sign_band.default"],
+    shape: { trait: "panel", kind: "prop", where: { length: [0.6, 1.4] } },
+    target: { length: 1, height: 0.45 },
+    simplify: "cloth",
+  },
+} as const satisfies Record<string, StandInDef>;
+
+export type StandInId = keyof typeof STAND_INS;
+export const STAND_IN_IDS = Object.keys(STAND_INS) as StandInId[];
+
+/** Where a stand-in's pieces came from. */
+export type StandInSource = "role" | "pool";
+
+/** A found stand-in: its candidates, best first, and how they were found. */
+export interface StandIn {
+  readonly id: StandInId;
+  /** Best first; the first `near` of them are within `NEAR` of the best. */
+  readonly pieces: readonly ArrangePiece[];
+  readonly near: number;
+  readonly source: StandInSource;
+  /** The palette's role that supplied them (a role source), or the pool's first role. */
+  readonly role: RoleName;
+  /** The pieces come from another palette than the theme's own. */
+  readonly borrowed: boolean;
+  /** The stand-in asked for, when this one is its plainer form. */
+  readonly simplifiedFrom?: StandInId;
+}
+
+/** Candidates whose distance from the target is within this of the best one's are its mix. */
+const NEAR = 0.15;
+
+/** How far a piece's measures are from the wanted ones: the sum of |ln(measure / wanted)|. */
+function distance(p: ArrangePiece, target: StandInDef["target"]): number {
+  let d = 0;
+  for (const [id, want] of Object.entries(target) as [MeasureId, number | undefined][]) {
+    if (want === undefined || want <= 0) continue;
+    d += Math.abs(Math.log(Math.max(1e-6, p.measures[id]) / want));
+  }
+  return d;
+}
+
+/** The candidates ranked nearest first (stable: equal distances keep their palette order). */
+function ranked(pieces: readonly ArrangePiece[], def: StandInDef): { pieces: ArrangePiece[]; near: number } {
+  const scored = pieces.map((p, i) => ({ p, i, d: distance(p, def.target) }));
+  scored.sort((a, b) => a.d - b.d || a.i - b.i);
+  const best = scored[0]?.d ?? 0;
+  return { pieces: scored.map((s) => s.p), near: scored.filter((s) => s.d <= best + NEAR).length };
+}
+
+/**
+ * Whether a role's piece fits the stand-in: its kind and measure ranges. The trait itself is not asked of a role's
+ * pieces: the role already says what the thing is (a barrel is no trait's shape), the ranges keep its size.
+ */
+function fitsRole(geom: Parameters<typeof measurePiece>[0], shape: TraitShape): boolean {
+  const m = measurePiece(geom);
+  if (shape.kind !== undefined && m.kind !== shape.kind) return false;
+  for (const [id, range] of Object.entries(shape.where ?? {}) as [MeasureId, MeasureRange | undefined][])
+    if (range !== undefined && (m[id] < range[0] || m[id] > range[1])) return false;
+  return true;
+}
+
+/** The pieces of the stand-in's roles in the theme that fit it (first role with any wins). */
+function fromRoles(
+  roles: PlanRoles,
+  theme: ThemeId,
+  def: StandInDef,
+): { pieces: ArrangePiece[]; role: RoleName } {
+  for (const role of def.roles) {
+    const res = roles.resolve(theme, role).resolution;
+    if (!res) continue;
+    const pieces = res.variants
+      .filter((v) => v.parts === undefined && fitsRole(v.geom, def.shape))
+      .map((v) => fromVariant(res.paletteId, res.role, v));
+    if (pieces.length > 0) return { pieces, role: res.role };
+  }
+  return { pieces: [], role: "" };
+}
+
+/** The stand-in in the theme (see the file header), or null when nothing stands in for it. */
+export function findStandIn(
+  roles: PlanRoles,
+  theme: ThemeId,
+  id: StandInId,
+  seen: StandInId[] = [],
+): StandIn | null {
+  const def: StandInDef | undefined = own(STAND_INS, id);
+  if (def === undefined || seen.includes(id)) return null;
+  const own_ = roles.paletteTheme(theme);
+  const viaRoles = fromRoles(roles, theme, def);
+  let source: StandInSource = "role";
+  let found = viaRoles.pieces;
+  let role = viaRoles.role;
+  if (found.length === 0) {
+    const pool = roles.pool(theme, { ...def.shape, ...(def.families ? { families: def.families } : {}) });
+    found = pool.pieces.map((p) => fromPool(pool, p));
+    role = pool.pieces[0]?.roles[0] ?? "";
+    source = "pool";
+  }
+  if (found.length === 0) {
+    if (def.simplify === undefined) return null;
+    const plainer = findStandIn(roles, theme, def.simplify as StandInId, [...seen, id]);
+    return plainer ? { ...plainer, simplifiedFrom: plainer.simplifiedFrom ?? id } : null;
+  }
+  const r = ranked(found, def);
+  return {
+    id,
+    pieces: r.pieces,
+    near: r.near,
+    source,
+    role,
+    borrowed: r.pieces.some((p) => p.palette !== own_),
+  };
+}
