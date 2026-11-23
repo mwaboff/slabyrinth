@@ -10,7 +10,8 @@ Pipeline: plan → `resolve` (plan + palettes → resolved grid) → `compile` (
 - `packages/core/src`: pure TypeScript (Node only in `cli/`); directory layers in `eslint.config.js` `CORE_LAYERS`.
 - `packages/render-canvas`: the 2D map painter. `apps/desktop/src`: `main`, `renderer`, `preload`, `shared`.
 - Stage lists, each a plain ordered list: `resolve/level.ts`, `compile/realize.ts`, `compile/verify/verify.ts`,
-  `compile/realize/structures.ts` (`layBuilding`), `review/review.ts` (`reviewDesign`).
+  `compile/realize/structures.ts` (`layBuilding`), `review/review.ts` (`reviewDesign`), `resolve/recipes/table.ts`
+  (`RECIPES`), `resolve/recipes/treatments.ts` (`TREATMENTS`).
 - `docs/contracts/*.ts` are normative; core and the app hold byte copies (`CONTRIBUTING.md`). Contract and IPC
   changes go through the project owner.
 
@@ -46,11 +47,15 @@ in the same PR and say why.
 
 - Ask the thing itself, not its neighbour: a cell's theme from `themeAt`/`cellTheme`, not the level's; a piece's size
   from the palette it is built with; a resolved element's theme from `elementTheme`; "may this plan go on" from
-  `plan/gate.ts`.
+  `plan/gate.ts`; a place's light, condition and wealth from `characterAt` / `elementCharacter`, never its words.
 - Before writing a walk, list or lookup, find the shared one: `resolve/levelGrid.ts` (cells, edges, themes),
-  `resolve/wallFaces.ts`, `palette/planRoles.ts`, `palette/roles.ts`, `palette/filters.ts`, `util/hash.ts`, and the
-  trait tables (`gen/catalog.ts`, `gen/openingKinds.ts`, `gen/wallStyles.ts`, `resolve/materials.ts`,
-  `resolve/roofTypes.ts`, `plan/links.ts`, `gen/roomPurpose.ts`).
+  `resolve/wallFaces.ts`, `resolve/anchors/` (zones, faces, frames), `resolve/recipes/keepClear.ts`,
+  `resolve/recipes/footing.ts`, `palette/planRoles.ts`, `palette/roles.ts`, `palette/filters.ts`, `palette/traits.ts`,
+  `palette/traitPools.ts`, `objects/lexicon.ts` (stand-ins), `util/hash.ts`, `util/turn.ts`, `util/visibleCover.ts`,
+  `util/sunk.ts`, and the trait tables (`gen/catalog.ts`, `gen/openingKinds.ts`, `gen/wallStyles.ts`,
+  `resolve/materials.ts`, `resolve/roofTypes.ts`, `plan/links.ts`, `gen/roomPurpose.ts`, `gen/roomTraits.ts`,
+  `gen/pieceFacts.ts`, `resolve/roofKits.ts`, `resolve/themes.ts`, `gen/buildingProgramme.ts`,
+  `gen/buildingCondition.ts`).
 - Fix a visual report by measuring the build first (a test or the detail golden), not by eye.
 - One writer in the working tree at a time; commit each passing unit on a branch.
 - Report what you verified separately from what you assumed.
