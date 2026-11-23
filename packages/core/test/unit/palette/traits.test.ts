@@ -241,6 +241,14 @@ describe("what each bundled theme offers per trait", () => {
     expect(gaps).toEqual([]);
   });
 
+  it("no kit role lends a piece by shape (the ship kit is asked by its roles only)", () => {
+    const kitRoles = pools.flatMap(({ byTrait }) =>
+      byTrait.flatMap((p) => p.pieces.flatMap((q) => q.roles.filter((r) => r.startsWith("ship.")))),
+    );
+    expect(Object.keys(cat.palettes["generic"]?.roles ?? {}).some((r) => r.startsWith("ship."))).toBe(true);
+    expect(kitRoles).toEqual([]);
+  });
+
   it("matches the counts snapshot (own = pieces in the theme's palette; else where the pool fell back to)", async () => {
     const width = 18;
     const cell = (s: string): string => s.padEnd(width);

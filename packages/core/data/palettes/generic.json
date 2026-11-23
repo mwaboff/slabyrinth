@@ -14627,6 +14627,3030 @@
         }
       ]
     },
+    "ship.anchor": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "e71fdad9-8cd6-4ebe-a279-50f5c584e5d3",
+          "name": "anchor_ship_01",
+          "geom": {
+            "size": {
+              "x": 1.0281,
+              "y": 1.3507,
+              "z": 0.2639
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0001,
+              "y": 0.6753,
+              "z": 0.0001
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.belay": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "92135ffa-311f-415d-bcd9-f2c39bc2f86b",
+          "name": "rope wood bar v1",
+          "geom": {
+            "size": {
+              "x": 1.3971,
+              "y": 0.2368,
+              "z": 0.3007
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0112,
+              "y": 0.1269,
+              "z": 0.1484
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "516f3357-393c-4bbe-9a6b-b49f1447464e",
+          "name": "rope wood bar v2",
+          "geom": {
+            "size": {
+              "x": 0.5786,
+              "y": 0.1819,
+              "z": 0.2464
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0003,
+              "y": 0.0116,
+              "z": 0.1212
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "short"
+        }
+      ]
+    },
+    "ship.boat": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "86b03238-2ce1-4de1-8c32-2e66231347a6",
+          "name": "boat small v1 front",
+          "geom": {
+            "size": {
+              "x": 2.3749,
+              "y": 1.4431,
+              "z": 2.1394
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0016,
+              "y": 0.721,
+              "z": 0.0714
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "bow"
+        },
+        {
+          "asset": "1486440e-3ca8-4f5a-ad1b-5bcf66096837",
+          "name": "boat small v1 mid",
+          "geom": {
+            "size": {
+              "x": 2.3749,
+              "y": 1.4431,
+              "z": 1.9987
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0016,
+              "y": 0.721,
+              "z": -0.0015
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "mid"
+        },
+        {
+          "asset": "315c1426-d496-466a-a7ed-b35da700dd2e",
+          "name": "boat small v1 back",
+          "geom": {
+            "size": {
+              "x": 2.3749,
+              "y": 1.4431,
+              "z": 1.9984
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0016,
+              "y": 0.721,
+              "z": 0.0009
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "stern"
+        }
+      ]
+    },
+    "ship.bowsprit": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "278b1398-f4e7-45ac-984e-42bed47b7725",
+          "name": "Ship Bowsprit base",
+          "geom": {
+            "size": {
+              "x": 1.2879,
+              "y": 2.4663,
+              "z": 4.0931
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0033,
+              "y": 1.2402,
+              "z": 1.3108
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            4
+          ],
+          "variant": "base"
+        },
+        {
+          "asset": "af427954-e038-491e-972c-edb2f44eaa8d",
+          "name": "Ship Bowsprit mid",
+          "geom": {
+            "size": {
+              "x": 0.5038,
+              "y": 2.48,
+              "z": 3.5227
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0093,
+              "y": 1.247,
+              "z": 1.6146
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            4
+          ],
+          "variant": "mid"
+        },
+        {
+          "asset": "f90a0a80-3151-4870-b22c-9618fc1adbaf",
+          "name": "Ship Bowsprit top",
+          "geom": {
+            "size": {
+              "x": 0.5038,
+              "y": 2.3455,
+              "z": 3.443
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0093,
+              "y": 1.1798,
+              "z": 1.5747
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            3
+          ],
+          "variant": "top"
+        }
+      ]
+    },
+    "ship.cannon": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "8cb05469-e987-4216-b941-b36d96f46a09",
+          "name": "ship cannon static",
+          "geom": {
+            "size": {
+              "x": 0.9952,
+              "y": 0.7623,
+              "z": 1.8221
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": 0.0073,
+              "y": 0.3852,
+              "z": -0.2544
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ]
+        },
+        {
+          "asset": "291d7307-7973-4f09-96ac-e459f3f32d88",
+          "name": "ship cannon up or down",
+          "geom": {
+            "size": {
+              "x": 0.9589,
+              "y": 0.9465,
+              "z": 1.7961
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0003,
+              "y": 0.4774,
+              "z": 0.1704
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "variant": "raised"
+        }
+      ]
+    },
+    "ship.capstan": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "38bb25ab-af2f-46fe-8352-853300efea3c",
+          "name": "Anchor wheel",
+          "geom": {
+            "size": {
+              "x": 1.8194,
+              "y": 0.9161,
+              "z": 1.5506
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0011,
+              "y": 0.4594,
+              "z": -0.0139
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    "ship.cargo": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "d7d6e269-021a-4866-ad1b-2cb27a32bebf",
+          "name": "Dark Crate Large 02",
+          "geom": {
+            "size": {
+              "x": 1.0191,
+              "y": 1.0216,
+              "z": 1.0163
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.5149,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "crate"
+        },
+        {
+          "asset": "0f8bad52-f928-4a51-a4e2-892312fc15be",
+          "name": "Dark Crate Medium 02",
+          "geom": {
+            "size": {
+              "x": 0.6161,
+              "y": 0.5143,
+              "z": 0.9961
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2571,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "crate"
+        },
+        {
+          "asset": "2fa63641-2983-4e88-b393-68b52a86a359",
+          "name": "Dark Crate Small 01",
+          "geom": {
+            "size": {
+              "x": 0.5232,
+              "y": 0.5008,
+              "z": 0.5147
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.2504,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "crate-small"
+        },
+        {
+          "asset": "ef85dc8f-e02a-4b9c-9ac2-66824eea03ae",
+          "name": "Dark Crate stack",
+          "geom": {
+            "size": {
+              "x": 0.7146,
+              "y": 0.7533,
+              "z": 0.921
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.3766,
+              "z": 0
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "crate-stack"
+        },
+        {
+          "asset": "459435e6-fe20-4282-8bb5-f0f2a42b2265",
+          "name": "Dark Barrel 01",
+          "geom": {
+            "size": {
+              "x": 0.8789,
+              "y": 1.0145,
+              "z": 0.8875
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.5072,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "barrel"
+        },
+        {
+          "asset": "6b834055-c529-4c15-a3e1-eaf72d7aef4b",
+          "name": "Barrel",
+          "geom": {
+            "size": {
+              "x": 0.6132,
+              "y": 0.7583,
+              "z": 0.6243
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.3792,
+              "z": 0
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "barrel"
+        }
+      ]
+    },
+    "ship.deck": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "e8ca21a0-5efb-47a1-a28c-37d609db25ba",
+          "name": "Ship floor 2x2",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        },
+        {
+          "asset": "d5f3bacb-01f2-4c22-9b7f-5f2627c747b3",
+          "name": "Ship floor 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "7e2b468d-2f8a-406c-be07-fc3a4df890a1",
+          "name": "Ship floor 2x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    "ship.deck_base": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "90734634-9093-4520-ac16-aaf31e16eee9",
+          "name": "Ship base floor 2x2",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 1,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ]
+        },
+        {
+          "asset": "95d7e8ce-a2dc-46e4-9e0b-4a7b07c53094",
+          "name": "Ship base floor 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.deck_bow": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "f2ad83a8-a0c5-4a95-a21d-b26be4bf55b1",
+          "name": "Ship floor 4x4 L_Bow v2",
+          "geom": {
+            "size": {
+              "x": 4,
+              "y": 0.5,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 2,
+              "y": 0.25,
+              "z": 2
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            4,
+            4
+          ],
+          "variant": "left"
+        },
+        {
+          "asset": "d4b11a1a-60a2-4c59-afa1-dd29c1653c94",
+          "name": "Ship floor 4x4 R_Bow v2",
+          "geom": {
+            "size": {
+              "x": 4,
+              "y": 0.5,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 2,
+              "y": 0.25,
+              "z": 2
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            4,
+            4
+          ],
+          "variant": "right"
+        },
+        {
+          "asset": "271abd8d-b1e7-41cb-81d3-30659c9d4a93",
+          "name": "Ship floor 4x4 L_Bow",
+          "geom": {
+            "size": {
+              "x": 4,
+              "y": 0.5,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 2,
+              "y": 0.25,
+              "z": 2
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            4,
+            4
+          ],
+          "variant": "left"
+        },
+        {
+          "asset": "7c3833c3-d3f1-461d-a593-11d701664198",
+          "name": "Ship floor 4x4 R_Bow",
+          "geom": {
+            "size": {
+              "x": 4,
+              "y": 0.5,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 2,
+              "y": 0.25,
+              "z": 2
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            4,
+            4
+          ],
+          "variant": "right"
+        }
+      ]
+    },
+    "ship.deck_edge": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "89f8b467-4fa5-4e67-9c53-650b99d0d4d0",
+          "name": "Ship floor 1x1 edge v2",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "e1747e85-f52f-4593-84ab-fb69667b0106",
+          "name": "Ship floor 2x1 edge v2",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "d991f267-ef00-4950-9cbd-4b1e0e77803e",
+          "name": "Ship floor 1x1 edge corner v2",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "corner"
+        },
+        {
+          "asset": "78101601-ab47-4ce0-aa9c-4500a8576579",
+          "name": "Ship floor 2x1 edge",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.deck_stern": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "3d368f77-0e46-4bdb-bc34-bdb752f4f9a9",
+          "name": "Ship floor corner curved Stern brown L",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "left"
+        },
+        {
+          "asset": "d9da129b-a168-4ec9-a93e-c12e7b4d7222",
+          "name": "Ship floor corner curved Stern brown R",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "right"
+        },
+        {
+          "asset": "81dcc847-8b1e-4d29-aae7-617475fc70da",
+          "name": "Ship floor corner curved Stern black L",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "black-left"
+        },
+        {
+          "asset": "1faed70a-386d-4f70-8bb6-161098ed7541",
+          "name": "Ship floor corner curved Stern black R",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "black-right"
+        },
+        {
+          "asset": "0ba7f7fa-fc4b-41c1-a923-7f208c780ada",
+          "name": "Ship floor 2x1 edge Stern v2_might useon upper only",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "edge"
+        },
+        {
+          "asset": "f57fa51f-fc89-4a23-b170-844669e3baf4",
+          "name": "Ship floor 2x1 edge Stern",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "edge"
+        },
+        {
+          "asset": "40bb4977-8cbb-41c5-8862-57377b6a9b08",
+          "name": "Ship floor 1x1 edge Stern v2",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "edge"
+        }
+      ]
+    },
+    "ship.deck_trim": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "b062582f-627d-44f8-afd8-edc2c06a2391",
+          "name": "Ship floor 2x2 decor unique black",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "black"
+        },
+        {
+          "asset": "820f9a0d-7947-492c-b721-0483a099eaef",
+          "name": "Ship 2x2 decor corner",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "corner"
+        },
+        {
+          "asset": "33d80e9a-c9d3-4f61-a525-44a448fe1664",
+          "name": "Ship 2x2 corner top fence black L",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "black-left"
+        },
+        {
+          "asset": "506998b3-c8bd-4ba6-9d08-d6f19ebb4f96",
+          "name": "Ship 2x2 corner top fence black R",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "black-right"
+        }
+      ]
+    },
+    "ship.door": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "615ed958-cf0c-403b-ba03-9a3367b2c55d",
+          "name": "ship door",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.fitting": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "c2e736c2-dee4-4cb6-868d-db48a4b2d02f",
+          "name": "rope pile spare",
+          "geom": {
+            "size": {
+              "x": 0.6906,
+              "y": 0.1265,
+              "z": 0.6621
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.005,
+              "y": 0.0735,
+              "z": -0.0115
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "coil"
+        },
+        {
+          "asset": "6b987486-5010-4aec-ab60-674379b19174",
+          "name": "rope hitch floor",
+          "geom": {
+            "size": {
+              "x": 0.2183,
+              "y": 0.0795,
+              "z": 0.2155
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0001,
+              "y": 0.0375,
+              "z": -0.001
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "cleat"
+        },
+        {
+          "asset": "c677c12c-1128-43a6-bb6c-9a8a4a42d6a1",
+          "name": "rope hitch wall",
+          "geom": {
+            "size": {
+              "x": 0.221,
+              "y": 0.2215,
+              "z": 0.0703
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0027,
+              "y": 0.1171,
+              "z": 0.0347
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "hitch"
+        },
+        {
+          "asset": "04ab0fe9-44de-4563-9cbc-179102cd827c",
+          "name": "rope hitch pegged wall",
+          "geom": {
+            "size": {
+              "x": 0.1783,
+              "y": 0.2599,
+              "z": 0.1745
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0003,
+              "y": 0.1391,
+              "z": 0.0868
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "hitch-pegged"
+        }
+      ]
+    },
+    "ship.forepeak": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "d5640b50-6a5a-41fd-a295-db6cd5e7e038",
+          "name": "Ship Forepeak_top",
+          "geom": {
+            "size": {
+              "x": 6,
+              "y": 3.75,
+              "z": 7
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 3,
+              "y": 1.875,
+              "z": 3.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            6,
+            7
+          ],
+          "variant": "top"
+        },
+        {
+          "asset": "89af8f0d-1af6-41b9-938e-d1f1ce56a76f",
+          "name": "Ship Forepeak_mid",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "mid"
+        }
+      ]
+    },
+    "ship.gangplank": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "1c642424-5791-44d4-9fb0-93e20a88f8cc",
+          "name": "ship plank walk the",
+          "geom": {
+            "size": {
+              "x": 0.6789,
+              "y": 0.2278,
+              "z": 2.6934
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": 0.0013,
+              "y": 0.1093,
+              "z": 0.9179
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            3
+          ]
+        }
+      ]
+    },
+    "ship.grating": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "76b48d81-fe8f-4317-b71a-5e805aeba1b1",
+          "name": "Ship floor 2x2 hole grid",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "grating"
+        },
+        {
+          "asset": "e099c79b-fccf-4f56-ac46-df78281823f9",
+          "name": "Ship floor 2x2 hole",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "open"
+        }
+      ]
+    },
+    "ship.hammock": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "8bb32927-1b37-4f45-91c6-d67f4aec16ee",
+          "name": "bed sling",
+          "geom": {
+            "size": {
+              "x": 1.9789,
+              "y": 0.8641,
+              "z": 0.5
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0031,
+              "y": 0.4305,
+              "z": -0.0176
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "4bf1360a-99ca-483b-b723-f350c6a9f249",
+          "name": "bed sling closed",
+          "geom": {
+            "size": {
+              "x": 1.962,
+              "y": 0.554,
+              "z": 0.5
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0007,
+              "y": 0.2754,
+              "z": -0.0176
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "stowed"
+        }
+      ]
+    },
+    "ship.hatch": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "c9b366a3-33fa-4366-9308-7e263fb8bc50",
+          "name": "hatch wood ship floor unique",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.25,
+              "z": 1
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ]
+        },
+        {
+          "asset": "db607b82-e107-412c-a899-33afe30c6368",
+          "name": "Wood Hatch - Square floor",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "small"
+        }
+      ]
+    },
+    "ship.helm": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "e9975458-e3a0-4fd6-9c01-2043aea0c449",
+          "name": "Ship floor Steering wheel",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 0.5,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.hull_bow": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "687bf992-ec98-4def-9812-af557254feb0",
+          "name": "Ship bottom front L_Bow",
+          "geom": {
+            "size": {
+              "x": 4,
+              "y": 5,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 2,
+              "y": 2.5,
+              "z": 2
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            4,
+            4
+          ],
+          "variant": "left"
+        },
+        {
+          "asset": "03368c03-da0c-4ad0-b55e-228f5fabd712",
+          "name": "Ship bottom front R_Bow",
+          "geom": {
+            "size": {
+              "x": 4,
+              "y": 5,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 2,
+              "y": 2.5,
+              "z": 2
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            4,
+            4
+          ],
+          "variant": "right"
+        },
+        {
+          "asset": "d910478b-bb63-43b4-879f-29a5716e75f6",
+          "name": "Ship bottom front filler 4x2_Bow",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 5,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 2.5,
+              "z": 2
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            4
+          ],
+          "variant": "filler"
+        }
+      ]
+    },
+    "ship.hull_side": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "0eddb89e-10dd-4fcb-b0cd-892dcbb9ca01",
+          "name": "Ship bottom side 4x2_Port and Starboard",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 5,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 2.5,
+              "z": 2
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            4
+          ]
+        }
+      ]
+    },
+    "ship.hull_stern": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "9e2aae50-0d76-4351-9d84-69f36c16d5f6",
+          "name": "Ship bottom back Fin 4x2_Rudder",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 5,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 2.5,
+              "z": 2
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            2,
+            4
+          ],
+          "variant": "rudder"
+        },
+        {
+          "asset": "2fc59371-8023-4f4b-a15a-937ad56dafb7",
+          "name": "Ship bottom back L_Stern",
+          "geom": {
+            "size": {
+              "x": 4,
+              "y": 5,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 2,
+              "y": 2.5,
+              "z": 2
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            4,
+            4
+          ],
+          "variant": "left"
+        },
+        {
+          "asset": "826d43b0-3574-47e8-93f2-40aa8b297aa0",
+          "name": "Ship bottom back R_Stern",
+          "geom": {
+            "size": {
+              "x": 4,
+              "y": 5,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 2,
+              "y": 2.5,
+              "z": 2
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            4,
+            4
+          ],
+          "variant": "right"
+        }
+      ]
+    },
+    "ship.ladder": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "5271fa89-4e18-4f65-a35c-3ab3f39d34c7",
+          "name": "rope ladder st",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.1227
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.lantern": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "9b776019-78a4-4f0a-abbd-db91420dfa07",
+          "name": "Lantern on hook 01",
+          "geom": {
+            "size": {
+              "x": 0.1929,
+              "y": 0.6797,
+              "z": 0.3923
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.002,
+              "y": -0.2978,
+              "z": 0.1966
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.mast": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "f1f40859-3efb-4515-9615-4cc5c8407d98",
+          "name": "Ship Mast base",
+          "geom": {
+            "size": {
+              "x": 1.2791,
+              "y": 1.9924,
+              "z": 1.2596
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0106,
+              "y": 1.0032,
+              "z": -0.0184
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "base"
+        },
+        {
+          "asset": "1c983276-6c6b-482b-8319-4f37b483b18b",
+          "name": "Ship Mast mid",
+          "geom": {
+            "size": {
+              "x": 0.7185,
+              "y": 1.9924,
+              "z": 0.7343
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0001,
+              "y": 1.0032,
+              "z": 0.0058
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "mid"
+        },
+        {
+          "asset": "2afea5c2-5750-4501-b189-d0f4d4a88a70",
+          "name": "Ship Mast top",
+          "geom": {
+            "size": {
+              "x": 0.7185,
+              "y": 2.3999,
+              "z": 0.7343
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0001,
+              "y": 1.2069,
+              "z": 0.0058
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "top"
+        }
+      ]
+    },
+    "ship.mast_top": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "f687b585-3271-4a74-a647-fab257c402b8",
+          "name": "Ship Mast lookout full",
+          "geom": {
+            "size": {
+              "x": 3.0124,
+              "y": 1.4962,
+              "z": 2.9444
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0036,
+              "y": 0.7551,
+              "z": 0.0077
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            3,
+            3
+          ]
+        }
+      ]
+    },
+    "ship.net": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "453d486a-a6bb-4fbd-bccc-20c10b311dbd",
+          "name": "Harbor Net Center 01",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.125,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.oars": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "2ead04bf-62ef-4a29-81a6-a44786a9b8ec",
+          "name": "paddle single floor pile",
+          "geom": {
+            "size": {
+              "x": 0.7726,
+              "y": 0.3033,
+              "z": 3.3037
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": 0.2162,
+              "y": 0.1503,
+              "z": 0.0011
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            3
+          ]
+        }
+      ]
+    },
+    "ship.rail": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "563b889d-b71d-4a7e-88df-8a377024d4d8",
+          "name": "Ship fence side 2x1",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 1.25,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.625,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "c3efb244-ab3d-489e-a2a8-ece01ccd438d",
+          "name": "Ship fence side 1x1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1.25,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.625,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "d19f0001-1c97-40ab-b62b-34e2aba2bfea",
+          "name": "Ship fence side 1x1 v2",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1.25,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.625,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.rail_bow": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "54a4d111-e3f8-4198-b9d9-f300bc79ebd9",
+          "name": "Ship fence bow curved",
+          "geom": {
+            "size": {
+              "x": 4,
+              "y": 1.25,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 2,
+              "y": 0.625,
+              "z": 2
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            4,
+            4
+          ]
+        }
+      ]
+    },
+    "ship.rail_end": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "6ebe231f-6b0b-4696-b7a9-821c1ed035d7",
+          "name": "Ship fence end port",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "port"
+        },
+        {
+          "asset": "0940cd11-396a-46d2-8073-9b52704febdb",
+          "name": "Ship fence end starboard",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "starboard"
+        }
+      ]
+    },
+    "ship.rail_low": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "d546672e-3d81-4e63-bcce-2ca18ee6c105",
+          "name": "Ship fence 2x1 side short",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 1.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.625,
+              "z": 0.5
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "8ce6fa07-77cd-48ac-9939-e92dd23ce373",
+          "name": "Ship fence corner short",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.625,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "corner"
+        }
+      ]
+    },
+    "ship.rail_stern": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "10bf3eed-15fe-40db-a156-26c9abe76431",
+          "name": "Ship fence stern 2x1",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 1.25,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.625,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "6bd118b9-8c71-4e65-8014-b0c5faa8fa9f",
+          "name": "Ship fence stern 2x1 short",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 1.25,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 0.625,
+              "z": 0.5
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "low"
+        }
+      ]
+    },
+    "ship.rope": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "93d1bdcb-76f1-4a45-8198-8445274beb01",
+          "name": "rope flat",
+          "geom": {
+            "size": {
+              "x": 2.0073,
+              "y": 0.1311,
+              "z": 0.1171
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0019,
+              "y": 0.0679,
+              "z": -0.0005
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.rope_hanging": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "3bf3ed10-227c-4b13-97ff-e41178ba008b",
+          "name": "rope single whip ext st",
+          "geom": {
+            "size": {
+              "x": 0.1637,
+              "y": 1.9953,
+              "z": 0.1171
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 1,
+              "z": -0.0005
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "a55f3847-e48e-47d7-a74f-db48398fa3cd",
+          "name": "rope single whip st",
+          "geom": {
+            "size": {
+              "x": 0.2022,
+              "y": 4,
+              "z": 0.1171
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0088,
+              "y": 2,
+              "z": -0.0005
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "long"
+        }
+      ]
+    },
+    "ship.rope_sloped": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "237391a4-5114-42e6-9ae5-8fea557d9743",
+          "name": "rope single whip ext",
+          "geom": {
+            "size": {
+              "x": 0.1444,
+              "y": 2.0129,
+              "z": 1.0813
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0044,
+              "y": 1.0065,
+              "z": 0.4885
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "8ad5aea0-5002-4123-a45f-97b41ac41df5",
+          "name": "rope single whip",
+          "geom": {
+            "size": {
+              "x": 0.2346,
+              "y": 4.0087,
+              "z": 2.0844
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": 0,
+              "y": 2.0043,
+              "z": 0.9821
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "variant": "long"
+        }
+      ]
+    },
+    "ship.sail_furled": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "5099adad-b662-4d18-a555-034579713e1b",
+          "name": "Sail Large 1x2 hanging",
+          "geom": {
+            "size": {
+              "x": 2.0277,
+              "y": 0.8991,
+              "z": 0.3014
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0118,
+              "y": -0.2817,
+              "z": -0.0042
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "a0aff3be-a51a-47cd-a8e1-099e002e8700",
+          "name": "Sail Large 1x1 hanging",
+          "geom": {
+            "size": {
+              "x": 1.0436,
+              "y": 0.4858,
+              "z": 0.2963
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0061,
+              "y": -0.0922,
+              "z": -0.0005
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "short"
+        }
+      ]
+    },
+    "ship.sail_set": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "49b46941-7e6b-411a-8a93-29c9c08a8d7d",
+          "name": "Sail Small 1x2",
+          "geom": {
+            "size": {
+              "x": 1.0324,
+              "y": 2.009,
+              "z": 0.1467
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0011,
+              "y": 1.0045,
+              "z": 0.0023
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "16a89402-09e8-4a68-acea-340346b4da84",
+          "name": "Sail Small 2x2",
+          "geom": {
+            "size": {
+              "x": 2.0317,
+              "y": 2.0089,
+              "z": 0.1494
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0055,
+              "y": 1.0044,
+              "z": 0.0132
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "88a410fb-dcf0-4d10-9d05-fb96772ba4a4",
+          "name": "Sail Large 2x4",
+          "geom": {
+            "size": {
+              "x": 2.0073,
+              "y": 4.0194,
+              "z": 0.6795
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 2.0097,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "large"
+        },
+        {
+          "asset": "37284016-1f45-4800-8720-3b728ce1265d",
+          "name": "Sail Large 1x4",
+          "geom": {
+            "size": {
+              "x": 1.0192,
+              "y": 4.0085,
+              "z": 0.6768
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 2.0043,
+              "z": 0
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "large"
+        }
+      ]
+    },
+    "ship.sail_slanted": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "4124709a-6699-445e-9134-6864f17e2ef9",
+          "name": "Sail Small 1x2 diagonal",
+          "geom": {
+            "size": {
+              "x": 1.0289,
+              "y": 1.9959,
+              "z": 0.1485
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0008,
+              "y": 0.998,
+              "z": 0.0035
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "f1dd4ca6-58b7-42b5-9337-17fe6755d065",
+          "name": "Sail Small 2x2 diagonal",
+          "geom": {
+            "size": {
+              "x": 2.0146,
+              "y": 2.0112,
+              "z": 0.157
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0024,
+              "y": 1.0056,
+              "z": 0.005
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.shot": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "e7898dec-3e36-4bd6-89e4-dac7aa19ab32",
+          "name": "cannon pile",
+          "geom": {
+            "size": {
+              "x": 0.3815,
+              "y": 0.3447,
+              "z": 0.4009
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0,
+              "y": 0.1767,
+              "z": -0.0035
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "2b87194f-3bcf-405c-8424-bdd21e984af1",
+          "name": "cannon line up",
+          "geom": {
+            "size": {
+              "x": 2.0025,
+              "y": 0.2203,
+              "z": 0.3391
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0017,
+              "y": 0.1145,
+              "z": -0.0001
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ],
+          "variant": "row"
+        }
+      ]
+    },
+    "ship.shrouds": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "c256005e-8d47-4a71-9112-da4381e0854b",
+          "name": "rope ladder",
+          "geom": {
+            "size": {
+              "x": 1.1362,
+              "y": 2.0281,
+              "z": 1.0724
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": 0.0069,
+              "y": 1.014,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.spar": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "df07c518-0265-4db7-871a-1469cd31fe2a",
+          "name": "ship beam 2m",
+          "geom": {
+            "size": {
+              "x": 0.2502,
+              "y": 1.9959,
+              "z": 0.2448
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0005,
+              "y": 1.0011,
+              "z": -0.0023
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "b345d974-c166-4894-a4ed-f676d75896bb",
+          "name": "ship beam 1m",
+          "geom": {
+            "size": {
+              "x": 0.2502,
+              "y": 1.0004,
+              "z": 0.2448
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": 0.0005,
+              "y": 0.5033,
+              "z": -0.0023
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "short"
+        }
+      ]
+    },
+    "ship.stairs": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "4d1b4a50-11c2-409c-aa3c-42d5798fe8fc",
+          "name": "Ship stairs v1",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "4d7ca0d0-54a6-4970-8b3a-35913e531a94",
+          "name": "Ship stairs v2",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.tackle": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "ca8fb607-c526-4348-9e9a-f625e6ac75f6",
+          "name": "Rope tight tackle",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 0.195,
+              "z": 0.2032
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.005,
+              "y": 0.0177,
+              "z": 0.0044
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "22f76729-b543-49a7-963c-9b075c3f88e3",
+          "name": "Rope tight tackle st",
+          "geom": {
+            "size": {
+              "x": 0.265,
+              "y": 0.9957,
+              "z": 0.2032
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0003,
+              "y": 0.5042,
+              "z": 0.0044
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "hanging"
+        },
+        {
+          "asset": "54cd1720-1552-4abe-b24c-3dba97250843",
+          "name": "Rope three fold purchase",
+          "geom": {
+            "size": {
+              "x": 1.2341,
+              "y": 1.061,
+              "z": 0.592
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.0045,
+              "y": 0.5305,
+              "z": 0.2427
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "purchase"
+        },
+        {
+          "asset": "c656498e-9e99-4196-9fe7-77b06b35670b",
+          "name": "Rope three fold purchase single",
+          "geom": {
+            "size": {
+              "x": 0.2921,
+              "y": 1.5251,
+              "z": 1.0155
+            },
+            "originAt": "other",
+            "boundsCenter": {
+              "x": -0.004,
+              "y": 0.7625,
+              "z": 0.5004
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "purchase-sloped"
+        },
+        {
+          "asset": "40033aa3-c104-4498-8177-f65f0834af27",
+          "name": "Rope three fold purchase single st",
+          "geom": {
+            "size": {
+              "x": 0.2557,
+              "y": 1.5,
+              "z": 0.2032
+            },
+            "originAt": "center",
+            "boundsCenter": {
+              "x": -0.0073,
+              "y": 0.7563,
+              "z": 0.0044
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "purchase-hanging"
+        }
+      ]
+    },
+    "ship.wall": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "daa42373-15bc-4e9c-a857-832925c82f84",
+          "name": "Ship wall supported 2x2",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            2,
+            1
+          ]
+        },
+        {
+          "asset": "374d957e-801e-4e1b-a659-24d9103f8e0f",
+          "name": "Ship wall decor filler",
+          "geom": {
+            "size": {
+              "x": 0.5,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.25,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ],
+          "variant": "filler"
+        }
+      ]
+    },
+    "ship.wall_curved": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "fc97447a-03a8-45fa-9bf4-94d8670830ff",
+          "name": "Ship wall basic corner curved 4x4",
+          "geom": {
+            "size": {
+              "x": 4,
+              "y": 2,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 2,
+              "y": 1,
+              "z": 2
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            4,
+            4
+          ]
+        },
+        {
+          "asset": "64806a8f-ee64-470e-ae2c-197a70b421d9",
+          "name": "Ship_wall_basic_4x4_corner_curved_diagonal",
+          "geom": {
+            "size": {
+              "x": 5,
+              "y": 2,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 2.5,
+              "y": 1,
+              "z": 2
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            5,
+            4
+          ],
+          "variant": "diagonal"
+        },
+        {
+          "asset": "16afe201-077c-4190-8f9c-31bd94f5c40b",
+          "name": "Ship_wall_basic_4x4_corner_curved_diagonal_mirrored",
+          "geom": {
+            "size": {
+              "x": 5,
+              "y": 2,
+              "z": 4
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 2.5,
+              "y": 1,
+              "z": 2
+            },
+            "lengthAxis": "x"
+          },
+          "footprint": [
+            5,
+            4
+          ],
+          "variant": "diagonal-mirrored"
+        }
+      ]
+    },
+    "ship.wall_hatch": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "19757492-fb20-4cd9-885c-2377e126f3e9",
+          "name": "hatch wood ship wall unique",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 1.25,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 0.625,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "ship.wall_porthole": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "3d95917c-ef8f-4483-b846-2850de3aedf0",
+          "name": "Ship wall 1x1 decor v3 porthole",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        },
+        {
+          "asset": "59682d3e-9429-4e14-b24d-c8a36eb2ec02",
+          "name": "Ship wall 1x1 decor v3 porthole cannon",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 1.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.75
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "variant": "gunport"
+        }
+      ]
+    },
+    "ship.wall_stern": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "b64cc8d2-6dd4-429b-bb07-fafe82ebfeae",
+          "name": "Ship wall 2x2 decor window unique",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "window"
+        },
+        {
+          "asset": "cf86218c-6386-4ca6-ab3d-c5cf062fa4ee",
+          "name": "Ship wall 2x1 decor window unique",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1.25,
+              "z": 1
+            },
+            "lengthAxis": "z"
+          },
+          "footprint": [
+            1,
+            2
+          ],
+          "variant": "window-narrow"
+        },
+        {
+          "asset": "b6f8b2ca-41bd-440b-8971-b417131bc9f7",
+          "name": "Ship wall 2x2 decor corner unique L",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "corner-left"
+        },
+        {
+          "asset": "2fb9b34d-50d7-4478-a680-54f5d51dd9f2",
+          "name": "Ship wall 2x2 decor corner unique R",
+          "geom": {
+            "size": {
+              "x": 2,
+              "y": 2.5,
+              "z": 2
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 1,
+              "y": 1.25,
+              "z": 1
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            2,
+            2
+          ],
+          "variant": "corner-right"
+        }
+      ]
+    },
+    "ship.wall_window": {
+      "minGenerator": 5,
+      "rotation": "inherit",
+      "variants": [
+        {
+          "asset": "c79b464e-17f9-4c0c-96ce-b9c18a71e0cb",
+          "name": "Ship wall 1x1 decor v3 window",
+          "geom": {
+            "size": {
+              "x": 1,
+              "y": 2,
+              "z": 0.5
+            },
+            "originAt": "minCorner",
+            "boundsCenter": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.25
+            },
+            "lengthAxis": "square"
+          },
+          "footprint": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
     "sign_band.default": {
       "variants": [
         {
