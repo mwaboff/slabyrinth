@@ -37,6 +37,31 @@ export {
 export type { ParseResult } from "./schema";
 export { BUNDLED_ORIENTATION, BUNDLED_PALETTES } from "./bundled";
 export { featureRoleFits, withAutoVariants } from "./auto";
+export {
+  AUTO_POLICY,
+  ROLE_FAMILIES,
+  classifyNew,
+  fitsSibling,
+  fittingSiblings,
+  rolePolicy,
+  siblingAgreement,
+  siblingIndex,
+  stemOf,
+} from "./autoRoles";
+export type {
+  AgreementRow,
+  AutoClassification,
+  AutoNewKit,
+  AutoPiece,
+  AutoPolicy,
+  AutoUnsure,
+  AutoWhere,
+  ClassifyOptions,
+  PieceFacts,
+  RoleFamily,
+  Sibling,
+  SiblingIndex,
+} from "./autoRoles";
 export { createPaletteView, paletteView } from "./view";
 export type { PaletteView, PieceSizeFn, RoomPieceFn, StallFormsFn } from "./view";
 export { TRAITS, TRAIT_IDS, borrowRisk, fitsShape, hasTrait, measurePiece, traitsOf } from "./traits";
