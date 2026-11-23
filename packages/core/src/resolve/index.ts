@@ -28,6 +28,7 @@ export {
   type WalkMode,
   type LevelCell,
 } from "./playability";
+export { emptyDeadEndsOf, floorCells, holdsSomething, layoutRooms, type LayoutRoom } from "./layoutRooms";
 export { cliffEdges, cliffRuns, type CliffEdge } from "./cliffs";
 export {
   roofUnsupportedEdges,

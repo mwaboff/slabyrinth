@@ -51,6 +51,8 @@ export function resolvePlan(
     }
     return td;
   };
+  // what the levels decide about the map's complex of rooms, in plan order (resolve/level/deadEnds.ts)
+  const complex = { plainDeadEnds: 0 };
   const works: ResolveLevelState[] = plan.levels.map(
     (_, levelIndex) =>
       new ResolveLevelState({
@@ -59,6 +61,7 @@ export function resolvePlan(
         themeDefaults,
         issues,
         palette,
+        complex,
       }),
   );
   const byId = new Map<string, ResolveGrid>();

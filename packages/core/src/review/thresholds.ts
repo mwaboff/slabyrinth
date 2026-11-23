@@ -5,6 +5,7 @@
 import { MATERIALS } from "../contracts/plan";
 import { isNaturalGround } from "../resolve/materials";
 import { typesWith, type FeatureInfo } from "../gen/catalog";
+import { COMPLEX } from "../gen/complexLayout";
 
 export const REVIEW = {
   /** Notes shown at most (the rest are dropped, lowest rank first). */
@@ -384,8 +385,8 @@ export const REVIEW = {
    * long corridor or rooms of one size on purpose.
    */
   layout: {
-    /** A level with fewer rooms is not judged as a complex. */
-    minRooms: 4,
+    /** A level with fewer rooms is not judged as a complex (the generator's number: gen/complexLayout.ts). */
+    minRooms: COMPLEX.minRooms,
     /** Areas smaller than this (floor cells) are not judged for a way back. */
     minTrapCells: 4,
     /** corridor_heavy: corridor floor above this share of room and corridor floor (example: 0.25). */
@@ -393,8 +394,11 @@ export const REVIEW = {
     /** rooms_same_size: at least this many rooms whose largest is under `sizeRatio` times the median (example: 2). */
     sizeRooms: 6,
     sizeRatio: 1.6,
-    /** dead_end_empty: more than this many rooms with one way on and nothing in them. */
-    emptyDeadEnds: 1,
+    /**
+     * dead_end_empty: more than this many rooms with one way on and nothing in them (the allowance the generator's bare
+     * dead ends stay within: gen/complexLayout.ts, resolve/level/deadEnds.ts).
+     */
+    emptyDeadEnds: COMPLEX.emptyDeadEnds,
     /** entrances_few: a map of this many rooms or more with at most `entrances` ways in. */
     entrancesRooms: 12,
     entrances: 1,

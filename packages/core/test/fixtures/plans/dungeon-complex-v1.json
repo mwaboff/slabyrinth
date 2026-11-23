@@ -1,0 +1,101 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 5,
+  "id": "5d1e7c2a-9b3f-4c6d-8e1a-2f4b6d8c0a11",
+  "title": "Dungeon Complex",
+  "kind": "dungeon",
+  "seed": 11,
+  "theme": "stone_dungeon",
+  "levels": [
+    {
+      "id": "l1",
+      "name": "Level 1",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 44, "h": 32 },
+      "base": { "type": "solid" },
+      "areas": [
+        {
+          "id": "gate",
+          "kind": "room",
+          "name": "Gatehouse",
+          "key": "1",
+          "shape": { "type": "rect", "x": 0, "y": 13, "w": 7, "h": 6 }
+        },
+        {
+          "id": "pass",
+          "kind": "corridor",
+          "name": "Passage",
+          "shape": { "type": "rect", "x": 7, "y": 15, "w": 26, "h": 2 }
+        },
+        {
+          "id": "hall",
+          "kind": "room",
+          "name": "Great hall",
+          "key": "2",
+          "shape": { "type": "rect", "x": 9, "y": 2, "w": 18, "h": 13 }
+        },
+        {
+          "id": "cells",
+          "kind": "room",
+          "name": "Cell block",
+          "key": "3",
+          "shape": { "type": "rect", "x": 9, "y": 17, "w": 16, "h": 8 }
+        },
+        {
+          "id": "vault",
+          "kind": "room",
+          "name": "Treasury",
+          "key": "4",
+          "shape": { "type": "rect", "x": 36, "y": 3, "w": 6, "h": 5 }
+        },
+        {
+          "id": "store",
+          "kind": "room",
+          "name": "Storeroom",
+          "key": "5",
+          "shape": { "type": "rect", "x": 35, "y": 13, "w": 7, "h": 6 }
+        },
+        {
+          "id": "nook",
+          "kind": "room",
+          "name": "Dusty chamber",
+          "key": "6",
+          "shape": { "type": "rect", "x": 28, "y": 21, "w": 5, "h": 5 }
+        },
+        {
+          "id": "side",
+          "kind": "room",
+          "name": "Side chamber",
+          "key": "7",
+          "shape": { "type": "rect", "x": 4, "y": 3, "w": 5, "h": 5 }
+        },
+        {
+          "id": "to_vault",
+          "kind": "corridor",
+          "shape": { "type": "route", "from": "pass", "to": "vault", "width": 1, "bend": "vh" }
+        },
+        {
+          "id": "to_store",
+          "kind": "corridor",
+          "shape": { "type": "route", "from": "pass", "to": "store", "width": 2, "bend": "hv" }
+        },
+        {
+          "id": "to_nook",
+          "kind": "corridor",
+          "shape": { "type": "route", "from": "pass", "to": "nook", "width": 1, "bend": "hv" }
+        }
+      ],
+      "openings": [
+        { "id": "gate_pass", "kind": "archway", "between": ["gate", "pass"] },
+        { "id": "hall_pass", "kind": "double_door", "between": ["hall", "pass"] },
+        { "id": "cells_pass", "kind": "door", "between": ["cells", "pass"], "position": 0.3 },
+        { "id": "hall_side", "kind": "door", "between": ["hall", "side"] }
+      ],
+      "walls": [],
+      "features": [],
+      "terrain": [],
+      "labels": []
+    }
+  ],
+  "links": []
+}

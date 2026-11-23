@@ -459,6 +459,19 @@ function poseAt(
     );
     if (kept === null) return null;
     centre = kept;
+    // generator 5 (companionsClearPosts): set beside the anchor it may have moved into a corner post's square: it steps
+    // out of it the short way, and where that leaves its cell it does not stand there
+    if (gridProfile(room.grid).companionsClearPosts) {
+      const out = clearOfPosts(
+        room,
+        cell,
+        centre,
+        (quarter ? ext.dMax : ext.wMax) / 2,
+        (quarter ? ext.wMax : ext.dMax) / 2,
+      );
+      if (out === null) return null;
+      centre = out;
+    }
   }
   const clamp = (v: number): number => Math.max(-0.5, Math.min(0.5, Math.round(v * 100) / 100));
   const offset: XY = [clamp(centre[0] - cell[0] - 0.5), clamp(centre[1] - cell[1] - 0.5)];
@@ -483,6 +496,39 @@ function poseAt(
     blocking,
     height: ext.hMax,
   };
+}
+
+/**
+ * A piece's centre (half sizes in plan axes) moved the short way out of the 0.5 square a post takes at a corner of its
+ * cell (an inner corner of the room, or a junction where another wall meets its wall: Room.postAt), as touchShift keeps
+ * a piece pushed into a corner clear of it; null when the move would take its outline out of its cell.
+ */
+function clearOfPosts(room: Room, cell: XY, centre: XY, hx: number, hy: number): XY | null {
+  const at = room.postAt;
+  const eps = 0.02;
+  let [cx, cy] = centre;
+  for (const vx of [cell[0], cell[0] + 1])
+    for (const vy of [cell[1], cell[1] + 1]) {
+      const post = room.posts.some(([px, py]) => px === vx && py === vy) || at?.(vx, vy) === true;
+      if (!post) continue;
+      const lowX = vx === cell[0];
+      const lowY = vy === cell[1];
+      const [sx0, sx1] = lowX ? [vx, vx + 0.5] : [vx - 0.5, vx];
+      const [sy0, sy1] = lowY ? [vy, vy + 0.5] : [vy - 0.5, vy];
+      const ox = Math.min(cx + hx, sx1) - Math.max(cx - hx, sx0);
+      const oy = Math.min(cy + hy, sy1) - Math.max(cy - hy, sy0);
+      if (ox <= eps || oy <= eps) continue;
+      // away from the post's vertex along the axis it reaches in least
+      if (ox <= oy) cx += lowX ? ox : -ox;
+      else cy += lowY ? oy : -oy;
+    }
+  if (cx === centre[0] && cy === centre[1]) return centre;
+  // the step may not take it further out of its cell than it stood
+  const over = (c: number, h: number, lo: number): number => Math.max(0, lo - (c - h), c + h - (lo + 1));
+  const inside =
+    over(cx, hx, cell[0]) <= over(centre[0], hx, cell[0]) + eps &&
+    over(cy, hy, cell[1]) <= over(centre[1], hy, cell[1]) + eps;
+  return inside ? [cx, cy] : null;
 }
 
 /**

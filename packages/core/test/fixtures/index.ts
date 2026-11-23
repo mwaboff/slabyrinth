@@ -52,6 +52,7 @@ export const STORED_PLANS = [
   "varied-street-v1",
   "two-quarters-v1",
   "railed-terrace-v1",
+  "dungeon-complex-v1",
 ] as const;
 
 /** Every plan in test/unit/gen/fixtures/. */

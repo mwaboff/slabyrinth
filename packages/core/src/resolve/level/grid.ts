@@ -68,6 +68,11 @@ export interface LevelContext {
    * built once per resolve, the same palettes the compiler decides from (palette/view.ts).
    */
   palette: PaletteView;
+  /**
+   * Generator 5 (deadEndVignettes): what the map's levels have decided so far about its complex, one record for the
+   * whole plan (resolvePlan.ts), the levels in plan order: how many dead ends were left plain.
+   */
+  complex?: { plainDeadEnds: number };
 }
 
 /**

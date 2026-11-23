@@ -120,6 +120,8 @@ export interface RouteRecord {
   to: number;
   width: number;
   kind: OpeningKind;
+  /** The plan named the kind (shape.openings); else `kind` is the default gap and generator 5 may choose (doorsByRole). */
+  stated: boolean;
   startSquare: Array<[number, number]>;
   endSquare: Array<[number, number]>;
   /** Edge orientation crossed by the route where it leaves `from` / enters `to` (null = unknown). */
@@ -200,6 +202,7 @@ function routeArea(work: ResolveGrid, info: AreaInfo): RouteRecord | null {
     to: b.ai,
     width,
     kind: shape.openings ?? "open",
+    stated: shape.openings !== undefined,
     startSquare: i0 < j0 ? square(line[i0] as [number, number]) : [],
     endSquare: i0 < j0 ? square(line[j0 - 1] as [number, number]) : [],
     orientA: i0 > 0 && i0 < line.length ? crossOrient(line[i0 - 1] as Vec2, line[i0] as Vec2) : null,

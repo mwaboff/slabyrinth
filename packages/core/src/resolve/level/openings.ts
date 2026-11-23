@@ -8,7 +8,9 @@
 import type { OpeningKind } from "../../contracts/plan";
 import type { ResolvedOpening } from "../../contracts/resolved";
 import { EDGE } from "../../contracts/resolved";
+import { DOOR_BY_ROLE, DOOR_TREATMENTS, doorRole } from "../../gen/complexLayout";
 import { isGap, isSecret, openingWidth } from "../../gen/openingKinds";
+import { elementSeed, hashUnit } from "../../util/hash";
 import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import { edgeCol, edgeRow } from "../levelGrid";
 import type { RouteRecord } from "./areas";
@@ -260,6 +262,7 @@ export function stepOpenings(
       placeOpening(work, out, o, ed.orient, idx, path, true, false);
     }
   });
+  const byRole = routes.some((r) => !r.stated) && doorsByRole(work);
   for (const r of routes) {
     const info = work.areas[r.ai] as AreaInfo;
     const make = (
@@ -281,12 +284,14 @@ export function stepOpenings(
       const len = run.idx.length;
       const wd = Math.min(len, r.width, 3);
       const off = Math.floor((len - wd) * 0.5);
+      const idx = run.idx.slice(off, off + wd);
+      const kind = byRole && !r.stated ? roleKind(work, target, run.orient, idx) : r.kind;
       placeOpening(
         work,
         out,
-        { id: `${info.area.id}~${suffix}`, kind: r.kind },
+        { id: `${info.area.id}~${suffix}`, kind },
         run.orient,
-        run.idx.slice(off, off + wd),
+        idx,
         `/levels/${work.li}/areas/${r.ai}`,
         false,
         true,
@@ -295,6 +300,30 @@ export function stepOpenings(
     make(r.from, r.startSquare, "a", r.orientA);
     make(r.to, r.endSquare, "b", r.orientB);
   }
+}
+
+/**
+ * Generator 5 (doorsByRole): does this level hang its unnamed route openings by role? Drawn once per level from
+ * DOOR_TREATMENTS (the plain treatment keeps every one a gap).
+ */
+function doorsByRole(work: ResolveGrid): boolean {
+  if (!work.profile.doorsByRole) return false;
+  const u = hashUnit(elementSeed(work.plan.seed, `${work.level.id}~doors`, undefined), "treatment", 0);
+  const { byRole, plain } = DOOR_TREATMENTS;
+  return u * (byRole + plain) < byRole;
+}
+
+/**
+ * The kind of an unnamed route opening into area `target` over these edges: by the role of the room it opens into
+ * (gen/complexLayout.ts), a leaf or an arch only where every edge is a wall to hang it in; a gap into anything else.
+ */
+function roleKind(work: ResolveGrid, target: number, orient: "h" | "v", idx: readonly number[]): OpeningKind {
+  const t = work.areas[target];
+  if (t === undefined || t.kind !== "room") return "open";
+  const e = orient === "h" ? work.hE : work.vE;
+  if (!idx.every((i) => e.kind[i] === EDGE.WALL)) return "open";
+  const role = doorRole(t.room, work.areaCells(target).length);
+  return DOOR_BY_ROLE[role][Math.min(3, Math.max(1, idx.length)) - 1] as OpeningKind;
 }
 
 function meetingEdges(

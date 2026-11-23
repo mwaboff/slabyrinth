@@ -571,6 +571,18 @@ const SWITCHES = {
     5,
     "A shelf plank wider than its cell (the palette's widest variant, asked of the palette) stands inward where the wall it hangs on ends (a corner, a doorway, a window), so it never reaches past the wall; on a stretch of wall shorter than the plank both ways it is left out (gen/rooms4/things.ts addShelf).",
   ),
+  deadEndVignettes: on(
+    5,
+    "A room of the complex with one way on and nothing in it (the review's own walk, resolve/layoutRooms.ts) gets a small set against its far wall, drawn per room from a weighted table with a plain option (a cache, remains and loot, stores, a figure: gen/complexLayout.ts); the plain option only while the map's bare dead ends stay within the review's allowance (resolve/level/deadEnds.ts).",
+  ),
+  doorsByRole: on(
+    5,
+    "A route corridor whose openings the plan leaves unnamed opens into each room by the room's role (an arch into a hall or a crypt, a locked door into a treasury or cells, a door into a room in use, double doors where the corridor is two wide, a gap into a passage or a room with no purpose), drawn per level with a plain option (every one a gap, as before) and only where a wall stands to hang it in (gen/complexLayout.ts DOOR_BY_ROLE, resolve/level/openings.ts).",
+  ),
+  companionsClearPosts: on(
+    5,
+    "A group's companion set beside its anchor (a cell's bucket at the head of its cot) keeps out of the 0.5 square a corner post takes at a corner of its cell, as a piece pushed into a corner does: it steps out of the post the short way, and where that would take it further out of its cell it stands elsewhere or not at all (gen/rooms4/groups.ts poseAt).",
+  ),
   sacredReads: on(
     5,
     "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",

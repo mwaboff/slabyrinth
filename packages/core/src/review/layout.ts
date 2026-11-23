@@ -13,32 +13,13 @@
  *                    one-way drop, a trapdoor or a pit, with no stair or door of its own back up)
  */
 import type { Vec2 } from "../contracts/plan";
-import {
-  CELL,
-  CELL_FLAG,
-  type ResolvedArea,
-  type ResolvedLevel,
-  type ResolvedPlan,
-} from "../contracts/resolved";
-import { LIGHT_FEATURES, featureInfo } from "../gen/catalog";
-import { SIDES } from "../gen/gridGeometry";
+import type { ResolvedPlan } from "../contracts/resolved";
 import { entryLevelId, linkKindInfo } from "../plan/links";
-import { WalkGraph } from "../resolve";
+import { WalkGraph, emptyDeadEndsOf, floorCells, layoutRooms, type LayoutRoom } from "../resolve";
 import { maxOf } from "../util/lists";
 import { REVIEW } from "./thresholds";
 
-/** One room of a level: its floor, its ways on, and whether it holds something. */
-export interface LayoutRoom {
-  readonly levelId: string;
-  readonly id: string;
-  readonly name: string;
-  readonly floor: number;
-  /** Distinct neighbouring areas a step leads into, plus one for a link (stairs, ladder, drop) in the room. */
-  readonly ways: number;
-  /** A feature stands in it that is neither a light nor strewn litter. */
-  readonly holds: boolean;
-  readonly cell: Vec2;
-}
+export type { LayoutRoom } from "../resolve";
 
 export interface LevelLayout {
   readonly levelId: string;
@@ -62,28 +43,11 @@ export interface MapLayout {
 
 const T = REVIEW.layout;
 
-/** The walkable floor cells of each area of a level (local indices), by area index. */
-function floorOf(L: ResolvedLevel): Map<number, number[]> {
-  const out = new Map<number, number[]>();
-  for (let i = 0; i < L.cells.area.length; i++) {
-    const a = L.cells.area[i] as number;
-    if (a === 0 || L.cells.state[i] !== CELL.OPEN) continue;
-    if (((L.cells.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.WATER)) !== 0) continue;
-    const list = out.get(a - 1) ?? [];
-    list.push(i);
-    out.set(a - 1, list);
-  }
-  return out;
-}
-
 const median = (xs: readonly number[]): number => {
   const s = [...xs].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
   return s.length % 2 === 1 ? (s[m] as number) : ((s[m - 1] as number) + (s[m] as number)) / 2;
 };
-
-/** A room of the plan's layout (a building's ground-storey rooms, generator 5 buildingRooms, are the building's). */
-const isRoom = (a: ResolvedArea): boolean => a.kind === "room" && a.building === undefined;
 
 /** The layout measures of a whole map. */
 export function mapLayout(resolved: ResolvedPlan, entryLevel?: string): MapLayout {
@@ -94,41 +58,14 @@ export function mapLayout(resolved: ResolvedPlan, entryLevel?: string): MapLayou
   for (const L of resolved.levels) {
     const d = g.byId.get(L.id);
     if (!d) continue;
-    const floors = floorOf(L);
-    const W = L.bounds.w;
-    const xy = (i: number): Vec2 => [L.bounds.x + (i % W), L.bounds.y + Math.floor(i / W)];
-    const rooms: LayoutRoom[] = [];
-    let roomFloor = 0;
+    const floors = floorCells(L);
+    // the rooms and their ways on, as the resolver asked while it built the level (resolve/layoutRooms.ts)
+    const rooms = layoutRooms(L, L.areas, L.features, { deep: d.deep, lava: d.lava }, floors);
     let corridorFloor = 0;
     L.areas.forEach((a, ai) => {
-      const cells = floors.get(ai) ?? [];
-      if (a.kind === "corridor") corridorFloor += cells.length;
-      if (!isRoom(a) || cells.length === 0) return;
-      roomFloor += cells.length;
-      const next = new Set<number>();
-      let link = false;
-      for (const i of cells) {
-        if (((L.cells.flags[i] as number) & (CELL_FLAG.LINK | CELL_FLAG.STEPS)) !== 0) link = true;
-        for (const s of SIDES) {
-          const [j, pass] = g.step(d, i, s, mode);
-          if (!pass || j < 0 || !g.walkable(d, j, mode)) continue;
-          const b = L.cells.area[j] as number;
-          if (b !== ai + 1) next.add(b);
-        }
-      }
-      const holds = L.features.some(
-        (f) => f.area === a.id && !LIGHT_FEATURES.has(f.type) && featureInfo(f.type).strewn !== true,
-      );
-      rooms.push({
-        levelId: L.id,
-        id: a.id,
-        name: a.name ?? a.id,
-        floor: cells.length,
-        ways: next.size + (link ? 1 : 0),
-        holds,
-        cell: xy(cells[0] as number),
-      });
+      if (a.kind === "corridor") corridorFloor += (floors.get(ai) ?? []).length;
     });
+    const roomFloor = rooms.reduce((n, r) => n + r.floor, 0);
     roomCount += rooms.length;
     if (rooms.length < T.minRooms) continue;
     const sizes = rooms.map((r) => r.floor);
@@ -158,7 +95,7 @@ export function mapLayout(resolved: ResolvedPlan, entryLevel?: string): MapLayou
       const d = g.byId.get(L.id);
       if (!d) continue;
       const r = reached[d.li];
-      const floors = floorOf(L);
+      const floors = floorCells(L);
       L.areas.forEach((a, ai) => {
         if (a.kind === "zone") return;
         const cells = (floors.get(ai) ?? []).filter((i) => r?.[i] === 1);
@@ -185,4 +122,4 @@ export function mapLayout(resolved: ResolvedPlan, entryLevel?: string): MapLayou
 
 /** Rooms with one way on that hold nothing, over the judged levels. */
 export const emptyDeadEnds = (m: MapLayout): LayoutRoom[] =>
-  m.levels.flatMap((l) => l.rooms.filter((r) => r.ways === 1 && !r.holds));
+  m.levels.flatMap((l) => emptyDeadEndsOf(l.rooms));
