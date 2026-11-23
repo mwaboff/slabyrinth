@@ -123,12 +123,8 @@ export function roomLightLevel(
   return clampTo04(clampTo04(lit.level + parent - 2, 0, 4) + variety, lit.range[0], lit.range[1]);
 }
 
-/** A surface people sit or work at, or a nightstand: what a regime lights first. */
-const SURFACE = (q: Placed): boolean =>
-  q.wantsLight === true ||
-  (featureInfo(q.type).seatsAt === true &&
-    featureInfo(q.type).topLight === "candle" &&
-    q.type !== "bar_counter");
+/** A surface people sit or work at (catalog `surfaceLight`), or a nightstand: what a regime lights first. */
+const SURFACE = (q: Placed): boolean => q.wantsLight === true || featureInfo(q.type).surfaceLight === true;
 
 /** A light on a surface: a lone candle on a low one (a nightstand), else the support's own light (gen/rooms4/groups). */
 function lampOn(room: Room, q: Placed): boolean {

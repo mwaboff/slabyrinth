@@ -34,7 +34,8 @@ import type {
   ResolvedLevel,
 } from "../contracts/resolved";
 import { conditionNamedBy, ruinNamedBy } from "../gen/buildingCondition";
-import { colourTheme, lightNamedBy, themeLight } from "../gen/lightLevels";
+import { lightNamedBy } from "../gen/lightLevels";
+import { colourTheme, themeLight } from "./themes";
 import { forEachMaskCell } from "../gen/mask";
 import { classifyRoom } from "../gen/roomPurpose";
 import { roomLightLevel } from "../gen/rooms4/regimes";

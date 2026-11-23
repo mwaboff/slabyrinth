@@ -40,6 +40,18 @@ export interface FeatureInfo {
    * table, a desk, an altar), a small lantern on a counter or chest. Unset: nothing is lit on it.
    */
   topLight?: "candle" | "lantern";
+  /**
+   * Generator 5: a top people sit or work at that is lit wherever it stands (a table, a desk): the room lights put a
+   * candle on it first (gen/rooms4/regimes.ts, occupancy.ts). A bar is lit by its regime, not on every segment.
+   */
+  surfaceLight?: boolean;
+  /**
+   * Generator 5: a light for a table top (a candle, a candelabra): one standing on a floor reads as a flame dropped
+   * there, so a room's floor takes a standing light instead (gen/rooms4/furnish.ts).
+   */
+  tableLight?: boolean;
+  /** Something to sleep in (a bed, a bunk): it keeps a free cell beside it (generator 5, gen/rooms4/wall.ts). */
+  sleepsIn?: boolean;
   /** Hung from the ceiling: raised on purpose, so verify never calls it floating (compile/verify/props.ts). */
   ceilingMounted?: boolean;
   /**
@@ -127,16 +139,33 @@ const F = (label: string, category: FeatureCategory, opts: FeatureOpts = {}): Fe
 };
 
 export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
-  table: F("Table", "furniture", { size: [2, 1], topLight: "candle", seatsAt: true, support: true }),
-  round_table: F("Round table", "furniture", { topLight: "candle", seatsAt: true, support: true }),
+  table: F("Table", "furniture", {
+    size: [2, 1],
+    topLight: "candle",
+    seatsAt: true,
+    support: true,
+    surfaceLight: true,
+  }),
+  round_table: F("Round table", "furniture", {
+    topLight: "candle",
+    seatsAt: true,
+    support: true,
+    surfaceLight: true,
+  }),
   chair: F("Chair", "furniture", { seat: true }),
   bench: F("Bench", "furniture", { size: [2, 1], seat: true }),
   stool: F("Stool", "furniture", { seat: true }),
-  bed: F("Bed", "furniture", { size: [1, 2] }),
-  bunk_bed: F("Bunk bed", "furniture", { size: [1, 2] }),
+  bed: F("Bed", "furniture", { size: [1, 2], sleepsIn: true }),
+  bunk_bed: F("Bunk bed", "furniture", { size: [1, 2], sleepsIn: true }),
   wardrobe: F("Wardrobe", "furniture", { wallHugger: true }),
   bookshelf: F("Bookshelf", "furniture", { size: [2, 1], wallHugger: true }),
-  desk: F("Desk", "furniture", { size: [2, 1], topLight: "candle", seatsAt: true, support: true }),
+  desk: F("Desk", "furniture", {
+    size: [2, 1],
+    topLight: "candle",
+    seatsAt: true,
+    support: true,
+    surfaceLight: true,
+  }),
   chest: F("Chest", "furniture", { topLight: "lantern", support: true }),
   barrel: F("Barrel", "furniture"),
   crate: F("Crate", "furniture"),
@@ -186,7 +215,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   }),
   brazier: F("Brazier", "architecture", { light: true, openFire: true }),
   torch_wall: F("Wall torch", "architecture", { blocking: false, wallMounted: true, light: true }),
-  candelabra: F("Candelabra", "furniture", { light: true }),
+  candelabra: F("Candelabra", "furniture", { light: true, tableLight: true }),
   banner_wall: F("Banner", "architecture", { blocking: false, wallMounted: true }),
   painting_wall: F("Painting", "architecture", { blocking: false, wallMounted: true }),
   sarcophagus: F("Sarcophagus", "architecture", { size: [1, 2] }),
@@ -351,7 +380,13 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
     focusPiece: true,
   }),
   // ritual, encounter and lights
-  candles: F("Candles", "furniture", { blocking: false, light: true, glyph: "candelabra", clusters: true }),
+  candles: F("Candles", "furniture", {
+    blocking: false,
+    light: true,
+    glyph: "candelabra",
+    clusters: true,
+    tableLight: true,
+  }),
   skull_pile: F("Skulls", "other", {
     blocking: false,
     organic: true,

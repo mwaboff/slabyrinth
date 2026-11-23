@@ -11,7 +11,6 @@
  * A place nobody keeps (a crypt, cells, a looted room: `abandoned`) keeps generator 4's dark rule: one light per 50
  * tiles at most, none under 8. A level with `roomDress: false` gets no room lights at all (resolve/level/rooms.ts).
  */
-import type { FeatureType } from "../../contracts/plan";
 import { featureInfo } from "../catalog";
 import { SIDES, cellKey } from "../gridGeometry";
 import type { RoomTraits } from "../roomTraits";
@@ -19,10 +18,6 @@ import { lightOn } from "./groups";
 import { OCCUPANCY, light, lightTarget, torchFits, wallTorch } from "./lights";
 import { ROOM_DRESS } from "./recipes";
 import type { Room } from "./room";
-
-/** A surface people sit at (a table, a desk: catalog `seatsAt`, a candle on top), lit wherever it stands. */
-const SEAT_SURFACE = (type: FeatureType): boolean =>
-  featureInfo(type).seatsAt === true && featureInfo(type).topLight === "candle" && type !== "bar_counter";
 
 export function lightByOccupancy(
   room: Room,
@@ -40,7 +35,7 @@ export function lightByOccupancy(
   if (t.lights.onSurfaces)
     for (const q of room.placed.slice()) {
       if (room.lights.length >= most) break;
-      if (!q.light && (q.wantsLight === true || SEAT_SURFACE(q.type))) lightOn(room, q);
+      if (!q.light && (q.wantsLight === true || featureInfo(q.type).surfaceLight === true)) lightOn(room, q);
     }
   // 2. either side of the main door
   if (t.lights.doorPair) doorPair(room);

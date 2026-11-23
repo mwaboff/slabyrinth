@@ -14,6 +14,7 @@
  * A room down to SMALLEST_FURNISHED floor cells is furnished: its doors keep a landing only, not the wide clearance of a
  * big room, so the anchor (a cot, a desk) has floor to stand on.
  */
+import { featureInfo } from "../catalog";
 import { cellKey } from "../gridGeometry";
 import { gridProfile, type PlacementGrid, type ScatterResult } from "../placementGrid";
 import { ROOM_PURPOSE_INFO, type RoomKind } from "../roomPurpose";
@@ -37,9 +38,6 @@ import { FILL_GAIN, ROOM_DRESS, pickSpec, type Spec } from "./recipes";
 import { Room } from "./room";
 import { addRug, addShelf, addToppers } from "./things";
 
-/** Kinds whose focal light may be coloured in a scene that takes coloured light (a red flame at an altar). */
-const SACRED_KINDS: ReadonlySet<RoomKind> = new Set<RoomKind>(["shrine", "crypt", "throne_room", "treasury"]);
-
 /** The smallest room (floor cells) that is furnished: a cell of a cell row holds its sleeper and its light. */
 export const SMALLEST_FURNISHED = 3;
 /** A room of fewer floor cells keeps only a landing at each door (gen/rooms4/room.ts RoomOpts). */
@@ -47,8 +45,8 @@ const COMPACT_DOORS_BELOW = 9;
 /** The light level (bright) from which a group whose companion carries a light keeps a cell for a standing light. */
 const BEDSIDE_LEVEL = 3;
 
-/** A candle is a light for a table top: one standing on a floor reads as a flame dropped there. */
-const FLOOR_CANDLE = (type: FeatureType): boolean => type === "candelabra" || type === "candles";
+/** A candle is a light for a table top (catalog `tableLight`): one standing on a floor reads as a flame dropped there. */
+const FLOOR_CANDLE = (type: FeatureType): boolean => featureInfo(type).tableLight === true;
 /** What stands on a floor instead: a floor torch, else a brazier. */
 const STANDING_LIGHT: readonly PieceChoice[] = [{ type: "torch_floor" }, { type: "brazier" }];
 
@@ -306,7 +304,7 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
     lightByRegime(room, t, p.lighting.plan, {
       noFire,
       scene: p.lighting.scene,
-      sacred: SACRED_KINDS.has(kind),
+      sacred: t.sacred === true,
       focus: group,
       // (a zone's group, a sleeping corner's bed, is lit as a floor unit is)
       units: [...anchored.zoneGroups, ...floorUnits],

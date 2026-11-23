@@ -14,6 +14,7 @@
 import type { Material, ThemeId, WallStyle } from "../contracts/plan";
 import { MATERIALS, WALL_STYLES } from "../contracts/plan";
 import type { ThemeInterior } from "../contracts/resolved";
+import type { LightLevel } from "../gen/roomTraits";
 import type { PaletteView } from "../palette/view";
 import type { GeneratorProfile } from "../plan/generator";
 
@@ -46,6 +47,26 @@ export function isRoughDressed(
 
 type TableRow = Omit<ThemeDefaults, "interior"> & { interior?: ThemeInterior };
 
+/** A theme's light (generator 5, the character resolver: resolve/character.ts). */
+interface ThemeLight {
+  /** The scene's light level when nothing names one (absent: moderate). */
+  readonly light?: LightLevel;
+  /** Its places may take coloured light (a red flame at a dungeon's altar). */
+  readonly colourLight?: true;
+}
+
+/**
+ * Generator 5: the light of the themes whose places are not lit moderate and warm when nothing names it (dungeons and
+ * caves dim and coloured, the modern city bright). A palette gap for every theme, a user theme's included (which gets
+ * moderate warm light whatever it is): the palette format has no light field yet. For the owner: a
+ * `Palette.defaults.light` and `colourLight` would close it.
+ */
+const THEME_LIGHT: Readonly<Record<string, ThemeLight>> = {
+  stone_dungeon: { light: 1, colourLight: true },
+  cave: { light: 1, colourLight: true },
+  city: { light: 3 },
+};
+
 const FALLBACK: TableRow = { floor: "flagstone", caveFloor: "rock", courtyardFloor: "cobble" };
 
 /** Generators 1-3 (frozen) for every theme; generator 4 for a theme no palette supplies. */
@@ -77,6 +98,14 @@ const PALETTE_GAPS = ["courtyardFloor", "caveFloor"] as const satisfies Readonly
 const isMaterial = (m: string | undefined): m is Material =>
   m !== undefined && (MATERIALS as readonly string[]).includes(m);
 const isWallStyle = (s: string): s is WallStyle => (WALL_STYLES as readonly string[]).includes(s);
+
+/**
+ * A theme's light level when nothing names one (generator 5, the character resolver: resolve/character.ts): its
+ * THEME_LIGHT row's, else moderate.
+ */
+export const themeLight = (theme: ThemeId): LightLevel => THEME_LIGHT[theme]?.light ?? 2;
+/** Whether a theme's places may take coloured light (a dungeon, a cave): its THEME_LIGHT row's `colourLight`. */
+export const colourTheme = (theme: ThemeId): boolean => THEME_LIGHT[theme]?.colourLight === true;
 
 /**
  * What the resolver takes `theme` to default to, for a plan of generator `profile`: the palette's declared defaults

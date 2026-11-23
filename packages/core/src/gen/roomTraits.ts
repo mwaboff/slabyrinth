@@ -212,6 +212,11 @@ export interface RoomTraits {
    * on its walls.
    */
   readonly fire?: true;
+  /**
+   * Generator 5 (lightRegimes): a sacred or treasured room (a shrine, a crypt, a throne room, a treasury): its focal
+   * light may be coloured in a scene that takes coloured light (a red flame at an altar: gen/rooms4/regimes.ts).
+   */
+  readonly sacred?: true;
 }
 
 /** Generator 5 (sensibleLights): the kinds an open fire belongs in (`RoomTraits.fire`). */
@@ -224,6 +229,9 @@ const FIRE_KINDS: ReadonlySet<RoomKind> = new Set<RoomKind>([
   "shrine",
   "throne_room",
 ]);
+
+/** Generator 5 (lightRegimes): the kinds whose focal light may be coloured (`RoomTraits.sacred`). */
+const SACRED_KINDS: ReadonlySet<RoomKind> = new Set<RoomKind>(["shrine", "crypt", "throne_room", "treasury"]);
 
 // ───────────────────────────── pieces and their stand-ins ─────────────────────────────
 
@@ -1199,7 +1207,12 @@ const ORDER_FLOOR_LIGHT: Readonly<Record<RoomKind, Pick<RoomTraits, "order" | "f
 export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = Object.fromEntries(
   (Object.keys(BASE_TRAITS) as RoomKind[]).map((k) => [
     k,
-    { ...BASE_TRAITS[k], ...ORDER_FLOOR_LIGHT[k], ...(FIRE_KINDS.has(k) ? { fire: true } : {}) },
+    {
+      ...BASE_TRAITS[k],
+      ...ORDER_FLOOR_LIGHT[k],
+      ...(FIRE_KINDS.has(k) ? { fire: true } : {}),
+      ...(SACRED_KINDS.has(k) ? { sacred: true } : {}),
+    },
   ]),
 ) as Record<RoomKind, RoomTraits>;
 

@@ -422,6 +422,27 @@ describe("core guards", () => {
     });
   });
 
+  describe("slabyrinth/feature-compares: the room furnisher asks feature traits", () => {
+    it("reports a feature type compared by name in the furnisher", async () => {
+      const file = "packages/core/src/gen/rooms4/wall.ts";
+      expect(await guardHits(file, 'if (spec.type === "bed") f();')).toEqual([
+        expect.stringContaining("slabyrinth/feature-compares"),
+      ]);
+      expect(await guardHits(file, 'const lit = q.type !== "bar_counter";')).toHaveLength(1);
+    });
+    it("leaves a trait read and generator 4's light rule alone", async () => {
+      expect(
+        await guardHits(
+          "packages/core/src/gen/rooms4/wall.ts",
+          "if (featureInfo(spec.type).sleepsIn === true) f();",
+        ),
+      ).toEqual([]);
+      expect(
+        await guardHits("packages/core/src/gen/rooms4/lights.ts", 'const x = q.type !== "clutter";'),
+      ).toEqual([]);
+    });
+  });
+
   describe("slabyrinth/sides: sides and their opposites come from gen/gridGeometry.ts", () => {
     const file = "packages/core/src/resolve/structure.ts";
     it("reports the four sides written out and a ternary that turns a side round", async () => {

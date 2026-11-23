@@ -454,6 +454,20 @@ const featureListRule = selectorRule("Feature traits are fields of gen/catalog.t
   },
 ]);
 
+/**
+ * The room furnisher (gen/rooms4) asks a feature's trait of gen/catalog.ts FEATURE_INFO, never compares its `type`
+ * with a feature type's name: a rule written for one type ("a bed keeps a cell beside it", "a bar is not lit on every
+ * segment") is a field of that type's row, so a new type gets it by its row.
+ */
+const featureCompareRule = selectorRule(
+  "The room furnisher asks feature traits of gen/catalog.ts.",
+  vocabularyCompare(
+    "type",
+    contractWords("FEATURE_TYPES"),
+    "gen/catalog.ts FEATURE_INFO (give the types a trait and read it with featureInfo)",
+  ),
+);
+
 /** The four sides, their order and their opposites are gen/gridGeometry.ts SIDES and OPPOSITE. */
 const sidesRule = selectorRule("Sides come from gen/gridGeometry.ts.", [
   {
@@ -654,6 +668,7 @@ const slabyrinthPlugin = {
     "hash-unit": hashUnitRule,
     vocabulary: vocabularyRule,
     "feature-lists": featureListRule,
+    "feature-compares": featureCompareRule,
     sides: sidesRule,
     "generic-theme": genericThemeRule,
     "light-words": lightWordsRule,
@@ -798,6 +813,12 @@ export default tseslint.config(
     files: ["packages/core/src/**/*.ts"],
     ignores: ["packages/core/src/gen/catalog.ts"],
     rules: { "slabyrinth/feature-lists": "error" },
+  },
+  {
+    // the room furnisher; lights.ts is generator 4's light rule (a torch hangs over loose clutter), frozen with it
+    files: ["packages/core/src/gen/rooms4/**/*.ts"],
+    ignores: ["packages/core/src/gen/rooms4/lights.ts"],
+    rules: { "slabyrinth/feature-compares": "error" },
   },
   {
     // every stage that reads or writes a theme; the calibration slab is built of named pieces of named palettes
