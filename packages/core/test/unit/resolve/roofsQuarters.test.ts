@@ -5,6 +5,8 @@
  *                     with boards under it, and an opening follows its own cells, never a piece's rectangle.
  *   roofFormsFit      no shed over a house's depth (its high side stood as a bare wall), and a theme without a flat
  *                     roof kit of its own (wood_town) roofs its drawn buildings pitched unless the plan says otherwise.
+ *   wealthLooks       the four wealth steps read apart from the street (test/fixtures/wealthSteps.ts): walls by finish,
+ *                     a well-off quarter's roofs alike, trims and dressed doors firmer per step.
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { realize } from "../../../src/compile";
@@ -14,6 +16,7 @@ import { bundledPalettes } from "../../../src/palette";
 import { GENERATOR_PROFILES, type GeneratorProfile, type SwitchName } from "../../../src/plan/generator";
 import { resolvePlan } from "../../../src/resolve";
 import { loadPlan, type StoredPlan } from "../../fixtures";
+import { streetAtWealth, wealthSteps, type WealthRow } from "../../fixtures/wealthSteps";
 import { sweepSeed } from "../../sweep/seeds";
 
 const pal = bundledPalettes();
@@ -185,4 +188,64 @@ describe("roofFormsFit: roof forms that fit the theme and the footprint", () => 
     // (the city's own flat kit keeps its share; a shed turned gable may move the draws a little)
     expect(city).toBeGreaterThan(flats("city") * 0.75);
   }, 30_000); // (24 street builds)
+});
+
+describe("wealthLooks: the four wealth steps read apart from the street", () => {
+  it("rises step by step in trims, fine walls, contrast, dressed doors and alike roofs; without the switch the steps blur", () => {
+    const rows = wealthSteps(pal, 8);
+    for (let i = 1; i < rows.length; i++) {
+      const lo = rows[i - 1] as WealthRow;
+      const hi = rows[i] as WealthRow;
+      // (each step visibly more than the one below it, measured over 8 seeds of nine drawn buildings)
+      // (trims saturate toward lavish, where the contrasting material, the dressed door and finer walls carry the step)
+      expect([hi.wealth, hi.trims > lo.trims * 1.03]).toEqual([hi.wealth, true]);
+      const rich = (r: WealthRow): number => r.contrast + r.dressedDoor + r.fine;
+      expect([hi.wealth, rich(hi) > rich(lo) + 0.15]).toEqual([hi.wealth, true]);
+      expect([hi.wealth, hi.rough <= lo.rough + 0.02, hi.fine >= lo.fine - 0.02]).toEqual([
+        hi.wealth,
+        true,
+        true,
+      ]);
+      expect([hi.wealth, hi.contrast > lo.contrast, hi.dressedDoor > lo.dressedDoor]).toEqual([
+        hi.wealth,
+        true,
+        true,
+      ]);
+    }
+    const [poor, , wealthy, lavish] = rows as [WealthRow, WealthRow, WealthRow, WealthRow];
+    expect(poor.rough).toBeGreaterThan(lavish.rough + 0.3);
+    expect(wealthy.kitShare).toBeGreaterThan(poor.kitShare + 0.15);
+    without("wealthLooks");
+    const off = wealthSteps(pal, 8);
+    // (before: walls never moved with wealth and the trims of wealthy and lavish were a step apart by a few pieces)
+    expect((off[0] as WealthRow).rough).toBeCloseTo((off[3] as WealthRow).rough, 5);
+  }, 120_000); // (64 street builds)
+
+  it("builds a poor house's planks in the theme wall's rough family (wood_town's rural planks); without the switch never", () => {
+    const rural = (): number => {
+      let n = 0;
+      for (const i of [0, 1, 2]) {
+        const r = resolvePlan(streetAtWealth(i, "poor", "wood_town"), pal);
+        const set = realize(r, pal, {});
+        n += (set.levels[0]?.placements ?? []).filter((p) =>
+          /^Rural (Wall|Inner)/.test(set.placed.get(p)?.name ?? ""),
+        ).length;
+      }
+      return n;
+    };
+    expect(rural()).toBeGreaterThan(10);
+    without("wealthLooks");
+    expect(rural()).toBe(0);
+  }, 30_000); // (six street builds)
+
+  it("builds no worn timber-town house in borrowed desert plaster (a worn house keeps only a borrowed rough kit)", () => {
+    const desert = (): number => {
+      const r = resolvePlan(loadPlan("two-quarters-v1"), pal);
+      const set = realize(r, pal, {});
+      return (set.levels[0]?.placements ?? []).filter((p) =>
+        /^Desert wall/.test(set.placed.get(p)?.name ?? ""),
+      ).length;
+    };
+    expect(desert()).toBe(0);
+  });
 });

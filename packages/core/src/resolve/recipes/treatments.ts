@@ -95,6 +95,8 @@ export interface Subject {
    * richest frame and course options. Absent: not asked (weights as they were).
    */
   readonly wealth?: 0 | 1 | 2 | 3;
+  /** Generator 5 (`wealthLooks`): its trims are reweighted by WEALTH_WEIGHT_FIRM. Absent: by WEALTH_WEIGHT. */
+  readonly firmWealth?: boolean;
 }
 
 /** Wealth's multipliers (poor, modest, wealthy, lavish) on the options it reweights; modest leaves them as they were. */
@@ -102,6 +104,15 @@ export const WEALTH_WEIGHT = {
   plain: [1.8, 1, 0.7, 0.45],
   contrast: [0.5, 1, 1.5, 2],
   rich: [0.5, 1, 1.4, 1.8],
+} as const;
+/**
+ * Generator 5 (`wealthLooks`): firmer multipliers, so each wealth step reads apart from the one below (the stated
+ * character proof measured a modest house as plain as a poor one, a lavish one with fewer trims than a wealthy one).
+ */
+export const WEALTH_WEIGHT_FIRM = {
+  plain: [4, 1.6, 0.5, 0.08],
+  contrast: [0.2, 0.7, 1.6, 3.5],
+  rich: [0.3, 0.8, 1.8, 4.5],
 } as const;
 /** The options wealth reads as the richest of their family. */
 const RICH_OPTIONS: ReadonlySet<string> = new Set([
@@ -111,13 +122,17 @@ const RICH_OPTIONS: ReadonlySet<string> = new Set([
   "courses:firstFloor",
 ]);
 
+/** The families the firm table reweights: a building's trims (its other families keep the first table). */
+const WEALTH_FAMILIES: ReadonlySet<string> = new Set(["frame", "courses", "trim"]);
+
 /** An option's weight for a subject, with its wealth's multiplier where it has one. */
 function weightOf(f: TreatmentFamily, o: TreatmentOption, s: Subject): number {
   const w = Math.max(0, o.weight(s));
   if (s.wealth === undefined || w === 0) return w;
-  if (o.id === "plain") return w * WEALTH_WEIGHT.plain[s.wealth];
-  if (o.contrast === true) return w * WEALTH_WEIGHT.contrast[s.wealth];
-  if (RICH_OPTIONS.has(`${f.id}:${o.id}`)) return w * WEALTH_WEIGHT.rich[s.wealth];
+  const t = s.firmWealth === true && WEALTH_FAMILIES.has(f.id) ? WEALTH_WEIGHT_FIRM : WEALTH_WEIGHT;
+  if (o.id === "plain") return w * t.plain[s.wealth];
+  if (o.contrast === true) return w * t.contrast[s.wealth];
+  if (RICH_OPTIONS.has(`${f.id}:${o.id}`)) return w * t.rich[s.wealth];
   return w;
 }
 
@@ -142,6 +157,13 @@ const masonry = (s: Subject): boolean =>
     return f === "stone" || f === "brick" || f === "theme";
   });
 const ruined = (s: Subject): boolean => s.condition === "ruined";
+/**
+ * The threshold role a subject is dressed by: its words', else (`wealthLooks`) a lavish building's door is dressed as a
+ * formal one (a lit approach, a guardian pair) and a wealthy one's may have its lights.
+ */
+const roleOf = (s: Subject): Subject["role"] =>
+  s.role ??
+  (s.firmWealth === true && s.kind === "building" && s.wealth === 3 && !ruined(s) ? "formal" : null);
 const building = (s: Subject): boolean => s.kind === "building";
 
 /**
@@ -271,20 +293,29 @@ export const TREATMENTS: readonly TreatmentFamily[] = [
     options: [
       {
         id: "guardians",
-        weight: (s) => (s.role === "sacred" ? 3 : s.role === "formal" ? 1.5 : 0),
+        weight: (s) => (roleOf(s) === "sacred" ? 3 : roleOf(s) === "formal" ? 1.5 : 0),
         recipes: { guardianPair: "pair" },
       },
       {
         id: "lights",
-        weight: (s) => (ruined(s) ? 0 : s.role === "sacred" ? 2 : s.role === "formal" ? 1.5 : 0),
+        weight: (s) =>
+          ruined(s)
+            ? 0
+            : roleOf(s) === "sacred"
+              ? 2
+              : roleOf(s) === "formal"
+                ? 1.5
+                : s.firmWealth === true && s.kind === "building" && s.wealth === 2
+                  ? 0.6
+                  : 0,
         recipes: { approachLights: "pair" },
       },
       {
         id: "both",
-        weight: (s) => (ruined(s) ? 0 : s.role === "sacred" ? 2 : s.role === "formal" ? 0.5 : 0),
+        weight: (s) => (ruined(s) ? 0 : roleOf(s) === "sacred" ? 2 : roleOf(s) === "formal" ? 0.5 : 0),
         recipes: { guardianPair: "pair", approachLights: "pair" },
       },
-      { id: "plain", weight: (s) => (s.role === null ? 1 : 1.5), recipes: {} },
+      { id: "plain", weight: (s) => (roleOf(s) === null ? 1 : 1.5), recipes: {} },
     ],
   },
 ];
@@ -438,6 +469,8 @@ export interface TreatmentInput {
   readonly families?: readonly TreatmentFamily[];
   /** What the plan says of each building, by id (its condition state and role read from them); none: its condition. */
   readonly words?: ReadonlyMap<string, BuildingWords>;
+  /** Generator 5 (`wealthLooks`): trims reweighted by the firm wealth table (WEALTH_WEIGHT_FIRM). */
+  readonly firmWealth?: boolean;
 }
 
 /** Every subject of a level with its treatment, by subject id (buildings first, then areas, then the level). */
@@ -446,9 +479,14 @@ export function drawTreatments(input: TreatmentInput): Map<string, Treatment> {
   const families = input.families ?? TREATMENTS;
   const out = new Map<string, Treatment>();
   const own = input.hasOwnTrim;
-  const subjects = subjectsOf(L, input.defaultTheme, input.zones, input.areaWalls, input.words).map((s) =>
-    own ? { ...s, contrastOwn: contrastStyles(s, own).length > 0 } : s,
-  );
+  const subjects = subjectsOf(L, input.defaultTheme, input.zones, input.areaWalls, input.words)
+    .map((s) => (own ? { ...s, contrastOwn: contrastStyles(s, own).length > 0 } : s))
+    // (a building's: what a street reads; rooms and open ground keep the first table)
+    .map((s) =>
+      input.firmWealth === true && s.kind === "building" && s.wealth !== undefined
+        ? { ...s, firmWealth: true }
+        : s,
+    );
   for (const group of neighbourhoods(subjects)) {
     const gid = group[0]?.id ?? "";
     // the neighbourhood's own few treatments: each a draw named by the group and its number, distinct where it can be

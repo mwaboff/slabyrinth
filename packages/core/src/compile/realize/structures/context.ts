@@ -8,9 +8,11 @@ import type { CompileDiagnostic, RoleName } from "../../../contracts/compiler";
 import type { ThemeId } from "../../../contracts/plan";
 import type { ResolvedStructure } from "../../../contracts/resolved";
 import type { RoleResolution, VariantFilter } from "../../../palette/resolve";
-import { isSettingKitRole } from "../../../gen/wallStyles";
+import { WALL_VARIANT_FINISH, isSettingKitRole, wallStyleInfo } from "../../../gen/wallStyles";
+import { both, variantNamed } from "../../../palette/filters";
 import { GENERIC_THEME } from "../../../palette/resolve";
 import { isStyleLookRole } from "../../../palette/roles";
+import { elementCharacter, wealthIndex } from "../../../resolve/character";
 import { structureStyle } from "../../../resolve/structureStyles";
 import { hashUnitUtf16 } from "../../../util/hash";
 import type { RealizeLevel } from "../level";
@@ -98,23 +100,43 @@ export function buildingCtx(lv: RealizeLevel, st: ResolvedStructure): StructureC
  * Generator 5 (`ownWallsFirst`): a kept-up building's lookup that passes over a role of a setting-kit style (gen/
  * wallStyles.ts `settingKit`) its theme only borrows from the generic palette, so the chain goes on to the theme's own
  * wall or post. A weathered or ruined building keeps the borrowed kit (an abandoned village's planks suit it).
+ * Generator 5 (`wealthLooks`): it keeps a borrowed kit of rough finish only (the planks; desert plaster in a timber
+ * town read as a fault), and a poor building's rough wall built in the theme's own wall takes that wall's rough variant
+ * family where the palette has one (gen/wallStyles.ts WALL_VARIANT_FINISH: wood_town's rural planks).
  */
 const OPENING_ROLE = /^(window|opening|door)\b/;
 
 function ownWallsFirst(lv: RealizeLevel, st: ResolvedStructure, base: StructureLookup): StructureLookup {
-  if (!lv.ctx.profile.ownWallsFirst || st.theme === GENERIC_THEME || (st.condition ?? "intact") !== "intact")
-    return base;
+  const finishes = lv.ctx.profile.wealthLooks;
+  const kept = (st.condition ?? "intact") === "intact";
+  if (!lv.ctx.profile.ownWallsFirst || st.theme === GENERIC_THEME || (!kept && !finishes)) return base;
+  const ch = elementCharacter(lv.L, st.id);
+  const poor = finishes && ch !== null && wealthIndex(ch) === 0;
+  const finishOf = (role: string): string | undefined => wallStyleInfo(role.split(".").pop())?.finish;
   return (roles, filter, quiet) => {
     let passed = false;
+    let rough = false;
     for (const role of roles) {
       const r = base([role], filter, true);
       if (!r) continue;
       // (asked for the kit's style: what the generic palette answers, its own fallback role included, is borrowed;
       // openings keep their chain: a window or door the theme lacks is better borrowed than missing)
       if (r.paletteId === GENERIC_THEME && isSettingKitRole(role) && !OPENING_ROLE.test(role)) {
+        // (a worn building keeps a borrowed rough kit)
+        if (!kept && finishOf(role) === "rough") return r;
         passed = true;
+        rough ||= poor && finishOf(role) === "rough";
         continue;
       }
+      // generator 5 (`wealthLooks`): a poor building's rough wall built in the theme's own wall takes that wall's
+      // rough variant family where its palette has one (wood_town's rural planks), not its plain front
+      if (rough)
+        for (const [family, finish] of Object.entries(WALL_VARIANT_FINISH)) {
+          if (finish !== "rough") continue;
+          const named = filter ? both(filter, variantNamed(family)) : variantNamed(family);
+          const rf = base([role], named, true);
+          if (rf && rf.variants.length > 0) return rf;
+        }
       return r;
     }
     // nothing but borrowed kit: none (the caller builds without it); nothing at all: the chain's own diagnostics

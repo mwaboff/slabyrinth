@@ -33,6 +33,7 @@ describe("tradePropsOnOneFloor", () => {
   it("sets no trade prop across a height step; without the switch the tailor's bench is sunk", () => {
     // (the seeds were found before the later street switches redrew the buildings: built as then)
     P5.roofFormsFit = false;
+    P5.wealthLooks = false;
     expect(sunkTrade()).toEqual([]);
     P5.tradePropsOnOneFloor = false;
     expect(sunkTrade().length).toBe(SEEDS.length);

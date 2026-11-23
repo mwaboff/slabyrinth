@@ -162,6 +162,7 @@ export function runRecipes(
       : {}),
     ...(run.families ? { families: run.families } : {}),
     ...(run.words ? { words: run.words } : {}),
+    ...(profile.wealthLooks ? { firmWealth: true } : {}),
   });
   const skipped: Array<{ recipe: string; anchor: string; why: string }> = [];
   const sources = new Map<string, number>();

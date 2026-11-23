@@ -637,6 +637,11 @@ const SWITCHES = {
     "A drawn building's roof form fits its theme and its footprint: a shed is its main roof only over a span the roof-type table allows (resolve/roofTypes.ts maxSpan: 3 cells; deeper, its high side stood as a bare wall taller than the house), else a gable; a skirt in a kit whose corner is a spiked tip is a gable too (its corners stood as spikes, as a hip's ridges did: roofKitFacts); and a theme with no flat roof kit of its own (themeRange: wood_town's flat tops were laid in floor tiles) draws flat roofs at a small share of their weight, so a timber village is pitched unless the plan says otherwise (resolve/structure.ts drawDesigns).",
     "themeOwnRange",
   ),
+  wealthLooks: on(
+    5,
+    "A place's wealth shows from the street as weighted pools per wealth step (resolve/wealthLooks.ts): a building's wall materials by their finish (rough planks poor, dressed stone and brick rich; the street draw counts a wall at the wrong end of its wealth as a failure; a poor building's rough wall built in the theme's own wall takes its rough variant family, wood_town's rural planks; a worn building keeps a borrowed kit of rough finish only, no desert plaster in a timber town), a well-off quarter's roofs leaning to the kit its first well-off building drew, trims firmer per step (WEALTH_WEIGHT_FIRM: each step more framed, banded and contrasting than the one below), and a lavish building's door dressed as a formal one's (a lit approach, a guardian pair), a wealthy one's lit now and then (resolve/structure.ts drawDesigns, recipes/treatments.ts, compile/realize/structures/context.ts).",
+    "characterCascade",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

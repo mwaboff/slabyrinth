@@ -56,7 +56,23 @@ export interface WallStyleInfo {
    * has no piece of the style builds such a building wall in the theme's own wall instead of borrowing the kit.
    */
   settingKit: boolean;
+  /**
+   * Generator 5 (`wealthLooks`): how fine a front it makes, what a street reads as money: "rough" (planks, a palisade,
+   * sheet metal, rubble), "plain" (the theme's own wall, plaster, timber framing, concrete), "fine" (dressed stone,
+   * brick, marble). A building's wealth reweights its wall draw by it (resolve/wealthLooks.ts).
+   */
+  finish: WallFinish;
 }
+
+/** How fine a front a wall style makes (WallStyleInfo.finish), from rough to fine. */
+export type WallFinish = "rough" | "plain" | "fine";
+
+/**
+ * The finish a named variant family of a wall role reads as (palette data: a role's variants may carry a `variant` name
+ * that is a family of their own, weight 0 so a plain draw never takes them). Generator 5 (`wealthLooks`): a rough wall
+ * built in a theme's own wall takes the theme wall's rough family where its palette has one (wood_town's rural planks).
+ */
+export const WALL_VARIANT_FINISH: Readonly<Record<string, WallFinish>> = { rural: "rough" };
 
 /** The material of each wall family, as a flat surface (a wall's top). "theme" is the palette's to say. */
 const FAMILY_SURFACE: Record<WallFamily, Material | null> = {
@@ -111,28 +127,29 @@ const row = (family: WallFamily, flags: Partial<Omit<WallStyleInfo, "family">> =
   planks: false,
   settingKit: false,
   surface: FAMILY_SURFACE[family],
+  finish: "plain",
   ...flags,
 });
 
 export const WALL_STYLE_INFO: Record<WallStyle, WallStyleInfo> = {
   wall: row("theme", { uneven: true }),
-  stone: row("stone", { uneven: true }),
-  brick: row("brick", { uneven: true }),
-  wood: row("timber", { planks: true, settingKit: true }),
-  cave_rock: row("rock", { natural: true }),
+  stone: row("stone", { uneven: true, finish: "fine" }),
+  brick: row("brick", { uneven: true, finish: "fine" }),
+  wood: row("timber", { planks: true, settingKit: true, finish: "rough" }),
+  cave_rock: row("rock", { natural: true, finish: "rough" }),
   plaster: row("plaster", { settingKit: true }),
-  palisade: row("timber"),
-  fence: row("timber", { low: true }),
+  palisade: row("timber", { finish: "rough" }),
+  fence: row("timber", { low: true, finish: "rough" }),
   hedge: row("plant"),
   low_wall: row("stone", { low: true }),
   railing: row("metal", { low: true }),
   iron_bars: row("metal"),
-  ruined: row("stone", { uneven: true }),
-  railing_stone: row("stone", { low: true }),
+  ruined: row("stone", { uneven: true, finish: "rough" }),
+  railing_stone: row("stone", { low: true, finish: "fine" }),
   concrete: row("concrete"),
-  metal: row("metal"),
+  metal: row("metal", { finish: "rough" }),
   panel: row("plaster"),
-  marble: row("stone", { surface: "marble" }),
+  marble: row("stone", { surface: "marble", finish: "fine" }),
   dark_stone: row("stone", { uneven: true }),
   timber: row("timber"),
 };

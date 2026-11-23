@@ -51,7 +51,8 @@ import { withWings } from "../plan/building";
 import { rasterizeShape } from "../gen/shapes";
 import { elementSeed, subSeed } from "../util/hash";
 import { applyCondition, buildingSubjectOf } from "./building/condition";
-import { type CharacterMap, characterAt } from "./character";
+import { type CharacterMap, characterAt, wealthIndex } from "./character";
+import { QUARTER_KIT, byFinish, finishMisses, keepsRoofsAlike, type WealthStep } from "./wealthLooks";
 import { applyWear } from "./building/wear";
 import { frontCanopies, type FrontCanopy } from "./building/canopy";
 import { startBuilding } from "./building/context";
@@ -792,6 +793,8 @@ function drawDesigns({ plan, level, list, work, levelTheme, palette }: Expansion
     space: unknown;
     look: StreetLook;
   }> = [];
+  // (wealthLooks) the roof kit each quarter's well-off buildings lean to, by the quarter (a character's parent)
+  const quarterKits = new Map<string, string>();
   const designedCount = list.filter(
     (st) => st.kind !== "enclosure" && structureStyle(st.style)?.design && designable(st),
   ).length;
@@ -841,7 +844,17 @@ function drawDesigns({ plan, level, list, work, levelTheme, palette }: Expansion
     // generator 5 (`themeOwnRange`): the theme's own walls and roofs first (resolve/themeRange.ts)
     const theme = st.theme ?? levelTheme;
     const range = profile.themeOwnRange && palette ? themeRange(palette, theme, profile.ownWallsFirst) : null;
-    const drawSpace = range ? ownRangeSpace(space, range, profile.roofFormsFit) : space;
+    // generator 5 (`wealthLooks`): its wealth reweights its walls by their finish, and a well-off building leans to the
+    // roof kit of its quarter (resolve/wealthLooks.ts)
+    const ch = profile.wealthLooks ? characterAt(work, st.id) : null;
+    const wealth = ch !== null ? wealthIndex(ch) : null;
+    const quarter = ch?.parent ?? level.id;
+    const quarterKit = wealth !== null && keepsRoofsAlike(wealth) ? quarterKits.get(quarter) : undefined;
+    const drawSpace = wealthSpace(
+      range ? ownRangeSpace(space, range, profile.roofFormsFit) : space,
+      wealth,
+      quarterKit,
+    );
     const look = (dd: BuildingDesign): StreetLook =>
       streetLook(dd, space, style0?.roof.kit ?? "", profile, range);
     // generator 5 (`roofFormsFit`): a roof form deeper than its type allows (a shed over a house's depth) is a gable
@@ -879,7 +892,11 @@ function drawDesigns({ plan, level, list, work, levelTheme, palette }: Expansion
           (p) =>
             (p.d.archetype === dd.archetype && p.d.material === dd.material) || p.d.storeys === dd.storeys,
         );
-        return unread * 2 + (old ? 1 : 0) + (lowAgainst(dd) ? 4 : 0);
+        // (wealthLooks: a well-off building off its quarter's roof kit reads as a street not kept as one)
+        const offQuarter = quarterKit !== undefined && kitOf(dd) !== quarterKit;
+        // (and walls at the wrong end of its wealth: fine stone on a poor house, rough planks on a rich one)
+        const offWealth = wealth === null ? 0 : finishMisses(dd, wealth);
+        return unread * 2 + (old ? 1 : 0) + (lowAgainst(dd) ? 4 : 0) + (offQuarter ? 1 : 0) + offWealth;
       };
       let best = d;
       let bestN = failures(d);
@@ -892,6 +909,9 @@ function drawDesigns({ plan, level, list, work, levelTheme, palette }: Expansion
         }
       }
       d = lowAgainst(best) ? { ...best, archetype: "box" } : best;
+      // (wealthLooks: the first well-off building of a quarter sets the kit its others lean to)
+      if (wealth !== null && keepsRoofsAlike(wealth) && !quarterKits.has(quarter) && space.roofKits)
+        quarterKits.set(quarter, kitOf(d));
       placed.push({ r, d, space, look: look(d) });
       work.designs.set(st.id, { design: d, building: expand(d) });
       continue;
@@ -1003,6 +1023,26 @@ const designRoofType = (roof: string): RoofType => (own(DESIGN_ROOF_TYPES, roof)
 const BORROWED_WALL = 1 / 3;
 /** (themeOwnRange) A theme whose own roof is flat draws flat roofs at this share of the pitched roofs' weight. */
 const OWN_FLAT = 0.8;
+
+/**
+ * (wealthLooks) A design space reweighted by a building's wealth: its wall materials by their finish, and with a quarter
+ * kit, that roof kit QUARTER_KIT times as likely (resolve/wealthLooks.ts). No wealth: the space as it is.
+ */
+function wealthSpace(
+  space: DesignSpace,
+  wealth: WealthStep | null,
+  quarterKit: string | undefined,
+): DesignSpace {
+  if (wealth === null) return space;
+  const out: { -readonly [K in keyof DesignSpace]: DesignSpace[K] } = { ...space };
+  const materials = byFinish(space.materials, wealth);
+  if (materials) out.materials = materials;
+  const baseMaterials = byFinish(space.baseMaterials, wealth);
+  if (baseMaterials) out.baseMaterials = baseMaterials;
+  if (quarterKit !== undefined && space.roofKits?.[quarterKit] !== undefined)
+    out.roofKits = { ...space.roofKits, [quarterKit]: space.roofKits[quarterKit] * QUARTER_KIT };
+  return out;
+}
 
 /** (roofFormsFit) A theme with no flat roof kit of its own draws flat roofs at this share of their weight. */
 const FOREIGN_FLAT = 0.15;
