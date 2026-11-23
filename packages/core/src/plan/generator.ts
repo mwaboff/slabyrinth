@@ -599,6 +599,11 @@ const SWITCHES = {
     5,
     "A long room of a kind with a cell row in the room-kind table (prison cells, stable stalls, ward bays, bunk alcoves: gen/roomTraits.ts CELL_ROWS) is, drawn per room with a plain option, lined along one or both long walls with like cells: partitions between them, a shared front on the aisle (bars, a wall, a half wall or none) with a doorway in each at the row's pitch, each cell dressed with its kit, one left empty now and then and one in disorder, the aisle with its own set and lights (resolve/level/cellRows.ts, rooms.ts dressCellRow).",
   ),
+  darkCellRows: on(
+    5,
+    "A cell row in a room whose light level is dark (its character's light, stated or from its words: resolve/character.ts) keeps its dark as a dark room does (one light or none, gen/lightLevels.ts): its cells are furnished without lights and its aisle gets one light per 50 tiles at most, none under 8 (resolve/level/rooms.ts dressCellRow; a barracks stated dark had a torch in every bunk and a row of them in its aisle).",
+    "cellRows",
+  ),
   decayWhereItBelongs: on(
     5,
     "Rubble, debris and remains belong only where a place's condition or kind calls for them (gen/roomTraits.ts showsDecay): a room in use (a furnished purpose, not abandoned) that is intact or weathered and not of a kind that keeps its dead (a crypt, cells) gets no rubble or debris at its wall foot, no rubble or remains in its layered ground (a piece the facts call remains, gen/pieceFacts.ts, is left out of its floor cover) and no remains in a dead end's set; and no wall-foot pile stands on a cell a room's furnisher kept clear (the way through, a hall's axis, standing room). Ramshackle, ruined and abandoned rooms, crypts and cells, passages and the plan's own collapses and dress ops keep theirs (resolve/level/rooms.ts, resolve/recipes/ground.ts, resolve/level/deadEnds.ts).",

@@ -456,6 +456,8 @@ function dressCellRow(
   const ch = characterAt(work, area.id);
   const kit = ROOM_TRAITS[row.spec.kit];
   const { abandoned } = info.room;
+  // generator 5 (darkCellRows): a dark room's row keeps its dark: no light in a cell, one in the aisle at most
+  const dark = work.profile.darkCellRows && ch !== null && lightIndex(ch) === 0;
   const commit = (id: string, res: ScatterResult | null): boolean => {
     if (res === null) return false;
     features.commitGenerated(id, res.placements);
@@ -480,6 +482,7 @@ function dressCellRow(
       // every cell its kind's kit (the first group: a cot and a bucket, a bed and its stand), not a new set each
       firstGroup: 0,
       ...(character !== undefined ? { character } : {}),
+      ...(dark ? { unlit: true } : {}),
     });
     if (commit(`${area.id}~cell${k}`, res)) return true;
   }
@@ -503,7 +506,8 @@ function dressCellRow(
     seed: subSeed(seed, "aisleLights"),
     remaining: cap - features.generated,
     every: RECIPES.roomLightEvery,
-    abandoned,
+    // (a dark row: an abandoned place's rule, one light per 50 tiles at most)
+    abandoned: abandoned || dark,
     ...(work.profile.occupancyLights ? { occupancy: {} } : {}),
     // generator 5 (lightsAgainstSomething): an open fire only where the row's kind takes one (a guard's aisle, not a
     // ward's or a stable's)

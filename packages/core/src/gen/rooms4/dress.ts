@@ -52,6 +52,11 @@ export interface RoomDressParams {
    * rooms of the kind have not led with: a row of like cells keeps its kit, not a new set in every cell.
    */
   firstGroup?: number;
+  /**
+   * Generator 5 (darkCellRows): the caller lights the place as a whole (a cell of a dark room's row), so the room is
+   * furnished without lights of its own.
+   */
+  unlit?: boolean;
 }
 
 /**

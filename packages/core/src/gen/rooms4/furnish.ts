@@ -331,6 +331,11 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
   // 6. lights: generator 5 (lightRegimes) by the room's level and regime; a room a dress op furnishes (no level drawn
   // for it: gen/place.ts dressArea) by occupancy, the group's own first; an abandoned place keeps its dark
   const noFire = ROOM_PURPOSE_INFO[t.host].noFire;
+  // (generator 5, darkCellRows: a cell of a dark row; the row's caller lights the room as a whole)
+  if (p.unlit === true) {
+    const keptClear = room.cells.filter(([x, y]) => room.zone.has(cellKey(x, y)));
+    return { placements: room.out, capped: room.capped, keptClear };
+  }
   if (profile.lightRegimes && p.lighting !== undefined) {
     lightByRegime(room, t, p.lighting.plan, {
       noFire,

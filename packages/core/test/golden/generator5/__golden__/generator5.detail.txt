@@ -1396,13 +1396,13 @@ plans/condition-street-v1 review cliff_unclad_low 1
 plans/condition-street-v1 review dead_space 1
 plans/condition-street-v1 review straight_natural 2
 plans/condition-street-v1 review weathered_same_as_intact 1
-plans/dungeon-complex-v1 l1 pieces feature 248
+plans/dungeon-complex-v1 l1 pieces feature 244
 plans/dungeon-complex-v1 l1 pieces fill 193
 plans/dungeon-complex-v1 l1 pieces floor 229
 plans/dungeon-complex-v1 l1 pieces opening 10
 plans/dungeon-complex-v1 l1 pieces wall 365
 plans/dungeon-complex-v1 l1 pieces wall_post 65
-plans/dungeon-complex-v1 l1 layer site 1110
+plans/dungeon-complex-v1 l1 layer site 1106
 plans/dungeon-complex-v1 l1 part cells~aisle#0 1
 plans/dungeon-complex-v1 l1 part cells~aisle#1 1
 plans/dungeon-complex-v1 l1 part cells~aisle#2 1
@@ -1410,20 +1410,16 @@ plans/dungeon-complex-v1 l1 part cells~aisle#3 1
 plans/dungeon-complex-v1 l1 part cells~cell0 1
 plans/dungeon-complex-v1 l1 part cells~cell0#0 1
 plans/dungeon-complex-v1 l1 part cells~cell0#1 1
-plans/dungeon-complex-v1 l1 part cells~cell0#2 1
 plans/dungeon-complex-v1 l1 part cells~cell1 1
 plans/dungeon-complex-v1 l1 part cells~cell2 1
 plans/dungeon-complex-v1 l1 part cells~cell2#0 1
 plans/dungeon-complex-v1 l1 part cells~cell2#1 1
-plans/dungeon-complex-v1 l1 part cells~cell2#2 1
 plans/dungeon-complex-v1 l1 part cells~cell3 1
 plans/dungeon-complex-v1 l1 part cells~cell3#0 1
 plans/dungeon-complex-v1 l1 part cells~cell3#1 1
-plans/dungeon-complex-v1 l1 part cells~cell3#2 1
 plans/dungeon-complex-v1 l1 part cells~cell4 1
 plans/dungeon-complex-v1 l1 part cells~cell4#0 1
 plans/dungeon-complex-v1 l1 part cells~cell4#1 1
-plans/dungeon-complex-v1 l1 part cells~cell4#2 1
 plans/dungeon-complex-v1 l1 part cells~room#0 1
 plans/dungeon-complex-v1 l1 part floor:floor.cobble 102
 plans/dungeon-complex-v1 l1 part floor:floor.flagstone 72
@@ -1645,7 +1641,7 @@ plans/dungeon-complex-v1 l1 feature shelf_line 8
 plans/dungeon-complex-v1 l1 feature statue 2
 plans/dungeon-complex-v1 l1 feature stool 5
 plans/dungeon-complex-v1 l1 feature table 12
-plans/dungeon-complex-v1 l1 feature torch_wall 18
+plans/dungeon-complex-v1 l1 feature torch_wall 14
 plans/dungeon-complex-v1 l1 feature weapon_rack 5
 plans/dungeon-complex-v1 diag info footprint_mismatch 2
 plans/dungeon-complex-v1 diag info role_missing 1
