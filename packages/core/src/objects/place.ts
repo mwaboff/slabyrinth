@@ -11,9 +11,9 @@ import { ARRANGE_LIMITS } from "../arrange/budget";
 import { planPointOf, toInstance, type Anchor } from "../arrange/instance";
 import { snapYaw, type Placed, type XZ } from "../arrange/piece";
 import { inPolygon } from "../arrange/scatter";
-import { maxOf, minOf } from "../util/lists";
+import { maxOf, minOf, pushAll } from "../util/lists";
 import { rotateXZ } from "../util/turn";
-import { insetConvex } from "./outline";
+import { insetConvex, insideOrNear } from "./outline";
 import { piecesOf, type BuiltObject } from "./recipe";
 
 /** The turn step an object allows: 90 when any of its pieces is a tile, else 15. */
@@ -61,6 +61,27 @@ export function cellsInside(poly: readonly XZ[], at: readonly [number, number], 
   return out;
 }
 
+/**
+ * The plan cells wholly inside a frame polygon placed at `at` turned `turn` (a quarter turn, `at` on whole cells): every
+ * corner of the cell within 0.02 of the polygon or inside it, the test objects/deck.ts `floorOver` lays whole floor
+ * tiles by, so the cells of a deck are exactly the cells its whole tiles would cover. Ascending (row, then column).
+ */
+export function wholeCellsInside(poly: readonly XZ[], at: readonly [number, number], turn: number): Vec2[] {
+  if (poly.length < 3) return [];
+  const plan = poly.map(([x, z]) => planPointOf(at, turn, x, z));
+  const xs = plan.map((p) => p[0]);
+  const ys = plan.map((p) => p[1]);
+  const inFrame = (px: number, py: number): boolean => {
+    const r = rotateXZ(px - at[0], -(py - at[1]), -turn);
+    return insideOrNear(poly, r.x, r.z, 0.02);
+  };
+  const out: Vec2[] = [];
+  for (let y = Math.floor(minOf(ys)); y < Math.ceil(maxOf(ys)); y++)
+    for (let x = Math.floor(minOf(xs)); x < Math.ceil(maxOf(xs)); x++)
+      if (inFrame(x, y) && inFrame(x + 1, y) && inFrame(x, y + 1) && inFrame(x + 1, y + 1)) out.push([x, y]);
+  return out;
+}
+
 export interface PlaceSpec {
   readonly id: string;
   readonly anchor: Anchor;
@@ -73,9 +94,45 @@ export interface PlaceSpec {
  * does not fit (so a part and what stands on it, listed next to it, usually share one); a part larger than `cap` is
  * split. Every new instance opens with the next grounded part not yet placed (one reaching the object's lowest point,
  * a keel, a foot), when there is one: verify measures an instance's lowest piece against what is under it, so every
- * instance must stand on the ground.
+ * instance must stand on the ground. When the grounded parts run out first (a deep hull is one part), an instance left
+ * without a grounded piece trades a few of its pieces for grounded ones of the instance holding the most (`ground`).
  */
 export function packParts(obj: BuiltObject, cap: number): Placed[][] {
+  return groundEvery(packInOrder(obj, cap), obj);
+}
+
+/** Grounded pieces an instance without any takes from the one holding the most (it keeps at least as many). */
+const GROUND_TRADE = 4;
+
+/** Every instance given grounded pieces (see `packParts`), sizes unchanged. */
+function groundEvery(groups: Placed[][], obj: BuiltObject): Placed[][] {
+  if (groups.length < 2) return groups;
+  const ground = minOf(obj.parts.flatMap((p) => p.pieces.map((q) => q.y)));
+  const grounded = (q: Placed): boolean => q.y <= ground + 0.05;
+  for (const g of groups) {
+    if (g.some(grounded)) continue;
+    const donor = [...groups].sort((a, b) => b.filter(grounded).length - a.filter(grounded).length)[0];
+    if (!donor || donor.filter(grounded).length < 2 * GROUND_TRADE) continue;
+    // every k-th grounded piece of the donor, so the trade takes pieces from along the whole object
+    const own = donor.filter(grounded);
+    const step = Math.floor(own.length / GROUND_TRADE);
+    const take = new Set(Array.from({ length: GROUND_TRADE }, (_, i) => own[i * step] as Placed));
+    // a full instance gives back as many pieces as it takes; a small one just takes them
+    const n = g.length > take.size ? take.size : 0;
+    const give = g.slice(g.length - n);
+    const stay = g.slice(0, g.length - n);
+    g.length = 0;
+    pushAll(g, stay);
+    pushAll(g, [...take]);
+    const kept = donor.filter((q) => !take.has(q));
+    donor.length = 0;
+    pushAll(donor, kept);
+    pushAll(donor, give);
+  }
+  return groups;
+}
+
+function packInOrder(obj: BuiltObject, cap: number): Placed[][] {
   const low = (p: BuiltObject["parts"][number]): number => minOf(p.pieces.map((q) => q.y));
   const ground = minOf(obj.parts.map(low));
   const rest = [...obj.parts];

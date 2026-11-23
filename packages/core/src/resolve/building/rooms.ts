@@ -21,6 +21,7 @@
 import type { OpeningKind, Side, Vec2 } from "../../contracts/plan";
 import {
   type BuildingKind,
+  type BuildingKindRow,
   PROGRAMME_SIZES,
   type Programme,
   ROOM_MIN_WIDTH,
@@ -110,12 +111,15 @@ interface Candidate {
   readonly rooms: Laid[];
 }
 
-/** Splits a ground storey; null when it has no street door to enter by. */
-export function splitGroundStorey(g: GroundStorey): GroundRooms | null {
+/**
+ * Splits a ground storey; null when it has no street door to enter by. `own`: a programme row of another table (a
+ * vessel's deck below, objects/vesselProgramme.ts) instead of the building kind's.
+ */
+export function splitGroundStorey(g: GroundStorey, own?: BuildingKindRow): GroundRooms | null {
   const door = streetDoor(g);
   if (!door) return null;
   const prng = createPrng(g.seed);
-  const row = buildingKindRow(g.kind);
+  const row = own ?? buildingKindRow(g.kind);
   const all = g.cells.map(([x, y]) => [x, y] as [number, number]);
   const whole = (room: ProgrammeRoom): GroundRooms => ({
     programme: "single",
@@ -127,7 +131,10 @@ export function splitGroundStorey(g: GroundStorey): GroundRooms | null {
   if (!rects || all.length < PROGRAMME_SIZES.single) return whole(row.single);
   const ctx = new SplitContext(g, door, rects);
   if (all.length >= PROGRAMME_SIZES.zones) {
-    for (const p of drawOrder(programmesFor(g.kind, all.length), prng)) {
+    const held = own
+      ? own.programmes.filter((p) => all.length >= p.minCells)
+      : programmesFor(g.kind, all.length);
+    for (const p of drawOrder(held, prng)) {
       const got = ctx.choose(p, prng, false);
       if (got) return got;
     }

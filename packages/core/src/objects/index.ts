@@ -15,6 +15,7 @@ export * from "./outline";
 export * from "./deck";
 export * from "./place";
 export * from "./vessel";
+export * from "./vesselProgramme";
 export * from "./stall";
 
 export const OBJECT_RECIPES = { vessel, stall } as const;

@@ -127,6 +127,15 @@ export function floorOver(
         corners.every(([px, pz]) => covered(px + 1e-3 * Math.sign(cx - px), pz + 1e-3 * Math.sign(cz - pz)))
       )
         continue;
+      // whole cells laid by the level: a margin tile centred on (or within a hair of) one belongs to that cell's floor
+      // (it would stand over another level's floor), so only the ones centred off the whole cells are laid
+      if (
+        o.wholeCells === false &&
+        [-0.05, 0.05].some((ex) =>
+          [-0.05, 0.05].some((ez) => whole.has(key(Math.floor(cx + ex), Math.floor(cz + ez)))),
+        )
+      )
+        continue;
       const drop = MARGIN_DROP[k % MARGIN_DROP.length] ?? 0.03;
       k++;
       out.push(tile(one, cx, cz, y - drop));

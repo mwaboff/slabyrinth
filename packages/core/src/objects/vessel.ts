@@ -87,15 +87,27 @@ export interface VesselParams extends ObjectParams {
   /** Overall height (deck foot to masthead plus freeboard) over hull length: ships 0.8-1.4 (default 1.0). */
   readonly rig?: number;
   /**
-   * Rooms aboard (a barge or a ship placed as a site, objects/site.ts): the hull reaches down one storey under the main
-   * deck to the hold's floor, raised decks stand one storey above it (cabins under them), and the decks' whole cells,
-   * the breaks' bulkheads, the steps and the hatch are left to the level (areas, walls, links). A boat has none.
+   * Rooms aboard (a barge or a ship placed as a site, resolve/objectSite.ts): the hull reaches down one storey under the
+   * main deck to the hold's floor (sunk 0.3 into it), raised decks stand one storey above it (cabins under them), and
+   * the decks' whole cells, the breaks' bulkheads, the steps, the hatch and the keel are left to the level (areas,
+   * walls, links, the hold's floor). A boat has none.
    */
   readonly interior?: boolean;
+  /**
+   * Stations along the length (x from the stern -size/2 to the bow +size/2, the recipe's own frame) where deck props
+   * leave the deck clear across: the hatches' ladders and the gangway (a site's lanes).
+   */
+  readonly clear?: readonly number[];
+  /** A gangway port: the bulwark left open one cell wide at station `x` on the port (+1) or starboard (-1) side. */
+  readonly gangway?: { readonly x: number; readonly side: 1 | -1 };
 }
 
 /** One storey: a level's floor (0.5) and its walls (2), the height between a vessel's decks when it has rooms. */
 export const STOREY = 2.5;
+/** How far a room's cells stand in from the hull's inside: the half cell its wall stands in (walls host outside). */
+export const ROOM_WALL = 0.5;
+/** How far the hull of a vessel with rooms is sunk into the hold's floor. */
+const HOLD_SINK = 0.3;
 
 /** The ranges of the rig ratio per kind (ships: hand-built range 0.8-1.4). */
 export const RIG_RANGE: Readonly<Record<VesselKind, readonly [number, number, number]>> = {
@@ -148,6 +160,9 @@ interface VesselDesign {
   readonly interior: boolean;
   /** With rooms: the stretch (x from, to) where the hold lies open to the sky, no main deck over it (a barge). */
   readonly openHold?: readonly [number, number] | null;
+  /** Stations deck props keep clear (VesselParams.clear). */
+  readonly clear: readonly number[];
+  readonly gangway: VesselParams["gangway"] | null;
 }
 
 const KIND_OF = (length: number): VesselKind => (length < 9 ? "boat" : length < 20 ? "barge" : "ship");
@@ -188,7 +203,16 @@ export function vesselDesign(p: VesselParams): VesselDesign {
   const [lo, hi, dflt] = RIG_RANGE[kind];
   const rig = Math.min(hi, Math.max(lo, p.rig ?? dflt));
   const interior = p.interior === true && kind !== "boat";
-  const common = { kind, draft, condition, seed, rake: kind === "boat" ? 0.2 : 0.12, interior: false };
+  const common = {
+    kind,
+    draft,
+    condition,
+    seed,
+    rake: kind === "boat" ? 0.2 : 0.12,
+    interior: false,
+    clear: p.clear ?? [],
+    gangway: p.gangway ?? null,
+  };
   if (interior) {
     // rooms aboard: the hull down to the bottom of the hold's floor, one storey under the main deck; raised decks one
     // storey up (their cabins under them)
@@ -200,7 +224,7 @@ export function vesselDesign(p: VesselParams): VesselDesign {
     return {
       ...base,
       interior: true,
-      draft: STOREY + 0.5 - deck,
+      draft: STOREY + HOLD_SINK - deck,
       fore: up(base.fore),
       aft,
       openHold: kind === "barge" && aft ? [aft.x, Math.round(0.22 * L)] : null,
@@ -462,12 +486,16 @@ function hullParts(d: VesselDesign, kit: ObjectKit, lod: number): Part[] {
     const b = placedBox(q);
     return b.min.x >= -half - 0.3 && b.max.x <= stemAt(d, q.y) + 0.3;
   };
-  const kept = hull.filter(inside);
+  const open = (q: Placed): boolean => inside(q) && !inGangway(d, q);
+  const kept = hull.filter(open);
   hull.length = 0;
   pushAll(hull, kept);
-  const keptCap = cap.filter(inside);
+  const keptCap = cap.filter(open);
   cap.length = 0;
   pushAll(cap, keptCap);
+  const keptRail = railing.filter(open);
+  railing.length = 0;
+  pushAll(railing, keptRail);
   const worn = d.condition === "derelict" ? { empty: 0.06, maxEmptyRun: 1 } : {};
   const parts = [
     part(
@@ -476,12 +504,36 @@ function hullParts(d: VesselDesign, kit: ObjectKit, lod: number): Part[] {
       d.condition === "new" ? hull : vary(hull, { seed: `${d.seed}:hull`, along: 0.03, ...worn }),
     ),
     part("cap rail", "face", cap),
-    part("joint plugs", "mass", lod > 0 ? plugs(d, kit) : []),
+    part("joint plugs", "mass", lod > 0 ? plugs(d, kit).filter((q) => !inGangway(d, q)) : []),
   ];
   if (railing.length > 0) parts.push(part("bulwark rail", "face", railing));
   if (lod >= 2)
-    parts.push(part("wale", "trim", wale(d, kit, courses), { rung: 100, kind: "detail", hold: "fastened" }));
+    parts.push(
+      part(
+        "wale",
+        "trim",
+        wale(d, kit, courses).filter((q) => !inGangway(d, q)),
+        { rung: 100, kind: "detail", hold: "fastened" },
+      ),
+    );
   return parts;
+}
+
+/**
+ * Whether a piece of the side stands in the gangway port: within the port's cell along the length, on its side of
+ * the hull, and reaching above the bottom of the deck's floor (the gangway's floor runs through there).
+ */
+function inGangway(d: VesselDesign, q: Placed): boolean {
+  const g = d.gangway;
+  if (!g) return false;
+  const b = placedBox(q);
+  const w = halfWidthAt(closedOutline(sideAt(d, d.deck)), g.x);
+  return (
+    b.max.x > g.x - 0.5 &&
+    b.min.x < g.x + 0.5 &&
+    g.side * (b.min.z + b.max.z) > w &&
+    b.max.y > d.deck - 0.5 - 0.01
+  );
 }
 
 /** A post at every joint where the side turns (the C6 plug), from the waterline to the side's top. */
@@ -554,7 +606,8 @@ function supportParts(d: VesselDesign, kit: ObjectKit): Part[] {
   );
   const timber = kit.piece("timber");
   // a keel timber is too heavy for an open boat (it would stand through the bottom boards)
-  if (timber && d.kind !== "boat") {
+  // with rooms aboard the hold's floor is the bottom (a keel would stand through it)
+  if (timber && d.kind !== "boat" && !d.interior) {
     const keel = transform(
       run(lengthwise(timber), {
         path: polyline([
@@ -613,7 +666,7 @@ function interiorDecks(d: VesselDesign, t: number): { surfaces: Surface[]; space
       id: "hold",
       floorY: d.deck - STOREY,
       ceilingY: d.deck - 0.5,
-      polygon: deckOutline(d, d.deck - STOREY, t, -half - 2, half + 2),
+      polygon: deckOutline(d, d.deck - STOREY, t + 2 * ROOM_WALL, -half - 2, half + 2),
     },
   ];
   if (d.fore) {
@@ -626,7 +679,7 @@ function interiorDecks(d: VesselDesign, t: number): { surfaces: Surface[]; space
       id: "forecastle cabin",
       floorY: d.deck,
       ceilingY: d.fore.y - 0.5,
-      polygon: deckOutline(d, d.fore.y - 0.5, t, d.fore.x, half + 2),
+      polygon: deckOutline(d, d.fore.y - 0.5, t + 2 * ROOM_WALL, d.fore.x, half + 2),
     });
   }
   if (d.aft) {
@@ -635,7 +688,7 @@ function interiorDecks(d: VesselDesign, t: number): { surfaces: Surface[]; space
       id: "stern cabin",
       floorY: d.deck,
       ceilingY: d.aft.y - 0.5,
-      polygon: deckOutline(d, d.aft.y - 0.5, t, -half - 2, d.aft.x),
+      polygon: deckOutline(d, d.aft.y - 0.5, t + 2 * ROOM_WALL, -half - 2, d.aft.x),
     });
   }
   return {
@@ -652,9 +705,9 @@ function deckParts(d: VesselDesign, kit: ObjectKit, surfaces: readonly Surface[]
     small: kitOr(kit, "shipDeckSmall", "deckSmall"),
     big: kitOr(kit, "shipDeck", "deck"),
   };
-  const tiles = surfaces.flatMap((s) =>
-    floorOver(s.polygon, s.y, kit, `${d.seed}:deck`, deckTiles, { wholeCells: !d.interior }),
-  );
+  const tiles = surfaces
+    .flatMap((s) => floorOver(s.polygon, s.y, kit, `${d.seed}:deck`, deckTiles, { wholeCells: !d.interior }))
+    .filter((q) => !inGangway(d, q));
   const parts = [part("decks", "deck", tiles, { rung: 50, kind: "interior" })];
   // with rooms aboard, the breaks are the cabins' walls and the steps are the level's links
   if (d.interior) return parts;
@@ -911,7 +964,8 @@ function sparParts(d: VesselDesign, kit: ObjectKit): Part[] {
     parts.push(part("bowsprit", "top", [...rise(heavy, y0), ...rise(boom, y0 + 0.3)], { hold: "fastened" }));
   }
   const aftmost = [...d.masts].sort((a, b) => a.x - b.x)[0];
-  if (d.boom > 0 && plank && aftmost) {
+  // with rooms aboard the quarterdeck stands a storey up, where the boom would run through it: no boom
+  if (d.boom > 0 && plank && aftmost && !d.interior) {
     const y = deckAt(d, aftmost.x) + 2.2;
     const boom = run(lengthwise(plank), {
       path: polyline([
@@ -940,8 +994,14 @@ function stowageParts(d: VesselDesign, kit: ObjectKit, decks: readonly Surface[]
   const fitting = kit.piece(kitOr(kit, "shipCoil", "fitting"));
   const pole = kit.piece("pole");
   if (fitting && pole && d.masts.length > 0) {
-    // round each mast foot, clear of the bundle: belaying fittings
-    const r = (d.kind === "ship" ? 1.15 * pole.measures.length : pole.measures.length) / 2 + 0.45;
+    // round each mast foot, clear of the bundle (or the kit mast's base): belaying fittings
+    const kitFoot = kit.standIn("shipMast")?.pieces.find((p) => p.variant.variant === "base");
+    const foot = kitFoot
+      ? kitFoot.measures.length
+      : d.kind === "ship"
+        ? 1.15 * pole.measures.length
+        : pole.measures.length;
+    const r = foot / 2 + 0.45;
     const feet = d.masts.flatMap((m) =>
       onDeck(
         ring(single(fitting), { count: 3, radius: r, start: 30 + 60 * hashUnitMixed(d.seed, "foot", m.x) }),
@@ -961,7 +1021,9 @@ function stowageParts(d: VesselDesign, kit: ObjectKit, decks: readonly Surface[]
     const stretches: [number, number][] = [];
     if (mainMast && foreMast) stretches.push([mainMast.x + 1.2, foreMast.x - 1.2]);
     if (mainMast) stretches.push([(d.aft?.x ?? -half + 2) + 0.6, mainMast.x - 1.2]);
-    const boatAt = stretches.find(([a, b]) => b - a >= boatLength) ?? null;
+    // never over a lane the site keeps clear (a hatch's ladder, the gangway)
+    const boatAt =
+      stretches.find(([a, b]) => b - a >= boatLength && !d.clear.some((c) => c > a - 1 && c < b + 1)) ?? null;
     const hatchAt = stretches.find((s) => s !== boatAt && s[1] - s[0] >= 2.6);
     const hx = hatchAt ? Math.round((hatchAt[0] + hatchAt[1]) / 2) : Math.round(0.1 * L);
     // with rooms aboard the hatch is the ladder's hole in the deck (a link of the level)
@@ -991,7 +1053,7 @@ function stowageParts(d: VesselDesign, kit: ObjectKit, decks: readonly Surface[]
     // a kit every 2.2 tiles along each side of the waist, each side drawn on its own (dressing mirrors little)
     const kits: Placed[] = [];
     const choice = ["barrel", "smallCrate", "fitting", "crate"] as const;
-    const busy = [hx, ...d.masts.map((m) => m.x)];
+    const busy = [hx, ...d.masts.map((m) => m.x), ...d.clear];
     const xs = main.polygon.map((p) => p[0]);
     for (let x = minOf(xs) + 1.3; x <= maxOf(xs) - 1.3; x += 2.2) {
       if (busy.some((b) => Math.abs(b - x) < 1.3)) continue;
