@@ -25,6 +25,7 @@
  */
 import { single, type Arrangement, type ArrangePiece, type Placed } from "../../arrange";
 import { CELL_FLAG } from "../../contracts/resolved";
+import { grown } from "../../gen/pieceFacts";
 import { thinnestFloor } from "../../palette/planRoles";
 import { hashUnitMixed } from "../../util/hash";
 import { deepestSink } from "../../util/sunk";
@@ -345,7 +346,10 @@ export const layeredGround: Recipe<"zone"> = {
     // takes no land plant; its rocks and rubble only
     const plane = ctx.profile.dryLandCover ? ctx.level.waterLevel : undefined;
     const wet = (x: number, y: number): boolean => plane !== undefined && g.top(x, y) < plane - 1e-6;
-    const wetLow = [...rocks, ...lowOf(a.wear > 0 ? piecesOf(slots.rubble) : [])];
+    // (a rock grown with moss reads as a plant: gen/pieceFacts.ts `grown`)
+    const wetLow = [...rocks, ...lowOf(a.wear > 0 ? piecesOf(slots.rubble) : [])].filter(
+      (p) => !grown(p.variant.name),
+    );
     // one layout at a cluster rate `rate`
     const lay = (rate: number): void => {
       out.length = 0;
@@ -363,6 +367,9 @@ export const layeredGround: Recipe<"zone"> = {
       const used = nearUse(x, y);
       // under the level's water: no land plant, a rock or rubble at most
       if (wet(x, y)) {
+        // (at the place's first rate: the seen-cover correction makes up for missing plants on dry ground, not here)
+        const boost = visible ? (near ? rates.edge : rates.middle) : 1;
+        if (boost > 1 && draw("wetKeep", x, y) > 1 / boost) return;
         const q = wetLow[Math.floor(draw("wet", x, y) * wetLow.length)];
         if (q)
           put(lows, q, cx, cy, ground, ground - sunk(q, draw("sink", x, y)), yawOf(draw("lowYaw", x, y)));

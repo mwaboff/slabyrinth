@@ -42,6 +42,7 @@ import {
 import { planPointOf, type Placed } from "../arrange";
 import { SIDE_STEP, SIDES } from "../gen/gridGeometry";
 import { forEachMaskCell } from "../gen/mask";
+import { shell } from "../gen/pieceFacts";
 import { rasterizeShape } from "../gen/shapes";
 import type { RoomKind } from "../gen/roomPurpose";
 import {
@@ -754,6 +755,8 @@ function instancesByLevel(
     const lv = above.find((l) => bottom >= l.elevation - 0.05 && floorAt(l, c));
     if (lv) return lv.id;
     const top = bottom + q.piece.variant.geom.size.y;
+    // (a hollow shell, the kit hull's planking, encloses the floors inside it: it stays with the hull)
+    if (shell(q.piece.variant.name)) return site.hullLevel;
     const through = above.some((l) => top > l.elevation + 0.01 && bottom < l.elevation && floorAt(l, c));
     return through ? null : site.hullLevel;
   };

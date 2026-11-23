@@ -16,6 +16,7 @@ import { LevelAnchors, ZONE } from "../../../src/resolve/anchors";
 import { ArrangementRecords } from "../../../src/resolve/level/arrangements";
 import { runRecipes } from "../../../src/resolve/recipes/engine";
 import { layeredGround } from "../../../src/resolve/recipes/ground";
+import { grown } from "../../../src/gen/pieceFacts";
 import { loadPlan } from "../../fixtures";
 import { coplanarShare, duplicateCount, piecesOf, restContact } from "../../fixtures/quality";
 import { forced, withArrangements } from "../../fixtures/treatments";
@@ -176,6 +177,22 @@ describe("ground under the level's water (generator 5, dryLandCover)", () => {
     const wet = roles(flooded);
     expect(wet.filter((r) => plants.has(r))).toEqual([]);
     expect(wet.every((r) => ["feature.rock", "feature.rubble", "feature.debris"].includes(r))).toBe(true);
+    // and no rock grown with moss (it read as a green tuft on the harbour bed)
+    const grownIds = new Set(
+      Object.values(pal.palettes).flatMap((p) =>
+        Object.values(p.roles).flatMap((r) => r.variants.filter((v) => grown(v.name)).map((v) => v.asset)),
+      ),
+    );
+    const assets = runRecipes(flooded, new ArrangementRecords(), {
+      planSeed: plan.seed,
+      profile: generatorProfile(5),
+      palette: view,
+      budget: 1e6,
+      families: LAYERED,
+      recipes: [layeredGround],
+    }).attached.flatMap((x) => x.pieces.map((p) => p.asset));
+    expect(grownIds.size).toBeGreaterThan(0);
+    expect(assets.filter((a) => grownIds.has(a))).toEqual([]);
   });
 
   it("keeps the earlier cover with the switch off", () => {

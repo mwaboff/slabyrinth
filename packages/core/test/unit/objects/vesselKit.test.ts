@@ -116,16 +116,48 @@ describe("the vessel recipe asks for the ship kit first", () => {
       createKit(createPlanRoles(kitCat, 5), "wood_town"),
     );
     expect(d.hull).not.toBeNull();
-    // bow block 4 + side sections of 4 + stern block 4; two 4-wide bow halves and a 2-wide filler (the rudder's)
-    expect((d.plan.length - 8) % 4).toBe(0);
-    expect(2 * d.plan.halfBeam).toBe(10);
+    // bow block 4 + side sections of 2 (seen in game: a side tile is 2 along the ship, 4 across) + stern block 4; the
+    // beam the two 4-wide halves
+    expect((d.plan.length - 8) % 2).toBe(0);
+    expect(2 * d.plan.halfBeam).toBe(8);
     const o = brig(kitCat);
     const tiles = piecesOf(o).filter((q) => q.piece.role.startsWith("ship.hull"));
-    expect(tiles.length).toBe(2 * ((d.plan.length - 8) / 4) + 6);
+    expect(tiles.length).toBe(2 * ((d.plan.length - 8) / 2) + 4);
     for (const q of tiles) {
       expect(q.yaw % 90).toBe(0);
       const b = placedBox(q);
       for (const v of [b.min.x, b.min.z]) expect(Math.abs(v - Math.round(v))).toBeLessThan(1e-6);
+    }
+  });
+
+  it("closes the hull: its tiles' boxes cover the hull's rectangle exactly, no gap and no overlap", () => {
+    const o = brig(kitCat);
+    const tiles = piecesOf(o).filter((q) => q.piece.role.startsWith("ship.hull"));
+    // (in the object's frame, bow +z: cell counts over the box of all the tiles)
+    const cover = new Map<string, number>();
+    for (const q of tiles) {
+      const b = placedBox(q);
+      for (let x = Math.round(b.min.x); x < Math.round(b.max.x); x++)
+        for (let z = Math.round(b.min.z); z < Math.round(b.max.z); z++)
+          cover.set(`${x},${z}`, (cover.get(`${x},${z}`) ?? 0) + 1);
+    }
+    const xs = [...cover.keys()].map((k) => Number(k.split(",")[0]));
+    const zs = [...cover.keys()].map((k) => Number(k.split(",")[1]));
+    const w = Math.max(...xs) - Math.min(...xs) + 1;
+    const l = Math.max(...zs) - Math.min(...zs) + 1;
+    expect(cover.size).toBe(w * l);
+    expect([...cover.values()].every((n) => n === 1)).toBe(true);
+  });
+
+  it("turns the port and starboard tiles half round from each other (one piece, mirrored by a turn)", () => {
+    const o = brig(kitCat);
+    const sides = piecesOf(o).filter((q) => q.piece.role === "ship.hull_side");
+    const byRow = new Map<number, number[]>();
+    for (const q of sides)
+      byRow.set(Math.round(q.z * 100), [...(byRow.get(Math.round(q.z * 100)) ?? []), q.yaw]);
+    for (const yaws of byRow.values()) {
+      expect(yaws).toHaveLength(2);
+      expect(Math.abs((yaws[0] ?? 0) - (yaws[1] ?? 0)) % 360).toBe(180);
     }
   });
 

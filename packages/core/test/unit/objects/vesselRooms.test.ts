@@ -11,6 +11,7 @@ import { realize } from "../../../src/compile";
 import { verifyBuild } from "../../../src/compile/verify/verify";
 import type { MapPlan } from "../../../src/contracts/plan";
 import { CELL, type ResolvedPlan } from "../../../src/contracts/resolved";
+import { shell } from "../../../src/gen/pieceFacts";
 import { loadPalettes } from "../../../src/palette";
 import { WalkGraph, walkReachability } from "../../../src/resolve";
 import {
@@ -172,7 +173,14 @@ describe("the hull holds what is aboard", () => {
         ),
       );
       const things = meterPiecesOf(set, (id) => furniture.has(id));
-      const hull = meterPiecesOf(set, (id) => isHull(s, id));
+      // (the kit's hull tiles are hollow shells round the rooms, gen/pieceFacts.ts `shell`: the next test holds the
+      // rooms inside them; every other hull piece is solid)
+      const shells = new Set(
+        Object.values(cat.palettes).flatMap((p) =>
+          Object.values(p.roles).flatMap((r) => r.variants.filter((v) => shell(v.name)).map((v) => v.asset)),
+        ),
+      );
+      const hull = meterPiecesOf(set, (id) => isHull(s, id)).filter((h) => !shells.has(h.asset));
       expect(things.length).toBeGreaterThan(5);
       const pokes: string[] = [];
       for (const t of things)
@@ -182,6 +190,24 @@ describe("the hull holds what is aboard", () => {
           if (overlapArea(footprint(t), footprint(h)) > 0.01) pokes.push(`${t.asset} into ${h.asset}`);
         }
       expect(pokes, s.spec.id).toEqual([]);
+    }
+  });
+
+  it("keeps every room below deck at least a cell inside the hull's shell", () => {
+    for (const s of harbour.sites) {
+      const foot = new Set(s.placed.footprint.map(key));
+      const below = s.rooms.filter((r) => r.level !== s.spec.level);
+      expect(below.length, s.spec.id).toBeGreaterThan(0);
+      for (const r of below)
+        for (const c of r.cells)
+          for (const [dx, dy] of [
+            [0, 0],
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ] as const)
+            expect(foot.has(key([c[0] + dx, c[1] + dy])), `${r.name} ${key(c)}`).toBe(true);
     }
   });
 

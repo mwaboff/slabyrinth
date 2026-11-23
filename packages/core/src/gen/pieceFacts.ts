@@ -12,7 +12,10 @@
  *            ordinary room's clutter, where it looks like a broken lamp (the room kinds whose row says `glow` take it);
  *   sloped   a raking piece (a stair's handrail): it stands only on a stair, never along a level run;
  *   endPost  a level piece with a taller post at one end (a newel): only at a run's end, turned so the post is the end;
- *   ragged   a floor tile with broken, gapped ends (ruined boards): a floor's whole pieces cover the cells instead.
+ *   ragged   a floor tile with broken, gapped ends (ruined boards): a floor's whole pieces cover the cells instead;
+ *   grown    grown over with moss or plants: it reads as a land plant (kept off ground under water);
+ *   shell    a hollow shell (a hull's curved planking): its box encloses the decks and rooms inside it, so it neither
+ *            rises "through" a floor it surrounds nor counts as solid to what stands within.
  * Facts about a whole roof kit (its tone, family, spiked corner) are keyed by kit, not piece: resolve/roofKits.ts.
  * A piece the table does not name has no such fact: it is level, post-free and does not glow.
  */
@@ -37,6 +40,10 @@ export interface PieceFacts {
   readonly endPost?: "low" | "high";
   /** A floor tile with broken, gapped ends (ruined boards): laid as a floor it reads as holes along its row. */
   readonly ragged?: true;
+  /** A hollow shell (a hull's planking): its box encloses what stands inside it, a floor or a room, without meeting it. */
+  readonly shell?: true;
+  /** A piece grown over with moss or plants: it reads as a land plant, so it stays off ground under water. */
+  readonly grown?: true;
 }
 
 const light = (
@@ -105,6 +112,20 @@ export const PIECE_FACTS: Readonly<Record<string, PieceFacts>> = {
   "Castle Ruins Wood 1": { ragged: true },
   "Castle Ruins Wood 2": { ragged: true },
   "Castle Ruins Wood 3": { ragged: true },
+
+  // ── grown pieces (harbour screenshots 205-208: the only pieces left on the bed under the water plane were rocks;
+  // this one read as green tufts, like the plants the rule keeps off) ──
+  "Moss Rock 01": { grown: true },
+
+  // ── hollow hull shells (owner's ship screenshots 205-210, 2026-11-23: the ship kit's "Ship bottom" tiles are curved
+  // planked shells from the keel to the gunwale, open inside; a ship's decks and rooms stand within their boxes) ──
+  "Ship bottom side 4x2_Port and Starboard": { shell: true },
+  "Ship bottom front L_Bow": { shell: true },
+  "Ship bottom front R_Bow": { shell: true },
+  "Ship bottom front filler 4x2_Bow": { shell: true },
+  "Ship bottom back L_Stern": { shell: true },
+  "Ship bottom back R_Stern": { shell: true },
+  "Ship bottom back Fin 4x2_Rudder": { shell: true },
 };
 
 /** The facts of a piece by its name (none for a piece the table does not name). */
@@ -117,6 +138,12 @@ export const outdoorPiece = (name: string | undefined): boolean =>
 
 /** Does the piece only glow (it lights nothing and looks like a light)? */
 export const glows = (name: string | undefined): boolean => pieceFacts(name).glows === true;
+
+/** Is the piece grown over with moss or plants (it reads as a plant)? */
+export const grown = (name: string | undefined): boolean => pieceFacts(name).grown === true;
+
+/** Is the piece a hollow shell whose box encloses what stands inside it? */
+export const shell = (name: string | undefined): boolean => pieceFacts(name).shell === true;
 
 /** Is the piece a ragged floor tile (broken, gapped ends)? */
 export const ragged = (name: string | undefined): boolean => pieceFacts(name).ragged === true;

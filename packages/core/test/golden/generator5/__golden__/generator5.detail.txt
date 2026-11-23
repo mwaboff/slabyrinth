@@ -1732,13 +1732,13 @@ plans/example-a review floor_patchwork 1
 plans/example-a review furniture_adrift 1
 plans/example-a review room_unlit 1
 plans/example-a review single_route 1
-plans/example-a@5 l2 pieces feature 45
+plans/example-a@5 l2 pieces feature 37
 plans/example-a@5 l2 pieces fill 29
 plans/example-a@5 l2 pieces floor 129
 plans/example-a@5 l2 pieces link 9
 plans/example-a@5 l2 pieces wall 255
 plans/example-a@5 l2 pieces wall_post 6
-plans/example-a@5 l2 layer site 473
+plans/example-a@5 l2 layer site 465
 plans/example-a@5 l2 part c3~room#0 1
 plans/example-a@5 l2 part chapel~room#0 1
 plans/example-a@5 l2 part chapel~room#1 1
@@ -1901,14 +1901,14 @@ plans/example-b review flat_map 1
 plans/example-b review focus_unreached 1
 plans/example-b review rows_or_even_scatter 3
 plans/example-b review straight_natural 1
-plans/example-b@5 g pieces feature 270
+plans/example-b@5 g pieces feature 177
 plans/example-b@5 g pieces fill 59
 plans/example-b@5 g pieces floor 797
 plans/example-b@5 g pieces ledge 35
 plans/example-b@5 g pieces opening 1
 plans/example-b@5 g pieces wall 14
 plans/example-b@5 g pieces wall_post 6
-plans/example-b@5 g layer site 1182
+plans/example-b@5 g layer site 1089
 plans/example-b@5 g part floor:floor.bridge_wood 9
 plans/example-b@5 g part floor:floor.dirt 136
 plans/example-b@5 g part floor:floor.flagstone 20
@@ -5386,11 +5386,11 @@ plans/smugglers-grotto-v3 diag info verify_water_level 1
 plans/smugglers-grotto-v3 review cliff_unclad_low 1
 plans/smugglers-grotto-v3 review flat_map 1
 plans/smugglers-grotto-v3 review rise_timid 1
-plans/smugglers-grotto-v3@5 l1 pieces feature 536
+plans/smugglers-grotto-v3@5 l1 pieces feature 535
 plans/smugglers-grotto-v3@5 l1 pieces fill 446
 plans/smugglers-grotto-v3@5 l1 pieces floor 342
 plans/smugglers-grotto-v3@5 l1 pieces wall 879
-plans/smugglers-grotto-v3@5 l1 layer site 2203
+plans/smugglers-grotto-v3@5 l1 layer site 2202
 plans/smugglers-grotto-v3@5 l1 part floor:floor.rock 232
 plans/smugglers-grotto-v3@5 l1 feature accent_light 2
 plans/smugglers-grotto-v3@5 l1 feature barrel 1

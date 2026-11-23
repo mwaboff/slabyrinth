@@ -41,6 +41,7 @@ import { hashUnitMixed } from "../util/hash";
 import { maxOf, minOf, pushAll } from "../util/lists";
 import { floorOver } from "./deck";
 import { kitOr, type ObjectKit } from "./kit";
+import { MEASURED_PROPS } from "./shipKitGeometry";
 import {
   bodySide,
   clipPolygonX,
@@ -125,36 +126,49 @@ const MAST_STATIONS: Readonly<Record<number, readonly number[]>> = {
 };
 
 /**
- * How the ship kit's pieces stand at rot 0. ASSUMED from the catalog's names and bounds, NOT seen in game: the proof
- * ship-kit-calibration.txt shows each piece with a marker at its believed min corner and its believed bow or outboard
- * side, and a screenshot of it settles every line here (one data edit each).
- *   - every hull, deck, rail and wall tile, the bowsprit, the cannon and the shrouds are modelled with the ship's bow
- *     toward +z (`KIT_BOW_YAW` turns that to the recipe's +x);
- *   - "L" / left pieces are the port half, at -x when the bow is +z;
- *   - the hull side ("Port and Starboard") has its outer face at -x: the port side as it stands, the starboard side
- *     turned half round;
- *   - a hull tile's origin is its min corner at the keel; its top (5 up) carries the deck's floor tiles;
- *   - "Ship fence bow curved" is the port half of the bow's bulwark; turned a quarter clockwise it is the starboard half;
- *   - a wall's or rail's decorated face is at -z (straight pieces, length along x);
- *   - the shrouds ("rope ladder") climb toward +z, the bowsprit rises toward +z, a cannon's barrel points +z.
+ * How the ship kit's pieces are turned, in the recipe's frame (bow +x, port +z; a bow-north ship's TaleSpire turn is the
+ * recipe yaw less 90°). Measured from the game's own meshes (objects/shipKitGeometry.ts; test/unit/objects/
+ * shipKitFrame.test.ts holds this table to it), after three rounds of the owner's screenshots:
+ *   - hull side: a 2-tile slice of the cross-section (2 along the ship, 4 across), gunwale and outer planking on its
+ *     rot-0 south edge: port 6 steps for a bow-north ship (`sidePortYaw`), starboard half round;
+ *   - bow and stern halves: "L" is the PORT half, "R" the starboard, both at 12 steps for a bow-north ship
+ *     (`halfYaw`); the halves are nearly symmetric about their own diagonal, so a near miss (round 3) also looks closed;
+ *   - curved bow fence: port 12 steps, starboard 18 (`bowFenceYaw`, `bowRailStarboardTurn`);
+ *   - rig and props: the bowsprit rises and the shrouds climb toward +z, a set sail bellies toward +z, the boat's bow
+ *     is +z (`bowYaw`); the cannon's barrel points -z (`cannonPortYaw`); the stern gallery faces -z with "L" its port
+ *     corner;
+ *   - NOT settled by the mesh: which face of a side fence or a ship wall is outboard (the recipe keeps the fence's base
+ *     lip and the walls' plain face outboard, their posts and mouldings inboard);
+ *   - the bow filler and the rudder fin are centre strips of a 10-wide hull; the kit has no centre strip for the
+ *     midship (the side tiles reach the centreline from a beam of 8), so the ships keep a beam of 8 without them.
  */
 export const SHIP_KIT_FRAME = {
-  /** Recipe yaw that turns a kit piece's bow (+z at rot 0) to the recipe's bow (+x). */
+  /** Recipe yaw that turns a kit piece's bow (+z at rot 0) to the recipe's bow (+x): rails, walls, gallery, rig. */
   bowYaw: 90,
-  /** Recipe yaw of the hull side on the port (+z) side; the starboard side is turned half round. */
-  sidePortYaw: 90,
+  /** Recipe yaw of the bow and stern halves (12 steps for a bow-north ship). */
+  halfYaw: 270,
+  /** Which side a hull tile's "L" half goes on: +1 port (+z), -1 starboard. Measured: "L" is the port half. */
+  leftSide: 1,
+  /** Recipe yaw of the hull side on the port (+z) side (6 steps bow-north); the starboard side is turned half round. */
+  sidePortYaw: 180,
   /** Recipe yaw of a straight wall or rail on the port side (its face outboard); starboard is turned half round. */
   facePortYaw: 180,
-  /** Extra turn from the port half of the curved bow bulwark to the starboard half. */
+  /** Recipe yaw of the curved bow fence on the port half (12 steps bow-north). */
+  bowFenceYaw: 270,
+  /** Extra turn from the port half of the curved bow fence to the starboard half (18 steps bow-north). */
   bowRailStarboardTurn: 90,
   /** Recipe yaw of a piece that climbs or points toward its +z, to climb or point toward the recipe's +z. */
   plusZYaw: 0,
+  /** Recipe yaw of a port cannon (its barrel -z at rot 0, outboard); starboard is turned half round. */
+  cannonPortYaw: 180,
 } as const;
 
 /** A deck's floor thickness: the kit's deck tiles are half a tile thick, laid on the hull's top. */
 const DECK_FLOOR = 0.5;
 /** The bulwark's thickness: the kit's rail tiles stand in the outer half cell of the deck's edge. */
 const KIT_RAIL = 0.5;
+/** How far in from the gunwale the kit hull's shell is at the hold's floor (ASSUMED; the cutaway shows it). */
+const HULL_SHELL = 1;
 
 /** The ship kit's grid hull: its tiles and the grid they lay on (measured from the pieces). */
 export interface KitHull {
@@ -165,15 +179,15 @@ export interface KitHull {
   readonly sternL: ArrangePiece;
   readonly sternR: ArrangePiece;
   readonly rudder: ArrangePiece | null;
-  /** A side section's length along the ship (4). */
+  /** A side section's length along the ship (2: the tile's x). */
   readonly section: number;
   /** The bow's and the stern's block length along the ship (4). */
   readonly end: number;
   /** A bow half's width (4). */
   readonly half: number;
-  /** A filler's width (2). */
+  /** A filler's width (unused while the beam is two halves). */
   readonly fill: number;
-  /** The hull side's width across (2). */
+  /** The hull side's width across, centreline to gunwale (4: the tile's z). */
   readonly sideWidth: number;
   /** The hull's depth, keel to deck (5). */
   readonly height: number;
@@ -204,11 +218,12 @@ export function kitHullOf(kit: ObjectKit): KitHull | null {
     sternL,
     sternR,
     rudder: named(stern, "rudder"),
-    section: side.measures.length,
-    end: bowL.measures.length,
-    half: bowL.measures.width,
-    fill: bowFill?.measures.width ?? side.measures.width,
-    sideWidth: side.measures.width,
+    // (seen in game: the side tile's x runs along the ship, its z across)
+    section: side.variant.geom.size.x,
+    end: bowL.variant.geom.size.x,
+    half: bowL.variant.geom.size.z,
+    fill: bowFill?.variant.geom.size.x ?? side.variant.geom.size.x,
+    sideWidth: side.variant.geom.size.z,
     height: side.variant.geom.size.y,
     gallery: galleryOf(kit)?.depth ?? 0,
   };
@@ -298,9 +313,9 @@ export function vesselDesign(p: VesselParams, kit?: ObjectKit): VesselDesign {
 }
 
 /**
- * A barge or a ship on the kit's grid: its length a bow block, whole side sections and a stern block; its beam two bow
- * halves and fillers (a ship at least one, the stern's rudder); straight sides, no rake or tumblehome (the tiles are
- * the hull); the deck on the hull's top. A raised deck aft only: the kit's bow is a curved bulwark at the main deck,
+ * A barge or a ship on the kit's grid: its length a bow block, whole side sections (2 long) and a stern block; its beam
+ * the two bow halves (a side tile reaches from the centreline to the gunwale); straight sides, no rake or tumblehome
+ * (the tiles are the hull); the deck on the hull's top. A raised deck aft only: the kit's bow is a curved bulwark at the main deck,
  * and a raised deck's side is the kit's walls, a storey tall (2 of wall and the raised deck's floor). With rooms aboard
  * the main deck stays where the vessel's would (its waterline is the water plane) and the hull reaches below the hold;
  * without, the hull stands on the ground, its keel `draft` into it.
@@ -308,12 +323,8 @@ export function vesselDesign(p: VesselParams, kit?: ObjectKit): VesselDesign {
 function onKitGrid(d: VesselDesign, p: VesselParams, hull: KitHull): VesselDesign {
   const n = Math.max(1, Math.round((d.plan.length - 2 * hull.end) / hull.section));
   const L = 2 * hull.end + n * hull.section;
-  // at least one filler: a ship's rudder, and a hold with rooms at least four cells across between the side tiles
-  const fills = Math.max(
-    d.kind === "ship" || d.interior ? 1 : 0,
-    Math.round((2 * d.plan.halfBeam - 2 * hull.half) / hull.fill),
-  );
-  const hb = hull.half + (fills * hull.fill) / 2;
+  // the beam: the two halves (no filler: where the kit's fillers and rudder fin go is not seen yet)
+  const hb = hull.half;
   const deck = d.interior ? d.deck : hull.height + DECK_FLOOR - (p.draft ?? 0.3);
   const [lo, hi, dflt] = RIG_RANGE[d.kind];
   const rig = Math.min(hi, Math.max(lo, p.rig ?? dflt));
@@ -612,8 +623,8 @@ function tileRun(
 }
 
 /**
- * The kit's grid hull (SHIP_KIT_FRAME): the bow's halves and fillers, side sections both sides, the stern's halves and
- * rudder, all at the keel (5 under the deck's floor); the bulwark's rail tiles along the deck's edge, the curved bow
+ * The kit's grid hull (SHIP_KIT_FRAME): the bow's halves, side sections (2 long, centreline to gunwale) both sides
+ * end to end, the stern's halves, all at the keel (5 under the deck's floor); the bulwark's rail tiles along the deck's edge, the curved bow
  * bulwark, the stern rail; a raised deck's sides of the kit's walls (portholes, the cabin's windows), its stern a
  * gallery of the kit's stern walls, its own rails on top.
  */
@@ -625,19 +636,12 @@ function kitHullParts(d: VesselDesign, kit: ObjectKit, h: KitHull): Part[] {
   const hull: Placed[] = [];
   // the bow and stern blocks carry the stem and the sternpost (the recipe's supports)
   const ends: Placed[] = [];
-  const fills = Math.round((2 * hb - 2 * h.half) / h.fill);
   const xb = half - h.end / 2;
   const xs = -half + h.end / 2;
-  ends.push(at(h.bowL, xb, y, hb - h.half / 2, F.bowYaw), at(h.bowR, xb, y, -hb + h.half / 2, F.bowYaw));
-  ends.push(at(h.sternL, xs, y, hb - h.half / 2, F.bowYaw), at(h.sternR, xs, y, -hb + h.half / 2, F.bowYaw));
-  for (let k = 0; k < fills; k++) {
-    const z = hb - h.half - h.fill * (k + 0.5);
-    if (h.bowFill) ends.push(at(h.bowFill, xb, y, z, F.bowYaw));
-    // the rudder in the middle of the stern (the other fillers: the bow's, ASSUMED to fit the stern's line too)
-    const mid = k === Math.floor(fills / 2);
-    const sf = mid ? (h.rudder ?? h.bowFill) : h.bowFill;
-    if (sf) ends.push(at(sf, xs, y, z, F.bowYaw));
-  }
+  // the halves on their sides: "L" on the side `leftSide` says
+  const zl = F.leftSide * (hb - h.half / 2);
+  ends.push(at(h.bowL, xb, y, zl, F.halfYaw), at(h.bowR, xb, y, -zl, F.halfYaw));
+  ends.push(at(h.sternL, xs, y, zl, F.halfYaw), at(h.sternR, xs, y, -zl, F.halfYaw));
   for (let x = -half + h.end; x < half - h.end - 0.01; x += h.section) {
     const cx = x + h.section / 2;
     hull.push(
@@ -661,11 +665,13 @@ function kitHullParts(d: VesselDesign, kit: ObjectKit, h: KitHull): Part[] {
   };
   const bowStart = half - h.end;
   const aftX = d.aft?.x ?? -half;
-  sides(aftX, bowStart, d.deck);
+  // (measured: the fences stand on the hull's rim, 5 up, under the deck's floor top)
+  const rim = d.deck - DECK_FLOOR;
+  sides(aftX, bowStart, rim);
   if (bowRail)
     rail.push(
-      at(bowRail, xb, d.deck, hb - h.half / 2, F.bowYaw),
-      at(bowRail, xb, d.deck, -hb + h.half / 2, F.bowYaw + F.bowRailStarboardTurn),
+      at(bowRail, xb, rim, hb - h.half / 2, F.bowFenceYaw),
+      at(bowRail, xb, rim, -hb + h.half / 2, F.bowFenceYaw + F.bowRailStarboardTurn),
     );
   const sternRail = (yy: number, from: number): void => {
     for (let z = -from; z < from - 0.01;) {
@@ -993,7 +999,9 @@ function interiorDecks(d: VesselDesign, t: number): { surfaces: Surface[]; space
   const surfaces: Surface[] = [{ id: "deck", y: d.deck, polygon: deckOutline(d, d.deck, t, from, fx) }];
   // the kit's hull: the hold between its side tiles, bow and stern blocks (a room never stands in a hull tile)
   const h = d.hull;
-  const inner = h ? d.plan.halfBeam - h.sideWidth : 0;
+  // (the side tiles are a curved shell from the keel to the gunwale: at the hold's floor, half the hull's depth up,
+  // ASSUMED a tile in from the gunwale)
+  const inner = h ? d.plan.halfBeam - HULL_SHELL : 0;
   const holdPolygon: XZ[] = h
     ? [
         [-half + h.end, -inner],
@@ -1320,7 +1328,8 @@ function sailParts(
 }
 
 /**
- * Set sails of the ship kit: under every yard, the kit's sail panels side by side across the yard's span (90 % of it),
+ * Set sails of the ship kit: under every yard, the kit's sail panels side by side across the yard's span (90 % of it,
+ * at most the deck's width),
  * one layer (they are real sails), the tallest panel that fits the drop to the yard below (or to a man's height over
  * the deck under the lowest yard), the wide panels first and a narrow one to fill.
  */
@@ -1343,7 +1352,8 @@ function kitSailParts(
       .sort((a, b) => b.measures.length - a.measures.length);
     if (row.length === 0) return;
     // panels across the yard (along the recipe's z), centred, their tops just under it
-    const span = 0.9 * yd.length;
+    // (within the deck's whole cells: a sail stands over the deck that carries it, never out over the water)
+    const span = Math.min(0.9 * yd.length, 2 * (d.plan.halfBeam - 1));
     for (let z = -span / 2; z < span / 2 - 0.3;) {
       const p = row.find((q) => z + q.measures.length <= span / 2 + 0.3) ?? row[row.length - 1];
       if (!p) break;
@@ -1366,17 +1376,28 @@ function sparParts(d: VesselDesign, kit: ObjectKit): Part[] {
   const section = (v: string): ArrangePiece | undefined => sprit.find((p) => p.variant.variant === v);
   const [sBase, sMid, sTop] = [section("base"), section("mid"), section("top")];
   if (d.bowsprit > 0 && d.hull && sBase && sMid && sTop) {
-    // the kit's bowsprit: base, mid and top end to end from the stem, each rising toward the bow (ASSUMED: each
-    // piece rises toward its +z, about its height less half a tile over its length; ship-kit-calibration.txt)
+    // the kit's bowsprit: base, mid and top end to end from the stem, each section's low end on the last one's high
+    // end (measured: objects/shipKitGeometry.ts; each rises toward its +z, turned to the bow)
     const out: Placed[] = [];
-    let x = half - 1.5;
-    let y = d.deck;
-    for (const p of [sBase, sMid, sTop]) {
-      const len = p.measures.length;
-      out.push(at(p, x + len / 2, y, 0, SHIP_KIT_FRAME.bowYaw));
-      x += len - 0.4;
-      y += p.variant.geom.size.y - 0.5;
-    }
+    const ends = MEASURED_PROPS.bowsprit;
+    let ox = half - 1.5;
+    let oy = d.deck;
+    const chain = [
+      { p: sBase, e: ends.base },
+      { p: sMid, e: ends.mid },
+      { p: sTop, e: ends.top },
+    ];
+    chain.forEach(({ p, e }, i) => {
+      if (i > 0) {
+        const prev = chain[i - 1]?.e ?? e;
+        ox += prev.high[0] - e.low[0];
+        // (up by the last one's measured rise to its box's foot: the mesh's 0.2 dip below its origin is not in the
+        // catalog box, so the boxes meet and the dip lies along the last section's end)
+        oy += prev.high[1] - Math.max(e.low[1], 0);
+      }
+      // (the piece's box centre lies its bounds centre ahead of its origin)
+      out.push(at(p, ox + p.variant.geom.boundsCenter.z, oy, 0, SHIP_KIT_FRAME.bowYaw));
+    });
     parts.push(part("bowsprit", "top", out, { hold: "fastened" }));
   } else if (d.bowsprit > 0 && timber) {
     const y0 = shellTop(d, half) - 0.35;
@@ -1508,8 +1529,8 @@ function stowageParts(d: VesselDesign, kit: ObjectKit, decks: readonly Surface[]
         if (busy.some((b) => Math.abs(b - x) < 1.6)) continue;
         const z = halfWidthAt(main.polygon, x) - cannon.measures.length / 2 - 0.05;
         guns.push(
-          at(cannon, x, d.deck, z, SHIP_KIT_FRAME.plusZYaw),
-          at(cannon, x, d.deck, -z, SHIP_KIT_FRAME.plusZYaw + 180),
+          at(cannon, x, d.deck, z, SHIP_KIT_FRAME.cannonPortYaw),
+          at(cannon, x, d.deck, -z, SHIP_KIT_FRAME.cannonPortYaw + 180),
         );
         busy.push(x);
       }
@@ -1620,7 +1641,7 @@ function stowageParts(d: VesselDesign, kit: ObjectKit, decks: readonly Surface[]
     const kitRail = kit.piece("shipRail");
     const capTop = (x: number): number =>
       d.hull && kitRail
-        ? deckAt(d, x) + kitRail.variant.geom.size.y
+        ? deckAt(d, x) - (deckAt(d, x) === d.deck ? DECK_FLOOR : 0) + kitRail.variant.geom.size.y
         : shellTop(d, x) +
           (d.railed ? (kit.piece("rail")?.variant.geom.size.y ?? 0) - 0.02 : 0) +
           (plank?.variant.geom.size.y ?? 0.15) -
