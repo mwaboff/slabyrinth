@@ -251,6 +251,31 @@ describe("the harbour builds clean", () => {
     expect(found.map((d) => `${d.code} ${d.elementId ?? ""} ${d.message}`)).toEqual([]);
   });
 
+  it("places a rowing boat (a vessel with no rooms) as a plain object: no rooms, decks or areas, no error", () => {
+    const skiff: ObjectSite["spec"] = {
+      id: "skiff",
+      kind: "vessel",
+      level: "quay",
+      at: [44, 15],
+      heading: 90,
+      size: 5,
+      options: { kind: "boat" },
+    };
+    const r = resolveWithObjects(harbourPlan(), [...HARBOUR_SPECS, skiff], cat);
+    const s = r.sites.find((x) => x.spec.id === "skiff");
+    expect(s?.rooms).toEqual([]);
+    expect(s?.decks).toEqual([]);
+    expect(s?.mainDeck).toBeNull();
+    expect(s?.areas.size).toBe(0);
+    expect(r.plan.levels.flatMap((l) => l.areas).some((a) => a.id.startsWith("skiff"))).toBe(false);
+    const quay = r.resolved.levels.find((l) => l.id === "quay");
+    expect((quay?.arrangements ?? []).filter((a) => a.id === "skiff").length).toBeGreaterThan(0);
+    const found = verifyBuild(r.resolved, realize(r.resolved, cat), cat).diagnostics.filter(
+      (d) => d.severity === "error",
+    );
+    expect(found.map((d) => `${d.code} ${d.elementId ?? ""} ${d.message}`)).toEqual([]);
+  });
+
   it("stands a brig the other way round on its own as well (rooms reached, nothing broken)", () => {
     const plan = cloneJson(harbourPlan());
     const turned = expandObjectSites(

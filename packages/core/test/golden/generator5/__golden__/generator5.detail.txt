@@ -3903,7 +3903,7 @@ plans/market-street-v3@5 g part tailor~window2 1
 plans/market-street-v3@5 g part tailor~window3 1
 plans/market-street-v3@5 g feature anvil 4
 plans/market-street-v3@5 g feature bar_counter 13
-plans/market-street-v3@5 g feature barrel 27
+plans/market-street-v3@5 g feature barrel 28
 plans/market-street-v3@5 g feature bed 3
 plans/market-street-v3@5 g feature bench 2
 plans/market-street-v3@5 g feature brazier 2
@@ -3923,7 +3923,7 @@ plans/market-street-v3@5 g feature lantern 12
 plans/market-street-v3@5 g feature line_post 2
 plans/market-street-v3@5 g feature overhead 18
 plans/market-street-v3@5 g feature rug 2
-plans/market-street-v3@5 g feature sack 14
+plans/market-street-v3@5 g feature sack 13
 plans/market-street-v3@5 g feature shelf_line 47
 plans/market-street-v3@5 g feature stall 8
 plans/market-street-v3@5 g feature stool 2

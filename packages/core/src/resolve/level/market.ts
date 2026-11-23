@@ -590,6 +590,17 @@ function stepTradeProps(
         at = [c[0], c[1]];
       }
       if (work.featureProblem(type, at, sz, undefined) !== null) continue;
+      // generator 5 (tradePropsOnOneFloor): on one floor height, where it stands pushed against the front as well (a
+      // bench across a lowered doorway cell and the raised pavement beside it was sunk into the pavement)
+      if (
+        work.profile.tradePropsOnOneFloor &&
+        !work.oneFloorUnder(
+          at,
+          sz,
+          (work.profile.marketFurnitureOffWalls ? offWalls(work, type, at, sz, true) : undefined) ?? [0, 0],
+        )
+      )
+        continue;
       commitMarket(
         work,
         features,

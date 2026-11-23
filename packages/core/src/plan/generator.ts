@@ -556,6 +556,10 @@ const SWITCHES = {
     5,
     "A piece whose top takes a lantern (a counter, a workbench) takes a single candle where the theme has no lantern piece, so a work surface still holds a light (a ship's galley: gen/rooms4/groups.ts lightOn).",
   ),
+  tradePropsOnOneFloor: on(
+    5,
+    "A trade's props outside its door stand on one floor height, where they are pushed against the front as well (resolve/level/grid.ts oneFloorUnder asks each cell its feature base): a bench across a lowered doorway cell and the raised pavement beside it is not set there (resolve/level/market.ts stepTradeProps).",
+  ),
   sacredReads: on(
     5,
     "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",

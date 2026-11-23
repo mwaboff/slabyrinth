@@ -483,7 +483,7 @@ plans/market-street-v3@5 pieces 3657
 plans/market-street-v3@5 prop_share 0.149
 plans/market-street-v3@5 overlap_share 0.419
 plans/market-street-v3@5 pieces_per_tile 2.116
-plans/market-street-v3@5 pieces_per_column 3.372
+plans/market-street-v3@5 pieces_per_column 3.371
 plans/market-street-v3@5 prop_off_axis 0.167
 plans/market-street-v3@5 structure_off_axis 0
 plans/market-street-v3@5 prop_off_height_grid 0.37

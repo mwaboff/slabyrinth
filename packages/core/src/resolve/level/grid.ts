@@ -669,6 +669,30 @@ export class ResolveGrid {
     return this.level.elevation + BUILD_CONSTANTS.floorThickness + h + lift;
   }
 
+  /**
+   * Does a piece on cells `at` + `size`, shifted by `offset` (cells, at most half a cell), stand on one floor: every
+   * cell its shifted footprint reaches answers the same `featureBase`? A piece across a height step (a raised pavement
+   * beside a lower cell) is sunk into the higher floor.
+   */
+  oneFloorUnder(
+    at: Readonly<Vec2>,
+    size: readonly [number, number],
+    offset: readonly [number, number] = [0, 0],
+  ): boolean {
+    const x0 = Math.floor(at[0] + offset[0] + 0.01);
+    const y0 = Math.floor(at[1] + offset[1] + 0.01);
+    const x1 = Math.ceil(at[0] + size[0] + offset[0] - 0.01);
+    const y1 = Math.ceil(at[1] + size[1] + offset[1] - 0.01);
+    let base: number | null = null;
+    for (let y = y0; y < y1; y++)
+      for (let x = x0; x < x1; x++) {
+        const b = this.featureBase(this.idx(x, y), 0);
+        if (base === null) base = b;
+        else if (b !== base) return false;
+      }
+    return true;
+  }
+
   footprint(at: Readonly<Vec2>, size: readonly [number, number]): { cells: number[]; outside: boolean } {
     const cells: number[] = [];
     let outside = false;

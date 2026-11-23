@@ -308,7 +308,8 @@ function expandVessel(plan: MapPlan, spec: ObjectSpec, palettes: ResolvePalettes
     interior: true,
   };
   const design = vesselDesign(params);
-  if (design.kind === "boat") throw new Error(`object ${spec.id}: a boat has no rooms to place`);
+  if (design.kind === "boat")
+    return plainVessel(plan, spec, deckLevel, buildObject(vessel, params, kit), design);
   const kind = design.kind;
   const first = buildObject(vessel, params, kit);
   const turn = objectTurn(first, spec.heading);
@@ -581,6 +582,42 @@ function expandVessel(plan: MapPlan, spec: ObjectSpec, palettes: ResolvePalettes
     decks,
     mainDeck: mainCells.length > 0 ? `${spec.id}~deck` : null,
     gangway,
+    blocked,
+  };
+}
+
+/**
+ * A vessel with no rooms (a rowing boat: no deck to walk, no hold): placed as a plain object, its deck height at the
+ * level's floor like a decked vessel's, the level's own features cleared from its footprint; no areas, rooms or decks.
+ */
+function plainVessel(
+  plan: MapPlan,
+  spec: ObjectSpec,
+  level: Level,
+  built: BuiltObject,
+  design: { readonly deck: number },
+): ObjectSite {
+  const turn = objectTurn(built, spec.heading);
+  const at = spec.at;
+  const base = level.elevation + 0.5 - design.deck;
+  const placed = placeObject(built, { id: spec.id, anchor: { at, base, turn } });
+  const blocked = [...placed.footprint, ...placed.keepClear];
+  const blockSet = new Set(blocked.map(key));
+  level.features = level.features.filter(
+    (f) => !blockSet.has(key([Math.floor(f.at[0]), Math.floor(f.at[1])])),
+  );
+  return {
+    spec,
+    built,
+    placed,
+    anchor: { at, base, turn },
+    deckElevation: level.elevation,
+    hullLevel: level.id,
+    areas: new Map(),
+    rooms: [],
+    decks: [],
+    mainDeck: null,
+    gangway: [],
     blocked,
   };
 }
