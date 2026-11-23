@@ -340,7 +340,7 @@ function SpendingSection({ s }: { s: AppSettings }) {
           <MoneyField
             label="Per-action limit"
             value={s.spending.perActionWarnUsd}
-            onChange={(v) => void update({ spending: { ...s.spending, perActionWarnUsd: v } })}
+            onChange={(v) => void update({ spending: { perActionWarnUsd: v } })}
           />
         </div>
       </Row>
@@ -350,7 +350,7 @@ function SpendingSection({ s }: { s: AppSettings }) {
           <MoneyField
             label="Per-project limit"
             value={s.spending.perProjectWarnUsd}
-            onChange={(v) => void update({ spending: { ...s.spending, perProjectWarnUsd: v } })}
+            onChange={(v) => void update({ spending: { perProjectWarnUsd: v } })}
           />
         </div>
       </Row>
@@ -464,7 +464,7 @@ function TaleSpireSection({ s }: { s: AppSettings }) {
               key={v}
               role="radio"
               aria-checked={s.talespire.levelLayout === v}
-              onClick={() => void update({ talespire: { ...s.talespire, levelLayout: v } })}
+              onClick={() => void update({ talespire: { levelLayout: v } })}
             >
               {l}
             </button>
@@ -475,7 +475,7 @@ function TaleSpireSection({ s }: { s: AppSettings }) {
       <Row label="Alignment pillars">
         <Check
           on={s.talespire.alignmentMarkers}
-          onChange={(v) => void update({ talespire: { ...s.talespire, alignmentMarkers: v } })}
+          onChange={(v) => void update({ talespire: { alignmentMarkers: v } })}
           label="Add alignment pillars to single-slab builds"
           help="Builds split into several slabs always get two alignment pillars so the slabs line up."
         />
@@ -586,7 +586,7 @@ function ProjectsSection({ s }: { s: AppSettings }) {
               key={v}
               role="radio"
               aria-checked={s.ui.onLaunch === v}
-              onClick={() => void update({ ui: { ...s.ui, onLaunch: v } })}
+              onClick={() => void update({ ui: { onLaunch: v } })}
             >
               {l}
             </button>
@@ -618,7 +618,7 @@ function AppearanceSection({ s }: { s: AppSettings }) {
               key={v}
               role="radio"
               aria-checked={s.ui.theme === v}
-              onClick={() => void update({ ui: { ...s.ui, theme: v } })}
+              onClick={() => void update({ ui: { theme: v } })}
             >
               {l}
             </button>

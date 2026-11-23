@@ -7,6 +7,11 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 ## [Unreleased]
 
+### Fixed
+
+- Maps of several slabs now carry their two alignment pillars again, so the slabs land in line instead of piling up under the cursor. A build made without them says so and asks you to build again; the add-on will not send it.
+- Settings that could not be saved now save: the TaleSpire level layout and alignment pillar options (in Settings and on the build page), the spending warnings, and the projects folder.
+
 ## [0.3.0] - 2026-11-22
 
 ### Added

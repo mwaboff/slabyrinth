@@ -943,7 +943,7 @@ export function BuildToolbar() {
                     className="menu__item"
                     onClick={() => {
                       setOpen(false);
-                      void update({ talespire: { ...s.talespire, levelLayout: v } }).then(() => run());
+                      void update({ talespire: { levelLayout: v } }).then(() => run());
                     }}
                   >
                     {l}
