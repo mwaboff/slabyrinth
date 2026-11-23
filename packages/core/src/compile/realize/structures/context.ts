@@ -96,6 +96,9 @@ export function buildingCtx(lv: RealizeLevel, st: ResolvedStructure): StructureC
   return { lv, st, theme: st.theme, lookup };
 }
 
+/** An opening's roles keep their chain: a window or door the theme lacks is better borrowed than missing. */
+const OPENING_ROLE = /^(window|opening|door)\b/;
+
 /**
  * Generator 5 (`ownWallsFirst`): a kept-up building's lookup that passes over a role of a setting-kit style (gen/
  * wallStyles.ts `settingKit`) its theme only borrows from the generic palette, so the chain goes on to the theme's own
@@ -104,8 +107,6 @@ export function buildingCtx(lv: RealizeLevel, st: ResolvedStructure): StructureC
  * town read as a fault), and a poor building's rough wall built in the theme's own wall takes that wall's rough variant
  * family where the palette has one (gen/wallStyles.ts WALL_VARIANT_FINISH: wood_town's rural planks).
  */
-const OPENING_ROLE = /^(window|opening|door)\b/;
-
 function ownWallsFirst(lv: RealizeLevel, st: ResolvedStructure, base: StructureLookup): StructureLookup {
   const finishes = lv.ctx.profile.wealthLooks;
   const kept = (st.condition ?? "intact") === "intact";

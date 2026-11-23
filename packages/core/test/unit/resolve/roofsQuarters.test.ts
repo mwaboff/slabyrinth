@@ -248,6 +248,9 @@ describe("wealthLooks: the four wealth steps read apart from the street", () => 
       ).length;
     };
     expect(desert()).toBe(0);
+    // (control: without the switch the rookery's worn plaster houses were built in desert walls)
+    without("wealthLooks");
+    expect(desert()).toBeGreaterThan(0);
   });
 
   it("reads each building's own wealth, mixed in one street (no quarter or town path): poor ones rough, lavish ones fine and lit", () => {

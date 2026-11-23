@@ -136,8 +136,12 @@ export const PIECE_FACTS: Readonly<Record<string, PieceFacts>> = {
   "Castle Ruins Wood 3": { ragged: true },
 
   // ── grown pieces (harbour screenshots 205-208: the only pieces left on the bed under the water plane were rocks;
-  // this one read as green tufts, like the plants the rule keeps off) ──
+  // this one read as green tufts, like the plants the rule keeps off; the other stock pieces grown over with moss or
+  // mushrooms are marked with it, a swamp tree base is not: it belongs in water) ──
   "Moss Rock 01": { grown: true },
+  rock_mossy_large001: { grown: true },
+  "log with moss": { grown: true },
+  "Tree w mushrooms Chopped": { grown: true },
 
   // ── hollow hull shells (owner's ship screenshots 205-210, 2026-11-23: the ship kit's "Ship bottom" tiles are curved
   // planked shells from the keel to the gunwale, open inside; a ship's decks and rooms stand within their boxes) ──
