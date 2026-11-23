@@ -26,7 +26,7 @@ import { featureInfo } from "../catalog";
 import { SIDES, cellKey } from "../gridGeometry";
 import { type SceneLight, roomNudge } from "../lightLevels";
 import { givesLight, lightOfPool } from "../lightReach";
-import type { GeneratedPlacement } from "../placementGrid";
+import { gridProfile, type GeneratedPlacement } from "../placementGrid";
 import type { RoomKind } from "../roomPurpose";
 import { ROOM_TRAITS, type LightLevel, type LightRegime, type RoomTraits } from "../roomTraits";
 import { type PlacedGroup, lightOn } from "./groups";
@@ -221,8 +221,13 @@ function standBeside(
   room: Room,
   near: readonly Placed[],
   piece: { type: FeatureType; variant?: string },
+  /** Keep off cells with a wall post at a corner (an inner corner's post reaches into the cell). */
+  offPosts = false,
 ): boolean {
   if (near.length === 0) return false;
+  const posts = offPosts ? room.postAt : undefined;
+  const postBy = (x: number, y: number): boolean =>
+    posts !== undefined && (posts(x, y) || posts(x + 1, y) || posts(x, y + 1) || posts(x + 1, y + 1));
   const cells: Array<[number, number]> = [];
   for (const q of near)
     for (let y = q.at[1]; y < q.at[1] + q.size[1]; y++)
@@ -233,7 +238,7 @@ function standBeside(
     room.thresholds.some(([tx, ty]) => Math.abs(tx - x) <= 1 && Math.abs(ty - y) <= 1);
   const spots = room.cells
     .filter(([x, y]) => cells.some(([cx, cy]) => Math.max(Math.abs(cx - x), Math.abs(cy - y)) <= R))
-    .filter(([x, y]) => room.free(x, y) && !room.zone.has(cellKey(x, y)) && !byDoor(x, y))
+    .filter(([x, y]) => room.free(x, y) && !room.zone.has(cellKey(x, y)) && !byDoor(x, y) && !postBy(x, y))
     .map(([x, y]) => {
       const walls = SIDES.filter((s) => room.grid.edge(x, y, s) !== 0).length;
       const d = Math.hypot(x + 0.5 - mid[0], y + 0.5 - mid[1]);
@@ -263,6 +268,99 @@ function standBeside(
     return true;
   }
   return false;
+}
+
+/**
+ * Generator 5 (characterCascade): what each light level puts in a room, by what its pools cover (gen/lightReach.ts),
+ * so the steps read apart in game and the lit floor grows strictly from one to the next:
+ *   dark      nothing, or one weak accent on the room's main surface;
+ *   dim       the room's main piece only: one standing glow beside it (else a light on its surface);
+ *   moderate  every group in use lit on its surfaces, a light at the door, and a medium standing light at the main group;
+ *   bright    those, plus a strong standing light beside every group and wall lights at a close pitch, pools nearly
+ *             touching along the walls;
+ *   flooded   those, plus strong standing lights across the whole used floor at a pitch of twice their reach.
+ * The regime still says where the first lights go (lit surfaces, a threshold pair, a focal glow, a wall rhythm).
+ */
+export const LEVEL_STEPS = {
+  /** Wall-light pitch (tiles) at bright and flooded. */
+  wallPitch: [0, 0, 0, 2.5, 2] as const,
+  /** Pitch (cells) of the standing lights over a flooded room's floor: twice the strong lamp's reach (1.5). */
+  floodPitch: 3,
+} as const;
+
+function lightByLevel(
+  room: Room,
+  L: LightLevel,
+  regime: LightRegime,
+  ctx: {
+    readonly noFire: boolean;
+    readonly focus: readonly Placed[];
+    readonly units: ReadonlyArray<readonly Placed[]>;
+    readonly stand: (near: readonly Placed[]) => boolean;
+  },
+): void {
+  const all = [...ctx.focus, ...ctx.units.flat()];
+  const main = ctx.focus.length > 0 ? ctx.focus : (ctx.units[0] ?? []);
+  const torch = { type: "torch_floor" as const };
+  const lamp = { type: "brazier" as const, variant: "street_lantern" };
+  const fire = { type: "brazier" as const };
+  const medium = ctx.noFire ? lamp : fire;
+  const beside = (
+    near: readonly Placed[],
+    ...pieces: Array<{ type: FeatureType; variant?: string }>
+  ): boolean => pieces.some((p) => standBeside(room, near, p, true));
+  const keepsALight = (): void => {
+    // a lived-in room of 3 tiles or more keeps a light
+    if (room.lights.length > 0 || room.cells.length < OCCUPANCY.smallestLit) return;
+    lightSurfaces(room, 1, main);
+    if (room.lights.length === 0) light(room, { target: 1, radius: Infinity, torchOnly: true, floor: null });
+  };
+  // a dim store keeps its one light at the door, at any level
+  if (regime === "dimStore") {
+    doorPair(room, 1);
+    keepsALight();
+    return;
+  }
+  if (L === 0) {
+    if (regime === "threshold") doorPair(room, 1);
+    else lightSurfaces(room, 1, main);
+    keepsALight();
+    return;
+  }
+  if (L === 1) {
+    // its main surface (a nightstand, a desk) or its door pair, and one glow beside the main piece (a weak floor torch
+    // against a wall lights its own cell and little more, so a medium glow where one fits)
+    if (regime === "threshold") doorPair(room);
+    else lightSurfaces(room, 1, main);
+    beside(main, medium, lamp, torch);
+    keepsALight();
+    return;
+  }
+  // moderate and up: the regime's own first lights, then every group in use and the main group's glow
+  if (regime === "threshold") doorPair(room);
+  else if (regime === "focal") ctx.stand(main);
+  else if (regime === "wallRhythm") wallRhythm(room, 2, REGIMES.wallPitch[L]);
+  lightSurfaces(room, all.length, all);
+  beside(main, medium, lamp);
+  if (L >= 3) {
+    for (const g of ctx.units) beside(g, lamp, medium);
+    // (a room lit by its surfaces keeps its walls dark below flooded: its pools stand at the groups)
+    if (regime !== "surfaces")
+      wallRhythm(room, room.lights.length + Math.ceil(room.cells.length / 6), LEVEL_STEPS.wallPitch[L]);
+  }
+  if (L >= 4) {
+    const P = LEVEL_STEPS.floodPitch;
+    const xs = room.cells.map((c) => c[0]);
+    const ys = room.cells.map((c) => c[1]);
+    const x0 = minOf(xs);
+    const y0 = minOf(ys);
+    for (const [x, y] of room.cells)
+      if ((x - x0) % P === 1 && (y - y0) % P === 1) {
+        const spot = { at: [x, y], size: [1, 1] } as unknown as Placed;
+        beside([spot], lamp, medium);
+      }
+    wallRhythm(room, room.lights.length + Math.ceil(room.cells.length / 4), LEVEL_STEPS.wallPitch[L]);
+  }
 }
 
 /** Wall lights at `pitch` (tiles), darkest wall first, until the room has `target` lights. */
@@ -301,6 +399,11 @@ export function lightByRegime(
       if (standBeside(room, near, p)) return true;
     return false;
   };
+  // generator 5 (characterCascade): each level a visibly different step, by what its pools cover (LEVEL_STEPS)
+  if (gridProfile(room.grid).characterCascade) {
+    lightByLevel(room, L, plan.regime, { ...ctx, focus, units: ctx.units.map((g) => piecesOf(g)), stand });
+    return;
+  }
   switch (plan.regime) {
     case "surfaces": {
       lightSurfaces(room, budget, [...focus, ...units]);

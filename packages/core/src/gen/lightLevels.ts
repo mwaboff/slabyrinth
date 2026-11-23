@@ -50,7 +50,7 @@ const LEVEL_WORDS: Readonly<Record<LightLevelName, readonly string[]>> = {
     "cellar",
     "lair",
   ],
-  moderate: [],
+  moderate: ["moderate", "moderately"],
   // (mood and setting words only: a room's kind already sets its own level, so "office" or "school" is no scene word)
   bright: [
     "bright",
