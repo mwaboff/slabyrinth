@@ -25,6 +25,7 @@ Release notes, which the app shows under "What's new" when it offers that update
 - Rooms in use stay tidy: no rubble or remains in a kept room, only in ruined, ramshackle or abandoned places, crypts and cells. Lights on a room's floor stand against a wall or a piece, never alone mid-floor, and furniture never cuts a room's doors off from each other. A dark room divided into cells stays dark.
 - Harbours: a gangway runs from the deck to the quay's edge, no land plants grow under the water, and the wharf's edge is straight.
 - Rich and poor read from the street. A poor building leans to rough plank walls and odd-matched roofs, a rich one to dressed stone, a quarter's roofs alike and more trim; a lavish house gets a lit approach or a pair of statues at its door. Worn roofs show patches, not holes; only a ruin's roof is open. Roofs fit their house: no tall one-sided roof over a deep house, and no flat tops in a timber village unless asked for.
+- Nothing the generator places stands where you step on or off stairs, a ramp or a ladder, rubble at a wall's foot never closes the way through a room, and a cliff's rocks keep off a walkway that climbs to it.
 - Maps you made with earlier versions rebuild unchanged. The new rules are for new maps only.
 
 ### Fixed

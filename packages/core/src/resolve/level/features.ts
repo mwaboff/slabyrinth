@@ -13,13 +13,14 @@ import { MATERIALS } from "../../contracts/plan";
 import type { ResolvedFeature, ResolvedOpening } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { LIGHT_FEATURES, featureInfo, isLandmark, rotatedSize } from "../../gen/catalog";
-import { SIDE_STEP } from "../../gen/gridGeometry";
+import { SIDES, SIDE_STEP } from "../../gen/gridGeometry";
 import { isPassage, isWindow } from "../../gen/openingKinds";
 import { featureRoles } from "../../gen/surfaces";
 import { maxOf } from "../../util/lists";
 import type { GeneratedPlacement, PlacementGrid } from "../../gen/placementGrid";
 import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import { wallRole } from "../../palette/roles";
+import { linkLandingsOnLevel } from "../../plan/links";
 import type { ChasmRecords } from "./chasms";
 import type { ReadOnly, ResolveGrid } from "./grid";
 import { type PathRecords, parkVehicle } from "./paths";
@@ -63,6 +64,7 @@ export class FeatureWork {
   private keepClear: Set<number> | null = null;
   private rampSet: Set<number> | null = null;
   private passageFrontSet: Set<number> | null = null;
+  private landingSet: Set<number> | null = null;
   private windowEdgeSet: Set<number> | null = null;
   /** Generator 4: the lane before each market stall's front row (filled as the stalls are placed). */
   private readonly stallFronts = new Set<number>();
@@ -111,6 +113,52 @@ export class FeatureWork {
       const i = this.work.idx(x, y);
       if (i >= 0) this.keptClearCells.add(i);
     }
+  }
+
+  /**
+   * Would a blocking piece on this footprint cut the floor round it: do the open floor cells it touches (across no wall)
+   * fall apart when walked within the ring of cells round it? Local and cautious: a way round further off is not
+   * looked for, so a piece in a one-cell strip, or at a pinch a piece already narrows, cuts.
+   */
+  cutsFloor(at: readonly [number, number], size: readonly [number, number]): boolean {
+    const work = this.work;
+    const x0 = at[0] - 1;
+    const y0 = at[1] - 1;
+    const x1 = at[0] + size[0];
+    const y1 = at[1] + size[1];
+    const inside = (x: number, y: number): boolean =>
+      x >= at[0] && y >= at[1] && x < at[0] + size[0] && y < at[1] + size[1];
+    const walkable = (x: number, y: number): boolean => {
+      const i = work.idx(x, y);
+      if (i < 0 || work.state[i] !== CELL.OPEN) return false;
+      return ((work.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.FEATURE)) === 0;
+    };
+    const ring = (x: number, y: number): boolean =>
+      x >= x0 && y >= y0 && x <= x1 && y <= y1 && !inside(x, y) && walkable(x, y);
+    // the ring cells the footprint opens onto (across no wall)
+    const touching: Array<[number, number]> = [];
+    for (let y = at[1]; y < at[1] + size[1]; y++)
+      for (let x = at[0]; x < at[0] + size[0]; x++)
+        for (const s of SIDES) {
+          const [dx, dy] = SIDE_STEP[s];
+          if (ring(x + dx, y + dy) && work.edgeKindAt(x, y, s) !== EDGE.WALL) touching.push([x + dx, y + dy]);
+        }
+    if (touching.length < 2) return false;
+    const key = (x: number, y: number): number => (y - y0) * (x1 - x0 + 1) + (x - x0);
+    const first = touching[0] as [number, number];
+    const seen = new Set([key(first[0], first[1])]);
+    const queue = [first];
+    for (let h = 0; h < queue.length; h++) {
+      const [x, y] = queue[h] as [number, number];
+      for (const s of SIDES) {
+        const [dx, dy] = SIDE_STEP[s];
+        const [nx, ny] = [x + dx, y + dy];
+        if (!ring(nx, ny) || seen.has(key(nx, ny)) || work.edgeKindAt(x, y, s) === EDGE.WALL) continue;
+        seen.add(key(nx, ny));
+        queue.push([nx, ny]);
+      }
+    }
+    return touching.some(([x, y]) => !seen.has(key(x, y)));
   }
 
   /** Was cell `i` kept clear by a room's furnisher (keepClearOf)? */
@@ -231,8 +279,8 @@ export class FeatureWork {
 
   /**
    * Generator 4 (`waysInKeepClear`): a cell in front of a way in, where people stand to go through: both sides of every
-   * passage (a door, an archway, a gate, an open gap; gen/openingKinds.ts `isPassage`) and the lane before a market
-   * stall's front row. Nothing blocking may stand there, nor reach over it (`blocksWayIn`). `stallLanes` false leaves
+   * passage (a door, an archway, a gate, an open gap; gen/openingKinds.ts `isPassage`), the lane before a market
+   * stall's front row, and (generator 5, `landingsKeepClear`) where people step on and off a link. Nothing blocking may stand there, nor reach over it (`blocksWayIn`). `stallLanes` false leaves
    * the stalls' lanes out: the market lays its own pieces round its stalls (stock never in front, posts at an aisle's
    * ends).
    */
@@ -289,7 +337,10 @@ export class FeatureWork {
     return false;
   }
 
-  /** Both side cells of every passage of the level (built on first ask: the openings are final in phase 2). */
+  /**
+   * Both side cells of every passage of the level, and its links' landings (built on first ask: the openings are final
+   * in phase 2).
+   */
   private passageFronts(): ReadonlySet<number> {
     if (this.passageFrontSet) return this.passageFrontSet;
     const out = new Set<number>();
@@ -302,7 +353,25 @@ export class FeatureWork {
         for (const i of [this.work.idx(ax, ay), this.work.idx(x, y)]) if (i >= 0) out.add(i);
       }
     }
+    // generator 5 (landingsKeepClear): where people step on and off the level's links are ways in too
+    for (const i of this.landings()) out.add(i);
     this.passageFrontSet = out;
+    return out;
+  }
+
+  /**
+   * Generator 5 (`landingsKeepClear`): the cells where people step on and off the level's links (plan/links.ts
+   * `linkLandingsOnLevel`); empty before it.
+   */
+  private landings(): ReadonlySet<number> {
+    if (this.landingSet) return this.landingSet;
+    const out = new Set<number>();
+    if (this.work.profile.landingsKeepClear)
+      for (const [x, y] of linkLandingsOnLevel(this.work.plan, this.work.level.id)) {
+        const i = this.work.idx(x, y);
+        if (i >= 0) out.add(i);
+      }
+    this.landingSet = out;
     return out;
   }
 
@@ -362,6 +431,10 @@ export class FeatureWork {
             blocksWayIn: (t: FeatureType, at, size, v?: string, pose?) =>
               this.blocksWayIn(t, at, size, v, pose),
           }
+        : {}),
+      // generator 5: where people step on and off a link (a room counts it as a way in)
+      ...(work.profile.landingsKeepClear
+        ? { landing: (x: number, y: number) => this.landings().has(work.idx(x, y)) }
         : {}),
       // generator 2: rock ramp cells (no path flag) stay clear of the band and other dressing
       ramp: (x, y) => work.profile.ramps && this.rampCells().has(work.idx(x, y)),

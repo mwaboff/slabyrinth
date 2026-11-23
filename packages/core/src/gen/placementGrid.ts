@@ -51,6 +51,12 @@ export interface PlacementGrid {
     /** Generator 5 (`exactWayInReach`): how the piece stands, so one set square reaches exactly its outline. */
     pose?: { rotFine: number; offset?: readonly [number, number] },
   ): boolean;
+  /**
+   * Generator 5 (`landingsKeepClear`): true on a cell where people step on or off a level link (a stair's foot or
+   * landing, the cells round a ladder's opening above: plan/links.ts linkLandingsOnLevel). A room's furnisher counts it
+   * as a way in (gen/rooms4/room.ts); `blocksWayIn` already keeps blocking pieces off it. Optional.
+   */
+  landing?(x: number, y: number): boolean;
   /** True on cells under a vehicle already placed (by the plan or another op). Optional. */
   vehicle?(x: number, y: number): boolean;
   /**
