@@ -18,10 +18,12 @@
  *   features        features.ts FeatureWork (every phase-2 stage adds)    output
  *   lines           market.ts                                             output
  *   arrangements    arrangements.ts ArrangementRecords (generator 5)      output
+ *   cellRows        cellRows.ts CellRowRecords (generator 5)              rooms
  */
 import type { ResolvedLine, ResolvedOpening } from "../../contracts/resolved";
 import { ArrangementRecords } from "./arrangements";
 import { BridgeRecords } from "./bridges";
+import { CellRowRecords } from "./cellRows";
 import { ChasmRecords } from "./chasms";
 import { FeatureWork } from "./features";
 import { FloorOpeningRecords } from "./floorOpenings";
@@ -44,6 +46,8 @@ export class ResolveLevelState {
   readonly lines: ResolvedLine[] = [];
   /** Generator 5: arrangement instances the stages attach (ResolvedLevel.arrangements). */
   readonly arrangements = new ArrangementRecords();
+  /** Generator 5 (cellRows): the rooms lined with cells, laid by cellRows.ts, dressed by rooms.ts. */
+  readonly cellRows = new CellRowRecords();
 
   constructor(ctx: LevelContext) {
     this.grid = new ResolveGrid(ctx);

@@ -9,7 +9,8 @@ import { cellKey } from "../gridGeometry";
 import type { PlacementGrid, ScatterResult } from "../placementGrid";
 import { SURFACE_LOAD } from "../surfaces";
 import { placeGroup } from "./groups";
-import { ROOM_DRESS } from "./recipes";
+import type { GroupSpec } from "../roomTraits";
+import { ROOM_DRESS, type Family } from "./recipes";
 import { Room } from "./room";
 import { addToppers } from "./things";
 
@@ -24,10 +25,23 @@ export interface DeadEndParams {
 /** The option's group in the room; null when it has none (plain) or its anchor fits nowhere. */
 export function dressDeadEnd(grid: PlacementGrid, p: DeadEndParams): ScatterResult | null {
   const g = p.option.group;
-  if (g === null || grid.piece4 === undefined) return null;
+  if (g === null) return null;
+  return dressSet(grid, { ...p, group: g, family: p.option.family });
+}
+
+/**
+ * A small set (one group: its anchor by its rule, its companions where they fit, things on its top) on these cells of
+ * a room, no lights: a dead end's set, a cell row's aisle set (resolve/level/rooms.ts). Null when its anchor fits nowhere.
+ */
+export function dressSet(
+  grid: PlacementGrid,
+  p: Omit<DeadEndParams, "option"> & { readonly group: GroupSpec; readonly family: Family },
+): ScatterResult | null {
+  const g = p.group;
+  if (grid.piece4 === undefined) return null;
   const room = new Room(grid, p.areaIndex, p.areaCells, p.seed, p.remaining, { compactDoorsBelow: Infinity });
   if (room.cells.length === 0 || room.wallPairs.length === 0) return null;
-  const placed = placeGroup(room, g, p.option.family, new Set([g.name]));
+  const placed = placeGroup(room, g, p.family, new Set([g.name]));
   if (placed === null) return null;
   for (const q of room.placed.slice()) {
     const rule = SURFACE_LOAD[q.type];

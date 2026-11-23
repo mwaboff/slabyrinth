@@ -31,10 +31,11 @@
  * is a small crate, then a chest, then a stool); a companion the theme has no piece for is left out, never replaced
  * by a wrong one.
  */
-import type { FeatureType } from "../contracts/plan";
+import type { FeatureType, WallStyle } from "../contracts/plan";
 import type { SwitchName } from "../plan/generator";
 import { NEW_KIND_INFO, type FurnishedPurpose, type NewRoomKind, type RoomKind } from "./roomPurpose";
 import type { Family, Spec } from "./rooms4/recipes";
+import { THEME_WALL_STYLE } from "./wallStyles";
 
 /** A piece a slot may take: a feature type and a preferred variant. */
 export interface PieceChoice {
@@ -1277,6 +1278,111 @@ export const roomTakesFire = (kind: string): boolean =>
 /** May a room of this kind (or purpose: the resolved area's `roomKind`, else its `purpose`) show glowing things? */
 export const roomTakesGlow = (kind: string): boolean =>
   Object.hasOwn(ROOM_TRAITS, kind) && ROOM_TRAITS[kind as RoomKind].glow === true;
+
+// ───────────────────────────── cell rows ─────────────────────────────
+
+const THEME_WALL = THEME_WALL_STYLE;
+
+/**
+ * Generator 5 (switch cellRows; technique int-cell-row): the front a row of cells shares on its aisle: iron bars with a
+ * barred gate in each cell, a wall with a door, a half wall with a gap, or none (stalls open to the aisle).
+ */
+export type CellFront = "bars" | "wall" | "half" | "open";
+
+/**
+ * How a long room of a kind is lined with a row of like cells (resolve/level/cellRows.ts): one module repeated along a
+ * long wall (or both), partitions between the cells, a shared front with a doorway in each at the row's pitch, each cell
+ * dressed with its kit (the minimum set of `kit`'s row), small differences drawn per cell.
+ *   chance     share of such rooms laid out as cells (the rest keep the kind's ordinary layout: the plain option);
+ *   width      a cell's width along the wall, cells (range); depth its depth into the room (range);
+ *   minAcross  the room's width across its long axis at least; aisle the width the middle keeps;
+ *   both       chance of a row on both long walls where the room is wide enough;
+ *   partition  the wall between cells; fronts the shared front, by weight;
+ *   empty      chance a cell is left empty (one in four at most); messy chance its things lie in disorder;
+ *   aisle      what stands in the aisle besides lights (a guard's table), placed at its far end.
+ */
+export interface CellRowSpec {
+  readonly chance: number;
+  readonly width: readonly [number, number];
+  readonly depth: readonly [number, number];
+  readonly minAcross: number;
+  readonly aisle: number;
+  readonly both: number;
+  readonly partition: WallStyle;
+  readonly fronts: Readonly<Partial<Record<CellFront, number>>>;
+  readonly kit: RoomKind;
+  readonly empty: number;
+  readonly messy: number;
+  readonly aisleSet?: GroupSpec;
+}
+
+/** The kinds that line a long room with cells (technique numbers: cells 1.5-2 wide, 2-2.5 deep; stalls 1 x 1.3-2). */
+export const CELL_ROWS: Readonly<Partial<Record<RoomKind, CellRowSpec>>> = {
+  // prison cells on a guarded aisle
+  prison: {
+    chance: 0.85,
+    // (its door stands mid-front, a cell clear of each partition: three wide)
+    width: [3, 3],
+    // (a cot stands two deep beside its door's landing: a cell three deep holds it)
+    depth: [3, 3],
+    minAcross: 7,
+    aisle: 3,
+    both: 0.6,
+    partition: THEME_WALL,
+    fronts: { bars: 3, wall: 2 },
+    kit: "prison",
+    empty: 0.3,
+    messy: 0.35,
+    aisleSet: G("guard post", A("table", { top: "table" }), "farWall", [C("stool", STOOL, "front")]),
+  },
+  // horse stalls off a stable's aisle
+  stable: {
+    chance: 0.8,
+    width: [2, 3],
+    depth: [3, 3],
+    minAcross: 7,
+    aisle: 3,
+    both: 0.5,
+    partition: "fence",
+    fronts: { open: 2, half: 2 },
+    kit: "stable",
+    empty: 0.25,
+    messy: 0.3,
+  },
+  // a ward's bays, a bed in each
+  ward: {
+    chance: 0.6,
+    width: [2, 3],
+    // (an open bay keeps its front row clear as its landing: a bed needs two rows behind it)
+    depth: [3, 3],
+    minAcross: 7,
+    aisle: 3,
+    both: 0.7,
+    partition: "low_wall",
+    fronts: { open: 3, half: 1 },
+    kit: "ward",
+    empty: 0.15,
+    messy: 0.1,
+  },
+  // bunk alcoves along a barracks
+  barracks: {
+    chance: 0.4,
+    width: [2, 3],
+    depth: [3, 3],
+    minAcross: 8,
+    aisle: 4,
+    both: 0.6,
+    partition: THEME_WALL,
+    fronts: { open: 3, half: 1 },
+    kit: "barracks",
+    empty: 0.1,
+    messy: 0.3,
+  },
+};
+
+/** The cell row of a kind (or purpose), if it has one. */
+export const cellRowOf = (kind: string | undefined): CellRowSpec | undefined =>
+  kind !== undefined && Object.hasOwn(CELL_ROWS, kind) ? CELL_ROWS[kind as RoomKind] : undefined;
 
 /**
  * Generator 5 (grandHalls): the hall plan a room of this kind is laid out by, given its floor tiles and its width

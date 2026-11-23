@@ -587,6 +587,10 @@ const SWITCHES = {
     5,
     "A great hall, a throne room or a temple nave of at least 120 floor tiles and 10 across is laid out as a hall (the room-kind table's floor plan of mode hall, gen/roomTraits.ts): its long axis kept clear end to end, column pairs at the third points across drawn per room (a pier at every bay, a pair at each third point of the length, or none), long tables or benches along the axis in the side bays, and its anchor (the high table, the throne, the altar) at a wall, never free on the axis (gen/rooms4/floor.ts placeHall).",
   ),
+  cellRows: on(
+    5,
+    "A long room of a kind with a cell row in the room-kind table (prison cells, stable stalls, ward bays, bunk alcoves: gen/roomTraits.ts CELL_ROWS) is, drawn per room with a plain option, lined along one or both long walls with like cells: partitions between them, a shared front on the aisle (bars, a wall, a half wall or none) with a doorway in each at the row's pitch, each cell dressed with its kit, one left empty now and then and one in disorder, the aisle with its own set and lights (resolve/level/cellRows.ts, rooms.ts dressCellRow).",
+  ),
   sacredReads: on(
     5,
     "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",

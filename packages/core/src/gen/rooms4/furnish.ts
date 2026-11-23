@@ -219,7 +219,22 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
   // generator 5 (grandHalls): a room laid out as a hall keeps its axis clear, so its anchor stands at a wall (the high
   // table, the throne, the altar at the far end), never free on the axis
   const asHall = profile.grandHalls && hallPlanOf(kind, room.cells.length, box(room).across) !== undefined;
-  const t = asHall ? atTheWalls(base) : base;
+  const hallRow = asHall ? atTheWalls(base) : base;
+  // generator 5 (cellRows): a cell keeps to its kit's group (and its fallbacks), never another set, and holds its small
+  // set only (no shelf plank, no rug)
+  const only = p.firstGroup !== undefined ? hallRow.groups[p.firstGroup] : undefined;
+  const t: RoomTraits =
+    only !== undefined
+      ? {
+          ...hallRow,
+          groups: [
+            only,
+            ...hallRow.groups.filter((g) => g.fallback === true),
+          ] as unknown as RoomTraits["groups"],
+          shelf: false,
+          rug: false,
+        }
+      : hallRow;
 
   // 1. the anchor group: the table's first that no sibling room of this kind has drawn (the first room of a kind gets
   // the preferred group; once all are drawn, any), then the others in order
@@ -227,8 +242,9 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
   const drawn = grid.roomMemory?.get(memo) ?? [];
   const all = t.groups.map((_, i) => i).filter((i) => t.groups[i]?.fallback !== true);
   const fresh = all.filter((i) => !drawn.includes(i));
-  const first = fresh[0] ?? room.rng.pick(all);
-  grid.roomMemory?.set(memo, [...drawn, first]);
+  const kept = only !== undefined ? 0 : undefined;
+  const first = kept ?? fresh[0] ?? room.rng.pick(all);
+  if (kept === undefined) grid.roomMemory?.set(memo, [...drawn, first]);
   const have = new Set(p.have ?? []);
   // generator 5 (sleepingCorners): the zones of a one-room dwelling (a sleeping corner beside the hearth), each its
   // kind's anchor group after the room's own

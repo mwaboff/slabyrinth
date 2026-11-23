@@ -21,6 +21,7 @@ import { checkAreaFields, stepAreas, stepBase } from "./level/areas";
 import { stepBridgeRubble, stepBridges, stepRailings } from "./level/bridges";
 import { stepCaveOutlines, stepCaveRelief } from "./level/caves";
 import type { ResolvedLevel } from "../contracts/resolved";
+import { stepCellRows } from "./level/cellRows";
 import { stepDeadEnds } from "./level/deadEnds";
 import { stepDetailRecipes } from "./level/detail";
 import { stepGeneratedFeatures } from "./level/dressing";
@@ -58,6 +59,7 @@ export function runPhase1(s: ResolveLevelState): void {
   stepKerbs(work, s.paths);
   stepWallRuns(work);
   stepOpenings(work, routes, s.openings);
+  stepCellRows(work, s.openings, s.cellRows);
   stepOpeningRims(work, s.floorOpenings);
   work.structs?.afterOpenings(work);
   checkAreaFields(work);
@@ -74,7 +76,7 @@ export function runPhase2(s: ResolveLevelState): void {
   stepOpeningRimDebris(work, features, s.floorOpenings);
   // rooms are dressed before the loose rubble and the scatters, so those fill what the furniture leaves and never
   // take a wall run from it
-  stepRoomRecipes(work, features);
+  stepRoomRecipes(work, features, s.cellRows);
   stepDeadEnds(work, features, s.openings);
   stepWallFootRubble(work, features, s.floorOpenings, s.openings);
   stepGeneratedFeatures(work, features);

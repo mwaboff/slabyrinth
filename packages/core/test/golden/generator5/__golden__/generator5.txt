@@ -4,7 +4,7 @@ plans/cave@5 gen=5 resolved=e7a1623006210468 assets=884 diag=0e/0w/1i slab=7be59
 plans/chimney-lineup-v1 gen=4 resolved=938e06399d751bae assets=1771 diag=0e/0w/0i slab=ed99827a8395f37b diagnostics=4f53cda18c2baa0c review=43852246abb1199b reviewNoBuild=43852246abb1199b
 plans/chimney-lineup-v1@5 gen=5 resolved=e63e742fb0ae04b2 assets=2711 diag=0e/0w/7i slab=c925ebc57a6b673f diagnostics=0ed1e1aed7dcdd10 review=b88ca10b819248e2 reviewNoBuild=43852246abb1199b
 plans/condition-street-v1 gen=5 resolved=a9887b3b0094aacb assets=2585 diag=0e/0w/11i slab=c4390af878a1a9cf diagnostics=3961a360b4d3a55d review=9902762f3a3e286b reviewNoBuild=9902762f3a3e286b
-plans/dungeon-complex-v1 gen=5 resolved=d8902761406d26aa assets=1069 diag=0e/0w/6i slab=d09b9fecfd81a02b diagnostics=6547c1131d9ddbb5 review=d26d462ad8a7cc31 reviewNoBuild=d26d462ad8a7cc31
+plans/dungeon-complex-v1 gen=5 resolved=598b2c403aec2eb6 assets=1107 diag=0e/0w/7i slab=81367c83994dd82c diagnostics=3c6a5656490c500c review=d26d462ad8a7cc31 reviewNoBuild=d26d462ad8a7cc31
 plans/enclosure-gates-v1 gen=4 resolved=b2d28df693b3038b assets=669 diag=0e/0w/6i slab=ddfb8a9c3abda48f diagnostics=367ea9187f8b8b1d review=6ad463390a49fe30 reviewNoBuild=b6ca47545d8d66b3
 plans/enclosure-gates-v1@5 gen=5 resolved=6ced1ea669be1f6e assets=874 diag=0e/0w/6i slab=0d0ec88c1958cdf0 diagnostics=367ea9187f8b8b1d review=6ad463390a49fe30 reviewNoBuild=b6ca47545d8d66b3
 plans/example-a gen=1 resolved=3c82f0f5b11be01b assets=445 diag=0e/0w/4i slab=4b593e34f1b59291 diagnostics=2860bdde9bc2975c review=4e781701b5e49cd9 reviewNoBuild=4e781701b5e49cd9

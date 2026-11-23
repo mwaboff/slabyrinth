@@ -69,7 +69,8 @@ function pickRun<T extends { orient: "h" | "v"; idx: number[]; start: [number, n
   return best;
 }
 
-function placeOpening(
+/** An opening over these edges (one run), recorded and cut into them; false where another opening holds an edge. */
+export function placeOpening(
   work: ResolveGrid,
   out: ResolvedOpening[],
   o: { id: string; kind: OpeningKind; label?: string; gmOnly?: boolean },

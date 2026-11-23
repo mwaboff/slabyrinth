@@ -23,8 +23,11 @@ import {
   type RoomLightPlan,
   drawLighting,
   dressRoom,
+  dressSet,
   lightArea,
 } from "../../gen/rooms4";
+import { ROOM_TRAITS } from "../../gen/roomTraits";
+import type { CellRowRecord, CellRowRecords } from "./cellRows";
 import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed, h32, hashUnit, subSeed } from "../../util/hash";
@@ -423,6 +426,78 @@ function mainDoorOf(
   return {};
 }
 
+/**
+ * Generator 5 (cellRows): a room lined with cells (resolve/level/cellRows.ts), dressed cell by cell with its kit (the
+ * kit kind's furnisher: its minimum set first in a cell this small), an empty cell left bare, a messy one set one order
+ * messier; then its aisle: the row's aisle set (a guard's table) and lights. True when the level's cap was reached.
+ */
+function dressCellRow(
+  work: ResolveGrid,
+  features: FeatureWork,
+  grid: PlacementGrid,
+  info: AreaInfo,
+  row: CellRowRecord,
+  cells: ReadonlyArray<[number, number]>,
+  seed: number,
+): boolean {
+  const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
+  const area = info.area;
+  const ch = characterAt(work, area.id);
+  const kit = ROOM_TRAITS[row.spec.kit];
+  const { abandoned } = info.room;
+  const commit = (id: string, res: ScatterResult | null): boolean => {
+    if (res === null) return false;
+    features.commitGenerated(id, res.placements);
+    if (res.keptClear) features.keepClearOf(res.keptClear);
+    return res.capped;
+  };
+  const inCell = new Set<string>();
+  for (const [k, c] of row.cells.entries()) {
+    for (const [x, y] of c.cells) inCell.add(`${x},${y}`);
+    if (c.empty) continue;
+    const character =
+      ch !== null && c.messy ? { ...ch, condition: "ramshackle" as const } : (ch ?? undefined);
+    const res = dressRoom(grid, {
+      purpose: kit.host,
+      kind: row.spec.kit,
+      abandoned,
+      areaIndex: info.index + 1,
+      areaCells: c.cells.map(([x, y]) => [x, y] as [number, number]),
+      density: 1,
+      seed: subSeed(seed, `cell${k}`),
+      remaining: cap - features.generated,
+      // every cell its kind's kit (the first group: a cot and a bucket, a bed and its stand), not a new set each
+      firstGroup: 0,
+      ...(character !== undefined ? { character } : {}),
+    });
+    if (commit(`${area.id}~cell${k}`, res)) return true;
+  }
+  const aisle = cells
+    .filter(([x, y]) => !inCell.has(`${x},${y}`))
+    .map(([x, y]) => [x, y] as [number, number]);
+  if (row.spec.aisleSet !== undefined) {
+    const res = dressSet(grid, {
+      group: row.spec.aisleSet,
+      family: "table",
+      areaIndex: info.index + 1,
+      areaCells: aisle,
+      seed: subSeed(seed, "aisle"),
+      remaining: cap - features.generated,
+    });
+    if (commit(`${area.id}~aisle`, res)) return true;
+  }
+  const lit = lightArea(grid, {
+    areaIndex: info.index + 1,
+    areaCells: aisle,
+    seed: subSeed(seed, "aisleLights"),
+    remaining: cap - features.generated,
+    every: RECIPES.roomLightEvery,
+    abandoned,
+    ...(work.profile.occupancyLights ? { occupancy: {} } : {}),
+  });
+  return commit(`${area.id}~room`, lit);
+}
+
 /** The length of a passage: the long side of the box round its cells (a bent passage counts its longer leg). */
 function lengthOf(cells: ReadonlyArray<readonly [number, number]>): number {
   const xs = cells.map((c) => c[0]);
@@ -438,7 +513,11 @@ function lengthOf(cells: ReadonlyArray<readonly [number, number]>): number {
  * keep one light at most. `roomDress: false` on the level turns it off. Runs before the loose rubble and the scatters,
  * so those fill what the furniture leaves and never take a wall run from it.
  */
-export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void {
+export function stepRoomRecipes(
+  work: ResolveGrid,
+  features: FeatureWork,
+  cellRows: ReadOnly<CellRowRecords>,
+): void {
   if (!work.profile.roomRecipes || work.level.roomDress === false) return;
   const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
   const dressed = new Set<string>();
@@ -462,6 +541,12 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
     const small = work.profile.companionGroups || work.profile.occupancyLights;
     if (cells.length < (small ? SMALLEST_FURNISHED : RECIPES.minCells)) continue;
     const seed = subSeed(elementSeed(work.plan.seed, `${work.level.id}~${area.id}~room`, undefined), "room");
+    // generator 5 (cellRows): a room lined with cells is dressed cell by cell, then its aisle
+    const row = cellRows.byArea.get(info.index);
+    if (row !== undefined) {
+      if (dressCellRow(work, features, grid, info, row as CellRowRecord, cells, seed)) break;
+      continue;
+    }
     const own = features.all.filter(
       (f) => f.area === area.id && f.generatedBy === undefined && f.type !== "torch_wall",
     ).length;

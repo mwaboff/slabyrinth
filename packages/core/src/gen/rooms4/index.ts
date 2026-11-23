@@ -22,7 +22,7 @@
  * `lights` (how many lights and where), `dress` (the steps in order).
  */
 export { dressRoom, type RoomDressParams } from "./dress";
-export { dressDeadEnd, type DeadEndParams } from "./deadEnd";
+export { dressDeadEnd, dressSet, type DeadEndParams } from "./deadEnd";
 export { SMALLEST_FURNISHED } from "./furnish";
 export { lightArea, lightTarget } from "./lights";
 export { ROOM_RECIPES_4, SHELF_TOP, type Family } from "./recipes";

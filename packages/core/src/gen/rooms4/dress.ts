@@ -47,6 +47,11 @@ export interface RoomDressParams {
    * anchors face and the lane starts from; absent: the mean of its doors.
    */
   mainDoor?: [number, number];
+  /**
+   * Generator 5 (cellRows): the anchor group to try first (an index into the kind's groups), instead of the one sibling
+   * rooms of the kind have not led with: a row of like cells keeps its kit, not a new set in every cell.
+   */
+  firstGroup?: number;
 }
 
 /**
