@@ -37,7 +37,8 @@ import {
 } from "../../util/visibleCover";
 import { ZONE, type ZoneAnchor } from "../anchors";
 import { KEEP_OFF, footprintPoints, pieceFooting, standsAt } from "./footing";
-import type { ComposeCtx, FilledSlot, Recipe } from "./types";
+import { remainsPiece } from "../../gen/pieceFacts";
+import type { ComposeCtx, FilledSlot, Recipe, RecipeCtx } from "./types";
 
 /** Flat cover is at most this tall; low cover at most this tall and this long. */
 const FLAT_H = 0.17;
@@ -110,12 +111,20 @@ const lowOf = (ps: readonly ArrangePiece[]): ArrangePiece[] =>
   ps.filter((p) => p.measures.height > FLAT_H && p.measures.height <= LOW_H && p.measures.length <= LOW_L);
 const piecesOf = (s: FilledSlot | undefined): readonly ArrangePiece[] => s?.pieces ?? [];
 
-/** The flat and low pools of a place. */
+/**
+ * Generator 5 (decayWhereItBelongs): rubble, debris and remains lie only where the place shows decay (the zone's
+ * `decay`: gen/roomTraits.ts showsDecay); without the switch, wherever it is worn.
+ */
+const decayHere = (a: ZoneAnchor, ctx: RecipeCtx | undefined): boolean =>
+  a.wear > 0 && (ctx?.profile.decayWhereItBelongs !== true || a.decay);
+
+/** The flat and low pools of a place. `swept`: its cover keeps no remains (a skeleton among the pebbles). */
 function pools(
   a: ZoneAnchor,
   slots: Readonly<Record<string, FilledSlot>>,
+  swept: boolean,
 ): { flat: ArrangePiece[]; low: ArrangePiece[]; rocks: ArrangePiece[] } {
-  const cover = piecesOf(slots.cover);
+  const cover = piecesOf(slots.cover).filter((p) => !swept || !remainsPiece(p.variant.name));
   const rubble = a.wear > 0 ? piecesOf(slots.rubble) : [];
   if (a.indoor) return { flat: [...flatOf(cover), ...flatOf(rubble)], low: lowOf(rubble), rocks: [] };
   const flat = [...flatOf(cover), ...flatOf(rubble)];
@@ -200,12 +209,13 @@ export const layeredGround: Recipe<"zone"> = {
       fallback: "simplify",
     },
     rubble: {
-      roles: (a) => (a.wear > 0 ? [{ role: "feature.rubble" }, { role: "feature.debris" }] : []),
+      roles: (a, _trim, ctx) =>
+        decayHere(a, ctx) ? [{ role: "feature.rubble" }, { role: "feature.debris" }] : [],
       fallback: "simplify",
     },
   },
   compose: (a, slots, ctx) => {
-    const { flat, low, rocks } = pools(a, slots);
+    const { flat, low, rocks } = pools(a, slots, ctx.profile.decayWhereItBelongs && !a.decay);
     if (flat.length === 0 && low.length === 0) return null;
     const share = coverOf(a) * (ctx.variant in VARIANT ? VARIANT[ctx.variant as keyof typeof VARIANT] : 1);
     const edgesOnly = ctx.variant === "edges";

@@ -31,9 +31,16 @@
  * is a small crate, then a chest, then a stool); a companion the theme has no piece for is left out, never replaced
  * by a wrong one.
  */
-import type { FeatureType, WallStyle } from "../contracts/plan";
+import type { FeatureType, RoomPurpose, WallStyle } from "../contracts/plan";
+import type { CharacterCondition } from "../contracts/resolved";
 import type { SwitchName } from "../plan/generator";
-import { NEW_KIND_INFO, type FurnishedPurpose, type NewRoomKind, type RoomKind } from "./roomPurpose";
+import {
+  NEW_KIND_INFO,
+  furnishedPurpose,
+  type FurnishedPurpose,
+  type NewRoomKind,
+  type RoomKind,
+} from "./roomPurpose";
 import type { Family, Spec } from "./rooms4/recipes";
 import { THEME_WALL_STYLE } from "./wallStyles";
 
@@ -231,7 +238,15 @@ export interface RoomTraits {
    * light may be coloured in a scene that takes coloured light (a red flame at an altar: gen/rooms4/regimes.ts).
    */
   readonly sacred?: true;
+  /**
+   * Generator 5 (decayWhereItBelongs): a room that keeps its dead or its wreckage whatever its condition (a crypt, cells):
+   * rubble, debris and remains may lie in it. Every other room in use shows them only when it is run down (showsDecay).
+   */
+  readonly decay?: true;
 }
+
+/** Generator 5 (decayWhereItBelongs): the kinds that keep decay in any condition (`RoomTraits.decay`). */
+const DECAY_KINDS: ReadonlySet<RoomKind> = new Set<RoomKind>(["crypt", "prison"]);
 
 /** Generator 5 (sensibleLights): the kinds an open fire belongs in (`RoomTraits.fire`). */
 const FIRE_KINDS: ReadonlySet<RoomKind> = new Set<RoomKind>([
@@ -1261,6 +1276,7 @@ export const ROOM_TRAITS: Readonly<Record<RoomKind, RoomTraits>> = Object.fromEn
       ...ORDER_FLOOR_LIGHT[k],
       ...(FIRE_KINDS.has(k) ? { fire: true } : {}),
       ...(SACRED_KINDS.has(k) ? { sacred: true } : {}),
+      ...(DECAY_KINDS.has(k) ? { decay: true } : {}),
     },
   ]),
 ) as Record<RoomKind, RoomTraits>;
@@ -1278,6 +1294,27 @@ export const roomTakesFire = (kind: string): boolean =>
 /** May a room of this kind (or purpose: the resolved area's `roomKind`, else its `purpose`) show glowing things? */
 export const roomTakesGlow = (kind: string): boolean =>
   Object.hasOwn(ROOM_TRAITS, kind) && ROOM_TRAITS[kind as RoomKind].glow === true;
+
+/**
+ * Generator 5 (decayWhereItBelongs): may a place show decay (rubble, debris, remains)? The one question every pass that
+ * lays them asks (the wall-foot rubble, the layered ground, a dead end's set). A room someone uses (`room`: an area of
+ * kind room with a furnished purpose, not abandoned) shows them only when its kind keeps them (a crypt, cells:
+ * `RoomTraits.decay`) or its character is run down (ramshackle, ruined); kept or weathered, it is swept. A passage, a
+ * room with no purpose, a ruin and an abandoned room keep what their wear gives them.
+ */
+export function showsDecay(p: {
+  readonly room: boolean;
+  readonly purpose?: string | undefined;
+  readonly kind?: string | undefined;
+  readonly abandoned?: boolean | undefined;
+  readonly condition?: CharacterCondition | undefined;
+}): boolean {
+  const purpose = p.purpose as RoomPurpose | undefined;
+  if (!p.room || !furnishedPurpose(purpose) || p.abandoned === true) return true;
+  const kind = p.kind ?? purpose;
+  if (Object.hasOwn(ROOM_TRAITS, kind) && ROOM_TRAITS[kind as RoomKind].decay === true) return true;
+  return p.condition === "ramshackle" || p.condition === "ruined";
+}
 
 // ───────────────────────────── cell rows ─────────────────────────────
 

@@ -13,6 +13,7 @@ import type { ResolvedOpening } from "../../contracts/resolved";
 import { COMPLEX, DEAD_END_MIN_CELLS, DEAD_END_OPTIONS, drawDeadEnd } from "../../gen/complexLayout";
 import { PLAN_LIMITS } from "../../contracts/plan";
 import { dressDeadEnd } from "../../gen/rooms4";
+import { showsDecay } from "../../gen/roomTraits";
 import { elementSeed, hashUnit, subSeed } from "../../util/hash";
 import { characterAt } from "../character";
 import { emptyDeadEndsOf, gridLayoutLevel, holdsSomething, layoutRooms } from "../layoutRooms";
@@ -46,14 +47,26 @@ export function stepDeadEnds(
     const condition = characterAt(work, r.id)?.condition;
     const abandoned = info.room.abandoned || condition === "ruined" || condition === "ramshackle";
     const plainAllowed = !judged || complex.plainDeadEnds < COMPLEX.emptyDeadEnds;
-    const option = drawDeadEnd(hashUnit(seed, "option", 0), abandoned, plainAllowed);
+    // generator 5 (decayWhereItBelongs): remains only in a room that shows decay (gen/roomTraits.ts showsDecay)
+    const decay =
+      !work.profile.decayWhereItBelongs ||
+      showsDecay({
+        room: info.kind === "room",
+        purpose: info.room.purpose,
+        kind: info.room.kind ?? info.room.purpose,
+        abandoned: info.room.abandoned,
+        condition,
+      });
+    const option = drawDeadEnd(hashUnit(seed, "option", 0), abandoned, plainAllowed, decay);
     const cells = work
       .shownCells(info.index)
       .filter((i) => work.isFloor(i))
       .map((i) => work.cellXY(i));
     // the drawn set, else (its anchor fits nowhere: a room too narrow for a chest's standing room) the others in order
     const tries =
-      option.group === null ? [] : [option, ...DEAD_END_OPTIONS.filter((o) => o !== option && o.group)];
+      option.group === null
+        ? []
+        : [option, ...DEAD_END_OPTIONS.filter((o) => o !== option && o.group && (decay || o.decay !== true))];
     let capped = false;
     for (const o of tries) {
       const res = dressDeadEnd(grid, {

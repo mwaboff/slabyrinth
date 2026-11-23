@@ -1390,13 +1390,13 @@ plans/condition-street-v1 review cliff_unclad_low 1
 plans/condition-street-v1 review dead_space 1
 plans/condition-street-v1 review straight_natural 2
 plans/condition-street-v1 review weathered_same_as_intact 1
-plans/dungeon-complex-v1 l1 pieces feature 246
+plans/dungeon-complex-v1 l1 pieces feature 248
 plans/dungeon-complex-v1 l1 pieces fill 193
 plans/dungeon-complex-v1 l1 pieces floor 229
 plans/dungeon-complex-v1 l1 pieces opening 10
 plans/dungeon-complex-v1 l1 pieces wall 365
 plans/dungeon-complex-v1 l1 pieces wall_post 65
-plans/dungeon-complex-v1 l1 layer site 1108
+plans/dungeon-complex-v1 l1 layer site 1110
 plans/dungeon-complex-v1 l1 part cells~aisle#0 1
 plans/dungeon-complex-v1 l1 part cells~aisle#1 1
 plans/dungeon-complex-v1 l1 part cells~aisle#2 1
@@ -1772,13 +1772,13 @@ plans/example-a@5 l2 part floor:floor.cobble 32
 plans/example-a@5 l2 part floor:floor.rock 39
 plans/example-a@5 l2 part landing~room#0 1
 plans/example-a@5 l2 part landing~room#1 1
-plans/example-a@5 l1 pieces feature 87
+plans/example-a@5 l1 pieces feature 88
 plans/example-a@5 l1 pieces fill 100
 plans/example-a@5 l1 pieces floor 95
 plans/example-a@5 l1 pieces opening 4
 plans/example-a@5 l1 pieces wall 150
 plans/example-a@5 l1 pieces wall_post 27
-plans/example-a@5 l1 layer site 463
+plans/example-a@5 l1 layer site 464
 plans/example-a@5 l1 part c1~a 1
 plans/example-a@5 l1 part c1~b 1
 plans/example-a@5 l1 part c1~room#0 1
@@ -3634,25 +3634,25 @@ plans/keep-dungeon-v8 diag info verify_props_overlap 2
 plans/keep-dungeon-v8 review focal_unlit 2
 plans/keep-dungeon-v8 review furniture_adrift 1
 plans/keep-dungeon-v8 review room_bare 1
-plans/keep-dungeon-v8@5 l3 pieces feature 52
+plans/keep-dungeon-v8@5 l3 pieces feature 60
 plans/keep-dungeon-v8@5 l3 pieces fill 45
 plans/keep-dungeon-v8@5 l3 pieces floor 39
 plans/keep-dungeon-v8@5 l3 pieces link 4
 plans/keep-dungeon-v8@5 l3 pieces wall 41
 plans/keep-dungeon-v8@5 l3 pieces wall_post 8
-plans/keep-dungeon-v8@5 l3 layer site 189
+plans/keep-dungeon-v8@5 l3 layer site 197
 plans/keep-dungeon-v8@5 l3 part ante~room#0 1
 plans/keep-dungeon-v8@5 l3 part ante~room#1 1
 plans/keep-dungeon-v8@5 l3 part floor:floor.flagstone 13
 plans/keep-dungeon-v8@5 l3 part floor:floor.marble 26
-plans/keep-dungeon-v8@5 l2 pieces feature 145
+plans/keep-dungeon-v8@5 l2 pieces feature 144
 plans/keep-dungeon-v8@5 l2 pieces fill 167
 plans/keep-dungeon-v8@5 l2 pieces floor 226
 plans/keep-dungeon-v8@5 l2 pieces link 32
 plans/keep-dungeon-v8@5 l2 pieces opening 5
 plans/keep-dungeon-v8@5 l2 pieces wall 157
 plans/keep-dungeon-v8@5 l2 pieces wall_post 26
-plans/keep-dungeon-v8@5 l2 layer site 758
+plans/keep-dungeon-v8@5 l2 layer site 757
 plans/keep-dungeon-v8@5 l2 part cell_e1~room#0 1
 plans/keep-dungeon-v8@5 l2 part cell_e1~room#1 1
 plans/keep-dungeon-v8@5 l2 part cell_e2~room#0 1
@@ -3665,14 +3665,14 @@ plans/keep-dungeon-v8@5 l2 part floor:floor.rock 17
 plans/keep-dungeon-v8@5 l2 part floor:floor.stone_tile 79
 plans/keep-dungeon-v8@5 l2 part pass~b 1
 plans/keep-dungeon-v8@5 l2 part pass~room#0 1
-plans/keep-dungeon-v8@5 l1 pieces feature 153
+plans/keep-dungeon-v8@5 l1 pieces feature 172
 plans/keep-dungeon-v8@5 l1 pieces fill 266
 plans/keep-dungeon-v8@5 l1 pieces floor 175
 plans/keep-dungeon-v8@5 l1 pieces link 2
 plans/keep-dungeon-v8@5 l1 pieces opening 3
 plans/keep-dungeon-v8@5 l1 pieces wall 155
 plans/keep-dungeon-v8@5 l1 pieces wall_post 25
-plans/keep-dungeon-v8@5 l1 layer site 779
+plans/keep-dungeon-v8@5 l1 layer site 798
 plans/keep-dungeon-v8@5 l1 part c_gh~a 1
 plans/keep-dungeon-v8@5 l1 part c_gh~b 1
 plans/keep-dungeon-v8@5 l1 part c_gh~room#0 1
@@ -3701,7 +3701,7 @@ plans/keep-dungeon-v8@5 l2 feature brazier 2
 plans/keep-dungeon-v8@5 l2 feature bunk_bed 4
 plans/keep-dungeon-v8@5 l2 feature cave_in 2
 plans/keep-dungeon-v8@5 l2 feature coffin 4
-plans/keep-dungeon-v8@5 l2 feature debris 45
+plans/keep-dungeon-v8@5 l2 feature debris 44
 plans/keep-dungeon-v8@5 l2 feature rock 1
 plans/keep-dungeon-v8@5 l2 feature rubble 20
 plans/keep-dungeon-v8@5 l2 feature sarcophagus 19
@@ -4614,12 +4614,12 @@ plans/multi-level-stairs@5 ground part foyer~room#2 1
 plans/multi-level-stairs@5 ground part foyer~room#3 1
 plans/multi-level-stairs@5 ground part foyer~room#4 1
 plans/multi-level-stairs@5 ground part foyer~room#5 1
-plans/multi-level-stairs@5 study_lvl pieces feature 30
+plans/multi-level-stairs@5 study_lvl pieces feature 34
 plans/multi-level-stairs@5 study_lvl pieces floor 19
 plans/multi-level-stairs@5 study_lvl pieces link 2
 plans/multi-level-stairs@5 study_lvl pieces wall 16
 plans/multi-level-stairs@5 study_lvl pieces wall_post 4
-plans/multi-level-stairs@5 study_lvl layer site 71
+plans/multi-level-stairs@5 study_lvl layer site 75
 plans/multi-level-stairs@5 study_lvl part floor:floor.wood_plank 19
 plans/multi-level-stairs@5 study_lvl part study~room#0 1
 plans/multi-level-stairs@5 study_lvl part study~room#1 1
@@ -5113,13 +5113,13 @@ plans/purpose-lineup-v1 diag info footprint_mismatch 2
 plans/purpose-lineup-v1 diag info verify_prop_nudged 4
 plans/purpose-lineup-v1 review flat_map 1
 plans/purpose-lineup-v1 review single_route 1
-plans/purpose-lineup-v1@5 l1 pieces feature 129
+plans/purpose-lineup-v1@5 l1 pieces feature 125
 plans/purpose-lineup-v1@5 l1 pieces fill 24
 plans/purpose-lineup-v1@5 l1 pieces floor 129
 plans/purpose-lineup-v1@5 l1 pieces opening 6
 plans/purpose-lineup-v1@5 l1 pieces wall 90
 plans/purpose-lineup-v1@5 l1 pieces wall_post 34
-plans/purpose-lineup-v1@5 l1 layer site 412
+plans/purpose-lineup-v1@5 l1 layer site 408
 plans/purpose-lineup-v1@5 l1 part antechamber~room#0 1
 plans/purpose-lineup-v1@5 l1 part antechamber~room#1 1
 plans/purpose-lineup-v1@5 l1 part antechamber~room#10 1
@@ -5260,8 +5260,6 @@ plans/purpose-lineup-v1@5 l1 feature chest 8
 plans/purpose-lineup-v1@5 l1 feature clutter 32
 plans/purpose-lineup-v1@5 l1 feature counter 6
 plans/purpose-lineup-v1@5 l1 feature crate 17
-plans/purpose-lineup-v1@5 l1 feature debris 3
-plans/purpose-lineup-v1@5 l1 feature rubble 1
 plans/purpose-lineup-v1@5 l1 feature rug 2
 plans/purpose-lineup-v1@5 l1 feature sack 1
 plans/purpose-lineup-v1@5 l1 feature shelf_line 13

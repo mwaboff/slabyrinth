@@ -201,6 +201,11 @@ export interface ZoneAnchor extends AnchorBase {
   readonly natural: boolean;
   readonly wear: 0 | 1 | 2;
   /**
+   * Generator 5 (decayWhereItBelongs): whether rubble, debris and remains may lie on its ground (gen/roomTraits.ts
+   * showsDecay: not in a room in use that is kept or weathered, unless its kind keeps its dead).
+   */
+  readonly decay: boolean;
+  /**
    * Steps (4-neighbour, inside the area) from a cell to the nearest one where its ground meets something: a wall or an
    * opening, a ledge, a step, another floor material, water, another area's floor, a building, a blocking feature. The
    * board's own edge is not one (slabs are tiled side by side). Infinity off the area or when nothing is met.
