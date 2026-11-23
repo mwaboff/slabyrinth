@@ -38,6 +38,8 @@ export type { ParseResult } from "./schema";
 export { BUNDLED_ORIENTATION, BUNDLED_PALETTES } from "./bundled";
 export { featureRoleFits, withAutoVariants } from "./auto";
 export { createPaletteView, paletteView } from "./view";
+/** The alignment pillar's role (the app asks whether a split build's slabs carry it: shared/pasteRegister.ts). */
+export { MARKER_ROLE } from "./roles";
 export type { PaletteView, PieceSizeFn, RoomPieceFn, StallFormsFn } from "./view";
 export { TRAITS, TRAIT_IDS, borrowRisk, fitsShape, hasTrait, measurePiece, traitsOf } from "./traits";
 export type { BorrowRisk, MeasureId, MeasureRange, PieceMeasures, TraitId, TraitShape } from "./traits";

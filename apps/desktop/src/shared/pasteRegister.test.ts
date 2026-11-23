@@ -1,3 +1,4 @@
+import { MARKER_ROLE } from "@slabyrinth/core";
 import { describe, expect, it } from "vitest";
 import type { BuildRecord } from "./project";
 import { pastesOutOfLine } from "./pasteRegister";
@@ -17,7 +18,7 @@ function rec(
 describe("pastesOutOfLine", () => {
   it("a split build without pillars cannot be pasted in line", () => {
     expect(pastesOutOfLine(rec(18, "none"))).toBe(true);
-    expect(pastesOutOfLine(rec(2, "multi-chunk", ["marker.alignment"]))).toBe(true);
+    expect(pastesOutOfLine(rec(2, "multi-chunk", [MARKER_ROLE]))).toBe(true);
   });
 
   it("a split build with pillars, or a single slab, can", () => {
