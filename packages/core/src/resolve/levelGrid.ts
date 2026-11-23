@@ -182,6 +182,8 @@ export class LevelGrid implements GridSize {
   readonly y0: number;
   readonly w: number;
   readonly h: number;
+  /** `outcropCells`, once asked. */
+  private outcrops: ReadonlySet<number> | undefined;
 
   /**
    * `defaultTheme` is the theme of a cell outside the level or without one (the realizer's palette fallback; readers
@@ -314,6 +316,19 @@ export class LevelGrid implements GridSize {
     )
       return null;
     return [(x0 + x1) / 2, (y0 + y1) / 2];
+  }
+
+  /**
+   * Cell indices of the level's outcrops: solid rock columns up to the cell's top, built with no floor tile
+   * (compile/realize/floors.ts, fill.ts).
+   */
+  outcropCells(): ReadonlySet<number> {
+    this.outcrops ??= new Set(
+      (this.level.outcrops ?? []).flatMap((o) =>
+        o.cells.map(([x, y]) => this.index(x, y)).filter((i) => i >= 0),
+      ),
+    );
+    return this.outcrops;
   }
 
   /** Absolute walkable floor top of (x, y): elevation + floor thickness (0.5) + the cell's height. */

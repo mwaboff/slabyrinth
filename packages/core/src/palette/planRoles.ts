@@ -13,6 +13,7 @@
  */
 import type { RoleName } from "../contracts/compiler";
 import type { ThemeId } from "../contracts/plan";
+import { minOf } from "../util/lists";
 import { own } from "../util/own";
 import {
   GENERIC_THEME,
@@ -21,6 +22,7 @@ import {
   type ResolvePalettes,
   type VariantFilter,
 } from "./resolve";
+import { floorRole } from "./roles";
 import { traitPool, traitQueryKey, type TraitPool, type TraitQuery } from "./traitPools";
 
 export interface PlanRoles {
@@ -80,4 +82,14 @@ export function createPlanRoles(catalog: ResolvePalettes, generator: number): Pl
       return p;
     },
   };
+}
+
+/**
+ * How thick the floor of `material` in `theme` is at least: the thinnest piece of its floor role (any of them may be the
+ * one realize lays, compile/realize/floors.ts), undefined when the role has none (no floor piece is laid there). What a
+ * piece sunk into the floor may sink into (util/sunk.ts).
+ */
+export function thinnestFloor(roles: PlanRoles, theme: ThemeId, material: string): number | undefined {
+  const vs = roles.resolve(theme, floorRole(material)).resolution?.variants ?? [];
+  return vs.length === 0 ? undefined : minOf(vs.map((v) => v.geom.size.y));
 }

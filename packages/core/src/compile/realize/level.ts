@@ -78,9 +78,7 @@ export class RealizeLevel {
     // the grid, faces and claims verify measures by (compile/buildFacts.ts)
     const { grid: V, refHeights, claims, faces } = facts.of(L);
     this.V = V;
-    this.outcropCells = new Set(
-      (L.outcrops ?? []).flatMap((o) => o.cells.map(([x, y]) => V.index(x, y)).filter((i) => i >= 0)),
-    );
+    this.outcropCells = V.outcropCells();
     this.blockTurn = (v: ResolvedVariant, key: string): number =>
       Math.abs(v.geom.size.x - v.geom.size.z) < 0.05 ? (h32Utf16(`${seed}:${L.id}:turn:${key}`) % 4) * 90 : 0;
     const elev = L.elevation;

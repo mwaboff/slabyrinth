@@ -25,7 +25,9 @@
  */
 import { single, type Arrangement, type ArrangePiece, type Placed } from "../../arrange";
 import { CELL_FLAG } from "../../contracts/resolved";
+import { thinnestFloor } from "../../palette/planRoles";
 import { hashUnitMixed } from "../../util/hash";
+import { deepestSink } from "../../util/sunk";
 import { turnedHalfExtents } from "../../util/turn";
 import {
   COVER_RASTER,
@@ -59,8 +61,9 @@ const KEEP_OFF = CELL_FLAG.WATER | CELL_FLAG.PATH | CELL_FLAG.STEPS | CELL_FLAG.
 /**
  * Clusters (generator 5, `groundClusters`): an anchor piece (a bush, a larger rock, a tall tuft: ANCHOR_H tall, at most
  * ANCHOR_L long) with companions round it, COMPANIONS in the middle and more where ground meets an edge. Low pieces sink
- * SINK_DEEP of their height, at most SINK_DEEP_MAX (ground tiles are half a tile thick: verify takes a piece sunk into a
- * floor piece under its centre as resting in it), and a low or flat companion may lean PATH_LEAN over a path's edge
+ * SINK_DEEP of their height, at most SINK_DEEP_MAX and never deeper than the thinnest floor piece under them takes them
+ * (palette/planRoles.ts `thinnestFloor`, util/sunk.ts: verify takes a piece whose base is inside the floor piece under
+ * its centre as resting in it; a dungeon's paving is a quarter tile thick), and a low or flat companion may lean PATH_LEAN over a path's edge
  * (its centre stays on the ground), so the path's line breaks up.
  */
 const ANCHOR_H = [0.45, 1.25] as const;
@@ -316,6 +319,30 @@ export const layeredGround: Recipe<"zone"> = {
         return fits(qx + (px - qx) * t, qy + (py - qy) * t, top, KEEP_OFF);
       });
     };
+    // (groundClusters) how thick the floor is under a piece: the thinnest floor piece at its centre and its corners; an
+    // outcrop's top is a rock column with no floor piece to sink into (the piece rests on it)
+    const outcrops = g.outcropCells();
+    const floorUnder = (px: number, py: number, p: ArrangePiece, yaw: number): number => {
+      const h = turnedHalfExtents(p.variant.geom.size.x, p.variant.geom.size.z, yaw);
+      let least = Infinity;
+      for (const [qx, qy] of [
+        [px, py],
+        [px - h.x, py - h.z],
+        [px + h.x, py - h.z],
+        [px - h.x, py + h.z],
+        [px + h.x, py + h.z],
+      ] as const) {
+        const [cx, cy] = [Math.floor(qx), Math.floor(qy)];
+        const c = g.cell(cx, cy);
+        least = Math.min(
+          least,
+          c.material === null || outcrops.has(g.index(cx, cy))
+            ? 0
+            : (thinnestFloor(ctx.roles, c.theme, c.material) ?? 0),
+        );
+      }
+      return least;
+    };
     const put = (
       into: Placed[],
       p: ArrangePiece,
@@ -327,16 +354,19 @@ export const layeredGround: Recipe<"zone"> = {
       lean = false,
     ): void => {
       if (!onGround(px, py, p, yaw, top, lean)) return;
+      // (groundClusters) a sunk piece goes no deeper than the floor under it takes it: its thinnest floor piece, less
+      // what the slab's storage step may take (util/sunk.ts, the question verify asks of the built piece)
+      const base = clusters && y < top ? Math.max(y, top - deepestSink(floorUnder(px, py, p, yaw))) : y;
       // (visibleGround: with cover gathered at edges, a sunk piece's centre keeps SUNK_CLEAR from any other floor
       // height or missing floor, so verify finds the ground tile it is sunk into under its centre)
       if (
         visible &&
-        y < top - 1e-6 &&
+        base < top - 1e-6 &&
         !AROUND.every(([dx, dy]) => fits(px + dx * SUNK_CLEAR, py + dy * SUNK_CLEAR, top, KEEP_OFF))
       )
         return;
       const q = single(p, yaw)[0] as Placed;
-      into.push({ ...q, x: px - f.at[0], z: f.at[1] - py, y: y - f.base });
+      into.push({ ...q, x: px - f.at[0], z: f.at[1] - py, y: base - f.base });
     };
     // how deep a low piece sinks: a little (verify's support slack), or (groundClusters) into the ground tile
     // (visibleGround: only soil takes a piece deep; paving is a thin tile a piece lies on)

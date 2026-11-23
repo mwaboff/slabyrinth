@@ -35,6 +35,7 @@ import { OverheadLines } from "./lines";
 import { wallish } from "./walls";
 import { elementRef, fmt, round2, round4, solidLabel } from "./words";
 import { maxOf } from "../../util/lists";
+import { baseInFloor } from "../../util/sunk";
 
 /** The codes this file emits (VERIFY_CODES is the union of every check's list; lines.ts has its own). */
 export const PROP_CODES = [
@@ -327,13 +328,17 @@ function checkSupport(
         q.box.max.y <= s.p.y + SUPPORT_SLACK,
     );
   const support = supports.length ? maxOf(supports.map((q) => q.box.max.y)) : null;
-  // a floor or fill piece crossing the thin slice just above the support slack, starting below the prop's base
+  // a floor or fill piece crossing the thin slice just above the support slack, its body round the prop's base
+  // (util/sunk.ts: the ground recipe sinks a piece no deeper than this)
   // (generator 5, `groundClusters`: an arranged piece sunk with its centre on the seam between two ground tiles is in
   // the ground: the tiles are met within SEAM_REACH of the centre)
   const seam = s.arranged && ctx.profile.groundClusters ? -SEAM_REACH : 0;
   const inside = solids
     .at(cx, cz, s.p.y + SUPPORT_SLACK, s.p.y + 0.07, seam)
-    .filter((q) => q.levelId === L.id && (q.role === "floor" || q.role === "fill") && q.box.min.y < s.p.y);
+    .filter(
+      (q) =>
+        q.levelId === L.id && (q.role === "floor" || q.role === "fill") && baseInFloor(s.p.y, q.box.min.y),
+    );
   const cell: [number, number] = [Math.floor(pc.px), Math.floor(pc.py)];
   // an arrangement's piece sunk into the floor on purpose (arrange/ `sink`) stands in what it is sunk into
   if (inside.length && s.arranged) return;
