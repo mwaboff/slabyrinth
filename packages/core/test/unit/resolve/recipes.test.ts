@@ -17,7 +17,7 @@ import { detailBudgets, spend, type Proposal } from "../../../src/resolve/recipe
 import { runRecipes } from "../../../src/resolve/recipes/engine";
 import { fillSlot } from "../../../src/resolve/recipes/slots";
 import type { Recipe } from "../../../src/resolve/recipes/types";
-import { bandCourses, jambPosts } from "../../../src/resolve/recipes/walls";
+import { bandCourses, jambPosts, slabConcealed } from "../../../src/resolve/recipes/walls";
 import { realize } from "../../../src/compile";
 import type { TreatmentFamily } from "../../../src/resolve/recipes/treatments";
 import { loadPlan } from "../../fixtures";
@@ -211,7 +211,39 @@ describe("wall recipes on wall-recipes-v1 (generator 5), every recipe forced on"
     for (const x of inst) expect(x.mount).toBe("wall");
   });
 
-  it("runs a band along every upper floor line, under the floor line, proud by the building's own draw", () => {
+  it("never reaches a trim piece past its wall's inner face (true turned footprints), so no room sees one", () => {
+    const anchors = new LevelAnchors(level());
+    const byKey = new Map<string, { depth: number; kind: string }>(
+      [
+        ...anchors.of("face"),
+        ...anchors.of("opening"),
+        ...anchors.of("corner"),
+        ...anchors.of("storeyLine"),
+      ].map((a) => [a.key, { depth: a.depth, kind: a.kind }]),
+    );
+    let measured = 0;
+    for (const x of inst) {
+      const a = byKey.get(x.id.slice(x.id.indexOf("@") + 1));
+      if (!a) throw new Error(x.id);
+      for (const p of x.pieces) {
+        const v = view.roles
+          .resolve(p.palette, p.role)
+          .resolution?.variants.find((q) => q.wanted === p.asset || q.uuid === p.asset);
+        // (a floor slab's band is the one exception: its inner part lies under the upper floor, tested below)
+        if (!v || p.role.startsWith("floor.")) continue;
+        const t = (p.yaw * Math.PI) / 180;
+        const across = Math.abs(Math.cos(t)) * v.geom.size.z + Math.abs(Math.sin(t)) * v.geom.size.x;
+        const along = Math.abs(Math.cos(t)) * v.geom.size.x + Math.abs(Math.sin(t)) * v.geom.size.z;
+        measured++;
+        expect(p.z - across / 2, x.id).toBeGreaterThanOrEqual(-a.depth + 1e-6);
+        // a corner's post stands off both faces: the first face's wall lies along local +x
+        if (a.kind === "corner") expect(p.x + along / 2, x.id).toBeLessThanOrEqual(a.depth - 1e-6);
+      }
+    }
+    expect(measured).toBeGreaterThan(0);
+  });
+
+  it("runs a band along every upper floor line, under the floor line, in a beam the wall beds (wood_town: a borrowed wood beam)", () => {
     const lines = new LevelAnchors(level()).of("storeyLine").filter((l) => l.line === "floor");
     expect(lines.length).toBeGreaterThan(0);
     for (const l of lines) {
@@ -219,12 +251,36 @@ describe("wall recipes on wall-recipes-v1 (generator 5), every recipe forced on"
       expect(band, l.key).toBeDefined();
       for (const p of band?.pieces ?? []) {
         expect(p.y).toBeLessThan(0);
-        // 1-tile slab edges: the centre stands half a tile in from the front, 0.18-0.3 proud of the wall
-        expect(p.z + 0.5).toBeGreaterThanOrEqual(0.18 - 1e-6);
-        expect(p.z + 0.5).toBeLessThanOrEqual(0.3 + 1e-6);
+        // no own beam in wood_town: borrowed through the pool, not a floor slab
+        expect(p.role.startsWith("floor."), p.role).toBe(false);
+        expect(p.z).toBeLessThanOrEqual(0.3 + 1e-6);
       }
       expect(band?.layer).toBe("storey:1");
       expect(band?.host).toBe(l.structure);
+    }
+  });
+
+  it("lays a floor slab's band only on a floor line under a standing upper floor", () => {
+    // the slab is the last resort (no beam of the theme's own, none to borrow in the trim's material): its inner part
+    // must lie under an upper floor, so only a floor line of a building whose floors stand takes it
+    const lines = new LevelAnchors(level()).of("storeyLine");
+    const ctx = { level: level() } as unknown as Parameters<typeof slabConcealed>[1];
+    const floorLine = lines.find((l) => l.line === "floor");
+    const baseLine = lines.find((l) => l.line === "base");
+    if (!floorLine || !baseLine) throw new Error("no lines");
+    expect(slabConcealed(floorLine, ctx)).toBe(true);
+    expect(slabConcealed(baseLine, ctx)).toBe(false);
+    const ruined = {
+      level: {
+        ...level(),
+        structures: level().structures?.map((s) => ({ ...s, condition: "ruined" as const })),
+      },
+    } as unknown as Parameters<typeof slabConcealed>[1];
+    expect(slabConcealed(floorLine, ruined)).toBe(false);
+    // and every slab band built stands on such a line
+    for (const x of inst.filter((q) => q.pieces.some((p) => p.role.startsWith("floor.")))) {
+      const l = lines.find((q) => x.id === `bandCourses@${q.key}`);
+      expect(l !== undefined && slabConcealed(l, ctx), x.id).toBe(true);
     }
   });
 
@@ -246,9 +302,14 @@ describe("wall recipes on wall-recipes-v1 (generator 5), every recipe forced on"
     const convexEnd = lines.find((l) => l.ends[1] === "convex");
     if (!convexStart || !convexEnd) throw new Error("no outer corner");
     expect(convexEnd.beyond[1]).toBeCloseTo(0.5, 6);
-    const last = (inst.find((x) => x.id === `bandCourses@${convexEnd.key}`)?.pieces ?? []).map(
-      (p) => p.x + 0.5,
-    );
+    // each piece's far end along the line (its real length, turned)
+    const last = (inst.find((x) => x.id === `bandCourses@${convexEnd.key}`)?.pieces ?? []).map((p) => {
+      const g = view.roles
+        .resolve(p.palette, p.role)
+        .resolution?.variants.find((q) => q.wanted === p.asset || q.uuid === p.asset)?.geom.size;
+      const along = g ? (p.yaw % 180 === 0 ? g.x : g.z) : 1;
+      return p.x + along / 2;
+    });
     // past the meeting surface (0.5 beyond the end) by its projection
     expect(Math.max(...last)).toBeGreaterThan(convexEnd.length + 0.5);
   });

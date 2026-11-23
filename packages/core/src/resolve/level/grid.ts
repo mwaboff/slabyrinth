@@ -46,6 +46,7 @@ import {
   edgeRow,
   edgeSecondCell,
   hEdgeIndex,
+  partOfBuilding,
   sideEdgeIndex,
   sideOrient,
   vEdgeIndex,
@@ -97,6 +98,11 @@ export interface AreaInfo {
    * same back from ResolvedArea.finish and .abandoned). Dressing only: what the walls are built of is `interior`.
    */
   readonly rough: boolean;
+  /**
+   * Generator 5 (`buildingRooms`): the building whose ground storey this room partitions (a synthetic room of
+   * resolve/structure.ts); its cells are the building's, as a building area's are (`inBuilding`).
+   */
+  readonly building?: string;
 }
 
 /**
@@ -216,7 +222,14 @@ export class ResolveGrid {
     this.vE = makeEdges(edgeCount(this, "v"));
     this.levelTheme = level.theme ?? ctx.plan.theme;
     this.defaultWallHeight = level.wallHeight ?? BUILD_CONSTANTS.wallHeight;
-    const table = areaTable(level, ctx, this.profile, this.levelTheme, this.defaultWallHeight);
+    const table = areaTable(
+      level,
+      ctx,
+      this.profile,
+      this.levelTheme,
+      this.defaultWallHeight,
+      ex.work?.roomBuilding,
+    );
     this.areas = table.areas;
     this.areaIndexById = table.byId;
     this.themes = table.themes;
@@ -518,6 +531,15 @@ export class ResolveGrid {
   /** The display region of a cell as a number: 0 for none, an area's index + 1 for the area it shows as (`areaAt`). */
   shownRegionAt(i: number): number {
     return i >= 0 ? (this.disp[i] ?? 0) : 0;
+  }
+
+  /**
+   * Is the cell inside a building's ground storey: owned by a building's area, or (generator 5, `buildingRooms`) by
+   * one of the rooms it is split into?
+   */
+  inBuilding(i: number): boolean {
+    const a = this.ownerAt(i);
+    return a !== undefined && partOfBuilding(a);
   }
 
   /** The area that owns a cell structurally (its walls, floor and theme; never a zone), or undefined (@ground). */

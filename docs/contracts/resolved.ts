@@ -99,6 +99,13 @@ export interface ResolvedArea {
    * Absent when the room's lights were not drawn by level.
    */
   lightLevel?: number;
+  /**
+   * Generator 5 (buildingRooms): the id of the building whose ground storey this room is part of (a room the resolver
+   * split the building into, id "<building>~room<n>"). Its cells are the building's: the building's own area then
+   * shows no cell of its own in `cells.area`, and its cellCount, bbox, anchor and outline span its rooms. Absent for
+   * every other area.
+   */
+  building?: string;
 }
 
 /** What a room is for (generator 4): the plan contract's list (Area.purpose), re-exported for readers of this one. */

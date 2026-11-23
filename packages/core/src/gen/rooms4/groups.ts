@@ -440,6 +440,20 @@ function poseAt(
     const i = dot([cell[0] - f.origin[0], cell[1] - f.origin[1]], f.u);
     setAlong(f.u, i < 0 ? reach.uMin - c.gap - halfU : reach.uMax + c.gap + halfU);
   }
+  // set beside the anchor, it still keeps off the walls of its cell (a wall's strip hosted in the cell, a partition
+  // between two rooms, takes half of it), as the push to the wall did
+  if (!ext.tile) {
+    const quarter = turn.rot === 90 || turn.rot === 270;
+    const kept = offWalls(
+      room,
+      cell,
+      centre,
+      (quarter ? ext.dMax : ext.wMax) / 2,
+      (quarter ? ext.wMax : ext.dMax) / 2,
+    );
+    if (kept === null) return null;
+    centre = kept;
+  }
   const clamp = (v: number): number => Math.max(-0.5, Math.min(0.5, Math.round(v * 100) / 100));
   const offset: XY = [clamp(centre[0] - cell[0] - 0.5), clamp(centre[1] - cell[1] - 0.5)];
   const placement: GeneratedPlacement = {
@@ -463,6 +477,29 @@ function poseAt(
     blocking,
     height: ext.hMax,
   };
+}
+
+/**
+ * A piece's centre in `cell` (half sizes `hx`, `hy` in plan axes) moved the least so its outline keeps off every wall of
+ * the cell: clear of the edge line, and of the strip where the wall's strip is hosted in the cell; null when it cannot.
+ */
+function offWalls(room: Room, cell: XY, centre: XY, hx: number, hy: number): XY | null {
+  const g = room.grid;
+  const clear = (s: Side): number | null =>
+    g.edge(cell[0], cell[1], s) === EDGE_WALL
+      ? g.wallHosted?.(cell[0], cell[1], s) === true
+        ? 0.5
+        : 0
+      : null;
+  const bound = (c: number, lo: number | null, hi: number | null, h: number, at: number): number | null => {
+    const min = lo === null ? -Infinity : at + lo + h;
+    const max = hi === null ? Infinity : at + 1 - hi - h;
+    if (min > max + 1e-6) return null;
+    return Math.min(max, Math.max(min, c));
+  };
+  const x = bound(centre[0], clear("W"), clear("E"), hx, cell[0]);
+  const y = bound(centre[1], clear("N"), clear("S"), hy, cell[1]);
+  return x === null || y === null ? null : [x, y];
 }
 
 /** Does a companion in this slot stand against the wall behind the anchor's back row? */
@@ -739,7 +776,8 @@ export function rugUnder(room: Room, g: PlacedGroup, landings: ReadonlySet<numbe
         room.inRoom.has(k) && !landings.has(k) && !room.used.has(k) && (mine.has(k) || room.free(cx, cy))
       );
     });
-    if (!ok || room.crossesWall([x, y], [2, 2]) || !room.oneHeight(block)) continue;
+    if (!ok || room.crossesWall([x, y], [2, 2]) || room.holdsStrip([x, y], [2, 2]) || !room.oneHeight(block))
+      continue;
     const d = Math.hypot(x + 1 - mid[0], y + 1 - mid[1]) + room.rng.next() * 0.2;
     if (d < bestD) {
       bestD = d;

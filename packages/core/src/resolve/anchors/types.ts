@@ -73,6 +73,11 @@ export interface FaceAnchor extends AnchorBase {
   readonly natural: boolean;
   /** How far the surface stands from the grid line toward the viewer (a building's outside: 0.5). */
   readonly plane: number;
+  /**
+   * How deep the wall reaches behind its surface: its inner face stands at local z = -depth (a half-cell wall: 0.5;
+   * a whole-cell one: 1). Past it is the room on the other side; no trim reaches there (recipes/walls.ts `seated`).
+   */
+  readonly depth: number;
   readonly gaps: readonly FaceGap[];
   /** What the start (local x = 0) and end meet. */
   readonly ends: readonly [FaceEnd, FaceEnd];
@@ -105,6 +110,8 @@ export interface OpeningAnchor extends AnchorBase {
   readonly clear: readonly [number, number];
   /** Whether that blank ends at another opening (true) or at the face's end (false), [left, right]. */
   readonly between: readonly [boolean, boolean];
+  /** How deep its face's wall reaches behind the surface (FaceAnchor.depth). */
+  readonly depth: number;
 }
 
 export interface CornerAnchor extends AnchorBase {
@@ -123,6 +130,8 @@ export interface CornerAnchor extends AnchorBase {
   /** The first face's wall style, and whether either face is natural rock. */
   readonly style: string;
   readonly natural: boolean;
+  /** How deep the thinner of the two walls reaches behind its surface (FaceAnchor.depth). */
+  readonly depth: number;
 }
 
 export interface StoreyLineAnchor extends AnchorBase {
@@ -133,6 +142,8 @@ export interface StoreyLineAnchor extends AnchorBase {
   readonly length: number;
   /** Floor thickness under the line (the wall closes it there). */
   readonly band: number;
+  /** How deep the storey's wall reaches behind its outer surface (FaceAnchor.depth). */
+  readonly depth: number;
   /** Openings crossing the line (a door on the base line), local x. */
   readonly gaps: readonly FaceGap[];
   readonly ends: readonly [FaceEnd, FaceEnd];

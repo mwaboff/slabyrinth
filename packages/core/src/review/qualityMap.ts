@@ -254,7 +254,13 @@ export function buildingDoors(
   gives: (f: ResolvedFeature) => boolean = (f) => LIGHT_FEATURES.has(f.type),
 ): Array<{ opening: ResolvedOpening; lit: boolean }> {
   if (s.kind !== "building" || (s.condition !== undefined && s.condition !== "intact")) return [];
-  const lights = L.features.filter(gives).flatMap(cellsOf);
+  // (an outside door is lit from outside: a light in the building's own rooms, generator 5's furnished ground storey,
+  // stands behind the wall)
+  const inside = new Set(s.cells.map(([x, y]) => `${x},${y}`));
+  const lights = L.features
+    .filter(gives)
+    .flatMap(cellsOf)
+    .filter(([x, y]) => !inside.has(`${x},${y}`));
   const ids = new Set(s.openingIds);
   return L.openings
     .filter((o) => ids.has(o.id) && isPassage(o.kind))

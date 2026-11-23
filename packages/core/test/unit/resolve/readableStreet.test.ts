@@ -100,7 +100,18 @@ describe("readableTrims", () => {
     const off = run();
     expect(jambProud(off)).toBeLessThanOrEqual(0.3 + 1e-6);
     expect(jambProud(on)).toBeGreaterThan(0.35);
-    expect(bandPieces(on)).toBeGreaterThan(1.6 * bandPieces(off));
+    // every floor line keeps its band either way; a band in the wall's own material (the floor slab's edge under the
+    // upper floor) is doubled, a thin beam borrowed in the trim's material (wall recipes (b)) stands fully proud
+    expect(bandPieces(on)).toBeGreaterThanOrEqual(bandPieces(off));
+    const own = (x: ResolvedArrangement): boolean => x.pieces.every((p) => p.role.startsWith("floor."));
+    const bandProud = (inst: readonly ResolvedArrangement[]): number =>
+      Math.max(...inst.filter((x) => x.recipe === "bandCourses").flatMap(proud));
+    expect(bandPieces(on)).toBeGreaterThan(0);
+    expect(bandProud(on)).toBeGreaterThanOrEqual(bandProud(off) - 1e-6);
+    for (const x of off.filter((q) => q.recipe === "bandCourses" && own(q))) {
+      const y = on.find((q) => q.id === x.id);
+      if (y && own(y)) expect(y.pieces.length, x.id).toBeGreaterThan(1.6 * x.pieces.length);
+    }
   });
 
   it("meets the hard rules with the doubled bands and prouder posts", () => {

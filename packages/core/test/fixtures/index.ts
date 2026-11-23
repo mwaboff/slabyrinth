@@ -48,6 +48,7 @@ export const STORED_PLANS = [
   "wall-recipes-v1",
   "ground-and-walls-v1",
   "condition-street-v1",
+  "building-rooms-street-v1",
   "varied-street-v1",
   "two-quarters-v1",
 ] as const;

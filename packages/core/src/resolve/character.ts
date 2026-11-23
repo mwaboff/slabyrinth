@@ -160,7 +160,13 @@ function moodOf(texts: ReadonlyArray<string | undefined>): Mood {
 }
 
 /** A level's characters by element id (the level's own id: the scene). */
-export type CharacterMap = ReadonlyMap<string, ResolvedCharacter>;
+export interface CharacterMap extends ReadonlyMap<string, ResolvedCharacter> {
+  /**
+   * The character of an area made during resolve (a building's ground-storey rooms, resolve/building/rooms.ts), drawn
+   * from `parentId` (its building) by the same rules, and recorded with the rest.
+   */
+  addArea(area: Area, parentId: string): ResolvedCharacter;
+}
 
 /** What a stated field says of a subject (the phase-1 fields will add `light` and level/area `condition` here). */
 interface Stated {
@@ -450,7 +456,23 @@ export function resolveCharacters(plan: MapPlan, li: number): CharacterMap | nul
     const c = resolveOne(a, parentOf(a, [...buildings, ...zones]));
     out.set(a.id, c);
   }
-  return out;
+  const addArea = (a: Area, parentId: string): ResolvedCharacter => {
+    const c = resolveOne(
+      {
+        id: a.id,
+        scope: "area",
+        cells: new Set(),
+        texts: [a.name, ...(a.tags ?? []), a.notes],
+        settings: a.kind !== "room" && a.kind !== "corridor",
+        ruins: true,
+        area: a,
+      },
+      parentId,
+    );
+    out.set(a.id, c);
+    return c;
+  };
+  return Object.assign(out, { addArea });
 }
 
 /** A ruin's severity and stage: its own words, else its parent's, else severity 2. */

@@ -443,6 +443,32 @@ export class Room {
       }
     return false;
   }
+
+  /**
+   * Does a wall strip or a joint stand inside the block: a wall on its outline hosted in one of its cells, half a cell in
+   * (a partition between two rooms stands in one of them), or a post at a vertex of its outline where a wall meets the
+   * room's wall from outside (a T: the joint's filler stands into the room)? A flat piece laid over the whole block
+   * would run into it. The room's own corners are not counted (their posts keep to the corner).
+   */
+  holdsStrip(at: readonly [number, number], size: readonly [number, number]): boolean {
+    const x1 = at[0] + size[0];
+    const y1 = at[1] + size[1];
+    const post = this.postAt;
+    for (let vy = at[1]; vy <= y1; vy++)
+      for (let vx = at[0]; vx <= x1; vx++) {
+        if (vx !== at[0] && vx !== x1 && vy !== at[1] && vy !== y1) continue;
+        if (post?.(vx, vy) === true && !this.posts.some(([px, py]) => px === vx && py === vy)) return true;
+      }
+    for (let y = at[1]; y < y1; y++)
+      for (let x = at[0]; x < x1; x++)
+        for (const s of SIDES) {
+          const outline =
+            s === "N" ? y === at[1] : s === "S" ? y === y1 - 1 : s === "W" ? x === at[0] : x === x1 - 1;
+          if (outline && this.grid.edge(x, y, s) === EDGE_WALL && this.grid.wallHosted?.(x, y, s) === true)
+            return true;
+        }
+    return false;
+  }
 }
 
 /** The cell of a support that holds a point, kept inside its footprint (a piece may overhang its cell a little). */

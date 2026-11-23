@@ -150,7 +150,7 @@ export function furnishRoom(grid: PlacementGrid, p: RoomDressParams, kind: RoomK
   // 3. a rug under the group (or, with none, near the middle of the room)
   if (t.rug) {
     if (group !== null) rugUnder(room, group, landings);
-    else addRug(room);
+    else addRug(room, true);
   }
 
   // 4. the wall lining, up to the kind's fill and its props per 10 tiles

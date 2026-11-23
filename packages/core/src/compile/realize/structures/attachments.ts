@@ -239,7 +239,11 @@ export function layWindowLights(b: StructureCtx, windows: readonly LitWindow[]):
   const { st, lv } = b;
   const lit = st.lighting;
   if (!lit || lit.windows === "none" || lit.lit <= 0) return;
+  // generator 5 (buildingRooms): a ground storey split into rooms is lit by its rooms (gen/rooms4), not from its windows
+  const groundTop = st.storeys[0]?.floorTop;
+  const roomsLit = lv.L.areas.some((a) => a.building === st.id);
   for (const w of windows) {
+    if (roomsLit && w.floorTop === groundTop) continue;
     const roles =
       lit.windows === "glow"
         ? [lightRole("glow", lit.colour), lightRole("glow"), featureRole("crystal")]

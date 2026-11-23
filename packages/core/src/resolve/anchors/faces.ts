@@ -45,6 +45,8 @@ export type WallMount = "half-cell" | "full-cell" | "edge-center";
 export type MountOf = (theme: ThemeId, style: string) => WallMount;
 
 const EPS = 1e-6;
+/** How deep a wall reaches behind its surface: half a cell (a thin wall, a building's shell), a whole one (rock). */
+const WALL_DEPTH = { half: 0.5, whole: 1 } as const;
 
 /** A face or a storey line before its ends are known. */
 type FaceDraft = Omit<FaceAnchor, "ends" | "beyond"> & { ends: [FaceEnd, FaceEnd]; beyond: [number, number] };
@@ -100,6 +102,8 @@ interface LevelSeen {
   readonly y: number;
   readonly w: Side;
   readonly plane: number;
+  /** How deep the wall reaches behind the surface (FaceAnchor.depth). */
+  readonly depth: number;
   readonly base: number;
   readonly room: AreaId | null;
   readonly theme: ThemeId;
@@ -135,6 +139,7 @@ function levelFaces(
         y: cell.y,
         w,
         plane,
+        depth: mount === "full-cell" || f.natural ? WALL_DEPTH.whole : WALL_DEPTH.half,
         base: g.top(cell.x, cell.y),
         room: c.area > 0 ? (L.areaIds[c.area - 1] ?? null) : null,
         theme: f.theme,
@@ -159,6 +164,7 @@ function levelFaces(
         last &&
         (alongOf(n, s.x, s.y) !== alongOf(n, last.x, last.y) + 1 ||
           Math.abs(s.plane - last.plane) > EPS ||
+          Math.abs(s.depth - last.depth) > EPS ||
           Math.abs(s.base - last.base) > EPS ||
           s.f.style !== last.f.style ||
           s.f.natural !== last.f.natural ||
@@ -217,6 +223,7 @@ function levelRun(
     style: first.f.style,
     natural: first.f.natural,
     plane: first.plane,
+    depth: first.depth,
     gaps,
     ends: ["open", "open"],
     beyond: [0, 0],
@@ -359,6 +366,8 @@ function buildingRun(
     style: sp.walls ?? "",
     natural: false,
     plane: outside ? 0.5 : 0,
+    // the shell stands in the ring outside the footprint, half a cell thick, seen from either side
+    depth: WALL_DEPTH.half,
     gaps,
     ends: ["open", "open"],
     beyond: [0, 0],
@@ -394,6 +403,7 @@ function storeyLine(c: StoreyCtx, run: readonly FaceCell[]): LineDraft {
     line: base ? "base" : "floor",
     length: hi - lo + 1,
     band: base ? 0 : 0.5,
+    depth: WALL_DEPTH.half,
     gaps,
     ends: ["open", "open"],
     beyond: [0, 0],
@@ -436,6 +446,7 @@ function openingAnchor(face: FaceDraft, gap: FaceGap, sill: number, head: number
     natural: face.natural,
     clear: [gap.from - left, right - gap.to],
     between: [before.length > 0, after.length > 0],
+    depth: face.depth,
   };
 }
 
@@ -526,6 +537,7 @@ function cornersOf(faces: FaceDraft[]): CornerAnchor[] {
       faceKeys: [a.key, b.key],
       style: a.style,
       natural: a.natural || b.natural,
+      depth: Math.min(a.depth, b.depth),
     });
   });
   return out;

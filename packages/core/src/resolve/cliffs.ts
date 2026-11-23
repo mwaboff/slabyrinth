@@ -4,7 +4,7 @@
  */
 import type { Material, Side, Vec2 } from "../contracts/plan";
 import { CELL, CELL_FLAG, EDGE, type ResolvedCliffRun, type ResolvedLevel } from "../contracts/resolved";
-import { cellIndex, hEdgeIndex, vEdgeIndex } from "./levelGrid";
+import { cellIndex, hEdgeIndex, partOfBuilding, vEdgeIndex } from "./levelGrid";
 import { isNaturalGround } from "./materials";
 import { maxOf, minOf } from "../util/lists";
 
@@ -60,11 +60,15 @@ export function cliffRuns(level: ResolvedLevel, minRise = 4): ResolvedCliffRun[]
   const { x: bx, y: by, w, h } = level.bounds;
   const at = (x: number, y: number): number => cellIndex(level.bounds, x, y);
   const mat = (i: number): Material | null => level.materials[(level.cells.material[i] ?? 1) - 1] ?? null;
+  const inBuilding = (i: number): boolean => {
+    const a = level.areas[(level.cells.area[i] ?? 0) - 1];
+    return a !== undefined && partOfBuilding(a);
+  };
   const usable = (i: number): boolean =>
     i >= 0 &&
     level.cells.state[i] === CELL.OPEN &&
     ((level.cells.flags[i] ?? 0) & (CELL_FLAG.BRIDGE | CELL_FLAG.NO_FLOOR)) === 0 &&
-    level.areas[(level.cells.area[i] ?? 0) - 1]?.kind !== "building";
+    !inBuilding(i);
   interface Seg {
     from: string;
     to: string;

@@ -228,7 +228,7 @@ function applyTerrain(
         inShape++;
         if (!open(i)) return;
         // a trail goes round buildings (their door approaches stay open floor beside them)
-        if (natural && work.ownerAt(i)?.kind === "building") return;
+        if (natural && work.inBuilding(i)) return;
         openCount++;
         work.setMaterial(i, op.material);
         work.flags[i] = (work.flags[i] as number) | CELL_FLAG.PATH;

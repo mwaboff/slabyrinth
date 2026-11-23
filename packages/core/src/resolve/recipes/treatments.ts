@@ -583,7 +583,8 @@ function subjectsOf(
   const built = new Set(out.map((s) => s.id));
   for (const z of zones) {
     const area = L.areas.find((q) => q.id === z.area);
-    if (!area || built.has(area.id)) continue;
+    // (generator 5, buildingRooms: a building's ground-storey rooms are the building's, as its area was)
+    if (!area || built.has(area.id) || (area.building !== undefined && built.has(area.building))) continue;
     const bb = area.bbox;
     // generator 5 (characterCascade): an area is as worn as its floor says or its character, whichever is worse
     const ch = elementCharacter(L, area.id);
