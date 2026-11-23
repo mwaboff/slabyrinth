@@ -15,6 +15,7 @@ Release notes, which the app shows under "What's new" when it offers that update
 - **Towns with character.** Quarters can be rich and bright or poor, run-down and gloomy, and their houses follow with small differences of their own. Neighbouring buildings are drawn to differ in walls, roofs and height.
 - **Streets with detail.** Posts at doors and corners, bands along the floor lines, low plinths and pilasters, and ground cover gathered in clusters along walls and paths, chosen per building so a street repeats a few treatments, never one.
 - **Wear and ruins.** Worn houses get patched roofs and growth at their feet; ramshackle ones get boarded windows and a lean-to. A ruin loses a few whole bays, roof and all, with rubble spilling from the breach. Temples and grand buildings get a pair of statues at the door and lights along the approach.
+- **Halls, cells and dead ends.** A great hall, throne room or temple nave gets rows of columns or a pair at each third, a clear way down the middle and its high table, throne or altar at the far end. Prisons, stables, infirmary wards and barracks can be divided into a row of cells, stalls or bays, a few left empty or untidy. In a dungeon, a dead-end room holds something (a cache, remains, stores or a small shrine), and doors between rooms suit the rooms they join.
 - **A review that knows rooms and dungeons.** The AI's design review judges each room by its kind, and a dungeon by its layout: rooms all of one size, too much corridor, empty dead ends, a single way in, a drop with no way back up.
 
 ### Changed
