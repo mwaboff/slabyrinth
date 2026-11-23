@@ -520,7 +520,8 @@ function subjectsOf(
   const built = new Set(out.map((s) => s.id));
   for (const z of zones) {
     const area = L.areas.find((q) => q.id === z.area);
-    if (!area || built.has(area.id)) continue;
+    // (generator 5, buildingRooms: a building's ground-storey rooms are the building's, as its area was)
+    if (!area || built.has(area.id) || (area.building !== undefined && built.has(area.building))) continue;
     const bb = area.bbox;
     out.push({
       id: area.id,

@@ -1,0 +1,92 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 5,
+  "id": "6b1e0f3a-92c4-4d7e-a815-3f2c7d90b5e1",
+  "title": "building-rooms-street-v1",
+  "kind": "town",
+  "seed": 5150,
+  "theme": "wood_town",
+  "summary": "Ground-storey rooms line-up: a short street of a two-storey house, a chandler's shop, an inn, a wheelwright's workshop and a tiny one-room cottage, all fronting a cobbled lane on the south.",
+  "links": [],
+  "levels": [
+    {
+      "id": "g",
+      "name": "Lamplighter Lane",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 52, "h": 20 },
+      "base": { "type": "ground", "material": "grass" },
+      "areas": [
+        { "id": "lane", "kind": "zone", "name": "Lamplighter Lane", "shape": { "type": "rect", "x": 0, "y": 12, "w": 52, "h": 8 } }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [],
+      "labels": [],
+      "terrain": [
+        {
+          "id": "road",
+          "op": "path",
+          "points": [[0, 15], [51, 15]],
+          "width": 3,
+          "material": "cobble",
+          "style": "straight"
+        }
+      ],
+      "structures": [
+        {
+          "id": "house",
+          "name": "Hollin house",
+          "use": "house",
+          "style": "cottage",
+          "seed": 11,
+          "wings": [{ "x": 2, "y": 3, "w": 8, "h": 7, "ridge": "ew" }],
+          "storeys": [{}, {}],
+          "front": "S",
+          "chimneys": [{ "side": "W", "position": 0.6 }]
+        },
+        {
+          "id": "shop",
+          "name": "Chandler's shop",
+          "use": "shop",
+          "style": "cottage",
+          "seed": 12,
+          "wings": [{ "x": 12, "y": 4, "w": 7, "h": 6, "ridge": "ns" }],
+          "storeys": [{ "walls": "brick" }, {}],
+          "front": "S"
+        },
+        {
+          "id": "inn",
+          "name": "The Lamplighter",
+          "use": "inn",
+          "style": "cottage",
+          "seed": 13,
+          "wings": [{ "x": 21, "y": 2, "w": 11, "h": 8, "ridge": "ew" }],
+          "storeys": [{ "walls": "stone" }, {}],
+          "front": "S",
+          "chimneys": [{ "side": "E", "position": 0.5 }]
+        },
+        {
+          "id": "workshop",
+          "name": "Wheelwright's yard",
+          "use": "workshop",
+          "style": "cottage",
+          "seed": 14,
+          "wings": [{ "x": 34, "y": 3, "w": 8, "h": 7, "ridge": "ew" }],
+          "storeys": [{ "walls": "stone" }],
+          "front": "S",
+          "chimneys": [{ "side": "N", "position": 0.3 }]
+        },
+        {
+          "id": "cottage",
+          "name": "Tiny cottage",
+          "use": "cottage",
+          "style": "cottage",
+          "seed": 15,
+          "wings": [{ "x": 44, "y": 6, "w": 4, "h": 3, "ridge": "ew" }],
+          "storeys": [{}],
+          "front": "S"
+        }
+      ]
+    }
+  ]
+}

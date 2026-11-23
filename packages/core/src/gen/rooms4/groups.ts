@@ -739,7 +739,8 @@ export function rugUnder(room: Room, g: PlacedGroup, landings: ReadonlySet<numbe
         room.inRoom.has(k) && !landings.has(k) && !room.used.has(k) && (mine.has(k) || room.free(cx, cy))
       );
     });
-    if (!ok || room.crossesWall([x, y], [2, 2]) || !room.oneHeight(block)) continue;
+    if (!ok || room.crossesWall([x, y], [2, 2]) || room.holdsStrip([x, y], [2, 2]) || !room.oneHeight(block))
+      continue;
     const d = Math.hypot(x + 1 - mid[0], y + 1 - mid[1]) + room.rng.next() * 0.2;
     if (d < bestD) {
       bestD = d;

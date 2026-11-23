@@ -209,13 +209,16 @@ export function interiorNotes(
       return { ...resolvedRoomClass(a), ...(kind !== undefined ? { kind } : {}) };
     };
   };
-  const rooms = resolved.levels.flatMap((L) =>
-    roomStats(
+  // the rooms the plan wrote: a building's ground-storey rooms (generator 5, buildingRooms) are the generator's, which
+  // the model cannot edit; the quality meter measures them (review/qualityRooms.ts)
+  const rooms = resolved.levels.flatMap((L) => {
+    const generated = new Set(L.areas.filter((a) => a.building !== undefined).map((a) => a.id));
+    return roomStats(
       L,
       gen.reviewByKind ? kindClass(L.id) : gen.roomClassification ? resolvedRoomClass : planClass(L.id),
       gives,
-    ),
-  );
+    ).filter((r) => !generated.has(r.id));
+  });
   if (rooms.length === 0) return [];
   const out: DesignNote[] = [];
   const density = (r: RoomStat): number => (r.props * 10) / r.floor;

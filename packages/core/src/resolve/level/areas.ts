@@ -46,6 +46,8 @@ export function areaTable(
   profile: GeneratorProfile,
   levelTheme: ThemeId,
   defaultWallHeight: number,
+  /** Generator 5 (`buildingRooms`): the synthetic ground-storey rooms and the building each partitions. */
+  roomBuilding?: ReadonlyMap<string, string>,
 ): AreaTable {
   const themes: ThemeId[] = [levelTheme];
   const themeIndex = (t: ThemeId): number => {
@@ -65,7 +67,9 @@ export function areaTable(
     // finer kind a room is furnished as (switch roomKinds)
     const room = classifyRoom(area, { kinds: profile.roomKinds });
     const interior = td.interior;
+    const building = roomBuilding?.get(area.id);
     areas.push({
+      ...(building !== undefined ? { building } : {}),
       area,
       index,
       kind: area.kind,

@@ -29,7 +29,7 @@ import { structureSignature, structureSilhouette, structureTone } from "../resol
 import { roofUnsupportedEdges, structureRuinMeasures, weatherMeasures, weatherSigns } from "../resolve/ruin";
 import { GROWTH_LEVELS, growthMeasures } from "../resolve/growth";
 import { roofProportion } from "../resolve/roof";
-import { cellIndex, cellTheme, elementThemeAt } from "../resolve/levelGrid";
+import { cellIndex, cellTheme, elementThemeAt, partOfBuilding } from "../resolve/levelGrid";
 import { components, longestInnerStraight, outline, squareCorners } from "./metrics";
 import { forEachMaskCell } from "../gen/mask";
 import {
@@ -1115,7 +1115,7 @@ function deadSpace(c: Ctx): DesignNote[] {
     if (L.cells.state[i] !== CELL.OPEN || (f & (CELL_FLAG.PATH | CELL_FLAG.WATER | CELL_FLAG.LINK)) !== 0)
       busy[i] = 1;
     const a = L.areas[(L.cells.area[i] ?? 0) - 1];
-    if (a?.kind === "building") busy[i] = 1;
+    if (a !== undefined && partOfBuilding(a)) busy[i] = 1;
   }
   const near = new Uint8Array(W * H);
   const r = T.clearance;
@@ -1630,7 +1630,7 @@ function focus(c: Ctx): DesignNote[] {
 function routes(c: Ctx): DesignNote[] {
   const T = REVIEW.routes;
   const { L } = c;
-  const rooms = new Set(L.areas.filter((a) => a.kind !== "zone" && a.kind !== "building").map((a) => a.id));
+  const rooms = new Set(L.areas.filter((a) => a.kind !== "zone" && !partOfBuilding(a)).map((a) => a.id));
   if (rooms.size < T.minRooms) return [];
   const edges = new Set<string>();
   const nodes = new Set<string>();
@@ -1668,16 +1668,19 @@ function routes(c: Ctx): DesignNote[] {
       const i = (y - lv.bounds.y) * lv.bounds.w + (x - lv.bounds.x);
       const a = lv.cells.area[i] ?? 0;
       const id = a > 0 ? lv.areaIds[a - 1] : undefined;
-      return id !== undefined &&
-        lv.areas.some((q) => q.id === id && q.kind !== "zone" && q.kind !== "building")
+      return id !== undefined && lv.areas.some((q) => q.id === id && q.kind !== "zone" && !partOfBuilding(q))
         ? `${lv.id}|${id}`
         : null;
     };
-    for (const lv of c.resolved.levels)
+    for (const lv of c.resolved.levels) {
+      // a building's ground-storey rooms (generator 5) are the building's own, not rooms of the plan's route
+      const inside = new Set(lv.areas.filter((q) => q.building !== undefined).map((q) => q.id));
       for (const o of lv.openings) {
         const [a, b] = o.sides;
-        if (a !== null && b !== null) join(`${lv.id}|${a}`, `${lv.id}|${b}`);
+        if (a !== null && b !== null && !inside.has(a) && !inside.has(b))
+          join(`${lv.id}|${a}`, `${lv.id}|${b}`);
       }
+    }
     const byId = new Map(c.resolved.levels.map((l) => [l.id, l]));
     for (const lk of c.resolved.links) {
       const lo = byId.get(lk.fromLevel);

@@ -27,6 +27,17 @@ import type { Side, ThemeId, Material } from "../contracts/plan";
 import { CELL, CELL_FLAG, EDGE, type EdgeGrid, type ResolvedLevel } from "../contracts/resolved";
 import { GENERIC_THEME } from "../palette/resolve";
 
+/**
+ * Is an area (a resolved one, or the resolver's AreaInfo) part of a building's ground storey: the building's own area,
+ * or (generator 5, `buildingRooms`) a room it is split into? Ask this, not `kind === "building"`, of a cell's area.
+ */
+export function partOfBuilding(a: {
+  readonly kind: string;
+  readonly building?: string | undefined;
+}): boolean {
+  return a.kind === "building" || a.building !== undefined;
+}
+
 /** A cell whose unhosted part is narrower than this (either way) has no free centre (`LevelGrid.freeCentre`). */
 export const MIN_FREE_SPAN = 0.2;
 

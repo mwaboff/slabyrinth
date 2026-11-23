@@ -160,7 +160,7 @@ export function stepPavements(work: ResolveGrid, layer: "under" | "over", paths:
     // a building's lot: its footprint and the ring of cells around it (its walls and pad)
     const inLot = (x: number, y: number): boolean => {
       const i = work.idx(x, y);
-      return i >= 0 && (lots?.has(`${x},${y}`) === true || work.ownerAt(i)?.kind === "building");
+      return i >= 0 && (lots?.has(`${x},${y}`) === true || work.inBuilding(i));
     };
     const lot = (x: number, y: number): boolean => {
       for (let dy = -1; dy <= 1; dy++)
@@ -428,7 +428,12 @@ export function stepPathSpurs(work: ResolveGrid): void {
     // generator 3: the trail ends at the cell outside the building's door
     const doorOpening = work.profile.spursReachTargets
       ? work.level.openings.find(
-          (o) => o.id.startsWith(`${st.id}~`) && isFrontDoor(o.kind) && o.at !== undefined,
+          (o) =>
+            o.id.startsWith(`${st.id}~`) &&
+            isFrontDoor(o.kind) &&
+            o.at !== undefined &&
+            // a doorway between the building's rooms is no way in from the street
+            work.structs?.interiorOpenings.has(o.id) !== true,
         )
       : undefined;
     if (doorOpening?.at) {
@@ -469,7 +474,7 @@ export function stepPathSpurs(work: ResolveGrid): void {
       const i = work.idx(x, y);
       if (i < 0 || work.state[i] !== CELL.OPEN) continue;
       if (((work.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.PATH)) !== 0) continue;
-      if (work.ownerAt(i)?.kind === "building") continue;
+      if (work.inBuilding(i)) continue;
       work.setMaterial(i, material);
       work.flags[i] = (work.flags[i] as number) | CELL_FLAG.PATH;
       pathCells.push([x, y]);
@@ -480,7 +485,7 @@ export function stepPathSpurs(work: ResolveGrid): void {
         i >= 0 &&
         work.state[i] === CELL.OPEN &&
         ((work.flags[i] as number) & (CELL_FLAG.WATER | CELL_FLAG.PATH)) === 0 &&
-        work.ownerAt(i)?.kind !== "building"
+        !work.inBuilding(i)
       ) {
         work.setMaterial(i, material);
         work.flags[i] = (work.flags[i] as number) | CELL_FLAG.PATH;

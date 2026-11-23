@@ -82,8 +82,19 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
     const d = work.shownRegionAt(i);
     if (d > 0) (dispCells[d - 1] as number[]).push(i);
   }
+  // generator 5 (buildingRooms): a building split into rooms shows as its rooms; its own area spans them all (its
+  // outline, label anchor and cell count are the footprint's)
+  const roomCells = new Map<number, number[]>();
+  for (const info of work.areas) {
+    const b = info.building === undefined ? undefined : work.areaIndexById.get(info.building);
+    if (b === undefined) continue;
+    roomCells.set(b, [...(roomCells.get(b) ?? []), ...(dispCells[info.index] as number[])]);
+  }
   const areas: ResolvedArea[] = work.areas.map((info) => {
-    const cells = dispCells[info.index] as number[];
+    const rooms = roomCells.get(info.index);
+    const cells = rooms
+      ? [...(dispCells[info.index] as number[]), ...rooms].sort((p, q) => p - q)
+      : (dispCells[info.index] as number[]);
     const openCells = cells.filter((i) => work.state[i] === CELL.OPEN);
     if (cells.length === 0) {
       work.issue(
@@ -142,6 +153,7 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
     if (info.area.key !== undefined) ra.key = info.area.key;
     if (info.area.notes !== undefined) ra.notes = info.area.notes;
     if (info.area.labelAt !== undefined) ra.labelAt = [info.area.labelAt[0], info.area.labelAt[1]];
+    if (info.building !== undefined) ra.building = info.building;
     // generator 4: the area's one classification, for the compiler and the review (they never parse words)
     if (work.profile.roomClassification) {
       if (info.room.purpose !== undefined) ra.purpose = info.room.purpose;

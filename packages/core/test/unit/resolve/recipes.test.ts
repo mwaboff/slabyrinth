@@ -214,8 +214,18 @@ describe("wall recipes on wall-recipes-v1 (generator 5), every recipe forced on"
   it("runs a band along every upper floor line, under the floor line, proud by the building's own draw", () => {
     const lines = new LevelAnchors(level()).of("storeyLine").filter((l) => l.line === "floor");
     expect(lines.length).toBeGreaterThan(0);
+    // (generator 5 furnishes the ground storeys, `buildingRooms`: a band whose back would run into a piece against the
+    // wall inside, a shelf and what stands on it under the ceiling, is kept clear of it by the engine's feature rule; the
+    // rest are banded)
+    const blocked = new Set(
+      all.skipped
+        .filter((s) => s.recipe === "bandCourses" && /in a feature/.test(s.why))
+        .map((s) => s.anchor),
+    );
+    expect(blocked.size).toBeLessThanOrEqual(Math.floor(lines.length / 2));
     for (const l of lines) {
       const band = inst.find((x) => x.id === `bandCourses@${l.key}`);
+      if (band === undefined && blocked.has(l.key)) continue;
       expect(band, l.key).toBeDefined();
       for (const p of band?.pieces ?? []) {
         expect(p.y).toBeLessThan(0);
@@ -237,7 +247,8 @@ describe("wall recipes on wall-recipes-v1 (generator 5), every recipe forced on"
       expect(duplicateCount(ps), recipe).toBe(0);
       expect(restContact(ps, everything), recipe).toEqual([]);
     }
-    expect(bandCoverage(r5, set)).toBeGreaterThanOrEqual(0.8);
+    // 0.8 before the ground storeys were furnished (`buildingRooms`): lines a piece inside stands against are left out
+    expect(bandCoverage(r5, set)).toBeGreaterThanOrEqual(0.7);
   });
 
   it("meets the bands at outer corners: one runs on past the corner, the other starts where it ends", () => {

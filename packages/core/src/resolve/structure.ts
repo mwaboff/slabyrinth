@@ -55,6 +55,9 @@ import {
 import { isPassage, isSecret } from "../gen/openingKinds";
 import { along, faceRuns, key, ringOf } from "./building/footprint";
 import { placePorches } from "./building/porches";
+import { splitGroundStorey } from "./building/rooms";
+import { buildingKind } from "../gen/buildingProgramme";
+import { THEME_WALL_STYLE } from "../gen/wallStyles";
 import type { BuildingPlan, StoreyPlan, VolumePlan } from "./building/types";
 import { groundFootprint, planVolumes, volumeSpecs } from "./building/volumes";
 import {
@@ -88,6 +91,10 @@ export class StructureWork {
   readonly entrances: string[] = [];
   /** Designs drawn from the style's design space (variety), and the building spec they expand into. */
   readonly designs = new Map<string, { design: BuildingDesign; building: Building }>();
+  /** Generator 5 (`buildingRooms`): each ground-storey room's area id → the building it partitions. */
+  readonly roomBuilding = new Map<string, string>();
+  /** Generator 5 (`buildingRooms`): the interior doorways between a building's rooms (not ways in from outside). */
+  readonly interiorOpenings = new Set<string>();
   /** Plan list lengths: synthetic areas / openings / wall runs come after these indices. */
   readonly planCounts: { areas: number; openings: number; walls: number; terrain: number };
   reservedMask: Uint8Array | null = null;
@@ -886,7 +893,131 @@ function addBuildings(x: Expansion): void {
       areas.push({ id: p.id, kind: "courtyard", walls: "none", floor: p.floor, shape: maskShape(p.cells) });
     }
     if (b.plinth) plinthElements(b, terrain, walls, work, inBounds);
+    if (generatorProfile(plan).buildingRooms) addGroundRooms(x, b, area);
   });
+}
+
+/**
+ * Generator 5 (`buildingRooms`): the building's ground storey split into the rooms of its programme
+ * (resolve/building/rooms.ts), as synthetic room areas over its footprint (painted after the building's own area, so
+ * they own its cells) and interior doorways. The walls between rooms come from the ordinary edge rule (two rooms with
+ * walls "auto"); the shell keeps its outer edges. Left as a shell: a ruin, a building with no walls of its own, and a
+ * building whose footprint the plan's own rooms or corridors already cover.
+ */
+function addGroundRooms(
+  { level, work, areas, openings, walls, cellsOfShape }: Expansion,
+  b: BuildingPlan,
+  shell: Area,
+): void {
+  if (b.condition === "ruined" || shell.walls === "none" || shell.wallStyle === undefined) return;
+  // the plan describes the ground storey itself: its own rooms or corridors in the footprint, a dress op over the
+  // building, or furniture of its own inside
+  const inside = (c: readonly [number, number]): boolean => b.cellSet.has(key(c[0], c[1]));
+  const planned =
+    level.areas.some(
+      (a) =>
+        (a.kind === "room" || a.kind === "corridor") &&
+        a.shape.type !== "route" &&
+        cellsOfShape(a.shape).some(inside),
+    ) ||
+    level.terrain.some((op) => op.op === "dress" && op.area === b.st.id) ||
+    level.features.some((f) => inside(f.at));
+  if (planned) return;
+  const st = b.st;
+  const split = splitGroundStorey({
+    id: st.id,
+    cells: b.cells,
+    openings: b.ground,
+    hearths: b.chimneys.map((c) => c.wall),
+    kind: buildingKind({
+      use: st.use,
+      name: st.name,
+      tags: st.tags,
+      notes: st.notes,
+      style: b.profile.id,
+      shopfront: b.frontage.shopfront,
+    }),
+    seed: subSeed(b.seed, "rooms"),
+  });
+  if (!split) return;
+  split.rooms.forEach((r, k) => {
+    const id = `${st.id}~room${k}`;
+    const room: Area = {
+      id,
+      kind: "room",
+      shape: maskShape(r.cells),
+      walls: "auto",
+      wallStyle: shell.wallStyle as WallStyle,
+      name: r.name,
+    };
+    if (shell.wallHeight !== undefined) room.wallHeight = shell.wallHeight;
+    if (shell.floor !== undefined) room.floor = shell.floor;
+    if (shell.theme !== undefined) room.theme = shell.theme;
+    areas.push(room);
+    work.roomBuilding.set(id, st.id);
+  });
+  // the partitions: the theme's own wall (a light interior wall, not the shell's stone or brick, whose thick pieces
+  // would stand into the rooms), the ground storey's height; zones stand open to each other
+  if (split.programme !== "zones")
+    partitionRuns(split.rooms).forEach((points, k) =>
+      walls.push({
+        id: `${st.id}~partition${k}`,
+        op: "add",
+        points,
+        style: THEME_WALL_STYLE,
+        ...(shell.wallHeight !== undefined ? { height: shell.wallHeight } : {}),
+      }),
+    );
+  split.doorways.forEach((d, k) => {
+    const id = `${st.id}~inner${k}`;
+    openings.push({
+      id,
+      kind: d.kind,
+      at: { x: d.at[0], y: d.at[1], side: d.side },
+      width: d.width as 1 | 2 | 3,
+    });
+    work.interiorOpenings.add(id);
+  });
+}
+
+/** The walls between rooms as straight runs of vertices (west/north edges of the second cell, in grid order). */
+function partitionRuns(rooms: ReadonlyArray<{ cells: readonly Vec2[] }>): Vec2[][] {
+  const roomAt = new Map<string, number>();
+  rooms.forEach((r, i) => {
+    for (const [x, y] of r.cells) roomAt.set(key(x, y), i);
+  });
+  // vertical edges by their x line, horizontal ones by their y line
+  const lines = { v: new Map<number, number[]>(), h: new Map<number, number[]>() };
+  for (const [k, i] of roomAt) {
+    const [x, y] = k.split(",").map(Number) as [number, number];
+    const east = roomAt.get(key(x + 1, y));
+    if (east !== undefined && east !== i) lines.v.set(x + 1, [...(lines.v.get(x + 1) ?? []), y]);
+    const south = roomAt.get(key(x, y + 1));
+    if (south !== undefined && south !== i) lines.h.set(y + 1, [...(lines.h.get(y + 1) ?? []), x]);
+  }
+  const out: Vec2[][] = [];
+  for (const orient of ["h", "v"] as const)
+    for (const [line, list] of [...lines[orient]].sort((p, q) => p[0] - q[0])) {
+      const along = [...list].sort((p, q) => p - q);
+      let start = along[0] as number;
+      along.forEach((a, j) => {
+        const next = along[j + 1];
+        if (next === a + 1) return;
+        out.push(
+          orient === "h"
+            ? [
+                [start, line],
+                [a + 1, line],
+              ]
+            : [
+                [line, start],
+                [line, a + 1],
+              ],
+        );
+        if (next !== undefined) start = next;
+      });
+    }
+  return out;
 }
 
 /** Fences and gates, once the buildings are known: no fence where a building's own wall stands on the yard edge. */

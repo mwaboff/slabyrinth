@@ -82,7 +82,8 @@ const median = (xs: readonly number[]): number => {
   return s.length % 2 === 1 ? (s[m] as number) : ((s[m - 1] as number) + (s[m] as number)) / 2;
 };
 
-const isRoom = (a: ResolvedArea): boolean => a.kind === "room";
+/** A room of the plan's layout (a building's ground-storey rooms, generator 5 buildingRooms, are the building's). */
+const isRoom = (a: ResolvedArea): boolean => a.kind === "room" && a.building === undefined;
 
 /** The layout measures of a whole map. */
 export function mapLayout(resolved: ResolvedPlan, entryLevel?: string): MapLayout {

@@ -60,12 +60,7 @@ function marketCellOk(
       CELL_FLAG.BRIDGE)
   )
     return false;
-  if (
-    features.occupied(i) ||
-    work.ownerAt(i)?.kind === "building" ||
-    (reserved && work.structs?.reservedCell(i))
-  )
-    return false;
+  if (features.occupied(i) || work.inBuilding(i) || (reserved && work.structs?.reservedCell(i))) return false;
   // generator 4: never in front of a door (the market keeps its own stalls' lanes: stallClutter, stepLine)
   return !features.crossingClear().has(i) && !features.inWayIn(i, false);
 }

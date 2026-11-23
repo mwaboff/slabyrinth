@@ -444,6 +444,10 @@ const SWITCHES = {
     5,
     "A room's lights follow a light level and a regime: the scene's level from the plan's words, each room's from its kind's default and range (gen/lightLevels.ts), and one regime per room drawn from those its kind allows, neighbours differing (lit surfaces, a threshold pair, a focal glow, a wall rhythm, a dim store), with pieces chosen by their reach (gen/lightReach.ts). A light stands on the floor only where it is meant to (a brazier, a lantern stand), never in a lane, a door's apron or a corridor; a corridor is lit at its doors and junctions; a lived-in room of 3 tiles or more keeps a light, an abandoned one its dark (gen/rooms4/regimes.ts).",
   ),
+  buildingRooms: on(
+    5,
+    "A building's ground storey is split into the rooms of a programme drawn for its kind (an inn's taproom at the street door with its kitchen and store behind, a shop floor and its store, a workshop, a house's kitchen or hall and a bedroom; gen/buildingProgramme.ts): synthetic room areas over the footprint with walls between them and interior doorways, every room reached from the street door, no partition through a window or door, a chimney breast in a hearth room; a small building is one room with zones, a tiny one a single room. The room stage furnishes and lights them like any room. Ruins, open buildings and footprints the plan's own rooms cover stay as they are; upper storeys are untouched (resolve/building/rooms.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

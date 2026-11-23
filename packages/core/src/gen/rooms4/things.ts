@@ -55,6 +55,8 @@ export function addToppers(room: Room, p: Placed, family: Family, rule: SurfaceL
   const spread = Math.max(0, crossReal / 2 - 0.2);
   const tops: Array<[number, number]> = [];
   const order = room.opts.order;
+  const thing = room.piece("clutter", family);
+  const reach = Math.max(THING_CLEAR, thing ? Math.hypot(thing.wMax, thing.dMax) / 2 : THING_CLEAR);
   for (let i = 0; i < n; i++) {
     let t: number;
     let c: number;
@@ -69,15 +71,23 @@ export function addToppers(room: Room, p: Placed, family: Family, rule: SurfaceL
     }
     let px = p.centre[0] + (alongX ? t : c);
     let py = p.centre[1] + (alongX ? c : t);
-    // a thing stands 0.31 clear of the wall behind its support (it has a width of its own)
+    // a thing stands 0.31 clear of the wall behind its support (it has a width of its own; generator 5, where loose
+    // things turn any way: half the longest of the family's pieces, turned)
     const hosted = room.grid.wallHosted?.(p.at[0], p.at[1], p.side) === true;
-    const clear = (hosted ? 0.5 : 0) + 0.31;
+    const clear = (hosted ? 0.5 : 0) + (order === undefined ? 0.31 : reach);
     // (generator 5: a piece standing free of the wall has nothing behind it to keep clear of)
     if (p.unbacked !== true) {
       if (p.side === "N") py = Math.max(py, p.at[1] + clear);
       else if (p.side === "S") py = Math.min(py, p.at[1] + p.size[1] - clear);
       else if (p.side === "W") px = Math.max(px, p.at[0] + clear);
       else px = Math.min(px, p.at[0] + p.size[0] - clear);
+    }
+    // generator 5 (placementOrder: loose things turn as hands left them): clear of a wall at either end of the support
+    // too (a bench or an anvil in a corner, its end against a partition), so a turned tool never reaches into it
+    if (order !== undefined) {
+      [px, py] = clearOfEndWalls(room, p, px, py, reach);
+      // kept that clear, it would stand off its support: left out
+      if (px < p.at[0] || px > p.at[0] + p.size[0] || py < p.at[1] || py > p.at[1] + p.size[1]) continue;
     }
     if (tops.some(([qx, qy]) => Math.hypot(qx - px, qy - py) < 0.26)) continue;
     // nothing stands in a corner post (some themes' posts are wider than they look)
@@ -106,6 +116,36 @@ export function addToppers(room: Room, p: Placed, family: Family, rule: SurfaceL
     if (!room.push(g)) return;
     room.used.add(cellKey(cx, cy));
   }
+}
+
+/** How far a small thing on a top stands clear of a wall at the least (it has a width of its own). */
+const THING_CLEAR = 0.31;
+
+/**
+ * A point on a support kept `reach` clear (half a cell more where the wall's strip stands in the cell) of every wall on
+ * the support's outline other than the one behind it.
+ */
+function clearOfEndWalls(room: Room, p: Placed, px: number, py: number, reach: number): [number, number] {
+  const g = room.grid;
+  const [x0, y0] = p.at;
+  const [x1, y1] = [p.at[0] + p.size[0] - 1, p.at[1] + p.size[1] - 1];
+  const clear = (x: number, y: number, s: Side): number | null =>
+    s === p.side || g.edge(x, y, s) !== EDGE_WALL
+      ? null
+      : (g.wallHosted?.(x, y, s) === true ? 0.5 : 0) + reach;
+  let qx = px;
+  let qy = py;
+  const cy = clampTo(py, y0, p.size[1]);
+  const cx = clampTo(px, x0, p.size[0]);
+  const w = clear(x0, cy, "W");
+  if (w !== null) qx = Math.max(qx, x0 + w);
+  const e = clear(x1, cy, "E");
+  if (e !== null) qx = Math.min(qx, x1 + 1 - e);
+  const n = clear(cx, y0, "N");
+  if (n !== null) qy = Math.max(qy, y0 + n);
+  const s = clear(cx, y1, "S");
+  if (s !== null) qy = Math.min(qy, y1 + 1 - s);
+  return [qx, qy];
 }
 
 /** A shelf plank along one stretch of wall with small things on it (the reference's built-in shelving). */
@@ -182,8 +222,11 @@ export function addShelf(room: Room): void {
   }
 }
 
-/** A rug on a free 2×2 near the middle of the room (it blocks nothing). */
-export function addRug(room: Room): void {
+/**
+ * A rug on a free 2×2 near the middle of the room (it blocks nothing). `offStrips` (the room-kind furnisher, generator
+ * 5): never over a wall strip standing half a cell into the room (a partition between two rooms).
+ */
+export function addRug(room: Room, offStrips = false): void {
   if (!room.has("rug")) return;
   let best: Array<[number, number]> = [];
   let bestD = Infinity;
@@ -191,6 +234,7 @@ export function addRug(room: Room): void {
     const block = footprintCells([x, y], [2, 2]);
     if (!block.every(([cx, cy]) => room.free(cx, cy) && !room.zone.has(cellKey(cx, cy)))) continue;
     if (room.crossesWall([x, y], [2, 2]) || !room.oneHeight(block)) continue;
+    if (offStrips && room.holdsStrip([x, y], [2, 2])) continue;
     const d = Math.hypot(x + 1 - room.centroid[0], y + 1 - room.centroid[1]) + room.rng.next() * 0.9;
     if (d < bestD) {
       bestD = d;
