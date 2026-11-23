@@ -634,7 +634,7 @@ const SWITCHES = {
   ),
   landingsKeepClear: on(
     5,
-    "The foot and the landing of a flight of stairs or a ramp (the cells before its first step and beyond its last, plan/links.ts linkLandingsOnLevel) are ways in like a door's sides: nothing generated and blocking stands in them or reaches over them (resolve/level/features.ts inWayIn; a study's chair and a dress op's rubble on a stair's landing cut off every level above it); and a room's furnisher counts those cells as ways in, keeping them joined to its doors (gen/rooms4/room.ts findThresholds: the opening above a ladder is no floor of the room, so its edges never made it a doorway).",
+    "Where people step on and off a level link are ways in like a door's sides (plan/links.ts linkLandingsOnLevel): a flight of stairs' or a ramp's foot and landing (the cells before its first step and beyond its last), and on the upper level the cells round where a ladder or a spiral stair comes up through its stairwell (a hatch or a drop has none; the cells round a ladder's or a spiral stair's foot on its lower level are not listed): nothing generated and blocking stands in them or reaches over them (resolve/level/features.ts inWayIn; a study's chair and a dress op's rubble on a stair's landing cut off every level above it); and a room's furnisher counts those cells as ways in, keeping them joined to its doors (gen/rooms4/room.ts findThresholds: the opening above a ladder is no floor of the room, so its edges never made it a doorway).",
   ),
   bandsClearBridges: on(
     5,
