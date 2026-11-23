@@ -79,6 +79,9 @@ test("a larger map size is chosen in Settings, told to the model, and used by va
     await setup.getByRole("button", { name: "Continue without it" }).click({ timeout: 15_000 });
     await setup.getByRole("button", { name: "Start mapping" }).click();
     await expect(setup).toBeHidden();
+    // setup lands in a new map, opened after the dialog closes: chat only once it is open (a send before it is refused
+    // with "No map is open", which failed about one run in four)
+    await expect.poll(async () => (await invoke(page, "project:snapshot", undefined)).ok).toBe(true);
 
     // standard: refused, with the hint naming the setting
     expect(await chat(page, "A long road")).toMatchObject({ type: "turn_finished" });
