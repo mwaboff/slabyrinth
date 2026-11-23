@@ -632,6 +632,11 @@ const SWITCHES = {
     "Only a ruin's roof is open: a worn building's roof keeps every piece (its wear shows as patches, in a kit of another colour where its own kit has no worn pieces and none of its tone is near), a ramshackle one has at most one small ragged hole off its eaves with boards under it; and a roof piece over an open cell (a hole, a ruin's lost bay) is laid cell by cell round it, so an opening follows its own ragged cells and never a piece's rectangle (resolve/building/condition.ts, wear.ts, compile/realize/structures/roofPiece.ts, roofs.ts).",
     "roofPatches",
   ),
+  roofFormsFit: on(
+    5,
+    "A drawn building's roof form fits its theme and its footprint: a shed is its main roof only over a span the roof-type table allows (resolve/roofTypes.ts maxSpan: 3 cells; deeper, its high side stood as a bare wall taller than the house), else a gable; a skirt in a kit whose corner is a spiked tip is a gable too (its corners stood as spikes, as a hip's ridges did: roofKitFacts); and a theme with no flat roof kit of its own (themeRange: wood_town's flat tops were laid in floor tiles) draws flat roofs at a small share of their weight, so a timber village is pitched unless the plan says otherwise (resolve/structure.ts drawDesigns).",
+    "themeOwnRange",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

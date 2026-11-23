@@ -3,6 +3,8 @@
  * the switch that fixes it, measured on the build (the switch off rebuilds the fault):
  *   closedWornRoofs   only a ruin's roof is open: worn roofs keep every piece, a ramshackle one a small ragged hole
  *                     with boards under it, and an opening follows its own cells, never a piece's rectangle.
+ *   roofFormsFit      no shed over a house's depth (its high side stood as a bare wall), and a theme without a flat
+ *                     roof kit of its own (wood_town) roofs its drawn buildings pitched unless the plan says otherwise.
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { realize } from "../../../src/compile";
@@ -144,4 +146,43 @@ describe("closedWornRoofs: only a ruin's roof is open", () => {
     without("closedWornRoofs");
     expect(patched()).toBe(0);
   });
+});
+
+describe("roofFormsFit: roof forms that fit the theme and the footprint", () => {
+  /** Drawn buildings of the varied street over `n` sweep seeds in a theme: their roof form and depth from the street. */
+  function drawnRoofs(theme: string, n: number): Array<{ roof: string; depth: number }> {
+    const out: Array<{ roof: string; depth: number }> = [];
+    for (let i = 0; i < n; i++) {
+      const plan = atSeed("varied-street-v1", i, theme);
+      const r = resolvePlan(plan, pal);
+      for (const st of r.levels[0]?.structures ?? []) {
+        const spec = plan.levels[0]?.structures?.find((s) => s.id === st.id) as
+          { wings?: Array<{ w: number; h: number }>; front?: string } | undefined;
+        const w = spec?.wings?.[0];
+        if (!st.design || !w) continue;
+        out.push({ roof: st.design.roof, depth: spec.front === "E" || spec.front === "W" ? w.w : w.h });
+      }
+    }
+    return out;
+  }
+
+  it("draws no shed over a depth of more than three cells; without the switch some", () => {
+    const deepSheds = (): number =>
+      drawnRoofs("wood_town", 8).filter((d) => d.roof === "shed" && d.depth > 3).length;
+    expect(deepSheds()).toBe(0);
+    without("roofFormsFit");
+    expect(deepSheds()).toBeGreaterThan(0);
+  }, 30_000); // (16 street builds)
+
+  it("roofs a timber village's drawn buildings flat far more rarely than without the switch; the city keeps its own", () => {
+    const flats = (theme: string): number => drawnRoofs(theme, 6).filter((d) => d.roof === "flat").length;
+    const wood = flats("wood_town");
+    const city = flats("city");
+    without("roofFormsFit");
+    const woodBefore = flats("wood_town");
+    expect(woodBefore).toBeGreaterThan(2);
+    expect(wood).toBeLessThan(woodBefore / 2);
+    // (the city's own flat kit keeps its share; a shed turned gable may move the draws a little)
+    expect(city).toBeGreaterThan(flats("city") * 0.75);
+  }, 30_000); // (24 street builds)
 });

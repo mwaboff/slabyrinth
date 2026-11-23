@@ -97,6 +97,8 @@ describe("postsAtBuildingCorners", () => {
   it("the market street's wing posts no longer stand in its rooms; without the switch they do", () => {
     const failed = [295853050, 3006791469, 1901463376, 2197316426, 556784891];
     expect(failed.every((s) => sweepSeeds(150).includes(s))).toBe(true);
+    // (the seeds were found before the later street switches redrew the buildings: built as then)
+    P5.roofFormsFit = false;
     const on = measure(["market-street-v3"], failed);
     expect([...on.inPost, ...on.inWall]).toEqual([]);
     P5.postsAtBuildingCorners = false;

@@ -129,6 +129,8 @@ describe("roofKitFacts: no spikes up a hip, patches that read as repairs", () =>
       namesOf(resolvePlan(plan, pal), "manor~").filter((n) => /corner out tip/i.test(n)).length;
     expect(tips()).toBe(0);
     without("roofKitFacts");
+    // (the manor drew a flat keep top before roofFormsFit; built as then, it drew its hip)
+    without("roofFormsFit");
     expect(tips()).toBeGreaterThan(8);
   });
 
@@ -243,7 +245,9 @@ describe("readableNeighbours: neighbours and buildings of one wall differ on two
       without("readableNeighbours");
       const off = total(theme);
       expect(off).toBeGreaterThan(6);
-      expect(on).toBeLessThanOrEqual(off / 4);
+      // (roofFormsFit took the deep sheds and flat tops out of a timber village: the odd forms that were its roof-form
+      // axis, so wood_town now has fewer ways to differ; 20 of 51 over these seeds, from about a quarter)
+      expect(on).toBeLessThanOrEqual(off / (theme === "wood_town" ? 2.4 : 4));
     },
     30_000, // two streets per seed resolved: 3 to 3.5 s locally under a parallel run; Windows CI runs about twice that
   );
