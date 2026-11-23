@@ -22,6 +22,8 @@ Release notes, which the app shows under "What's new" when it offers that update
 ### Changed
 
 - The water height the build suggests stays below the floor of a cellar or lower level standing in the water.
+- Rooms in use stay tidy: no rubble or remains in a kept room, only in ruined, ramshackle or abandoned places, crypts and cells. Lights on a room's floor stand against a wall or a piece, never alone mid-floor, and furniture never cuts a room's doors off from each other. A dark room divided into cells stays dark.
+- Harbours: a gangway runs from the deck to the quay's edge, no land plants grow under the water, and the wharf's edge is straight.
 - Maps you made with earlier versions rebuild unchanged. The new rules are for new maps only.
 
 ### Known limits

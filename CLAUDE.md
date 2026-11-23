@@ -43,6 +43,8 @@ in the same PR and say why.
 - Launch the app any way but `npm run test:e2e`, or let a test touch the real user data dir, the game install, the
   real clipboard or the network.
 - Commit `docs/internal/`, or copy community slab designs into the repo.
+- Link a worktree's `node_modules` to another checkout, or remove a worktree with `git worktree remove` / `rm -rf`
+  (git follows the links and deletes the other checkout's files; a worktree runs its own `npm ci`).
 
 ## Habits no check holds
 

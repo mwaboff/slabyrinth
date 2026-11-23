@@ -616,7 +616,7 @@ const SWITCHES = {
   ),
   doorsStayJoined: on(
     5,
-    "A room's furnisher never cuts one of its doorways off from its main door: the way check walks from the main door, not from every doorway at once (a bar's stool and a chest no longer close the way to the kitchen door behind the bar), and a blocking companion (a seat, a stand) keeps off the doors' landings as its anchor does (gen/rooms4/room.ts keepsWay, groups.ts pickCompanion).",
+    "A room's furnisher never cuts one of its doorways (a door, an archway, a flight of steps) off from its main door: the way check walks from the main door, not from every doorway at once (a bar's stool and a chest no longer close the way to the kitchen door behind the bar), and a blocking companion (a seat, a stand) keeps off the doors' landings as its anchor does (gen/rooms4/room.ts keepsWay, groups.ts pickCompanion).",
   ),
   sacredReads: on(
     5,
