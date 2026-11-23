@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PROJECT_FORMAT, PROJECT_FORMAT_VERSION } from "../../shared/project";
 import { FIXTURE_PLAN } from "../fixturePlan";
-import { buildSnapshot, parseProject } from "./projectFile";
+import { buildSnapshot, parseProject, serializeProject } from "./projectFile";
 
 /** Every file here is built inside the test: no real project file is ever read. */
 const bytes = (json: unknown): Buffer => Buffer.from(JSON.stringify(json));
@@ -165,6 +165,25 @@ describe("project files from disk are validated before anything reads them", () 
       const r = parseProject(bytes(p), noMigration);
       if (r.ok) expect(() => buildSnapshot(r.project, null, false, null), path.join(".")).not.toThrow();
     }
+  });
+
+  it("a plan stating light, condition and wealth (2026-11-23) saves and reopens unchanged, same format version", () => {
+    const p = oldShapeProject();
+    const plan = structuredClone(FIXTURE_PLAN) as unknown as {
+      levels: Array<Record<string, unknown> & { areas: Array<Record<string, unknown>> }>;
+    };
+    const level = plan.levels[0];
+    if (!level?.areas[0]) throw new Error("fixture has no area");
+    Object.assign(level, { light: "dim", condition: "weathered", wealth: "poor" });
+    Object.assign(level.areas[0], { light: "dark", condition: "ruined", wealth: "lavish" });
+    p["plan"] = plan;
+    const first = parseProject(bytes(p), noMigration);
+    if (!first.ok) throw new Error(first.message);
+    const again = parseProject(Buffer.from(serializeProject(first.project)), noMigration);
+    if (!again.ok) throw new Error(again.message);
+    expect(again.project.plan).toEqual(plan);
+    expect(again.project.formatVersion).toBe(PROJECT_FORMAT_VERSION);
+    expect(again.migratedFrom).toBeNull();
   });
 
   it("every stored fixture plan opens as a project's head plan", () => {

@@ -10,7 +10,7 @@
  * Reads and writes: the volumes' roofs (broken, fallen layers), the faces (windows dropped, doorways opened, breaches
  * added), `work.designs` (a lost hung detail). Returns what the building records of its decay.
  */
-import type { Side } from "../../contracts/plan";
+import type { PlaceCondition, Side } from "../../contracts/plan";
 import { SIDE_STEP as STEP, SIDES } from "../../gen/gridGeometry";
 import { isPassage, isWindow, openingTests } from "../../gen/openingKinds";
 import { isPlankWallStyle } from "../../gen/wallStyles";
@@ -28,13 +28,14 @@ import type { BuildingPlan, Chimney, GroundOpening, Porch, VolumePlan } from "./
 import { buildingSubject, type Subject } from "../recipes/treatments";
 import { ruinBays } from "./ruinBays";
 import { characterAt, structureCondition } from "../character";
+import { builtCondition } from "../../gen/buildingCondition";
 
 /** A building as the treatments see it (generator 5): its condition state and role from its plan words. */
 export function buildingSubjectOf(
   b: BuildingCtx,
   fp: { readonly cells: ReadonlyArray<[number, number]> },
   vplans: readonly VolumePlan[],
-  condition: BuildingPlan["condition"],
+  condition: PlaceCondition,
 ): Subject {
   const { st } = b;
   return buildingSubject(
@@ -91,7 +92,8 @@ export function applyCondition(
   const { st, profile, seed } = b;
   // generator 5 (characterCascade): the condition its character resolved (stated, worded or drawn from its district)
   const ch = characterAt(b.work, st.id);
-  const condition = ch !== null ? structureCondition(ch) : (st.condition ?? profile.condition ?? "intact");
+  const condition =
+    ch !== null ? structureCondition(ch) : builtCondition(st.condition ?? profile.condition ?? "intact");
   const legible = b.gen.legibleCondition;
   const prng4 = createPrng(subSeed(seed, "condition"));
   const debris: BuildingPlan["debris"] = [];

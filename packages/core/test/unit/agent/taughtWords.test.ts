@@ -3,11 +3,13 @@
  * list the prompt names is parsed from the prompt itself and checked against the tables that read it: room kinds
  * (gen/roomPurpose.ts classifyRoom), building kinds (gen/buildingProgramme.ts buildingKind), and light, upkeep, wealth
  * and mood (resolve/character.ts, through a zone named by the word). A word dropped from a table, or a kind added to
- * one, fails here until the text says the same thing.
+ * one, fails here until the text says the same thing. The stated light, condition and wealth fields the prompt names
+ * are the contract's lists (PLACE_*), and every value it gives a field is one of that field's.
  */
 import { describe, expect, it } from "vitest";
 import { SYSTEM_PROMPT } from "../../../src/agent";
-import type { MapPlan } from "../../../src/contracts/plan";
+import { CHARACTER_GUIDANCE } from "../../../src/agent/prompt";
+import { type MapPlan, PLACE_CONDITIONS, PLACE_LIGHTS, PLACE_WEALTHS } from "../../../src/contracts/plan";
 import type { ResolvedCharacter } from "../../../src/contracts/resolved";
 import { BUILDING_KIND_NAMES, buildingKind } from "../../../src/gen/buildingProgramme";
 import { lightNamedBy } from "../../../src/gen/lightLevels";
@@ -165,6 +167,33 @@ describe("the character words the prompt teaches set the values it says", () => 
         expect([w, got]).toEqual([w, v]);
       }
     }
+  });
+});
+
+describe("the character fields the prompt teaches are the contract's", () => {
+  const LISTS = { light: PLACE_LIGHTS, condition: PLACE_CONDITIONS, wealth: PLACE_WEALTHS } as const;
+  type Field = keyof typeof LISTS;
+  const all = Object.values(LISTS).flat() as readonly string[];
+  it("the prompt names each field's values in the contract's order, all of them", () => {
+    for (const field of Object.keys(LISTS) as Field[]) {
+      const m = new RegExp(`\\b${field} \\(([a-z, ]+)\\)`).exec(CHARACTER_GUIDANCE);
+      expect([field, split(m?.[1] ?? "")]).toEqual([field, [...LISTS[field]]]);
+    }
+  });
+  it('every value the prompt gives a field (light bright, condition "ruined") is in that field\'s list', () => {
+    const named = [
+      ...SYSTEM_PROMPT.matchAll(new RegExp(`\\b(light|condition|wealth):? "?(${all.join("|")})\\b`, "g")),
+    ];
+    expect(named.length).toBeGreaterThan(2);
+    for (const m of named) {
+      const field = m[1] as Field;
+      expect([m[0], (LISTS[field] as readonly string[]).includes(m[2] ?? "")]).toEqual([m[0], true]);
+    }
+  });
+  it("the resolver's scales are the contract's lists", () => {
+    expect(CHARACTER_LIGHTS).toBe(PLACE_LIGHTS);
+    expect(CHARACTER_CONDITIONS).toBe(PLACE_CONDITIONS);
+    expect(CHARACTER_WEALTHS).toBe(PLACE_WEALTHS);
   });
 });
 

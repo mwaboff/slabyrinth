@@ -1,6 +1,6 @@
 /**
  * What a building's condition and role read as (generator 5): the plan says `Building.condition` (intact, weathered,
- * ruined); its name, tags, notes and use may say more. This table refines the three plan values into the four
+ * ramshackle, ruined); its name, tags, notes and use may say more. This table refines the plan values into the four
  * condition states the treatments weigh (resolve/recipes/treatments.ts), a ruin's severity, and whether the building
  * is sacred or formal (the style options: a guardian pair at its threshold, lights at its approach). Words only refine:
  * they never make a kept building a ruin.
@@ -8,6 +8,7 @@
  *   plan says                                                  state
  *   condition intact (or none)                                 kept
  *   condition weathered                                        worn
+ *   condition ramshackle                                       ramshackle
  *   condition ruined                                           ruined, severity 2
  *   words "ramshackle, shanty, shack, dilapidated, run-down"   ramshackle (unless ruined)
  *   ruined, and "collapsed, rubble, razed"                     severity 3
@@ -15,12 +16,28 @@
  *   ruined, and "squatters, occupied, bandit camp, hideout"    reoccupied (recorded; nothing builds it yet)
  */
 
+import type { PlaceCondition } from "../contracts/plan";
+
 export const CONDITION_STATES = ["kept", "worn", "ramshackle", "ruined"] as const;
 export type ConditionState = (typeof CONDITION_STATES)[number];
 
+/** The shell a building is built as: its condition, ramshackle standing whole like weathered. */
+export type BuiltCondition = Exclude<PlaceCondition, "ramshackle">;
+
+/**
+ * The ONE mapping between the condition scales. The plan's and the character's scale is PLACE_CONDITIONS (intact,
+ * weathered, ramshackle, ruined: `Building.condition`, a stated or resolved character's condition).
+ *  - `builtCondition`: the shell it builds (every generator: ramshackle builds as weathered; its patches, boarding and
+ *    lean-to are generator 5's treatments).
+ *  - `conditionStateOf`: the treatments' state (kept, worn, ramshackle, ruined), what their weights are keyed on.
+ */
+export const builtCondition = (c: PlaceCondition): BuiltCondition => (c === "ramshackle" ? "weathered" : c);
+export const conditionStateOf = (c: PlaceCondition): ConditionState =>
+  c === "intact" ? "kept" : c === "weathered" ? "worn" : c;
+
 /** What the plan says of a building, all this table reads. */
 export interface BuildingWords {
-  readonly condition?: "intact" | "weathered" | "ruined" | undefined;
+  readonly condition?: PlaceCondition | undefined;
   readonly name?: string | undefined;
   readonly tags?: readonly string[] | undefined;
   readonly notes?: string | undefined;
@@ -56,13 +73,9 @@ const textOf = (w: BuildingWords): string =>
 export function buildingState(w: BuildingWords): BuildingState {
   const text = textOf(w);
   const ruined = w.condition === "ruined";
-  const state: ConditionState = ruined
-    ? "ruined"
-    : RAMSHACKLE.test(text)
-      ? "ramshackle"
-      : w.condition === "weathered"
-        ? "worn"
-        : "kept";
+  // (ramshackle words refine an intact or weathered building, the released meaning of those values)
+  const state: ConditionState =
+    !ruined && RAMSHACKLE.test(text) ? "ramshackle" : conditionStateOf(w.condition ?? "intact");
   const severity = !ruined ? 0 : COLLAPSED.test(text) ? 3 : CRUMBLING.test(text) ? 1 : 2;
   return {
     state,

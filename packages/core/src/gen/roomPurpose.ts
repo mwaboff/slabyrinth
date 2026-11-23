@@ -28,7 +28,7 @@
  * the word lists below; every word names at most one purpose (checked when this module loads), so the order of the
  * purposes never decides a match. Plurals and spellings are listed as words of their own.
  */
-import type { Material, RoomPurpose } from "../contracts/plan";
+import type { Material, PlaceCondition, RoomPurpose } from "../contracts/plan";
 import type { FloorFamily } from "../contracts/resolved";
 
 export type { RoomPurpose } from "../contracts/plan";
@@ -609,6 +609,8 @@ export interface RoomWords {
   name?: string | undefined;
   tags?: readonly string[] | undefined;
   notes?: string | undefined;
+  /** The plan's stated condition (Area.condition), read under `stated` only. */
+  condition?: PlaceCondition | undefined;
 }
 
 export interface RoomClass {
@@ -626,13 +628,18 @@ export interface RoomClass {
 /**
  * The one reading of a room (see the file header for the order). `kinds` (generator 5, switch `roomKinds`): read the
  * generator-5 words, which name new kinds of room (a shop, a lounge) and move a few words (a dormitory is a barracks);
- * the purpose is then a new kind's host, and the result carries the kind.
+ * the purpose is then a new kind's host, and the result carries the kind. `stated` (generator 5, switch
+ * `statedCharacter`): a stated condition is the room's state of wreckage in place of its words: ruined is wrecked (a
+ * ruin, abandoned, as "Ruined kitchen" is), any other value is not ("Collapsed hall" stated intact is restored).
  */
-export function classifyRoom(area: RoomWords, opts: { kinds?: boolean } = {}): RoomClass {
+export function classifyRoom(area: RoomWords, opts: { kinds?: boolean; stated?: boolean } = {}): RoomClass {
   const lexicon = opts.kinds === true ? KIND_OF_WORD : PURPOSE_OF_WORD;
   const phrases = [area.name ?? "", ...(area.tags ?? [])].map((t) => readPhrase(t, lexicon));
   const neglect = phrases.some((ph) => ph.neglect);
-  const wrecked = phrases.some((ph) => ph.wrecked);
+  const wrecked =
+    opts.stated === true && area.condition !== undefined
+      ? area.condition === "ruined"
+      : phrases.some((ph) => ph.wrecked);
   const read = (): Reading | undefined =>
     inferredPurpose(phrases, area.notes ?? "", { neglect, wrecked }, lexicon);
   const reading = area.purpose === undefined || opts.kinds === true ? read() : undefined;

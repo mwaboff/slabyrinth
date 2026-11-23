@@ -595,6 +595,11 @@ const SWITCHES = {
     5,
     "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",
   ),
+  statedCharacter: on(
+    5,
+    "A level, area or building's stated light, condition and wealth (the plan fields; a building's condition may be ramshackle) win over its words, mood and the place around it, and are what the places inside it vary from; a stated ruined room is wreckage as its words would make it (resolve/character.ts, gen/roomPurpose.ts classifyRoom).",
+    "characterCascade",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

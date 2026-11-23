@@ -21,6 +21,9 @@ import {
   ATTACHMENT_TYPES,
   STALL_KINDS,
   ROOM_PURPOSES,
+  PLACE_LIGHTS,
+  PLACE_CONDITIONS,
+  PLACE_WEALTHS,
 } from "../contracts/plan";
 
 export * from "./toolContract";
@@ -56,6 +59,28 @@ const rect = {
   required: ["x", "y", "w", "h"],
   additionalProperties: false,
   properties: { x: int, y: int, w: int, h: int },
+} as const;
+
+/** Generator 5: a place's stated character, the same three optional fields on a level, an area and a building. */
+const placeCharacter = {
+  light: {
+    type: "string",
+    enum: [...PLACE_LIGHTS],
+    description:
+      "Generator 5: how many lights mark the place in use, dark (none) to flooded; not the board's brightness. Omitted = read from its words, else the place around it.",
+  },
+  condition: {
+    type: "string",
+    enum: [...PLACE_CONDITIONS],
+    description:
+      "Generator 5: how kept the place is (a ruined room is rubble, sparsely dressed). Omitted = read from its words, else the place around it.",
+  },
+  wealth: {
+    type: "string",
+    enum: [...PLACE_WEALTHS],
+    description:
+      "Generator 5: how plain or rich its trims and contents are. Omitted = read from its words, else the place around it.",
+  },
 } as const;
 
 const shapeSchema: JsonSchema = {
@@ -198,6 +223,7 @@ const areaSchema: JsonSchema = {
       description:
         "Generator 4: set it only when the name does not say what the room is for; it wins over the name, tags and notes. Generator 5: the name also picks kinds this list lacks (shop, stable, lounge or parlour, classroom, command, ward or infirmary); leave purpose off for those.",
     },
+    ...placeCharacter,
     railing: {
       type: "string",
       enum: [...WALL_STYLES, "none"],
@@ -856,11 +882,12 @@ const structureSchema: JsonSchema = {
       description:
         "How the request's adjectives bend the form (combines with condition): twisted = the shaft's storeys step round its axis in turn (a corkscrew), each overhang on a corbel; leaning = storeys step one way; crooked = small random offsets, uneven storeys; top_heavy = upper storeys wider; squat / slender. Leave storeys, roof and volumes unset so the style can draw it.",
     },
+    ...placeCharacter,
     condition: {
       type: "string",
-      enum: ["intact", "weathered", "ruined"],
+      enum: [...PLACE_CONDITIONS],
       description:
-        "State: words in the request about it must be honoured (ruined, abandoned, burnt → ruined; worn, old, overgrown → weathered). Ruined: falls away from one standing corner (low wall stubs against a tall remnant, ragged tops, holed floors, roof fallen in, a gable wall may stand), breaches, rubble mostly inside, no lights. Weathered: whole, with a patch of roof fallen in, most windows dark, growth and rubble at its foot. Generator 5: ramshackle, shack, dilapidated or run-down in its name, tags or notes make an intact or weathered building ramshackle (patched roof, boarded windows, a lean-to); a ruin loses a few whole bays, and crumbling or collapsed in its words make it a lighter or a heavier one.",
+        "State: words in the request about it must be honoured (ruined, abandoned, burnt → ruined; worn, old, overgrown → weathered). Ruined: falls away from one standing corner (low wall stubs against a tall remnant, ragged tops, holed floors, roof fallen in, a gable wall may stand), breaches, rubble mostly inside, no lights. Weathered: whole, with a patch of roof fallen in, most windows dark, growth and rubble at its foot. Generator 5: ramshackle (older generators build it weathered) is a patched roof, boarded windows, a lean-to, and ramshackle words in its name, tags or notes make an intact or weathered building so too; a ruin loses a few whole bays, and crumbling or collapsed in its words make it a lighter or a heavier one.",
     },
     growth: {
       type: "string",
@@ -995,6 +1022,7 @@ const levelSchema: JsonSchema = {
       description:
         "Generator 4. false turns off the default dressing of rooms (a room whose name, tags or notes say its purpose, with no dress op over it and little furniture of its own, is furnished and lit from that purpose). Leave it out.",
     },
+    ...placeCharacter,
     base: {
       oneOf: [
         {

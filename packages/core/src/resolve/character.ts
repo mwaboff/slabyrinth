@@ -10,8 +10,10 @@
  *            district), a building, any other area (a room, a yard). A subject's parent is the smallest building or
  *            zone holding most of its cells (a building's: a zone; a zone's: a larger zone), else the level.
  *   precedence, per axis and subject:
- *            1 a stated value (today only `Building.condition` and a style's ruin; the phase-1 plan fields `light`,
- *              `condition` and `ramshackle` feed this slot, `statedOf`, once the owner signs them off);
+ *            1 a stated value (`statedOf`): the plan's `light`, `condition` and `wealth` on the level, an area or a
+ *              building (switch `statedCharacter`), and `Building.condition` or a style's ruin. It is the subject's
+ *              value whatever its words say (a building's stated intact or weathered excepted: ramshackle words
+ *              refine it, its released meaning), and its contents draw round it under rule 3;
  *            2 the subject's own words (gen/lightLevels.ts, gen/buildingCondition.ts, WEALTH_WORDS), then its mood
  *              words (MOODS: presets that fill only the axes its words left open);
  *            3 the parent's value, drawn with spread: light the same 60 %, a step either way 20 % each; wealth 65 % and
@@ -20,10 +22,20 @@
  *              building that drew its neighbour's exact triple redraws once. A room's light is its kind's default
  *              shifted by the parent's distance from moderate (gen/rooms4/regimes.ts `roomLightLevel`);
  *            4 the default: the theme's light (dungeons and caves dim, the city bright), intact, modest.
- * Words never make a building a ruin (its plan condition or style does). Deterministic: every draw is named by the plan
+ * Words never make a building a ruin (its plan condition or style does, or a ruined place around it under rule 3, a
+ * stated one as a worded one). Deterministic: every draw is named by the plan
  * seed, the level, the subject and the axis.
  */
-import type { Area, Building, Level, MapPlan, Shape } from "../contracts/plan";
+import {
+  type Area,
+  type Building,
+  type Level,
+  type MapPlan,
+  PLACE_CONDITIONS,
+  PLACE_LIGHTS,
+  PLACE_WEALTHS,
+  type Shape,
+} from "../contracts/plan";
 import type {
   CharacterCondition,
   CharacterLight,
@@ -33,7 +45,14 @@ import type {
   ResolvedCharacter,
   ResolvedLevel,
 } from "../contracts/resolved";
-import { conditionNamedBy, ruinNamedBy } from "../gen/buildingCondition";
+import {
+  type BuiltCondition,
+  builtCondition,
+  conditionNamedBy,
+  conditionStateOf,
+  type ConditionState,
+  ruinNamedBy,
+} from "../gen/buildingCondition";
 import { lightNamedBy } from "../gen/lightLevels";
 import { colourTheme, themeLight } from "./themes";
 import { forEachMaskCell } from "../gen/mask";
@@ -45,25 +64,13 @@ import { generatorProfile } from "../plan/generator";
 import { elementSeed, hashUnitMixed, subSeed } from "../util/hash";
 import { structureStyle } from "./structureStyles";
 
-export const CHARACTER_LIGHTS = [
-  "dark",
-  "dim",
-  "moderate",
-  "bright",
-  "flooded",
-] as const satisfies readonly CharacterLight[];
-export const CHARACTER_CONDITIONS = [
-  "intact",
-  "weathered",
-  "ramshackle",
-  "ruined",
-] as const satisfies readonly CharacterCondition[];
-export const CHARACTER_WEALTHS = [
-  "poor",
-  "modest",
-  "wealthy",
-  "lavish",
-] as const satisfies readonly CharacterWealth[];
+/**
+ * The scales, worst or least first: the plan's lists (contracts/plan.ts, what a plan may state), so the stated and the
+ * resolved values are one scale (test/unit/resolve/statedCharacter.test.ts pins them to the resolved types both ways).
+ */
+export const CHARACTER_LIGHTS = PLACE_LIGHTS satisfies readonly CharacterLight[];
+export const CHARACTER_CONDITIONS = PLACE_CONDITIONS satisfies readonly CharacterCondition[];
+export const CHARACTER_WEALTHS = PLACE_WEALTHS satisfies readonly CharacterWealth[];
 
 /** The draw round a parent's value, per axis: [one step down, the same, one step up] shares. */
 export const CHARACTER_SPREAD = {
@@ -169,23 +176,34 @@ export interface CharacterMap extends ReadonlyMap<string, ResolvedCharacter> {
   addArea(area: Area, parentId: string): ResolvedCharacter;
 }
 
-/** What a stated field says of a subject (the phase-1 fields will add `light` and level/area `condition` here). */
+/** What the plan states of a subject. */
 interface Stated {
   readonly light?: CharacterLight;
   readonly condition?: CharacterCondition;
   readonly wealth?: CharacterWealth;
 }
 
-/** The stated slot: `Building.condition`, else a style that is a ruin. Nothing else is stated yet (plan §12.3). */
-function statedOf(subject: { readonly building?: Building }): Stated {
+/**
+ * The stated slot: the subject's own `light`, `condition` and `wealth` fields (a level, an area, a building; switch
+ * `statedCharacter`), and a building's condition: `Building.condition`, else a style that is a ruin.
+ */
+function statedOf(
+  subject: { readonly building?: Building; readonly area?: Area; readonly level?: Level },
+  fields: boolean,
+): Stated {
   const st = subject.building;
-  if (!st) return {};
-  const c = st.condition ?? structureStyle(st.style)?.condition;
-  return c !== undefined && c !== "intact"
-    ? { condition: c }
-    : st.condition === "intact"
-      ? { condition: "intact" }
-      : {};
+  const own = fields ? (st ?? subject.area ?? subject.level) : undefined;
+  const styled = st ? (st.condition ?? structureStyle(st.style)?.condition) : undefined;
+  const condition = st
+    ? styled !== undefined && (styled !== "intact" || st.condition === "intact")
+      ? styled
+      : undefined
+    : own?.condition;
+  return {
+    ...(own?.light !== undefined ? { light: own.light } : {}),
+    ...(condition !== undefined ? { condition } : {}),
+    ...(own?.wealth !== undefined ? { wealth: own.wealth } : {}),
+  };
 }
 
 interface SubjectIn {
@@ -284,24 +302,29 @@ export function resolveCharacters(plan: MapPlan, li: number): CharacterMap | nul
   // (upkeep, wealth and mood from the title and the level's own words: a summary lists what is on the map, "a ruined
   // chapel" among them, and says nothing of the whole)
   const fullTexts = [plan.title, L.name, L.notes];
+  const sceneStated = statedOf({ level: L }, profile.statedCharacter);
   const sceneMood = moodOf(fullTexts);
   const sceneLight = lightNamedBy(sceneTexts, { settings: true });
   const sceneCond = conditionNamedBy(fullTexts, { ruins: true });
   const sceneWealth = wealthNamedBy(fullTexts);
+  const sceneSource = (stated: unknown, ...words: unknown[]): CharacterSource =>
+    stated !== undefined ? "stated" : words.some((w) => w !== undefined) ? "words" : "default";
+  const sceneCondition = sceneStated.condition ?? sceneCond ?? sceneMood.condition ?? "intact";
   const scene: ResolvedCharacter = {
     light:
-      sceneLight !== undefined
+      sceneStated.light ??
+      (sceneLight !== undefined
         ? CHARACTER_LIGHTS[sceneLight]
-        : (sceneMood.light ?? CHARACTER_LIGHTS[themeLight(theme)]),
-    condition: sceneCond ?? sceneMood.condition ?? "intact",
-    wealth: sceneWealth ?? sceneMood.wealth ?? "modest",
+        : (sceneMood.light ?? CHARACTER_LIGHTS[themeLight(theme)])),
+    condition: sceneCondition,
+    wealth: sceneStated.wealth ?? sceneWealth ?? sceneMood.wealth ?? "modest",
     tone: sceneMood.tone ?? (colourTheme(theme) ? "coloured" : "warm"),
     sources: {
-      light: sceneLight !== undefined || sceneMood.light !== undefined ? "words" : "default",
-      condition: sceneCond !== undefined || sceneMood.condition !== undefined ? "words" : "default",
-      wealth: sceneWealth !== undefined || sceneMood.wealth !== undefined ? "words" : "default",
+      light: sceneSource(sceneStated.light, sceneLight, sceneMood.light),
+      condition: sceneSource(sceneStated.condition, sceneCond, sceneMood.condition),
+      wealth: sceneSource(sceneStated.wealth, sceneWealth, sceneMood.wealth),
     },
-    ...ruinFields(sceneCond ?? sceneMood.condition ?? "intact", fullTexts, undefined),
+    ...ruinFields(sceneCondition, fullTexts, undefined),
   };
   out.set(L.id, scene);
 
@@ -357,7 +380,7 @@ export function resolveCharacters(plan: MapPlan, li: number): CharacterMap | nul
   const placed: Array<{ s: SubjectIn; c: ResolvedCharacter }> = [];
   const resolveOne = (s: SubjectIn, parentId: string): ResolvedCharacter => {
     const parent = out.get(parentId) ?? scene;
-    const stated = statedOf(s);
+    const stated = statedOf(s, profile.statedCharacter);
     const mood = moodOf(s.texts);
     const named = {
       light: lightNamedBy(s.texts, { settings: s.settings }),
@@ -366,10 +389,10 @@ export function resolveCharacters(plan: MapPlan, li: number): CharacterMap | nul
     };
     const own = {
       light: stated.light ?? (named.light !== undefined ? CHARACTER_LIGHTS[named.light] : mood.light),
-      // (the plan's condition has no ramshackle value yet: its words refine any stated value short of a ruin to it, as
-      // gen/buildingCondition.ts always read them)
+      // (a building's intact or weathered keeps its released meaning: ramshackle words refine it, as
+      // gen/buildingCondition.ts always read them; anything else stated wins over the words)
       condition:
-        named.condition === "ramshackle" && stated.condition !== "ruined"
+        named.condition === "ramshackle" && s.scope === "building" && stated.condition !== "ruined"
           ? named.condition
           : (stated.condition ?? named.condition ?? mood.condition),
       wealth: stated.wealth ?? named.wealth ?? mood.wealth,
@@ -388,7 +411,7 @@ export function resolveCharacters(plan: MapPlan, li: number): CharacterMap | nul
     // a room of a kind takes its light by its kind (the draw is its own variety); anything else draws round the parent
     const cls =
       s.area && (s.area.kind === "room" || s.area.kind === "corridor")
-        ? classifyRoom(s.area, { kinds: profile.roomKinds })
+        ? classifyRoom(s.area, { kinds: profile.roomKinds, stated: profile.statedCharacter })
         : null;
     const draw = (salt: number) => {
       const u = (axis: string) => hashUnitMixed(plan.seed, L.id, s.id, "character", axis, salt);
@@ -512,14 +535,12 @@ export const lightIndex = (c: ResolvedCharacter): LightLevel =>
 export const wealthIndex = (c: ResolvedCharacter): 0 | 1 | 2 | 3 =>
   CHARACTER_WEALTHS.indexOf(c.wealth) as 0 | 1 | 2 | 3;
 
-/** The resolved structure's condition a character stands for (ramshackle builds as weathered, worse in its treatments). */
-export const structureCondition = (c: ResolvedCharacter): "intact" | "weathered" | "ruined" =>
-  c.condition === "ramshackle" ? "weathered" : c.condition;
+/** The resolved structure's condition a character stands for (gen/buildingCondition.ts `builtCondition`). */
+export const structureCondition = (c: ResolvedCharacter): BuiltCondition => builtCondition(c.condition);
 
 /** The coarse wear a character stands for (0 intact, 1 weathered or ramshackle, 2 ruined; 0 for none). */
 export const characterWear = (c: ResolvedCharacter | null): 0 | 1 | 2 =>
   c === null || c.condition === "intact" ? 0 : c.condition === "ruined" ? 2 : 1;
 
-/** The treatments' condition state a character stands for. */
-export const conditionState = (c: ResolvedCharacter): "kept" | "worn" | "ramshackle" | "ruined" =>
-  c.condition === "intact" ? "kept" : c.condition === "weathered" ? "worn" : c.condition;
+/** The treatments' condition state a character stands for (gen/buildingCondition.ts `conditionStateOf`). */
+export const conditionState = (c: ResolvedCharacter): ConditionState => conditionStateOf(c.condition);

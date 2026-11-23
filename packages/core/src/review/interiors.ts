@@ -206,7 +206,10 @@ export function interiorNotes(
       (plan.levels.find((l) => l.id === levelId)?.areas ?? []).map((a) => [a.id, a]),
     );
     return (a: ResolvedArea): RoomClass => {
-      const kind = classifyRoom(byId.get(a.id) ?? a, { kinds: gen.roomKinds }).kind;
+      const kind = classifyRoom(byId.get(a.id) ?? a, {
+        kinds: gen.roomKinds,
+        stated: gen.statedCharacter,
+      }).kind;
       return { ...resolvedRoomClass(a), ...(kind !== undefined ? { kind } : {}) };
     };
   };

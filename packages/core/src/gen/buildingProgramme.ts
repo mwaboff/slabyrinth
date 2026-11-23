@@ -24,6 +24,7 @@
  * interior off or keep it to window dressing on a big street.
  */
 import type { ResolvedCharacter } from "../contracts/resolved";
+import { builtCondition } from "./buildingCondition";
 import type { RoomKind } from "./roomPurpose";
 
 /** Where a room stands in the sequence from the street door. */
@@ -411,7 +412,7 @@ export function programmeCharacter(
 ): ProgrammeCharacter {
   if (character === null) return { condition: b.condition };
   return {
-    condition: character.condition === "ramshackle" ? "weathered" : character.condition,
+    condition: builtCondition(character.condition),
     wealth: character.wealth,
     light: character.light,
   };

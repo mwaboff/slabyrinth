@@ -35,7 +35,7 @@ import {
 } from "../contracts/resolved";
 import { WorldFrame, placedBox } from "../compile/index";
 import { LIGHT_FEATURES, featureInfo } from "../gen/catalog";
-import { classifyRoom } from "../gen/roomPurpose";
+import { classifyRoom, furnishedPurpose } from "../gen/roomPurpose";
 import { roomTargets } from "../gen/roomTraits";
 import { SURFACE_LOAD } from "../gen/surfaces";
 import { LevelGrid } from "../resolve/levelGrid";
@@ -99,9 +99,12 @@ const cellsOf = (f: ResolvedFeature): Vec2[] => {
 };
 const key = (x: number, y: number): string => `${x},${y}`;
 
-/** A resolved room's class with the kind its words name (the classifier the resolver uses). */
+/**
+ * A resolved room's class with the kind its words name (the classifier the resolver uses), for a room the resolver
+ * furnished (a room its plan states ruined is a ruin whatever its name says).
+ */
 const withKind = (a: ResolvedArea) => {
-  const kind = classifyRoom(a, { kinds: true }).kind;
+  const kind = furnishedPurpose(a.purpose) ? classifyRoom(a, { kinds: true }).kind : undefined;
   return { ...resolvedRoomClass(a), ...(kind !== undefined ? { kind } : {}) };
 };
 

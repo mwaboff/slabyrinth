@@ -92,6 +92,17 @@ function roomReading(a: Area, ra: ResolvedArea): string {
   return [read, ra.abandoned === true ? "abandoned" : ""].filter((s) => s !== "").join(", ");
 }
 
+/**
+ * A level's, area's or building's stated character (the plan's light, condition and wealth fields), as `field=value`
+ * tokens in `fields` order. A building's condition is left to its STRUCT line's built form, as it always was.
+ */
+function statedCharacter(
+  x: Pick<Area, "light" | "condition" | "wealth">,
+  fields: ReadonlyArray<"light" | "condition" | "wealth">,
+): string[] {
+  return fields.flatMap((f) => (x[f] !== undefined ? [`${f}=${x[f]}`] : []));
+}
+
 function areaLine(
   a: Area,
   lvl: ResolvedLevel | undefined,
@@ -114,6 +125,7 @@ function areaLine(
   if (a.labelAt !== undefined) parts.push(`labelAt=${xy(a.labelAt)}`);
   if (a.tags && a.tags.length > 0) parts.push(`tags=${a.tags.join(",")}`);
   if (profile.outlineRoomReading && a.purpose !== undefined) parts.push(`purpose=${a.purpose}`);
+  pushAll(parts, statedCharacter(a, ["light", "condition", "wealth"]));
   const ra = lvl?.areas.find((r) => r.id === a.id);
   if (ra) {
     const generated = a.shape.type === "route" || a.shape.type === "blob" || a.shape.type === "cave";
@@ -238,6 +250,7 @@ function structureLine(
           ? `volumes ${(st.volumes ?? []).map((v) => `${v.id} ${v.x},${v.y} ${v.w}x${v.h}${v.on ? ` on ${v.on}` : ""}`).join(" + ")}`
           : "",
     st.front ? `front=${st.front}` : "",
+    ...statedCharacter(st, ["light", "wealth"]),
   ].filter(Boolean);
   if (!rs) return `${plan.join(" ")} -> not built`;
   const ops = (lvl?.openings ?? []).filter((o) => rs.openingIds.includes(o.id));
@@ -298,7 +311,12 @@ function levelLines(
   const base = level.base.type === "ground" ? `ground:${level.base.material}` : level.base.type;
   const b = level.bounds;
   out.push(
-    `LEVEL ${level.id} ${q(level.name)} elev=${n(level.elevation)} bounds=${b.x},${b.y} ${b.w}x${b.h} base=${base}${level.theme ? ` theme=${level.theme}` : ""}${level.wallHeight !== undefined ? ` wallH=${n(level.wallHeight)}` : ""}`,
+    `LEVEL ${level.id} ${q(level.name)} elev=${n(level.elevation)} bounds=${b.x},${b.y} ${b.w}x${b.h} base=${base}${level.theme ? ` theme=${level.theme}` : ""}${level.wallHeight !== undefined ? ` wallH=${n(level.wallHeight)}` : ""}${statedCharacter(
+      level,
+      ["light", "condition", "wealth"],
+    )
+      .map((t) => ` ${t}`)
+      .join("")}`,
   );
   if (level.notes) out.push(`  notes ${q(truncate(level.notes, noteChars))}`);
   for (const a of level.areas) out.push(areaLine(a, lvl, noteChars, profile));

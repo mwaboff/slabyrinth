@@ -439,15 +439,15 @@ const SP_1_13_0 = [
  */
 export const CHARACTER_GUIDANCE = `# Light, upkeep and wealth
 
-The generator reads every place's character from words the plan already carries, then lights, wears and furnishes it to match. There is no field for it: the words are the control.
+Every place has a light (dark, dim, moderate, bright, flooded), a condition (intact, weathered, ramshackle, ruined) and a wealth (poor, modest, wealthy, lavish); the generator lights, wears and furnishes it to match. The light, condition and wealth fields on a level (the scene), a zone (a quarter), a building or a room state them and win; what is inside varies a little from a stated value unless it states its own. Without a field the place's words decide, else the place around it, now and then a step either way, so a street varies by itself; nothing turns to ruin unless it or the place around it is one.
 
-- Where words are read. The scene: the map's title and the level's name (light also from the map's summary and kind; upkeep and wealth also from the level's notes). A quarter: a zone's name, tags and notes. A building: its name, tags, notes and use. A room, yard or other area: its name, tags and notes. A place that says nothing takes its value from the smallest zone or building around it, now and then a step either way, so a street varies by itself; nothing turns to ruin unless it or the place around it is one.
-- Light words: dark, unlit, lightless → dark; dim, gloomy, shadowy, candlelit, intimate, smoky → dim; bright, lively, festive, gleaming → bright; brilliant, blazing, floodlit → flooded. Abandoned, derelict, forgotten and lost read as dark too, so "The Lost Mine" is a dark scene.
+- Words are read from the map's title and the level's name and notes (light also the summary and kind), and from a zone's, building's or room's name, tags and notes (a building's use too).
+- Light words: dark, unlit, lightless → dark; dim, gloomy, shadowy, candlelit, intimate, smoky → dim; bright, lively, festive, gleaming → bright; brilliant, blazing, floodlit → flooded. Abandoned, derelict, forgotten and lost read as dark too: state light where a title's words would mislead (a busy "Lost Mine": light bright).
 - Setting words, for a scene, a quarter or a building only: dungeon, crypt, cellar, night → dim; hospital, clinic, modern, neon → flooded. A room starts from its kind (a ward bright, a tavern dim, a store room or a crypt dark), moved by the light around it; a light word of its own overrides that.
 - Upkeep words: pristine, tidy, well-kept → intact; weathered, worn, shabby, neglected, grimy → weathered; ramshackle, dilapidated, run-down, shanty, makeshift → ramshackle; ruined, ruins → ruined. A building's words stop short of a ruin: only condition "ruined" or style ruin makes one, and then crumbling makes it a light ruin and collapsed or razed a heavy one. A worn or ramshackle place shows its age in patched roofs, boarded windows, a lean-to, things left about and growth at its foot, not in darkness.
-- Wealth words: poor, slum, impoverished, humble → poor; wealthy, rich, prosperous, noble → wealthy; lavish, opulent, luxurious, royal → lavish. Wealth sets how plain or rich the trims and the rooms' contents are.
+- Wealth words: poor, slum, impoverished, humble → poor; wealthy, rich, prosperous, noble → wealthy; lavish, opulent, luxurious, royal → lavish.
 - Mood words set several at once: cosy, snug → dim, warm; grim, bleak, dreary → dim, weathered, cold; clinical, sterile → flooded, intact, cold; festive, carnival → bright, coloured; sinister, eerie → dark, coloured; downtrodden → dim, weathered, poor; opulent, palatial → bright, intact, lavish.
-- Towns by quarter. Lay a zone over each quarter and give it its character in tags or notes (a market quarter tagged wealthy and bright; the docks tagged poor, run-down and gloomy); its buildings take it with small variations of their own. Give a single building words only where it stands apart (a candlelit shrine in the slums).`;
+- Towns by quarter. Lay a zone over each quarter and state its character (a market wealthy and bright; the docks poor, ramshackle and dim); state a single building's only where it stands apart (a candlelit shrine in the slums).`;
 
 /** sp-1.14.0's revisions of sp-1.13.0's how-to (generator 5): rooms by kind, building rooms, pitfalls, character. */
 const SP_1_14_0_REVISIONS: ReadonlyArray<readonly [string, string]> = [
@@ -469,7 +469,7 @@ const SP_1_14_0_REVISIONS: ReadonlyArray<readonly [string, string]> = [
   // treatments are drawn per building: say what is left to the draw
   [
     "A terrace of buildings may share side walls (plots touching) or leave a one- or two-cell alley.",
-    "A terrace of buildings may share side walls (plots touching) or leave a one- or two-cell alley. Trims, ground cover, growth, patches and wear are drawn per building from its condition, wealth and neighbours; there is no field for them, so steer a street with condition and words and leave the rest to the draw.",
+    "A terrace of buildings may share side walls (plots touching) or leave a one- or two-cell alley. Trims, ground cover, growth, patches and wear are drawn per building from its condition, wealth and neighbours: steer a street with those and leave the rest to the draw.",
   ],
   // pitfalls the code confirms: windows, overlapping features, size, custom hints, water under another level's floor
   [

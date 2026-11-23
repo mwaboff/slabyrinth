@@ -41,6 +41,7 @@ plans/smugglers-grotto-v3 gen=4 resolved=856fbdd7ea756c14 assets=1851 diag=0e/0w
 plans/smugglers-grotto-v3@5 gen=5 resolved=517698bf1e1f75be assets=2203 diag=0e/0w/8i slab=963f576e721fa065 diagnostics=129ef962f0e3a4d2 review=d1ab75235336746b reviewNoBuild=d1ab75235336746b
 plans/stall-lineup-v1 gen=4 resolved=1656737fb30ca673 assets=349 diag=0e/0w/1i slab=5bc89c9bc56ed714 diagnostics=5cabb936d5a5e18c review=9f00e331805414e5 reviewNoBuild=9f00e331805414e5
 plans/stall-lineup-v1@5 gen=5 resolved=9f941fd34c8a09c8 assets=349 diag=0e/0w/1i slab=5bc89c9bc56ed714 diagnostics=5cabb936d5a5e18c review=64c879e62b522f97 reviewNoBuild=64c879e62b522f97
+plans/stated-character-v1 gen=5 resolved=168b987a3d7ee75f assets=2770 diag=0e/0w/12i slab=4fd5bd2575e5cb50 diagnostics=53c54ea656ea79bd review=0b6e8e9bea8cf67c reviewNoBuild=6d77a48e3b148932
 plans/three-step-glen-v1 gen=3 resolved=2cbba20d1d883807 assets=1499 diag=0e/0w/11i slab=a991a23a0f37b57f diagnostics=408244a409890eb2 review=d6abe9ac30efd0e2 reviewNoBuild=d6abe9ac30efd0e2
 plans/three-step-glen-v1@5 gen=5 resolved=666ab176392a63ef assets=1512 diag=0e/0w/11i slab=3227bed08d30cc9b diagnostics=103b4f997be4963c review=cfc126625305e91e reviewNoBuild=cfc126625305e91e
 plans/two-quarters-v1 gen=5 resolved=799137e5428b8c50 assets=4381 diag=0e/0w/24i slab=e330d25e770b25c3 diagnostics=a6bedf01edf2bdd7 review=5f6d810070c6a9de reviewNoBuild=89fe21663bbd2ea2

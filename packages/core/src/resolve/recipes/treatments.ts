@@ -36,6 +36,7 @@ import type { ResolvedCharacter, ResolvedLevel } from "../../contracts/resolved"
 import { conditionState, elementCharacter, wealthIndex } from "../character";
 import {
   buildingState,
+  builtCondition,
   wearOfState,
   type BuildingWords,
   type ConditionState,
@@ -377,7 +378,7 @@ export function buildingSubject(
   character: ResolvedCharacter | null = null,
 ): Subject {
   const st = buildingState(words);
-  const condition = words.condition ?? "intact";
+  const condition = builtCondition(words.condition ?? "intact");
   // generator 5 (characterCascade): its state and wealth as its character resolved them; its role stays its words'
   const state = character !== null ? conditionState(character) : st.state;
   return {

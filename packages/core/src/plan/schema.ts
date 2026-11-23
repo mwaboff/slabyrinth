@@ -21,6 +21,9 @@ import {
   MATERIALS,
   OPENING_KINDS,
   PLAN_LIMITS,
+  PLACE_CONDITIONS,
+  PLACE_LIGHTS,
+  PLACE_WEALTHS,
   PLAN_SCHEMA,
   ROOM_PURPOSES,
   STALL_KINDS,
@@ -182,6 +185,16 @@ export const SHAPE_TYPES = [
 
 // ───────────────────────────── elements ─────────────────────────────
 
+/**
+ * A place's stated character (generator 5): the same three optional fields on a level, an area and a building. Released
+ * generators accept and ignore them (no vocabulary refusal: the owner's sign-off, docs/decisions.md 2026-11-23).
+ */
+const placeCharacter = {
+  light: z.enum(PLACE_LIGHTS).exactOptional(),
+  condition: z.enum(PLACE_CONDITIONS).exactOptional(),
+  wealth: z.enum(PLACE_WEALTHS).exactOptional(),
+};
+
 export const BRIDGE_SPANS = ["arch", "flat", "plank", "natural"] as const;
 export const AreaSchema = z.strictObject({
   id: IdSchema,
@@ -202,6 +215,7 @@ export const AreaSchema = z.strictObject({
   tags: z.array(z.string().min(1).max(24)).max(8).exactOptional(),
   // generator 4 vocabulary (plan/generator.ts VOCABULARY.areaFields): validation refuses it below
   purpose: z.enum(ROOM_PURPOSES).exactOptional(),
+  ...placeCharacter,
   railing: z.union([WallStyleSchema, z.literal("none")]).exactOptional(),
   broken: z.array(Vec2Schema).max(64).exactOptional(),
   crumble: z.number().min(0).max(0.6).exactOptional(),
@@ -545,7 +559,7 @@ export const BuildingSchema = z.strictObject({
     .regex(/^[a-z][a-z0-9_]{0,31}$/)
     .exactOptional(),
   seed: SeedSchema.exactOptional(),
-  condition: z.enum(["intact", "weathered", "ruined"]).exactOptional(),
+  ...placeCharacter,
   growth: z.enum(["none", "light", "medium", "heavy"]).exactOptional(),
   character: z
     .array(z.enum(["twisted", "leaning", "crooked", "top_heavy", "squat", "slender"]))
@@ -667,6 +681,7 @@ const levelFields = {
   stalls: z.array(StallRowSchema).max(8).exactOptional(),
   lines: z.array(OverheadLineSchema).max(12).exactOptional(),
   notes: text(UNSPECIFIED_LIMITS.levelNotes).exactOptional(),
+  ...placeCharacter,
 };
 const levelLists = {
   areas: z.array(AreaSchema).max(PLAN_LIMITS.areasPerLevel),
