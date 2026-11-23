@@ -20,7 +20,8 @@ import type { ResolvedStructure } from "../../contracts/resolved";
 import { isPassage } from "../../gen/openingKinds";
 import { maxOf } from "../../util/lists";
 import { frameDir, framePoint, type AnchorFrame, type OpeningAnchor } from "../anchors";
-import { KEEP_OFF_BESIDE_PATH, isBreach, normalSide, onGround } from "./condition";
+import { isBreach, normalSide, onGround } from "./condition";
+import { KEEP_OFF_BESIDE_PATH } from "./footing";
 import type { ComposeCtx, FilledSlot, Recipe, RecipeCtx } from "./types";
 
 /** A guardian stands this far from the door's axis (a subject's draw), and this far out from the wall. */

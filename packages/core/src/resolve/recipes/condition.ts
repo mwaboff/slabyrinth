@@ -23,21 +23,19 @@
  */
 import type { ArrangePiece, Placed } from "../../arrange";
 import type { Side } from "../../contracts/plan";
-import { CELL_FLAG, type ResolvedStructure } from "../../contracts/resolved";
+import type { ResolvedStructure } from "../../contracts/resolved";
 import { isPassage } from "../../gen/openingKinds";
 import { wallStyleInfo } from "../../gen/wallStyles";
 import { hashUnitMixed } from "../../util/hash";
-import { turnedHalfExtents } from "../../util/turn";
 import { framePoint, NORMAL_TURN, type AnchorFrame, type FaceAnchor } from "../anchors";
 import { minOf } from "../../util/lists";
+import { KEEP_OFF, pieceFooting } from "./footing";
 import type { ComposeCtx, FilledSlot, Recipe, RecipeCtx } from "./types";
 
 /** Growth and stones: at most this tall. */
 const LOW_H = 1.4;
 /** A loose piece sinks at most this far (verify's support slack). */
 const SINK_MAX = 0.05;
-/** Cells no loose piece reaches onto. */
-const KEEP_OFF = CELL_FLAG.WATER | CELL_FLAG.PATH | CELL_FLAG.STEPS | CELL_FLAG.LINK;
 /** Share of a face's length the growth covers, by variant (a subject's draw within each range). */
 const GROWTH_SHARE = { feet: [0.25, 0.4], thick: [0.55, 0.8] } as const;
 /** The street face shows this share of what its distance from use asks; a face at a door none. */
@@ -64,13 +62,10 @@ export function normalSide(f: AnchorFrame): Side {
   return (Object.keys(NORMAL_TURN) as Side[]).find((s) => NORMAL_TURN[s] === t) ?? "N";
 }
 
-/** Cells a piece flanking a path may stand on the edge of (a path is ground; water, stairs and links are not). */
-export const KEEP_OFF_BESIDE_PATH = CELL_FLAG.WATER | CELL_FLAG.STEPS | CELL_FLAG.LINK;
-
 /**
  * Where a loose piece at local (x, z) of frame `f`, turned `yaw`, stands: its local bottom y on the ground under it
  * (sunk `sink` at most SINK_MAX), or null when its footprint is not wholly on one floor height clear of the cells
- * `keepOff` flags (default: water, paths, stairs and links).
+ * `keepOff` flags (default: water, paths, stairs and links; resolve/recipes/footing.ts).
  */
 export function onGround(
   ctx: RecipeCtx,
@@ -82,25 +77,8 @@ export function onGround(
   sink = 0,
   keepOff: number = KEEP_OFF,
 ): number | null {
-  const g = ctx.anchors.grid;
-  const h = turnedHalfExtents(p.variant.geom.size.x, p.variant.geom.size.z, yaw + f.turn);
   const [px, py] = framePoint(f, x, z);
-  let top: number | null = null;
-  for (const [qx, qy] of [
-    [px, py],
-    [px - h.x, py - h.z],
-    [px + h.x, py - h.z],
-    [px - h.x, py + h.z],
-    [px + h.x, py + h.z],
-  ] as const) {
-    const cx = Math.floor(qx);
-    const cy = Math.floor(qy);
-    if (!g.cell(cx, cy).floor) return null;
-    if (((ctx.level.cells.flags[g.index(cx, cy)] ?? 0) & keepOff) !== 0) return null;
-    const t = g.top(cx, cy);
-    if (top === null) top = t;
-    else if (Math.abs(t - top) > 0.01) return null;
-  }
+  const top = pieceFooting(ctx, px, py, p, yaw + f.turn, { keepOff });
   if (top === null) return null;
   return top - Math.min(SINK_MAX, sink * p.measures.height) - f.base;
 }

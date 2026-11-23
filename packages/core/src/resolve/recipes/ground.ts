@@ -28,7 +28,6 @@ import { CELL_FLAG } from "../../contracts/resolved";
 import { thinnestFloor } from "../../palette/planRoles";
 import { hashUnitMixed } from "../../util/hash";
 import { deepestSink } from "../../util/sunk";
-import { turnedHalfExtents } from "../../util/turn";
 import {
   COVER_RASTER,
   coverKind,
@@ -37,6 +36,7 @@ import {
   type CoverShape,
 } from "../../util/visibleCover";
 import { ZONE, type ZoneAnchor } from "../anchors";
+import { KEEP_OFF, footprintPoints, pieceFooting, standsAt } from "./footing";
 import type { ComposeCtx, FilledSlot, Recipe } from "./types";
 
 /** Flat cover is at most this tall; low cover at most this tall and this long. */
@@ -55,8 +55,6 @@ const SINK = [0.3, 0.5] as const;
 /** ... but never deeper than this: a floor may be thinner than the piece is sunk (verify judges a base within 0.06 of the
  * floor top as standing on it, and a deeper one only where a floor piece is there to be sunk into). */
 const SINK_MAX = 0.05;
-/** Cells no piece of the cover reaches onto: water, a path, a stair, a link. */
-const KEEP_OFF = CELL_FLAG.WATER | CELL_FLAG.PATH | CELL_FLAG.STEPS | CELL_FLAG.LINK;
 
 /**
  * Clusters: an anchor piece (a bush, a larger rock, a tall tuft: ANCHOR_H tall, at most
@@ -166,8 +164,7 @@ function openCells(a: ZoneAnchor, ctx: ComposeCtx): Array<[number, number]> {
     const c = g.cell(x, y);
     if (!c.floor) continue;
     const f = L.cells.flags[g.index(x, y)] ?? 0;
-    if ((f & (CELL_FLAG.WATER | CELL_FLAG.PATH | CELL_FLAG.STEPS | CELL_FLAG.LINK | CELL_FLAG.FEATURE)) !== 0)
-      continue;
+    if ((f & (KEEP_OFF | CELL_FLAG.FEATURE)) !== 0) continue;
     out.push([x, y]);
   }
   return out;
@@ -275,19 +272,14 @@ export const layeredGround: Recipe<"zone"> = {
     const out: Placed[] = [];
     const lows: Placed[] = [];
     const recent = new Map<readonly ArrangePiece[], number[]>();
-    // a piece lies wholly on this place's own floor at the cluster's height (never over water, a path, a drop or a wall)
-    const fits = (qx: number, qy: number, top: number, keepOff: number): boolean => {
-      const cx = Math.floor(qx);
-      const cy = Math.floor(qy);
-      const c = g.cell(cx, cy);
-      return (
-        c.floor &&
-        a.classAt(cx, cy) !== 0 &&
-        Math.abs(g.top(cx, cy) - top) < 0.01 &&
-        ((ctx.level.cells.flags[g.index(cx, cy)] ?? 0) & keepOff) === 0
-      );
+    // a piece lies wholly on this place's own floor at the cluster's height (never over water, a path, a drop or a wall:
+    // resolve/recipes/footing.ts); `lean`: a corner may lie up to PATH_LEAN over a path's edge, never in a lane or an
+    // apron
+    const inPlace = (cx: number, cy: number): boolean => a.classAt(cx, cy) !== 0;
+    const leanOver = {
+      reach: PATH_LEAN,
+      never: (cx: number, cy: number): boolean => (a.classAt(cx, cy) & (ZONE.LANE | ZONE.DOOR)) !== 0,
     };
-    // (`lean`: a corner may lie up to PATH_LEAN over a path's edge, never in a lane or an apron)
     const onGround = (
       px: number,
       py: number,
@@ -295,37 +287,15 @@ export const layeredGround: Recipe<"zone"> = {
       yaw: number,
       top: number,
       lean = false,
-    ): boolean => {
-      const h = turnedHalfExtents(p.variant.geom.size.x, p.variant.geom.size.z, yaw);
-      if (!fits(px, py, top, KEEP_OFF)) return false;
-      return [
-        [px - h.x, py - h.z],
-        [px + h.x, py - h.z],
-        [px - h.x, py + h.z],
-        [px + h.x, py + h.z],
-      ].every(([qx = 0, qy = 0]) => {
-        if (fits(qx, qy, top, KEEP_OFF)) return true;
-        if (!lean || !fits(qx, qy, top, KEEP_OFF & ~CELL_FLAG.PATH)) return false;
-        if ((a.classAt(Math.floor(qx), Math.floor(qy)) & (ZONE.LANE | ZONE.DOOR)) !== 0) return false;
-        // the corner pulled PATH_LEAN back toward the centre is off the path
-        const d = Math.hypot(px - qx, py - qy);
-        const t = d <= PATH_LEAN ? 1 : PATH_LEAN / d;
-        return fits(qx + (px - qx) * t, qy + (py - qy) * t, top, KEEP_OFF);
-      });
-    };
+    ): boolean =>
+      pieceFooting(ctx, px, py, p, yaw, { top, within: inPlace, ...(lean ? { lean: leanOver } : {}) }) !==
+      null;
     // how thick the floor is under a piece: the thinnest floor piece at its centre and its corners; an
     // outcrop's top is a rock column with no floor piece to sink into (the piece rests on it)
     const outcrops = g.outcropCells();
     const floorUnder = (px: number, py: number, p: ArrangePiece, yaw: number): number => {
-      const h = turnedHalfExtents(p.variant.geom.size.x, p.variant.geom.size.z, yaw);
       let least = Infinity;
-      for (const [qx, qy] of [
-        [px, py],
-        [px - h.x, py - h.z],
-        [px + h.x, py - h.z],
-        [px - h.x, py + h.z],
-        [px + h.x, py + h.z],
-      ] as const) {
+      for (const [qx, qy] of footprintPoints(px, py, p, yaw)) {
         const [cx, cy] = [Math.floor(qx), Math.floor(qy)];
         const c = g.cell(cx, cy);
         least = Math.min(
@@ -356,7 +326,9 @@ export const layeredGround: Recipe<"zone"> = {
       if (
         visible &&
         base < top - 1e-6 &&
-        !AROUND.every(([dx, dy]) => fits(px + dx * SUNK_CLEAR, py + dy * SUNK_CLEAR, top, KEEP_OFF))
+        !AROUND.every(([dx, dy]) =>
+          standsAt(ctx, px + dx * SUNK_CLEAR, py + dy * SUNK_CLEAR, top, KEEP_OFF, inPlace),
+        )
       )
         return;
       const q = single(p, yaw)[0] as Placed;
