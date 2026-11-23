@@ -956,9 +956,8 @@ function supportParts(d: VesselDesign, kit: ObjectKit): Part[] {
   return parts;
 }
 
-/** Where the raised deck aft begins: the stern, or forward of the kit's stern gallery (its top is the deck there). */
 /**
- * A raised deck reaches its end wall: its cells run up to the whole cell the wall's solid face stands in (the gallery's
+ * Where the raised deck aft begins. A raised deck reaches its end wall: its cells run up to the whole cell the wall's solid face stands in (the gallery's
  * face is 0.7 deep, so the deck runs to the stern's last cell, the wall's cap rising over its edge); with a wall a cell
  * or more deep, the deck stops at the wall.
  */
