@@ -55,6 +55,7 @@ import {
   vessel,
   vesselDesign,
   wholeCellsInside,
+  siteAreaId,
   type BuiltObject,
   type Condition,
   type PlacedObject,
@@ -433,7 +434,7 @@ function expandVessel(
   const mainName = design.openHold ? "Foredeck" : "Main deck";
   const main = surf.get("deck");
   const mainCells = main ? cellsOf(main.polygon) : [];
-  deckArea(deckLevel, `${spec.id}~deck`, mainName, mainCells);
+  deckArea(deckLevel, siteAreaId(spec.id, "deck"), mainName, mainCells);
   const raised: Array<{ end: "aft" | "fore"; surface: string; space: string; name: string }> = [
     {
       end: "aft",
@@ -456,9 +457,9 @@ function expandVessel(
     if (!s || !c) continue;
     const upper = levelFor(s.y - design.deck);
     const deckCells = cellsOf(s.polygon);
-    deckArea(upper, `${spec.id}~${r.surface}`, r.name, deckCells);
+    deckArea(upper, siteAreaId(spec.id, r.surface), r.name, deckCells);
     const cabin = VESSEL_CABINS[kind][r.end];
-    const id = `${spec.id}~cabin-${r.end}`;
+    const id = siteAreaId(spec.id, `cabin-${r.end}`);
     // a cabin is covered by its raised deck: only the cells under it
     const under = new Set(deckCells.map(key));
     const cells = cellsOf(c.polygon).filter((q) => under.has(key(q)));
@@ -473,7 +474,7 @@ function expandVessel(
   const split = holdRooms(holdCells, layout, kind, seedOf(plan, spec));
   const holdIds: AreaId[] = [];
   split.rooms.forEach((r, i) => {
-    const id = `${spec.id}~hold-${i + 1}`;
+    const id = siteAreaId(spec.id, `hold-${i + 1}`);
     room(holdLevel, id, r.name, r.kind, r.cells);
     holdIds.push(id);
   });
@@ -624,7 +625,7 @@ function expandVessel(
     }
     if (gangway.length > 0)
       addArea(deckLevel, {
-        id: `${spec.id}~gangway`,
+        id: siteAreaId(spec.id, "gangway"),
         kind: "courtyard",
         name: "Gangway",
         shape: maskOf(gangway),
@@ -667,7 +668,7 @@ function expandVessel(
     areas: areaIds,
     rooms,
     decks,
-    mainDeck: mainCells.length > 0 ? `${spec.id}~deck` : null,
+    mainDeck: mainCells.length > 0 ? siteAreaId(spec.id, "deck") : null,
     gangway,
     blocked,
   };

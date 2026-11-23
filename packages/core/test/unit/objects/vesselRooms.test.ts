@@ -306,6 +306,25 @@ describe("the harbour builds clean", () => {
     expect(found.map((d) => `${d.code} ${d.elementId ?? ""} ${d.message}`)).toEqual([]);
   });
 
+  it("excuses a hull's shell only under its own floors: under a foreign floor it is reported", () => {
+    const pokes = (r: ResolvedPlan): string[] =>
+      verifyBuild(r, realize(r, cat), cat)
+        .diagnostics.filter((d) => d.code === "verify_pokes_into_level_above")
+        .map((d) => d.message);
+    // its own deck below: the hull's shells round the vessel's rooms are no poke
+    expect(pokes(harbour.resolved)).toEqual([]);
+    // the same floors as another's (a quay deck, a bridge over a moored hull): the shells pierce them
+    const foreign: ResolvedPlan = {
+      ...harbour.resolved,
+      levels: harbour.resolved.levels.map((l) =>
+        l.id === "quay~below"
+          ? { ...l, areas: l.areas.map((a) => ({ ...a, id: a.id.replace(/~/g, "-") })) }
+          : l,
+      ),
+    };
+    expect(pokes(foreign).join(" ")).toContain("Ship bottom");
+  });
+
   it("places a rowing boat (a vessel with no rooms) as a plain object: no rooms, decks or areas, no error", () => {
     const skiff: ObjectSite["spec"] = {
       id: "skiff",

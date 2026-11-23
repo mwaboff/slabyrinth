@@ -20,6 +20,7 @@ export * from "./vesselProgramme";
 export * from "./stall";
 export * from "./platform";
 export * from "./facing";
+export * from "./siteIds";
 
 export const OBJECT_RECIPES = { vessel, stall, platform } as const;
 export type ObjectKind = keyof typeof OBJECT_RECIPES;
