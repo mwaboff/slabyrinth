@@ -345,5 +345,23 @@ export function programmesFor(kind: BuildingKind, cells: number): Programme[] {
   return row.programmes.filter((p) => cells >= p.minCells);
 }
 
+/** What the programme reads of a building's character (condition today; wealth and light later). */
+export interface ProgrammeCharacter {
+  readonly condition: "intact" | "weathered" | "ruined";
+}
+
+/**
+ * A building's character as the programme reads it: the one place its condition (and, once the character accessor
+ * lands on generator 5, its wealth and light) comes from, so that accessor replaces this body alone.
+ */
+export function programmeCharacter(b: {
+  readonly condition: ProgrammeCharacter["condition"];
+}): ProgrammeCharacter {
+  return { condition: b.condition };
+}
+
+/** A building whose ground storey gets rooms: not a ruin (its interior is its rubble). */
+export const furnishedCharacter = (c: ProgrammeCharacter): boolean => c.condition !== "ruined";
+
 /** The row of a kind (zones and single room included). */
 export const buildingKindRow = (kind: BuildingKind): BuildingKindRow => BUILDING_KINDS[kind];

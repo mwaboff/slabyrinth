@@ -27,6 +27,7 @@ import { decompose, splitGroundStorey } from "../../../src/resolve/building/room
 import { LevelGrid } from "../../../src/resolve/levelGrid";
 import { slabCodec } from "../../../src/slab";
 import { loadPlan } from "../../fixtures";
+import { sweepPlan } from "../../sweep/seeds";
 
 const pal = bundledPalettes();
 const street = loadPlan("building-rooms-street-v1");
@@ -211,6 +212,23 @@ describe("ground-storey rooms on the street fixture", () => {
         .sort();
     expect(upper(resolved5)).toEqual(upper(shell));
     expect(JSON.stringify(resolved5.levels[0]?.structures)).toBe(JSON.stringify(shell.levels[0]?.structures));
+  });
+});
+
+describe("the furnisher against partitions", () => {
+  it("keeps a companion set beside its anchor off a partition hosted in its cell (varied-street-v1, two seeds)", () => {
+    // a store's barrel was moved along the wall to its anchor and into the partition's strip (0.19 inside)
+    for (const seed of [2654435761, 3668339987]) {
+      const plan = sweepPlan("varied-street-v1", seed);
+      const bundle = compileResolved(resolvePlan(plan, pal), pal, slabCodec, { createdAt: "t", plan });
+      const inWall = bundle.diagnostics.filter(
+        (d) => d.code === "verify_prop_in_wall" && /~room/.test(d.message),
+      );
+      expect(
+        inWall.map((d) => d.message),
+        String(seed),
+      ).toEqual([]);
+    }
   });
 });
 

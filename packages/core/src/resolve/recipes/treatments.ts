@@ -82,6 +82,11 @@ export interface Subject {
   readonly severity: 0 | 1 | 2 | 3;
   /** A sacred or formal building (its words): the threshold options apply. */
   readonly role: "sacred" | "formal" | null;
+  /**
+   * Generator 5 (`readableTrims`): its theme makes a contrasting trim for its walls itself (not borrowed), so contrast
+   * is drawn more often. Absent: not asked.
+   */
+  readonly contrastOwn?: boolean;
 }
 
 export interface TreatmentOption {
@@ -170,8 +175,14 @@ export const TREATMENTS: readonly TreatmentFamily[] = [
     id: "trim",
     doc: "the material trims are made in: the wall's own, or a contrasting one the theme has",
     options: [
-      { id: "own", weight: () => 3, recipes: {} },
-      { id: "contrast", weight: (s) => (ruined(s) ? 0 : 1.5), recipes: {}, contrast: true },
+      // (where the theme makes a contrast itself, contrast is the likelier: own-material trim vanishes at a distance)
+      { id: "own", weight: (s) => (s.contrastOwn === true ? 2 : 3), recipes: {} },
+      {
+        id: "contrast",
+        weight: (s) => (ruined(s) ? 0 : s.contrastOwn === true ? 3 : 1.5),
+        recipes: {},
+        contrast: true,
+      },
     ],
   },
   {
@@ -362,6 +373,11 @@ export interface TreatmentInput {
   readonly defaultTheme: ThemeId;
   /** Whether a theme has trim pieces of a wall style (its post roles answer). */
   readonly hasTrim: (theme: ThemeId, style: string) => boolean;
+  /**
+   * Generator 5 (`readableTrims`): whether a theme makes trim pieces of a wall style itself (not borrowed). Given:
+   * contrast is drawn more often where it does, and its contrast is taken in a material it makes when it can.
+   */
+  readonly hasOwnTrim?: (theme: ThemeId, style: string) => boolean;
   /** The level's floor zones (what each area's floor says of it). */
   readonly zones: readonly ZoneAnchor[];
   /** The wall styles of the level walls each area sees. */
@@ -377,7 +393,10 @@ export function drawTreatments(input: TreatmentInput): Map<string, Treatment> {
   const { level: L, planSeed } = input;
   const families = input.families ?? TREATMENTS;
   const out = new Map<string, Treatment>();
-  const subjects = subjectsOf(L, input.defaultTheme, input.zones, input.areaWalls, input.words);
+  const own = input.hasOwnTrim;
+  const subjects = subjectsOf(L, input.defaultTheme, input.zones, input.areaWalls, input.words).map((s) =>
+    own ? { ...s, contrastOwn: contrastStyles(s, own).length > 0 } : s,
+  );
   for (const group of neighbourhoods(subjects)) {
     const gid = group[0]?.id ?? "";
     // the neighbourhood's own few treatments: each a draw named by the group and its number, distinct where it can be
@@ -470,14 +489,22 @@ function treat(
  * has trim pieces for; a building already showing two wall families trims in the other of the two. Null: none.
  */
 function contrastTrim(s: Subject, seed: string, input: TreatmentInput): string | null {
+  const styles = contrastStyles(s, input.hasTrim);
+  // (readableTrims: a material the theme makes itself before a borrowed one)
+  const own = input.hasOwnTrim ? contrastStyles(s, input.hasOwnTrim) : [];
+  const from = own.length > 0 ? own : styles;
+  if (from.length === 0) return null;
+  return from[Math.floor(hashUnitMixed(seed, "trim") * from.length)] ?? null;
+}
+
+/** The styles a subject's walls may be trimmed in by contrast (the wall table's row) that `has` says the theme has. */
+function contrastStyles(s: Subject, has: (theme: ThemeId, style: string) => boolean): string[] {
   const fams = [...new Set(s.walls.map((w) => wallStyleInfo(w)?.family).filter((f): f is WallFamily => !!f))];
   const own = fams[0] ?? wallStyleInfo(THEME_WALL_STYLE)?.family ?? "theme";
   const allowed: readonly WallFamily[] = fams.length >= 2 ? fams.slice(1) : FAMILY_TRIMS[own];
-  const styles = allowed
+  return allowed
     .map((f) => FAMILY_TRIM_STYLE[f])
-    .filter((st): st is NonNullable<typeof st> => st !== null && input.hasTrim(s.theme, st));
-  if (styles.length === 0) return null;
-  return styles[Math.floor(hashUnitMixed(seed, "trim") * styles.length)] ?? null;
+    .filter((st): st is NonNullable<typeof st> => st !== null && has(s.theme, st));
 }
 
 /**

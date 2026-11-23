@@ -56,7 +56,7 @@ import { isPassage, isSecret } from "../gen/openingKinds";
 import { along, faceRuns, key, ringOf } from "./building/footprint";
 import { placePorches } from "./building/porches";
 import { splitGroundStorey } from "./building/rooms";
-import { buildingKind } from "../gen/buildingProgramme";
+import { buildingKind, furnishedCharacter, programmeCharacter } from "../gen/buildingProgramme";
 import { THEME_WALL_STYLE } from "../gen/wallStyles";
 import type { BuildingPlan, StoreyPlan, VolumePlan } from "./building/types";
 import { groundFootprint, planVolumes, volumeSpecs } from "./building/volumes";
@@ -909,7 +909,8 @@ function addGroundRooms(
   b: BuildingPlan,
   shell: Area,
 ): void {
-  if (b.condition === "ruined" || shell.walls === "none" || shell.wallStyle === undefined) return;
+  if (!furnishedCharacter(programmeCharacter(b)) || shell.walls === "none" || shell.wallStyle === undefined)
+    return;
   // the plan describes the ground storey itself: its own rooms or corridors in the footprint, a dress op over the
   // building, or furniture of its own inside
   const inside = (c: readonly [number, number]): boolean => b.cellSet.has(key(c[0], c[1]));

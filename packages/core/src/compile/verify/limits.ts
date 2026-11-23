@@ -70,6 +70,8 @@ export const NUDGE_FOOTPRINT_SLACK = 0.1;
 export const NUDGE_CLEARANCE = 0.01;
 /** What a prop stands on may reach this far above the prop's base. */
 export const SUPPORT_SLACK = 0.06;
+/** A sunk arranged piece is in the ground tiles met within this of its centre (a centre on a seam between two). */
+export const SEAM_REACH = 0.02;
 /** A prop this far or more above what is under it floats. */
 export const FLOAT_TOLERANCE = 0.3;
 /** Overhead lines: an anchor reaches the line's height within this tolerance. */

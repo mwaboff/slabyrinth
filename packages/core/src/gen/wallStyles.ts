@@ -50,6 +50,12 @@ export interface WallStyleInfo {
    * wall (a stepped gable standing alone is masonry logic). Log palisades and half-timbered panels are not.
    */
   planks: boolean;
+  /**
+   * The generic palette's pieces for it are one setting's kit (desert adobe plaster, an abandoned village's planks), not
+   * a material that reads right anywhere (castle stone, brick). Generator 5 (`ownWallsFirst`): a theme whose own palette
+   * has no piece of the style builds such a building wall in the theme's own wall instead of borrowing the kit.
+   */
+  settingKit: boolean;
 }
 
 /** The material of each wall family, as a flat surface (a wall's top). "theme" is the palette's to say. */
@@ -103,6 +109,7 @@ const row = (family: WallFamily, flags: Partial<Omit<WallStyleInfo, "family">> =
   low: false,
   uneven: false,
   planks: false,
+  settingKit: false,
   surface: FAMILY_SURFACE[family],
   ...flags,
 });
@@ -111,9 +118,9 @@ export const WALL_STYLE_INFO: Record<WallStyle, WallStyleInfo> = {
   wall: row("theme", { uneven: true }),
   stone: row("stone", { uneven: true }),
   brick: row("brick", { uneven: true }),
-  wood: row("timber", { planks: true }),
+  wood: row("timber", { planks: true, settingKit: true }),
   cave_rock: row("rock", { natural: true }),
-  plaster: row("plaster"),
+  plaster: row("plaster", { settingKit: true }),
   palisade: row("timber"),
   fence: row("timber", { low: true }),
   hedge: row("plant"),
@@ -146,6 +153,14 @@ export function wallStyleInfo(style: string | null | undefined): WallStyleInfo |
   return style !== null && style !== undefined && KNOWN.has(style)
     ? WALL_STYLE_INFO[style as WallStyle]
     : undefined;
+}
+
+/**
+ * A role of a setting-kit style (`facade.plaster`, `facade_post.wood`, `wall.plaster` ...): the last part of the role
+ * names a style whose generic pieces are one setting's kit.
+ */
+export function isSettingKitRole(role: string): boolean {
+  return wallStyleInfo(role.split(".").pop())?.settingKit === true;
 }
 
 /** Natural rock walls (whole-cell blocks, solid mass behind them). */
