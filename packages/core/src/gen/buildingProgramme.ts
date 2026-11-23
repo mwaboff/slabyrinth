@@ -66,6 +66,12 @@ export interface Programme {
 }
 
 export interface BuildingKindRow {
+  /**
+   * Generator 5 (`wealthLooks`): a rich building of this kind may have a guardian pair flanking its door (a mansion, a
+   * temple, a keep); a trade's door (an inn, a shop, a workshop) takes lights at most (resolve/wealthLooks.ts
+   * DOOR_DRESSING). Absent: no.
+   */
+  readonly guardedDoor?: boolean;
   /** Words of the building (use, name, tags, notes, style) that name the kind; the first row that matches wins. */
   readonly words: RegExp;
   readonly programmes: readonly [Programme, ...Programme[]];
@@ -117,6 +123,7 @@ const WORKSHOP = (share: readonly [number, number], role: RoomRole = "public"): 
 /** One row per kind of building, tried in order; the last row (a dwelling) takes every building no other row names. */
 export const BUILDING_KINDS = {
   inn: {
+    guardedDoor: false,
     words:
       /\b(inns?|taverns?|alehouses?|pubs?|taprooms?|taphouses?|saloons?|hostelr(y|ies)|coaching house)\b/,
     programmes: [
@@ -148,6 +155,7 @@ export const BUILDING_KINDS = {
     single: TAPROOM([1, 1]),
   },
   workshop: {
+    guardedDoor: false,
     words:
       /\b(workshops?|smith(y|ies)?|blacksmiths?|forges?|coopers?|carpenters?|joiners?|wheelwrights?|masons?|tanner(y|ies|s)?|foundr(y|ies)|potter(y|ies|s)?|weavers?|mills?)\b/,
     programmes: [
@@ -175,6 +183,7 @@ export const BUILDING_KINDS = {
     single: WORKSHOP([1, 1]),
   },
   shop: {
+    guardedDoor: false,
     words:
       /\b(shops?|general store|stores?front|bakers?|baker(y|ies)|butchers?|cobblers?|tailors?|apothecar(y|ies)|chandler(y|ies|s)?|grocers?|merchants?|traders?|emporium|haberdasher(y|s)?|bookshops?|pawnshops?|jewell?ers?|drapers?|milliners?|boutiques?)\b/,
     programmes: [
@@ -201,6 +210,7 @@ export const BUILDING_KINDS = {
     single: SHOP_FLOOR([1, 1]),
   },
   sacred: {
+    guardedDoor: true,
     words:
       /\b(temples?|shrines?|chapels?|church(es)?|sanctuar(y|ies)|monaster(y|ies)|abbey|oratory|kirk|mausoleum)\b/,
     programmes: [
@@ -218,6 +228,7 @@ export const BUILDING_KINDS = {
     single: R("Shrine", "shrine", "public", [1, 1], 4),
   },
   guard: {
+    guardedDoor: true,
     words: /\b(guards?|guardhouses?|barracks|garrison|watch ?house|gatehouse|keeps?|outpost)\b/,
     programmes: [
       {
@@ -249,6 +260,7 @@ export const BUILDING_KINDS = {
   // generator 5 (cellRows): a stable is stalls (its room a stable, lined with stalls) and a tack room; an infirmary a
   // ward (lined with bays) and a store. Both rows come before the barn, whose words they once fell under
   stable: {
+    guardedDoor: false,
     words: /\b(stables?|byres?|livery|liveries|kennels?|mews|cowsheds?)\b/,
     programmes: [
       {
@@ -269,6 +281,7 @@ export const BUILDING_KINDS = {
     single: R("Stable", "stable", "public", [1, 1], 4),
   },
   infirmary: {
+    guardedDoor: false,
     words: /\b(infirmar(y|ies)|hospitals?|hospices?|sickhouses?|sickrooms?|clinics?|lazarettos?)\b/,
     programmes: [
       {
@@ -288,6 +301,7 @@ export const BUILDING_KINDS = {
     single: R("Ward", "ward", "public", [1, 1], 4),
   },
   barn: {
+    guardedDoor: false,
     words: /\b(warehouses?|storehouses?|granar(y|ies)|barns?|sheds?|depot)\b/,
     programmes: [
       {
@@ -307,6 +321,7 @@ export const BUILDING_KINDS = {
     single: R("Store room", "storeroom", "public", [1, 1], 4),
   },
   dwelling: {
+    guardedDoor: true,
     words: /.*/,
     programmes: [
       {

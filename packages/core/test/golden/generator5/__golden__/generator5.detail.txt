@@ -4003,7 +4003,7 @@ plans/market-street-v3 diag info verify_prop_nudged 10
 plans/market-street-v3 review focal_unlit 1
 plans/market-street-v3 review pieces_substituted 1
 plans/market-street-v3 review roofs_alike 1
-plans/market-street-v3@5 g pieces feature 628
+plans/market-street-v3@5 g pieces feature 630
 plans/market-street-v3@5 g pieces fill 130
 plans/market-street-v3@5 g pieces floor 962
 plans/market-street-v3@5 g pieces ledge 144
@@ -4012,7 +4012,7 @@ plans/market-street-v3@5 g pieces wall 1507
 plans/market-street-v3@5 g pieces wall_post 254
 plans/market-street-v3@5 g layer roof 1064
 plans/market-street-v3@5 g layer site 1634
-plans/market-street-v3@5 g layer storey:0 762
+plans/market-street-v3@5 g layer storey:0 764
 plans/market-street-v3@5 g layer storey:1 234
 plans/market-street-v3@5 g part apothecary~canopy 4
 plans/market-street-v3@5 g part apothecary~deck 10
@@ -4049,6 +4049,7 @@ plans/market-street-v3@5 g part apothecary~wall 8
 plans/market-street-v3@5 g part apothecary~window0 1
 plans/market-street-v3@5 g part apothecary~window1 1
 plans/market-street-v3@5 g part apothecary~window2 1
+plans/market-street-v3@5 g part approachLights@face:B:inn:front:0:out:S:13:1:op:inn~door0 2
 plans/market-street-v3@5 g part baker~canopy 5
 plans/market-street-v3@5 g part baker~chimney 10
 plans/market-street-v3@5 g part baker~deck 12
@@ -6156,7 +6157,6 @@ plans/two-quarters-v1 g layer site 2443
 plans/two-quarters-v1 g layer storey:0 701
 plans/two-quarters-v1 g layer storey:1 224
 plans/two-quarters-v1 g part approachLights@face:B:swan:front:0:out:S:11:3:op:swan~door0 2
-plans/two-quarters-v1 g part approachLights@face:B:town3:main:0:out:N:20:26:op:town3~door0 2
 plans/two-quarters-v1 g part bucket~deck 22
 plans/two-quarters-v1 g part bucket~door0 2
 plans/two-quarters-v1 g part bucket~floor1 22
@@ -6291,6 +6291,7 @@ plans/two-quarters-v1 g part goldsmith~window3 1
 plans/two-quarters-v1 g part goldsmith~window4 1
 plans/two-quarters-v1 g part goldsmith~window5 1
 plans/two-quarters-v1 g part guardianPair@face:B:town2:main:0:out:N:20:6:op:town2~door0 2
+plans/two-quarters-v1 g part guardianPair@face:B:town3:main:0:out:N:20:26:op:town3~door0 2
 plans/two-quarters-v1 g part hovel1~deck 15
 plans/two-quarters-v1 g part hovel1~door0 2
 plans/two-quarters-v1 g part hovel1~footing 25

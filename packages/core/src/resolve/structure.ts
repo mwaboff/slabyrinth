@@ -41,7 +41,7 @@ import type { PaletteView } from "../palette/view";
 import { own } from "../util/own";
 import { roofKitInfo, roofTone } from "./roofKits";
 import { roofInfo } from "./roofTypes";
-import { themeRange, type ThemeRange } from "./themeRange";
+import { RANGE_WEIGHTS, themeRange, type ThemeRange } from "./themeRange";
 import { drawStructureOption } from "./recipes/treatments";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { OPPOSITE, SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
@@ -1019,11 +1019,6 @@ function streetLook(
 const DESIGN_ROOF_TYPES: Readonly<Record<string, string>> = { gable_cross: "gable", skirt_spire: "skirt" };
 const designRoofType = (roof: string): RoofType => (own(DESIGN_ROOF_TYPES, roof) ?? roof) as RoofType;
 
-/** (themeOwnRange) Borrowed wall materials keep this share of their weight. */
-const BORROWED_WALL = 1 / 3;
-/** (themeOwnRange) A theme whose own roof is flat draws flat roofs at this share of the pitched roofs' weight. */
-const OWN_FLAT = 0.8;
-
 /**
  * (wealthLooks) A design space reweighted by a building's wealth: its wall materials by their finish, and with a quarter
  * kit, that roof kit QUARTER_KIT times as likely (resolve/wealthLooks.ts). No wealth: the space as it is.
@@ -1044,17 +1039,15 @@ function wealthSpace(
   return out;
 }
 
-/** (roofFormsFit) A theme with no flat roof kit of its own draws flat roofs at this share of their weight. */
-const FOREIGN_FLAT = 0.15;
-
 /**
  * A design space drawn in the theme's own range first (see `themeOwnRange`); with `formsFit` (`roofFormsFit`), a theme
- * that has no flat roof kit of its own draws flat roofs at FOREIGN_FLAT of their weight.
+ * that has no flat roof kit of its own draws flat roofs at RANGE_WEIGHTS.foreignFlat of their weight.
  */
 function ownRangeSpace(space: DesignSpace, range: ThemeRange, formsFit = false): DesignSpace {
+  const { borrowedWall, ownFlat, foreignFlat } = RANGE_WEIGHTS;
   const scaled = (w: Weights | undefined): Weights | undefined =>
     w
-      ? Object.fromEntries(Object.entries(w).map(([m, v]) => [m, range.ownWall(m) ? v : v * BORROWED_WALL]))
+      ? Object.fromEntries(Object.entries(w).map(([m, v]) => [m, range.ownWall(m) ? v : v * borrowedWall]))
       : undefined;
   const out: { -readonly [K in keyof DesignSpace]: DesignSpace[K] } = { ...space };
   const materials = scaled(space.materials);
@@ -1068,12 +1061,12 @@ function ownRangeSpace(space: DesignSpace, range: ThemeRange, formsFit = false):
     const pitched = Object.entries(space.roofs)
       .filter(([k]) => roofInfo(designRoofType(k))?.pitched === true)
       .reduce((s, [, v]) => s + v, 0);
-    out.roofs = { ...space.roofs, flat: pitched * OWN_FLAT };
+    out.roofs = { ...space.roofs, flat: pitched * ownFlat };
     out.roofSurfaces = { [flatKit]: 1 };
   }
   const flatW = space.roofs.flat;
   if (formsFit && flatKit === undefined && flatW !== undefined)
-    out.roofs = { ...out.roofs, flat: flatW * FOREIGN_FLAT };
+    out.roofs = { ...out.roofs, flat: flatW * foreignFlat };
   return out;
 }
 

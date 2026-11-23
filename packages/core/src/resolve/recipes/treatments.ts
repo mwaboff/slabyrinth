@@ -48,7 +48,9 @@ import {
   wallStyleInfo,
   type WallFamily,
 } from "../../gen/wallStyles";
+import { BUILDING_KINDS, buildingKind, type BuildingKindRow } from "../../gen/buildingProgramme";
 import { hashUnitMixed } from "../../util/hash";
+import { DOOR_DRESSING } from "../wealthLooks";
 import { maxOf } from "../../util/lists";
 import type { ZoneAnchor } from "../anchors";
 import { boxGap, cellsBox, type CellBox } from "../neighbours";
@@ -97,6 +99,8 @@ export interface Subject {
   readonly wealth?: 0 | 1 | 2 | 3;
   /** Generator 5 (`wealthLooks`): its trims are reweighted by WEALTH_WEIGHT_FIRM. Absent: by WEALTH_WEIGHT. */
   readonly firmWealth?: boolean;
+  /** A building whose kind's door suits a guardian pair (gen/buildingProgramme.ts `guardedDoor`). */
+  readonly guardedDoor?: boolean;
 }
 
 /** Wealth's multipliers (poor, modest, wealthy, lavish) on the options it reweights; modest leaves them as they were. */
@@ -159,12 +163,22 @@ const masonry = (s: Subject): boolean =>
   });
 const ruined = (s: Subject): boolean => s.condition === "ruined";
 /**
- * The threshold role a subject is dressed by: its words', else (`wealthLooks`) a lavish building's door is dressed as a
- * formal one (a lit approach, a guardian pair) and a wealthy one's may have its lights.
+ * A threshold option's weight for a subject: by its words' role (sacred, formal), else (`wealthLooks`) a building's door
+ * by its wealth (resolve/wealthLooks.ts DOOR_DRESSING), guardians only where its kind's door suits them.
  */
-const roleOf = (s: Subject): Subject["role"] =>
-  s.role ??
-  (s.firmWealth === true && s.kind === "building" && s.wealth === 3 && !ruined(s) ? "formal" : null);
+function threshold(
+  s: Subject,
+  option: keyof typeof DOOR_DRESSING,
+  sacred: number,
+  formal: number,
+  guards: boolean,
+): number {
+  if (s.role === "sacred") return sacred;
+  if (s.role === "formal") return formal;
+  if (s.firmWealth !== true || s.kind !== "building" || s.wealth === undefined)
+    return option === "plain" ? 1 : 0;
+  return guards && s.guardedDoor !== true ? 0 : DOOR_DRESSING[option][s.wealth];
+}
 const building = (s: Subject): boolean => s.kind === "building";
 
 /**
@@ -294,29 +308,24 @@ export const TREATMENTS: readonly TreatmentFamily[] = [
     options: [
       {
         id: "guardians",
-        weight: (s) => (roleOf(s) === "sacred" ? 3 : roleOf(s) === "formal" ? 1.5 : 0),
+        weight: (s) => (ruined(s) && s.role === null ? 0 : threshold(s, "guardians", 3, 1.5, true)),
         recipes: { guardianPair: "pair" },
       },
       {
         id: "lights",
-        weight: (s) =>
-          ruined(s)
-            ? 0
-            : roleOf(s) === "sacred"
-              ? 2
-              : roleOf(s) === "formal"
-                ? 1.5
-                : s.firmWealth === true && s.kind === "building" && s.wealth === 2
-                  ? 0.6
-                  : 0,
+        weight: (s) => (ruined(s) ? 0 : threshold(s, "lights", 2, 1.5, false)),
         recipes: { approachLights: "pair" },
       },
       {
         id: "both",
-        weight: (s) => (ruined(s) ? 0 : roleOf(s) === "sacred" ? 2 : roleOf(s) === "formal" ? 0.5 : 0),
+        weight: (s) => (ruined(s) ? 0 : threshold(s, "both", 2, 0.5, true)),
         recipes: { guardianPair: "pair", approachLights: "pair" },
       },
-      { id: "plain", weight: (s) => (roleOf(s) === null ? 1 : 1.5), recipes: {} },
+      {
+        id: "plain",
+        weight: (s) => (s.role === null ? threshold(s, "plain", 1.5, 1.5, false) : 1.5),
+        recipes: {},
+      },
     ],
   },
 ];
@@ -427,6 +436,7 @@ export function buildingSubject(
     state,
     severity: character !== null ? (character.severity ?? 0) : st.severity,
     role: st.sacred ? "sacred" : st.formal ? "formal" : null,
+    guardedDoor: (BUILDING_KINDS[buildingKind(words)] as BuildingKindRow).guardedDoor === true,
     ...(character !== null ? { wealth: wealthIndex(character) } : {}),
   };
 }

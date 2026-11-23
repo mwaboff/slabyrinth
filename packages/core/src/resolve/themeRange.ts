@@ -19,6 +19,14 @@ import { roofRole, wallRole } from "../palette/roles";
 import type { PaletteView } from "../palette/view";
 import { ROOF_KITS } from "./roofKits";
 
+/**
+ * How the style draw weighs what is outside a theme's own range (resolve/structure.ts ownRangeSpace):
+ *   borrowedWall  (themeOwnRange) a wall material the theme only borrows keeps this share of its weight
+ *   ownFlat       (themeOwnRange) a theme whose own roof kit is flat draws flat roofs at this share of the pitched ones
+ *   foreignFlat   (roofFormsFit) a theme with no flat roof kit of its own draws flat roofs at this share of their weight
+ */
+export const RANGE_WEIGHTS = { borrowedWall: 1 / 3, ownFlat: 0.8, foreignFlat: 0.15 } as const;
+
 export interface ThemeRange {
   /** Whether a wall material is built in the theme's own pieces. */
   readonly ownWall: (material: string) => boolean;

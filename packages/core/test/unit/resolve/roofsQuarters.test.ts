@@ -287,6 +287,32 @@ describe("wealthLooks: the four wealth steps read apart from the street", () => 
   }, 30_000); // (four street builds)
 });
 
+describe("wealthLooks dresses a rich door by its use and with variety", () => {
+  it("never stands guardians at a lavish inn's, shop's or workshop's door; lights at some rich doors, never all", () => {
+    let tradeGuards = 0;
+    let homeGuards = 0;
+    let lit = 0;
+    let rich = 0;
+    for (const i of [0, 1, 2, 3, 4, 5]) {
+      const L = resolvePlan(streetAtWealth(i, "lavish", "wood_town"), pal).levels[0];
+      for (const st of L?.structures ?? []) {
+        if (st.kind !== "building" || L?.character?.[st.id]?.wealth !== "lavish") continue;
+        const mine = (L.arrangements ?? []).filter((a) => a.host === st.id);
+        const guards = mine.some((a) => a.recipe === "guardianPair");
+        const trade = /baker|tavern|workshop|shop/.test(st.design?.use ?? "");
+        if (guards && trade) tradeGuards++;
+        if (guards && !trade) homeGuards++;
+        if (mine.some((a) => a.recipe === "approachLights")) lit++;
+        rich++;
+      }
+    }
+    expect(tradeGuards).toBe(0);
+    expect(homeGuards).toBeGreaterThan(0);
+    expect(lit).toBeGreaterThan(0);
+    expect(lit).toBeLessThan(rich * 0.8);
+  }, 30_000); // (six street builds)
+});
+
 describe("wealthLooks leaves modest as the style's own draw (modest is the scene default)", () => {
   const plans: StoredPlan[] = ["varied-street-v1", "ground-and-walls-v1", "building-rooms-street-v1"];
   /** The plan with its levels and every building stated modest (nothing can spread off it). */

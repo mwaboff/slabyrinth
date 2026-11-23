@@ -31,6 +31,22 @@ export const WEALTH_FINISH: Readonly<Record<WallFinish, readonly [number, number
 /** A wealthy or lavish building's weight multiplier on its quarter's roof kit (the first a well-off neighbour drew). */
 export const QUARTER_KIT = 6;
 
+/**
+ * How a building's door is dressed by its wealth when its words give it no sacred or formal role (the threshold family,
+ * resolve/recipes/treatments.ts): weights per wealth step (poor, modest, wealthy, lavish) of nothing, a light pair at
+ * its approach, a guardian pair, both. A guardian pair only for a kind whose door suits one (gen/buildingProgramme.ts
+ * `guardedDoor`: a mansion, a temple, a keep; never an inn's or a shop's): elsewhere those weights are 0. Always a
+ * plain option of real weight, so lights at a rich door are a choice among several, never every door.
+ */
+export const DOOR_DRESSING: Readonly<
+  Record<"plain" | "lights" | "guardians" | "both", readonly [number, number, number, number]>
+> = {
+  plain: [1, 1, 1, 1],
+  lights: [0, 0, 0.6, 1],
+  guardians: [0, 0, 0.15, 0.6],
+  both: [0, 0, 0, 0.4],
+};
+
 /** Whether a wealth step keeps its quarter's roofs alike. */
 export const keepsRoofsAlike = (w: WealthStep): boolean => w >= 2;
 
