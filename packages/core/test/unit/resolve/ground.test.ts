@@ -93,7 +93,8 @@ describe("layered ground on ground-and-walls-v1", () => {
   it("covers about 25-35 % of open natural ground outdoors, at least half of it within a tile of an edge", () => {
     const c = coverage("yard", all.attached);
     expect(c.share).toBeGreaterThanOrEqual(0.2);
-    expect(c.share).toBeLessThanOrEqual(0.4);
+    // (by boxes: with `visibleGround` the share is laid to what is seen, which boxes read higher; streetCondition.test)
+    expect(c.share).toBeLessThanOrEqual(0.5);
     expect(c.nearEdge).toBeGreaterThanOrEqual(0.5);
   });
 

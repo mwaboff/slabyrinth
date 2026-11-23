@@ -7,7 +7,17 @@
  *   leanUnderMain  a lean-to stands under the house's ridge (resolve/structureVariety.ts, resolve/structure.ts).
  */
 import { afterEach, describe, expect, it } from "vitest";
+import { planPointOf } from "../../../src/arrange";
 import { realize } from "../../../src/compile";
+import { CELL_FLAG } from "../../../src/contracts/resolved";
+import { LevelAnchors, ZONE } from "../../../src/resolve/anchors";
+import {
+  COVER_RASTER,
+  coverKind,
+  coveredSamples,
+  sampleCell,
+  type CoverShape,
+} from "../../../src/util/visibleCover";
 import type { MapPlan } from "../../../src/contracts/plan";
 import type { ResolvedLevel, ResolvedPlan, ResolvedStructure } from "../../../src/contracts/resolved";
 import { wallStyleInfo } from "../../../src/gen/wallStyles";
@@ -302,6 +312,85 @@ describe("chimneyScale: a chimney's foot fits its face", () => {
     expect(widest()).toBe(1);
     without("chimneyScale");
     expect(widest()).toBe(3);
+  });
+});
+
+describe("visibleGround: cover gathered where ground meets something, litter only near use", () => {
+  /** The green's cover, by what is seen: in its edge band (a step from an edge) and its open middle. */
+  function cover(theme: string): { edge: number; middle: number; farLitter: number } {
+    const plan = { ...loadPlan("varied-street-v1"), theme };
+    const r = resolvePlan(plan, pal);
+    const L = r.levels[0] as ResolvedLevel;
+    const view = resolveView(plan, pal);
+    const zone = new LevelAnchors(L).of("zone").find((z) => z.area === "green");
+    if (!zone) throw new Error("no green");
+    const g = new LevelAnchors(L).grid;
+    const open = new Set(
+      zone.cells
+        .filter(([x, y]) => {
+          const f = L.cells.flags[g.index(x, y)] ?? 0;
+          return (f & CELL_FLAG.PATH) === 0 && (zone.classAt(x, y) & (ZONE.LANE | ZONE.DOOR)) === 0;
+        })
+        .map(([x, y]) => `${x},${y}`),
+    );
+    const used = zone.cells.filter(
+      ([x, y]) =>
+        ((L.cells.flags[g.index(x, y)] ?? 0) & CELL_FLAG.PATH) !== 0 ||
+        (zone.classAt(x, y) & (ZONE.LANE | ZONE.DOOR)) !== 0,
+    );
+    const shapes: CoverShape[] = [];
+    let farLitter = 0;
+    for (const a of L.arrangements ?? []) {
+      if (a.recipe !== "layeredGround" || a.host !== "green") continue;
+      for (const p of a.pieces) {
+        const v = view.roles
+          .resolve(view.roles.paletteTheme(p.palette), p.role)
+          .resolution?.variants.find((q) => q.wanted === p.asset);
+        if (!v) continue;
+        const [x, y] = planPointOf(a.at, a.turn, p.x, p.z);
+        shapes.push({
+          x,
+          y,
+          sx: v.geom.size.x,
+          sz: v.geom.size.z,
+          yaw: a.turn + p.yaw,
+          kind: coverKind(p.role, v.geom.size.y),
+        });
+        // a flat piece more than four cells (two of reach, a cluster's spread) from any door's apron, lane or path
+        if (
+          v.geom.size.y <= 0.17 &&
+          !used.some(([ux, uy]) => Math.max(Math.abs(ux + 0.5 - x), Math.abs(uy + 0.5 - y)) <= 4)
+        )
+          farLitter++;
+      }
+    }
+    let edge = 0;
+    let middle = 0;
+    for (const s of coveredSamples(shapes, (cx, cy) => open.has(`${cx},${cy}`))) {
+      const [cx, cy] = sampleCell(s);
+      if (zone.edgeAt(cx, cy) <= 1) edge++;
+      else middle++;
+    }
+    const cells = [...open].map((k) => k.split(",").map(Number) as [number, number]);
+    const edgeCells = cells.filter(([x, y]) => zone.edgeAt(x, y) <= 1).length;
+    const per = COVER_RASTER * COVER_RASTER;
+    return { edge: edge / (per * edgeCells), middle: middle / (per * (cells.length - edgeCells)), farLitter };
+  }
+
+  it("covers the edge band several times as thickly as the open middle; without the switch about evenly", () => {
+    const on = cover("wood_town");
+    expect(on.edge).toBeGreaterThan(0.25);
+    expect(on.middle).toBeLessThan(0.1);
+    expect(on.edge / on.middle).toBeGreaterThan(3.5);
+    without("visibleGround");
+    const off = cover("wood_town");
+    expect(off.edge / off.middle).toBeLessThan(3);
+  });
+
+  it("lays the city's litter only near its doors, lanes and paths; without the switch over the open grass", () => {
+    expect(cover("city").farLitter).toBe(0);
+    without("visibleGround");
+    expect(cover("city").farLitter).toBeGreaterThan(20);
   });
 });
 

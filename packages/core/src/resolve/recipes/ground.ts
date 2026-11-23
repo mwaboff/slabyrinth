@@ -27,6 +27,13 @@ import { single, type Arrangement, type ArrangePiece, type Placed } from "../../
 import { CELL_FLAG } from "../../contracts/resolved";
 import { hashUnitMixed } from "../../util/hash";
 import { turnedHalfExtents } from "../../util/turn";
+import {
+  COVER_RASTER,
+  coverKind,
+  coveredSamples,
+  sampleCell,
+  type CoverShape,
+} from "../../util/visibleCover";
 import { ZONE, type ZoneAnchor } from "../anchors";
 import type { ComposeCtx, FilledSlot, Recipe } from "./types";
 
@@ -67,6 +74,32 @@ const OVERLAP_KEPT = 0.75;
 const CORRECTION = [0.5, 3] as const;
 /** Share of a natural place's clusters that are anchored (the rest are the flat-pair clusters). */
 const ANCHORED = { middle: 0.45, edge: 0.7 } as const;
+
+/**
+ * Generator 5 (`visibleGround`), measured on the owner's screenshots of the varied street (the box measure said 30-42 %,
+ * the street showed 10-15 % spread evenly, litter far from any street): cover is laid to a share of what is SEEN
+ * (util/visibleCover.ts), gathered where ground meets something and opened up in the middle:
+ *   the edge band (a step from an edge) gets BAND_SHARE times the place's share (at most BAND_MAX), a corner more;
+ *   the middle MIDDLE_SHARE times it, as anchored clumps only;
+ *   flat cover (litter, pebbles) only within USE_REACH of a door's apron, a lane or a path.
+ */
+const BAND_SHARE = 1.6;
+const BAND_MAX = 0.6;
+const MIDDLE_SHARE = 0.15;
+const USE_REACH = 2;
+/** A cell with more than three of its eight neighbours off the place (an inner corner) weighs this much more each. */
+const CORNER_STEP = 0.5;
+const CORNER_MAX = 2;
+const AROUND = [
+  [-1, -1],
+  [0, -1],
+  [1, -1],
+  [-1, 0],
+  [1, 0],
+  [-1, 1],
+  [0, 1],
+  [1, 1],
+] as const;
 
 const flatOf = (ps: readonly ArrangePiece[]): ArrangePiece[] =>
   ps.filter((p) => p.measures.height <= FLAT_H && p.measures.footprint >= 0.05);
@@ -179,10 +212,38 @@ export const layeredGround: Recipe<"zone"> = {
     const open = openCells(a, ctx);
     const cells = open.filter(([x, y]) => !edgesOnly || a.edgeAt(x, y) <= 1);
     if (cells.length === 0 || share <= 0) return null;
+    // (visibleGround) the edge and the middle are laid at rates of their own, a corner more than a straight edge
+    // (outdoors only: a room's floor cover keeps its own rule, among furniture the room furnisher places)
+    const visible = ctx.profile.visibleGround && clusters && !a.indoor;
+    const outsideAround = (x: number, y: number): number => {
+      let n = 0;
+      for (const [dx, dy] of AROUND) if (a.classAt(x + dx, y + dy) === 0) n++;
+      return n;
+    };
+    const rates = { edge: 1, middle: 1 };
     const weightOf = (x: number, y: number): number => {
       const d = a.edgeAt(x, y);
+      if (visible)
+        return d <= 1
+          ? NEAR_WEIGHT *
+              rates.edge *
+              Math.min(CORNER_MAX, 1 + CORNER_STEP * Math.max(0, outsideAround(x, y) - 3))
+          : rates.middle;
       return d <= 1 ? NEAR_WEIGHT : d <= NEAR_REACH + 0.5 ? 1.5 : 1;
     };
+    // (visibleGround) where the place is used: within USE_REACH of a door's apron, a lane or a path; flat cover (litter,
+    // pebbles) lies only there
+    const useCells = new Set<string>();
+    if (visible)
+      for (const [x, y] of a.cells) {
+        const used =
+          (a.classAt(x, y) & (ZONE.LANE | ZONE.DOOR)) !== 0 ||
+          ((ctx.level.cells.flags[ctx.anchors.grid.index(x, y)] ?? 0) & CELL_FLAG.PATH) !== 0;
+        if (!used) continue;
+        for (let dy = -USE_REACH; dy <= USE_REACH; dy++)
+          for (let dx = -USE_REACH; dx <= USE_REACH; dx++) useCells.add(`${x + dx},${y + dy}`);
+      }
+    const nearUse = (x: number, y: number): boolean => !visible || useCells.has(`${x},${y}`);
     // a cluster covers about its main flat piece and (three times in four) a partner, less their overlap and what
     // is left out at a path or a drop
     const main = flat.length > 0 ? flat : low;
@@ -287,7 +348,10 @@ export const layeredGround: Recipe<"zone"> = {
       const cx = x + 0.2 + 0.6 * draw("x", x, y);
       const cy = y + 0.2 + 0.6 * draw("y", x, y);
       const near = a.edgeAt(x, y) <= 1;
-      if (clusters && draw("anchored", x, y) < anchoredAt(near)) {
+      const used = nearUse(x, y);
+      // (visibleGround) the open middle has clumps only: an anchored cluster, never a lone flat pair
+      if (visible && !near && anchors.length === 0) return;
+      if (clusters && (draw("anchored", x, y) < anchoredAt(near) || (visible && !near))) {
         // an anchor piece, sunk, with its companions round it (flat ones lying, low ones sunk), mixed by hash
         const m = anchors[Math.floor(draw("anchor", x, y) * anchors.length)] as ArrangePiece;
         put(
@@ -302,8 +366,10 @@ export const layeredGround: Recipe<"zone"> = {
         const [c0, c1] = near ? COMPANIONS.edge : COMPANIONS.middle;
         const n = c0 + Math.floor(draw("companions", x, y) * (c1 - c0 + 1));
         const turn0 = draw("ring", x, y) * 2 * Math.PI;
-        for (let i = 0; i < n && companions.length > 0; i++) {
-          const q = companions[Math.floor(draw("companion", x, y, i) * companions.length)] as ArrangePiece;
+        // (visibleGround: flat companions, litter and pebbles, only where the place is used)
+        const mates = used || low.length === 0 ? companions : low;
+        for (let i = 0; i < n && mates.length > 0 && (used || !visible || low.length > 0); i++) {
+          const q = mates[Math.floor(draw("companion", x, y, i) * mates.length)] as ArrangePiece;
           const ang = turn0 + (i * 2 * Math.PI) / n + (draw("ringJit", x, y, i) - 0.5) * 0.9;
           const r = 0.4 * m.measures.length + 0.3 * q.measures.length + 0.15 * draw("ringR", x, y, i);
           const isFlat = q.measures.height <= FLAT_H;
@@ -321,7 +387,7 @@ export const layeredGround: Recipe<"zone"> = {
         }
         return;
       }
-      if (flat.length > 0) {
+      if (flat.length > 0 && used) {
         const m = flat[Math.floor(draw("flat", x, y) * flat.length)] as ArrangePiece;
         const yaw = Math.floor(draw("yaw", x, y) * 24) * 15;
         put(out, m, cx, cy, ground, ground, yaw, clusters);
@@ -376,9 +442,42 @@ export const layeredGround: Recipe<"zone"> = {
       }
     };
     lay(k);
-    // (groundClusters) the estimate is corrected once by what the layout really covered (pieces that did not fit at an
-    // edge, a path or a drop): the rate is scaled to the target, within CORRECTION
-    if (clusters) {
+    if (visible) {
+      // (visibleGround) the edge and the middle each corrected to their own share of VISIBLE cover (the pieces' seen
+      // area, util/visibleCover.ts), twice, each step within CORRECTION
+      const openSet = new Set(open.map(([x, y]) => `${x},${y}`));
+      const edgeCells = open.filter(([x, y]) => a.edgeAt(x, y) <= 1).length;
+      const middleCells = open.length - edgeCells;
+      const want = { edge: Math.min(BAND_MAX, share * BAND_SHARE), middle: share * MIDDLE_SHARE };
+      for (let step = 0; step < 2; step++) {
+        const shapes: CoverShape[] = [...out, ...lows].map((q) => ({
+          x: q.x + f.at[0],
+          y: f.at[1] - q.z,
+          sx: q.piece.variant.geom.size.x,
+          sz: q.piece.variant.geom.size.z,
+          yaw: f.turn + q.yaw,
+          kind: coverKind(q.piece.role, q.piece.measures.height),
+        }));
+        const seen = { edge: 0, middle: 0 };
+        for (const s of coveredSamples(shapes, (cx, cy) => openSet.has(`${cx},${cy}`))) {
+          const [cx, cy] = sampleCell(s);
+          if (a.edgeAt(cx, cy) <= 1) seen.edge++;
+          else seen.middle++;
+        }
+        const per = COVER_RASTER * COVER_RASTER;
+        const fix = (part: "edge" | "middle", cellsOf: number): void => {
+          if (cellsOf === 0) return;
+          const got = seen[part] / (per * cellsOf);
+          rates[part] *=
+            got > 0 ? Math.min(CORRECTION[1], Math.max(CORRECTION[0], want[part] / got)) : CORRECTION[1];
+        };
+        fix("edge", edgeCells);
+        fix("middle", middleCells);
+        lay(k);
+      }
+    } else if (clusters) {
+      // (groundClusters) the estimate is corrected once by what the layout really covered (pieces that did not fit at
+      // an edge, a path or a drop): the rate is scaled to the target, within CORRECTION
       const laid = [...out, ...lows].reduce((s, q) => s + q.piece.measures.footprint, 0) * OVERLAP_KEPT;
       const target = share * open.length;
       if (laid > 0) lay(k * Math.min(CORRECTION[1], Math.max(CORRECTION[0], target / laid)));

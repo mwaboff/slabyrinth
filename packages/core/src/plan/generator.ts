@@ -492,6 +492,10 @@ const SWITCHES = {
     5,
     "A chimney breast is three wide at its foot only on a gable face of nine cells or more (a third of the face at most); on a smaller house it is one stack (compile/realize/structures/attachments.ts).",
   ),
+  visibleGround: on(
+    5,
+    "Layered ground is laid to a share of what is seen (each piece's inscribed ellipse times the share its kind fills, util/visibleCover.ts; the box measure read 30-42 % where the street showed 10-15 %): the band a tile from an edge gets 1.6 times the place's share, a corner more, the open middle 0.15 times it as anchored clumps only; flat cover (litter, pebbles) lies only within two cells of a door's apron, a lane or a path (resolve/recipes/ground.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */
