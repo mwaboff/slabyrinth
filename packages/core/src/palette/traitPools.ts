@@ -35,6 +35,7 @@ import {
   GENERIC_THEME,
   themeChain,
   usableVariants,
+  variantVisible,
   type ResolvedVariant,
   type ResolvePalettes,
 } from "./resolve";
@@ -149,6 +150,7 @@ export function traitPool(
       const risk = borrowRisk(role);
       if (risk === null || allowed.has(risk)) continue;
       for (const v of def.variants) {
+        if (!variantVisible(v, generator)) continue;
         risky.add(v.asset.toLowerCase());
         for (const alt of v.alternates ?? []) risky.add(alt.toLowerCase());
       }
@@ -163,7 +165,7 @@ export function traitPool(
     for (const [role, def] of visibleRoles(id)) {
       if (KIT_FAMILIES.has(roleFamily(role))) continue;
       if (families !== null && !families.has(roleFamily(role))) continue;
-      for (const v of usableVariants(def, role, cat, [])) {
+      for (const v of usableVariants(def, role, cat, [], generator)) {
         if (v.parts !== undefined || risky.has(v.uuid) || risky.has(v.wanted) || !fits.test(v)) continue;
         if (!drawsFreely(generator, v.name)) continue;
         const seen = pieces.get(v.uuid);

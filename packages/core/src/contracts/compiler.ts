@@ -186,6 +186,12 @@ export interface PaletteVariant {
   /** Preferred asset uuid. */
   asset: string;
   /**
+   * First generator version that may use this variant (as PaletteRole.minGenerator for a whole role): a piece added
+   * to an existing role after a release (the developer's auto-palette batch) is hidden from older generators, so their
+   * picks in that role never change. Absent = every generator.
+   */
+  minGenerator?: number;
+  /**
    * Ordered fallback uuids tried when `asset` is missing or deprecated in the current catalog (game updates).
    * First available wins; if none, the variant is skipped with an "asset_unknown" warning — never a hard failure.
    */

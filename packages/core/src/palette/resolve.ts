@@ -120,12 +120,24 @@ function variantGeomFor(v: PaletteVariant, uuid: string): PaletteVariant["geom"]
   );
 }
 
-/** A role definition's variants the game has (preferred asset, else an alternate), each noting what it replaced. */
+/**
+ * Whether a palette variant exists for a plan of `generator`: one added to its role after that generator shipped
+ * (`minGenerator`) does not. Omitted, every variant is visible.
+ */
+export function variantVisible(v: Pick<PaletteVariant, "minGenerator">, generator?: number): boolean {
+  return generator === undefined || (v.minGenerator ?? 1) <= generator;
+}
+
+/**
+ * A role definition's variants the game has (preferred asset, else an alternate), each noting what it replaced; with
+ * `generator`, only the variants that generator sees (variantVisible).
+ */
 export function usableVariants(
   def: PaletteRole,
   role: RoleName,
   cat: ResolvePalettes,
   subs: Substitution[],
+  generator?: number,
 ): ResolvedVariant[] {
   const out: ResolvedVariant[] = [];
   const ok = (u: string): boolean => {
@@ -133,6 +145,7 @@ export function usableVariants(
     return s === null || s === "present";
   };
   for (const v of Array.isArray(def.variants) ? def.variants : []) {
+    if (!variantVisible(v, generator)) continue;
     let uuid: string | null = ok(v.asset) ? v.asset : null;
     if (uuid === null) {
       for (const alt of v.alternates ?? []) {
@@ -208,7 +221,7 @@ export function resolveRole(
     const ownerId = chain.find((id) => roleOf(id) !== undefined);
     const def = ownerId !== undefined ? roleOf(ownerId) : undefined;
     if (ownerId !== undefined && def) {
-      let vs = usableVariants(def, r, cat, subs);
+      let vs = usableVariants(def, r, cat, subs, generator);
       if (filter) vs = vs.filter(filter.test);
       if (vs.length > 0)
         return { requested: role, role: r, paletteId: ownerId, def, variants: vs, path: [...path] };

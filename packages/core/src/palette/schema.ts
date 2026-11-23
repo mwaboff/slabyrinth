@@ -32,6 +32,7 @@ const footprint = z.tuple([z.number().int().min(1).max(16), z.number().int().min
 
 export const variantSchema = z.looseObject({
   asset: guid,
+  minGenerator: z.number().int().min(1).optional(),
   alternates: z.array(guid).optional(),
   alternateGeom: z.record(z.string(), geomSchema).optional(),
   geom: geomSchema,
