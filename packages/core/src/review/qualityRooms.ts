@@ -131,7 +131,8 @@ function kindRows(
     }
     if (!r.abandoned) {
       if ((r.props * 10) / r.floor >= M.propsShare * t.props10[0]) props++;
-      if (t.lightsPer10[0] > 0) {
+      // (generator 5: a room drawn dim or dark is judged by its own level, not its kind's lights per 10 tiles)
+      if (t.lightsPer10[0] > 0 && !r.dim) {
         litOf++;
         if (r.lights >= 1 && (r.lights * 10) / r.floor >= Math.min(t.lightsPer10[0], 10 / r.floor)) lit++;
       }
@@ -197,12 +198,10 @@ function middleTally(L: ResolvedLevel, grid: LevelGrid, t: { n: number; of: numb
 }
 
 /** Each room's or corridor's wall-light pitch (median nearest-neighbour distance), for rooms with enough of them. */
-function lightPitches(L: ResolvedLevel, out: number[]): void {
+function lightPitches(L: ResolvedLevel, out: number[], gives: (f: ResolvedFeature) => boolean): void {
   for (const a of L.areas) {
     if (a.kind !== "room" && a.kind !== "corridor") continue;
-    const lights = L.features.filter(
-      (f) => f.area === a.id && LIGHT_FEATURES.has(f.type) && featureInfo(f.type).wallMounted,
-    );
+    const lights = L.features.filter((f) => f.area === a.id && gives(f) && featureInfo(f.type).wallMounted);
     if (lights.length < M.pitchLights) continue;
     const at = lights.map((f) => [f.at[0] + (f.offset?.[0] ?? 0), f.at[1] + (f.offset?.[1] ?? 0)] as const);
     const nn = at
@@ -272,8 +271,9 @@ export function roomMeter(
   set: PlacementSet,
   frame: WorldFrame,
   entryLevel?: string,
+  gives: (f: ResolvedFeature) => boolean = (f) => LIGHT_FEATURES.has(f.type),
 ): RoomMeterValues {
-  const rooms = resolved.levels.flatMap((L) => roomStats(L, withKind));
+  const rooms = resolved.levels.flatMap((L) => roomStats(L, withKind, gives));
   const surf = { n: 0, of: 0 };
   const mid = { n: 0, of: 0 };
   const cover = { n: 0, of: 0 };
@@ -282,7 +282,7 @@ export function roomMeter(
     const grid = new LevelGrid(L);
     surfaceTally(L, surf);
     middleTally(L, grid, mid);
-    lightPitches(L, pitches);
+    lightPitches(L, pitches, gives);
     groundTally(L, set, frame, cover);
   }
   let pitchAlike: number | null = null;

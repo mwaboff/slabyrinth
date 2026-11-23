@@ -15,6 +15,8 @@ import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { LIGHT_FEATURES, featureInfo, isLandmark, rotatedSize } from "../../gen/catalog";
 import { SIDE_STEP } from "../../gen/gridGeometry";
 import { isPassage, isWindow } from "../../gen/openingKinds";
+import { featureRoles } from "../../gen/surfaces";
+import { maxOf } from "../../util/lists";
 import type { GeneratedPlacement, PlacementGrid } from "../../gen/placementGrid";
 import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import { wallRole } from "../../palette/roles";
@@ -65,6 +67,8 @@ export class FeatureWork {
   /** Generator 4: the lane before each market stall's front row (filled as the stalls are placed). */
   private readonly stallFronts = new Set<number>();
   private readonly keptClearCells = new Set<number>();
+  /** Generator 5 (lightRegimes): the light level drawn for each furnished room (ResolvedArea.lightLevel). */
+  readonly lightLevels = new Map<string, number>();
 
   constructor(
     private readonly work: ResolveGrid,
@@ -437,6 +441,30 @@ export class FeatureWork {
             windowOn: (x: number, y: number, s: Side) => {
               const i = work.idx(x, y);
               return i >= 0 && this.windowEdges().has(i * 4 + SIDE_INDEX[s]);
+            },
+          }
+        : {}),
+      // generator 5: the light regimes choose lights by the pieces the compiler would build (gen/lightReach.ts)
+      ...(work.profile.lightRegimes
+        ? {
+            lightPieces: (t: FeatureType, x: number, y: number, v?: string) => {
+              const theme = work.themeAt(work.idx(x, y));
+              for (const role of featureRoles(t)) {
+                const res = work.ctx.palette.roles.resolve(theme, role).resolution;
+                if (!res) continue;
+                const vs =
+                  v !== undefined
+                    ? res.variants.filter((q) => q.variant === v)
+                    : res.variants.filter((q) => q.weight > 0);
+                if (vs.length === 0) continue;
+                return {
+                  names: vs.map((q) => q.name ?? q.uuid),
+                  wMax: maxOf(vs.map((q) => q.geom.size.x)),
+                  dMax: maxOf(vs.map((q) => q.geom.size.z)),
+                  hMax: maxOf(vs.map((q) => q.geom.size.y)),
+                };
+              }
+              return undefined;
             },
           }
         : {}),

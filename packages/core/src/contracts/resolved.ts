@@ -93,6 +93,12 @@ export interface ResolvedArea {
    * but its walls stay what they are built of.
    */
   finish?: InteriorFinish;
+  /**
+   * Generator 5 (lightRegimes): the light level drawn for a furnished room, 0 dark .. 4 flooded (gen/lightLevels.ts):
+   * how many light accents mark it. The review judges the room's lights against it; a dim or dark room is not a fault.
+   * Absent when the room's lights were not drawn by level.
+   */
+  lightLevel?: number;
 }
 
 /** What a room is for (generator 4): the plan contract's list (Area.purpose), re-exported for readers of this one. */

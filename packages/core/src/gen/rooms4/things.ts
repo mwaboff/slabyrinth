@@ -7,6 +7,7 @@ import type { GeneratedPlacement } from "../placementGrid";
 import { EDGE_WALL, SIDES, SIDE_ROT, SIDE_STEP, cellKey, footprintCells } from "../gridGeometry";
 import { surfaceCount, type SurfaceLoad } from "../surfaces";
 import { isNaturalWallStyle } from "../wallStyles";
+import { looseShift, looseTurn } from "./order";
 import { ROOM_DRESS, SHELF_FAMILY, SHELF_TOP, type Family } from "./recipes";
 import { type Placed, type Room, clampTo } from "./room";
 
@@ -21,18 +22,24 @@ export function addToppers(room: Room, p: Placed, family: Family, rule: SurfaceL
     const cx = clampTo(p.centre[0], p.at[0], p.size[0]);
     const cy = clampTo(p.centre[1], p.at[1], p.size[1]);
     if (room.grid.inBounds(cx, cy)) {
+      // generator 5 (placementOrder): set by the room's order, square in a tidy room
+      const order = room.opts.order;
+      const shift = order === undefined ? null : looseShift(room, order);
       const top: GeneratedPlacement = {
         type: p.type,
         at: [cx, cy],
         size: [1, 1],
         rot: 0,
-        rotFine: room.rng.int(24) * 15,
+        rotFine: order === undefined ? room.rng.int(24) * 15 : looseTurn(room, order, SIDE_ROT[p.side]),
         variant: rule.stackVariant,
         lift: ext.hMax,
-        offset: [
-          p.centre[0] - (cx + 0.5) + (room.rng.next() - 0.5) * 0.12,
-          p.centre[1] - (cy + 0.5) + (room.rng.next() - 0.5) * 0.12,
-        ],
+        offset:
+          shift === null
+            ? [
+                p.centre[0] - (cx + 0.5) + (room.rng.next() - 0.5) * 0.12,
+                p.centre[1] - (cy + 0.5) + (room.rng.next() - 0.5) * 0.12,
+              ]
+            : [p.centre[0] - (cx + 0.5) + shift[0], p.centre[1] - (cy + 0.5) + shift[1]],
       };
       if (room.underCeiling(top)) room.push(top);
     }
@@ -47,9 +54,19 @@ export function addToppers(room: Room, p: Placed, family: Family, rule: SurfaceL
   const avail = Math.max(0, Math.min(longReal, alongX ? p.size[0] : p.size[1]) - 0.4);
   const spread = Math.max(0, crossReal / 2 - 0.2);
   const tops: Array<[number, number]> = [];
+  const order = room.opts.order;
   for (let i = 0; i < n; i++) {
-    const t = n === 1 ? (room.rng.next() - 0.5) * Math.min(avail, 0.5) : (i / (n - 1) - 0.5) * avail;
-    const c = (room.rng.next() * 2 - 1) * spread * 0.6;
+    let t: number;
+    let c: number;
+    if (order === undefined) {
+      t = n === 1 ? (room.rng.next() - 0.5) * Math.min(avail, 0.5) : (i / (n - 1) - 0.5) * avail;
+      c = (room.rng.next() * 2 - 1) * spread * 0.6;
+    } else {
+      // generator 5 (placementOrder): evenly along the top, then shifted by the room's order (none when tidy)
+      const [da, dc] = looseShift(room, order);
+      t = (n === 1 ? 0 : (i / (n - 1) - 0.5) * avail) + da;
+      c = Math.max(-spread, Math.min(spread, dc));
+    }
     let px = p.centre[0] + (alongX ? t : c);
     let py = p.centre[1] + (alongX ? c : t);
     // a thing stands 0.31 clear of the wall behind its support (it has a width of its own)
@@ -77,7 +94,7 @@ export function addToppers(room: Room, p: Placed, family: Family, rule: SurfaceL
       at: [cx, cy],
       size: [1, 1],
       rot: 0,
-      rotFine: room.rng.int(24) * 15,
+      rotFine: order === undefined ? room.rng.int(24) * 15 : looseTurn(room, order, SIDE_ROT[p.side]),
       variant: family,
       lift: ext.hMax,
       offset: [
@@ -152,7 +169,8 @@ export function addShelf(room: Room): void {
         at: [x, y],
         size: [1, 1],
         rot: 0,
-        rotFine: room.rng.int(24) * 15,
+        rotFine:
+          room.opts.order === undefined ? room.rng.int(24) * 15 : looseTurn(room, room.opts.order, turn),
         variant: SHELF_FAMILY,
         lift: SHELF_TOP,
         offset: [ox, oy],

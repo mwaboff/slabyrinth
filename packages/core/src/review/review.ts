@@ -8,6 +8,7 @@ import type { DesignBrief, FeatureType, MapPlan, Material, Vec2 } from "../contr
 import {
   CELL,
   CELL_FLAG,
+  type ResolvedFeature,
   type ResolvedLevel,
   type ResolvedPlan,
   type ResolvedStructure,
@@ -55,6 +56,7 @@ import { briefNotes } from "./brief";
 import { caveNaturalChecks, caveWallChecks } from "./caveWall";
 import { caveMassReviewNotes } from "./caveMass";
 import { interiorNotes } from "./interiors";
+import { lightGiver, roomMeantDim, sceneMeantDim } from "./lights";
 import { roofGapNotes } from "./roofGaps";
 import { reviewBuild } from "./reviewBuild";
 import { stallNotes } from "./stalls";
@@ -210,6 +212,8 @@ export interface DesignNote {
 
 interface Ctx {
   plan: MapPlan;
+  /** Does a feature give light (review/lights.ts lightGiver)? Absent in tests that build a context by hand: every light feature. */
+  givesLight?: (f: ResolvedFeature) => boolean;
   /** What the plan's generator does (plan/generator.ts): a check of newer behaviour reads its switch. */
   gen: GeneratorProfile;
   /** Ids of features the build dropped (custom_unresolved); absent in tests that build a context by hand. */
@@ -273,6 +277,8 @@ export function reviewDesign(
 ): DesignNote[] {
   const notes: DesignNote[] = [];
   const gen = generatorProfile(plan);
+  // generator 5: only pieces that give light count as lights (a stone lantern does not)
+  const gives = lightGiver(resolved, palettes);
   // the questions the resolver and the compiler ask of these palettes, with their answers (palette/view.ts), as the
   // plan's generator sees them: a role the build cannot use (minGenerator) is not advice for this plan
   const view = paletteView(palettes, plan.generator);
@@ -367,6 +373,7 @@ export function reviewDesign(
     const ctx: Ctx = {
       plan,
       gen,
+      givesLight: gives,
       // features the build dropped (unresolved or wrong size) are not on the map: repeated_prop counts what stands
       dropped: new Set(
         (opts.diagnostics ?? [])
@@ -447,9 +454,9 @@ export function reviewDesign(
   // generator 4: an intact roof is whole (only a chimney stack stands in it); measured on the realized roof pieces
   pushAll(notes, roofGapNotes(plan, resolved, build, palettes));
   // rooms: bare, alike, unlit, furniture adrift (judged room by room, across the whole map)
-  pushAll(notes, interiorNotes(plan, resolved));
+  pushAll(notes, interiorNotes(plan, resolved, gives));
   // generator 5: what the quality meter finds that plan words can change (lanes, door lights, roofline, facades)
-  if (gen.qualityNotes) pushAll(notes, qualityNotes(plan, resolved));
+  if (gen.qualityNotes) pushAll(notes, qualityNotes(plan, resolved, gives));
   // generator 5: how a complex of rooms is laid out (dead ends, size mix, corridors, ways in, ways back)
   pushAll(notes, layoutNotes(plan, resolved));
   pushAll(notes, substitutionNotes(opts.diagnostics ?? [], resolved.levels[0]?.id ?? ""));
@@ -1531,7 +1538,12 @@ function blankLot(c: Ctx): DesignNote[] {
 function focalLights(c: Ctx): DesignNote[] {
   if (!c.gen.litLandmarks) return [];
   const T = REVIEW.caveMass;
-  const lights = c.L.features.filter((f) => LIGHT_FEATURES.has(f.type));
+  const lights = c.L.features.filter((f) => c.givesLight?.(f) ?? LIGHT_FEATURES.has(f.type));
+  // generator 5: a focal piece in a room (or a scene) meant to be dim is not in the dark by mistake
+  const meantDim = (f: ResolvedFeature): boolean => {
+    const a = c.L.areas.find((x) => x.id === f.area);
+    return roomMeantDim(a) || (a?.kind !== "room" && a?.kind !== "corridor" && sceneMeantDim(c.plan));
+  };
   const gap = (a: (typeof lights)[number], b: (typeof lights)[number]): number => {
     const dx = Math.max(a.at[0] - (b.at[0] + b.size[0] - 1), b.at[0] - (a.at[0] + a.size[0] - 1), 0);
     const dy = Math.max(a.at[1] - (b.at[1] + b.size[1] - 1), b.at[1] - (a.at[1] + a.size[1] - 1), 0);
@@ -1539,7 +1551,7 @@ function focalLights(c: Ctx): DesignNote[] {
   };
   const out: DesignNote[] = [];
   for (const f of c.L.features) {
-    if (!LIT_FOCALS.has(f.type) || lights.some((l) => gap(f, l) <= T.focalLight)) continue;
+    if (!LIT_FOCALS.has(f.type) || lights.some((l) => gap(f, l) <= T.focalLight) || meantDim(f)) continue;
     out.push({
       code: "focal_unlit",
       levelId: c.L.id,

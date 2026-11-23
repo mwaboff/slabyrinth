@@ -140,6 +140,18 @@ export interface PlacementGrid {
    * wall on the cell's side? A room furnisher seats a desk at it and keeps tall pieces off it. Optional.
    */
   windowOn?(x: number, y: number, side: Side): boolean;
+  /**
+   * Generator 5 (`lightRegimes`): the pieces a light of this type (and variant) may be built as when anchored on cell
+   * (x, y), the very pool the compiler picks from (a named variant whatever its weight; else the weighted ones), by
+   * name, with their largest outline; undefined where the theme has none. The light regimes choose a light by the reach
+   * of these pieces (gen/lightReach.ts). Optional.
+   */
+  lightPieces?(
+    type: FeatureType,
+    x: number,
+    y: number,
+    variant?: string,
+  ): { names: readonly string[]; wMax: number; dMax: number; hMax: number } | undefined;
 }
 
 /** What the grid's generator does (plan/generator.ts); a grid that names no generator is generator 2. */

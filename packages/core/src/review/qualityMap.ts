@@ -29,6 +29,8 @@ import { loadOrientation } from "../palette/load";
 import { LevelGrid } from "../resolve/levelGrid";
 import { maxOf } from "../util/lists";
 import { QUALITY_METRICS, type QualityMetricId, targetText, withinTarget } from "./qualityMetrics";
+import type { ResolvePalettes } from "../palette/resolve";
+import { lightGiver, roomMeantDim } from "./lights";
 import { roomMeter } from "./qualityRooms";
 import { slabMeter, type MeterPiece } from "./qualitySlab";
 
@@ -247,9 +249,10 @@ function doorLit(o: ResolvedOpening, s: ResolvedStructure, lights: readonly Vec2
 export function buildingDoors(
   L: ResolvedLevel,
   s: ResolvedStructure,
+  gives: (f: ResolvedFeature) => boolean = (f) => LIGHT_FEATURES.has(f.type),
 ): Array<{ opening: ResolvedOpening; lit: boolean }> {
   if (s.kind !== "building" || (s.condition !== undefined && s.condition !== "intact")) return [];
-  const lights = L.features.filter((f) => LIGHT_FEATURES.has(f.type)).flatMap(cellsOf);
+  const lights = L.features.filter(gives).flatMap(cellsOf);
   const ids = new Set(s.openingIds);
   return L.openings
     .filter((o) => ids.has(o.id) && isPassage(o.kind))
@@ -343,6 +346,8 @@ export interface QualityOptions {
   orientation?: OrientationCalibration;
   /** The plan's entry level (MapPlan.entryLevel), for the layout rows' walk back to it. */
   entryLevel?: string;
+  /** The palettes it was built with: generator 5 counts only lights whose pieces give light (review/lights.ts). */
+  palettes?: ResolvePalettes;
 }
 
 /** The whole quality meter of a realized build of a resolved plan. */
@@ -352,6 +357,7 @@ export function qualityMeter(
   opts: QualityOptions = {},
 ): QualityReport {
   const slab = slabMeter(meterPieces(set));
+  const gives = lightGiver(resolved, opts.palettes);
   const orientation = opts.orientation ?? loadOrientation().orientation;
   const hg = resolved.levels.reduce((m, l) => Math.max(m, l.bounds.y + l.bounds.h), 0);
   const frame = new WorldFrame(orientation, hg);
@@ -370,16 +376,17 @@ export function qualityMeter(
     const W = L.bounds.w;
     const areaOf = (id: string | undefined): ResolvedArea | undefined => L.areas.find((a) => a.id === id);
 
-    // loose props by the walls, and lights, in interiors
+    // loose props by the walls, and lights, in interiors (generator 5: lights that give light, in rooms not meant dim)
     for (const f of L.features) {
-      if (!isInterior(areaOf(f.area))) continue;
-      if (LIGHT_FEATURES.has(f.type)) lightT.n++;
+      const a = areaOf(f.area);
+      if (!isInterior(a)) continue;
+      if (gives(f) && !roomMeantDim(a)) lightT.n++;
       if (!isLooseFeature(f)) continue;
       near.of++;
       if (cellsOf(f).some(([x, y]) => nearBoundary(grid, x, y))) near.n++;
     }
     L.areas.forEach((a, ai) => {
-      if (isInterior(a)) lightT.of += byArea.get(ai)?.size ?? 0;
+      if (isInterior(a) && !roomMeantDim(a)) lightT.of += byArea.get(ai)?.size ?? 0;
     });
 
     // rooms: lanes between their openings, and the per-room figures
@@ -412,13 +419,13 @@ export function qualityMeter(
         nearWall: loose.length > 0 ? by / loose.length : null,
         lane: lane.size,
         laneBlocked: lane.size > 0 ? hit / lane.size : null,
-        lights: mine.filter((f) => LIGHT_FEATURES.has(f.type)).length / cells.size,
+        lights: mine.filter(gives).length / cells.size,
       });
     });
 
     // outside doors lit
     for (const s of L.structures ?? [])
-      for (const d of buildingDoors(L, s)) {
+      for (const d of buildingDoors(L, s, gives)) {
         doorT.of++;
         if (d.lit) doorT.n++;
       }
@@ -467,7 +474,7 @@ export function qualityMeter(
       lights_per_floor_tile: ratio(lightT),
       doors_lit: ratio(doorT),
       band_coverage: ratio(bandT),
-      ...roomMeter(resolved, set, frame, opts.entryLevel),
+      ...roomMeter(resolved, set, frame, opts.entryLevel, gives),
     },
     rooms,
   };
@@ -489,6 +496,7 @@ export function qualityOfBuild(
   verifyBuild(resolved, set, palettes, { plan, flipZ: orientation.flipZ });
   return qualityMeter(resolved, set, {
     orientation,
+    palettes,
     ...(plan.entryLevel !== undefined ? { entryLevel: plan.entryLevel } : {}),
   });
 }

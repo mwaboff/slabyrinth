@@ -68,7 +68,7 @@ export function lightByOccupancy(
  * A wall light either side of the room's main door (the doorway nearest the room's way in): on the wall cells beside
  * the doorway's ends, inside the room, where a torch fits.
  */
-function doorPair(room: Room): void {
+export function doorPair(room: Room, most = 2): void {
   if (room.doorPairs.length === 0) return;
   const near = (p: readonly [number, number, string]): number =>
     Math.hypot(p[0] + 0.5 - room.entry[0], p[1] + 0.5 - room.entry[1]);
@@ -81,13 +81,16 @@ function doorPair(room: Room): void {
   while (door.has(cellKey(x0 - along[0], y0 - along[1]))) [x0, y0] = [x0 - along[0], y0 - along[1]];
   let [x1, y1] = [main[0], main[1]];
   while (door.has(cellKey(x1 + along[0], y1 + along[1]))) [x1, y1] = [x1 + along[0], y1 + along[1]];
+  let hung = 0;
   for (const [x, y] of [
     [x0 - along[0], y0 - along[1]],
     [x1 + along[0], y1 + along[1]],
   ] as const) {
+    // (generator 5, a dim store: one side only)
+    if (hung >= most) return;
     if (!room.inRoom.has(cellKey(x, y))) continue;
     // the torch on the door's own wall; where none stands there (a corner), on the wall the cell has beside it
     const side = [s, ...SIDES.filter((q) => q !== s)].find((q) => torchFits(room, x, y, q));
-    if (side !== undefined) wallTorch(room, [x, y, side]);
+    if (side !== undefined && wallTorch(room, [x, y, side]) === "lit") hung++;
   }
 }

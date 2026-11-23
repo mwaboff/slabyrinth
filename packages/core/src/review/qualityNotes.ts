@@ -18,7 +18,8 @@
  * Every note is measured on the resolved plan (no build needed), and only for a plan whose generator has the switch.
  */
 import type { MapPlan, Vec2 } from "../contracts/plan";
-import type { ResolvedLevel, ResolvedPlan, ResolvedStructure } from "../contracts/resolved";
+import type { ResolvedFeature, ResolvedLevel, ResolvedPlan, ResolvedStructure } from "../contracts/resolved";
+import { sceneMeantDim } from "./lights";
 import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { featureInfo } from "../gen/catalog";
 import { isPassage } from "../gen/openingKinds";
@@ -109,8 +110,14 @@ const wallsOf = (s: ResolvedStructure): string => s.design?.material ?? s.storey
 const intact = (s: ResolvedStructure): boolean => s.condition === undefined || s.condition === "intact";
 
 /** The quality notes of a map (the caller checks the plan's generator has `qualityNotes`). */
-export function qualityNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[] {
+export function qualityNotes(
+  plan: MapPlan,
+  resolved: ResolvedPlan,
+  gives?: (f: ResolvedFeature) => boolean,
+): DesignNote[] {
   const out: DesignNote[] = [];
+  // generator 5: a scene meant to be dim keeps its doors dark on purpose
+  const dimScene = sceneMeantDim(plan);
   const lanes = resolved.levels.flatMap((L) => blockedLanes(plan, L).map((b) => ({ ...b, levelId: L.id })));
   const first = lanes[0];
   if (first) {
@@ -130,8 +137,8 @@ export function qualityNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[
     const buildings = (L.structures ?? []).filter((s) => s.kind === "building");
 
     const unlit = buildings
-      .filter((s) => s.lighting?.doors !== true)
-      .map((s) => ({ s, n: buildingDoors(L, s).filter((d) => !d.lit).length }))
+      .filter((s) => s.lighting?.doors !== true && !dimScene)
+      .map((s) => ({ s, n: buildingDoors(L, s, gives).filter((d) => !d.lit).length }))
       .filter((x) => x.n >= Q.unlitDoors);
     if (unlit.length > 0)
       out.push({

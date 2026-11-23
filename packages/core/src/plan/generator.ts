@@ -432,6 +432,18 @@ const SWITCHES = {
     5,
     "A worn or ramshackle building's porch may sag one step (0.25) at its outer edge and stand on posts of two kinds; the building's own eave never sags (resolve/building/wear.ts, compile/realize/structures/attachments.ts).",
   ),
+  placementOrder: on(
+    5,
+    "A room's loose things are set by its kind's order (gen/roomTraits.ts): square and regular in a tidy room (a study, a shrine, a ward), as hands left them in a lived-in, working or messy one (turned in 15° steps, shifted a little, seats a little askew); structure and big furniture stay on quarter turns, and a building's condition never turns anything (gen/rooms4/order.ts).",
+  ),
+  floorGroups: on(
+    5,
+    "A room whose kind calls for it gets things standing free of its walls: table groups with seats facing in, staggered 2-3 tiles apart with a lane between them and from every door to each; desks in rows facing the master's desk; bunks, beds and stalls in rows along the long walls with an aisle; stock in rows with aisles; a work table on the axis. Groups vary within a room and between rooms of a kind; a small room keeps what it has (gen/rooms4/floor.ts).",
+  ),
+  lightRegimes: on(
+    5,
+    "A room's lights follow a light level and a regime: the scene's level from the plan's words, each room's from its kind's default and range (gen/lightLevels.ts), and one regime per room drawn from those its kind allows, neighbours differing (lit surfaces, a threshold pair, a focal glow, a wall rhythm, a dim store), with pieces chosen by their reach (gen/lightReach.ts). A light stands on the floor only where it is meant to (a brazier, a lantern stand), never in a lane, a door's apron or a corridor; a corridor is lit at its doors and junctions; a lived-in room of 3 tiles or more keeps a light, an abandoned one its dark (gen/rooms4/regimes.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

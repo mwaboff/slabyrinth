@@ -24,7 +24,7 @@
  * from its name, so the action of room_bare and room_unlit says that only to a generator-4 plan.
  */
 import type { Area, MapPlan } from "../contracts/plan";
-import type { ResolvedArea, ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
+import type { ResolvedArea, ResolvedFeature, ResolvedLevel, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { LIGHT_FEATURES, featureInfo } from "../gen/catalog";
 import { SIDES, SIDE_STEP } from "../gen/gridGeometry";
@@ -32,6 +32,7 @@ import { LevelGrid } from "../resolve/levelGrid";
 import { type RoomClass, type RoomKind, classifyRoom, furnishedPurpose } from "../gen/roomPurpose";
 import { roomTargets } from "../gen/roomTraits";
 import { generatorProfile } from "../plan/generator";
+import { roomMeantDim } from "./lights";
 import type { DesignNote } from "./review";
 import { REVIEW, capped } from "./thresholds";
 
@@ -60,6 +61,8 @@ export interface RoomStat {
   clear: number;
   /** One of its kind's anchors stands in it (true when it has no kind). */
   anchor: boolean;
+  /** Generator 5: its lights were drawn dim or dark (ResolvedArea.lightLevel): few or no lights are meant. */
+  dim: boolean;
 }
 
 /** What a room is furnished as: the kind its words name, else its purpose when that is furnished. */
@@ -76,6 +79,8 @@ export const resolvedRoomClass = (a: ResolvedArea): RoomClass =>
 export function roomStats(
   L: ResolvedLevel,
   classOf: (a: ResolvedArea) => RoomClass = resolvedRoomClass,
+  /** Does a feature give light (review/lights.ts lightGiver)? Default: every light feature. */
+  gives: (f: ResolvedFeature) => boolean = (f) => LIGHT_FEATURES.has(f.type),
 ): RoomStat[] {
   const T = REVIEW.interiors;
   const W = L.bounds.w;
@@ -150,7 +155,8 @@ export function roomStats(
       name: a.name ?? a.id,
       floor: cells.length,
       props: mine.length,
-      lights: mine.filter((f) => LIGHT_FEATURES.has(f.type)).length,
+      lights: mine.filter(gives).length,
+      dim: roomMeantDim(a),
       blockers: blockers.length,
       nearWall,
       abandoned: cls.abandoned,
@@ -179,7 +185,11 @@ const names = (rooms: readonly RoomStat[]): string =>
 const rank = (weight: number, n: number): number => weight * capped(0.8 + n / 3);
 
 /** The interior notes of a map: bare, alike, unlit and adrift rooms. */
-export function interiorNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote[] {
+export function interiorNotes(
+  plan: MapPlan,
+  resolved: ResolvedPlan,
+  gives?: (f: ResolvedFeature) => boolean,
+): DesignNote[] {
   const T = REVIEW.interiors;
   const gen = generatorProfile(plan);
   // a generator that resolves no classification: read the plan's area with the same classifier the resolver uses
@@ -203,6 +213,7 @@ export function interiorNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote
     roomStats(
       L,
       gen.reviewByKind ? kindClass(L.id) : gen.roomClassification ? resolvedRoomClass : planClass(L.id),
+      gives,
     ),
   );
   if (rooms.length === 0) return [];
@@ -257,7 +268,8 @@ export function interiorNotes(plan: MapPlan, resolved: ResolvedPlan): DesignNote
 
   // unlit: every room people use has a light; only abandoned places keep dark rooms
   // (the kinds whose lights per 10 tiles start at 0, cells and crypts, are read abandoned already)
-  const unlit = rooms.filter((r) => !r.abandoned && r.lights === 0);
+  // (generator 5: a room drawn dim or dark is meant to be)
+  const unlit = rooms.filter((r) => !r.abandoned && r.lights === 0 && !r.dim);
   if (unlit.length > 0)
     out.push({
       code: "room_unlit",

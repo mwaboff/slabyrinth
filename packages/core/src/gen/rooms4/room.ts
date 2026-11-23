@@ -21,6 +21,7 @@ import {
   wallSides,
 } from "../gridGeometry";
 import { isNaturalWallStyle } from "../wallStyles";
+import type { RoomOrder } from "../roomTraits";
 import type { Family } from "./recipes";
 
 /**
@@ -160,6 +161,13 @@ export interface RoomOpts {
   floorLightsApart?: boolean;
   /** A wall meeting the room's wall from outside (a T) has a post at the joint, as a corner does (touchShift). */
   junctionPosts?: boolean;
+  /** How squarely loose things and seats are set (gen/rooms4/order.ts, switch placementOrder). */
+  order?: RoomOrder;
+  /**
+   * Generator 5 (floorGroups): a seat or a bed keeps a free cell beside it, reached from the doors, that nothing blocking
+   * takes later (the free tile in front of every station), so no seat is boxed in by what comes after it.
+   */
+  standingRoom?: boolean;
 }
 
 export class Room {
@@ -364,6 +372,26 @@ export class Room {
     let lost = 0;
     for (const k of this.reach) if (!after.has(k) && !extra.has(k)) lost++;
     return lost === 0 ? after : null;
+  }
+
+  /**
+   * Generator 5 (RoomOpts.standingRoom): keep a free cell beside a station (a seat, a bed) on these cells: the one it
+   * faces first (`front`), else any beside it reached from the doors, kept clear of blockers. False when none is free.
+   */
+  keepStanding(cells: ReadonlyArray<readonly [number, number]>, front?: Side): boolean {
+    if (this.opts.standingRoom !== true) return true;
+    const own = new Set(cells.map(([x, y]) => cellKey(x, y)));
+    const sides = front === undefined ? SIDES : [front, ...SIDES.filter((s) => s !== front)];
+    for (const s of sides)
+      for (const [x, y] of cells) {
+        if (this.grid.edge(x, y, s) === EDGE_WALL) continue;
+        const [nx, ny] = stepSide(x, y, s);
+        const k = cellKey(nx, ny);
+        if (own.has(k) || !this.inRoom.has(k) || this.blocked(nx, ny) || !this.reach.has(k)) continue;
+        this.zone.add(k);
+        return true;
+      }
+    return false;
   }
 
   free(x: number, y: number): boolean {

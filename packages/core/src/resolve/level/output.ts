@@ -149,6 +149,9 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
       // what the room is built as (the theme's character); its condition is `abandoned`, never its finish
       ra.finish = info.interior.finish;
     }
+    // generator 5: the light level its lights were drawn at (gen/rooms4/regimes.ts)
+    const lightLevel = s.features.lightLevels.get(info.area.id);
+    if (lightLevel !== undefined) ra.lightLevel = lightLevel;
     return ra;
   });
 

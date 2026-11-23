@@ -24,6 +24,7 @@ import type {
 } from "../roomTraits";
 import { SURFACE_LOAD } from "../surfaces";
 import { maxOf, minOf, pushAll } from "../../util/lists";
+import { seatTurn } from "./order";
 import type { Family, Spec } from "./recipes";
 import { type Placed, type Room, clampTo, touchShift } from "./room";
 import { type Cand, commitCand, placeWall } from "./wall";
@@ -57,7 +58,7 @@ export interface Frame {
   D: number;
 }
 
-const ALONG: Readonly<Record<Side, XY>> = { N: [1, 0], S: [1, 0], E: [0, 1], W: [0, 1] };
+export const ALONG: Readonly<Record<Side, XY>> = { N: [1, 0], S: [1, 0], E: [0, 1], W: [0, 1] };
 
 /** The cell at (i, j) of a frame. */
 export const frameCell = (f: Frame, i: number, j: number): XY => [
@@ -103,14 +104,14 @@ export function wallFrame(pieces: readonly Placed[], side: Side): Frame {
 }
 
 /** A spot for an anchor: its frame, the wall placer's candidate (pieces, turn, cells) and how good it is. */
-interface AnchorCand {
+export interface AnchorCand {
   frame: Frame;
   cand: Cand;
   score: number;
 }
 
 /** The spec as the wall placer would place it: its stacking variant where it carries things, else the theme's own. */
-function placeableSpec(room: Room, spec: Spec): Spec | null {
+export function placeableSpec(room: Room, spec: Spec): Spec | null {
   const stackVariant = SURFACE_LOAD[spec.type]?.stackVariant;
   if (
     stackVariant !== undefined &&
@@ -136,7 +137,7 @@ function rectOf(list: readonly XY[]): { at: XY; size: XY } {
 }
 
 /** The anchor's pieces and cells in a frame, or null when they do not fit there. */
-function anchorAt(room: Room, spec: Spec, f: Frame, pushToWall: boolean): Omit<Cand, "corner"> | null {
+export function anchorAt(room: Room, spec: Spec, f: Frame, pushToWall: boolean): Omit<Cand, "corner"> | null {
   const info = featureInfo(spec.type);
   const base = spec.size ?? info.size;
   const run = spec.run ?? 1;
@@ -198,7 +199,7 @@ function scoreSpot(
 }
 
 /** Spots against a wall (k = 0) or free of it with k rows behind (a staff lane, a store row against the wall). */
-function wallSpots(room: Room, spec: Spec, place: AnchorPlace, k: number): AnchorCand[] {
+export function wallSpots(room: Room, spec: Spec, place: AnchorPlace, k: number): AnchorCand[] {
   const info = featureInfo(spec.type);
   const base = spec.size ?? info.size;
   const L = base[0] * (spec.run ?? 1);
@@ -472,12 +473,18 @@ const backedSlot = (f: Frame, slot: CompanionSlot): boolean =>
 function commitPicks(room: Room, f: Frame, picks: readonly Pick[]): Placed[] {
   const placed: Placed[] = [];
   for (const p of picks) {
+    // generator 5 (placementOrder): a seat a little askew in a rough room, square in a tidy one
+    const order = room.opts.order;
+    if (order !== undefined && featureInfo(p.piece.type).seat === true)
+      p.placement.rotFine = seatTurn(room, order, p.placement.rotFine);
     if (!room.push(p.placement)) break;
     const k = cellKey(p.cell[0], p.cell[1]);
     if (p.blocking) {
       room.taken.add(k);
       room.blockCells++;
     } else room.used.add(k);
+    // generator 5: a seat keeps a free cell beside it (RoomOpts.standingRoom)
+    if (p.blocking && featureInfo(p.piece.type).seat === true) room.keepStanding([p.cell]);
     const q: Placed = {
       type: p.piece.type,
       at: [p.cell[0], p.cell[1]],
@@ -539,7 +546,7 @@ export function placeGroup(
 }
 
 /** The group at the best of these spots where it fits (see placeGroup); null when it fits at none. */
-function tryGroup(
+export function tryGroup(
   room: Room,
   g: GroupSpec,
   spec: Spec,
@@ -644,16 +651,18 @@ export function keepClear(room: Room, g: PlacedGroup, rows: number): XY[] {
  * The way from the main door (the doorway nearest the room's entry) to the group: the shortest walk through free
  * cells to its standing room, kept clear of blockers and widened to two tiles where the room allows.
  */
-export function keepLane(room: Room, targets: readonly XY[]): XY[] {
+export function keepLane(room: Room, targets: readonly XY[], from?: XY): XY[] {
   if (room.thresholds.length === 0 || targets.length === 0) return [];
   const goal = new Set(targets.map(([x, y]) => cellKey(x, y)));
-  let start = room.thresholds[0] as XY;
-  for (const t of room.thresholds)
-    if (
-      Math.hypot(t[0] + 0.5 - room.entry[0], t[1] + 0.5 - room.entry[1]) <
-      Math.hypot(start[0] + 0.5 - room.entry[0], start[1] + 0.5 - room.entry[1])
-    )
-      start = t;
+  // (generator 5, floor groups: from a given doorway, to keep a lane from every door)
+  let start: XY = from ?? (room.thresholds[0] as XY);
+  if (from === undefined)
+    for (const t of room.thresholds)
+      if (
+        Math.hypot(t[0] + 0.5 - room.entry[0], t[1] + 0.5 - room.entry[1]) <
+        Math.hypot(start[0] + 0.5 - room.entry[0], start[1] + 0.5 - room.entry[1])
+      )
+        start = t;
   const open = (x: number, y: number): boolean => room.inRoom.has(cellKey(x, y)) && !room.blocked(x, y);
   if (!open(start[0], start[1])) return [];
   const prev = new Map<number, number>([[cellKey(start[0], start[1]), -1]]);
