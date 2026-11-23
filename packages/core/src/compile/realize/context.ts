@@ -17,6 +17,7 @@ import type {
 import type { LevelId, ThemeId } from "../../contracts/plan";
 import type { ResolvedPlan } from "../../contracts/resolved";
 import { ValueNoise } from "../../gen/noise";
+import { frontSide } from "../../gen/pieceFacts";
 import { loadOrientation } from "../../palette/load";
 import { own } from "../../util/own";
 import { createPlanRoles } from "../../palette/planRoles";
@@ -104,6 +105,27 @@ export interface RealizeCtx {
   readonly familyWarp: ValueNoise;
   /** The facing a variant's asset has at rot 0 (orientation defaults, then the variant's own). */
   readonly facingOf: (v: ResolvedVariant, rolePrefix: string, role: RoleName) => PaletteFacing;
+}
+
+/**
+ * A variant's facing at rot 0: the calibration's defaults ("*", the role's prefix, the role), the palette's own
+ * `facing`, and over them a front measured from the piece's mesh (gen/pieceFacts.ts `frontSide`, the one source the
+ * object engine reads too). Only generator-5 kit pieces carry a measured front, so no frozen generator's turn moves.
+ */
+export function variantFacing(
+  defaults: Readonly<Record<string, PaletteFacing>>,
+  v: Pick<ResolvedVariant, "name" | "facing">,
+  rolePrefix: string,
+  role: RoleName,
+): PaletteFacing {
+  const measured = frontSide(v.name);
+  return {
+    ...(own(defaults, "*") ?? {}),
+    ...(own(defaults, rolePrefix) ?? {}),
+    ...(own(defaults, role) ?? {}),
+    ...(v.facing ?? {}),
+    ...(measured !== undefined ? { front: measured } : {}),
+  };
 }
 
 export function createRealizeCtx(
@@ -236,15 +258,8 @@ export function createRealizeCtx(
     return fams[fams.length - 1]?.name ?? "";
   };
 
-  const facingOf = (v: ResolvedVariant, rolePrefix: string, role: RoleName): PaletteFacing => {
-    const d = orientation.defaultFacing;
-    return {
-      ...(own(d, "*") ?? {}),
-      ...(own(d, rolePrefix) ?? {}),
-      ...(own(d, role) ?? {}),
-      ...(v.facing ?? {}),
-    };
-  };
+  const facingOf = (v: ResolvedVariant, rolePrefix: string, role: RoleName): PaletteFacing =>
+    variantFacing(orientation.defaultFacing, v, rolePrefix, role);
 
   return {
     resolved,
