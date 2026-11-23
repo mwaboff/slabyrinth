@@ -15,6 +15,7 @@
  */
 import { SIDE_STEP as STEP, SIDES } from "../../gen/gridGeometry";
 import { hashUnitMixed } from "../../util/hash";
+import { ROOF_KITS, nearKits, roofKitInfo } from "../roofKits";
 import { isPitchedRoof } from "../roofTypes";
 import { drawStructureOption, type Subject } from "../recipes/treatments";
 import type { RuinProfile } from "../ruin";
@@ -28,6 +29,14 @@ const PATCH_SHARE = { worn: [0.1, 0.2], ramshackle: [0.3, 0.45] } as const;
 const PATCHES = 3;
 /** A sagging porch's outer row is this much lower (one step). */
 export const PORCH_SAG = 0.25;
+/** (roofKitFacts) Cells of one small patch, about. */
+const SMALL_PATCH = 3;
+
+/** Whether a roof of `kit` can be patched as a repair: the kit has worn pieces, or another kit reads like it. */
+export function patchable(kit: string): boolean {
+  if (roofKitInfo(kit)?.weathered === true) return true;
+  return Object.keys(ROOF_KITS).some((k) => k !== kit && ROOF_KITS[k]?.pitched === true && nearKits(k, kit));
+}
 
 export function applyWear(
   b: BuildingCtx,
@@ -59,10 +68,16 @@ export function applyWear(
       .filter((k) => !holes.has(k)),
   );
   if (cells.size < 4) return null;
+  // generator 5 (`roofKitFacts`): a patch is a repair of the same roof (the kit's own weathered pieces, or a kit of its
+  // tone and family); a roof with neither is not patched (a patch in another colour reads as a fault)
+  if (b.gen.roofKitFacts && !roofed.every((v) => patchable(v.roof.layers[0]?.style ?? ""))) return null;
   const range = PATCH_SHARE[s.state];
   const want = Math.max(2, Math.round(cells.size * (range[0] + (range[1] - range[0]) * u("share"))));
   const sorted = [...cells].sort();
-  const n = 1 + Math.floor(u("count") * PATCHES);
+  // (roofKitFacts: small irregular groups of SMALL_PATCH cells, scattered, instead of one to three large ones)
+  const n = b.gen.roofKitFacts
+    ? Math.max(1, Math.round(want / SMALL_PATCH))
+    : 1 + Math.floor(u("count") * PATCHES);
   const patch = new Set<string>();
   // each patch grows from a drawn cell, cell by cell, toward its own neighbours (a compact, ragged patch)
   for (let i = 0; i < n && patch.size < want; i++) {

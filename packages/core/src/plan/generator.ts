@@ -472,6 +472,14 @@ const SWITCHES = {
     5,
     "A mirrored pair (a guardian pair, approach lights) is one piece twinned, both standing or neither: the pair takes the nearest offset where both sides are clear, and the keep-clear rule refusing one side refuses the pair (resolve/recipes/threshold.ts, a recipe's `whole`).",
   ),
+  roofKitFacts: on(
+    5,
+    "Roof choices read the roof-kit facts (resolve/roofKits.ts): a hip roof in a kit whose corner piece is a spiked tip is built as a gable (no row of spikes up its hips); a worn roof is patched only in its own kit's weathered pieces or a kit of the same tone and family, in small irregular groups, else not at all (resolve/building/wear.ts, compile/realize/structures/roofPiece.ts).",
+  ),
+  leanUnderMain: on(
+    5,
+    "A drawn lean-to stands on the house's own footing (it stood a footing course higher), and a drawn design whose lower mass (a lean-to, a wing, a twin's second half) would still reach the main ridge is drawn again (resolve/structureVariety.ts, resolve/structure.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

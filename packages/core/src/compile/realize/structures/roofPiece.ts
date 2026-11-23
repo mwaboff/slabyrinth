@@ -12,6 +12,7 @@ import type { Side } from "../../../contracts/plan";
 import { BROKEN, INTACT } from "../../../palette/filters";
 import { DEFAULT_PART, roofRole } from "../../../palette/roles";
 import type { RoofPiece } from "../../../resolve/roof";
+import { ROOF_KITS, nearKits, roofKitInfo } from "../../../resolve/roofKits";
 import { hashUnitUtf16 } from "../../../util/hash";
 import { info, type StructureCtx } from "./context";
 
@@ -38,19 +39,28 @@ function roofPieceRoles(kit: string, kind: RoofPiece["kind"]): RoleName[] {
 const PATCH_KITS = ["village", "slate", "shingle", "thatch", DEFAULT_PART] as const;
 
 /**
- * Generator 5 (`roofPatches`): the kit of a roof piece with a cell in the building's patch, the first other kit of
- * PATCH_KITS its theme has a slope of; any other piece, the roof's own kit.
+ * Generator 5 (`roofPatches`): the patch a roof piece with a cell in the building's patch is re-laid in: the first
+ * other kit of PATCH_KITS its theme has a slope of; any other piece, the roof's own kit. With `roofKitFacts`
+ * (resolve/roofKits.ts): the roof's own kit in its weathered pieces when it has them, else a kit of the
+ * same tone and family the theme has a slope of, else no patch at all (a piece of another colour reads as a fault).
  */
-export function patchKit(
+function patchOf(
   b: StructureCtx,
   kit: string,
   p: { x: number; y: number; w: number; h: number },
-): string {
+): { kit: string; worn: boolean } {
   const { st } = b;
-  if (!b.lv.ctx.profile.roofPatches || !st.roofPatch) return kit;
-  if (!st.roofPatch.some(([x, y]) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h)) return kit;
-  for (const k of PATCH_KITS) if (k !== kit && b.lookup([roofRole(k, "slope")], undefined, true)) return k;
-  return kit;
+  const none = { kit, worn: false };
+  if (!b.lv.ctx.profile.roofPatches || !st.roofPatch) return none;
+  if (!st.roofPatch.some(([x, y]) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h)) return none;
+  const has = (k: string): boolean => !!b.lookup([roofRole(k, "slope")], undefined, true);
+  if (b.lv.ctx.profile.roofKitFacts) {
+    if (roofKitInfo(kit)?.weathered === true) return { kit, worn: true };
+    const near = Object.keys(ROOF_KITS).find((k) => k !== kit && nearKits(k, kit) && has(k));
+    return near !== undefined ? { kit: near, worn: false } : none;
+  }
+  for (const k of PATCH_KITS) if (k !== kit && has(k)) return { kit: k, worn: false };
+  return none;
 }
 
 /** Generator 5 (`ruinBays`): a ruin's roof piece over a lost bay (any cell it covers is a roof hole). */
@@ -82,9 +92,12 @@ export function layRoofPiece(b: StructureCtx, kit: string, p: RoofPiece, base: n
   }
   // generator 5: a ruin's lost bays are open to the sky, eaves and ridge included (resolve/building/ruinBays.ts)
   if (openBay(b, p)) return;
-  // generator 5: a worn roof's patches are re-laid in a second kit (resolve/building/wear.ts)
-  kit = patchKit(b, kit, p);
-  const wantBroken = !ring && st.roof.broken > 0 && hashUnitUtf16(pkey, "broken") < st.roof.broken;
+  // generator 5: a worn roof's patches are re-laid in a second kit (resolve/building/wear.ts), or (roofKitFacts) in its
+  // own kit's worn pieces
+  const patch = patchOf(b, kit, p);
+  kit = patch.kit;
+  const wantBroken =
+    patch.worn || (!ring && st.roof.broken > 0 && hashUnitUtf16(pkey, "broken") < st.roof.broken);
   const tryPlace = (
     kind: RoofPiece["kind"],
     x: number,

@@ -68,6 +68,7 @@ import {
   designSpaceFor,
   drawDesign,
   expandDesign,
+  lowerMassReachesMain,
 } from "./structureVariety";
 import { structureStyle } from "./structureStyles";
 import { maxOf, minOf } from "../util/lists";
@@ -769,7 +770,11 @@ function drawDesigns({ plan, level, list, work }: Expansion): void {
     // is drawn again, like one that repeats its neighbour
     const footing = style0?.footing ? style0.footingHeight : 0;
     const lowAgainst = (dd: BuildingDesign): boolean =>
-      profile.lowMassesOffNeighbours && lowMassAgainstNeighbour(expand(dd), st.id, work.neighbours, footing);
+      (profile.lowMassesOffNeighbours &&
+        lowMassAgainstNeighbour(expand(dd), st.id, work.neighbours, footing)) ||
+      // generator 5 (`leanUnderMain`): a lower mass reaching the main ridge is drawn again too
+      (profile.leanUnderMain &&
+        lowerMassReachesMain(expand(dd), { footing, deck: style0?.roof.deck ?? false }));
     let d = drawDesign(space, subSeed(seed, "design0"), st.use, r.w, r.h, st.character);
     for (let k = 1; k < 16; k++) {
       // tone: neighbours differ in wall tone, and at most a share of the street is dark-walled
