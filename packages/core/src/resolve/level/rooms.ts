@@ -26,7 +26,7 @@ import {
   dressSet,
   lightArea,
 } from "../../gen/rooms4";
-import { ROOM_TRAITS, showsDecay } from "../../gen/roomTraits";
+import { ROOM_TRAITS, roomTakesFire, showsDecay } from "../../gen/roomTraits";
 import type { CellRowRecord, CellRowRecords } from "./cellRows";
 import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
@@ -505,6 +505,9 @@ function dressCellRow(
     every: RECIPES.roomLightEvery,
     abandoned,
     ...(work.profile.occupancyLights ? { occupancy: {} } : {}),
+    // generator 5 (lightsAgainstSomething): an open fire only where the row's kind takes one (a guard's aisle, not a
+    // ward's or a stable's)
+    ...(work.profile.lightsAgainstSomething ? { fire: roomTakesFire(row.spec.kit) } : {}),
   });
   return commit(`${area.id}~room`, lit);
 }

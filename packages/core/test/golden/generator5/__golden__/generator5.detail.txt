@@ -337,7 +337,7 @@ plans/cave@5 l1 feature torch_wall 1
 plans/cave@5 diag info verify_water_level 1
 plans/cave@5 review flat_map 1
 plans/cave@5 review no_focal_point 1
-plans/cell-rows-town-v1 g pieces feature 219
+plans/cell-rows-town-v1 g pieces feature 225
 plans/cell-rows-town-v1 g pieces fill 48
 plans/cell-rows-town-v1 g pieces floor 767
 plans/cell-rows-town-v1 g pieces ledge 146
@@ -345,7 +345,7 @@ plans/cell-rows-town-v1 g pieces opening 55
 plans/cell-rows-town-v1 g pieces wall 875
 plans/cell-rows-town-v1 g pieces wall_post 192
 plans/cell-rows-town-v1 g layer roof 603
-plans/cell-rows-town-v1 g layer site 1018
+plans/cell-rows-town-v1 g layer site 1024
 plans/cell-rows-town-v1 g layer storey:0 397
 plans/cell-rows-town-v1 g layer storey:1 284
 plans/cell-rows-town-v1 g part barracks~room#0 1
@@ -503,11 +503,17 @@ plans/cell-rows-town-v1 g part infirmary~room0~cell4#2 1
 plans/cell-rows-town-v1 g part infirmary~room0~cell4#3 1
 plans/cell-rows-town-v1 g part infirmary~room0~room#0 1
 plans/cell-rows-town-v1 g part infirmary~room0~room#1 1
+plans/cell-rows-town-v1 g part infirmary~room0~room#10 1
+plans/cell-rows-town-v1 g part infirmary~room0~room#11 1
+plans/cell-rows-town-v1 g part infirmary~room0~room#12 1
 plans/cell-rows-town-v1 g part infirmary~room0~room#2 1
 plans/cell-rows-town-v1 g part infirmary~room0~room#3 1
 plans/cell-rows-town-v1 g part infirmary~room0~room#4 1
 plans/cell-rows-town-v1 g part infirmary~room0~room#5 1
 plans/cell-rows-town-v1 g part infirmary~room0~room#6 1
+plans/cell-rows-town-v1 g part infirmary~room0~room#7 1
+plans/cell-rows-town-v1 g part infirmary~room0~room#8 1
+plans/cell-rows-town-v1 g part infirmary~room0~room#9 1
 plans/cell-rows-town-v1 g part infirmary~room1~room#0 1
 plans/cell-rows-town-v1 g part infirmary~room1~room#1 1
 plans/cell-rows-town-v1 g part infirmary~room1~room#10 1
@@ -660,7 +666,7 @@ plans/cell-rows-town-v1 g feature armor_stand 12
 plans/cell-rows-town-v1 g feature barrel 21
 plans/cell-rows-town-v1 g feature bed 5
 plans/cell-rows-town-v1 g feature bench 1
-plans/cell-rows-town-v1 g feature brazier 3
+plans/cell-rows-town-v1 g feature brazier 1
 plans/cell-rows-town-v1 g feature bunk_bed 16
 plans/cell-rows-town-v1 g feature candles 6
 plans/cell-rows-town-v1 g feature chest 13
@@ -670,7 +676,7 @@ plans/cell-rows-town-v1 g feature sack 6
 plans/cell-rows-town-v1 g feature shelf_line 14
 plans/cell-rows-town-v1 g feature stool 2
 plans/cell-rows-town-v1 g feature table 1
-plans/cell-rows-town-v1 g feature torch_wall 17
+plans/cell-rows-town-v1 g feature torch_wall 25
 plans/cell-rows-town-v1 g feature weapon_rack 18
 plans/cell-rows-town-v1 diag info footprint_mismatch 1
 plans/cell-rows-town-v1 diag info structure_style_fallback 1
@@ -3665,14 +3671,14 @@ plans/keep-dungeon-v8@5 l2 part floor:floor.rock 17
 plans/keep-dungeon-v8@5 l2 part floor:floor.stone_tile 79
 plans/keep-dungeon-v8@5 l2 part pass~b 1
 plans/keep-dungeon-v8@5 l2 part pass~room#0 1
-plans/keep-dungeon-v8@5 l1 pieces feature 172
+plans/keep-dungeon-v8@5 l1 pieces feature 174
 plans/keep-dungeon-v8@5 l1 pieces fill 266
 plans/keep-dungeon-v8@5 l1 pieces floor 175
 plans/keep-dungeon-v8@5 l1 pieces link 2
 plans/keep-dungeon-v8@5 l1 pieces opening 3
 plans/keep-dungeon-v8@5 l1 pieces wall 155
 plans/keep-dungeon-v8@5 l1 pieces wall_post 25
-plans/keep-dungeon-v8@5 l1 layer site 798
+plans/keep-dungeon-v8@5 l1 layer site 800
 plans/keep-dungeon-v8@5 l1 part c_gh~a 1
 plans/keep-dungeon-v8@5 l1 part c_gh~b 1
 plans/keep-dungeon-v8@5 l1 part c_gh~room#0 1
@@ -3710,7 +3716,7 @@ plans/keep-dungeon-v8@5 l2 feature stocks 2
 plans/keep-dungeon-v8@5 l2 feature torch_wall 10
 plans/keep-dungeon-v8@5 l1 feature armor_stand 2
 plans/keep-dungeon-v8@5 l1 feature bones 1
-plans/keep-dungeon-v8@5 l1 feature brazier 2
+plans/keep-dungeon-v8@5 l1 feature brazier 1
 plans/keep-dungeon-v8@5 l1 feature bunk_bed 8
 plans/keep-dungeon-v8@5 l1 feature candles 1
 plans/keep-dungeon-v8@5 l1 feature chair 2
@@ -3722,14 +3728,13 @@ plans/keep-dungeon-v8@5 l1 feature pillar 9
 plans/keep-dungeon-v8@5 l1 feature rubble 12
 plans/keep-dungeon-v8@5 l1 feature table 1
 plans/keep-dungeon-v8@5 l1 feature throne 1
-plans/keep-dungeon-v8@5 l1 feature torch_wall 18
+plans/keep-dungeon-v8@5 l1 feature torch_wall 21
 plans/keep-dungeon-v8@5 l1 feature weapon_rack 3
 plans/keep-dungeon-v8@5 l1 feature web 2
 plans/keep-dungeon-v8@5 diag info footprint_mismatch 10
 plans/keep-dungeon-v8@5 diag info secret_door_plug 1
 plans/keep-dungeon-v8@5 diag info verify_props_overlap 2
 plans/keep-dungeon-v8@5 review anchor_missing 1
-plans/keep-dungeon-v8@5 review room_bare 1
 plans/l-corridor-route l1 pieces feature 1
 plans/l-corridor-route l1 pieces floor 43
 plans/l-corridor-route l1 pieces opening 2
@@ -6323,7 +6328,7 @@ plans/two-rooms-door@5 l1 feature bed 1
 plans/two-rooms-door@5 l1 feature rug 1
 plans/two-rooms-door@5 l1 feature torch_wall 6
 plans/two-rooms-door@5 review flat_map 1
-plans/varied-street-v1 g pieces feature 1352
+plans/varied-street-v1 g pieces feature 1346
 plans/varied-street-v1 g pieces fill 72
 plans/varied-street-v1 g pieces floor 1111
 plans/varied-street-v1 g pieces ledge 188
@@ -6332,7 +6337,7 @@ plans/varied-street-v1 g pieces opening 102
 plans/varied-street-v1 g pieces wall 1232
 plans/varied-street-v1 g pieces wall_post 401
 plans/varied-street-v1 g layer roof 786
-plans/varied-street-v1 g layer site 2578
+plans/varied-street-v1 g layer site 2572
 plans/varied-street-v1 g layer storey:0 659
 plans/varied-street-v1 g layer storey:1 268
 plans/varied-street-v1 g layer storey:2 168
@@ -6698,12 +6703,6 @@ plans/varied-street-v1 g part tavern~roof 79
 plans/varied-street-v1 g part tavern~room0~room#0 1
 plans/varied-street-v1 g part tavern~room0~room#1 1
 plans/varied-street-v1 g part tavern~room0~room#10 1
-plans/varied-street-v1 g part tavern~room0~room#11 1
-plans/varied-street-v1 g part tavern~room0~room#12 1
-plans/varied-street-v1 g part tavern~room0~room#13 1
-plans/varied-street-v1 g part tavern~room0~room#14 1
-plans/varied-street-v1 g part tavern~room0~room#15 1
-plans/varied-street-v1 g part tavern~room0~room#16 1
 plans/varied-street-v1 g part tavern~room0~room#2 1
 plans/varied-street-v1 g part tavern~room0~room#3 1
 plans/varied-street-v1 g part tavern~room0~room#4 1
@@ -6825,15 +6824,15 @@ plans/varied-street-v1 g feature candelabra 10
 plans/varied-street-v1 g feature candles 3
 plans/varied-street-v1 g feature cauldron 4
 plans/varied-street-v1 g feature chair 4
-plans/varied-street-v1 g feature chest 3
-plans/varied-street-v1 g feature clutter 66
+plans/varied-street-v1 g feature chest 2
+plans/varied-street-v1 g feature clutter 63
 plans/varied-street-v1 g feature counter 9
 plans/varied-street-v1 g feature crate 17
 plans/varied-street-v1 g feature desk 1
 plans/varied-street-v1 g feature forge 1
 plans/varied-street-v1 g feature rug 3
 plans/varied-street-v1 g feature sack 10
-plans/varied-street-v1 g feature shelf_line 43
+plans/varied-street-v1 g feature shelf_line 41
 plans/varied-street-v1 g feature stool 1
 plans/varied-street-v1 g feature table 1
 plans/varied-street-v1 g feature torch_wall 20

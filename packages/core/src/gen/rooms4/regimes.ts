@@ -236,8 +236,10 @@ function standBeside(
   focal = false,
 ): boolean {
   if (near.length === 0 || !sensible(room, piece)) return false;
-  // generator 5 (sensibleLights): nothing free-standing in the middle of a floor but the room's focal piece
-  const atWallOnly = room.opts.sensibleLights !== undefined && !focal;
+  // generator 5 (sensibleLights): nothing free-standing in the middle of a floor but the room's focal piece; generator 5
+  // (lightsAgainstSomething): whoever lights the room, and the focal glow too against a wall or a piece beside it
+  const sense = gridProfile(room.grid).lightsAgainstSomething;
+  const atWallOnly = (room.opts.sensibleLights !== undefined || sense) && !focal;
   const posts = offPosts ? room.postAt : undefined;
   const postBy = (x: number, y: number): boolean =>
     posts !== undefined && (posts(x, y) || posts(x + 1, y) || posts(x, y + 1) || posts(x + 1, y + 1));
@@ -264,6 +266,7 @@ function standBeside(
       return { at: [x, y] as [number, number], score };
     })
     .filter(({ at: [x, y] }) => !atWallOnly || SIDES.some((s) => room.grid.edge(x, y, s) === EDGE_WALL))
+    .filter(({ at: [x, y] }) => !sense || room.against(x, y))
     .sort((a, b) => a.score - b.score);
   const [ax, ay] = room.cells[0] ?? [0, 0];
   const pool = room.grid.lightPieces?.(piece.type, ax, ay, piece.variant);
@@ -280,6 +283,7 @@ function standBeside(
       continue;
     if (!room.push(p)) return false;
     room.lightSpots.delete(cellKey(at[0], at[1]));
+    room.floorLights.add(cellKey(at[0], at[1]));
     if (featureInfo(piece.type).blocking) {
       room.taken.add(cellKey(at[0], at[1]));
       room.blockCells++;

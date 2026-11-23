@@ -391,6 +391,7 @@ function pickCompanion(
       ? Math.min(cells.length, Math.max(1, Math.floor(reach.length / SEAT_PITCH + 1e-9)))
       : c.count;
   const out: Pick[] = [];
+  const joined = gridProfile(room.grid).doorsStayJoined;
   for (const cell of cells) {
     if (out.length >= want) break;
     const k = cellKey(cell[0], cell[1]);
@@ -400,6 +401,8 @@ function pickCompanion(
     if (!room.oneHeight([cell, baseHeight])) continue;
     // the first of its pieces that fits this cell (a small crate where a barrel is too big beside a thick wall)
     for (const piece of c.pieces) {
+      // generator 5 (doorsStayJoined): a blocking companion keeps off the doors' landings, as its anchor does
+      if (joined && featureInfo(piece.type).blocking && room.landings.has(k)) continue;
       const pick = poseAt(room, f, reach, c, piece, cell, toward, want);
       if (pick === null) continue;
       virtual.add(k);

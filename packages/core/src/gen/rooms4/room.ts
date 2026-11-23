@@ -6,7 +6,7 @@
 import type { FeatureType, Side } from "../../contracts/plan";
 import { subSeed } from "../../util/hash";
 import { createPrng, type Prng } from "../../util/prng";
-import type { GeneratedPlacement, PlacementGrid } from "../placementGrid";
+import { gridProfile, type GeneratedPlacement, type PlacementGrid } from "../placementGrid";
 import {
   EDGE_OPENING,
   EDGE_STAIR,
@@ -198,6 +198,8 @@ export class Room {
   readonly cells: Array<[number, number]> = [];
   readonly thresholds: Array<[number, number]> = [];
   readonly zone = new Set<number>();
+  /** The doors' landings (the cleared zone as the doors alone make it, before any group's standing room). */
+  readonly landings = new Set<number>();
   readonly wallPairs: Array<[number, number, Side]> = [];
   readonly cornerPairs = new Set<number>();
   /** Vertices of the room's inner corners (a corner post stands there). */
@@ -211,6 +213,24 @@ export class Room {
   readonly windows = new Set<number>();
   /** Generator 5 (RoomOpts.bedsideLights): cells kept for a group's standing light (held in `used` until it stands). */
   readonly lightSpots = new Set<number>();
+  /** Generator 5 (lightsAgainstSomething): cells a light stands on the floor in (a brazier, a lantern stand). */
+  readonly floorLights = new Set<number>();
+
+  /**
+   * Generator 5 (lightsAgainstSomething): does a light on this cell's floor stand against something: a wall or a window
+   * on one of its sides, or a piece that is no light on a cell beside it (furniture, a pier)? A light standing free in the
+   * middle of a floor reads as a prop dropped there (owner, 2026-11-23: braziers in a ward's and a stable's aisle).
+   */
+  against(x: number, y: number): boolean {
+    const g = this.grid;
+    for (const s of SIDES) {
+      if (g.edge(x, y, s) === EDGE_WALL || this.windowAt(x, y, s)) return true;
+      const [nx, ny] = stepSide(x, y, s);
+      if (!g.inBounds(nx, ny) || this.floorLights.has(cellKey(nx, ny))) continue;
+      if (this.taken.has(cellKey(nx, ny)) || (g.flags(nx, ny) & FLAG_FEATURE) !== 0) return true;
+    }
+    return false;
+  }
 
   /**
    * Generator 5 (RoomOpts.junctionPosts): does a post stand at vertex (vx, vy): walls meet there both ways (a corner, a
@@ -288,6 +308,7 @@ export class Room {
     const n = Math.max(1, this.cells.length);
     this.centroid = [sx / n, sy / n];
     this.findThresholds();
+    for (const k of this.zone) this.landings.add(k);
     this.entry = this.thresholds.length > 0 ? this.meanOf(this.thresholds) : this.centroid;
     const main = opts.mainDoor;
     if (main !== undefined && this.thresholds.some(([x, y]) => x === main[0] && y === main[1]))
@@ -357,13 +378,13 @@ export class Room {
     return this.taken.has(cellKey(x, y)) || (this.grid.flags(x, y) & FLAG_FEATURE) !== 0;
   }
 
-  /** The room cells reachable from its doors when `extra` is also blocked. */
-  walk(extra: ReadonlySet<number>): Set<number> {
+  /** The room cells reachable from its doors (or from `from` alone) when `extra` is also blocked. */
+  walk(extra: ReadonlySet<number>, from?: readonly [number, number]): Set<number> {
     const seen = new Set<number>();
     const queue: Array<[number, number]> = [];
     const open = (x: number, y: number): boolean =>
       this.inRoom.has(cellKey(x, y)) && !this.blocked(x, y) && !extra.has(cellKey(x, y));
-    for (const [x, y] of this.thresholds)
+    for (const [x, y] of from !== undefined ? [from] : this.thresholds)
       if (open(x, y) && !seen.has(cellKey(x, y))) {
         seen.add(cellKey(x, y));
         queue.push([x, y]);
@@ -388,13 +409,30 @@ export class Room {
     return seen;
   }
 
-  /** May these cells be blocked: every cell still reachable from the doors stays reachable. */
+  /**
+   * May these cells be blocked: every cell still reachable from the doors stays reachable, and (generator 5,
+   * doorsStayJoined) every doorway still reached from the main door now still is: a walk that starts at every doorway
+   * at once keeps both halves of a room a piece cuts in two, the kitchen door behind a bar cut off from the street door.
+   */
   keepsWay(cells: ReadonlyArray<readonly [number, number]>): Set<number> | null {
     const extra = new Set(cells.map(([x, y]) => cellKey(x, y)));
     const after = this.walk(extra);
     let lost = 0;
     for (const k of this.reach) if (!after.has(k) && !extra.has(k)) lost++;
-    return lost === 0 ? after : null;
+    if (lost > 0) return null;
+    if (gridProfile(this.grid).doorsStayJoined && this.doorPairs.length > 1) {
+      const main = this.doorPairs.reduce((a, b) =>
+        Math.hypot(b[0] + 0.5 - this.entry[0], b[1] + 0.5 - this.entry[1]) <
+        Math.hypot(a[0] + 0.5 - this.entry[0], a[1] + 0.5 - this.entry[1])
+          ? b
+          : a,
+      );
+      const before = this.walk(new Set(), [main[0], main[1]]);
+      const now = this.walk(extra, [main[0], main[1]]);
+      for (const [x, y] of this.doorPairs)
+        if (before.has(cellKey(x, y)) && !now.has(cellKey(x, y))) return null;
+    }
+    return after;
   }
 
   /**
