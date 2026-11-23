@@ -4,6 +4,7 @@
  * Supports compression 0 (none), 2 (LZ4) and 3 (LZ4HC); LZMA (1) throws.
  */
 import { lz4BlockDecompress } from "./lz4";
+import { lzmaDecompress } from "./lzma";
 
 export interface BundleNode {
   path: string;
@@ -57,6 +58,7 @@ class BE {
 function decompress(kind: number, src: Uint8Array, size: number): Uint8Array {
   if (kind === 0) return src;
   if (kind === 2 || kind === 3) return lz4BlockDecompress(src, size);
+  if (kind === 1) return lzmaDecompress(src, size);
   throw new Error(`unsupported UnityFS compression ${kind} (1 = LZMA)`);
 }
 
