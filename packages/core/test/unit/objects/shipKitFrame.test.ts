@@ -13,6 +13,8 @@ import {
   SHIP_KIT_FRAME as F,
   vessel,
 } from "../../../src/objects";
+import { pieceFacts } from "../../../src/gen/pieceFacts";
+import { turned } from "../../../src/objects/facing";
 import { MEASURED_BOW_FENCE, MEASURED_HULL, MEASURED_PROPS } from "../../../src/objects/shipKitGeometry";
 import { loadPalettes } from "../../../src/palette";
 import { createPlanRoles } from "../../../src/palette/planRoles";
@@ -41,12 +43,23 @@ describe("SHIP_KIT_FRAME agrees with the measured kit", () => {
     expect(steps(F.bowFenceYaw + F.bowRailStarboardTurn)).toBe(MEASURED_BOW_FENCE.starboard);
   });
 
-  it("points the rig and props as measured", () => {
-    // a piece's +z turned by bowYaw is the bow; guns and controls turn by their fronts (facing.ts, its own test)
-    expect(MEASURED_PROPS.shroudsClimb).toBe("+z");
-    expect(MEASURED_PROPS.boatBow).toBe("+z");
-    expect(MEASURED_PROPS.cannonBarrel).toBe("+z");
-    expect(steps(F.bowYaw)).toBe(0);
+  it("holds the piece facts the builds read to the mesh measurements (cannon, helm, gallery)", () => {
+    // the facts (gen/pieceFacts.ts) are what realize and the object engine turn by; the measurements are the record
+    for (const n of ["ship cannon static", "ship cannon up or down"])
+      expect(pieceFacts(n).front?.axis, n).toBe(MEASURED_PROPS.cannonBarrel);
+    expect(pieceFacts("Ship floor Steering wheel").front?.axis).toBe(MEASURED_PROPS.helmOperator);
+    for (const n of [
+      "Ship wall 2x2 decor window unique",
+      "Ship wall 2x2 decor corner unique L",
+      "Ship wall 2x2 decor corner unique R",
+    ])
+      expect(pieceFacts(n).wallDepth, n).toBe(MEASURED_PROPS.galleryWallDepth);
+    // the gallery's outer face, turned by the kit's bow yaw, faces the stern (-x in the recipe's frame)
+    const AXIS: Readonly<Record<string, readonly [number, number]>> = { "+z": [0, 1], "-z": [0, -1] };
+    const face = AXIS[MEASURED_PROPS.galleryFace] ?? [0, 0];
+    const out = turned(face, F.bowYaw);
+    expect(out[0]).toBeCloseTo(-1);
+    expect(out[1]).toBeCloseTo(0);
   });
 
   it("measured the chosen turns clearly better than the next best", () => {

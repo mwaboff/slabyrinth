@@ -11,6 +11,8 @@ import {
   facingFaults,
   openDeckCells,
   piecesOf,
+  columnTo,
+  OBJECT_KITS,
   platform,
   uncappedCells,
   vessel,
@@ -24,7 +26,12 @@ import { createPlanRoles } from "../../../src/palette/planRoles";
 
 const kit = createKit(createPlanRoles(loadPalettes(), 5), "wood_town");
 const brig = buildObject(vessel, { size: 30, seed: "rules", kind: "ship" }, kit);
-const battery = buildObject(platform, { size: 6, seed: "rules" }, kit);
+// the platform's own kit data (objects/kit.ts OBJECT_KITS) prefers the ship family's forms
+const battery = buildObject(
+  platform,
+  { size: 6, seed: "rules" },
+  createKit(createPlanRoles(loadPalettes(), 5), "wood_town", OBJECT_KITS.platform),
+);
 const named = (o: BuiltObject, n: string) => piecesOf(o).filter((q) => q.piece.role === n);
 
 describe("part-level rules hold on two different objects", () => {
@@ -109,5 +116,53 @@ describe("the checks catch the faults they are for", () => {
       ] as const
     ).map((d) => yawFacing(gun, d));
     expect(new Set(yaws).size).toBe(4);
+  });
+});
+
+describe("the platform names no kit: its kit comes from data", () => {
+  const roles = createPlanRoles(loadPalettes(), 5);
+  const build = (prefer: readonly string[]) =>
+    buildObject(platform, { size: 6, seed: "kits" }, createKit(roles, "wood_town", prefer));
+
+  it("builds from the ship kit's forms when its kit prefers them, from plain pieces when not", () => {
+    const shipRoles = (o: BuiltObject) =>
+      [...new Set(piecesOf(o).map((q) => q.piece.role))].filter((r) => r.startsWith("ship."));
+    expect(shipRoles(build(["ship"]))).toEqual(expect.arrayContaining(["ship.deck", "ship.cannon"]));
+    const plain = build([]);
+    expect(shipRoles(plain)).toEqual([]);
+    // the plain build still caps its body (the catalog has no gun outside a kit, so it carries none)
+    expect(openDeckCells(plain)).toEqual([]);
+    expect(uncappedCells(plain, 2.5)).toEqual([]);
+  });
+
+  it("stands its posts on the ground and under the deck, whatever post the kit has", () => {
+    for (const prefer of [["ship"], []]) {
+      const posts = build(prefer).parts.find((p) => p.name === "posts")?.pieces ?? [];
+      expect(posts.length).toBeGreaterThan(0);
+      for (const q of posts) {
+        expect(q.y).toBeGreaterThanOrEqual(0);
+        expect(q.y + q.piece.variant.geom.size.y).toBeLessThanOrEqual(2.0 + 0.02);
+      }
+    }
+  });
+
+  it("a column never reaches below the ground or above its height, a post taller than it is left out", () => {
+    const post = piecesOf(battery).find((q) => q.piece.measures.kind === "prop")?.piece;
+    if (!post) throw new Error("no prop");
+    const tall = {
+      ...post,
+      variant: { ...post.variant, geom: { ...post.variant.geom, size: { ...post.variant.geom.size, y: 3 } } },
+    };
+    const short = {
+      ...post,
+      variant: {
+        ...post.variant,
+        geom: { ...post.variant.geom, size: { ...post.variant.geom.size, y: 0.75 } },
+      },
+    };
+    expect(columnTo([tall], 2)).toEqual([]);
+    const col = columnTo([tall, short], 2);
+    expect(col.map((c) => c.y)).toEqual([0, 0.75]);
+    expect(col.every((c) => c.y >= 0 && c.y + c.piece.variant.geom.size.y <= 2.02)).toBe(true);
   });
 });

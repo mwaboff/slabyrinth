@@ -7,7 +7,7 @@ import type { ThemeId } from "../contracts/plan";
 import type { ArrangePiece } from "../arrange/piece";
 import type { PlanRoles } from "../palette/planRoles";
 import { hashUnitMixed } from "../util/hash";
-import { findStandIn, type StandIn, type StandInId } from "./lexicon";
+import { findStandIn, STAND_INS, type StandIn, type StandInDef, type StandInId } from "./lexicon";
 
 export interface ObjectKit {
   readonly theme: ThemeId;
@@ -31,11 +31,32 @@ export function kitOr<K extends StandInId, F extends StandInId>(kit: ObjectKit, 
   return kit.standIn(want) ? want : today;
 }
 
-/** A kit for the theme. The memo lives as long as the kit (one build). */
-export function createKit(roles: PlanRoles, theme: ThemeId): ObjectKit {
+/**
+ * The kit families each object recipe prefers (data, not recipe code): a stand-in with a form in a preferred family
+ * (objects/lexicon.ts `forms`) takes that form when the palettes have it. Empty: the plain stand-ins.
+ */
+export const OBJECT_KITS: Readonly<Record<string, readonly string[]>> = {
+  platform: ["ship"],
+};
+
+/**
+ * A kit for the theme, preferring the kit families `prefer` (an object's own, `OBJECT_KITS`). The memo lives as long
+ * as the kit (one build).
+ */
+export function createKit(roles: PlanRoles, theme: ThemeId, prefer: readonly string[] = []): ObjectKit {
   const asked = new Map<StandInId, StandIn | null>();
+  const formOf = (id: StandInId): StandIn | null => {
+    const forms: Readonly<Record<string, string>> | undefined = (STAND_INS[id] as StandInDef).forms;
+    for (const family of prefer) {
+      const alt = forms?.[family];
+      const found = alt !== undefined ? findStandIn(roles, theme, alt as StandInId) : null;
+      // the form answers for the stand-in asked (its id), so a recipe never sees which family supplied it
+      if (found) return { ...found, id };
+    }
+    return null;
+  };
   const standIn = (id: StandInId): StandIn | null => {
-    if (!asked.has(id)) asked.set(id, findStandIn(roles, theme, id));
+    if (!asked.has(id)) asked.set(id, formOf(id) ?? findStandIn(roles, theme, id));
     return asked.get(id) ?? null;
   };
   const mix = (id: StandInId): readonly ArrangePiece[] => {

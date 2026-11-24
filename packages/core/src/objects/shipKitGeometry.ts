@@ -58,8 +58,12 @@ export const MEASURED_PROPS = {
   cannonBarrel: "+z",
   /** The kit boat's front section points +z. */
   boatBow: "+z",
+  /** The helm's operator stands at the wheel (north edge of its tile) facing its box: -z. */
+  helmOperator: "-z",
   /** The stern gallery's outer face (cap and glass) is -z; its "L" corner is rounded at the south-west (port aft). */
   galleryFace: "-z",
+  /** The gallery's full-height wall is this deep from its -z edge; behind it only a low sill. */
+  galleryWallDepth: 0.7,
   /** A side fence's base lip protrudes -z; which face is outboard is not settled by the mesh. */
   fenceLip: { side: "-z", settled: false },
   /** A plain ship wall's buttress posts and the porthole and window mouldings stick out +z (an inner face). */

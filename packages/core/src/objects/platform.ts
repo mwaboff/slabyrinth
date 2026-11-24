@@ -9,8 +9,8 @@
 import type { Placed, XZ } from "../arrange/piece";
 import { floorOver } from "./deck";
 import { yawFacing } from "./facing";
-import { kitOr } from "./kit";
-import { at, part, type Draft, type ObjectParams, type ObjectRecipe, type Part } from "./recipe";
+import { maxOf } from "../util/lists";
+import { at, columnTo, part, type Draft, type ObjectParams, type ObjectRecipe, type Part } from "./recipe";
 
 export type PlatformParams = ObjectParams;
 
@@ -37,22 +37,22 @@ export const platform: ObjectRecipe<PlatformParams> = {
       [-h, h],
     ];
     const parts: Part[] = [];
-    const tiles = { small: kitOr(kit, "shipDeckSmall", "deckSmall"), big: kitOr(kit, "shipDeck", "deck") };
+    // (the kit's own forms, if its data prefers one: objects/kit.ts OBJECT_KITS; this recipe names no kit)
+    const tiles = { small: "deckSmall", big: "deck" } as const;
     parts.push(part("deck", "mass", floorOver(outline, DECK, kit, `${String(params.seed)}:deck`, tiles)));
-    const post = kit.piece("corner") ?? kit.piece("post");
-    if (post) {
+    // corner posts from the ground to the deck's underside, whole pieces that fit (never below the ground)
+    const candidates = [...kit.mix("corner"), ...kit.mix("post")];
+    const column = columnTo(candidates, DECK - 0.5);
+    if (column.length > 0) {
+      const inset = maxOf(column.map((c) => c.piece.measures.length)) / 2;
       const posts: Placed[] = [];
-      const ph = post.variant.geom.size.y;
-      const top = DECK - 0.5;
-      const inset = post.measures.length / 2;
       for (const [sx, sz] of [
         [-1, -1],
         [1, -1],
         [-1, 1],
         [1, 1],
       ] as const)
-        for (let y = 0; y < top - 0.05; y += ph)
-          posts.push(at(post, sx * (h - inset), Math.min(y, top - ph), sz * (h - inset)));
+        for (const c of column) posts.push(at(c.piece, sx * (h - inset), c.y, sz * (h - inset)));
       parts.push(part("posts", "supports", posts));
     }
     const rail = kit.piece("rail");
@@ -67,7 +67,7 @@ export const platform: ObjectRecipe<PlatformParams> = {
       }
       parts.push(part("railing", "face", pieces));
     }
-    const gun = kit.piece(kitOr(kit, "shipCannon", "barrel"));
+    const gun = kit.piece("gun");
     if (gun) {
       const r = h - 1.2;
       const guns = (

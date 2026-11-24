@@ -179,6 +179,24 @@ export const outdoorPiece = (name: string | undefined): boolean =>
 /** Does the piece only glow (it lights nothing and looks like a light)? */
 export const glows = (name: string | undefined): boolean => pieceFacts(name).glows === true;
 
+const FRONT_SIDE: Readonly<Record<FrontAxis, "N" | "E" | "S" | "W">> = {
+  "+z": "N",
+  "-z": "S",
+  "+x": "E",
+  "-x": "W",
+};
+
+/**
+ * The ONE source of a piece's measured front, as the side it faces at rot 0 (+z north): realize's facing
+ * (compile/realize/context.ts `facingOf`, over the palette's `facing.front`) and the object engine (objects/facing.ts)
+ * both read it, so a piece placed as a plan feature and the same piece in an object turn alike. Undefined for a piece
+ * the facts give no front.
+ */
+export const frontSide = (name: string | undefined): "N" | "E" | "S" | "W" | undefined => {
+  const f = pieceFacts(name).front;
+  return f ? FRONT_SIDE[f.axis] : undefined;
+};
+
 /** Is the piece remains (a skeleton, a bone pile): decay, whatever role a palette lists it under? */
 export const remainsPiece = (name: string | undefined): boolean => pieceFacts(name).remains === true;
 

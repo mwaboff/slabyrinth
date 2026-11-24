@@ -8,6 +8,7 @@ import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import { BUILD_CONSTANTS } from "../../contracts/plan";
 import type { ResolvedLevel } from "../../contracts/resolved";
 import { shell } from "../../gen/pieceFacts";
+import { areaObject, objectOf } from "../../objects/siteIds";
 import type { VerifyCtx } from "./context";
 import type { Solid, SolidIndex } from "./grid";
 import { POKE_TOLERANCE } from "./limits";
@@ -31,10 +32,14 @@ export function checkLevelAbove(ctx: VerifyCtx, solids: SolidIndex): void {
     const hits: Solid[] = [];
     for (const s of solids.all) {
       if (s.levelId !== L.id || s.role === "link" || s.box.max.y <= U.elevation + POKE_TOLERANCE) continue;
-      // a hollow shell (a hull's planking, gen/pieceFacts.ts) rises round the floors inside it, not through them
-      if (shell(s.name)) continue;
       const pc = solids.toPlan((s.box.min.x + s.box.max.x) / 2, (s.box.min.z + s.box.max.z) / 2);
-      if (gu.cell(Math.floor(pc.px), Math.floor(pc.py)).floor) hits.push(s);
+      const c = gu.cell(Math.floor(pc.px), Math.floor(pc.py));
+      if (!c.floor) continue;
+      // a hollow shell (a hull's planking, gen/pieceFacts.ts) rises round its OWN object's floors (its decks and rooms,
+      // objects/siteIds.ts), not through them; any other floor above it (a bridge, a quay, a building's) it pierces
+      const owner = shell(s.name) ? objectOf(s.p.source.elementId) : null;
+      if (owner !== null && areaObject(U.areas[c.area - 1]?.id) === owner) continue;
+      hits.push(s);
     }
     if (!hits.length) return;
     ctx.report.add({

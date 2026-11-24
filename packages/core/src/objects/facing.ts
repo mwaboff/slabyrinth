@@ -6,12 +6,12 @@
  * built object is held to (tests), whatever recipe built it.
  */
 import { placedBox, type ArrangePiece, type XZ } from "../arrange/piece";
-import { pieceFacts, type FrontAxis } from "../gen/pieceFacts";
+import { frontSide, pieceFacts } from "../gen/pieceFacts";
 import { maxOf, minOf } from "../util/lists";
 import { insideOrNear } from "./outline";
 import { piecesOf, type BuiltObject } from "./recipe";
 
-const AXIS: Readonly<Record<FrontAxis, XZ>> = { "+x": [1, 0], "-x": [-1, 0], "+z": [0, 1], "-z": [0, -1] };
+const SIDE: Readonly<Record<"N" | "E" | "S" | "W", XZ>> = { E: [1, 0], W: [-1, 0], N: [0, 1], S: [0, -1] };
 
 /** A frame vector turned by a yaw (degrees clockwise from above, the frame's +z north, +x east). */
 export function turned(v: XZ, yaw: number): XZ {
@@ -23,8 +23,9 @@ export function turned(v: XZ, yaw: number): XZ {
 
 /** The piece's front at rot 0, or null when the facts give it none. */
 export function frontOf(piece: ArrangePiece): XZ | null {
-  const f = pieceFacts(piece.variant.name).front;
-  return f ? AXIS[f.axis] : null;
+  // the one source realize reads too (gen/pieceFacts.ts `frontSide`)
+  const s = frontSide(piece.variant.name);
+  return s ? SIDE[s] : null;
 }
 
 /**
