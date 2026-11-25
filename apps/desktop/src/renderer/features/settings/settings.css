@@ -253,6 +253,20 @@
   width: 80px;
 }
 
+.revlimit {
+  max-width: 440px;
+  display: grid;
+  gap: var(--s4);
+}
+
+.revlimit__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s6);
+  color: var(--ink);
+}
+
 .moneyfield__sign {
   color: var(--muted);
 }

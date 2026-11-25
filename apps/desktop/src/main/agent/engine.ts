@@ -39,6 +39,7 @@ import { resolvePlan } from "@slabyrinth/core/resolve";
 import { outlineView } from "@slabyrinth/core/text";
 import type { AppError, ChatEvent, IpcRequests } from "../../shared/ipc";
 import type { ChatMessageMeta, Conversation, ProjectFile } from "../../shared/project";
+import { agentSettings } from "../../shared/agentSettings";
 import { activeSizeTier, checkSecondsPerStep } from "../../shared/sizeTier";
 import { redactString } from "../logger";
 import { EnginePortError, type ConversationEngine, type EngineHost } from "../ports/engine";
@@ -169,6 +170,11 @@ interface TurnState {
   usage: Usage;
   cost: Cost | null;
   versions: number[];
+  /**
+   * Plan versions the model may commit in this turn before the app stops between steps and asks the GM
+   * (AppSettings.agent.maxRevisionsPerTurn, or the chat:continue allowance), read once when the turn starts.
+   */
+  revisionLimit: number;
   /** Earlier attempts carried over by Retry (UX §5.6). */
   alternatives?: ChatMessageMeta["alternatives"];
   lastAssistantId: string | null;
@@ -423,7 +429,11 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     return this.exclusive(() => this.sendUnlocked(req));
   }
 
-  private async sendUnlocked(req: IpcRequests["chat:send"]["req"]): Promise<{ turnId: string }> {
+  /** allowance: this turn's revision limit (chat:continue); absent = the settings value. */
+  private async sendUnlocked(
+    req: IpcRequests["chat:send"]["req"],
+    allowance?: number,
+  ): Promise<{ turnId: string }> {
     const conv = this.conversation();
     if (conv.archived)
       throw new EnginePortError({
@@ -503,6 +513,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       descriptor,
       initialItems: items,
       intent,
+      ...(allowance !== undefined ? { allowance } : {}),
     });
   }
 
@@ -622,6 +633,8 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     descriptor: ModelDescriptor | undefined;
     initialItems: ChatItem[];
     intent: "chat" | "plan";
+    /** The turn's revision limit when it is not the settings value ("Keep going"). */
+    allowance?: number;
   }): Promise<{ turnId: string }> {
     const abort = new AbortController();
     this.host.setBusy({ turnId: args.turnId });
@@ -645,6 +658,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       usage: ZERO_USAGE,
       cost: null,
       versions: [],
+      revisionLimit: args.allowance ?? agentSettings(this.host.getSettings()).maxRevisionsPerTurn,
       lastAssistantId: null,
     };
     if (this.pendingAlternatives?.conversationId === args.conversationId) {
@@ -692,7 +706,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
           type: "notice",
           turnId: t.turnId,
           kind: "truncated",
-          text: "Stopped after many steps in one turn. Send a message to continue.",
+          text: "Claude has worked through many steps for this message and paused. Send a message to keep going.",
         });
         this.finish(t, "end_turn", false);
         return;
@@ -835,6 +849,12 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         }
         if (signal.aborted) {
           this.cancelled(t, "");
+          return "stop";
+        }
+        // The revision limit: the model has made its allowance of versions and wants another step. Stop between
+        // steps (every version and tool result is already kept) and let the GM say whether to go on.
+        if (t.versions.length >= t.revisionLimit) {
+          this.finish(t, "revision_limit", false, true);
           return "stop";
         }
         return "continue";
@@ -1435,8 +1455,9 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     }
   }
 
-  async continue(): Promise<{ turnId: string }> {
-    return this.send({ text: CONTINUE_TEXT, intent: "chat" });
+  /** Continue (a cut-off answer, or "Keep going" after the revision limit, with that allowance of versions). */
+  async continue(req: { allowance?: number } = {}): Promise<{ turnId: string }> {
+    return this.exclusive(() => this.sendUnlocked({ text: CONTINUE_TEXT, intent: "chat" }, req.allowance));
   }
 
   selectAlternative(req: IpcRequests["chat:selectAlternative"]["req"]): Promise<void> {

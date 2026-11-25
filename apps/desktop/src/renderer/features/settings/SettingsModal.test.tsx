@@ -55,6 +55,38 @@ describe("Settings controls save through main's request schema", () => {
     expect(after.projects).toEqual({ ...before.projects, folder: "D:\\Maps" });
   });
 
+  it("AI ▸ Changes per message sticks, and the rest of the group stays", async () => {
+    setBridge(createFakeBridge({ speed: 0 }));
+    await useSettings.getState().load();
+    const before = await saved();
+    expect(before.agent?.maxRevisionsPerTurn).toBe(4);
+    useApp.setState({ settingsOpen: "ai" });
+    render(<SettingsModal />);
+    const field = screen.getByRole("combobox", { name: "Changes per message" });
+    expect(field).toHaveValue("4");
+    expect(screen.getByText(/for each message you send, then asks you before going on/)).toBeInTheDocument();
+    // the range is the schema's: 1 to 20
+    const options = screen.getAllByRole("option").map((o) => o.textContent);
+    expect(options[0]).toBe("1");
+    expect(options.at(-1)).toBe("20");
+    await userEvent.selectOptions(field, "7");
+    await waitFor(async () => {
+      expect((await saved()).agent?.maxRevisionsPerTurn).toBe(7);
+    });
+    const after = await saved();
+    expect(after.agent).toEqual({ ...before.agent, maxRevisionsPerTurn: 7 });
+    expect(useSettings.getState().settings?.agent).toEqual(after.agent);
+  });
+
+  it("the agent group has no main-owned field: a patch spread from the stored group is saved", async () => {
+    setBridge(createFakeBridge({ speed: 0 }));
+    await useSettings.getState().load();
+    const s = useSettings.getState().settings;
+    if (!s) throw new Error("settings not loaded");
+    await useSettings.getState().update({ agent: { ...s.agent, maxPicturesPerTurn: 2 } });
+    expect((await saved()).agent).toEqual({ ...s.agent, maxPicturesPerTurn: 2 });
+  });
+
   it("a patch spread from the stored settings does not compile", () => {
     const s = {
       talespire: { installPath: null, lastScanAt: null, levelLayout: "stacked", alignmentMarkers: false },

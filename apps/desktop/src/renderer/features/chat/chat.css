@@ -481,6 +481,20 @@
   margin-top: var(--s6);
 }
 
+.limitcard__icon {
+  color: var(--ink-2);
+}
+
+.limitcard__body {
+  font: 400 14px/21px var(--f-ui);
+  color: var(--ink-2);
+  margin-top: var(--s6);
+}
+
+.limitcard__settings {
+  margin-left: auto;
+}
+
 .errcard__details {
   font: var(--t-code);
   color: var(--ink-2);
