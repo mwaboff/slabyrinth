@@ -11,6 +11,7 @@ import {
   buildObject,
   createKit,
   openDeckEdges,
+  type ObjectParams,
   type ObjectRecipe,
 } from "../../../src/objects";
 import { loadPalettes } from "../../../src/palette";
@@ -18,7 +19,8 @@ import { createPlanRoles } from "../../../src/palette/planRoles";
 
 /** The open raised edges of every case of a recipe, built with the palettes of `generator`. */
 const openEdges = (id: keyof typeof OBJECT_RECIPES, generator: 5 | 6): string[] => {
-  const recipe = OBJECT_RECIPES[id] as ObjectRecipe<Record<string, unknown>>;
+  // (each recipe takes its own parameters; the table holds them as data)
+  const recipe = OBJECT_RECIPES[id] as unknown as ObjectRecipe<ObjectParams>;
   const kit = createKit(createPlanRoles(loadPalettes(), generator), "wood_town", OBJECT_KITS[id]);
   return CASES[id].flatMap((params) =>
     openDeckEdges(buildObject(recipe, params as never, kit)).map((e) => `${JSON.stringify(params)}: ${e}`),
