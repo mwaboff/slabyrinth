@@ -7,6 +7,8 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-24
+
 ### Added
 
 - **Rooms furnished by purpose.** A room named for its use is laid out like one: a bed with its nightstand and a light, a bar with stools and a back store, a desk with its chair. Taverns and dining halls get tables with seats in the middle, barracks and wards rows of beds, classrooms rows of desks, stores aisles of stock. New kinds of room: shops, stables, sitting rooms, classrooms, command rooms and infirmary wards. Tidy rooms stay square; lived-in and working rooms look used.
@@ -23,9 +25,9 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 - The water height the build suggests stays below the floor of a cellar or lower level standing in the water.
 - Rooms in use stay tidy: no rubble or remains in a kept room, only in ruined, ramshackle or abandoned places, crypts and cells. Lights on a room's floor stand against a wall or a piece, never alone mid-floor, and furniture never cuts a room's doors off from each other. A dark room divided into cells stays dark.
-- Harbours: a gangway runs from the deck to the quay's edge, no land plants grow under the water, and the wharf's edge is straight.
+- By the water, no land plants grow under the water line, and a wharf's edge is straight.
 - Rich and poor read from the street. A poor building leans to rough plank walls and odd-matched roofs, a rich one to dressed stone, a quarter's roofs alike and more trim; a rich house may get a lit approach, and a rich home or temple a pair of statues at its door (never an inn or a shop). A map that says nothing about wealth looks as before. Worn roofs show patches, not holes; only a ruin's roof is open. Roofs fit their house: no tall one-sided roof over a deep house, and no flat tops in a timber village unless asked for.
-- Nothing the generator places stands where you step on or off stairs, a ramp or a ladder, rubble at a wall's foot never closes the way through a room, and a cliff's rocks keep off a walkway that climbs to it.
+- Blocked rooms and stairs are caught before they reach you. Nothing the generator places stands where you step on or off stairs, a ramp or a ladder, rubble at a wall's foot never closes the way through a room, and a cliff's rocks keep off a walkway that climbs to it. Before a release, every test map is now built many times over and checked that each room and stair can be walked to.
 - Maps you made with earlier versions rebuild unchanged. The new rules are for new maps only.
 
 ### Fixed
@@ -36,6 +38,9 @@ Release notes, which the app shows under "What's new" when it offers that update
 ### Known limits
 
 - Upper storeys of buildings are still empty shells; only the ground floor is furnished.
+- A level still holds at most 32 buildings. Larger cities come in a later release.
+- Maps of 512 × 512 tiles with alignment pillars have not been tried in the game yet.
+- Ships built from the game's own ship kit (hull, decks, masts, sails, cannon and furnished cabins) are in the generator and have been checked in renders from the game's meshes, but the AI cannot place one yet; asking for a ship comes in a later release.
 - The new rooms, lights, streets and ruins have been checked by the app's own tests but not yet looked at in TaleSpire.
 
 ## [0.3.0] - 2026-11-22
@@ -157,7 +162,8 @@ The first release.
   version exists, and links to its release page. You can turn the check off in Settings ▸ About.
 - Windows installer and portable build, Linux AppImage. The builds are not code-signed yet.
 
-[Unreleased]: https://github.com/mwaboff/slabyrinth/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mwaboff/slabyrinth/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/mwaboff/slabyrinth/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mwaboff/slabyrinth/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mwaboff/slabyrinth/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/mwaboff/slabyrinth/compare/v0.1.1...v0.1.2
