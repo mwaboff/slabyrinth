@@ -1,0 +1,19 @@
+{
+  "name": "@slabyrinth/scene3d",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "3D scenes of a build or slab, game-mesh readers over bytes, and a deterministic software renderer (PNG). Pure TypeScript: no node:*, no DOM.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b . tsconfig.test.json",
+    "test": "vitest run --root ../.. --project scene3d"
+  },
+  "dependencies": {
+    "fflate": "0.8.3"
+  }
+}

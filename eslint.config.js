@@ -154,6 +154,45 @@ const appLayersRule = layersRule({
 });
 
 /**
+ * @slabyrinth/scene3d runs in the CLI, in tests and in the app's workers, so it is pure TypeScript like core: no
+ * Node built-ins, Electron, React or DOM. Bytes come in through ports (MeshSource); render-cli is where Node lives.
+ */
+const scene3dBoundary = {
+  paths: [
+    ...["electron", "react", "react-dom"].map((name) => ({
+      name,
+      message: "@slabyrinth/scene3d is pure TypeScript (it runs in workers and the CLI alike).",
+    })),
+    ...builtinModules.map((name) => ({
+      name,
+      message: "Node built-ins belong in packages/render-cli: scene3d receives bytes through its ports.",
+    })),
+  ],
+  patterns: [
+    {
+      group: ["node:*"],
+      message: "Node built-ins belong in packages/render-cli: scene3d receives bytes through its ports.",
+    },
+  ],
+};
+
+/**
+ * The layer order of packages/scene3d/src (same rule as CORE_LAYERS): the shared types and small mesh helpers; the
+ * byte readers of the game's files, the software raster and the scene builder (independent of each other); then the
+ * mesh sources (over the readers) and the shot rules (over scene and raster).
+ */
+const SCENE3D_LAYERS = [["types"], ["geom"], ["unity", "raster", "scene"], ["source", "shots"]];
+const scene3dLayersRule = layersRule({
+  table: "SCENE3D_LAYERS",
+  label: "Scene3d layers",
+  srcLabel: "packages/scene3d/src",
+  root: path.join(import.meta.dirname, "packages", "scene3d", "src"),
+  layers: SCENE3D_LAYERS,
+  entry: "index.ts",
+  entryLabel: "scene3d entry",
+});
+
+/**
  * Edge kinds and cell flags come from the resolved contract (EDGE, CELL_FLAG; gen/gridGeometry.ts re-exports them by
  * name). A local `const EDGE_WALL = 1` silently drifts when the contract changes.
  */
@@ -663,6 +702,7 @@ const slabyrinthPlugin = {
     "element-theme": elementThemeRule,
     "variant-filters": variantFilterRule,
     "core-layers": coreLayersRule,
+    "scene3d-layers": scene3dLayersRule,
     "cell-theme": cellThemeRule,
     "cell-owner": cellOwnerRule,
     "hash-unit": hashUnitRule,
@@ -784,6 +824,21 @@ export default tseslint.config(
     files: ["packages/core/src/**/*.ts"],
     plugins: { slabyrinth: slabyrinthPlugin },
     rules: { "slabyrinth/core-layers": "error" },
+  },
+  {
+    files: ["packages/scene3d/src/**/*.ts"],
+    plugins: { slabyrinth: slabyrinthPlugin },
+    rules: {
+      "no-restricted-imports": ["error", scene3dBoundary],
+      "slabyrinth/scene3d-layers": "error",
+      "slabyrinth/spread-args": "error",
+    },
+  },
+  {
+    // where outside JSON enters typed code
+    files: ["packages/render-cli/src/**/*.ts"],
+    plugins: { slabyrinth: slabyrinthPlugin },
+    rules: { "slabyrinth/parsed-json": "error", "slabyrinth/spread-args": "error" },
   },
   {
     // the grid owns the cell's theme and owner; the area table builds the theme table and claims the cells

@@ -7,6 +7,9 @@ export { resolvePlan, resolvedHash, canonicalResolved, type ResolveOptions } fro
 export { geometryChecks, reachableCells, type GeometryCheckContext } from "./validate";
 export { traceRings, ringArea, type Ring } from "./trace";
 export { themeDefaults, type ThemeDefaults } from "./themes";
+// a resolved level read by cell, and what a material is (read by scene3d's colour classes)
+export { LevelGrid } from "./levelGrid";
+export { materialInfo, type MaterialInfo } from "./materials";
 // The rules plan validation and applyOps take as an argument (geometry check, materialize generator).
 export {
   planRules,

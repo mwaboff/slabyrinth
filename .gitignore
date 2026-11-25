@@ -35,6 +35,9 @@ tools/**/out/
 tools/**/*.index
 tools/**/*.bin
 *.talespire-index
+# The render command's mesh cache (read from the install) and its pictures (also under .cache/ and docs/internal/).
+.cache/meshes/
+docs/internal/renders/
 
 # Local secrets (the app stores its key in secret.bin under the OS user-data folder)
 secret.bin

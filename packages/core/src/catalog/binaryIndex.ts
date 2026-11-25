@@ -248,6 +248,85 @@ export function readBinaryIndex(bytes: Uint8Array): BinaryIndexResult {
   return { version, schemaId, packName, rows, boardObjectCount: boards.count, searchTableBytes, warnings };
 }
 
+/** One mesh part of a tile or prop: the prefab `assetName` in bundle file `Assets/<bundleId>`, placed in the asset. */
+export interface IndexPart {
+  bundleId: string;
+  assetName: string;
+  position: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number; w: number };
+  scale: { x: number; y: number; z: number };
+}
+
+export interface IndexPartsResult {
+  /** Asset uuid → its parts, in index order (tiles and props). */
+  parts: Map<string, IndexPart[]>;
+  /** Parts whose content id the loader table does not list (left out of `parts`). */
+  unresolved: number;
+}
+
+const PART_SIZE = 104;
+const LOADER_COLUMNS = 3;
+
+/**
+ * The mesh parts of every tile and prop in the binary index (VERIFIED 2026-11-24 on both official packs: every part
+ * resolves, and agrees with index.json part for part). A BoardObject's parts array is at +36 ({rel, count}), 104-byte
+ * elements: pack id +0, content id (GUID bytes) +44, position f32×3 +64, rotation quaternion f32×4 +76, scale f32×3 +92.
+ * The content id names the prefab through the loader table at root+12: parallel columns of content ids (16 bytes),
+ * bundle ids (strings) and asset names (strings), one row per distinct prefab.
+ */
+export function readBinaryIndexParts(bytes: Uint8Array): IndexPartsResult {
+  const r = new Reader(bytes);
+  if (bytes.length < 0x40 || r.u32(0) !== INDEX_MAGIC) throw new IndexFormatError("not a binary index");
+  const root = r.u32(8);
+  if (root + 64 > bytes.length || root < STRING_BLOB_START)
+    throw new IndexFormatError("root offset out of range");
+  r.blobEnd = root;
+  const tbl = r.ptr(root + 12);
+  if (tbl < 0) throw new IndexFormatError("no loader table");
+  r.check(tbl, LOADER_COLUMNS * 8, "loader table");
+  const ids = r.array(tbl, 16, "loader content ids");
+  const bundles = r.array(tbl + 8, 8, "loader bundle ids");
+  const names = r.array(tbl + 16, 8, "loader asset names");
+  if (bundles.count !== ids.count || names.count !== ids.count)
+    throw new IndexFormatError("loader table columns differ in length");
+  const loader = new Map<string, { bundleId: string; assetName: string }>();
+  const hex = (o: number): string => {
+    let s = "";
+    for (let i = 0; i < 16; i++) s += (bytes[o + i] ?? 0).toString(16).padStart(2, "0");
+    return s;
+  };
+  for (let i = 0; i < ids.count; i++)
+    loader.set(hex(ids.at + 16 * i), {
+      bundleId: r.str(bundles.at + 8 * i),
+      assetName: r.str(names.at + 8 * i),
+    });
+  const boards = r.array(root + 16, BOARD_OBJECT_SIZE, "board objects");
+  const parts = new Map<string, IndexPart[]>();
+  let unresolved = 0;
+  for (let b = 0; b < boards.count; b++) {
+    const rec = boards.at + BOARD_OBJECT_SIZE * b;
+    const list = r.array(rec + 36, PART_SIZE, "parts");
+    const out: IndexPart[] = [];
+    for (let k = 0; k < list.count; k++) {
+      const e = list.at + PART_SIZE * k;
+      r.check(e, PART_SIZE, "part");
+      const name = loader.get(hex(e + 44));
+      if (!name) {
+        unresolved++;
+        continue;
+      }
+      out.push({
+        ...name,
+        position: { x: r.f32(e + 64), y: r.f32(e + 68), z: r.f32(e + 72) },
+        rotation: { x: r.f32(e + 76), y: r.f32(e + 80), z: r.f32(e + 84), w: r.f32(e + 88) },
+        scale: { x: r.f32(e + 92), y: r.f32(e + 96), z: r.f32(e + 100) },
+      });
+    }
+    parts.set(r.guid(rec + 8), out);
+  }
+  return { parts, unresolved };
+}
+
 /** Converts a parsed binary index into catalog records (tiles and props, search-table order). */
 export function binaryIndexToCatalog(res: BinaryIndexResult, pack: { packId: string }): CatalogAsset[] {
   const out: CatalogAsset[] = [];

@@ -29,6 +29,22 @@ export interface FixtureOptions {
   boardNameOverride?: Record<string, string>;
   /** Omit board objects for these ids. */
   omitBoard?: string[];
+  /**
+   * Mesh parts per asset id: written as the board object's parts array and a loader table at root+12 (which then
+   * points at the table instead of holding the table's size, as in the real files).
+   */
+  parts?: Record<string, FixturePart[]>;
+}
+
+export interface FixturePart {
+  bundleId: string;
+  assetName: string;
+  /** Content id (GUID); parts of one prefab share it. Absent from the loader table when `unlisted`. */
+  contentId: string;
+  unlisted?: boolean;
+  position?: [number, number, number];
+  rotation?: [number, number, number, number];
+  scale?: [number, number, number];
 }
 
 export function buildIndexFixture(assets: FixtureAsset[], opts: FixtureOptions = {}): Uint8Array {
@@ -53,6 +69,14 @@ export function buildIndexFixture(assets: FixtureAsset[], opts: FixtureOptions =
     const o = opts.boardNameOverride?.[a.id];
     if (o) intern(o);
   }
+  const allParts = Object.values(opts.parts ?? {}).flat();
+  for (const pt of allParts) {
+    intern(pt.bundleId);
+    intern(pt.assetName);
+  }
+  const loaderRows = [
+    ...new Map(allParts.filter((pt) => !pt.unlisted).map((pt) => [pt.contentId, pt])).values(),
+  ];
   // layout: header(0x30) | blob | root(64) | table(80) | columns | tag arrays | boards
   let p = 0x30;
   const blobOffsets = new Map<string, number>();
@@ -80,7 +104,21 @@ export function buildIndexFixture(assets: FixtureAsset[], opts: FixtureOptions =
     (a) => (a.kind === 1 || a.kind === 2) && !(opts.omitBoard ?? []).includes(a.id),
   );
   const boards = align(q);
-  const end = boards + 176 * boardAssets.length;
+  const loader = boards + 176 * boardAssets.length;
+  const loaderCols = [
+    loader + 24,
+    loader + 24 + 16 * loaderRows.length,
+    loader + 24 + 24 * loaderRows.length,
+  ];
+  let partsAt = loader + (opts.parts ? 24 + 32 * loaderRows.length : 0);
+  const partArrays = new Map<string, number>();
+  for (const a of boardAssets) {
+    const list = opts.parts?.[a.id] ?? [];
+    if (!list.length) continue;
+    partArrays.set(a.id, partsAt);
+    partsAt += 104 * list.length;
+  }
+  const end = partsAt;
   const b = new Uint8Array(end);
   const dv = new DataView(b.buffer);
   const rel = (field: number, target: number): void => {
@@ -139,7 +177,40 @@ export function buildIndexFixture(assets: FixtureAsset[], opts: FixtureOptions =
       dv.setFloat32(rec + 72 + 4 * k, v, true);
     });
     if (a.interactable) dv.setInt32(rec + 112, 16, true);
+    const list = opts.parts?.[a.id] ?? [];
+    const at = partArrays.get(a.id);
+    if (at === undefined) {
+      if (opts.parts) dv.setUint32(rec + 40, 0, true);
+      return;
+    }
+    rel(rec + 36, at);
+    dv.setUint32(rec + 40, list.length, true);
+    list.forEach((pt, k) => {
+      const e = at + 104 * k;
+      guidToBytes(pt.contentId, b, e + 44);
+      (pt.position ?? [0, 0, 0]).forEach((v, j) => {
+        dv.setFloat32(e + 64 + 4 * j, v, true);
+      });
+      (pt.rotation ?? [0, 0, 0, 1]).forEach((v, j) => {
+        dv.setFloat32(e + 76 + 4 * j, v, true);
+      });
+      (pt.scale ?? [1, 1, 1]).forEach((v, j) => {
+        dv.setFloat32(e + 92 + 4 * j, v, true);
+      });
+    });
   });
+  if (opts.parts) {
+    rel(root + 12, loader);
+    loaderCols.forEach((col, c) => {
+      if (loaderRows.length) rel(loader + 8 * c, col);
+      dv.setUint32(loader + 8 * c + 4, loaderRows.length, true);
+    });
+    loaderRows.forEach((pt, i) => {
+      guidToBytes(pt.contentId, b, (loaderCols[0] ?? 0) + 16 * i);
+      str((loaderCols[1] ?? 0) + 8 * i, pt.bundleId);
+      str((loaderCols[2] ?? 0) + 8 * i, pt.assetName);
+    });
+  }
   opts.corrupt?.(b, dv, { root, table, boards });
   return b;
 }

@@ -13,6 +13,8 @@ do, and the checklist for adding a new kind of thing.
 | `apps/desktop/src/main`                  | Electron main: services, IPC, compile worker, the conversation engine and providers (`agent/`)                                                                                                                                     |
 | `apps/desktop/src/preload`, `src/shared` | The `window.slabyrinth` bridge and the IPC/project contract copies                                                                                                                                                                 |
 | `apps/desktop/src/renderer`              | React UI                                                                                                                                                                                                                           |
+| `packages/scene3d`                       | Pure TypeScript: the 3D scene of a build or slab, the game-mesh readers (over bytes), the mesh-source port and cache format, the software renderer and PNG, shot rules                                                             |
+| `packages/render-cli`                    | The developer render command (Node): reads the TaleSpire install read-only, caches meshes in `.cache/meshes/`                                                                                                                      |
 
 Each package's public API goes through its folder's `index.ts`; `packages/core/src/index.ts` re-exports it.
 Shared test fixtures live in `packages/core/test/fixtures/`.
@@ -38,3 +40,14 @@ There is one lockfile for all workspaces. Add a dependency with `npm install <pk
 Renderer colours, fonts, radii and shadows come only from theme tokens in `apps/desktop/src/renderer/styles/tokens.css`.
 Everything else the tooling enforces is in `eslint.config.js` (each guard's message says what to do instead) and the
 tests; run the checks listed in `CLAUDE.md` before a pull request.
+
+## Rendering a map in 3D
+
+A developer tool for looking at generations without pasting them into TaleSpire (`npm run render -- 3d --help`):
+
+- `npm run render -- 3d --fixture market-street-v3` (also `--fixture a,b` or `all`), `--plan my.json`, `--slab s.txt`
+- `--seeds 1..4 --generator 5` re-seed and re-build; `--shots all` (overview, interiors, fronts, levels by the shot rules, and top) with `--max-shots n` and `--sheet`; `--camera 225,35`;
+  `--eye x,y,z --target x,y,z`; `--boxes` draws boxes only (no install needed).
+- Pictures and `index.json` (what each shows, which pieces are boxes and why) go to `docs/internal/renders/` unless
+  `--out`. Meshes are read from the TaleSpire install read-only and cached in `.cache/meshes/` (the first run after a
+  game update takes about a minute per 40 bundles). Both folders are git-ignored: nothing from the game is committed.
