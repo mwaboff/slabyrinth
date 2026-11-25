@@ -17,6 +17,7 @@ import { duration, money, relativeTime } from "../../lib/format";
 import { approve, run, undo } from "../../app/actions";
 import { RichText, withRefs } from "./RichText";
 import { STARTERS } from "./starters";
+import { Look3dRow, look3dOf } from "./Look3dRow";
 import { RevisionLimitCard } from "./RevisionLimitCard";
 import { WorkingCard } from "./WorkingCard";
 import { selectRoom } from "../stage/selectRoom";
@@ -589,6 +590,16 @@ export function buildEntries(
   return merged;
 }
 
+/** The tool result answering a call, from the transcript. */
+function resultFor(
+  items: readonly ChatItem[],
+  callId: string,
+): Extract<ChatItem, { type: "tool_results" }>["results"][number] | undefined {
+  for (const it of items)
+    if (it.type === "tool_results") for (const r of it.results) if (r.callId === callId) return r;
+  return undefined;
+}
+
 function AiMessage({
   items,
   isLastTurn,
@@ -634,6 +645,12 @@ function AiMessage({
       } else if (p.type === "tool_call" && (p.name === "create_plan" || p.name === "edit_plan")) {
         for (const v of snap.versions.filter((x) => x.messageId === it.id))
           blocks.push(<PlanUpdateCard key={`${key}-v${v.number}`} v={v} meta={m} />);
+        // the app's one 3D look after a first draft rides on the create_plan result
+        const look = look3dOf(resultFor(allItems, p.callId));
+        if (look) blocks.push(<Look3dRow key={`${key}-3d`} look={look} />);
+      } else if (p.type === "tool_call" && p.name === "view_build_3d") {
+        const look = look3dOf(resultFor(allItems, p.callId));
+        if (look) blocks.push(<Look3dRow key={key} look={look} />);
       } else if (p.type === "tool_call" && p.name === "update_brief") {
         const set = (p.input as { set?: Record<string, unknown> } | null)?.set ?? {};
         const names = Object.keys(set).map(

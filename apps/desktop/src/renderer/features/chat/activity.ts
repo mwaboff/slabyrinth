@@ -45,6 +45,7 @@ const TOOL_LINE: Record<string, string> = {
   update_brief: "Updating the brief",
   view_plan: "Reading the plan",
   view_map_image: "Looking at the map",
+  view_build_3d: "Looking at the map in 3D",
   compile_preview: "Checking how it will build",
   list_catalog: "Browsing the asset library",
 };
