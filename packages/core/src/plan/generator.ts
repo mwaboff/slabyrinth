@@ -13,12 +13,12 @@ import { GENERATOR_VERSIONS, type GeneratorVersion } from "../contracts/plan";
  *   - VOCABULARY: plan words a generator understands beyond the base set.
  *
  * A switch is on in its first generator and in every later one, by construction, so the SWITCHES table read top to
- * bottom is the changelog of the generators. Generators 1, 2, 3 and 4 are released: what they turn on is frozen, and
- * so is their output (test/golden/generator2, generator3, generator4). New behaviour is a new switch that starts in
- * the open generator, 5 (test/golden/generator5 follows it). A later generator never switches an old behaviour off:
- * it adds a new switch for the new behaviour, and the code reads the new one first. Opening generator 6 (after 5 is
- * released) means adding a version to GENERATOR_VERSIONS (contracts/plan.ts); the compiler then asks for its
- * VOCABULARY entry, and new switches start in 6.
+ * bottom is the changelog of the generators. Generators 1 to 5 are released: what they turn on is frozen, and so is
+ * their output (test/golden/generator2, generator3, generator4, generator5). New behaviour is a new switch that starts
+ * in the open generator; none is open after 0.4.0, so the next behaviour change first opens generator 6. A later
+ * generator never switches an old behaviour off: it adds a new switch for the new behaviour, and the code reads the
+ * new one first. Opening generator 6 means adding a version to GENERATOR_VERSIONS (contracts/plan.ts); the compiler
+ * then asks for its VOCABULARY entry, and new switches start in 6.
  *
  * Palette roles carry their own first generator (`minGenerator` in the palette data, palette/resolve.ts): palettes
  * are data, generated and user-written, so they name a version rather than a switch. A test keeps the roles of the
@@ -327,7 +327,7 @@ const SWITCHES = {
     "A build of more than one chunk is pasted from bare ground beside the map: the shared box is padded so its centre (the paste anchor) is the middle of a cell south of the map's south edge, with clear cells between them (compile/chunk.ts besideMapBox).",
   ),
 
-  // ── generator 5 (open) ──
+  // ── generator 5 (released in 0.4.0) ──
   arrangements: on(
     5,
     "Arrangement instances a resolve stage attaches (ResolvedLevel.arrangements: palette pieces composed by the arrange/ operators) are built, one element each (compile/realize/arrangements.ts).",

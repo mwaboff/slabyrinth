@@ -9,14 +9,13 @@
  * Nothing volatile (dates, installed themes, the brief) goes into the prompt; those arrive as app context items.
  */
 import type { DesignBrief, MapPlan } from "../contracts/plan";
-import { DP_1_0_0, DP_1_1_0, DP_1_2_0, DP_1_3_0 } from "./designPrinciples.frozen";
-import { DESIGN_PRINCIPLES } from "./designPrinciples";
+import { DP_1_0_0, DP_1_1_0, DP_1_2_0, DP_1_3_0, DP_1_4_0 } from "./designPrinciples.frozen";
 
 /**
  * Version of the working tool list (tools.ts + serialization). Bump when TOOL_DEFINITIONS or its rendering changes.
- * tools-1.7.0 (0.1.2, tools.frozen.ts), tools-1.8.0 (0.2.0, tools.frozen.v1_8_0.ts) and tools-1.9.0 (0.3.0,
- * tools.frozen.v1_9_0.ts) are published and frozen. The working TOOL_DEFINITIONS are tools-1.10.0, opened with
- * generator 5 as a copy of tools-1.9.0 (unreleased, free to edit until release).
+ * tools-1.7.0 (0.1.2, tools.frozen.ts), tools-1.8.0 (0.2.0, tools.frozen.v1_8_0.ts), tools-1.9.0 (0.3.0,
+ * tools.frozen.v1_9_0.ts) and tools-1.10.0 (0.4.0, tools.frozen.v1_10_0.ts) are published and frozen. The working
+ * TOOL_DEFINITIONS still equal tools-1.10.0; the next edit opens tools-1.11.0 (with generator 6).
  */
 export const TOOLS_VERSION = "tools-1.10.0";
 
@@ -435,7 +434,8 @@ const SP_1_13_0 = [
  * Generator 5's how-to for the words a plan already carries (sp-1.14.0): where the character of a place is read and
  * which words set it. Every word list here is checked against the tables that read it (test/unit/agent/taughtWords
  * .test.ts), so the text and the resolver cannot drift: gen/lightLevels.ts, gen/buildingCondition.ts and the wealth
- * and mood tables of resolve/character.ts.
+ * and mood tables of resolve/character.ts. Released in 0.4.0 inside sp-1.14.0 and frozen with it: never edit it; a
+ * later prompt revises its words in its own revision list.
  */
 export const CHARACTER_GUIDANCE = `# Light, upkeep and wealth
 
@@ -451,7 +451,7 @@ Every place has a light (dark, dim, moderate, bright, flooded), a condition (int
 
 /** sp-1.14.0's revisions of sp-1.13.0's how-to (generator 5): rooms by kind, building rooms, pitfalls, character. */
 const SP_1_14_0_REVISIONS: ReadonlyArray<readonly [string, string]> = [
-  [DP_1_3_0, DESIGN_PRINCIPLES],
+  [DP_1_3_0, DP_1_4_0],
   // rooms: generator 5's kinds and the words that pick them (checked against gen/roomPurpose.ts)
   [
     "- Rooms dress themselves (generator 4). Name every room for its use (Kitchen, Guard room, Library, Barracks) and leave its floor off: a room whose name, tags or notes say what it is for gets furniture, things on it, lights and, on a solid-base level, its own floor, differently in every room; a crypt, cells or a derelict or ruined room stays sparse and dark. A room you furnish yourself (2 or more features per 10 floor tiles) keeps your furniture and only gets lights. A dress op with a room preset (density 0.5 to 0.8) chooses the purpose or the amount; roomDress: false on the level turns the default off. A building's ground storey is dressed only by a dress op.",
@@ -493,9 +493,10 @@ const SP_1_14_0_REVISIONS: ReadonlyArray<readonly [string, string]> = [
 ];
 
 /**
- * sp-1.14.0 (WORKING, opened with generator 5; unreleased): sp-1.13.0 with the working principles (dp-1.4.0, the
- * live DESIGN_PRINCIPLES) and generator 5's how-to above. Principles go in designPrinciples.ts, how-to here, field
- * facts in tools.ts; say each thing once. Freeze a copy of all three when generator 5 ships.
+ * sp-1.14.0 (RELEASED in 0.4.0 with generator 5, frozen): sp-1.13.0 with dp-1.4.0 (the frozen copy DP_1_4_0, so
+ * later edits to designPrinciples.ts cannot change it) and generator 5's how-to above. Never touch it or anything it
+ * is built from (SP_1_14_0_REVISIONS, CHARACTER_GUIDANCE); the next prompt is sp-1.15.0, opened together with
+ * generator 6. Principles go in designPrinciples.ts, how-to here, field facts in tools.ts; say each thing once.
  */
 const SP_1_14_0 = SP_1_14_0_REVISIONS.reduce((text, [from, to]) => revise(text, from, to), SP_1_13_0);
 

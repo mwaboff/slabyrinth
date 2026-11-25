@@ -13,13 +13,14 @@ import {
   type Run,
 } from "../goldenRecord";
 
-/** The newest generator: the one this golden follows while it is open (see the header of generator5.test.ts). */
+/** The newest generator: the one this golden follows (see the header of generator5.test.ts). */
 export const OPEN_GENERATOR: GeneratorVersion = 5;
 /**
  * The newest released generator: runs at it or below have frozen builds (FROZEN_FIELDS in ../goldenRecord.ts), which
- * the test reports as frozen and the update script refuses to rewrite.
+ * the test reports as frozen and the update script refuses to rewrite. Generator 5 was released in 0.4.0, so every
+ * run here is frozen; only the review and the detail it carries may move until generator 6 opens.
  */
-export const RELEASED_GENERATOR = 4;
+export const RELEASED_GENERATOR = 5;
 
 export const GOLDEN_FILE = new URL("__golden__/generator5.txt", import.meta.url);
 /** The readable sidecar: what each run built, one fact per line, each line starting with the run's name. */

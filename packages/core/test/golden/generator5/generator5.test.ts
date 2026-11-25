@@ -1,6 +1,14 @@
 /**
- * GENERATOR 5 IS OPEN (opened after 0.3.0). This golden follows it, as test/golden/generator4 followed generator 4
- * until 0.3.0.
+ * GENERATOR 5 IS RELEASED (0.4.0) AND FROZEN. A saved plan with `generator: 5` must resolve and build to exactly the
+ * same bytes in every later version of the app: RELEASED_GENERATOR in runs.ts is 5, so every run's build (resolved
+ * hash, asset count, diagnostic counts, slabs) is frozen here, the test calls a change to it frozen and the update
+ * script refuses to write it. Only the design review and the detail lines it carries may still move (review policy,
+ * src/plan/generator.ts). The palettes generator 5 sees are pinned by test/fixtures/released-palettes-0.4.0.json
+ * (test/unit/palette/released.test.ts); sp-1.14.0, dp-1.4.0 and tools-1.10.0 by test/unit/agent/tools.test.ts.
+ * Generator 6 is not open yet: opening it (GENERATOR_VERSIONS) fails the first test below until this golden is
+ * frozen as described at the end of this header.
+ *
+ * Until 0.4.0 this was the open golden (opened after 0.3.0), and the text below describes it as that.
  *
  * Two kinds of golden live in test/golden/:
  * - Frozen goldens (generator2/, generator3/, generator4/, resolve/, compile/, text/, gen/) pin released output. They
@@ -31,8 +39,7 @@
  *   change behind a switch of the open generator (src/plan/generator.ts).
  * - You added or removed a fixture plan: run the update script; it adds or drops the plan's lines.
  *
- * When generator 5 is released: set RELEASED_GENERATOR in runs.ts to 5 (every run is then frozen). When generator 6
- * opens: freeze this golden the way generator4/ was frozen (a read-only test of its runs at generator 5, no update
+ * When generator 6 opens (generator 5 shipped in 0.4.0, RELEASED_GENERATOR is 5): freeze this golden the way generator4/ was frozen (a read-only test of its runs at generator 5, no update
  * script), and open one like this for generator 6 (generator6/, OPEN_GENERATOR 6).
  */
 import { describe, expect, it } from "vitest";
