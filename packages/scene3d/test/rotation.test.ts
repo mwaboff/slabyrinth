@@ -13,12 +13,15 @@ import {
   placementBox,
   realize,
   resolvePlan,
+  storedPosition,
   toScaled,
   worldTurn,
   type Box3,
 } from "@slabyrinth/core";
 import { describe, expect, it } from "vitest";
 import { boxMeshSource, pieceLookup, sceneFromBuild, sceneFromSlab } from "../src/index";
+import { placedBox, placementOffset } from "../src/scene/place";
+import type { PieceGeom } from "../src/types/index";
 import { fixturePlan } from "./helpers";
 
 const far = (a: Box3, b: Box3): number =>
@@ -28,6 +31,48 @@ const far = (a: Box3, b: Box3): number =>
       Math.abs(a.max[k] - b.max[k]),
     ]),
   );
+
+describe("a turned tile is drawn by core's one storage rule (scene/place.ts placementOffset)", () => {
+  // square and non-square footprints, with the collider's centre off the piece's origin as tiles have it
+  const geoms: PieceGeom[] = [
+    { size: { x: 1, y: 0.5, z: 1 }, boundsCenter: { x: 0.5, y: 0.25, z: 0.5 }, originAt: "minCorner" },
+    { size: { x: 2, y: 0.25, z: 1 }, boundsCenter: { x: 1, y: 0.125, z: 0.5 }, originAt: "minCorner" },
+    { size: { x: 3, y: 1, z: 0.5 }, boundsCenter: { x: 1.4, y: 0.5, z: 0.3 }, originAt: "minCorner" },
+  ];
+  it.each(geoms.map((g) => [`${String(g.size.x)}x${String(g.size.z)}`, g] as const))(
+    "%s: at all 24 turns both senses, the drawn collider is core's placementBox, and storedPosition stores it back",
+    (_, geom) => {
+      const stored = { x: 7.25, y: 2, z: 3.5 };
+      const local: Box3 = {
+        min: {
+          x: geom.boundsCenter.x - geom.size.x / 2,
+          y: geom.boundsCenter.y - geom.size.y / 2,
+          z: geom.boundsCenter.z - geom.size.z / 2,
+        },
+        max: {
+          x: geom.boundsCenter.x + geom.size.x / 2,
+          y: geom.boundsCenter.y + geom.size.y / 2,
+          z: geom.boundsCenter.z + geom.size.z / 2,
+        },
+      };
+      for (let step = 0; step < 24; step++)
+        for (const sense of [1, -1]) {
+          const deg = step * 15 * sense;
+          const drawn = placedBox(local, deg, placementOffset(geom, stored, deg));
+          const core = placementBox(geom, stored.x, stored.y, stored.z, deg);
+          expect(far(drawn, core), `turn ${String(deg)}`).toBeLessThan(1e-9);
+          const back = storedPosition(
+            geom,
+            (core.min.x + core.max.x) / 2,
+            core.min.y,
+            (core.min.z + core.max.z) / 2,
+            deg,
+          );
+          expect(Math.hypot(back.x - stored.x, back.z - stored.z), `turn ${String(deg)}`).toBeLessThan(1e-9);
+        }
+    },
+  );
+});
 
 describe("rotation sense", () => {
   it.each([1, -1] as const)(
