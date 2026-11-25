@@ -14,5 +14,9 @@
     "src/shared/**/*.ts",
     "src/main/agent/provider/types.ts"
   ],
-  "references": [{ "path": "../../packages/core" }, { "path": "../../packages/render-canvas" }]
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/render-canvas" },
+    { "path": "../../packages/scene3d" }
+  ]
 }
