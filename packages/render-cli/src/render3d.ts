@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 import { contactSheet, encodePng } from "@slabyrinth/scene3d";
 import { UsageError, flag, has, seedList, type Args } from "./args";
 import { findingsTable, summaryTable } from "./checks";
-import { runJobsInWorkers } from "./batch";
+import { runJobsInWorkers, type SpawnWorker } from "./batch";
 import { REPO_ROOT, fixtureNames, loadFixture, loadPlanFile, loadSlabFile, type Input } from "./inputs";
 import { compareSpec, openRunner, shotOptions, type Job, type JobOutput, type RenderRecord } from "./job";
 
@@ -78,6 +78,10 @@ export interface RenderEnv {
   appData: string | null;
   /** Finds TaleSpire when no --install is given (default: meshes.locateInstall; tests pass one that finds none). */
   locate?: () => Promise<string | null>;
+  /** false: meshes from the cache only, never a bundle (a --jobs worker: its parent read them). Default true. */
+  coldRead?: boolean;
+  /** Starts a --jobs render thread (default: a Node worker thread; tests run the worker in this thread). */
+  spawnWorker?: SpawnWorker;
 }
 
 export async function render3d(a: Args, io: Io, env: RenderEnv): Promise<number> {
@@ -106,16 +110,24 @@ export async function render3d(a: Args, io: Io, env: RenderEnv): Promise<number>
   let outputs: JobOutput[];
   let meta: { meshSource: string; note: string; install: string | null; meshStats: unknown };
   if (threads > 1 && jobs.length > 1) {
-    // a function cannot go to a worker thread: workers look for TaleSpire themselves (tests pass --boxes or --install)
-    const workerEnv: RenderEnv = { cwd: env.cwd, appData: env.appData };
+    // this thread finds TaleSpire once and reads every piece the jobs use into the cache, one bundle at a time; the
+    // workers get the install it found and read the cache only (never looking for TaleSpire, never a bundle)
+    const parent = await openRunner(a, io, env, out, compare);
+    await parent.warm(jobs);
+    meta = parent.meta();
     const r = await runJobsInWorkers(
       jobs,
       Math.min(threads, jobs.length),
-      { argv: argvOf(a), env: workerEnv, out },
+      {
+        argv: argvOf(a),
+        env: { cwd: env.cwd, appData: env.appData, coldRead: false },
+        out,
+        install: meta.install,
+      },
       io,
+      env.spawnWorker,
     );
     outputs = r.outputs;
-    meta = r.meta;
   } else {
     const runner = await openRunner(a, io, env, out, compare);
     outputs = [];

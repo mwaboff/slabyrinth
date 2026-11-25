@@ -2,6 +2,7 @@
  * The render command end to end, in temporary folders, never touching the install or the app's data: boxes only
  * (--boxes, or an --install folder that holds no game), each kind of input, and the run's index.json.
  */
+import { EventEmitter } from "node:events";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,7 +10,24 @@ import { degreesToRot, encode, toScaled } from "@slabyrinth/core";
 import { afterAll, describe, expect, it } from "vitest";
 import { USAGE, runRender } from "../src/index";
 import { FIXTURE_DIRS } from "../src/inputs";
-import { splitJobs } from "../src/batch";
+import {
+  runJobsInWorkers,
+  splitJobs,
+  type SpawnWorker,
+  type WorkerData,
+  type WorkerHandle,
+  type WorkerMessage,
+} from "../src/batch";
+import { runWorker } from "../src/workerMain";
+
+/** A render "thread" that runs the worker's code in this thread (tests do not start worker threads). */
+function inThread(data: WorkerData): WorkerHandle {
+  const em = new EventEmitter();
+  queueMicrotask(() => {
+    void runWorker(data, (m: WorkerMessage) => em.emit("message", m)).then(() => em.emit("exit", 0));
+  });
+  return Object.assign(em, { terminate: () => Promise.resolve(0) });
+}
 
 const tmp = mkdtempSync(join(tmpdir(), "render3d-"));
 afterAll(() => {
@@ -256,6 +274,84 @@ describe("render 3d", () => {
     expect(render?.compare.pictures).toEqual(["two-rooms-door/s2/compare-overview.png"]);
     for (const p of render?.compare.pictures ?? []) expect(existsSync(join(out, p))).toBe(true);
     expect(typeof render?.compare.findings.unchanged).toBe("number");
+  });
+
+  it("runs --jobs workers on the install this thread found, from the cache only", async () => {
+    const seen: WorkerData[] = [];
+    const before = lookups;
+    const out = join(tmp, "jobs");
+    const r = await runRender(
+      [
+        "3d",
+        "--fixture",
+        "two-rooms-door,single-room",
+        "--jobs",
+        "2",
+        "--shots",
+        "top",
+        "--size",
+        "32x24",
+        "--out",
+        out,
+      ],
+      { out: () => undefined, err: () => undefined },
+      {
+        cwd: tmp,
+        appData: null,
+        locate: () => {
+          lookups++;
+          return Promise.resolve(null);
+        },
+        spawnWorker: (data) => {
+          seen.push(data);
+          return inThread(data);
+        },
+      },
+    );
+    expect(r).toBe(0);
+    // looked for once, here; each worker was handed what was found and reads the cache only
+    expect(lookups).toBe(before + 1);
+    expect(seen.map((d) => [d.install, d.env.coldRead, d.jobs.length])).toEqual([
+      [null, false, 1],
+      [null, false, 1],
+    ]);
+    expect(readIndex(out).renders.map((x) => x.input)).toEqual(["two-rooms-door", "single-room"]);
+  });
+
+  it("stops every other render thread when one fails", async () => {
+    const stopped: number[] = [];
+    let next = 0;
+    const spawn: SpawnWorker = (data) => {
+      const k = next++;
+      const em = new EventEmitter();
+      const w = Object.assign(em, {
+        terminate: () => {
+          stopped.push(k);
+          return Promise.resolve(1);
+        },
+      }) as unknown as WorkerHandle;
+      // the first thread fails at once; the others never finish on their own
+      if (data.jobs[0]?.n === 0) queueMicrotask(() => em.emit("message", { kind: "error", message: "boom" }));
+      return w;
+    };
+    const jobs = [0, 1, 2].map((n) => ({
+      n,
+      input: { kind: "slab" as const, name: "x", assets: [] },
+      seed: undefined,
+    }));
+    await expect(
+      runJobsInWorkers(
+        jobs,
+        3,
+        { argv: [], env: { cwd: tmp, appData: null }, out: tmp, install: null },
+        {
+          out: () => undefined,
+          err: () => undefined,
+        },
+        spawn,
+      ),
+    ).rejects.toThrow("boom");
+    expect(stopped.sort()).toEqual([0, 1, 2]);
   });
 
   it("splits a batch over threads by a fixed rule", () => {

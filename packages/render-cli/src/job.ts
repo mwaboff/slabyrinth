@@ -228,6 +228,11 @@ function shotsFor(scene: Scene, a: Args, o: ShotOptions): ShotSpec[] {
 
 export interface Runner {
   run(job: Job): Promise<JobOutput>;
+  /**
+   * Reads every piece the jobs (and their --compare builds) use into the mesh cache, each bundle once, in this thread:
+   * a --jobs run warms the cache here so its workers read the cache only, never the same bundles side by side.
+   */
+  warm(jobs: readonly Job[]): Promise<void>;
   meta(): { meshSource: string; note: string; install: string | null; meshStats: unknown };
 }
 
@@ -246,6 +251,7 @@ export async function openRunner(
     installFlag: installFlag === undefined ? undefined : resolve(env.cwd, installFlag),
     appData: env.appData,
     ...(env.locate ? { locate: env.locate } : {}),
+    ...(env.coldRead === false ? { coldRead: false } : {}),
     log: io.err,
   });
   io.err(meshes.note);
@@ -271,6 +277,24 @@ export async function openRunner(
     return { built, scene, plan };
   };
 
+  /** The options a job builds its plan with (its seed, the run's generator). */
+  const buildOptions = (job: Job): { generator?: number; seed?: number } => ({
+    ...(generator !== undefined ? { generator } : {}),
+    ...(job.seed !== undefined ? { seed: job.seed } : {}),
+  });
+  /** The options a job's --compare version builds with (the spec's generator or seed, else the job's own). */
+  const compareOptions = (job: Job): { generator?: number; seed?: number } => {
+    const own = buildOptions(job);
+    return {
+      ...(compare?.generator !== undefined ? { generator: compare.generator } : own),
+      ...(compare?.seed !== undefined
+        ? { seed: compare.seed }
+        : own.seed !== undefined
+          ? { seed: own.seed }
+          : {}),
+    };
+  };
+
   return {
     meta: () => ({
       meshSource: meshes.source.label,
@@ -278,18 +302,35 @@ export async function openRunner(
       install: meshes.installPath,
       meshStats: meshes.install?.stats ?? null,
     }),
+    async warm(jobs) {
+      if (!meshes.install) return;
+      const uuids = new Set<string>();
+      for (const job of jobs) {
+        const { input } = job;
+        if (input.kind !== "plan") {
+          for (const a of input.assets) uuids.add(a.uuid.toLowerCase());
+          continue;
+        }
+        const versions: Array<[Extract<Input, { kind: "plan" }>, { generator?: number; seed?: number }]> = [
+          [input, buildOptions(job)],
+        ];
+        if (compare) versions.push([compare.plan ?? input, compareOptions(job)]);
+        for (const [plan, o] of versions) {
+          const built = buildPlan(variant(plan.plan, o), palettes, plan.objects);
+          for (const lv of built.set.levels) for (const p of lv.placements) uuids.add(p.asset.toLowerCase());
+        }
+      }
+      await meshes.install.load([...uuids].sort());
+    },
     async run(job) {
-      const { input, seed } = job;
+      const { input } = job;
       const tb = performance.now();
       let scene: Scene;
       let built: Built | null = null;
       let base: Pick<RenderRecord, "input" | "kind" | "plan" | "buildProblems">;
       let buildMs = 0;
       if (input.kind === "plan") {
-        const r = await build(input, {
-          ...(generator !== undefined ? { generator } : {}),
-          ...(seed !== undefined ? { seed } : {}),
-        });
+        const r = await build(input, buildOptions(job));
         built = r.built;
         scene = r.scene;
         buildMs = performance.now() - tb;
@@ -372,15 +413,7 @@ export async function openRunner(
         record.ms.checks = Math.round(performance.now() - tc);
       }
       if (compare && input.kind === "plan" && base.plan) {
-        const other = compare.plan ?? input;
-        const r = await build(other, {
-          ...(compare.generator !== undefined
-            ? { generator: compare.generator }
-            : generator !== undefined
-              ? { generator }
-              : {}),
-          ...(compare.seed !== undefined ? { seed: compare.seed } : seed !== undefined ? { seed } : {}),
-        });
+        const r = await build(compare.plan ?? input, compareOptions(job));
         const pics: string[] = [];
         for (const { spec, img } of drawn) {
           const after = renderScene(r.scene, spec);

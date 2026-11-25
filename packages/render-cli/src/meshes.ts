@@ -82,6 +82,8 @@ export async function openMeshes(o: {
   appData: string | null;
   /** Finds the install when no --install is given (default: as the catalog finds it; tests pass one that finds none). */
   locate?: () => Promise<string | null>;
+  /** false: answer from the mesh cache only, never reading a bundle (a --jobs worker, whose parent warmed the cache). */
+  coldRead?: boolean;
   log: (s: string) => void;
 }): Promise<Meshes> {
   if (o.boxes)
@@ -108,6 +110,7 @@ export async function openMeshes(o: {
     fs: nodeReadonlyFs,
     installPath,
     cache: diskMeshCache(MESH_CACHE_DIR),
+    ...(o.coldRead === false ? { coldRead: false } : {}),
     onProgress: (n, total, bundle) => {
       if (done === 0) o.log(`reading TaleSpire's pieces (once per game update; seconds per bundle)…`);
       done = n;
