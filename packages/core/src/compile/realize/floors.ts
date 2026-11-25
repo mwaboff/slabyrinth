@@ -289,7 +289,7 @@ function layFloorTile(pass: FloorPass, c: LevelCell, lx: number, ly: number): bo
  * top leaves a hole in their cells (palette/topCover.ts: a rounded-corner tile's open wedge), whatever their name.
  */
 function wholePieces(res: RoleResolution, measured: boolean): RoleResolution {
-  const whole = res.variants.filter((v) => !ragged(v.name) && !(measured && leavesFloorHole(v.uuid)));
+  const whole = res.variants.filter((v) => !ragged(v.name) && !(measured && leavesFloorHole(v.uuid, v.geom)));
   return whole.length === res.variants.length || whole.length === 0 ? res : { ...res, variants: whole };
 }
 

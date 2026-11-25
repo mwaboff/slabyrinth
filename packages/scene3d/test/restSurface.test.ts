@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cuboid,
+  readHangGrid,
   readRestGrid,
   readRestSurface,
   readTopCover,
@@ -86,6 +87,44 @@ describe("readRestGrid: where things rest, part by part over a top", () => {
     const s = readRestGrid(merge(...steps), geom(-0.5, 0.5, -0.5, 0.5, 1.1));
     // each cell spans a step and a half: no one height holds most of it
     expect(s.heights.filter((h) => h === null).length).toBeGreaterThan(0);
+  });
+});
+
+describe("readHangGrid: where a thing hung under a cover meets it", () => {
+  it("a thick canopy's underside, not its top", () => {
+    const slab = cuboid({ x: -0.5, y: 0.6, z: -0.5 }, { x: 0.5, y: 1, z: 0.5 });
+    const g = readHangGrid(slab, geom(-0.5, 0.5, -0.5, 0.5, 1));
+    for (const h of g.heights) expect(h).toBeCloseTo(0.6, 3);
+    // from above it is the top
+    expect(readRestGrid(slab, geom(-0.5, 0.5, -0.5, 0.5, 1)).heights[0]).toBeCloseTo(1, 3);
+  });
+
+  it("a sloping cloth's low side over each cell, which the grid from above has no height for", () => {
+    // a thin cloth falling from 1 at z = -0.5 to 0.2 at z = 0.5, in steps finer than a cell
+    const strips = Array.from({ length: 40 }, (_, k) => {
+      const z0 = -0.5 + k * 0.025;
+      const y = 1 - k * 0.02;
+      return cuboid({ x: -0.5, y: y - 0.02, z: z0 }, { x: 0.5, y, z: z0 + 0.025 });
+    });
+    const cloth = merge(...strips);
+    const g = readHangGrid(cloth, geom(-0.5, 0.5, -0.5, 0.5, 1));
+    const rows = Array.from({ length: g.nz }, (_, k) => g.heights[k * g.nx]);
+    for (const h of rows) expect(h).not.toBeNull();
+    // lower toward max z, row by row
+    for (let k = 1; k < rows.length; k++) expect(rows[k] ?? 0).toBeLessThan(rows[k - 1] ?? 0);
+    // each cell's lowest point: the low edge of its strip of cloth, under every other point of it
+    const nz = g.nz;
+    for (let k = 0; k < nz; k++) {
+      const zLow = -0.5 + (k + 1 - 0.125) / nz;
+      expect(rows[k] ?? 0).toBeLessThanOrEqual(1 - ((zLow + 0.5) / 0.025) * 0.02 + 0.03);
+    }
+  });
+
+  it("no height where the cover does not reach", () => {
+    const half = cuboid({ x: -0.5, y: 0.8, z: -0.5 }, { x: 0, y: 1, z: 0.5 });
+    const g = readHangGrid(half, geom(-0.5, 0.5, -0.5, 0.5, 1));
+    expect(g.heights[0]).toBeCloseTo(0.8, 3);
+    expect(g.heights[g.nx - 1]).toBeNull();
   });
 });
 

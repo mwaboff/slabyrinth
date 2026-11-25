@@ -5,68 +5,374 @@
  * How each floor piece covers its cells seen from above: the largest open patch of its outline in tiles² (0 for a
  * whole tile), for every piece of the bundled palettes' floor.*, fill.*, step.* and bed.* roles, by asset id.
  * palette/topCover.ts reads it; a piece not listed counts as whole.
+ * Each entry records the collider it was read against and its mesh's identity: palette/measured.ts applies it only
+ * while the palette's collider is that one.
+ *
+ * Content hash a3c889bc2097183b (palette/measured.ts checkTableHash: a core test recomputes it).
  */
-export const MEASURED_HOLES: Readonly<Record<string, number>> = {
-  "01a05c16-e23c-4d23-9b6e-c9ac81736ca2": 0, // gravel_1x1_01
-  "01c3a210-94fb-449f-8c47-993eda3e7126": 0, // Grass - Lush
-  "0207e67f-6bba-4eb3-a343-54bf2d4d35d3": 0, // Cave Floor - Rock 04
-  "030145b1-a5c3-45a5-b658-cd627bd43d5c": 0, // Lava floor 1x1 hot
-  "05e4950b-6215-4c92-9d7f-732b7b89f112": 0.383, // Castle Ruins Wood 1
-  "0fc0a09b-35fa-4d8f-9397-3639f4404b8a": 0, // bg_floor_2x2_01
-  "0fef3beb-8242-4ad0-818a-b15ada2e9df0": 0, // concrete floor 1x1 cracked v1
-  "126e3c30-8188-4bd0-9288-493ea00679c3": 0.003, // Swamp floor 2x2
-  "231d8abb-9fa5-4e49-92e1-bd38f0bcf9b5": 0, // Jungle floor 2x2 03
-  "2714a101-a137-4b40-b897-7ecd7878725d": 0, // Lava floor 2x2 hot
-  "2a50b735-3621-4880-9e88-11a6fff656c2": 0, // Jungle floor 2x2 01
-  "2cfe78b2-e95e-4739-b050-ab22ef2c31af": 0, // Palace Marble floor 01
-  "34596a94-234d-4348-8cd1-dc6e468c190f": 0, // burrow_floor_2x2_01
-  "354701ef-e436-4494-812c-2efd268f057f": 0, // bg_floor_2x2_02
-  "35678157-d99e-4506-a995-47675862476b": 0.035, // Road_grate01_1x1
-  "3723541f-4c2d-46df-9ed4-5dbafff1146f": 0, // Desert Ground 01
-  "3769a3d0-b979-4a9d-a358-f02554ee5b92": 0, // Castle Ruins Wood - Large
-  "3911d10d-142b-4f33-9fea-5d3a10c53781": 0, // Grass - Sparse
-  "3a3ecc46-d93f-4c73-a163-fec89cf6a5d6": 0, // SideWalk01_1x1
-  "3bc61730-aa14-4df3-b5a9-8f8e99efab86": 0, // CobbleStone Floor Small
-  "4811a116-d048-4ed0-a071-2d624b2fb779": 0, // Road01 2x2
-  "4b6a7bf2-d68d-420f-b4f5-5d548a6c98d8": 0.003, // Swamp floor 2x2 puddles
-  "4bfbdf17-8c93-48b2-adf8-f2ab39135e0b": 0, // Desert Ground 01
-  "4c65150a-2e46-41cf-99ef-191d31d968e0": 0, // Dungeon Floor - Cracked
-  "4d8ee8ef-2afc-4472-a088-cc8b4158faed": 0, // concrete floor 2x1
-  "4ec63679-d2cd-4242-acce-d2a240280b84": 0, // SideWalk02_1x1
-  "503f0799-b652-4d81-b202-d4473caecee4": 0, // Swamp floor 1x1
-  "5463a50a-4b72-48f4-af5e-ebe46b60e260": 0, // Jungle floor 2x2 02
-  "5bb2e524-64fd-46ce-9b2d-76babfcf7c79": 0, // burrow_floor_1x1_01
-  "65a66cd5-026c-4ec3-9d45-c8e7d734a5a0": 0.515, // Castle Ruins Wood 2
-  "6d146ada-02d4-4fab-ad2a-4fbe1a672328": 0, // CobbleStone Floor 01
-  "6e8cee0f-afe4-4538-b0df-b339ab42bebb": 0, // Rural Floor 04
-  "73f644cd-e5cc-4235-9219-e6e8cca5f9db": 0, // Castle Ruins Wood 3
-  "7b489295-6dc6-4002-90b6-c88985e6b48b": 0, // Lava floor 1x1 hot inner
-  "7d250dd7-bf71-414e-bb4b-dfecd7431abc": 0, // SideWalk03_1x1
-  "7f7211da-6999-401c-b0e4-8ecdfcdde0f1": 0, // Road_ManHole01_1x1
-  "83b31a56-ea61-4246-82b0-07692527ac76": 0, // bg_floor_1x1_01
-  "8ab38aa7-7be0-4dde-a45b-8df9acd9ca20": 0, // Palace Marble floor 02
-  "8be0d9f8-11bd-491a-9f43-56b6b82132d6": 0, // concrete floor 1x1 cracked v2
-  "925500fe-075a-42a0-8b01-eb535e2595a3": 0, // bg_floor_1x2_01
-  "927a2386-64d6-429a-b378-82bf052a0dd3": 0, // Grass Foam (4x4)
-  "9b13871f-e338-4525-b9be-37f8870509e8": 0, // Snow Ground 01
-  "a2eaf2e2-01d8-4548-a517-50df8551057a": 0, // castle floor 1x1
-  "ad6c985c-8d8b-44f2-abd5-edc9de568d30": 0, // Grass 1x1
-  "b5e0db27-e50c-48db-a751-3938cb7d53c0": 0, // Road01 1x1
-  "b83392b1-8833-43c9-a97f-2ac3df659e66": 0, // Cave Floor - Rock 01
-  "bdd9483a-3d7c-4f06-bfdd-145765045c0d": 0, // Dungeon Floor 02
-  "bdf12fe7-8fa6-4474-878e-7e5847a34407": 0, // Jungle floor 1x1 01
-  "c5822a83-1bcc-45af-94cb-c4b12d213925": 0, // Palace Marble floor 05
-  "cc35e061-a0ff-49be-a512-abcf0148aec2": 0.005, // Swamp floor 2x2 puddle
-  "ce61ee2e-4133-4dc9-91ad-42ad771e1900": 0, // concrete floor 1x1
-  "ce6a2235-664f-43e8-a744-d5743623701d": 0, // Cave Floor - Rock 2
-  "cf6063bb-5c6e-4107-b3e9-9c0c5ac75768": 0, // Tavern Floor 01
-  "d5900784-9510-4cf7-b017-f369448d0d52": 0, // Dungeon Floor - Small
-  "db9902bc-cc36-4172-ae60-df9d5eaee4e7": 0, // Rural Floor 01
-  "e62c6746-cecf-46bf-8b20-f81738f1d220": 0, // Tavern Floor 03
-  "ea5589dc-507a-4e0d-bf48-b097c8318a38": 0, // Cave Floor - Rock 03
-  "f130112b-b318-4a46-a218-253397c74a8f": 0, // concrete floor 1x1 cracked v3
-  "f4c70107-0a58-4df6-a0fc-f71864ce54f0": 0.355, // bg_floor_2x2_cr_01
-  "fd876745-56bb-4474-a903-703704019eae": 0, // burrow_floor_1x2_01
+import type { MeasuredHole } from "./measured";
+
+export const MEASURED_HOLES: Readonly<Record<string, MeasuredHole>> = {
+  "01a05c16-e23c-4d23-9b6e-c9ac81736ca2": {
+    name: "gravel_1x1_01",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "3917dc14",
+  },
+  "01c3a210-94fb-449f-8c47-993eda3e7126": {
+    name: "Grass - Lush",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "400254f6",
+  },
+  "0207e67f-6bba-4eb3-a343-54bf2d4d35d3": {
+    name: "Cave Floor - Rock 04",
+    hole: 0,
+    size: [1, 0.5, 2],
+    mesh: "05f916c2",
+  },
+  "030145b1-a5c3-45a5-b658-cd627bd43d5c": {
+    name: "Lava floor 1x1 hot",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "81803816",
+  },
+  "05e4950b-6215-4c92-9d7f-732b7b89f112": {
+    name: "Castle Ruins Wood 1",
+    hole: 0.383,
+    size: [2, 0.5, 1],
+    mesh: "4c1b681a",
+  },
+  "0fc0a09b-35fa-4d8f-9397-3639f4404b8a": {
+    name: "bg_floor_2x2_01",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "256ff302",
+  },
+  "0fef3beb-8242-4ad0-818a-b15ada2e9df0": {
+    name: "concrete floor 1x1 cracked v1",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "cebf50fd",
+  },
+  "126e3c30-8188-4bd0-9288-493ea00679c3": {
+    name: "Swamp floor 2x2",
+    hole: 0.003,
+    size: [2, 0.5, 2],
+    mesh: "051b0462",
+  },
+  "231d8abb-9fa5-4e49-92e1-bd38f0bcf9b5": {
+    name: "Jungle floor 2x2 03",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "f59bddeb",
+  },
+  "2714a101-a137-4b40-b897-7ecd7878725d": {
+    name: "Lava floor 2x2 hot",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "f4e7992b",
+  },
+  "2a50b735-3621-4880-9e88-11a6fff656c2": {
+    name: "Jungle floor 2x2 01",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "22a679b2",
+  },
+  "2cfe78b2-e95e-4739-b050-ab22ef2c31af": {
+    name: "Palace Marble floor 01",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "bc2be62e",
+  },
+  "34596a94-234d-4348-8cd1-dc6e468c190f": {
+    name: "burrow_floor_2x2_01",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "8aa0b1e4",
+  },
+  "354701ef-e436-4494-812c-2efd268f057f": {
+    name: "bg_floor_2x2_02",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "1a703b9b",
+  },
+  "35678157-d99e-4506-a995-47675862476b": {
+    name: "Road_grate01_1x1",
+    hole: 0.035,
+    size: [1, 0.25, 1],
+    mesh: "8bc35e35",
+  },
+  "3723541f-4c2d-46df-9ed4-5dbafff1146f": {
+    name: "Desert Ground 01",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "8711ae01",
+  },
+  "3769a3d0-b979-4a9d-a358-f02554ee5b92": {
+    name: "Castle Ruins Wood - Large",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "a843eef2",
+  },
+  "3911d10d-142b-4f33-9fea-5d3a10c53781": {
+    name: "Grass - Sparse",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "6527d446",
+  },
+  "3a3ecc46-d93f-4c73-a163-fec89cf6a5d6": {
+    name: "SideWalk01_1x1",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "d3416cfd",
+  },
+  "3bc61730-aa14-4df3-b5a9-8f8e99efab86": {
+    name: "CobbleStone Floor Small",
+    hole: 0,
+    size: [1, 0.25, 1],
+    mesh: "b5b07461",
+  },
+  "4811a116-d048-4ed0-a071-2d624b2fb779": {
+    name: "Road01 2x2",
+    hole: 0,
+    size: [2, 0.25, 2],
+    mesh: "cd69efbe",
+  },
+  "4b6a7bf2-d68d-420f-b4f5-5d548a6c98d8": {
+    name: "Swamp floor 2x2 puddles",
+    hole: 0.003,
+    size: [2, 0.5, 2],
+    mesh: "8075c884",
+  },
+  "4bfbdf17-8c93-48b2-adf8-f2ab39135e0b": {
+    name: "Desert Ground 01",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "e7cd556a",
+  },
+  "4c65150a-2e46-41cf-99ef-191d31d968e0": {
+    name: "Dungeon Floor - Cracked",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "1e4940d3",
+  },
+  "4d8ee8ef-2afc-4472-a088-cc8b4158faed": {
+    name: "concrete floor 2x1",
+    hole: 0,
+    size: [2, 0.5, 1],
+    mesh: "8c8ec2ba",
+  },
+  "4ec63679-d2cd-4242-acce-d2a240280b84": {
+    name: "SideWalk02_1x1",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "8e7ee037",
+  },
+  "503f0799-b652-4d81-b202-d4473caecee4": {
+    name: "Swamp floor 1x1",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "6527dd9c",
+  },
+  "5463a50a-4b72-48f4-af5e-ebe46b60e260": {
+    name: "Jungle floor 2x2 02",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "10a98fa2",
+  },
+  "5bb2e524-64fd-46ce-9b2d-76babfcf7c79": {
+    name: "burrow_floor_1x1_01",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "319f4308",
+  },
+  "65a66cd5-026c-4ec3-9d45-c8e7d734a5a0": {
+    name: "Castle Ruins Wood 2",
+    hole: 0.515,
+    size: [2, 0.5, 1],
+    mesh: "c2884df9",
+  },
+  "6d146ada-02d4-4fab-ad2a-4fbe1a672328": {
+    name: "CobbleStone Floor 01",
+    hole: 0,
+    size: [2, 0.25, 2],
+    mesh: "ab90b053",
+  },
+  "6e8cee0f-afe4-4538-b0df-b339ab42bebb": {
+    name: "Rural Floor 04",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "5f5d2474",
+  },
+  "73f644cd-e5cc-4235-9219-e6e8cca5f9db": {
+    name: "Castle Ruins Wood 3",
+    hole: 0,
+    size: [2, 0.5, 1],
+    mesh: "3fbc142b",
+  },
+  "7b489295-6dc6-4002-90b6-c88985e6b48b": {
+    name: "Lava floor 1x1 hot inner",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "870e5012",
+  },
+  "7d250dd7-bf71-414e-bb4b-dfecd7431abc": {
+    name: "SideWalk03_1x1",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "52a1838a",
+  },
+  "7f7211da-6999-401c-b0e4-8ecdfcdde0f1": {
+    name: "Road_ManHole01_1x1",
+    hole: 0,
+    size: [1, 0.25, 1],
+    mesh: "e8c1e667",
+  },
+  "83b31a56-ea61-4246-82b0-07692527ac76": {
+    name: "bg_floor_1x1_01",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "252ca234",
+  },
+  "8ab38aa7-7be0-4dde-a45b-8df9acd9ca20": {
+    name: "Palace Marble floor 02",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "9810ad10",
+  },
+  "8be0d9f8-11bd-491a-9f43-56b6b82132d6": {
+    name: "concrete floor 1x1 cracked v2",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "370e22e8",
+  },
+  "925500fe-075a-42a0-8b01-eb535e2595a3": {
+    name: "bg_floor_1x2_01",
+    hole: 0,
+    size: [2, 0.5, 1],
+    mesh: "e8b68141",
+  },
+  "927a2386-64d6-429a-b378-82bf052a0dd3": {
+    name: "Grass Foam (4x4)",
+    hole: 0,
+    size: [8, 0.5, 8],
+    mesh: "1fc1dcf4",
+  },
+  "9b13871f-e338-4525-b9be-37f8870509e8": {
+    name: "Snow Ground 01",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "640d9ec5",
+  },
+  "a2eaf2e2-01d8-4548-a517-50df8551057a": {
+    name: "castle floor 1x1",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "6d7a9415",
+  },
+  "ad6c985c-8d8b-44f2-abd5-edc9de568d30": {
+    name: "Grass 1x1",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "ed08e822",
+  },
+  "b5e0db27-e50c-48db-a751-3938cb7d53c0": {
+    name: "Road01 1x1",
+    hole: 0,
+    size: [1, 0.25, 1],
+    mesh: "76b08f4a",
+  },
+  "b83392b1-8833-43c9-a97f-2ac3df659e66": {
+    name: "Cave Floor - Rock 01",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "e74b66dd",
+  },
+  "bdd9483a-3d7c-4f06-bfdd-145765045c0d": {
+    name: "Dungeon Floor 02",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "9c1da4e4",
+  },
+  "bdf12fe7-8fa6-4474-878e-7e5847a34407": {
+    name: "Jungle floor 1x1 01",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "23bdee7a",
+  },
+  "c5822a83-1bcc-45af-94cb-c4b12d213925": {
+    name: "Palace Marble floor 05",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "6315934d",
+  },
+  "cc35e061-a0ff-49be-a512-abcf0148aec2": {
+    name: "Swamp floor 2x2 puddle",
+    hole: 0.005,
+    size: [2, 0.5, 2],
+    mesh: "4a76ff57",
+  },
+  "ce61ee2e-4133-4dc9-91ad-42ad771e1900": {
+    name: "concrete floor 1x1",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "649c6c25",
+  },
+  "ce6a2235-664f-43e8-a744-d5743623701d": {
+    name: "Cave Floor - Rock 2",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "442ed249",
+  },
+  "cf6063bb-5c6e-4107-b3e9-9c0c5ac75768": {
+    name: "Tavern Floor 01",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "c898db5c",
+  },
+  "d5900784-9510-4cf7-b017-f369448d0d52": {
+    name: "Dungeon Floor - Small",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "9daa48a9",
+  },
+  "db9902bc-cc36-4172-ae60-df9d5eaee4e7": {
+    name: "Rural Floor 01",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "18b8b423",
+  },
+  "e62c6746-cecf-46bf-8b20-f81738f1d220": {
+    name: "Tavern Floor 03",
+    hole: 0,
+    size: [2, 0.5, 2],
+    mesh: "c51fa803",
+  },
+  "ea5589dc-507a-4e0d-bf48-b097c8318a38": {
+    name: "Cave Floor - Rock 03",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "32ec1a57",
+  },
+  "f130112b-b318-4a46-a218-253397c74a8f": {
+    name: "concrete floor 1x1 cracked v3",
+    hole: 0,
+    size: [1, 0.5, 1],
+    mesh: "7c8229f9",
+  },
+  "f4c70107-0a58-4df6-a0fc-f71864ce54f0": {
+    name: "bg_floor_2x2_cr_01",
+    hole: 0.355,
+    size: [2, 0.5, 2],
+    mesh: "70ecb161",
+  },
+  "fd876745-56bb-4474-a903-703704019eae": {
+    name: "burrow_floor_1x2_01",
+    hole: 0,
+    size: [2, 0.5, 1],
+    mesh: "964bdc97",
+  },
 };
 
 /** Pieces the measuring could not read (no mesh in the install): they count as whole. */

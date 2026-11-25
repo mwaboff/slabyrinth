@@ -5,10 +5,12 @@
  * where the floor must be whole. A grate's slots are open too, but each is too small to matter.
  *
  * The rule is the piece's, measured once: a floor placer asks `floorHoleOf` instead of reading the piece's name, and a
- * piece never measured (a user palette's, one a game update added before the table was re-run) counts as whole.
+ * piece never measured (a user palette's, one a game update added or reshaped before the table was re-run) counts as
+ * whole.
  */
 import type { Palette } from "../contracts/compiler";
 import { MEASURED_HOLES } from "./coverHoles";
+import { measuredEntry, type MeasuredCollider } from "./measured";
 import { type RestPiece } from "./restSurface";
 
 /** The palette roles whose pieces are measured for cover: everything laid as a walking surface. */
@@ -31,13 +33,15 @@ export function coverPieces(palettes: Readonly<Record<string, Palette>>): RestPi
   return [...byId.values()].sort((a, b) => (a.asset < b.asset ? -1 : a.asset > b.asset ? 1 : 0));
 }
 
-/** The largest open patch of a piece's top (tiles²), or undefined when it was never measured. */
-export function floorHoleOf(asset: string): number | undefined {
-  const id = asset.toLowerCase();
-  return Object.hasOwn(MEASURED_HOLES, id) ? MEASURED_HOLES[id] : undefined;
+/**
+ * The largest open patch of the top of a piece built with collider `geom` (tiles²), or undefined when it was never
+ * measured on that collider (palette/measured.ts).
+ */
+export function floorHoleOf(asset: string, geom: MeasuredCollider): number | undefined {
+  return measuredEntry(MEASURED_HOLES, asset, geom)?.hole;
 }
 
 /** Does the piece leave a hole where it is laid (a measured open patch of FLOOR_HOLE or more)? Unmeasured: no. */
-export function leavesFloorHole(asset: string): boolean {
-  return (floorHoleOf(asset) ?? 0) >= FLOOR_HOLE;
+export function leavesFloorHole(asset: string, geom: MeasuredCollider): boolean {
+  return (floorHoleOf(asset, geom) ?? 0) >= FLOOR_HOLE;
 }

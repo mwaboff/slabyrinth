@@ -42,7 +42,7 @@ import { h32Utf16, subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
 import type { WorldFrame } from "./geometry";
 import { quarterTurn, rotateXZ } from "./geometry";
-import { restSpotAt } from "./restOn";
+import { undersideAt } from "./restOn";
 import type { RealizeLevel } from "./realize/level";
 import { maxOf, minOf } from "../util/lists";
 
@@ -84,8 +84,9 @@ export function realizeStall(lv: RealizeLevel, f: ResolvedFeature): boolean {
 
 /**
  * Generator 6 (`hangUnderCover`): the height the top of a thing hung at plan point (px, py) under a stall's canopy
- * reaches: the canopy piece's measured surface over that point (compile/restOn.ts, palette/restGrid.ts: a cloth awning
- * slopes well above its box's underside), or undefined when no measured canopy piece is over it.
+ * reaches: the lowest measured underside of the canopy pieces over that point (compile/restOn.ts undersideAt,
+ * palette/hangGrids.ts: a cloth awning slopes well above its box's underside, a thick one is lower than its top), or
+ * undefined when no measured canopy piece reaches over it.
  */
 function hangHeight(
   lv: RealizeLevel,
@@ -101,9 +102,9 @@ function hangHeight(
     if (!info || cw === undefined) continue;
     const b = info.box;
     if (w.x < b.min.x || w.x > b.max.x || w.z < b.min.z || w.z > b.max.z) continue;
-    const spot = restSpotAt({ asset: p.asset, geom: info.geom, box: b, cw }, w.x, w.z);
-    // the lowest canopy surface over the point is the one it hangs under
-    if (spot && spot.moved === 0 && (best === undefined || spot.y < best)) best = spot.y;
+    const under = undersideAt({ asset: p.asset, geom: info.geom, box: b, cw }, w.x, w.z);
+    // the lowest canopy underside over the point is the one it hangs under
+    if (under !== undefined && (best === undefined || under < best)) best = under;
   }
   return best;
 }
@@ -151,7 +152,7 @@ class Stall {
    * palette/restSurface.ts), else its box top.
    */
   private restOf(v: ResolvedVariant): number {
-    return restHeight(v.uuid, v.geom.size.y, this.lv.ctx.profile.restSurfaces);
+    return restHeight(v.uuid, v.geom, this.lv.ctx.profile.restSurfaces);
   }
 
   private cell(lx: number, ly: number): [number, number] {

@@ -8,7 +8,21 @@
  * work top, not the narrow back above it), at the top of that band. Heights are above the collider's bottom, the
  * frame the palette's `geom.size.y` is in, so core compares the two directly.
  */
+import { fnv1a32Bytes } from "@slabyrinth/core";
 import type { MeshData, PieceGeom } from "../types/index";
+
+/**
+ * A mesh's identity: FNV-1a 32 over its vertex and index data, 8 hex digits. The measured tables record it with each
+ * reading, so a re-run after a game update shows which pieces' meshes changed.
+ */
+export function meshIdentity(mesh: MeshData): string {
+  const p = new Uint8Array(mesh.positions.buffer, mesh.positions.byteOffset, mesh.positions.byteLength);
+  const ix = new Uint8Array(mesh.indices.buffer, mesh.indices.byteOffset, mesh.indices.byteLength);
+  const all = new Uint8Array(p.length + ix.length);
+  all.set(p, 0);
+  all.set(ix, p.length);
+  return fnv1a32Bytes(all).toString(16).padStart(8, "0");
+}
 
 /** The numbers the reading decides by (tiles). */
 export const REST_READING = {
@@ -118,6 +132,39 @@ export function readRestGrid(mesh: MeshData, geom: PieceGeom): RestGrid {
           if (y !== null) tops.push(y - bottom);
         }
       heights.push(holdingTop(tops, lines * lines, band, holdShare));
+    }
+  return { nx, nz, heights };
+}
+
+/**
+ * Where a thing hung under a cover piece meets it, cell by cell over its collider's outline (the piece's own frame,
+ * unturned), the same grid as `readRestGrid` read from below: each cell the lowest point the lines up through it meet
+ * (a sloping cloth's low side over that cell, a thick canopy's underside, not its top), above the collider's bottom, or
+ * null where most lines up meet nothing (the cover does not reach over that cell).
+ */
+export function readHangGrid(mesh: MeshData, geom: PieceGeom): RestGrid {
+  const { cell, maxCells, lines, holdShare } = REST_GRID;
+  const c = geom.boundsCenter;
+  const s = geom.size;
+  const bottom = c.y - s.y / 2;
+  const nx = Math.max(2, Math.min(maxCells, Math.round(s.x / cell)));
+  const nz = Math.max(2, Math.min(maxCells, Math.round(s.z / cell)));
+  const tris = triangleCells(mesh, REST_READING.step);
+  const heights: Array<number | null> = [];
+  for (let k = 0; k < nz; k++)
+    for (let i = 0; i < nx; i++) {
+      let lowest = Infinity;
+      let met = 0;
+      for (let b = 0; b < lines; b++)
+        for (let a = 0; a < lines; a++) {
+          const x = c.x - s.x / 2 + ((i + (a + 0.5) / lines) * s.x) / nx;
+          const z = c.z - s.z / 2 + ((k + (b + 0.5) / lines) * s.z) / nz;
+          const y = lowestAt(mesh, tris.get(cellKey(x, z, REST_READING.step)) ?? [], x, z);
+          if (y === null) continue;
+          met++;
+          lowest = Math.min(lowest, y - bottom);
+        }
+      heights.push(met / (lines * lines) >= holdShare ? lowest : null);
     }
   return { nx, nz, heights };
 }
@@ -244,6 +291,22 @@ function triangleCells(mesh: MeshData, size: number): Map<string, number[]> {
 
 /** The highest point of the triangles `tris` on the vertical line through (x, z), or null when the line misses them. */
 function highestAt(mesh: MeshData, tris: readonly number[], x: number, z: number): number | null {
+  return extremeAt(mesh, tris, x, z, 1);
+}
+
+/** The lowest point of the triangles `tris` on the vertical line through (x, z), or null when the line misses them. */
+function lowestAt(mesh: MeshData, tris: readonly number[], x: number, z: number): number | null {
+  return extremeAt(mesh, tris, x, z, -1);
+}
+
+/** The highest (`sign` 1) or lowest (-1) point of the triangles `tris` on the vertical line through (x, z), or null. */
+function extremeAt(
+  mesh: MeshData,
+  tris: readonly number[],
+  x: number,
+  z: number,
+  sign: 1 | -1,
+): number | null {
   const p = mesh.positions;
   const ix = mesh.indices;
   let top: number | null = null;
@@ -265,7 +328,7 @@ function highestAt(mesh: MeshData, tris: readonly number[], x: number, z: number
     const w3 = 1 - w1 - w2;
     if (w1 < -1e-9 || w2 < -1e-9 || w3 < -1e-9) continue;
     const y = w1 * (p[a + 1] ?? 0) + w2 * (p[b + 1] ?? 0) + w3 * (p[d + 1] ?? 0);
-    if (top === null || y > top) top = y;
+    if (top === null || sign * y > sign * top) top = y;
   }
   return top;
 }

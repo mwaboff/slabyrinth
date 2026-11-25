@@ -41,7 +41,7 @@ export function settleOnSupports(lv: RealizeLevel): void {
   // supports by the whole cells their boxes cover (world x, z)
   const byCell = new Map<string, typeof items>();
   for (const it of items) {
-    if (!restGridOf(it.p.asset)) continue;
+    if (!restGridOf(it.p.asset, it.info.geom)) continue;
     const b = it.info.box;
     for (let x = Math.floor(b.min.x); x <= Math.floor(b.max.x); x++)
       for (let z = Math.floor(b.min.z); z <= Math.floor(b.max.z); z++) {
@@ -86,7 +86,7 @@ export function settleOnSupports(lv: RealizeLevel): void {
           // an assembly's upper piece stands on its own lower piece by design
           if (q.p.source.elementId === it.p.source.elementId) continue;
           const qb = q.info.box;
-          const top = restTop(q.p.asset, qb, measured);
+          const top = restTop(q.p.asset, q.info.geom, qb, measured);
           // a raised top (a rug or a floor patch carries what stands on the floor beside it too)
           if (top - qb.min.y < RAISED || Math.abs(it.p.y - top) > SET_ON) continue;
           const ox = Math.min(b.max.x, qb.max.x) - Math.max(b.min.x, qb.min.x);

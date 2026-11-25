@@ -326,7 +326,8 @@ describe("verify: one fixture per code", () => {
     if (!w) throw new Error("fixture: a counter is a Workbench");
     const box = placedBox(bench.set, w);
     const boxTop = box.max.y - 0.5;
-    const rest = measuredRest(w.asset);
+    const geom = bench.set.placed.get(w)?.geom;
+    const rest = geom ? measuredRest(w.asset, geom) : undefined;
     if (rest === undefined) throw new Error("fixture: the Workbench is measured");
     const floating = (g: 5 | 6, lift: number): unknown[] => {
       const b = build(g, lift);

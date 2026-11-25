@@ -1,35 +1,18 @@
 /**
- * Where a thing set on a piece rests (palette/restSurface.ts, generator 6 `restSurfaces`): the measured table covers the
- * pieces the bundled palettes name and nothing else, and things set on furniture stand on its real top surface.
+ * Where a thing set on a piece rests (palette/restSurface.ts, generator 6 `restSurfaces`): things set on furniture stand
+ * on its real top surface (the table's coverage and guards: measuredTables.test.ts).
  */
 import { describe, expect, it } from "vitest";
 import { loadPalettes, measuredRest, paletteView, restHeight, restPieces } from "../../../src/palette";
-import { MEASURED_RESTS, UNREAD_RESTS } from "../../../src/palette/restHeights";
 import { resolvePlan } from "../../../src/resolve";
 import { loadPlan } from "../../fixtures";
 
-const RERUN =
-  "run `npm run render -- rests` on a machine with TaleSpire installed (it rewrites palette/restHeights.ts)";
-
 describe("the measured rest table (palette/restHeights.ts)", () => {
   const pieces = restPieces(loadPalettes().palettes);
-  const ids = new Set(pieces.map((p) => p.asset));
-
-  it("lists every piece of the bundled palettes' furniture and stall roles, measured or unread", () => {
-    const missing = pieces
-      .filter((p) => !Object.hasOwn(MEASURED_RESTS, p.asset) && !UNREAD_RESTS.includes(p.asset))
-      .map((p) => `${p.name} (${p.asset})`);
-    expect(missing, `pieces never measured: ${RERUN}`).toEqual([]);
-  });
-
-  it("names no piece the bundled palettes do not (numbers for the palettes' own pieces only)", () => {
-    const stale = [...Object.keys(MEASURED_RESTS), ...UNREAD_RESTS].filter((id) => !ids.has(id));
-    expect(stale, `ids no bundled palette names: ${RERUN}`).toEqual([]);
-  });
 
   it("holds plausible heights: above the floor, and not far over the collider", () => {
     for (const p of pieces) {
-      const rest = measuredRest(p.asset);
+      const rest = measuredRest(p.asset, p.geom);
       if (rest === undefined) continue;
       expect(rest, p.name).toBeGreaterThan(0);
       expect(rest, p.name).toBeLessThanOrEqual(p.geom.size.y + 0.25);
@@ -39,10 +22,10 @@ describe("the measured rest table (palette/restHeights.ts)", () => {
   it("a measured piece rests on its real top only where the switch is on; an unknown one keeps its box top", () => {
     const bench = pieces.find((p) => p.name === "Workbench");
     if (!bench) throw new Error("fixture: the bundled palettes have a Workbench");
-    expect(restHeight(bench.asset, bench.geom.size.y, false)).toBe(bench.geom.size.y);
+    expect(restHeight(bench.asset, bench.geom, false)).toBe(bench.geom.size.y);
     // the bench's raised back reaches 1.11; its work top is about 0.35 lower
-    expect(restHeight(bench.asset, bench.geom.size.y, true)).toBeLessThan(bench.geom.size.y - 0.3);
-    expect(restHeight("00000000-0000-0000-0000-000000000000", 0.9, true)).toBe(0.9);
+    expect(restHeight(bench.asset, bench.geom, true)).toBeLessThan(bench.geom.size.y - 0.3);
+    expect(restHeight("00000000-0000-0000-0000-000000000000", bench.geom, true)).toBe(bench.geom.size.y);
   });
 });
 
@@ -83,7 +66,7 @@ describe("things set on furniture stand on its real top surface (generator 6, re
     expect(before.length).toBeGreaterThan(0);
     expect(after.length).toBeGreaterThan(0);
     const bench = restPieces(loadPalettes().palettes).find((p) => p.name === "Workbench");
-    const rest = bench ? measuredRest(bench.asset) : undefined;
+    const rest = bench ? measuredRest(bench.asset, bench.geom) : undefined;
     if (!bench || rest === undefined) throw new Error("fixture: the Workbench is measured");
     for (const h of before) expect(h).toBeCloseTo(bench.geom.size.y, 3);
     for (const h of after) expect(h).toBeCloseTo(rest, 3);

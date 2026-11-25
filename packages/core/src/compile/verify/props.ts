@@ -402,9 +402,12 @@ function checkSupport(
  */
 function surfaceTop(ctx: VerifyCtx, q: Solid, at?: { x: number; z: number }): number {
   if (q.role !== "feature") return q.box.max.y;
+  // the collider the piece was built with: a measured reading applies only to it (palette/measured.ts); a placement
+  // realize did not make has none, and is judged by its box top
+  const geom = ctx.set.placed?.get(q.p)?.geom;
+  if (!geom) return q.box.max.y;
   // generator 6 (`unevenTops`): the measured height of the part of the top under the thing (compile/restOn.ts)
-  const geom = ctx.profile.unevenTops && at ? ctx.set.placed?.get(q.p)?.geom : undefined;
-  if (geom && at)
+  if (ctx.profile.unevenTops && at)
     return surfaceTopAt(
       { asset: q.p.asset, geom, box: q.box, cw: ctx.turnOf(q.p) },
       at.x,
@@ -412,7 +415,7 @@ function surfaceTop(ctx: VerifyCtx, q: Solid, at?: { x: number; z: number }): nu
       ctx.profile.restSurfaces,
       true,
     );
-  return restTop(q.p.asset, q.box, ctx.profile.restSurfaces);
+  return restTop(q.p.asset, geom, q.box, ctx.profile.restSurfaces);
 }
 
 /** The centre of a piece's box in world x and z. */

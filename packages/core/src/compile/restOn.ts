@@ -4,7 +4,7 @@
  * (compile/realize/settle.ts) and verify judges their support by it (compile/verify/props.ts), so both read one rule.
  */
 import type { Box3, PaletteVariant } from "../contracts/compiler";
-import { restGridOf, restSpot } from "../palette/restGrid";
+import { gridCellAt, hangGridOf, restGridOf, restSpot } from "../palette/restGrid";
 import { restTop } from "../palette/restSurface";
 import { rotateXZ } from "../util/turn";
 
@@ -29,7 +29,7 @@ export interface WorldRestSpot {
  * things, else the nearest part that does. Undefined when the piece was never measured or no part of its top holds.
  */
 export function restSpotAt(q: PlacedSupport, x: number, z: number): WorldRestSpot | undefined {
-  const grid = restGridOf(q.asset);
+  const grid = restGridOf(q.asset, q.geom);
   if (!grid) return undefined;
   // the collider's centre is its world box's centre at every turn (the box is round the turned outline)
   const cx = (q.box.min.x + q.box.max.x) / 2;
@@ -59,5 +59,21 @@ export function surfaceTopAt(
     const s = restSpotAt(q, x, z);
     if (s) return s.y;
   }
-  return restTop(q.asset, q.box, measured);
+  return restTop(q.asset, q.geom, q.box, measured);
+}
+
+/**
+ * The underside of a cover piece `q` over world (x, z): its measured underside grid's lowest point over the cell the
+ * point is under (palette/hangGrids.ts: a sloping cloth's low side there, a thick canopy's underside, not its top),
+ * turned into the piece's frame with its turn; undefined when the piece was never measured from below, the point is past
+ * its outline, or the cover does not reach over that cell.
+ */
+export function undersideAt(q: PlacedSupport, x: number, z: number): number | undefined {
+  const grid = hangGridOf(q.asset, q.geom);
+  if (!grid) return undefined;
+  const cx = (q.box.min.x + q.box.max.x) / 2;
+  const cz = (q.box.min.z + q.box.max.z) / 2;
+  const local = rotateXZ(x - cx, z - cz, -q.cw);
+  const h = gridCellAt(grid, q.geom.size.x, q.geom.size.z, local.x, local.z);
+  return h === undefined ? undefined : q.box.min.y + h;
 }

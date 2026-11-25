@@ -16,6 +16,8 @@ export {
   REST_GRID,
   REST_READING,
   TOP_COVER,
+  meshIdentity,
+  readHangGrid,
   readRestGrid,
   readRestSurface,
   readTopCover,

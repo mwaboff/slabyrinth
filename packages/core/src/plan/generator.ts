@@ -686,7 +686,7 @@ const SWITCHES = {
   ),
   hangUnderCover: on(
     6,
-    "A thing hung under a cover hangs from the cover's real surface over its point, measured from the game's meshes (palette/restGrid.ts, compile/restOn.ts): a market stall's lantern hangs from the canopy piece over it (compile/stalls.ts), not from its box's underside, under which a sloping cloth awning leaves 0.65 of air (the lanterns hung in mid-air); a canopy never measured keeps the box's underside.",
+    "A thing hung under a cover hangs from the cover's real underside over its point, measured from the game's meshes seen from below (palette/hangGrids.ts, written by `npm run render -- rests`; compile/restOn.ts undersideAt): a market stall's lantern hangs from the lowest canopy piece over it (compile/stalls.ts), not from its box's underside, under which a sloping cloth awning leaves 0.65 of air (the lanterns hung in mid-air), nor from its top surface, which a thick canopy's underside is below; a canopy never measured keeps the box's underside.",
   ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
