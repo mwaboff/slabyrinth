@@ -22,6 +22,7 @@ Release notes, which the app shows under "What's new" when it offers that update
 ### Fixed
 
 - Things set on tables, desks and altars now sit on them instead of hovering above.
+- Cave walls stand where they belong: rock no longer swallows the camp's sacks and crates or the roots and torches on the wall.
 - A build that fails now says what happened and offers Build again.
 - Stopping a build is no longer reported as an error.
 

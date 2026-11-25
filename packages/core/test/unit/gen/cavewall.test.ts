@@ -6,8 +6,11 @@
  * (a palisade of posts with a thin ring of separate lumps outside, three tones) and on what the planner builds.
  */
 import { describe, expect, it } from "vitest";
+import type { PaletteVariant } from "../../../src/contracts/compiler";
 import { CELL } from "../../../src/contracts/resolved";
 import { realize } from "../../../src/compile";
+import { placementBox } from "../../../src/compile/geometry";
+import { loadOrientation } from "../../../src/palette/load";
 import { verifyBuild } from "../../../src/compile/verify/verify";
 import { planCaveWall, type WallFace, type WallShape, type CaveWallPlan } from "../../../src/gen/cavewall";
 import { bundledPalettes, loadPalettes } from "../../../src/palette";
@@ -337,6 +340,50 @@ describe("cave wall mass: the whole build on a sea cave", () => {
       const c = p.source.cell;
       if (c) expect(open.has(`${c[0]},${c[1]}`)).toBe(false);
     }
+  });
+});
+
+describe("cave wall mass: turned tiles stand where the game puts them (generator 6, tilesStoredByFootprint)", () => {
+  const fixture = loadPlan("sea-grotto");
+  const palettes = loadPalettes();
+  const { orientation } = loadOrientation();
+  const geomOf = new Map<string, PaletteVariant["geom"]>();
+  for (const p of Object.values(palettes.palettes))
+    for (const r of Object.values(p.roles)) for (const v of r.variants) geomOf.set(v.asset, v.geom);
+  /**
+   * Mass and cap tiles whose footprint, by the game's rule (a tile is stored at its turned footprint's min corner:
+   * compile/geometry.ts placementBox, scene3d placementOffset), is centred over a cell the map shows open.
+   */
+  const strayTiles = (generator: 5 | 6): string[] => {
+    const r = resolvePlan({ ...fixture, generator }, bundledPalettes());
+    const set = realize(r, palettes, {});
+    const hg = r.levels.reduce((m, l) => Math.max(m, l.bounds.y + l.bounds.h), 0);
+    const open = new Set<string>();
+    for (const L of r.levels)
+      for (let y = 0; y < L.bounds.h; y++)
+        for (let x = 0; x < L.bounds.w; x++)
+          if (L.cells.state[y * L.bounds.w + x] === CELL.OPEN)
+            open.add(`${x + L.bounds.x},${y + L.bounds.y}`);
+    const out: string[] = [];
+    for (const p of set.levels.flatMap((l) => l.placements)) {
+      if (p.source.elementId !== "cave_mass" && p.source.elementId !== "cave_cap") continue;
+      const g = geomOf.get(p.asset);
+      if (g?.originAt !== "minCorner") continue;
+      const b = placementBox(g, p.x, p.y, p.z, p.rot * orientation.rotSense);
+      const cx = (b.min.x + b.max.x) / 2;
+      const cz = (b.min.z + b.max.z) / 2;
+      const cell = `${String(Math.floor(cx))},${String(Math.floor(orientation.flipZ ? hg - cz : cz))}`;
+      if (open.has(cell)) out.push(`${p.asset} rot ${String(p.rot)} over open ${cell}`);
+    }
+    return out;
+  };
+
+  it("generator 5 stored turned tiles as if turned about their corner: some stand over the open floor", () => {
+    expect(strayTiles(5).length).toBeGreaterThan(0);
+  });
+
+  it("generator 6 stores them by their turned footprint: none stands over the open floor", () => {
+    expect(strayTiles(6)).toEqual([]);
   });
 });
 

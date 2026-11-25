@@ -660,6 +660,10 @@ const SWITCHES = {
     6,
     "A thing set on a piece (a jug on a workbench, books on a desk, a candle on an altar, goods on a stall's table) stands on the piece's real top surface, measured from the game's meshes (palette/restHeights.ts, written by `npm run render -- rests`), not on its collider box's top, which reaches its highest point (a bench's raised back: the jugs hung 0.35 over the work top); a piece never measured keeps its box top (palette/restSurface.ts, read by the palette view's `rest` and compile/stalls.ts).",
   ),
+  tilesStoredByFootprint: on(
+    6,
+    "A tile (a corner-origin piece) the cave rock mass turns is stored at the min corner of its turned footprint at every turn, the game's rule (compile/geometry.ts storedPosition, as arrangements and the scene renderer place it), so it stands centred where the mass plan put it; before, it was stored as if turned about its corner, and at any turn but 0 the game put it up to its own size off its plan, into the floor beside the wall (camp sacks, a chest and crystals ended up inside the rock). The cave-mass review reads such a piece the same way.",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

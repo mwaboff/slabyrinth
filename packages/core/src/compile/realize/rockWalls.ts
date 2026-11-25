@@ -6,6 +6,7 @@
  * may take), the level's edges, features and cells, the levels above (ceiling). Writes: wall and feature placements
  * (and corrects the boxes of turned tiles).
  */
+import type { Placement } from "../../contracts/compiler";
 import type { ThemeId } from "../../contracts/plan";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { planCaveWall, type WallFace, type WallShape } from "../../gen/cavewall";
@@ -21,7 +22,7 @@ import {
   NATURAL_WALL_ROLE,
   featureRole,
 } from "../../palette/roles";
-import { placementBox, rotateXZ } from "../geometry";
+import { placementBox, rotateXZ, storedPosition } from "../geometry";
 import { h32Utf16, hashUnitUtf16 } from "../../util/hash";
 import { ROCK_WALL_CLOSED } from "../verify/limits";
 import { EPS, type RealizeLevel } from "./level";
@@ -163,11 +164,21 @@ function layRockMass(
       if (!q) continue;
       const deg = (((frame.planDegreesToWorld(pc.rot) + q.rot) % 360) + 360) % 360;
       const c = frame.point(pc.cx, pc.cy);
-      const off = rotateXZ(q.geom.boundsCenter.x, q.geom.boundsCenter.z, deg * frame.o.rotSense);
-      emit(q, pc.family === "toe" ? "feature" : "wall", c.x - off.x, pc.base, c.z - off.z, deg, {
+      const src: Placement["source"] = {
         cell: [Math.floor(pc.cx), Math.floor(pc.cy)],
         elementId: pc.family === "toe" ? "cave_foot" : pc.family === "cap" ? "cave_cap" : "cave_mass",
-      });
+      };
+      const role = pc.family === "toe" ? "feature" : "wall";
+      // generator 6 (`tilesStoredByFootprint`): a tile is stored at the min corner of its turned footprint at every
+      // turn, the game's rule (compile/geometry.ts storedPosition), so it stands centred where it was planned; before,
+      // it was stored as if turned about its corner, and stood up to its own size off its plan (in the floor beside it)
+      if (profile.tilesStoredByFootprint && q.geom.originAt === "minCorner") {
+        const at = storedPosition(q.geom, c.x, pc.base, c.z, deg * frame.o.rotSense);
+        emit(q, role, at.x, at.y, at.z, deg, src);
+        continue;
+      }
+      const off = rotateXZ(q.geom.boundsCenter.x, q.geom.boundsCenter.z, deg * frame.o.rotSense);
+      emit(q, role, c.x - off.x, pc.base, c.z - off.z, deg, src);
       // a tile (corner-origin) piece turned off the quarter turns: its box is the turned outline's (the box of a
       // corner-origin piece is only right for quarter turns)
       const last = placements[placements.length - 1];
