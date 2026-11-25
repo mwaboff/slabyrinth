@@ -126,7 +126,15 @@ function room(buf: Float64Array<ArrayBuffer>, n: number): Float64Array<ArrayBuff
 export function renderScene(
   scene: Scene,
   shot: Pick<ShotSpec, "camera" | "cutaway" | "width" | "height">,
-  opts: { background?: Rgb } = {},
+  opts: {
+    background?: Rgb;
+    /**
+     * Draw only these instances (indexes; the others are not even looked at): a caller that knows which pieces can
+     * show (those near a thing, from a plan hash) spares a walk over every piece of a huge map. The picture is the one
+     * of all the pieces whenever the others would not have shown.
+     */
+    only?: readonly number[];
+  } = {},
 ): RenderedImage {
   const W = Math.max(1, Math.round(shot.width));
   const H = Math.max(1, Math.round(shot.height));
@@ -149,7 +157,10 @@ export function renderScene(
   let boxesDrawn = 0;
   let trianglesDrawn = 0;
 
-  for (let ii = 0; ii < scene.instances.length; ii++) {
+  const order = opts.only ? [...opts.only].sort((p, q) => p - q) : null;
+  const count = order ? order.length : scene.instances.length;
+  for (let n = 0; n < count; n++) {
+    const ii = order ? (order[n] ?? -1) : n;
     const inst = scene.instances[ii];
     if (!inst || !shown(inst, shot.cutaway)) continue;
     // cull and measure by the projected box

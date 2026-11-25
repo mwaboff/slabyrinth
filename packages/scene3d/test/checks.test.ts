@@ -4,6 +4,8 @@
  */
 import type { PlacementRole } from "@slabyrinth/core";
 import { FACING, frontCosine } from "@slabyrinth/core/objects";
+import { PlanHash } from "../src/geom/planHash";
+import { visibleShare } from "../src/shots/planner";
 import { describe, expect, it } from "vitest";
 import {
   SceneSpace,
@@ -11,8 +13,11 @@ import {
   clusterShot,
   compareFindings,
   cuboid,
+  frameBox,
   markedPicture,
+  renderScene,
   runChecks,
+  shown,
   type Box3,
   type CheckCode,
   type ColourClass,
@@ -116,7 +121,7 @@ const floor = (x0: number, x1: number, z0: number, z1: number): Spec[] => {
 
 /** Plan facts with nothing planned but what a test gives. */
 function planOf(p: Partial<PlanFacts>): PlanFacts {
-  const cells = p.cells ?? [];
+  const cells = [...(p.cells ?? [])];
   return {
     cells,
     passages: [],
@@ -153,6 +158,27 @@ const codes = (
   plan: PlanFacts | null,
   only: CheckCode,
 ): ReturnType<typeof runChecks>["findings"] => runChecks(scene, plan, { only: [only] }).findings;
+
+describe("plan hash", () => {
+  it("visits each piece a rectangle meets once, and lists them in order", () => {
+    const boxes: Box3[] = [
+      { min: { x: 0, y: 0, z: 0 }, max: { x: 9, y: 1, z: 9 } },
+      { min: { x: 5, y: 0, z: 5 }, max: { x: 6, y: 1, z: 6 } },
+      { min: { x: 20, y: 0, z: 20 }, max: { x: 21, y: 1, z: 21 } },
+    ];
+    const h = new PlanHash(boxes);
+    const seen: number[] = [];
+    h.each(0, 10, 0, 10, (i) => seen.push(i));
+    expect(seen.sort()).toEqual([0, 1]);
+    expect(h.near(4, 22, 4, 22)).toEqual([0, 1, 2]);
+    expect(h.near(4, 22, 4, 22)).toEqual([0, 1, 2]);
+    expect(() => {
+      h.each(0, 1, 0, 1, () => {
+        h.each(0, 1, 0, 1, () => undefined);
+      });
+    }).toThrow();
+  });
+});
 
 describe("scene space", () => {
   it("meets a piece's mesh on vertical and level rays, turned or not", () => {
@@ -480,5 +506,19 @@ describe("findings out", () => {
     console.log(`checks over ${String(scene.instances.length)} pieces: ${String(Math.round(ms))} ms`, r.ms);
     expect(r.findings).toEqual([]);
     expect(ms).toBeLessThan(big ? 600_000 : 60_000);
+    // the shot planner's probes of one thing draw only the pieces near it, not the whole map
+    const within = { minX: 10, maxX: 14, minZ: 10, maxZ: 14 };
+    const camera = frameBox(
+      { min: { x: 10, y: 0, z: 10 }, max: { x: 14, y: 1, z: 14 } },
+      { bearingDeg: 0, elevationDeg: 20, projection: "ortho", width: 128, height: 96 },
+    );
+    const of = scene.instances.flatMap((inst, i) => (shown(inst, { within }) ? [i] : []));
+    const full = renderScene(scene, { camera, cutaway: { within }, width: 128, height: 96 });
+    const seen = new Set([...full.idAt].filter((v) => v >= 0));
+    const tp = performance.now();
+    for (let k = 0; k < 50; k++)
+      expect(visibleShare(scene, { camera, cutaway: { within } }, of)).toBe(seen.size / of.length);
+    // 50 probes over a few dozen pieces, not 50 walks over every piece of the map
+    expect(performance.now() - tp).toBeLessThan(big ? 5_000 : 1_500);
   }, 900_000);
 });

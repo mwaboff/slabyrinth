@@ -13,6 +13,7 @@
  * Ranked overview > interiors > fronts > levels, cut to a budget.
  */
 import { objectOf } from "@slabyrinth/core/objects";
+import { PlanHash } from "../geom/planHash";
 import { frameBox } from "../raster/camera";
 import { renderScene, shownBounds } from "../raster/raster";
 import type { Box3, Cutaway, PlanRect, Scene, SceneInstance, ShotSpec } from "../types/index";
@@ -112,12 +113,23 @@ export function thingsOf(scene: Scene): Thing[] {
 }
 
 /** The share of `of` the camera sees (distinct instances on the probe's id buffer). */
+const HASHES = new WeakMap<Scene, PlanHash>();
+/** The scene's plan hash, built once per scene. */
+function planHashOf(scene: Scene): PlanHash {
+  let h = HASHES.get(scene);
+  if (!h) HASHES.set(scene, (h = new PlanHash(scene.instances.map((i) => i.aabb))));
+  return h;
+}
+
 export function visibleShare(
   scene: Scene,
   spec: Pick<ShotSpec, "camera" | "cutaway">,
   of: readonly number[],
 ): number {
-  const img = renderScene(scene, { ...spec, ...PROBE });
+  // a probe cut to a plan rectangle draws only the pieces near it (a plan hash), not every piece of the map
+  const w = spec.cutaway.within;
+  const only = w ? planHashOf(scene).near(w.minX, w.maxX, w.minZ, w.maxZ) : undefined;
+  const img = renderScene(scene, { ...spec, ...PROBE }, only ? { only } : {});
   const want = new Set(of);
   const seen = new Set<number>();
   for (const id of img.idAt) if (want.has(id)) seen.add(id);

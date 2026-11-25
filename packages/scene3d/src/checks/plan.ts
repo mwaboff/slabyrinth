@@ -86,7 +86,11 @@ export interface PlanObject {
 }
 
 export interface PlanFacts {
-  cells: PlanCell[];
+  /**
+   * Every planned cell in bounds, level by level. A build's facts make each cell as it is walked (a map of 1024 x 1024
+   * tiles and 8 levels keeps typed arrays per level, not 8 million objects): keep a cell only while it is needed.
+   */
+  cells: Iterable<PlanCell>;
   passages: PlanPassage[];
   boundaries: PlanBoundary[];
   objects: PlanObject[];
@@ -139,7 +143,6 @@ export function planFacts(
   const gangway = new Set(
     (opts.objects ?? []).flatMap((o) => (o.gangway ?? []).map(([x, y]) => `${String(x)},${String(y)}`)),
   );
-  const cells: PlanCell[] = [];
   const passages: PlanPassage[] = [];
   const boundaries: PlanBoundary[] = [];
   const mounted = new Set<string>();
@@ -148,10 +151,10 @@ export function planFacts(
   const spans = new Set<string>();
   const bodies = new Set<string>();
   const levelBase: number[] = scene.levels.map(() => scene.bounds.min.y);
-  const byLevel = new Map<
-    number,
-    { x0: number; y0: number; w: number; h: number; at: Array<PlanCell | null> }
-  >();
+  /** Each level's cells as typed arrays over its bounds (row by row): what a PlanCell is made from on demand. */
+  const byLevel = new Map<number, LevelCells>();
+  const roofIds: string[] = [];
+  const roofIndex = new Map<string, number>();
 
   /** World (x, z) of a plan vertex. */
   const vertex = (x: number, y: number): { x: number; z: number } => frame.point(x, y);
@@ -254,31 +257,38 @@ export function planFacts(
     }
     const linkCells = linkCellsOf(resolved, level);
     const b = level.bounds;
-    const at: Array<PlanCell | null> = new Array<PlanCell | null>(b.w * b.h).fill(null);
+    const n = b.w * b.h;
+    const lc: LevelCells = {
+      li,
+      x0: b.x,
+      y0: b.y,
+      w: b.w,
+      h: b.h,
+      bits: new Uint8Array(n),
+      top: new Float64Array(n),
+      roof: new Int32Array(n).fill(-1),
+      roofFloor: new Float64Array(n),
+    };
     for (let y = b.y; y < b.y + b.h; y++)
       for (let x = b.x; x < b.x + b.w; x++) {
         const c = grid.cell(x, y);
         if (!c.inBounds) continue;
-        const m = frame.rectMin(x, y, 1, 1);
+        const k = (y - b.y) * b.w + (x - b.x);
+        const link =
+          linkCells.has(`${String(x)},${String(y)}`) ||
+          (c.flags & (CELL_FLAG.LINK | CELL_FLAG.STAIRWELL | CELL_FLAG.STEPS)) !== 0;
+        lc.bits[k] =
+          BIT.inBounds | (c.floor ? BIT.floor : 0) | (c.open ? BIT.open : 0) | (link ? BIT.link : 0);
+        lc.top[k] = grid.top(x, y);
         const r = roofed.get(`${String(x)},${String(y)}`);
-        const pc: PlanCell = {
-          levelIndex: li,
-          cell: [x, y],
-          x0: m.x,
-          z0: m.z,
-          top: grid.top(x, y),
-          floor: c.floor,
-          open: c.open,
-          link:
-            linkCells.has(`${String(x)},${String(y)}`) ||
-            (c.flags & (CELL_FLAG.LINK | CELL_FLAG.STAIRWELL | CELL_FLAG.STEPS)) !== 0,
-          roofedBy: r?.id ?? null,
-          roofedFloor: r?.floor ?? 0,
-        };
-        cells.push(pc);
-        at[(y - b.y) * b.w + (x - b.x)] = pc;
+        if (r) {
+          let id = roofIndex.get(r.id);
+          if (id === undefined) roofIndex.set(r.id, (id = roofIds.push(r.id) - 1));
+          lc.roof[k] = id;
+          lc.roofFloor[k] = r.floor;
+        }
       }
-    byLevel.set(li, { x0: b.x, y0: b.y, w: b.w, h: b.h, at });
+    byLevel.set(li, lc);
 
     for (const o of level.openings) {
       if (!isPassage(o.kind)) continue;
@@ -381,6 +391,37 @@ export function planFacts(
     const w = frame.planVector(Math.sin(t), -Math.cos(t));
     return { id: o.id, heading: { x: w.x, y: 0, z: w.z } };
   });
+  /** The planned cell at index `k` of a level's arrays (null out of bounds). */
+  const cellOf = (l: LevelCells, k: number): PlanCell | null => {
+    const bits = l.bits[k] ?? 0;
+    if ((bits & BIT.inBounds) === 0) return null;
+    const x = l.x0 + (k % l.w);
+    const y = l.y0 + Math.floor(k / l.w);
+    const m = frame.rectMin(x, y, 1, 1);
+    const roof = l.roof[k] ?? -1;
+    return {
+      levelIndex: l.li,
+      cell: [x, y],
+      x0: m.x,
+      z0: m.z,
+      top: l.top[k] ?? 0,
+      floor: (bits & BIT.floor) !== 0,
+      open: (bits & BIT.open) !== 0,
+      link: (bits & BIT.link) !== 0,
+      roofedBy: roof >= 0 ? (roofIds[roof] ?? null) : null,
+      roofedFloor: roof >= 0 ? (l.roofFloor[k] ?? 0) : 0,
+    };
+  };
+  const levels = [...byLevel.values()];
+  const cells: Iterable<PlanCell> = {
+    *[Symbol.iterator]() {
+      for (const l of levels)
+        for (let k = 0; k < l.w * l.h; k++) {
+          const c = cellOf(l, k);
+          if (c) yield c;
+        }
+    },
+  };
   return {
     cells,
     passages,
@@ -399,9 +440,26 @@ export function planFacts(
       const ix = px - l.x0;
       const iy = py - l.y0;
       if (ix < 0 || iy < 0 || ix >= l.w || iy >= l.h) return null;
-      return l.at[iy * l.w + ix] ?? null;
+      return cellOf(l, iy * l.w + ix);
     },
   };
+}
+
+/** A cell's yes/no facts, one bit each. */
+const BIT = { inBounds: 1, floor: 2, open: 4, link: 8 } as const;
+
+/** One level's planned cells over its bounds, row by row, in typed arrays. */
+interface LevelCells {
+  li: number;
+  x0: number;
+  y0: number;
+  w: number;
+  h: number;
+  bits: Uint8Array;
+  top: Float64Array;
+  /** Index of the roofed building over the cell (-1: none). */
+  roof: Int32Array;
+  roofFloor: Float64Array;
 }
 
 /** The cells of a level a stair, ladder or stairwell stands in (core `resolvedLinkCells`). */

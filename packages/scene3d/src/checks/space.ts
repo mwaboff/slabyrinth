@@ -7,10 +7,9 @@
  * square, built once per mesh on first use; other rays test the triangles of the pieces whose box they cross.
  */
 import { turnBasis } from "@slabyrinth/core";
+import { PlanHash } from "../geom/planHash";
 import type { Box3, MeshData, Scene, SceneInstance, Vec3 } from "../types/index";
 
-/** Side of a hash square in plan, tiles. */
-const HASH = 2;
 /** Side of a mesh's own triangle grid square, tiles. */
 const MESH_CELL = 0.25;
 
@@ -103,10 +102,8 @@ export function dirToWorld(inst: SceneInstance, d: Vec3): Vec3 {
   return { x: d.x * c + d.z * s, y: d.y, z: -d.x * s + d.z * c };
 }
 
-const key = (i: number, j: number): number => (i + 32768) * 65536 + (j + 32768);
-
 export class SceneSpace {
-  private readonly hash = new Map<number, number[]>();
+  private readonly hash: PlanHash;
   private readonly grids = new Map<string, MeshGrid>();
   /** Each piece's mesh box in world (the instance's aabb). */
   readonly boxes: readonly Box3[];
@@ -117,29 +114,15 @@ export class SceneSpace {
     keep: (inst: SceneInstance) => boolean = (i) => i.role !== "marker",
   ) {
     this.boxes = scene.instances.map((i) => i.aabb);
-    scene.instances.forEach((inst, idx) => {
-      if (!keep(inst)) return;
-      const b = inst.aabb;
-      for (let i = Math.floor(b.min.x / HASH); i <= Math.floor(b.max.x / HASH); i++)
-        for (let j = Math.floor(b.min.z / HASH); j <= Math.floor(b.max.z / HASH); j++) {
-          const k = key(i, j);
-          let l = this.hash.get(k);
-          if (!l) this.hash.set(k, (l = []));
-          l.push(idx);
-        }
+    this.hash = new PlanHash(this.boxes, (idx) => {
+      const inst = scene.instances[idx];
+      return inst !== undefined && keep(inst);
     });
   }
 
   /** Pieces whose box meets the plan rectangle (each once, in index order). */
   near(minX: number, maxX: number, minZ: number, maxZ: number): number[] {
-    const seen = new Set<number>();
-    for (let i = Math.floor(minX / HASH); i <= Math.floor(maxX / HASH); i++)
-      for (let j = Math.floor(minZ / HASH); j <= Math.floor(maxZ / HASH); j++)
-        for (const idx of this.hash.get(key(i, j)) ?? []) {
-          const b = this.boxes[idx];
-          if (b && b.max.x >= minX && b.min.x <= maxX && b.max.z >= minZ && b.min.z <= maxZ) seen.add(idx);
-        }
-    return [...seen].sort((a, b) => a - b);
+    return this.hash.near(minX, maxX, minZ, maxZ);
   }
 
   /** Pieces whose box meets a world box. */
@@ -199,10 +182,14 @@ export class SceneSpace {
    */
   column(x: number, z: number, lo: number, hi: number, skip?: (idx: number) => boolean): Hit[] {
     const out: Hit[] = [];
-    for (const idx of this.near(x, x, z, z)) {
-      if (skip?.(idx)) continue;
+    // (the hits are sorted below, so the order pieces are visited in does not matter)
+    const cand: number[] = [];
+    this.hash.each(x, x, z, z, (idx) => {
       const b = this.boxes[idx];
-      if (!b || b.max.y < lo || b.min.y > hi) continue;
+      if (b && b.max.y >= lo && b.min.y <= hi) cand.push(idx);
+    });
+    for (const idx of cand) {
+      if (skip?.(idx)) continue;
       for (const y of this.heightsOf(idx, x, z)) if (y >= lo && y <= hi) out.push({ index: idx, at: y });
     }
     return out.sort((a, b) => b.at - a.at || a.index - b.index);

@@ -23,14 +23,18 @@ describe("plan facts", () => {
         orientation,
         objects: [{ id: "o", heading: 90 }],
       });
-      expect(plan.cells.length).toBeGreaterThan(0);
-      for (const c of plan.cells) expect(plan.cellAt(c.levelIndex, c.x0 + 0.5, c.z0 + 0.5)).toBe(c);
+      const cells = [...plan.cells];
+      expect(cells.length).toBeGreaterThan(0);
+      for (const c of cells) expect(plan.cellAt(c.levelIndex, c.x0 + 0.5, c.z0 + 0.5)).toEqual(c);
+      // the cells are made as they are walked (typed arrays per level), the same every walk
+      expect(Array.isArray(plan.cells)).toBe(false);
+      expect([...plan.cells]).toEqual(cells);
       // a link's cells, as core lays them out, are link cells here
       for (const level of b.resolved.levels) {
         const li = scene.levels.find((l) => l.id === level.id)?.index ?? -1;
         for (const link of b.resolved.links)
           for (const [x, y] of resolvedLinkCells(link, level.id)) {
-            const c = plan.cells.find((p) => p.levelIndex === li && p.cell[0] === x && p.cell[1] === y);
+            const c = cells.find((p) => p.levelIndex === li && p.cell[0] === x && p.cell[1] === y);
             if (c) expect(c.link).toBe(true);
           }
       }
