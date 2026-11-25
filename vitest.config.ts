@@ -26,6 +26,14 @@ export default defineConfig({
           include: ["test/**/*.test.ts", "src/**/*.test.ts"],
         },
       },
+      ...["scene3d", "render-cli"].map((name) => ({
+        test: {
+          name,
+          root: `./packages/${name}`,
+          environment: "node" as const,
+          include: ["test/**/*.test.ts"],
+        },
+      })),
       {
         // Main-process build flag (electron.vite.config.ts): tests may load test-only code.
         define: { __SLABYRINTH_TEST_BUILD__: "true" },

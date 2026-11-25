@@ -36,6 +36,7 @@
     "test:golden:gen5:update": "npm run test:golden:gen5:update -w @slabyrinth/core",
     "test:sweep": "npm run test:sweep -w @slabyrinth/core --",
     "test:e2e": "npm run test:e2e -w @slabyrinth/desktop",
+    "render": "tsx packages/render-cli/src/index.ts",
     "capture:site": "npm run capture:site -w @slabyrinth/desktop",
     "package": "npm run package -w @slabyrinth/desktop",
     "dist": "npm run dist -w @slabyrinth/desktop",

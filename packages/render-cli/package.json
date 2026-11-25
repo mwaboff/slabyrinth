@@ -1,0 +1,13 @@
+{
+  "name": "@slabyrinth/render-cli",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Developer command that renders a plan, fixture or slab to 3D PNGs (reads the TaleSpire install read-only; mesh cache under .cache/).",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b . tsconfig.test.json",
+    "test": "vitest run --root ../.. --project render-cli"
+  }
+}
