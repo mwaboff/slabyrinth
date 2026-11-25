@@ -21,6 +21,7 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 ### Fixed
 
+- Things set on tables, desks and altars now sit on them instead of hovering above.
 - A build that fails now says what happened and offers Build again.
 - Stopping a build is no longer reported as an error.
 

@@ -12,6 +12,8 @@
  */
 export type * from "./types/index";
 export { cuboid, meshBox } from "./geom/mesh";
+export { REST_READING, readRestSurface } from "./geom/restSurface";
+export type { RestReading } from "./geom/restSurface";
 export { COLOUR_CLASSES, colourClass, pieceColour } from "./scene/colour";
 export { pieceClass, roleClass } from "./scene/classify";
 export type { ClassInput, PieceFacts } from "./scene/classify";

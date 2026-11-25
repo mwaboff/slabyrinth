@@ -36,6 +36,7 @@ import {
 import type { ResolvedVariant, RoleResolution } from "../palette/resolve";
 import { STALL_PIECE_ROLE, STALL_ROLES, featureRole } from "../palette/roles";
 import { NOT_TILE, ONE_CELL_TILE, both, variantNamed } from "../palette/filters";
+import { restHeight } from "../palette/restSurface";
 import { stallParts, type RoleProbe } from "../palette/stallParts";
 import { h32Utf16, subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
@@ -115,6 +116,14 @@ class Stall {
     this.Y1 = this.Y0 + f.size[1];
     this.goods = this.thingsOf(this.info.goods);
     for (let lx = 0; lx < b.w; lx++) if (lx !== b.gap) this.frontRow.push(lx);
+  }
+
+  /**
+   * Where a thing set on piece `v` stands above its bottom: its measured top surface (generator 6, `restSurfaces`:
+   * palette/restSurface.ts), else its box top.
+   */
+  private restOf(v: ResolvedVariant): number {
+    return restHeight(v.uuid, v.geom.size.y, this.lv.ctx.profile.restSurfaces);
   }
 
   private cell(lx: number, ly: number): [number, number] {
@@ -241,13 +250,13 @@ class Stall {
       if (run.length === 1) {
         const [cx, cy] = this.cell(lx, 0);
         this.tile(v, { x: cx, y: cy, w: 1, h: 1 }, y0, this.turn(b.front, v, STALL_PIECE_ROLE));
-        this.smallThings(onTable, cx, cy, y0 + v.geom.size.y, lx, 0);
+        this.smallThings(onTable, cx, cy, y0 + this.restOf(v), lx, 0);
       } else {
         const [px, py] = this.point(lx + 1, 0.5);
         this.prop(v, px, py, y0, this.turn(b.front, v, STALL_PIECE_ROLE));
         for (const l of run) {
           const [cx, cy] = this.cell(l, 0);
-          this.smallThings(onTable, cx, cy, y0 + v.geom.size.y, l, 0);
+          this.smallThings(onTable, cx, cy, y0 + this.restOf(v), l, 0);
         }
       }
     }
@@ -307,7 +316,7 @@ class Stall {
       const v = this.choose(counterRes, `counter:${lx}:${ly}`);
       const [cx, cy] = this.cell(lx, ly);
       if (v) this.tile(v, { x: cx, y: cy, w: 1, h: 1 }, top0, this.turn(face, v, STALL_ROLES.counter));
-      this.smallThings(goods, cx, cy, top0 + (v?.geom.size.y ?? counterH), lx, ly);
+      this.smallThings(goods, cx, cy, top0 + (v ? this.restOf(v) : counterH), lx, ly);
     }
   }
 

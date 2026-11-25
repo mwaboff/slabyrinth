@@ -45,5 +45,7 @@ export { TRAITS, TRAIT_IDS, borrowRisk, fitsShape, hasTrait, measurePiece, trait
 export type { BorrowRisk, MeasureId, MeasureRange, PieceMeasures, TraitId, TraitShape } from "./traits";
 export { pickFromPool, traitPool, traitQueryKey } from "./traitPools";
 export type { TraitPiece, TraitPool, TraitQuery } from "./traitPools";
+export { REST_ROLE_PREFIXES, measuredRest, restHeight, restPieces, restTop } from "./restSurface";
+export type { RestPiece } from "./restSurface";
 export { coveredStallForms, stallParts } from "./stallParts";
 export type { RoleProbe, StallParts } from "./stallParts";

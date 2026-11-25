@@ -131,7 +131,7 @@ function lampOn(room: Room, q: Placed): boolean {
   if (q.light) return false;
   const ext = room.piece(q.type, q.variant);
   if (ext !== undefined && ext.hMax < 0.65 && room.has("candelabra", "candle")) {
-    if (ext.mixed || ext.hMax - ext.h > 0.15) return false;
+    if (ext.mixed || ext.restMax - ext.rest > 0.15) return false;
     const cx = clampTo(q.centre[0], q.at[0], q.size[0]);
     const cy = clampTo(q.centre[1], q.at[1], q.size[1]);
     const placement: GeneratedPlacement = {
@@ -141,7 +141,7 @@ function lampOn(room: Room, q: Placed): boolean {
       size: [1, 1],
       rot: 0,
       rotFine: room.rng.int(24) * 15,
-      lift: ext.hMax,
+      lift: ext.restMax,
       offset: [
         Math.max(-0.5, Math.min(0.5, q.centre[0] - (cx + 0.5))),
         Math.max(-0.5, Math.min(0.5, q.centre[1] - (cy + 0.5))),

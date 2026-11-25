@@ -656,6 +656,10 @@ const SWITCHES = {
   ),
 
   // ── generator 6 (open) ──
+  restSurfaces: on(
+    6,
+    "A thing set on a piece (a jug on a workbench, books on a desk, a candle on an altar, goods on a stall's table) stands on the piece's real top surface, measured from the game's meshes (palette/restHeights.ts, written by `npm run render -- rests`), not on its collider box's top, which reaches its highest point (a bench's raised back: the jugs hung 0.35 over the work top); a piece never measured keeps its box top (palette/restSurface.ts, read by the palette view's `rest` and compile/stalls.ts).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

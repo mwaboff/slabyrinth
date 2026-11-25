@@ -80,9 +80,14 @@ export interface PlacementGrid {
   /**
    * Generator 3: the asset's real outline in tiles (w along its length at turn 0, d across, h tall; the variant a
    * piece most likely is), where `pieceSize` gives its footprint in cells. The rock band plans with it, and the
-   * review and the realizer judge cover with it. Anchored on cell (x, y), as `pieceSize`. Optional.
+   * review and the realizer judge cover with it. Anchored on cell (x, y), as `pieceSize`. `rest`: where a thing set on
+   * it stands (its real top surface from generator 6, else `h`; palette/restSurface.ts). Optional.
    */
-  pieceExtent?(type: FeatureType, x: number, y: number): { w: number; d: number; h: number } | undefined;
+  pieceExtent?(
+    type: FeatureType,
+    x: number,
+    y: number,
+  ): { w: number; d: number; h: number; rest: number } | undefined;
   /**
    * Generator 3: the level's water surface in tiles above the level floor (the scale of `height`; resolve/level/waterSurface.ts
    * waterSurface() minus the floor thickness). Optional: without it water dressing estimates it from the beds and banks
@@ -113,6 +118,9 @@ export interface PlacementGrid {
         wMax: number;
         dMax: number;
         hMax: number;
+        /** Where a thing set on it stands, lowest and highest of the variants (palette/view.ts RoomPieceFn). */
+        rest: number;
+        restMax: number;
         tile: boolean;
         mixed: boolean;
       }
