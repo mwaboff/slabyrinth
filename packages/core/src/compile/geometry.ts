@@ -76,7 +76,16 @@ export class WorldFrame {
 /** A rotation snapped to the nearest quarter turn, 0..270 (a tile stays square to the grid). */
 export const quarterTurn = (deg: number): number => (((Math.round(deg / 90) % 4) + 4) % 4) * 90;
 
-export { rotateXZ } from "../util/turn";
+export { rotateXZ, turnBasis } from "../util/turn";
+
+/**
+ * The turn a placement's stored rotation (`Placement.rot`, or a slab's rotation in degrees) means in the world:
+ * degrees clockwise seen from above, the calibration's rotSense applied. The one reading realize places a piece by and
+ * the 3D scene draws it by, so the two can never disagree about which way a piece faces.
+ */
+export function worldTurn(rot: number, o: Pick<OrientationCalibration, "rotSense">): number {
+  return rot * o.rotSense;
+}
 
 /**
  * World AABB of an asset stored at (x,y,z) with rotation `rotDeg` (game degrees; rotSense applied by caller).

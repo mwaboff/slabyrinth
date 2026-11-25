@@ -17,7 +17,7 @@ export type { ClassInput, PieceFacts } from "./scene/colour";
 export { pieceLookup } from "./scene/pieces";
 export type { PieceInfo, PieceLookup } from "./scene/pieces";
 export { assembleScene, sceneFromBuild, sceneFromSlab } from "./scene/build";
-export type { ScenePiece } from "./scene/build";
+export type { SceneOptions, ScenePiece } from "./scene/build";
 export { boxMesh, placementOffset } from "./scene/place";
 export { directionFrom, finiteBox, frameBox, viewBasis } from "./raster/camera";
 export type { FrameOptions, ViewBasis } from "./raster/camera";

@@ -12,7 +12,7 @@ import { CELL, type ResolvedLevel } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { ROTATION_STEP } from "../../slab/codec";
 import type { LevelFacts } from "../buildFacts";
-import { emptyBox, growBox, placementBox } from "../geometry";
+import { emptyBox, growBox, placementBox, worldTurn } from "../geometry";
 import { h32Utf16 } from "../../util/hash";
 import type { RealizeCtx } from "./context";
 import type { LevelCell, LevelGrid } from "../../resolve/levelGrid";
@@ -112,7 +112,7 @@ export class RealizeLevel {
         source,
       };
       if (layer !== undefined) p.layer = layer;
-      const box = placementBox(v.geom, p.x, p.y, p.z, rot * orientation.rotSense);
+      const box = placementBox(v.geom, p.x, p.y, p.z, worldTurn(rot, orientation));
       placed.set(p, { name: v.name ?? palettes.availability.name(v.uuid) ?? v.uuid, geom: v.geom, box });
       growBox(levelBox, box);
       placements.push(p);

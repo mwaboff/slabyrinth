@@ -7,7 +7,11 @@ import {
   LevelGrid,
   emptyBox,
   growBox,
+  loadOrientation,
+  rotToDegrees,
+  worldTurn,
   type Material,
+  type OrientationCalibration,
   type PlacementRole,
   type PlacementSet,
   type ResolvedPlan,
@@ -33,8 +37,9 @@ import type { PieceLookup } from "./pieces";
 /** One piece to place: where the build or slab stores it and what it came from. */
 export interface ScenePiece {
   uuid: string;
-  /** Stored position (tiles) and turn (degrees clockwise), as the slab holds them. */
+  /** Stored position (tiles), as the slab holds it. */
   stored: Vec3;
+  /** The turn in the world, degrees clockwise seen from above (a stored rotation through core `worldTurn`). */
   rotDeg: number;
   levelId: string;
   layer: string;
@@ -149,13 +154,24 @@ export async function assembleScene(
   };
 }
 
+/** How a scene reads the build or slab it draws. */
+export interface SceneOptions {
+  /**
+   * The orientation calibration the build was compiled with (default: the bundled one, as realize's default): its
+   * rotSense turns a stored rotation into the world turn (core `worldTurn`), as realize places the piece.
+   */
+  orientation?: OrientationCalibration;
+}
+
 /** The scene of a build: every realized placement, in the set's order, coloured by role, layer and material. */
 export function sceneFromBuild(
   resolved: ResolvedPlan,
   set: PlacementSet,
   lookup: PieceLookup,
   source: MeshSource,
+  opts: SceneOptions = {},
 ): Promise<Scene> {
+  const orientation = opts.orientation ?? loadOrientation().orientation;
   const levels = resolved.levels
     .map((l, i) => ({ l, i }))
     .sort((a, b) => a.l.elevation - b.l.elevation || a.i - b.i)
@@ -170,7 +186,7 @@ export function sceneFromBuild(
       pieces.push({
         uuid: p.asset,
         stored: { x: p.x, y: p.y, z: p.z },
-        rotDeg: p.rot,
+        rotDeg: worldTurn(p.rot, orientation),
         levelId: p.levelId,
         layer: p.layer ?? "site",
         role: p.role,
@@ -196,11 +212,13 @@ export function sceneFromSlab(
   assets: readonly SlabAsset[],
   lookup: PieceLookup,
   source: MeshSource,
+  opts: SceneOptions = {},
 ): Promise<Scene> {
+  const orientation = opts.orientation ?? loadOrientation().orientation;
   const pieces: ScenePiece[] = assets.map((a) => ({
     uuid: a.uuid,
     stored: { x: a.sx / 100, y: a.sy / 100, z: a.sz / 100 },
-    rotDeg: a.rot * 15,
+    rotDeg: worldTurn(rotToDegrees(a.rot), orientation),
     levelId: "slab",
     layer: "site",
     role: null,

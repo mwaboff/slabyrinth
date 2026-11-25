@@ -33,7 +33,9 @@ export {
   rotateDir,
   rotateXZ,
   storedPosition,
+  turnBasis,
   turnQuarters,
+  worldTurn,
 } from "./geometry";
 
 import type { RoleKeys } from "../contracts/compiler";

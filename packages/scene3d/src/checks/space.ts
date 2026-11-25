@@ -6,6 +6,7 @@
  * Vertical rays (the common question: what is above or below this point) read a per-mesh grid of triangles by plan
  * square, built once per mesh on first use; other rays test the triangles of the pieces whose box they cross.
  */
+import { turnBasis } from "@slabyrinth/core";
 import type { Box3, MeshData, Scene, SceneInstance, Vec3 } from "../types/index";
 
 /** Side of a hash square in plan, tiles. */
@@ -73,11 +74,8 @@ function meshGrid(m: MeshData): MeshGrid {
   return { minX, minZ, nx, nz, cells: lists.map((l) => (l.length ? Uint32Array.from(l) : EMPTY)) };
 }
 
-/** The turn of a piece as cosine and sine, rounded as the rasteriser rounds them (quarter turns exact). */
-function turn(inst: SceneInstance): { c: number; s: number } {
-  const t = (inst.rotDeg * Math.PI) / 180;
-  return { c: Math.round(Math.cos(t) * 1e12) / 1e12, s: Math.round(Math.sin(t) * 1e12) / 1e12 };
-}
+/** The turn of a piece as cosine and sine (core `turnBasis`: the rounding every turn uses, quarter turns exact). */
+const turn = (inst: SceneInstance): { c: number; s: number } => turnBasis(inst.rotDeg);
 
 /** A world point in a piece's own frame. */
 export function toLocal(inst: SceneInstance, p: Vec3): Vec3 {

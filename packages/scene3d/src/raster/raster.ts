@@ -18,6 +18,7 @@ import type {
   SceneInstance,
   ShotSpec,
 } from "../types/index";
+import { turnBasis } from "@slabyrinth/core";
 import { cuboid, meshBox } from "../geom/mesh";
 import { viewBasis } from "./camera";
 
@@ -190,10 +191,8 @@ export function renderScene(
     }
     instancesDrawn++;
     if (asBox) boxesDrawn++;
-    // turn and move the vertices (core util/turn.ts rounding: quarter turns exact), then project
-    const t = (inst.rotDeg * Math.PI) / 180;
-    const cs = Math.round(Math.cos(t) * 1e12) / 1e12;
-    const sn = Math.round(Math.sin(t) * 1e12) / 1e12;
+    // turn and move the vertices (core turnBasis: the one rounding, quarter turns exact), then project
+    const { c: cs, s: sn } = turnBasis(inst.rotDeg);
     const P = mesh.positions;
     const nv = Math.floor(P.length / 3);
     screen = room(screen, nv * 3);
