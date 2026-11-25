@@ -9,6 +9,7 @@ import { degreesToRot, encode, toScaled } from "@slabyrinth/core";
 import { afterAll, describe, expect, it } from "vitest";
 import { USAGE, runRender } from "../src/index";
 import { FIXTURE_DIRS } from "../src/inputs";
+import { splitJobs } from "../src/batch";
 
 const tmp = mkdtempSync(join(tmpdir(), "render3d-"));
 afterAll(() => {
@@ -185,9 +186,81 @@ describe("render 3d", () => {
     expect(existsSync(join(out, index.renders[0]?.folder ?? "", "sheet.png"))).toBe(true);
   });
 
+  it("runs the scene checks: findings in the index, a table, a summary for a batch", async () => {
+    const out = join(tmp, "check");
+    const r = await run([
+      "3d",
+      "--fixture",
+      "harbour,single-room",
+      "--boxes",
+      "--check",
+      "--shots",
+      "top",
+      "--size",
+      "96x72",
+      "--out",
+      out,
+    ]);
+    expect(r.code).toBe(0);
+    const index = JSON.parse(readFileSync(join(out, "index.json"), "utf8")) as {
+      renders: Array<{
+        input: string;
+        checks: {
+          counts: Record<string, number>;
+          findings: Array<{ code: string; message: string; picture?: string }>;
+        };
+      }>;
+    };
+    expect(index.renders.map((x) => x.input)).toEqual(["harbour", "single-room"]);
+    for (const x of index.renders) {
+      expect(Object.values(x.checks.counts).reduce((a, b) => a + b, 0)).toBe(x.checks.findings.length);
+      for (const f of x.checks.findings) if (f.picture) expect(existsSync(join(out, f.picture))).toBe(true);
+    }
+    expect(r.err).toContain("faults/findings per code");
+  });
+
+  it("compares two builds from the same cameras with the findings that moved", async () => {
+    const out = join(tmp, "compare");
+    const r = await run([
+      "3d",
+      "--fixture",
+      "two-rooms-door",
+      "--boxes",
+      "--check",
+      "--compare",
+      "seed:9",
+      "--shots",
+      "overview",
+      "--size",
+      "96x72",
+      "--out",
+      out,
+    ]);
+    expect(r.code).toBe(0);
+    const render = (
+      JSON.parse(readFileSync(join(out, "index.json"), "utf8")) as {
+        renders: Array<{ compare: { against: string; pictures: string[]; findings: { unchanged: number } } }>;
+      }
+    ).renders[0];
+    expect(render?.compare.against).toBe("seed:9");
+    expect(render?.compare.pictures).toEqual(["two-rooms-door/s2/compare-overview.png"]);
+    for (const p of render?.compare.pictures ?? []) expect(existsSync(join(out, p))).toBe(true);
+    expect(typeof render?.compare.findings.unchanged).toBe("number");
+  });
+
+  it("splits a batch over threads by a fixed rule", () => {
+    expect(splitJobs([0, 1, 2, 3, 4], 2)).toEqual([
+      [0, 2, 4],
+      [1, 3],
+    ]);
+    expect(splitJobs([0], 4)).toEqual([[0]]);
+  });
+
   it("refuses bad options with a usage error", async () => {
     expect((await run(["3d", "--fixture", "single-room", "--size", "big"])).code).toBe(2);
     expect((await run(["3d", "--fixture", "no-such-plan", "--boxes"])).code).toBe(2);
     expect((await run(["3d", "--fixture", "single-room", "--plan", "x.json"])).code).toBe(2);
+    expect((await run(["3d", "--fixture", "single-room", "--boxes", "--jobs", "0"])).code).toBe(2);
+    expect((await run(["3d", "--fixture", "single-room", "--boxes", "--compare", "nothing"])).code).toBe(2);
   });
 });

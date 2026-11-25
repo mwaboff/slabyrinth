@@ -10,6 +10,8 @@ export { themeDefaults, type ThemeDefaults } from "./themes";
 // a resolved level read by cell, and what a material is (read by scene3d's colour classes)
 export { LevelGrid } from "./levelGrid";
 export { materialInfo, type MaterialInfo } from "./materials";
+// objects placed on a plan (vessels): what the render tool builds the harbour with
+export { resolveWithObjects, type ObjectSite, type ObjectSpec } from "./objectSite";
 // The rules plan validation and applyOps take as an argument (geometry check, materialize generator).
 export {
   planRules,

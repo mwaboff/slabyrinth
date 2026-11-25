@@ -179,9 +179,10 @@ const scene3dBoundary = {
 /**
  * The layer order of packages/scene3d/src (same rule as CORE_LAYERS): the shared types and small mesh helpers; the
  * byte readers of the game's files, the software raster and the scene builder (independent of each other); then the
- * mesh sources (over the readers) and the shot rules (over scene and raster).
+ * mesh sources (over the readers) and the shot rules (over scene and raster); last the scene checks, which measure the
+ * scene and frame their marked pictures by the shot rules.
  */
-const SCENE3D_LAYERS = [["types"], ["geom"], ["unity", "raster", "scene"], ["source", "shots"]];
+const SCENE3D_LAYERS = [["types"], ["geom"], ["unity", "raster", "scene"], ["source", "shots"], ["checks"]];
 const scene3dLayersRule = layersRule({
   table: "SCENE3D_LAYERS",
   label: "Scene3d layers",
