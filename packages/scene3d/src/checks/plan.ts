@@ -97,10 +97,12 @@ export interface PlanFacts {
   /** Elements planned on a wall (a feature with a wall side): they hang, they do not stand. */
   mounted: ReadonlySet<string>;
   /**
-   * Elements that are organic dressing (the feature table's trait: plants, rocks, cliff faces): they grow into the
-   * ground and into each other by design.
+   * Elements that are organic dressing (the feature table's traits organic and growth: plants, rocks, cliff faces,
+   * vines): they grow into the ground, the walls and each other by design.
    */
   organic: ReadonlySet<string>;
+  /** The plan's features: for these the plan's own word (`organic`) decides, not the pieces' class. */
+  features: ReadonlySet<string>;
   /** Arrangements whose pieces the plan sets into the ground (layered ground's low rocks and tufts). */
   sunkByPlan: ReadonlySet<string>;
   /** Overhead lines (a rope, a chain of banners between two walls): their pieces carry each other end to end. */
@@ -147,6 +149,7 @@ export function planFacts(
   const boundaries: PlanBoundary[] = [];
   const mounted = new Set<string>();
   const organic = new Set<string>();
+  const features = new Set<string>();
   const sunkByPlan = new Set<string>();
   const spans = new Set<string>();
   const bodies = new Set<string>();
@@ -313,8 +316,10 @@ export function planFacts(
       });
     }
     for (const f of level.features) {
+      features.add(f.id);
       if (f.wall !== undefined) mounted.add(f.id);
-      if (featureInfo(f.type).organic) organic.add(f.id);
+      const info = featureInfo(f.type);
+      if (info.organic || info.growth === true) organic.add(f.id);
     }
     for (const l of level.lines ?? []) spans.add(l.id);
     for (const a of level.arrangements ?? []) {
@@ -429,6 +434,7 @@ export function planFacts(
     objects,
     mounted,
     organic,
+    features,
     sunkByPlan,
     spans,
     bodies,

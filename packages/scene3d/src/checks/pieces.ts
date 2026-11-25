@@ -62,10 +62,15 @@ export function hangs(inst: SceneInstance, plan: PlanFacts | null): boolean {
   return inst.elementId !== null && (plan?.mounted.has(inst.elementId) ?? false);
 }
 
-/** Is the piece organic dressing (a plant, a rock, a cliff face: the plan's feature trait, else its colour class)? */
+/**
+ * Is the piece organic dressing (a plant, a rock, a cliff face, vines)? A planned feature's own trait decides (a
+ * pitcher a palette lists among natural small details is still the clutter feature it was placed as); any other piece
+ * by its class.
+ */
 export function organic(inst: SceneInstance, plan: PlanFacts | null): boolean {
-  if (inst.colourClass === "plant") return true;
-  return inst.elementId !== null && (plan?.organic.has(inst.elementId) ?? false);
+  const id = inst.elementId;
+  if (id !== null && plan?.features.has(id)) return plan.organic.has(id);
+  return inst.colourClass === "plant";
 }
 
 /** Is the piece flat cover (a rug, a decal) things stand on by design? */

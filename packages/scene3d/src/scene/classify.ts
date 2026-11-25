@@ -172,19 +172,20 @@ export function roleClass(role: string): ColourClass | null {
   if (family === "feature") {
     const info = own(FEATURE_INFO, role.slice("feature.".length));
     if (info?.light === true) return "light";
-    if (info?.organic === true) return "plant";
+    // organic dressing, or growth (vines): it grows into the ground and the walls it is on by design
+    if (info?.organic === true || info?.growth === true) return "plant";
     return null;
   }
   return own(FAMILY_CLASS, family) ?? null;
 }
 
 /**
- * The class the roles listing an asset say, when they agree (null: none says, or they differ). Palettes reuse a piece
- * under roles of different kinds (a floor tile as a roof flat, a jug among rubble): then no one role decides, and the
- * catalog's facts and the piece's shape do.
+ * The class the roles listing an asset say, when the ones that say one agree (null: none says, or they differ). A role
+ * that says nothing (a plain feature, `feature.wall_dressing`) does not vote. Palettes reuse a piece under roles of
+ * different kinds (a floor tile as a roof flat): then no one role decides, and the catalog's facts and the shape do.
  */
 function rolesClass(roles: readonly string[]): ColourClass | null {
-  const said = new Set(roles.map(roleClass));
+  const said = new Set(roles.map(roleClass).filter((c) => c !== null));
   const [only] = said;
   return said.size === 1 ? (only ?? null) : null;
 }

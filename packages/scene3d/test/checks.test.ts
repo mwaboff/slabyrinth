@@ -129,6 +129,7 @@ function planOf(p: Partial<PlanFacts>): PlanFacts {
     objects: [],
     mounted: new Set(),
     organic: new Set(),
+    features: new Set(),
     sunkByPlan: new Set(),
     spans: new Set(),
     bodies: new Set(),
@@ -249,6 +250,20 @@ describe("floating and sunk", () => {
     );
     expect(f).toHaveLength(1);
     expect(f[0]?.measure["gap"]).toBeCloseTo(0.4, 2);
+  });
+
+  it("lets a planned feature's own trait say whether it is organic, not its pieces' class", () => {
+    // a jug a palette lists among natural small details (class plant), placed as a clutter feature, 0.15 in the air
+    const scene = sceneOf([
+      ...floor(0, 2, 0, 2),
+      { name: "Pitcher", cls: "plant", min: [0.9, 0.65, 0.9], max: [1.1, 0.95, 1.1], element: "jug" },
+    ]);
+    expect(codes(scene, planOf({ features: new Set(["jug"]) }), "floating")).toHaveLength(1);
+    // planned organic (or not a planned feature at all): it clings to what it grows on
+    expect(
+      codes(scene, planOf({ features: new Set(["jug"]), organic: new Set(["jug"]) }), "floating"),
+    ).toEqual([]);
+    expect(codes(scene, planOf({}), "floating")).toEqual([]);
   });
 
   it("counts every instance of a split object's body as its body (ship#2 too)", () => {
