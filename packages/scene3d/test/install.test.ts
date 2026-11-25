@@ -139,6 +139,13 @@ describe("mesh cache file", () => {
     expect(decodeCacheFile(file, "k2")).toBeNull();
     expect(decodeMeshFile(file, "k1")).toBeNull();
     expect(file.length).toBeLessThan(2200);
+    // a truncated record (or mesh file) is a miss, read again: never a crash, never geometry
+    const mesh = encodeMeshFile(
+      { positions: Float32Array.from([0, 0, 0]), indices: new Uint32Array(0) },
+      "k1",
+    );
+    for (const f of [file, mesh])
+      for (let n = 0; n < f.length; n++) expect(decodeCacheFile(f.subarray(0, n), "k1")).toBeNull();
   });
 });
 

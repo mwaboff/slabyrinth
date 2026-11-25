@@ -125,6 +125,7 @@ function planOf(p: Partial<PlanFacts>): PlanFacts {
     organic: new Set(),
     sunkByPlan: new Set(),
     spans: new Set(),
+    bodies: new Set(),
     levelBase: [0],
     cellAt: (li, x, z) =>
       cells.find((c) => c.levelIndex === li && c.x0 === Math.floor(x) && c.z0 === Math.floor(z)) ?? null,
@@ -221,6 +222,19 @@ describe("floating and sunk", () => {
     );
     expect(f).toHaveLength(1);
     expect(f[0]?.measure["gap"]).toBeCloseTo(0.4, 2);
+  });
+
+  it("counts every instance of a split object's body as its body (ship#2 too)", () => {
+    // a big ship placed as two instances: its hull section and a rail a little above the hull's top
+    const scene = sceneOf([
+      ...floor(0, 4, 0, 2),
+      { name: "hull", min: [0, 0.5, 0], max: [4, 1.0, 2], element: "ship#1" },
+      { name: "rail", min: [0, 1.1, 0], max: [4, 1.6, 0.2], element: "ship#2" },
+    ]);
+    // the build marks both as the ship's body (core isObjectBody); the rail hangs on its own hull
+    const plan = planOf({ bodies: new Set(["ship#1", "ship#2"]) });
+    expect(codes(scene, plan, "floating")).toEqual([]);
+    expect(codes(scene, planOf({}), "floating")).toHaveLength(1);
   });
 
   it("flags a loose piece mostly under the floor, not organic dressing", () => {

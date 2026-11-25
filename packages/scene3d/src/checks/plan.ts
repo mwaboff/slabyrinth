@@ -19,7 +19,7 @@ import {
   type ResolvedPlan,
   type Side,
 } from "@slabyrinth/core";
-import { objectOf } from "@slabyrinth/core/objects";
+import { isObjectBody, objectOf } from "@slabyrinth/core/objects";
 import type { Scene, Vec3 } from "../types/index";
 import { CHECK_THRESHOLDS as T } from "./thresholds";
 
@@ -98,6 +98,11 @@ export interface PlanFacts {
   sunkByPlan: ReadonlySet<string>;
   /** Overhead lines (a rope, a chain of banners between two walls): their pieces carry each other end to end. */
   spans: ReadonlySet<string>;
+  /**
+   * The arrangement instances that are an object's own body (core `isObjectBody`: the mark placeObject puts on them),
+   * however the object was split (`ship`, `ship#2`, `ship@deck#1`): its hull, decks, rails and masts.
+   */
+  bodies: ReadonlySet<string>;
   /** Each scene level's elevation (the bottom of its floor tiles), by level index. */
   levelBase: number[];
   /** The planned cell under a world point on a level (null outside the level). */
@@ -146,6 +151,7 @@ export function planFacts(
   const organic = new Set<string>();
   const sunkByPlan = new Set<string>();
   const spans = new Set<string>();
+  const bodies = new Set<string>();
   const levelBase: number[] = scene.levels.map(() => scene.bounds.min.y);
   const byLevel = new Map<
     number,
@@ -307,6 +313,7 @@ export function planFacts(
     }
     for (const l of level.lines ?? []) spans.add(l.id);
     for (const a of level.arrangements ?? []) {
+      if (isObjectBody(a)) bodies.add(a.id);
       if (a.mount === "wall") mounted.add(a.id);
       if (a.pieces.some((p) => p.y < -0.01)) sunkByPlan.add(a.id);
     }
@@ -389,6 +396,7 @@ export function planFacts(
     organic,
     sunkByPlan,
     spans,
+    bodies,
     levelBase,
     cellAt(li, x, z) {
       const l = byLevel.get(li);

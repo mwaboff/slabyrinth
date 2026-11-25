@@ -23,12 +23,8 @@ const GROUND_ROLES: ReadonlySet<string> = new Set(["floor", "fill", "ledge"]);
 
 /** Is the piece part of an object's own body (its hull, decks, rails, masts), not a thing in one of its rooms? */
 export function bodyPiece(inst: SceneInstance, plan: PlanFacts | null): boolean {
-  const id = inst.elementId;
-  if (id === null || !plan || plan.objects.length === 0) return false;
-  const owner = objectOf(id);
-  if (owner === null || !plan.objects.some((o) => o.id === owner)) return false;
-  // "<owner>" or "<owner>@<level>": the body; "<owner>~<room>…" is what furnishes a part of it
-  return id === owner || id.startsWith(`${owner}@`);
+  // the build marks an object's body instances (plan.bodies, from core isObjectBody); what furnishes its rooms is not
+  return inst.elementId !== null && (plan?.bodies.has(inst.elementId) ?? false);
 }
 
 /** Colour classes of built pieces (scene/colour.ts: from role, layer and the catalog's own facts). */
