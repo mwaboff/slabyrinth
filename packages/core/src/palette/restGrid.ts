@@ -55,8 +55,8 @@ export interface RestSpot {
 
 /**
  * Where a thing at (lx, lz) in the piece's frame (from its collider's centre; the collider is `sx` by `sz`) rests: the
- * cell under it when that cell holds things, else the nearest holding cell's centre (a thing never hangs over an edge
- * or a slope). Null when no cell of the top holds a thing.
+ * cell under it when that cell holds things, else the nearest point well inside the nearest holding cell (a thing
+ * never hangs over an edge or a slope, and moves no further than it must). Null when no cell of the top holds a thing.
  */
 export function restSpot(grid: RestGrid, sx: number, sz: number, lx: number, lz: number): RestSpot | null {
   const cw = sx / grid.nx;
@@ -71,8 +71,11 @@ export function restSpot(grid: RestGrid, sx: number, sz: number, lx: number, lz:
     for (let i = 0; i < grid.nx; i++) {
       const h = grid.heights[k * grid.nx + i];
       if (h === null || h === undefined) continue;
-      const cx = -sx / 2 + (i + 0.5) * cw;
-      const cz = -sz / 2 + (k + 0.5) * cd;
+      // the nearest point of the cell, kept a quarter of the cell in from its sides (not on the rim of the part)
+      const x0 = -sx / 2 + i * cw;
+      const z0 = -sz / 2 + k * cd;
+      const cx = Math.min(x0 + 0.75 * cw, Math.max(x0 + 0.25 * cw, lx));
+      const cz = Math.min(z0 + 0.75 * cd, Math.max(z0 + 0.25 * cd, lz));
       const d = Math.hypot(cx - lx, cz - lz);
       // ties go to the higher surface (the main top over a lower ledge)
       if (!best || d < best.moved - 1e-9 || (Math.abs(d - best.moved) <= 1e-9 && h > best.rest))

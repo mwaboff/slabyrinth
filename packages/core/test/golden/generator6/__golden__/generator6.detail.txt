@@ -3910,7 +3910,6 @@ plans/heartroot-rift-v7@6 l1 feature wall_dressing 1
 plans/heartroot-rift-v7@6 diag info footprint_mismatch 10
 plans/heartroot-rift-v7@6 diag info landmark_short 1
 plans/heartroot-rift-v7@6 diag info verify_props_overlap 1
-plans/heartroot-rift-v7@6 diag warning verify_prop_floating 1
 plans/heartroot-rift-v7@6 review cave_rock_uncovered 1
 plans/heartroot-rift-v7@6 review cliff_unclad 1
 plans/heartroot-rift-v7@6 review cliff_unclad_low 1

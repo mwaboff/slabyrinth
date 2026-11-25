@@ -668,6 +668,10 @@ const SWITCHES = {
     6,
     "A floor is laid only from pieces whose measured top covers their cells: a piece whose top leaves an open patch of a tenth of a tile² or more (palette/topCover.ts, read from the game's meshes by `npm run render -- rests` into palette/coverHoles.ts: a rounded-corner cave tile's wedge, broken boards' gapped ends) is left out of the floor laying when its role has whole ones, whatever its name; a piece never measured counts as whole (compile/realize/floors.ts wholePieces, with the ragged pieces generator 5 already leaves out).",
   ),
+  unevenTops: on(
+    6,
+    "A thing set on a piece of furniture stands on the part of the top under it, at that part's measured height (palette/restGrid.ts: a grid of rest heights over each piece's top, read from the game's meshes by `npm run render -- rests` into palette/restGrids.ts), looked up with the support's final variant and turn (compile/restOn.ts, util/turn.ts); a thing over a part that cannot hold it (a chest's rounded lid off its crest, an anvil's horn, past a desk's edge) or set beside the top moves to the nearest part that can (compile/realize/settle.ts, after every support is laid). Verify judges the support by the same grid. A piece never measured leaves things on it where they were set.",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */
