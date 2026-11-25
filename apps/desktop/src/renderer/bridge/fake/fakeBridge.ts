@@ -27,6 +27,7 @@ import { chatHandlers } from "./handlers/chat";
 import { planHandlers } from "./handlers/plan";
 import { projectHandlers } from "./handlers/projects";
 import { taleSpireHandlers } from "./handlers/talespire";
+import { view3dHandlers } from "./handlers/view3d";
 import { FakeFailure, FakeState, type FakeOptions, type FakeScenario, type Handlers } from "./state";
 import { setFakeSizeTier } from "./rules";
 
@@ -83,6 +84,7 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
     ...buildHandlers(s),
     ...taleSpireHandlers(s),
     ...addonHandlers(s),
+    ...view3dHandlers(s),
   };
   // Startup warning, as main sends it after the first catalog check.
   if (s.scenario.nots === true) {

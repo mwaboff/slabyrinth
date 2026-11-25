@@ -7,6 +7,7 @@ import { planRules } from "@slabyrinth/core/resolve";
 import { activeSizeTier } from "../shared/sizeTier";
 import type { EngineKind } from "./engineWiring";
 import type { Dispatch } from "./ipc/router";
+import { startView3d, type View3dWiring } from "./wiring/view3d";
 import type { Logger } from "./logger";
 import type { AppPaths } from "./paths";
 import { createCoreCatalogReader } from "./ports/catalog";
@@ -70,6 +71,8 @@ export interface AppServices {
   updates: UpdateService;
   /** The TaleSpire add-on and its link (started in the background). */
   link: TaleSpireLinkService;
+  /** The 3D view's scenes and the 3D piece cache. */
+  view3d: View3dWiring;
   /** Starts the background update check when it may run (packaged, not safe mode, daily, autoCheck on). */
   startUpdateCheck(packaged: boolean): void;
   engine: ConversationEngine | null;
@@ -103,6 +106,16 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
     if (tier !== heapTier) logMainHeap(logger, (heapTier = tier));
   });
   const work = startBuildWork(ctx, emit, settings, projects, assets, outside, tierFor);
+  const view3d = startView3d({
+    paths,
+    settings,
+    projects,
+    palettes: assets.palettes,
+    catalog: assets.catalog,
+    talespire: assets.talespire,
+    emit,
+    logger,
+  });
   const { updates, startUpdateCheck } = startUpdates({
     appVersion: ctx.appVersion,
     safeMode,
@@ -120,6 +133,7 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
     projects,
     ...assets,
     ...work,
+    view3d: view3d.view3d,
   });
   link.onPlanChanged(thumbnailRefresher(projects, work.imageBridge));
   const talespireLink = startTaleSpireLink(ctx, emit, settings, projects, work.build, outside);
@@ -145,6 +159,8 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
       openExternal: outside.openExternal,
       updates,
       link: talespireLink,
+      view3d: view3d.view3d,
+      meshes: view3d.view3d.meshesApi,
       logger: logger.child("ipc"),
     },
     work.imageBridge,
@@ -163,6 +179,7 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
     ...work,
     updates,
     link: talespireLink,
+    view3d,
     startUpdateCheck,
     engine,
     engineKind,
@@ -188,6 +205,10 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
           },
           () => {
             work.compiler.cancel();
+          },
+          () => {
+            view3d.meshes.cancel();
+            view3d.view3d.dispose();
           },
         ],
         save: () => projects.close({}),

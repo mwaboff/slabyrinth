@@ -14,6 +14,7 @@ import type { ProjectService } from "../services/projectService";
 import type { SecretStore } from "../services/secretStore";
 import type { SettingsStore } from "../services/settingsStore";
 import type { CatalogService } from "../services/talespire/catalogService";
+import type { View3dService } from "../services/view3d/view3dService";
 
 export interface EngineDeps {
   isDev: boolean;
@@ -28,6 +29,8 @@ export interface EngineDeps {
   catalog: CatalogService;
   build: BuildService;
   imageBridge: ImageBridge;
+  /** The scene worker's 3D pictures for the model (absent: no 3D pictures). */
+  view3d?: Pick<View3dService, "render3d">;
 }
 
 export interface StartedEngine {
@@ -64,6 +67,18 @@ export async function startEngine(d: EngineDeps): Promise<StartedEngine> {
   return { engine, engineKind };
 }
 
+/** The model's 3D pictures: the tools contract's shot names are the scene rules' names. */
+function renderWith(v: Pick<View3dService, "render3d">): NonNullable<EngineHost["render3d"]> {
+  return (req, signal) =>
+    v.render3d(
+      {
+        ...(req.shots ? { shots: [...req.shots] } : {}),
+        ...(req.max !== undefined ? { max: req.max } : {}),
+      },
+      signal,
+    );
+}
+
 function engineHost(d: EngineDeps): EngineHost {
   const { projects, settings, build, catalog, palettes, buildPalettes, imageBridge, secrets } = d;
   return {
@@ -91,6 +106,7 @@ function engineHost(d: EngineDeps): EngineHost {
       d.emit("chat:event", e);
     },
     requestImage: (r, signal) => imageBridge.request(r, signal),
+    ...(d.view3d ? { render3d: renderWith(d.view3d) } : {}),
     // ANTHROPIC_API_KEY from the environment: development builds only, never in smoke/e2e runs (§6.5).
     getApiKey: async (id) =>
       resolveApiKey(await secrets.getApiKey(id), id, {

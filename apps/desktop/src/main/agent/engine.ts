@@ -175,6 +175,8 @@ interface TurnState {
    * (AppSettings.agent.maxRevisionsPerTurn, or the chat:continue allowance), read once when the turn starts.
    */
   revisionLimit: number;
+  /** 3D pictures the model took in this turn (AppSettings.agent.maxPicturesPerTurn is the most). */
+  pictures: number;
   /** Earlier attempts carried over by Retry (UX §5.6). */
   alternatives?: ChatMessageMeta["alternatives"];
   lastAssistantId: string | null;
@@ -659,6 +661,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       cost: null,
       versions: [],
       revisionLimit: args.allowance ?? agentSettings(this.host.getSettings()).maxRevisionsPerTurn,
+      pictures: 0,
       lastAssistantId: null,
     };
     if (this.pendingAlternatives?.conversationId === args.conversationId) {
@@ -1005,6 +1008,24 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     this.append(t.conversationId, t.turnId, [item, ...extra], { [item.id]: this.meta(t, item, status) });
   }
 
+  /**
+   * The model's 3D pictures for this turn: null when 3D is off in Settings, the picture budget is 0, or the host has no
+   * scene worker. Each call is one picture (one sheet); past the budget it refuses in plain words, which the tool
+   * hands back to the model as text.
+   */
+  private render3dFor(t: TurnState, signal: AbortSignal): NonNullable<AgentToolContext["render3d"]> | null {
+    const host = this.host;
+    const settings = agentSettings(host.getSettings());
+    if (!settings.view3d || settings.maxPicturesPerTurn <= 0 || !host.render3d) return null;
+    const limit = settings.maxPicturesPerTurn;
+    return async (req) => {
+      if (t.pictures >= limit)
+        throw new Error(`No more 3D pictures for this message (limit ${String(limit)}).`);
+      t.pictures++;
+      return host.render3d?.(req, signal) ?? Promise.reject(new Error("3D pictures aren't available."));
+    };
+  }
+
   private toolContext(t: TurnState, signal: AbortSignal): AgentToolContext {
     const project = this.project();
     const conv = project.conversations.find((c) => c.id === t.conversationId);
@@ -1027,6 +1048,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
             return new Uint8Array(Buffer.from(b64, "base64"));
           }
         : null,
+      render3d: imageOk ? this.render3dFor(t, signal) : null,
       // the turn's signal: Stop ends a running estimate too; a failed or timed-out one is "not available right now"
       estimate: (plan, levels) =>
         this.host.estimateCompile(plan, levels, signal).catch((err: unknown) => {

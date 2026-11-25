@@ -30,6 +30,8 @@ export type FallbackReason =
   | "boxes-requested"
   /** no TaleSpire install was found */
   | "no-install"
+  /** the piece's shape is being read from the install and is not in the cache yet (a box until it is) */
+  | "not-read-yet"
   /** the install's pack indexes do not list the asset */
   | "not-in-index"
   /** the index lists the asset with no mesh parts */
@@ -39,7 +41,9 @@ export type FallbackReason =
   /** the bundle's container or serialized-file version is one the readers do not know */
   | "unsupported-format"
   /** the bundle was readable but the part's prefab or mesh was not */
-  | "decode-failed";
+  | "decode-failed"
+  /** the scene's mesh memory budget was spent (a huge map): drawn as a box to keep the app responsive */
+  | "budget";
 
 /** What a mesh source answers for one asset: its mesh (and the collider the game places it by), or why not. */
 export type MeshLookup =

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { BriefPatchSchema } from "@slabyrinth/core/agent";
 import { PlanOpSchema } from "@slabyrinth/core/plan";
 import { REVISION_LIMIT_RANGE } from "../agentSettings";
-import type { IpcRequests, IpcSends } from "../ipc";
+import type { IpcRequests, IpcSends, View3dShot } from "../ipc";
 import {
   effortSchema,
   levelIdSchema,
@@ -68,6 +68,23 @@ const chunkRefSchema = z.strictObject({
   buildId: z.string().min(1).max(64),
   chunkId: z.string().min(1).max(64),
 });
+
+/** The 3D view's request caps (main and the fake bridge hold replies to `replyBytes` too). */
+export const VIEW3D_LIMITS = {
+  /** Most bytes of typed arrays in one view3d:chunks or view3d:meshes reply. */
+  replyBytes: 8 * 1024 * 1024,
+  idsPerRequest: 4096,
+  idChars: 160,
+  shotMinPx: 64,
+  shotMaxPx: 2048,
+} as const;
+
+/** "overview", "flagged", "changed", or "level:" / "front:" / "interior:" and an id. */
+const view3dShotSchema = z
+  .string()
+  .max(90)
+  .regex(/^(?:overview|flagged|changed|(?:level|front|interior):[^\s\0]{1,80})$/)
+  .transform((s) => s as View3dShot);
 
 /** ProjectFile["ui"] (resume state), all fields optional (shallow merge). */
 const uiStateSchema = z.strictObject({
@@ -321,6 +338,31 @@ export const requestSchemas: RequestSchemas = {
   "link:status": voidReq,
   "link:send": z.strictObject({ buildId: id }),
   "link:stop": voidReq,
+
+  "view3d:open": z
+    .strictObject({ version: version.min(1).optional(), buildId: id.optional() })
+    .refine((r) => r.version === undefined || r.buildId === undefined, {
+      message: "give a version or a build, not both",
+    }),
+  "view3d:chunks": z.strictObject({
+    sceneId: id,
+    chunkIds: z.array(z.string().min(1).max(VIEW3D_LIMITS.idChars)).min(1).max(VIEW3D_LIMITS.idsPerRequest),
+  }),
+  "view3d:meshes": z.strictObject({
+    sceneId: id,
+    keys: z.array(z.string().min(1).max(VIEW3D_LIMITS.idChars)).min(1).max(VIEW3D_LIMITS.idsPerRequest),
+  }),
+  "view3d:shot": z.strictObject({
+    sceneId: id,
+    shot: view3dShotSchema,
+    width: z.number().int().min(VIEW3D_LIMITS.shotMinPx).max(VIEW3D_LIMITS.shotMaxPx),
+    height: z.number().int().min(VIEW3D_LIMITS.shotMinPx).max(VIEW3D_LIMITS.shotMaxPx),
+  }),
+  "view3d:cancel": z.strictObject({ sceneId: id.optional() }),
+  "view3d:close": z.strictObject({ sceneId: id }),
+  "meshes:info": voidReq,
+  "meshes:rebuild": voidReq,
+  "meshes:clear": voidReq,
 };
 
 export const sendSchemas: SendSchemas = {

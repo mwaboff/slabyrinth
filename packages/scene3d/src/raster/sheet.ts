@@ -121,6 +121,51 @@ export interface SheetOptions {
 }
 
 const PAD = 8;
+const BACKGROUND_SHEET: Rgb = [18, 19, 23];
+
+/** The grid a numbered sheet of n pictures uses: one picture alone, two side by side, else two by two (and so on). */
+export function sheetGrid(n: number): { columns: number; rows: number } {
+  if (n <= 1) return { columns: 1, rows: 1 };
+  if (n === 2) return { columns: 2, rows: 1 };
+  const columns = Math.ceil(Math.sqrt(n));
+  return { columns, rows: Math.ceil(n / columns) };
+}
+
+/**
+ * Pictures on one sheet of exactly width × height, each in its cell of `sheetGrid` with its number (1, 2, …) in a
+ * dark box at the top-left corner, so captions given as text can name them. Each picture should already be its
+ * cell's size (`sheetGrid` cell = floor(width / columns) × floor(height / rows)); a larger one is cropped.
+ */
+export function numberedSheet(pictures: readonly Picture[], width: number, height: number): Picture {
+  const { columns, rows } = sheetGrid(pictures.length);
+  const cellW = Math.floor(width / columns);
+  const cellH = Math.floor(height / rows);
+  const rgba = new Uint8Array(width * height * 4);
+  const bg = BACKGROUND_SHEET;
+  for (let k = 0; k < width * height; k++) rgba.set([bg[0], bg[1], bg[2], 255], k * 4);
+  const sheet: Picture = { width, height, rgba };
+  const scale = Math.max(2, Math.round(Math.min(cellW, cellH) / 160));
+  pictures.forEach((p, i) => {
+    const x0 = (i % columns) * cellW;
+    const y0 = Math.floor(i / columns) * cellH;
+    const w = Math.min(p.width, cellW);
+    for (let y = 0; y < Math.min(p.height, cellH); y++)
+      rgba.set(p.rgba.subarray(y * p.width * 4, (y * p.width + w) * 4), ((y0 + y) * width + x0) * 4);
+    // a 1-pixel dividing line between cells
+    for (let y = y0; y < y0 + cellH; y++)
+      if (x0 > 0) rgba.set([bg[0], bg[1], bg[2], 255], (y * width + x0) * 4);
+    for (let x = x0; x < x0 + cellW; x++)
+      if (y0 > 0) rgba.set([bg[0], bg[1], bg[2], 255], (y0 * width + x) * 4);
+    const label = String(i + 1);
+    const boxW = textWidth(label, scale) + 2 * scale;
+    const boxH = 9 * scale;
+    for (let y = y0 + 1; y < Math.min(y0 + 1 + boxH, height); y++)
+      for (let x = x0 + 1; x < Math.min(x0 + 1 + boxW, width); x++)
+        rgba.set([18, 19, 23, 255], (y * width + x) * 4);
+    drawText(sheet, label, x0 + 1 + 2 * scale, y0 + 1 + scale, scale, [250, 250, 250]);
+  });
+  return sheet;
+}
 
 /** One picture of all `tiles`, in rows, each with its caption under it (cut to the tile's width). */
 export function contactSheet(

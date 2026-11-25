@@ -52,6 +52,11 @@ export interface InstallSourceOptions {
   extract?: BundleExtractor;
   /** After each bundle read cold: how many of how many. */
   onProgress?: (done: number, total: number, bundleId: string) => void;
+  /**
+   * false: answer from the cache only; a piece not in it is a box with reason "not-read-yet" and no game file is
+   * opened beyond the pack indexes and the bundles' sizes (a host reads the rest in the background). Default true.
+   */
+  coldRead?: boolean;
 }
 
 export interface InstallStats {
@@ -127,6 +132,10 @@ export function installMeshSource(o: InstallSourceOptions): InstallMeshSource {
       } else todo.push({ uuid, asset, key, path });
     }
     if (todo.length === 0) return out;
+    if (o.coldRead === false) {
+      for (const t of todo) box(t.uuid, "not-read-yet");
+      return out;
+    }
 
     // 2. read each needed bundle once, one at a time, keeping only the prefabs asked of it
     const wanted = new Map<string, { path: string; names: Set<string> }>();
