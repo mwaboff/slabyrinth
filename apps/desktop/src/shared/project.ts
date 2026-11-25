@@ -223,4 +223,13 @@ export interface AppSettings {
    * whose plan is larger than this is still opened and edited at the tier it needs (smallestTierFor).
    */
   mapSize?: "standard" | "large-512" | "large-768" | "large-1024";
+  /**
+   * How far the model may go on its own in one turn. Absent = the defaults (4, true, 6). Nothing here changes what the
+   * model is told: the app holds the limits.
+   * maxRevisionsPerTurn (1..20): plan versions the model may commit for one GM message before the app stops between
+   * steps and asks whether to go on (ChatEvent turn_finished stopReason "revision_limit").
+   * view3d: the model may look at the build in 3D while revising (when it takes images).
+   * maxPicturesPerTurn (0..12): 3D pictures the model may take for one GM message.
+   */
+  agent?: { maxRevisionsPerTurn: number; view3d: boolean; maxPicturesPerTurn: number };
 }

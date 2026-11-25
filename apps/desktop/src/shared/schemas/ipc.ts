@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { BriefPatchSchema } from "@slabyrinth/core/agent";
 import { PlanOpSchema } from "@slabyrinth/core/plan";
+import { REVISION_LIMIT_RANGE } from "../agentSettings";
 import type { IpcRequests, IpcSends } from "../ipc";
 import {
   effortSchema,
@@ -231,7 +232,12 @@ export const requestSchemas: RequestSchemas = {
     messageId: z.string().min(1).max(64),
     index: z.number().int().min(0).max(100),
   }),
-  "chat:continue": voidReq,
+  "chat:continue": z.union([
+    voidReq,
+    z.strictObject({
+      allowance: z.number().int().min(REVISION_LIMIT_RANGE.min).max(REVISION_LIMIT_RANGE.max).optional(),
+    }),
+  ]),
   "chat:previewSwitch": z.strictObject({ selection: modelSelectionSchema }),
   "chat:setSelection": z.strictObject({ selection: modelSelectionSchema }),
   "chat:setEffort": z.strictObject({ effort: effortSchema.nullable() }),

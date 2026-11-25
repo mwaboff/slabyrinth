@@ -1,5 +1,6 @@
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
+import { AGENT_DEFAULTS } from "../../shared/agentSettings";
 import type { AppSettings } from "../../shared/project";
 import { emptyUsage } from "../../shared/schemas/common";
 import { BASE_URL_PROVIDERS, settingsSchema, type SettingsPatch } from "../../shared/schemas/settings";
@@ -49,6 +50,7 @@ export function defaultSettings(projectsFolder: string): AppSettings {
     defaultSystem: null,
     setupCompleted: false,
     updates: { autoCheck: true },
+    agent: { ...AGENT_DEFAULTS },
   };
 }
 

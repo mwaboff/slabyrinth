@@ -17,6 +17,7 @@ import { duration, money, relativeTime } from "../../lib/format";
 import { approve, run, undo } from "../../app/actions";
 import { RichText, withRefs } from "./RichText";
 import { STARTERS } from "./starters";
+import { RevisionLimitCard } from "./RevisionLimitCard";
 import { WorkingCard } from "./WorkingCard";
 import { selectRoom } from "../stage/selectRoom";
 import {
@@ -941,6 +942,7 @@ export function Thread() {
       {live && <LiveTurn turn={live} />}
       {last?.outstanding && <OutstandingSummary o={last.outstanding} />}
       {last?.status === "failed" && <ErrorCard turn={last} />}
+      {last?.stopReason === "revision_limit" && <RevisionLimitCard key={last.turnId} turn={last} />}
       {retryError !== null && live === null && (
         <p className="notice retrynote" role="status">
           {retryError}

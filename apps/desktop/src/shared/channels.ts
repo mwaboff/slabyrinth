@@ -100,6 +100,8 @@ const eventChannels = [
   "updates:available",
   "addon:changed",
   "link:changed",
+  "view3d:progress",
+  "meshes:status",
 ] as const;
 
 const sendChannels = ["render:imageResult"] as const;

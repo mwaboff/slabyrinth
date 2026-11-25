@@ -4,10 +4,12 @@
  * (the renderer must drop stale turns, §6.2).
  */
 import type { AppError, ChatEvent, OutstandingIssues } from "../../shared/ipc";
-import type { ChatItem, Cost, ModelSelection, StopReason, Usage } from "../../main/agent/provider/types";
+import type { ChatItem, Cost, ModelSelection, Usage } from "../../main/agent/provider/types";
 
 export type ProgressStep = Extract<ChatEvent, { type: "progress" }>["step"];
 export type Question = Extract<ChatEvent, { type: "questions" }>["questions"][number];
+/** How a turn ended: a provider stop reason, or the app's own revision limit. */
+export type TurnStopReason = Extract<ChatEvent, { type: "turn_finished" }>["stopReason"];
 
 export interface LiveTool {
   callId: string;
@@ -34,12 +36,15 @@ export interface TurnState {
   notices: Array<{ kind: string; text: string }>;
   newVersions: number[];
   status: "running" | "finished" | "stopped" | "failed";
-  stopReason?: StopReason;
+  stopReason?: TurnStopReason;
   error?: AppError;
   canRetry: boolean;
   canContinue: boolean;
+  /** The last step's usage and cost (each "usage" event is one step's). */
   usage?: Usage;
   cost?: Cost | null;
+  /** What the whole turn has cost so far (every step's cost added up); null while no step has a price. */
+  turnCost: Cost | null;
   /** End-of-turn summary: playability issues left after a turn that changed the plan. */
   outstanding?: OutstandingIssues;
 }
@@ -70,7 +75,15 @@ function newTurn(turnId: string, selection: ModelSelection | null, now: number):
     status: "running",
     canRetry: false,
     canContinue: false,
+    turnCost: null,
   };
+}
+
+/** Two costs added up (null = no price known). */
+export function addCosts(a: Cost | null | undefined, b: Cost | null | undefined): Cost | null {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return { currency: "USD", amount: a.amount + b.amount, estimated: a.estimated || b.estimated };
 }
 
 function upsert(items: ChatItem[], item: ChatItem): ChatItem[] {
@@ -135,7 +148,7 @@ export function chatReducer(state: ChatState, e: ChatEvent, now: number = Date.n
     case "notice":
       return set({ notices: [...live.notices, { kind: e.kind, text: e.text }] });
     case "usage":
-      return set({ usage: e.usage, cost: e.cost });
+      return set({ usage: e.usage, cost: e.cost, turnCost: addCosts(live.turnCost, e.cost) });
     case "turn_finished": {
       const done: TurnState = {
         ...live,

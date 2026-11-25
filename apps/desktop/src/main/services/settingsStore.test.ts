@@ -4,7 +4,8 @@ import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { nullLogger } from "../logger";
 import { settingsPatchSchema } from "../../shared/schemas/settings";
-import { SettingsStore } from "./settingsStore";
+import { AGENT_DEFAULTS } from "../../shared/agentSettings";
+import { SettingsStore, defaultSettings } from "./settingsStore";
 
 let dir: string;
 let file: string;
@@ -126,6 +127,53 @@ describe("SettingsStore", () => {
     await again.load();
     expect(again.flag("debugLogging")).toBe(true);
     expect(JSON.stringify(again.get())).not.toContain("x-featureFlags");
+  });
+
+  describe("the agent group (Changes per message, 3D pictures)", () => {
+    it("a settings file from before the group loads unchanged, with the defaults filled in", async () => {
+      const old = { ...defaultSettings(path.join(dir, "Projects")) } as Record<string, unknown>;
+      delete old["agent"];
+      old["ui"] = { theme: "light", mapThemeId: "auto", gridVisible: false, onLaunch: "home" };
+      await fsp.writeFile(file, JSON.stringify(old));
+      const s = await make().load();
+      expect(s.agent).toEqual({ maxRevisionsPerTurn: 4, view3d: true, maxPicturesPerTurn: 6 });
+      expect(s.agent).toEqual(AGENT_DEFAULTS);
+      expect(s.ui.theme).toBe("light");
+      expect(s.ui.gridVisible).toBe(false);
+    });
+
+    it("a partial or out-of-range group is repaired to the defaults, field by field where it can", async () => {
+      const base = defaultSettings(path.join(dir, "Projects"));
+      await fsp.writeFile(file, JSON.stringify({ ...base, agent: { maxRevisionsPerTurn: 7 } }));
+      expect((await make().load()).agent).toEqual({
+        maxRevisionsPerTurn: 7,
+        view3d: true,
+        maxPicturesPerTurn: 6,
+      });
+      await fsp.writeFile(
+        file,
+        JSON.stringify({ ...base, agent: { maxRevisionsPerTurn: 99, view3d: false } }),
+      );
+      const repaired = await make().load();
+      expect(repaired.agent).toEqual(AGENT_DEFAULTS);
+      expect(repaired.ui).toEqual(base.ui);
+    });
+
+    it("saves a patch of one field, keeps the others, and refuses out-of-range values", async () => {
+      const store = make();
+      await store.load();
+      await store.update(settingsPatchSchema.parse({ agent: { maxRevisionsPerTurn: 9 } }));
+      expect(store.get().agent).toEqual({ ...AGENT_DEFAULTS, maxRevisionsPerTurn: 9 });
+      expect((await make().load()).agent?.maxRevisionsPerTurn).toBe(9);
+      for (const bad of [0, 21, 2.5, "4"])
+        expect(settingsPatchSchema.safeParse({ agent: { maxRevisionsPerTurn: bad } }).success).toBe(false);
+      expect(settingsPatchSchema.safeParse({ agent: { maxPicturesPerTurn: 13 } }).success).toBe(false);
+      expect(settingsPatchSchema.safeParse({ agent: { other: 1 } }).success).toBe(false);
+      // every field is the GM's: the whole stored group spread into a patch is accepted (the 0.3.0 failure cannot happen)
+      expect(settingsPatchSchema.safeParse({ agent: { ...store.get().agent, view3d: false } }).success).toBe(
+        true,
+      );
+    });
   });
 
   it("accumulates all-time spend", async () => {

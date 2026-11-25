@@ -15,6 +15,7 @@ import type {
   ProjectSnapshot,
 } from "../../../shared/ipc";
 import { fakeAddonStatus, fakeLinkStatus } from "./talespireLink";
+import { AGENT_DEFAULTS } from "../../../shared/agentSettings";
 import type { AppSettings, Phase, ProjectFile } from "../../../shared/project";
 import type { Usage } from "../../../main/agent/provider/types";
 import type { FakeTurn } from "./engine";
@@ -259,6 +260,7 @@ function initialSettings(scenario: FakeScenario, recent: string[]): AppSettings 
     ui: { theme: "system", mapThemeId: "auto", gridVisible: true, onLaunch: "home" },
     suppressAssetWarning: false,
     updates: { autoCheck: true },
+    agent: { ...AGENT_DEFAULTS },
     setupCompleted: scenario.setup !== true,
     defaultSystem: scenario.setup === true ? null : { system: "daggerheart" },
   };
