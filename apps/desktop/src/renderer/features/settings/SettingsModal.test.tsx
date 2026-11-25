@@ -65,6 +65,8 @@ describe("Settings controls save through main's request schema", () => {
     const field = screen.getByRole("combobox", { name: "Changes per message" });
     expect(field).toHaveValue("4");
     expect(screen.getByText(/for each message you send, then asks you before going on/)).toBeInTheDocument();
+    // the help says what the sentence does not
+    expect(screen.getByText("Every change is kept, whether you go on or stop there.")).toBeInTheDocument();
     // the range is the schema's: 1 to 20
     const options = within(field)
       .getAllByRole("option")
@@ -99,7 +101,11 @@ describe("Settings controls save through main's request schema", () => {
     await waitFor(async () => {
       expect((await saved()).agent?.maxPicturesPerTurn).toBe(2);
     });
-    const look = screen.getByRole("checkbox", { name: /Let Claude look at the map in 3D/ });
+    // one switch, both of its effects in its words: the 3D tab's shapes and Claude's 3D pictures
+    const look = screen.getByRole("checkbox", { name: /Use TaleSpire's 3D pieces/ });
+    expect(look).toHaveAccessibleName(
+      /3D tab shows each piece's real shape.*Claude can look at the map in 3D/,
+    );
     expect(look).toBeChecked();
     await userEvent.click(look);
     await waitFor(async () => {
