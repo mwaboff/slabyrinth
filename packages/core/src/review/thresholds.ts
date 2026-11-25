@@ -5,6 +5,7 @@
 import { MATERIALS } from "../contracts/plan";
 import { isNaturalGround } from "../resolve/materials";
 import { typesWith, type FeatureInfo } from "../gen/catalog";
+import { COMPLEX } from "../gen/complexLayout";
 
 export const REVIEW = {
   /** Notes shown at most (the rest are dropped, lowest rank first). */
@@ -363,6 +364,45 @@ export const REVIEW = {
     /** … and under this share of them within a tile of a wall is adrift (the study: 92%). */
     adriftShare: 0.6,
     weights: { bare: 6, alike: 5, unlit: 6.5, adrift: 4 },
+    /**
+     * Generator 5 (`reviewByKind`): a room is judged by its kind's row of the room-kind table (gen/roomTraits.ts
+     * roomTargets). Lenient on purpose: the table's numbers are example ranges from a few training sets.
+     *   bare        under this share of the kind's lowest props per 10 tiles, never stricter than `bareDensity` nor
+     *               looser than `bareFloor`;
+     *   adrift      under the kind's lowest near-wall share (never stricter than `adriftShare`); kinds that lay out
+     *               floor groups or station rows are not judged;
+     *   carried    a hall with this many floor heights, a column standing in it, or water in it reads full with few
+     *               props: not judged bare.
+     */
+    byKind: { bareShare: 0.5, bareFloor: 1.5, carriedHeights: 3 },
+    /** anchor_missing: a room of a furnished kind with none of its anchors (advisory). */
+    anchorWeight: 3,
+  },
+  /**
+   * Generator 5: how a complex of rooms is laid out (review/layout.ts, review/layoutNotes.ts; build plan §11.3,
+   * technique catalogue Part 4 Q1, Q2, Q4, Q5, Q6). The numbers are one dungeon's [E] examples, set looser than the
+   * example and weighted low until a second dungeon confirms them. Every note is advice among options: a plan may keep a
+   * long corridor or rooms of one size on purpose.
+   */
+  layout: {
+    /** A level with fewer rooms is not judged as a complex (the generator's number: gen/complexLayout.ts). */
+    minRooms: COMPLEX.minRooms,
+    /** Areas smaller than this (floor cells) are not judged for a way back. */
+    minTrapCells: 4,
+    /** corridor_heavy: corridor floor above this share of room and corridor floor (example: 0.25). */
+    corridorShare: 0.3,
+    /** rooms_same_size: at least this many rooms whose largest is under `sizeRatio` times the median (example: 2). */
+    sizeRooms: 6,
+    sizeRatio: 1.6,
+    /**
+     * dead_end_empty: more than this many rooms with one way on and nothing in them (the allowance the generator's bare
+     * dead ends stay within: gen/complexLayout.ts, resolve/level/deadEnds.ts).
+     */
+    emptyDeadEnds: COMPLEX.emptyDeadEnds,
+    /** entrances_few: a map of this many rooms or more with at most `entrances` ways in. */
+    entrancesRooms: 12,
+    entrances: 1,
+    weights: { deadEnd: 2.5, sizeMix: 2, corridor: 2, entrances: 2, wayBack: 3.5, hall: 2 },
   },
   /** Market stalls (generator 4, review/stalls.ts). */
   stalls: {
@@ -386,6 +426,29 @@ export const REVIEW = {
   },
   /** A hole in an intact roof (review/roofGaps.ts): the score is base plus one point per `cellsPerPoint`, up to `extraMax`. */
   roofGap: { base: 2, cellsPerPoint: 8, extraMax: 2 },
+  /**
+   * Notes from the quality meter (generator 5, review/qualityNotes.ts; metrics in review/qualityMetrics.ts). Targets
+   * from the training builds: a clear lane between a room's doors, a light at every outside door, something above the
+   * roofline, contrast between neighbouring facades.
+   */
+  quality: {
+    weights: { lane: 4.5, doors: 3.5, silhouette: 3, facades: 3 },
+    /**
+     * lane_blocked: a room whose lane is more than this share under the plan's own blocking features, or that has a
+     * pair of doors with no free path round them.
+     */
+    laneShare: 0.1,
+    /** doors_unlit: a building with at least this many unlit outside doors. */
+    unlitDoors: 2,
+    /** silhouette_flat: buildings of this many storeys, or this many footprint cells, want an accent above the roof. */
+    silhouetteStoreys: 2,
+    silhouetteCells: 40,
+    /** An accent volume rises at least this far (tiles) above another volume of the building. */
+    accentRise: 1,
+    /** facades_alike: this many neighbours (chained within `gap` cells) with equal storeys and one wall style. */
+    facadesRow: 3,
+    gap: 3,
+  },
 } as const;
 
 /** The most a measure counts past its threshold when a note is ranked (a note's score is its weight times this). */

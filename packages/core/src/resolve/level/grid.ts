@@ -33,7 +33,7 @@ import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo } from "../../gen/catalog";
 import { SIDES } from "../../gen/gridGeometry";
 import { type CellMask, forEachMaskCell } from "../../gen/mask";
-import type { RoomClass } from "../../gen/roomPurpose";
+import type { RoomClass, RoomKind } from "../../gen/roomPurpose";
 import { type ClipBox, rasterizeShape } from "../../gen/shapes";
 import type { PaletteView } from "../../palette/view";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
@@ -46,6 +46,7 @@ import {
   edgeRow,
   edgeSecondCell,
   hEdgeIndex,
+  partOfBuilding,
   sideEdgeIndex,
   sideOrient,
   vEdgeIndex,
@@ -53,6 +54,7 @@ import {
 import { isWater, materialOrdinal } from "../materials";
 import type { ThemeDefaults } from "../themes";
 import { type StructureWork, expandStructures } from "../structure";
+import { type CharacterMap, resolveCharacters } from "../character";
 import { areaTable } from "./areas";
 import { MAX_LEVEL_SIDE } from "../../plan/sizeTiers";
 
@@ -66,6 +68,11 @@ export interface LevelContext {
    * built once per resolve, the same palettes the compiler decides from (palette/view.ts).
    */
   palette: PaletteView;
+  /**
+   * Generator 5 (deadEndVignettes): what the map's levels have decided so far about its complex, one record for the
+   * whole plan (resolvePlan.ts), the levels in plan order: how many dead ends were left plain.
+   */
+  complex?: { plainDeadEnds: number };
 }
 
 /**
@@ -96,6 +103,13 @@ export interface AreaInfo {
    * same back from ResolvedArea.finish and .abandoned). Dressing only: what the walls are built of is `interior`.
    */
   readonly rough: boolean;
+  /**
+   * Generator 5 (`buildingRooms`): the building whose ground storey this room partitions (a synthetic room of
+   * resolve/structure.ts); its cells are the building's, as a building area's are (`inBuilding`).
+   */
+  readonly building?: string;
+  /** Generator 5 (`sleepingCorners`): the other kinds the room holds a zone of (a one-room dwelling's bed corner). */
+  readonly zones?: readonly RoomKind[];
 }
 
 /**
@@ -169,6 +183,8 @@ export class ResolveGrid {
   readonly ctx: LevelContext;
   /** Buildings and enclosures (resolve/structure.ts); null when the level has none. */
   readonly structs: StructureWork | null;
+  /** Generator 5 (characterCascade): every subject's character, resolved before anything reads it (resolve/character.ts). */
+  readonly characters: CharacterMap | null;
   /**
    * The next level up by elevation, linked once every level's areas are laid (resolvePlan.ts, after phase 1): where it
    * has floor, its elevation is this level's ceiling (`ceilingAt`). Null for the top level.
@@ -182,6 +198,8 @@ export class ResolveGrid {
     this.li = ctx.levelIndex;
     const planLevel = ctx.plan.levels[ctx.levelIndex] as Level;
     const lb = planLevel.bounds;
+    // the character of every scope, before the buildings are planned (they read their condition from it)
+    this.characters = resolveCharacters(ctx.plan, ctx.levelIndex);
     // structures add synthetic areas / openings / wall runs after the plan's own (resolve/structure.ts)
     const ex = expandStructures(
       ctx.plan,
@@ -189,6 +207,8 @@ export class ResolveGrid {
       ctx.levelIndex,
       ctx.issues,
       (x, y) => x >= lb.x && y >= lb.y && x < lb.x + lb.w && y < lb.y + lb.h,
+      this.characters,
+      ctx.palette,
     );
     const level = ex.level;
     this.structs = ex.work;
@@ -210,7 +230,15 @@ export class ResolveGrid {
     this.vE = makeEdges(edgeCount(this, "v"));
     this.levelTheme = level.theme ?? ctx.plan.theme;
     this.defaultWallHeight = level.wallHeight ?? BUILD_CONSTANTS.wallHeight;
-    const table = areaTable(level, ctx, this.profile, this.levelTheme, this.defaultWallHeight);
+    const table = areaTable(
+      level,
+      ctx,
+      this.profile,
+      this.levelTheme,
+      this.defaultWallHeight,
+      ex.work?.roomBuilding,
+      ex.work?.roomZones,
+    );
     this.areas = table.areas;
     this.areaIndexById = table.byId;
     this.themes = table.themes;
@@ -514,6 +542,15 @@ export class ResolveGrid {
     return i >= 0 ? (this.disp[i] ?? 0) : 0;
   }
 
+  /**
+   * Is the cell inside a building's ground storey: owned by a building's area, or (generator 5, `buildingRooms`) by
+   * one of the rooms it is split into?
+   */
+  inBuilding(i: number): boolean {
+    const a = this.ownerAt(i);
+    return a !== undefined && partOfBuilding(a);
+  }
+
   /** The area that owns a cell structurally (its walls, floor and theme; never a zone), or undefined (@ground). */
   ownerAt(i: number): AreaInfo | undefined {
     const s = i >= 0 ? (this.struct[i] as number) : 0;
@@ -635,6 +672,30 @@ export class ResolveGrid {
         ? (this.height[i] as number) / 4
         : 0;
     return this.level.elevation + BUILD_CONSTANTS.floorThickness + h + lift;
+  }
+
+  /**
+   * Does a piece on cells `at` + `size`, shifted by `offset` (cells, at most half a cell), stand on one floor: every
+   * cell its shifted footprint reaches answers the same `featureBase`? A piece across a height step (a raised pavement
+   * beside a lower cell) is sunk into the higher floor.
+   */
+  oneFloorUnder(
+    at: Readonly<Vec2>,
+    size: readonly [number, number],
+    offset: readonly [number, number] = [0, 0],
+  ): boolean {
+    const x0 = Math.floor(at[0] + offset[0] + 0.01);
+    const y0 = Math.floor(at[1] + offset[1] + 0.01);
+    const x1 = Math.ceil(at[0] + size[0] + offset[0] - 0.01);
+    const y1 = Math.ceil(at[1] + size[1] + offset[1] - 0.01);
+    let base: number | null = null;
+    for (let y = y0; y < y1; y++)
+      for (let x = x0; x < x1; x++) {
+        const b = this.featureBase(this.idx(x, y), 0);
+        if (base === null) base = b;
+        else if (b !== base) return false;
+      }
+    return true;
   }
 
   footprint(at: Readonly<Vec2>, size: readonly [number, number]): { cells: number[]; outside: boolean } {

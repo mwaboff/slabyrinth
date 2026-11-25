@@ -1,4 +1,5 @@
 /** The fake main's app-level channels: app info, settings, the API key, providers and models, dialogs, updates. */
+import { applySettingsPatch } from "../../../../shared/settingsPatch";
 import { FAKE_MODELS, FAKE_PROVIDERS } from "../models";
 import type { FakeState, HandlerGroup } from "../state";
 import { fail } from "../state";
@@ -28,8 +29,9 @@ export function appHandlers(s: FakeState): HandlerGroup<AppChannels> {
       userDataPath: "C:\\Users\\GM\\AppData\\Roaming\\Slabyrinth",
     }),
     "settings:get": () => structuredClone(s.settings),
+    // the request was parsed with main's schema (fakeBridge.invoke); merged as main merges it
     "settings:update": (patch) => {
-      s.settings = { ...s.settings, ...structuredClone(patch) };
+      s.settings = applySettingsPatch(s.settings, structuredClone(patch));
       s.emit("settings:changed", structuredClone(s.settings));
       return structuredClone(s.settings);
     },

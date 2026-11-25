@@ -5,7 +5,12 @@
  */
 import type { CompileDiagnostic, PaletteCatalog, PlacementSet } from "../../contracts/compiler";
 import type { LevelId } from "../../contracts/plan";
-import type { ResolvedFeature, ResolvedLevel, ResolvedPlan } from "../../contracts/resolved";
+import type {
+  ResolvedArrangement,
+  ResolvedFeature,
+  ResolvedLevel,
+  ResolvedPlan,
+} from "../../contracts/resolved";
 import { createPlanRoles, type PlanRoles } from "../../palette/planRoles";
 import { FLOOR_FAMILY, roleFamily } from "../../palette/roles";
 import { generatorProfile, type GeneratorProfile } from "../../plan/generator";
@@ -29,7 +34,7 @@ export class VerifyReport {
 
 /** The walls of one level as realize builds them. */
 export interface LevelWalls {
-  /** Edges a building builds itself (compile/realize/structures/claims.ts). */
+  /** Edges a building builds itself (resolve/structureFaces.ts `structureClaims`). */
   readonly claims: LevelFacts["claims"];
   /** Every wall and opening edge with its host, mass cell, style, theme and span (resolve/wallFaces.ts). */
   readonly faces: WallFaces;
@@ -60,6 +65,8 @@ export interface VerifyCtx {
   readonly report: VerifyReport;
   /** The resolved feature a placement belongs to (by level and element id). */
   featureOf(levelId: LevelId, elementId: string | undefined): ResolvedFeature | undefined;
+  /** Generator 5: the arrangement instance a placement belongs to (by level and element id). */
+  arrangementOf(levelId: LevelId, elementId: string | undefined): ResolvedArrangement | undefined;
 }
 
 /** A placement set, with what realize built it from when realize made it (compile/buildFacts.ts). */
@@ -97,6 +104,9 @@ export function createVerifyCtx(
   );
   const featureById = new Map<string, ResolvedFeature>();
   for (const l of levels) for (const f of l.features) featureById.set(`${l.id}|${f.id}`, f);
+  const arrangementById = new Map<string, ResolvedArrangement>();
+  if (profile.arrangements)
+    for (const l of levels) for (const a of l.arrangements ?? []) arrangementById.set(`${l.id}|${a.id}`, a);
   const missing = set.diagnostics.filter((d) => d.code === "role_missing");
   return {
     resolved,
@@ -116,5 +126,6 @@ export function createVerifyCtx(
     ),
     report: new VerifyReport(),
     featureOf: (levelId, elementId) => featureById.get(`${levelId}|${elementId ?? ""}`),
+    arrangementOf: (levelId, elementId) => arrangementById.get(`${levelId}|${elementId ?? ""}`),
   };
 }

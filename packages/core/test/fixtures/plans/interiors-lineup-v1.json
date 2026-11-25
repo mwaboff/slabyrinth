@@ -1,0 +1,62 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 5,
+  "id": "3d8f1c27-9a4e-4b6d-8e52-7f0a1b2c9d64",
+  "title": "The Lantern and Key",
+  "kind": "building",
+  "seed": 6151,
+  "theme": "wood_town",
+  "summary": "A coaching inn and a chandler's shop under one roof, with a back wing of rooms let to the town: a taproom on the front lane with its kitchen and store behind it, a shop with the keeper's office, two bedrooms off a back passage, and a parlour, a schoolroom, a sick ward, a stable and a chart room in a row along the lane. Every room is named for its use and left for the generator to furnish.",
+  "entryLevel": "l1",
+  "levels": [
+    {
+      "id": "l1",
+      "name": "Ground floor",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 58, "h": 24 },
+      "base": { "type": "solid" },
+      "areas": [
+        { "id": "lane", "kind": "corridor", "name": "Front lane", "shape": { "type": "rect", "x": 1, "y": 19, "w": 56, "h": 2 }, "floor": "cobble" },
+        { "id": "taproom", "kind": "room", "name": "Taproom", "key": "1", "shape": { "type": "rect", "x": 1, "y": 10, "w": 10, "h": 9 }, "floor": "wood_plank", "notes": "Coach drivers drink here while the horses are changed." },
+        { "id": "kitchen", "kind": "room", "name": "Kitchen", "key": "2", "shape": { "type": "rect", "x": 1, "y": 4, "w": 6, "h": 6 }, "floor": "flagstone" },
+        { "id": "store", "kind": "room", "name": "Store room", "key": "3", "shape": { "type": "rect", "x": 7, "y": 4, "w": 4, "h": 6 }, "floor": "flagstone" },
+        { "id": "shop", "kind": "room", "name": "Chandler's shop", "key": "4", "shape": { "type": "rect", "x": 11, "y": 12, "w": 8, "h": 7 }, "floor": "wood_plank", "notes": "Candles, rope, lamp oil and sundries." },
+        { "id": "office", "kind": "room", "name": "Office", "key": "5", "shape": { "type": "rect", "x": 11, "y": 4, "w": 8, "h": 8 }, "floor": "wood_plank", "notes": "The chandler keeps the inn's books too." },
+        { "id": "passage", "kind": "corridor", "name": "Back passage", "shape": { "type": "rect", "x": 19, "y": 4, "w": 2, "h": 15 }, "floor": "wood_plank" },
+        { "id": "guest", "kind": "room", "name": "Guest bedroom", "key": "6", "shape": { "type": "rect", "x": 21, "y": 4, "w": 6, "h": 6 }, "floor": "wood_plank" },
+        { "id": "master", "kind": "room", "name": "Master bedroom", "key": "7", "shape": { "type": "rect", "x": 21, "y": 10, "w": 6, "h": 7 }, "floor": "wood_plank" },
+        { "id": "parlour", "kind": "room", "name": "Parlour", "key": "8", "shape": { "type": "rect", "x": 27, "y": 12, "w": 6, "h": 7 }, "floor": "wood_plank" },
+        { "id": "school", "kind": "room", "name": "Schoolroom", "key": "9", "shape": { "type": "rect", "x": 33, "y": 12, "w": 6, "h": 7 }, "floor": "wood_plank" },
+        { "id": "ward", "kind": "room", "name": "Sick ward", "key": "10", "shape": { "type": "rect", "x": 39, "y": 12, "w": 6, "h": 7 }, "floor": "wood_plank" },
+        { "id": "stable", "kind": "room", "name": "Stables", "key": "11", "shape": { "type": "rect", "x": 45, "y": 12, "w": 6, "h": 7 }, "floor": "cobble" },
+        { "id": "chart", "kind": "room", "name": "Chart room", "key": "12", "purpose": "study", "shape": { "type": "rect", "x": 51, "y": 12, "w": 6, "h": 7 }, "floor": "wood_plank", "tags": ["command"] }
+      ],
+      "openings": [
+        { "id": "d_taproom", "kind": "double_door", "between": ["taproom", "lane"], "position": 0.5 },
+        { "id": "d_kitchen", "kind": "door", "between": ["kitchen", "taproom"], "position": 0.5 },
+        { "id": "d_store", "kind": "door", "between": ["store", "kitchen"], "position": 0.5 },
+        { "id": "d_shop", "kind": "door", "between": ["shop", "lane"], "position": 0.5 },
+        { "id": "d_office", "kind": "door", "between": ["office", "shop"], "position": 0.5 },
+        { "id": "d_passage", "kind": "door", "between": ["passage", "lane"], "position": 0.5 },
+        { "id": "d_guest", "kind": "door", "between": ["guest", "passage"], "position": 0.5 },
+        { "id": "d_master", "kind": "door", "between": ["master", "passage"], "position": 0.5 },
+        { "id": "d_parlour", "kind": "door", "between": ["parlour", "lane"], "position": 0.5 },
+        { "id": "d_school", "kind": "door", "between": ["school", "lane"], "position": 0.5 },
+        { "id": "d_ward", "kind": "door", "between": ["ward", "lane"], "position": 0.5 },
+        { "id": "d_stable", "kind": "double_door", "between": ["stable", "lane"], "position": 0.5 },
+        { "id": "d_chart", "kind": "door", "between": ["chart", "lane"], "position": 0.5 },
+        { "id": "w_taproom", "kind": "window", "at": { "x": 1, "y": 13, "side": "W" }, "width": 2 },
+        { "id": "w_office", "kind": "window", "at": { "x": 14, "y": 4, "side": "N" }, "width": 2 },
+        { "id": "w_guest", "kind": "window", "at": { "x": 23, "y": 4, "side": "N" }, "width": 2 },
+        { "id": "w_master", "kind": "window", "at": { "x": 26, "y": 12, "side": "E" }, "width": 2 },
+        { "id": "w_school", "kind": "window", "at": { "x": 35, "y": 12, "side": "N" }, "width": 2 }
+      ],
+      "walls": [],
+      "features": [],
+      "terrain": [],
+      "labels": [],
+      "structures": []
+    }
+  ],
+  "links": []
+}

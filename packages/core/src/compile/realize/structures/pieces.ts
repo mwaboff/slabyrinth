@@ -8,16 +8,16 @@
  * picks and the emission order follow it), so it stays.
  */
 import type { Placement, PlacementRole, RoleName } from "../../../contracts/compiler";
-import type { Side } from "../../../contracts/plan";
 import type { ResolvedVariant } from "../../../palette/resolve";
 import type { Rect } from "../../../resolve/roof";
-import { OPPOSITE, SIDE_STEP, SIDES } from "../../../gen/gridGeometry";
+import { OPPOSITE, SIDE_STEP } from "../../../gen/gridGeometry";
 import { footprint, lenFilter, ONE_CELL } from "../../../palette/filters";
 import { h32Utf16 } from "../../../util/hash";
 import { rotateXZ } from "../../geometry";
 import { outsideHost, placeEdgePiece } from "../edges";
 import { EPS } from "../level";
 import type { StructureCtx } from "./context";
+import { cellOfKey, key, type FaceCell } from "../../../resolve/structureFaces";
 
 /** What a piece belongs to: its element id (`Placement.source.elementId`) and paste layer (absent = the site). */
 export interface Part {
@@ -25,86 +25,21 @@ export interface Part {
   readonly layer?: string | undefined;
 }
 
-/** One face of a footprint cell: the wall on it stands outside the cell, in the neighbour's half next to the edge. */
-export interface FaceCell {
-  x: number;
-  y: number;
-  face: Side;
-}
-
-export const key = (x: number, y: number): string => `${x},${y}`;
-/** The cell of an "x,y" key. */
-export const cellOfKey = (k: string): [number, number] => k.split(",").map(Number) as [number, number];
-/** A face's key "x,y,face" (openings, ruin columns and arches are found by it). */
-export const faceKey = (x: number, y: number, face: Side): string => `${x},${y},${face}`;
-
-export const setOf = (cells: ReadonlyArray<readonly [number, number]>): Set<string> =>
-  new Set(cells.map(([x, y]) => key(x, y)));
-
+export {
+  alongFace,
+  boundsOfCells,
+  cellOfKey,
+  faceCells,
+  faceKey,
+  faceRunsOf,
+  key,
+  setOf,
+  type FaceCell,
+} from "../../../resolve/structureFaces";
 export function rectCellsOf(r: Rect): Array<[number, number]> {
   const out: Array<[number, number]> = [];
   for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) out.push([x, y]);
   return out;
-}
-
-export function boundsOfCells(cells: ReadonlyArray<readonly [number, number]>): Rect {
-  let x0 = Infinity;
-  let y0 = Infinity;
-  let x1 = -Infinity;
-  let y1 = -Infinity;
-  for (const [x, y] of cells) {
-    x0 = Math.min(x0, x);
-    y0 = Math.min(y0, y);
-    x1 = Math.max(x1, x);
-    y1 = Math.max(y1, y);
-  }
-  return Number.isFinite(x0) ? { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 } : { x: 0, y: 0, w: 0, h: 0 };
-}
-
-/** The outer faces of a cell set: every side of a cell whose neighbour is not in the set. */
-export function faceCells(cells: ReadonlySet<string>): FaceCell[] {
-  const out: FaceCell[] = [];
-  for (const k of [...cells].sort()) {
-    const [x, y] = cellOfKey(k);
-    for (const face of SIDES) {
-      const [dx, dy] = SIDE_STEP[face];
-      if (!cells.has(key(x + dx, y + dy))) out.push({ x, y, face });
-    }
-  }
-  return out;
-}
-
-/** The step from a face cell `k` cells along its face (east for N/S faces, south for E/W faces). */
-export const alongFace = (f: FaceCell, k: number): FaceCell =>
-  f.face === "N" || f.face === "S"
-    ? { x: f.x + k, y: f.y, face: f.face }
-    : { x: f.x, y: f.y + k, face: f.face };
-
-/** Runs of consecutive face cells on one line (for length-2 wall pieces). */
-export function faceRunsOf(list: readonly FaceCell[]): FaceCell[][] {
-  const byLine = new Map<string, FaceCell[]>();
-  for (const f of list) {
-    const line = f.face === "N" || f.face === "S" ? `${f.face}|${f.y}` : `${f.face}|${f.x}`;
-    const arr = byLine.get(line) ?? [];
-    arr.push(f);
-    byLine.set(line, arr);
-  }
-  const runs: FaceCell[][] = [];
-  for (const arr of [...byLine.values()]) {
-    const along = (f: FaceCell): number => (f.face === "N" || f.face === "S" ? f.x : f.y);
-    arr.sort((a, b) => along(a) - along(b));
-    let cur: FaceCell[] = [];
-    for (const f of arr) {
-      const last = cur[cur.length - 1];
-      if (last && along(f) !== along(last) + 1) {
-        runs.push(cur);
-        cur = [];
-      }
-      cur.push(f);
-    }
-    if (cur.length) runs.push(cur);
-  }
-  return runs;
 }
 
 /** The cells round a set, diagonals included. */

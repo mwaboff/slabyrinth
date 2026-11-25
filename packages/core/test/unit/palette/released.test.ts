@@ -72,7 +72,7 @@ describe("released palettes (generator 2 is frozen)", () => {
 
   it("every theme and role resolves for generator 4 as it did in 0.3.0 (generator 4 is frozen)", () => {
     // test/fixtures/released-palettes-0.3.0.json: first-choice piece per role as generator 4 sees the palettes in
-    // 0.3.0. A role or piece added later must carry `minGenerator: 5` (and generator 5 must be opened first).
+    // 0.3.0. A role or piece added later must carry `minGenerator: 5`.
     const released4 = JSON.parse(
       readFileSync(
         fileURLToPath(new URL("../../fixtures/released-palettes-0.3.0.json", import.meta.url)),
@@ -94,6 +94,33 @@ describe("released palettes (generator 2 is frozen)", () => {
         if (v) now[role] = v.uuid.slice(0, 8);
       }
       expect(now, `${theme} @ generator 4`).toEqual(released4[theme]);
+    }
+  });
+
+  it("every theme and role resolves for generator 5 as it did in 0.4.0 (generator 5 is frozen)", () => {
+    // test/fixtures/released-palettes-0.4.0.json: first-choice piece per role as generator 5 sees the palettes in
+    // 0.4.0. A role or piece added later must carry `minGenerator: 6` (and generator 6 must be opened first).
+    const released5 = JSON.parse(
+      readFileSync(
+        fileURLToPath(new URL("../../fixtures/released-palettes-0.4.0.json", import.meta.url)),
+        "utf8",
+      ),
+    ) as Record<string, Record<string, string>>;
+    expect(Object.keys(palettes).sort()).toEqual(Object.keys(released5).sort());
+    const roles = [
+      ...new Set([
+        ...Object.values(palettes).flatMap((p) => Object.keys(p.roles)),
+        ...Object.values(released5).flatMap((r) => Object.keys(r)),
+      ]),
+    ].sort();
+    const resolve = createRoleResolver(cat, 5);
+    for (const theme of Object.keys(released5)) {
+      const now: Record<string, string> = {};
+      for (const role of roles) {
+        const v = resolve(theme, role).resolution?.variants[0];
+        if (v) now[role] = v.uuid.slice(0, 8);
+      }
+      expect(now, `${theme} @ generator 5`).toEqual(released5[theme]);
     }
   });
 

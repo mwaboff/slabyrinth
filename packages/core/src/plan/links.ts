@@ -149,6 +149,42 @@ export function linkGeometry(link: LevelLink, fromElevation: number, toElevation
 }
 
 /**
+ * The cells where people step on and off a level's links, on that level (what the playability walk takes as the way
+ * on and off, resolve/playability.ts): a flight of stairs or a ramp, the strip before its first step where it starts
+ * and the arrival strip beyond its last where it ends; a ladder or a spiral stair, the cells round its opening where it
+ * comes up. Where a ladder or a spiral stair starts, its own cells are flagged LINK (and a room counts the cells beside
+ * them as ways in); a hatch has no landing above, a drop none at all.
+ */
+export function linkLandingsOnLevel(plan: Pick<MapPlan, "levels" | "links">, levelId: string): Vec2[] {
+  const out: Vec2[] = [];
+  for (const link of plan.links) {
+    const info = LINK_KIND_INFO[link.kind];
+    const lo = plan.levels.find((l) => l.id === link.from.level);
+    const up = plan.levels.find((l) => l.id === link.to.level);
+    if (!lo || !up) continue;
+    const geo = linkGeometry(link, lo.elevation, up.elevation);
+    if (info.footprint === "run") {
+      if (lo.id === levelId) {
+        const [sx, sy] = SIDE_STEP[link.dir ?? "N"];
+        const first = geo.lowerCells.slice(0, link.width ?? 1);
+        pushAll(
+          out,
+          first.map((c): Vec2 => [c[0] - sx, c[1] - sy]),
+        );
+      }
+      if (up.id === levelId) pushAll(out, geo.arrivalCells);
+    } else if (up.id === levelId && !info.hatch && info.arrival !== "none") {
+      const own = new Set(geo.upperCells.map((c) => `${c[0]},${c[1]}`));
+      for (const [x, y] of geo.upperCells)
+        for (const [dx, dy] of Object.values(SIDE_STEP))
+          if (!own.has(`${x + dx},${y + dy}`) && !out.some((c) => c[0] === x + dx && c[1] === y + dy))
+            out.push([x + dx, y + dy]);
+    }
+  }
+  return out;
+}
+
+/**
  * Every cell a level's links occupy on that level, from `linkGeometry`: the lower run of the links that start here, and
  * the stairwell above it plus the arrival cells of the links that end here. A run climbs from its LOWER end, so the
  * cells are right whichever end of the link this level holds, and the run is as long as the rise needs (not a fixed

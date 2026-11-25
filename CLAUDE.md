@@ -10,15 +10,16 @@ Pipeline: plan → `resolve` (plan + palettes → resolved grid) → `compile` (
 - `packages/core/src`: pure TypeScript (Node only in `cli/`); directory layers in `eslint.config.js` `CORE_LAYERS`.
 - `packages/render-canvas`: the 2D map painter. `apps/desktop/src`: `main`, `renderer`, `preload`, `shared`.
 - Stage lists, each a plain ordered list: `resolve/level.ts`, `compile/realize.ts`, `compile/verify/verify.ts`,
-  `compile/realize/structures.ts` (`layBuilding`), `review/review.ts` (`reviewDesign`).
+  `compile/realize/structures.ts` (`layBuilding`), `review/review.ts` (`reviewDesign`), `resolve/recipes/table.ts`
+  (`RECIPES`), `resolve/recipes/treatments.ts` (`TREATMENTS`).
 - `docs/contracts/*.ts` are normative; core and the app hold byte copies (`CONTRIBUTING.md`). Contract and IPC
   changes go through the project owner.
 
 ## Checks
 
 - Every change: `npm run format:check && npm run lint && npm run typecheck && npm test` (~20 s of tests).
-- Generation or build change: `npm run test:golden:gen4:update` prints what moved per plan (hash fields, then the
-  `generator4.detail.txt` lines); `npm run test:sweep -- 30` builds every stored plan under many seeds (CI runs 120).
+- Generation or build change: `npm run test:golden:gen5:update` prints what moved per plan (hash fields, then the
+  `generator5.detail.txt` lines); `npm run test:sweep -- 30` builds every stored plan under many seeds (CI runs 120).
 - App, IPC or CI change: `npm run test:e2e`. Before a PR also `npm run build`.
 - Windows Git Bash: `export PATH="/c/Program Files/nodejs:$PATH"` first.
 
@@ -27,30 +28,38 @@ in the same PR and say why.
 
 ## Frozen output
 
-- Generators 1–4 and the released prompt, principles and tool texts (`agent/*.frozen*.ts`, the versions marked
-  released in `agent/prompt.ts`) are byte-frozen; their builds are never regenerated (the generator-4 golden may
+- Generators 1–5 and the released prompt, principles and tool texts (`agent/*.frozen*.ts`, the versions marked
+  released in `agent/prompt.ts`) are byte-frozen; their builds are never regenerated (the generator-5 golden may
   still move its review fields). No generator is open: the next behaviour or model-text change first opens
-  generator 5 and new text versions. (When generator 5 is released, this line moves on to generator 6.)
+  generator 6 and new text versions (sp-1.15.0, dp-1.5.0, tools-1.11.0); the owner approves that contract change.
+  (When generator 6 is released, this line moves on to generator 7.)
 - A behaviour difference between generators is a new switch in `plan/generator.ts` `SWITCHES`, read where it differs.
-- A generator-4 golden change is deliberate: commit it with one line of reason per changed plan.
+- A generator-5 golden change is deliberate: commit it with one line of reason per changed plan.
 
 ## Never
 
-- Hand-edit the generated palettes (`packages/core/data/palettes/*.json`, `palette/bundled.ts`) or run
-  `packages/core/scripts/import-palette-draft.ts`: that script is the owner's to run.
+- Hand-edit the generated palettes (`packages/core/data/palettes/*.json`, `palette/bundled.ts`): change the script's
+  inputs (`scripts/palette-*.json`, the mapping table) and run `packages/core/scripts/import-palette-draft.ts` (the
+  owner allowed palette updates on 2026-11-23); new roles carry a `minGenerator`, and the diff holds only what moved.
 - Launch the app any way but `npm run test:e2e`, or let a test touch the real user data dir, the game install, the
   real clipboard or the network.
 - Commit `docs/internal/`, or copy community slab designs into the repo.
+- Link a worktree's `node_modules` to another checkout, or remove a worktree with `git worktree remove` / `rm -rf`
+  (git follows the links and deletes the other checkout's files; a worktree runs its own `npm ci`).
 
 ## Habits no check holds
 
 - Ask the thing itself, not its neighbour: a cell's theme from `themeAt`/`cellTheme`, not the level's; a piece's size
   from the palette it is built with; a resolved element's theme from `elementTheme`; "may this plan go on" from
-  `plan/gate.ts`.
+  `plan/gate.ts`; a place's light, condition and wealth from `characterAt` / `elementCharacter`, never its words.
 - Before writing a walk, list or lookup, find the shared one: `resolve/levelGrid.ts` (cells, edges, themes),
-  `resolve/wallFaces.ts`, `palette/planRoles.ts`, `palette/roles.ts`, `palette/filters.ts`, `util/hash.ts`, and the
-  trait tables (`gen/catalog.ts`, `gen/openingKinds.ts`, `gen/wallStyles.ts`, `resolve/materials.ts`,
-  `resolve/roofTypes.ts`, `plan/links.ts`, `gen/roomPurpose.ts`).
+  `resolve/wallFaces.ts`, `resolve/anchors/` (zones, faces, frames), `resolve/recipes/keepClear.ts`,
+  `resolve/recipes/footing.ts`, `palette/planRoles.ts`, `palette/roles.ts`, `palette/filters.ts`, `palette/traits.ts`,
+  `palette/traitPools.ts`, `objects/lexicon.ts` (stand-ins), `util/hash.ts`, `util/turn.ts`, `util/visibleCover.ts`,
+  `util/sunk.ts`, and the trait tables (`gen/catalog.ts`, `gen/openingKinds.ts`, `gen/wallStyles.ts`,
+  `resolve/materials.ts`, `resolve/roofTypes.ts`, `plan/links.ts`, `gen/roomPurpose.ts`, `gen/roomTraits.ts`,
+  `gen/pieceFacts.ts`, `resolve/roofKits.ts`, `resolve/themes.ts`, `gen/buildingProgramme.ts`,
+  `gen/buildingCondition.ts`, `resolve/wealthLooks.ts`).
 - Fix a visual report by measuring the build first (a test or the detail golden), not by eye.
 - One writer in the working tree at a time; commit each passing unit on a branch.
 - Report what you verified separately from what you assumed.

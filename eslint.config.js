@@ -44,6 +44,8 @@ const CORE_LAYERS = [
   ["catalog", "plan"], // the game's asset catalog (reads slab layouts); the plan model, schema and validation
   ["gen"], // generation tables and algorithms: feature catalog, wall styles, room purpose, caves, rooms, noise
   ["palette", "ops"], // asset palettes per theme and role (read gen's feature and wall-style tables); plan edits
+  ["arrange"], // generator 5: the arrangement operators that compose palette pieces (trait pools) into placements
+  ["objects"], // generator 5: object recipes (vessels, stalls) as slots of arrangements, with budgets and surfaces
   ["history", "resolve"], // plan versions (replay ops); the resolver: plan + palettes -> resolved grid
   ["render", "text", "compile"], // what reads a resolved plan: 2D display lists, text views, the slab compiler
   ["review"], // the design review (reads what the build produced)
@@ -389,6 +391,20 @@ const genericThemeRule = selectorRule("The fallback theme is GENERIC_THEME.", [
 ]);
 
 /**
+ * A place's light is read from its words once, by the character resolver (resolve/character.ts); every other reader
+ * asks the character it resolved (characterAt during resolve, elementCharacter after it), so the build and the review
+ * never disagree about how lit a place is meant to be.
+ */
+const lightWordsRule = selectorRule("A place's light words are read only by resolve/character.ts.", [
+  {
+    selector:
+      "ImportDeclaration[source.value=/lightLevels$/] > ImportSpecifier[imported.name='lightNamedBy']",
+    message:
+      "Ask the place's resolved character (resolve/character.ts characterAt, elementCharacter, lightIndex) instead of reading its words again.",
+  },
+]);
+
+/**
  * Behaviour that differs between generators is a named switch (plan/generator.ts SWITCHES, read through
  * generatorProfile), never a comparison of the plan's generator with a version number: the switch table is the one
  * changelog of the generators, and a number compared elsewhere is a behaviour it does not list.
@@ -437,6 +453,20 @@ const featureListRule = selectorRule("Feature traits are fields of gen/catalog.t
       "Give the types a trait in gen/catalog.ts FEATURE_INFO and read it (typesWith, featureInfo) instead of listing them here.",
   },
 ]);
+
+/**
+ * The room furnisher (gen/rooms4) asks a feature's trait of gen/catalog.ts FEATURE_INFO, never compares its `type`
+ * with a feature type's name: a rule written for one type ("a bed keeps a cell beside it", "a bar is not lit on every
+ * segment") is a field of that type's row, so a new type gets it by its row.
+ */
+const featureCompareRule = selectorRule(
+  "The room furnisher asks feature traits of gen/catalog.ts.",
+  vocabularyCompare(
+    "type",
+    contractWords("FEATURE_TYPES"),
+    "gen/catalog.ts FEATURE_INFO (give the types a trait and read it with featureInfo)",
+  ),
+);
 
 /** The four sides, their order and their opposites are gen/gridGeometry.ts SIDES and OPPOSITE. */
 const sidesRule = selectorRule("Sides come from gen/gridGeometry.ts.", [
@@ -638,15 +668,17 @@ const slabyrinthPlugin = {
     "hash-unit": hashUnitRule,
     vocabulary: vocabularyRule,
     "feature-lists": featureListRule,
+    "feature-compares": featureCompareRule,
     sides: sidesRule,
     "generic-theme": genericThemeRule,
+    "light-words": lightWordsRule,
     "generator-switches": generatorSwitchRule,
     "review-weights": reviewWeightRule,
   },
 };
 
 /**
- * Core tests do not write files: the goldens are written only by their update scripts (test/golden/generator4/update.ts),
+ * Core tests do not write files: the goldens are written only by their update scripts (test/golden/generator5/update.ts),
  * so a test that "fixes" its golden on failure cannot exist. The CLI test, which runs the CLI on files, writes to a
  * temporary directory.
  */
@@ -671,7 +703,7 @@ const coreTestWrites = {
       "unlink",
     ],
     message:
-      "Core tests only read: a golden is rewritten by its update script (npm run test:golden:gen4:update), never by a test.",
+      "Core tests only read: a golden is rewritten by its update script (npm run test:golden:gen5:update), never by a test.",
   })),
 };
 
@@ -783,10 +815,22 @@ export default tseslint.config(
     rules: { "slabyrinth/feature-lists": "error" },
   },
   {
+    // the room furnisher; lights.ts is generator 4's light rule (a torch hangs over loose clutter), frozen with it
+    files: ["packages/core/src/gen/rooms4/**/*.ts"],
+    ignores: ["packages/core/src/gen/rooms4/lights.ts"],
+    rules: { "slabyrinth/feature-compares": "error" },
+  },
+  {
     // every stage that reads or writes a theme; the calibration slab is built of named pieces of named palettes
     files: ["packages/core/src/{gen,resolve,plan,compile,review,render,text}/**/*.ts"],
     ignores: ["packages/core/src/compile/calibration.ts"],
     rules: { "slabyrinth/generic-theme": "error" },
+  },
+  {
+    // the one reader of a place's light words
+    files: ["packages/core/src/**/*.ts"],
+    ignores: ["packages/core/src/resolve/character.ts"],
+    rules: { "slabyrinth/light-words": "error" },
   },
   {
     // the switch table itself; tests may build plans of any generator

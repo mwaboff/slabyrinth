@@ -7,7 +7,6 @@
 import type { CompileDiagnosticCode } from "../../contracts/compiler";
 import { CELL_FLAG } from "../../contracts/resolved";
 import type { LevelId } from "../../contracts/plan";
-import type { LevelGrid } from "../../resolve/levelGrid";
 import type { VerifyCtx } from "./context";
 import type { Solid, SolidIndex } from "./grid";
 import { HEAD, MIN_FREE_SPAN, STEP } from "./limits";
@@ -58,7 +57,7 @@ export function checkOpenFloor(ctx: VerifyCtx, solids: SolidIndex): ObstructedCe
         const y = L.bounds.y + ly;
         const c = g.cell(x, y);
         if (!c.floor || (c.flags & (CELL_FLAG.FEATURE | CELL_FLAG.LINK | CELL_FLAG.STEPS)) !== 0) continue;
-        const pc = freeCentre(g, x, y);
+        const pc = g.freeCentre(x, y, MIN_FREE_SPAN);
         if (!pc) continue;
         const p = solids.toWorld(pc[0], pc[1]);
         const top = g.top(x, y);
@@ -85,32 +84,4 @@ export function checkOpenFloor(ctx: VerifyCtx, solids: SolidIndex): ObstructedCe
       });
   }
   return obstructed;
-}
-
-/**
- * The centre (plan coordinates) of the part of cell (x, y) no wall or door strip stands in, or null when too little is
- * left to stand in.
- */
-function freeCentre(g: LevelGrid, x: number, y: number): [number, number] | null {
-  let x0 = x,
-    x1 = x + 1,
-    y0 = y,
-    y1 = y + 1;
-  if (g.hostedOn(x, y, "W")) x0 += 0.5;
-  if (g.hostedOn(x, y, "E")) x1 -= 0.5;
-  if (g.hostedOn(x, y, "N")) y0 += 0.5;
-  if (g.hostedOn(x, y, "S")) y1 -= 0.5;
-  if (x1 - x0 < MIN_FREE_SPAN || y1 - y0 < MIN_FREE_SPAN) return null;
-  // an outer corner of a building diagonal to this cell (walls on both neighbours, hosted on this side) carries a
-  // corner post in this cell's corner quarter: when that quarter is all that is left free, the cell is not open floor
-  const quarter = (qx: number, qy: number): boolean =>
-    x0 >= qx - 0.01 && x1 <= qx + 0.51 && y0 >= qy - 0.01 && y1 <= qy + 0.51;
-  if (
-    (quarter(x + 0.5, y + 0.5) && g.hostedOn(x + 1, y, "S") && g.hostedOn(x, y + 1, "E")) ||
-    (quarter(x, y + 0.5) && g.hostedOn(x - 1, y, "S") && g.hostedOn(x, y + 1, "W")) ||
-    (quarter(x + 0.5, y) && g.hostedOn(x + 1, y, "N") && g.hostedOn(x, y - 1, "E")) ||
-    (quarter(x, y) && g.hostedOn(x - 1, y, "N") && g.hostedOn(x, y - 1, "W"))
-  )
-    return null;
-  return [(x0 + x1) / 2, (y0 + y1) / 2];
 }

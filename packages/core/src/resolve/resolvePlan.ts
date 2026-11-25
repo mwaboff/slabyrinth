@@ -5,14 +5,16 @@
 import type { LevelId, MapPlan, PlanIssue, ThemeId } from "../contracts/plan";
 import { generatorProfile } from "../plan/generator";
 import { linkGeometry, linkKindInfo } from "../plan/links";
-import type { ResolvedLink, ResolvedPlan } from "../contracts/resolved";
+import type { ResolvedLevel, ResolvedLink, ResolvedPlan } from "../contracts/resolved";
 import { CELL, CELL_FLAG } from "../contracts/resolved";
 import { canonicalJson } from "../util/canonical";
 import { h64hex } from "../util/hash";
-import { runPhase1, runPhase2 } from "./level";
+import { runDetail, runPhase1, runPhase2 } from "./level";
+import { detailBudgets } from "./recipes/budget";
 import { linkFloorOpenings } from "./level/floorOpenings";
 import type { ResolveGrid } from "./level/grid";
 import { toResolved } from "./level/output";
+import { capWaterUnderOtherFloors } from "./level/waterSurface";
 import { ResolveLevelState } from "./level/state";
 import { type ThemeDefaults, themeDefaults as themeDefaultsOf } from "./themes";
 import type { ResolvePalettes } from "../palette/resolve";
@@ -23,6 +25,12 @@ export interface ResolveOptions {
   levels?: LevelId[];
   /** Version number recorded in ResolvedPlan.planVersion (default 0). */
   planVersion?: number;
+  /**
+   * The board's water plane (absolute tiles) where the plan's own water does not set it: a moored vessel's waterline
+   * (resolve/objectSite.ts). A level with no water of its own and floor under it records it as its water surface, so
+   * the detail stage keeps land plants off that floor and the build advises the GM where to raise the water.
+   */
+  waterPlane?: number;
 }
 
 /**
@@ -49,6 +57,8 @@ export function resolvePlan(
     }
     return td;
   };
+  // what the levels decide about the map's complex of rooms, in plan order (resolve/level/deadEnds.ts)
+  const complex = { plainDeadEnds: 0 };
   const works: ResolveLevelState[] = plan.levels.map(
     (_, levelIndex) =>
       new ResolveLevelState({
@@ -57,6 +67,7 @@ export function resolvePlan(
         themeDefaults,
         issues,
         palette,
+        complex,
       }),
   );
   const byId = new Map<string, ResolveGrid>();
@@ -72,10 +83,26 @@ export function resolvePlan(
   linkFloorOpenings(works);
   for (const w of works) runPhase2(w);
 
-  const levels = works
-    .map((w, i) => ({ r: toResolved(w), i }))
-    .sort((a, b) => a.r.elevation - b.r.elevation || a.i - b.i)
-    .map((x) => x.r);
+  const finished = works.map((w, i) => ({ r: toResolved(w), i }));
+  const plane = opts.waterPlane;
+  if (plane !== undefined)
+    for (const { r } of finished)
+      if (r.waterLevel === undefined && floorUnder(r, plane)) {
+        r.waterLevel = plane;
+        r.waterRange = [plane, plane];
+      }
+  // step 11: detail recipes, each level within its share of the map's detail budget
+  const budgets = detailBudgets(
+    finished.map((x) => x.r),
+    profile.detailBudget,
+  );
+  for (const { r, i } of finished) {
+    const w = works[i];
+    if (w) runDetail(w, r, budgets.get(r.id) ?? 0);
+  }
+  const levels = finished.sort((a, b) => a.r.elevation - b.r.elevation || a.i - b.i).map((x) => x.r);
+  // generator 5: the board's one water plane stays under the dry floors of other levels inside the water
+  if (profile.waterUnderFloors) capWaterUnderOtherFloors(levels, issues);
 
   const keep = opts.levels ? new Set(opts.levels) : null;
   const out: ResolvedPlan = {
@@ -89,6 +116,18 @@ export function resolvePlan(
   };
   out.hash = resolvedHash(out);
   return out;
+}
+
+/** Whether any floor of the level lies under the absolute height `plane`. */
+function floorUnder(L: ResolvedLevel, plane: number): boolean {
+  for (let i = 0; i < L.cells.state.length; i++)
+    if (
+      L.cells.state[i] === CELL.OPEN &&
+      ((L.cells.flags[i] ?? 0) & CELL_FLAG.NO_FLOOR) === 0 &&
+      L.elevation + (L.cells.height[i] ?? 0) / 4 + 0.5 < plane - 1e-6
+    )
+      return true;
+  return false;
 }
 
 /** FNV-1a 64 of the canonical JSON of the resolved plan without its hash field. */

@@ -82,8 +82,19 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
     const d = work.shownRegionAt(i);
     if (d > 0) (dispCells[d - 1] as number[]).push(i);
   }
+  // generator 5 (buildingRooms): a building split into rooms shows as its rooms; its own area spans them all (its
+  // outline, label anchor and cell count are the footprint's)
+  const roomCells = new Map<number, number[]>();
+  for (const info of work.areas) {
+    const b = info.building === undefined ? undefined : work.areaIndexById.get(info.building);
+    if (b === undefined) continue;
+    roomCells.set(b, [...(roomCells.get(b) ?? []), ...(dispCells[info.index] as number[])]);
+  }
   const areas: ResolvedArea[] = work.areas.map((info) => {
-    const cells = dispCells[info.index] as number[];
+    const rooms = roomCells.get(info.index);
+    const cells = rooms
+      ? [...(dispCells[info.index] as number[]), ...rooms].sort((p, q) => p - q)
+      : (dispCells[info.index] as number[]);
     const openCells = cells.filter((i) => work.state[i] === CELL.OPEN);
     if (cells.length === 0) {
       work.issue(
@@ -142,6 +153,7 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
     if (info.area.key !== undefined) ra.key = info.area.key;
     if (info.area.notes !== undefined) ra.notes = info.area.notes;
     if (info.area.labelAt !== undefined) ra.labelAt = [info.area.labelAt[0], info.area.labelAt[1]];
+    if (info.building !== undefined) ra.building = info.building;
     // generator 4: the area's one classification, for the compiler and the review (they never parse words)
     if (work.profile.roomClassification) {
       if (info.room.purpose !== undefined) ra.purpose = info.room.purpose;
@@ -149,6 +161,11 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
       // what the room is built as (the theme's character); its condition is `abandoned`, never its finish
       ra.finish = info.interior.finish;
     }
+    // generator 5 (roomKinds): the finer kind it is furnished as, where that is not its purpose
+    if (info.room.kind !== undefined && info.room.kind !== info.room.purpose) ra.roomKind = info.room.kind;
+    // generator 5: the light level its lights were drawn at (gen/rooms4/regimes.ts)
+    const lightLevel = s.features.lightLevels.get(info.area.id);
+    if (lightLevel !== undefined) ra.lightLevel = lightLevel;
     return ra;
   });
 
@@ -213,6 +230,13 @@ export function toResolved(s: ResolveLevelState): ResolvedLevel {
     if (water?.range) lvl.waterRange = water.range;
   }
   if (s.lines.length > 0) lvl.lines = s.lines;
+  // generator 5: the arrangement instances the stages attached (resolve/level/arrangements.ts; empty otherwise)
+  if (s.arrangements.all.length > 0) lvl.arrangements = s.arrangements.all;
+  // generator 5: what the room furnisher kept clear (gen/rooms4/furnish.ts; empty otherwise)
+  const kept = s.features.keptClear;
+  if (kept.length > 0) lvl.keptClear = kept;
+  // generator 5 (characterCascade): every subject's character (resolve/character.ts)
+  if (work.characters !== null) lvl.character = Object.fromEntries(work.characters);
   if (work.structs) Object.assign(lvl, work.structs.finish(work.level.elevation));
   // the walls of a built interior vary in height (resolve/wallTops.ts)
   if (work.profile.interiorWallTops && work.level.base.type === "solid") {

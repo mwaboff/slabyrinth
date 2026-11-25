@@ -28,6 +28,7 @@
 import type { PaletteCatalog } from "../contracts/compiler";
 import type { ResolvedPlan } from "../contracts/resolved";
 import { emptyBox } from "./geometry";
+import { layArrangements } from "./realize/arrangements";
 import { CliffTones, planRockBand } from "./realize/cliffBand";
 import { createRealizeCtx, type RealizeOptions } from "./realize/context";
 import { CornerStrips } from "./realize/edges";
@@ -87,11 +88,12 @@ export function realize(
     // after the walls and openings, whose strips meet at the posts
     layCornerPosts(lv, strips);
 
-    // links between levels, features, outcrop dressing, buildings
+    // links between levels, features, outcrop dressing, buildings, arrangement instances
     layLinks(lv);
     layFeatures(lv, tones);
     dressOutcrops(lv);
     layStructures(lv);
+    layArrangements(lv);
 
     finishLevel(lv, out);
   }

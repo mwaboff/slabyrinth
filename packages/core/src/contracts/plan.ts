@@ -33,14 +33,16 @@ export const PLAN_SCHEMA = "slabyrinth/plan@1" as const;
  *     frozen since (golden tests in test/golden/generator3 pin it).
  *  4: ragged cave outlines and stepped cave floors, room floors and dressing by purpose, covered market stalls,
  *     roof fills and ridge caps, secret doors. Released in 0.3.0 and frozen since (test/golden/generator4 pins it).
- *     No generator is open: the next behaviour change first adds generator 5.
+ *  5: rooms furnished by kind, buildings split into rooms, light, upkeep and wealth per place, street treatments,
+ *     wear and ruins, halls and cells, ships from the ship kit, a review by room kind. Released in 0.4.0 and frozen
+ *     since (test/golden/generator5 pins it). No generator is open: the next behaviour change first adds generator 6.
  *  What each version does is its profile in plan/generator.ts (`generatorProfile(plan)`): new behaviour is a named
  *  switch, off in the released profiles and on from the open generator; code reads the switch, never the number.
  */
-export const GENERATOR_VERSION = 4 as const;
+export const GENERATOR_VERSION = 5 as const;
 /** Generator versions a reader accepts. */
-export type GeneratorVersion = 1 | 2 | 3 | 4;
-export const GENERATOR_VERSIONS: readonly GeneratorVersion[] = [1, 2, 3, 4];
+export type GeneratorVersion = 1 | 2 | 3 | 4 | 5;
+export const GENERATOR_VERSIONS: readonly GeneratorVersion[] = [1, 2, 3, 4, 5];
 
 // ───────────────────────────── primitives ─────────────────────────────
 
@@ -163,6 +165,26 @@ export const ROOM_PURPOSES = [
 ] as const;
 export type RoomPurpose = (typeof ROOM_PURPOSES)[number];
 
+/**
+ * A place's character (generator 5; additive 2026-11-23, owner's sign-off in docs/decisions.md): optional stated
+ * values on a level (the scene), an area (a zone is a quarter; any other area a room, yard or space) and a building.
+ * Omitted, as usual, generator 5 reads the place's words, else the place around it, else the theme. Stated, the value
+ * wins over the words and the place around it, and the places inside it take it as theirs to vary from. Released
+ * generators (1 to 4) ignore them, apart from `Building.condition` (see there).
+ *  - light: how many lights mark the places in use, from dark (none) to flooded; not the board's brightness, which is
+ *    the GM's board lighting.
+ *  - condition: how kept it is. A stated ruined room is wreckage (sparse, rubble), and a ruined level or zone is a
+ *    ruined place its contents draw from, as the word "ruined" in their names makes them. A building's own words never
+ *    make it a ruin; its condition does.
+ *  - wealth: how plain or rich its trims and contents are.
+ */
+export const PLACE_LIGHTS = ["dark", "dim", "moderate", "bright", "flooded"] as const;
+export type PlaceLight = (typeof PLACE_LIGHTS)[number];
+export const PLACE_CONDITIONS = ["intact", "weathered", "ramshackle", "ruined"] as const;
+export type PlaceCondition = (typeof PLACE_CONDITIONS)[number];
+export const PLACE_WEALTHS = ["poor", "modest", "wealthy", "lavish"] as const;
+export type PlaceWealth = (typeof PLACE_WEALTHS)[number];
+
 export type AreaKind =
   | "room"        // built interior: floor + walls (default walls "auto")
   | "corridor"    // built interior passage (default walls "auto")
@@ -261,6 +283,10 @@ export interface Area {
    * Below generator 4 it is an error (validation), so plans for released generators validate as before.
    */
   purpose?: RoomPurpose;
+  /** Generator 5: the area's stated character (see PLACE_LIGHTS); omitted = read from its words and the place around it. */
+  light?: PlaceLight;
+  condition?: PlaceCondition;
+  wealth?: PlaceWealth;
   /** kind "bridge" only: wall style of the railings on the edges that face a drop (default "low_wall"); "none" = no railings. */
   railing?: WallStyle | "none";
   /** kind "bridge" only: deck cells that have fallen away (holes; the floor below shows through). ≤ 64. */
@@ -526,6 +552,10 @@ export interface Level {
   /** Generator 3: lines strung overhead (lanterns, lights, flags) between two walls or posts. ≤ 12. */
   lines?: OverheadLine[];
   notes?: string;
+  /** Generator 5: the scene's stated character (see PLACE_LIGHTS); omitted = read from the map's and the level's words. */
+  light?: PlaceLight;
+  condition?: PlaceCondition;
+  wealth?: PlaceWealth;
 }
 
 /**
@@ -620,9 +650,15 @@ export interface Building {
   /**
    * State of the building: intact, weathered (worn, a few broken pieces, overgrown in places) or ruined (broken wall
    * tops, breaches, upper storeys partly gone, roof fallen in, rubble and growth at its foot, no lights, doorways
-   * empty). Default: the style's (ruin is ruined).
+   * empty). Default: the style's (ruin is ruined). ramshackle (additive 2026-11-23, generator 5): standing and roofed
+   * but patched, boarded and propped (a lean-to); generators 1 to 4 build it as weathered. Generator 5 reads this as
+   * the building's stated condition (PLACE_CONDITIONS); upkeep words in its name, tags or notes still make an intact or
+   * weathered one ramshackle, as they always did.
    */
-  condition?: "intact" | "weathered" | "ruined";
+  condition?: PlaceCondition;
+  /** Generator 5: the building's stated light and wealth (see PLACE_LIGHTS); omitted = read from its words and quarter. */
+  light?: PlaceLight;
+  wealth?: PlaceWealth;
   /**
    * How overgrown a weathered or ruined building is (generator 3): none; light (a few vines and heaps at the foot);
    * medium (vines on about a fifth of the wall); heavy (vines and creepers climbing from the ground on a third to

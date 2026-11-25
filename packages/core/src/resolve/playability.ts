@@ -64,6 +64,89 @@ export interface LevelCell {
 
 const MAX_STEP_QUARTERS = 2; // a 0.5-tile step can be walked; more needs stairs
 
+/**
+ * What one step of a walk reads of a level: its cells, its two edge grids and its openings' kinds. A ResolvedLevel is
+ * one; so is the resolver's grid while a level is being built (resolve/layoutRooms.ts gridWalkLevel), so a stage that
+ * asks "where does a walk lead" during resolve answers exactly as the walks over the finished map do.
+ */
+export interface WalkLevel {
+  readonly bounds: { readonly w: number; readonly h: number };
+  readonly cells: {
+    readonly state: ArrayLike<number>;
+    readonly flags: ArrayLike<number>;
+    /** Quarter tiles. */
+    readonly height: ArrayLike<number>;
+    readonly material: ArrayLike<number>;
+  };
+  readonly hEdges: {
+    readonly kind: ArrayLike<number>;
+    readonly ref: ArrayLike<number>;
+    readonly height: ArrayLike<number>;
+  };
+  readonly vEdges: {
+    readonly kind: ArrayLike<number>;
+    readonly ref: ArrayLike<number>;
+    readonly height: ArrayLike<number>;
+  };
+  readonly openings: ReadonlyArray<{ readonly kind: ResolvedOpening["kind"] }>;
+}
+
+/**
+ * Can a person stand on cell i, features aside? `deep` and `lava`: the material values (as the level's `material`
+ * array holds them) of deep water and lava, 0 when the level has none.
+ */
+export function standable(l: WalkLevel, i: number, deep: number, lava: number, m: WalkMode): boolean {
+  if (i < 0 || i >= l.bounds.w * l.bounds.h) return false;
+  if (l.cells.state[i] !== CELL.OPEN) return false;
+  const f = l.cells.flags[i] as number;
+  if (f & CELL_FLAG.NO_FLOOR && !(m.ignoreStairwells === true && f & CELL_FLAG.STAIRWELL)) return false;
+  if (m.ignoreWater !== true && deep > 0 && l.cells.material[i] === deep) return false;
+  if (lava > 0 && l.cells.material[i] === lava) return false;
+  return true;
+}
+
+/**
+ * The edge from cell i toward `side`, features aside: [neighbour index or -1, passable, opening index or -1]. Walls
+ * block; a flight of steps passes at any height; a ledge or a height change over half a tile blocks; an opening passes
+ * when its kind is a passage (a secret one only when `m.secret`).
+ */
+export function stepEdge(l: WalkLevel, i: number, side: Side, m: WalkMode): [number, boolean, number] {
+  const w = l.bounds.w;
+  const h = l.bounds.h;
+  const lx = i % w;
+  const ly = (i - lx) / w;
+  let j: number;
+  let kind: number;
+  let ref: number;
+  let height: number;
+  const e = sideEdgeIndex({ w, h }, lx, ly, side);
+  if (side === "N" || side === "S") {
+    j = side === "N" ? (ly > 0 ? i - w : -1) : ly < h - 1 ? i + w : -1;
+    kind = l.hEdges.kind[e] as number;
+    ref = l.hEdges.ref[e] as number;
+    height = l.hEdges.height[e] as number;
+  } else {
+    j = side === "W" ? (lx > 0 ? i - 1 : -1) : lx < w - 1 ? i + 1 : -1;
+    kind = l.vEdges.kind[e] as number;
+    ref = l.vEdges.ref[e] as number;
+    height = l.vEdges.height[e] as number;
+  }
+  if (j < 0) return [-1, false, -1];
+  if (kind === EDGE.WALL) return [j, false, -1];
+  if (kind === EDGE.STAIR) return [j, true, -1]; // a flight of steps: walkable whatever the height
+  if (kind === EDGE.LEDGE) return [j, height * 4 <= MAX_STEP_QUARTERS, -1];
+  if (Math.abs((l.cells.height[i] as number) - (l.cells.height[j] as number)) > MAX_STEP_QUARTERS)
+    return [j, false, -1];
+  if (kind === EDGE.OPENING) {
+    const o = l.openings[ref];
+    if (!o) return [j, true, -1];
+    if (!isPassage(o.kind)) return [j, false, ref];
+    if (isSecret(o.kind) && !m.secret) return [j, false, ref];
+    return [j, true, ref];
+  }
+  return [j, true, -1];
+}
+
 interface LevelData {
   l: ResolvedLevel;
   li: number;
@@ -257,52 +340,18 @@ export class WalkGraph {
 
   /** Can a person stand on this cell? */
   walkable(d: LevelData, i: number, m: WalkMode): boolean {
-    if (i < 0 || i >= d.w * d.h) return false;
-    const l = d.l;
-    if (l.cells.state[i] !== CELL.OPEN) return false;
-    const f = l.cells.flags[i] as number;
-    if (f & CELL_FLAG.NO_FLOOR && !(m.ignoreStairwells === true && f & CELL_FLAG.STAIRWELL)) return false;
-    if (m.ignoreFeatures !== true && ((d.featAt[i] as number) > 0 || d.extra[i] === 1)) return false;
-    if (m.ignoreWater !== true && d.deep > 0 && l.cells.material[i] === d.deep) return false;
-    if (d.lava > 0 && l.cells.material[i] === d.lava) return false;
-    return true;
+    if (!standable(d.l, i, d.deep, d.lava, m)) return false;
+    return m.ignoreFeatures === true || ((d.featAt[i] as number) === 0 && d.extra[i] !== 1);
   }
 
-  /** Edge from cell i toward `side`: [neighbour index or -1, passable]. */
+  /** Edge from cell i toward `side`: [neighbour index or -1, passable] (stepEdge, and an opening the build blocks). */
   step(d: LevelData, i: number, side: Side, m: WalkMode): [number, boolean] {
-    const { w, h, l } = d;
-    const lx = i % w;
-    const ly = (i - lx) / w;
-    let j: number;
-    let kind: number;
-    let ref: number;
-    let height: number;
-    const e = sideEdgeIndex(d, lx, ly, side);
-    if (side === "N" || side === "S") {
-      j = side === "N" ? (ly > 0 ? i - w : -1) : ly < h - 1 ? i + w : -1;
-      kind = l.hEdges.kind[e] as number;
-      ref = l.hEdges.ref[e] as number;
-      height = l.hEdges.height[e] as number;
-    } else {
-      j = side === "W" ? (lx > 0 ? i - 1 : -1) : lx < w - 1 ? i + 1 : -1;
-      kind = l.vEdges.kind[e] as number;
-      ref = l.vEdges.ref[e] as number;
-      height = l.vEdges.height[e] as number;
+    const [j, pass, ref] = stepEdge(d.l, i, side, m);
+    if (pass && ref >= 0 && m.ignoreFeatures !== true) {
+      const o = d.l.openings[ref];
+      if (o && d.blockedOpening.has(o.id)) return [j, false];
     }
-    if (j < 0) return [-1, false];
-    if (kind === EDGE.WALL) return [j, false];
-    if (kind === EDGE.STAIR) return [j, true]; // a flight of steps: walkable whatever the height
-    if (kind === EDGE.LEDGE) return [j, height * 4 <= MAX_STEP_QUARTERS];
-    if (Math.abs((l.cells.height[i] as number) - (l.cells.height[j] as number)) > MAX_STEP_QUARTERS)
-      return [j, false];
-    if (kind === EDGE.OPENING) {
-      const o = l.openings[ref];
-      if (!o) return [j, true];
-      if (!isPassage(o.kind)) return [j, false];
-      if (isSecret(o.kind) && !m.secret) return [j, false];
-      if (m.ignoreFeatures !== true && d.blockedOpening.has(o.id)) return [j, false];
-    }
-    return [j, true];
+    return [j, pass];
   }
 
   /** Breadth-first walk from the given cells; returns a reached mask per level (same order as resolved.levels). */

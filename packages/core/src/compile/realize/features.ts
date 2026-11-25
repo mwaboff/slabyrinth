@@ -10,6 +10,8 @@ import type { Side, ThemeId } from "../../contracts/plan";
 import { EDGE, type ResolvedFeature } from "../../contracts/resolved";
 import { featureInfo, isBandRock, isLandmark } from "../../gen/catalog";
 import { stallPieceOf } from "../../gen/market";
+import { glows } from "../../gen/pieceFacts";
+import { roomTakesGlow } from "../../gen/roomTraits";
 import { featureRoles } from "../../gen/surfaces";
 import { footprintFromGeom, type ResolvedVariant, type RoleResolution } from "../../palette/resolve";
 import { featureRole } from "../../palette/roles";
@@ -240,6 +242,16 @@ function featurePool(
         elementId: f.id,
       });
   }
+  // generator 5 (pieceFacts): a piece that only glows (gen/pieceFacts.ts) reads as a light that lights nothing, so a
+  // furnished room's things leave it out unless its kind's row takes glowing things (a laboratory)
+  if (profile.pieceFacts && featureInfo(f.type).light !== true && f.area !== undefined) {
+    const area = L.areas.find((a) => a.id === f.area);
+    const kind = area?.roomKind ?? area?.purpose;
+    if (kind !== undefined && !roomTakesGlow(kind)) {
+      const plain = pool.filter((u) => !glows(u.name));
+      if (plain.length > 0) pool = plain;
+    }
+  }
   return pool;
 }
 
@@ -434,7 +446,12 @@ function mountOnWall(lv: RealizeLevel, f: ResolvedFeature, asset: FeatureAsset, 
   const inward = (hostedHere ? 0.5 : 0) + (v.geom.originAt === "center" ? mountAxisDepth / 2 : 0);
   const ix = s === "W" ? inward : s === "E" ? -inward : 0;
   const iy = s === "N" ? inward : s === "S" ? -inward : 0;
-  const p = frame.point(px + ix, py + iy);
+  // generator 5 (shelvesWithinWalls): a sub-cell offset along the wall moves the piece along it (a plank stands
+  // inward where its wall ends); across the wall the piece stays on its mounting plane
+  const along = lv.ctx.profile.shelvesWithinWalls ? (f.offset ?? [0, 0]) : [0, 0];
+  const ax = s === "N" || s === "S" ? (along[0] ?? 0) : 0;
+  const ay = s === "W" || s === "E" ? (along[1] ?? 0) : 0;
+  const p = frame.point(px + ix + ax, py + iy + ay);
   // ResolvedFeature.baseHeight is ABSOLUTE: elevation + floor thickness + cell height + lift (resolver featureBase)
   emit(v, "feature", p.x, f.baseHeight, p.z, deg, { cell: [f.at[0], f.at[1]], elementId: f.id });
 }

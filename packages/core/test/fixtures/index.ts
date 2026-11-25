@@ -6,8 +6,8 @@
  * { description, base, context?, expect: [{code, severity?, path, hintIncludes}], plan }.
  *
  * Adding a plan: put the file in one of the two directories and its name in the list below (a test keeps the lists
- * and the directories equal). The generator-4 golden runs every stored plan, so also run
- * `npm run test:golden:gen4:update` (test/golden/generator4).
+ * and the directories equal). The generator-5 golden runs every stored plan, so also run
+ * `npm run test:golden:gen5:update` (test/golden/generator5).
  */
 import { readFileSync, readdirSync } from "node:fs";
 import type { GeneratorVersion, MapPlan, PlanIssueCode, Severity } from "../../src/contracts/plan";
@@ -36,6 +36,7 @@ export const STORED_PLANS = [
   "enclosure-gates-v1",
   "heartroot-rift-v7",
   "inn-interior-v1",
+  "interiors-lineup-v1",
   "keep-dungeon-v8",
   "market-street-v3",
   "night-market-v1",
@@ -44,6 +45,16 @@ export const STORED_PLANS = [
   "smugglers-grotto-v3",
   "stall-lineup-v1",
   "three-step-glen-v1",
+  "wall-recipes-v1",
+  "ground-and-walls-v1",
+  "condition-street-v1",
+  "building-rooms-street-v1",
+  "varied-street-v1",
+  "two-quarters-v1",
+  "railed-terrace-v1",
+  "dungeon-complex-v1",
+  "cell-rows-town-v1",
+  "stated-character-v1",
 ] as const;
 
 /** Every plan in test/unit/gen/fixtures/. */

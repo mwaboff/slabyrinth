@@ -18,7 +18,7 @@ import { featureInfo } from "../gen/catalog";
 import { featureRoles } from "../gen/surfaces";
 import { generatorProfile } from "../plan/generator";
 import { bundledPalettes } from "./load";
-import { createPlanRoles } from "./planRoles";
+import { createPlanRoles, type PlanRoles } from "./planRoles";
 import { themeChain, type ResolveOutcome, type ResolvePalettes, type VariantFilter } from "./resolve";
 import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE, floorRole } from "./roles";
 import { coveredStallForms, roleProbe, type RoleProbe } from "./stallParts";
@@ -58,6 +58,11 @@ export type StallFormsFn = (theme: ThemeId) => StallForm[];
 export interface PaletteView {
   /** The theme a theme with no palette is asked as, and a cell with no theme reads as (palette/planRoles.ts). */
   readonly defaultTheme: ThemeId;
+  /**
+   * Generator 5, detail recipes: the role answers and trait pools themselves (palette/planRoles.ts), the same the
+   * compiler realizes the chosen pieces with.
+   */
+  readonly roles: PlanRoles;
   /** Generator 2+: real sizes of palette-shaped generated pieces (the rock band, the pieces a small prop rests on). */
   pieceSize: PieceSizeFn;
   /** Generator 4: the piece a room recipe stands (small things resolve through gen/surfaces.ts SMALL_THINGS_ROLES). */
@@ -228,6 +233,7 @@ export function createPaletteView(
 
   return {
     defaultTheme: roles.defaultTheme,
+    roles,
     pieceSize,
     roomPiece,
     stallForms,

@@ -27,12 +27,15 @@ import {
   PROP_OVERLAP_HEIGHT,
   PROP_OVERLAP_MIN_AREA,
   PROP_OVERLAP_SHARE,
+  PROP_SAME_SPOT_SHARE,
+  SEAM_REACH,
   SUPPORT_SLACK,
 } from "./limits";
 import { OverheadLines } from "./lines";
 import { wallish } from "./walls";
 import { elementRef, fmt, round2, round4, solidLabel } from "./words";
 import { maxOf } from "../../util/lists";
+import { baseInFloor, restsOn } from "../../util/sunk";
 
 /** The codes this file emits (VERIFY_CODES is the union of every check's list; lines.ts has its own). */
 export const PROP_CODES = [
@@ -75,11 +78,23 @@ export function checkProps(ctx: VerifyCtx, solids: SolidIndex): void {
   }
 }
 
-/** `verify_props_overlap`: pairs of blocking or organic props of different features that share space (each pair once). */
+/**
+ * `verify_props_overlap`: pairs of blocking or organic props of different features that share space (each pair once).
+ * Generator 5 (`layeredProps`): pieces pasted in game survive overlapping (the engine-operators proof), so layering is
+ * no fault: only two pieces of blocking furniture in one spot (sharing PROP_SAME_SPOT_SHARE of the smaller) are a
+ * warning, a layout fault; every other overlap is info.
+ */
 function checkPropOverlaps({ ctx, solids, L }: PropLevel, props: readonly Solid[]): void {
+  const layered = ctx.profile.layeredProps;
+  const furniture = (s: Solid): boolean => {
+    const f = ctx.featureOf(L.id, s.p.source.elementId);
+    return f !== undefined && f.blocking && featureInfo(f.type).category === "furniture";
+  };
   let pairs = 0;
   let builtPairs = 0;
+  let sameSpot = 0;
   const examples: string[] = [];
+  const spotExamples: string[] = [];
   const seenPair = new Set<string>();
   for (const a of props) {
     if (!a.blocking && !a.organic) continue;
@@ -104,11 +119,29 @@ function checkPropOverlaps({ ctx, solids, L }: PropLevel, props: readonly Solid[
         // natural pieces (tree canopies, rock piles) overhang what stands beside them by design: only two built
         // pieces overlapping is a warning
         if (!a.organic && !b.organic) builtPairs++;
-        if (examples.length < 3) examples.push(`${solidLabel(a)} and ${solidLabel(b)}`);
+        const spot = furniture(a) && furniture(b) && ox * oz > PROP_SAME_SPOT_SHARE * Math.min(areaA, areaB);
+        const label = `${solidLabel(a)} and ${solidLabel(b)}`;
+        if (spot) {
+          sameSpot++;
+          if (spotExamples.length < 3) spotExamples.push(label);
+        }
+        if (examples.length < 3) examples.push(label);
       }
     }
   }
-  if (pairs > 0)
+  if (pairs > 0 && layered)
+    ctx.report.add({
+      severity: sameSpot > 0 ? "warning" : "info",
+      code: "verify_props_overlap",
+      levelId: L.id,
+      count: sameSpot > 0 ? sameSpot : pairs,
+      message:
+        sameSpot > 0
+          ? `${sameSpot} pair${sameSpot > 1 ? "s" : ""} of furniture stand in the same spot on level ${L.id} (e.g. ${spotExamples.join("; ")}).`
+          : `${pairs} pair${pairs > 1 ? "s" : ""} of props overlap on level ${L.id} (e.g. ${examples.join("; ")}), layered on purpose or touching.`,
+      ...(sameSpot > 0 ? { hint: "Move one of the two pieces of furniture to its own spot." } : {}),
+    });
+  else if (pairs > 0)
     ctx.report.add({
       severity: builtPairs > 0 ? "warning" : "info",
       code: "verify_props_overlap",
@@ -146,8 +179,9 @@ function checkProp(lv: PropLevel, s: Solid): void {
     checkWallMount(lv, s, f, f.wall, pc);
     return;
   }
-  // organic dressing (rocks, mushrooms, trees) at random 15° turns may clip a corner into rock walls: harmless
-  if (!s.isTileFeature && !s.organic) pushOutOfWall(lv, s, f, cx, cz);
+  // organic dressing (rocks, mushrooms, trees) at random 15° turns may clip a corner into rock walls: harmless. An
+  // arrangement's piece is set as part of its instance (a trim may touch a wall on purpose) and never moved alone.
+  if (!s.isTileFeature && !s.organic && !s.arranged) pushOutOfWall(lv, s, f, cx, cz);
   checkSupport(lv, s, cx, cz, pc);
 }
 
@@ -291,14 +325,23 @@ function checkSupport(
           q.role === "ledge" ||
           q.role === "link" ||
           q.role === "feature") &&
-        q.box.max.y <= s.p.y + SUPPORT_SLACK,
+        restsOn(s.p.y, q.box.max.y),
     );
   const support = supports.length ? maxOf(supports.map((q) => q.box.max.y)) : null;
-  // a floor or fill piece crossing the thin slice just above the support slack, starting below the prop's base
+  // a floor or fill piece crossing the thin slice just above the support slack, its body round the prop's base
+  // (util/sunk.ts: the ground recipe sinks a piece no deeper than this)
+  // (generator 5, `layeredGround`: an arranged piece sunk with its centre on the seam between two ground tiles is in
+  // the ground: the tiles are met within SEAM_REACH of the centre)
+  const seam = s.arranged && ctx.profile.layeredGround ? -SEAM_REACH : 0;
   const inside = solids
-    .at(cx, cz, s.p.y + SUPPORT_SLACK, s.p.y + 0.07, 0)
-    .filter((q) => q.levelId === L.id && (q.role === "floor" || q.role === "fill") && q.box.min.y < s.p.y);
+    .at(cx, cz, s.p.y + SUPPORT_SLACK, s.p.y + 0.07, seam)
+    .filter(
+      (q) =>
+        q.levelId === L.id && (q.role === "floor" || q.role === "fill") && baseInFloor(s.p.y, q.box.min.y),
+    );
   const cell: [number, number] = [Math.floor(pc.px), Math.floor(pc.py)];
+  // an arrangement's piece sunk into the floor on purpose (arrange/ `sink`) stands in what it is sunk into
+  if (inside.length && s.arranged) return;
   if (inside.length) {
     ctx.report.add({
       severity: "warning",

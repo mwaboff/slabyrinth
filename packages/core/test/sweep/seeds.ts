@@ -1,7 +1,9 @@
 /**
  * The seed sweep: a plan must build cleanly for any seed. Every stored plan (test/fixtures: the hand-written plans,
  * the proof plans and the generator test plans) and the plan the desktop e2e test builds, built under the newest
- * generator with fixed lists of other seeds, has no verify error, and no warning but those KNOWN_WARNINGS still lists.
+ * generator with fixed lists of other seeds, has no verify error, and no warning but those KNOWN_WARNINGS still lists;
+ * the warnings include the playability issues (resolve/playability.ts) the build causes, and the plan's own playability
+ * issues are allowed per plan by KNOWN_PLAN_ISSUES (`playability` says whose an issue is).
  * The goldens pin one seed per plan; a fault that shows for a few seeds in a hundred only shows across many (a stored
  * seed is the one the plan was revised at until it built cleanly, so it says little about the others).
  *
@@ -15,9 +17,10 @@
 import { completeAuthoredPlan } from "../../src/agent/executor";
 import { compileResolved } from "../../src/compile";
 import type { CompileDiagnostic } from "../../src/contracts/compiler";
-import { GENERATOR_VERSION, type MapPlan } from "../../src/contracts/plan";
+import { GENERATOR_VERSION, type MapPlan, type PlanIssue } from "../../src/contracts/plan";
+import type { ResolvedPlan } from "../../src/contracts/resolved";
 import { bundledPalettes } from "../../src/palette";
-import { resolvePlan } from "../../src/resolve/index";
+import { checkPlayability, resolvePlan } from "../../src/resolve/index";
 import { slabCodec } from "../../src/slab";
 import { GENERATOR_TEST_PLANS, loadPlan, STORED_PLANS, type StoredPlan } from "../fixtures";
 
@@ -95,53 +98,112 @@ export const WARNING_BASIS = 150;
  * code -> how many of the WARNING_BASIS sweep seeds (and the once-failed ones) raise it. Every other warning fails the
  * sweep, and so does a count that grows. The list only shrinks: a sweep of at least WARNING_BASIS seeds fails on a
  * count that is now lower (lower it) or an entry no seed raises (remove it). The causes, for the next round:
- * - keep-dungeon-v8 prop_in_wall: a dress op's bunk bed (1x2) in a cell whose corner holds a wall corner filler post;
- *   the bed is too wide to be pushed clear inside its footprint.
- * - market-street-v3 (overhead lines against what stands under them): prop_in_wall (a rope of lights into a wall
- *   banner, a hung lantern into a building's main roof), prop_sunk (a rope into a covered stall's tent roof),
- *   line_unanchored and prop_floating (no wall or post reaches a line's height at an end: the line and its pieces
- *   hang free), props_overlap (a stall's fish sling and beam), cliff_gap (a 2-tile cliff edge with no rock in front).
- * - heartroot-rift-v7, dressed-cave(-v2), night-market-v1 props_overlap: realize-made pieces (lava glow, outcrop columns) and dress pieces whose real outline is wider than
- *   their cells (a crystal beside a crystal, a dragon skeleton's ribs over the fire beside it, a stall's stock).
+ * - market-street-v3: line_unanchored and prop_floating (the wall at a line's end stops below the rope and the
+ *   building's roof deck above it is a floor piece, which verify does not take as holding it: the line and its pieces
+ *   hang free); prop_in_wall (a line's lantern 0.33 into a shop roof: the room pieces in a wing's post went with
+ *   `postsAtBuildingCorners`; an upper storey's window light in a ground-storey partition that stood through the floor
+ *   above, with `wallsUnderCeiling`; a tailor's bench across a lowered cell and the raised pavement, prop_sunk, with
+ *   `tradePropsOnOneFloor`). The lines' own faults are gone at
+ *   generator 5 (`linesClearCanopies`: a rope through a shop's awning, a lantern into a porch roof or a canopy).
+ * (Gone at generator 5: props_overlap between elements is info under `layeredProps`; keep-dungeon's room pieces in a
+ * wall's corner post are kept clear by the room-kind furnisher, which asks each piece's outline against the posts.)
  * - dressed-cave, heartroot-rift-v7 mount_no_wall: a dress op's thorn vines hung on a cave wall edge with no wall
  *   piece (the room recipe's board-edge torches are fixed: `mountsOnBuiltWalls`).
- * - market-street-v3, three-step-glen-v1, terraced-hill cliff_gap: a 2-tile cliff edge with no rock in front.
+ * - three-step-glen-v1, terraced-hill cliff_gap: a 2-tile cliff edge with no rock in front (market-street-v3's went
+ *   with `plinthUnderPorch`: a porch-fronted plinth is no longer raised twice).
  * - heartroot-rift-v7, dressed-cave(-v2), hillside-v5, smugglers-grotto-v3 prop_no_floor: a dress piece (a swamp tree base, a
  *   boulder, a moss rock) anchored on a cell whose centre has no floor piece under it (a ragged cave edge, an outcrop).
  * - smugglers-grotto-v3, sea-grotto, old-stones-glade-v6 prop_floating: a landing's lantern and candles 0.42 above the
  *   floor under their centre (the landing's lower step), pebbles 0.5 above a step.
+ * - hillside-v5 play_unreachable (the playability the build causes, `playability`): the plan's walkway climbs from its
+ *   watchtower to a plateau whose edge is ragged, with no path, ramp or link up the cliff; where the walkway's top
+ *   meets a pocket of that edge, the plan's own walk reaches it only across the foot of the cliff, and the plateau's
+ *   rock band covers that foot with its rocks (the band's job: it keeps a gap only for links, paths and, with
+ *   `bandsClearBridges`, decks). Which cells of a cliff's foot are a way is the terrain's to say, not the band's; the
+ *   seeds where the plan itself has no way up are its own (KNOWN_PLAN_ISSUES). 82 before `bandsClearBridges` (a face
+ *   rock over the walkway's top). What the build does wrong: its rocks close the only walk to the walkway. Allowed for
+ *   now because the fix is not the band's (backlog: the terrain should give a walkway's landing a way up, or the
+ *   band should keep the walk from a deck's end to the nearest open ground, which needs a walk inside the band).
  */
 export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
   "heartroot-rift-v7": {
-    verify_props_overlap: 68,
     verify_prop_no_floor: 4,
     // 2 before `channelFloorWhole` moved the rift's shelves and the lair dressing round them
     verify_mount_no_wall: 4,
     verify_prop_floating: 4,
   },
-  "keep-dungeon-v8": { verify_prop_in_wall: 128 },
   "market-street-v3": {
-    verify_line_unanchored: 12,
-    verify_prop_floating: 12,
-    verify_props_overlap: 3,
-    verify_prop_sunk: 28,
-    verify_prop_in_wall: 7,
-    verify_cliff_gap: 4,
+    // 12; 6 once the street draw (`readableNeighbours`, `themeOwnRange`) stood other buildings at the line ends; 5
+    // with `linesClearCanopies`; 7 with `roofFormsFit` alone (28c65b2); 5 with `wealthLooks` too (measured at 150
+    // seeds, switches off one at a time: the street's redrawn walls and roofs move which line ends stand on a
+    // building; the same few seeds' kind of fault, a different set; the playability switches change none of it)
+    verify_line_unanchored: 5,
+    verify_prop_floating: 5,
+    // 7 (lines into banners and porch roofs), 13 with the building rooms, 7 (the room pieces in a wing's post), 2 with
+    // `postsAtBuildingCorners`, 1 with `wallsUnderCeiling` (a partition no longer pokes through the floor above): a
+    // line's lantern in a roof; 2 with `roofFormsFit` alone, 1 with `wealthLooks` too (seed 2950288811, the same
+    // measure)
+    verify_prop_in_wall: 1,
   },
-  "night-market-v1": { verify_props_overlap: 11 },
   "old-stones-glade-v6": { verify_prop_floating: 5 },
   "smugglers-grotto-v3": { verify_prop_floating: 16, verify_prop_no_floor: 1 },
   "three-step-glen-v1": { verify_cliff_gap: 1 },
   "dressed-cave": {
     verify_prop_no_floor: 11,
-    verify_props_overlap: 27,
     verify_mount_no_wall: 7,
     verify_prop_floating: 1,
   },
-  "dressed-cave-v2": { verify_props_overlap: 130, verify_prop_no_floor: 17 },
-  "hillside-v5": { verify_prop_no_floor: 10 },
+  "dressed-cave-v2": { verify_prop_no_floor: 17 },
+  "hillside-v5": { verify_prop_no_floor: 10, play_unreachable: 59 },
   "sea-grotto": { verify_prop_floating: 19 },
   "terraced-hill": { verify_cliff_gap: 1 },
+};
+
+/**
+ * Playability issues that are the stored plan's own (see `playability`), per plan: "<code> <level>/<element>" -> the
+ * seeds that raise it and why. Counted the way KNOWN_WARNINGS is: a sweep of at most WARNING_BASIS seeds fails when
+ * more seeds raise an entry than it allows, one of at least WARNING_BASIS seeds when fewer do (lower it, or remove it at
+ * 0), and every unlisted issue fails. The count holds the seeded part of a plan's own walk too (hillside's ragged
+ * plateau edge): a terrain change that cuts the walkway on more seeds fails. Counts measured at 150 seeds plus each
+ * plan's once-failed seeds (docs: test/sweep/run.ts prints them per plan).
+ */
+export const KNOWN_PLAN_ISSUES: Readonly<
+  Record<string, Readonly<Record<string, { readonly seeds: number; readonly why: string }>>>
+> = {
+  "dungeon-complex-v1": {
+    "route_dead_end l1/to_vault": {
+      seeds: 150,
+      why: "the route to the treasury (bend vh) ends at a wall or another room, never opening into the passage it starts from",
+    },
+    "unreachable l1/to_vault": {
+      seeds: 150,
+      why: "the route that never opens into the passage (route_dead_end) has no other way in",
+    },
+    "unreachable l1/vault": { seeds: 150, why: "the treasury's only way in is that route" },
+  },
+  "keep-dungeon-v8": {
+    "route_dead_end l2/pass": {
+      seeds: 150,
+      why: "the crypt passage's route never opens into the cell block's hall (it is reached by the crypt stairs instead)",
+    },
+  },
+  "hillside-v5": {
+    "unreachable hill/walk": {
+      seeds: 33,
+      why: "the walkway lands on the plateau's ragged edge with no path, ramp or link up the cliff: for some seeds the edge's pocket under its top meets neither the plateau nor the lowland",
+    },
+    "unreachable hill/tower": { seeds: 33, why: "the watchtower's only way is that walkway" },
+    "area_sealed hill/tower": {
+      seeds: 1,
+      why: "for a seed the walkway, sloped to where it meets the ragged edge, meets the tower's deck a tile above it and the joint is walled",
+    },
+  },
+  e2e: {
+    "feature_not_at_wall l1/shelf_mid": {
+      seeds: 154,
+      why: "the e2e plan leaves a bookshelf in the middle of the hall on purpose (apps/desktop/e2e/uiScript.ts)",
+    },
+  },
 };
 
 /** The diagnostics of one severity a build has, as a failure (codes sorted and distinct); null when it has none. */
@@ -158,33 +220,125 @@ function problems(
 
 /** Builds a plan; null when it has no verify (or any) error. */
 export function buildErrors(plan: MapPlan): SweepFailure | null {
-  return problems(buildDiagnostics(plan), "error");
+  return problems(build(plan).diagnostics, "error");
 }
 
-function buildDiagnostics(plan: MapPlan): CompileDiagnostic[] {
+function build(plan: MapPlan): { resolved: ResolvedPlan; diagnostics: CompileDiagnostic[] } {
   const pal = bundledPalettes();
-  return compileResolved(resolvePlan(plan, pal), pal, slabCodec, { createdAt: "sweep", plan }).diagnostics;
+  const resolved = resolvePlan(plan, pal);
+  const { diagnostics } = compileResolved(resolved, pal, slabCodec, { createdAt: "sweep", plan });
+  return { resolved, diagnostics };
 }
+
+/** The prefix of a playability code the build causes, among a build's warning codes ("play_unreachable"). */
+export const PLAY_PREFIX = "play_";
+
+/** A playability issue's key: code, level and element ("unreachable l2/crypt"). */
+const playKey = (i: PlanIssue): string => `${i.code} ${i.levelId ?? ""}/${i.elementId ?? ""}`;
 
 /**
- * Every failing build of `name` over `seeds`, as "<plan>@<seed>" -> failure; `warnings` collects the builds with
- * warnings the same way (ENVIRONMENT_WARNINGS left out), for `unexpectedWarnings`.
+ * The playability issues of a build (resolve/playability.ts `checkPlayability`: its warnings and errors; the verify
+ * stage leaves out what it reports, so the diagnostics never show them), split by whose they are. `own`: those the
+ * same resolved plan raises with only the plan's own features on it, every generated one left out (a room's furniture,
+ * a dress op's rubble, a scatter, a cliff band's rock): the plan has no way there, whatever is placed. `built`: the
+ * rest, matched by code, level and element: something generation placed cut a way the plan had.
+ */
+export function playability(plan: MapPlan, resolved: ResolvedPlan): { own: PlanIssue[]; built: PlanIssue[] } {
+  const serious = (issues: PlanIssue[]): PlanIssue[] => issues.filter((i) => i.severity !== "info");
+  const bare: ResolvedPlan = {
+    ...resolved,
+    levels: resolved.levels.map((l) => ({
+      ...l,
+      features: l.features.filter((f) => f.generatedBy === undefined),
+    })),
+  };
+  const planOwn = new Set(serious(checkPlayability(plan, bare)).map(playKey));
+  const all = serious(checkPlayability(plan, resolved));
+  return {
+    own: all.filter((i) => planOwn.has(playKey(i))),
+    built: all.filter((i) => !planOwn.has(playKey(i))),
+  };
+}
+
+/** What a sweep collects beside the failures: builds with warnings, and the plan's own playability issues. */
+export interface SweepCollect {
+  /** "<plan>@<seed>" -> the build's warning codes (ENVIRONMENT_WARNINGS left out; `play_<code>` for playability). */
+  warnings: Record<string, SweepFailure>;
+  /** The plan's own playability issues (`playability`): key -> the seeds that raise it and the first message. */
+  planOwn: Map<string, { seeds: number[]; first: string }>;
+}
+
+/** An empty collection for `sweepFailures`. */
+export const sweepCollect = (): SweepCollect => ({ warnings: {}, planOwn: new Map() });
+
+/**
+ * Every failing build of `name` over `seeds`, as "<plan>@<seed>" -> failure; `collect.warnings` gathers the builds with
+ * warnings the same way (ENVIRONMENT_WARNINGS left out), the playability issues the build causes among them as
+ * `play_<code>`, for `unexpectedWarnings`; `collect.planOwn` the plan's own, for `unexpectedPlanIssues`.
  */
 export function sweepFailures(
   label: string,
   seeds: readonly number[],
   planOf: (seed: number) => MapPlan,
-  warnings?: Record<string, SweepFailure>,
+  collect?: SweepCollect,
 ): Record<string, SweepFailure> {
   const out: Record<string, SweepFailure> = {};
   for (const seed of seeds) {
-    const diagnostics = buildDiagnostics(planOf(seed));
+    const plan = planOf(seed);
+    const { resolved, diagnostics } = build(plan);
     const f = problems(diagnostics, "error");
     if (f) out[`${label}@${String(seed)}`] = f;
-    const w = warnings && problems(diagnostics, "warning");
-    if (w) warnings[`${label}@${String(seed)}`] = w;
+    if (!collect) continue;
+    const play = playability(plan, resolved);
+    for (const i of play.own) {
+      const at = collect.planOwn.get(playKey(i)) ?? { seeds: [], first: i.message };
+      at.seeds.push(seed);
+      collect.planOwn.set(playKey(i), at);
+    }
+    const w = problems(diagnostics, "warning");
+    const codes = [...(w?.codes ?? []), ...play.built.map((i) => `${PLAY_PREFIX}${i.code}`)];
+    if (codes.length > 0)
+      collect.warnings[`${label}@${String(seed)}`] = {
+        codes: [...new Set(codes)].sort(),
+        first: w?.first ?? play.built[0]?.message ?? "",
+      };
   }
   return out;
+}
+
+/**
+ * The plan's own playability issues of a plan's builds against KNOWN_PLAN_ISSUES: `failed`, one not listed for the
+ * plan, or (`basisSeeds` at most WARNING_BASIS) on more seeds than its entry allows; `stale` (`basisSeeds` at least
+ * WARNING_BASIS), an entry raised by fewer seeds than it lists.
+ */
+export function unexpectedPlanIssues(
+  label: string,
+  planOwn: SweepCollect["planOwn"],
+  basisSeeds?: number,
+): { failed: string[]; stale: string[] } {
+  const known = KNOWN_PLAN_ISSUES[label] ?? {};
+  const failed: string[] = [];
+  for (const [key, at] of planOwn) {
+    const allowed = known[key]?.seeds;
+    if (allowed === undefined)
+      failed.push(
+        `${label}@${at.seeds.slice(0, 3).join(", ")}: the plan's own ${key} on ${String(at.seeds.length)} seed(s) (${at.first})`,
+      );
+    else if (basisSeeds !== undefined && basisSeeds <= WARNING_BASIS && at.seeds.length > allowed)
+      failed.push(
+        `${label}: the plan's own ${key} on ${String(at.seeds.length)} seeds, KNOWN_PLAN_ISSUES allows ${String(allowed)}`,
+      );
+  }
+  const stale =
+    basisSeeds !== undefined && basisSeeds >= WARNING_BASIS
+      ? Object.entries(known)
+          .filter(([key, k]) => (planOwn.get(key)?.seeds.length ?? 0) < k.seeds)
+          .map(
+            ([key, k]) =>
+              `${label}: the plan's own ${key} now on ${String(planOwn.get(key)?.seeds.length ?? 0)} seeds (listed ${String(k.seeds)}: lower or remove it in KNOWN_PLAN_ISSUES)`,
+          )
+      : [];
+  return { failed, stale };
 }
 
 /**
@@ -233,9 +387,16 @@ export function sweepOne(
   seed: number,
   planOf: (seed: number) => MapPlan,
 ): { failed: string[]; stale: string[] } {
-  const warned: Record<string, SweepFailure> = {};
-  const errors = unexpected(label, [seed], sweepFailures(label, [seed], planOf, warned));
-  return { failed: [...errors.failed, ...unexpectedWarnings(label, warned).failed], stale: errors.stale };
+  const collect = sweepCollect();
+  const errors = unexpected(label, [seed], sweepFailures(label, [seed], planOf, collect));
+  return {
+    failed: [
+      ...errors.failed,
+      ...unexpectedWarnings(label, collect.warnings).failed,
+      ...unexpectedPlanIssues(label, collect.planOwn).failed,
+    ],
+    stale: errors.stale,
+  };
 }
 
 /** The failures not listed in KNOWN_FAILURES (or listed with other codes), and the listed ones that passed. */

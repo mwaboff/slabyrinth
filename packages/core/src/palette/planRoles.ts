@@ -13,6 +13,7 @@
  */
 import type { RoleName } from "../contracts/compiler";
 import type { ThemeId } from "../contracts/plan";
+import { minOf } from "../util/lists";
 import { own } from "../util/own";
 import {
   GENERIC_THEME,
@@ -21,6 +22,8 @@ import {
   type ResolvePalettes,
   type VariantFilter,
 } from "./resolve";
+import { floorRole } from "./roles";
+import { traitPool, traitQueryKey, type TraitPool, type TraitQuery } from "./traitPools";
 
 export interface PlanRoles {
   /** The generator whose roles are visible (`minGenerator` at most this). */
@@ -33,6 +36,8 @@ export interface PlanRoles {
   paletteTheme(theme: ThemeId): ThemeId;
   /** The role in the theme (asked as `paletteTheme(theme)`), through the palette's fallback chain; memoized. */
   resolve(theme: ThemeId, role: RoleName, filter?: VariantFilter): ResolveOutcome;
+  /** The theme's pieces of a shape across its roles (asked as `paletteTheme(theme)`; palette/traitPools.ts); memoized. */
+  pool(theme: ThemeId, query: TraitQuery): TraitPool;
 }
 
 /** The theme a catalog asks for a theme it has no palette for: `generic` when it has one, else its first palette. */
@@ -50,6 +55,7 @@ export function createPlanRoles(catalog: ResolvePalettes, generator: number): Pl
   const hasPalette = (theme: ThemeId): boolean => own(catalog.palettes, theme) !== undefined;
   const paletteTheme = (theme: ThemeId): ThemeId => (hasPalette(theme) ? theme : defaultTheme);
   const answers = new Map<string, ResolveOutcome>();
+  const pools = new Map<string, TraitPool>();
   return {
     generator,
     defaultTheme,
@@ -65,5 +71,25 @@ export function createPlanRoles(catalog: ResolvePalettes, generator: number): Pl
       }
       return r;
     },
+    pool(theme, query) {
+      const t = paletteTheme(theme);
+      const k = `${t}\u0000${traitQueryKey(query)}`;
+      let p = pools.get(k);
+      if (!p) {
+        p = traitPool(catalog, t, query, generator);
+        pools.set(k, p);
+      }
+      return p;
+    },
   };
+}
+
+/**
+ * How thick the floor of `material` in `theme` is at least: the thinnest piece of its floor role (any of them may be the
+ * one realize lays, compile/realize/floors.ts), undefined when the role has none (no floor piece is laid there). What a
+ * piece sunk into the floor may sink into (util/sunk.ts).
+ */
+export function thinnestFloor(roles: PlanRoles, theme: ThemeId, material: string): number | undefined {
+  const vs = roles.resolve(theme, floorRole(material)).resolution?.variants ?? [];
+  return vs.length === 0 ? undefined : minOf(vs.map((v) => v.geom.size.y));
 }

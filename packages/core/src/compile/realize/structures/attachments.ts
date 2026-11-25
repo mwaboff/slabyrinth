@@ -13,12 +13,15 @@
 import { SIDE_STEP } from "../../../gen/gridGeometry";
 import { isWindow, openingTests } from "../../../gen/openingKinds";
 import { ONE_CELL } from "../../../palette/filters";
+import type { ResolvedVariant } from "../../../palette/resolve";
 import {
+  THEME_POST_ROLE,
   defaultPartRole,
   featureRole,
   floorRole,
   lightRole,
   partRole,
+  postRole,
   roofRole,
 } from "../../../palette/roles";
 import { partWalls } from "../../../resolve/building/parts";
@@ -30,6 +33,9 @@ import type { LitWindow } from "./courses";
 import { openingFace } from "./openings";
 import { layTiles, placeProp, setOf, wallProp } from "./pieces";
 import { maxOf, minOf } from "../../../util/lists";
+
+/** (chimneyScale) The shortest face a chimney breast's three-wide foot stands on. */
+const BREAST_FACE = 9;
 
 /** Chimneys: a breast of blocks in the wall line, from the ground past the main roof, a pot on top. */
 export function layChimneys(b: StructureCtx, roofTop: number): void {
@@ -51,7 +57,15 @@ export function layChimneys(b: StructureCtx, roofTop: number): void {
     const hi = roofTop + (chimneyBreast ? 0.5 : 1.5);
     const n = Math.max(1, Math.ceil((hi - lo) / v.unitHeight - EPS));
     const source = { cell: [c.at[0], c.at[1]] as [number, number], elementId: `${st.id}~chimney` };
-    if (chimneyBreast) {
+    // generator 5 (`chimneyScale`): the three-wide foot only on a face of BREAST_FACE cells or more (a third of it at
+    // most); a smaller house has one stack
+    const faceLength = (): number => {
+      const along = c.side === "N" || c.side === "S" ? 0 : 1;
+      const line = c.side === "N" || c.side === "S" ? 1 : 0;
+      const on = st.cells.filter((q) => q[line] === c.at[line]).map((q) => q[along]);
+      return on.length === 0 ? 0 : maxOf(on) - minOf(on) + 1;
+    };
+    if (chimneyBreast && (!lv.ctx.profile.chimneyScale || faceLength() >= BREAST_FACE)) {
       const [dx, dy] = SIDE_STEP[c.side];
       const lat: Array<[number, number]> = [
         [c.at[0] + Math.abs(dy), c.at[1] + Math.abs(dx)],
@@ -103,24 +117,46 @@ export function layPorches(b: StructureCtx): void {
     // weathered one has lost a third of its roof cells
     const worn = legiblyWorn(b);
     const gone = worn && st.condition === "ruined";
+    // generator 5 (`raggedRuins`): a ruin whose roof is gone keeps no porch post either (a lone post read as a roof
+    // remnant on a "roof gone" house)
+    if (gone && lv.ctx.profile.raggedRuins && (st.volumes ?? []).every((v) => v.roof.layers.length === 0))
+      continue;
     const roofCells = gone
       ? []
       : worn
         ? p.cells.filter((_, i) => p.cells.length < 2 || h32Utf16(`${st.id}:porch${pi}:${i}`) % 3 !== 0)
         : p.cells;
-    if (roofCells.length > 0)
-      layTiles(b, [roofRole(kit, "flat"), floorRole(p.floor)], setOf(roofCells), roofY, "wall", {
-        id: `${st.id}~porchroof${pi}`,
-        layer: "roof",
-      });
+    // generator 5 (porchWear): a sagging porch's outer row sits one step lower (the building's own eave never sags)
+    const sag = b.lv.ctx.profile.porchWear ? (p.sag ?? 0) : 0;
+    const outerRow = (c: readonly [number, number]): boolean =>
+      p.side === "S"
+        ? c[1] === y1 - 1
+        : p.side === "N"
+          ? c[1] === y0
+          : p.side === "E"
+            ? c[0] === x1 - 1
+            : c[0] === x0;
+    const rows: Array<[ReadonlyArray<readonly [number, number]>, number]> =
+      sag > 0
+        ? [
+            [roofCells.filter((c) => !outerRow(c)), roofY],
+            [roofCells.filter((c) => outerRow(c)), roofY - sag],
+          ]
+        : [[roofCells, roofY]];
+    for (const [rc, y] of rows)
+      if (rc.length > 0)
+        layTiles(b, [roofRole(kit, "flat"), floorRole(p.floor)], setOf(rc), y, "wall", {
+          id: `${st.id}~porchroof${pi}`,
+          layer: "roof",
+        });
     const style = partWalls(s0.walls, "porch");
     const pr = b.lookup(
       [partRole("porch_post", style), defaultPartRole("porch_post"), featureRole("pillar")],
       undefined,
       false,
     );
-    const pv = pr ? pick(pr.variants, `${L.id}:${st.id}:porchpost`) : undefined;
-    if (!pv) continue;
+    const pv0 = pr ? pick(pr.variants, `${L.id}:${st.id}:porchpost`) : undefined;
+    if (!pv0) continue;
     const outer: Array<[number, number]> =
       p.side === "S"
         ? [
@@ -141,13 +177,20 @@ export function layPorches(b: StructureCtx): void {
                 [x0 + 0.15, y0 + 0.15],
                 [x0 + 0.15, y1 - 0.15],
               ];
-    for (const [px, py] of gone ? outer.slice(0, 1) : outer) {
+    // generator 5 (porchWear): a post replaced with what was to hand, another kind of post on the second corner
+    const other =
+      b.lv.ctx.profile.porchWear && p.posts === "mixed"
+        ? otherPost(b, style, pv0, `${L.id}:${st.id}:porchpost2`)
+        : null;
+    for (const [i, [px, py]] of (gone ? outer.slice(0, 1) : outer).entries()) {
       const c = frame.point(px, py);
+      const pv = i === 1 && other ? other : pv0;
       const off =
         pv.geom.originAt === "minCorner"
           ? { x: pv.geom.size.x / 2, z: pv.geom.size.z / 2 }
           : rotateXZ(pv.geom.boundsCenter.x, pv.geom.boundsCenter.z, 0);
-      const n = Math.max(1, Math.round((roofY - s0.floorTop) / Math.max(0.25, pv.unitHeight)));
+      // (the outer posts stand under the sagged row)
+      const n = Math.max(1, Math.round((roofY - sag - s0.floorTop) / Math.max(0.25, pv.unitHeight)));
       for (let k = 0; k < n; k++)
         emit(
           pv,
@@ -161,6 +204,26 @@ export function layPorches(b: StructureCtx): void {
         );
     }
   }
+}
+
+/**
+ * Generator 5 (porchWear): a post of another kind than `pv` for a mixed porch: another variant of the porch post
+ * chain, else the theme's own wall post or pillar; null when the theme has none.
+ */
+function otherPost(b: StructureCtx, style: string, pv: ResolvedVariant, key: string): ResolvedVariant | null {
+  for (const roles of [
+    [partRole("porch_post", style), defaultPartRole("porch_post"), featureRole("pillar")],
+    [postRole(style), THEME_POST_ROLE],
+    [featureRole("pillar")],
+  ]) {
+    const r = b.lookup(roles, undefined, true);
+    const others = (r?.variants ?? []).filter(
+      (v) => v.weight > 0 && v.uuid !== pv.uuid && v.geom.size.y >= 0.5,
+    );
+    const v = others.length > 0 ? b.lv.ctx.pick(others, key) : undefined;
+    if (v) return v;
+  }
+  return null;
 }
 
 /** A light on the wall beside each door. */
@@ -191,7 +254,11 @@ export function layWindowLights(b: StructureCtx, windows: readonly LitWindow[]):
   const { st, lv } = b;
   const lit = st.lighting;
   if (!lit || lit.windows === "none" || lit.lit <= 0) return;
+  // generator 5 (buildingRooms): a ground storey split into rooms is lit by its rooms (gen/rooms4), not from its windows
+  const groundTop = st.storeys[0]?.floorTop;
+  const roomsLit = lv.L.areas.some((a) => a.building === st.id);
   for (const w of windows) {
+    if (roomsLit && w.floorTop === groundTop) continue;
     const roles =
       lit.windows === "glow"
         ? [lightRole("glow", lit.colour), lightRole("glow"), featureRole("crystal")]

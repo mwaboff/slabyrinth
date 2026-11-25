@@ -24,6 +24,8 @@ import type {
   MapPlan,
   Opening,
   PlanIssue,
+  Plinth,
+  RoofType,
   Side,
   Structure,
   TerrainOp,
@@ -34,6 +36,13 @@ import type {
 } from "../contracts/plan";
 import { BUILD_CONSTANTS } from "../contracts/plan";
 import type { ResolvedLevel, ResolvedStructure, ResolvedVolume } from "../contracts/resolved";
+import { wallStyleInfo } from "../gen/wallStyles";
+import type { PaletteView } from "../palette/view";
+import { own } from "../util/own";
+import { roofKitInfo, roofTone } from "./roofKits";
+import { roofInfo } from "./roofTypes";
+import { RANGE_WEIGHTS, themeRange, type ThemeRange } from "./themeRange";
+import { drawStructureOption } from "./recipes/treatments";
 import { CELL, CELL_FLAG, EDGE } from "../contracts/resolved";
 import { OPPOSITE, SIDE_STEP as STEP, SIDES } from "../gen/gridGeometry";
 import { forEachMaskCell } from "../gen/mask";
@@ -41,10 +50,15 @@ import { generatorProfile, type GeneratorProfile } from "../plan/generator";
 import { withWings } from "../plan/building";
 import { rasterizeShape } from "../gen/shapes";
 import { elementSeed, subSeed } from "../util/hash";
-import { applyCondition } from "./building/condition";
+import { applyCondition, buildingSubjectOf } from "./building/condition";
+import { type CharacterMap, characterAt, wealthIndex } from "./character";
+import { QUARTER_KIT, byFinish, finishMisses, keepsRoofsAlike, type WealthStep } from "./wealthLooks";
+import { applyWear } from "./building/wear";
+import { frontCanopies, type FrontCanopy } from "./building/canopy";
 import { startBuilding } from "./building/context";
 import { BuildingFaces, drawFrontage, placeChimneys, placeOpenings, placeWindows } from "./building/faces";
 import {
+  doorLightsByLight,
   drawLighting,
   drawPlinth,
   drawRoofFurniture,
@@ -54,17 +68,28 @@ import {
 import { isPassage, isSecret } from "../gen/openingKinds";
 import { along, faceRuns, key, ringOf } from "./building/footprint";
 import { placePorches } from "./building/porches";
+import { splitGroundStorey } from "./building/rooms";
+import { buildingKind, furnishedCharacter, programmeCharacter } from "../gen/buildingProgramme";
+import type { RoomKind } from "../gen/roomPurpose";
+import { THEME_WALL_STYLE } from "../gen/wallStyles";
 import type { BuildingPlan, StoreyPlan, VolumePlan } from "./building/types";
 import { groundFootprint, planVolumes, volumeSpecs } from "./building/volumes";
 import {
   type BuildingDesign,
+  type DesignSpace,
+  type Weights,
   designable,
   designSpaceFor,
-  drawDesign,
+  drawDesign as drawDesignOf,
   expandDesign,
+  lowerMassReachesMain,
 } from "./structureVariety";
 import { structureStyle } from "./structureStyles";
 import { maxOf, minOf } from "../util/lists";
+
+/** A building's ground floor plane (absolute tiles): its pad over the level's floor; storeys stand on it. */
+const groundFloorBase = (b: BuildingPlan, elevation: number): number =>
+  elevation + BUILD_CONSTANTS.floorThickness + (b.pad ?? 0) / 4;
 
 interface EnclosurePlan {
   st: Enclosure;
@@ -87,6 +112,12 @@ export class StructureWork {
   readonly entrances: string[] = [];
   /** Designs drawn from the style's design space (variety), and the building spec they expand into. */
   readonly designs = new Map<string, { design: BuildingDesign; building: Building }>();
+  /** Generator 5 (`buildingRooms`): each ground-storey room's area id → the building it partitions. */
+  readonly roomBuilding = new Map<string, string>();
+  /** Generator 5 (`sleepingCorners`): a ground-storey room's area id → the other kinds it holds a zone of. */
+  readonly roomZones = new Map<string, readonly RoomKind[]>();
+  /** Generator 5 (`buildingRooms`): the interior doorways between a building's rooms (not ways in from outside). */
+  readonly interiorOpenings = new Set<string>();
   /** Plan list lengths: synthetic areas / openings / wall runs come after these indices. */
   readonly planCounts: { areas: number; openings: number; walls: number; terrain: number };
   reservedMask: Uint8Array | null = null;
@@ -100,6 +131,8 @@ export class StructureWork {
     li: number,
     issues: PlanIssue[],
     private readonly gen: GeneratorProfile,
+    /** Generator 5 (characterCascade): the level's characters (resolve/character.ts); null when off. */
+    readonly characters: CharacterMap | null = null,
   ) {
     this.li = li;
     this.levelId = level.id;
@@ -170,6 +203,16 @@ export class StructureWork {
     for (const b of this.buildings) {
       // never below the ground in front of a door (a raised pavement): the floor is level with it or above
       const plinthQ = Math.round((b.plinth?.height ?? 0) * 4);
+      // generator 5 (plinthUnderPorch): the ground in front is the first cell past the building's own pad (its porch
+      // and plinth), never a cell of the pad itself, which afterAreas already raised by the plinth (counted twice, a
+      // porch-fronted plinth stood two tiles up)
+      const own = this.gen.plinthUnderPorch
+        ? new Set<string>([
+            ...b.cellSet,
+            ...b.porches.flatMap((p) => p.cells.map((c) => key(c[0], c[1]))),
+            ...(b.plinth?.cells ?? []).map((c) => key(c[0], c[1])),
+          ])
+        : null;
       let front = -Infinity;
       for (const g of b.ground) {
         if (!isPassage(g.kind)) continue;
@@ -177,7 +220,8 @@ export class StructureWork {
         for (let k = 0; k < g.width; k++) {
           const ax = g.side === "N" || g.side === "S" ? g.at[0] + k : g.at[0];
           const ay = g.side === "N" || g.side === "S" ? g.at[1] : g.at[1] + k;
-          const reach = 2 + (b.plinth ? b.plinth.margin : 0);
+          let reach = 2 + (b.plinth ? b.plinth.margin : 0);
+          while (own?.has(key(ax + dx * reach, ay + dy * reach)) === true && reach < 16) reach++;
           const i = w.idx(ax + dx * reach, ay + dy * reach);
           if (i >= 0 && w.state[i] === CELL.OPEN) front = Math.max(front, w.height[i] as number);
         }
@@ -346,6 +390,33 @@ export class StructureWork {
     return this.reservedMask !== null && this.reservedMask[i] === 1;
   }
 
+  /**
+   * Every building's canopies and awnings over its street front (resolve/building/canopy.ts, the answer realize lays
+   * them by), at the heights `finish` gives the building: read once the pads are known (after `afterTerrain`).
+   */
+  canopies(elevation: number): Array<{ canopy: FrontCanopy; theme: string }> {
+    return this.buildings.flatMap((b) => {
+      const base = groundFloorBase(b, elevation);
+      const foreign = new Set<string>();
+      for (const o of this.buildings) if (o !== b) for (const k of o.cellSet) foreign.add(k);
+      const design = this.designs.get(b.st.id)?.design;
+      return frontCanopies(
+        {
+          cells: b.cells,
+          frontage: b.frontage,
+          condition: b.condition,
+          design,
+          storeys: b.storeys.map((s) => ({
+            floorTop: base + s.relFloor,
+            footing: s.footing,
+            walls: s.walls,
+          })),
+        },
+        foreign,
+      ).map((canopy) => ({ canopy, theme: b.theme }));
+    });
+  }
+
   /** Records for ResolvedLevel and issue paths that point at synthetic elements (called once, from toResolved). */
   finish(elevation: number): Pick<ResolvedLevel, "structures" | "reserved"> {
     this.remapIssues();
@@ -370,7 +441,7 @@ export class StructureWork {
       });
     }
     for (const b of this.buildings) {
-      const base = elevation + BUILD_CONSTANTS.floorThickness + (b.pad ?? 0) / 4;
+      const base = groundFloorBase(b, elevation);
       const storeys: ResolvedStructure["storeys"] = b.storeys.map((s) => ({
         floorTop: base + s.relFloor,
         footing: s.footing,
@@ -412,7 +483,15 @@ export class StructureWork {
         upperOpenings: b.upper,
         roof: b.roof,
         chimneys: b.chimneys.map((c) => ({ at: c.at, side: c.side })),
-        porches: b.porches.map((p) => ({ cells: p.cells, side: p.side, floor: p.floor, roof: p.roof })),
+        porches: b.porches.map((p) => ({
+          cells: p.cells,
+          side: p.side,
+          floor: p.floor,
+          roof: p.roof,
+          ...(p.sag !== undefined ? { sag: p.sag } : {}),
+          ...(p.posts !== undefined ? { posts: p.posts } : {}),
+        })),
+        ...(b.roofPatch ? { roofPatch: b.roofPatch } : {}),
         lights: b.lights,
         volumes,
         furniture: b.furniture,
@@ -442,6 +521,7 @@ export class StructureWork {
                 ...(b.ruin.weather ? { weather: b.ruin.weather } : {}),
                 ...(b.ruin.arches ? { arches: b.ruin.arches } : {}),
                 ...(b.ruin.keep !== undefined ? { keep: b.ruin.keep } : {}),
+                ...(b.ruin.bays ? { bays: b.ruin.bays } : {}),
                 ...(b.ruin.topRubble
                   ? { topRubble: b.ruin.topRubble.map((t) => ({ ...t, top: base + t.top })) }
                   : {}),
@@ -578,10 +658,13 @@ export function expandStructures(
   li: number,
   issues: PlanIssue[],
   inBounds: (x: number, y: number) => boolean,
+  characters: CharacterMap | null = null,
+  /** The palettes as the resolver sees them (generator 5's style draw asks a theme's own range); absent: not asked. */
+  palette: PaletteView | null = null,
 ): { level: Level; work: StructureWork | null } {
   const list = (level.structures ?? []).map(withWings);
   if (list.length === 0 || !generatorProfile(plan).buildings) return { level, work: null };
-  const x = startExpansion(plan, level, li, issues, inBounds, list);
+  const x = startExpansion(plan, level, li, issues, inBounds, list, characters, palette);
   addEnclosureYards(x);
   markNeighbourPlots(x);
   drawDesigns(x);
@@ -602,8 +685,10 @@ function startExpansion(
   issues: PlanIssue[],
   inBounds: (x: number, y: number) => boolean,
   list: Structure[],
+  characters: CharacterMap | null,
+  palette: PaletteView | null,
 ) {
-  const work = new StructureWork(level, li, issues, generatorProfile(plan));
+  const work = new StructureWork(level, li, issues, generatorProfile(plan), characters);
   const areas: Area[] = [];
   const openings: Opening[] = [];
   const walls: WallRun[] = [];
@@ -622,7 +707,20 @@ function startExpansion(
     return out.sort((a, b) => a[1] - b[1] || a[0] - b[0]);
   };
   const levelTheme = level.theme ?? plan.theme;
-  return { plan, level, inBounds, list, work, areas, openings, walls, terrain, cellsOfShape, levelTheme };
+  return {
+    plan,
+    level,
+    inBounds,
+    list,
+    work,
+    areas,
+    openings,
+    walls,
+    terrain,
+    cellsOfShape,
+    levelTheme,
+    palette,
+  };
 }
 
 type Expansion = ReturnType<typeof startExpansion>;
@@ -688,12 +786,15 @@ function markNeighbourPlots({ list, work, cellsOfShape }: Expansion): void {
  * Variety: draw a design for every building whose shape and looks the plan leaves to its style, in list order,
  * re-rolling while it would repeat a neighbour (within two cells) on archetype + material or storey count.
  */
-function drawDesigns({ plan, level, list, work }: Expansion): void {
+function drawDesigns({ plan, level, list, work, levelTheme, palette }: Expansion): void {
   const placed: Array<{
     r: { x: number; y: number; w: number; h: number };
     d: BuildingDesign;
     space: unknown;
+    look: StreetLook;
   }> = [];
+  // (wealthLooks) the roof kit each quarter's well-off buildings lean to, by the quarter (a character's parent)
+  const quarterKits = new Map<string, string>();
   const designedCount = list.filter(
     (st) => st.kind !== "enclosure" && structureStyle(st.style)?.design && designable(st),
   ).length;
@@ -735,8 +836,86 @@ function drawDesigns({ plan, level, list, work }: Expansion): void {
     // is drawn again, like one that repeats its neighbour
     const footing = style0?.footing ? style0.footingHeight : 0;
     const lowAgainst = (dd: BuildingDesign): boolean =>
-      profile.lowMassesOffNeighbours && lowMassAgainstNeighbour(expand(dd), st.id, work.neighbours, footing);
-    let d = drawDesign(space, subSeed(seed, "design0"), st.use, r.w, r.h, st.character);
+      (profile.lowMassesOffNeighbours &&
+        lowMassAgainstNeighbour(expand(dd), st.id, work.neighbours, footing)) ||
+      // generator 5 (`leanUnderMain`): a lower mass reaching the main ridge is drawn again too
+      (profile.leanUnderMain &&
+        lowerMassReachesMain(expand(dd), { footing, deck: style0?.roof.deck ?? false }));
+    // generator 5 (`themeOwnRange`): the theme's own walls and roofs first (resolve/themeRange.ts)
+    const theme = st.theme ?? levelTheme;
+    const range = profile.themeOwnRange && palette ? themeRange(palette, theme, profile.ownWallsFirst) : null;
+    // generator 5 (`wealthLooks`): its wealth reweights its walls by their finish, and a well-off building leans to the
+    // roof kit of its quarter (resolve/wealthLooks.ts)
+    const ch = profile.wealthLooks ? characterAt(work, st.id) : null;
+    const wealth = ch !== null ? wealthIndex(ch) : null;
+    const quarter = ch?.parent ?? level.id;
+    const quarterKit = wealth !== null && keepsRoofsAlike(wealth) ? quarterKits.get(quarter) : undefined;
+    const drawSpace = wealthSpace(
+      range ? ownRangeSpace(space, range, profile.roofFormsFit) : space,
+      wealth,
+      quarterKit,
+    );
+    const look = (dd: BuildingDesign): StreetLook =>
+      streetLook(dd, space, style0?.roof.kit ?? "", profile, range);
+    // generator 5 (`roofFormsFit`): a roof form deeper than its type allows (a shed over a house's depth) is a gable
+    const depth = front === "N" || front === "S" ? r.h : r.w;
+    // and a skirt (a ring of slopes round a flat top) in a kit whose corner piece is a spiked tip is a gable, as a hip
+    // in one is (`roofKitFacts`): its four corners stood as spikes
+    const kitOf = (dd: BuildingDesign): string =>
+      dd.roofKit !== undefined && dd.roofKit !== ""
+        ? dd.roofKit
+        : (space.pitchedKit ?? style0?.roof.kit ?? "");
+    const fit = (dd: BuildingDesign): BuildingDesign =>
+      profile.roofFormsFit &&
+      (depth > (roofInfo(designRoofType(dd.roof))?.maxSpan ?? Infinity) ||
+        (dd.roof === "skirt" && roofKitInfo(kitOf(dd))?.cornerTip === true))
+        ? { ...dd, roof: "gable" }
+        : dd;
+    const drawDesign = (...args: Parameters<typeof drawDesignOf>): BuildingDesign =>
+      fit(drawDesignOf(...args));
+    let d = drawDesign(drawSpace, subSeed(seed, "design0"), st.use, r.w, r.h, st.character);
+    if (profile.readableNeighbours) {
+      // generator 5 (`readableNeighbours`): two axes read from the street apart from every neighbour and every
+      // building of the same built wall; the earlier rules still hold; the draw with the fewest failures is kept
+      const failures = (dd: BuildingDesign): number => {
+        const mine = look(dd);
+        const unread = placed.filter((p) => {
+          const theirs = p.look;
+          const nearby =
+            p.r.x - NEAR_STREET < r.x + r.w &&
+            r.x - NEAR_STREET < p.r.x + p.r.w &&
+            p.r.y - NEAR_STREET < r.y + r.h &&
+            r.y - NEAR_STREET < p.r.y + p.r.h;
+          return (nearby || theirs.wall === mine.wall) && lookAxesApart(theirs, mine) < 2;
+        }).length;
+        const old = near.some(
+          (p) =>
+            (p.d.archetype === dd.archetype && p.d.material === dd.material) || p.d.storeys === dd.storeys,
+        );
+        // (wealthLooks: a well-off building off its quarter's roof kit reads as a street not kept as one)
+        const offQuarter = quarterKit !== undefined && kitOf(dd) !== quarterKit;
+        // (and walls at the wrong end of its wealth: fine stone on a poor house, rough planks on a rich one)
+        const offWealth = wealth === null ? 0 : finishMisses(dd, wealth);
+        return unread * 2 + (old ? 1 : 0) + (lowAgainst(dd) ? 4 : 0) + (offQuarter ? 1 : 0) + offWealth;
+      };
+      let best = d;
+      let bestN = failures(d);
+      for (let k = 1; k < 16 && bestN > 0; k++) {
+        const next = drawDesign(drawSpace, subSeed(seed, `design${k}`), st.use, r.w, r.h, st.character);
+        const n = failures(next);
+        if (n < bestN) {
+          best = next;
+          bestN = n;
+        }
+      }
+      d = lowAgainst(best) ? { ...best, archetype: "box" } : best;
+      // (wealthLooks: the first well-off building of a quarter sets the kit its others lean to)
+      if (wealth !== null && keepsRoofsAlike(wealth) && !quarterKits.has(quarter) && space.roofKits)
+        quarterKits.set(quarter, kitOf(d));
+      placed.push({ r, d, space, look: look(d) });
+      work.designs.set(st.id, { design: d, building: expand(d) });
+      continue;
+    }
     for (let k = 1; k < 16; k++) {
       // tone: neighbours differ in wall tone, and at most a share of the street is dark-walled
       const tone = (x: BuildingDesign): string => space.tones?.[x.material] ?? "mid";
@@ -768,13 +947,127 @@ function drawDesigns({ plan, level, list, work }: Expansion): void {
         (space.tones !== undefined && tone(d) === "dark" && darkNow >= darkCap) ||
         lowAgainst(d);
       if (!clash) break;
-      d = drawDesign(space, subSeed(seed, `design${k}`), st.use, r.w, r.h, st.character);
+      d = drawDesign(drawSpace, subSeed(seed, `design${k}`), st.use, r.w, r.h, st.character);
     }
     // every draw put a low mass against a neighbour: the last one keeps one mass (a plain box)
     if (lowAgainst(d)) d = { ...d, archetype: "box" };
-    placed.push({ r, d, space });
+    placed.push({ r, d, space, look: look(d) });
     work.designs.set(st.id, { design: d, building: expand(d) });
   }
+}
+
+/** (sacredReads) A sacred building's raised base: a tile high, a cell out toward its street face, steps to the door. */
+const SACRED_BASE = { height: 1, margin: 1, approach: "steps", rim: "none" } as const satisfies Omit<
+  Plinth,
+  "sides"
+>;
+
+/** (readableNeighbours) Buildings within this many cells of each other are neighbours on a street. */
+const NEAR_STREET = 12;
+
+/** What a building shows a street: its built wall, roof colour, roof form and storeys (the readable axes). */
+interface StreetLook {
+  readonly wall: string;
+  readonly roofColour: string;
+  readonly roofForm: string;
+  readonly storeys: number;
+}
+
+/** How many readable axes two looks differ on. */
+const lookAxesApart = (a: StreetLook, b: StreetLook): number =>
+  (a.wall !== b.wall ? 1 : 0) +
+  (a.roofColour !== b.roofColour ? 1 : 0) +
+  (a.roofForm !== b.roofForm ? 1 : 0) +
+  (a.storeys !== b.storeys ? 1 : 0);
+
+/**
+ * A design as the street reads it: the wall it is built in (a setting-kit material in the theme's own wall under
+ * `ownWallsFirst`), its roof's colour (the kit's tone; a flat roof its surface) and form (a hip in a tipped kit is
+ * built as a gable, `roofKitFacts`), its storeys.
+ */
+function streetLook(
+  d: BuildingDesign,
+  space: DesignSpace,
+  styleKit: string,
+  profile: GeneratorProfile,
+  range: ThemeRange | null,
+): StreetLook {
+  const built = (m: string): string =>
+    profile.ownWallsFirst && wallStyleInfo(m)?.settingKit === true && range?.ownWall(m) !== false
+      ? THEME_WALL_STYLE
+      : m;
+  const kit = d.roofKit !== undefined && d.roofKit !== "" ? d.roofKit : (space.pitchedKit ?? styleKit);
+  const info = roofInfo(designRoofType(d.roof));
+  const flat = info?.flat === true || info?.bare === true;
+  // (a cross gable is gables from the street: the form is the built type)
+  const type = designRoofType(d.roof);
+  const form = flat
+    ? "flat"
+    : profile.roofKitFacts && info?.ends === "hip" && roofKitInfo(kit)?.cornerTip === true
+      ? "gable"
+      : type;
+  return {
+    // (a house of one storey shows its ground storey's walls only)
+    wall: d.storeys > 1 ? `${built(d.baseMaterial)}/${built(d.material)}` : built(d.baseMaterial),
+    roofColour: flat ? `flat:${d.roofSurface}` : roofTone(kit),
+    roofForm: form,
+    storeys: d.storeys,
+  };
+}
+
+/** The plan roof type a design's roof word builds (a cross gable is gables, a skirted spire starts with a skirt). */
+const DESIGN_ROOF_TYPES: Readonly<Record<string, string>> = { gable_cross: "gable", skirt_spire: "skirt" };
+const designRoofType = (roof: string): RoofType => (own(DESIGN_ROOF_TYPES, roof) ?? roof) as RoofType;
+
+/**
+ * (wealthLooks) A design space reweighted by a building's wealth: its wall materials by their finish, and with a quarter
+ * kit, that roof kit QUARTER_KIT times as likely (resolve/wealthLooks.ts). No wealth: the space as it is.
+ */
+function wealthSpace(
+  space: DesignSpace,
+  wealth: WealthStep | null,
+  quarterKit: string | undefined,
+): DesignSpace {
+  if (wealth === null) return space;
+  const out: { -readonly [K in keyof DesignSpace]: DesignSpace[K] } = { ...space };
+  const materials = byFinish(space.materials, wealth);
+  if (materials) out.materials = materials;
+  const baseMaterials = byFinish(space.baseMaterials, wealth);
+  if (baseMaterials) out.baseMaterials = baseMaterials;
+  if (quarterKit !== undefined && space.roofKits?.[quarterKit] !== undefined)
+    out.roofKits = { ...space.roofKits, [quarterKit]: space.roofKits[quarterKit] * QUARTER_KIT };
+  return out;
+}
+
+/**
+ * A design space drawn in the theme's own range first (see `themeOwnRange`); with `formsFit` (`roofFormsFit`), a theme
+ * that has no flat roof kit of its own draws flat roofs at RANGE_WEIGHTS.foreignFlat of their weight.
+ */
+function ownRangeSpace(space: DesignSpace, range: ThemeRange, formsFit = false): DesignSpace {
+  const { borrowedWall, ownFlat, foreignFlat } = RANGE_WEIGHTS;
+  const scaled = (w: Weights | undefined): Weights | undefined =>
+    w
+      ? Object.fromEntries(Object.entries(w).map(([m, v]) => [m, range.ownWall(m) ? v : v * borrowedWall]))
+      : undefined;
+  const out: { -readonly [K in keyof DesignSpace]: DesignSpace[K] } = { ...space };
+  const materials = scaled(space.materials);
+  if (materials) out.materials = materials;
+  const baseMaterials = scaled(space.baseMaterials);
+  if (baseMaterials) out.baseMaterials = baseMaterials;
+  if (range.pitchedKits.length > 0 && space.roofKits)
+    out.roofKits = Object.fromEntries(range.pitchedKits.map((k) => [k, space.roofKits?.[k] ?? 1]));
+  const flatKit = range.flatKits[0];
+  if (range.pitchedKits.length === 0 && flatKit !== undefined && space.roofs.flat === undefined) {
+    const pitched = Object.entries(space.roofs)
+      .filter(([k]) => roofInfo(designRoofType(k))?.pitched === true)
+      .reduce((s, [, v]) => s + v, 0);
+    out.roofs = { ...space.roofs, flat: pitched * ownFlat };
+    out.roofSurfaces = { [flatKit]: 1 };
+  }
+  const flatW = space.roofs.flat;
+  if (formsFit && flatKit === undefined && flatW !== undefined)
+    out.roofs = { ...out.roofs, flat: flatW * foreignFlat };
+  return out;
 }
 
 /**
@@ -876,7 +1169,139 @@ function addBuildings(x: Expansion): void {
       areas.push({ id: p.id, kind: "courtyard", walls: "none", floor: p.floor, shape: maskShape(p.cells) });
     }
     if (b.plinth) plinthElements(b, terrain, walls, work, inBounds);
+    if (generatorProfile(plan).buildingRooms) addGroundRooms(x, b, area);
   });
+}
+
+/**
+ * Generator 5 (`buildingRooms`): the building's ground storey split into the rooms of its programme
+ * (resolve/building/rooms.ts), as synthetic room areas over its footprint (painted after the building's own area, so
+ * they own its cells) and interior doorways. The walls between rooms come from the ordinary edge rule (two rooms with
+ * walls "auto"); the shell keeps its outer edges. Left as a shell: a ruin, a building with no walls of its own, and a
+ * building whose footprint the plan's own rooms or corridors already cover.
+ */
+function addGroundRooms(
+  { level, work, areas, openings, walls, cellsOfShape }: Expansion,
+  b: BuildingPlan,
+  shell: Area,
+): void {
+  if (
+    !furnishedCharacter(programmeCharacter(b, characterAt(work, b.st.id))) ||
+    shell.walls === "none" ||
+    shell.wallStyle === undefined
+  )
+    return;
+  // the plan describes the ground storey itself: its own rooms or corridors in the footprint, a dress op over the
+  // building, or furniture of its own inside
+  const inside = (c: readonly [number, number]): boolean => b.cellSet.has(key(c[0], c[1]));
+  const planned =
+    level.areas.some(
+      (a) =>
+        (a.kind === "room" || a.kind === "corridor") &&
+        a.shape.type !== "route" &&
+        cellsOfShape(a.shape).some(inside),
+    ) ||
+    level.terrain.some((op) => op.op === "dress" && op.area === b.st.id) ||
+    level.features.some((f) => inside(f.at));
+  if (planned) return;
+  const st = b.st;
+  const split = splitGroundStorey({
+    id: st.id,
+    cells: b.cells,
+    openings: b.ground,
+    hearths: b.chimneys.map((c) => c.wall),
+    kind: buildingKind({
+      use: st.use,
+      name: st.name,
+      tags: st.tags,
+      notes: st.notes,
+      style: b.profile.id,
+      shopfront: b.frontage.shopfront,
+    }),
+    seed: subSeed(b.seed, "rooms"),
+  });
+  if (!split) return;
+  split.rooms.forEach((r, k) => {
+    const id = `${st.id}~room${k}`;
+    const room: Area = {
+      id,
+      kind: "room",
+      shape: maskShape(r.cells),
+      walls: "auto",
+      wallStyle: shell.wallStyle as WallStyle,
+      name: r.name,
+    };
+    if (shell.wallHeight !== undefined) room.wallHeight = shell.wallHeight;
+    if (shell.floor !== undefined) room.floor = shell.floor;
+    if (shell.theme !== undefined) room.theme = shell.theme;
+    areas.push(room);
+    work.roomBuilding.set(id, st.id);
+    if (r.zones !== undefined) work.roomZones.set(id, r.zones);
+    // generator 5 (characterCascade): the room's character, drawn from its building's
+    work.characters?.addArea(room, st.id);
+  });
+  // the partitions: the theme's own wall (a light interior wall, not the shell's stone or brick, whose thick pieces
+  // would stand into the rooms), the ground storey's height; zones stand open to each other
+  if (split.programme !== "zones")
+    partitionRuns(split.rooms).forEach((points, k) =>
+      walls.push({
+        id: `${st.id}~partition${k}`,
+        op: "add",
+        points,
+        style: THEME_WALL_STYLE,
+        ...(shell.wallHeight !== undefined ? { height: shell.wallHeight } : {}),
+      }),
+    );
+  split.doorways.forEach((d, k) => {
+    const id = `${st.id}~inner${k}`;
+    openings.push({
+      id,
+      kind: d.kind,
+      at: { x: d.at[0], y: d.at[1], side: d.side },
+      width: d.width as 1 | 2 | 3,
+    });
+    work.interiorOpenings.add(id);
+  });
+}
+
+/** The walls between rooms as straight runs of vertices (west/north edges of the second cell, in grid order). */
+function partitionRuns(rooms: ReadonlyArray<{ cells: readonly Vec2[] }>): Vec2[][] {
+  const roomAt = new Map<string, number>();
+  rooms.forEach((r, i) => {
+    for (const [x, y] of r.cells) roomAt.set(key(x, y), i);
+  });
+  // vertical edges by their x line, horizontal ones by their y line
+  const lines = { v: new Map<number, number[]>(), h: new Map<number, number[]>() };
+  for (const [k, i] of roomAt) {
+    const [x, y] = k.split(",").map(Number) as [number, number];
+    const east = roomAt.get(key(x + 1, y));
+    if (east !== undefined && east !== i) lines.v.set(x + 1, [...(lines.v.get(x + 1) ?? []), y]);
+    const south = roomAt.get(key(x, y + 1));
+    if (south !== undefined && south !== i) lines.h.set(y + 1, [...(lines.h.get(y + 1) ?? []), x]);
+  }
+  const out: Vec2[][] = [];
+  for (const orient of ["h", "v"] as const)
+    for (const [line, list] of [...lines[orient]].sort((p, q) => p[0] - q[0])) {
+      const along = [...list].sort((p, q) => p - q);
+      let start = along[0] as number;
+      along.forEach((a, j) => {
+        const next = along[j + 1];
+        if (next === a + 1) return;
+        out.push(
+          orient === "h"
+            ? [
+                [start, line],
+                [a + 1, line],
+              ]
+            : [
+                [line, start],
+                [line, a + 1],
+              ],
+        );
+        if (next !== undefined) start = next;
+      });
+    }
+  return out;
 }
 
 /** Fences and gates, once the buildings are known: no fence where a building's own wall stands on the yard edge. */
@@ -1117,15 +1542,35 @@ function planBuilding(
   levelTheme: string,
   inBounds: (x: number, y: number) => boolean,
 ): BuildingPlan | null {
-  const b = startBuilding(plan, written, si, work, levelTheme, inBounds);
+  const b0 = startBuilding(plan, written, si, work, levelTheme, inBounds);
 
   // masses: volumes with their storeys and roofs, and the footprint they stand on
-  const specs = volumeSpecs(b, cellsOfShape);
+  const specs = volumeSpecs(b0, cellsOfShape);
   if (!specs) return null;
-  const volumes = planVolumes(b, specs);
+  const volumes = planVolumes(b0, specs);
   const main = volumes.find((v) => v.on === null) as VolumePlan;
-  const fp = groundFootprint(b, volumes);
+  const fp = groundFootprint(b0, volumes);
   if (!fp) return null;
+
+  // generator 5 (`sacredReads`): a sacred building's raised form, when its treatment draws it: the door at the middle
+  // of its face, no hearth stack, a base with steps toward the street (drawPlinth below)
+  const raised =
+    b0.gen.sacredReads &&
+    drawStructureOption(
+      "sacredForm",
+      buildingSubjectOf(b0, fp, volumes, b0.st.condition ?? b0.profile.condition ?? "intact"),
+      `${b0.seed}|${b0.st.id}`,
+    ) === "raised";
+  const b = raised
+    ? {
+        ...b0,
+        st: { ...b0.st, chimneys: b0.st.chimneys ?? [] },
+        profile: {
+          ...b0.profile,
+          variety: { ...b0.profile.variety, doorPosition: [0.5, 0.5] as [number, number] },
+        },
+      }
+    : b0;
 
   // faces: openings (with a default door), chimneys, the street face, windows, porches
   const faces = new BuildingFaces(b.st.id);
@@ -1136,13 +1581,25 @@ function planBuilding(
   const porches = placePorches(b, fp, faces.ground);
 
   // condition: a weathered or ruined building loses its chimney, roof pieces, doors; breaches, rubble, growth
-  const decay = applyCondition(b, fp, volumes, main, faces, chimneys);
+  const decay = applyCondition(b, fp, volumes, main, faces, chimneys, porches);
+  // generator 5: a worn or ramshackle building's roof patches and porch wear (each behind its switch)
+  const roofPatch =
+    b.gen.roofPatches || b.gen.porchWear
+      ? applyWear(b, volumes, porches, decay.ruin, buildingSubjectOf(b, fp, volumes, decay.condition))
+      : null;
   const standing = decay.condition === "intact" ? chimneys : [];
 
   // fittings, and the cells kept free of dressing
-  const doorLights = decay.condition === "ruined" ? false : (b.st.lighting?.doors ?? b.profile.doorLight);
+  const doorLights =
+    decay.condition === "ruined" ? false : doorLightsByLight(b, b.st.lighting?.doors ?? b.profile.doorLight);
   const lights = placeDoorLights(fp, faces, doorLights);
-  const plinth = drawPlinth(b, fp);
+  const plinth = drawPlinth(
+    raised && b.st.plinth === undefined
+      ? { ...b, st: { ...b.st, plinth: { ...SACRED_BASE, sides: [frontage.side] } } }
+      : b,
+    fp,
+    porches,
+  );
   const furniture = drawRoofFurniture(b, decay.ruin);
   const lighting = drawLighting(b, decay.condition, doorLights);
   const reserve = reservedCells(fp, faces.ground, standing, porches, plinth);
@@ -1179,6 +1636,7 @@ function planBuilding(
     growth: decay.growth,
     ...(decay.growthLevel !== null ? { growthLevel: decay.growthLevel } : {}),
     ruin: decay.ruin,
+    ...(roofPatch ? { roofPatch } : {}),
   };
 }
 

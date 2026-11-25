@@ -8,9 +8,24 @@ import type { ResolvedOpening } from "../../contracts/resolved";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { elementTheme } from "../../resolve/levelGrid";
 import type { WallFace } from "../../resolve/wallFaces";
-import { faceEdgeCtx, lenFilter, lengthOf, placeEdgePiece, type CornerStrips, type EdgeCtx } from "./edges";
+import {
+  faceEdgeCtx,
+  lenFilter,
+  lengthOf,
+  placeEdgePiece,
+  stackUnder,
+  storeyCeiling,
+  type CornerStrips,
+  type EdgeCtx,
+} from "./edges";
 import { OPPOSITE } from "../../gen/gridGeometry";
-import { isFullHeightOpeningRole, isGap, isOpenWithoutPiece, isSecret } from "../../gen/openingKinds";
+import {
+  isFullHeightOpeningRole,
+  isGap,
+  isOpenWithoutPiece,
+  isPassage,
+  isSecret,
+} from "../../gen/openingKinds";
 import {
   THEME_LINTEL_ROLE,
   THEME_WALL_ROLE,
@@ -87,6 +102,23 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
       break;
     }
     if (!placed) {
+      // generator 5 (`windowSpanClosed`): a window no piece fits is wall, not a hole in it, and the warning says what
+      // width the theme's windows come in
+      const shortest = lengths[lengths.length - 1] ?? Infinity;
+      if (lv.ctx.profile.windowSpanClosed && !isPassage(op.kind)) {
+        closeSpan(lv, strips, op, ctxs.slice(i));
+        addDiag({
+          severity: "warning",
+          code: "role_missing",
+          message: Number.isFinite(shortest)
+            ? `Window ${op.id}: the "${roleName}" pieces of this theme are ${String(shortest)} or more edges wide, so its ${String(remaining)}-edge span is built as plain wall; give it width ${String(shortest)} to show a window there`
+            : `Window ${op.id}: this theme has no "${roleName}" piece, so its ${String(remaining)}-edge span is built as plain wall`,
+          levelId: L.id,
+          role: roleName,
+          elementId: op.id,
+        });
+        break;
+      }
       // A passage with no leaf (an archway) left as a plain gap is still a correct, passable opening: info, not a warning.
       const isArch = isOpenWithoutPiece(op.kind);
       addDiag({
@@ -102,6 +134,26 @@ function layOpening(lv: RealizeLevel, strips: CornerStrips, op: ResolvedOpening)
       break;
     }
     i += placed;
+  }
+}
+
+/** Generator 5: the edges of a window no piece fits, closed with the wall style's pieces from floor to wall top. */
+function closeSpan(
+  lv: RealizeLevel,
+  strips: CornerStrips,
+  op: ResolvedOpening,
+  edges: readonly EdgeCtx[],
+): void {
+  for (const ck of edges) {
+    strips.register(op.orientation, ck.x, ck.y, {
+      orient: op.orientation,
+      side: OPPOSITE[ck.planSide],
+      style: op.wallStyle,
+      theme: ck.theme,
+      base: ck.base,
+      top: ck.top,
+    });
+    closeAboveLeaf(lv, op, ck, ck.base, ck.top, false);
   }
 }
 
@@ -170,19 +222,44 @@ function closeAboveLeaf(
     const wv = wr ? pick(wr.variants, `${L.id}:lintel:${ck.x}:${ck.y}`) : undefined;
     if (wv && (wr?.def.mount ?? "half-cell") === "half-cell") {
       const cnt = Math.ceil((wallTop - leafTop) / wv.unitHeight - EPS);
-      placeEdgePiece(lv, wv, "wall", ck, 1, { yBase: leafTop, count: cnt, source });
+      // generator 5 (wallsUnderCeiling): under a building's upper floor the wall over a doorway stops at the storey's
+      // wall top (whole pieces up from the leaf, then one aligned to that top, never down into the doorway; a gap no
+      // wall piece closes that way takes the kit's lintel where it fits, else stays open)
+      const ceiling = lv.ctx.profile.wallsUnderCeiling ? storeyCeiling(lv, ck) : null;
+      const hi = ceiling === null ? wallTop : Math.min(wallTop, ceiling);
+      if (ceiling !== null && leafTop + cnt * wv.unitHeight > hi + EPS) {
+        const ys = stackUnder(leafTop, hi, wv.unitHeight, leafTop);
+        for (const y of ys) placeEdgePiece(lv, wv, "wall", ck, 1, { yBase: y, count: 1, source });
+        if (ys.length === 0) placeLintel(lv, op, ck, leafTop, source, hi);
+      } else placeEdgePiece(lv, wv, "wall", ck, 1, { yBase: leafTop, count: cnt, source });
     }
-  } else if (takesLintel) {
-    // Kit walls are visually taller than their doors (in-game 2026-11-18): close the notch with the kit's lintel piece
-    // when the palette has one (data-driven; absent role = no lintel, no warning).
-    const lr = lookup(
-      L.id,
-      elementTheme(op.theme, ck.theme),
-      [lintelRole(op.wallStyle), THEME_LINTEL_ROLE],
-      lenFilter(1),
-      true,
-    );
-    const lintel = lr ? pick(lr.variants, `${L.id}:lintel:${ck.x}:${ck.y}`) : undefined;
-    if (lintel) placeEdgePiece(lv, lintel, "opening", ck, 1, { yBase: leafTop, count: 1, source });
-  }
+  } else if (takesLintel) placeLintel(lv, op, ck, leafTop, source);
+}
+
+/**
+ * The kit's lintel piece over a leaf (the role chain lintelRole of the opening's wall style, then the theme's), when
+ * the palette has one; with `under`, only a lintel whose top stays at or under it.
+ */
+function placeLintel(
+  lv: RealizeLevel,
+  op: ResolvedOpening,
+  ck: EdgeCtx,
+  leafTop: number,
+  source: { cell: [number, number]; elementId: string },
+  under?: number,
+): void {
+  const { L } = lv;
+  const { lookup, pick } = lv.ctx;
+  // Kit walls are visually taller than their doors (in-game 2026-11-18): close the notch with the kit's lintel piece
+  // when the palette has one (data-driven; absent role = no lintel, no warning).
+  const lr = lookup(
+    L.id,
+    elementTheme(op.theme, ck.theme),
+    [lintelRole(op.wallStyle), THEME_LINTEL_ROLE],
+    lenFilter(1),
+    true,
+  );
+  const lintel = lr ? pick(lr.variants, `${L.id}:lintel:${ck.x}:${ck.y}`) : undefined;
+  if (lintel && (under === undefined || leafTop + lintel.unitHeight <= under + EPS))
+    placeEdgePiece(lv, lintel, "opening", ck, 1, { yBase: leafTop, count: 1, source });
 }

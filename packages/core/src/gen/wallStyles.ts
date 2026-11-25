@@ -50,7 +50,29 @@ export interface WallStyleInfo {
    * wall (a stepped gable standing alone is masonry logic). Log palisades and half-timbered panels are not.
    */
   planks: boolean;
+  /**
+   * The generic palette's pieces for it are one setting's kit (desert adobe plaster, an abandoned village's planks), not
+   * a material that reads right anywhere (castle stone, brick). Generator 5 (`ownWallsFirst`): a theme whose own palette
+   * has no piece of the style builds such a building wall in the theme's own wall instead of borrowing the kit.
+   */
+  settingKit: boolean;
+  /**
+   * Generator 5 (`wealthLooks`): how fine a front it makes, what a street reads as money: "rough" (planks, a palisade,
+   * sheet metal, rubble), "plain" (the theme's own wall, plaster, timber framing, concrete), "fine" (dressed stone,
+   * brick, marble). A building's wealth reweights its wall draw by it (resolve/wealthLooks.ts).
+   */
+  finish: WallFinish;
 }
+
+/** How fine a front a wall style makes (WallStyleInfo.finish), from rough to fine. */
+export type WallFinish = "rough" | "plain" | "fine";
+
+/**
+ * The finish a named variant family of a wall role reads as (palette data: a role's variants may carry a `variant` name
+ * that is a family of their own, weight 0 so a plain draw never takes them). Generator 5 (`wealthLooks`): a rough wall
+ * built in a theme's own wall takes the theme wall's rough family where its palette has one (wood_town's rural planks).
+ */
+export const WALL_VARIANT_FINISH: Readonly<Record<string, WallFinish>> = { rural: "rough" };
 
 /** The material of each wall family, as a flat surface (a wall's top). "theme" is the palette's to say. */
 const FAMILY_SURFACE: Record<WallFamily, Material | null> = {
@@ -65,35 +87,69 @@ const FAMILY_SURFACE: Record<WallFamily, Material | null> = {
   plant: "grass",
 };
 
+/**
+ * Trims (generator 5 detail recipes: bands, posts, plinths, pilasters, skins) in a second material: which families may
+ * trim a wall of each family (stone bands and quoins on brick, a brick or stone plinth under timber, timber framing on
+ * stone or plaster), in order of preference, and the style whose roles (`facade_post.<style>`, `wall_post.<style>`)
+ * name a family's trim pieces. A family with none is trimmed only in its own material. "theme" is the palette's own
+ * wall, whatever it is built of: masonry or timber trims it.
+ */
+export const FAMILY_TRIMS: Readonly<Record<WallFamily, readonly WallFamily[]>> = {
+  theme: ["stone", "timber"],
+  stone: ["timber", "brick"],
+  brick: ["stone", "timber"],
+  timber: ["stone", "brick"],
+  plaster: ["timber", "stone", "brick"],
+  concrete: ["metal", "stone"],
+  metal: ["concrete"],
+  rock: [],
+  plant: [],
+};
+
+/** The style that names a family's trim roles (null: the family has none of its own). */
+export const FAMILY_TRIM_STYLE: Readonly<Record<WallFamily, WallStyle | null>> = {
+  theme: "wall",
+  stone: "stone",
+  brick: "brick",
+  timber: "wood",
+  plaster: "plaster",
+  concrete: "concrete",
+  metal: "metal",
+  rock: null,
+  plant: null,
+};
+
 const row = (family: WallFamily, flags: Partial<Omit<WallStyleInfo, "family">> = {}): WallStyleInfo => ({
   family,
   natural: false,
   low: false,
   uneven: false,
   planks: false,
+  settingKit: false,
   surface: FAMILY_SURFACE[family],
+  finish: "plain",
   ...flags,
 });
 
 export const WALL_STYLE_INFO: Record<WallStyle, WallStyleInfo> = {
   wall: row("theme", { uneven: true }),
-  stone: row("stone", { uneven: true }),
-  brick: row("brick", { uneven: true }),
-  wood: row("timber", { planks: true }),
-  cave_rock: row("rock", { natural: true }),
-  plaster: row("plaster"),
-  palisade: row("timber"),
-  fence: row("timber", { low: true }),
+  stone: row("stone", { uneven: true, finish: "fine" }),
+  brick: row("brick", { uneven: true, finish: "fine" }),
+  wood: row("timber", { planks: true, settingKit: true, finish: "rough" }),
+  cave_rock: row("rock", { natural: true, finish: "rough" }),
+  plaster: row("plaster", { settingKit: true }),
+  palisade: row("timber", { finish: "rough" }),
+  fence: row("timber", { low: true, finish: "rough" }),
   hedge: row("plant"),
   low_wall: row("stone", { low: true }),
   railing: row("metal", { low: true }),
   iron_bars: row("metal"),
-  ruined: row("stone", { uneven: true }),
-  railing_stone: row("stone", { low: true }),
+  ruined: row("stone", { uneven: true, finish: "rough" }),
+  railing_stone: row("stone", { low: true, finish: "fine" }),
   concrete: row("concrete"),
-  metal: row("metal"),
+  metal: row("metal", { finish: "rough" }),
   panel: row("plaster"),
-  marble: row("stone", { surface: "marble" }),
+  marble: row("stone", { surface: "marble", finish: "fine" }),
   dark_stone: row("stone", { uneven: true }),
   timber: row("timber"),
 };
@@ -114,6 +170,14 @@ export function wallStyleInfo(style: string | null | undefined): WallStyleInfo |
   return style !== null && style !== undefined && KNOWN.has(style)
     ? WALL_STYLE_INFO[style as WallStyle]
     : undefined;
+}
+
+/**
+ * A role of a setting-kit style (`facade.plaster`, `facade_post.wood`, `wall.plaster` ...): the last part of the role
+ * names a style whose generic pieces are one setting's kit.
+ */
+export function isSettingKitRole(role: string): boolean {
+  return wallStyleInfo(role.split(".").pop())?.settingKit === true;
 }
 
 /** Natural rock walls (whole-cell blocks, solid mass behind them). */

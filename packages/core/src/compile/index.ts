@@ -24,7 +24,15 @@ export { VERIFY_CODES, verifyBuild } from "./verify";
 export type { VerifyOptions, VerifyResult } from "./verify";
 export { calibrationAssetsFrom, calibrationSlabAssets } from "./calibration";
 export type { CalibrationAssets } from "./calibration";
-export { DIRS, WorldFrame, placementBox, rotateDir, rotateXZ, turnQuarters } from "./geometry";
+export {
+  DIRS,
+  WorldFrame,
+  placementBox,
+  rotateDir,
+  rotateXZ,
+  storedPosition,
+  turnQuarters,
+} from "./geometry";
 
 import type { RoleKeys } from "../contracts/compiler";
 import { featureRole, floorRole, linkRole, openingRole, wallRole } from "../palette/roles";

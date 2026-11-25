@@ -7,6 +7,42 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-24
+
+### Added
+
+- **Rooms furnished by purpose.** A room named for its use is laid out like one: a bed with its nightstand and a light, a bar with stools and a back store, a desk with its chair. Taverns and dining halls get tables with seats in the middle, barracks and wards rows of beds, classrooms rows of desks, stores aisles of stock. New kinds of room: shops, stables, sitting rooms, classrooms, command rooms and infirmary wards. Tidy rooms stay square; lived-in and working rooms look used.
+- **Buildings with rooms inside.** A building's ground floor is split into rooms by what the building is: an inn's taproom with the kitchen behind it, a shop floor and its store, a workshop, a shrine, a guardroom and armoury, a warehouse office, or a home with a kitchen and a bedroom. Small houses are one room with a sleeping corner by the hearth.
+- **Light that follows the mood.** A dim tavern has a few warm pools of light, a hospital ward is lit at every bed, a crypt stays dark. Lights stand where they make sense: candles on tables, lanterns on counters, torches on the walls, fires only where a fire belongs. The AI tells you which board lighting suits the scene.
+- **Towns with character.** Quarters can be rich and bright or poor, run-down and gloomy, and their houses follow with small differences of their own. Neighbouring buildings are drawn to differ in walls, roofs and height.
+- **Say how lit, kept and rich a place is.** The AI can set the light, the upkeep (including ramshackle) and the wealth of a whole map, a quarter, a building or a single room, so a mine called "The Lost Mine" can still be busy and bright. Anything left unsaid is still judged from the names and the place around it.
+- **Streets with detail.** Posts at doors and corners, bands along the floor lines, low plinths and pilasters, and ground cover gathered in clusters along walls and paths, chosen per building so a street repeats a few treatments, never one.
+- **Wear and ruins.** Worn houses get patched roofs and growth at their feet; ramshackle ones get boarded windows and a lean-to. A ruin loses a few whole bays, roof and all, with rubble spilling from the breach. Temples and grand buildings get a pair of statues at the door and lights along the approach.
+- **Halls, cells and dead ends.** A great hall, throne room or temple nave gets rows of columns or a pair at each third, a clear way down the middle and its high table, throne or altar at the far end. Prisons, stables, infirmary wards and barracks can be divided into a row of cells, stalls or bays, a few left empty or untidy. In a dungeon, a dead-end room holds something (a cache, remains, stores or a small shrine), and doors between rooms suit the rooms they join.
+- **A review that knows rooms and dungeons.** The AI's design review judges each room by its kind, and a dungeon by its layout: rooms all of one size, too much corridor, empty dead ends, a single way in, a drop with no way back up.
+
+### Changed
+
+- The water height the build suggests stays below the floor of a cellar or lower level standing in the water.
+- Rooms in use stay tidy: no rubble or remains in a kept room, only in ruined, ramshackle or abandoned places, crypts and cells. Lights on a room's floor stand against a wall or a piece, never alone mid-floor, and furniture never cuts a room's doors off from each other. A dark room divided into cells stays dark.
+- By the water, no land plants grow under the water line, and a wharf's edge is straight.
+- Rich and poor read from the street. A poor building leans to rough plank walls and odd-matched roofs, a rich one to dressed stone, a quarter's roofs alike and more trim; a rich house may get a lit approach, and a rich home or temple a pair of statues at its door (never an inn or a shop). A map that says nothing about wealth looks as before. Worn roofs show patches, not holes; only a ruin's roof is open. Roofs fit their house: no tall one-sided roof over a deep house, and no flat tops in a timber village unless asked for.
+- Blocked rooms and stairs are caught before they reach you. Nothing the generator places stands where you step on or off stairs, a ramp or a ladder, rubble at a wall's foot never closes the way through a room, and a cliff's rocks keep off a walkway that climbs to it. Before a release, every test map is now built many times over and checked that each room and stair can be walked to.
+- Maps you made with earlier versions rebuild unchanged. The new rules are for new maps only.
+
+### Fixed
+
+- Maps of several slabs now carry their two alignment pillars again, so the slabs land in line instead of piling up under the cursor. A build made without them says so and asks you to build again; the add-on will not send it. If your palettes have no pillar piece at all, the build page says that instead, since building again cannot add one.
+- Settings that could not be saved now save: the TaleSpire level layout and alignment pillar options (in Settings and on the build page), the spending warnings, and the projects folder.
+
+### Known limits
+
+- Upper storeys of buildings are still empty shells; only the ground floor is furnished.
+- A level still holds at most 32 buildings. Larger cities come in a later release.
+- Maps of 512 × 512 tiles with alignment pillars have not been tried in the game yet.
+- Ships built from the game's own ship kit (hull, decks, masts, sails, cannon and furnished cabins) are in the generator and have been checked in renders from the game's meshes, but the AI cannot place one yet; asking for a ship comes in a later release.
+- The new rooms, lights, streets and ruins have been checked by the app's own tests but not yet looked at in TaleSpire.
+
 ## [0.3.0] - 2026-11-22
 
 ### Added
@@ -126,7 +162,8 @@ The first release.
   version exists, and links to its release page. You can turn the check off in Settings ▸ About.
 - Windows installer and portable build, Linux AppImage. The builds are not code-signed yet.
 
-[Unreleased]: https://github.com/mwaboff/slabyrinth/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mwaboff/slabyrinth/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/mwaboff/slabyrinth/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mwaboff/slabyrinth/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mwaboff/slabyrinth/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/mwaboff/slabyrinth/compare/v0.1.1...v0.1.2

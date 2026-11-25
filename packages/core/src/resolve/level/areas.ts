@@ -9,7 +9,7 @@
  */
 import type { AreaKind, Level, OpeningKind, ThemeId, Vec2, WallMode } from "../../contracts/plan";
 import { CELL } from "../../contracts/resolved";
-import { classifyRoom } from "../../gen/roomPurpose";
+import { classifyRoom, type RoomKind } from "../../gen/roomPurpose";
 import { bandOffsets, routeCenterline } from "../../gen/shapes";
 import { NATURAL_WALL_STYLE, THEME_WALL_STYLE, isNaturalWallStyle } from "../../gen/wallStyles";
 import type { GeneratorProfile } from "../../plan/generator";
@@ -46,6 +46,10 @@ export function areaTable(
   profile: GeneratorProfile,
   levelTheme: ThemeId,
   defaultWallHeight: number,
+  /** Generator 5 (`buildingRooms`): the synthetic ground-storey rooms and the building each partitions. */
+  roomBuilding?: ReadonlyMap<string, string>,
+  /** Generator 5 (`sleepingCorners`): the zones a synthetic room holds besides its own kind. */
+  roomZones?: ReadonlyMap<string, readonly RoomKind[]>,
 ): AreaTable {
   const themes: ThemeId[] = [levelTheme];
   const themeIndex = (t: ThemeId): number => {
@@ -61,10 +65,15 @@ export function areaTable(
       area.kind === "cave" ? td.caveFloor : area.kind === "courtyard" ? td.courtyardFloor : td.floor;
     const floor = area.floor ?? defFloor;
     // generator 4 reads these (rooms dressed, floored, finished by purpose); they are cheap and pure, so every
-    // generator computes them, and only generator 4 writes them on the resolved area
-    const room = classifyRoom(area);
+    // generator computes them, and only generator 4 writes them on the resolved area; generator 5 also reads the
+    // finer kind a room is furnished as (switch roomKinds)
+    const room = classifyRoom(area, { kinds: profile.roomKinds, stated: profile.statedCharacter });
     const interior = td.interior;
+    const building = roomBuilding?.get(area.id);
+    const zones = roomZones?.get(area.id);
     areas.push({
+      ...(building !== undefined ? { building } : {}),
+      ...(zones !== undefined ? { zones } : {}),
       area,
       index,
       kind: area.kind,
@@ -111,6 +120,8 @@ export interface RouteRecord {
   to: number;
   width: number;
   kind: OpeningKind;
+  /** The plan named the kind (shape.openings); else `kind` is the default gap and generator 5 may choose (doorsByRole). */
+  stated: boolean;
   startSquare: Array<[number, number]>;
   endSquare: Array<[number, number]>;
   /** Edge orientation crossed by the route where it leaves `from` / enters `to` (null = unknown). */
@@ -191,6 +202,7 @@ function routeArea(work: ResolveGrid, info: AreaInfo): RouteRecord | null {
     to: b.ai,
     width,
     kind: shape.openings ?? "open",
+    stated: shape.openings !== undefined,
     startSquare: i0 < j0 ? square(line[i0] as [number, number]) : [],
     endSquare: i0 < j0 ? square(line[j0 - 1] as [number, number]) : [],
     orientA: i0 > 0 && i0 < line.length ? crossOrient(line[i0 - 1] as Vec2, line[i0] as Vec2) : null,

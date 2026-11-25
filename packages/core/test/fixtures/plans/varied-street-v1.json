@@ -1,0 +1,141 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 5,
+  "id": "4e8b2d17-9c3a-4f6e-b0d5-71a6c3e9f402",
+  "title": "varied-street-v1",
+  "kind": "outdoor",
+  "seed": 7417,
+  "theme": "wood_town",
+  "summary": "A lane of nine buildings that differ in footprint, height, roof and facing, with two fenced yards: walls, storeys and roofs are left to each style's draw.",
+  "levels": [
+    {
+      "id": "g",
+      "name": "Lane",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 60, "h": 36 },
+      "base": { "type": "ground", "material": "grass" },
+      "areas": [
+        { "id": "green", "kind": "zone", "name": "Green", "shape": { "type": "rect", "x": 0, "y": 0, "w": 60, "h": 36 } }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [],
+      "labels": [],
+      "terrain": [
+        {
+          "id": "lane",
+          "op": "path",
+          "points": [
+            [0, 18],
+            [22, 17],
+            [40, 18],
+            [59, 18]
+          ],
+          "width": 3,
+          "material": "gravel"
+        }
+      ],
+      "structures": [
+        {
+          "id": "baker",
+          "name": "Bakehouse",
+          "style": "cottage",
+          "use": "baker",
+          "seed": 11,
+          "wings": [{ "x": 2, "y": 9, "w": 7, "h": 6 }],
+          "front": "S"
+        },
+        {
+          "id": "farm",
+          "name": "Farmhouse",
+          "style": "cottage",
+          "use": "farmhouse",
+          "seed": 12,
+          "wings": [{ "x": 11, "y": 6, "w": 9, "h": 7 }],
+          "front": "S"
+        },
+        {
+          "id": "manor",
+          "name": "Manor",
+          "style": "keep",
+          "use": "manor",
+          "seed": 13,
+          "wings": [{ "x": 23, "y": 7, "w": 8, "h": 8 }],
+          "front": "S"
+        },
+        {
+          "id": "narrow",
+          "name": "Narrow house",
+          "style": "cottage",
+          "character": ["slender"],
+          "seed": 14,
+          "wings": [{ "x": 34, "y": 10, "w": 5, "h": 5 }],
+          "front": "S"
+        },
+        {
+          "id": "workshop",
+          "name": "Workshop",
+          "style": "cottage",
+          "use": "workshop",
+          "seed": 15,
+          "wings": [{ "x": 51, "y": 6, "w": 7, "h": 8 }],
+          "front": "W"
+        },
+        {
+          "id": "tavern",
+          "name": "Tavern",
+          "style": "cottage",
+          "use": "tavern",
+          "seed": 16,
+          "wings": [{ "x": 3, "y": 22, "w": 10, "h": 7 }],
+          "front": "N"
+        },
+        {
+          "id": "shack",
+          "name": "Shack",
+          "style": "cottage",
+          "use": "shack",
+          "seed": 17,
+          "wings": [{ "x": 16, "y": 23, "w": 4, "h": 4 }],
+          "front": "N"
+        },
+        {
+          "id": "squat",
+          "name": "Low house",
+          "style": "cottage",
+          "character": ["squat"],
+          "seed": 18,
+          "wings": [{ "x": 33, "y": 22, "w": 6, "h": 6 }],
+          "front": "E"
+        },
+        {
+          "id": "corner",
+          "name": "Corner house",
+          "style": "cottage",
+          "seed": 19,
+          "wings": [{ "x": 44, "y": 22, "w": 8, "h": 5 }],
+          "front": "N"
+        },
+        {
+          "id": "yard1",
+          "kind": "enclosure",
+          "name": "Paddock",
+          "shape": { "type": "rect", "x": 41, "y": 5, "w": 8, "h": 9 },
+          "wall": "fence",
+          "gates": [{ "side": "S", "width": 2 }],
+          "floor": "dirt"
+        },
+        {
+          "id": "yard2",
+          "kind": "enclosure",
+          "name": "Kitchen garden",
+          "shape": { "type": "rect", "x": 22, "y": 23, "w": 8, "h": 7 },
+          "wall": "fence",
+          "gates": [{ "side": "N", "width": 2 }],
+          "floor": "dirt"
+        }
+      ]
+    }
+  ],
+  "links": []
+}

@@ -1,94 +1,69 @@
 /**
  * GENERATOR 4 IS RELEASED (0.3.0) AND FROZEN. A saved plan with `generator: 4` must resolve and build to exactly the
- * same bytes in every later version of the app: RELEASED_GENERATOR in runs.ts is 4, so every run's build (resolved
- * hash, asset count, diagnostic counts, slabs) is frozen here, the test calls a change to it frozen and the update
- * script refuses to write it. Only the design review and the detail lines it carries may still move (review policy,
- * src/plan/generator.ts). The palettes generator 4 sees are pinned by test/fixtures/released-palettes-0.3.0.json
+ * same bytes in every later version of the app. This was the open golden until generator 5 opened; its files
+ * (__golden__/generator4.txt and generator4.detail.txt) are now read, never written, and have no update script. They
+ * were written by the generator-4 update script at 0.3.0 and are left exactly as released.
+ *
+ * It pins every run at generator 4 (27): the stored plans written for generator 4, and every older stored plan
+ * forced to generator 4 (`<dir>/<plan>@4`). Each is built through the same pipeline the open golden uses
+ * (../goldenRecord.ts) and must match the release in its build (resolved hash, asset count, diagnostic counts,
+ * slabs, or the error: FROZEN_FIELDS) and in what it built (the detail lines: pieces, layers, parts, features and
+ * diagnostic codes). The design review is advice, not the build, so the review fields and review detail lines are not
+ * compared (review policy, src/plan/generator.ts). The runs at generators 1 to 3 in the file are pinned by the open
+ * golden (generator5/) and the generator-2 and generator-3 goldens.
+ *
+ * The palettes generator 4 sees are pinned by test/fixtures/released-palettes-0.3.0.json
  * (test/unit/palette/released.test.ts); sp-1.13.0, dp-1.3.0 and tools-1.9.0 by test/unit/agent/tools.test.ts.
- * Generator 5 is not open yet: opening it (GENERATOR_VERSIONS) fails the first test below until this golden is
- * frozen as described at the end of this header.
  *
- * Until 0.3.0 this was the open golden, and the text below describes it as that.
- *
- * Two kinds of golden live in test/golden/:
- * - Frozen goldens (generator2/, generator3/, resolve/, compile/, text/, gen/) pin released output. They are read,
- *   never written, and never updated: a failure there means a released map changed, and the fix is in the code.
- * - This open golden pins what generator 4 builds today, so a refactor can prove "no output change" on CI, and a
- *   deliberate change shows up as a reviewable diff instead of slipping through property tests.
- *
- * What it covers (runs.ts): every plan in test/fixtures/plans/ and test/unit/gen/fixtures/ at its own generator, and
- * every plan of a released generator forced to generator 4. Each run goes through the CLI's pipeline (resolve
- * against the compile palettes, compile, design review with and without the build) and is reduced to one line in
- * __golden__/generator4.txt: resolved hash, asset count, diagnostic counts, and short sha256 hashes of the slabs, the
- * diagnostics and both reviews. Beside it, __golden__/generator4.detail.txt says what each run built, one fact per line
- * (pieces per level by role, layer and structure part; features by type; diagnostic and review codes with counts: see
- * runs.ts runDetail), so a diff of it reads "the apothecary's chimney went" rather than "the slab hash changed".
- *
- * This test never writes. If it fails:
- * - You meant to change generator-4 output: run `npm run test:golden:gen4:update`. It prints the per-plan
- *   before/after diff (hash fields and detail lines) and rewrites both files; commit them with the change and give
- *   one line of reason per changed plan in the message.
- * - You did not (a refactor): the diff is a bug in the refactor. Do not update the golden.
- * - A run at a released generator changed its build: that output is frozen; the update script refuses it. Put the
- *   change behind a switch of the open generator (src/plan/generator.ts).
- * - You added or removed a fixture plan: run the update script; it adds or drops the plan's lines.
- *
- * When generator 5 opens (generator 4 shipped in 0.3.0): freeze this golden. Copy it to the frozen pattern (generator4/ as a read-only golden like
- * generator3.test.ts, its open-generator runs pinned, no update script), and open a golden like this one for
- * generator 5 by setting OPEN_GENERATOR in runs.ts to 5.
+ * If this test fails you changed what generator 4 produces. Do not update the golden. Put the change behind a switch
+ * of the open generator's profile (src/plan/generator.ts), off in the released profiles.
  */
 import { describe, expect, it } from "vitest";
-import { GENERATOR_VERSIONS } from "../../../src/contracts/plan";
+import { GENERATOR_TEST_PLANS, loadPlan, type StoredPlan } from "../../fixtures";
 import {
-  changesReleasedOutput,
-  detailDiff,
+  changesBuild,
   goldenRecord,
-  goldenRuns,
   lineDiff,
-  OPEN_GENERATOR,
-  readDetail,
-  readGolden,
-} from "./runs";
+  lineGenerator,
+  readDetailFile,
+  readGoldenFile,
+  type Run,
+} from "../goldenRecord";
 
-const RUNS = goldenRuns();
-const GOLDEN = readGolden();
-const DETAIL = readDetail();
-/** Detail lines shown in a failure message (the update script prints them all). */
-const SHOWN = 30;
-const UPDATE = "npm run test:golden:gen4:update";
+const GOLDEN = readGoldenFile(new URL("__golden__/generator4.txt", import.meta.url));
+const DETAIL = readDetailFile(new URL("__golden__/generator4.detail.txt", import.meta.url));
 
-describe("generator 4 output matches the committed golden", () => {
-  it("the golden follows the newest generator", () => {
-    expect(OPEN_GENERATOR, "a new generator opened: freeze this golden (header of this file)").toBe(
-      Math.max(...GENERATOR_VERSIONS),
-    );
-  });
+/** The run a golden line names: `<dir>/<plan>` at the plan's own generator, `<dir>/<plan>@4` forced to 4. */
+function runNamed(name: string): Run {
+  const [path = "", at] = name.split("@");
+  const [dir, stored] = path.split("/") as [string, StoredPlan];
+  if ((dir === "gen") !== (GENERATOR_TEST_PLANS as readonly string[]).includes(stored))
+    throw new Error(`${name}: no stored plan ${stored} in ${dir}/`);
+  return { name, plan: at === undefined ? loadPlan(stored) : loadPlan(stored, { generator: 4 }) };
+}
 
-  it("the golden lists exactly the runs, in order", () => {
-    expect(
-      [...GOLDEN.keys()],
-      `the fixture plans changed: run \`${UPDATE}\` to add or drop their lines, and commit the golden`,
-    ).toEqual(RUNS.map((r) => r.name));
-    expect([...DETAIL.keys()], `the detail file is out of step: run \`${UPDATE}\``).toEqual(
-      RUNS.map((r) => r.name),
-    );
+/** Detail lines that describe the build (the review's lines are advice and may move). */
+const buildDetail = (lines: readonly string[] = []): string[] => lines.filter((l) => !/^\S+ review /.test(l));
+
+const RUNS = [...GOLDEN].filter(([, line]) => lineGenerator(line) === 4).map(([name]) => runNamed(name));
+
+describe("generator 4 is frozen: every run at generator 4 builds as released in 0.3.0", () => {
+  it("the golden holds its 27 runs at generator 4", () => {
+    expect(RUNS).toHaveLength(27);
+    for (const run of RUNS) expect(run.plan.generator, run.name).toBe(4);
   });
 
   // one test per run, so a failure names the plan and one slow build cannot time out the others
   it.each(RUNS.map((r) => [r.name, r] as const))("%s", (name, run) => {
+    const was = GOLDEN.get(name) ?? "";
     const { line: now, detail } = goldenRecord(run);
-    const was = GOLDEN.get(name);
-    const moved = detailDiff(DETAIL.get(name), detail);
-    if (now === was && moved.length === 0) return;
-    const shown = moved.slice(0, SHOWN).join("\n  ");
-    const more = moved.length > SHOWN ? `\n  ... ${String(moved.length - SHOWN)} more` : "";
-    const diff = `${lineDiff(was, now).join("; ")}${moved.length ? `\n  ${shown}${more}\n` : ""}`;
-    const advice =
-      was !== undefined && changesReleasedOutput(was, now)
-        ? `a released generator's build changed (${diff}). That output is frozen: put the change behind a switch ` +
-          `of the open generator (src/plan/generator.ts). Do not update the golden.`
-        : `generator-4 output changed (${diff}). If you meant it, run \`${UPDATE}\`, check the printed diff and ` +
-          `commit the golden with the change. If this is a refactor, the change is a bug: do not update the golden.`;
-    expect([now, ...detail], advice).toEqual([was, ...(DETAIL.get(name) ?? [])]);
+    expect(
+      changesBuild(was, now),
+      `generator 4's build changed (${lineDiff(was, now).join("; ")}). It is frozen: put the change behind a ` +
+        `switch of the open generator (src/plan/generator.ts). Never update this golden.`,
+    ).toBe(false);
+    expect(buildDetail(detail), "what generator 4 built changed; it is frozen").toEqual(
+      buildDetail(DETAIL.get(name)),
+    );
   });
 });

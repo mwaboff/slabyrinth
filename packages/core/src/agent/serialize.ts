@@ -7,6 +7,7 @@ import { canonicalJson } from "../util/canonical";
 import { TOOLS_1_7_0 } from "./tools.frozen";
 import { TOOLS_1_8_0 } from "./tools.frozen.v1_8_0";
 import { TOOLS_1_9_0 } from "./tools.frozen.v1_9_0";
+import { TOOLS_1_10_0 } from "./tools.frozen.v1_10_0";
 import { TOOL_DEFINITIONS, type JsonSchema, type ToolDefinition, type ToolName } from "./tools";
 
 /** Published tool lists by version (tools.frozen*.ts). A version not listed here uses the working list. */
@@ -14,6 +15,7 @@ const FROZEN_TOOLS: Readonly<Record<string, readonly ToolDefinition[]>> = {
   "tools-1.7.0": TOOLS_1_7_0,
   "tools-1.8.0": TOOLS_1_8_0,
   "tools-1.9.0": TOOLS_1_9_0,
+  "tools-1.10.0": TOOLS_1_10_0,
 };
 
 /**

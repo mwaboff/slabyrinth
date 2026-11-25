@@ -11,8 +11,8 @@ export const STEP = 0.5;
 /** The step of a placement's rotation (degrees): TaleSpire's, from the slab codec. */
 export { ROTATION_STEP } from "../../slab/codec";
 
-/** A cell whose unhosted part is narrower than this (either way) has no free centre to test. */
-export const MIN_FREE_SPAN = 0.2;
+/** A cell whose unhosted part is narrower than this (either way) has no free centre to test (resolve/levelGrid.ts). */
+export { MIN_FREE_SPAN } from "../../resolve/levelGrid";
 
 /** Walls: the wall pieces are sampled this far inside the wall's span (above its base, below its top). */
 export const WALL_SAMPLE_INSET = 0.1;
@@ -54,6 +54,8 @@ export const PROP_OVERLAP_HEIGHT = 0.05;
 export const PROP_OVERLAP_SHARE = 0.25;
 /** ... and more than this area. */
 export const PROP_OVERLAP_MIN_AREA = 0.01;
+/** Generator 5 (`layeredProps`): two pieces of furniture stand in one spot when they share this much of the smaller one. */
+export const PROP_SAME_SPOT_SHARE = 0.6;
 /** A wall-mounted prop is backed by a wall piece within this distance. */
 export const MOUNT_BACKING_REACH = 0.6;
 /** A prop pokes into a wall piece when they overlap by more than this, both ways across the floor. */
@@ -66,8 +68,10 @@ export const NUDGE_MAX = 0.5;
 export const NUDGE_FOOTPRINT_SLACK = 0.1;
 /** A pushed prop clears the wall by this much. */
 export const NUDGE_CLEARANCE = 0.01;
-/** What a prop stands on may reach this far above the prop's base. */
-export const SUPPORT_SLACK = 0.06;
+/** What a prop stands on may reach this far above the prop's base (util/sunk.ts: the resolver asks the same). */
+export { SUPPORT_SLACK } from "../../util/sunk";
+/** A sunk arranged piece is in the ground tiles met within this of its centre (a centre on a seam between two). */
+export const SEAM_REACH = 0.02;
 /** A prop this far or more above what is under it floats. */
 export const FLOAT_TOLERANCE = 0.3;
 /** Overhead lines: an anchor reaches the line's height within this tolerance. */

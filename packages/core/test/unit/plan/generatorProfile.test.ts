@@ -4,7 +4,7 @@
  * must stay off in them, and turning one on for a released generator fails this test before any golden would.
  */
 import { describe, expect, it } from "vitest";
-import { GENERATOR_VERSION, GENERATOR_VERSIONS } from "../../../src/contracts/plan";
+import { GENERATOR_VERSION, GENERATOR_VERSIONS, type GeneratorVersion } from "../../../src/contracts/plan";
 import { loadPalettes } from "../../../src/palette";
 import {
   GENERATOR_PROFILES,
@@ -22,7 +22,7 @@ const switchesOn = (p: GeneratorProfile): string[] =>
     .sort();
 
 /** What each released generator turned on, by name (in addition to the one before it). Never edit these lists. */
-const RELEASED: Record<1 | 2 | 3, readonly string[]> = {
+const RELEASED: Record<1 | 2 | 3 | 4, readonly string[]> = {
   1: [],
   2: [
     "buildings",
@@ -81,6 +81,53 @@ const RELEASED: Record<1 | 2 | 3, readonly string[]> = {
     "wholeFacades",
     "wildPlatforms",
   ],
+  4: [
+    "accentTops",
+    "buildingReach",
+    "caveOutlines",
+    "caveRelief",
+    "ceilingOverRooms",
+    "channelFloorWhole",
+    "closedRoofs",
+    "columnsCloseHighestFloor",
+    "coveredStalls",
+    "doorwaysKeepClear",
+    "edgePiecesByBox",
+    "everyStepVerified",
+    "exactWallTops",
+    "floorAccentReview",
+    "flushRaisedFloors",
+    "gatesTiled",
+    "interiorWallTops",
+    "lightsOffLandmarks",
+    "linesClearPorches",
+    "lowMassesOffNeighbours",
+    "lowOpeningRims",
+    "marketFurnitureOffWalls",
+    "mountsOnBuiltWalls",
+    "naturalCaveReview",
+    "openingKindTraits",
+    "outlineRoomReading",
+    "paletteThemeDefaults",
+    "partyWallsOutsideTaller",
+    "pasteBesideMap",
+    "piecesInCellTheme",
+    "quietYardZones",
+    "reachBlamesPathBlocker",
+    "resolveWithCompilePalettes",
+    "roomClassification",
+    "roomFloors",
+    "roomRecipes",
+    "rubbleMounds",
+    "secretDoorPlug",
+    "sharedSmallThings",
+    "solidCaveRock",
+    "solidShell",
+    "wallFootRubble",
+    "wallNoteInFaceTheme",
+    "waysInKeepClear",
+    "windowsInOneVolume",
+  ],
 };
 
 describe("generator profiles", () => {
@@ -109,6 +156,20 @@ describe("generator profiles", () => {
     );
   });
 
+  it("a refinement names an earlier or same-generator switch, and no released generator holds one of its own", () => {
+    for (const [name, decl] of Object.entries(SWITCH_DECLARATIONS)) {
+      if (decl.refines === undefined) continue;
+      const base = (SWITCH_DECLARATIONS as Record<string, (typeof SWITCH_DECLARATIONS)[SwitchName]>)[
+        decl.refines
+      ];
+      expect(base, `${name} refines ${decl.refines}`).toBeDefined();
+      expect(base?.since ?? Infinity, `${name} refines a later switch`).toBeLessThanOrEqual(decl.since);
+      // (a refinement of a switch of its own generator is folded into it before that generator is released)
+      if (base?.since === decl.since)
+        expect(decl.since, `${name}: fold it into ${decl.refines} before release`).toBe(GENERATOR_VERSION);
+    }
+  });
+
   it("every profile carries exactly the declared switches, on from the generator each starts in", () => {
     for (const v of GENERATOR_VERSIONS) {
       const profile = GENERATOR_PROFILES[v];
@@ -123,7 +184,7 @@ describe("generator profiles", () => {
 
   it("a switch once on stays on in later generators", () => {
     for (const v of GENERATOR_VERSIONS.slice(1)) {
-      const before = switchesOn(GENERATOR_PROFILES[(v - 1) as 1 | 2 | 3]);
+      const before = switchesOn(GENERATOR_PROFILES[(v - 1) as GeneratorVersion]);
       const now = new Set(switchesOn(GENERATOR_PROFILES[v]));
       expect(
         before.filter((k) => !now.has(k)),
@@ -134,7 +195,7 @@ describe("generator profiles", () => {
 
   it("the released generators turn on exactly what they shipped with", () => {
     let on: string[] = [];
-    for (const v of [1, 2, 3] as const) {
+    for (const v of [1, 2, 3, 4] as const) {
       on = [...on, ...RELEASED[v]].sort();
       expect(switchesOn(GENERATOR_PROFILES[v]), `generator ${v}`).toEqual(on);
     }
@@ -152,6 +213,17 @@ describe("generator profiles", () => {
         ...GENERATOR_PROFILES[v].vocabulary.areaFields,
       ]).toEqual([]);
     }
+    expect(GENERATOR_PROFILES[4].openingOutline).toEqual({
+      grain: 2.2,
+      cut: 0.36,
+      keepShare: 0.45,
+      lobeCut: 0.6,
+    });
+    expect(GENERATOR_PROFILES[4].vocabulary).toEqual({
+      featureTypes: new Set(["clutter", "shelf_line"]),
+      levelFields: new Set(["roomDress"]),
+      areaFields: new Set(["purpose"]),
+    });
   });
 
   it("VOCABULARY_SINCE names the first generator whose profile understands the word", () => {

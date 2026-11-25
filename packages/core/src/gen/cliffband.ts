@@ -22,6 +22,7 @@ import { edgeHidden, terraceRockShare, type RockShape } from "./cover";
 import {
   EDGE_LEDGE,
   EDGE_STAIR,
+  FLAG_BRIDGE,
   FLAG_LINK,
   FLAG_PATH,
   FLAG_WATER,
@@ -291,6 +292,7 @@ function bandBase(grid: PlacementGrid, p: BandParams) {
     const f0 = grid.flags(u.low[0], u.low[1]);
     const f1 = grid.flags(u.low[0] + dx, u.low[1] + dy);
     if (((f0 | f1) & FLAG_LINK) !== 0) return true;
+    if (gen.bandsClearBridges && ((f0 | f1) & FLAG_BRIDGE) !== 0) return true;
     return (f0 & f1 & FLAG_PATH) !== 0;
   };
   /** Cells within a box of half-extents (hw, hd) round a cell centre. */
@@ -442,6 +444,10 @@ function fitTurned(
     return false;
   };
   if (fp.some(([x, y]) => !(grid.inBounds(x, y) || isVoid(x, y)) || (touches(x, y) && off(x, y))))
+    return null;
+  // generator 5 (bandsClearBridges): no part of its box over a bridge's deck (a walkway landing on the lip), since the
+  // box is what it blocks on the map
+  if (gridProfile(grid).bandsClearBridges && fp.some(([x, y]) => (grid.flags(x, y) & FLAG_BRIDGE) !== 0))
     return null;
   // generator 3: every piece lies inside the board's bounds (its turned outline; the skirt, `strict`, also takes no slide)
   if (resting) {

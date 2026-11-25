@@ -29,12 +29,15 @@ import {
   layoutStalls4,
   stallCell,
   tradeOf,
+  type LinePiece,
 } from "../../gen/market";
 import { elementSeed, subSeed } from "../../util/hash";
 import { createPrng } from "../../util/prng";
 import { type FeatureWork, offWalls } from "./features";
 import type { ReadOnly, ResolveGrid } from "./grid";
 import type { PathRecords } from "./paths";
+import { canopyTop } from "../building/canopy";
+import { restsOn } from "../../util/sunk";
 
 /**
  * A cell a market piece may stand on: open floor nothing else holds (no building, feature, link, water or crossing),
@@ -60,12 +63,7 @@ function marketCellOk(
       CELL_FLAG.BRIDGE)
   )
     return false;
-  if (
-    features.occupied(i) ||
-    work.ownerAt(i)?.kind === "building" ||
-    (reserved && work.structs?.reservedCell(i))
-  )
-    return false;
+  if (features.occupied(i) || work.inBuilding(i) || (reserved && work.structs?.reservedCell(i))) return false;
   // generator 4: never in front of a door (the market keeps its own stalls' lanes: stallClutter, stepLine)
   return !features.crossingClear().has(i) && !features.inWayIn(i, false);
 }
@@ -333,8 +331,10 @@ function stepLine(
     // a footprint cell (a porch or stoop beside it is not a wall)
     return work.structs?.buildings.some((b) => b.cellSet.has(`${x},${y}`)) === true;
   };
-  const anchor = (end: number, dir: 1 | -1): { kind: "wall" | "post"; at: number } | null => {
-    for (let d = 0; d <= 3; d++) if (building(end + dir * d)) return { kind: "wall", at: end + dir * d };
+  type Anchor = { kind: "wall" | "post"; at: number };
+  const anchor = (end: number, dir: 1 | -1, walls = true): Anchor | null => {
+    if (walls)
+      for (let d = 0; d <= 3; d++) if (building(end + dir * d)) return { kind: "wall", at: end + dir * d };
     for (let d = 0; d <= 1; d++) {
       const a = end - dir * d;
       const [x, y] = cellAt(a);
@@ -346,47 +346,129 @@ function stepLine(
     }
     return null;
   };
-  const aLo = anchor(lo, -1);
-  const aHi = anchor(hi, 1);
-  if (!aLo || !aHi) {
-    bad(
-      "has no building wall within 3 cells of an end and no free cell for a post there",
-      "end it beside a building wall, or on a free cell",
-    );
-    return null;
-  }
-  for (let a = aLo.at + 1; a < aHi.at; a++)
-    if (building(a)) {
-      bad("passes through a building", "end it at the building's wall");
-      return null;
-    }
-  if (aHi.at - aLo.at < 3) {
-    bad("is shorter than 3 cells between its anchors", "make the span longer");
-    return null;
-  }
-  // generator 4: a covered stall's canopy rises above a rope's height; the line runs along the aisle, not through it
-  if (work.profile.coveredStalls)
-    for (let a = aLo.at + 1; a < aHi.at; a++) {
-      const [cx, cy] = cellAt(a);
-      if (
-        features.all.some(
-          (f) =>
-            f.stall !== undefined &&
-            cx >= f.at[0] &&
-            cx < f.at[0] + f.size[0] &&
-            cy >= f.at[1] &&
-            cy < f.at[1] + f.size[1],
+  /** Why a pair of anchors cannot hold the line, or null when they can (each check in its released order). */
+  const fault = (aLo: Anchor | null, aHi: Anchor | null): [string, string] | null => {
+    if (!aLo || !aHi)
+      return [
+        "has no building wall within 3 cells of an end and no free cell for a post there",
+        "end it beside a building wall, or on a free cell",
+      ];
+    for (let a = aLo.at + 1; a < aHi.at; a++)
+      if (building(a)) return ["passes through a building", "end it at the building's wall"];
+    if (aHi.at - aLo.at < 3) return ["is shorter than 3 cells between its anchors", "make the span longer"];
+    // generator 4: a covered stall's canopy rises above a rope's height; the line runs along the aisle, not through it
+    if (work.profile.coveredStalls)
+      for (let a = aLo.at + 1; a < aHi.at; a++) {
+        const [cx, cy] = cellAt(a);
+        if (
+          features.all.some(
+            (f) =>
+              f.stall !== undefined &&
+              cx >= f.at[0] &&
+              cx < f.at[0] + f.size[0] &&
+              cy >= f.at[1] &&
+              cy < f.at[1] + f.size[1],
+          )
         )
-      ) {
-        bad(
-          "passes through a covered stall",
-          "run it along the aisle or the street, clear of the stalls' footprints",
-        );
-        return null;
+          return [
+            "passes through a covered stall",
+            "run it along the aisle or the street, clear of the stalls' footprints",
+          ];
       }
-    }
+    return null;
+  };
   // 2.6 clears the awnings of shop fronts (2 to 2.5 up); a wall must reach it, else the verifier says the line is not held
   const height = Math.max(2, Math.min(3, line.height ?? 2.6));
+  /** The line's pieces between its anchors (a wall's face, a post's side). */
+  const layout = (aLo: Anchor, aHi: Anchor): LinePiece[] => {
+    const start = aLo.kind === "wall" ? aLo.at + 1 : aLo.at + 0.65;
+    const end = aHi.kind === "wall" ? aHi.at : aHi.at + 0.35;
+    return layoutLine({ alongX, lane, start, end }, line.kind ?? "lanterns", line.spacing ?? 3);
+  };
+  // generator 5 (linesClearCanopies): the canopies and awnings over shop fronts as built (resolve/building/canopy.ts;
+  // a plinth and pad lift them above the 2.5 the height was chosen for). The rope (hanging its own height under the
+  // line, its size from the palette it is built with) may run wholly under one or rest on it (util/sunk.ts, the
+  // question verify asks), and nothing hangs from it over one. A wall anchor behind a canopy the rope would pass
+  // through gives way to a post at that end of the line; when no anchors keep it clear, the line is left out (raised
+  // over the canopy, it would run into the same front's signs, porch roofs and upper windows).
+  const canopies = work.profile.linesClearCanopies
+    ? (work.structs?.canopies(work.level.elevation) ?? []).flatMap(({ canopy, theme }) => {
+        const top = canopyTop(canopy, work.ctx.palette.roles, theme);
+        return top === null ? [] : [{ cells: canopy.cells, bottom: canopy.y, top }];
+      })
+    : [];
+  // (linesClearCanopies) roofed porches, for the hung pieces: their outline, not only their cell, keeps off them
+  const porchRoofCells = new Set<string>();
+  if (work.profile.linesClearCanopies)
+    for (const b of work.structs?.buildings ?? [])
+      for (const q of b.porches) if (q.roof) for (const [x, y] of q.cells) porchRoofCells.add(`${x},${y}`);
+  /**
+   * Which of a layout's pieces pass through a canopy (each piece's outline round its centre and its height under the
+   * line, from the palette it is built with) or hang into a roofed porch, and whether one of them is rope (the hung
+   * ones are left out instead).
+   */
+  const overCanopies = (pieces: readonly LinePiece[]): { hits: Set<number>; through: boolean } => {
+    const hits = new Set<number>();
+    let through = false;
+    pieces.forEach((p, n) => {
+      const hung = p.size[0] * p.size[1] === 1;
+      const cx = p.at[0] + p.size[0] / 2 + p.offset[0];
+      const cy = p.at[1] + p.size[1] / 2 + p.offset[1];
+      const i = work.idx(Math.floor(cx), Math.floor(cy));
+      const ext = work.ctx.palette.roomPiece(work.pieceTheme(i), "overhead", p.variant);
+      // rope runs the length of its footprint; a hung piece reaches its longest side round its centre (any turn)
+      const r = Math.max(ext?.wMax ?? 0, ext?.dMax ?? 0) / 2;
+      const hx = p.size[0] > 1 ? p.size[0] / 2 : r;
+      const hy = p.size[1] > 1 ? p.size[1] / 2 : r;
+      const meets = (cells: ReadonlySet<string>): boolean => {
+        for (let y = Math.floor(cy - hy); y < cy + hy; y++)
+          for (let x = Math.floor(cx - hx); x < cx + hx; x++)
+            if (
+              cells.has(`${x},${y}`) &&
+              Math.min(cx + hx, x + 1) - Math.max(cx - hx, x) > 0.01 &&
+              Math.min(cy + hy, y + 1) - Math.max(cy - hy, y) > 0.01
+            )
+              return true;
+        return false;
+      };
+      if (hung && meets(porchRoofCells)) hits.add(n);
+      const top = work.featureBase(i, height);
+      const bottom = top - (ext?.hMax ?? 0);
+      for (const c of canopies) {
+        if (top <= c.bottom || restsOn(bottom, c.top) || !meets(c.cells)) continue;
+        hits.add(n);
+        if (!hung) through = true;
+      }
+    });
+    return { hits, through };
+  };
+  let aLo = anchor(lo, -1);
+  let aHi = anchor(hi, 1);
+  const first = fault(aLo, aHi);
+  if (first) {
+    bad(...first);
+    return null;
+  }
+  const clearOf = (l: Anchor, h: Anchor): boolean => !overCanopies(layout(l, h)).through;
+  if (canopies.length > 0 && aLo && aHi && !clearOf(aLo, aHi)) {
+    const tries: Array<[Anchor | null, Anchor | null]> = [
+      [aLo, anchor(hi, 1, false)],
+      [anchor(lo, -1, false), aHi],
+      [anchor(lo, -1, false), anchor(hi, 1, false)],
+    ];
+    const clear = tries.find(([l, h]) => l && h && fault(l, h) === null && clearOf(l, h));
+    if (!clear) {
+      bad(
+        "passes through a building's canopy or awning, and no post at its ends keeps it clear",
+        "end it clear of the shop fronts with a canopy or awning, or against a wall without one",
+      );
+      return null;
+    }
+    [aLo, aHi] = clear;
+  }
+  if (!aLo || !aHi) return null;
+  const pieces = layout(aLo, aHi);
+  const intoCanopy = overCanopies(pieces).hits;
   // the posts (an anchor that is not a wall)
   const anchors: ResolvedLine["anchors"] = [
     { kind: aLo.kind, at: cellAt(aLo.at) },
@@ -402,9 +484,6 @@ function stepLine(
         true,
       );
   });
-  const start = aLo.kind === "wall" ? aLo.at + 1 : aLo.at + 0.65;
-  const end = aHi.kind === "wall" ? aHi.at : aHi.at + 0.35;
-  const pieces = layoutLine({ alongX, lane, start, end }, line.kind ?? "lanterns", line.spacing ?? 3);
   // generator 4: a lantern or flag hangs below the rope, into a porch roof under it: none hangs over a roofed porch
   const porchRoofs = new Set<string>();
   if (work.profile.linesClearPorches)
@@ -414,6 +493,7 @@ function stepLine(
     if (features.generated >= cap) return;
     const hung = p.size[0] * p.size[1] === 1;
     if (hung && porchRoofs.has(`${p.at[0]},${p.at[1]}`)) return;
+    if (intoCanopy.has(n)) return;
     commitMarket(
       work,
       features,
@@ -510,6 +590,17 @@ function stepTradeProps(
         at = [c[0], c[1]];
       }
       if (work.featureProblem(type, at, sz, undefined) !== null) continue;
+      // generator 5 (tradePropsOnOneFloor): on one floor height, where it stands pushed against the front as well (a
+      // bench across a lowered doorway cell and the raised pavement beside it was sunk into the pavement)
+      if (
+        work.profile.tradePropsOnOneFloor &&
+        !work.oneFloorUnder(
+          at,
+          sz,
+          (work.profile.marketFurnitureOffWalls ? offWalls(work, type, at, sz, true) : undefined) ?? [0, 0],
+        )
+      )
+        continue;
       commitMarket(
         work,
         features,

@@ -3,12 +3,12 @@
  * (imported by agent/prompt.ts). General and theme-neutral; examples are short. Paired with the automatic design
  * review (review/), which measures several of these on each build and reports them as advice.
  *
- * This is the WORKING text. It still equals dp-1.3.0, released in 0.3.0 inside sp-1.13.0 (generator 4) and frozen
- * as DP_1_3_0 in designPrinciples.frozen.ts with dp-1.0.0, dp-1.1.0 and dp-1.2.0; sp-1.13.0 is built from that
- * frozen copy, so an edit here reaches no released prompt. The next edit opens dp-1.4.0 (with sp-1.14.0, when
- * generator 5 opens): bump DESIGN_PRINCIPLES_VERSION first, and freeze a copy when it ships.
+ * This is the WORKING text. It still equals dp-1.4.0, released in 0.4.0 inside sp-1.14.0 (generator 5) and frozen
+ * as DP_1_4_0 in designPrinciples.frozen.ts with dp-1.0.0 to dp-1.3.0; sp-1.14.0 is built from that frozen copy, so
+ * an edit here reaches no released prompt. The next edit opens dp-1.5.0 (with sp-1.15.0, when generator 6 opens):
+ * bump DESIGN_PRINCIPLES_VERSION first, and freeze a copy when it ships.
  */
-export const DESIGN_PRINCIPLES_VERSION = "dp-1.3.0";
+export const DESIGN_PRINCIPLES_VERSION = "dp-1.4.0";
 
 export const DESIGN_PRINCIPLES = `## What makes a good map
 Judge every draft by these.
@@ -21,16 +21,19 @@ Judge every draft by these.
 - Variety with coherence. Neighbours differ in at least two of shape, height, tone, material and use, but the map stays one family of assets. One dominant material with a few accents, never a patchwork of equals.
 - Relief and contrast. Built places want a pocket of nature and a place to pause; wild places a trace of people (a fire ring, a cairn).
 - Readability and tone. Everything must read against its background (dark on dark disappears). Light picks out what matters. Ground materials in one field stay close in tone.
+- Every place has a character: how lit, how kept and how rich it is. Say it where it matters (a dim, intimate tavern; a bright hospital ward; a dark crypt under a bright temple; a poor, run-down quarter beside a wealthy one) and leave it out elsewhere: a place that says nothing takes its character from the place around it with a little variety, so neighbours differ by themselves.
+- Light follows mood. Lamps, candles and fires are accents that light about a tile round them; how bright the whole scene looks is the GM's board lighting (the time of day). Say the mood in words and tell the GM which board lighting suits it (dusk for a candlelit tavern, full day for a hospital); never try to brighten a place by filling it with lights.
 - No dead space, no litter. Every area has a purpose. Props come in purposeful groups, never sprinkled. Open space is deliberate: a chosen clearing or square sized for play. Natural ground is dressed densely, with clearings cut on purpose.
 - Lead the eye and the feet. Paths start somewhere and arrive somewhere: one reaches the focal point and each building's door. Water runs across the map, not along its border.
 - The view from above. Roofs, ground and area outlines must be told apart from above.
 - Play first. Routes of usable width, more than one way through, cover and chokepoints, every entrance reachable, no landmark blocking the only approach.
+- A complex is rooms that touch. Most rooms open into each other through a shared wall, and corridors stay short. Mix one set-piece room about twice the size of the rest with medium and small ones. Every dead end holds something worth the walk. A large complex has a second way in at another side or height, and the low side of a drop has its own way back.
 - Water is one flat level. The board has a single water height: keep a river or pool on one level, low or in a cut, with terraces beside it.
 - Solid rock round a cave. A cave keeps about 4 cells of solid rock between its floor and the board edge, except at a passage. A natural cave is no box: its chambers differ in size, bulge and bend.
 - Implied story. A place shows what it is for: a camp has bedrolls and a fire, a shop has a front, a market has stalls of different goods along a lane or square with a line strung overhead (Level.stalls, Level.lines, a trade use on each shopfront).
-- A room tells its purpose. One anchor piece against a wall, furniture along the walls with the middle left clear, small things on the furniture, its own floor and a light; rooms of the same purpose still differ, so never copy a room. Rooms cut into rock sit in solid mass: keep 2 to 3 cells of rock between them and the level's edge. Rooms of a kept-up building (timber, plaster) share their walls: neighbours touch or stand one cell apart, never more.
+- A room tells its purpose. Name it for what it is and the generator furnishes it: its anchor piece in view of the door with its companions (a bed with a nightstand, a bar with stools, a desk with its chair), storage along the walls, tables with seats or rows of beds and desks in the middle where people gather or sleep together, small things on the surfaces and a light where people are. Rooms of the same purpose still differ, so never copy a room. Rooms cut into rock sit in solid mass: keep 2 to 3 cells of rock between them and the level's edge. Rooms of a kept-up building (timber, plaster) share their walls: neighbours touch or stand one cell apart, never more.
 - Attach things. Vines climb upper walls and rubble lies at wall feet; little stands alone on open floor.
 - Proportion. A base, a middle and a top; the ground storey differs from those above; pieces sized to the space. On cottages and inns the roof is the larger half; the top storey can sit inside it.
 - A wrong object is worse than none. Use what the asset packs actually have.
-- Vary like things on purpose. When you place several buildings, groves or rooms, give each its own role, size and silhouette.
+- Vary like things on purpose. When you place several buildings, groves or rooms, give each its own role, size and silhouette. What you leave unset the generator varies for you, drawing each building's form, trims and wear from a few options, so never force every house into one pattern.
 Before you finish, read the DESIGN REVIEW in the tool result and revise once for the notes that matter. Do not loop on it.`;

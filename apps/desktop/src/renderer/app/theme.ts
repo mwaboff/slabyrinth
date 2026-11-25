@@ -49,5 +49,5 @@ export function toggleTheme(): void {
   const s = useSettings.getState().settings;
   if (!s) return;
   const next = resolveTheme(s.ui.theme) === "dark" ? "light" : "dark";
-  void useSettings.getState().update({ ui: { ...s.ui, theme: next } });
+  void useSettings.getState().update({ ui: { theme: next } });
 }

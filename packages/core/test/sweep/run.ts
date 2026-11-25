@@ -3,8 +3,10 @@
  * Builds every stored plan and the e2e plan under the newest generator with the first N sweep seeds and the seeds that
  * once failed (test/sweep/seeds.ts), prints each plan's count and time, every failure as "<plan>@<seed>: codes
  * (first message)", and exits 1 when a build fails that KNOWN_FAILURES does not list (or a listed one passes), or
- * raises a warning KNOWN_WARNINGS does not allow (or a listed count is now too high). Every warning is also printed
- * per plan and code (how many seeds, a few of them). It also builds the size caps and runs every plan-showing tool on
+ * raises a warning KNOWN_WARNINGS does not allow (or a listed count is now too high). The warnings include the
+ * playability issues the build causes (`play_<code>`, seeds.ts `playability`); the plan's own are held to
+ * KNOWN_PLAN_ISSUES per plan. Every warning is also printed per plan and code (how many seeds, a few of them), and
+ * every plan's own playability issue. It also builds the size caps and runs every plan-showing tool on
  * a level at the side limit (the view budget, test/fixtures/viewBudget.ts).
  *
  * CI runs it as its own job (.github/workflows/ci.yml `sweep`) with fewer seeds than the default, to stay well under
@@ -24,12 +26,13 @@ import {
   e2ePlan,
   ONCE_FAILED,
   SWEEP_PLANS,
+  sweepCollect,
   sweepFailures,
   sweepPlan,
   sweepSeeds,
   unexpected,
+  unexpectedPlanIssues,
   unexpectedWarnings,
-  type SweepFailure,
 } from "./seeds";
 
 /**
@@ -102,24 +105,30 @@ const failed: string[] = [];
 const stale: string[] = [];
 for (const r of runs) {
   const t = Date.now();
-  const warned: Record<string, SweepFailure> = {};
-  const failures = sweepFailures(r.label, r.seeds, r.planOf, warned);
+  const collect = sweepCollect();
+  const failures = sweepFailures(r.label, r.seeds, r.planOf, collect);
   const u = unexpected(r.label, r.seeds, failures);
   failed.push(...u.failed);
   stale.push(...u.stale.map((k) => `${k} builds cleanly now (remove it from KNOWN_FAILURES)`));
-  const w = unexpectedWarnings(r.label, warned, n);
+  const w = unexpectedWarnings(r.label, collect.warnings, n);
   failed.push(...w.failed);
   stale.push(...w.stale.map((k) => `${k} (lower or remove it in KNOWN_WARNINGS)`));
+  const p = unexpectedPlanIssues(r.label, collect.planOwn, n);
+  failed.push(...p.failed);
+  stale.push(...p.stale);
   const count = Object.keys(failures).length;
   console.log(`${r.label}: ${String(count)}/${String(r.seeds.length)} failed (${String(Date.now() - t)} ms)`);
-  for (const line of [...u.failed, ...w.failed]) console.log(`  ${line}`);
+  for (const line of [...u.failed, ...w.failed, ...p.failed]) console.log(`  ${line}`);
   // every warning, listed or not, with how many seeds raise it (KNOWN_WARNINGS counts are these at 150 seeds)
   const byCode = new Map<string, string[]>();
-  for (const [key, warning] of Object.entries(warned))
+  for (const [key, warning] of Object.entries(collect.warnings))
     for (const code of warning.codes)
       byCode.set(code, [...(byCode.get(code) ?? []), key.slice(key.indexOf("@") + 1)]);
   for (const [code, at] of byCode)
     console.log(`  warning ${code}: ${String(at.length)} seed(s), e.g. ${at.slice(0, 3).join(", ")}`);
+  // and the plan's own playability issues (allowed per plan and counted in KNOWN_PLAN_ISSUES)
+  for (const [key, at] of collect.planOwn)
+    console.log(`  plan's own ${key}: ${String(at.seeds.length)} seed(s)`);
 }
 for (const cap of caps) {
   const t = Date.now();

@@ -1,0 +1,63 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 5,
+  "id": "5f0c3e2a-91d4-4b7e-8a26-3c1d7e9b4f20",
+  "title": "wall-recipes-v1",
+  "kind": "outdoor",
+  "seed": 5207,
+  "theme": "wood_town",
+  "summary": "Wall recipes line-up: a two-storey L-shaped house, a straight two-storey house and a one-storey stone room with a door, on a village green.",
+  "levels": [
+    {
+      "id": "g",
+      "name": "Green",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 44, "h": 22 },
+      "base": { "type": "ground", "material": "grass" },
+      "areas": [
+        { "id": "green", "kind": "zone", "name": "Green", "shape": { "type": "rect", "x": 0, "y": 0, "w": 44, "h": 22 } },
+        {
+          "id": "stoneroom",
+          "kind": "room",
+          "name": "Stone room",
+          "shape": { "type": "rect", "x": 33, "y": 6, "w": 6, "h": 5 },
+          "walls": "auto",
+          "wallStyle": "stone",
+          "floor": "flagstone"
+        }
+      ],
+      "openings": [
+        { "id": "stonedoor", "kind": "door", "at": { "x": 35, "y": 10, "side": "S" } }
+      ],
+      "walls": [],
+      "features": [],
+      "labels": [],
+      "terrain": [],
+      "structures": [
+        {
+          "id": "lhouse",
+          "name": "L-shaped house, two storeys",
+          "style": "cottage",
+          "seed": 31,
+          "storeys": 2,
+          "wings": [
+            { "x": 3, "y": 4, "w": 9, "h": 5 },
+            { "x": 3, "y": 9, "w": 5, "h": 6, "ridge": "ns" }
+          ],
+          "front": "S"
+        },
+        {
+          "id": "straight",
+          "name": "Straight house, two storeys",
+          "style": "cottage",
+          "seed": 32,
+          "storeys": 2,
+          "wings": [{ "x": 18, "y": 6, "w": 8, "h": 5 }],
+          "roof": { "type": "gable" },
+          "front": "S"
+        }
+      ]
+    }
+  ],
+  "links": []
+}

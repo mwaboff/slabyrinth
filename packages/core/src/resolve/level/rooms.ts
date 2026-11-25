@@ -5,7 +5,7 @@
  * palette's floor tile sizes and room pieces, which areas a corridor opens on, link cells, the walls, and read-only,
  * the level's openings and the rims of its floor openings.
  * Writes: room floor materials and the quarter-tile step of a room entered from a corridor (cell heights), the
- * rooms' furniture, things on it and lights (via gen/rooms4.ts), and the wall-foot rubble features (FeatureWork).
+ * rooms' furniture, things on it and lights (via gen/rooms4), and the wall-foot rubble features (FeatureWork).
  */
 import type { AreaKind, Material, Side, Vec2 } from "../../contracts/plan";
 import { MATERIALS, PLAN_LIMITS } from "../../contracts/plan";
@@ -14,17 +14,30 @@ import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { featureInfo, rotatedSize } from "../../gen/catalog";
 import { SIDES, SIDE_STEP } from "../../gen/gridGeometry";
 import { isGap, openingWidth } from "../../gen/openingKinds";
-import type { GeneratedPlacement } from "../../gen/placementGrid";
+import type { PlacementGrid, ScatterResult } from "../../gen/placementGrid";
 import { furnishedPurpose } from "../../gen/roomPurpose";
-import { dressRoom, lightArea } from "../../gen/rooms4";
+import type { SceneLight } from "../../gen/lightLevels";
+import {
+  SMALLEST_FURNISHED,
+  type LitNeighbour,
+  type RoomLightPlan,
+  drawLighting,
+  dressRoom,
+  dressSet,
+  lightArea,
+} from "../../gen/rooms4";
+import { ROOM_TRAITS, roomTakesFire, showsDecay } from "../../gen/roomTraits";
+import type { CellRowRecord, CellRowRecords } from "./cellRows";
 import { isUnevenWallStyle } from "../../gen/wallStyles";
 import { linkCellsOnLevel } from "../../plan/links";
 import { elementSeed, h32, hashUnit, subSeed } from "../../util/hash";
+import { maxOf, minOf } from "../../util/lists";
+import { characterAt, lightIndex } from "../character";
 import { FAMILY_ROTATION, purposeFloor } from "../interiorFloors";
 import { isBuiltFloor } from "../materials";
 import type { FeatureWork } from "./features";
 import type { FloorOpeningRecords } from "./floorOpenings";
-import type { ReadOnly, ResolveGrid } from "./grid";
+import type { AreaInfo, ReadOnly, ResolveGrid } from "./grid";
 
 /** Room floors and the step above the corridor (stepRoomFloors). */
 const ROOM_FLOORS = {
@@ -60,7 +73,7 @@ const RECIPES = {
   minCells: 6,
   /** The plan furnished a room itself when it placed at least this many features per 10 floor cells. */
   ownPer10Cells: 2,
-  /** Cells per light (gen/rooms4.ts lightArea) in a corridor and in a room. */
+  /** Cells per light (gen/rooms4 lightArea) in a corridor and in a room. */
   corridorLightEvery: 18,
   roomLightEvery: 12,
 } as const;
@@ -247,7 +260,8 @@ function roomsOpeningOnCorridors(
  * (about 1 pile per 10 floor tiles of a room, the reference interior has 1.1). Low debris mostly; blocking rubble only
  * in a corner or at a jamb of a room, never in a corridor, and never reaching over the cells in front of a doorway
  * (FeatureWork.addGenerated refuses it; a jamb then gets debris). Never on a link, steps, a doorway cell, a cell that
- * holds a feature, or a collapse rim.
+ * holds a feature, or a collapse rim; and (generator 5, `pilesKeepWay`) blocking rubble never where it would cut the
+ * floor round it (FeatureWork.cutsFloor): debris instead.
  */
 export function stepWallFootRubble(
   work: ResolveGrid,
@@ -263,8 +277,39 @@ export function stepWallFootRubble(
     return se !== null && se.e.kind[se.i] === EDGE.WALL && isUnevenWallStyle(se.e.style[se.i]);
   };
   const sides = SIDES;
+  // a room someone uses (a furnished purpose, not abandoned) whose character is intact (resolve/character.ts) and the
+  // plan does not dress itself (a dress op over a hall as a ruin keeps its rubble)
+  const dressed = new Set(
+    work.level.terrain.flatMap((op) => (op.op === "dress" && op.area ? [op.area] : [])),
+  );
+  const kept = new Map<string, boolean>();
+  const keptRoom = (a: AreaInfo): boolean => {
+    let k = kept.get(a.area.id);
+    if (k === undefined) {
+      const condition = characterAt(work, a.area.id)?.condition ?? "intact";
+      k =
+        !dressed.has(a.area.id) &&
+        (work.profile.decayWhereItBelongs
+          ? // generator 5 (decayWhereItBelongs): the one question, kept or weathered (gen/roomTraits.ts showsDecay)
+            !showsDecay({
+              room: a.kind === "room",
+              purpose: a.room.purpose,
+              kind: a.room.kind ?? a.room.purpose,
+              abandoned: a.room.abandoned,
+              condition,
+            })
+          : a.kind === "room" &&
+            furnishedPurpose(a.room.purpose) &&
+            !a.room.abandoned &&
+            condition === "intact");
+      kept.set(a.area.id, k);
+    }
+    return k;
+  };
   const plain = (i: number): boolean => {
     if (i < 0 || work.state[i] !== CELL.OPEN || features.occupied(i)) return false;
+    // generator 5 (decayWhereItBelongs): nothing on a cell a room's furnisher kept clear (the way through, an axis)
+    if (work.profile.decayWhereItBelongs && features.isKeptClear(i)) return false;
     const f = work.flags[i] as number;
     if (
       f &
@@ -279,7 +324,10 @@ export function stepWallFootRubble(
       return false;
     // only a rough interior has rubble at the wall foot: not a kept-up timber or plaster room (unless abandoned), and
     // not a cell outside every room (the same rule the compiler reads back, resolve/wallTops.ts roughCells)
-    if (work.areaAt(i)?.rough !== true) return false;
+    const shown = work.areaAt(i);
+    if (shown?.rough !== true) return false;
+    // generator 5 (keptRoomsClean): a room in use and kept intact has no rubble, whatever its stone (a shop, a ward)
+    if (work.profile.keptRoomsClean && keptRoom(shown)) return false;
     const [x, y] = work.cellXY(i);
     for (const s of sides) {
       const k = work.edgeKindAt(x, y, s);
@@ -300,6 +348,9 @@ export function stepWallFootRubble(
     const size = rotatedSize(info[type].size, 0);
     const c: Vec2 = [x, y];
     if (work.featureProblem(type, c, size, undefined) !== null) return false;
+    // generator 5 (pilesKeepWay): a blocking pile never cuts the floor round it (a corner beside a bunk and a ladder's
+    // opening is the only way along a strip)
+    if (work.profile.pilesKeepWay && info[type].blocking && features.cutsFloor(c, size)) return false;
     const rf: ResolvedFeature = {
       id: `walls#foot${n}`,
       type,
@@ -329,7 +380,12 @@ export function stepWallFootRubble(
     if (walls === 0) continue;
     const p = walls >= 2 ? WALL_FOOT.corner : WALL_FOOT.oneWall;
     if (u("foot", i) >= p) continue;
-    const block = walls >= 2 && !inCorridor(i) && u("blk", i) < WALL_FOOT.blocking;
+    // (generator 5, pilesKeepWay: where rubble would cut the floor, low debris softens the corner instead)
+    const block =
+      walls >= 2 &&
+      !inCorridor(i) &&
+      u("blk", i) < WALL_FOOT.blocking &&
+      !(work.profile.pilesKeepWay && features.cutsFloor([x, y], rotatedSize(info.rubble.size, 0)));
     put(i, block ? "rubble" : "debris");
   }
   // either side of about half the doorways: the cells flanking the opening along its wall
@@ -371,20 +427,136 @@ export function stepWallFootRubble(
 }
 
 /**
- * Generator 4 (switch `roomRecipes`): the default dressing of rooms (gen/rooms4.ts). An area of kind room whose
+ * Generator 5 (freeCounters): a room's main door, the cell inside a doorway that leads out of the rooms (to the street,
+ * a yard, a passage or no area at all) rather than into another room; none when every doorway leads into a room.
+ */
+function mainDoorOf(
+  work: ResolveGrid,
+  grid: PlacementGrid,
+  cells: ReadonlyArray<readonly [number, number]>,
+): { mainDoor?: [number, number] } {
+  for (const [x, y] of cells)
+    for (const s of SIDES) {
+      if (work.edgeKindAt(x, y, s) !== EDGE.OPENING || grid.windowOn?.(x, y, s) === true) continue;
+      const [dx, dy] = SIDE_STEP[s];
+      const across = work.idx(x + dx, y + dy);
+      const kind = across < 0 ? undefined : work.areaAt(across)?.kind;
+      if (kind !== "room") return { mainDoor: [x, y] };
+    }
+  return {};
+}
+
+/**
+ * Generator 5 (cellRows): a room lined with cells (resolve/level/cellRows.ts), dressed cell by cell with its kit (the
+ * kit kind's furnisher: its minimum set first in a cell this small), an empty cell left bare, a messy one set one order
+ * messier; then its aisle: the row's aisle set (a guard's table) and lights. True when the level's cap was reached.
+ */
+function dressCellRow(
+  work: ResolveGrid,
+  features: FeatureWork,
+  grid: PlacementGrid,
+  info: AreaInfo,
+  row: CellRowRecord,
+  cells: ReadonlyArray<[number, number]>,
+  seed: number,
+): boolean {
+  const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
+  const area = info.area;
+  const ch = characterAt(work, area.id);
+  const kit = ROOM_TRAITS[row.spec.kit];
+  const { abandoned } = info.room;
+  // generator 5 (darkCellRows): a dark room's row keeps its dark: no light in a cell, one in the aisle at most
+  const dark = work.profile.darkCellRows && ch !== null && lightIndex(ch) === 0;
+  const commit = (id: string, res: ScatterResult | null): boolean => {
+    if (res === null) return false;
+    features.commitGenerated(id, res.placements);
+    if (res.keptClear) features.keepClearOf(res.keptClear);
+    return res.capped;
+  };
+  const inCell = new Set<string>();
+  for (const [k, c] of row.cells.entries()) {
+    for (const [x, y] of c.cells) inCell.add(`${x},${y}`);
+    if (c.empty) continue;
+    const character =
+      ch !== null && c.messy ? { ...ch, condition: "ramshackle" as const } : (ch ?? undefined);
+    const res = dressRoom(grid, {
+      purpose: kit.host,
+      kind: row.spec.kit,
+      abandoned,
+      areaIndex: info.index + 1,
+      areaCells: c.cells.map(([x, y]) => [x, y] as [number, number]),
+      density: 1,
+      seed: subSeed(seed, `cell${k}`),
+      remaining: cap - features.generated,
+      // every cell its kind's kit (the first group: a cot and a bucket, a bed and its stand), not a new set each
+      firstGroup: 0,
+      ...(character !== undefined ? { character } : {}),
+      ...(dark ? { unlit: true } : {}),
+    });
+    if (commit(`${area.id}~cell${k}`, res)) return true;
+  }
+  const aisle = cells
+    .filter(([x, y]) => !inCell.has(`${x},${y}`))
+    .map(([x, y]) => [x, y] as [number, number]);
+  if (row.spec.aisleSet !== undefined) {
+    const res = dressSet(grid, {
+      group: row.spec.aisleSet,
+      family: "table",
+      areaIndex: info.index + 1,
+      areaCells: aisle,
+      seed: subSeed(seed, "aisle"),
+      remaining: cap - features.generated,
+    });
+    if (commit(`${area.id}~aisle`, res)) return true;
+  }
+  const lit = lightArea(grid, {
+    areaIndex: info.index + 1,
+    areaCells: aisle,
+    seed: subSeed(seed, "aisleLights"),
+    remaining: cap - features.generated,
+    every: RECIPES.roomLightEvery,
+    // (a dark row: an abandoned place's rule, one light per 50 tiles at most)
+    abandoned: abandoned || dark,
+    ...(work.profile.occupancyLights ? { occupancy: {} } : {}),
+    // generator 5 (lightsAgainstSomething): an open fire only where the row's kind takes one (a guard's aisle, not a
+    // ward's or a stable's)
+    ...(work.profile.lightsAgainstSomething ? { fire: roomTakesFire(row.spec.kit) } : {}),
+  });
+  return commit(`${area.id}~room`, lit);
+}
+
+/** The length of a passage: the long side of the box round its cells (a bent passage counts its longer leg). */
+function lengthOf(cells: ReadonlyArray<readonly [number, number]>): number {
+  const xs = cells.map((c) => c[0]);
+  const ys = cells.map((c) => c[1]);
+  return Math.max(maxOf(xs) - minOf(xs), maxOf(ys) - minOf(ys)) + 1;
+}
+
+/**
+ * Generator 4 (switch `roomRecipes`): the default dressing of rooms (gen/rooms4). An area of kind room whose
  * name, tags or notes name a purpose, that no dress op covers and that the plan furnished lightly (under
  * RECIPES.ownPer10Cells features per 10 floor tiles), gets that purpose's furniture, things on it and lights. A room with no purpose, or one the plan
  * furnished itself, still gets its torches; a passage a few. Abandoned places (a crypt, cells, a ruin) stay sparse and
  * keep one light at most. `roomDress: false` on the level turns it off. Runs before the loose rubble and the scatters,
  * so those fill what the furniture leaves and never take a wall run from it.
  */
-export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void {
+export function stepRoomRecipes(
+  work: ResolveGrid,
+  features: FeatureWork,
+  cellRows: ReadOnly<CellRowRecords>,
+): void {
   if (!work.profile.roomRecipes || work.level.roomDress === false) return;
   const cap = PLAN_LIMITS.generatedFeaturesPerLevel;
   const dressed = new Set<string>();
   for (const op of work.level.terrain) if (op.op === "dress" && op.area !== undefined) dressed.add(op.area);
   const grid = features.placementGrid();
   if (grid.piece4 === undefined) return;
+  // generator 5 (lightRegimes): the scene's light level as its character resolved it (resolve/character.ts), and the
+  // rooms lit so far
+  const sceneCh = work.profile.lightRegimes ? characterAt(work, work.level.id) : null;
+  const scene: SceneLight | undefined =
+    sceneCh !== null ? { level: lightIndex(sceneCh), colour: sceneCh.tone === "coloured" } : undefined;
+  const lit: LitNeighbour[] = [];
   for (const info of work.areas) {
     if (info.kind !== "room" && info.kind !== "corridor") continue;
     const area = info.area;
@@ -392,19 +564,53 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
       .shownCells(info.index)
       .filter((i) => work.isFloor(i))
       .map((i) => work.cellXY(i));
-    if (cells.length < RECIPES.minCells) continue;
+    // generator 5: a room down to a cell of a cell row is furnished (its minimum set) and lit
+    const small = work.profile.companionGroups || work.profile.occupancyLights;
+    if (cells.length < (small ? SMALLEST_FURNISHED : RECIPES.minCells)) continue;
     const seed = subSeed(elementSeed(work.plan.seed, `${work.level.id}~${area.id}~room`, undefined), "room");
+    // generator 5 (cellRows): a room lined with cells is dressed cell by cell, then its aisle
+    const row = cellRows.byArea.get(info.index);
+    if (row !== undefined) {
+      if (dressCellRow(work, features, grid, info, row as CellRowRecord, cells, seed)) break;
+      continue;
+    }
     const own = features.all.filter(
       (f) => f.area === area.id && f.generatedBy === undefined && f.type !== "torch_wall",
     ).length;
     const lightly = own * 10 < RECIPES.ownPer10Cells * cells.length;
     // a corridor is never furnished, but its name still says whether it is kept up ("Crypt passage" stays dark)
-    const { purpose, abandoned } = info.room;
+    const { purpose, abandoned, kind } = info.room;
     const ruin = purpose === "ruin";
-    let res: { placements: GeneratedPlacement[]; capped: boolean } | null = null;
+    let res: ScatterResult | null = null;
     if (info.kind === "room" && furnishedPurpose(purpose) && lightly && !dressed.has(area.id)) {
+      // the room's light level and regime, its near rooms' regimes weighing less
+      let lighting: { plan: RoomLightPlan; scene: SceneLight } | undefined;
+      const ch = characterAt(work, area.id);
+      if (scene !== undefined && ch !== null) {
+        const at: [number, number] = [
+          cells.reduce((a, c) => a + c[0] + 0.5, 0) / cells.length,
+          cells.reduce((a, c) => a + c[1] + 0.5, 0) / cells.length,
+        ];
+        const plan = drawLighting({
+          kind: kind ?? purpose,
+          level: lightIndex(ch),
+          seed,
+          at,
+          neighbours: lit,
+          abandoned,
+        });
+        if (plan.regime !== null) lit.push({ at, regime: plan.regime });
+        lighting = { plan, scene };
+        features.lightLevels.set(area.id, plan.level);
+      }
       res = dressRoom(grid, {
         purpose,
+        ...(kind !== undefined ? { kind } : {}),
+        ...(lighting !== undefined ? { lighting } : {}),
+        ...(ch !== null ? { character: ch } : {}),
+        ...(info.zones !== undefined ? { zones: info.zones } : {}),
+        // generator 5 (freeCounters): the way in from outside or a passage, which a counter faces
+        ...(work.profile.freeCounters ? mainDoorOf(work, grid, cells) : {}),
         abandoned,
         areaIndex: info.index + 1,
         areaCells: cells,
@@ -426,10 +632,24 @@ export function stepRoomRecipes(work: ResolveGrid, features: FeatureWork): void 
         remaining: cap - features.generated,
         every: info.kind === "corridor" ? RECIPES.corridorLightEvery : RECIPES.roomLightEvery,
         abandoned,
+        // generator 5: a lived-in place down to 3 tiles is lit, a passage by its length
+        ...(work.profile.occupancyLights
+          ? {
+              occupancy:
+                info.kind === "corridor"
+                  ? {
+                      length: lengthOf(cells),
+                      // generator 5 (lightRegimes): lit at its doors or junctions by the scene's level
+                      ...(scene !== undefined ? { passageLevel: scene.level } : {}),
+                    }
+                  : {},
+            }
+          : {}),
       });
     }
     if (res === null) continue;
     features.commitGenerated(`${area.id}~room`, res.placements);
+    if (res.keptClear) features.keepClearOf(res.keptClear);
     if (res.capped) break;
   }
 }

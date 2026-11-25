@@ -8,6 +8,7 @@ import type { DesignBrief, FeatureType, MapPlan, Material, Vec2 } from "../contr
 import {
   CELL,
   CELL_FLAG,
+  type ResolvedFeature,
   type ResolvedLevel,
   type ResolvedPlan,
   type ResolvedStructure,
@@ -28,7 +29,7 @@ import { structureSignature, structureSilhouette, structureTone } from "../resol
 import { roofUnsupportedEdges, structureRuinMeasures, weatherMeasures, weatherSigns } from "../resolve/ruin";
 import { GROWTH_LEVELS, growthMeasures } from "../resolve/growth";
 import { roofProportion } from "../resolve/roof";
-import { cellIndex, cellTheme, elementThemeAt } from "../resolve/levelGrid";
+import { cellIndex, cellTheme, elementThemeAt, partOfBuilding } from "../resolve/levelGrid";
 import { components, longestInnerStraight, outline, squareCorners } from "./metrics";
 import { forEachMaskCell } from "../gen/mask";
 import {
@@ -55,10 +56,14 @@ import { briefNotes } from "./brief";
 import { caveNaturalChecks, caveWallChecks } from "./caveWall";
 import { caveMassReviewNotes } from "./caveMass";
 import { interiorNotes } from "./interiors";
+import { lightGiver, roomMeantDim, sceneMeantDim, subjectMeantDim } from "./lights";
 import { roofGapNotes } from "./roofGaps";
 import { reviewBuild } from "./reviewBuild";
 import { stallNotes } from "./stalls";
 import { floorAccentNotes } from "./floorTone";
+import { centreOf, neighbourGroups } from "../resolve/neighbours";
+import { qualityNotes } from "./qualityNotes";
+import { layoutNotes } from "./layoutNotes";
 import { LIGHT_FEATURES, isBandRock } from "../gen/catalog";
 import {
   LIT_FOCALS,
@@ -149,7 +154,18 @@ export type DesignNoteCode =
   | "furniture_adrift"
   | "river_trench"
   | "rift_broken"
-  | "bridge_along";
+  | "bridge_along"
+  | "lane_blocked"
+  | "doors_unlit"
+  | "silhouette_flat"
+  | "facades_alike"
+  | "anchor_missing"
+  | "dead_end_empty"
+  | "rooms_same_size"
+  | "corridor_heavy"
+  | "entrances_few"
+  | "drop_trap_dead"
+  | "hall_unbroken";
 
 /** Bare face by class (gen/cover.ts: what really hides the face), for the cliff checks and for proofs and tests. */
 export interface CliffCoverage {
@@ -197,6 +213,8 @@ export interface DesignNote {
 
 interface Ctx {
   plan: MapPlan;
+  /** Does a feature give light (review/lights.ts lightGiver)? Absent in tests that build a context by hand: every light feature. */
+  givesLight?: (f: ResolvedFeature) => boolean;
   /** What the plan's generator does (plan/generator.ts): a check of newer behaviour reads its switch. */
   gen: GeneratorProfile;
   /** Ids of features the build dropped (custom_unresolved); absent in tests that build a context by hand. */
@@ -260,6 +278,8 @@ export function reviewDesign(
 ): DesignNote[] {
   const notes: DesignNote[] = [];
   const gen = generatorProfile(plan);
+  // generator 5: only pieces that give light count as lights (a stone lantern does not)
+  const gives = lightGiver(resolved, palettes);
   // the questions the resolver and the compiler ask of these palettes, with their answers (palette/view.ts), as the
   // plan's generator sees them: a role the build cannot use (minGenerator) is not advice for this plan
   const view = paletteView(palettes, plan.generator);
@@ -354,6 +374,7 @@ export function reviewDesign(
     const ctx: Ctx = {
       plan,
       gen,
+      givesLight: gives,
       // features the build dropped (unresolved or wrong size) are not on the map: repeated_prop counts what stands
       dropped: new Set(
         (opts.diagnostics ?? [])
@@ -434,7 +455,11 @@ export function reviewDesign(
   // generator 4: an intact roof is whole (only a chimney stack stands in it); measured on the realized roof pieces
   pushAll(notes, roofGapNotes(plan, resolved, build, palettes));
   // rooms: bare, alike, unlit, furniture adrift (judged room by room, across the whole map)
-  pushAll(notes, interiorNotes(plan, resolved));
+  pushAll(notes, interiorNotes(plan, resolved, gives));
+  // generator 5: what the quality meter finds that plan words can change (lanes, door lights, roofline, facades)
+  if (gen.qualityNotes) pushAll(notes, qualityNotes(plan, resolved, gives));
+  // generator 5: how a complex of rooms is laid out (dead ends, size mix, corridors, ways in, ways back)
+  pushAll(notes, layoutNotes(plan, resolved));
   pushAll(notes, substitutionNotes(opts.diagnostics ?? [], resolved.levels[0]?.id ?? ""));
   pushAll(notes, briefNotes(opts.brief, plan, resolved, REVIEW.brief.weight));
   const ranked = notes.sort(
@@ -1091,7 +1116,7 @@ function deadSpace(c: Ctx): DesignNote[] {
     if (L.cells.state[i] !== CELL.OPEN || (f & (CELL_FLAG.PATH | CELL_FLAG.WATER | CELL_FLAG.LINK)) !== 0)
       busy[i] = 1;
     const a = L.areas[(L.cells.area[i] ?? 0) - 1];
-    if (a?.kind === "building") busy[i] = 1;
+    if (a !== undefined && partOfBuilding(a)) busy[i] = 1;
   }
   const near = new Uint8Array(W * H);
   const r = T.clearance;
@@ -1274,47 +1299,8 @@ function pathEnds(c: Ctx): DesignNote[] {
 
 // ───────────────────────── buildings: tone and roofs ─────────────────────────
 
-const boxOf = (s: ResolvedStructure): { x0: number; y0: number; x1: number; y1: number } => {
-  const xs = s.cells.map((p) => p[0]);
-  const ys = s.cells.map((p) => p[1]);
-  return { x0: minOf(xs), y0: minOf(ys), x1: maxOf(xs), y1: maxOf(ys) };
-};
-const gapBetween = (a: ResolvedStructure, b: ResolvedStructure): number => {
-  const ba = boxOf(a);
-  const bb = boxOf(b);
-  const gx = Math.max(0, Math.max(ba.x0, bb.x0) - Math.min(ba.x1, bb.x1) - 1);
-  const gy = Math.max(0, Math.max(ba.y0, bb.y0) - Math.min(ba.y1, bb.y1) - 1);
-  return Math.max(gx, gy);
-};
 const buildingsOf = (c: Ctx): ResolvedStructure[] =>
   (c.L.structures ?? []).filter((s) => s.kind === "building");
-/** Groups of neighbouring buildings (footprints within `gap` cells) that share a key. */
-function neighbourGroups(
-  bs: readonly ResolvedStructure[],
-  gap: number,
-  key: (s: ResolvedStructure) => string | undefined,
-): ResolvedStructure[][] {
-  const seen = new Set<string>();
-  const out: ResolvedStructure[][] = [];
-  for (const b of bs) {
-    const k = key(b);
-    if (k === undefined || seen.has(b.id)) continue;
-    const group = [b];
-    seen.add(b.id);
-    for (let i = 0; i < group.length; i++)
-      for (const o of bs)
-        if (!seen.has(o.id) && key(o) === k && gapBetween(group[i] as ResolvedStructure, o) <= gap) {
-          seen.add(o.id);
-          group.push(o);
-        }
-    if (group.length > 1) out.push(group);
-  }
-  return out;
-}
-const centreOf = (g: readonly ResolvedStructure[]): Vec2 => {
-  const cs = g.flatMap((s) => s.cells);
-  return [cs.reduce((t, p) => t + p[0], 0) / cs.length, cs.reduce((t, p) => t + p[1], 0) / cs.length];
-};
 
 function buildingTones(c: Ctx): DesignNote[] {
   const T = REVIEW.tone;
@@ -1553,7 +1539,16 @@ function blankLot(c: Ctx): DesignNote[] {
 function focalLights(c: Ctx): DesignNote[] {
   if (!c.gen.litLandmarks) return [];
   const T = REVIEW.caveMass;
-  const lights = c.L.features.filter((f) => LIGHT_FEATURES.has(f.type));
+  const lights = c.L.features.filter((f) => c.givesLight?.(f) ?? LIGHT_FEATURES.has(f.type));
+  // generator 5: a focal piece in a room (or a scene) meant to be dim is not in the dark by mistake
+  const meantDim = (f: ResolvedFeature): boolean => {
+    const a = c.L.areas.find((x) => x.id === f.area);
+    return (
+      roomMeantDim(a) ||
+      (a?.kind !== "room" && a?.kind !== "corridor" && sceneMeantDim(c.plan, c.L)) ||
+      (a !== undefined && a.kind !== "room" && a.kind !== "corridor" && subjectMeantDim(c.L, a.id))
+    );
+  };
   const gap = (a: (typeof lights)[number], b: (typeof lights)[number]): number => {
     const dx = Math.max(a.at[0] - (b.at[0] + b.size[0] - 1), b.at[0] - (a.at[0] + a.size[0] - 1), 0);
     const dy = Math.max(a.at[1] - (b.at[1] + b.size[1] - 1), b.at[1] - (a.at[1] + a.size[1] - 1), 0);
@@ -1561,7 +1556,7 @@ function focalLights(c: Ctx): DesignNote[] {
   };
   const out: DesignNote[] = [];
   for (const f of c.L.features) {
-    if (!LIT_FOCALS.has(f.type) || lights.some((l) => gap(f, l) <= T.focalLight)) continue;
+    if (!LIT_FOCALS.has(f.type) || lights.some((l) => gap(f, l) <= T.focalLight) || meantDim(f)) continue;
     out.push({
       code: "focal_unlit",
       levelId: c.L.id,
@@ -1640,7 +1635,7 @@ function focus(c: Ctx): DesignNote[] {
 function routes(c: Ctx): DesignNote[] {
   const T = REVIEW.routes;
   const { L } = c;
-  const rooms = new Set(L.areas.filter((a) => a.kind !== "zone" && a.kind !== "building").map((a) => a.id));
+  const rooms = new Set(L.areas.filter((a) => a.kind !== "zone" && !partOfBuilding(a)).map((a) => a.id));
   if (rooms.size < T.minRooms) return [];
   const edges = new Set<string>();
   const nodes = new Set<string>();
@@ -1678,16 +1673,19 @@ function routes(c: Ctx): DesignNote[] {
       const i = (y - lv.bounds.y) * lv.bounds.w + (x - lv.bounds.x);
       const a = lv.cells.area[i] ?? 0;
       const id = a > 0 ? lv.areaIds[a - 1] : undefined;
-      return id !== undefined &&
-        lv.areas.some((q) => q.id === id && q.kind !== "zone" && q.kind !== "building")
+      return id !== undefined && lv.areas.some((q) => q.id === id && q.kind !== "zone" && !partOfBuilding(q))
         ? `${lv.id}|${id}`
         : null;
     };
-    for (const lv of c.resolved.levels)
+    for (const lv of c.resolved.levels) {
+      // a building's ground-storey rooms (generator 5) are the building's own, not rooms of the plan's route
+      const inside = new Set(lv.areas.filter((q) => q.building !== undefined).map((q) => q.id));
       for (const o of lv.openings) {
         const [a, b] = o.sides;
-        if (a !== null && b !== null) join(`${lv.id}|${a}`, `${lv.id}|${b}`);
+        if (a !== null && b !== null && !inside.has(a) && !inside.has(b))
+          join(`${lv.id}|${a}`, `${lv.id}|${b}`);
       }
+    }
     const byId = new Map(c.resolved.levels.map((l) => [l.id, l]));
     for (const lk of c.resolved.links) {
       const lo = byId.get(lk.fromLevel);
@@ -2798,7 +2796,7 @@ function ruins(c: Ctx): DesignNote[] {
   for (const st of buildingsOf(c)) {
     // a weathered building must read as neglected: too few signs and it looks like its intact version (generator 3)
     if (st.condition === "weathered" && c.gen.legibleCondition) {
-      const wm = weatherMeasures(st);
+      const wm = weatherMeasures(st, c.L.arrangements);
       const signs = wm ? weatherSigns(wm) : 0;
       if (wm && signs < T.weatherSigns)
         out.push({

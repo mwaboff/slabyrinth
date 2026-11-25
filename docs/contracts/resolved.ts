@@ -93,6 +93,25 @@ export interface ResolvedArea {
    * but its walls stay what they are built of.
    */
   finish?: InteriorFinish;
+  /**
+   * Generator 5 (lightRegimes): the light level drawn for a furnished room, 0 dark .. 4 flooded (gen/lightLevels.ts):
+   * how many light accents mark it. The review judges the room's lights against it; a dim or dark room is not a fault.
+   * Absent when the room's lights were not drawn by level.
+   */
+  lightLevel?: number;
+  /**
+   * Generator 5 (buildingRooms): the id of the building whose ground storey this room is part of (a room the resolver
+   * split the building into, id "<building>~room<n>"). Its cells are the building's: the building's own area then
+   * shows no cell of its own in `cells.area`, and its cellCount, bbox, anchor and outline span its rooms. Absent for
+   * every other area.
+   */
+  building?: string;
+  /**
+   * Generator 5 (roomKinds): the finer kind a furnished room is furnished as, when it differs from `purpose` (a "ward"
+   * hosted by "laboratory", a "shop" by "storeroom"; the core's room-kind table, gen/roomTraits.ts). Compile reads it
+   * where a kind's row decides (a piece that only glows stays out of a ward's things). Absent otherwise.
+   */
+  roomKind?: string;
 }
 
 /** What a room is for (generator 4): the plan contract's list (Area.purpose), re-exported for readers of this one. */
@@ -422,6 +441,102 @@ export interface ResolvedLevel {
    * still stand there.
    */
   reserved?: number[];
+  /**
+   * Generator 5: cells the room furnisher keeps clear of blockers: the standing room before a furniture group, the way
+   * from the main door to it, the landings at the doors. Local cell indices (ly*w + lx), ascending. Absent when empty.
+   * Detail recipes lay no ground cover there and stand nothing but wall-hugging pieces there.
+   */
+  keptClear?: number[];
+  /**
+   * Generator 5: arrangement instances, pieces composed in a local frame and set at an anchor (core arrange/). Each
+   * instance is one element, so its own pieces may overlap. Absent when there are none.
+   */
+  arrangements?: ResolvedArrangement[];
+  /**
+   * Generator 5: the character of the level and of each zone, building and area on it (light, condition, wealth),
+   * keyed by element id (the level's own id for the scene). Resolved once from what each scope states, its words and
+   * what it inherits from the scope around it (resolve/character.ts); every consumer reads it, never the words.
+   */
+  character?: Record<ElementId, ResolvedCharacter>;
+}
+
+/** How many light accents mark the places in use (never the scene's brightness: the GM's board setting). */
+export type CharacterLight = "dark" | "dim" | "moderate" | "bright" | "flooded";
+/** Upkeep. */
+export type CharacterCondition = "intact" | "weathered" | "ramshackle" | "ruined";
+/** Status: material and trim richness, furnishing, cleanliness. */
+export type CharacterWealth = "poor" | "modest" | "wealthy" | "lavish";
+/** The colour of the light pieces a place prefers. */
+export type CharacterTone = "warm" | "cold" | "coloured";
+/** Where an axis's value came from: a field, the subject's own words or mood, its parent (drawn), or the default. */
+export type CharacterSource = "stated" | "words" | "inherited" | "default";
+
+/** One subject's character (ResolvedLevel.character). */
+export interface ResolvedCharacter {
+  light: CharacterLight;
+  condition: CharacterCondition;
+  /** A ruin's severity, 1 (crumbling) .. 3 (collapsed); ruined only. */
+  severity?: 1 | 2 | 3;
+  /** A ruin's stage, when its words say (squatters: reoccupied); ruined only. */
+  stage?: "abandoned" | "reoccupied";
+  wealth: CharacterWealth;
+  tone: CharacterTone;
+  /** The scope it inherits from (the level, a zone or a building); absent for the level. */
+  parent?: ElementId;
+  sources: { light: CharacterSource; condition: CharacterSource; wealth: CharacterSource };
+}
+
+/**
+ * One arrangement instance. Its local frame has x east and z north before `turn`, y up from `base`; a piece stands
+ * with the centre of its collider's footprint at (x, z) and its bottom at y, turned `yaw` degrees clockwise seen from
+ * above. The build quantises it as the slab format does (0.01 tile, 15° turns).
+ */
+export interface ResolvedArrangement {
+  id: ElementId;
+  /** The recipe that made it (diagnostics and the review name it). */
+  recipe: string;
+  /** Plan point (cells, fractional) the local origin stands on. */
+  at: [number, number];
+  /** Absolute height (tiles) of the local y = 0. */
+  base: Height;
+  /** The local frame's turn, clockwise seen from above (degrees, a multiple of 15). */
+  turn: number;
+  /** Cells the instance covers (plan cells, ascending by row then column). */
+  cells: Vec2[];
+  /** Whether its pieces block the way, as a blocking feature's do. */
+  blocking: boolean;
+  pieces: ResolvedArrangementPiece[];
+  /**
+   * Generator 5, detail recipes: "wall" when the pieces are fastened to a wall (posts, bands, trims): they are built as
+   * wall structure (placement role wall_post), held by the wall, not standing on a floor. Absent: loose pieces.
+   */
+  mount?: "wall";
+  /** Generator 5: the paste layer of its pieces (a building's "storey:<n>"); absent = the site. */
+  layer?: string;
+  /**
+   * Generator 5, detail recipes: the plan element the instance dresses (the building whose walls carry the posts, the
+   * area whose ground it covers), so a reader can count it with that element. Absent: it dresses nothing but itself.
+   */
+  host?: ElementId;
+  /**
+   * Generator 5, detail recipes: the treatment its subject drew (resolve/recipes/treatments.ts: one option per family,
+   * "frame:framed courses:plain ..."), the same on every instance of that subject.
+   */
+  treatment?: string;
+}
+
+export interface ResolvedArrangementPiece {
+  /** The palette that lists the asset, the role it is listed under, and the asset as the palette names it. */
+  palette: ThemeId;
+  role: string;
+  asset: string;
+  x: number;
+  y: number;
+  z: number;
+  /** Degrees clockwise seen from above, a multiple of 15. */
+  yaw: number;
+  /** Budget tier: 0 (absent) is kept longest, 3 is thinned first when a level is over its piece cap. */
+  tier?: number;
 }
 
 /**
@@ -464,7 +579,13 @@ export interface ResolvedStructure {
     parapet: WallStyle | null;
   };
   chimneys: Array<{ at: Vec2; side: Side }>;
-  porches: Array<{ cells: Vec2[]; side: Side; floor: Material; roof: boolean }>;
+  /**
+   * Generator 5 (switch porchWear), a worn or ramshackle building's porch: `sag` lowers the outer row of its roof (one
+   * step, 0.25); `posts` "mixed" stands it on posts of two kinds.
+   */
+  porches: Array<{ cells: Vec2[]; side: Side; floor: Material; roof: boolean; sag?: Height; posts?: "mixed" }>;
+  /** Generator 5 (switch roofPatches), a worn or ramshackle building: roof cells re-laid in a second roof kit. */
+  roofPatch?: Vec2[];
   /** Enclosures: fence style and gate edges ("at" cell inside the yard, side). */
   fence?: { style: WallStyle | null; gates: Array<{ at: Vec2; side: Side }> };
   /** Wall lights beside doors: the door cell (inside) and the face. */
@@ -521,6 +642,11 @@ export interface ResolvedStructure {
     topRubble?: Array<{ at: Vec2; side: Side; top: Height; kind: "block" | "rubble" }>;
     /** Generator 3 ruins: the volume that stands whole under its roof (the anchor); the rest decays away from it. */
     keep?: string;
+    /**
+     * Generator 5 ruins (switch ruinBays): the bays the building lost, each its breach (first face cell, side, width)
+     * and the cells of the bay, over which the roof (`roofHoles`) and the upper floors (`holes`) are open.
+     */
+    bays?: Array<{ at: Vec2; side: Side; width: number; cells: Vec2[] }>;
   };
   /**
    * Generator 3, weathered and ruined buildings: growth attached to the structure (themes without the palette roles

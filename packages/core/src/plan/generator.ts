@@ -13,11 +13,12 @@ import { GENERATOR_VERSIONS, type GeneratorVersion } from "../contracts/plan";
  *   - VOCABULARY: plan words a generator understands beyond the base set.
  *
  * A switch is on in its first generator and in every later one, by construction, so the SWITCHES table read top to
- * bottom is the changelog of the generators. Generators 1, 2, 3 and 4 are released: what they turn on is frozen, and
- * so is their output (test/golden/generator2, generator3, generator4). New behaviour is a new switch that starts in
- * the open generator; none is open after 0.3.0, so the next behaviour change first opens generator 5. A later generator never switches an old behaviour off: it adds a new switch for the new behaviour, and
- * the code reads the new one first. Opening generator 5 means adding a version to GENERATOR_VERSIONS
- * (contracts/plan.ts); the compiler then asks for its TUNINGS and VOCABULARY entries, and new switches start in 5.
+ * bottom is the changelog of the generators. Generators 1 to 5 are released: what they turn on is frozen, and so is
+ * their output (test/golden/generator2, generator3, generator4, generator5). New behaviour is a new switch that starts
+ * in the open generator; none is open after 0.4.0, so the next behaviour change first opens generator 6. A later
+ * generator never switches an old behaviour off: it adds a new switch for the new behaviour, and the code reads the
+ * new one first. Opening generator 6 means adding a version to GENERATOR_VERSIONS (contracts/plan.ts); the compiler
+ * then asks for its VOCABULARY entry, and new switches start in 6.
  *
  * Palette roles carry their own first generator (`minGenerator` in the palette data, palette/resolve.ts): palettes
  * are data, generated and user-written, so they name a version rather than a switch. A test keeps the roles of the
@@ -34,9 +35,17 @@ import { GENERATOR_VERSIONS, type GeneratorVersion } from "../contracts/plan";
 interface SwitchDeclaration {
   readonly since: GeneratorVersion;
   readonly description: string;
+  /**
+   * The switch of the same open generator this one refines (a later rule over the same behaviour). "This switch on, its
+   * base off" is a state no plan can have, so before the generator is released the refinement is folded into its base
+   * and the base's old path deleted: a test fails while a released generator still holds one
+   * (test/unit/plan/generatorProfile.test.ts).
+   */
+  readonly refines?: string;
 }
 
-const on = (since: GeneratorVersion, description: string): SwitchDeclaration => ({ since, description });
+const on = (since: GeneratorVersion, description: string, refines?: string): SwitchDeclaration =>
+  refines === undefined ? { since, description } : { since, description, refines };
 
 /** Every behaviour switch, grouped by the generator it starts in. The names are what call sites read. */
 const SWITCHES = {
@@ -317,6 +326,334 @@ const SWITCHES = {
     4,
     "A build of more than one chunk is pasted from bare ground beside the map: the shared box is padded so its centre (the paste anchor) is the middle of a cell south of the map's south edge, with clear cells between them (compile/chunk.ts besideMapBox).",
   ),
+
+  // ── generator 5 (released in 0.4.0) ──
+  arrangements: on(
+    5,
+    "Arrangement instances a resolve stage attaches (ResolvedLevel.arrangements: palette pieces composed by the arrange/ operators) are built, one element each (compile/realize/arrangements.ts).",
+  ),
+  layeredProps: on(
+    5,
+    "Props of different elements may overlap (layered dressing pastes whole in game): verify warns only when two pieces of blocking furniture stand in one spot, reports other overlaps as info, and no longer says TaleSpire drops them.",
+  ),
+  jambPosts: on(
+    5,
+    "Detail recipe: a slender post at each jamb of a door or window on a seen wall, storey high, in the wall style's own post (resolve/recipes/walls.ts).",
+  ),
+  cornerPosts: on(
+    5,
+    "Detail recipe: a slender post standing at each outer corner of a seen wall, where the theme has one (resolve/recipes/walls.ts).",
+  ),
+  bandCourses: on(
+    5,
+    "Detail recipe: a band course along a building's outside floor lines (every one, or the first floor's), a thin beam of the theme or a floor slab of the trim's material showing (resolve/recipes/walls.ts).",
+  ),
+  plinths: on(
+    5,
+    "Detail recipe: a low course where a seen wall meets the ground with no footing of its own, past windows and broken by doors (resolve/recipes/walls.ts).",
+  ),
+  pilasters: on(
+    5,
+    "Detail recipe: pilasters on seen blank wall runs longer than 4 tiles, at the joints of bays phase-locked to the openings (resolve/recipes/walls.ts).",
+  ),
+  layeredGround: on(
+    5,
+    "Detail recipe: layered ground cover by what the place is, laid in clusters: an anchor piece (a bush, a larger rock, a tall tuft) with two to four smaller companions round it, more of them where ground meets a wall, fence or path, flat pieces overlapping at free turns, low pieces leaning over a path's edge, sunk as deep as the floor under them takes it; the cover share is of the whole place's ground for every variant. Outdoors it is laid to a share of what is seen (each piece's inscribed ellipse times the share its kind fills, util/visibleCover.ts; the box measure read 30-42 % where the street showed 10-15 %): the band a tile from an edge gets 1.6 times the place's share, a corner more, the open middle 0.15 times it as anchored clumps only; flat cover (litter, pebbles) lies only within two cells of a door's apron, a lane or a path, and only soil takes a piece deep (resolve/recipes/ground.ts).",
+  ),
+  ownWallsFirst: on(
+    5,
+    "A building's walls in a style whose only pieces in its theme are another setting's kit borrowed from the generic palette (gen/wallStyles.ts `settingKit`: desert plaster, an abandoned village's planks) are built in the theme's own wall instead, and its trims ask the theme's own posts (compile/realize/structures/context.ts, resolve/recipes/walls.ts).",
+  ),
+  readableTrims: on(
+    5,
+    "Trims read at street distance: a contrasting trim is drawn more often where the theme has one of its own; a post or band of the wall's own piece family stands further proud (a corner post may then be as thick as a jamb's), a band of the wall's own material is doubled by a second course stepped back under it, and a plinth shows taller and prouder (resolve/recipes/treatments.ts, walls.ts).",
+  ),
+  qualityNotes: on(
+    5,
+    "The review advises from the quality meter where plan words can act: a blocked lane between a room's doors, unlit outside doors, a flat roofline, alike facades in a row (review/qualityNotes.ts).",
+  ),
+  roomKinds: on(
+    5,
+    "A room's words name a finer kind (shop, stable, lounge, classroom, command, ward; a parlour is a lounge, a dormitory a barracks), furnished from its row of the room-kind table (gen/roomTraits.ts) and written as the purpose that hosts it.",
+  ),
+  companionGroups: on(
+    5,
+    "A room's anchor comes with its companions (a bed's nightstand and chest, a counter's stools and back store, a desk's chair), placed by the room-kind table's rule (facing the door, at a window, free-standing, on the axis) with the way from the door kept clear; a rug lies under the group; a room down to 3 floor tiles gets its minimum set (gen/rooms4/groups.ts).",
+  ),
+  exactWayInReach: on(
+    5,
+    "A generated blocking piece set square where it stands is kept out of a doorway by its real outline there, not by its outline turned any way, so furniture in a small room may stand beside its door (resolve/level/features.ts blocksWayIn).",
+  ),
+  occupancyLights: on(
+    5,
+    "A room is lit by who uses it: a light on each table, desk and nightstand, a light either side of a shared room's main door, lights per 10 floor tiles from the room-kind table, at least one in every lived-in room down to 3 tiles, a corridor one per 8 tiles of its length (gen/rooms4/occupancy.ts).",
+  ),
+  reviewByKind: on(
+    5,
+    "The review judges a room by its kind's row of the room-kind table (gen/roomTraits.ts roomTargets): bare below half its props per 10 tiles, adrift below its near-wall share (floor-group and station-row kinds not judged), a hall carried by columns, level changes or water is not bare; a room with none of its kind's anchors gets anchor_missing (review/interiors.ts).",
+  ),
+  deadEndReview: on(
+    5,
+    "The review notes rooms with one way on and nothing in them, when more than one (dead_end_empty, review/layoutNotes.ts).",
+  ),
+  roomSizeReview: on(
+    5,
+    "The review notes a complex whose rooms are all near one size (rooms_same_size, review/layoutNotes.ts).",
+  ),
+  corridorShareReview: on(
+    5,
+    "The review notes a complex whose corridors take a large share of its floor (corridor_heavy, review/layoutNotes.ts).",
+  ),
+  entrancesReview: on(
+    5,
+    "The review notes a large complex with a single way in (entrances_few, review/layoutNotes.ts).",
+  ),
+  wayBackReview: on(
+    5,
+    "The review notes an area the party reaches by a one-way drop with no walk back (drop_trap_dead, review/layoutNotes.ts).",
+  ),
+  waterUnderFloors: on(
+    5,
+    "A level's water surface and range stay a quarter tile under the dry floors of other levels inside its water's footprint (a ship's hold in the harbour), and a water_level warning names a floor the lowest sensible water would still flood (resolve/level/waterSurface.ts capWaterUnderOtherFloors).",
+  ),
+  wholeFloorEdges: on(
+    5,
+    "A floor's ragged pieces (broken-ended boards, gen/pieceFacts.ts `ragged`) are left out where the role has whole ones, so a floor's odd edge row is no comb of notches (compile/realize/floors.ts).",
+  ),
+  dryLandCover: on(
+    5,
+    "Ground cover lays no land plants (grass, flowers, bushes, plant cover) on a cell whose floor lies under its level's water surface (the water plane the GM raises); rocks and rubble may stay (resolve/recipes/ground.ts).",
+  ),
+  windowSpanClosed: on(
+    5,
+    "A window span no window piece of the theme fits (a 1-wide window where the pieces are 2 wide) is built as plain wall, not left as a hole, and the role_missing warning names the width the theme's windows come in (compile/realize/openings.ts).",
+  ),
+  wallFootGrowth: on(
+    5,
+    "Detail recipe: growth at the foot of a worn, ramshackle or ruined building's walls with no door, more away from its doors and least on its street face (resolve/recipes/condition.ts).",
+  ),
+  breachRubble: on(
+    5,
+    "Detail recipe: a ruin's rubble graded by distance from each breach, big blocks near the wall, piles further, small stones furthest (resolve/recipes/condition.ts).",
+  ),
+  guardianPair: on(
+    5,
+    "Detail recipe: a mirrored guardian pair flanking a sacred or formal building's main door, 1.25-2.5 from its axis (resolve/recipes/threshold.ts).",
+  ),
+  approachLights: on(
+    5,
+    "Detail recipe: a mirrored light pair where a sacred or formal building's approach meets the ground, beside the way (resolve/recipes/threshold.ts).",
+  ),
+  ruinBays: on(
+    5,
+    "A ruined building is a sound building that lost a few whole bays (about one per 25-35 tiles of long wall): a ragged breach, the roof and upper floors open above it, a notch in the opposite wall, its other walls level, rubble graded from the breach (resolve/building/ruinBays.ts).",
+  ),
+  roofPatches: on(
+    5,
+    "A worn or ramshackle building's roof has small irregular patches re-laid as a repair of the same roof: its own kit's weathered pieces, else a kit of the same tone and family (the roof-kit facts, resolve/roofKits.ts), else no patch at all (its treatment draws whether and how much; resolve/building/wear.ts, compile/realize/structures/roofPiece.ts).",
+  ),
+  porchWear: on(
+    5,
+    "A worn or ramshackle building's porch may sag one step (0.25) at its outer edge and stand on posts of two kinds; the building's own eave never sags (resolve/building/wear.ts, compile/realize/structures/attachments.ts).",
+  ),
+  placementOrder: on(
+    5,
+    "A room's loose things are set by its kind's order (gen/roomTraits.ts): square and regular in a tidy room (a study, a shrine, a ward), as hands left them in a lived-in, working or messy one (turned in 15° steps, shifted a little, seats a little askew); structure and big furniture stay on quarter turns, and a building's condition never turns anything (gen/rooms4/order.ts).",
+  ),
+  floorGroups: on(
+    5,
+    "A room whose kind calls for it gets things standing free of its walls: table groups with seats facing in, staggered 2-3 tiles apart with a lane between them and from every door to each; desks in rows facing the master's desk; bunks, beds and stalls in rows along the long walls with an aisle; stock in rows with aisles; a work table on the axis. Groups vary within a room and between rooms of a kind; a small room keeps what it has (gen/rooms4/floor.ts).",
+  ),
+  lightRegimes: on(
+    5,
+    "A room's lights follow a light level and a regime: the scene's and each room's level as their characters resolve them (resolve/character.ts: its kind's default and range, gen/lightLevels.ts), each level a visibly different step by what its pools cover, and one regime per room drawn from those its kind allows, neighbours differing (lit surfaces, a threshold pair, a focal glow, a wall rhythm, a dim store), with pieces chosen by their reach (gen/lightReach.ts). A light stands on the floor only where it is meant to (a brazier, a lantern stand), never in a lane, a door's apron or a corridor; a corridor is lit at its doors and junctions; a lived-in room of 3 tiles or more keeps a light, an abandoned one its dark (gen/rooms4/regimes.ts).",
+  ),
+  characterCascade: on(
+    5,
+    "Every level, zone, building and area has a character (light, condition, wealth) resolved once from what it states, its own words and mood, and the scope around it with a little variety (resolve/character.ts); room light levels, a building's decay and window lights, the treatments' condition and richness, ground wear, a room's prop density and order, and the review read it (ResolvedLevel.character).",
+  ),
+  anchorLandings: on(
+    5,
+    "A room whose anchor group (a bed, a counter) finds no spot outside its doors' full clearance keeps only a landing at each door, as a small room does, so a small bedroom still gets its bed (gen/rooms4/furnish.ts).",
+  ),
+  sleepingCorners: on(
+    5,
+    "A one-room dwelling is a room with zones: its programme names a sleeping corner beside the hearth, furnished with a bed or a cot group after the room's own anchor (gen/buildingProgramme.ts, gen/rooms4/furnish.ts).",
+  ),
+  freeCounters: on(
+    5,
+    "A free-standing anchor (a shop counter, a bar) stands free facing the main door wherever it can: its staff lane may run along a window wall, and with no room for a lane two rows deep it keeps one row behind it (its back store left out) before it falls back to standing against a wall (gen/rooms4/groups.ts).",
+  ),
+  roomMiddles: on(
+    5,
+    "A study, office or library gets a floor group between its shelved walls (a reading table with its chairs, or a low table and seats), as many as its floor takes, and a small parlour (18 to 29 tiles) a seating group off its walls (gen/roomTraits.ts floor plans).",
+  ),
+  keptRoomsClean: on(
+    5,
+    "A room in use and kept intact (a furnished purpose, not abandoned, its character's condition intact: resolve/character.ts) has no rubble or debris at the foot of its rough walls or at its doorways, whatever its stone; worn, ruined and abandoned rooms and passages keep it (resolve/level/rooms.ts stepWallFootRubble).",
+  ),
+  bedsideLights: on(
+    5,
+    "In a bright or flooded room a group whose companion carries a light (a bed and its nightstand) keeps the cell at its head for a standing light, which the room's lights then stand there, so the wall lining and the standing room never take it first (gen/rooms4/groups.ts, gen/rooms4/regimes.ts).",
+  ),
+  sensibleLights: on(
+    5,
+    "A light must make sense where it stands before it serves a light level (owner: a little less light rather than goofy props): no outdoor piece in a furnished room (gen/pieceFacts.ts `setting`: a street lantern, a beach torch, a campfire), an open fire (a brazier, a floor torch) only in a room whose kind takes fire (a hearth, a forge, a guard room, a hall, an altar), nothing free-standing off the walls but the room's focal piece. Bright and flooded rooms get more candles and lanterns on more of their furniture and more wall lights, never stronger props; where those run out the room stays a little dimmer than its level (gen/rooms4/regimes.ts).",
+    "lightRegimes",
+  ),
+  pieceFacts: on(
+    5,
+    "Piece choice reads the one table of facts measured in game (gen/pieceFacts.ts): a run of wall, fence or railing takes level pieces only, a piece with a taller end post only at a run's end, turned so the post ends the run, and a raking stair rail never stands on a level run (in the wall runs and the objects' stand-ins); a piece that only glows is kept out of an ordinary room's things (compile/realize/walls.ts, compile/realize/features.ts, objects/lexicon.ts).",
+  ),
+  plinthUnderPorch: on(
+    5,
+    "A building's plinth runs under its porches, so a porch stands on the base at the building's floor and not in the air past the plinth's edge (resolve/building/fittings.ts drawPlinth).",
+  ),
+  buildingRooms: on(
+    5,
+    "A building's ground storey is split into the rooms of a programme drawn for its kind (an inn's taproom at the street door with its kitchen and store behind, a shop floor and its store, a workshop, a house's kitchen or hall and a bedroom; gen/buildingProgramme.ts): synthetic room areas over the footprint with walls between them and interior doorways, every room reached from the street door, no partition through a window or door, a chimney breast in a hearth room; a small building is one room with zones, a tiny one a single room. The room stage furnishes and lights them like any room. Ruins, open buildings and footprints the plan's own rooms cover stay as they are; upper storeys are untouched (resolve/building/rooms.ts).",
+  ),
+  twinnedPairs: on(
+    5,
+    "A mirrored pair (a guardian pair, approach lights) is one piece twinned, both standing or neither: the pair takes the nearest offset where both sides are clear, and the keep-clear rule refusing one side refuses the pair (resolve/recipes/threshold.ts, a recipe's `whole`).",
+  ),
+  roofKitFacts: on(
+    5,
+    "Roof choices read the roof-kit facts (resolve/roofKits.ts): a hip roof in a kit whose corner piece is a spiked tip is built as a gable (no row of spikes up its hips; resolve/structure.ts, resolve/building/volumes.ts).",
+  ),
+  leanUnderMain: on(
+    5,
+    "A drawn lean-to stands on the house's own footing (it stood a footing course higher), and a drawn design whose lower mass (a lean-to, a wing, a twin's second half) would still reach the main ridge is drawn again (resolve/structureVariety.ts, resolve/structure.ts).",
+  ),
+  readableNeighbours: on(
+    5,
+    "A drawn building differs from each neighbour (within twelve cells) and from every building of the same built wall on its level on at least two axes read from the street: built wall, roof colour, roof form and storeys; a draw that cannot is the one with the fewest such pairs (resolve/structure.ts drawDesigns).",
+  ),
+  themeOwnRange: on(
+    5,
+    "The style draw takes the theme's own range first (resolve/themeRange.ts): wall materials the theme's palettes build themselves keep their weight and borrowed ones a third of it; a theme whose own roof kit is flat (the city's) draws flat roofs in it beside the pitched ones (resolve/structure.ts drawDesigns).",
+  ),
+  chimneyScale: on(
+    5,
+    "A chimney breast is three wide at its foot only on a gable face of nine cells or more (a third of the face at most); on a smaller house it is one stack (compile/realize/structures/attachments.ts).",
+  ),
+  raggedRuins: on(
+    5,
+    "A ruin's breach tapers over two cells each side in stubs of uneven height; the roof is open right across over the breach only and has fallen in partway over its tapers (a ragged edge, and one bay no longer takes most of a small house's roof); the rubble grows with the breach's width; a ruin whose roof is gone keeps no porch post (resolve/building/ruinBays.ts, resolve/recipes/condition.ts, compile/realize/structures/attachments.ts).",
+    "ruinBays",
+  ),
+  ramshackleSigns: on(
+    5,
+    'Worn and ramshackle read apart at street distance: a ramshackle building may draw a lean-to shelter on one blank face off the street (detail recipe leanToShelter: a lower roof of its own kit on two kinds of post, plank ends, clutter under it; treatment family "addition"), and boards up three windows in five where a worn one boards one in five (resolve/recipes/condition.ts, resolve/building/condition.ts).',
+  ),
+  linesClearCanopies: on(
+    5,
+    "An overhead line keeps clear of the canopies and awnings over shop fronts at their built height (resolve/building/canopy.ts, the answer realize lays them by): its rope is raised over one it passes above, as high as its wall anchors hold it, and hangs nothing over it; a line its anchors cannot hold that high is dropped (resolve/level/market.ts stepLine).",
+  ),
+  postsAtBuildingCorners: on(
+    5,
+    "A building's corner posts stand at the corners of its outline only: where no cell round the corner is filled at that storey (its own, another volume's, an earlier building's: resolve/structureFaces.ts storeyFill, the walk its walls are laid by). Where two volumes meet in a straight wall, or a wing's corner meets the main volume's wall, no post is laid half a tile into the next volume's room.",
+  ),
+  featureOutlinesClear: on(
+    5,
+    "The detail recipes keep clear of what a wall-hung feature's piece really covers, its widest variant's outline turned with it, not only its cells: a corner post or a band no longer stands in the end of a wall rack wider than its cell (resolve/recipes/keepClear.ts).",
+  ),
+  roomsKeepALight: on(
+    5,
+    "A lived-in room of three tiles or more keeps a light at every light level, not only when drawn dark or dim, and its main pieces' tops are asked before a wall: a moderate kitchen whose regime found no sensible place (counters and a cauldron along every wall cell beside its cooking group, no seat, its door landings taking the rest) gets a light on a counter or a wall (gen/rooms4/regimes.ts lightByLevel).",
+    "lightRegimes",
+  ),
+  topLightFallback: on(
+    5,
+    "A piece whose top takes a lantern (a counter, a workbench) takes a single candle where the theme has no lantern piece, so a work surface still holds a light (a ship's galley: gen/rooms4/groups.ts lightOn).",
+  ),
+  tradePropsOnOneFloor: on(
+    5,
+    "A trade's props outside its door stand on one floor height, where they are pushed against the front as well (resolve/level/grid.ts oneFloorUnder asks each cell its feature base): a bench across a lowered doorway cell and the raised pavement beside it is not set there (resolve/level/market.ts stepTradeProps).",
+  ),
+  wallsUnderCeiling: on(
+    5,
+    "A wall inside a building's ground storey (a partition between its rooms, the wall over an interior doorway) never stands above the storey's wall top, the floor above it: the level wall pass asks the storey for its height and lays whole pieces from the floor up, then one more aligned to that top (over its own course, never down into a doorway), where stacking whole pieces stood half a tile or more into the room above (compile/realize/walls.ts, openings.ts).",
+  ),
+  shelvesWithinWalls: on(
+    5,
+    "A shelf plank wider than its cell (the palette's widest variant, asked of the palette) stands inward where the wall it hangs on ends (a corner, a doorway, a window), so it never reaches past the wall; on a stretch of wall shorter than the plank both ways it is left out (gen/rooms4/things.ts addShelf).",
+  ),
+  deadEndVignettes: on(
+    5,
+    "A room of the complex with one way on and nothing in it (the review's own walk, resolve/layoutRooms.ts) gets a small set against its far wall, drawn per room from a weighted table with a plain option (a cache, remains and loot, stores, a figure: gen/complexLayout.ts); the plain option only while the map's bare dead ends stay within the review's allowance (resolve/level/deadEnds.ts).",
+  ),
+  doorsByRole: on(
+    5,
+    "A route corridor whose openings the plan leaves unnamed opens into each room by the room's role (an arch into a hall or a crypt, a locked door into a treasury or cells, a door into a room in use, double doors where the corridor is two wide, a gap into a passage or a room with no purpose), drawn per level with a plain option (every one a gap, as before) and only where a wall stands to hang it in (gen/complexLayout.ts DOOR_BY_ROLE, resolve/level/openings.ts).",
+  ),
+  companionsClearPosts: on(
+    5,
+    "A group's companion set beside its anchor (a cell's bucket at the head of its cot) keeps out of the 0.5 square a corner post takes at a corner of its cell, as a piece pushed into a corner does: it steps out of the post the short way, and where that would take it further out of its cell it stands elsewhere or not at all (gen/rooms4/groups.ts poseAt).",
+  ),
+  grandHalls: on(
+    5,
+    "A great hall, a throne room or a temple nave of at least 120 floor tiles and 10 across is laid out as a hall (the room-kind table's floor plan of mode hall, gen/roomTraits.ts): its long axis kept clear end to end, column pairs at the third points across drawn per room (a pier at every bay, a pair at each third point of the length, or none), long tables or benches along the axis in the side bays, and its anchor (the high table, the throne, the altar) at a wall, never free on the axis (gen/rooms4/floor.ts placeHall).",
+  ),
+  cellRows: on(
+    5,
+    "A long room of a kind with a cell row in the room-kind table (prison cells, stable stalls, ward bays, bunk alcoves: gen/roomTraits.ts CELL_ROWS) is, drawn per room with a plain option, lined along one or both long walls with like cells: partitions between them, a shared front on the aisle (bars, a wall, a half wall or none) with a doorway in each at the row's pitch, each cell dressed with its kit, one left empty now and then and one in disorder, the aisle with its own set and lights (resolve/level/cellRows.ts, rooms.ts dressCellRow).",
+  ),
+  darkCellRows: on(
+    5,
+    "A cell row in a room whose light level is dark (its character's light, stated or from its words: resolve/character.ts) keeps its dark as a dark room does (one light or none, gen/lightLevels.ts): its cells are furnished without lights and its aisle gets one light per 50 tiles at most, none under 8 (resolve/level/rooms.ts dressCellRow; a barracks stated dark had a torch in every bunk and a row of them in its aisle).",
+    "cellRows",
+  ),
+  decayWhereItBelongs: on(
+    5,
+    "Rubble, debris and remains belong only where a place's condition or kind calls for them (gen/roomTraits.ts showsDecay): a room in use (a furnished purpose, not abandoned) that is intact or weathered and not of a kind that keeps its dead (a crypt, cells) gets no rubble or debris at its wall foot, no rubble or remains in its layered ground (a piece the facts call remains, gen/pieceFacts.ts, is left out of its floor cover) and no remains in a dead end's set; and no wall-foot pile stands on a cell a room's furnisher kept clear (the way through, a hall's axis, standing room). Ramshackle, ruined and abandoned rooms, crypts and cells, passages and the plan's own collapses and dress ops keep theirs (resolve/level/rooms.ts, resolve/recipes/ground.ts, resolve/level/deadEnds.ts).",
+    "keptRoomsClean",
+  ),
+  lightsAgainstSomething: on(
+    5,
+    "A light on a room's floor stands against a wall or a window, or beside a piece that is no light (furniture, a pier), whichever pass forms it (gen/rooms4/lights.ts floorLight: the generator-4 rounds, lights by occupancy, a cell row's aisle; gen/rooms4/regimes.ts standBeside, the focal glow too), and an open fire only where the room's kind takes one when the kind is known (a cell row's aisle asks its kit's row); where none fits the room stays a little dimmer (owner: no brazier in the middle of a ward's or a stable's aisle).",
+    "sensibleLights",
+  ),
+  doorsStayJoined: on(
+    5,
+    "A room's furnisher never cuts one of its doorways (a door, an archway, a flight of steps) off from its main door: the way check walks from the main door, not from every doorway at once (a bar's stool and a chest no longer close the way to the kitchen door behind the bar), and a blocking companion (a seat, a stand) keeps off the doors' landings as its anchor does (gen/rooms4/room.ts keepsWay, groups.ts pickCompanion).",
+  ),
+  sacredReads: on(
+    5,
+    "A sacred building (its words: shrine, temple, chapel ...) may draw a raised form (structure treatment sacredForm): a base with steps toward its street face, its door at the middle of that face, and no hearth stack (resolve/structure.ts planBuilding).",
+  ),
+  statedCharacter: on(
+    5,
+    "A level, area or building's stated light, condition and wealth (the plan fields; a building's condition may be ramshackle) win over its words, mood and the place around it, and are what the places inside it vary from; a stated ruined room is wreckage as its words would make it (resolve/character.ts, gen/roomPurpose.ts classifyRoom).",
+    "characterCascade",
+  ),
+  closedWornRoofs: on(
+    5,
+    "Only a ruin's roof is open: a worn building's roof keeps every piece (its wear shows as patches, in a kit of another colour where its own kit has no worn pieces and none of its tone is near), a ramshackle one has at most one small ragged hole off its eaves with boards under it; and a roof piece over an open cell (a hole, a ruin's lost bay) is laid cell by cell round it, so an opening follows its own ragged cells and never a piece's rectangle (resolve/building/condition.ts, wear.ts, compile/realize/structures/roofPiece.ts, roofs.ts).",
+    "roofPatches",
+  ),
+  landingsKeepClear: on(
+    5,
+    "Where people step on and off a level link are ways in like a door's sides (plan/links.ts linkLandingsOnLevel): a flight of stairs' or a ramp's foot and landing (the cells before its first step and beyond its last), and on the upper level the cells round where a ladder or a spiral stair comes up through its stairwell (a hatch or a drop has none; the cells round a ladder's or a spiral stair's foot on its lower level are not listed): nothing generated and blocking stands in them or reaches over them (resolve/level/features.ts inWayIn; a study's chair and a dress op's rubble on a stair's landing cut off every level above it); and a room's furnisher counts those cells as ways in, keeping them joined to its doors (gen/rooms4/room.ts findThresholds: the opening above a ladder is no floor of the room, so its edges never made it a doorway).",
+  ),
+  bandsClearBridges: on(
+    5,
+    "A cliff's rock band keeps off a bridge's deck, no cell of a rock's box over it, and leaves a gap where a deck meets the edge, as it does for links and paths (gen/cliffband.ts fitTurned, route; a cliff face set over the top of a plank walkway climbing to a plateau cut the walkway and its watchtower off, hillside-v5).",
+  ),
+  pilesKeepWay: on(
+    5,
+    "A blocking rubble pile at a rough wall's foot or a doorway's jamb never cuts the floor round it: where the open cells it touches would no longer meet round it (resolve/level/features.ts cutsFloor), it is low debris instead (resolve/level/rooms.ts stepWallFootRubble; a corner pile closed the strip between a cell's bunk and a ladder's opening, keep-dungeon-v8).",
+  ),
+  roofFormsFit: on(
+    5,
+    "A drawn building's roof form fits its theme and its footprint: a shed is its main roof only over a span the roof-type table allows (resolve/roofTypes.ts maxSpan: 3 cells; deeper, its high side stood as a bare wall taller than the house), else a gable; a skirt in a kit whose corner is a spiked tip is a gable too (its corners stood as spikes, as a hip's ridges did: roofKitFacts); and a theme with no flat roof kit of its own (themeRange: wood_town's flat tops were laid in floor tiles) draws flat roofs at a small share of their weight, so a timber village is pitched unless the plan says otherwise (resolve/structure.ts drawDesigns).",
+    "themeOwnRange",
+  ),
+  wealthLooks: on(
+    5,
+    "A place's wealth shows from the street as weighted pools per wealth step (resolve/wealthLooks.ts): a building's wall materials by their finish (rough planks poor, dressed stone and brick rich; the street draw counts a wall at the wrong end of its wealth as a failure; a poor building's rough wall built in the theme's own wall takes its rough variant family, wood_town's rural planks; a worn building keeps a borrowed kit of rough finish only, no desert plaster in a timber town), a well-off quarter's roofs leaning to the kit its first well-off building drew, trims firmer per step (WEALTH_WEIGHT_FIRM: each step more framed, banded and contrasting than the one below), and a rich building's door dressed now and then by its wealth (resolve/wealthLooks.ts DOOR_DRESSING: a light pair at its approach, a guardian pair only where its kind's door suits one, gen/buildingProgramme.ts guardedDoor: a mansion, a temple, a keep, never an inn or a shop) (resolve/structure.ts drawDesigns, recipes/treatments.ts, compile/realize/structures/context.ts).",
+    "characterCascade",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */
@@ -336,12 +673,31 @@ export interface OpeningOutlineTuning {
   readonly lobeCut: number;
 }
 
+/**
+ * The detail budget (plan §5): detail pieces per footprint tile by what the tile is (a room or corridor, a built
+ * exterior: building footprints, courtyards and bridges, natural ground), and the ceiling of a whole map; a level's own
+ * ceiling is ARRANGE_LIMITS.piecesPerLevel. Read by resolve/recipes/budget.ts only.
+ */
+export interface DetailBudgetTuning {
+  readonly interior: number;
+  readonly builtExterior: number;
+  readonly natural: number;
+  readonly perMap: number;
+}
+
 /** Numbers a generator sets. Each tuning starts with a step for generator 1; a later step replaces it from there on. */
 const TUNINGS = {
   openingOutline: [
     { since: 1, value: { grain: 1.6, cut: 0.3, keepShare: 0.55, lobeCut: 0.74 } },
     // deeper bites at a coarser grain, so the outline reads as broken rather than as a nibbled rectangle
     { since: 4, value: { grain: 2.2, cut: 0.36, keepShare: 0.45, lobeCut: 0.6 } },
+  ],
+  // (only detail recipes read it, and they start in generator 5)
+  detailBudget: [
+    {
+      since: 1,
+      value: { interior: 3, builtExterior: 2, natural: 1.5, perMap: 24000 } satisfies DetailBudgetTuning,
+    },
   ],
 } as const satisfies Record<string, readonly [TuningStep<unknown>, ...TuningStep<unknown>[]]>;
 
@@ -366,6 +722,7 @@ const VOCABULARY: Readonly<Record<GeneratorVersion, VocabularyDeclaration>> = {
   2: { featureTypes: [], levelFields: [], areaFields: [] },
   3: { featureTypes: [], levelFields: [], areaFields: [] },
   4: { featureTypes: ["clutter", "shelf_line"], levelFields: ["roomDress"], areaFields: ["purpose"] },
+  5: { featureTypes: [], levelFields: [], areaFields: [] },
 };
 
 /** The plan vocabulary one generator understands (what it added and what the generators before it did). */

@@ -11,6 +11,7 @@ import { type BuildingFaces, GROUND_FACES } from "./faces";
 import { alongFace, cellOf, faceKey, faceRuns, key, ringOf } from "./footprint";
 import type { BuildingPlan, Chimney, GroundOpening, Porch } from "./types";
 import type { GroundFootprint } from "./volumes";
+import { characterAt, lightIndex } from "../character";
 
 /**
  * The face of a plinth when neither the plan nor the building style names one. Neither the palette nor the theme
@@ -47,7 +48,11 @@ export function placeDoorLights(
  * a stoop toward the street), never into a neighbour's plot or the ring its walls stand in; cells past the level edge
  * or in another building are left off with a warning.
  */
-export function drawPlinth(b: BuildingCtx, fp: GroundFootprint): BuildingPlan["plinth"] {
+export function drawPlinth(
+  b: BuildingCtx,
+  fp: GroundFootprint,
+  porches: readonly Porch[] = [],
+): BuildingPlan["plinth"] {
   const { st, profile, prng2 } = b;
   const pp = profile.plinth;
   const pIn =
@@ -63,7 +68,10 @@ export function drawPlinth(b: BuildingCtx, fp: GroundFootprint): BuildingPlan["p
   if (!pIn) return null;
   const { cellSet } = fp;
   const margin = pIn.margin ?? pp?.margin ?? 1;
-  let pcells = new Set(cellSet);
+  // generator 5 (plinthUnderPorch): the base runs under the porches too, so a porch stands on it at the building's
+  // floor instead of in the air past its edge (which left a face of two tiles with nothing under it)
+  const under = b.gen.plinthUnderPorch ? porches.flatMap((q) => q.cells.map(([x, y]) => key(x, y))) : [];
+  let pcells = new Set([...cellSet, ...under]);
   const sides = pIn.sides;
   for (let m = 0; m < margin; m++) {
     if (!sides) pcells = new Set([...pcells, ...ringOf(pcells)]);
@@ -159,13 +167,29 @@ export function drawLighting(
     doors: doorLights,
     strips: st.lighting?.strips ?? prng2.chance(pl.strips),
   };
+  // generator 5 (characterCascade): its light level, not its upkeep, scales the share of windows lit (worn is not dark;
+  // a ruin still has nobody in it)
+  const ch = characterAt(b.work, st.id);
   if (condition === "ruined") {
     lighting.windows = "none";
     lighting.strips = false;
-  } else if (condition === "weathered")
+  } else if (ch !== null)
+    lighting.lit = Math.min(1, Math.round(lighting.lit * WINDOWS_LIT_BY_LIGHT[lightIndex(ch)] * 100) / 100);
+  else if (condition === "weathered")
     // most windows dark
     lighting.lit = Math.round(lighting.lit * (b.gen.legibleCondition ? 15 : 30)) / 100;
   return lighting;
+}
+
+/** A building's lit-window share multiplier by its light level (dark .. flooded). */
+export const WINDOWS_LIT_BY_LIGHT = [0.25, 0.6, 1, 1.4, 1.8] as const;
+
+/** Whether a building of this light level has lights at its doors (generator 5): none at dark unless the plan asks. */
+export function doorLightsByLight(b: BuildingCtx, drawn: boolean): boolean {
+  const ch = characterAt(b.work, b.st.id);
+  if (ch === null || b.st.lighting?.doors !== undefined) return drawn;
+  const level = lightIndex(ch);
+  return level === 0 ? false : level >= 3 ? true : drawn;
 }
 
 /**

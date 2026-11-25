@@ -13,11 +13,14 @@ import { MATERIALS } from "../../contracts/plan";
 import type { ResolvedFeature, ResolvedOpening } from "../../contracts/resolved";
 import { CELL, CELL_FLAG, EDGE } from "../../contracts/resolved";
 import { LIGHT_FEATURES, featureInfo, isLandmark, rotatedSize } from "../../gen/catalog";
-import { SIDE_STEP } from "../../gen/gridGeometry";
-import { isPassage } from "../../gen/openingKinds";
+import { SIDES, SIDE_STEP } from "../../gen/gridGeometry";
+import { isPassage, isWindow } from "../../gen/openingKinds";
+import { featureRoles } from "../../gen/surfaces";
+import { maxOf } from "../../util/lists";
 import type { GeneratedPlacement, PlacementGrid } from "../../gen/placementGrid";
 import { THEME_WALL_STYLE } from "../../gen/wallStyles";
 import { wallRole } from "../../palette/roles";
+import { linkLandingsOnLevel } from "../../plan/links";
 import type { ChasmRecords } from "./chasms";
 import type { ReadOnly, ResolveGrid } from "./grid";
 import { type PathRecords, parkVehicle } from "./paths";
@@ -25,6 +28,9 @@ import type { ReliefRecords } from "./relief";
 import { waterSurface } from "./waterSurface";
 
 const LAVA_ORDINAL = MATERIALS.indexOf("lava") + 1;
+
+/** A side's index in a window-edge key (FeatureWork.windowEdges). */
+const SIDE_INDEX: Readonly<Record<Side, number>> = { N: 0, E: 1, S: 2, W: 3 };
 
 /** What feature placement consults of phase 1, read-only. */
 export interface PlacementSurroundings {
@@ -58,8 +64,13 @@ export class FeatureWork {
   private keepClear: Set<number> | null = null;
   private rampSet: Set<number> | null = null;
   private passageFrontSet: Set<number> | null = null;
+  private landingSet: Set<number> | null = null;
+  private windowEdgeSet: Set<number> | null = null;
   /** Generator 4: the lane before each market stall's front row (filled as the stalls are placed). */
   private readonly stallFronts = new Set<number>();
+  private readonly keptClearCells = new Set<number>();
+  /** Generator 5 (lightRegimes): the light level drawn for each furnished room (ResolvedArea.lightLevel). */
+  readonly lightLevels = new Map<string, number>();
 
   constructor(
     private readonly work: ResolveGrid,
@@ -96,6 +107,70 @@ export class FeatureWork {
     this.list.push(f);
   }
 
+  /** Generator 5: cells a room's furnisher kept clear (standing room, the way in, landings): ResolvedLevel.keptClear. */
+  keepClearOf(cells: ReadonlyArray<readonly [number, number]>): void {
+    for (const [x, y] of cells) {
+      const i = this.work.idx(x, y);
+      if (i >= 0) this.keptClearCells.add(i);
+    }
+  }
+
+  /**
+   * Would a blocking piece on this footprint cut the floor round it: do the open floor cells it touches (across no wall)
+   * fall apart when walked within the ring of cells round it? Local and cautious: a way round further off is not
+   * looked for, so a piece in a one-cell strip, or at a pinch a piece already narrows, cuts.
+   */
+  cutsFloor(at: readonly [number, number], size: readonly [number, number]): boolean {
+    const work = this.work;
+    const x0 = at[0] - 1;
+    const y0 = at[1] - 1;
+    const x1 = at[0] + size[0];
+    const y1 = at[1] + size[1];
+    const inside = (x: number, y: number): boolean =>
+      x >= at[0] && y >= at[1] && x < at[0] + size[0] && y < at[1] + size[1];
+    const walkable = (x: number, y: number): boolean => {
+      const i = work.idx(x, y);
+      if (i < 0 || work.state[i] !== CELL.OPEN) return false;
+      return ((work.flags[i] as number) & (CELL_FLAG.NO_FLOOR | CELL_FLAG.FEATURE)) === 0;
+    };
+    const ring = (x: number, y: number): boolean =>
+      x >= x0 && y >= y0 && x <= x1 && y <= y1 && !inside(x, y) && walkable(x, y);
+    // the ring cells the footprint opens onto (across no wall)
+    const touching: Array<[number, number]> = [];
+    for (let y = at[1]; y < at[1] + size[1]; y++)
+      for (let x = at[0]; x < at[0] + size[0]; x++)
+        for (const s of SIDES) {
+          const [dx, dy] = SIDE_STEP[s];
+          if (ring(x + dx, y + dy) && work.edgeKindAt(x, y, s) !== EDGE.WALL) touching.push([x + dx, y + dy]);
+        }
+    if (touching.length < 2) return false;
+    const key = (x: number, y: number): number => (y - y0) * (x1 - x0 + 1) + (x - x0);
+    const first = touching[0] as [number, number];
+    const seen = new Set([key(first[0], first[1])]);
+    const queue = [first];
+    for (let h = 0; h < queue.length; h++) {
+      const [x, y] = queue[h] as [number, number];
+      for (const s of SIDES) {
+        const [dx, dy] = SIDE_STEP[s];
+        const [nx, ny] = [x + dx, y + dy];
+        if (!ring(nx, ny) || seen.has(key(nx, ny)) || work.edgeKindAt(x, y, s) === EDGE.WALL) continue;
+        seen.add(key(nx, ny));
+        queue.push([nx, ny]);
+      }
+    }
+    return touching.some(([x, y]) => !seen.has(key(x, y)));
+  }
+
+  /** Was cell `i` kept clear by a room's furnisher (keepClearOf)? */
+  isKeptClear(i: number): boolean {
+    return this.keptClearCells.has(i);
+  }
+
+  /** The cells kept clear so far (keepClearOf), ascending. */
+  get keptClear(): number[] {
+    return [...this.keptClearCells].sort((a, b) => a - b);
+  }
+
   /** The cells along a stall's front side, just outside its footprint: where its customers stand. */
   private addStallFront(at: readonly [number, number], size: readonly [number, number], front: Side): void {
     const [dx, dy] = SIDE_STEP[front];
@@ -118,7 +193,14 @@ export class FeatureWork {
    * a placer whose pieces may stand there, with the reason, written at the call site.
    */
   addGenerated(f: ResolvedFeature, opts: { occupy?: boolean; wayIn?: { mayStand: string } } = {}): boolean {
-    if (opts.wayIn === undefined && f.blocking && this.blocksWayIn(f.type, f.at, f.size, f.variant))
+    if (
+      opts.wayIn === undefined &&
+      f.blocking &&
+      this.blocksWayIn(f.type, f.at, f.size, f.variant, {
+        rotFine: f.rotFine,
+        ...(f.offset !== undefined ? { offset: f.offset } : {}),
+      })
+    )
       return false;
     if (opts.occupy ?? true) this.add(f);
     else this.list.push(f);
@@ -197,8 +279,8 @@ export class FeatureWork {
 
   /**
    * Generator 4 (`waysInKeepClear`): a cell in front of a way in, where people stand to go through: both sides of every
-   * passage (a door, an archway, a gate, an open gap; gen/openingKinds.ts `isPassage`) and the lane before a market
-   * stall's front row. Nothing blocking may stand there, nor reach over it (`blocksWayIn`). `stallLanes` false leaves
+   * passage (a door, an archway, a gate, an open gap; gen/openingKinds.ts `isPassage`), the lane before a market
+   * stall's front row, and (generator 5, `landingsKeepClear`) where people step on and off a link. Nothing blocking may stand there, nor reach over it (`blocksWayIn`). `stallLanes` false leaves
    * the stalls' lanes out: the market lays its own pieces round its stalls (stock never in front, posts at an aisle's
    * ends).
    */
@@ -221,6 +303,7 @@ export class FeatureWork {
     at: readonly [number, number],
     size: readonly [number, number],
     variant?: string,
+    pose?: { rotFine: number; offset?: readonly [number, number] },
   ): boolean {
     if (!this.work.profile.waysInKeepClear) return false;
     const info = featureInfo(type);
@@ -229,10 +312,23 @@ export class FeatureWork {
     const ext = this.work.ctx.palette.roomPiece(theme, type, variant);
     // turned any way (a scattered piece turns in steps of 15°): half its outline's diagonal
     const reach = Math.hypot(ext?.wMax ?? 0, ext?.dMax ?? 0) / 2;
-    const cx = at[0] + size[0] / 2;
-    const cy = at[1] + size[1] / 2;
-    const rx = Math.max(size[0] / 2, reach);
-    const ry = Math.max(size[1] / 2, reach);
+    let cx = at[0] + size[0] / 2;
+    let cy = at[1] + size[1] / 2;
+    let rx = Math.max(size[0] / 2, reach);
+    let ry = Math.max(size[1] / 2, reach);
+    // generator 5: a piece set square (a quarter turn) where it stands reaches exactly its outline there
+    if (
+      pose !== undefined &&
+      this.work.profile.exactWayInReach &&
+      pose.rotFine % 90 === 0 &&
+      ext !== undefined
+    ) {
+      const across = pose.rotFine % 180 !== 0;
+      cx += pose.offset?.[0] ?? 0;
+      cy += pose.offset?.[1] ?? 0;
+      rx = (across ? ext.dMax : ext.wMax) / 2;
+      ry = (across ? ext.wMax : ext.dMax) / 2;
+    }
     // a cell the outline only grazes (a hundredth of a tile) does not count
     const EPS = 0.01;
     for (let y = Math.floor(cy - ry + EPS); y < cy + ry - EPS; y++)
@@ -241,7 +337,10 @@ export class FeatureWork {
     return false;
   }
 
-  /** Both side cells of every passage of the level (built on first ask: the openings are final in phase 2). */
+  /**
+   * Both side cells of every passage of the level, and its links' landings (built on first ask: the openings are final
+   * in phase 2).
+   */
   private passageFronts(): ReadonlySet<number> {
     if (this.passageFrontSet) return this.passageFrontSet;
     const out = new Set<number>();
@@ -254,7 +353,49 @@ export class FeatureWork {
         for (const i of [this.work.idx(ax, ay), this.work.idx(x, y)]) if (i >= 0) out.add(i);
       }
     }
+    // generator 5 (landingsKeepClear): where people step on and off the level's links are ways in too
+    for (const i of this.landings()) out.add(i);
     this.passageFrontSet = out;
+    return out;
+  }
+
+  /**
+   * Generator 5 (`landingsKeepClear`): the cells where people step on and off the level's links (plan/links.ts
+   * `linkLandingsOnLevel`); empty before it.
+   */
+  private landings(): ReadonlySet<number> {
+    if (this.landingSet) return this.landingSet;
+    const out = new Set<number>();
+    if (this.work.profile.landingsKeepClear)
+      for (const [x, y] of linkLandingsOnLevel(this.work.plan, this.work.level.id)) {
+        const i = this.work.idx(x, y);
+        if (i >= 0) out.add(i);
+      }
+    this.landingSet = out;
+    return out;
+  }
+
+  /**
+   * Generator 5: the window edges of the level, as cell index × 4 + side index (N, E, S, W) for both cells of each
+   * (built on first ask, like the passage fronts).
+   */
+  private windowEdges(): ReadonlySet<number> {
+    if (this.windowEdgeSet) return this.windowEdgeSet;
+    const out = new Set<number>();
+    for (const o of this.around.openings) {
+      if (!isWindow(o.kind)) continue;
+      for (let k = 0; k < o.width; k++) {
+        const [x, y] = o.orientation === "h" ? [o.start[0] + k, o.start[1]] : [o.start[0], o.start[1] + k];
+        // north (west) of the edge the window is on the cell's south (east) side; the other cell has it on its north (west)
+        const [ax, ay] = o.orientation === "h" ? [x, y - 1] : [x - 1, y];
+        const [sa, sb] = o.orientation === "h" ? [2, 0] : [1, 3];
+        const ia = this.work.idx(ax, ay);
+        const ib = this.work.idx(x, y);
+        if (ia >= 0) out.add(ia * 4 + sa);
+        if (ib >= 0) out.add(ib * 4 + sb);
+      }
+    }
+    this.windowEdgeSet = out;
     return out;
   }
 
@@ -286,7 +427,14 @@ export class FeatureWork {
       keepClear: (x, y) => this.crossingClear().has(work.idx(x, y)),
       // generator 4: nothing blocking in front of a way in (a door, a stall's front)
       ...(work.profile.waysInKeepClear
-        ? { blocksWayIn: (t: FeatureType, at, size, v?: string) => this.blocksWayIn(t, at, size, v) }
+        ? {
+            blocksWayIn: (t: FeatureType, at, size, v?: string, pose?) =>
+              this.blocksWayIn(t, at, size, v, pose),
+          }
+        : {}),
+      // generator 5: where people step on and off a link (a room counts it as a way in)
+      ...(work.profile.landingsKeepClear
+        ? { landing: (x: number, y: number) => this.landings().has(work.idx(x, y)) }
         : {}),
       // generator 2: rock ramp cells (no path flag) stay clear of the band and other dressing
       ramp: (x, y) => work.profile.ramps && this.rampCells().has(work.idx(x, y)),
@@ -335,6 +483,17 @@ export class FeatureWork {
               const ed = work.sideEdge(x, y, s);
               if (!ed) return false;
               const [a, b] = work.edgeCells(ed.orient, ed.i);
+              // generator 5 (cellRows): a wall inside one room (a cell row's partition or front) stands across its line,
+              // so each side keeps its strip clear
+              if (
+                work.profile.cellRows &&
+                ed.e.kind[ed.i] === EDGE.WALL &&
+                a >= 0 &&
+                b >= 0 &&
+                work.ownerAt(a) !== undefined &&
+                work.ownerAt(a) === work.ownerAt(b)
+              )
+                return true;
               const forced = ed.e.hostSet[ed.i] as number;
               const host = forced >= 0 ? forced : work.hostOf(a, b, ed.e.run[ed.i] === 1);
               return host === (s === "N" || s === "W" ? 1 : 0);
@@ -363,6 +522,39 @@ export class FeatureWork {
             lightCells: () =>
               this.list.filter((f) => LIGHT_FEATURES.has(f.type)).map((f) => [f.at[0], f.at[1]] as const),
             roomMemory: this.roomMemory,
+          }
+        : {}),
+      // generator 5: the room furnisher reads the windows (a desk at one, nothing tall across one)
+      ...(work.profile.companionGroups
+        ? {
+            windowOn: (x: number, y: number, s: Side) => {
+              const i = work.idx(x, y);
+              return i >= 0 && this.windowEdges().has(i * 4 + SIDE_INDEX[s]);
+            },
+          }
+        : {}),
+      // generator 5: the light regimes choose lights by the pieces the compiler would build (gen/lightReach.ts)
+      ...(work.profile.lightRegimes
+        ? {
+            lightPieces: (t: FeatureType, x: number, y: number, v?: string) => {
+              const theme = work.themeAt(work.idx(x, y));
+              for (const role of featureRoles(t)) {
+                const res = work.ctx.palette.roles.resolve(theme, role).resolution;
+                if (!res) continue;
+                const vs =
+                  v !== undefined
+                    ? res.variants.filter((q) => q.variant === v)
+                    : res.variants.filter((q) => q.weight > 0);
+                if (vs.length === 0) continue;
+                return {
+                  names: vs.map((q) => q.name ?? q.uuid),
+                  wMax: maxOf(vs.map((q) => q.geom.size.x)),
+                  dMax: maxOf(vs.map((q) => q.geom.size.z)),
+                  hMax: maxOf(vs.map((q) => q.geom.size.y)),
+                };
+              }
+              return undefined;
+            },
           }
         : {}),
     };

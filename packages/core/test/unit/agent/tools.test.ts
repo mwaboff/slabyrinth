@@ -10,19 +10,19 @@ import {
   validateToolInput,
 } from "../../../src/agent";
 import { h64hex } from "../../../src/util";
-import { DP_1_0_0, DP_1_1_0, DP_1_2_0, DP_1_3_0 } from "../../../src/agent/designPrinciples.frozen";
+import { DP_1_0_0, DP_1_1_0, DP_1_2_0, DP_1_3_0, DP_1_4_0 } from "../../../src/agent/designPrinciples.frozen";
 import { DESIGN_PRINCIPLES_VERSION } from "../../../src/agent/designPrinciples";
 import { TOOLS_VERSION } from "../../../src/agent/prompt";
 
 /** Hash of the published sp-1.1.0 text (frozen). */
 const SP_1_1_0_HASH = "2176e2d9b0362e06";
 
-describe("working tool list (tools-1.9.0; published versions are pinned by hash below)", () => {
+describe("working tool list (tools-1.10.0; published versions are pinned by hash below)", () => {
   it("working versions are the ones last opened", () => {
-    // generator 4 opened sp-1.13.0, dp-1.3.0, tools-1.9.0; released in 0.3.0, so generator 5 opens the next ones
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.13.0");
-    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.3.0");
-    expect(TOOLS_VERSION).toBe("tools-1.9.0");
+    // generator 5 opened sp-1.14.0, dp-1.4.0, tools-1.10.0; released in 0.4.0, so generator 6 opens the next ones
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.14.0");
+    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.4.0");
+    expect(TOOLS_VERSION).toBe("tools-1.10.0");
   });
   it("serializes deterministically (the bytes are the cache key)", () => {
     const a = serializeTools(toolsForConversation(true));
@@ -104,9 +104,24 @@ describe("released in 0.3.0: sp-1.13.0, dp-1.3.0, tools-1.9.0 (frozen with gener
   });
 });
 
+describe("released in 0.4.0: sp-1.14.0, dp-1.4.0, tools-1.10.0 (frozen with generator 5)", () => {
+  it("sp-1.14.0 is byte-identical to the release", () => {
+    expect(h64hex(systemPromptFor("sp-1.14.0") ?? "")).toBe("b7f8febdc9a089f4");
+  });
+  it("dp-1.4.0 is byte-identical to the release and sp-1.14.0 carries it", () => {
+    expect(h64hex(DP_1_4_0)).toBe("8afea61ec9f53ad8");
+    expect(systemPromptFor("sp-1.14.0")).toContain(DP_1_4_0);
+  });
+  it("tools-1.10.0 is byte-identical to the release and served from its frozen copy", () => {
+    const frozen = serializeTools(toolsForConversation(true, "tools-1.10.0"));
+    expect(h64hex(frozen)).toBe("dc1a240414b9222c");
+    expect(toolsForConversation(false, "tools-1.10.0").map((t) => t.name)).not.toContain("view_map_image");
+  });
+});
+
 describe("system prompt", () => {
   it("is frozen per version", () => {
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.13.0");
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.14.0");
     // sp-1.10.0 shipped in the owner's second snapshot with dp-1.0.0: frozen byte for byte
     expect(h64hex(systemPromptFor("sp-1.10.0") ?? "")).toBe("74e5072df0fd89e2");
     expect(systemPromptFor(SYSTEM_PROMPT_VERSION)).toBe(SYSTEM_PROMPT);
@@ -117,7 +132,7 @@ describe("system prompt", () => {
     expect(h64hex(systemPromptFor("sp-1.1.0") ?? "")).toBe(SP_1_1_0_HASH);
     expect(h64hex(SYSTEM_PROMPT)).toMatchSnapshot();
   });
-  it("sp-1.13.0 (working) says the generator-4 room rules once, where they apply", () => {
+  it("sp-1.13.0 (and the working prompt after it) says the generator-4 room rules once, where they apply", () => {
     // the dressing how-to lives in the set-dressing section only; the principle carries no list of purposes
     expect(SYSTEM_PROMPT.match(/Rooms dress themselves/g)).toHaveLength(1);
     expect(SYSTEM_PROMPT).toMatch(/Name every room for its use .* and leave its floor off/);

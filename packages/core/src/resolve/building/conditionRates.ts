@@ -21,6 +21,11 @@ export const WEATHERED = {
   footFaces: 7,
   footFacesHeavy: 3,
   footMin: 2,
+  /**
+   * Generator 5 (`closedWornRoofs`): a ramshackle roof's one small hole, `ramshackleHole` cells at most (drawn from
+   * two up), off the top storey's edge; a worn roof has none.
+   */
+  ramshackleHole: 3,
 } as const;
 
 /** Ruined. */

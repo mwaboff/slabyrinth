@@ -324,6 +324,18 @@ describe("core guards", () => {
     });
   });
 
+  describe("slabyrinth/light-words: a place's light words have one reader", () => {
+    const code = 'import { lightNamedBy } from "../gen/lightLevels";';
+    it("reports a reader of the light words outside the character resolver", async () => {
+      expect(await guardHits("packages/core/src/review/lights.ts", code)).toEqual([
+        expect.stringContaining("slabyrinth/light-words"),
+      ]);
+    });
+    it("leaves the character resolver alone", async () => {
+      expect(await guardHits("packages/core/src/resolve/character.ts", code)).toEqual([]);
+    });
+  });
+
   describe("slabyrinth/generator-switches: generator behaviour is a switch", () => {
     it("reports a generator compared with a version, and a switch on the generator", async () => {
       const cases: Array<[string, string]> = [
@@ -387,7 +399,7 @@ describe("core guards", () => {
       ).toEqual([]);
       expect(
         await guardHits(
-          "packages/core/test/golden/generator4/update.ts",
+          "packages/core/test/golden/generator5/update.ts",
           'import { writeFileSync } from "node:fs";',
         ),
       ).toEqual([]);
@@ -406,6 +418,27 @@ describe("core guards", () => {
           "packages/core/src/gen/setpieces.ts",
           "const BIG = new Set(typesWith((f) => f.overhangs === true));",
         ),
+      ).toEqual([]);
+    });
+  });
+
+  describe("slabyrinth/feature-compares: the room furnisher asks feature traits", () => {
+    it("reports a feature type compared by name in the furnisher", async () => {
+      const file = "packages/core/src/gen/rooms4/wall.ts";
+      expect(await guardHits(file, 'if (spec.type === "bed") f();')).toEqual([
+        expect.stringContaining("slabyrinth/feature-compares"),
+      ]);
+      expect(await guardHits(file, 'const lit = q.type !== "bar_counter";')).toHaveLength(1);
+    });
+    it("leaves a trait read and generator 4's light rule alone", async () => {
+      expect(
+        await guardHits(
+          "packages/core/src/gen/rooms4/wall.ts",
+          "if (featureInfo(spec.type).sleepsIn === true) f();",
+        ),
+      ).toEqual([]);
+      expect(
+        await guardHits("packages/core/src/gen/rooms4/lights.ts", 'const x = q.type !== "clutter";'),
       ).toEqual([]);
     });
   });
@@ -477,7 +510,7 @@ describe("core guards", () => {
         expect(await typedGuardHits("packages/core/src/compile/x.ts", typed(body)), body).toEqual([
           expect.stringContaining("slabyrinth/element-theme"),
         ]);
-    });
+    }, 30_000); // type-aware lint of three snippets: about 2.5 s locally under a parallel run
     it("with types: leaves the readers' own argument, a structure's theme and a write alone", async () => {
       for (const body of [
         "use(themeAt(f.theme, 1, 2));",
@@ -486,7 +519,7 @@ describe("core guards", () => {
         'f.theme = "x";',
       ])
         expect(await typedGuardHits("packages/core/src/review/x.ts", typed(body)), body).toEqual([]);
-    });
+    }, 30_000); // type-aware lint of four snippets: about 2.5 s locally under a parallel run
   });
 
   describe("slabyrinth/hash-unit: a draw from a hash goes through util/hash.ts", () => {

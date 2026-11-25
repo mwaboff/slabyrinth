@@ -25,6 +25,11 @@ export interface FeatureInfo {
   /** Light source: it lights the cells round it (LIGHT_FEATURES; the lighting passes and the review count it). */
   light?: boolean;
   /**
+   * Generator 5 (sensibleLights): an open fire standing on a floor (a brazier, a floor torch, a camp fire): it belongs
+   * only in a room whose kind takes fire (gen/roomTraits.ts `fire`: a hearth, a forge, a guard room, a hall, an altar).
+   */
+  openFire?: boolean;
+  /**
    * A statement piece that gives the map its skyline: one per dress op with a clear ring round it (gen/setpieces.ts),
    * its cells marked so other dressing keeps an apron off it (resolve/level/features.ts), and a note when its asset
    * stands under 3 tiles (compile/realize/features.ts).
@@ -35,8 +40,25 @@ export interface FeatureInfo {
    * table, a desk, an altar), a small lantern on a counter or chest. Unset: nothing is lit on it.
    */
   topLight?: "candle" | "lantern";
+  /**
+   * Generator 5: a top people sit or work at that is lit wherever it stands (a table, a desk): the room lights put a
+   * candle on it first (gen/rooms4/regimes.ts, occupancy.ts). A bar is lit by its regime, not on every segment.
+   */
+  surfaceLight?: boolean;
+  /**
+   * Generator 5: a light for a table top (a candle, a candelabra): one standing on a floor reads as a flame dropped
+   * there, so a room's floor takes a standing light instead (gen/rooms4/furnish.ts).
+   */
+  tableLight?: boolean;
+  /** Something to sleep in (a bed, a bunk): it keeps a free cell beside it (generator 5, gen/rooms4/wall.ts). */
+  sleepsIn?: boolean;
   /** Hung from the ceiling: raised on purpose, so verify never calls it floating (compile/verify/props.ts). */
   ceilingMounted?: boolean;
+  /**
+   * A column that carries a hall (a pillar, a rock column, a timber support): a hall with columns reads full with few
+   * props, so the review by room kind does not call it bare (review/interiors.ts).
+   */
+  carriesHall?: boolean;
   /**
    * A piece of a cliff's rock band (generator 2): placed along a rise by gen/cliffband.ts, built and rested by the
    * band passes, measured by verify's and the review's cliff checks.
@@ -117,16 +139,33 @@ const F = (label: string, category: FeatureCategory, opts: FeatureOpts = {}): Fe
 };
 
 export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
-  table: F("Table", "furniture", { size: [2, 1], topLight: "candle", seatsAt: true, support: true }),
-  round_table: F("Round table", "furniture", { topLight: "candle", seatsAt: true, support: true }),
+  table: F("Table", "furniture", {
+    size: [2, 1],
+    topLight: "candle",
+    seatsAt: true,
+    support: true,
+    surfaceLight: true,
+  }),
+  round_table: F("Round table", "furniture", {
+    topLight: "candle",
+    seatsAt: true,
+    support: true,
+    surfaceLight: true,
+  }),
   chair: F("Chair", "furniture", { seat: true }),
   bench: F("Bench", "furniture", { size: [2, 1], seat: true }),
   stool: F("Stool", "furniture", { seat: true }),
-  bed: F("Bed", "furniture", { size: [1, 2] }),
-  bunk_bed: F("Bunk bed", "furniture", { size: [1, 2] }),
+  bed: F("Bed", "furniture", { size: [1, 2], sleepsIn: true }),
+  bunk_bed: F("Bunk bed", "furniture", { size: [1, 2], sleepsIn: true }),
   wardrobe: F("Wardrobe", "furniture", { wallHugger: true }),
   bookshelf: F("Bookshelf", "furniture", { size: [2, 1], wallHugger: true }),
-  desk: F("Desk", "furniture", { size: [2, 1], topLight: "candle", seatsAt: true, support: true }),
+  desk: F("Desk", "furniture", {
+    size: [2, 1],
+    topLight: "candle",
+    seatsAt: true,
+    support: true,
+    surfaceLight: true,
+  }),
   chest: F("Chest", "furniture", { topLight: "lantern", support: true }),
   barrel: F("Barrel", "furniture"),
   crate: F("Crate", "furniture"),
@@ -143,7 +182,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   armor_stand: F("Armour stand", "furniture"),
   cage: F("Cage", "furniture"),
   stocks: F("Stocks", "furniture"),
-  pillar: F("Pillar", "architecture"),
+  pillar: F("Pillar", "architecture", { carriesHall: true }),
   statue: F("Statue", "architecture", {
     groundCause: "wear",
     focal: "lesser",
@@ -174,9 +213,9 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
     focusPiece: true,
     wantsLight: true,
   }),
-  brazier: F("Brazier", "architecture", { light: true }),
+  brazier: F("Brazier", "architecture", { light: true, openFire: true }),
   torch_wall: F("Wall torch", "architecture", { blocking: false, wallMounted: true, light: true }),
-  candelabra: F("Candelabra", "furniture", { light: true }),
+  candelabra: F("Candelabra", "furniture", { light: true, tableLight: true }),
   banner_wall: F("Banner", "architecture", { blocking: false, wallMounted: true }),
   painting_wall: F("Painting", "architecture", { blocking: false, wallMounted: true }),
   sarcophagus: F("Sarcophagus", "architecture", { size: [1, 2] }),
@@ -258,6 +297,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   }),
   campfire: F("Campfire", "outdoor", {
     light: true,
+    openFire: true,
     groundCause: "litter",
     focal: "lesser",
     focusPiece: true,
@@ -340,7 +380,13 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
     focusPiece: true,
   }),
   // ritual, encounter and lights
-  candles: F("Candles", "furniture", { blocking: false, light: true, glyph: "candelabra", clusters: true }),
+  candles: F("Candles", "furniture", {
+    blocking: false,
+    light: true,
+    glyph: "candelabra",
+    clusters: true,
+    tableLight: true,
+  }),
   skull_pile: F("Skulls", "other", {
     blocking: false,
     organic: true,
@@ -349,12 +395,13 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
     clusters: true,
   }),
   spawn_point: F("Spawn point", "hazard", { blocking: false, gmOnly: true, glyph: "trap_plate" }),
-  torch_floor: F("Floor torch", "architecture", { light: true, glyph: "brazier" }),
+  torch_floor: F("Floor torch", "architecture", { light: true, openFire: true, glyph: "brazier" }),
   lantern: F("Lantern", "architecture", { light: true, glyph: "brazier" }),
   magic_fire: F("Magic fire", "architecture", { light: true, glyph: "campfire", focusPiece: true }),
-  lava_glow: F("Lava glow", "hazard", { blocking: false, light: true, glyph: "brazier" }),
+  lava_glow: F("Lava glow", "hazard", { blocking: false, light: true, openFire: true, glyph: "brazier" }),
   fire_pit: F("Fire pit", "outdoor", {
     light: true,
+    openFire: true,
     groundCause: "litter",
     glyph: "campfire",
     focal: "lesser",
@@ -371,7 +418,12 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
     wantsLight: true,
     runMix: true,
   }),
-  cave_column: F("Rock column", "outdoor", { organic: true, glyph: "pillar", focusPiece: true }),
+  cave_column: F("Rock column", "outdoor", {
+    organic: true,
+    glyph: "pillar",
+    focusPiece: true,
+    carriesHall: true,
+  }),
   statue_large: F("Great statue", "architecture", {
     size: [2, 2],
     landmark: true,
@@ -384,7 +436,7 @@ export const FEATURE_INFO: Record<FeatureType, FeatureInfo> = {
   }),
   mine_cart: F("Mine cart", "furniture", { glyph: "crate" }),
   rails: F("Rails", "architecture", { blocking: false, glyph: "debris" }),
-  mine_support: F("Timber support", "architecture", { glyph: "pillar" }),
+  mine_support: F("Timber support", "architecture", { glyph: "pillar", carriesHall: true }),
   chains: F("Hanging chains", "other", { blocking: false, wallMounted: true, glyph: "banner_wall" }),
   // theme-neutral slots: each theme's palette (feature.<slot>) decides the assets, e.g. cluster_tall is
   // stalagmite columns in a cave, pines in a forest and stone columns in a dungeon

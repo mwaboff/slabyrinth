@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import type { IpcRequests } from "../../shared/ipc";
 import type { AppSettings } from "../../shared/project";
+import { applySettingsPatch, type SettingsUpdate } from "../../shared/settingsPatch";
 import type { ModelDescriptor, ProviderInfo } from "../../main/agent/provider/types";
 import { call } from "../bridge/client";
 
@@ -16,7 +17,8 @@ interface SettingsState {
   catalog: CatalogStatus | null;
   catalogBusy: boolean;
   load: () => Promise<void>;
-  update: (patch: Partial<AppSettings>) => Promise<void>;
+  /** Only what changed: a field the request schema refuses (main-owned, or spread from `settings`) does not compile. */
+  update: (patch: SettingsUpdate) => Promise<void>;
   apply: (s: AppSettings) => void;
   refreshSecrets: () => Promise<void>;
   refreshCatalog: () => Promise<void>;
@@ -48,8 +50,10 @@ export const useSettings = create<SettingsState>((set, get) => ({
   },
   update: async (patch) => {
     const cur = get().settings;
-    if (cur) set({ settings: { ...cur, ...patch } }); // optimistic
-    const settings = await call("settings:update", patch);
+    if (cur) set({ settings: applySettingsPatch(cur, patch) }); // optimistic, merged as main merges it
+    // The contract types the request as Partial<AppSettings> (shallow); main takes the nested patch the request schema
+    // describes (shared/schemas/ipc.ts, the one declared difference), which is what SettingsUpdate is.
+    const settings = await call("settings:update", patch as unknown as IpcRequests["settings:update"]["req"]);
     set({ settings });
   },
   apply: (settings) => {

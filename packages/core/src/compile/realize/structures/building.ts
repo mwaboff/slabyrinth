@@ -17,9 +17,18 @@
  * the windows the courses built (read by the window lights), the volumes' flat tops (read by the roof furniture).
  */
 import type { ResolvedStructure, ResolvedVolume } from "../../../contracts/resolved";
-import { SIDE_STEP } from "../../../gen/gridGeometry";
 import { floorRole } from "../../../palette/roles";
 import { designDoorFamily } from "../../../resolve/building/parts";
+import {
+  chimneyWalls,
+  foreignCells,
+  mainVolumeId,
+  storeyFill,
+  storeyWallFaces,
+  structureNeighbours,
+  volumeTag,
+  volumesOf,
+} from "../../../resolve/structureFaces";
 import type { RealizeLevel } from "../level";
 import {
   layChimneys,
@@ -34,12 +43,10 @@ import { layCourses, type LitWindow } from "./courses";
 import { layDetails } from "./details";
 import { layDebris, layGrowth, layRuinFragments, layWallTopRubble } from "./dressing";
 import { GROUND_FACES, openingsByStorey, storeyFaces, type StoreyOpening } from "./openings";
-import { boundsOfCells, faceCells, faceKey, key, layTiles, ringOf8, setOf } from "./pieces";
+import { faceKey, layTiles, ringOf8, setOf } from "./pieces";
 import { layRoofFurniture } from "./rooftop";
 import { layRoof, roofValleys, type FlatTop } from "./roofs";
 import { layLips, laySeam } from "./seams";
-
-type VolumeStorey = ResolvedVolume["storeys"][number];
 
 /** The building as its steps share it: its volumes, the main one, the faces its chimneys and openings take. */
 interface BuildingShape {
@@ -75,62 +82,16 @@ export function layBuilding(lv: RealizeLevel, st: ResolvedStructure): void {
   layRoofFurniture(b, clearUnderVolumes(roofs.flatTops, shape.vols));
 }
 
-/** A phase-1 record has no volumes: one volume over its footprint and wings, storeys and roof. */
-export function volumesOf(st: ResolvedStructure): ResolvedVolume[] {
-  if (st.volumes && st.volumes.length > 0) return st.volumes;
-  return [
-    {
-      id: "main",
-      on: null,
-      corners: "square",
-      rects: st.wings,
-      storeys: st.storeys.map((s) => ({
-        floorTop: s.floorTop,
-        wallTop: s.floorTop + s.wallHeight,
-        cells: st.cells,
-        rect: boundsOfCells(st.cells),
-        footing: s.footing,
-        walls: s.walls,
-        floor: s.floor,
-        seam: null,
-      })),
-      roof: {
-        layers: [
-          {
-            type: st.roof.type,
-            requested: st.roof.requested,
-            style: st.roof.style,
-            courses: 1,
-            low: "S",
-            parapet: st.roof.parapet,
-            ridge: st.wings[0]?.ridge ?? "ew",
-          },
-        ],
-        deck: st.roof.deck,
-        broken: st.roof.broken,
-      },
-    },
-  ];
-}
-
 function shapeOf(b: StructureCtx): BuildingShape {
   const { st, lv } = b;
   const vols = volumesOf(st);
-  const chimneyWall = new Set<string>();
-  for (const c of st.chimneys) {
-    const [dx, dy] = SIDE_STEP[c.side];
-    chimneyWall.add(faceKey(c.at[0] - dx, c.at[1] - dy, c.side));
-  }
-  const mainId = vols.find((v) => v.on === null)?.id ?? "main";
-  const foreign = new Set<string>();
-  for (const o of lv.L.structures ?? [])
-    if (o !== st && o.kind === "building") for (const [x, y] of o.cells) foreign.add(key(x, y));
+  const mainId = mainVolumeId(vols);
   return {
     vols,
     mainId,
-    tagOf: (vid) => (vid === mainId ? st.id : `${st.id}~${vid}`),
-    chimneyWall,
-    foreign,
+    tagOf: (vid) => volumeTag(st, mainId, vid),
+    chimneyWall: chimneyWalls(st),
+    foreign: foreignCells(lv.L, st),
     ruined: st.condition === "ruined",
   };
 }
@@ -144,7 +105,7 @@ function layStoreys(b: StructureCtx, shape: BuildingShape): LitWindow[] {
   const { st, lv } = b;
   const { vols, mainId, tagOf, chimneyWall, ruined } = shape;
   const opsBy = openingsByStorey(st, lv.L.openings, vols, mainId, tagOf);
-  const { covered, party } = neighbours(lv, st, vols);
+  const nb = structureNeighbours(lv.L, st, vols);
   const caps = st.ruin
     ? new Map(st.ruin.columns.map((c) => [faceKey(c.at[0], c.at[1], c.side), c.top]))
     : undefined;
@@ -176,14 +137,7 @@ function layStoreys(b: StructureCtx, shape: BuildingShape): LitWindow[] {
       const prev = v.storeys[s - 1];
       if (prev && sp.seam && !ruined) laySeam(b, prev, sp, `${tag}~seam${s}`);
       if (sp.walls === null) return;
-      const keptWhole = ruined && st.ruin?.keep === v.id;
-      const faces = faceCells(own).filter((f) => {
-        const [dx, dy] = SIDE_STEP[f.face];
-        // the kept, roofed volume of a ruin keeps its wall where a wing stood against it: the wing's own walls fell, so
-        // the cell beside it is no longer a room, and the eave must not hang over a gap (generator 3)
-        if (keptWhole && !party(sp, f.x + dx, f.y + dy)) return true;
-        return !covered(v, sp, f.x + dx, f.y + dy);
-      });
+      const faces = storeyWallFaces(st, nb, v, sp);
       layCourses(b, {
         s,
         faces,
@@ -202,53 +156,12 @@ function layStoreys(b: StructureCtx, shape: BuildingShape): LitWindow[] {
         ...(caps ? { caps } : {}),
         ...(arches ? { arches } : {}),
         ...(doorUse !== undefined ? { doorUse } : {}),
+        // generator 5: posts at the corners of the building's outline only, the walk storeyWallFaces reads
+        ...(lv.ctx.profile.postsAtBuildingCorners ? { filled: storeyFill(st, nb, v, sp) } : {}),
       });
     });
   }
   return windows;
-}
-
-/**
- * Who builds the wall between two volumes. `party`: a neighbour earlier in the level's list has wall courses on this
- * cell spanning this storey's whole height (its ground walls reach the ground), so it builds the shared wall.
- * `covered`: another volume's storey (this building's, or a party neighbour) fills the cell over most of this
- * storey's height, so no wall faces it.
- */
-function neighbours(
-  lv: RealizeLevel,
-  st: ResolvedStructure,
-  vols: readonly ResolvedVolume[],
-): {
-  covered: (v: ResolvedVolume, sp: VolumeStorey, x: number, y: number) => boolean;
-  party: (sp: VolumeStorey, x: number, y: number) => boolean;
-} {
-  const all = lv.L.structures ?? [];
-  const earlier = all
-    .slice(0, Math.max(0, all.indexOf(st)))
-    .filter((o) => o.kind === "building")
-    .flatMap((o) => volumesOf(o));
-  const party = (sp: VolumeStorey, x: number, y: number): boolean =>
-    earlier.some((o) => {
-      let lo = Infinity;
-      let hi = -Infinity;
-      o.storeys.forEach((os, i) => {
-        if (!os.cells.some((c) => c[0] === x && c[1] === y)) return;
-        lo = Math.min(lo, i === 0 && o.on === null ? -Infinity : os.floorTop - 0.5);
-        hi = Math.max(hi, os.wallTop);
-      });
-      return lo <= sp.floorTop - 0.5 + 1e-6 && hi >= sp.wallTop - 1e-6;
-    });
-  const covered = (v: ResolvedVolume, sp: VolumeStorey, x: number, y: number): boolean =>
-    vols.some(
-      (o) =>
-        o !== v &&
-        o.storeys.some(
-          (os) =>
-            os.cells.some((c) => c[0] === x && c[1] === y) &&
-            Math.min(os.wallTop, sp.wallTop) - Math.max(os.floorTop, sp.floorTop) > 0.5,
-        ),
-    ) || party(sp, x, y);
-  return { covered, party };
 }
 
 /** Each volume's roof, the valleys merged first (generator 3); the main volume's top and the flat tops. */

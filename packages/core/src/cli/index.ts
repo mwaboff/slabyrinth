@@ -15,6 +15,8 @@
  *   slabyrinth calibration [--out <file>]
  *   slabyrinth review <plan.json> [--no-build] [--json] [--palettes <dir>]  (design review: advice, never errors;
  *                      builds the plan so substituted pieces are summarised, unless --no-build)
+ *   slabyrinth quality <plan.json> [--generator <n>] [--json] [--palettes <dir>]  (the build's quality meter against
+ *                      the training targets: review/qualityMetrics.ts; --generator builds the plan at another generator)
  *
  * Every command that resolves a plan resolves it against the palettes it would be compiled with (`palettesFrom`:
  * the bundled palettes, plus --palettes and --catalog when given, built by core's `buildPaletteCatalog` as the app
@@ -31,7 +33,7 @@ import {
   parseAssetCatalog,
 } from "../catalog/index";
 import type { AssetCatalog, ChunkOptions, PaletteCatalog, SlabAsset } from "../contracts/compiler";
-import type { MapPlan } from "../contracts/plan";
+import { GENERATOR_VERSIONS, type GeneratorVersion, type MapPlan } from "../contracts/plan";
 import { calibrationAssetsFrom, calibrationSlabAssets, compileResolved, realize } from "../compile/index";
 import { buildPaletteCatalog, loadOrientation, loadPalettes } from "../palette/index";
 import { SIZE_TIER_ORDER, parsePlan, planGate, validatePlan, type SizeTierId } from "../plan/index";
@@ -47,7 +49,14 @@ import {
 } from "../slab/index";
 import { asciiView } from "../text/index";
 import { parseJsonText, type Unparsed } from "../util/index";
-import { designReviewText, reviewDesign } from "../review/index";
+import {
+  QUALITY_METRICS,
+  designReviewText,
+  qualityOfBuild,
+  qualityTable,
+  reviewDesign,
+  withinTarget,
+} from "../review/index";
 import { hostSteamHints, nodeReadonlyFs } from "./nodeFs";
 
 export interface CliIo {
@@ -269,6 +278,46 @@ function cmdReview(a: Args, io: CliIo): number {
   return 0;
 }
 
+/** The quality meter of a plan's build (review/qualityMetrics.ts), optionally at another generator. */
+function cmdQuality(a: Args, io: CliIo): number {
+  const path = a._[1];
+  if (!path) throw new UsageError("quality <plan.json> [--generator <n>] [--json]");
+  const raw: unknown = readJson(path, io);
+  const plan = planOrThrow(isRecord(raw) && "format" in raw && "plan" in raw ? raw["plan"] : raw, path);
+  const g = flag(a, "generator");
+  if (g !== undefined) {
+    const n = Number(g);
+    if (!(GENERATOR_VERSIONS as readonly number[]).includes(n))
+      throw new UsageError(`--generator ${g}: one of ${GENERATOR_VERSIONS.join(", ")}`);
+    plan.generator = n as GeneratorVersion;
+  }
+  const palettes = palettesFrom(a, io);
+  const resolved = resolvePlan(plan, palettes);
+  const report = qualityOfBuild(plan, resolved, palettes);
+  if (a.flags["json"])
+    io.out(
+      JSON.stringify(
+        {
+          plan: plan.id,
+          generator: plan.generator,
+          metrics: QUALITY_METRICS.map((d) => ({
+            id: d.id,
+            value: report.values[d.id],
+            target: d.target,
+            within: withinTarget(d.id, report.values[d.id]),
+            tier: d.tier,
+            hard: d.hard,
+          })),
+          rooms: report.rooms,
+        },
+        null,
+        2,
+      ),
+    );
+  else io.out(`quality meter: ${plan.id} at generator ${plan.generator}\n${qualityTable(report)}`);
+  return 0;
+}
+
 function namesFrom(a: Args, io: CliIo): (uuid: string) => string | null {
   const names = new Map<string, string>();
   for (const p of Object.values(loadPalettes().palettes))
@@ -405,7 +454,7 @@ function cmdCalibration(a: Args, io: CliIo): number {
   return 0;
 }
 
-const USAGE = `usage: slabyrinth <validate|ascii|compile|review|decode|encode|catalog|calibration> …  (see the header of src/cli/index.ts)`;
+const USAGE = `usage: slabyrinth <validate|ascii|compile|review|quality|decode|encode|catalog|calibration> …  (see the header of src/cli/index.ts)`;
 
 export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<number> {
   const a = parseArgs(argv);
@@ -425,6 +474,8 @@ export async function runCli(argv: string[], io: CliIo = defaultIo): Promise<num
         return await cmdCatalog(a, io);
       case "review":
         return cmdReview(a, io);
+      case "quality":
+        return cmdQuality(a, io);
       case "calibration":
         return cmdCalibration(a, io);
       default:

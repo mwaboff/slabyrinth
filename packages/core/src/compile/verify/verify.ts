@@ -25,6 +25,7 @@ import type { CompileDiagnostic, CompileDiagnosticCode, PaletteCatalog } from ".
 import type { ResolvedPlan } from "../../contracts/resolved";
 import { checkPlayability } from "../../resolve";
 import { CHUNK_VERIFY_CODES } from "../chunk";
+import { ARRANGEMENT_CODES, checkArrangementCap } from "./arrangements";
 import type { RealizedSet } from "../realize/output";
 import { checkCliffBand, CLIFF_CODES } from "./cliffs";
 import { createVerifyCtx, type VerifiedSet, type VerifyCtx } from "./context";
@@ -73,6 +74,7 @@ export function verifyBuild(
   checkProps(ctx, solids);
   checkLevelAbove(ctx, solids);
   checkReachability(ctx, { runs, obstructed, doors, links });
+  checkArrangementCap(ctx);
 
   dropCoveredByPlan(ctx);
   recountStats(set);
@@ -129,6 +131,7 @@ export const VERIFY_CODES: readonly CompileDiagnosticCode[] = [
   ...LINE_CODES,
   ...LEVEL_ABOVE_CODES,
   ...REACH_CODES,
+  ...ARRANGEMENT_CODES,
   ...CHUNK_VERIFY_CODES,
 ];
 

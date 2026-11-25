@@ -198,6 +198,19 @@ test("the real UI: setup → brief → plan → map → edit → history → app
       await settings.getByRole("button", { name: "Appearance" }).click();
       await settings.getByRole("radio", { name: "Dark" }).click();
       await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+      // TaleSpire: the pillar box saves through main's request schema (0.3.0 refused it: "Unrecognized keys") and
+      // keeps main's own TaleSpire fields; untick it again so the restart below rebuilds the same slab.
+      await settings.getByRole("button", { name: "TaleSpire & assets" }).click();
+      const pillars = settings.getByRole("checkbox", { name: /Add alignment pillars to single-slab builds/ });
+      const savedTs = async () => unwrap(await invoke(page, "settings:get", undefined)).talespire;
+      const tsBefore = await savedTs();
+      for (const on of [true, false]) {
+        await settings.getByText("Add alignment pillars to single-slab builds").click();
+        await expect.poll(async () => (await savedTs()).alignmentMarkers).toBe(on);
+        await expect(pillars).toBeChecked({ checked: on });
+      }
+      expect(await savedTs()).toEqual(tsBefore);
+      await expect(page.getByText(/Invalid request/)).toHaveCount(0);
       await settings.getByRole("button", { name: "Done" }).click();
 
       // Leave the map tab showing L2 so the resumed view can be checked.

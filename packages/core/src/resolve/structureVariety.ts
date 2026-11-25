@@ -587,9 +587,20 @@ export function expandDesign(
           ...leanR,
           // (generator 3: never under two tiles, a window piece needs the height)
           storeys: [
-            { walls: d.baseMaterial, height: Math.max(opts.roofBalance ? 2 : 1.5, d.groundHeight - 0.5) },
+            {
+              walls: d.baseMaterial,
+              height: Math.max(opts.roofBalance ? 2 : 1.5, d.groundHeight - 0.5),
+              // generator 5 (`leanUnderMain`): on the house's own footing (it stood a course higher than a house with none)
+              ...(profile.leanUnderMain && d.footing !== "style"
+                ? { footing: d.footing as WallStyle | "none" }
+                : {}),
+            },
           ],
-          roof: { type: "shed", low, ...(pitchedKit !== undefined ? { style: pitchedKit } : {}) },
+          // (generator 5, `leanUnderMain`: flat beside a flat-roofed house, as every second mass is)
+          roof:
+            profile.leanUnderMain && second === flat
+              ? flat
+              : { type: "shed", low, ...(pitchedKit !== undefined ? { style: pitchedKit } : {}) },
         },
       ];
       break;
@@ -664,17 +675,23 @@ export function expandDesign(
  *    top storey is lowered, and when it cannot go lower the main walls rise by half a tile (at most a tile).
  * The heights are those of the resolver (footing course, floor thickness, deck), the roof rise the roof module's own.
  */
-function balanceRoofs(volumes: Volume[], d: BuildingDesign, opts: { footing: number; deck: boolean }): void {
+/** A volume's wall top above the ground (its footing course, storeys and the floors between them). */
+function wallTopOf(v: Volume, footing: number): number {
   const FLOOR = 0.5;
-  const list = (v: Volume): Storey[] => (Array.isArray(v.storeys) ? v.storeys : []);
-  const wallOf = (v: Volume): number => {
-    let t = 0;
-    list(v).forEach((s, i) => {
-      const foot = i === 0 && v.on === undefined ? (s.footing === "none" ? 0 : opts.footing) : 0;
-      t += (i > 0 ? FLOOR : 0) + foot + (s.height ?? 2);
-    });
-    return t;
-  };
+  let t = 0;
+  (Array.isArray(v.storeys) ? v.storeys : []).forEach((s, i) => {
+    const foot = i === 0 && v.on === undefined ? (s.footing === "none" ? 0 : footing) : 0;
+    t += (i > 0 ? FLOOR : 0) + foot + (s.height ?? 2);
+  });
+  return t;
+}
+
+/** The pitched ground volumes of a design with their wall tops and ridges (tiles above the ground), highest first. */
+function pitchedRidges(
+  volumes: readonly Volume[],
+  opts: { footing: number; deck: boolean },
+): Array<{ v: Volume; wall: number; ridge: number }> {
+  const wallOf = (v: Volume): number => wallTopOf(v, opts.footing);
   const riseOf = (v: Volume): number => {
     const r = v.roof;
     if (!r || r === "none") return -1;
@@ -683,13 +700,35 @@ function balanceRoofs(volumes: Volume[], d: BuildingDesign, opts: { footing: num
     const wing = { x: v.x, y: v.y, w: v.w, h: v.h, ridge: r.ridge ?? defaultRidge(v.w, v.h) };
     return roofRise(r.type, wing, { low: r.low ?? "S" });
   };
-  const pitched = (): Array<{ v: Volume; wall: number; ridge: number }> =>
-    volumes
-      .filter((v) => v.on === undefined)
-      .map((v) => ({ v, wall: wallOf(v), rise: riseOf(v) }))
-      .filter((m) => m.rise >= 0)
-      .map((m) => ({ v: m.v, wall: m.wall, ridge: m.wall + (opts.deck ? 0.5 : 0) + m.rise }))
-      .sort((a, b) => b.ridge - a.ridge);
+  return volumes
+    .filter((v) => v.on === undefined)
+    .map((v) => ({ v, wall: wallOf(v), rise: riseOf(v) }))
+    .filter((m) => m.rise >= 0)
+    .map((m) => ({ v: m.v, wall: m.wall, ridge: m.wall + (opts.deck ? 0.5 : 0) + m.rise }))
+    .sort((a, b) => b.ridge - a.ridge);
+}
+
+/**
+ * Generator 5 (`leanUnderMain`): whether a lower ground mass of a drawn building (a lean-to, an ell's wing, a twin's
+ * second half: any ground volume after the first) has its ridge within a tile of the main mass's or above it. A
+ * lean-to over the house's ridge shows its high edge and gable fill above the roofline (the workshop's "battlements").
+ */
+export function lowerMassReachesMain(b: Building, opts: { footing: number; deck: boolean }): boolean {
+  const ground = (b.volumes ?? []).filter((v) => v.on === undefined);
+  const main = ground[0];
+  if (!main) return false;
+  const ridges = pitchedRidges(ground, opts);
+  // the main mass's ridge, or (a flat or open top) its wall top: a pitched lower mass must stay a tile under the one and
+  // under the other
+  const pitchedMain = ridges.find((m) => m.v === main);
+  if (pitchedMain) return ridges.some((m) => m.v !== main && m.ridge > pitchedMain.ridge - 1 + 1e-9);
+  const wall = wallTopOf(main, opts.footing);
+  return ridges.some((m) => m.v !== main && m.ridge > wall + 1e-9);
+}
+
+function balanceRoofs(volumes: Volume[], d: BuildingDesign, opts: { footing: number; deck: boolean }): void {
+  const list = (v: Volume): Storey[] => (Array.isArray(v.storeys) ? v.storeys : []);
+  const pitched = (): Array<{ v: Volume; wall: number; ridge: number }> => pitchedRidges(volumes, opts);
   // a storey a half tile lower (a tile at the least under a roof; a ground storey of one keeps `min`)
   const lower = (v: Volume, min: number): boolean => {
     const ss = list(v);

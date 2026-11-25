@@ -10,7 +10,7 @@
  * Reads and writes: the volumes' roofs (broken, fallen layers), the faces (windows dropped, doorways opened, breaches
  * added), `work.designs` (a lost hung detail). Returns what the building records of its decay.
  */
-import type { Side } from "../../contracts/plan";
+import type { PlaceCondition, Side } from "../../contracts/plan";
 import { SIDE_STEP as STEP, SIDES } from "../../gen/gridGeometry";
 import { isPassage, isWindow, openingTests } from "../../gen/openingKinds";
 import { isPlankWallStyle } from "../../gen/wallStyles";
@@ -24,11 +24,36 @@ import { FOOT_DEBRIS, ROOF_BROKEN, RUINED, WEATHERED } from "./conditionRates";
 import type { BuildingCtx } from "./context";
 import { type BuildingFaces, GROUND_FACES, party } from "./faces";
 import { alongFace, cellOf, faceKey, faceRuns, key, ringOf } from "./footprint";
-import type { BuildingPlan, Chimney, GroundOpening, VolumePlan } from "./types";
+import type { BuildingPlan, Chimney, GroundOpening, Porch, VolumePlan } from "./types";
+import { buildingSubject, type Subject } from "../recipes/treatments";
+import { ruinBays } from "./ruinBays";
+import { characterAt, structureCondition } from "../character";
+import { builtCondition } from "../../gen/buildingCondition";
+
+/** A building as the treatments see it (generator 5): its condition state and role from its plan words. */
+export function buildingSubjectOf(
+  b: BuildingCtx,
+  fp: { readonly cells: ReadonlyArray<[number, number]> },
+  vplans: readonly VolumePlan[],
+  condition: PlaceCondition,
+): Subject {
+  const { st } = b;
+  return buildingSubject(
+    st.id,
+    fp.cells,
+    st.theme ?? b.levelTheme,
+    Math.max(1, maxOf(vplans.map((v) => v.storeys.length))),
+    { condition, name: st.name, tags: st.tags, notes: st.notes, use: st.use },
+    characterAt(b.work, st.id),
+  );
+}
 
 type GrowthLevel = NonNullable<BuildingPlan["growthLevel"]>;
+
+/** (ramshackleSigns) Share of the windows boarded, by condition state (generator 3 boards a third of any weathered). */
+const BOARDED = { worn: 0.2, ramshackle: 0.6 } as const;
 import type { GroundFootprint } from "./volumes";
-import { pushAll } from "../../util/lists";
+import { maxOf, pushAll } from "../../util/lists";
 
 export interface Decay {
   readonly condition: BuildingPlan["condition"];
@@ -62,9 +87,13 @@ export function applyCondition(
   main: VolumePlan,
   faces: BuildingFaces,
   chimneys: readonly Chimney[],
+  porches: readonly Porch[] = [],
 ): Decay {
   const { st, profile, seed } = b;
-  const condition = st.condition ?? profile.condition ?? "intact";
+  // generator 5 (characterCascade): the condition its character resolved (stated, worded or drawn from its district)
+  const ch = characterAt(b.work, st.id);
+  const condition =
+    ch !== null ? structureCondition(ch) : builtCondition(st.condition ?? profile.condition ?? "intact");
   const legible = b.gen.legibleCondition;
   const prng4 = createPrng(subSeed(seed, "condition"));
   const debris: BuildingPlan["debris"] = [];
@@ -74,6 +103,42 @@ export function applyCondition(
     legible && condition !== "intact" ? (st.growth ?? (condition === "ruined" ? "medium" : "light")) : null;
   if (condition === "intact") return { condition, growthLevel, ruin: null, debris, growth };
   const ruined = condition === "ruined";
+  // generator 5: a ruin is a sound building that lost whole bays (resolve/building/ruinBays.ts)
+  if (ruined && b.gen.ruinBays) {
+    const s = buildingSubjectOf(b, fp, vplans, condition);
+    const ruin = ruinBays(b, fp, vplans, main, faces, porches, s);
+    const d: DecayWork = {
+      b,
+      fp,
+      vplans,
+      main,
+      faces,
+      ruin,
+      ruined,
+      legible,
+      heavyGrowth: growthLevel === "heavy",
+      prng4,
+      debris,
+    };
+    dropWindowsAboveWallTops(d);
+    for (const v of vplans) {
+      if (s.severity === 3) {
+        v.roof.layers = [];
+        v.roof.deck = false;
+      } else v.roof.broken = Math.max(v.roof.broken, ROOF_BROKEN.keptAnchor);
+    }
+    main.roof.summary.broken = Math.max(main.roof.summary.broken, ROOF_BROKEN.keptAnchor);
+    for (const g of faces.ground) if (isPassage(g.kind)) g.kind = "open";
+    const blocked = doorPaths(faces.ground, openingTests(b.gen).doorway);
+    if (legible) {
+      const openKeys = new Set<string>();
+      for (const g of faces.ground)
+        for (let k = 0; k < g.width; k++) openKeys.add(faceKey(...alongFace(g.at, g.side, k), g.side));
+      scatterTopRubble(ruin, openKeys, subSeed(seed, "ruin"));
+      pushAll(growth, climbing(d, blocked, growthLevel));
+    }
+    return { condition, growthLevel, ruin, debris, growth };
+  }
   const ruin = ruinOf(b, vplans, main, faces, condition, ruined, legible);
   const d: DecayWork = {
     b,
@@ -104,8 +169,11 @@ export function applyCondition(
     scatterTopRubble(ruin, openKeys, subSeed(seed, "ruin"));
   }
   const blocked = doorPaths(faces.ground, openingTests(b.gen).doorway);
-  scatterFootDebris(d, blocked);
-  if (legible && !ruined) footGrowth(d, blocked);
+  // generator 5: a weathered building's foot is dressed by its treatment (the `wallFootGrowth` recipe: off its doors'
+  // faces, by distance from use), not by heaps in the ring round it
+  const footByRecipe = b.gen.wallFootGrowth && !ruined;
+  if (!footByRecipe) scatterFootDebris(d, blocked);
+  if (legible && !ruined && !footByRecipe) footGrowth(d, blocked);
   if (ruined) insideRubble(d, blocked);
   if (ruined && legible) fallenHeaps(d, blocked);
   if (legible) pushAll(growth, climbing(d, blocked, growthLevel));
@@ -188,11 +256,22 @@ function weather(d: DecayWork, hadChimney: boolean): void {
     raggedRoofHole(b, ruin, ts);
     secondRoofHole(ruin, ts, wp);
   }
+  // generator 5 (`closedWornRoofs`): only a ruin's roof is open; a ramshackle one keeps one small ragged hole (drawn
+  // after the generator 3 holes, on its own stream, so every other draw stays as it was)
+  if (b.gen.closedWornRoofs) {
+    const state = buildingSubjectOf(d.b, d.fp, d.vplans, "weathered").state;
+    delete ruin.roofHoles;
+    if (state === "ramshackle" && ts) smallRoofHole(b, ruin, ts);
+  }
   const wins = [
     ...d.faces.ground.filter((g) => isWindow(g.kind)),
     ...d.faces.upper.filter((g) => isWindow(g.kind)),
   ];
-  const boarded = boardWindows(d.faces, wins, wp);
+  // generator 5 (`ramshackleSigns`): a ramshackle building boards up most of its windows, a worn one few
+  const state = d.b.gen.ramshackleSigns ? buildingSubjectOf(d.b, d.fp, d.vplans, "weathered").state : null;
+  const share =
+    state === "ramshackle" ? BOARDED.ramshackle : state === "worn" ? BOARDED.worn : WEATHERED.boardedShare;
+  const boarded = boardWindows(d.faces, wins, wp, share);
   const bites = biteParapets(vplans, wp);
   const hung = loseHungDetail(b);
   if (hung) lost.push(hung);
@@ -243,6 +322,39 @@ function raggedRoofHole(b: BuildingCtx, ruin: RuinProfile, ts: TopStorey): void 
   if (blob.size >= 3) ruin.roofHoles = [...blob].map(cellOf);
 }
 
+/**
+ * Generator 5 (`closedWornRoofs`), a ramshackle roof: one small hole of two or three cells grown from a cell off the top
+ * storey's edge (so the eaves and the gable ends stand round it), each next cell a side neighbour drawn at random, so
+ * an L or a bent strip more often than a square (own stream). None on a top storey too small to have an inside.
+ */
+function smallRoofHole(b: BuildingCtx, ruin: RuinProfile, ts: TopStorey): void {
+  const own = new Set(ts.cells.map(([x, y]) => key(x, y)));
+  const inner = ts.cells
+    .filter(([x, y]) => SIDES.every((sd) => own.has(key(x + STEP[sd][0], y + STEP[sd][1]))))
+    .map(([x, y]) => key(x, y))
+    .sort();
+  if (inner.length === 0) return;
+  const rp = createPrng(subSeed(b.seed, "roofhole5"));
+  const innerSet = new Set(inner);
+  const want = 2 + rp.int(WEATHERED.ramshackleHole - 1);
+  const hole = [inner[rp.int(inner.length)] as string];
+  while (hole.length < want) {
+    const front = [
+      ...new Set(
+        hole.flatMap((k) => {
+          const [x, y] = cellOf(k);
+          return SIDES.map((sd) => key(x + STEP[sd][0], y + STEP[sd][1]));
+        }),
+      ),
+    ]
+      .filter((k) => innerSet.has(k) && !hole.includes(k))
+      .sort();
+    if (front.length === 0) break;
+    hole.push(front[rp.int(front.length)] as string);
+  }
+  ruin.roofHoles = hole.sort().map(cellOf);
+}
+
 /** A second fallen patch elsewhere on the same roof, with a clear cell between the two (weather stream). */
 function secondRoofHole(ruin: RuinProfile, ts: TopStorey, wp: Prng): void {
   if (!ruin.roofHoles || ts.rect.w < 5 || ts.rect.h < 3) return;
@@ -265,8 +377,9 @@ function boardWindows(
   faces: BuildingFaces,
   wins: ReadonlyArray<{ at: readonly [number, number]; side: Side }>,
   wp: Prng,
+  share: number = WEATHERED.boardedShare,
 ): string[] {
-  const boardN = wins.length === 0 ? 0 : Math.max(1, Math.round(wins.length * WEATHERED.boardedShare));
+  const boardN = wins.length === 0 ? 0 : Math.max(1, Math.round(wins.length * share));
   const boarded = wp
     .shuffle(wins.map((w) => faceKey(w.at[0], w.at[1], w.side)))
     .slice(0, boardN)

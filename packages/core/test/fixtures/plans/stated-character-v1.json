@@ -1,0 +1,140 @@
+{
+  "schema": "slabyrinth/plan@1",
+  "generator": 5,
+  "id": "5c1e7a90-3b2d-4f68-9e14-7a0b6d2c4f85",
+  "title": "The Lost Mine",
+  "kind": "mixed",
+  "seed": 7311,
+  "theme": "wood_town",
+  "summary": "A mining camp whose stated character contradicts its words at every scope: a dark-sounding title on a bright street, a poor quarter with one lavish house and a ramshackle one, a bright kept hall, and bright, kept workings below with a dark office and a weathered bunkroom.",
+  "levels": [
+    {
+      "id": "workings",
+      "name": "Forgotten workings",
+      "elevation": -4,
+      "bounds": { "x": 0, "y": 0, "w": 60, "h": 30 },
+      "base": { "type": "solid" },
+      "light": "bright",
+      "condition": "intact",
+      "areas": [
+        {
+          "id": "office",
+          "kind": "room",
+          "name": "Foreman's office",
+          "key": "1",
+          "light": "dark",
+          "shape": { "type": "rect", "x": 20, "y": 10, "w": 6, "h": 6 }
+        },
+        {
+          "id": "mess",
+          "kind": "room",
+          "name": "Mess hall",
+          "key": "2",
+          "shape": { "type": "rect", "x": 26, "y": 10, "w": 8, "h": 6 }
+        },
+        {
+          "id": "bunks",
+          "kind": "room",
+          "name": "Bunkroom",
+          "key": "3",
+          "condition": "weathered",
+          "shape": { "type": "rect", "x": 34, "y": 10, "w": 7, "h": 6 }
+        }
+      ],
+      "openings": [
+        { "id": "d_office", "kind": "door", "between": ["office", "mess"] },
+        { "id": "d_bunks", "kind": "door", "between": ["mess", "bunks"] }
+      ],
+      "walls": [],
+      "features": [],
+      "labels": [],
+      "terrain": []
+    },
+    {
+      "id": "g",
+      "name": "Forgotten Row",
+      "elevation": 0,
+      "bounds": { "x": 0, "y": 0, "w": 60, "h": 30 },
+      "base": { "type": "ground", "material": "grass" },
+      "outline": "rect",
+      "light": "bright",
+      "areas": [
+        {
+          "id": "slums",
+          "kind": "zone",
+          "name": "Poor quarter",
+          "tags": ["poor", "slum"],
+          "notes": "Humble cottages of the miners.",
+          "shape": { "type": "rect", "x": 0, "y": 0, "w": 34, "h": 30 }
+        }
+      ],
+      "openings": [],
+      "walls": [],
+      "features": [],
+      "labels": [],
+      "terrain": [
+        {
+          "id": "street",
+          "op": "path",
+          "points": [
+            [0, 15],
+            [59, 15]
+          ],
+          "width": 3,
+          "material": "gravel"
+        }
+      ],
+      "structures": [
+        {
+          "id": "hovel",
+          "name": "Cottage",
+          "style": "cottage",
+          "seed": 31,
+          "wings": [{ "x": 2, "y": 5, "w": 6, "h": 6 }],
+          "front": "S"
+        },
+        {
+          "id": "gilded",
+          "name": "Cottage",
+          "style": "cottage",
+          "seed": 32,
+          "wealth": "lavish",
+          "wings": [{ "x": 11, "y": 5, "w": 7, "h": 6 }],
+          "storeys": 2,
+          "front": "S"
+        },
+        {
+          "id": "shack",
+          "name": "Cottage",
+          "style": "cottage",
+          "seed": 33,
+          "condition": "ramshackle",
+          "wings": [{ "x": 21, "y": 5, "w": 6, "h": 6 }],
+          "front": "S"
+        },
+        {
+          "id": "cot2",
+          "name": "Cottage",
+          "style": "cottage",
+          "seed": 34,
+          "wings": [{ "x": 6, "y": 20, "w": 7, "h": 6 }],
+          "front": "N"
+        },
+        {
+          "id": "hall",
+          "name": "Foreman's hall",
+          "style": "cottage",
+          "use": "inn",
+          "seed": 36,
+          "light": "bright",
+          "condition": "intact",
+          "notes": "Dark and grimy by its reputation; kept bright and clean by the foreman.",
+          "wings": [{ "x": 40, "y": 4, "w": 12, "h": 7 }],
+          "front": "S"
+        }
+      ]
+    }
+  ],
+  "entryLevel": "g",
+  "links": [{ "id": "shaft", "kind": "trapdoor", "from": { "level": "workings", "at": [29, 12] }, "to": { "level": "g" } }]
+}

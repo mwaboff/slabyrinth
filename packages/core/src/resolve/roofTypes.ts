@@ -37,6 +37,12 @@ export interface RoofTypeInfo {
    * spire bands draw one.
    */
   tapers: boolean;
+  /**
+   * Generator 5 (`roofFormsFit`): the deepest span (cells across its slope) a drawn building takes it over as its main
+   * roof. A shed rises a tile per cell, so over a house's depth its high side stands as a bare wall taller than the
+   * house (it read as a tall box, or a lattice of gable fill); deeper, the draw takes a gable. Absent: no limit.
+   */
+  maxSpan?: number;
 }
 
 const row = (flags: Partial<RoofTypeInfo> = {}): RoofTypeInfo => ({
@@ -57,7 +63,7 @@ export const ROOF_TYPE_INFO: Record<RoofType, RoofTypeInfo> = {
   flat: row({ closing: true, deck: true, flat: true }),
   none: row({ closing: true, deck: true, bare: true }),
   hip: row({ closing: true, rect: true, pitched: true, ends: "hip" }),
-  shed: row({ closing: true, rect: true, pitched: true }),
+  shed: row({ closing: true, rect: true, pitched: true, maxSpan: 3 }),
   cone: row({ built: false, as: "spire" }),
   dome: row({ built: false }),
   skirt: row({ deck: true, rect: true }),

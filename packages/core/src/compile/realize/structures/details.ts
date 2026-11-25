@@ -20,9 +20,9 @@ import {
   featureRole,
   floorRole,
   partRole,
-  roofRole,
 } from "../../../palette/roles";
-import { PART_FALLBACK_FLOORS, PART_FALLBACK_KITS, partWalls } from "../../../resolve/building/parts";
+import { BORROWED_FLAT, frontCanopies } from "../../../resolve/building/canopy";
+import { PART_FALLBACK_FLOORS, partWalls } from "../../../resolve/building/parts";
 import { h32Utf16 } from "../../../util/hash";
 import { EPS } from "../level";
 import { groundTop, type StructureCtx } from "./context";
@@ -40,10 +40,6 @@ import {
   wallProp,
   type FaceCell,
 } from "./pieces";
-import { maxOf, minOf } from "../../../util/lists";
-
-/** The flat piece a canopy and a balcony borrow, then the floor they fall back to. */
-const BORROWED_FLAT = [roofRole(PART_FALLBACK_KITS.flat, "flat"), floorRole(PART_FALLBACK_FLOORS.tile)];
 
 export function layDetails(
   b: StructureCtx,
@@ -73,6 +69,7 @@ export function layDetails(
     return t;
   };
   const tag = (k: string): string => `${st.id}~${k}`;
+  const canopies = frontCanopies(st, foreign);
   // a ruin keeps only what grows on it: balconies, banners, turrets and services fell with the rest
   for (const detail of st.condition === "ruined" ? d.details.filter((x) => x === "vines") : d.details) {
     if (detail === "piers") {
@@ -112,32 +109,10 @@ export function layDetails(
       }
     } else if (detail === "canopy" || detail === "awning") {
       // a slab two cells deep over the street front, above the doors and shop windows (generator 3 cottages: an
-      // awning of tent-cloth roof pieces, one cell deep, over the whole front)
-      const awning = detail === "awning";
-      const run = faces.filter((f) => f.face === front);
-      const [dx, dy] = SIDE_STEP[front];
-      const along = (f: FaceCell): number => (front === "N" || front === "S" ? f.x : f.y);
-      const lo = minOf(run.map(along));
-      const hi = maxOf(run.map(along));
-      const slab = new Set<string>();
-      for (const f of run) {
-        if (!awning && (along(f) === lo || along(f) === hi)) continue;
-        for (const k of awning ? [1] : [1, 2]) {
-          const c = key(f.x + dx * k, f.y + dy * k);
-          if (!cells.has(c) && !foreign.has(c)) slab.add(c);
-        }
-      }
-      const y = s0.floorTop + (awning ? 2 : (s0.footing?.height ?? 0) + 2.25);
-      layTiles(
-        b,
-        awning
-          ? [partRole("canopy", "awning")]
-          : [partRole("canopy", walls), defaultPartRole("canopy"), ...BORROWED_FLAT],
-        slab,
-        y,
-        "floor",
-        { id: tag("canopy"), layer: "storey:0" },
-      );
+      // awning of tent-cloth roof pieces, one cell deep, over the whole front): resolve/building/canopy.ts, the answer
+      // the overhead lines keep clear of
+      const c = canopies.find((q) => q.detail === detail);
+      if (c) layTiles(b, c.roles, c.cells, c.y, "floor", { id: tag("canopy"), layer: "storey:0" });
     } else if (detail === "balconies") {
       const [dx, dy] = SIDE_STEP[front];
       const windowed = openingTests(profile).window;
