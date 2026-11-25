@@ -21,11 +21,45 @@ export function turned(v: XZ, yaw: number): XZ {
   return [v[0] * c + v[1] * s, -v[0] * s + v[1] * c];
 }
 
-/** The piece's front at rot 0, or null when the facts give it none. */
-export function frontOf(piece: ArrangePiece): XZ | null {
+/** A piece's front at rot 0 by its name (+z north), or null when the facts give it none. */
+export function frontVector(name: string | undefined): XZ | null {
   // the one source realize reads too (gen/pieceFacts.ts `frontSide`)
-  const s = frontSide(piece.variant.name);
+  const s = frontSide(name);
   return s ? SIDE[s] : null;
+}
+
+/** The piece's front at rot 0, or null when the facts give it none. */
+export const frontOf = (piece: ArrangePiece): XZ | null => frontVector(piece.variant.name);
+
+/**
+ * The facing rule's numbers: a front faces the way its job says when its cosine with that way is above `cos` (within 60
+ * degrees); a piece within `centre` of its body's centre line has no outward way to face.
+ */
+export const FACING = { cos: 0.5, centre: 0.25 } as const;
+
+/** A body's centre line: through `centre`, along unit `travel`, reaching `reach` either way of the centre. */
+export interface BodyLine {
+  readonly centre: XZ;
+  readonly travel: XZ;
+  readonly reach: number;
+}
+
+/**
+ * How well a front (a unit vector, as the piece stands) faces where its job says, as a cosine: a "travel" front with
+ * the body's travel, an "outboard" front with the way out from the body's centre line at the piece's point `at`. Null
+ * when an outboard piece stands on the centre line (no way out). A cosine at most `FACING.cos` is a fault. The one
+ * rule a recipe is held to (`facingFaults`) and the 3D scene's facing check measures.
+ */
+export function frontCosine(faces: "outboard" | "travel", front: XZ, at: XZ, line: BodyLine): number | null {
+  const [tx, tz] = line.travel;
+  if (faces === "travel") return front[0] * tx + front[1] * tz;
+  const along = (at[0] - line.centre[0]) * tx + (at[1] - line.centre[1]) * tz;
+  const t = Math.min(line.reach, Math.max(-line.reach, along));
+  const dx = at[0] - (line.centre[0] + tx * t);
+  const dz = at[1] - (line.centre[1] + tz * t);
+  const n = Math.hypot(dx, dz);
+  if (n <= FACING.centre) return null;
+  return (front[0] * dx + front[1] * dz) / n;
 }
 
 /**
@@ -62,22 +96,24 @@ export function facingFaults(obj: BuiltObject, travel: XZ = [0, 1]): string[] {
   const length = maxOf(a) - minOf(a);
   const width = maxOf(c) - minOf(c);
   const mid = (maxOf(a) + minOf(a)) / 2;
-  const reach = Math.max(0, (length - width) / 2);
+  // the object's frame puts its centre line through the origin, across the travel
+  const line: BodyLine = {
+    centre: [mid * travel[0], mid * travel[1]],
+    travel,
+    reach: Math.max(0, (length - width) / 2),
+  };
   const out: string[] = [];
   for (const q of piecesOf(obj)) {
     const fact = pieceFacts(q.piece.variant.name).front;
     const f0 = frontOf(q.piece);
     if (!fact || !f0) continue;
-    const f = turned(f0, q.yaw);
-    if (fact.faces === "travel") {
-      if (along(f) <= 0.5) out.push(`${q.piece.variant.name} faces against travel`);
-      continue;
-    }
-    const t = Math.min(mid + reach, Math.max(mid - reach, along([q.x, q.z])));
-    const d: XZ = [q.x - t * travel[0], q.z - t * travel[1]];
-    const n = Math.hypot(d[0], d[1]);
-    if (n > 0.25 && (f[0] * d[0] + f[1] * d[1]) / n <= 0.5)
-      out.push(`${q.piece.variant.name} points at the body`);
+    const cos = frontCosine(fact.faces, turned(f0, q.yaw), [q.x, q.z], line);
+    if (cos === null || cos > FACING.cos) continue;
+    out.push(
+      fact.faces === "travel"
+        ? `${q.piece.variant.name} faces against travel`
+        : `${q.piece.variant.name} points at the body`,
+    );
   }
   return out;
 }

@@ -62,11 +62,7 @@ export const CHECK_THRESHOLDS = {
   /** A piece lower than this is flat cover (a rug, a decal): things stand on it by design. */
   flatCover: 0.15,
 
-  // ── facing ──
-  /** A front points away from the body when its cosine with the outward direction is above this (60 degrees). */
-  facingCos: 0.5,
-  /** A piece this close to the body's centre line has no outward direction to face. */
-  facingCentre: 0.25,
+  // ── facing: the build's own rule and numbers (core objects/facing.ts FACING, frontCosine) ──
 
   // ── ways ──
   /** Inset from a passage's ends (its jambs). */

@@ -3,6 +3,7 @@
  * check has a scene it must flag and one it must pass. No game meshes, no install.
  */
 import type { PlacementRole } from "@slabyrinth/core";
+import { FACING, frontCosine } from "@slabyrinth/core/objects";
 import { describe, expect, it } from "vitest";
 import {
   SceneSpace,
@@ -355,6 +356,21 @@ describe("facing", () => {
     ]);
     expect(codes(scene, plan, "facing")).toEqual([]);
   });
+  it("judges a gun at every turn as core's facing rule does", () => {
+    // core frontCosine over the ship's centre line (x from 2 to 8 at z = 2), the gun at (5, 3.5) facing +z at rot 0
+    const line = { centre: [5, 2] as const, travel: [1, 0] as const, reach: 3 };
+    for (let rot = 0; rot < 360; rot += 15) {
+      const scene = sceneOf([
+        ...hull,
+        { name: "ship cannon static", min: [4.7, 1, 3.2], max: [5.3, 1.5, 3.8], element: "ship@deck", rot },
+      ]);
+      const t = (rot * Math.PI) / 180;
+      const cos = frontCosine("outboard", [Math.sin(t), Math.cos(t)], [5, 3.5], line);
+      const flagged = codes(scene, plan, "facing").length > 0;
+      expect(flagged, `rot ${String(rot)}`).toBe(cos !== null && cos <= FACING.cos + 1e-9);
+    }
+  });
+
   it("flags a gun pointing inboard and a helm facing aft", () => {
     const scene = sceneOf([
       ...hull,

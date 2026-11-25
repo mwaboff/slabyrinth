@@ -1,34 +1,25 @@
 /**
- * Facing, the build's own rule held to the scene (core objects/facing.ts `facingFaults`, over the placed meshes): a
- * piece with a measured front (gen/pieceFacts.ts `front`) faces where its job says. A front that faces "outboard" (a
- * gun) points away from the centre line of the body it is mounted on (the segment along the body's travel through the
- * middle of its footprint, as long as the footprint is longer than wide); a front that faces "travel" (a helm) points
+ * Facing, the build's own rule held to the scene: core objects/facing.ts `frontCosine` (the rule `facingFaults` holds a
+ * recipe to) over the placed meshes. A piece with a measured front (core `frontVector`, from gen/pieceFacts.ts) faces
+ * where its job says: a gun ("outboard") away from the centre line of the body it is mounted on (the segment along the
+ * body's travel through the middle of its footprint, as long as the footprint is longer than wide); a helm ("travel")
  * the way the body travels (the planned object's heading). The body is every piece of the element's owner; its travel
  * is the plan's heading, else its footprint's long axis (then only "outboard" is judged).
  */
-import { maxOf, pieceFacts } from "@slabyrinth/core";
-import { objectOf } from "@slabyrinth/core/objects";
-import type { Vec3 } from "../types/index";
+import { emptyBox, growBox, maxOf, pieceFacts } from "@slabyrinth/core";
+import { FACING, frontCosine, frontVector, objectOf } from "@slabyrinth/core/objects";
 import { findingPiece } from "./pieces";
 import { dirToWorld } from "./space";
-import { CHECK_THRESHOLDS as T } from "./thresholds";
 import type { Finding, SceneCheck } from "./types";
-import { emptyBox, grow, r2 } from "./util";
-
-const AXIS: Readonly<Record<string, Vec3>> = {
-  "+x": { x: 1, y: 0, z: 0 },
-  "-x": { x: -1, y: 0, z: 0 },
-  "+z": { x: 0, y: 0, z: 1 },
-  "-z": { x: 0, y: 0, z: -1 },
-};
+import { r2 } from "./util";
 
 export const facingCheck: SceneCheck = {
   code: "facing",
   needsPlan: false,
   run({ scene, plan }) {
     const fronted = scene.instances
-      .map((inst, i) => ({ inst, i, front: pieceFacts(inst.name).front }))
-      .filter((x) => x.front !== undefined);
+      .map((inst, i) => ({ inst, i, front: pieceFacts(inst.name).front, f0: frontVector(inst.name) }))
+      .filter((x) => x.front !== undefined && x.f0 !== null);
     if (fronted.length === 0) return [];
     // each owner's footprint box
     const bodies = new Map<string, ReturnType<typeof emptyBox>>();
@@ -37,16 +28,17 @@ export const facingCheck: SceneCheck = {
       if (o === null) continue;
       let b = bodies.get(o);
       if (!b) bodies.set(o, (b = emptyBox()));
-      grow(b, inst.aabb);
+      growBox(b, inst.aabb);
     }
     const out: Finding[] = [];
-    for (const { inst, i, front } of fronted) {
-      if (!front) continue;
+    for (const { inst, i, front, f0 } of fronted) {
+      if (!front || !f0) continue;
       const owner = objectOf(inst.elementId ?? undefined);
       const body = owner !== null ? bodies.get(owner) : undefined;
       if (owner === null || !body) continue;
-      const f = dirToWorld(inst, AXIS[front.axis] ?? { x: 0, y: 0, z: 1 });
+      const f = dirToWorld(inst, { x: f0[0], y: 0, z: f0[1] });
       const heading = plan?.objects.find((o) => o.id === owner)?.heading ?? null;
+      if (front.faces === "travel" && !heading) continue;
       const lx = body.max.x - body.min.x;
       const lz = body.max.z - body.min.z;
       const travel = heading ?? (lx >= lz ? { x: 1, y: 0, z: 0 } : { x: 0, y: 0, z: 1 });
@@ -65,25 +57,17 @@ export const facingCheck: SceneCheck = {
       const width = 2 * maxOf(corners.map(([x, z]) => across(x, z)));
       const px = (inst.aabb.min.x + inst.aabb.max.x) / 2;
       const pz = (inst.aabb.min.z + inst.aabb.max.z) / 2;
-      let fault: string | null = null;
-      let cos: number;
-      if (front.faces === "travel") {
-        if (!heading) continue;
-        cos = f.x * heading.x + f.z * heading.z;
-        if (cos <= T.facingCos)
-          fault = `${inst.name} faces ${cos < -T.facingCos ? "against" : "across"} ${owner}'s travel (its operator should face the way it goes)`;
-      } else {
-        const reach = Math.max(0, (length - width) / 2);
-        const t = Math.min(reach, Math.max(-reach, along(px, pz)));
-        const dx = px - (cx + travel.x * t);
-        const dz = pz - (cz + travel.z * t);
-        const n = Math.hypot(dx, dz);
-        if (n <= T.facingCentre) continue;
-        cos = (f.x * dx + f.z * dz) / n;
-        if (cos <= T.facingCos)
-          fault = `${inst.name} points ${cos < -T.facingCos ? "inboard, at" : "along, not out from"} ${owner}'s body (it should point outboard)`;
-      }
-      if (!fault) continue;
+      const cos = frontCosine(front.faces, [f.x, f.z], [px, pz], {
+        centre: [cx, cz],
+        travel: [travel.x, travel.z],
+        reach: Math.max(0, (length - width) / 2),
+      });
+      if (cos === null || cos > FACING.cos) continue;
+      const way = cos < -FACING.cos;
+      const fault =
+        front.faces === "travel"
+          ? `${inst.name} faces ${way ? "against" : "across"} ${owner}'s travel (its operator should face the way it goes)`
+          : `${inst.name} points ${way ? "inboard, at" : "along, not out from"} ${owner}'s body (it should point outboard)`;
       out.push({
         code: "facing",
         severity: cos < 0 ? "fault" : "warn",
