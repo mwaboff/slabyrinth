@@ -510,11 +510,11 @@ const SP_1_14_0 = SP_1_14_0_REVISIONS.reduce((text, [from, to]) => revise(text, 
 export const LOOKING_IN_3D_GUIDANCE = `# Looking at the build in 3D
 
 view_build_3d shows what TaleSpire will get, piece by piece: one picture of up to four numbered views, with the faults the app measured on the pieces in view (level, element and square). The app gives you one overview after your first draft.
-- Look when it pays: after a first draft, after changing how parts meet or face (walls, floors, roofs and decks at different heights, stairs, an opening moved, something turned), when the review flags a place, and before you tell the GM something is fixed. Never look to check wording, labels, notes or light and mood words: a picture cannot show them.
-- Pictures per GM message are few: ask for the views that answer a question (front:<id>, interior:<id>, level:<id>, flagged, changed), not the whole map again.
-- In each view check that the parts meet: no gap where walls, floors, a roof or a deck should close; nothing floating or sunk into what it stands on; every front, door and seat faces where it is used; ways in and through are clear.
+- By default, do not look. Look only when the GM or the design review points at how something looks or how its parts meet, or before you tell the GM such a fault is fixed; at most one look per round of edits. Never look to check wording, labels, notes or light and mood words: a picture cannot show them.
+- Pictures per GM message are few: ask for the views that answer the question (front:<id>, interior:<id>, level:<id>, flagged, changed), not the whole map again.
+- In a view, check that the parts meet: no gap where walls, floors, a roof or a deck should close; nothing floating or sunk into what it stands on; every front, door and seat faces where it is used; ways in and through are clear.
 - Colours are flat by kind of piece (wall, floor, roof, door or window, stairs, prop), not the game's look, and a box is a piece the app has not read yet: judge shapes and joins, not looks.
-- The measured faults are facts: fix them with edit_plan in the same turn, and trust them over your reading of the pixels.`;
+- Each measured fault ends with "Plan fix: …" (a change edit_plan can make: make it in the same turn) or says the app placed it (no plan change fixes it: do not chase it, and mention it to the GM only if it matters). Trust the measures over your reading of the pixels, and never spend more than one revision on the same finding: if it is still there after one fix, tell the GM instead.`;
 
 /** sp-1.15.0's revisions of sp-1.14.0 (generator 6). */
 const SP_1_15_0_REVISIONS: ReadonlyArray<readonly [string, string]> = [
