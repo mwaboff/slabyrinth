@@ -207,6 +207,16 @@ export function View3dStage({
     api.current?.setRoofsHidden(roofsHidden);
   }, [roofsHidden, header]);
 
+  // test builds only (`--mode test`): the e2e suite reads the tab's viewer (its last frame and its filters)
+  useEffect(() => {
+    if (import.meta.env.MODE !== "test") return;
+    (window as unknown as { __slabyrinthView3dTab?: unknown }).__slabyrinthView3dTab = {
+      api: api.current,
+      state: state.kind,
+      noGl,
+    };
+  });
+
   // a level tab click (or PgUp/PgDn) on the stage bar shows up to that level: only a change of the map's level
   // moves the cut (not the level the tab opened on, nor a new scene)
   const [seenLevel, setSeenLevel] = useState(mapLevel);

@@ -1,5 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { expect, test, type Page } from "@playwright/test";
 import { cleanRun, launch, newRun, type Run } from "./helpers";
+import { UI_PLAN } from "./uiScript";
 
 /**
  * The 3D viewer engine in the real (hidden) window: mounted by the test build's hook on a synthetic town of more than
@@ -179,5 +183,113 @@ test("the 3D viewer draws, moves and keeps its budgets on a 1024 × 1024 map", a
     );
   } finally {
     await app.close();
+  }
+});
+
+/** The 3D tab's viewer as the test build exposes it (renderer/features/view3d/View3dStage.tsx). */
+interface TabProbe {
+  /** "none" (no tab yet), "still" (no WebGL2: the still picture), or the viewer's state ("loading", "ready", …). */
+  mode: string;
+  drawn: number;
+  hideRoofs: boolean | null;
+  cutLevel: number | null;
+}
+const probe = (page: Page): Promise<TabProbe> =>
+  page.evaluate(() => {
+    type Api = {
+      sample(): { drawnPixels: number };
+      getFilters(): { hideRoofs: boolean; cutLevel: number | null };
+    };
+    const t = (
+      window as unknown as { __slabyrinthView3dTab?: { api: Api | null; state: string; noGl: boolean } }
+    ).__slabyrinthView3dTab;
+    if (!t) return { mode: "none", drawn: 0, hideRoofs: null, cutLevel: null };
+    if (t.noGl) return { mode: "still", drawn: 0, hideRoofs: null, cutLevel: null };
+    const f = t.api?.getFilters();
+    return {
+      mode: t.state,
+      drawn: t.state === "ready" ? (t.api?.sample().drawnPixels ?? 0) : 0,
+      hideRoofs: f?.hideRoofs ?? null,
+      cutLevel: f?.cutLevel ?? null,
+    };
+  });
+
+const usage = { inputTokens: 1000, outputTokens: 400, cacheReadTokens: 0, cacheWriteTokens: 0 };
+const TAB_STEPS = [
+  {
+    kind: "reply",
+    usage,
+    parts: [
+      {
+        type: "tool_call",
+        callId: "tc",
+        name: "create_plan",
+        input: { replace: false, summary: "First draft", changes: ["Two levels"], plan: UI_PLAN },
+      },
+    ],
+  },
+  { kind: "reply", usage, parts: [{ type: "text", text: "First take on the crypt." }] },
+];
+const uiShots = fileURLToPath(new URL("../../../docs/internal/renders/ui/", import.meta.url));
+
+test("the 3D tab: a plan drawn in 3D (or its still picture), roofs off, shown up to a level", async () => {
+  test.setTimeout(150_000);
+  const tabRun = newRun("slabyrinth-view3d-tab-", TAB_STEPS);
+  const { app, page } = await launch(tabRun);
+  try {
+    await page.setViewportSize({ width: 1600, height: 960 });
+    const setup = page.getByRole("dialog", { name: "Welcome to Slabyrinth" });
+    await setup.getByLabel("Anthropic API key").fill("sk-ant-e2e-test-0000000000000000");
+    await setup.getByRole("button", { name: "Check key" }).click();
+    await expect(setup.getByText(/Key works/)).toBeVisible({ timeout: 15_000 });
+    await setup.getByRole("button", { name: "Next" }).click();
+    await setup.getByRole("button", { name: "Continue without it" }).click({ timeout: 15_000 });
+    await setup.getByRole("button", { name: "Start mapping" }).click();
+    await expect(setup).toBeHidden();
+    const composer = page.getByLabel("Message Slabyrinth");
+    await composer.fill("A crypt under a ruined abbey");
+    await composer.press("Enter");
+    await expect(page.getByRole("button", { name: /Approve plan v1/ })).toBeVisible({ timeout: 30_000 });
+
+    // the tab sits between Map and Build
+    const stageTabs = page.getByRole("tablist", { name: "Stage" }).getByRole("tab");
+    await expect(stageTabs).toHaveText(["Map", "3D", "Build"]);
+    await stageTabs.nth(1).click();
+    const bar = page.getByRole("toolbar", { name: "3D view" });
+    await expect(bar).toContainText("3D of v1");
+
+    // a drawn frame, or (no WebGL2 in this window) the still picture from main
+    await expect.poll(async () => (await probe(page)).mode, { timeout: 60_000 }).toMatch(/^(ready|still)$/);
+    const mode = (await probe(page)).mode;
+    if (mode === "still") {
+      await expect(page.locator(".v3still__img")).toBeVisible({ timeout: 30_000 });
+      console.log("view3d tab e2e: WebGL2 unavailable in the test window; checked the still picture");
+    } else {
+      await expect.poll(async () => (await probe(page)).drawn, { timeout: 30_000 }).toBeGreaterThan(1000);
+      // test mode has no TaleSpire: every piece is a box, and the tab says why and what to do
+      await expect(page.getByRole("status", { name: "3D view status" })).toContainText(
+        "Showing boxes because TaleSpire was not found",
+      );
+      // roofs off
+      const roofs = bar.getByRole("button", { name: "Roofs" });
+      await expect(roofs).toHaveAttribute("aria-pressed", "true");
+      await roofs.click();
+      await expect(roofs).toHaveAttribute("aria-pressed", "false");
+      await expect.poll(async () => (await probe(page)).hideRoofs).toBe(true);
+    }
+    // show up to the lowest level
+    const levels = bar.getByRole("combobox", { name: "Show up to" });
+    await levels.selectOption({ index: 1 });
+    await expect(levels).toHaveValue("0");
+    if (mode !== "still") {
+      await expect.poll(async () => (await probe(page)).cutLevel).toBe(0);
+      await expect.poll(async () => (await probe(page)).drawn).toBeGreaterThan(100);
+    }
+
+    mkdirSync(uiShots, { recursive: true });
+    await page.screenshot({ path: path.join(uiShots, "view3d-tab.png"), animations: "disabled" });
+  } finally {
+    await app.close();
+    cleanRun(tabRun);
   }
 });
