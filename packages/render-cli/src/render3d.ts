@@ -5,13 +5,16 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { buildPaletteCatalog, loadPalettes, pushAll, type AssetCatalog } from "@slabyrinth/core";
+import { buildPaletteCatalog, loadPalettes, type AssetCatalog } from "@slabyrinth/core";
 import {
+  SHOT_RULES,
+  contactSheet,
+  downscale,
   encodePng,
   frameBox,
-  levelShots,
-  overviewShot,
   pieceLookup,
+  planShots,
+  type Picture,
   renderScene,
   sceneFromBuild,
   sceneFromSlab,
@@ -49,7 +52,9 @@ input (one of):
 options:
   --seed <n> | --seeds 1..4|1,5,9    re-seed the plan (default: its own seed)
   --generator <n>                    build the plan at another generator
-  --shots overview,top,levels        which preset shots (default overview,levels)
+  --shots <rules>                    overview, interiors, fronts, levels (the shot rules), top, or all
+                                     (default overview,levels); --max-shots <n> keeps the best ranked n
+  --sheet                            also a sheet.png per render and a run-sheet.png of every overview
   --camera <bearing>,<elevation>     one more shot from that compass bearing and height angle (repeatable as a;b)
   --eye x,y,z --target x,y,z [--fov 45]   one more shot from an explicit camera (perspective)
   --persp | --ortho                  projection of the preset shots (default ortho)
@@ -117,15 +122,22 @@ function inputsOf(a: Args, cwd: string): Input[] {
 /** The shots asked for, framed on the scene. */
 function shotsFor(scene: Scene, a: Args): ShotSpec[] {
   const size = { ...sizeOf(a), projection: has(a, "persp") ? ("persp" as const) : ("ortho" as const) };
-  const wanted = (flag(a, "shots") ?? "overview,levels").split(",").map((s) => s.trim());
-  const out: ShotSpec[] = [];
-  for (const w of wanted) {
-    if (w === "overview") out.push(overviewShot(scene, size));
-    else if (w === "top") out.push(topShot(scene, size));
-    // a single-level map's level shot is its overview without roofs: still useful (inside the buildings)
-    else if (w === "levels") pushAll(out, levelShots(scene, size));
-    else if (w !== "") throw new UsageError(`--shots ${w}: one of overview, top, levels`);
-  }
+  const wanted = new Set(
+    (flag(a, "shots") ?? "overview,levels")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  const known = new Set<string>([...SHOT_RULES, "top", "all"]);
+  for (const w of wanted)
+    if (!known.has(w)) throw new UsageError(`--shots ${w}: one of ${[...known].join(", ")}`);
+  const maxFlag = flag(a, "max-shots");
+  const max = maxFlag === undefined ? undefined : Number(maxFlag);
+  if (max !== undefined && !(Number.isInteger(max) && max >= 0))
+    throw new UsageError("--max-shots: a whole number");
+  const rules = SHOT_RULES.filter((r) => wanted.has(r) || wanted.has("all"));
+  const out: ShotSpec[] = planShots(scene, { size, rules, ...(max !== undefined ? { max } : {}) });
+  if (wanted.has("top") || wanted.has("all")) out.push(topShot(scene, size));
   const cut: Cutaway = {};
   const level = flag(a, "cutaway");
   if (level !== undefined) {
@@ -223,6 +235,8 @@ export async function render3d(a: Args, io: Io, env: RenderEnv): Promise<number>
   const palettes = buildPaletteCatalog([], null);
   const lookup = pieceLookup(loadPalettes().palettes, catalog);
   const records: RenderRecord[] = [];
+  const sheets = has(a, "sheet");
+  const runTiles: Array<{ picture: Picture; caption: string }> = [];
   for (const input of inputs)
     for (const seed of input.kind === "plan" ? seeds : [undefined]) {
       const tb = performance.now();
@@ -258,12 +272,24 @@ export async function render3d(a: Args, io: Io, env: RenderEnv): Promise<number>
       const folder = join(out, input.name, ...(record.plan ? [`s${record.plan.seed}`] : []));
       mkdirSync(folder, { recursive: true });
       const shots: ShotRecord[] = [];
+      const tiles: Array<{ picture: Picture; caption: string }> = [];
       const ts = performance.now();
       for (const spec of shotsFor(scene, a)) {
         const t = performance.now();
         const img = renderScene(scene, spec);
         const file = join(folder, `${spec.id}.png`);
         writeFileSync(file, encodePng(img));
+        if (sheets) {
+          tiles.push({
+            picture: downscale(img, Math.ceil(img.width / 512)),
+            caption: `${spec.id}: ${spec.caption}`,
+          });
+          if (tiles.length === 1)
+            runTiles.push({
+              picture: downscale(img, Math.ceil(img.width / 384)),
+              caption: `${input.name}${record.plan ? ` s${record.plan.seed}` : ""}`,
+            });
+        }
         shots.push({
           id: spec.id,
           file: relative(out, file).split("\\").join("/"),
@@ -278,6 +304,8 @@ export async function render3d(a: Args, io: Io, env: RenderEnv): Promise<number>
           ms: Math.round(performance.now() - t),
         });
       }
+      if (sheets && tiles.length > 0)
+        writeFileSync(join(folder, "sheet.png"), encodePng(contactSheet(tiles)));
       const boxes = scene.instances.filter((i) => i.stand === "box").length;
       records.push({
         ...record,
@@ -298,6 +326,8 @@ export async function render3d(a: Args, io: Io, env: RenderEnv): Promise<number>
         `${input.name}${seedText}: ${scene.instances.length} pieces, ${boxes} as boxes (${scene.fallbacks.length} kinds); ${shots.length} picture(s) in ${Math.round(performance.now() - tb)} ms`,
       );
     }
+  if (sheets && runTiles.length > 0)
+    writeFileSync(join(out, "run-sheet.png"), encodePng(contactSheet(runTiles, { tileWidth: 384 })));
   const index = {
     tool: "render 3d",
     meshSource: meshes.source.label,

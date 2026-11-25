@@ -42,6 +42,15 @@ export function shown(inst: SceneInstance, cut: Cutaway): boolean {
     const n = Number(inst.layer.slice("storey:".length));
     if (Number.isFinite(n) && n > cut.maxStorey) return false;
   }
+  const w = cut.within;
+  if (
+    w &&
+    (inst.aabb.max.x < w.minX ||
+      inst.aabb.min.x > w.maxX ||
+      inst.aabb.max.z < w.minZ ||
+      inst.aabb.min.z > w.maxZ)
+  )
+    return false;
   return true;
 }
 

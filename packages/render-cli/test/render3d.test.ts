@@ -159,6 +159,32 @@ describe("render 3d", () => {
     expect(render?.shots.map((s) => s.id)).toEqual(["overview", "camera-1", "camera-2", "eye"]);
   });
 
+  it("batches fixtures with the shot rules under a budget, with contact sheets", async () => {
+    const out = join(tmp, "batch");
+    const r = await run([
+      "3d",
+      "--fixture",
+      "two-rooms-door,single-room",
+      "--shots",
+      "all",
+      "--max-shots",
+      "2",
+      "--sheet",
+      "--boxes",
+      "--size",
+      "96x72",
+      "--out",
+      out,
+    ]);
+    expect(r.code).toBe(0);
+    const index = readIndex(out);
+    expect(index.renders.map((x) => x.input)).toEqual(["two-rooms-door", "single-room"]);
+    // two ranked shots, then the top view
+    for (const x of index.renders) expect(x.shots.map((s) => s.rule).slice(0, 1)).toEqual(["overview"]);
+    expect(existsSync(join(out, "run-sheet.png"))).toBe(true);
+    expect(existsSync(join(out, index.renders[0]?.folder ?? "", "sheet.png"))).toBe(true);
+  });
+
   it("refuses bad options with a usage error", async () => {
     expect((await run(["3d", "--fixture", "single-room", "--size", "big"])).code).toBe(2);
     expect((await run(["3d", "--fixture", "no-such-plan", "--boxes"])).code).toBe(2);

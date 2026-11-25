@@ -46,7 +46,7 @@ tests; run the checks listed in `CLAUDE.md` before a pull request.
 A developer tool for looking at generations without pasting them into TaleSpire (`npm run render -- 3d --help`):
 
 - `npm run render -- 3d --fixture market-street-v3` (also `--fixture a,b` or `all`), `--plan my.json`, `--slab s.txt`
-- `--seeds 1..4 --generator 5` re-seed and re-build; `--shots overview,top,levels`; `--camera 225,35`;
+- `--seeds 1..4 --generator 5` re-seed and re-build; `--shots all` (overview, interiors, fronts, levels by the shot rules, and top) with `--max-shots n` and `--sheet`; `--camera 225,35`;
   `--eye x,y,z --target x,y,z`; `--boxes` draws boxes only (no install needed).
 - Pictures and `index.json` (what each shows, which pieces are boxes and why) go to `docs/internal/renders/` unless
   `--out`. Meshes are read from the TaleSpire install read-only and cached in `.cache/meshes/` (the first run after a

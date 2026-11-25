@@ -145,6 +145,16 @@ export interface Cutaway {
   hideLayers?: string[];
   /** Hide paste layers whose storey number is above this ("storey:2" with maxStorey 1). */
   maxStorey?: number;
+  /** Draw only pieces whose box meets this plan rectangle: a thing and its surroundings. */
+  within?: PlanRect;
+}
+
+/** A rectangle in plan (x east, z north), tiles. */
+export interface PlanRect {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
 }
 
 export interface ShotSpec {
