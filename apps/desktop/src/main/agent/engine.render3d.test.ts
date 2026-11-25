@@ -80,7 +80,12 @@ describe("render3d on the tool context", () => {
     const { pictures, engine, outcomes } = setup(withPictures(3));
     await engine.send({ text: "look at it", intent: "plan" });
     await engine.whenIdle();
-    expect(outcomes).toEqual(["ok 4", "ok 4", "ok 4", "No more 3D pictures for this message (limit 3)."]);
+    expect(outcomes).toEqual([
+      "ok 4",
+      "ok 4",
+      "ok 4",
+      "no more 3D pictures for this message (the GM allows 3 per message)",
+    ]);
     expect(pictures.asked).toHaveLength(3);
     await engine.send({ text: "and again", intent: "plan" });
     await engine.whenIdle();

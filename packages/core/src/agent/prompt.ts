@@ -503,14 +503,32 @@ const SP_1_14_0_REVISIONS: ReadonlyArray<readonly [string, string]> = [
 const SP_1_14_0 = SP_1_14_0_REVISIONS.reduce((text, [from, to]) => revise(text, from, to), SP_1_13_0);
 
 /**
- * sp-1.15.0 (WORKING, opened with generator 6; unreleased): sp-1.14.0 with the working principles (dp-1.5.0, the
- * live DESIGN_PRINCIPLES). It starts equal to sp-1.14.0. Add revisions below; principles go in designPrinciples.ts,
- * how-to here, field facts in tools.ts; say each thing once. Freeze a copy of all three when generator 6 ships.
+ * How to use the 3D pictures (view_build_3d, tools-1.11.0; owner 2026-11-24): when a look pays and when it does not,
+ * what to check in a picture, what the colours are, and that the budget is small. Rules over parts, never per kind of
+ * thing, so they hold on something nobody has built before.
  */
-const SP_1_15_0 = [[DP_1_4_0, DESIGN_PRINCIPLES]].reduce(
-  (text, [from, to]) => revise(text, from as string, to as string),
-  SP_1_14_0,
-);
+export const LOOKING_IN_3D_GUIDANCE = `# Looking at the build in 3D
+
+view_build_3d shows what TaleSpire will get, piece by piece: one picture of up to four numbered views, with the faults the app measured on the pieces in view (level, element and square). The app gives you one overview after your first draft.
+- Look when it pays: after a first draft, after changing how parts meet or face (walls, floors, roofs and decks at different heights, stairs, an opening moved, something turned), when the review flags a place, and before you tell the GM something is fixed. Never look to check wording, labels, notes or light and mood words: a picture cannot show them.
+- Pictures per GM message are few: ask for the views that answer a question (front:<id>, interior:<id>, level:<id>, flagged, changed), not the whole map again.
+- In each view check that the parts meet: no gap where walls, floors, a roof or a deck should close; nothing floating or sunk into what it stands on; every front, door and seat faces where it is used; ways in and through are clear.
+- Colours are flat by kind of piece (wall, floor, roof, door or window, stairs, prop), not the game's look, and a box is a piece the app has not read yet: judge shapes and joins, not looks.
+- The measured faults are facts: fix them with edit_plan in the same turn, and trust them over your reading of the pixels.`;
+
+/** sp-1.15.0's revisions of sp-1.14.0 (generator 6). */
+const SP_1_15_0_REVISIONS: ReadonlyArray<readonly [string, string]> = [
+  [DP_1_4_0, DESIGN_PRINCIPLES],
+  // the 3D pictures, after the ways of seeing the plan
+  ["If it is, add levels.", `If it is, add levels.\n\n${LOOKING_IN_3D_GUIDANCE}`],
+];
+
+/**
+ * sp-1.15.0 (WORKING, opened with generator 6; unreleased): sp-1.14.0 with the working principles (dp-1.5.0, the
+ * live DESIGN_PRINCIPLES) and the revisions above. Principles go in designPrinciples.ts, how-to here, field facts in
+ * tools.ts; say each thing once. Freeze a copy of all three when generator 6 ships.
+ */
+const SP_1_15_0 = SP_1_15_0_REVISIONS.reduce((text, [from, to]) => revise(text, from, to), SP_1_14_0);
 
 export const SYSTEM_PROMPT_VERSION = "sp-1.15.0";
 

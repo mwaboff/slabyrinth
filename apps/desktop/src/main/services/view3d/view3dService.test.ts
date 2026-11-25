@@ -316,6 +316,8 @@ describe("the model's 3D pictures", () => {
     });
     expect(lvl.captions).toHaveLength(1);
     expect(lvl.suggestions).toMatch(/Nothing to show for: front:nowhere/);
+    // the scene checks' findings for the pieces in view come first in the text
+    expect(a.suggestions).toMatch(/^Measured on the pieces in view/);
     r.svc.dispose();
   });
 

@@ -1,6 +1,7 @@
 import {
   LevelGrid,
   type MapPlan,
+  type OrientationCalibration,
   type PaletteCatalog,
   type ReadonlyFs,
   type ResolvedPlan,
@@ -12,6 +13,9 @@ import {
   boxMeshSource,
   budgetedSource,
   installMeshSource,
+  planFacts,
+  runChecks,
+  type Finding,
   type InstallMeshSource,
   type MeshSource,
   type Scene,
@@ -38,7 +42,21 @@ interface Held {
   previous: MapPlan | null;
   resolved: ResolvedPlan;
   palettes: PaletteCatalog;
+  orientation: OrientationCalibration;
   ctx: ShotContext | null;
+  /** The scene checks' findings, measured when a picture for the model first needs them (null: they failed). */
+  findings?: Finding[] | null;
+}
+
+/** The scene checks over a held scene, once (a check that throws costs the picture its findings, never the picture). */
+function findingsOf(h: Held): Finding[] | null {
+  if (h.findings !== undefined) return h.findings;
+  try {
+    h.findings = runChecks(h.scene, planFacts(h.resolved, h.scene, { orientation: h.orientation })).findings;
+  } catch {
+    h.findings = null;
+  }
+  return h.findings;
 }
 
 /** Each area's plan cells, by area id (the level grid's own cell owner). */
@@ -145,6 +163,7 @@ export function createSceneHandler(o: { fs?: ReadonlyFs } = {}) {
             previous: job.previous,
             resolved,
             palettes,
+            orientation,
             ctx: null,
           });
           post({
@@ -190,7 +209,8 @@ export function createSceneHandler(o: { fs?: ReadonlyFs } = {}) {
             ...(msg.shots ? { shots: msg.shots } : {}),
             ...(msg.max !== undefined ? { max: msg.max } : {}),
           };
-          const p = scenePictures(h.scene, req, contextOf(h));
+          // the model's pictures carry the measured findings for the pieces in view
+          const p = scenePictures(h.scene, req, contextOf(h), findingsOf(h));
           post({ type: "pictures", id: msg.id, ...p });
           return;
         }
