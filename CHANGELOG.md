@@ -7,6 +7,21 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 ## [Unreleased]
 
+### Added
+
+- **Changes per message.** Choose how many times Claude may change the map for one message before it asks you (Settings › AI › Changes per message, default 4). When Claude reaches that limit, the chat says so, with what the message has cost so far: Keep going or That's enough.
+
+### Changed
+
+- When you have changed the plan since building, Approve & rebuild is the main button and the old map is "Copy vN anyway".
+- Build problems show above the paste guide button, which then says "anyway".
+- Changing the level layout asks first if you have marked slabs as pasted.
+
+### Fixed
+
+- A build that fails now says what happened and offers Build again.
+- Stopping a build is no longer reported as an error.
+
 ## [0.4.0] - 2026-11-24
 
 ### Added
