@@ -37,8 +37,6 @@ import { elementRef, fmt, round2, round4, solidLabel } from "./words";
 import { maxOf } from "../../util/lists";
 import { baseInFloor, restsOn } from "../../util/sunk";
 import { restTop } from "../../palette/restSurface";
-import { loadOrientation } from "../../palette/load";
-import { worldTurn } from "../geometry";
 import { surfaceTopAt } from "../restOn";
 
 /** The codes this file emits (VERIFY_CODES is the union of every check's list; lines.ts has its own). */
@@ -408,7 +406,7 @@ function surfaceTop(ctx: VerifyCtx, q: Solid, at?: { x: number; z: number }): nu
   const geom = ctx.profile.unevenTops && at ? ctx.set.placed?.get(q.p)?.geom : undefined;
   if (geom && at)
     return surfaceTopAt(
-      { asset: q.p.asset, geom, box: q.box, cw: worldTurn(q.p.rot, loadOrientation().orientation) },
+      { asset: q.p.asset, geom, box: q.box, cw: ctx.turnOf(q.p) },
       at.x,
       at.z,
       ctx.profile.restSurfaces,

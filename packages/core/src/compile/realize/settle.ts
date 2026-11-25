@@ -14,7 +14,6 @@ import type { Placement } from "../../contracts/compiler";
 import { featureInfo } from "../../gen/catalog";
 import { restGridOf } from "../../palette/restGrid";
 import { restTop } from "../../palette/restSurface";
-import { worldTurn } from "../geometry";
 import { restSpotAt, type PlacedSupport } from "../restOn";
 import type { RealizeLevel } from "./level";
 
@@ -30,12 +29,14 @@ const REACH = 0.5;
 export function settleOnSupports(lv: RealizeLevel): void {
   const { ctx, placements, rebox } = lv;
   if (!ctx.profile.unevenTops) return;
-  const { placed, orientation } = ctx;
+  const { placed, turns } = ctx;
+  // each feature with its name, collider, box and the world turn it was placed with (realize/level.ts emit)
   const items = placements
     .filter((p) => p.role === "feature")
     .flatMap((p) => {
       const info = placed.get(p);
-      return info ? [{ p, info }] : [];
+      const cw = turns.get(p);
+      return info && cw !== undefined ? [{ p, info, cw }] : [];
     });
   // supports by the whole cells their boxes cover (world x, z)
   const byCell = new Map<string, typeof items>();
@@ -112,7 +113,7 @@ export function settleOnSupports(lv: RealizeLevel): void {
       asset: q.p.asset,
       geom: q.info.geom,
       box: q.info.box,
-      cw: worldTurn(q.p.rot, orientation),
+      cw: q.cw,
     };
     const b = it.info.box;
     const cx = (b.min.x + b.max.x) / 2;

@@ -82,6 +82,12 @@ export interface RealizeCtx {
   /** Name, geometry and world box of every placement of this call (`RealizeLevel.emit` writes; the set carries it). */
   readonly placed: Map<Placement, PlacedAsset>;
   /**
+   * The world turn of every placement of this call (game degrees clockwise, the build's rotSense applied), decided once
+   * by `RealizeLevel.emit`: settle, the stall canopies and verify read it (the set carries it as `RealizedSet.turns`), so
+   * no later reader derives a turn again from an orientation that may not be the build's.
+   */
+  readonly turns: Map<Placement, number>;
+  /**
    * The role answers and the per-level facts (grid, faces, claims) of this build, shared with verify through the set
    * (compile/buildFacts.ts); links read the level above's grid from it.
    */
@@ -274,6 +280,7 @@ export function createRealizeCtx(
     addDiag,
     subs,
     placed: new Map(),
+    turns: new Map(),
     facts,
     lookup,
     pick,

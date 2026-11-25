@@ -70,7 +70,7 @@ export class RealizeLevel {
     readonly ctx: RealizeCtx,
     readonly L: ResolvedLevel,
   ) {
-    const { facts, seed, orientation, palettes, profile, placed } = ctx;
+    const { facts, seed, orientation, palettes, profile, placed, turns } = ctx;
     const placements: Placement[] = [];
     const levelBox = emptyBox();
     this.placements = placements;
@@ -112,8 +112,11 @@ export class RealizeLevel {
         source,
       };
       if (layer !== undefined) p.layer = layer;
-      const box = placementBox(v.geom, p.x, p.y, p.z, worldTurn(rot, orientation));
+      // the piece's world turn, decided here once (every later reader takes it from `turns`)
+      const cw = worldTurn(rot, orientation);
+      const box = placementBox(v.geom, p.x, p.y, p.z, cw);
       placed.set(p, { name: v.name ?? palettes.availability.name(v.uuid) ?? v.uuid, geom: v.geom, box });
+      turns.set(p, cw);
       growBox(levelBox, box);
       placements.push(p);
     };

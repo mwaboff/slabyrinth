@@ -29,6 +29,11 @@ export const ROLE_ORDER: readonly PlacementRole[] = [
 export interface RealizedSet extends PlacementSet {
   /** Always present on a realized set (the contract's field is optional for sets built elsewhere). */
   placed: Map<Placement, PlacedAsset>;
+  /**
+   * Each placement's world turn as realize placed it (game degrees, the build's rotSense applied: RealizeCtx.turns).
+   * Inside core only: the contract's PlacedAsset has no field for it, so it travels beside `placed`.
+   */
+  turns: ReadonlyMap<Placement, number>;
   /** What realize built from (role answers, per-level grids, faces, claims): verify judges by the same (buildFacts.ts). */
   facts: BuildFacts;
   substitutions: BundleSubstitution[];
@@ -89,7 +94,7 @@ export function finishLevel(lv: RealizeLevel, out: RealizeOutput): void {
 
 /** The alignment marker, the statistics and the substitution diagnostics: the finished set. */
 export function finishRealize(ctx: RealizeCtx, out: RealizeOutput): RealizedSet {
-  const { resolved, palettes, defaultTheme, lookup, addDiag, diag, subs, placed, facts } = ctx;
+  const { resolved, palettes, defaultTheme, lookup, addDiag, diag, subs, placed, turns, facts } = ctx;
   const { levels: outLevels, levelInfo, allBox } = out;
   // alignment marker asset
   const mres = lookup(resolved.levels[0]?.id ?? "", defaultTheme, [MARKER_ROLE], undefined, true);
@@ -127,6 +132,7 @@ export function finishRealize(ctx: RealizeCtx, out: RealizeOutput): RealizedSet 
     diagnostics,
     stats: { byRole, total, distinctAssets: assets.size },
     placed,
+    turns,
     facts,
     substitutions: [...subs.values()],
     assetSource:

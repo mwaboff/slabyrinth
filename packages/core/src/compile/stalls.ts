@@ -41,7 +41,7 @@ import { stallParts, type RoleProbe } from "../palette/stallParts";
 import { h32Utf16, subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
 import type { WorldFrame } from "./geometry";
-import { quarterTurn, rotateXZ, worldTurn } from "./geometry";
+import { quarterTurn, rotateXZ } from "./geometry";
 import { restSpotAt } from "./restOn";
 import type { RealizeLevel } from "./realize/level";
 import { maxOf, minOf } from "../util/lists";
@@ -97,14 +97,11 @@ function hangHeight(
   let best: number | undefined;
   for (const p of canopy) {
     const info = lv.ctx.placed.get(p);
-    if (!info) continue;
+    const cw = lv.ctx.turns.get(p);
+    if (!info || cw === undefined) continue;
     const b = info.box;
     if (w.x < b.min.x || w.x > b.max.x || w.z < b.min.z || w.z > b.max.z) continue;
-    const spot = restSpotAt(
-      { asset: p.asset, geom: info.geom, box: b, cw: worldTurn(p.rot, lv.ctx.orientation) },
-      w.x,
-      w.z,
-    );
+    const spot = restSpotAt({ asset: p.asset, geom: info.geom, box: b, cw }, w.x, w.z);
     // the lowest canopy surface over the point is the one it hangs under
     if (spot && spot.moved === 0 && (best === undefined || spot.y < best)) best = spot.y;
   }
