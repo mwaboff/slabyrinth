@@ -42,6 +42,8 @@ export interface View3dCanvasProps {
   label?: string;
   /** Id of the element that says how to move (the canvas's accessible description). */
   describedBy?: string;
+  /** Say an error in place of the picture (default true); off when the surface shows errors with its own actions. */
+  showError?: boolean;
   maxDpr?: number;
   keyBindings?: KeyBindings;
   options?: EngineOptions;
@@ -55,17 +57,17 @@ export interface View3dCanvasProps {
 export function errorText(e: View3dError): string {
   switch (e.code) {
     case "no-webgl2":
-      return "3D needs graphics acceleration (WebGL2), which isn't available here.";
+      return "Your graphics card can't show the 3D view on this PC.";
     case "init-failed":
-      return "The graphics driver could not start the 3D view.";
+      return "Your graphics card couldn't start the 3D view.";
     case "source":
       return e.sourceCode === "not-found"
-        ? "There is no 3D scene for this version of the map."
+        ? "There's no 3D view of this version of the map."
         : e.sourceCode === "no-plan"
           ? "There's no plan to show in 3D yet."
           : e.sourceCode === "cancelled"
-            ? "Loading the 3D scene was stopped."
-            : `The 3D scene could not be loaded: ${e.message}`;
+            ? "Loading the 3D view was stopped."
+            : `The 3D view couldn't be loaded: ${e.message}`;
   }
 }
 
@@ -175,7 +177,7 @@ export function View3dCanvas(props: View3dCanvasProps): React.JSX.Element {
         tabIndex={0}
         hidden={error !== null && (error.code === "no-webgl2" || error.code === "init-failed")}
       />
-      {error ? (
+      {error && props.showError !== false ? (
         <p className="view3d__error" role="alert">
           {errorText(error)}
         </p>

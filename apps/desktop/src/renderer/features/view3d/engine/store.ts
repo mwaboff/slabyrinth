@@ -67,6 +67,8 @@ export class SceneStore {
   loadedChunks = 0;
   /** Bytes of the loaded pieces' arrays: the viewer's share of the JS heap for the scene (~58 per piece). */
   loadedBytes = 0;
+  /** Bit i: some loaded piece is of header class i (the colour key lists only the kinds the map has). */
+  classesSeen = 0;
 
   constructor(header: SceneHeader) {
     this.header = header;
@@ -153,6 +155,8 @@ export class SceneStore {
     c.roofLayer = data.layers.indexOf("roof");
     c.roleNumbers = Uint8Array.from(data.roles, roleNumber);
     c.version++;
+    for (let k = 0; k < data.count; k++) this.classesSeen |= 1 << ((data.colourClass[k] ?? 0) & 31);
+    this.classesSeen >>>= 0;
     const aabb = new Float32Array(data.count * 6);
     for (let k = 0; k < data.count; k++) worldBox(this.meshBounds, data, k, aabb, k * 6);
     c.aabb = aabb;

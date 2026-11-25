@@ -163,6 +163,8 @@ export interface View3dApi {
   setCutHeight(y: number | null): void;
   setFade(on: boolean): void;
   getFilters(): Readonly<ViewFilters>;
+  /** Bit i: a loaded piece is of header class i (grows as chunks arrive; 0 before any). */
+  classesSeen(): number;
   pickAt(clientX: number, clientY: number): PickInfo | null;
   select(id: number | null): void;
   readonly selection: PickInfo | null;
@@ -972,6 +974,10 @@ export class View3dEngine implements View3dApi {
 
   getFilters(): Readonly<ViewFilters> {
     return this.filters;
+  }
+
+  classesSeen(): number {
+    return this.store?.classesSeen ?? 0;
   }
 
   // ---- picking ---------------------------------------------------------------------------------------------------

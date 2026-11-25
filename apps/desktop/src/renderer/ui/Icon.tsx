@@ -131,6 +131,31 @@ const PATHS = {
   ),
   file: <path d="M4 1.8h5l3 3V14a.5.5 0 0 1-.5.5h-7.5a.5.5 0 0 1-.5-.5V2.3a.5.5 0 0 1 .5-.5zM9 1.8V5h3" />,
   pin: <path d="M8 14.5V9.5M4.5 9.5h7L10 7V3h1V1.5H5V3h1v4z" />,
+  turnLeft: (
+    <>
+      <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9" />
+      <path d="M2.5 2.5V5H5" />
+    </>
+  ),
+  turnRight: (
+    <>
+      <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" />
+      <path d="M13.5 2.5V5H11" />
+    </>
+  ),
+  topDown: (
+    <>
+      <path d="M8 1.5v6M5.5 5L8 7.5 10.5 5" />
+      <rect x="2.5" y="9.5" width="11" height="4" rx="1" />
+    </>
+  ),
+  roof: <path d="M1.5 8.5L8 3l6.5 5.5M3.5 7v6.5h9V7" />,
+  help: (
+    <>
+      <circle cx="8" cy="8" r="5.8" />
+      <path d="M6.3 6.4a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3v.3M8 11.4v.3" />
+    </>
+  ),
 } satisfies Record<string, ReactElement>;
 
 export type IconName = keyof typeof PATHS;

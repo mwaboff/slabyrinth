@@ -53,7 +53,7 @@ test("the 3D viewer draws, moves and keeps its budgets on a 1024 × 1024 map", a
     const harness = page.getByTestId("view3d-harness");
     if (m.state === "error") {
       // no WebGL2 here: the typed fallback, in words
-      await expect(harness.getByRole("alert")).toHaveText(/graphics acceleration/);
+      await expect(harness.getByRole("alert")).toHaveText(/graphics card can't show the 3D view/);
       console.log("view3d e2e: WebGL2 unavailable in the test window; checked the fallback state");
       return;
     }

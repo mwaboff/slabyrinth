@@ -478,6 +478,10 @@
   font: var(--t-ui);
 }
 
+.shortcuts__h {
+  margin: var(--s20) 0 var(--s6);
+}
+
 .shortcuts__row {
   display: flex;
   justify-content: space-between;

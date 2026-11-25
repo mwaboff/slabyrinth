@@ -1,116 +1,106 @@
 /**
- * The 3D tab (design 4.1–4.2, plain first cut): the map version shown on the Map tab, in 3D, with a small toolbar
- * (frame all, top-down, show up to a level, roofs on/off, how to move), the states in plain words, a readout of the
- * clicked piece, and a still picture when this PC cannot draw 3D. It is never a step: Build and pasting do not wait
- * on it. The toolbar wording and layout are provisional: a design pass shapes the final surface (toolbar, colour key,
- * first-run card).
+ * The 3D tab (design 4.1–4.2): the map version shown on the Map tab, piece for piece as TaleSpire will get it, in
+ * plain colours. Around the canvas: a toolbar (frame all, top-down, roofs, cut height once roofs are off, the version
+ * it shows, Controls), the stage bar's level tabs as the one "show up to" control (LevelCutTabs), the colour key on
+ * the right (it hides kinds of piece), the clicked piece's card, a first-use hint, move buttons, and every state in
+ * plain words with what to do. It is never a step: Build and pasting do not wait on it, and the status bar's
+ * Approve / Build button stays where it is.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MapPlan } from "@slabyrinth/core";
+import type { ColourClass } from "@slabyrinth/scene3d";
 import { VIEW3D_LIMITS } from "../../../shared/schemas/ipc";
 import { call, errorMessage, tryCall } from "../../bridge/client";
-import { cellName } from "../../lib/format";
 import { useApp } from "../../stores/app";
 import { useMap } from "../../stores/map";
-import { levelShort } from "../../stores/project";
-import { roleWords } from "./engine/roles";
+import { levelShort, useProject } from "../../stores/project";
+import { useView3d } from "../../stores/view3d";
+import { Icon, type IconName } from "../../ui/Icon";
+import { useTsBannerShown } from "../../app/Banners";
+import { MOVE_SUMMARY } from "./controls";
 import type { PickInfo, View3dApi, View3dEvents, View3dState } from "./engine/engine";
 import { ipcSceneSource } from "./ipcSceneSource";
+import { levelsAbove } from "./LevelCutTabs";
 import type { SceneHeader, SceneSource, SceneTarget } from "./sceneSource";
-import { View3dCanvas, type View3dCanvasProps } from "./View3dCanvas";
+import { View3dCanvas, errorText, type View3dCanvasProps } from "./View3dCanvas";
+import {
+  ColourKey,
+  ControlsButton,
+  CutHeight,
+  HintCard,
+  NavCluster,
+  Readout,
+  cutRange,
+} from "./View3dPanels";
 import "./view3dStage.css";
 
-/** How to move, in one line (also the canvas's accessible description). */
-export const MOVE_HINT =
-  "Drag to turn · right-drag or Shift-drag to pan · wheel to zoom · WASD to move · arrows to turn · R roofs";
-
-/** A status line and, when there is one, what to do about it. */
-interface Note {
+/** A status line over the canvas and, when there is one, what to do about it. */
+export interface Note {
   id: string;
   text: string;
+  busy?: boolean;
+  icon?: IconName;
   action?: { label: string; run: () => void };
 }
 
-/** Why pieces are boxes, in plain words with what to do (from the scene's own reasons). */
-export function boxesNote(h: SceneHeader, openSettings: (s: "ai" | "talespire") => void): Note | null {
+/**
+ * Why pieces are boxes, in plain words with what to do (from the scene's own reasons). When the app's banner already
+ * says TaleSpire wasn't found, the note only says what that means here, with no second "locate" button.
+ */
+export function boxesNote(
+  h: SceneHeader,
+  openSettings: (s: "ai" | "talespire") => void,
+  bannerShown: boolean,
+): Note | null {
   if (h.boxes.pieces === 0) return null;
   const reasons = new Set(h.boxes.reasons.map((r) => r.reason));
   if (reasons.has("boxes-requested"))
     return {
       id: "off",
-      text: "Showing boxes because the 3D view is off. Turn on “Let Claude look at the map in 3D” in Settings › AI to see TaleSpire's pieces.",
+      text: "Every piece is a plain box because 3D pieces are turned off.",
       action: {
-        label: "Open AI settings",
+        label: "Turn on in Settings",
         run: () => {
           openSettings("ai");
         },
       },
     };
   if (reasons.has("no-install"))
-    return {
-      id: "no-install",
-      text: "Showing boxes because TaleSpire was not found on this PC. Set its folder in Settings › TaleSpire to see its pieces.",
-      action: {
-        label: "Open TaleSpire settings",
-        run: () => {
-          openSettings("talespire");
-        },
-      },
-    };
+    return bannerShown
+      ? { id: "no-install", text: "Every piece is a plain box of its real size until TaleSpire is found." }
+      : {
+          id: "no-install",
+          text: "Every piece is a plain box of its real size: TaleSpire wasn't found on this PC.",
+          action: {
+            label: "Locate TaleSpire…",
+            run: () => {
+              openSettings("talespire");
+            },
+          },
+        };
   if (reasons.has("not-read-yet") || h.pendingDetail > 0)
     return {
       id: "reading",
-      text: "Showing boxes because 3D pieces are still being read from TaleSpire (once after each game update). They appear by themselves.",
+      busy: true,
+      text: "Reading TaleSpire's pieces (once after each game update). Plain boxes until then; the real shapes appear by themselves.",
     };
   return { id: "boxes", text: h.boxes.note };
 }
 
-/** The plan element's name as the map shows it (a room's name or key, a feature's type), else its id. */
-function elementLabel(plan: MapPlan, id: string): string {
-  for (const l of plan.levels) {
-    const a = l.areas.find((x) => x.id === id);
-    if (a) return a.name ?? (a.key !== undefined ? `Room ${a.key}` : id);
-    const f = l.features.find((x) => x.id === id);
-    if (f) return f.type.replace(/_/g, " ");
-  }
-  return id;
-}
-
-/** "square H12" in the level's own ruler letters, when the piece came from a plan cell on a known level. */
-function squareOf(plan: MapPlan, p: PickInfo): string | null {
-  const l = plan.levels.find((x) => x.id === p.levelId);
-  if (!p.cell || !l) return null;
-  return `square ${cellName(p.cell[0] - l.bounds.x, p.cell[1] - l.bounds.y)}`;
-}
-
-/** What the clicked piece is: its role (else its colour class), name, level, plan element and square. */
-export function Readout({ plan, pick, onClear }: { plan: MapPlan; pick: PickInfo; onClear: () => void }) {
-  const what = roleWords(pick.role) ?? pick.classLabel;
-  const square = squareOf(plan, pick);
-  return (
-    <section className="v3read" aria-label="Selected piece">
-      <p className="v3read__what">
-        <b>{what}</b> · {pick.name}
-      </p>
-      <p>
-        {levelShort(plan, pick.levelId)} {pick.levelName}
-        {pick.elementId !== null ? ` · ${elementLabel(plan, pick.elementId)}` : ""}
-        {square !== null ? ` · ${square}` : ""}
-      </p>
-      {pick.stand === "box" && <p className="muted">Shown as a box of its real size</p>}
-      <button className="tool" onClick={onClear}>
-        Clear
-      </button>
-    </section>
-  );
-}
-
-/** Without WebGL2: a software picture of the same version from main (view3d:shot), overview or one level. */
-function StillPicture({ target, levelId }: { target: SceneTarget; levelId: string | null }) {
+/** Without a graphics card that can draw 3D: a still picture of the same version from main (view3d:shot). */
+function StillPicture({
+  target,
+  levelId,
+  version,
+}: {
+  target: SceneTarget;
+  levelId: string | null;
+  version: number;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const [img, setImg] = useState<{ url: string; caption: string } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
-  const version = target.version;
+  const v = target.version;
   useEffect(() => {
     const live = { now: true };
     let url: string | null = null;
@@ -118,10 +108,10 @@ function StillPicture({ target, levelId }: { target: SceneTarget; levelId: strin
     const clamp = (n: number): number =>
       Math.max(VIEW3D_LIMITS.shotMinPx, Math.min(1600, VIEW3D_LIMITS.shotMaxPx, Math.round(n)));
     const width = clamp(el?.clientWidth ?? 960);
-    const height = clamp(el?.clientHeight ?? 640);
+    const height = clamp((el?.clientHeight ?? 640) - 48);
     void (async () => {
       try {
-        const h = await call("view3d:open", version !== undefined ? { version } : {});
+        const h = await call("view3d:open", v !== undefined ? { version: v } : {});
         try {
           const shot = await call("view3d:shot", {
             sceneId: h.sceneId,
@@ -146,20 +136,35 @@ function StillPicture({ target, levelId }: { target: SceneTarget; levelId: strin
       live.now = false;
       if (url !== null) URL.revokeObjectURL(url);
     };
-  }, [version, levelId]);
+  }, [v, levelId]);
   return (
     <div ref={box} className="v3still">
       <p className="v3still__why">
-        3D needs graphics acceleration, which isn't available here, so this is a still picture. The 3D
-        pictures Claude uses still work.
+        <Icon name="info" size="sm" />
+        Your graphics card can't show the 3D view on this PC, so this is a still picture of v{version}. The
+        level tabs still choose what it shows, and Claude's 3D pictures still work.
       </p>
       {img ? (
         <img className="v3still__img" src={img.url} alt={img.caption} />
       ) : failed !== null ? (
-        <p role="alert">The picture could not be made: {failed}</p>
+        <p role="alert">The picture couldn't be made: {failed}</p>
       ) : (
-        <p role="status">Drawing a picture of the map…</p>
+        <p role="status" className="v3still__wait">
+          <span className="spinner" aria-hidden="true" />
+          Drawing a picture of the map…
+        </p>
       )}
+    </div>
+  );
+}
+
+/** Laying out, or an error with what to do: a card in the middle of the canvas. */
+function CentreCard({ children, alert }: { children: React.ReactNode; alert?: boolean }) {
+  return (
+    <div className="v3centre">
+      <div className="v3centre__card" role={alert === true ? "alert" : "status"}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -181,31 +186,58 @@ export function View3dStage({
   const target = useMemo<SceneTarget>(() => ({ version }), [version]);
   const api = useRef<View3dApi | null>(null);
   const openSettings = useApp((s) => s.openSettings);
-  const mapLevel = useMap((s) => s.levelId);
+  const bannerShown = useTsBannerShown();
+  const head = useProject((s) => s.snap?.head ?? version);
+  const keyCollapsed = useMap((s) => s.keyCollapsed);
+  const toggleKey = useMap((s) => s.toggleKey);
+  const cutLevelId = useView3d((s) => s.cutLevelId);
+  const roofsHidden = useView3d((s) => s.roofsHidden);
+  const hiddenClasses = useView3d((s) => s.hiddenClasses);
+  const cutHeight = useView3d((s) => s.cutHeight);
+  const hintDismissed = useView3d((s) => s.hintDismissed);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<View3dState>({ kind: "idle" });
   const [header, setHeader] = useState<SceneHeader | null>(null);
   const [detail, setDetail] = useState<View3dEvents["detail"] | null>(null);
   const [far, setFar] = useState(false);
+  const [seen, setSeen] = useState(0);
   const [pick, setPick] = useState<PickInfo | null>(null);
   const [noGl, setNoGl] = useState(false);
-  const [cut, setCut] = useState<number | null>(null);
-  const [roofsHidden, setRoofsHidden] = useState(false);
+
   // the scene's levels (lowest first); before a scene, or without one, the plan's in the same order
   const levelOptions =
     header?.levels ??
     plan.levels
       .map((l, i) => ({ l, i }))
       .sort((a, b) => a.l.elevation - b.l.elevation || a.i - b.i)
-      .map(({ l }, index) => ({ id: l.id, name: l.name, index }));
+      .map(({ l }, index) => ({ id: l.id, name: l.name, index, bounds: null }));
+  const cutIndex = cutLevelId === null ? null : levelOptions.findIndex((l) => l.id === cutLevelId);
+  const cut = cutIndex === null || cutIndex < 0 ? null : cutIndex;
+  const ready = state.kind === "ready" && !noGl;
+  const range = ready ? cutRange(header, cut) : null;
 
-  // the filters follow the controls (and are applied again to a new scene)
+  // the filters follow the tab's choices (and are applied again to a new scene)
   useEffect(() => {
     api.current?.setCutLevel(cut);
   }, [cut, header]);
   useEffect(() => {
     api.current?.setRoofsHidden(roofsHidden);
   }, [roofsHidden, header]);
+  useEffect(() => {
+    api.current?.setHiddenClasses(hiddenClasses);
+  }, [hiddenClasses, header]);
+  // the cut height applies while it is offered (roofs off, a level taller than a storey and its roof)
+  const cutOffered = range !== null && roofsHidden;
+  useEffect(() => {
+    api.current?.setCutHeight(cutOffered ? cutHeight : null);
+  }, [cutHeight, cutOffered, header]);
+  // a level picked on the tabs is framed (the camera turns to look into it); "All levels" keeps the camera
+  const lastCut = useRef(cutLevelId);
+  useEffect(() => {
+    if (lastCut.current === cutLevelId) return;
+    lastCut.current = cutLevelId;
+    if (cut !== null && ready) api.current?.frameLevel(cut);
+  }, [cutLevelId, cut, ready]);
 
   // test builds only (`--mode test`): the e2e suite reads the tab's viewer (its last frame and its filters)
   useEffect(() => {
@@ -217,175 +249,253 @@ export function View3dStage({
     };
   });
 
-  // a level tab click (or PgUp/PgDn) on the stage bar shows up to that level: only a change of the map's level
-  // moves the cut (not the level the tab opened on, nor a new scene)
-  const [seenLevel, setSeenLevel] = useState(mapLevel);
-  if (mapLevel !== seenLevel) {
-    setSeenLevel(mapLevel);
-    const i = levelOptions.findIndex((l) => l.id === mapLevel);
-    if (i >= 0) setCut(i);
-  }
-
   const notes: Note[] = [];
-  if (state.kind === "loading") {
-    const p = state.progress;
-    notes.push({
-      id: "layout",
-      text:
-        p && p.stage === "layout" && p.total > 0
-          ? `Laying out the map in 3D… ${p.done.toLocaleString()} of ${p.total.toLocaleString()} pieces`
-          : "Laying out the map in 3D…",
-      action: {
-        label: "Stop",
-        run: () => {
-          source.cancel();
-        },
-      },
-    });
-  }
   if (state.kind === "lost")
-    notes.push({ id: "lost", text: "The graphics card was reset; the view comes back by itself." });
+    notes.push({
+      id: "lost",
+      busy: true,
+      text: "Your graphics card was reset. The view comes back by itself.",
+    });
   if (header && state.kind !== "error") {
-    if (detail && detail.inFlight > 0)
+    const b = boxesNote(header, openSettings, bannerShown);
+    if (detail && detail.inFlight > 0 && b?.id !== "reading")
       notes.push({
         id: "detail",
-        text: `Loading detail ${detail.resident.toLocaleString()} of ${detail.total.toLocaleString()} · boxes until they arrive`,
+        busy: true,
+        text: `Loading 3D pieces: ${detail.resident.toLocaleString()} of ${detail.total.toLocaleString()}. Plain boxes until they arrive.`,
       });
-    const b = boxesNote(header, openSettings);
     if (b) notes.push(b);
     if (header.limited !== null) notes.push({ id: "limited", text: header.limited });
     else if (far) notes.push({ id: "far", text: "This map is very large, so far parts are simplified." });
   }
 
-  const ready = state.kind === "ready" && !noGl;
+  // what is hidden right now, in one line with one way back
+  const hiddenWords: string[] = [];
+  if (cut !== null)
+    for (const l of levelsAbove(plan, levelOptions[cut]?.id ?? ""))
+      hiddenWords.push(`${levelShort(plan, l.id)} ${l.name}`);
+  if (roofsHidden) hiddenWords.push("roofs");
+  if (range && roofsHidden && cutHeight !== null)
+    hiddenWords.push(`everything above ${String(Math.round((cutHeight - range.floor) * 5))} ft`);
+  for (const c of header?.classes ?? [])
+    if (hiddenClasses.includes(c.id as ColourClass) && c.id !== "roof")
+      hiddenWords.push(c.label.toLowerCase());
+  if (ready && hiddenWords.length > 0)
+    notes.unshift({
+      id: "hidden",
+      icon: "eyeOff",
+      text: `Hidden: ${hiddenWords.join(", ")}.`,
+      action: {
+        label: "Show everything",
+        run: () => {
+          const v = useView3d.getState();
+          v.setCutLevel(null);
+          v.setRoofsHidden(false);
+          v.showAllClasses();
+          v.setCutHeight(null);
+        },
+      },
+    });
+
+  const allBoxes = header !== null && header.boxes.pieces >= header.counts.instances;
+  const layoutProgress = state.kind === "loading" ? state.progress : null;
+  const roofSeen = header !== null && ((seen >>> header.classes.findIndex((c) => c.id === "roof")) & 1) === 1;
+  const showKey = !noGl;
+
   return (
     <>
       <div className="toolbar" role="toolbar" aria-label="3D view">
-        <span className="toolbar__txt">
-          <b>3D of v{version}</b> · what TaleSpire will get
-        </span>
+        <div className="tgroup">
+          <button
+            className="tool"
+            disabled={!ready}
+            title="Frame the whole map (0)"
+            onClick={() => api.current?.frameAll()}
+          >
+            <Icon name="fit" />
+            Frame all
+          </button>
+          <button
+            className="tool"
+            disabled={!ready}
+            title="Look straight down (T)"
+            onClick={() => api.current?.topDown()}
+          >
+            <Icon name="topDown" />
+            Top-down
+          </button>
+        </div>
         <span className="tsep" aria-hidden="true" />
-        <button className="tool" disabled={!ready} onClick={() => api.current?.frameAll()}>
-          Frame all
-        </button>
-        <button className="tool" disabled={!ready} onClick={() => api.current?.topDown()}>
-          Top-down
-        </button>
-        <span className="tsep" aria-hidden="true" />
-        <label className="toolbar__txt v3tools__label">
-          Show up to
-          <select
-            className="select"
-            aria-label="Show up to"
-            value={cut === null ? "" : String(cut)}
-            disabled={levelOptions.length < 2}
-            onChange={(e) => {
-              setCut(e.target.value === "" ? null : Number(e.target.value));
+        <div className="tgroup">
+          <button
+            className={`tool${roofsHidden ? " tool--on" : ""}`}
+            aria-pressed={roofsHidden}
+            disabled={!ready || !roofSeen}
+            title={
+              !ready || roofSeen ? "Hide the roofs to look inside buildings (R)" : "This map has no roofs"
+            }
+            onClick={() => {
+              useView3d.getState().setRoofsHidden(!roofsHidden);
             }}
           >
-            <option value="">All levels</option>
-            {levelOptions.map((l) => (
-              <option key={l.id} value={String(l.index)}>
-                {levelShort(plan, l.id)} {l.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className={`tool${roofsHidden ? "" : " tool--on"}`}
-          aria-pressed={!roofsHidden}
-          disabled={noGl}
-          title="Roofs on or off (R)"
-          onClick={() => {
-            setRoofsHidden(!roofsHidden);
-          }}
-        >
-          Roofs
-        </button>
+            <Icon name="roof" />
+            Hide roofs
+          </button>
+          {range && roofsHidden && <CutHeight range={range} disabled={!ready} />}
+        </div>
         <span className="toolbar__sp" />
-        <span id="v3-hint" className="toolbar__note muted v3tools__hint">
-          {MOVE_HINT}
+        <span className="toolbar__txt v3tools__what">
+          <b>v{version}</b>
+          {version !== head ? " (an older version)" : ""} as TaleSpire will get it
         </span>
+        <span className="tsep" aria-hidden="true" />
+        <ControlsButton />
       </div>
       <div
-        className="v3stage"
-        onKeyDown={(e) => {
-          // R on the focused canvas: roofs on/off (the canvas's own keys move the camera)
-          if (
-            e.key.toLowerCase() === "r" &&
-            !e.ctrlKey &&
-            !e.altKey &&
-            !e.metaKey &&
-            e.target instanceof HTMLCanvasElement
-          ) {
-            e.preventDefault();
-            setRoofsHidden((h) => !h);
-          }
-        }}
+        className={`v3content${!showKey ? " v3content--nokey" : keyCollapsed ? " v3content--keyless" : ""}`}
       >
-        {noGl ? (
-          <StillPicture target={target} levelId={cut === null ? null : (levelOptions[cut]?.id ?? null)} />
-        ) : (
-          <View3dCanvas
-            key={attempt}
-            ref={api}
-            {...(createBackend ? { createBackend } : {})}
-            source={source}
-            target={target}
-            describedBy="v3-hint"
-            onState={(s) => {
-              setState(s);
-              if (s.kind === "error" && (s.error.code === "no-webgl2" || s.error.code === "init-failed"))
-                setNoGl(true);
-            }}
-            onHeader={(h) => {
-              setHeader(h);
-              setPick(null);
-            }}
-            onDetail={setDetail}
-            onPick={setPick}
-            onFrame={(st) => {
-              setFar(st.limited || st.lodChunks[2] > 0);
-            }}
-          />
-        )}
-        {state.kind === "error" && state.error.code === "source" && (
-          <div className="v3stage__retry">
-            <button
-              className="btn btn--ghost"
-              onClick={() => {
-                setState({ kind: "idle" });
-                setAttempt((n) => n + 1);
+        <div className="v3stage">
+          <p id="v3-move" className="sr-only">
+            {MOVE_SUMMARY}
+          </p>
+          {noGl ? (
+            <StillPicture
+              target={target}
+              levelId={cut === null ? null : (levelOptions[cut]?.id ?? null)}
+              version={version}
+            />
+          ) : (
+            <View3dCanvas
+              key={attempt}
+              ref={api}
+              {...(createBackend ? { createBackend } : {})}
+              source={source}
+              target={target}
+              label={`3D view of v${String(version)}`}
+              describedBy="v3-move"
+              showError={false}
+              onState={(s) => {
+                setState(s);
+                if (s.kind === "error" && (s.error.code === "no-webgl2" || s.error.code === "init-failed"))
+                  setNoGl(true);
               }}
-            >
-              Try again
-            </button>
-          </div>
-        )}
-        {notes.length > 0 && (
+              onHeader={(h) => {
+                setHeader(h);
+                setPick(null);
+              }}
+              onDetail={setDetail}
+              onPick={setPick}
+              onFrame={(st) => {
+                const f = st.limited || st.lodChunks[2] > 0;
+                setFar((x) => (x === f ? x : f));
+                const s = api.current?.classesSeen() ?? 0;
+                setSeen((x) => (x === s ? x : s));
+              }}
+            />
+          )}
+
+          {state.kind === "loading" && header === null && (
+            <CentreCard>
+              <span className="v3centre__t">
+                <span className="spinner" aria-hidden="true" />
+                Laying out v{version} in 3D…
+              </span>
+              {layoutProgress && layoutProgress.stage === "layout" && layoutProgress.total > 0 && (
+                <>
+                  <span
+                    className="v3bar"
+                    role="progressbar"
+                    aria-label="Laying out"
+                    aria-valuemin={0}
+                    aria-valuemax={layoutProgress.total}
+                    aria-valuenow={layoutProgress.done}
+                  >
+                    <i
+                      style={{
+                        width: `${String(Math.round((layoutProgress.done / layoutProgress.total) * 100))}%`,
+                      }}
+                    />
+                  </span>
+                  <span className="muted">
+                    {layoutProgress.done.toLocaleString()} of {layoutProgress.total.toLocaleString()} pieces
+                  </span>
+                </>
+              )}
+              <button
+                className="btn btn--sm"
+                onClick={() => {
+                  source.cancel();
+                }}
+              >
+                Stop
+              </button>
+            </CentreCard>
+          )}
+          {state.kind === "error" && state.error.code === "source" && (
+            <CentreCard alert>
+              <span>{errorText(state.error)}</span>
+              {state.error.sourceCode !== "no-plan" && (
+                <button
+                  className="btn btn--sm"
+                  onClick={() => {
+                    setState({ kind: "idle" });
+                    setHeader(null);
+                    setAttempt((n) => n + 1);
+                  }}
+                >
+                  <Icon name="retry" size="sm" />
+                  Try again
+                </button>
+              )}
+            </CentreCard>
+          )}
+
+          {ready && !hintDismissed && <HintCard version={version} hasKey={showKey && !keyCollapsed} />}
+          {pick && (
+            <Readout
+              plan={plan}
+              pick={pick}
+              allBoxes={allBoxes}
+              onClear={() => {
+                api.current?.select(null);
+                setPick(null);
+              }}
+            />
+          )}
           <ul className="v3notes" role="status" aria-live="polite" aria-label="3D view status">
             {notes.map((n) => (
               <li key={n.id} className="v3notes__item">
+                {n.busy === true ? (
+                  <span className="spinner" aria-hidden="true" />
+                ) : (
+                  <Icon name={n.icon ?? "info"} size="sm" className="v3notes__icon" />
+                )}
                 <span>{n.text}</span>
                 {n.action && (
-                  <button className="btn btn--ghost btn--sm" onClick={n.action.run}>
+                  <button className="btn btn--sm" onClick={n.action.run}>
                     {n.action.label}
                   </button>
                 )}
               </li>
             ))}
           </ul>
-        )}
-        {pick && (
-          <Readout
-            plan={plan}
-            pick={pick}
-            onClear={() => {
-              api.current?.select(null);
-              setPick(null);
-            }}
-          />
-        )}
+          {!noGl && <NavCluster api={api} disabled={!ready} />}
+        </div>
+        {showKey &&
+          (keyCollapsed ? (
+            <button
+              className="keyrail"
+              aria-label="Show colour key (Ctrl+])"
+              title="Show colour key (Ctrl+])"
+              onClick={() => {
+                toggleKey(true);
+              }}
+            >
+              <Icon name="left" />
+            </button>
+          ) : (
+            <ColourKey header={header} seen={seen} disabled={!ready} />
+          ))}
       </div>
     </>
   );
