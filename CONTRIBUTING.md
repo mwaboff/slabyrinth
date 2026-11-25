@@ -60,6 +60,7 @@ that way and writes `compare-<shot>.png` (before | after, same cameras) plus, wi
 fixed and unchanged. Every option is checked before TaleSpire is looked for or anything is built.
 
 `npm run render -- rests` measures where things set on each piece of the bundled palettes' `feature.*` and `stall.*`
-roles rest (its real top surface, not its collider's top) and rewrites core's generated `palette/restHeights.ts`:
-numbers by asset id only. The palette import runs it when TaleSpire is installed; a test names any palette piece still
+roles rest (its real top surface, not its collider's top, as one height and as a grid over the top) and how each floor
+piece covers its cells, and rewrites core's generated `palette/restHeights.ts`, `palette/restGrids.ts` and
+`palette/coverHoles.ts`: numbers by asset id only. The palette import runs it when TaleSpire is installed; a test names any palette piece still
 to measure.

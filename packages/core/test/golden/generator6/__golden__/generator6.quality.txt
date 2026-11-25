@@ -1194,7 +1194,7 @@ gen/dressed-cave-v2@6 prop_rest_contact 0.967
 gen/dressed-cave-v2@6 prop_on_prop 0.394
 gen/dressed-cave-v2@6 symmetry_structure 0.12
 gen/dressed-cave-v2@6 symmetry_dressing 0.032
-gen/dressed-cave-v2@6 distinct_assets 79
+gen/dressed-cave-v2@6 distinct_assets 78
 gen/dressed-cave-v2@6 top_asset_share 0.234
 gen/dressed-cave-v2@6 largest_kit_share –
 gen/dressed-cave-v2@6 coplanar_share 0.004

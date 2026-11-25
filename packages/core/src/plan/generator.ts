@@ -664,6 +664,10 @@ const SWITCHES = {
     6,
     "A tile (a corner-origin piece) the cave rock mass turns is stored at the min corner of its turned footprint at every turn, the game's rule (compile/geometry.ts storedPosition, as arrangements and the scene renderer place it), so it stands centred where the mass plan put it; before, it was stored as if turned about its corner, and at any turn but 0 the game put it up to its own size off its plan, into the floor beside the wall (camp sacks, a chest and crystals ended up inside the rock). The cave-mass review reads such a piece the same way.",
   ),
+  measuredFloorCover: on(
+    6,
+    "A floor is laid only from pieces whose measured top covers their cells: a piece whose top leaves an open patch of a tenth of a tile² or more (palette/topCover.ts, read from the game's meshes by `npm run render -- rests` into palette/coverHoles.ts: a rounded-corner cave tile's wedge, broken boards' gapped ends) is left out of the floor laying when its role has whole ones, whatever its name; a piece never measured counts as whole (compile/realize/floors.ts wholePieces, with the ragged pieces generator 5 already leaves out).",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

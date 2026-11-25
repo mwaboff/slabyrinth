@@ -19,7 +19,7 @@ plans/example-b@6 gen=6 resolved=2ed3cc9d4e823a49 assets=1089 diag=0e/0w/9i slab
 plans/ground-and-walls-v1 gen=5 resolved=fd663584aec14807 assets=3445 diag=0e/0w/13i slab=4e1753d1dec24b4a diagnostics=441170a2911e2349 review=f76746b7ba9bb90d reviewNoBuild=dad862a30ba419f4
 plans/ground-and-walls-v1@6 gen=6 resolved=0b9086dec56c6ae7 assets=3445 diag=0e/0w/13i slab=e60ff6d2cc9695ae diagnostics=441170a2911e2349 review=f76746b7ba9bb90d reviewNoBuild=dad862a30ba419f4
 plans/heartroot-rift-v7 gen=3 resolved=40c66133bade6eb1 assets=1954 diag=0e/2w/12i slab=6d984741759f8a5e diagnostics=d714677e7ee77aad review=316583868c761ee9 reviewNoBuild=2c4358fbf273ffc2
-plans/heartroot-rift-v7@6 gen=6 resolved=e487fc2d75c2a8a0 assets=2150 diag=0e/1w/12i slab=987c4c610b5f53a6 diagnostics=fb0ee30bdefc8980 review=4ba3434d9cffa477 reviewNoBuild=4ba3434d9cffa477
+plans/heartroot-rift-v7@6 gen=6 resolved=e487fc2d75c2a8a0 assets=2150 diag=0e/1w/12i slab=daec14fd2ecc81f1 diagnostics=fb0ee30bdefc8980 review=4ba3434d9cffa477 reviewNoBuild=4ba3434d9cffa477
 plans/inn-interior-v1 gen=4 resolved=6c671838602667c7 assets=811 diag=0e/0w/17i slab=1c739a390b8cbbb7 diagnostics=bca22cf4bbe1da45 review=940cc043acf6b733 reviewNoBuild=940cc043acf6b733
 plans/inn-interior-v1@6 gen=6 resolved=e469145bbce12e52 assets=798 diag=0e/0w/13i slab=a1a060e0ddf8d915 diagnostics=b494951018a9a4be review=cc2bd6299d897de9 reviewNoBuild=cc2bd6299d897de9
 plans/interiors-lineup-v1 gen=5 resolved=f60235fccc22cf8f assets=834 diag=0e/0w/18i slab=ba8efac0720f7898 diagnostics=9e095f1a12445ef2 review=05bf7254266564f4 reviewNoBuild=05bf7254266564f4
@@ -63,7 +63,7 @@ plans/wall-recipes-v1@6 gen=6 resolved=ca2a4deeb7b8d36e assets=1440 diag=0e/0w/1
 gen/dressed-cave gen=1 resolved=3bbe07af73e6934f assets=1166 diag=0e/0w/5i slab=371045856ac7b4ff diagnostics=138ebe0def79ae81 review=b71fb078fbf3c972 reviewNoBuild=b71fb078fbf3c972
 gen/dressed-cave@6 gen=6 resolved=9bfde43610ad29fe assets=1839 diag=0e/0w/6i slab=624d3dbb8fbf8542 diagnostics=a2148166a6d2e6ef review=54d7d4158b9b6bb1 reviewNoBuild=54d7d4158b9b6bb1
 gen/dressed-cave-v2 gen=1 resolved=734544716a48510c assets=1233 diag=0e/1w/9i slab=6a933a8970e3f37e diagnostics=0872c5ce9ef3529f review=4a413ebccb1afade reviewNoBuild=4a413ebccb1afade
-gen/dressed-cave-v2@6 gen=6 resolved=f968835cb73ff01d assets=2692 diag=0e/0w/10i slab=a49f644cfcb46bbb diagnostics=f0e40173222d1b8d review=f4a181acfbc881c2 reviewNoBuild=f4a181acfbc881c2
+gen/dressed-cave-v2@6 gen=6 resolved=f968835cb73ff01d assets=2692 diag=0e/0w/10i slab=a94e84776ca8c1b4 diagnostics=f0e40173222d1b8d review=f4a181acfbc881c2 reviewNoBuild=f4a181acfbc881c2
 gen/dressed-forest gen=1 resolved=f9151f30e0e8aa3a assets=1339 diag=0e/0w/9i slab=408ea9fa9a385e89 diagnostics=604e8aa7b52ba815 review=a4e150731cee937d reviewNoBuild=a4e150731cee937d
 gen/dressed-forest@6 gen=6 resolved=6897affd2faf2176 assets=968 diag=0e/0w/8i slab=14fa206b40d8a870 diagnostics=dba8976023c14ff6 review=a77dbd2d764b8c2b reviewNoBuild=a77dbd2d764b8c2b
 gen/dressed-forest-v4 gen=2 resolved=e419ca24cb38f6f3 assets=1471 diag=0e/0w/12i slab=a3ced3e10b3344b6 diagnostics=611c5c741cd9eb96 review=4dc13c7af3d553a7 reviewNoBuild=4dc13c7af3d553a7
