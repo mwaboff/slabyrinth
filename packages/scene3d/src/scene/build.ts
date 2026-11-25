@@ -29,7 +29,8 @@ import type {
   SceneLevel,
   Vec3,
 } from "../types/index";
-import { colourClass, pieceColour } from "./colour";
+import { pieceClass } from "./classify";
+import { pieceColour } from "./colour";
 import { cuboid, meshBox } from "../geom/mesh";
 import { boxMesh, placedBox, placementOffset } from "./place";
 import type { PieceLookup } from "./pieces";
@@ -115,7 +116,7 @@ export async function assembleScene(
     const at = placementOffset(geom, p.stored, p.rotDeg);
     const aabb = placedBox(localBox(meshKey, mesh), p.rotDeg, at);
     const li = levelIndex.get(p.levelId) ?? 0;
-    const cls = colourClass({ role: p.role, layer: p.layer, material: p.material, facts: info.facts });
+    const cls = pieceClass({ role: p.role, layer: p.layer, material: p.material, facts: info.facts, geom });
     instances.push({
       uuid,
       name,

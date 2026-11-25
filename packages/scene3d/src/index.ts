@@ -13,7 +13,8 @@
 export type * from "./types/index";
 export { cuboid, meshBox } from "./geom/mesh";
 export { COLOUR_CLASSES, colourClass, pieceColour } from "./scene/colour";
-export type { ClassInput, PieceFacts } from "./scene/colour";
+export { pieceClass, roleClass } from "./scene/classify";
+export type { ClassInput, PieceFacts } from "./scene/classify";
 export { pieceLookup } from "./scene/pieces";
 export type { PieceInfo, PieceLookup } from "./scene/pieces";
 export { assembleScene, sceneFromBuild, sceneFromSlab } from "./scene/build";

@@ -27,7 +27,7 @@ export function bodyPiece(inst: SceneInstance, plan: PlanFacts | null): boolean 
   return inst.elementId !== null && (plan?.bodies.has(inst.elementId) ?? false);
 }
 
-/** Colour classes of built pieces (scene/colour.ts: from role, layer and the catalog's own facts). */
+/** Classes of built pieces (the scene's one classifier, scene/classify.ts: role, palette roles, catalog, shape). */
 const BUILT_CLASSES: ReadonlySet<string> = new Set(["wall", "floor", "roof", "stairs", "opening", "terrain"]);
 
 /**

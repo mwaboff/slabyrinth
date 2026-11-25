@@ -1,12 +1,19 @@
 /**
  * What the scene knows about an asset id without its mesh: its name, its collider geometry (to place it and to size
- * its box) and the catalog's facts (for its colour). The scanned catalog answers first (it is the game's own word);
- * the palettes answer for any piece they place (bundled palettes carry geometry), so a run without an install still
- * sizes every piece the generator can place.
+ * its box) and the facts the classifier reads (scene/classify.ts): the roles the palettes list it under and the
+ * catalog's own classification of it, its kind, form and height. The scanned catalog answers first (it is the game's
+ * own word); the palettes answer for any piece they place (bundled palettes carry geometry), so a run without an
+ * install still sizes and classes every piece the generator can place.
  */
-import { geomOf, type AssetCatalog, type Palette, type PaletteVariant } from "@slabyrinth/core";
+import {
+  classifyAsset,
+  geomOf,
+  type AssetCatalog,
+  type Palette,
+  type PaletteVariant,
+} from "@slabyrinth/core";
 import type { PieceGeom } from "../types/index";
-import type { PieceFacts } from "./colour";
+import type { PieceFacts } from "./classify";
 
 export interface PieceInfo {
   name: string;
@@ -26,7 +33,16 @@ export function pieceLookup(
   catalog: AssetCatalog | null,
 ): PieceLookup {
   const fromPalette = new Map<string, { name: string; geom: PieceGeom }>();
-  const add = (uuid: string, name: string | undefined, geom: PaletteVariant["geom"] | undefined): void => {
+  const roles = new Map<string, Set<string>>();
+  const add = (
+    role: string,
+    uuid: string,
+    name: string | undefined,
+    geom: PaletteVariant["geom"] | undefined,
+  ): void => {
+    let r = roles.get(key(uuid));
+    if (!r) roles.set(key(uuid), (r = new Set()));
+    r.add(role);
     if (!geom || fromPalette.has(key(uuid))) return;
     fromPalette.set(key(uuid), { name: name ?? uuid, geom });
   };
@@ -35,12 +51,14 @@ export function pieceLookup(
     if (!p) continue;
     for (const role of Object.keys(p.roles).sort())
       for (const v of p.roles[role]?.variants ?? []) {
-        add(v.asset, v.name, v.geom);
-        for (const alt of v.alternates ?? []) add(alt, undefined, v.alternateGeom?.[alt]);
-        for (const part of v.parts ?? []) add(part.asset, part.name, part.geom);
+        add(role, v.asset, v.name, v.geom);
+        for (const alt of v.alternates ?? []) add(role, alt, undefined, v.alternateGeom?.[alt]);
+        for (const part of v.parts ?? []) add(role, part.asset, part.name, part.geom);
       }
   }
   const fromCatalog = new Map((catalog?.assets ?? []).map((a) => [key(a.uuid), a]));
+  const rolesOf = (uuid: string, extra: readonly string[] = []): string[] =>
+    [...new Set([...(roles.get(key(uuid)) ?? []), ...extra])].sort();
   return {
     info(uuid) {
       const c = fromCatalog.get(key(uuid));
@@ -50,7 +68,17 @@ export function pieceLookup(
         return {
           name: c.name,
           geom: { size: g.size, originAt: g.originAt, boundsCenter: g.boundsCenter },
-          facts: { kind: c.kind, groupTag: c.groupTag, tags: c.tags, name: c.name, height: c.size.y },
+          facts: {
+            kind: c.kind,
+            groupTag: c.groupTag,
+            tags: c.tags,
+            name: c.name,
+            height: c.size.y,
+            roles: rolesOf(
+              uuid,
+              classifyAsset(c).map((x) => x.role),
+            ),
+          },
         };
       }
       if (p)
@@ -64,6 +92,7 @@ export function pieceLookup(
             tags: [],
             name: p.name,
             height: p.geom.size.y,
+            roles: rolesOf(uuid),
           },
         };
       return { name: uuid, geom: null, facts: null };

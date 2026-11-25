@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { PlacementRole } from "@slabyrinth/core";
+import { loadPalettes, type PlacementRole } from "@slabyrinth/core";
 import { describe, expect, it } from "vitest";
 import {
   COLOUR_CLASSES,
@@ -8,8 +8,10 @@ import {
   encodePng,
   levelShots,
   overviewShot,
+  pieceClass,
   pieceLookup,
   renderScene,
+  roleClass,
   sceneFromSlab,
   topShot,
   viewBasis,
@@ -41,36 +43,66 @@ describe("colour classes", () => {
     ).toBe(cls);
   });
 
-  it("reads layer, material and catalog facts before the role's default", () => {
-    const facts = (groupTag: string, tags: string[], name: string, height = 1) => ({
+  it("reads layer, material, roles and the catalog's and core's facts, never the words of a name", () => {
+    const facts = (name: string, roles: string[], height = 1, groupTag = "") => ({
       kind: "prop" as const,
       groupTag,
-      tags,
+      tags: [],
       name,
       height,
+      roles,
     });
-    expect(colourClass({ role: "wall", layer: "roof", material: null, facts: null })).toBe("roof");
-    expect(colourClass({ role: "floor", layer: "site", material: "grass", facts: null })).toBe("terrain");
-    expect(colourClass({ role: "floor", layer: "site", material: "water_deep", facts: null })).toBe("water");
-    expect(
-      colourClass({ role: "feature", layer: "site", material: null, facts: facts("", [], "Wall Torch") }),
-    ).toBe("light");
-    expect(
-      colourClass({ role: "feature", layer: "site", material: null, facts: facts("tree", [], "Oak") }),
-    ).toBe("plant");
-    expect(
-      colourClass({ role: "feature", layer: "site", material: null, facts: facts("decor", [], "Statue", 3) }),
-    ).toBe("tall_prop");
-    // a bare slab piece with only catalog facts, and one nobody knows
-    expect(
-      colourClass({
+    const feature = (f: ReturnType<typeof facts>, geom?: { x: number; y: number; z: number }) =>
+      pieceClass({
+        role: "feature",
+        layer: "site",
+        material: null,
+        facts: f,
+        ...(geom
+          ? { geom: { size: geom, originAt: "center" as const, boundsCenter: { x: 0, y: 0, z: 0 } } }
+          : {}),
+      });
+    expect(pieceClass({ role: "wall", layer: "roof", material: null, facts: null })).toBe("roof");
+    expect(pieceClass({ role: "floor", layer: "site", material: "grass", facts: null })).toBe("terrain");
+    expect(pieceClass({ role: "floor", layer: "site", material: "water_deep", facts: null })).toBe("water");
+    // the palette role says: a tree feature is organic dressing, a wall light a light, a stall's post structure
+    expect(feature(facts("Oak", ["feature.tree"]))).toBe("plant");
+    expect(feature(facts("Sconce 3", ["wall_light.default"]))).toBe("light");
+    expect(feature(facts("Pole", ["stall.post"]))).toBe("wall");
+    // core's measured facts: the wall torch every room uses throws light
+    expect(feature(facts("Torch wall wood stone on", []))).toBe("light");
+    // a name's words say nothing: "Wall Shelf" listed as a feature prop is a prop, not a wall
+    expect(feature(facts("Wall Shelf", ["feature.shelf"]))).toBe("prop");
+    // tall by core's size classes (1.9 tiles and up)
+    expect(feature(facts("Statue", []), { x: 1, y: 1.95, z: 1 })).toBe("tall_prop");
+    expect(feature(facts("Statue", []), { x: 1, y: 1.85, z: 1 })).toBe("prop");
+    // a bare slab piece with only the catalog's coarse form, a thin tile standing up, and one nobody knows
+    const tile = (groupTag: string, size: { x: number; y: number; z: number }) =>
+      pieceClass({
         role: null,
         layer: "site",
         material: null,
-        facts: { kind: "tile", groupTag: "Roof", tags: [], name: "x", height: 1 },
-      }),
-    ).toBe("roof");
-    expect(colourClass({ role: null, layer: "site", material: null, facts: null })).toBe("unknown");
+        facts: { kind: "tile", groupTag, tags: [], name: "x", height: size.y },
+        geom: { size, originAt: "minCorner", boundsCenter: { x: 0, y: 0, z: 0 } },
+      });
+    expect(tile("Roof", { x: 2, y: 1, z: 2 })).toBe("roof");
+    expect(tile("", { x: 2, y: 2, z: 0.25 })).toBe("wall");
+    expect(tile("", { x: 2, y: 0.5, z: 2 })).toBe("floor");
+    expect(pieceClass({ role: null, layer: "site", material: null, facts: null })).toBe("unknown");
+  });
+
+  it("reads a role through the role registry's families and the feature table", () => {
+    expect(roleClass("ship.deck")).toBe("floor");
+    expect(roleClass("wall_post.stone")).toBe("wall");
+    expect(roleClass("feature.boulder")).toBe("plant");
+    expect(roleClass("feature.no_such_type")).toBeNull();
+    expect(roleClass("constructor")).toBeNull();
+    // the pieces a palette lists under a role carry it into the scene
+    const lookup = pieceLookup(loadPalettes().palettes, null);
+    const pal = loadPalettes().palettes;
+    const tree = Object.values(pal).flatMap((p) => p.roles["feature.tree"]?.variants ?? [])[0];
+    if (!tree) throw new Error("no tree in the bundled palettes");
+    expect(lookup.info(tree.asset).facts?.roles).toContain("feature.tree");
   });
 
   it("has a colour and a label for every class", () => {
@@ -138,7 +170,7 @@ describe("box scenes of fixtures", () => {
     }
     expect(hashes).toMatchInlineSnapshot(`
       {
-        "market-street-v3": "b61e9d05a01dbd7d",
+        "market-street-v3": "08ea9d31bd04a531",
         "multi-level-stairs": "3db33418ed922cd9",
         "two-rooms-door": "184771ae3d54c522",
       }
