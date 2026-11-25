@@ -25,10 +25,15 @@ function throughCeiling(name: StoredPlan, generator: 5 | 6): string[] {
       const ceiling = ground.floorTop + ground.wallHeight;
       for (const p of lv.placements) {
         const f = lifted.get(p.source.elementId ?? "");
-        if (!f || f.baseHeight <= ground.floorTop + 0.1 || !cells.has(`${String(f.at[0])},${String(f.at[1])}`))
+        if (
+          !f ||
+          f.baseHeight <= ground.floorTop + 0.1 ||
+          !cells.has(`${String(f.at[0])},${String(f.at[1])}`)
+        )
           continue;
-        const top = set.placed?.get(p)?.box.max.y ?? -Infinity;
-        if (top > ceiling + 0.01) out.push(`${set.placed?.get(p)?.name ?? p.asset} (${f.id}) top ${top.toFixed(2)}`);
+        const top = set.placed.get(p)?.box.max.y ?? -Infinity;
+        if (top > ceiling + 0.01)
+          out.push(`${set.placed.get(p)?.name ?? p.asset} (${f.id}) top ${top.toFixed(2)}`);
       }
     }
   }
