@@ -42,7 +42,15 @@ export { contactSheet, downscale, drawText, numberedSheet, sheetGrid, textWidth 
 export type { Picture, SheetOptions } from "./raster/sheet";
 export { levelShots, overviewShot, slug, topShot } from "./shots/presets";
 export type { ShotSize } from "./shots/presets";
-export { MIN_THING_PIECES, SHOT_RULES, frontOf, overviewBearing, planShots, thingsOf } from "./shots/planner";
+export {
+  MIN_THING_PIECES,
+  SHOT_RULES,
+  frontOf,
+  interiorShots,
+  overviewBearing,
+  planShots,
+  thingsOf,
+} from "./shots/planner";
 export type { Front, PlanOptions, ShotRule, Thing } from "./shots/planner";
 export {
   MAX_FLAGGED,

@@ -57,10 +57,10 @@ export function bottomSamples(space: SceneSpace, idx: number): Vec3[] {
   return out;
 }
 
-/** Do two structural pieces carry each other where they touch? Two grounds only when their tops meet. */
+/** Do two structural pieces carry each other where they touch? Two grounds only when their tops are a step apart at most. */
 function carries(a: SceneInstance, b: SceneInstance): boolean {
   if (!near(a.aabb, b.aabb, T.touch)) return false;
-  if (groundPiece(a) && groundPiece(b)) return Math.abs(a.aabb.max.y - b.aabb.max.y) <= T.touch;
+  if (groundPiece(a) && groundPiece(b)) return Math.abs(a.aabb.max.y - b.aabb.max.y) <= T.flushStep;
   return true;
 }
 
@@ -104,12 +104,20 @@ export function support(input: CheckInput): Support {
     const cz = (inst.aabb.min.z + inst.aabb.max.z) / 2;
     for (const h of space.column(cx, cz, bottom - T.floatGap, inst.aabb.max.y, (j) => j === i))
       rests.add(h.index);
+    // and structure its top meets right above it holds it up (a lantern under a canopy, a lamp from a beam)
+    const top = inst.aabb.max.y;
+    for (const h of space.column(cx, cz, top - T.touch, top + T.mountReach, (j) => {
+      const o = scene.instances[j];
+      return j === i || !o || !structural(o, plan);
+    }))
+      rests.add(h.index);
     const base = plan?.levelBase[inst.levelIndex] ?? sceneBase;
     roots[i] = (!anyBelow && bottom <= base + T.groundSlack) || bottom <= sceneBase + T.groundSlack;
     const list = carriers[i] ?? [];
     for (const j of rests) list.push(j);
     const isStructure = structural(inst, plan);
-    const hanging = hangs(inst, plan);
+    // organic dressing clings to what it touches (a cliff face on a terrace's side, roots on a wall)
+    const hanging = hangs(inst, plan) || organic(inst, plan);
     // an object's body is one assembled thing: its parts (rigging, a lantern on its post) hang on each other
     const body = bodyPiece(inst, plan);
     if (isStructure || hanging) {
@@ -163,21 +171,35 @@ export const floatingCheck: SceneCheck = {
       const first = scene.instances[idx[0] ?? -1];
       if (!first) continue;
       const box = boxOfPieces(scene, idx);
-      // the air under the group: from its lowest piece's bottom to the highest surface under it
+      // the air under the group: from a piece's bottom to the highest surface under it that is not the group's own
+      // (a candle on a plate on a bench: the air is under the plate)
+      const own = new Set(idx);
       let gap = Infinity;
       let over = -1;
+      let low = first;
       for (const i of idx) {
         const inst = scene.instances[i];
+        if (!inst) continue;
+        const bottom = inst.aabb.min.y;
+        for (const p of idx.length === 1 ? [] : bottomSamples(input.space, i)) {
+          const h = input.space.column(p.x, p.z, -Infinity, bottom + T.restDepth, (j) => own.has(j))[0];
+          if (h && bottom - h.at < gap) {
+            gap = bottom - h.at;
+            over = h.index;
+            low = inst;
+          }
+        }
         const b = s.below[i] ?? -Infinity;
-        if (inst && Number.isFinite(b) && inst.aabb.min.y - b < gap) {
-          gap = inst.aabb.min.y - b;
+        if (idx.length === 1 && Number.isFinite(b) && bottom - b < gap) {
+          gap = bottom - b;
           over = s.under[i] ?? -1;
+          low = inst;
         }
       }
       const names = [...new Set(idx.map((i) => scene.instances[i]?.name ?? "?"))];
       const base = scene.instances[over];
       // what it stands over, and whether it was set on that piece's box top rather than its real surface
-      const onBoxTop = base !== undefined && Math.abs(base.aabb.max.y - first.aabb.min.y) <= T.floatGap;
+      const onBoxTop = base !== undefined && Math.abs(base.aabb.max.y - low.aabb.min.y) <= T.floatGap;
       const air = Number.isFinite(gap)
         ? `${tiles(gap)} of air between it and the ${base?.name ?? "surface"} under it${onBoxTop ? " (it stands at that piece's box top, above its real surface)" : ""}`
         : "nothing at all under it";
@@ -195,7 +217,7 @@ export const floatingCheck: SceneCheck = {
         measure: {
           pieces: idx.length,
           ...(Number.isFinite(gap) ? { gap: r2(gap) } : {}),
-          ...(base ? { underBoxTop: r2(base.aabb.max.y - first.aabb.min.y) } : {}),
+          ...(base ? { underBoxTop: r2(base.aabb.max.y - low.aabb.min.y) } : {}),
         },
         message: `${String(idx.length)} piece(s) float (${names.slice(0, 3).join(", ")}${names.length > 3 ? ", …" : ""}): ${air}, and nothing that reaches the ground carries them`,
       });

@@ -55,8 +55,11 @@ export const clashCheck: SceneCheck = {
       }
       return v;
     };
+    // cover the plan sets into the ground (layered ground's rocks gathered at a wall's foot) nests by design too
+    const cover = (p: SceneInstance): boolean =>
+      p.elementId !== null && (plan?.sunkByPlan.has(p.elementId) ?? false);
     const exempt = (p: SceneInstance): boolean =>
-      p.role === "marker" || groundPiece(p) || shellPiece(p) || organic(p, plan) || flatCover(p);
+      p.role === "marker" || groundPiece(p) || shellPiece(p) || organic(p, plan) || flatCover(p) || cover(p);
     scene.instances.forEach((a, i) => {
       if (exempt(a)) return;
       const aStruct = structural(a, plan);

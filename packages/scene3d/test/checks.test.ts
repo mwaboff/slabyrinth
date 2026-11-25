@@ -198,6 +198,31 @@ describe("floating and sunk", () => {
     expect(f[0]?.message).toContain("bench top");
   });
 
+  it("passes a lantern hung under a canopy; measures the air under a stack, not inside it", () => {
+    const canopy: Spec = { name: "canopy", min: [0, 2.5, 0], max: [2, 2.7, 2], role: "wall", cls: "roof" };
+    const post: Spec = {
+      name: "post",
+      min: [0, 0.5, 0],
+      max: [0.2, 2.5, 0.2],
+      role: "wall_post",
+      cls: "wall",
+    };
+    const lantern: Spec = { name: "lantern", min: [0.9, 2.1, 0.9], max: [1.1, 2.5, 1.1] };
+    expect(codes(sceneOf([...floor(0, 2, 0, 2), canopy, post, lantern]), null, "floating")).toEqual([]);
+    // a plate on a crate, the crate 0.4 above the floor: the air is under the crate
+    const f = codes(
+      sceneOf([
+        ...floor(0, 2, 0, 2),
+        { name: "crate", min: [0.6, 0.9, 0.6], max: [1.4, 1.3, 1.4] },
+        { name: "plate", min: [0.8, 1.3, 0.8], max: [1.2, 1.35, 1.2] },
+      ]),
+      null,
+      "floating",
+    );
+    expect(f).toHaveLength(1);
+    expect(f[0]?.measure["gap"]).toBeCloseTo(0.4, 2);
+  });
+
   it("flags a loose piece mostly under the floor, not organic dressing", () => {
     const sunk = sceneOf([
       ...floor(0, 2, 0, 2),

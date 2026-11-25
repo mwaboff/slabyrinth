@@ -12,6 +12,8 @@ export { LevelGrid } from "./levelGrid";
 export { materialInfo, type MaterialInfo } from "./materials";
 // objects placed on a plan (vessels): what the render tool builds the harbour with
 export { resolveWithObjects, type ObjectSite, type ObjectSpec } from "./objectSite";
+// a resolved element's light, condition and wealth (scene checks: a ruin's walls are broken by design)
+export { elementCharacter } from "./character";
 // The rules plan validation and applyOps take as an argument (geometry check, materialize generator).
 export {
   planRules,

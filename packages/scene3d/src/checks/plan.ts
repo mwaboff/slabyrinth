@@ -10,6 +10,7 @@ import {
   EDGE,
   LevelGrid,
   WorldFrame,
+  elementCharacter,
   featureInfo,
   isPassage,
   loadOrientation,
@@ -313,7 +314,8 @@ export function planFacts(
     // a building's walls, storey by storey: its footprint's WALL edges (openings are their own edges), less the
     // upper storeys' own openings
     for (const s of level.structures ?? []) {
-      if (s.kind !== "building") continue;
+      // a ruin's walls are broken by design (its condition, from the level's own record)
+      if (s.kind !== "building" || elementCharacter(level, s.id)?.condition === "ruined") continue;
       const foot = new Set(s.cells.map(([x, y]) => `${String(x)},${String(y)}`));
       const walls: Edge[] = [];
       for (const [x, y] of s.cells)

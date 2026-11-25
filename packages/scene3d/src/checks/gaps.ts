@@ -7,7 +7,7 @@
 import { maxOf, minOf } from "@slabyrinth/core";
 import { objectOf } from "@slabyrinth/core/objects";
 import type { Box3, Vec3 } from "../types/index";
-import { findingPiece, structural } from "./pieces";
+import { findingPiece, groundPiece, structural } from "./pieces";
 import type { PlanBoundary } from "./plan";
 import { CHECK_THRESHOLDS as T } from "./thresholds";
 import type { CheckInput, Finding, SceneCheck } from "./types";
@@ -31,11 +31,13 @@ function clearStretches(
   const u = { x: dx / (length || 1), y: 0, z: dz / (length || 1) };
   const n = run.outward;
   const reach = T.rayInside + (run.kind === "rail" ? T.railOutside : T.rayOutside);
-  // a wall is closed by any structure; an object's rail only by its own body (not the quay it lies against)
+  // a wall is closed by any structure; an object's side by its own body or by structure built on its deck's own
+  // level (a hold's bulkhead), never by a level it lies beside (the quay's posts and floors)
   const skip = (j: number): boolean => {
     const o = scene.instances[j];
     if (!o || !structural(o, plan)) return true;
-    return run.kind === "rail" && objectOf(o.elementId ?? undefined) !== run.owner;
+    if (run.kind !== "rail" || objectOf(o.elementId ?? undefined) === run.owner) return false;
+    return o.levelIndex !== run.levelIndex || groundPiece(o);
   };
   const stretches: Stretch[] = [];
   let cur: Stretch | null = null;

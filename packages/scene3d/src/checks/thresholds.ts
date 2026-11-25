@@ -10,6 +10,8 @@ export const CHECK_THRESHOLDS = {
   restDepth: 0.35,
   /** Pieces whose boxes come this close touch (structural pieces carry each other through such a touch). */
   touch: 0.06,
+  /** Two floor pieces side by side carry each other when their tops differ by less than one 0.25 snap step. */
+  flushStep: 0.26,
   /** A piece that hangs on a wall touches one within this reach (a torch's bracket stands off the wall's face). */
   mountReach: 0.25,
   /** A loose piece more than this share of whose height is below the floor it stands on is sunk. */
@@ -48,7 +50,7 @@ export const CHECK_THRESHOLDS = {
   rayInside: 0.55,
   rayOutside: 0.75,
   /** An object's rail or hull may stand this far out from its deck's square cells (a bow's curve round them). */
-  railOutside: 2,
+  railOutside: 4,
 
   // ── clashes ──
   /** Sample spacing over two pieces' shared plan area. */
