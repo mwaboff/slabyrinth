@@ -1,9 +1,8 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { cleanRun, launch, newRun, type Run } from "./helpers";
-import { UI_PLAN } from "./uiScript";
 
 /**
  * The 3D viewer engine in the real (hidden) window: mounted by the test build's hook on a synthetic town of more than
@@ -53,7 +52,7 @@ test("the 3D viewer draws, moves and keeps its budgets on a 1024 × 1024 map", a
     const harness = page.getByTestId("view3d-harness");
     if (m.state === "error") {
       // no WebGL2 here: the typed fallback, in words
-      await expect(harness.getByRole("alert")).toHaveText(/graphics acceleration/);
+      await expect(harness.getByRole("alert")).toHaveText(/graphics card can't show the 3D view/);
       console.log("view3d e2e: WebGL2 unavailable in the test window; checked the fallback state");
       return;
     }
@@ -186,6 +185,41 @@ test("the 3D viewer draws, moves and keeps its budgets on a 1024 × 1024 map", a
   }
 });
 
+test("the 3D viewer hands over from the boxes scene to the detailed one without an error", async () => {
+  test.setTimeout(120_000);
+  const { app, page } = await launch(run);
+  type Harness = { headers: number[]; states: string[]; api: { sample(): { drawnPixels: number } } | null };
+  const harness = (): Promise<{ headers: number[]; states: string[]; drawn: number }> =>
+    page.evaluate(() => {
+      const h = (window as unknown as { __view3d: Harness }).__view3d;
+      return { headers: [...h.headers], states: [...h.states], drawn: h.api?.sample().drawnPixels ?? 0 };
+    });
+  try {
+    // boxes first, then the detailed scene once its shapes are "read" (the in-memory source, as main does it)
+    const state = await page.evaluate(async () => {
+      const w = window as unknown as {
+        __slabyrinthMountView3d: (side?: number, o?: { detail?: boolean }) => Promise<void>;
+        __view3d: { settled: Promise<string> };
+      };
+      await w.__slabyrinthMountView3d(256, { detail: true });
+      return w.__view3d.settled;
+    });
+    if (state === "error") {
+      console.log("view3d hand-over e2e: WebGL2 unavailable in the test window; nothing to hand over");
+      return;
+    }
+    await expect.poll(async () => (await harness()).headers.length, { timeout: 30_000 }).toBe(2);
+    const h = await harness();
+    expect(h.headers[0]).toBeGreaterThan(0);
+    expect(h.headers[1]).toBe(0);
+    expect(h.states).not.toContain("error");
+    await expect.poll(async () => (await harness()).drawn, { timeout: 30_000 }).toBeGreaterThan(1000);
+    expect((await harness()).states.at(-1)).toBe("ready");
+  } finally {
+    await app.close();
+  }
+});
+
 /** The 3D tab's viewer as the test build exposes it (renderer/features/view3d/View3dStage.tsx). */
 interface TabProbe {
   /** "none" (no tab yet), "still" (no WebGL2: the still picture), or the viewer's state ("loading", "ready", …). */
@@ -215,6 +249,19 @@ const probe = (page: Page): Promise<TabProbe> =>
   });
 
 const usage = { inputTokens: 1000, outputTokens: 400, cacheReadTokens: 0, cacheWriteTokens: 0 };
+
+/** The Lost Mine fixture as the model authors it: a street of roofed cottages over mine workings (two levels). */
+const fixture = JSON.parse(
+  readFileSync(
+    fileURLToPath(
+      new URL("../../../packages/core/test/fixtures/plans/stated-character-v1.json", import.meta.url),
+    ),
+    "utf8",
+  ),
+) as Record<string, unknown>;
+const MINE: Record<string, unknown> = { ...fixture };
+for (const k of ["schema", "generator", "id"]) Reflect.deleteProperty(MINE, k);
+
 const TAB_STEPS = [
   {
     kind: "reply",
@@ -224,16 +271,48 @@ const TAB_STEPS = [
         type: "tool_call",
         callId: "tc",
         name: "create_plan",
-        input: { replace: false, summary: "First draft", changes: ["Two levels"], plan: UI_PLAN },
+        input: {
+          replace: false,
+          summary: "First draft",
+          changes: ["A street over the workings"],
+          plan: MINE,
+        },
       },
     ],
   },
-  { kind: "reply", usage, parts: [{ type: "text", text: "First take on the crypt." }] },
+  { kind: "reply", usage, parts: [{ type: "text", text: "First take on the mining camp." }] },
 ];
-const uiShots = fileURLToPath(new URL("../../../docs/internal/renders/ui/", import.meta.url));
 
-test("the 3D tab: a plan drawn in 3D (or its still picture), roofs off, shown up to a level", async () => {
-  test.setTimeout(150_000);
+/** Where the tab's screenshots go (git-ignored): SLAB_UI_SHOTS, else this checkout's docs/internal/renders/ui. */
+const uiShots =
+  process.env["SLAB_UI_SHOTS"] ??
+  fileURLToPath(new URL("../../../docs/internal/renders/ui/", import.meta.url));
+const shoot = async (page: Page, name: string): Promise<void> => {
+  mkdirSync(uiShots, { recursive: true });
+  await page.screenshot({ path: path.join(uiShots, name), animations: "disabled" });
+};
+
+/** Clicks points across the canvas until one lands on a piece (the card names it). */
+async function clickAPiece(page: Page, canvas: Locator): Promise<boolean> {
+  const box = await canvas.boundingBox();
+  if (!box) return false;
+  for (const [fx, fy] of [
+    [0.5, 0.5],
+    [0.45, 0.55],
+    [0.55, 0.45],
+    [0.4, 0.5],
+    [0.6, 0.5],
+    [0.5, 0.6],
+    [0.5, 0.4],
+  ] as const) {
+    await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
+    if (await page.getByRole("region", { name: "Selected piece" }).isVisible()) return true;
+  }
+  return false;
+}
+
+test("the 3D tab: what it is, how to move, the colour key, a clicked piece, roofs and levels", async () => {
+  test.setTimeout(180_000);
   const tabRun = newRun("slabyrinth-view3d-tab-", TAB_STEPS);
   const { app, page } = await launch(tabRun);
   try {
@@ -247,47 +326,118 @@ test("the 3D tab: a plan drawn in 3D (or its still picture), roofs off, shown up
     await setup.getByRole("button", { name: "Start mapping" }).click();
     await expect(setup).toBeHidden();
     const composer = page.getByLabel("Message Slabyrinth");
-    await composer.fill("A crypt under a ruined abbey");
+    await composer.fill("A mining camp over its workings");
     await composer.press("Enter");
-    await expect(page.getByRole("button", { name: /Approve plan v1/ })).toBeVisible({ timeout: 30_000 });
+    const approve = page.getByRole("button", { name: /Approve plan v1/ });
+    await expect(approve).toBeVisible({ timeout: 30_000 });
 
-    // the tab sits between Map and Build
+    // the tab sits between Map and Build; the main action stays in the status bar
     const stageTabs = page.getByRole("tablist", { name: "Stage" }).getByRole("tab");
     await expect(stageTabs).toHaveText(["Map", "3D", "Build"]);
     await stageTabs.nth(1).click();
     const bar = page.getByRole("toolbar", { name: "3D view" });
-    await expect(bar).toContainText("3D of v1");
+    await expect(bar).toContainText("v1 as TaleSpire will get it");
+    await expect(approve).toBeVisible();
+    const levelTabs = page.getByRole("tablist", { name: "Levels shown in 3D" }).getByRole("tab");
+    await expect(levelTabs).toHaveText(["All levels", "L1Forgotten Row", "L2Forgotten workings"]);
 
     // a drawn frame, or (no WebGL2 in this window) the still picture from main
     await expect.poll(async () => (await probe(page)).mode, { timeout: 60_000 }).toMatch(/^(ready|still)$/);
     const mode = (await probe(page)).mode;
     if (mode === "still") {
       await expect(page.locator(".v3still__img")).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText(/graphics card can't show the 3D view/)).toBeVisible();
+      await levelTabs.nth(2).click();
+      await expect(levelTabs.nth(2)).toHaveAttribute("aria-selected", "true");
+      await shoot(page, "surface-still.png");
       console.log("view3d tab e2e: WebGL2 unavailable in the test window; checked the still picture");
-    } else {
-      await expect.poll(async () => (await probe(page)).drawn, { timeout: 30_000 }).toBeGreaterThan(1000);
-      // test mode has no TaleSpire: every piece is a box, and the tab says why and what to do
-      await expect(page.getByRole("status", { name: "3D view status" })).toContainText(
-        "Showing boxes because TaleSpire was not found",
-      );
-      // roofs off
-      const roofs = bar.getByRole("button", { name: "Roofs" });
-      await expect(roofs).toHaveAttribute("aria-pressed", "true");
-      await roofs.click();
-      await expect(roofs).toHaveAttribute("aria-pressed", "false");
-      await expect.poll(async () => (await probe(page)).hideRoofs).toBe(true);
+      return;
     }
-    // show up to the lowest level
-    const levels = bar.getByRole("combobox", { name: "Show up to" });
-    await levels.selectOption({ index: 1 });
-    await expect(levels).toHaveValue("0");
-    if (mode !== "still") {
-      await expect.poll(async () => (await probe(page)).cutLevel).toBe(0);
-      await expect.poll(async () => (await probe(page)).drawn).toBeGreaterThan(100);
-    }
+    await expect.poll(async () => (await probe(page)).drawn, { timeout: 30_000 }).toBeGreaterThan(1000);
 
-    mkdirSync(uiShots, { recursive: true });
-    await page.screenshot({ path: path.join(uiShots, "view3d-tab.png"), animations: "disabled" });
+    // first use: what this is and how to move
+    const hint = page.getByRole("region", { name: "About the 3D view" });
+    await expect(hint).toContainText("This is what TaleSpire will get");
+    const key = page.getByRole("complementary", { name: "Colour key" });
+    await expect(key.getByRole("checkbox", { name: /Roof/ })).toBeVisible({ timeout: 30_000 });
+    await shoot(page, "surface-first-run.png");
+    await hint.getByRole("button", { name: "Got it" }).click();
+    await expect(hint).toBeHidden();
+
+    // test mode has no TaleSpire: every piece is a box, said once (the banner, when shown, has the button)
+    const status = page.getByRole("status", { name: "3D view status" });
+    await expect(status).toContainText("plain box of its real size");
+    await shoot(page, "surface-normal.png");
+
+    // the Controls card, from the toolbar
+    await bar.getByRole("button", { name: "Controls" }).click();
+    await expect(page.getByRole("dialog", { name: "3D controls" })).toContainText("W A S D");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "3D controls" })).toBeHidden();
+
+    // the keyboard on the focused view: T looks straight down
+    const canvas = page.getByRole("application", { name: "3D view of v1" });
+    await canvas.focus();
+    const elevation = (): Promise<number> =>
+      page.evaluate(() => {
+        const t = (
+          window as unknown as {
+            __slabyrinthView3dTab?: { api: { getCamera(): { elevation: number } } | null };
+          }
+        ).__slabyrinthView3dTab;
+        return t?.api?.getCamera().elevation ?? 0;
+      });
+    await page.keyboard.press("t");
+    await expect.poll(elevation).toBeGreaterThan(80);
+    await page.keyboard.press("0");
+    await expect.poll(elevation).toBeLessThan(80);
+    // Enter is the keyboard's click (what is in the middle of the view); Esc clears it
+    const card = page.getByRole("region", { name: "Selected piece" });
+    await page.keyboard.press("Enter");
+    await expect(card).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(card).toBeHidden();
+
+    // a clicked piece says what it is, with Show on map and Mention in chat
+    expect(await clickAPiece(page, canvas)).toBe(true);
+    await expect(card.getByRole("button", { name: "Show on map" })).toBeVisible();
+    await expect(card.getByRole("button", { name: "Mention in chat" })).toBeVisible();
+    await shoot(page, "surface-piece-selected.png");
+    await card.getByRole("button", { name: "Clear (Esc)" }).click();
+    await expect(card).toBeHidden();
+
+    // the colour key hides a kind of piece; the status line says so, with one way back
+    await key.getByText("Wall", { exact: true }).click();
+    await expect(status).toContainText("Hidden: wall.");
+    await status.getByRole("button", { name: "Show everything" }).click();
+    await expect(status).not.toContainText("Hidden:");
+
+    // roofs off (R on the tab, and the button agrees), then the lower level: the street above is hidden
+    await page.keyboard.press("r");
+    const roofs = bar.getByRole("button", { name: "Hide roofs" });
+    await expect(roofs).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(async () => (await probe(page)).hideRoofs).toBe(true);
+    await levelTabs.nth(2).click();
+    await expect(levelTabs.nth(2)).toHaveAttribute("aria-selected", "true");
+    await expect.poll(async () => (await probe(page)).cutLevel).toBe(0);
+    await expect.poll(async () => (await probe(page)).drawn).toBeGreaterThan(100);
+    await expect(status).toContainText("Hidden: L1 Forgotten Row, roofs.");
+    await page.waitForTimeout(400);
+    await shoot(page, "surface-roofs-hidden-lower-level.png");
+    // PgUp steps back up to every level
+    await canvas.focus();
+    await page.keyboard.press("PageUp");
+    await page.keyboard.press("PageUp");
+    await expect(levelTabs.nth(0)).toHaveAttribute("aria-selected", "true");
+    await expect.poll(async () => (await probe(page)).cutLevel).toBe(null);
+
+    // without the banner, the boxes note carries its own way to fix it
+    const continueWithout = page.getByRole("button", { name: "Continue without it" });
+    if (await continueWithout.isVisible()) await continueWithout.click();
+    await expect(status.getByRole("button", { name: "Locate TaleSpire…" })).toBeVisible();
+    await status.getByRole("button", { name: "Show everything" }).click();
+    await page.waitForTimeout(400);
+    await shoot(page, "surface-boxes-notice.png");
   } finally {
     await app.close();
     cleanRun(tabRun);

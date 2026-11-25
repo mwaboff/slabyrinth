@@ -51,6 +51,8 @@ export function memorySceneSource(
 ): SceneSource {
   const max = opts.maxReplyBytes ?? 8 * 1024 * 1024;
   const open = new Map<string, PackedScene>();
+  /** The scene the viewer was last given: as main does, it stays served until the viewer closes it. */
+  let shown: string | null = null;
   const detailed = new Set<string>();
   const listeners = new Set<(p: SceneProgress) => void>();
   let serial = 0;
@@ -72,6 +74,7 @@ export function memorySceneSource(
   return {
     label: "in memory",
     open(target) {
+      const shownNow = shown;
       return later(() => {
         const buildId = target.buildId ?? "";
         const b = builds.get(buildId);
@@ -82,7 +85,10 @@ export function memorySceneSource(
         const s = two ? (useDetail ? b.detail : b.boxes) : b;
         const pending = useDetail ? 0 : s.instances.length;
         const packed = packScene(s, sceneId, buildId, pending);
+        // one scene per viewer, as main keeps it: every other one goes
+        for (const id of [...open.keys()]) if (id !== shownNow) open.delete(id);
         open.set(sceneId, packed);
+        shown = sceneId;
         for (const fn of listeners)
           fn({ sceneId, stage: "layout", done: s.instances.length, total: s.instances.length });
         if (!useDetail)
@@ -112,6 +118,7 @@ export function memorySceneSource(
     },
     close(sceneId) {
       open.delete(sceneId);
+      if (shown === sceneId) shown = null;
     },
     onProgress(fn) {
       listeners.add(fn);

@@ -10,7 +10,8 @@ import { roleNumber } from "./roles";
 
 const NO_ROLES = new Uint8Array(0);
 
-export const ChunkState = { Absent: 0, Requested: 1, Loaded: 2 } as const;
+/** Failed: the chunk's data was refused (it disagreed with the header); it is not asked for again. */
+export const ChunkState = { Absent: 0, Requested: 1, Loaded: 2, Failed: 3 } as const;
 
 export interface Chunk {
   /** Index in `SceneStore.chunks` (the header's order). */
@@ -67,6 +68,8 @@ export class SceneStore {
   loadedChunks = 0;
   /** Bytes of the loaded pieces' arrays: the viewer's share of the JS heap for the scene (~58 per piece). */
   loadedBytes = 0;
+  /** Bit i: some loaded piece is of header class i (the colour key lists only the kinds the map has). */
+  classesSeen = 0;
 
   constructor(header: SceneHeader) {
     this.header = header;
@@ -140,10 +143,19 @@ export class SceneStore {
     return undefined;
   }
 
-  /** Takes a chunk's data in; returns the chunk (undefined for an unknown id). */
+  /**
+   * Takes a chunk's data in; returns the chunk (undefined for an unknown id). A chunk that disagrees with the header
+   * (another count: every later piece id would name the wrong piece) or with itself (arrays shorter than its count,
+   * indices past the header's tables) is refused: it becomes Failed (drawn as nothing, never asked for again).
+   */
   load(data: InstanceChunk): Chunk | undefined {
     const c = this.byId.get(data.id);
     if (!c) return undefined;
+    if (!this.fits(c, data)) {
+      this.unload(c);
+      c.state = ChunkState.Failed;
+      return undefined;
+    }
     if (c.state === ChunkState.Loaded) this.unload(c);
     this.loadedInstances += data.count;
     this.loadedChunks++;
@@ -153,6 +165,8 @@ export class SceneStore {
     c.roofLayer = data.layers.indexOf("roof");
     c.roleNumbers = Uint8Array.from(data.roles, roleNumber);
     c.version++;
+    for (let k = 0; k < data.count; k++) this.classesSeen |= 1 << ((data.colourClass[k] ?? 0) & 31);
+    this.classesSeen >>>= 0;
     const aabb = new Float32Array(data.count * 6);
     for (let k = 0; k < data.count; k++) worldBox(this.meshBounds, data, k, aabb, k * 6);
     c.aabb = aabb;
@@ -166,6 +180,41 @@ export class SceneStore {
       }
     this.loadedBytes += SceneStore.chunkBytes(c);
     return c;
+  }
+
+  /** Does a chunk's data agree with its row in the header and with itself? */
+  private fits(c: Chunk, d: InstanceChunk): boolean {
+    const n = d.count;
+    const row = this.header.chunks[c.index];
+    if (!Number.isInteger(n) || n < 0 || n !== row?.instances) return false;
+    const perPiece: ReadonlyArray<[ArrayLike<number>, number]> = [
+      [d.mesh, 1],
+      [d.transform, 4],
+      [d.colour, 3],
+      [d.colourClass, 1],
+      [d.level, 1],
+      [d.layer, 1],
+      [d.name, 1],
+      [d.element, 1],
+      [d.role, 1],
+      [d.cell, 2],
+    ];
+    if (perPiece.some(([a, k]) => a.length !== n * k)) return false;
+    const meshes = this.header.meshes.length;
+    const levels = this.header.levels.length;
+    const classes = this.header.classes.length;
+    for (let k = 0; k < n; k++)
+      if (
+        (d.mesh[k] ?? 0) >= meshes ||
+        (d.level[k] ?? 0) >= levels ||
+        (d.colourClass[k] ?? 0) >= classes ||
+        (d.layer[k] ?? 0) >= d.layers.length ||
+        (d.name[k] ?? 0) >= d.names.length ||
+        (d.element[k] ?? -1) >= d.elements.length ||
+        (d.role[k] ?? -1) >= d.roles.length
+      )
+        return false;
+    return true;
   }
 
   /** Bytes of a loaded chunk's arrays. */

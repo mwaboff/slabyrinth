@@ -38,7 +38,8 @@ export const BOX_REASON_WORDS: Readonly<Record<string, string>> = {
   budget: "detail limited to keep Slabyrinth responsive",
 };
 
-const CLASS_ORDER = Object.keys(COLOUR_CLASSES) as ColourClass[];
+/** The header's colour classes, in order (a chunk's colourClass indexes it; the viewer packs it in 4 bits). */
+export const CLASS_ORDER = Object.keys(COLOUR_CLASSES) as ColourClass[];
 
 export function wireBox(b: Box3): View3dBox {
   return { min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] };

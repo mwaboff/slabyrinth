@@ -114,8 +114,27 @@ describe("a build that failed", () => {
     useProject.setState({ snap: snapshot({ builds: [record(1)] }) });
     useBuild.setState({ error: "The compiler stopped: out of memory." });
     render(<BuildView />);
-    expect(screen.getByRole("alert")).toHaveTextContent("last one that worked");
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("last one that worked");
     expect(screen.getByRole("heading", { name: "Built from v2" })).toBeTruthy();
+    // one gold button on the page: the old build's copy keeps it, Build again is the plain one beside the reason
+    expect(within(alert).getByRole("button", { name: "Build again" })).not.toHaveClass("btn--primary");
+    expect(document.querySelectorAll(".btn--primary")).toHaveLength(1);
+  });
+
+  it("after a restart, says what the build check found in words, with the button that shows it again", async () => {
+    const run = vi.fn(() => Promise.resolve());
+    useBuild.setState({ run });
+    useProject.setState({
+      snap: snapshot({ builds: [{ ...record(1), diagnosticsSummary: { errors: 1, warnings: 2 } }] }),
+    });
+    render(<BuildView />);
+    expect(
+      await screen.findByText(/The build check found 1 problem and 2 warnings\. They aren't kept when/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/\(s\)/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Build again to see them" }));
+    expect(run).toHaveBeenCalledWith(2);
   });
 
   it("is not shown when the build worked", () => {

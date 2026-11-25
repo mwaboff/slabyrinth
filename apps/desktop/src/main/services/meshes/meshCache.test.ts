@@ -3,6 +3,7 @@
  * with the least recently used dropped first, and `clear` deletes only a folder that is plainly ours. Temp dirs and a
  * synthetic install only.
  */
+import { EventEmitter } from "node:events";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -12,6 +13,7 @@ import type { MeshWorkerRequest, MeshWorkerResponse } from "../../workers/meshPr
 import { inProcessPort, syntheticInstall, SYNTH_INSTALL, tempDir } from "../testing/view3dRig";
 import { DiskMeshCache, MARKER, cacheStats, clearMeshCache } from "./diskCache";
 import { MeshService } from "./meshService";
+import type { WorkerPort } from "./workerPort";
 
 const uuid = (i: number): string => `aaaaaaaa-0000-4000-8000-${String(i).padStart(12, "0")}`;
 const dirs: string[] = [];
@@ -150,6 +152,91 @@ describe("piece cache", () => {
     const noneInfo = await none.svc.info();
     expect(noneInfo.state).toBe("no_install");
     expect(noneInfo.message).toMatch(/isn't installed/);
+  });
+
+  it("a reader that stops making progress is stopped; the reads queued after it still run", async () => {
+    const d = await dir();
+    const ids = Array.from({ length: 10 }, (_, i) => uuid(i));
+    const synth = syntheticInstall(ids);
+    const ports: Array<{ terminated: boolean }> = [];
+    const svc = new MeshService({
+      cacheDir: d,
+      installPath: () => Promise.resolve(SYNTH_INSTALL),
+      enabled: () => true,
+      // the first reader hangs (a decode looping on a malformed bundle); later ones read
+      spawn: () => {
+        const p = inProcessPort<MeshWorkerRequest, MeshWorkerResponse>(
+          ports.length === 0
+            ? () => new Promise<void>(() => undefined)
+            : createMeshHandler({ fs: synth.fs, extract: synth.extract }),
+        );
+        ports.push(p);
+        return p;
+      },
+      emit: () => undefined,
+      logger: memoryLogger(),
+      readIdleMs: 50,
+    });
+    const first = svc.warm(ids);
+    const second = svc.warm(ids);
+    await first;
+    await second;
+    expect(ports[0]?.terminated).toBe(true);
+    expect((await cacheStats(d)).files).toBe(10);
+    expect(svc.extracting).toBe(false);
+  });
+
+  it("one failed job (the install lookup threw) does not stop the reads queued after it", async () => {
+    const d = await dir();
+    const ids = Array.from({ length: 5 }, (_, i) => uuid(i));
+    const synth = syntheticInstall(ids);
+    let lookups = 0;
+    const svc = new MeshService({
+      cacheDir: d,
+      installPath: () =>
+        lookups++ === 0 ? Promise.reject(new Error("registry unreadable")) : Promise.resolve(SYNTH_INSTALL),
+      enabled: () => true,
+      spawn: () =>
+        inProcessPort<MeshWorkerRequest, MeshWorkerResponse>(
+          createMeshHandler({ fs: synth.fs, extract: synth.extract }),
+        ),
+      emit: () => undefined,
+      logger: memoryLogger(),
+    });
+    await expect(svc.warm(ids)).resolves.toBeUndefined();
+    await expect(svc.warm(ids)).resolves.toBeUndefined();
+    expect((await cacheStats(d)).files).toBe(5);
+  });
+
+  it("clear waits for the stopped reader to be gone, so a write it was finishing is deleted too", async () => {
+    const d = await dir();
+    const cache = new DiskMeshCache(d, 10_000);
+    await cache.write("v1/pack/a.mesh", new Uint8Array(8));
+    // a reader in the middle of writing a piece: its last write lands 20 ms after it is told to stop
+    const ee = new EventEmitter();
+    const port: WorkerPort<MeshWorkerRequest, MeshWorkerResponse> = {
+      postMessage: () => undefined,
+      on: (event: string, fn: (...args: never[]) => void) => ee.on(event, fn as (...a: unknown[]) => void),
+      terminate: async () => {
+        await new Promise((r) => setTimeout(r, 20));
+        await cache.write("v1/pack/late.mesh", new Uint8Array(8));
+        return 0;
+      },
+    };
+    const svc = new MeshService({
+      cacheDir: d,
+      installPath: () => Promise.resolve(SYNTH_INSTALL),
+      enabled: () => true,
+      spawn: () => port,
+      emit: () => undefined,
+      logger: memoryLogger(),
+    });
+    void svc.warm([uuid(1)]);
+    await new Promise((r) => setTimeout(r, 10));
+    const info = await svc.clear();
+    await new Promise((r) => setTimeout(r, 40));
+    expect((await cacheStats(d)).files).toBe(0);
+    expect(info.read).toBe(0);
   });
 
   it("rebuild clears and reads the last view's pieces again; status events say what is happening", async () => {

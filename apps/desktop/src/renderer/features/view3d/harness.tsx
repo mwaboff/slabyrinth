@@ -6,7 +6,7 @@
 import { createRoot } from "react-dom/client";
 import { createRef } from "react";
 import { View3dCanvas } from "./View3dCanvas";
-import { memorySceneSource } from "./memorySceneSource";
+import { memorySceneSource, type MemoryBuild } from "./memorySceneSource";
 import { syntheticTown } from "./synthetic";
 import type { View3dApi, View3dState } from "./engine/engine";
 
@@ -17,6 +17,8 @@ export interface View3dHarness {
   /** JS heap (Chromium's performance.memory) before the scene, after it was built, and after the viewer loaded it. */
   heap: { before: number; scene: number; loaded: number };
   states: View3dState["kind"][];
+  /** Each header's pieces waiting for detail, in order (boxes first, then 0 once handed over to detail). */
+  headers: number[];
   /** Resolves when the viewer drew pieces, or failed. */
   settled: Promise<View3dState["kind"]>;
 }
@@ -39,10 +41,16 @@ function schedule(fn: (t: number) => void): number {
   return 0;
 }
 
-export async function mountView3dHarness(side = 1024): Promise<void> {
+/**
+ * `detail`: the town comes as boxes first and its detailed scene after (as main does while it reads the game's
+ * shapes), so the viewer hands over from one to the other; `headers` records each header's pieces waiting for detail.
+ */
+export async function mountView3dHarness(side = 1024, o: { detail?: boolean } = {}): Promise<void> {
   const before = heapNow();
   const t0 = performance.now();
   const scene = await syntheticTown({ side });
+  const build: MemoryBuild =
+    o.detail === true ? { boxes: await syntheticTown({ side, boxes: true }), detail: scene } : scene;
   const sceneBuildMs = performance.now() - t0;
   const afterScene = heapNow();
   const host = document.createElement("div");
@@ -57,16 +65,20 @@ export async function mountView3dHarness(side = 1024): Promise<void> {
     sceneBuildMs,
     heap: { before, scene: afterScene, loaded: 0 },
     states: [],
+    headers: [],
     settled: new Promise((r) => (settle = r)),
   };
   (window as unknown as { __view3d: View3dHarness }).__view3d = h;
-  const source = memorySceneSource(new Map([["synthetic", scene]]));
+  const source = memorySceneSource(new Map([["synthetic", build]]));
   createRoot(host).render(
     <View3dCanvas
       ref={ref}
       source={source}
       target={{ buildId: "synthetic" }}
       options={{ schedule }}
+      onHeader={(hd) => {
+        h.headers.push(hd.pendingDetail);
+      }}
       onState={(s) => {
         h.states.push(s.kind);
         h.api = ref.current;

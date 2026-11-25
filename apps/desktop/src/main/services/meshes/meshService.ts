@@ -3,7 +3,7 @@ import type { Logger } from "../../logger";
 import { AppFailure } from "../../util/errors";
 import type { MeshWorkerRequest, MeshWorkerResponse } from "../../workers/meshProtocol";
 import type { EmitEvent } from "../events";
-import { cacheStats, clearMeshCache } from "./diskCache";
+import { cacheStats, clearMeshCache, type ClearResult } from "./diskCache";
 import type { WorkerPort } from "./workerPort";
 
 /**
@@ -30,7 +30,15 @@ export interface MeshServiceDeps {
   spawn: () => WorkerPort<MeshWorkerRequest, MeshWorkerResponse>;
   emit: EmitEvent;
   logger: Logger;
+  /** How long a reader may go without progress before it is stopped (default READ_IDLE_MS). */
+  readIdleMs?: number;
 }
+
+/**
+ * A reader reports progress after every bundle; a bundle takes seconds (LZMA), so two minutes of silence means it is
+ * stuck (a decode looping on a malformed file).
+ */
+export const READ_IDLE_MS = 120_000;
 
 const WORDS = {
   off: "3D is turned off in Settings, so every piece shows as a box of its real size and nothing is read from TaleSpire.",
@@ -48,6 +56,8 @@ export class MeshService {
     null;
   private pending = 0;
   private seq = 0;
+  /** Settles once every reader stopped so far has really ended. */
+  private stopping: Promise<void> = Promise.resolve();
   private lastBoxes = 0;
   private lastUuids: string[] = [];
 
@@ -85,13 +95,16 @@ export class MeshService {
     const gen = this.generation;
     this.pending++;
     void this.announce();
+    // one failed job (the install lookup, the reader) never stops the reads queued after it
     const job = this.tail.then(async () => {
       if (gen !== this.generation) return;
-      const where = await this.sceneMeshes();
-      if (where.mode !== "cache") return;
-      await this.run(where, list, onProgress).catch((err: unknown) => {
+      try {
+        const where = await this.sceneMeshes();
+        if (where.mode !== "cache") return;
+        await this.run(where, list, onProgress);
+      } catch (err) {
         this.deps.logger.warn("reading pieces' shapes failed", { error: err });
-      });
+      }
     });
     this.tail = job.finally(() => {
       this.pending--;
@@ -107,15 +120,34 @@ export class MeshService {
   ): Promise<void> {
     const id = ++this.seq;
     const worker = this.deps.spawn();
+    const idleMs = this.deps.readIdleMs ?? READ_IDLE_MS;
     return new Promise<void>((resolve, reject) => {
       let settled = false;
+      let idle: ReturnType<typeof setTimeout> | null = null;
       const finish = (fn: () => void): void => {
         if (settled) return;
         settled = true;
+        if (idle) clearTimeout(idle);
         if (this.running?.worker === worker) this.running = null;
-        void worker.terminate().catch(() => undefined);
+        // `clear` waits for the worker to be gone, so no write lands while it deletes
+        const gone = worker.terminate().then(
+          () => undefined,
+          () => undefined,
+        );
+        this.stopping = this.stopping.then(() => gone);
         fn();
       };
+      // a reader that says nothing for this long is stuck (a looping decode): stop it, the queue goes on
+      const awake = (): void => {
+        if (idle) clearTimeout(idle);
+        idle = setTimeout(() => {
+          finish(() => {
+            reject(new Error(`reading stopped: no progress for ${String(Math.round(idleMs / 1000))} s`));
+          });
+        }, idleMs);
+        (idle as { unref?: () => void }).unref?.();
+      };
+      awake();
       this.running = {
         worker,
         stop: () => {
@@ -124,8 +156,10 @@ export class MeshService {
       };
       worker.on("message", (r: MeshWorkerResponse) => {
         if (r.id !== id) return;
-        if (r.type === "progress") onProgress?.(r.done, r.total);
-        else if (r.type === "read") {
+        if (r.type === "progress") {
+          awake();
+          onProgress?.(r.done, r.total);
+        } else if (r.type === "read") {
           this.deps.logger.info("pieces' shapes read", { read: r.read, failed: r.failed, bytes: r.bytes });
           finish(resolve);
         } else
@@ -201,7 +235,12 @@ export class MeshService {
   async clear(): Promise<MeshCacheInfo> {
     this.cancel();
     await this.tail.catch(() => undefined);
-    const r = await clearMeshCache(this.deps.cacheDir);
+    // the stopped reader must be gone before deleting: a write landing mid-walk would leave files (or ENOTEMPTY)
+    await this.stopping;
+    const r = await clearMeshCache(this.deps.cacheDir).catch((err: unknown): ClearResult => {
+      this.deps.logger.warn("piece cache clear failed", { error: err });
+      return { ok: false, reason: "The piece cache couldn't be deleted completely; try again." };
+    });
     if (!r.ok) {
       this.deps.logger.warn("piece cache not cleared", { reason: r.reason });
       throw new AppFailure("validation", r.reason);
