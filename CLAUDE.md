@@ -20,6 +20,8 @@ Pipeline: plan → `resolve` (plan + palettes → resolved grid) → `compile` (
 - Every change: `npm run format:check && npm run lint && npm run typecheck && npm test` (~20 s of tests).
 - Generation or build change: `npm run test:golden:gen5:update` prints what moved per plan (hash fields, then the
   `generator5.detail.txt` lines); `npm run test:sweep -- 30` builds every stored plan under many seeds (CI runs 120).
+- Look at a build in 3D: `npm run render -- 3d --fixture <name>` (or `--plan`, `--slab`); PNGs + `index.json` under
+  `docs/internal/renders/` (CONTRIBUTING.md "Rendering a map in 3D").
 - App, IPC or CI change: `npm run test:e2e`. Before a PR also `npm run build`.
 - Windows Git Bash: `export PATH="/c/Program Files/nodejs:$PATH"` first.
 
