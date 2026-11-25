@@ -394,6 +394,43 @@ export class View3dService implements View3dApi {
     return { png: r.png, captions: r.captions, suggestions: r.suggestions };
   }
 
+  /**
+   * The packaged-app smoke check: lays out `plan` with boxes in the scene worker and renders its overview (proves the
+   * worker loads from the app's bundle). Returns the counts; the scene is released.
+   */
+  async selfCheck(plan: MapPlan): Promise<{ instances: number; chunks: number; pngBytes: number }> {
+    const sceneId = `check${String(++this.sceneSeq)}`;
+    const inputs = this.deps.inputs();
+    const r = await this.request(
+      {
+        type: "build",
+        job: {
+          sceneId,
+          plan,
+          previous: null,
+          userPalettes: inputs.userPalettes,
+          orientationOverride: inputs.orientationOverride,
+          catalog: inputs.catalog,
+          meshes: { mode: "boxes", reason: "boxes-requested" },
+          meshBudgetBytes: 0,
+        },
+      },
+      this.deadlines.buildMs,
+    );
+    if (r.type !== "built") throw new AppFailure("internal", "Unexpected 3D reply.");
+    const shot = await this.request(
+      { type: "shot", sceneId, shot: "overview", width: 256, height: 192 },
+      this.deadlines.requestMs,
+    );
+    await this.request({ type: "release", sceneId }, this.deadlines.requestMs);
+    if (shot.type !== "shot") throw new AppFailure("internal", "Unexpected 3D reply.");
+    return {
+      instances: r.scene.header.counts.instances,
+      chunks: r.scene.header.chunks.length,
+      pngBytes: shot.png.length,
+    };
+  }
+
   /** Stops the worker (app shutdown). */
   dispose(): void {
     this.dropWorker(new AppFailure("cancelled", "Slabyrinth is closing."));

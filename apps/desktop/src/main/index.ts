@@ -236,6 +236,12 @@ if (!app.requestSingleInstanceLock()) {
             return `worker=ok estimate.levels=${String(est.perLevel.length)}`;
           },
           async () => {
+            // Proves the scene worker loads from the packaged app and renders a picture (boxes).
+            const c = await s.view3d.view3d.selfCheck(FIXTURE_PLAN);
+            if (c.instances === 0 || c.pngBytes === 0) throw new Error("the 3D scene came out empty");
+            return `scene3d=ok pieces=${String(c.instances)} chunks=${String(c.chunks)} png=${String(c.pngBytes)}`;
+          },
+          async () => {
             const r = await s.dispatch("app:getInfo", rendererUrl(devServerUrl), undefined);
             if (!r.ok) throw new Error("ipc dispatch failed");
             return "ipc=ok";

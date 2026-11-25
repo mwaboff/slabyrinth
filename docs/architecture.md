@@ -1148,6 +1148,7 @@ The stores are derived from IPC only. The renderer never computes authoritative 
 | `orientation.json` | Optional orientation override |
 | `logs/` | Rotating, 5 × 1 MB. Never contains keys; prompts only with debug logging on. |
 | `thumbs/` | Project thumbnails |
+| `meshes/` | The 3D piece cache: shapes of TaleSpire's pieces, read from the user's own install (read-only), kept on this machine only, never sent anywhere and never bundled with the app. At most 512 MB, least recently used dropped first; Settings can clear it (only this folder, when it holds nothing but its own files). 3D pictures sent to Claude leave the PC like any map picture. |
 
 ### 6.5 Security posture
 

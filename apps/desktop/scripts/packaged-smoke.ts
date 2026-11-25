@@ -50,7 +50,11 @@ const timer = setTimeout(() => {
 child.on("exit", (code) => {
   clearTimeout(timer);
   const ok =
-    code === 0 && out.includes("SMOKE_OK") && out.includes("test-code=absent") && out.includes("engine=real");
+    code === 0 &&
+    out.includes("SMOKE_OK") &&
+    out.includes("test-code=absent") &&
+    out.includes("engine=real") &&
+    out.includes("scene3d=ok");
   process.stdout.write(ok ? "packaged smoke: PASS\n" : `packaged smoke: FAIL (exit ${String(code)})\n`);
   process.exit(ok ? 0 : 1);
 });

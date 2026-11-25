@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SlabyrinthApi } from "../../../shared/ipc";
 import type { AppSettings } from "../../../shared/project";
@@ -66,7 +66,9 @@ describe("Settings controls save through main's request schema", () => {
     expect(field).toHaveValue("4");
     expect(screen.getByText(/for each message you send, then asks you before going on/)).toBeInTheDocument();
     // the range is the schema's: 1 to 20
-    const options = screen.getAllByRole("option").map((o) => o.textContent);
+    const options = within(field)
+      .getAllByRole("option")
+      .map((o) => o.textContent);
     expect(options[0]).toBe("1");
     expect(options.at(-1)).toBe("20");
     await userEvent.selectOptions(field, "7");
@@ -76,6 +78,35 @@ describe("Settings controls save through main's request schema", () => {
     const after = await saved();
     expect(after.agent).toEqual({ ...before.agent, maxRevisionsPerTurn: 7 });
     expect(useSettings.getState().settings?.agent).toEqual(after.agent);
+  });
+
+  it("AI ▸ 3D view: on/off and pictures per message save as single fields, the rest of the group stays", async () => {
+    setBridge(createFakeBridge({ speed: 0 }));
+    await useSettings.getState().load();
+    const before = await saved();
+    expect(before.agent).toMatchObject({ view3d: true, maxPicturesPerTurn: 6 });
+    useApp.setState({ settingsOpen: "ai" });
+    render(<SettingsModal />);
+    // no price quoted
+    expect(screen.getByText(/adds a little to what a message costs/).textContent).not.toMatch(/[$\d]/);
+    const pictures = screen.getByRole("combobox", { name: "3D pictures per message" });
+    expect(pictures).toHaveValue("6");
+    const options = within(pictures)
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+    expect([options[0], options.at(-1)]).toEqual(["0", "12"]);
+    await userEvent.selectOptions(pictures, "2");
+    await waitFor(async () => {
+      expect((await saved()).agent?.maxPicturesPerTurn).toBe(2);
+    });
+    const look = screen.getByRole("checkbox", { name: /Let Claude look at the map in 3D/ });
+    expect(look).toBeChecked();
+    await userEvent.click(look);
+    await waitFor(async () => {
+      expect((await saved()).agent?.view3d).toBe(false);
+    });
+    expect(await saved()).toMatchObject({ agent: { ...before.agent, maxPicturesPerTurn: 2, view3d: false } });
+    expect(screen.getByRole("combobox", { name: "3D pictures per message" })).toBeDisabled();
   });
 
   it("the agent group has no main-owned field: a patch spread from the stored group is saved", async () => {
