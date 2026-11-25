@@ -6,6 +6,7 @@ import {
   boxMeshSource,
   contactSheet,
   frontOf,
+  interiorShots,
   planShots,
   thingsOf,
   type PieceLookup,
@@ -98,6 +99,20 @@ describe("shot rules", () => {
       "front-hut",
     ]);
     expect(planShots(s, { size: SIZE, max: 2 }).map((x) => x.rule)).toEqual(["overview", "interior"]);
+  });
+
+  it("frames an interior on its shell, not on a post or lamp it puts out in the street", async () => {
+    const s = await scene([
+      ...hut("hut", [], [14, 12]),
+      piece(3, 12, "wall_post", "hut~porch"),
+      { ...piece(1, 12, "feature", "hut~lamp"), uuid: LOW },
+    ]);
+    const [t] = thingsOf(s);
+    if (!t) throw new Error("no thing");
+    const [inside] = interiorShots(s, t, frontOf(s, t), SIZE);
+    // the hut's walls stand on 10..15 in x and z: the camera looks at their middle
+    expect(inside?.camera.target.x).toBeCloseTo(12.5, 0);
+    expect(inside?.camera.target.z).toBeCloseTo(12.5, 0);
   });
 
   it("plans the same shots for a stored fixture every time", async () => {

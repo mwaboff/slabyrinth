@@ -151,9 +151,37 @@ function focusShot(
   o: { id: string; rule: string; caption: string; targets: string[]; elevation: number; minFrame: number },
   size: ShotSize,
 ): ShotSpec {
-  const box = atLeast(boxOf(scene, idx), o.minFrame);
   const maxLevelIndex = idx.reduce((m, i) => Math.max(m, scene.instances[i]?.levelIndex ?? 0), 0);
-  const cutaway: Cutaway = { maxLevelIndex, hideLayers: ["roof"], within: grown(box, 3) };
+  return boxShot(scene, boxOf(scene, idx), idx, { ...o, maxLevelIndex, hideLayers: ["roof"] }, size);
+}
+
+/**
+ * A shot of a place (a world box, e.g. a scene check's finding): framed on it (at least `minFrame` tiles across), cut
+ * away above `maxLevelIndex` and hiding `hideLayers`, with only its surroundings drawn, seen from the side most of
+ * `idx` (the pieces it is about) shows from.
+ */
+export function boxShot(
+  scene: Scene,
+  place: Box3,
+  idx: readonly number[],
+  o: {
+    id: string;
+    rule: string;
+    caption: string;
+    targets: string[];
+    elevation: number;
+    minFrame: number;
+    maxLevelIndex: number;
+    hideLayers: string[];
+  },
+  size: ShotSize,
+): ShotSpec {
+  const box = atLeast(place, o.minFrame);
+  const cutaway: Cutaway = {
+    maxLevelIndex: o.maxLevelIndex,
+    hideLayers: o.hideLayers,
+    within: grown(box, 3),
+  };
   const frame = padded(box, 1);
   const bearingDeg = bestSide(scene, idx, frame, cutaway, o.elevation);
   return {

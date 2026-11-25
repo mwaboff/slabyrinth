@@ -32,6 +32,8 @@ export type ShotRule = (typeof SHOT_RULES)[number];
 export const MIN_THING_PIECES = 6;
 /** Built pieces: a thing has at least one (props alone are dressing). */
 const BODY: ReadonlySet<string> = new Set(["wall", "opening", "roof", "stairs"]);
+/** A storey's shell: what an interior shot is framed on. */
+const SHELL: ReadonlySet<string> = new Set(["wall", "opening", "floor", "stairs"]);
 const FRONT_ELEVATION = 20;
 const INTERIOR_ELEVATION = 65;
 /** The probe's picture: small, every piece drawn (most as boxes). */
@@ -249,7 +251,14 @@ export function interiorShots(scene: Scene, t: Thing, front: Front | null, size:
         : [];
   const out: ShotSpec[] = [];
   for (const sl of slices) {
-    const box = shownBounds(scene, sl.cutaway, sl.keep);
+    // framed on the storey's shell (walls, doors, floors), not on what it dresses outside (a porch post, a lamp, a
+    // line to a neighbour), so the room sits in the middle of the picture; all of it when it has no shell
+    const shell = shownBounds(
+      scene,
+      sl.cutaway,
+      (i) => sl.keep(i) && SHELL.has(i.colourClass) && i.role !== "wall_post",
+    );
+    const box = Number.isFinite(shell.min.x) ? shell : shownBounds(scene, sl.cutaway, sl.keep);
     if (!Number.isFinite(box.min.x)) continue;
     out.push({
       id: `interior-${slug(t.id)}-${sl.suffix}`,

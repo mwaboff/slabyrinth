@@ -12,3 +12,6 @@ export * from "./place";
 export * from "./setpieces";
 export * from "./cliffband";
 export * from "./cover";
+// what pieces and opening kinds are (read by scene3d's scene checks)
+export { frontSide, pieceFacts, type FrontAxis } from "./pieceFacts";
+export { OPENING_KIND_INFO, isPassage } from "./openingKinds";

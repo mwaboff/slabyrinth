@@ -1,7 +1,7 @@
 /** What the render command draws: stored fixture plans, a plan file, or a slab file; and building a plan. */
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   GENERATOR_VERSIONS,
   decodeDetailed,
@@ -9,10 +9,12 @@ import {
   parsePlan,
   realize,
   resolvePlan,
+  resolveWithObjects,
   verifyBuild,
   type CompileDiagnostic,
   type GeneratorVersion,
   type MapPlan,
+  type ObjectSpec,
   type PaletteCatalog,
   type PlacementSet,
   type ResolvedPlan,
@@ -30,7 +32,8 @@ export const FIXTURE_DIRS = [
 ];
 
 export type Input =
-  { kind: "plan"; name: string; plan: MapPlan } | { kind: "slab"; name: string; assets: SlabAsset[] };
+  | { kind: "plan"; name: string; plan: MapPlan; objects?: readonly ObjectSpec[] }
+  | { kind: "slab"; name: string; assets: SlabAsset[] };
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -43,35 +46,85 @@ function planOrThrow(raw: unknown, where: string): MapPlan {
   throw new Error(`${where} is not a valid plan:\n${shown.join("\n")}`);
 }
 
-/** Every stored plan's name, sorted. */
+/**
+ * Stored scenes built in code (core's test fixtures that place objects no plan word asks for yet): name → the module
+ * under packages/core/test/fixtures and how to read its plan and object specs.
+ */
+const CODE_FIXTURES: Readonly<
+  Record<string, { file: string; read: (m: Record<string, unknown>) => { plan: unknown; objects: unknown } }>
+> = {
+  harbour: {
+    file: "harbour.ts",
+    read: (m) => ({
+      plan: typeof m["harbourPlan"] === "function" ? (m["harbourPlan"] as () => unknown)() : null,
+      objects: m["HARBOUR_SPECS"],
+    }),
+  },
+};
+
+/** Every stored plan's name, sorted (the plans in files and the scenes built in code). */
 export function fixtureNames(): string[] {
-  return FIXTURE_DIRS.flatMap((d) =>
-    existsSync(d)
-      ? readdirSync(d)
-          .filter((f) => f.endsWith(".json"))
-          .map((f) => f.slice(0, -5))
-      : [],
-  ).sort();
+  return [
+    ...FIXTURE_DIRS.flatMap((d) =>
+      existsSync(d)
+        ? readdirSync(d)
+            .filter((f) => f.endsWith(".json"))
+            .map((f) => f.slice(0, -5))
+        : [],
+    ),
+    ...Object.keys(CODE_FIXTURES),
+  ].sort();
 }
 
-export function loadFixture(name: string): Input {
+/** Object specs as a plan file or a code fixture gives them (checked for the fields the site stage reads). */
+function objectsOrThrow(raw: unknown, where: string): ObjectSpec[] {
+  if (!Array.isArray(raw)) throw new Error(`${where}: "objects" is not a list`);
+  return raw.map((o, i) => {
+    if (
+      !isRecord(o) ||
+      typeof o["id"] !== "string" ||
+      o["kind"] !== "vessel" ||
+      typeof o["level"] !== "string" ||
+      !Array.isArray(o["at"]) ||
+      typeof o["heading"] !== "number" ||
+      typeof o["size"] !== "number"
+    )
+      throw new Error(`${where}: objects[${i}] is not an object spec (id, kind, level, at, heading, size)`);
+    return o as unknown as ObjectSpec;
+  });
+}
+
+export async function loadFixture(name: string): Promise<Input> {
   for (const d of FIXTURE_DIRS) {
     const f = join(d, `${name}.json`);
     if (existsSync(f))
       return { kind: "plan", name, plan: planOrThrow(parseJsonText(readFileSync(f, "utf8")), f) };
+  }
+  const code = CODE_FIXTURES[name];
+  if (code) {
+    const file = join(REPO_ROOT, "packages", "core", "test", "fixtures", code.file);
+    const m = (await import(pathToFileURL(file).href)) as Record<string, unknown>;
+    const r = code.read(m);
+    return { kind: "plan", name, plan: planOrThrow(r.plan, file), objects: objectsOrThrow(r.objects, file) };
   }
   throw new UsageError(
     `--fixture ${name}: no stored plan of that name (one of: ${fixtureNames().join(", ")})`,
   );
 }
 
+/** A plan file: a plan, an exported { format, plan } document, or { plan, objects } (a plan with objects on it). */
 export function loadPlanFile(path: string, cwd: string): Input {
   const f = resolve(cwd, path);
-  return {
-    kind: "plan",
-    name: basename(f).replace(/\.json$/i, ""),
-    plan: planOrThrow(parseJsonText(readFileSync(f, "utf8")), f),
-  };
+  const raw = parseJsonText(readFileSync(f, "utf8"));
+  const name = basename(f).replace(/\.json$/i, "");
+  if (isRecord(raw) && "objects" in raw && "plan" in raw)
+    return {
+      kind: "plan",
+      name,
+      plan: planOrThrow(raw["plan"], f),
+      objects: objectsOrThrow(raw["objects"], f),
+    };
+  return { kind: "plan", name, plan: planOrThrow(raw, f) };
 }
 
 /** A slab file: one chunk per line (fences and blank lines allowed), every chunk pasted at the same origin. */
@@ -104,16 +157,32 @@ export interface Built {
   set: PlacementSet;
   /** Verify's errors and warnings (the build is drawn anyway). */
   problems: CompileDiagnostic[];
+  /** The objects placed on the plan and the way each faces (degrees clockwise from plan north). */
+  objects: Array<{ id: string; heading: number }>;
 }
 
-/** resolve → realize → verify, as compile does (verify may nudge props); no chunking. */
-export function buildPlan(plan: MapPlan, palettes: PaletteCatalog): Built {
-  const resolved = resolvePlan(plan, palettes);
+/**
+ * resolve → realize → verify, as compile does (verify may nudge props); no chunking. Objects (vessels) go through the
+ * site stage first, as a future plan field would pass them.
+ */
+export function buildPlan(
+  plan: MapPlan,
+  palettes: PaletteCatalog,
+  objects: readonly ObjectSpec[] = [],
+): Built {
+  const withObjects = objects.length > 0 ? resolveWithObjects(plan, objects, palettes) : null;
+  const resolved = withObjects ? withObjects.resolved : resolvePlan(plan, palettes);
+  const built = withObjects ? withObjects.plan : plan;
   const set = realize(resolved, palettes, {});
   const verify = verifyBuild(resolved, set, palettes, {
-    plan,
-    ...(plan.entryLevel ? { entryLevelId: plan.entryLevel } : {}),
+    plan: built,
+    ...(built.entryLevel ? { entryLevelId: built.entryLevel } : {}),
   });
   const problems = [...set.diagnostics, ...verify.diagnostics].filter((d) => d.severity !== "info");
-  return { resolved, set, problems };
+  return {
+    resolved,
+    set,
+    problems,
+    objects: (withObjects?.sites ?? []).map((s) => ({ id: s.spec.id, heading: s.spec.heading })),
+  };
 }

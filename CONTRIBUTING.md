@@ -51,3 +51,10 @@ A developer tool for looking at generations without pasting them into TaleSpire 
 - Pictures and `index.json` (what each shows, which pieces are boxes and why) go to `docs/internal/renders/` unless
   `--out`. Meshes are read from the TaleSpire install read-only and cached in `.cache/meshes/` (the first run after a
   game update takes about a minute per 40 bundles). Both folders are git-ignored: nothing from the game is committed.
+
+To measure a visual report before judging it by eye, add `--check`: the scene checks (clashes, gaps, facing, support,
+surfaces, ways) put their findings in `index.json`, print a table per render (a summary for a batch) and draw a marked
+`finding-<n>.png` per cluster (`--check-pictures n` caps them). `--fixture all --jobs N` renders a batch in N worker
+threads with the same output as one thread. `--compare generator:<n>`, `seed:<n>` or `<plan.json>` also builds each plan
+that way and writes `compare-<shot>.png` (before | after, same cameras) plus, with `--check`, the findings that are new,
+fixed and unchanged. Every option is checked before TaleSpire is looked for or anything is built.
