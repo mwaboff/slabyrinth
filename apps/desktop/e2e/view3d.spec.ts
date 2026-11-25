@@ -185,6 +185,41 @@ test("the 3D viewer draws, moves and keeps its budgets on a 1024 × 1024 map", a
   }
 });
 
+test("the 3D viewer hands over from the boxes scene to the detailed one without an error", async () => {
+  test.setTimeout(120_000);
+  const { app, page } = await launch(run);
+  type Harness = { headers: number[]; states: string[]; api: { sample(): { drawnPixels: number } } | null };
+  const harness = (): Promise<{ headers: number[]; states: string[]; drawn: number }> =>
+    page.evaluate(() => {
+      const h = (window as unknown as { __view3d: Harness }).__view3d;
+      return { headers: [...h.headers], states: [...h.states], drawn: h.api?.sample().drawnPixels ?? 0 };
+    });
+  try {
+    // boxes first, then the detailed scene once its shapes are "read" (the in-memory source, as main does it)
+    const state = await page.evaluate(async () => {
+      const w = window as unknown as {
+        __slabyrinthMountView3d: (side?: number, o?: { detail?: boolean }) => Promise<void>;
+        __view3d: { settled: Promise<string> };
+      };
+      await w.__slabyrinthMountView3d(256, { detail: true });
+      return w.__view3d.settled;
+    });
+    if (state === "error") {
+      console.log("view3d hand-over e2e: WebGL2 unavailable in the test window; nothing to hand over");
+      return;
+    }
+    await expect.poll(async () => (await harness()).headers.length, { timeout: 30_000 }).toBe(2);
+    const h = await harness();
+    expect(h.headers[0]).toBeGreaterThan(0);
+    expect(h.headers[1]).toBe(0);
+    expect(h.states).not.toContain("error");
+    await expect.poll(async () => (await harness()).drawn, { timeout: 30_000 }).toBeGreaterThan(1000);
+    expect((await harness()).states.at(-1)).toBe("ready");
+  } finally {
+    await app.close();
+  }
+});
+
 /** The 3D tab's viewer as the test build exposes it (renderer/features/view3d/View3dStage.tsx). */
 interface TabProbe {
   /** "none" (no tab yet), "still" (no WebGL2: the still picture), or the viewer's state ("loading", "ready", …). */

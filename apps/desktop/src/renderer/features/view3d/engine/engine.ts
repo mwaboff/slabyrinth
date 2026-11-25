@@ -207,15 +207,36 @@ const EMPTY_BOX: Box3 = {
   max: { x: -Infinity, y: -Infinity, z: -Infinity },
 };
 
+/** Times one open may reopen its target in place because the source lost the scene (its worker restarted). */
+const MAX_RECOVERIES = 3;
+/** Scenes whose detail finished before their header arrived, remembered per open (a few at most). */
+const EARLY_DETAIL_KEPT = 4;
+
+/**
+ * One open of a target. The scene drawn may be replaced in place (the detailed scene, or the same scene opened again
+ * after the source lost it): one hand-over at a time (`swapping`), and the scene drawn is closed only once the new
+ * header is in hand, so the view keeps drawing and fetching from it meanwhile.
+ */
 interface OpenScene {
   serial: number;
   source: SceneSource;
   target: SceneTarget;
+  /** The scene drawn (null until the first header). */
   sceneId: string | null;
   offProgress: () => void;
-  chunkRequests: number;
-  /** A detailed scene is being opened to replace this one. */
+  /** A scene is being opened to replace the one drawn. */
   swapping: boolean;
+  /** Pieces waiting for detail in the scene last swapped from: swap again only when fewer wait (∞ before any swap). */
+  swapFrom: number;
+  /** Scenes whose "detail" completed before their header reached the viewer. */
+  earlyDetail: string[];
+  recoveries: number;
+}
+
+/** The scene whose data the viewer holds: requests are counted per scene, so a swap never inherits a count. */
+interface LoadedScene {
+  sceneId: string;
+  chunkRequests: number;
 }
 
 export class View3dEngine implements View3dApi {
@@ -236,6 +257,7 @@ export class View3dEngine implements View3dApi {
   private _state: View3dState = { kind: "idle" };
   private scene: OpenScene | null = null;
   private serial = 0;
+  private loaded: LoadedScene | null = null;
   private store: SceneStore | null = null;
   private residency: MeshResidency | null = null;
   private chunks: ChunkCache | null = null;
@@ -388,8 +410,10 @@ export class View3dEngine implements View3dApi {
       target,
       sceneId: null,
       offProgress: () => undefined,
-      chunkRequests: 0,
       swapping: false,
+      swapFrom: Infinity,
+      earlyDetail: [],
+      recoveries: 0,
     };
     this.scene = s;
     this.openedAt = this.opts.now();
@@ -398,17 +422,18 @@ export class View3dEngine implements View3dApi {
     this.setState({ kind: "loading", progress: null });
     s.offProgress = source.onProgress((p) => {
       if (!this.live(s)) return;
+      const done = p.stage === "detail" && p.done >= p.total;
       // layout progress arrives before the header names the scene; detail progress names it
-      if (s.sceneId !== null && p.sceneId !== s.sceneId) return;
+      if (s.sceneId !== null && p.sceneId !== s.sceneId) {
+        // a scene being handed over can finish its detail before its header is here: kept for when it is
+        if (done) this.noteEarlyDetail(s, p.sceneId);
+        return;
+      }
       this.emit("progress", p);
       if (this._state.kind === "loading") this.setState({ kind: "loading", progress: p });
-      if (
-        p.stage === "detail" &&
-        p.done >= p.total &&
-        !s.swapping &&
-        (this.store?.header.pendingDetail ?? 0) > 0
-      )
-        this.swapToDetail(s);
+      if (!done) return;
+      if (this.store?.header.sceneId === p.sceneId) this.maybeSwapToDetail(s);
+      else this.noteEarlyDetail(s, p.sceneId);
     });
     source.open(target).then(
       (h) => {
@@ -419,6 +444,7 @@ export class View3dEngine implements View3dApi {
         s.sceneId = h.sceneId;
         this.useHeader(h, true);
         this.setState({ kind: "ready" });
+        this.afterHeader(s, h);
       },
       (e: unknown) => {
         if (!this.live(s)) return;
@@ -433,8 +459,45 @@ export class View3dEngine implements View3dApi {
     this.setState({ kind: "error", error: { code: "source", sourceCode: code, message } });
   }
 
-  /** The source has read the game's shapes: open again and replace the boxes scene, keeping the camera. */
-  private swapToDetail(s: OpenScene): void {
+  private noteEarlyDetail(s: OpenScene, sceneId: string): void {
+    if (s.earlyDetail.includes(sceneId)) return;
+    s.earlyDetail.push(sceneId);
+    if (s.earlyDetail.length > EARLY_DETAIL_KEPT) s.earlyDetail.shift();
+  }
+
+  /** A header is in hand: its detail may already be done (the race of "detail" before the open's reply). */
+  private afterHeader(s: OpenScene, h: SceneHeader): void {
+    if (s.earlyDetail.includes(h.sceneId)) this.maybeSwapToDetail(s);
+  }
+
+  /**
+   * The source has read the game's shapes: open again and replace the boxes scene, keeping the camera. Only while
+   * fewer pieces wait for detail than when the last swap started, so pieces that can never be read cannot make the
+   * view lay the map out again and again.
+   */
+  private maybeSwapToDetail(s: OpenScene): void {
+    const pending = this.store?.header.pendingDetail ?? 0;
+    if (s.swapping || pending <= 0 || pending >= s.swapFrom) return;
+    s.swapFrom = pending;
+    this.reopen(s, "detail");
+  }
+
+  /** The source lost the scene drawn (its worker restarted): open the same target again in place. */
+  private recover(s: OpenScene, e: unknown): void {
+    if (s.swapping) return; // a new scene is on its way
+    if (s.recoveries >= MAX_RECOVERIES) {
+      this.sourceFailed(e);
+      return;
+    }
+    s.recoveries++;
+    this.reopen(s, "recover");
+  }
+
+  /**
+   * Opens the target again and hands over to the new scene: the scene drawn stays drawn and served (the source keeps
+   * it until it is closed) until the new header is here; replies still on their way for it are then dropped.
+   */
+  private reopen(s: OpenScene, why: "detail" | "recover"): void {
     s.swapping = true;
     s.source.open(s.target).then(
       (h) => {
@@ -442,16 +505,24 @@ export class View3dEngine implements View3dApi {
           s.source.close(h.sceneId);
           return;
         }
-        const old = s.sceneId;
-        s.sceneId = h.sceneId;
         s.swapping = false;
+        const old = s.sceneId;
         this.freeScene();
-        if (old !== null && old !== h.sceneId) s.source.close(old);
+        s.sceneId = h.sceneId;
         this.useHeader(h, false);
+        if (old !== null && old !== h.sceneId) s.source.close(old);
+        if (this._state.kind === "error" && this._state.error.code === "source")
+          this.setState({ kind: "ready" });
+        this.afterHeader(s, h);
       },
-      () => {
-        // the boxes scene stays; nothing is lost
-        if (this.live(s)) s.swapping = false;
+      (e: unknown) => {
+        if (!this.live(s)) return;
+        s.swapping = false;
+        // no detailed scene: the boxes scene stays drawn and served; a lost scene cannot be drawn on
+        if (why === "recover" && !(e instanceof SceneSourceError && e.code === "cancelled"))
+          this.sourceFailed(e);
+        // chunks whose requests failed meanwhile are asked for again
+        else this.requestRender();
       },
     );
   }
@@ -459,6 +530,7 @@ export class View3dEngine implements View3dApi {
   private useHeader(h: SceneHeader, frame: boolean): void {
     const store = new SceneStore(h);
     this.store = store;
+    this.loaded = { sceneId: h.sceneId, chunkRequests: 0 };
     const total = this.opts.gpuBudgetBytes;
     this.residency = new MeshResidency(
       h.meshes.map((m) => m.box),
@@ -504,9 +576,10 @@ export class View3dEngine implements View3dApi {
     this.chunks = null;
     this.residency = null;
     this.store = null;
+    this.loaded = null;
   }
 
-  /** Closes the open scene: frees GPU buffers and releases the source's scene. */
+  /** Closes the open scene: frees GPU buffers and releases the source's scene (and stops a hand-over's layout). */
   close(): void {
     const s = this.scene;
     this.serial++;
@@ -514,7 +587,7 @@ export class View3dEngine implements View3dApi {
     if (s) {
       s.offProgress();
       if (s.sceneId !== null) s.source.close(s.sceneId);
-      else s.source.cancel();
+      if (s.sceneId === null || s.swapping) s.source.cancel();
     }
     this.freeScene();
     this._selection = null;
@@ -683,55 +756,66 @@ export class View3dEngine implements View3dApi {
   /** Asks the source for the chunks this frame wanted and lacked, nearest first. */
   private fetchChunks(store: SceneStore): void {
     const s = this.scene;
-    if (!s?.sceneId || s.chunkRequests >= CHUNK_REQUESTS) return;
+    const l = this.loaded;
+    if (!s || !l || l.chunkRequests >= CHUNK_REQUESTS) return;
     const wanted: Chunk[] = [];
     for (const c of store.chunks)
       if (c.state === ChunkState.Absent && c.wantFrame === this.frame) wanted.push(c);
     wanted.sort((a, b) => a.wantDist - b.wantDist);
-    while (wanted.length > 0 && s.chunkRequests < CHUNK_REQUESTS) {
+    while (wanted.length > 0 && l.chunkRequests < CHUNK_REQUESTS) {
       const batch = wanted.splice(0, CHUNKS_PER_REQUEST);
       for (const c of batch) c.state = ChunkState.Requested;
-      s.chunkRequests++;
-      const sceneId = s.sceneId;
+      l.chunkRequests++;
       s.source
         .chunks(
-          sceneId,
+          l.sceneId,
           batch.map((c) => c.id),
         )
         .then(
           (r) => {
-            if (!this.live(s) || this.store !== store) return;
-            s.chunkRequests--;
+            // the count is this scene's own; a reply for a scene handed over is dropped
+            l.chunkRequests--;
+            if (!this.live(s) || this.loaded !== l) return;
             for (const data of r.chunks) store.load(data);
             // what did not fit the reply is asked for again when a frame still wants it
             for (const c of batch) if (c.state === ChunkState.Requested) c.state = ChunkState.Absent;
             this.requestRender();
           },
           (e: unknown) => {
-            if (!this.live(s) || this.store !== store) return;
-            s.chunkRequests--;
+            l.chunkRequests--;
+            if (!this.live(s) || this.loaded !== l) return;
             for (const c of batch) if (c.state === ChunkState.Requested) c.state = ChunkState.Absent;
-            if (!(e instanceof SceneSourceError && e.code === "cancelled")) this.sourceFailed(e);
+            this.requestFailed(s, e);
           },
         );
     }
   }
 
+  /** A chunk or mesh request for the scene drawn failed. */
+  private requestFailed(s: OpenScene, e: unknown): void {
+    const code = e instanceof SceneSourceError ? e.code : "failed";
+    if (code === "cancelled") return;
+    if (code === "not-found") this.recover(s, e);
+    // during a hand-over the new scene is on its way: no error over a scene still drawing
+    else if (!s.swapping) this.sourceFailed(e);
+  }
+
   /** Asks the source for meshes (one request for the batch); answers are admitted under the budget. */
   private fetchMeshes(list: Int32Array, n: number): void {
     const s = this.scene;
+    const l = this.loaded;
     const store = this.store;
     const residency = this.residency;
-    if (!s?.sceneId || !store || !residency) return;
+    if (!s || !l || !store || !residency) return;
     const byKey = new Map<string, number>();
     for (let i = 0; i < n; i++) {
       const m = list[i] ?? 0;
       const key = store.header.meshes[m]?.key;
       if (key !== undefined) byKey.set(key, m);
     }
-    s.source.meshes(s.sceneId, [...byKey.keys()]).then(
+    s.source.meshes(l.sceneId, [...byKey.keys()]).then(
       (r) => {
-        if (!this.live(s) || this.residency !== residency) return;
+        if (!this.live(s) || this.loaded !== l || this.residency !== residency) return;
         const backend = this.backend;
         for (const geom of r.meshes) {
           const m = byKey.get(geom.key);
@@ -752,11 +836,13 @@ export class View3dEngine implements View3dApi {
         this.requestRender();
       },
       (e: unknown) => {
-        if (!this.live(s) || this.residency !== residency) return;
-        const retry = e instanceof SceneSourceError && e.code === "cancelled";
-        for (const m of byKey.values()) residency.failed(m, retry);
+        if (!this.live(s) || this.loaded !== l || this.residency !== residency) return;
+        const code = e instanceof SceneSourceError ? e.code : "failed";
+        // a lost scene is opened again; its meshes are asked for again then
+        for (const m of byKey.values()) residency.failed(m, code === "cancelled" || code === "not-found");
         this.emitDetail();
         this.requestRender();
+        if (code === "not-found") this.recover(s, e);
       },
     );
   }

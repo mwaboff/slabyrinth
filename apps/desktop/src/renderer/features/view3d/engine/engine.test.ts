@@ -1,7 +1,13 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type { Scene } from "@slabyrinth/scene3d";
-import { memorySceneSource, type MemoryBuild, type MemorySourceOptions } from "../memorySceneSource";
-import type { SceneSource } from "../sceneSource";
+import {
+  memorySceneSource,
+  packScene,
+  type MemoryBuild,
+  type MemorySourceOptions,
+  type PackedScene,
+} from "../memorySceneSource";
+import { SceneSourceError, type SceneProgress, type SceneSource } from "../sceneSource";
 import { syntheticTown } from "../synthetic";
 import { View3dEngine, type EngineOptions } from "./engine";
 import { fakeBackend, type FakeBackend } from "./fakeBackend";
@@ -51,6 +57,98 @@ beforeAll(async () => {
 
 const source = (b: MemoryBuild, o?: MemorySourceOptions): SceneSource =>
   memorySceneSource(new Map([["b1", b]]), o);
+
+/**
+ * A source scripted step by step, keeping every scene until it is closed (as main does): `scene(n)` says what the
+ * n-th open lays out and how many pieces wait for detail; chunk replies can be held; detail and lost scenes are sent
+ * by hand.
+ */
+function scripted(scene: (n: number) => { scene: Scene; pending: number; detailBeforeReply?: boolean }): {
+  src: SceneSource;
+  opens: () => number;
+  held: () => number;
+  closed: string[];
+  hold: (on: boolean) => void;
+  release: () => void;
+  detail: (sceneId: string) => void;
+  lose: (sceneId: string) => void;
+} {
+  const scenes = new Map<string, PackedScene>();
+  const listeners = new Set<(p: SceneProgress) => void>();
+  const held: Array<() => void> = [];
+  const closed: string[] = [];
+  let n = 0;
+  let holding = false;
+  const detail = (sceneId: string): void => {
+    for (const fn of listeners) fn({ sceneId, stage: "detail", done: 1, total: 1 });
+  };
+  const answer = <T>(fn: () => T): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const go = (): void => {
+        try {
+          resolve(fn());
+        } catch (e) {
+          reject(e instanceof Error ? e : new Error(String(e)));
+        }
+      };
+      if (holding) held.push(go);
+      else setTimeout(go, 0);
+    });
+  const get = (sceneId: string): PackedScene => {
+    const s = scenes.get(sceneId);
+    if (!s) throw new SceneSourceError("not-found", "That 3D view was closed.");
+    return s;
+  };
+  const src: SceneSource = {
+    label: "scripted",
+    open: () => {
+      const k = n++;
+      const sceneId = `s${String(k + 1)}`;
+      const what = scene(k);
+      const p = packScene(what.scene, sceneId, "b1", what.pending);
+      scenes.set(sceneId, p);
+      if (what.detailBeforeReply === true) detail(sceneId);
+      return new Promise((r) =>
+        setTimeout(() => {
+          r(p.header);
+        }, 0),
+      );
+    },
+    chunks: (sceneId, ids) =>
+      answer(() => {
+        const s = get(sceneId);
+        return { chunks: ids.flatMap((id) => s.chunks.get(id) ?? []), more: [] };
+      }),
+    meshes: (sceneId, keys) =>
+      answer(() => {
+        const s = get(sceneId);
+        return { meshes: keys.flatMap((k) => s.meshes.get(k) ?? []), more: [] };
+      }),
+    cancel: () => undefined,
+    close: (sceneId) => {
+      closed.push(sceneId);
+      scenes.delete(sceneId);
+    },
+    onProgress: (fn) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+  };
+  return {
+    src,
+    opens: () => n,
+    held: () => held.length,
+    closed,
+    hold: (on) => {
+      holding = on;
+    },
+    release: () => {
+      for (const go of held.splice(0)) go();
+    },
+    detail,
+    lose: (sceneId) => scenes.delete(sceneId),
+  };
+}
 
 describe("viewer engine", () => {
   it("opens a scene, pulls the chunks in view and draws them", async () => {
@@ -124,6 +222,73 @@ describe("viewer engine", () => {
     await settle();
     expect(headers).toHaveLength(2);
     expect(headers[1]).toBe(0);
+    expect(engine.getCamera()).toEqual(cam);
+    expect(backend.last.meshCalls).toBeGreaterThan(0);
+  });
+
+  it("hands over to the detailed scene: the boxes scene is drawn and served until the new header is here", async () => {
+    const { engine, settle } = rig();
+    const t = scripted((n) => (n === 0 ? { scene: townBoxes, pending: 5 } : { scene: town, pending: 0 }));
+    const closedAtHeader: string[][] = [];
+    engine.on("header", () => closedAtHeader.push([...t.closed]));
+    const states: string[] = [];
+    engine.on("state", (s) => states.push(s.kind));
+    t.hold(true);
+    engine.open(t.src, { buildId: "b1" });
+    await settle(10);
+    // the boxes scene's chunk requests are on their way (held) when its detail is done
+    expect(t.held()).toBe(2);
+    t.detail("s1");
+    await settle(10);
+    expect(t.opens()).toBe(2);
+    expect(engine.header?.sceneId).toBe("s2");
+    // the late replies for s1 arrive after the hand-over: dropped, and they hold no request slot of s2
+    t.hold(false);
+    t.release();
+    await settle();
+    expect(closedAtHeader).toEqual([[], []]);
+    expect(t.closed).toEqual(["s1"]);
+    expect(engine.stats().instancesLoaded).toBe(town.instances.length);
+    expect(states).not.toContain("error");
+  });
+
+  it("swaps only while fewer pieces wait: pieces that can never be read do not lay the map out again and again", async () => {
+    const { engine, settle } = rig();
+    const t = scripted(() => ({ scene: townBoxes, pending: 5 }));
+    engine.open(t.src, { buildId: "b1" });
+    await settle(20);
+    for (let i = 0; i < 5; i++) {
+      t.detail(engine.header?.sceneId ?? "");
+      await settle(20);
+    }
+    expect(t.opens()).toBe(2);
+    expect(engine.state.kind).toBe("ready");
+  });
+
+  it("detail that finishes before the open's reply still brings the detailed scene", async () => {
+    const { engine, settle } = rig();
+    const t = scripted((n) =>
+      n === 0 ? { scene: townBoxes, pending: 5, detailBeforeReply: true } : { scene: town, pending: 0 },
+    );
+    engine.open(t.src, { buildId: "b1" });
+    await settle();
+    expect(t.opens()).toBe(2);
+    expect(engine.header?.pendingDetail).toBe(0);
+  });
+
+  it("a scene the source lost (its worker restarted) is opened again in place, keeping the camera", async () => {
+    const { engine, backend, settle } = rig();
+    const t = scripted(() => ({ scene: town, pending: 0 }));
+    engine.open(t.src, { buildId: "b1" });
+    await settle();
+    t.lose("s1");
+    // near the ground the view asks for meshes: the source answers "not found"
+    const cam = { target: { x: 96, y: 0, z: 96 }, distance: 25, bearing: 200, elevation: 30 };
+    engine.setCamera(cam);
+    await settle();
+    expect(t.opens()).toBe(2);
+    expect(engine.header?.sceneId).toBe("s2");
+    expect(engine.state.kind).toBe("ready");
     expect(engine.getCamera()).toEqual(cam);
     expect(backend.last.meshCalls).toBeGreaterThan(0);
   });
