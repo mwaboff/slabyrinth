@@ -47,6 +47,7 @@ import { layLinks, layStairEdges } from "./realize/links";
 import { layOpenings } from "./realize/openings";
 import { finishLevel, finishRealize, type RealizedSet, type RealizeOutput } from "./realize/output";
 import { layRockWalls } from "./realize/rockWalls";
+import { settleOnSupports } from "./realize/settle";
 import { layShellCap, planSolidShell } from "./realize/solidShell";
 import { layStructures } from "./realize/structures";
 import { layCornerPosts, layWalls } from "./realize/walls";
@@ -94,6 +95,8 @@ export function realize(
     dressOutcrops(lv);
     layStructures(lv);
     layArrangements(lv);
+    // things set on furniture, once every support stands with its final variant and turn
+    settleOnSupports(lv);
 
     finishLevel(lv, out);
   }

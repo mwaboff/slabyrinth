@@ -1,14 +1,18 @@
 /**
  * Turning about the vertical axis, the only turn TaleSpire has: clockwise seen from above, in the world's axes (x east,
- * z north). Shared by the compiler's placement geometry (compile/geometry.ts) and the arrangement operators
- * (arrange/), so a piece's turned outline is computed one way everywhere.
+ * z north). Shared by the compiler's placement geometry (compile/geometry.ts), the arrangement operators (arrange/)
+ * and the 3D scene (scene3d), so a piece's turned outline is computed one way everywhere.
  */
 
-/** sin and cos rounded to 12 places, so quarter turns are exact (cos 90° is 0, not 6e-17). */
-function sinCos(cwDeg: number): { s: number; c: number } {
+/**
+ * The basis of a turn: sin and cos rounded to 12 places, so quarter turns are exact (cos 90° is 0, not 6e-17). A point
+ * (x, z) turned clockwise is (x·c + z·s, −x·s + z·c); every turn of a piece's points goes through this rounding.
+ */
+export function turnBasis(cwDeg: number): { s: number; c: number } {
   const t = (cwDeg * Math.PI) / 180;
   return { c: Math.round(Math.cos(t) * 1e12) / 1e12, s: Math.round(Math.sin(t) * 1e12) / 1e12 };
 }
+const sinCos = turnBasis;
 
 /** Rotates (x, z) clockwise (seen from above) by `cwDeg` degrees of game rotation (after rotSense). */
 export function rotateXZ(x: number, z: number, cwDeg: number): { x: number; z: number } {

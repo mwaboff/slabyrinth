@@ -11,6 +11,7 @@ import { featureInfo } from "../../gen/catalog";
 import { ragged } from "../../gen/pieceFacts";
 import type { ResolvedVariant, RoleResolution } from "../../palette/resolve";
 import { ONE_CELL, ONE_CELL_PLAIN } from "../../palette/filters";
+import { leavesFloorHole } from "../../palette/topCover";
 import {
   BED_DEFAULT_ROLE,
   FILL_ROLE,
@@ -206,7 +207,7 @@ function layFloorTile(pass: FloorPass, c: LevelCell, lx: number, ly: number): bo
   const role = floorRole(laidMaterial(pass, c, x, y) ?? "");
   const found = lookup(L.id, c.theme, [role]);
   if (!found) return false;
-  const res = profile.wholeFloorEdges ? wholePieces(found) : found;
+  const res = profile.wholeFloorEdges ? wholePieces(found, profile.measuredFloorCover) : found;
   // families on natural ground only: built floors (flagstone, planks) keep their regular laying
   const fams = c.material !== null && isCliffGround(c.material) ? familiesOf(res.variants) : [];
   const fam = familyOf(fams, x, y);
@@ -284,10 +285,11 @@ function layFloorTile(pass: FloorPass, c: LevelCell, lx: number, ly: number): bo
 
 /**
  * Generator 5 (`wholeFloorEdges`): the role without its ragged pieces (gen/pieceFacts.ts), when it has whole ones; a
- * role of ragged pieces only keeps them.
+ * role of ragged pieces only keeps them. Generator 6 (`measuredFloorCover`): also without the pieces whose measured
+ * top leaves a hole in their cells (palette/topCover.ts: a rounded-corner tile's open wedge), whatever their name.
  */
-function wholePieces(res: RoleResolution): RoleResolution {
-  const whole = res.variants.filter((v) => !ragged(v.name));
+function wholePieces(res: RoleResolution, measured: boolean): RoleResolution {
+  const whole = res.variants.filter((v) => !ragged(v.name) && !(measured && leavesFloorHole(v.uuid, v.geom)));
   return whole.length === res.variants.length || whole.length === 0 ? res : { ...res, variants: whole };
 }
 

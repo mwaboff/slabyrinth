@@ -285,6 +285,7 @@ function CopyButtons({
   notFound,
   step,
   blocked = false,
+  staleVersion = null,
 }: {
   slab: SlabRow;
   primary: boolean;
@@ -292,7 +293,11 @@ function CopyButtons({
   step: number | null;
   /** The build check found errors: copying stays possible but is marked (CLI --force). */
   blocked?: boolean;
+  /** The plan has moved on since this build (the version it was built from): copying is still possible, never the main action. */
+  staleVersion?: number | null;
 }) {
+  const anyway = blocked || staleVersion !== null;
+  const gold = primary && !anyway;
   const copy = useBuild((s) => s.copy);
   const flash = useBuild((s) => s.flash);
   const over = sizeState(slab.sizeBytes, slab.limitBytes) === "over";
@@ -300,7 +305,7 @@ function CopyButtons({
   return (
     <div className="cbtns">
       <button
-        className={`btn ${primary ? "btn--lg" : "btn--sm"}${flashing ? " btn--success" : primary && !blocked ? " btn--primary" : ""} copyopen`}
+        className={`btn ${primary ? "btn--lg" : "btn--sm"}${flashing ? " btn--success" : gold ? " btn--primary" : ""} copyopen`}
         disabled={over}
         title="Copies this slab, then brings TaleSpire to the front. Paste it there with Ctrl+V in build mode."
         onClick={() => void copy(slab.id, !notFound)}
@@ -312,12 +317,16 @@ function CopyButtons({
             ? "Copied ✓ · TaleSpire opened"
             : "Copied ✓"
           : notFound
-            ? blocked
-              ? "Copy anyway"
-              : "Copy slab"
-            : blocked
-              ? "Copy & open anyway"
-              : "Copy & open TaleSpire"}
+            ? staleVersion !== null
+              ? `Copy v${String(staleVersion)} anyway`
+              : blocked
+                ? "Copy anyway"
+                : "Copy slab"
+            : staleVersion !== null
+              ? `Copy v${String(staleVersion)} & open anyway`
+              : blocked
+                ? "Copy & open anyway"
+                : "Copy & open TaleSpire"}
       </button>
       <button
         className={`btn ${primary ? "btn--lg" : "btn--sm btn--ghost"}`}
@@ -326,7 +335,7 @@ function CopyButtons({
         onClick={() => void copy(slab.id, false)}
       >
         <Icon name="copy" size="sm" />
-        {blocked && primary ? "Copy anyway" : "Copy"}
+        {anyway && primary ? "Copy only" : "Copy"}
       </button>
     </div>
   );
@@ -406,6 +415,34 @@ function BuildErrors({ plan, diags }: { plan: MapPlan; diags: readonly CompileDi
   );
 }
 
+const count = (n: number, one: string): string => `${String(n)} ${one}${n === 1 ? "" : "s"}`;
+
+/**
+ * After a restart only the record's counts are known: say them in plain words, with the button that shows them
+ * again (a rebuild of the same version gives the same slab).
+ */
+function BuildNotesAfterRestart({ summary }: { summary: { errors: number; warnings: number } }) {
+  const run = useBuild((s) => s.run);
+  const building = useBuild((s) => s.building);
+  const rec = useProject((s) => latestBuild(s.snap));
+  const parts = [
+    summary.errors > 0 ? count(summary.errors, "problem") : "",
+    summary.warnings > 0 ? count(summary.warnings, "warning") : "",
+  ].filter(Boolean);
+  return (
+    <p className="build__foot">
+      The build check found {parts.join(" and ")}. They aren't kept when Slabyrinth closes.{" "}
+      <button
+        className="btn btn--link"
+        disabled={building || !rec}
+        onClick={() => void run(rec?.versionNumber)}
+      >
+        Build again to see {summary.errors + summary.warnings === 1 ? "it" : "them"}
+      </button>
+    </p>
+  );
+}
+
 /** Warnings and notes (repairs) below; a single quiet line when the build is clean. */
 function BuildNotes({
   plan,
@@ -423,11 +460,7 @@ function BuildNotes({
           <Icon name="check" size="sm" /> Build check passed
         </p>
       );
-    return (
-      <p className="build__foot">
-        This build had {summary.errors} problem(s) and {summary.warnings} warning(s). Build again to see them.
-      </p>
-    );
+    return <BuildNotesAfterRestart summary={summary} />;
   }
   const rest = diags.filter((d) => d.severity !== "error");
   const clean = !diags.some((d) => d.severity === "error" || d.severity === "warning");
@@ -454,10 +487,12 @@ function SingleSlab({
   model,
   plan,
   diags,
+  stale,
 }: {
   model: BuildModel;
   plan: MapPlan;
   diags: readonly CompileDiagnostic[];
+  stale: boolean;
 }) {
   const slab = model.slabs[0];
   const dispatch = useBuild((s) => s.dispatch);
@@ -488,6 +523,7 @@ function SingleSlab({
           notFound={notFound}
           step={null}
           blocked={diags.some((d) => d.severity === "error")}
+          staleVersion={stale ? model.version : null}
         />
         <ol className="slab1__steps">
           <li>
@@ -629,10 +665,13 @@ function PasteGuide({
   model,
   plan,
   anchor,
+  problems,
 }: {
   model: BuildModel;
   plan: MapPlan;
   anchor: ExportBundle["pasteAnchor"] | null;
+  /** Errors the build check found: the guide still goes on, but says so first. */
+  problems: number;
 }) {
   const paste = useBuild((s) => s.paste);
   const pasteStep = paste?.current;
@@ -708,6 +747,14 @@ function PasteGuide({
                 <div>{words.plane}</div>
               </li>
             </ol>
+            {problems > 0 && (
+              <p className="guide__p" role="alert">
+                <b>
+                  The build check found {problems} problem{problems === 1 ? "" : "s"}.
+                </b>{" "}
+                The slabs will be pasted as they are. Exit the guide to see them.
+              </p>
+            )}
             {!notFound && (
               <button
                 className="btn btn--sm guide__open"
@@ -871,20 +918,66 @@ function Building() {
       <div className="build__panel" role="status">
         <h2>Building…</h2>
         <div className="prog">
-          <span className="prog__bar">
+          <span
+            className="prog__bar"
+            role="progressbar"
+            aria-label="Build progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={pct}
+            aria-valuetext={progress ? `${STAGE_LABEL[progress.stage] ?? "Building"}, ${pct}%` : "Starting"}
+          >
             <i style={{ width: `${pct}%` }} />
           </span>
           <span>{progress ? STAGE_LABEL[progress.stage] : "Starting"}</span>
         </div>
         <p className="muted">Building happens on this PC and doesn't use your API key.</p>
         <button
-          className="btn btn--sm btn--ghost"
+          className="btn btn--sm"
           onClick={() => void run("compile:cancel", undefined, "Couldn't stop the build.")}
         >
           Cancel
         </button>
       </div>
     </div>
+  );
+}
+
+/** A build that failed: what happened (main's message) and what to do. Shown over the old page or the empty one. */
+function BuildFailed({ version, solo }: { version: number | null; solo: boolean }) {
+  const error = useBuild((s) => s.error);
+  const run = useBuild((s) => s.run);
+  if (error === null) return null;
+  const body = (
+    <div className="builderr" role="alert">
+      <div className="builderr__h">
+        <b>The build didn't finish.</b> {error}
+      </div>
+      <p className="builderr__p">
+        Your plan is untouched{solo ? "" : ", and the build below is the last one that worked"}. Try again. If
+        it keeps failing, ask Claude to look at the plan.
+      </p>
+      <div className="card-actions">
+        {/* over an older build the page keeps its own main action (one gold button per view) */}
+        <button
+          className={`btn${solo ? " btn--primary" : ""}`}
+          onClick={() => void run(version ?? undefined)}
+        >
+          <Icon name="hammer" />
+          Build again
+        </button>
+      </div>
+    </div>
+  );
+  return solo ? (
+    <div className="build__center">
+      <div className="build__panel">
+        <h2>Couldn't build{version !== null ? ` v${version}` : ""}</h2>
+        {body}
+      </div>
+    </div>
+  ) : (
+    body
   );
 }
 
@@ -908,6 +1001,7 @@ export function BuildToolbar() {
   if (!s) return <div className="toolbar" />;
   const layout = s.talespire.levelLayout;
   const levels = snap?.plan?.levels.length ?? 1;
+  const anyPasted = latestBuild(snap)?.levels.some((l) => l.chunks.some((c) => c.pasted)) ?? false;
   return (
     <div className="toolbar" role="toolbar" aria-label="Build options">
       {levels > 1 && (
@@ -943,7 +1037,19 @@ export function BuildToolbar() {
                     className="menu__item"
                     onClick={() => {
                       setOpen(false);
-                      void update({ talespire: { levelLayout: v } }).then(() => run());
+                      if (v === layout) return;
+                      const change = (): void => {
+                        void update({ talespire: { levelLayout: v } }).then(() => run());
+                      };
+                      // a rebuild gives new slabs: slabs already ticked as pasted would no longer match the map
+                      if (anyPasted)
+                        useApp.getState().askConfirm({
+                          title: "Change the layout and rebuild?",
+                          body: "You've already marked a slab as pasted. Rebuilding with the levels arranged differently makes new slabs, so you would paste the map again from the start.",
+                          confirm: "Change and rebuild",
+                          onConfirm: change,
+                        });
+                      else change();
                     }}
                   >
                     {l}
@@ -955,9 +1061,6 @@ export function BuildToolbar() {
           <span className="tsep" />
         </>
       )}
-      <span className="toolbar__txt">
-        Copy as: <b>Plain</b>
-      </span>
       <span className="toolbar__sp" />
       <button
         className="tool"
@@ -981,6 +1084,7 @@ export function BuildView() {
   const sync = useBuild((s) => s.syncFromSnapshot);
   const paste = useBuild((s) => s.paste);
   const catalog = useSettings((s) => s.catalog);
+  const error = useBuild((s) => s.error);
   const rec = latestBuild(snap);
   const plan = usePlanAt(rec?.versionNumber ?? null);
   useEffect(() => {
@@ -1005,6 +1109,7 @@ export function BuildView() {
       </div>
     );
   if (building) return <Building />;
+  if (!rec && error !== null) return <BuildFailed version={snap.approvedVersion} solo />;
   if (!rec)
     return (
       <div className="build__center">
@@ -1039,6 +1144,8 @@ export function BuildView() {
   const pastedN = model.slabs.filter((s) => paste?.pasted[s.id] ?? s.pasted).length;
   const levelsN = model.levels.length;
   const showGuide = !model.single && guideOpen;
+  const hasErrors = (diags ?? []).some((d) => d.severity === "error");
+  const anyway = hasErrors ? " anyway" : "";
   return (
     <div className={`buildview${showGuide ? " buildview--guide" : ""}`}>
       <div className="buildlist">
@@ -1063,6 +1170,7 @@ export function BuildView() {
                 : ""}
           </span>
         </div>
+        <BuildFailed version={snap.approvedVersion} solo={false} />
         {stale && (
           <div className="stale" role="status">
             <Icon name="warn" />
@@ -1078,7 +1186,22 @@ export function BuildView() {
             >
               Compare v{rec.versionNumber} → v{snap.head}
             </button>
-            <button className="btn btn--sm" onClick={() => void approve(snap.head, true)}>
+            <button
+              className="btn btn--sm btn--primary"
+              onClick={() =>
+                void approve(snap.head, true).then((gate) => {
+                  if (gate !== null)
+                    useApp.getState().toast({
+                      lead: `v${String(snap.head)} can't be approved yet.`,
+                      body:
+                        gate.blocking[0] ??
+                        "Open the plan and fix the problems it lists, then approve it again.",
+                      tone: "warn",
+                      ms: 6000,
+                    });
+                })
+              }
+            >
               Approve v{snap.head} & rebuild
             </button>
           </div>
@@ -1135,11 +1258,12 @@ export function BuildView() {
         )}
         <SendToTaleSpire buildId={rec.id} multi={!model.single} anchor={anchor} emptyChunk={emptyChunk} />
         {!plan ? (
-          <span className="spinner" />
+          <span className="spinner" role="status" aria-label={`Loading v${String(rec.versionNumber)}…`} />
         ) : model.single ? (
-          <SingleSlab model={model} plan={plan} diags={diags ?? []} />
+          <SingleSlab model={model} plan={plan} diags={diags ?? []} stale={stale} />
         ) : (
           <>
+            <BuildErrors plan={plan} diags={diags ?? []} />
             <div className="getin">
               <div className="getin__txt">
                 <b>Too big for one slab, so it's in {model.slabs.length} slabs.</b> The paste guide copies
@@ -1147,7 +1271,7 @@ export function BuildView() {
                 Ctrl+V.
               </div>
               <button
-                className={`btn${guideOpen ? "" : " btn--primary"}`}
+                className={`btn${guideOpen || hasErrors || stale ? "" : " btn--primary"}`}
                 onClick={() => {
                   const opening = !guideOpen;
                   setGuide(opening);
@@ -1162,17 +1286,23 @@ export function BuildView() {
                 {guideOpen
                   ? "Paste guide is open"
                   : pastedN > 0
-                    ? `Resume paste guide · step ${(paste?.current ?? 0) + 1} of ${paste?.steps.length ?? 0}`
-                    : "Start paste guide"}
+                    ? `Resume paste guide · step ${(paste?.current ?? 0) + 1} of ${paste?.steps.length ?? 0}${anyway}`
+                    : `Start paste guide${anyway}`}
               </button>
             </div>
-            <BuildErrors plan={plan} diags={diags ?? []} />
             <ChunkList model={model} plan={plan} anchor={anchor} />
           </>
         )}
         {plan && <BuildNotes plan={plan} diags={diags} summary={rec.diagnosticsSummary} />}
       </div>
-      {showGuide && plan && <PasteGuide model={model} plan={plan} anchor={anchor} />}
+      {showGuide && plan && (
+        <PasteGuide
+          model={model}
+          plan={plan}
+          anchor={anchor}
+          problems={(diags ?? []).filter((d) => d.severity === "error").length}
+        />
+      )}
     </div>
   );
 }

@@ -36,11 +36,13 @@ import {
 import type { ResolvedVariant, RoleResolution } from "../palette/resolve";
 import { STALL_PIECE_ROLE, STALL_ROLES, featureRole } from "../palette/roles";
 import { NOT_TILE, ONE_CELL_TILE, both, variantNamed } from "../palette/filters";
+import { restHeight } from "../palette/restSurface";
 import { stallParts, type RoleProbe } from "../palette/stallParts";
 import { h32Utf16, subSeed } from "../util/hash";
 import { createPrng, type Prng } from "../util/prng";
 import type { WorldFrame } from "./geometry";
 import { quarterTurn, rotateXZ } from "./geometry";
+import { undersideAt } from "./restOn";
 import type { RealizeLevel } from "./realize/level";
 import { maxOf, minOf } from "../util/lists";
 
@@ -73,10 +75,38 @@ export function realizeStall(lv: RealizeLevel, f: ResolvedFeature): boolean {
   const top = s.base(built.base);
   s.counters(built.counter, top);
   const canopyY = s.posts(built.post, top);
+  const before = lv.placements.length;
   if (b.form === "flat") s.flatCanopy(built.canopy, canopyY);
   else s.gableCanopy(built.canopy, canopyY);
-  s.lightAndSeat(canopyY, top);
+  s.lightAndSeat(canopyY, top, lv.placements.slice(before));
   return true;
+}
+
+/**
+ * Generator 6 (`hangUnderCover`): the height the top of a thing hung at plan point (px, py) under a stall's canopy
+ * reaches: the lowest measured underside of the canopy pieces over that point (compile/restOn.ts undersideAt,
+ * palette/hangGrids.ts: a cloth awning slopes well above its box's underside, a thick one is lower than its top), or
+ * undefined when no measured canopy piece reaches over it.
+ */
+function hangHeight(
+  lv: RealizeLevel,
+  canopy: readonly Placement[],
+  px: number,
+  py: number,
+): number | undefined {
+  const w = lv.ctx.frame.point(px, py);
+  let best: number | undefined;
+  for (const p of canopy) {
+    const info = lv.ctx.placed.get(p);
+    const cw = lv.ctx.turns.get(p);
+    if (!info || cw === undefined) continue;
+    const b = info.box;
+    if (w.x < b.min.x || w.x > b.max.x || w.z < b.min.z || w.z > b.max.z) continue;
+    const under = undersideAt({ asset: p.asset, geom: info.geom, box: b, cw }, w.x, w.z);
+    // the lowest canopy underside over the point is the one it hangs under
+    if (under !== undefined && (best === undefined || under < best)) best = under;
+  }
+  return best;
 }
 
 /**
@@ -115,6 +145,14 @@ class Stall {
     this.Y1 = this.Y0 + f.size[1];
     this.goods = this.thingsOf(this.info.goods);
     for (let lx = 0; lx < b.w; lx++) if (lx !== b.gap) this.frontRow.push(lx);
+  }
+
+  /**
+   * Where a thing set on piece `v` stands above its bottom: its measured top surface (generator 6, `restSurfaces`:
+   * palette/restSurface.ts), else its box top.
+   */
+  private restOf(v: ResolvedVariant): number {
+    return restHeight(v.uuid, v.geom, this.lv.ctx.profile.restSurfaces);
   }
 
   private cell(lx: number, ly: number): [number, number] {
@@ -241,13 +279,13 @@ class Stall {
       if (run.length === 1) {
         const [cx, cy] = this.cell(lx, 0);
         this.tile(v, { x: cx, y: cy, w: 1, h: 1 }, y0, this.turn(b.front, v, STALL_PIECE_ROLE));
-        this.smallThings(onTable, cx, cy, y0 + v.geom.size.y, lx, 0);
+        this.smallThings(onTable, cx, cy, y0 + this.restOf(v), lx, 0);
       } else {
         const [px, py] = this.point(lx + 1, 0.5);
         this.prop(v, px, py, y0, this.turn(b.front, v, STALL_PIECE_ROLE));
         for (const l of run) {
           const [cx, cy] = this.cell(l, 0);
-          this.smallThings(onTable, cx, cy, y0 + v.geom.size.y, l, 0);
+          this.smallThings(onTable, cx, cy, y0 + this.restOf(v), l, 0);
         }
       }
     }
@@ -307,7 +345,7 @@ class Stall {
       const v = this.choose(counterRes, `counter:${lx}:${ly}`);
       const [cx, cy] = this.cell(lx, ly);
       if (v) this.tile(v, { x: cx, y: cy, w: 1, h: 1 }, top0, this.turn(face, v, STALL_ROLES.counter));
-      this.smallThings(goods, cx, cy, top0 + (v?.geom.size.y ?? counterH), lx, ly);
+      this.smallThings(goods, cx, cy, top0 + (v ? this.restOf(v) : counterH), lx, ly);
     }
   }
 
@@ -449,15 +487,19 @@ class Stall {
     }
   }
 
-  /** Step 5: a lantern under the front of the canopy (its underside at `yc`), a stool inside on the platform (`top0`). */
-  lightAndSeat(yc: number, top0: number): void {
+  /**
+   * Step 5: a lantern under the front of the canopy (its underside at `yc`; generator 6, `hangUnderCover`: from the
+   * surface of the `canopy` piece over it), a stool inside on the platform (`top0`).
+   */
+  lightAndSeat(yc: number, top0: number, canopy: readonly Placement[]): void {
     const { b, rng } = this;
     if (b.light) {
       const lr = this.find([STALL_ROLES.light]);
       const v = lr ? this.choose(lr, "light") : undefined;
       if (v) {
         const [px, py] = this.point(b.w / 2 + (rng.next() - 0.5) * 0.6, 0.35);
-        this.prop(v, px, py, yc - v.geom.size.y, 0);
+        const hang = this.lv.ctx.profile.hangUnderCover ? hangHeight(this.lv, canopy, px, py) : undefined;
+        this.prop(v, px, py, (hang ?? yc) - v.geom.size.y, 0);
       }
     }
     if (b.seat) {

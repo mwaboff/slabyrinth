@@ -15,6 +15,7 @@ import { maxOf, minOf, pushAll } from "../util/lists";
 import { rotateXZ } from "../util/turn";
 import { insetConvex, insideOrNear } from "./outline";
 import { piecesOf, type BuiltObject } from "./recipe";
+import { objectBodyRecipe } from "./siteIds";
 
 /** The turn step an object allows: 90 when any of its pieces is a tile, else 15. */
 export function turnStep(obj: BuiltObject): 15 | 90 {
@@ -168,7 +169,7 @@ export function placeObject(obj: BuiltObject, spec: PlaceSpec): PlacedObject {
   const instances = groups.map((pieces, i) =>
     toInstance(pieces, {
       id: groups.length === 1 ? spec.id : `${spec.id}#${i + 1}`,
-      recipe: `object:${obj.recipe}`,
+      recipe: objectBodyRecipe(obj.recipe),
       anchor: { ...spec.anchor, turn },
       ...(spec.layer !== undefined ? { layer: spec.layer } : {}),
       ...(spec.host !== undefined ? { host: spec.host } : {}),

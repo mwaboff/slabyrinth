@@ -99,7 +99,8 @@ function lampOnFurniture(room: Room, wx: number, wy: number): LightStep {
     const lamp: FeatureType = featureInfo(q.type).topLight === "candle" ? "candles" : "candelabra";
     const variant = lamp === "candelabra" ? "lantern" : undefined;
     const ext = room.piece(q.type, q.variant);
-    if (!ext || ext.mixed || ext.hMax - ext.h > ROOM_DRESS.heightSpread || !room.has(lamp, variant)) continue;
+    if (!ext || ext.mixed || ext.restMax - ext.rest > ROOM_DRESS.heightSpread || !room.has(lamp, variant))
+      continue;
     const cx = clampTo(q.centre[0], q.at[0], q.size[0]);
     const cy = clampTo(q.centre[1], q.at[1], q.size[1]);
     const placement: GeneratedPlacement = {
@@ -108,7 +109,7 @@ function lampOnFurniture(room: Room, wx: number, wy: number): LightStep {
       size: [1, 1],
       rot: 0,
       rotFine: room.rng.int(24) * 15,
-      lift: ext.hMax,
+      lift: ext.restMax,
       offset: [
         q.centre[0] - (cx + 0.5) + (room.rng.next() - 0.5) * 0.3,
         q.centre[1] - (cy + 0.5) + (room.rng.next() - 0.5) * 0.3,

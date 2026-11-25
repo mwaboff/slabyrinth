@@ -67,6 +67,7 @@ export function chatHandlers(s: FakeState): HandlerGroup<ChatChannels> {
       );
     },
     "chat:selectAlternative": () => undefined,
+    // the fake turn commits at most one version, so it never reaches a revision limit (allowance is accepted, unused)
     "chat:continue": () => startTurn(s.open(), { text: "Continue." }, true),
     "chat:previewSwitch": ({ selection }) => {
       const p = s.open();

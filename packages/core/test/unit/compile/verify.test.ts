@@ -13,7 +13,7 @@ import {
   verifyBuild,
   VERIFY_CODES,
 } from "../../../src/compile";
-import { bundledPalettes, loadPalettes } from "../../../src/palette";
+import { bundledPalettes, loadPalettes, measuredRest } from "../../../src/palette";
 import { checkPlayability, resolvePlan } from "../../../src/resolve";
 import { vEdgeIndex } from "../../../src/resolve/levelGrid";
 import { slabCodec } from "../../../src/slab";
@@ -292,6 +292,61 @@ describe("verify: one fixture per code", () => {
       movePlaced(hung, st, 0, 2);
       expect(run(rs, hung, "verify_prop_floating")).toEqual([]);
     }
+  });
+
+  it("verify_prop_floating — a thing set on a piece is judged on its real top surface (generator 6, restSurfaces)", () => {
+    // a workbench (its box reaches its raised back, 0.35 over its work top) and a jug set on it at `lift`
+    const build = (generator: 5 | 6, lift: number | null) => {
+      const r = {
+        ...handPlan([
+          room({
+            features: [
+              { id: "w", type: "counter", at: [2, 1] },
+              ...(lift === null
+                ? []
+                : [
+                    {
+                      id: "t",
+                      type: "clutter" as const,
+                      variant: "table",
+                      at: [2, 1] as const,
+                      blocking: false,
+                      baseHeight: 0.5 + lift,
+                    },
+                  ]),
+            ],
+          }),
+        ]),
+        generator,
+      };
+      return { r, set: realize(r, cat) };
+    };
+    const bench = build(6, null);
+    const w = named(bench.set, "Workbench")[0];
+    if (!w) throw new Error("fixture: a counter is a Workbench");
+    const box = placedBox(bench.set, w);
+    const boxTop = box.max.y - 0.5;
+    const geom = bench.set.placed.get(w)?.geom;
+    const rest = geom ? measuredRest(w.asset, geom) : undefined;
+    if (rest === undefined) throw new Error("fixture: the Workbench is measured");
+    const floating = (g: 5 | 6, lift: number, raise = 0): unknown[] => {
+      const b = build(g, lift);
+      // (raised after realize: generator 6 settles a thing set on the bench onto its work top, compile/realize/settle.ts)
+      const t = b.set.levels.flatMap((l) => l.placements).find((p) => p.source.elementId === "t");
+      if (t && raise !== 0) movePlaced(b.set, t, 0, raise);
+      return run(b.r, b.set, "verify_prop_floating").filter((d) => d.elementId === "t");
+    };
+    // at the box top it hangs over the work top; on the work top it stands (and stands in no other piece's spot)
+    expect(floating(6, rest, boxTop - rest)).toHaveLength(1);
+    expect(floating(6, rest)).toEqual([]);
+    // set at the box top, realize settles it on the work top
+    expect(floating(6, boxTop)).toEqual([]);
+    const onTop = build(6, rest);
+    expect(run(onTop.r, onTop.set, "verify_props_overlap").filter((d) => d.severity === "warning")).toEqual(
+      [],
+    );
+    // the released generators judge by the box top, as they placed by it
+    expect(floating(5, boxTop)).toEqual([]);
   });
 
   it("verify_prop_no_floor — a prop over a hole", () => {

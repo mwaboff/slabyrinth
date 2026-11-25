@@ -3,8 +3,8 @@
  * and tier, the range skilled builds fall in, where that range comes from and how much to trust it, and whether it is
  * meant to become a hard rule. The slab tier is computed in review/qualitySlab.ts (placed pieces only, so it runs on any
  * decoded slab); the map tier in review/qualityMap.ts (it needs the resolved map). The CLI's `quality` command prints
- * this table beside a build's values, and the generator-5 golden keeps a baseline of them per fixture plan
- * (test/golden/generator5/__golden__/generator5.quality.txt), so a later change shows its effect as a diff.
+ * this table beside a build's values, and the open generator-6 golden keeps a baseline of them per fixture plan
+ * (test/golden/generator6/__golden__/generator6.quality.txt), so a later change shows its effect as a diff.
  *
  * Targets. Slab-tier ranges were measured with this meter on the community training slabs (the decoded sets outside the
  * repo; only aggregate ranges come here): the range of the seven hand-built buildings, rounded outward, which is what

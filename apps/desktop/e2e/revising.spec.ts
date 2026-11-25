@@ -74,6 +74,9 @@ test("a revision in progress shows in the chat, stepper, map, status bar and Sto
     await composer.fill("A crypt under a ruined abbey");
     await composer.press("Enter");
     await expect(page.getByRole("button", { name: /Approve plan v1/ })).toBeVisible({ timeout: 30_000 });
+    // the first turn goes on after v1 exists (Claude's 3D look at its first draft, then its reply): let it end
+    await expect(page.locator(".working")).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.getByText(/Claude looked at the map in 3D/)).toBeVisible();
 
     await composer.fill("Write notes for the guardroom");
     await composer.press("Enter");

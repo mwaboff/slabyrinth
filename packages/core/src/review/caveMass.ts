@@ -24,6 +24,7 @@ import type { DesignNote } from "./review";
 import type { ReviewBuild } from "./reviewBuild";
 import { REVIEW, ROCK_FAMILIES, ROCK_TONE_GROUPS, over } from "./thresholds";
 import { pushAll } from "../util/lists";
+import { turnedHalfExtents } from "../util/turn";
 
 export type MassRole = "column" | "mass" | "cap" | "toe";
 
@@ -382,6 +383,7 @@ export function massPiecesOf(
           if (!geoms.has(u)) geoms.set(u, { geom: g, name: v.name ?? u });
       }
   const hg = resolved.levels.reduce((m, l) => Math.max(m, l.bounds.y + l.bounds.h), 0);
+  const profile = generatorProfile(resolved);
   const out: MassPiece[] = [];
   for (const lv of set.levels) {
     if (lv.levelId !== levelId) continue;
@@ -393,7 +395,7 @@ export function massPiecesOf(
       const cw = p.rot * orientation.rotSense;
       // generator 4: a fill column is a corner-origin block turned in quarter turns, which stays on its own cell
       // (compile/geometry.ts placementBox); turning it about its corner would put it on the neighbouring cell
-      if (role === "column" && generatorProfile(resolved).solidCaveRock && g.geom.originAt === "minCorner") {
+      if (role === "column" && profile.solidCaveRock && g.geom.originAt === "minCorner") {
         const box = placementBox(g.geom, p.x, p.y, p.z, cw);
         const corner = (wx: number, wz: number): readonly [number, number] => [
           wx,
@@ -415,7 +417,12 @@ export function massPiecesOf(
         });
         continue;
       }
-      const c = rotateXZ(g.geom.boundsCenter.x, g.geom.boundsCenter.z, cw);
+      // generator 6 (`tilesStoredByFootprint`): a tile is stored at its turned footprint's min corner at every turn
+      // (compile/geometry.ts placementBox): its outline turns about that footprint's centre
+      const c =
+        g.geom.originAt === "minCorner" && profile.tilesStoredByFootprint
+          ? turnedHalfExtents(g.geom.size.x, g.geom.size.z, cw)
+          : rotateXZ(g.geom.boundsCenter.x, g.geom.boundsCenter.z, cw);
       const hx = g.geom.size.x / 2;
       const hz = g.geom.size.z / 2;
       const poly = (

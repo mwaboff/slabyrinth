@@ -460,6 +460,22 @@
   color: var(--muted);
 }
 
+/* Claude looked at the map in 3D: a quiet line, the picture on request */
+.look3d__line {
+  margin: 0;
+  font: var(--t-small);
+  color: var(--muted);
+}
+
+.look3d__img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-top: 6px;
+  border: var(--line-w) solid var(--line);
+  border-radius: var(--r-4);
+}
+
 .buildcard__p,
 .recap__p {
   font: 400 14px/21px var(--f-ui);
@@ -479,6 +495,20 @@
   font: 400 14px/21px var(--f-ui);
   color: var(--ink-2);
   margin-top: var(--s6);
+}
+
+.limitcard__icon {
+  color: var(--ink-2);
+}
+
+.limitcard__body {
+  font: 400 14px/21px var(--f-ui);
+  color: var(--ink-2);
+  margin-top: var(--s6);
+}
+
+.limitcard__settings {
+  margin-left: auto;
 }
 
 .errcard__details {

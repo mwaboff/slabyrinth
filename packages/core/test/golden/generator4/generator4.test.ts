@@ -10,7 +10,7 @@
  * slabs, or the error: FROZEN_FIELDS) and in what it built (the detail lines: pieces, layers, parts, features and
  * diagnostic codes). The design review is advice, not the build, so the review fields and review detail lines are not
  * compared (review policy, src/plan/generator.ts). The runs at generators 1 to 3 in the file are pinned by the open
- * golden (generator5/) and the generator-2 and generator-3 goldens.
+ * golden (generator6/) and the generator-2 and generator-3 goldens.
  *
  * The palettes generator 4 sees are pinned by test/fixtures/released-palettes-0.3.0.json
  * (test/unit/palette/released.test.ts); sp-1.13.0, dp-1.3.0 and tools-1.9.0 by test/unit/agent/tools.test.ts.

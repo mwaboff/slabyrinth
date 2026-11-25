@@ -7,6 +7,13 @@ export { resolvePlan, resolvedHash, canonicalResolved, type ResolveOptions } fro
 export { geometryChecks, reachableCells, type GeometryCheckContext } from "./validate";
 export { traceRings, ringArea, type Ring } from "./trace";
 export { themeDefaults, type ThemeDefaults } from "./themes";
+// a resolved level read by cell, and what a material is (read by scene3d's colour classes)
+export { LevelGrid } from "./levelGrid";
+export { materialInfo, type MaterialInfo } from "./materials";
+// objects placed on a plan (vessels): what the render tool builds the harbour with
+export { resolveWithObjects, type ObjectSite, type ObjectSpec } from "./objectSite";
+// a resolved element's light, condition and wealth (scene checks: a ruin's walls are broken by design)
+export { elementCharacter } from "./character";
 // The rules plan validation and applyOps take as an argument (geometry check, materialize generator).
 export {
   planRules,

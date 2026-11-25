@@ -6,6 +6,7 @@ import { useBuild } from "../stores/build";
 import { useChat } from "../stores/chat";
 import { useMap, ZOOM_STEPS } from "../stores/map";
 import { orderedLevels, phaseOf, useProject } from "../stores/project";
+import { useView3d } from "../stores/view3d";
 import { inTextField } from "../ui/dismiss";
 import { copyRoomKey, goHome, newProject, openProject, redo, run, undo } from "./actions";
 import { toggleTheme } from "./theme";
@@ -33,9 +34,27 @@ function stepZoom(dir: 1 | -1): void {
   window.dispatchEvent(new CustomEvent("slab:zoom", { detail: next }));
 }
 
+/**
+ * PgUp/PgDn and Alt+1…9. On the 3D tab they step through its level tabs ("All levels", then each level: show up to
+ * it), so the keys move what the tabs show; elsewhere they switch the Map's level.
+ */
 function switchLevel(delta: number | { index: number }): void {
   const plan = useProject.getState().snap?.plan ?? null;
   const levels = orderedLevels(plan);
+  if (useMap.getState().tab === "3d") {
+    const v = useView3d.getState();
+    // -1: "All levels" (before the first level tab)
+    const cur = v.cutLevelId === null ? -1 : levels.findIndex((l) => l.id === v.cutLevelId);
+    const i =
+      typeof delta === "number" ? Math.max(-1, Math.min(levels.length - 1, cur + delta)) : delta.index;
+    if (i === -1) v.setCutLevel(null);
+    const target = levels[i];
+    if (target) {
+      v.setCutLevel(target.id);
+      useMap.getState().setLevel(target.id);
+    }
+    return;
+  }
   const cur = levels.findIndex((l) => l.id === useMap.getState().levelId);
   const i = typeof delta === "number" ? cur + delta : delta.index;
   const target = levels[i];
@@ -124,6 +143,16 @@ export const COMMANDS: Command[] = [
     enabled: inProject,
     run: () => {
       useMap.getState().setTab("map");
+    },
+  },
+  {
+    id: "tab3d",
+    group: "View",
+    label: "3D",
+    keys: "Ctrl+3",
+    enabled: () => inProject() && hasPlan(),
+    run: () => {
+      useMap.getState().setTab("3d");
     },
   },
   {
@@ -332,6 +361,15 @@ export function useShortcuts(): void {
         e.preventDefault();
         useApp.getState().toggleChat(true);
         useChat.getState().focusComposer();
+        return;
+      }
+      if (!typing && inProject() && useMap.getState().tab === "3d") {
+        // the 3D view's own keys are handled on its canvas; R works anywhere on the tab
+        if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          const v = useView3d.getState();
+          v.setRoofsHidden(!v.roofsHidden);
+        }
         return;
       }
       if (!typing && inProject()) {

@@ -14,5 +14,9 @@
     "scripts/**/*.ts",
     "electron.vite.config.ts"
   ],
-  "references": [{ "path": "../../packages/core" }, { "path": "../../packages/core/tsconfig.test.json" }]
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/core/tsconfig.test.json" },
+    { "path": "../../packages/scene3d" }
+  ]
 }

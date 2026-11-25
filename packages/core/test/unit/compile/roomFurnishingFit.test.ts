@@ -19,7 +19,7 @@ const PLACED = /^verify_prop_(in_wall|floating|no_floor|sunk)$/;
 
 describe("room furniture by the walls (generator 5)", () => {
   it.each(SEEDS)("multi-level-stairs at seed %i: no room piece in a wall or floating", (seed) => {
-    const plan = sweepPlan("multi-level-stairs", seed);
+    const plan = sweepPlan("multi-level-stairs", seed, 5);
     expect(plan.generator).toBe(5);
     const d = compileResolved(resolvePlan(plan, pal), pal, slabCodec, { createdAt: "t", plan }).diagnostics;
     const room = d.filter((x) => PLACED.test(x.code) && x.message.includes("~room"));

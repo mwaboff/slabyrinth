@@ -43,10 +43,13 @@ export default defineConfig(({ command, mode }) => {
         outDir: here(`./${outRoot}/main`),
         externalizeDeps: false,
         rolldownOptions: {
-          // compile.worker runs core's compiler in a worker_thread (out/main/compile.worker.js).
+          // compile.worker runs core's compiler in a worker_thread (out/main/compile.worker.js); scene.worker lays
+          // out 3D scenes and renders their pictures, mesh.worker reads pieces' shapes into the cache.
           input: {
             index: here("./src/main/index.ts"),
             "compile.worker": here("./src/main/workers/compile.worker.ts"),
+            "scene.worker": here("./src/main/workers/scene.worker.ts"),
+            "mesh.worker": here("./src/main/workers/mesh.worker.ts"),
           },
         },
       },

@@ -59,6 +59,9 @@ import {
 } from "../review/index";
 import { hostSteamHints, nodeReadonlyFs } from "./nodeFs";
 
+// the Node ports, shared with the render command (packages/render-cli)
+export { hostSteamHints, nodeReadonlyFs };
+
 export interface CliIo {
   out: (s: string) => void;
   err: (s: string) => void;

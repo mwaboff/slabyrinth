@@ -40,6 +40,7 @@ import { transform } from "../arrange/transform";
 import { hashUnitMixed } from "../util/hash";
 import { maxOf, minOf, pushAll } from "../util/lists";
 import { pieceFacts } from "../gen/pieceFacts";
+import { generatorProfile } from "../plan/generator";
 import { floorOver, wholeCellKeys } from "./deck";
 import { kitOr, type ObjectKit } from "./kit";
 import { yawFacing } from "./facing";
@@ -60,6 +61,7 @@ import {
   part,
   piecesOf,
   turnDraft,
+  type BuiltObject,
   type Condition,
   type Draft,
   type ObjectParams,
@@ -658,12 +660,19 @@ function kitHullParts(d: VesselDesign, kit: ObjectKit, h: KitHull): Part[] {
   const bowRail = kit.piece("shipRailBow");
   const zr = hb - KIT_RAIL / 2;
   const rail: Placed[] = [];
+  // generator 6 (`railedDeckEdges`): a rail is open only where a way crosses it: the run on the gangway's side is laid
+  // up to its cell and on from it (short pieces close the rest), not laid whole and cut by whole pieces after
+  const railed = generatorProfile(kit.generator).railedDeckEdges;
+  const g = railed ? d.gangway : null;
+  const run = (a: number, b: number, yy: number, side: 1 | -1, yaw: number): Placed[] =>
+    g && g.side === side && g.x > a && g.x < b
+      ? [
+          ...tileRun(rails, a, g.x - 0.5, yy, side * zr, yaw),
+          ...tileRun(rails, g.x + 0.5, b, yy, side * zr, yaw),
+        ]
+      : tileRun(rails, a, b, yy, side * zr, yaw);
   const sides = (a: number, b: number, yy: number): void => {
-    pushAll(
-      rail,
-      tileRun(rails, a, b, yy, zr, F.facePortYaw),
-      tileRun(rails, a, b, yy, -zr, F.facePortYaw + 180),
-    );
+    pushAll(rail, run(a, b, yy, 1, F.facePortYaw), run(a, b, yy, -1, F.facePortYaw + 180));
   };
   const bowStart = half - h.end;
   const aftX = d.aft?.x ?? -half;
@@ -675,16 +684,22 @@ function kitHullParts(d: VesselDesign, kit: ObjectKit, h: KitHull): Part[] {
       at(bowRail, xb, rim, hb - h.half / 2, F.bowFenceYaw),
       at(bowRail, xb, rim, -hb + h.half / 2, F.bowFenceYaw + F.bowRailStarboardTurn),
     );
-  const sternRail = (yy: number, from: number): void => {
+  // a rail across the hull at station `x` (its outer face toward the stern, `toward` -1, or the bow, +1)
+  const crossRail = (x: number, yy: number, from: number, toward: 1 | -1): void => {
+    // generator 6 (`railedDeckEdges`): the side's short pieces close what the cross pieces leave at the end
+    const pool = railStern.length > 0 ? (railed ? [...railStern, ...rails] : railStern) : rails;
     for (let z = -from; z < from - 0.01;) {
-      const p = [...(railStern.length > 0 ? railStern : rails)]
+      const p = [...pool]
         .sort((a, b) => b.measures.length - a.measures.length)
         .find((q) => z + q.measures.length <= from + 0.01);
       if (!p) break;
-      // (the port face's turn a quarter back: the face toward the stern)
-      rail.push(at(p, -half + KIT_RAIL / 2, yy, z + p.measures.length / 2, F.facePortYaw - 90));
+      // (the port face's turn a quarter back: the face toward the stern; a quarter on: toward the bow)
+      rail.push(at(p, x, yy, z + p.measures.length / 2, F.facePortYaw + 90 * toward));
       z += p.measures.length;
     }
+  };
+  const sternRail = (yy: number, from: number): void => {
+    crossRail(-half + KIT_RAIL / 2, yy, from, -1);
   };
   const parts: Part[] = [];
   if (d.aft) {
@@ -712,6 +727,10 @@ function kitHullParts(d: VesselDesign, kit: ObjectKit, h: KitHull): Part[] {
     if (walls.length > 0) parts.push(part("raised sides", "mass", walls));
     sides(-half, aftX, top);
     sternRail(top, hb - KIT_RAIL);
+    // generator 6 (`railedDeckEdges`): every edge of a raised walking surface with a drop below it is railed, so the
+    // raised deck's break over the main deck too (its ladder comes up through the deck, not across this edge)
+    if (generatorProfile(kit.generator).railedDeckEdges)
+      crossRail(aftX - KIT_RAIL / 2, top, hb - KIT_RAIL, 1);
   } else sternRail(d.deck, hb - KIT_RAIL);
   const kept = rail.filter((q) => !inGangway(d, q));
   return [
@@ -848,6 +867,27 @@ function hullParts(d: VesselDesign, kit: ObjectKit, lod: number): Part[] {
       ),
     );
   return parts;
+}
+
+/**
+ * How long a stretch of a built vessel's rail a way one cell wide crossing it at station `x` on `side` (+1 port) takes
+ * away: every rail piece (the `face` slot) it meets goes whole, so a way across a long piece (the curved bow fence)
+ * leaves a long open edge (objects/facing.ts WAY_GAP is the most a way may open). In the built object's frame: the recipe's turn of -90 puts the stations on +z and the port
+ * side on -x.
+ */
+export function bulwarkOpening(obj: BuiltObject, x: number, side: 1 | -1): number {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const p of obj.parts) {
+    if (p.slot !== "face") continue;
+    for (const q of p.pieces) {
+      const b = placedBox(q);
+      if (b.max.z <= x - 0.5 || b.min.z >= x + 0.5 || -side * (b.min.x + b.max.x) <= 0) continue;
+      lo = Math.min(lo, b.min.z);
+      hi = Math.max(hi, b.max.z);
+    }
+  }
+  return hi > lo ? hi - lo : 0;
 }
 
 /**

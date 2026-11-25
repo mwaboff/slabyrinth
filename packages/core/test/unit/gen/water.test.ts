@@ -24,7 +24,7 @@ function grid(generator: number): PlacementGrid {
     edge: () => 0,
     height: (x, y) => (isWaterCell(x, y) ? -1 : 0),
     generator,
-    pieceExtent: (t) => (t === "cliff_crest" ? { w: 1.5, d: 1.8, h: 1.62 } : undefined),
+    pieceExtent: (t) => (t === "cliff_crest" ? { w: 1.5, d: 1.8, h: 1.62, rest: 1.62 } : undefined),
     pieceSize: (t) => (t === "cliff_crest" ? { w: 2, d: 2, h: 1.62 } : undefined),
   };
 }

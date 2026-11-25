@@ -14,6 +14,7 @@ import type {
   AskQuestionsInput,
   CompilePreviewInput,
   ListCatalogInput,
+  Render3dRequest,
   ToolName,
   UpdateBriefInput,
   ViewMapImageInput,
@@ -174,6 +175,17 @@ const ViewMapImageSchema = z.strictObject({
   showIds: z.boolean().optional(),
 });
 
+/** A 3D view by name: a whole-map kind, or a kind and the level or element it is of ("front:inn"). */
+const ShotNameSchema = z.union([
+  z.enum(["overview", "flagged", "changed"]),
+  z.string().regex(/^(level|front|interior):\S+$/),
+]);
+
+const ViewBuild3dSchema = z.strictObject({
+  shots: z.array(ShotNameSchema).min(1).max(4).optional(),
+  max: z.int().min(1).max(4).optional(),
+});
+
 const CompilePreviewSchema = z.strictObject({ levels: z.array(z.string()).max(8).optional() });
 
 const ListCatalogSchema = z.strictObject({
@@ -202,6 +214,7 @@ export interface ToolInputs {
   edit_plan: EditPlanValidated;
   view_plan: ViewPlanInput;
   view_map_image: ViewMapImageInput;
+  view_build_3d: Render3dRequest;
   compile_preview: CompilePreviewInput;
   list_catalog: ListCatalogInput;
 }
@@ -215,6 +228,7 @@ export const TOOL_INPUT_SCHEMAS: { readonly [K in ToolName]: z.ZodType } = {
   edit_plan: EditPlanSchema,
   view_plan: ViewPlanSchema,
   view_map_image: ViewMapImageSchema,
+  view_build_3d: ViewBuild3dSchema,
   compile_preview: CompilePreviewSchema,
   list_catalog: ListCatalogSchema,
 };
@@ -248,6 +262,9 @@ export function validateToolInput<K extends ToolName>(name: K, input: unknown): 
     const m = name === "edit_plan" ? /^\/ops\/(\d+)/.exec(pi.path ?? "") : null;
     if (m?.[1] !== undefined) e.op = Number(m[1]);
     if (name === "list_catalog" || name === "view_plan") addEnumHint(e, issue);
+    if (name === "view_build_3d" && (e.path ?? "").startsWith("/shots/"))
+      e.hint =
+        "a view is overview, flagged, changed, level:<level id>, front:<element id> or interior:<element id>";
     return e;
   });
   return { ok: false, errors };

@@ -21,11 +21,45 @@ export function turned(v: XZ, yaw: number): XZ {
   return [v[0] * c + v[1] * s, -v[0] * s + v[1] * c];
 }
 
-/** The piece's front at rot 0, or null when the facts give it none. */
-export function frontOf(piece: ArrangePiece): XZ | null {
+/** A piece's front at rot 0 by its name (+z north), or null when the facts give it none. */
+export function frontVector(name: string | undefined): XZ | null {
   // the one source realize reads too (gen/pieceFacts.ts `frontSide`)
-  const s = frontSide(piece.variant.name);
+  const s = frontSide(name);
   return s ? SIDE[s] : null;
+}
+
+/** The piece's front at rot 0, or null when the facts give it none. */
+export const frontOf = (piece: ArrangePiece): XZ | null => frontVector(piece.variant.name);
+
+/**
+ * The facing rule's numbers: a front faces the way its job says when its cosine with that way is above `cos` (within 60
+ * degrees); a piece within `centre` of its body's centre line has no outward way to face.
+ */
+export const FACING = { cos: 0.5, centre: 0.25 } as const;
+
+/** A body's centre line: through `centre`, along unit `travel`, reaching `reach` either way of the centre. */
+export interface BodyLine {
+  readonly centre: XZ;
+  readonly travel: XZ;
+  readonly reach: number;
+}
+
+/**
+ * How well a front (a unit vector, as the piece stands) faces where its job says, as a cosine: a "travel" front with
+ * the body's travel, an "outboard" front with the way out from the body's centre line at the piece's point `at`. Null
+ * when an outboard piece stands on the centre line (no way out). A cosine at most `FACING.cos` is a fault. The one
+ * rule a recipe is held to (`facingFaults`) and the 3D scene's facing check measures.
+ */
+export function frontCosine(faces: "outboard" | "travel", front: XZ, at: XZ, line: BodyLine): number | null {
+  const [tx, tz] = line.travel;
+  if (faces === "travel") return front[0] * tx + front[1] * tz;
+  const along = (at[0] - line.centre[0]) * tx + (at[1] - line.centre[1]) * tz;
+  const t = Math.min(line.reach, Math.max(-line.reach, along));
+  const dx = at[0] - (line.centre[0] + tx * t);
+  const dz = at[1] - (line.centre[1] + tz * t);
+  const n = Math.hypot(dx, dz);
+  if (n <= FACING.centre) return null;
+  return (front[0] * dx + front[1] * dz) / n;
 }
 
 /**
@@ -62,22 +96,24 @@ export function facingFaults(obj: BuiltObject, travel: XZ = [0, 1]): string[] {
   const length = maxOf(a) - minOf(a);
   const width = maxOf(c) - minOf(c);
   const mid = (maxOf(a) + minOf(a)) / 2;
-  const reach = Math.max(0, (length - width) / 2);
+  // the object's frame puts its centre line through the origin, across the travel
+  const line: BodyLine = {
+    centre: [mid * travel[0], mid * travel[1]],
+    travel,
+    reach: Math.max(0, (length - width) / 2),
+  };
   const out: string[] = [];
   for (const q of piecesOf(obj)) {
     const fact = pieceFacts(q.piece.variant.name).front;
     const f0 = frontOf(q.piece);
     if (!fact || !f0) continue;
-    const f = turned(f0, q.yaw);
-    if (fact.faces === "travel") {
-      if (along(f) <= 0.5) out.push(`${q.piece.variant.name} faces against travel`);
-      continue;
-    }
-    const t = Math.min(mid + reach, Math.max(mid - reach, along([q.x, q.z])));
-    const d: XZ = [q.x - t * travel[0], q.z - t * travel[1]];
-    const n = Math.hypot(d[0], d[1]);
-    if (n > 0.25 && (f[0] * d[0] + f[1] * d[1]) / n <= 0.5)
-      out.push(`${q.piece.variant.name} points at the body`);
+    const cos = frontCosine(fact.faces, turned(f0, q.yaw), [q.x, q.z], line);
+    if (cos === null || cos > FACING.cos) continue;
+    out.push(
+      fact.faces === "travel"
+        ? `${q.piece.variant.name} faces against travel`
+        : `${q.piece.variant.name} points at the body`,
+    );
   }
   return out;
 }
@@ -106,6 +142,76 @@ export function uncappedCells(obj: BuiltObject, y: number, rim = 0.5): string[] 
       if (!inBody) continue;
       if (!at.some((s) => insideOrNear(s.polygon, c[0], c[1], 0.02))) out.push(`${x},${z}`);
     }
+  return out;
+}
+
+/** A walking surface's edge drops when what lies past it is this far or more below (tiles): a fall, not a step. */
+export const FALL_DROP = 1;
+/** A way across a rail (a gangway, a ladder's head) leaves it open this far at most: its cell and one short piece. */
+export const WAY_GAP = 2.05;
+
+/**
+ * A built object's raised walking surfaces with open edges: each stretch of a surface's outline over a drop (nothing
+ * past it, or only a surface FALL_DROP or more below) where no rail stands (a `face` piece, or a wall of the `mass`
+ * slot, rising over the surface along the edge), longer than one way across it (WAY_GAP). A deck, a platform, a
+ * balcony, a raised deck's break: any object's, whatever recipe built it. Stretches are "<surface> <from>-<to>" in
+ * outline order (tiles along the edge).
+ */
+export function openDeckEdges(obj: BuiltObject): string[] {
+  const step = 0.1;
+  const out: string[] = [];
+  const guards = obj.parts
+    .filter((p) => p.slot === "face" || p.slot === "mass")
+    .flatMap((p) => p.pieces.map((q) => placedBox(q)));
+  for (const s of obj.surfaces) {
+    // a surface on the ground has nothing to fall from
+    if (s.y < FALL_DROP) continue;
+    const n = s.polygon.length;
+    let run = 0;
+    let runFrom = 0;
+    let along = 0;
+    const close = (): void => {
+      if (run > WAY_GAP) out.push(`${s.id} ${runFrom.toFixed(1)}-${(runFrom + run).toFixed(1)}`);
+      run = 0;
+    };
+    for (let i = 0; i < n; i++) {
+      const a = s.polygon[i] as XZ;
+      const b = s.polygon[(i + 1) % n] as XZ;
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (len < 1e-6) continue;
+      // the outward normal of a counter-clockwise or clockwise outline: the side the centre is not on
+      const ux = (b[0] - a[0]) / len;
+      const uz = (b[1] - a[1]) / len;
+      for (let t = step / 2; t < len; t += step) {
+        const px = a[0] + ux * t;
+        const pz = a[1] + uz * t;
+        let nx = uz;
+        let nz = -ux;
+        if (insideOrNear(s.polygon, px + nx * 0.05, pz + nz * 0.05, 0)) {
+          nx = -nx;
+          nz = -nz;
+        }
+        const ox = px + nx * 0.3;
+        const oz = pz + nz * 0.3;
+        const drop = !obj.surfaces.some(
+          (q) => q !== s && q.y > s.y - FALL_DROP && insideOrNear(q.polygon, ox, oz, 0.02),
+        );
+        const railed = guards.some(
+          (g) =>
+            g.min.y < s.y + 0.9 &&
+            g.max.y > s.y + 0.3 &&
+            Math.max(g.min.x - px, 0, px - g.max.x) < 0.35 &&
+            Math.max(g.min.z - pz, 0, pz - g.max.z) < 0.35,
+        );
+        if (drop && !railed) {
+          if (run === 0) runFrom = along + t;
+          run += step;
+        } else if (run > 0) close();
+      }
+      along += len;
+    }
+    close();
+  }
   return out;
 }
 

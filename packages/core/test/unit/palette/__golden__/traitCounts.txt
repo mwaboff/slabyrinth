@@ -1,4 +1,4 @@
-generator 5; borrowable pieces of each trait (risky roles left out, one per asset)
+generator 6; borrowable pieces of each trait (risky roles left out, one per asset)
 
 theme             beam              post              panel             slab              block             clutter           mass
 cave              5                 18                12                28                14                3                 15

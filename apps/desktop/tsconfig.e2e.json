@@ -21,5 +21,5 @@
     "src/main/services/talespire/link/testing/*.ts",
     "src/renderer/bridge/fake/talespireLink.ts"
   ],
-  "references": [{ "path": "../../packages/core" }]
+  "references": [{ "path": "../../packages/core" }, { "path": "../../packages/scene3d" }]
 }

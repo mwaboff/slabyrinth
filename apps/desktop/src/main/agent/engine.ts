@@ -30,7 +30,12 @@ import {
   type ToolOutcome,
   type UpdateBriefInput,
   checkPlan,
+  conversationHasTool,
   outstandingIssues,
+  PICTURE_BUDGET_CODE,
+  picturesContent,
+  type Render3dShot,
+  type ToolResultContent,
 } from "@slabyrinth/core/agent";
 import type { DesignBrief, MapPlan, ValidationResult } from "@slabyrinth/core/contracts/plan";
 import type { SizeTierId } from "@slabyrinth/core/plan";
@@ -39,12 +44,14 @@ import { resolvePlan } from "@slabyrinth/core/resolve";
 import { outlineView } from "@slabyrinth/core/text";
 import type { AppError, ChatEvent, IpcRequests } from "../../shared/ipc";
 import type { ChatMessageMeta, Conversation, ProjectFile } from "../../shared/project";
+import { agentSettings } from "../../shared/agentSettings";
 import { activeSizeTier, checkSecondsPerStep } from "../../shared/sizeTier";
 import { redactString } from "../logger";
 import { EnginePortError, type ConversationEngine, type EngineHost } from "../ports/engine";
 import { DEADLINES, withDeadline } from "../util/deadline";
 import { ZERO_USAGE, addCost, addUsage, costOf, promptTokens, ratesFor } from "./cost";
 import { errorInfo, isRetryableKind } from "./provider/errors";
+import { CACHE_COLD_MS, SHEET_TOKENS, hadFirstDraft, hasStalePictures, trimStalePictures } from "./pictures";
 import { SIZE_TIER_PREFIX, sizeTierText, withSizeTier } from "./sizeTierText";
 import { createDefaultRegistry } from "./provider/registry";
 import { EFFORT_LEVELS } from "./provider/types";
@@ -89,6 +96,8 @@ export interface EngineOptions {
   /** Abortable sleep (tests pass a fast one). */
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   random32?: () => number;
+  /** How long without a request before the prompt cache counts as cold for trimming pictures (tests pass 0). */
+  cacheColdMs?: number;
 }
 
 const defaultSleep = (ms: number, signal: AbortSignal): Promise<void> =>
@@ -169,6 +178,15 @@ interface TurnState {
   usage: Usage;
   cost: Cost | null;
   versions: number[];
+  /**
+   * Plan versions the model may commit in this turn before the app stops between steps and asks the GM
+   * (AppSettings.agent.maxRevisionsPerTurn, or the chat:continue allowance), read once when the turn starts.
+   */
+  revisionLimit: number;
+  /** 3D pictures the model took in this turn (AppSettings.agent.maxPicturesPerTurn is the most). */
+  pictures: number;
+  /** The first-draft look was taken in this turn (two create_plan calls in one step get one look). */
+  firstLookTaken?: boolean;
   /** Earlier attempts carried over by Retry (UX §5.6). */
   alternatives?: ChatMessageMeta["alternatives"];
   lastAssistantId: string | null;
@@ -201,6 +219,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
   private readonly now: () => Date;
   private readonly sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   private readonly random32: () => number;
+  private readonly cacheColdMs: number;
   /** Plan validation against the build's palettes (the engine guard's outstanding issues). */
   private readonly validate: (p: unknown) => ValidationResult;
   private running: RunningTurn | null = null;
@@ -236,6 +255,24 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     this.now = opts.now ?? (() => new Date());
     this.sleep = opts.sleep ?? defaultSleep;
     this.random32 = opts.random32 ?? (() => Math.floor(Math.random() * 0xffffffff));
+    this.cacheColdMs = opts.cacheColdMs ?? CACHE_COLD_MS;
+  }
+
+  /**
+   * At the start of a message, the 3D pictures that show a version older than the head are replaced by their captions
+   * (agent/pictures.ts says when, and what it costs the prompt cache). Never mid-turn.
+   */
+  private trimPictures(conversationId: string): void {
+    const head = this.project().history.head;
+    const conv = this.project().conversations.find((c) => c.id === conversationId);
+    if (!conv || !hasStalePictures(conv.items, head)) return;
+    const last = this.lastRequestAt.get(conversationId);
+    const cold = last === undefined || this.now().getTime() - last >= this.cacheColdMs;
+    let n = 0;
+    this.host.updateConversation(conversationId, (c) => {
+      n = trimStalePictures(c.items, head, cold);
+    });
+    if (n > 0) this.host.logger.debug("older 3D pictures replaced by their captions", { pictures: n, cold });
   }
 
   // ───────────────────────────── helpers ─────────────────────────────
@@ -423,7 +460,11 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     return this.exclusive(() => this.sendUnlocked(req));
   }
 
-  private async sendUnlocked(req: IpcRequests["chat:send"]["req"]): Promise<{ turnId: string }> {
+  /** allowance: this turn's revision limit (chat:continue); absent = the settings value. */
+  private async sendUnlocked(
+    req: IpcRequests["chat:send"]["req"],
+    allowance?: number,
+  ): Promise<{ turnId: string }> {
     const conv = this.conversation();
     if (conv.archived)
       throw new EnginePortError({
@@ -503,6 +544,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       descriptor,
       initialItems: items,
       intent,
+      ...(allowance !== undefined ? { allowance } : {}),
     });
   }
 
@@ -622,8 +664,11 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     descriptor: ModelDescriptor | undefined;
     initialItems: ChatItem[];
     intent: "chat" | "plan";
+    /** The turn's revision limit when it is not the settings value ("Keep going"). */
+    allowance?: number;
   }): Promise<{ turnId: string }> {
     const abort = new AbortController();
+    this.trimPictures(args.conversationId);
     this.host.setBusy({ turnId: args.turnId });
     this.emit({ type: "turn_started", turnId: args.turnId, selection: args.selection });
     this.append(args.conversationId, args.turnId, args.initialItems);
@@ -645,6 +690,8 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       usage: ZERO_USAGE,
       cost: null,
       versions: [],
+      revisionLimit: args.allowance ?? agentSettings(this.host.getSettings()).maxRevisionsPerTurn,
+      pictures: 0,
       lastAssistantId: null,
     };
     if (this.pendingAlternatives?.conversationId === args.conversationId) {
@@ -692,7 +739,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
           type: "notice",
           turnId: t.turnId,
           kind: "truncated",
-          text: "Stopped after many steps in one turn. Send a message to continue.",
+          text: "Claude has worked through many steps for this message and paused. Send a message to keep going.",
         });
         this.finish(t, "end_turn", false);
         return;
@@ -701,7 +748,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       const sink = this.stepSink(t, loop.steps);
       let result: StepResult;
       try {
-        this.lastRequestAt.set(t.conversationId, Date.now());
+        this.lastRequestAt.set(t.conversationId, this.now().getTime());
         result = await t.provider.runStep(request, sink.onEvent, signal);
       } catch (err) {
         if ((await this.stepFailed(t, err, sink, signal, loop)) === "stop") return;
@@ -835,6 +882,12 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         }
         if (signal.aborted) {
           this.cancelled(t, "");
+          return "stop";
+        }
+        // The revision limit: the model has made its allowance of versions and wants another step. Stop between
+        // steps (every version and tool result is already kept) and let the GM say whether to go on.
+        if (t.versions.length >= t.revisionLimit) {
+          this.finish(t, "revision_limit", false, true);
           return "stop";
         }
         return "continue";
@@ -985,6 +1038,75 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     this.append(t.conversationId, t.turnId, [item, ...extra], { [item.id]: this.meta(t, item, status) });
   }
 
+  /** 3D pictures are on with a budget, the host can make them, the model reads images and the tools offer them. */
+  private picturesAllowed(conv: Readonly<Conversation>, d: ModelDescriptor | undefined): boolean {
+    const settings = agentSettings(this.host.getSettings());
+    return (
+      settings.view3d &&
+      settings.maxPicturesPerTurn > 0 &&
+      this.host.render3d !== undefined &&
+      (d?.imageInput ?? false) &&
+      // the JSON protocol drops images from tool results (core jsonProtocol): no picture would reach the model
+      conv.toolMode === "native" &&
+      conversationHasTool("view_build_3d", conv.imageToolEnabled, conv.toolsVersion)
+    );
+  }
+
+  /**
+   * The model's 3D pictures for this turn: null when 3D is off in Settings, the picture budget is 0, the host has no
+   * scene worker, or the conversation's tools have no view_build_3d (a conversation on a released tools version).
+   * Each picture made counts against the message's budget (a failed one does not); past it the call refuses in plain
+   * words with PICTURE_BUDGET_CODE, which the tool hands back to the model as text.
+   */
+  private render3dFor(t: TurnState, signal: AbortSignal): NonNullable<AgentToolContext["render3d"]> | null {
+    const host = this.host;
+    const conv = this.project().conversations.find((c) => c.id === t.conversationId);
+    if (!conv || !this.picturesAllowed(conv, t.descriptor)) return null;
+    const limit = agentSettings(host.getSettings()).maxPicturesPerTurn;
+    return async (req) => {
+      if (t.pictures >= limit)
+        throw Object.assign(
+          new Error(`no more 3D pictures for this message (the GM allows ${String(limit)} per message)`),
+          { code: PICTURE_BUDGET_CODE },
+        );
+      const r = await (host.render3d?.(req, signal) ??
+        Promise.reject(new Error("3D pictures aren't available right now")));
+      t.pictures++;
+      return r;
+    };
+  }
+
+  /**
+   * The app's one look after a conversation's first draft (generator 6 on: only conversations whose tools offer
+   * view_build_3d): an overview, and up to three levels from above on a map of several levels, inside the message's
+   * picture budget. Appended to the create_plan result. Nothing when pictures are not available, the budget is spent,
+   * the turn was stopped or the scene could not be made (logged): the model can still ask.
+   */
+  private async firstDraftLook(
+    t: TurnState,
+    signal: AbortSignal,
+    plan: MapPlan,
+    version: number,
+  ): Promise<ToolResultContent[]> {
+    const conv = this.project().conversations.find((c) => c.id === t.conversationId);
+    if (!conv || t.firstLookTaken === true || hadFirstDraft(conv.items) || signal.aborted) return [];
+    t.firstLookTaken = true;
+    const render = this.render3dFor(t, signal);
+    if (!render) return [];
+    const levels =
+      plan.levels.length > 1 ? plan.levels.slice(0, 3).map((l): Render3dShot => `level:${l.id}`) : [];
+    const shots: Render3dShot[] = ["overview", ...levels];
+    try {
+      const r = await render({ shots, max: shots.length });
+      return picturesContent(version, r, "first_draft");
+    } catch (err) {
+      this.host.logger.warn("the first-draft 3D look was skipped", {
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return [];
+    }
+  }
+
   private toolContext(t: TurnState, signal: AbortSignal): AgentToolContext {
     const project = this.project();
     const conv = project.conversations.find((c) => c.id === t.conversationId);
@@ -1007,6 +1129,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
             return new Uint8Array(Buffer.from(b64, "base64"));
           }
         : null,
+      render3d: this.render3dFor(t, signal),
       // the turn's signal: Stop ends a running estimate too; a failed or timed-out one is "not available right now"
       estimate: (plan, levels) =>
         this.host.estimateCompile(plan, levels, signal).catch((err: unknown) => {
@@ -1108,6 +1231,10 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
         this.host.updateConversation(t.conversationId, (c) => {
           c.modelSeen.head = commit.version;
         });
+        if (np.cause === "create") {
+          const look = await this.firstDraftLook(t, signal, np.plan, commit.version);
+          if (look.length > 0) outcome = { ...outcome, content: [...outcome.content, ...look] };
+        }
       }
       if (outcome.ok && outcome.newBrief) {
         const before = this.project().brief;
@@ -1271,14 +1398,18 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     const perStep = basis === "history" ? median(sameModel) : OUTPUT_TABLE[intent][effort];
     const steps = STEPS_TABLE[intent];
     const outTokens = perStep * steps;
+    // a conversation's first draft gets the app's one 3D look (also on a map that already has a plan): one sheet
+    // (estimated, agent/pictures.ts) read by the later steps
+    const look =
+      intent === "plan" && !hadFirstDraft(conv.items) && this.picturesAllowed(conv, d) ? SHEET_TOKENS : 0;
     let costUsd: number | null = null;
     if (d?.pricing) {
       const r = ratesFor(d.pricing, context);
       const warm =
-        Date.now() - (this.lastRequestAt.get(conv.id) ?? 0) < 5 * 60 * 1000 &&
+        this.now().getTime() - (this.lastRequestAt.get(conv.id) ?? 0) < 5 * 60 * 1000 &&
         selection.modelId === conv.selection.modelId;
       const firstRead = (context * (warm ? r.cacheRead : r.write5m)) / 1e6;
-      const laterReads = ((steps - 1) * context * r.cacheRead) / 1e6;
+      const laterReads = ((steps - 1) * context * r.cacheRead + look * r.write5m) / 1e6;
       costUsd = roundUp(firstRead + laterReads + (outTokens * r.output) / 1e6, roundCostLadder);
     }
     const tps = TOKENS_PER_SECOND[d?.speedTier ?? 2];
@@ -1435,8 +1566,9 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     }
   }
 
-  async continue(): Promise<{ turnId: string }> {
-    return this.send({ text: CONTINUE_TEXT, intent: "chat" });
+  /** Continue (a cut-off answer, or "Keep going" after the revision limit, with that allowance of versions). */
+  async continue(req: { allowance?: number } = {}): Promise<{ turnId: string }> {
+    return this.exclusive(() => this.sendUnlocked({ text: CONTINUE_TEXT, intent: "chat" }, req.allowance));
   }
 
   selectAlternative(req: IpcRequests["chat:selectAlternative"]["req"]): Promise<void> {

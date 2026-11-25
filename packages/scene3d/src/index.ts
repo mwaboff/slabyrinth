@@ -1,0 +1,116 @@
+/**
+ * @slabyrinth/scene3d public entry: the 3D scene of a build or a slab, the mesh-source port, and the software
+ * renderer. Pure TypeScript (no node:*, no DOM), so the CLI, tests and the app's workers share it.
+ *
+ * The usual run:
+ *   const lookup = pieceLookup(palettes.palettes, catalog);          // names, collider sizes, catalog facts
+ *   const scene = await sceneFromBuild(resolved, placements, lookup, source);   // or sceneFromSlab(assets, …)
+ *   for (const spec of [overviewShot(scene, size), ...levelShots(scene, size)])
+ *     png = encodePng(renderScene(scene, spec));
+ * `source` is a MeshSource: `boxMeshSource()` without an install; with one, `installMeshSource` over the install's
+ * files (the host supplies the bytes and the mesh cache through `InstallFiles` and `MeshCache`).
+ */
+export type * from "./types/index";
+export { cuboid, meshBox } from "./geom/mesh";
+export {
+  REST_GRID,
+  REST_READING,
+  TOP_COVER,
+  meshIdentity,
+  readHangGrid,
+  readRestGrid,
+  readRestSurface,
+  readTopCover,
+} from "./geom/restSurface";
+export type { RestGrid, RestReading, TopCover } from "./geom/restSurface";
+export { COLOUR_CLASSES, colourClass, pieceColour } from "./scene/colour";
+export { pieceClass, roleClass } from "./scene/classify";
+export type { ClassInput, PieceFacts } from "./scene/classify";
+export { pieceLookup } from "./scene/pieces";
+export type { PieceInfo, PieceLookup } from "./scene/pieces";
+export { assembleScene, sceneFromBuild, sceneFromSlab } from "./scene/build";
+export type { SceneOptions, ScenePiece } from "./scene/build";
+export { boxMesh, placementOffset } from "./scene/place";
+export { directionFrom, frameBox, frameableBox, viewBasis } from "./raster/camera";
+export { boxOfPieces, boxesNear, copyBox, storeyOf } from "./geom/box";
+export type { FrameOptions, ViewBasis } from "./raster/camera";
+export { BACKGROUND, LOD_BOX_PX, renderScene, shown, shownBounds } from "./raster/raster";
+export { encodePng } from "./raster/png";
+export { boxMeshSource } from "./source/box";
+export { budgetedSource } from "./source/budget";
+export type { BudgetedSource } from "./source/budget";
+export { EXTRACTOR_VERSION, installMeshSource, unityExtractor } from "./source/install";
+export type {
+  BundleExtractor,
+  InstallMeshSource,
+  InstallSourceOptions,
+  InstallStats,
+  MeshCache,
+} from "./source/install";
+export {
+  MESH_FILE_VERSION,
+  decodeCacheFile,
+  decodeMeshFile,
+  encodeFailureFile,
+  encodeMeshFile,
+  quantised,
+} from "./source/meshFile";
+export type { CacheEntry, MeshFailure } from "./source/meshFile";
+export { indexJsonAssets, readPackIndex } from "./source/packIndex";
+export type { PackAsset, PackIndex } from "./source/packIndex";
+export { DecodeError, UnsupportedFormat } from "./unity/errors";
+export { contactSheet, downscale, drawText, numberedSheet, sheetGrid, textWidth } from "./raster/sheet";
+export type { Picture, SheetOptions } from "./raster/sheet";
+export { levelShots, overviewShot, slug, topShot } from "./shots/presets";
+export type { ShotSize } from "./shots/presets";
+export {
+  MIN_THING_PIECES,
+  SHOT_RULES,
+  frontOf,
+  interiorShots,
+  overviewBearing,
+  planShots,
+  thingsOf,
+} from "./shots/planner";
+export type { Front, PlanOptions, ShotRule, Thing } from "./shots/planner";
+export {
+  MAX_FLAGGED,
+  boxShot,
+  changedShot,
+  chooseShots,
+  flaggedShots,
+  shotsByName,
+  thingById,
+} from "./shots/request";
+export type { ChosenShots, FocusNote, NamedShot, ShotContext, ShotName } from "./shots/request";
+export {
+  CHECK_CODES,
+  CHECK_THRESHOLDS,
+  SCENE_CHECKS,
+  SceneSpace,
+  clusterFindings,
+  clusterShot,
+  compareFindings,
+  findingKey,
+  markedPicture,
+  planFacts,
+  runChecks,
+} from "./checks/index";
+export type {
+  CheckCode,
+  CheckInput,
+  CheckReport,
+  Finding,
+  FindingCluster,
+  FindingPiece,
+  FindingsDiff,
+  Hit,
+  ObjectPlan,
+  PlanBoundary,
+  PlanCell,
+  PlanFacts,
+  PlanObject,
+  PlanPassage,
+  SceneCheck,
+  Severity,
+} from "./checks/index";

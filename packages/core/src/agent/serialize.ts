@@ -18,20 +18,36 @@ const FROZEN_TOOLS: Readonly<Record<string, readonly ToolDefinition[]>> = {
   "tools-1.10.0": TOOLS_1_10_0,
 };
 
+/** The tools whose results are pictures: offered only to a conversation on a model with image input. */
+const PICTURE_TOOLS: ReadonlySet<string> = new Set<ToolName>(["view_map_image", "view_build_3d"]);
+
 /**
- * The frozen tool list for a conversation. `view_map_image` is offered only when the conversation started on a
- * model with image input (architecture §3.3 item 4); the decision is frozen with the conversation. A conversation
- * on a published tools version (`toolsVersion`) gets that version's frozen definitions; otherwise (new
- * conversations, versions before tools-1.7.0) the working TOOL_DEFINITIONS.
+ * The frozen tool list for a conversation. The picture tools (`view_map_image`, and `view_build_3d` from
+ * tools-1.11.0) are offered only when the conversation started on a model with image input (architecture §3.3
+ * item 4); the decision is frozen with the conversation. A conversation on a published tools version
+ * (`toolsVersion`) gets that version's frozen definitions; otherwise (new conversations, versions before
+ * tools-1.7.0) the working TOOL_DEFINITIONS.
  */
 export function toolsForConversation(imageToolEnabled: boolean, toolsVersion?: string): ToolDefinition[] {
   const defs = (toolsVersion !== undefined ? FROZEN_TOOLS[toolsVersion] : undefined) ?? TOOL_DEFINITIONS;
   return defs
-    .filter((t) => imageToolEnabled || t.name !== "view_map_image")
+    .filter((t) => imageToolEnabled || !PICTURE_TOOLS.has(t.name))
     .map((t) => ({
       ...t,
       inputSchema: canonicalSchema(t.inputSchema),
     }));
+}
+
+/**
+ * Whether a conversation's frozen tool list offers `name` (a conversation on a released tools version never sees a
+ * tool added later, and the app never acts as if it had one).
+ */
+export function conversationHasTool(
+  name: ToolName,
+  imageToolEnabled: boolean,
+  toolsVersion?: string,
+): boolean {
+  return toolsForConversation(imageToolEnabled, toolsVersion).some((t) => t.name === name);
 }
 
 /** A deep copy of `schema` whose object keys are in canonical (sorted) order. */

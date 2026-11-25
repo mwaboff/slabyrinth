@@ -23,7 +23,7 @@ const SEEDS = [3154717994, 1514186459, 1035485675, 3450571044, 317434499, 264109
 
 const sunkTrade = (): string[] =>
   SEEDS.flatMap((seed) => {
-    const plan = sweepPlan("market-street-v3", seed);
+    const plan = sweepPlan("market-street-v3", seed, 5);
     return compileResolved(resolvePlan(plan, pal), pal, slabCodec, { createdAt: "t", plan })
       .diagnostics.filter((d) => d.code === "verify_prop_sunk" && (d.elementId ?? "").includes("~trade#"))
       .map((d) => `${String(seed)} ${d.elementId ?? ""}`);

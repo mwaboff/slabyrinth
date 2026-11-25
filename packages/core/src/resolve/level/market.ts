@@ -178,7 +178,7 @@ export function stepMarket(
           size: [1, 1],
           rotFine: rng.int(24) * 15,
           variant: set,
-          lift: ext.h,
+          lift: ext.rest,
           offset: [(rng.next() - 0.5) * 0.3, (rng.next() - 0.5) * 0.3],
         },
         false,

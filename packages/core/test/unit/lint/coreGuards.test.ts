@@ -399,7 +399,7 @@ describe("core guards", () => {
       ).toEqual([]);
       expect(
         await guardHits(
-          "packages/core/test/golden/generator5/update.ts",
+          "packages/core/test/golden/generator6/update.ts",
           'import { writeFileSync } from "node:fs";',
         ),
       ).toEqual([]);

@@ -11,12 +11,15 @@ import { looseShift, looseTurn } from "./order";
 import { ROOM_DRESS, SHELF_FAMILY, SHELF_TOP, type Family } from "./recipes";
 import { type Placed, type Room, clampTo } from "./room";
 
-/** Small things on the top of a support, spread along its length, at its real top height. */
+/**
+ * Small things on the top of a support, spread along its length, at its real top height (its rest surface: the
+ * measured top from generator 6, `restSurfaces`; the box top before).
+ */
 export function addToppers(room: Room, p: Placed, family: Family, rule: SurfaceLoad, stacked: boolean): void {
   const ext = room.piece(p.type, p.variant);
   if (!ext || ext.mixed) return;
   // variants of very different height (a large and a small crate): a thing lifted to one sinks into, or floats over, another
-  if (ext.hMax - ext.h > ROOM_DRESS.heightSpread) return;
+  if (ext.restMax - ext.rest > ROOM_DRESS.heightSpread) return;
   // a second crate on the first (things resting on things): the small variant again, at its top
   if (stacked && rule.stackVariant !== undefined && p.variant === rule.stackVariant) {
     const cx = clampTo(p.centre[0], p.at[0], p.size[0]);
@@ -32,7 +35,7 @@ export function addToppers(room: Room, p: Placed, family: Family, rule: SurfaceL
         rot: 0,
         rotFine: order === undefined ? room.rng.int(24) * 15 : looseTurn(room, order, SIDE_ROT[p.side]),
         variant: rule.stackVariant,
-        lift: ext.hMax,
+        lift: ext.restMax,
         offset:
           shift === null
             ? [
@@ -106,7 +109,7 @@ export function addToppers(room: Room, p: Placed, family: Family, rule: SurfaceL
       rot: 0,
       rotFine: order === undefined ? room.rng.int(24) * 15 : looseTurn(room, order, SIDE_ROT[p.side]),
       variant: family,
-      lift: ext.hMax,
+      lift: ext.restMax,
       offset: [
         Math.max(-0.5, Math.min(0.5, px - (cx + 0.5))),
         Math.max(-0.5, Math.min(0.5, py - (cy + 0.5))),

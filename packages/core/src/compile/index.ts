@@ -27,11 +27,15 @@ export type { CalibrationAssets } from "./calibration";
 export {
   DIRS,
   WorldFrame,
+  emptyBox,
+  growBox,
   placementBox,
   rotateDir,
   rotateXZ,
   storedPosition,
+  turnBasis,
   turnQuarters,
+  worldTurn,
 } from "./geometry";
 
 import type { RoleKeys } from "../contracts/compiler";

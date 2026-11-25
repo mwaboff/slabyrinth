@@ -36,7 +36,10 @@ function room(generator: number): PlacementGrid {
         : 0,
     height: () => 0,
     generator,
-    pieceExtent: (t) => EXTENT[t],
+    pieceExtent: (t) => {
+      const e = EXTENT[t];
+      return e === undefined ? undefined : { ...e, rest: e.h };
+    },
   };
 }
 const cells = (): Array<[number, number]> => {

@@ -193,6 +193,44 @@ test("boot → create project → chat (scripted provider) → save → reopen a
         await invoke(page, "talespire:copyAndOpen", { text: build.chunks[0]?.slab ?? "", chunk }),
       );
       expect(copied).toMatchObject({ copied: true, action: "not_installed" });
+
+      // The 3D view in the real app (test mode: no TaleSpire, so every piece is a box): the build's scene from the
+      // scene worker, its chunks as typed arrays, and a software-rendered picture.
+      const view = await page.evaluate(async (buildId) => {
+        const open = await window.slabyrinth.invoke("view3d:open", { buildId });
+        if (!open.ok) throw new Error(`view3d:open ${open.error.code}: ${open.error.message}`);
+        const h = open.value;
+        const got = await window.slabyrinth.invoke("view3d:chunks", {
+          sceneId: h.sceneId,
+          chunkIds: h.chunks.map((c) => c.id),
+        });
+        const shot = await window.slabyrinth.invoke("view3d:shot", {
+          sceneId: h.sceneId,
+          shot: "overview",
+          width: 320,
+          height: 240,
+        });
+        await window.slabyrinth.invoke("view3d:close", { sceneId: h.sceneId });
+        return {
+          version: h.version,
+          instances: h.counts.instances,
+          boxes: h.counts.boxes,
+          reasons: h.boxes.reasons.map((r) => r.reason),
+          chunked: got.ok ? got.value.chunks.reduce((n, c) => n + c.count, 0) : -1,
+          typed: got.ok ? got.value.chunks.every((c) => c.transform instanceof Float32Array) : false,
+          png: shot.ok ? Array.from(shot.value.png.slice(0, 4)) : [],
+        };
+      }, build.buildId);
+      expect(view).toMatchObject({
+        version: 2,
+        reasons: ["no-install"],
+        typed: true,
+        png: [137, 80, 78, 71],
+      });
+      expect(view.instances).toBeGreaterThan(20);
+      expect(view.chunked).toBe(view.instances);
+      expect(view.boxes).toBe(view.instances);
+      expect(unwrap(await invoke(page, "meshes:info", undefined)).state).toBe("no_install");
       unwrap(await invoke(page, "project:setUiState", { ui: { tab: "build", zoom: 2 } }));
     } finally {
       await app.close(); // before-quit flushes the autosave

@@ -46,7 +46,9 @@ import { shell } from "../gen/pieceFacts";
 import { rasterizeShape } from "../gen/shapes";
 import type { RoomKind } from "../gen/roomPurpose";
 import {
+  WAY_GAP,
   buildObject,
+  bulwarkOpening,
   createKit,
   objectTurn,
   placeObject,
@@ -62,6 +64,7 @@ import {
   type VesselParams,
 } from "../objects";
 import { createPlanRoles } from "../palette/planRoles";
+import { generatorProfile } from "../plan/generator";
 import type { ResolvePalettes } from "../palette/resolve";
 import { cloneJson } from "../util/canonical";
 import { h32Utf16 } from "../util/hash";
@@ -588,8 +591,13 @@ function expandVessel(
   let gangwayAt: number | null = null;
   if (mainCells.length > 0) {
     const used = new Set(links.map((l) => key(l.from.at)));
+    // generator 6 (`railedDeckEdges`): a way crosses the rail only where it takes away one short rail piece at most
+    const railCut = generatorProfile(plan.generator).railedDeckEdges;
     const candidates = byMiddle(mainCells).filter(
-      (c) => !mastNear(c) && !clear.some((x) => Math.abs(x - layout.station(c).x) < 1.2),
+      (c) =>
+        !mastNear(c) &&
+        !clear.some((x) => Math.abs(x - layout.station(c).x) < 1.2) &&
+        !(railCut && bulwarkOpening(first, layout.station(c).x, side) > WAY_GAP),
     );
     // the row across the deck at a candidate's station, its outermost cell on the moored side
     const outermost = (c: Vec2): Vec2 | null => {

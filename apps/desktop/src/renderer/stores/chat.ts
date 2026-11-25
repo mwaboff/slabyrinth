@@ -3,9 +3,9 @@ import { create } from "zustand";
 import type { MapSelection } from "@slabyrinth/core";
 import type { ChatEvent } from "../../shared/ipc";
 import type { ChatMessageMeta } from "../../shared/project";
-import type { ChatItem, EffortLevel, ModelSelection } from "../../main/agent/provider/types";
+import type { ChatItem, Cost, EffortLevel, ModelSelection } from "../../main/agent/provider/types";
 import { BridgeError, call, tryCall } from "../bridge/client";
-import { chatReducer, emptyChat, pendingQuestions, type ChatState } from "./chatReducer";
+import { addCosts, chatReducer, emptyChat, pendingQuestions, type ChatState } from "./chatReducer";
 
 export interface ComposerRef {
   type: "room" | "feature" | "opening" | "link" | "level";
@@ -31,6 +31,11 @@ interface ChatStore extends ChatState {
   inFlight: boolean;
   /** User-facing reason a Retry was refused (e.g. the map changed after that reply). */
   retryError: string | null;
+  /**
+   * After "Keep going" at the revision limit: the changes made and the money spent by the earlier turns of the same
+   * GM message, so the next limit card counts from that message. Cleared when the GM sends a new message.
+   */
+  carried: { changes: number; cost: Cost | null } | null;
   hydrate: (
     items: ChatItem[],
     meta: Record<string, ChatMessageMeta>,
@@ -51,7 +56,8 @@ interface ChatStore extends ChatState {
   send: (opts?: { text?: string; intent?: "chat" | "plan" | "auto" }) => Promise<boolean>;
   stop: () => Promise<void>;
   retry: (selection?: ModelSelection) => Promise<void>;
-  continueTurn: () => Promise<void>;
+  /** Continue; allowance = the new turn's revision limit ("Keep going" on the limit card). */
+  continueTurn: (allowance?: number) => Promise<void>;
   changeSelection: (s: ModelSelection) => Promise<void>;
   changeEffort: (effort: EffortLevel | null) => Promise<void>;
 }
@@ -95,6 +101,7 @@ export const useChat = create<ChatStore>((set, get) => ({
   focusTick: 0,
   inFlight: false,
   retryError: null,
+  carried: null,
   hydrate: (items, meta, selection, busyTurn) => {
     const base = emptyChat(items);
     // Nothing from the previous project carries over (chips would go out as that project's <selection>).
@@ -108,6 +115,7 @@ export const useChat = create<ChatStore>((set, get) => ({
       estimate: null,
       inFlight: false,
       retryError: null,
+      carried: null,
     });
     if (busyTurn !== null) {
       set({ live: chatReducer(base, { type: "turn_started", turnId: busyTurn, selection }).live });
@@ -187,6 +195,7 @@ export const useChat = create<ChatStore>((set, get) => ({
       draft: opts.text === undefined ? "" : st.draft,
       refs: opts.text === undefined ? [] : st.refs,
       answers: {},
+      carried: null,
     });
     return true;
   },
@@ -216,12 +225,23 @@ export const useChat = create<ChatStore>((set, get) => ({
     // e.g. "You changed the map after this reply" — shown inline under the reply
     set({ retryError: r.error.message });
   },
-  continueTurn: async () => {
-    if (get().live || get().inFlight) return;
+  continueTurn: async (allowance) => {
+    const st = get();
+    if (st.live || st.inFlight) return;
+    const last = st.last;
+    const carried =
+      last?.stopReason === "revision_limit"
+        ? {
+            changes: (st.carried?.changes ?? 0) + last.newVersions.length,
+            cost: addCosts(st.carried?.cost, last.turnCost),
+          }
+        : null;
     set({ inFlight: true });
-    const r = await tryCall("chat:continue", undefined);
-    if (r.ok) armInFlightTimeout();
-    else set({ inFlight: false });
+    const r = await tryCall("chat:continue", allowance === undefined ? undefined : { allowance });
+    if (r.ok) {
+      armInFlightTimeout();
+      set({ carried });
+    } else set({ inFlight: false });
   },
   changeSelection: async (s) => {
     const r = await call("chat:setSelection", { selection: s });

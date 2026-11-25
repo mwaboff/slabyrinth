@@ -7,6 +7,31 @@ Release notes, which the app shows under "What's new" when it offers that update
 
 ## [Unreleased]
 
+### Added
+
+- **Changes per message.** Choose how many times Claude may change the map for one message before it asks you (Settings › AI › Changes per message, default 4). When Claude reaches that limit, the chat says so, with what the message has cost so far: Keep going or That's enough.
+- **A 3D view of your map**, between Map and Build: every piece as TaleSpire will get it, in plain colours by kind. Turn, move and zoom around it, pick a level tab to look inside lower levels, hide roofs, hide kinds of piece from the colour key, and click a piece to see what it is, show it on the map or mention it in the chat.
+- Claude can look at your map in 3D while revising it, up to a set number of pictures per message (Settings › AI › 3D view).
+- **The 3D piece cache.** The shapes of TaleSpire's pieces are read from your own TaleSpire install and kept in the app data folder (512 MB at most).
+
+### Changed
+
+- When you have changed the plan since building, Approve & rebuild is the main button and the old map is "Copy vN anyway".
+- Build problems show above the paste guide button, which then says "anyway".
+- Changing the level layout asks first if you have marked slabs as pasted.
+
+### Fixed
+
+- Things set on tables, desks and altars now sit on them instead of hovering above.
+- Cave walls stand where they belong: rock no longer swallows the camp's sacks and crates or the roots and torches on the wall.
+- Cave floors no longer show wedge-shaped holes where a rounded-corner tile was laid in the middle of the floor.
+- Things on chests, altars, anvils and desks sit on the part of the top that can hold them, instead of floating over a curved lid or hanging off an edge.
+- Jars and candles on a tall shelf no longer poke into the floor of the storey above.
+- Ships' raised decks are railed along their front edge, and a gangway no longer leaves a barge's bow open.
+- Market stall lanterns hang from the awning instead of in mid-air, and no rocks are strewn over a deep harbour bed nobody can see.
+- A build that fails now says what happened and offers Build again.
+- Stopping a build is no longer reported as an error.
+
 ## [0.4.0] - 2026-11-24
 
 ### Added

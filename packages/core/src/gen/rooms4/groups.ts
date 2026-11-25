@@ -888,7 +888,7 @@ export function lightOn(room: Room, q: Placed): boolean {
   const lamp = lantern || fallback ? "candelabra" : "candles";
   const variant = lamp === "candelabra" ? (fallback ? "candle" : "lantern") : undefined;
   const ext = room.piece(q.type, q.variant);
-  if (!ext || ext.mixed || ext.hMax - ext.h > 0.15 || !room.has(lamp, variant)) return false;
+  if (!ext || ext.mixed || ext.restMax - ext.rest > 0.15 || !room.has(lamp, variant)) return false;
   const cx = clampTo(q.centre[0], q.at[0], q.size[0]);
   const cy = clampTo(q.centre[1], q.at[1], q.size[1]);
   const placement: GeneratedPlacement = {
@@ -897,7 +897,7 @@ export function lightOn(room: Room, q: Placed): boolean {
     size: [1, 1],
     rot: 0,
     rotFine: room.rng.int(24) * 15,
-    lift: ext.hMax,
+    lift: ext.restMax,
     offset: [
       Math.max(-0.5, Math.min(0.5, q.centre[0] - (cx + 0.5) + (room.rng.next() - 0.5) * 0.2)),
       Math.max(-0.5, Math.min(0.5, q.centre[1] - (cy + 0.5) + (room.rng.next() - 0.5) * 0.2)),

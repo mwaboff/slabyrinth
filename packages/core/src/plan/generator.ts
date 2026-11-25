@@ -15,10 +15,10 @@ import { GENERATOR_VERSIONS, type GeneratorVersion } from "../contracts/plan";
  * A switch is on in its first generator and in every later one, by construction, so the SWITCHES table read top to
  * bottom is the changelog of the generators. Generators 1 to 5 are released: what they turn on is frozen, and so is
  * their output (test/golden/generator2, generator3, generator4, generator5). New behaviour is a new switch that starts
- * in the open generator; none is open after 0.4.0, so the next behaviour change first opens generator 6. A later
- * generator never switches an old behaviour off: it adds a new switch for the new behaviour, and the code reads the
- * new one first. Opening generator 6 means adding a version to GENERATOR_VERSIONS (contracts/plan.ts); the compiler
- * then asks for its VOCABULARY entry, and new switches start in 6.
+ * in the open generator, 6 (test/golden/generator6 follows it). A later generator never switches an old behaviour
+ * off: it adds a new switch for the new behaviour, and the code reads the new one first. Opening generator 7 (after 6
+ * is released) means adding a version to GENERATOR_VERSIONS (contracts/plan.ts); the compiler then asks for its
+ * VOCABULARY entry, and new switches start in 7.
  *
  * Palette roles carry their own first generator (`minGenerator` in the palette data, palette/resolve.ts): palettes
  * are data, generated and user-written, so they name a version rather than a switch. A test keeps the roles of the
@@ -654,6 +654,40 @@ const SWITCHES = {
     "A place's wealth shows from the street as weighted pools per wealth step (resolve/wealthLooks.ts): a building's wall materials by their finish (rough planks poor, dressed stone and brick rich; the street draw counts a wall at the wrong end of its wealth as a failure; a poor building's rough wall built in the theme's own wall takes its rough variant family, wood_town's rural planks; a worn building keeps a borrowed kit of rough finish only, no desert plaster in a timber town), a well-off quarter's roofs leaning to the kit its first well-off building drew, trims firmer per step (WEALTH_WEIGHT_FIRM: each step more framed, banded and contrasting than the one below), and a rich building's door dressed now and then by its wealth (resolve/wealthLooks.ts DOOR_DRESSING: a light pair at its approach, a guardian pair only where its kind's door suits one, gen/buildingProgramme.ts guardedDoor: a mansion, a temple, a keep, never an inn or a shop) (resolve/structure.ts drawDesigns, recipes/treatments.ts, compile/realize/structures/context.ts).",
     "characterCascade",
   ),
+
+  // ── generator 6 (open) ──
+  restSurfaces: on(
+    6,
+    "A thing set on a piece (a jug on a workbench, books on a desk, a candle on an altar, goods on a stall's table) stands on the piece's real top surface, measured from the game's meshes (palette/restHeights.ts, written by `npm run render -- rests`), not on its collider box's top, which reaches its highest point (a bench's raised back: the jugs hung 0.35 over the work top); a piece never measured keeps its box top (palette/restSurface.ts, read by the palette view's `rest` and compile/stalls.ts).",
+  ),
+  tilesStoredByFootprint: on(
+    6,
+    "A tile (a corner-origin piece) the cave rock mass turns is stored at the min corner of its turned footprint at every turn, the game's rule (compile/geometry.ts storedPosition, as arrangements and the scene renderer place it), so it stands centred where the mass plan put it; before, it was stored as if turned about its corner, and at any turn but 0 the game put it up to its own size off its plan, into the floor beside the wall (camp sacks, a chest and crystals ended up inside the rock). The cave-mass review reads such a piece the same way.",
+  ),
+  measuredFloorCover: on(
+    6,
+    "A floor is laid only from pieces whose measured top covers their cells: a piece whose top leaves an open patch of a tenth of a tile² or more (palette/topCover.ts, read from the game's meshes by `npm run render -- rests` into palette/coverHoles.ts: a rounded-corner cave tile's wedge, broken boards' gapped ends) is left out of the floor laying when its role has whole ones, whatever its name; a piece never measured counts as whole (compile/realize/floors.ts wholePieces, with the ragged pieces generator 5 already leaves out).",
+  ),
+  unevenTops: on(
+    6,
+    "A thing set on a piece of furniture stands on the part of the top under it, at that part's measured height (palette/restGrid.ts: a grid of rest heights over each piece's top, read from the game's meshes by `npm run render -- rests` into palette/restGrids.ts), looked up with the support's final variant and turn (compile/restOn.ts, util/turn.ts); a thing over a part that cannot hold it (a chest's rounded lid off its crest, an anvil's horn, past a desk's edge) or set beside the top moves to the nearest part that can (compile/realize/settle.ts, after every support is laid). What a thing stands on is the support the resolver set it on (a raised piece whose footprint holds the thing's cell and whose height range holds its base), so a thing lifted for a taller variant of its support is set on the variant built, and a thing on a piece never measured moves with that piece and stands on its box top. Verify judges the support by the same grid: a part under the thing's centre that holds things, or one its own outline reaches (compile/restOn.ts surfaceTopAt).",
+  ),
+  storeyHeadroom: on(
+    6,
+    "A thing a room recipe lifts onto furniture or a shelf in a building's ground storey stays under that storey's wall top, where the floor of the storey above, the attic deck or the roof begins (resolve/level/grid.ts headroomAt: the lowest ground-storey wall top of the building volumes over the cell, as well as the floor of a plan level stacked above); before, only plan levels were counted, and jars on a tall shelf stood 85-94% inside the upper storey's floor.",
+  ),
+  railedDeckEdges: on(
+    6,
+    "Every edge of an object's raised walking surface with a drop below it is railed, with gaps only where a way crosses: a vessel's raised deck is railed across its break over the main deck too (its ladder comes up through the deck; objects/vessel.ts kitHullParts), a gangway crosses the bulwark only where it takes away no more than one short rail piece (objects/vessel.ts bulwarkOpening, resolve/objectSite.ts), never through the curved bow fence (the barge's bow stood 4 tiles open on the moored side), and the rail on its side is laid up to its cell and on from it; a rail across the hull closes its ends with the side's short pieces. objects/facing.ts openDeckEdges is the check: a unit test holds every recipe of OBJECT_RECIPES to it across its sizes and seeds (test/unit/objects/railedEdges.test.ts); verify does not run it on a build (it has no code for it).",
+  ),
+  seenCover: on(
+    6,
+    "Ground cover is laid only where it can be seen: a bed more than a tile under the level's water surface (the plane the GM raises, which hides it) takes no rock or rubble either (resolve/recipes/ground.ts; generator 5 kept rocks there, 377 of them over the harbour basin's bed, 5 tiles under the vessels' waterline).",
+  ),
+  hangUnderCover: on(
+    6,
+    "A thing hung under a cover hangs from the cover's real underside over its point, measured from the game's meshes seen from below (palette/hangGrids.ts, written by `npm run render -- rests`; compile/restOn.ts undersideAt): a market stall's lantern hangs from the lowest canopy piece over it (compile/stalls.ts), not from its box's underside, under which a sloping cloth awning leaves 0.65 of air (the lanterns hung in mid-air), nor from its top surface, which a thick canopy's underside is below; a canopy never measured keeps the box's underside.",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */
@@ -723,6 +757,7 @@ const VOCABULARY: Readonly<Record<GeneratorVersion, VocabularyDeclaration>> = {
   3: { featureTypes: [], levelFields: [], areaFields: [] },
   4: { featureTypes: ["clutter", "shelf_line"], levelFields: ["roomDress"], areaFields: ["purpose"] },
   5: { featureTypes: [], levelFields: [], areaFields: [] },
+  6: { featureTypes: [], levelFields: [], areaFields: [] },
 };
 
 /** The plan vocabulary one generator understands (what it added and what the generators before it did). */

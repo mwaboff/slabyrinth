@@ -1503,6 +1503,39 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     },
   },
   {
+    name: "view_build_3d",
+    streamInput: false,
+    description:
+      "Look at what the build of the current version puts in TaleSpire, in 3D: one picture of up to 4 numbered views, a caption per " +
+      "view, and the faults measured on the real pieces in view (gaps in walls, floors and roofs, pieces floating, buried or running " +
+      "into each other, things facing a wall, ways too narrow to walk), each with its level, element and square and whether a plan " +
+      "change can fix it. Pieces are flat " +
+      "colours by kind (wall, floor, roof, door or window, stairs, prop), not the game's look; a piece the app has not read from the " +
+      "game yet is a box of its real size. Only a few pictures are allowed per GM message, so ask for the views you need. Views: " +
+      "overview (the whole map), level:<level id> (that level from above, everything over it hidden), front:<id> (a building, " +
+      "structure or object from the side its doors face), interior:<id> (inside it, roofs and upper storeys hidden), flagged (where " +
+      "the last design review pointed), changed (what the last version changed). Leave shots out to let the app choose.",
+    inputSchema: {
+      type: "object",
+      required: [],
+      additionalProperties: false,
+      properties: {
+        shots: {
+          type: "array",
+          items: {
+            type: "string",
+            pattern: "^(overview|flagged|changed|(level|front|interior):\\S+)$",
+            description:
+              "overview, flagged, changed, level:<level id>, front:<element id> or interior:<element id>.",
+          },
+          minItems: 1,
+          maxItems: 4,
+        },
+        max: { type: "integer", minimum: 1, maximum: 4, description: "At most this many views (default 4)." },
+      },
+    },
+  },
+  {
     name: "compile_preview",
     streamInput: false,
     description:

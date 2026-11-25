@@ -15,6 +15,7 @@ import type {
   ProjectSnapshot,
 } from "../../../shared/ipc";
 import { fakeAddonStatus, fakeLinkStatus } from "./talespireLink";
+import { AGENT_DEFAULTS } from "../../../shared/agentSettings";
 import type { AppSettings, Phase, ProjectFile } from "../../../shared/project";
 import type { Usage } from "../../../main/agent/provider/types";
 import type { FakeTurn } from "./engine";
@@ -36,6 +37,11 @@ export interface FakeScenario {
   helper?: LinkStatus["helper"]["state"];
   /** A Wayland session (hotkeys may be refused). */
   wayland?: boolean;
+  /**
+   * The 3D piece cache (default "no_install": TaleSpire not found, every piece a box). "reading": the first scene of
+   * each version is boxes waiting for detail, which "completes" shortly after; "off": 3D is turned off in Settings.
+   */
+  meshes?: "no_install" | "reading" | "off";
 }
 
 export interface FakeOptions {
@@ -259,6 +265,7 @@ function initialSettings(scenario: FakeScenario, recent: string[]): AppSettings 
     ui: { theme: "system", mapThemeId: "auto", gridVisible: true, onLaunch: "home" },
     suppressAssetWarning: false,
     updates: { autoCheck: true },
+    agent: { ...AGENT_DEFAULTS },
     setupCompleted: scenario.setup !== true,
     defaultSystem: scenario.setup === true ? null : { system: "daggerheart" },
   };

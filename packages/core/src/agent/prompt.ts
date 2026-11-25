@@ -10,14 +10,16 @@
  */
 import type { DesignBrief, MapPlan } from "../contracts/plan";
 import { DP_1_0_0, DP_1_1_0, DP_1_2_0, DP_1_3_0, DP_1_4_0 } from "./designPrinciples.frozen";
+import { DESIGN_PRINCIPLES } from "./designPrinciples";
 
 /**
  * Version of the working tool list (tools.ts + serialization). Bump when TOOL_DEFINITIONS or its rendering changes.
  * tools-1.7.0 (0.1.2, tools.frozen.ts), tools-1.8.0 (0.2.0, tools.frozen.v1_8_0.ts), tools-1.9.0 (0.3.0,
  * tools.frozen.v1_9_0.ts) and tools-1.10.0 (0.4.0, tools.frozen.v1_10_0.ts) are published and frozen. The working
- * TOOL_DEFINITIONS still equal tools-1.10.0; the next edit opens tools-1.11.0 (with generator 6).
+ * TOOL_DEFINITIONS are tools-1.11.0, opened with generator 6 as a copy of tools-1.10.0 (unreleased, free to edit
+ * until release).
  */
-export const TOOLS_VERSION = "tools-1.10.0";
+export const TOOLS_VERSION = "tools-1.11.0";
 
 const SP_1_0_0 = `You are the map designer inside Slabyrinth, a desktop app for tabletop game masters (GMs). Together with the GM you design battle maps (dungeons, caves, towers, towns, wilderness) that the app later builds in TaleSpire, a 3D virtual tabletop made of tiles and props on a 5-foot grid.
 
@@ -500,7 +502,35 @@ const SP_1_14_0_REVISIONS: ReadonlyArray<readonly [string, string]> = [
  */
 const SP_1_14_0 = SP_1_14_0_REVISIONS.reduce((text, [from, to]) => revise(text, from, to), SP_1_13_0);
 
-export const SYSTEM_PROMPT_VERSION = "sp-1.14.0";
+/**
+ * How to use the 3D pictures (view_build_3d, tools-1.11.0; owner 2026-11-24): when a look pays and when it does not,
+ * what to check in a picture, what the colours are, and that the budget is small. Rules over parts, never per kind of
+ * thing, so they hold on something nobody has built before.
+ */
+export const LOOKING_IN_3D_GUIDANCE = `# Looking at the build in 3D
+
+view_build_3d shows what TaleSpire will get, piece by piece: one picture of up to four numbered views, with the faults the app measured on the pieces in view (level, element and square). The app gives you one overview after your first draft.
+- By default, do not look. Look only when the GM or the design review points at how something looks or how its parts meet, or before you tell the GM such a fault is fixed; at most one look per round of edits. Never look to check wording, labels, notes or light and mood words: a picture cannot show them.
+- Pictures per GM message are few: ask for the views that answer the question (front:<id>, interior:<id>, level:<id>, flagged, changed), not the whole map again.
+- In a view, check that the parts meet: no gap where walls, floors, a roof or a deck should close; nothing floating or sunk into what it stands on; every front, door and seat faces where it is used; ways in and through are clear.
+- Colours are flat by kind of piece (wall, floor, roof, door or window, stairs, prop), not the game's look, and a box is a piece the app has not read yet: judge shapes and joins, not looks.
+- Each measured fault ends with "Plan fix: …" (a change edit_plan can make: make it in the same turn) or says the app placed it (no plan change fixes it: do not chase it, and mention it to the GM only if it matters). Trust the measures over your reading of the pixels, and never spend more than one revision on the same finding: if it is still there after one fix, tell the GM instead.`;
+
+/** sp-1.15.0's revisions of sp-1.14.0 (generator 6). */
+const SP_1_15_0_REVISIONS: ReadonlyArray<readonly [string, string]> = [
+  [DP_1_4_0, DESIGN_PRINCIPLES],
+  // the 3D pictures, after the ways of seeing the plan
+  ["If it is, add levels.", `If it is, add levels.\n\n${LOOKING_IN_3D_GUIDANCE}`],
+];
+
+/**
+ * sp-1.15.0 (WORKING, opened with generator 6; unreleased): sp-1.14.0 with the working principles (dp-1.5.0, the
+ * live DESIGN_PRINCIPLES) and the revisions above. Principles go in designPrinciples.ts, how-to here, field facts in
+ * tools.ts; say each thing once. Freeze a copy of all three when generator 6 ships.
+ */
+const SP_1_15_0 = SP_1_15_0_REVISIONS.reduce((text, [from, to]) => revise(text, from, to), SP_1_14_0);
+
+export const SYSTEM_PROMPT_VERSION = "sp-1.15.0";
 
 const PROMPTS: Readonly<Record<string, string>> = {
   "sp-1.0.0": SP_1_0_0,
@@ -518,6 +548,7 @@ const PROMPTS: Readonly<Record<string, string>> = {
   "sp-1.12.0": SP_1_12_0,
   "sp-1.13.0": SP_1_13_0,
   "sp-1.14.0": SP_1_14_0,
+  "sp-1.15.0": SP_1_15_0,
 };
 
 /** The system prompt text frozen under `version`, or null for an unknown version. */
@@ -526,7 +557,7 @@ export function systemPromptFor(version: string): string | null {
 }
 
 /** The current system prompt (for new conversations). */
-export const SYSTEM_PROMPT: string = SP_1_14_0;
+export const SYSTEM_PROMPT: string = SP_1_15_0;
 
 // ───────────────────────────── app context texts (§3.2 step 2, §3.6) ─────────────────────────────
 

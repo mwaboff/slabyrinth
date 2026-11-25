@@ -3,7 +3,15 @@
  * writer of diagnostics (`VerifyReport`). A check never writes the context; what it finds for a later check is returned
  * and passed on by verify.ts (see the table there).
  */
-import type { CompileDiagnostic, PaletteCatalog, PlacementSet } from "../../contracts/compiler";
+import type {
+  CompileDiagnostic,
+  OrientationCalibration,
+  PaletteCatalog,
+  Placement,
+  PlacementSet,
+} from "../../contracts/compiler";
+import { loadOrientation } from "../../palette/load";
+import { worldTurn } from "../geometry";
 import type { LevelId } from "../../contracts/plan";
 import type {
   ResolvedArrangement,
@@ -63,14 +71,25 @@ export interface VerifyCtx {
   /** Levels realize reported a missing floor.* role on: their missing floors are warnings, not errors. */
   readonly floorRoleMissing: ReadonlySet<string>;
   readonly report: VerifyReport;
+  /**
+   * A placement's world turn (game degrees, rotSense applied): the one realize placed it with (RealizedSet.turns), else,
+   * for a set realize did not make or a placement added after it, its rotation read with the bundled calibration.
+   */
+  turnOf(p: Placement): number;
   /** The resolved feature a placement belongs to (by level and element id). */
   featureOf(levelId: LevelId, elementId: string | undefined): ResolvedFeature | undefined;
   /** Generator 5: the arrangement instance a placement belongs to (by level and element id). */
   arrangementOf(levelId: LevelId, elementId: string | undefined): ResolvedArrangement | undefined;
 }
 
-/** A placement set, with what realize built it from when realize made it (compile/buildFacts.ts). */
-export type VerifiedSet = PlacementSet & { readonly facts?: BuildFacts };
+/**
+ * A placement set, with what realize built it from when realize made it (compile/buildFacts.ts) and the world turn it
+ * placed each piece with (RealizedSet.turns).
+ */
+export type VerifiedSet = PlacementSet & {
+  readonly facts?: BuildFacts;
+  readonly turns?: ReadonlyMap<Placement, number>;
+};
 
 /**
  * The facts verify judges by: the ones realize built the set from (same role answers, grids and faces), or, for a set
@@ -108,6 +127,10 @@ export function createVerifyCtx(
   if (profile.arrangements)
     for (const l of levels) for (const a of l.arrangements ?? []) arrangementById.set(`${l.id}|${a.id}`, a);
   const missing = set.diagnostics.filter((d) => d.code === "role_missing");
+  // read once per build, only for placements realize did not turn (a schema parse is not free)
+  let fallback: OrientationCalibration | undefined;
+  const turnOf = (p: Placement): number =>
+    set.turns?.get(p) ?? worldTurn(p.rot, (fallback ??= loadOrientation().orientation));
   return {
     resolved,
     set,
@@ -125,6 +148,7 @@ export function createVerifyCtx(
       missing.filter((d) => roleFamily(d.role ?? "") === FLOOR_FAMILY).map((d) => d.levelId ?? ""),
     ),
     report: new VerifyReport(),
+    turnOf,
     featureOf: (levelId, elementId) => featureById.get(`${levelId}|${elementId ?? ""}`),
     arrangementOf: (levelId, elementId) => arrangementById.get(`${levelId}|${elementId ?? ""}`),
   };

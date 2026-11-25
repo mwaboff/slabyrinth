@@ -317,12 +317,13 @@ test("an older copy is updated at start with a quiet notice; one put there later
     await expect(notice).toBeHidden();
 
     // an older copy put there by hand after the start: the prompt offers the update in one click
-    writeFileSync(manifestFile, JSON.stringify({ ...manifest, version: "0.0.2" }));
-    // the dialog's Check again looks at once (main also looks on focus and every 10 s); the prompt waits for the
-    // dialog to close
+    // Main also looks on window focus and every 10 s, and the prompt opens over the page as soon as it sees the older
+    // copy, so the dialog is opened first: while it is open the prompt waits, whenever a look lands.
     await page.locator(".tsind").first().click();
     const dialog = page.getByRole("dialog", { name: "TaleSpire add-on" });
-    await dialog.getByRole("button", { name: "Check again" }).click();
+    await expect(dialog).toBeVisible();
+    writeFileSync(manifestFile, JSON.stringify({ ...manifest, version: "0.0.2" }));
+    // the dialog's Check again looks at once
     await expect(dialog.getByText("Update TaleSpire add-on", { exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     const prompt = page.getByRole("dialog", { name: "Update the TaleSpire add-on?" });

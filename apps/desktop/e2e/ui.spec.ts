@@ -170,6 +170,22 @@ test("the real UI: setup → brief → plan → map → edit → history → app
         )
         .toBe(true);
 
+      // A build the plan has moved past (Undo to v1): Approve & rebuild is the main action, the copy is "anyway".
+      await page.getByRole("tab", { name: "Map", exact: true }).click();
+      await page.getByRole("button", { name: /History · / }).click();
+      await history.getByRole("button", { name: "Undo" }).click();
+      await history.getByRole("button", { name: "Close history (H)" }).click();
+      await page.getByRole("tab", { name: "Build", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Approve v1 & rebuild" })).toHaveClass(/btn--primary/);
+      const staleCopy = page.getByRole("button", { name: /^Copy v2 .*anyway$/ });
+      await expect(staleCopy).toBeVisible();
+      await expect(staleCopy).not.toHaveClass(/btn--primary/);
+      await expect(page.getByRole("button", { name: "Copy & open TaleSpire" })).toHaveCount(0);
+      await page.getByRole("tab", { name: "Map", exact: true }).click();
+      await page.getByRole("button", { name: /History · / }).click();
+      await history.getByRole("button", { name: "Redo" }).click();
+      await history.getByRole("button", { name: "Close history (H)" }).click();
+
       // ── 6. Export PNG: change an option; it persists after reopening ──
       await page.getByRole("tab", { name: "Map", exact: true }).click();
       await page.getByRole("button", { name: /Export PNG/ }).click();

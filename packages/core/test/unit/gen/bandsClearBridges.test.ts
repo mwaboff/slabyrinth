@@ -18,7 +18,7 @@ afterEach(() => Object.assign(P5, saved));
 
 /** The band pieces (cliff faces and crests) standing over a bridge deck's cell. */
 function bandOnDecks(seed: number): string[] {
-  const r = resolvePlan(sweepPlan("hillside-v5", seed), pal);
+  const r = resolvePlan(sweepPlan("hillside-v5", seed, 5), pal);
   const out: string[] = [];
   for (const L of r.levels)
     for (const f of L.features) {

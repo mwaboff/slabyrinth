@@ -2047,7 +2047,7 @@ class AreaComposer {
             size: [1, 1],
             rot: 0,
             rotFine: rng.int(24) * 15,
-            lift: ext.h,
+            lift: ext.rest,
             offset: [
               mx - (cell[0] + 0.5) + (rng.next() * 2 - 1) * room,
               my - (cell[1] + 0.5) + (rng.next() * 2 - 1) * room,

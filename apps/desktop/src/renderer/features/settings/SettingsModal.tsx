@@ -30,6 +30,8 @@ const refreshSecrets = (): Promise<void> =>
 import { UpdateCheckRow } from "../updates/UpdateChip";
 import { AddonSettings } from "../talespire/AddonSettings";
 import { MapSizeSetting } from "./MapSizeSetting";
+import { RevisionLimitSetting } from "./RevisionLimitSetting";
+import { View3dSetting } from "./View3dSetting";
 import { useTaleSpireLink } from "../../stores/talespireLink";
 
 /** Same wording in Settings and Setup. */
@@ -285,6 +287,12 @@ function AiSection({ s }: { s: AppSettings }) {
           </div>
         </Row>
       )}
+      <Row label="Changes per message">
+        <RevisionLimitSetting s={s} />
+      </Row>
+      <Row label="3D view">
+        <View3dSetting s={s} />
+      </Row>
     </>
   );
 }

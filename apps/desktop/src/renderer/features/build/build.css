@@ -605,6 +605,10 @@
   color: var(--ink);
 }
 
+.builderr__p {
+  margin: 0;
+}
+
 .builderr .card-actions {
   margin-top: 0;
 }

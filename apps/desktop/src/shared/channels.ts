@@ -84,6 +84,15 @@ const requestChannels = [
   "link:status",
   "link:send",
   "link:stop",
+  "view3d:open",
+  "view3d:chunks",
+  "view3d:meshes",
+  "view3d:shot",
+  "view3d:cancel",
+  "view3d:close",
+  "meshes:info",
+  "meshes:rebuild",
+  "meshes:clear",
 ] as const;
 
 const eventChannels = [
@@ -100,6 +109,8 @@ const eventChannels = [
   "updates:available",
   "addon:changed",
   "link:changed",
+  "view3d:progress",
+  "meshes:status",
 ] as const;
 
 const sendChannels = ["render:imageResult"] as const;

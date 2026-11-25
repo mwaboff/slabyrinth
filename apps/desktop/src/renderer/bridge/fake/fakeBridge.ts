@@ -11,6 +11,8 @@
  *   addon-notfound | addon-missing (default) | addon-installed | addon-outdated | addon-mismatch | addon-foreign
  *           → the TaleSpire add-on's install state;  addon-autofail → outdated, the automatic update failed
  *   helper-none (default) | helper-connected | helper-refused → the add-on's link;  wayland → a Wayland session
+ *   meshes-none (default: TaleSpire not found) | meshes-reading (3D shapes still being read; detail follows) |
+ *   meshes-off (3D view off in Settings) → the 3D piece cache, and why the 3D view shows boxes
  *
  * The state is one FakeState per bridge (state.ts); the channels are answered by handler groups in handlers/, one
  * per area of main (app, projects, plan, chat, build, TaleSpire). The type of `handlers` below checks every
@@ -27,6 +29,7 @@ import { chatHandlers } from "./handlers/chat";
 import { planHandlers } from "./handlers/plan";
 import { projectHandlers } from "./handlers/projects";
 import { taleSpireHandlers } from "./handlers/talespire";
+import { view3dHandlers } from "./handlers/view3d";
 import { FakeFailure, FakeState, type FakeOptions, type FakeScenario, type Handlers } from "./state";
 import { setFakeSizeTier } from "./rules";
 
@@ -54,11 +57,11 @@ export function parseScenario(search: string): FakeScenario {
 const ADDON_STATES = ["not_found", "missing", "installed", "outdated", "mismatch", "foreign"] as const;
 const HELPER_STATES = ["none", "connected", "refused"] as const;
 
-/** addon-<state>, addon-autofail, helper-<state>, wayland (see the comment at the top). */
+/** addon-<state>, addon-autofail, helper-<state>, wayland, meshes-<state> (see the comment at the top). */
 function addonScenario(
   flags: Set<string>,
-): Pick<FakeScenario, "addon" | "addonAutoFailed" | "helper" | "wayland"> {
-  const out: Pick<FakeScenario, "addon" | "addonAutoFailed" | "helper" | "wayland"> = {};
+): Pick<FakeScenario, "addon" | "addonAutoFailed" | "helper" | "wayland" | "meshes"> {
+  const out: Pick<FakeScenario, "addon" | "addonAutoFailed" | "helper" | "wayland" | "meshes"> = {};
   for (const a of ADDON_STATES) if (flags.has(`addon-${a.replace("_", "")}`)) out.addon = a;
   for (const h of HELPER_STATES) if (flags.has(`helper-${h}`)) out.helper = h;
   if (flags.has("addon-autofail")) {
@@ -66,6 +69,8 @@ function addonScenario(
     out.addonAutoFailed = true;
   }
   if (flags.has("wayland")) out.wayland = true;
+  if (flags.has("meshes-reading")) out.meshes = "reading";
+  else if (flags.has("meshes-off")) out.meshes = "off";
   return out;
 }
 
@@ -83,6 +88,7 @@ export function createFakeBridge(opts: FakeOptions = {}): SlabyrinthApi & {
     ...buildHandlers(s),
     ...taleSpireHandlers(s),
     ...addonHandlers(s),
+    ...view3dHandlers(s),
   };
   // Startup warning, as main sends it after the first catalog check.
   if (s.scenario.nots === true) {

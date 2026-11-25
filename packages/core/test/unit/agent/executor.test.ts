@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { MapPlan } from "../../../src/contracts/plan";
 import {
   INVALID_JSON_KEY,
+  PICTURE_BUDGET_CODE,
   createToolExecutor,
+  pictureVersionOf,
+  withoutPicture,
   defaultExecutorPorts,
   invalidJsonInput,
   type AgentToolContext,
@@ -346,6 +349,52 @@ describe("other tools", () => {
     );
     expect(out.ok).toBe(true);
     expect(out.content[1]).toEqual({ type: "image", mediaType: "image/png", dataBase64: "iVBORw==" });
+  });
+
+  it("view_build_3d: one picture with captions and findings; refusals in plain words", async () => {
+    const asked: unknown[] = [];
+    const render3d = (req: unknown) => {
+      asked.push(req);
+      return Promise.resolve({
+        png: new Uint8Array([137, 80, 78, 71]),
+        captions: ["1. The whole map from the south-west", "2. b1 from the S"],
+        suggestions: "Measured in view: view 2, level l1, b1, square 4,6: a 0.4-tile gap in b1's wall",
+      });
+    };
+    const out = await exec(ctx(plan, 3, { render3d }), "view_build_3d", {
+      shots: ["overview", "front:b1"],
+    });
+    expect(out.ok).toBe(true);
+    expect(asked).toEqual([{ shots: ["overview", "front:b1"] }]);
+    expect(out.content[0]).toEqual({
+      type: "text",
+      text: "3D PICTURE of plan v3 (flat colours by kind of piece, not the game's look).\n1. The whole map from the south-west\n2. b1 from the S",
+    });
+    expect(out.content[1]).toEqual({ type: "image", mediaType: "image/png", dataBase64: "iVBORw==" });
+    expect(text(out)).toContain("square 4,6");
+    expect(pictureVersionOf(out.content)).toBe(3);
+    expect(withoutPicture(out.content).some((c) => c.type === "image")).toBe(false);
+    // no app pictures (3D off, no budget, no image input), no plan, a level the plan lacks, a bad view name
+    expect(text(await exec(ctx(plan), "view_build_3d", {}))).toContain("3D pictures are not available now");
+    expect(text(await exec(ctx(null, 0, { render3d }), "view_build_3d", {}))).toContain("nothing built");
+    expect(
+      text(await exec(ctx(plan, 3, { render3d }), "view_build_3d", { shots: ["level:attic"] })),
+    ).toContain("attic");
+    const bad = await exec(ctx(plan, 3, { render3d }), "view_build_3d", { shots: ["sideways"] });
+    expect(text(bad)).toContain("level:<level id>");
+    expect(text(await exec(ctx(plan, 3, { render3d }), "view_build_3d", { max: 9 }))).toContain("REJECTED");
+    // the engine's refusal once this message's pictures are spent
+    const spent = () =>
+      Promise.reject(
+        Object.assign(new Error("no more 3D pictures for this message (the GM allows 2)"), {
+          code: PICTURE_BUDGET_CODE,
+        }),
+      );
+    const refused = await exec(ctx(plan, 3, { render3d: spent }), "view_build_3d", {});
+    expect(refused.ok).toBe(false);
+    expect(text(refused)).toContain("the GM allows 2");
+    expect(text(refused)).toContain("next message");
+    expect(asked).toHaveLength(1);
   });
 
   it("compile_preview says one slab when it fits", async () => {

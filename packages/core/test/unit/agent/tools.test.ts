@@ -4,6 +4,7 @@ import {
   SYSTEM_PROMPT,
   SYSTEM_PROMPT_VERSION,
   TOOL_DEFINITIONS,
+  conversationHasTool,
   serializeTools,
   systemPromptFor,
   toolsForConversation,
@@ -17,12 +18,12 @@ import { TOOLS_VERSION } from "../../../src/agent/prompt";
 /** Hash of the published sp-1.1.0 text (frozen). */
 const SP_1_1_0_HASH = "2176e2d9b0362e06";
 
-describe("working tool list (tools-1.10.0; published versions are pinned by hash below)", () => {
+describe("working tool list (tools-1.11.0; published versions are pinned by hash below)", () => {
   it("working versions are the ones last opened", () => {
-    // generator 5 opened sp-1.14.0, dp-1.4.0, tools-1.10.0; released in 0.4.0, so generator 6 opens the next ones
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.14.0");
-    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.4.0");
-    expect(TOOLS_VERSION).toBe("tools-1.10.0");
+    // generator 6 opened sp-1.15.0, dp-1.5.0, tools-1.11.0 (the 0.4.0 texts are pinned below)
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.15.0");
+    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.5.0");
+    expect(TOOLS_VERSION).toBe("tools-1.11.0");
   });
   it("serializes deterministically (the bytes are the cache key)", () => {
     const a = serializeTools(toolsForConversation(true));
@@ -33,10 +34,21 @@ describe("working tool list (tools-1.10.0; published versions are pinned by hash
     expect(h64hex(a)).toMatchSnapshot();
   });
 
-  it("keeps the contract order and drops view_map_image for models without image input", () => {
+  it("keeps the contract order and drops the picture tools for models without image input", () => {
     expect(toolsForConversation(true).map((t) => t.name)).toEqual(TOOL_DEFINITIONS.map((t) => t.name));
     expect(toolsForConversation(false).map((t) => t.name)).not.toContain("view_map_image");
-    expect(toolsForConversation(false)).toHaveLength(TOOL_DEFINITIONS.length - 1);
+    expect(toolsForConversation(false).map((t) => t.name)).not.toContain("view_build_3d");
+    expect(toolsForConversation(false)).toHaveLength(TOOL_DEFINITIONS.length - 2);
+  });
+
+  it("view_build_3d is new in tools-1.11.0: no released tool list offers it", () => {
+    expect(conversationHasTool("view_build_3d", true)).toBe(true);
+    expect(conversationHasTool("view_build_3d", false)).toBe(false);
+    for (const v of ["tools-1.7.0", "tools-1.8.0", "tools-1.9.0", "tools-1.10.0"])
+      expect(conversationHasTool("view_build_3d", true, v), v).toBe(false);
+    // its guidance is in the working prompt only
+    expect(SYSTEM_PROMPT).toContain("# Looking at the build in 3D");
+    expect(systemPromptFor("sp-1.14.0")).not.toContain("view_build_3d");
   });
 
   it("schemas have sorted keys at every level", () => {
@@ -63,8 +75,9 @@ describe("released in 0.1.2: sp-1.11.0, dp-1.1.0, tools-1.7.0 (frozen)", () => {
   it("tools-1.7.0 is byte-identical to the release and served from its frozen copy", () => {
     const frozen = serializeTools(toolsForConversation(true, "tools-1.7.0"));
     expect(h64hex(frozen)).toBe("89b914883f0a96b1");
-    expect(toolsForConversation(true, "tools-1.7.0").map((t) => t.streamInput)).toEqual(
-      TOOL_DEFINITIONS.map((t) => t.streamInput),
+    const released = toolsForConversation(true, "tools-1.7.0");
+    expect(released.map((t) => t.streamInput)).toEqual(
+      TOOL_DEFINITIONS.filter((t) => released.some((r) => r.name === t.name)).map((t) => t.streamInput),
     );
     expect(toolsForConversation(false, "tools-1.7.0").map((t) => t.name)).not.toContain("view_map_image");
   });
@@ -121,7 +134,7 @@ describe("released in 0.4.0: sp-1.14.0, dp-1.4.0, tools-1.10.0 (frozen with gene
 
 describe("system prompt", () => {
   it("is frozen per version", () => {
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.14.0");
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.15.0");
     // sp-1.10.0 shipped in the owner's second snapshot with dp-1.0.0: frozen byte for byte
     expect(h64hex(systemPromptFor("sp-1.10.0") ?? "")).toBe("74e5072df0fd89e2");
     expect(systemPromptFor(SYSTEM_PROMPT_VERSION)).toBe(SYSTEM_PROMPT);

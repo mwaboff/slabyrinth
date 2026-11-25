@@ -43,3 +43,16 @@ describe("build store: compile:run", () => {
       expect(useBuild.getState().error).toBe("stop here");
     });
 });
+
+describe("build store: a stopped build", () => {
+  it("is not reported as a failed build", async () => {
+    setBridge({
+      invoke: () => Promise.resolve({ ok: false, error: { code: "cancelled", message: "Stopped." } }),
+      on: () => () => undefined,
+      send: () => undefined,
+    } as unknown as SlabyrinthApi);
+    await useBuild.getState().run(3);
+    expect(useBuild.getState().error).toBeNull();
+    expect(useBuild.getState().building).toBe(false);
+  });
+});

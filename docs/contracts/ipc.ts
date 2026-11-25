@@ -155,8 +155,11 @@ export interface IpcRequests {
   "chat:retry": { req: { selection?: ModelSelection }; res: { turnId: string } };
   /** Show another alternative of a retried turn (display only). */
   "chat:selectAlternative": { req: { messageId: string; index: number }; res: void };
-  /** Continue after stopReason max_tokens on a text answer. */
-  "chat:continue": { req: void; res: { turnId: string } };
+  /**
+   * Continue after stopReason max_tokens on a text answer, or "Keep going" after "revision_limit". allowance: how many
+   * plan versions the model may commit in the new turn before the app asks again (1..20; absent = the settings value).
+   */
+  "chat:continue": { req: { allowance?: number } | void; res: { turnId: string } };
   /** Advisory impact of switching; UI confirms, then calls chat:setSelection. */
   "chat:previewSwitch": { req: { selection: ModelSelection }; res: SwitchImpact };
   "chat:setSelection": { req: { selection: ModelSelection }; res: { selection: ModelSelection } };
@@ -249,6 +252,114 @@ export interface IpcRequests {
   "link:send": { req: { buildId: string }; res: { chunks: number } };
   /** Empties the add-on (it drops the set) and releases the hotkeys. */
   "link:stop": { req: void; res: void };
+
+  /**
+   * The 3D view. Lays out the 3D scene of a plan version (default the head) or of a build (its plan version) in main's
+   * scene worker, replacing this window's previous scene (one at a time); progress arrives as "view3d:progress" (layout).
+   * Pieces whose game shapes are not read yet are boxes (header.pendingDetail); when "view3d:progress" stage "detail"
+   * reaches done === total for this sceneId, open the same version again for the detailed scene (fast, from the cache).
+   * Fails "cancelled" after view3d:cancel, "not_found" for an unknown version or build, "validation" when there is no plan.
+   */
+  "view3d:open": { req: { version?: number; buildId?: string }; res: View3dHeader };
+  /** Instance data of chunks as typed arrays (≤ 8 MB per reply; chunks that did not fit are in `more`: ask again). */
+  "view3d:chunks": { req: { sceneId: string; chunkIds: string[] }; res: { chunks: View3dChunk[]; more: string[] } };
+  /** Geometry of meshes by key (header.meshes), on demand (≤ 8 MB per reply; the rest in `more`). */
+  "view3d:meshes": { req: { sceneId: string; keys: string[] }; res: { meshes: View3dMesh[]; more: string[] } };
+  /** A software-rendered picture of the scene by the shot rules (the Build page's thumbnail, the view without WebGL). */
+  "view3d:shot": { req: { sceneId: string; shot: View3dShot; width: number; height: number }; res: { png: Uint8Array; caption: string } };
+  /** Stops laying out a scene: the one named, or whichever is being laid out now (its view3d:open fails "cancelled"). */
+  "view3d:cancel": { req: { sceneId?: string }; res: void };
+  /** Releases a scene (its data and memory in main). An unknown or already released id is ignored. */
+  "view3d:close": { req: { sceneId: string }; res: void };
+  /** The 3D piece cache (Settings › TaleSpire): pieces read, shown as boxes, cache size, in plain words. */
+  "meshes:info": { req: void; res: MeshCacheInfo };
+  /** "Read again": forgets what was read and reads the pieces' shapes again from TaleSpire (in the background). */
+  "meshes:rebuild": { req: void; res: MeshCacheInfo };
+  /** "Clear": deletes the app's own piece cache folder (never anything else); pieces are read again when needed. */
+  "meshes:clear": { req: void; res: MeshCacheInfo };
+}
+
+/** A named view of the 3D scene; the app chooses the camera (the same names as the model's 3D pictures). */
+export type View3dShot = "overview" | "flagged" | "changed" | `level:${LevelId}` | `front:${string}` | `interior:${string}`;
+
+/** An axis-aligned box in tiles: x east, y up, z north. */
+export interface View3dBox { min: [x: number, y: number, z: number]; max: [x: number, y: number, z: number] }
+
+/** What the renderer needs to draw a scene, without any per-piece data (that comes by chunk). */
+export interface View3dHeader {
+  sceneId: string;
+  /** The plan version shown, and the build it came from (null for a plan version). */
+  version: number;
+  buildId: string | null;
+  /** Lowest level first; bounds null for a level with no pieces. */
+  levels: Array<{ id: LevelId; name: string; index: number; bounds: View3dBox | null }>;
+  /** null for an empty scene. */
+  bounds: View3dBox | null;
+  /** The colour key: each class's plain name and colour, in a fixed order (chunk colourClass indexes it). */
+  classes: Array<{ id: string; label: string; rgb: [r: number, g: number, b: number] }>;
+  /** The mesh table (chunk `mesh` indexes it); box: a stand-in of the piece's real size, not its game shape. */
+  meshes: Array<{ key: string; triangles: number; bytes: number; box: boolean; bounds: View3dBox }>;
+  /** Chunks of 32 × 32 tiles per level, with their instance count and the size of their data. */
+  chunks: Array<{ id: string; levelIndex: number; bounds: View3dBox; instances: number; bytes: number }>;
+  counts: { instances: number; boxes: number; triangles: number };
+  /** Pieces drawn as boxes and why ("not read yet", "not in the game's files"), with one plain sentence. */
+  boxes: { pieces: number; kinds: number; reasons: Array<{ reason: string; pieces: number }>; note: string };
+  /** Pieces waiting for their game shape (boxes until "view3d:progress" detail finishes). */
+  pendingDetail: number;
+  /** Plain words when detail was limited to keep the app responsive, else null. */
+  limited: string | null;
+}
+
+/** One chunk's instances as typed arrays (index i of every per-instance array is the same piece). */
+export interface View3dChunk {
+  id: string;
+  count: number;
+  /** Per instance: index into View3dHeader.meshes. */
+  mesh: Uint32Array;
+  /** Per instance: x, y, z (tiles) and turn (degrees clockwise seen from above): the mesh is turned, then moved. */
+  transform: Float32Array;
+  /** Per instance: r, g, b (0..255). */
+  colour: Uint8Array;
+  /** Per instance: index into View3dHeader.classes. */
+  colourClass: Uint8Array;
+  /** Per instance: index into View3dHeader.levels. */
+  level: Uint8Array;
+  /** Per instance: index into `layers` (paste layer: "site", "storey:<n>", "roof"). */
+  layer: Uint8Array;
+  layers: string[];
+  /** Per instance: index into `names` (the piece's name). */
+  name: Uint32Array;
+  names: string[];
+  /** Per instance: index into `elements` (the plan element it belongs to), or -1. */
+  element: Int32Array;
+  elements: string[];
+  /** Per instance: index into `roles` (the placement's role: "floor", "wall", "opening", …), or -1 (no role: a slab's piece). */
+  role: Int8Array;
+  roles: string[];
+  /** Per instance: the plan cell it came from as x, y (2n); both -32768 when it came from no cell. */
+  cell: Int16Array;
+}
+
+/** A mesh in its own frame: xyz per vertex, three vertex indices per triangle. */
+export interface View3dMesh { key: string; positions: Float32Array; indices: Uint16Array | Uint32Array }
+
+/**
+ * The 3D piece cache (TaleSpire's piece shapes, read from the user's own install, kept in the app's data folder).
+ * state: off = 3D is turned off in Settings (every piece a box) · no_install = TaleSpire not found (boxes) ·
+ * reading = shapes being read · ready.
+ */
+export interface MeshCacheInfo {
+  state: "off" | "no_install" | "reading" | "ready";
+  /** Pieces whose shapes are in the cache. */
+  read: number;
+  /** Pieces the last scene showed as boxes. */
+  boxes: number;
+  extracting: boolean;
+  /** Cache size on disk, and the most it may hold (least recently used pieces are dropped beyond it). */
+  bytes: number;
+  limitBytes: number;
+  /** One plain sentence for Settings. */
+  message: string;
 }
 
 /** Slabyrinth Helper in TaleSpire's Symbiotes folder (main looks again on window focus and every few seconds). */
@@ -370,8 +481,13 @@ export type ChatEvent =
   | { type: "tool_call_finished"; turnId: string; callId: string; name: string; ok: boolean; summary: string; newVersion?: number }
   | { type: "notice"; turnId: string; kind: "fallback" | "compaction" | "truncated" | "refusal" | "retrying"; text: string }
   | { type: "usage"; turnId: string; usage: Usage; cost: Cost | null; totals: { usage: Usage; cost: Cost | null } }
-  /** outstandingIssues: set when the turn changed the plan and error-level playability issues remain (whatever the model said); also on cancelled turns. */
-  | { type: "turn_finished"; turnId: string; stopReason: StopReason; canContinue: boolean; canRetry: boolean; outstandingIssues?: OutstandingIssues }
+  /**
+   * outstandingIssues: set when the turn changed the plan and error-level playability issues remain (whatever the model said); also on cancelled turns.
+   * stopReason "revision_limit": the model committed AppSettings.agent.maxRevisionsPerTurn plan versions (or the
+   * chat:continue allowance) and wanted another step; the app stopped between steps (every version and tool result
+   * kept) and asks the GM whether to go on (canContinue true → chat:continue).
+   */
+  | { type: "turn_finished"; turnId: string; stopReason: StopReason | "revision_limit"; canContinue: boolean; canRetry: boolean; outstandingIssues?: OutstandingIssues }
   | { type: "turn_failed"; turnId: string; error: AppError; canRetry: boolean; outstandingIssues?: OutstandingIssues };
 
 export interface IpcEvents {
@@ -395,6 +511,10 @@ export interface IpcEvents {
   "addon:changed": AddonStatus;
   /** The link changed: the add-on connected or left, progress, hotkeys. */
   "link:changed": LinkStatus;
+  /** The 3D view's scene is being prepared: layout = placing the pieces, detail = loading their shapes. */
+  "view3d:progress": { sceneId: string; stage: "layout" | "detail"; done: number; total: number };
+  /** The 3D piece cache (TaleSpire's piece shapes, read once per game update): pieces read, shown as boxes, being read, cache bytes. */
+  "meshes:status": { read: number; boxes: number; extracting: boolean; bytes: number };
 }
 
 /** Renderer → main one-way messages (ipcRenderer.send). */
