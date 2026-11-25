@@ -5,6 +5,7 @@
  */
 import { BUILD_CONSTANTS } from "../contracts/plan";
 import type { LevelLink, LinkKind, MapPlan, Side, Vec2 } from "../contracts/plan";
+import type { ResolvedLink } from "../contracts/resolved";
 import { pushAll } from "../util/lists";
 
 /**
@@ -200,5 +201,20 @@ export function linkCellsOnLevel(plan: Pick<MapPlan, "levels" | "links">, levelI
     if (lo.id === levelId) pushAll(out, geo.lowerCells);
     if (up.id === levelId) pushAll(out, geo.upperCells, geo.arrivalCells);
   }
+  return out;
+}
+
+/**
+ * The cells a resolved link (its cells laid out) occupies on a level: its run on the level it starts from (the lower,
+ * `fromLevel`), its stairwell and arrival on the level it ends on (`toLevel`), none elsewhere. The resolved form of
+ * `linkCellsOnLevel`, for readers of a resolved plan.
+ */
+export function resolvedLinkCells(
+  link: Pick<ResolvedLink, "fromLevel" | "toLevel" | "lowerCells" | "upperCells" | "arrival">,
+  levelId: string,
+): Vec2[] {
+  const out: Vec2[] = [];
+  if (link.fromLevel === levelId) pushAll(out, link.lowerCells);
+  if (link.toLevel === levelId) pushAll(out, link.upperCells, [link.arrival]);
   return out;
 }

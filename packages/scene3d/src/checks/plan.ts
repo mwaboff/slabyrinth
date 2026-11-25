@@ -3,23 +3,26 @@
  * their walkable top, whether a roofed building covers them), its passages (doors, arches, gaps), the closed sides of
  * its enclosures (a building's walls storey by storey, an object's rails and hull round its decks) and each object's
  * heading. Read from the resolved plan through core's own readers (LevelGrid, the opening-kind table, the world frame
- * of the orientation calibration, objectOf), never re-derived.
+ * of the orientation calibration and its inverse, the side steps, areaObject, resolvedLinkCells), never re-derived.
  */
 import {
   CELL_FLAG,
+  DIRS,
   EDGE,
   LevelGrid,
+  SIDE_STEP,
   WorldFrame,
   elementCharacter,
   featureInfo,
   isPassage,
   loadOrientation,
+  resolvedLinkCells,
   type OrientationCalibration,
   type ResolvedLevel,
   type ResolvedPlan,
   type Side,
 } from "@slabyrinth/core";
-import { isObjectBody, objectOf } from "@slabyrinth/core/objects";
+import { areaObject, isObjectBody } from "@slabyrinth/core/objects";
 import type { Scene, Vec3 } from "../types/index";
 import { CHECK_THRESHOLDS as T } from "./thresholds";
 
@@ -116,14 +119,6 @@ export interface ObjectPlan {
   heading: number;
   gangway?: ReadonlyArray<readonly [number, number]>;
 }
-
-const STEP: Readonly<Record<Side, readonly [number, number]>> = {
-  N: [0, -1],
-  S: [0, 1],
-  E: [1, 0],
-  W: [-1, 0],
-};
-const SIDES: readonly Side[] = ["N", "E", "S", "W"];
 
 interface Edge {
   cell: readonly [number, number];
@@ -326,8 +321,8 @@ export function planFacts(
       const foot = new Set(s.cells.map(([x, y]) => `${String(x)},${String(y)}`));
       const walls: Edge[] = [];
       for (const [x, y] of s.cells)
-        for (const side of SIDES) {
-          const [dx, dy] = STEP[side];
+        for (const side of DIRS) {
+          const [dx, dy] = SIDE_STEP[side];
           if (foot.has(`${String(x + dx)},${String(y + dy)}`)) continue;
           if (grid.edgeKind(x, y, side) === EDGE.WALL) walls.push({ cell: [x, y], side });
         }
@@ -355,8 +350,7 @@ export function planFacts(
     if (objectIds.size > 0) {
       const ownerAt = (x: number, y: number): string | null => {
         const c = grid.cell(x, y);
-        const id = c.area > 0 ? level.areas[c.area - 1]?.id : undefined;
-        const o = id !== undefined && id.includes("~") ? objectOf(id) : null;
+        const o = areaObject(c.area > 0 ? level.areas[c.area - 1]?.id : undefined);
         return o !== null && objectIds.has(o) ? o : null;
       };
       const byOwner = new Map<string, Edge[]>();
@@ -366,8 +360,8 @@ export function planFacts(
           if (o === null || !grid.cell(x, y).floor) continue;
           if (gangway.has(`${String(x)},${String(y)}`) || linkCells.has(`${String(x)},${String(y)}`))
             continue;
-          for (const side of SIDES) {
-            const [dx, dy] = STEP[side];
+          for (const side of DIRS) {
+            const [dx, dy] = SIDE_STEP[side];
             if (ownerAt(x + dx, y + dy) === o) continue;
             const k = `${String(x + dx)},${String(y + dy)}`;
             if (gangway.has(k) || linkCells.has(k)) continue;
@@ -382,10 +376,10 @@ export function planFacts(
   }
 
   const objects: PlanObject[] = (opts.objects ?? []).map((o) => {
+    // clockwise from plan north (plan north is -y), turned into the world by the frame
     const t = (o.heading * Math.PI) / 180;
-    // plan north is world +z when the frame flips rows (the calibration's confirmed convention)
-    const north = orientation.flipZ ? 1 : -1;
-    return { id: o.id, heading: { x: Math.sin(t), y: 0, z: Math.cos(t) * north } };
+    const w = frame.planVector(Math.sin(t), -Math.cos(t));
+    return { id: o.id, heading: { x: w.x, y: 0, z: w.z } };
   });
   return {
     cells,
@@ -401,9 +395,7 @@ export function planFacts(
     cellAt(li, x, z) {
       const l = byLevel.get(li);
       if (!l) return null;
-      const px = Math.floor(x);
-      // world z → plan row (the frame's own rule, inverted)
-      const py = orientation.flipZ ? hg - 1 - Math.floor(z) : Math.floor(z);
+      const [px, py] = frame.cellAt(x, z);
       const ix = px - l.x0;
       const iy = py - l.y0;
       if (ix < 0 || iy < 0 || ix >= l.w || iy >= l.h) return null;
@@ -412,17 +404,10 @@ export function planFacts(
   };
 }
 
-/** The cells of a level a stair, ladder or stairwell stands in (lower runs and upper arrivals). */
+/** The cells of a level a stair, ladder or stairwell stands in (core `resolvedLinkCells`). */
 function linkCellsOf(resolved: ResolvedPlan, level: ResolvedLevel): Set<string> {
   const out = new Set<string>();
-  for (const l of resolved.links) {
-    if (l.fromLevel === level.id || l.toLevel === level.id) {
-      const lower = resolved.levels.find((x) => x.id === l.fromLevel);
-      const upper = resolved.levels.find((x) => x.id === l.toLevel);
-      const isLower = (lower?.elevation ?? 0) <= (upper?.elevation ?? 0) ? l.fromLevel : l.toLevel;
-      const cs = isLower === level.id ? l.lowerCells : [...l.upperCells, l.arrival];
-      for (const [x, y] of cs) out.add(`${String(x)},${String(y)}`);
-    }
-  }
+  for (const l of resolved.links)
+    for (const [x, y] of resolvedLinkCells(l, level.id)) out.add(`${String(x)},${String(y)}`);
   return out;
 }

@@ -44,6 +44,17 @@ export class WorldFrame {
     return { x: px, z: this.o.flipZ ? this.hg - py : py };
   }
 
+  /** The plan cell whose square holds world (x, z): the inverse of `rectMin` for one cell. */
+  cellAt(x: number, z: number): [number, number] {
+    const row = Math.floor(z);
+    return [Math.floor(x), this.o.flipZ ? this.hg - 1 - row : row];
+  }
+
+  /** A plan direction (dx east, dy south) in the world (x, z), unscaled. */
+  planVector(dx: number, dy: number): { x: number; z: number } {
+    return { x: dx, z: this.o.flipZ ? -dy : dy };
+  }
+
   /** Compass side in the world for a plan side. */
   worldSide(s: Side): Side {
     if (this.o.flipZ) return s;
