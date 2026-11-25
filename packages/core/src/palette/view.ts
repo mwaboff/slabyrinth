@@ -21,6 +21,7 @@ import { bundledPalettes } from "./load";
 import { createPlanRoles, type PlanRoles } from "./planRoles";
 import { themeChain, type ResolveOutcome, type ResolvePalettes, type VariantFilter } from "./resolve";
 import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE, floorRole } from "./roles";
+import type { MeasuredCollider } from "./measured";
 import { restHeight } from "./restSurface";
 import { coveredStallForms, roleProbe, type RoleProbe } from "./stallParts";
 import { TONE_RANK, variantTone, type Tone } from "./tones";
@@ -131,8 +132,8 @@ export function createPaletteView(
   const roles = createPlanRoles(catalog, generator);
   // generator 6 (restSurfaces): a thing set on a piece stands on its measured top surface, not its box top
   const measuredRests = generatorProfile(generator).restSurfaces;
-  const restOf = (q: { uuid: string; geom: { size: { y: number } } }): number =>
-    restHeight(q.uuid, q.geom.size.y, measuredRests);
+  const restOf = (q: { uuid: string; geom: MeasuredCollider }): number =>
+    restHeight(q.uuid, q.geom, measuredRests);
   const resolver = (theme: ThemeId, role: string, filter?: VariantFilter): ResolveOutcome =>
     roles.resolve(theme, role, filter);
   const probe = (theme: ThemeId): RoleProbe => roleProbe(resolver, theme);

@@ -47,8 +47,26 @@ export { pickFromPool, traitPool, traitQueryKey } from "./traitPools";
 export type { TraitPiece, TraitPool, TraitQuery } from "./traitPools";
 export { REST_ROLE_PREFIXES, measuredRest, restHeight, restPieces, restTop } from "./restSurface";
 export type { RestPiece } from "./restSurface";
-export { parseRestGrid, restGridOf, restSpot } from "./restGrid";
+export {
+  HANG_ROLE_PREFIXES,
+  gridCellAt,
+  hangGridOf,
+  hangPieces,
+  parseRestGrid,
+  restGridOf,
+  restSpot,
+} from "./restGrid";
 export type { RestGrid, RestSpot } from "./restGrid";
 export { COVER_ROLE_PREFIXES, FLOOR_HOLE, coverPieces, floorHoleOf, leavesFloorHole } from "./topCover";
+export {
+  MEASURED_SIZE_TOLERANCE,
+  TABLE_HASH_PREFIX,
+  checkTableHash,
+  fitsMeasured,
+  measuredEntry,
+  staleMeasured,
+  tableBodyHash,
+} from "./measured";
+export type { Measured, MeasuredCollider, MeasuredGrid, MeasuredHole, MeasuredRest } from "./measured";
 export { coveredStallForms, stallParts } from "./stallParts";
 export type { RoleProbe, StallParts } from "./stallParts";

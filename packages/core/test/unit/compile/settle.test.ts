@@ -8,34 +8,13 @@ import type { PlacementSet } from "../../../src/contracts/compiler";
 import { realize } from "../../../src/compile";
 import { worldTurn } from "../../../src/compile/geometry";
 import { restSpotAt, type PlacedSupport } from "../../../src/compile/restOn";
-import { loadPalettes, parseRestGrid, restGridOf, restPieces, restSpot } from "../../../src/palette";
+import { loadPalettes, restGridOf, restPieces, restSpot } from "../../../src/palette";
 import { loadOrientation } from "../../../src/palette/load";
-import { MEASURED_REST_GRIDS, UNREAD_REST_GRIDS } from "../../../src/palette/restGrids";
 import { resolvePlan } from "../../../src/resolve";
 import { rotateXZ, turnedHalfExtents } from "../../../src/util/turn";
 import { loadPlan, type StoredPlan } from "../../fixtures";
 
-const RERUN =
-  "run `npm run render -- rests` on a machine with TaleSpire installed (it rewrites palette/restGrids.ts)";
-
-describe("the measured rest grids (palette/restGrids.ts)", () => {
-  const pieces = restPieces(loadPalettes().palettes);
-  const ids = new Set(pieces.map((p) => p.asset));
-
-  it("lists every piece of the bundled palettes' furniture and stall roles, measured or unread", () => {
-    const missing = pieces
-      .filter((p) => !Object.hasOwn(MEASURED_REST_GRIDS, p.asset) && !UNREAD_REST_GRIDS.includes(p.asset))
-      .map((p) => `${p.name} (${p.asset})`);
-    expect(missing, `pieces never measured: ${RERUN}`).toEqual([]);
-  });
-
-  it("names no piece the bundled palettes do not, and every entry parses", () => {
-    const stale = [...Object.keys(MEASURED_REST_GRIDS), ...UNREAD_REST_GRIDS].filter((id) => !ids.has(id));
-    expect(stale, `ids no bundled palette names: ${RERUN}`).toEqual([]);
-    for (const [id, text] of Object.entries(MEASURED_REST_GRIDS))
-      expect(parseRestGrid(text), id).not.toBeNull();
-  });
-});
+// (the measured grid table's coverage and guards: test/unit/palette/measuredTables.test.ts)
 
 describe("a spot on a top (palette/restGrid.ts restSpot)", () => {
   // a 1 x 1 top in 2 x 2 cells: the front row holds things at 0.5, the back row is a slope (holds none)
@@ -61,7 +40,7 @@ describe("a point turns into the support's own frame (compile/restOn.ts)", () =>
   // a study desk: its writing top in front, a raised hutch behind
   const desk = restPieces(loadPalettes().palettes).find((p) => p.name === "desk_study_01");
   if (!desk) throw new Error("fixture: the bundled palettes have desk_study_01");
-  if (!restGridOf(desk.asset)) throw new Error("fixture: desk_study_01 is measured");
+  if (!restGridOf(desk.asset, desk.geom)) throw new Error("fixture: desk_study_01 is measured");
   /** The desk standing centred on (10, 10), its bottom at 2, turned `cw`. */
   const at = (cw: number): PlacedSupport => {
     const e = turnedHalfExtents(desk.geom.size.x, desk.geom.size.z, cw);
@@ -117,7 +96,13 @@ describe("things set on furniture rest on the part of its top under them (genera
         const cz = (b.min.z + b.max.z) / 2;
         for (const q of feats) {
           const info = set.placed?.get(q);
-          if (q === p || !info || !restGridOf(q.asset) || q.source.elementId === p.source.elementId) continue;
+          if (
+            q === p ||
+            !info ||
+            !restGridOf(q.asset, info.geom) ||
+            q.source.elementId === p.source.elementId
+          )
+            continue;
           const qb = info.box;
           if (cx < qb.min.x || cx > qb.max.x || cz < qb.min.z || cz > qb.max.z) continue;
           if (p.y < qb.min.y + 0.15 || p.y > qb.max.y + 0.06) continue;

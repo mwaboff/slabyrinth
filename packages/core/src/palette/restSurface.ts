@@ -6,10 +6,12 @@
  *
  * The rule is the piece's, not the placer's: every placer that sets a thing on a support asks this (through the
  * palette view's `rest`, or here with the piece realize picked), so a piece measured once rests everything set on it,
- * and a piece never measured (a user palette's, one a game update added before the table was re-run) keeps its box top.
+ * and a piece never measured (a user palette's, one a game update added or reshaped before the table was re-run:
+ * palette/measured.ts) keeps its box top.
  * Heights are above the collider's bottom, the frame of the palette's `geom.size.y`.
  */
 import type { Palette, PaletteVariant } from "../contracts/compiler";
+import { measuredEntry, type MeasuredCollider } from "./measured";
 import { MEASURED_RESTS } from "./restHeights";
 
 /**
@@ -39,19 +41,21 @@ export function restPieces(palettes: Readonly<Record<string, Palette>>): RestPie
   return [...byId.values()].sort((a, b) => (a.asset < b.asset ? -1 : a.asset > b.asset ? 1 : 0));
 }
 
-/** The measured rest height of an asset, or undefined when it was never measured. */
-export function measuredRest(asset: string): number | undefined {
-  const id = asset.toLowerCase();
-  return Object.hasOwn(MEASURED_RESTS, id) ? MEASURED_RESTS[id] : undefined;
+/**
+ * The measured rest height of an asset built with collider `geom`, or undefined when it was never measured or was
+ * measured on another collider (palette/measured.ts: a game update reshaped it since).
+ */
+export function measuredRest(asset: string, geom: MeasuredCollider): number | undefined {
+  return measuredEntry(MEASURED_RESTS, asset, geom)?.rest;
 }
 
 /**
  * How high above its collider's bottom a thing set on the piece stands: its measured top surface when `measured` (the
- * generator's `restSurfaces` switch) and the piece was measured, else its collider's top (`boxTop`).
+ * generator's `restSurfaces` switch) and the piece was measured on this collider, else its collider's top.
  */
-export function restHeight(asset: string, boxTop: number, measured: boolean): number {
-  if (!measured) return boxTop;
-  return measuredRest(asset) ?? boxTop;
+export function restHeight(asset: string, geom: MeasuredCollider, measured: boolean): number {
+  if (!measured) return geom.size.y;
+  return measuredRest(asset, geom) ?? geom.size.y;
 }
 
 /**
@@ -60,9 +64,10 @@ export function restHeight(asset: string, boxTop: number, measured: boolean): nu
  */
 export function restTop(
   asset: string,
+  geom: MeasuredCollider,
   box: { readonly min: { readonly y: number }; readonly max: { readonly y: number } },
   measured: boolean,
 ): number {
-  const rest = measured ? measuredRest(asset) : undefined;
+  const rest = measured ? measuredRest(asset, geom) : undefined;
   return rest === undefined ? box.max.y : box.min.y + rest;
 }

@@ -3,26 +3,20 @@
  * spike against in-game screenshots): turn the mesh `rot` degrees clockwise seen from above; a tile's stored position
  * is the min x/z corner of its turned collider box, a prop's is its origin. The y of the mesh is kept as it is.
  */
-import { rotateXZ } from "@slabyrinth/core";
+import { placementBox, rotateXZ } from "@slabyrinth/core";
 import { cuboid } from "../geom/mesh";
 import type { Box3, MeshData, PieceGeom, Vec3 } from "../types/index";
 
-/** The translation that, after turning the mesh by `rotDeg`, puts it where the game puts a piece stored at `stored`. */
+/**
+ * The translation that, after turning the mesh by `rotDeg`, puts it where the game puts a piece stored at `stored`.
+ * A tile's turned collider stands where core's one rule puts it (compile/geometry.ts placementBox, the box realize and
+ * verify read): its centre is the box's, so the mesh moves by that centre less its own turned collider centre.
+ */
 export function placementOffset(geom: PieceGeom, stored: Vec3, rotDeg: number): Vec3 {
   if (geom.originAt !== "minCorner") return { x: stored.x, y: stored.y, z: stored.z };
-  let minX = Infinity;
-  let minZ = Infinity;
-  for (const sx of [-1, 1])
-    for (const sz of [-1, 1]) {
-      const r = rotateXZ(
-        geom.boundsCenter.x + (sx * geom.size.x) / 2,
-        geom.boundsCenter.z + (sz * geom.size.z) / 2,
-        rotDeg,
-      );
-      minX = Math.min(minX, r.x);
-      minZ = Math.min(minZ, r.z);
-    }
-  return { x: stored.x - minX, y: stored.y, z: stored.z - minZ };
+  const box = placementBox(geom, stored.x, stored.y, stored.z, rotDeg);
+  const c = rotateXZ(geom.boundsCenter.x, geom.boundsCenter.z, rotDeg);
+  return { x: (box.min.x + box.max.x) / 2 - c.x, y: stored.y, z: (box.min.z + box.max.z) / 2 - c.z };
 }
 
 /** A box of the collider (12 triangles), in the piece's own frame: the stand-in when its mesh is not available. */

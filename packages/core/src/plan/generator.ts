@@ -670,7 +670,7 @@ const SWITCHES = {
   ),
   unevenTops: on(
     6,
-    "A thing set on a piece of furniture stands on the part of the top under it, at that part's measured height (palette/restGrid.ts: a grid of rest heights over each piece's top, read from the game's meshes by `npm run render -- rests` into palette/restGrids.ts), looked up with the support's final variant and turn (compile/restOn.ts, util/turn.ts); a thing over a part that cannot hold it (a chest's rounded lid off its crest, an anvil's horn, past a desk's edge) or set beside the top moves to the nearest part that can (compile/realize/settle.ts, after every support is laid). Verify judges the support by the same grid. A piece never measured leaves things on it where they were set.",
+    "A thing set on a piece of furniture stands on the part of the top under it, at that part's measured height (palette/restGrid.ts: a grid of rest heights over each piece's top, read from the game's meshes by `npm run render -- rests` into palette/restGrids.ts), looked up with the support's final variant and turn (compile/restOn.ts, util/turn.ts); a thing over a part that cannot hold it (a chest's rounded lid off its crest, an anvil's horn, past a desk's edge) or set beside the top moves to the nearest part that can (compile/realize/settle.ts, after every support is laid). What a thing stands on is the support the resolver set it on (a raised piece whose footprint holds the thing's cell and whose height range holds its base), so a thing lifted for a taller variant of its support is set on the variant built, and a thing on a piece never measured moves with that piece and stands on its box top. Verify judges the support by the same grid: a part under the thing's centre that holds things, or one its own outline reaches (compile/restOn.ts surfaceTopAt).",
   ),
   storeyHeadroom: on(
     6,
@@ -678,7 +678,7 @@ const SWITCHES = {
   ),
   railedDeckEdges: on(
     6,
-    "Every edge of an object's raised walking surface with a drop below it is railed, with gaps only where a way crosses: a vessel's raised deck is railed across its break over the main deck too (its ladder comes up through the deck; objects/vessel.ts kitHullParts), a gangway crosses the bulwark only where it takes away no more than one short rail piece (objects/vessel.ts bulwarkOpening, resolve/objectSite.ts), never through the curved bow fence (the barge's bow stood 4 tiles open on the moored side), and the rail on its side is laid up to its cell and on from it; a rail across the hull closes its ends with the side's short pieces. objects/facing.ts openDeckEdges is the check any object is held to.",
+    "Every edge of an object's raised walking surface with a drop below it is railed, with gaps only where a way crosses: a vessel's raised deck is railed across its break over the main deck too (its ladder comes up through the deck; objects/vessel.ts kitHullParts), a gangway crosses the bulwark only where it takes away no more than one short rail piece (objects/vessel.ts bulwarkOpening, resolve/objectSite.ts), never through the curved bow fence (the barge's bow stood 4 tiles open on the moored side), and the rail on its side is laid up to its cell and on from it; a rail across the hull closes its ends with the side's short pieces. objects/facing.ts openDeckEdges is the check: a unit test holds every recipe of OBJECT_RECIPES to it across its sizes and seeds (test/unit/objects/railedEdges.test.ts); verify does not run it on a build (it has no code for it).",
   ),
   seenCover: on(
     6,
@@ -686,7 +686,7 @@ const SWITCHES = {
   ),
   hangUnderCover: on(
     6,
-    "A thing hung under a cover hangs from the cover's real surface over its point, measured from the game's meshes (palette/restGrid.ts, compile/restOn.ts): a market stall's lantern hangs from the canopy piece over it (compile/stalls.ts), not from its box's underside, under which a sloping cloth awning leaves 0.65 of air (the lanterns hung in mid-air); a canopy never measured keeps the box's underside.",
+    "A thing hung under a cover hangs from the cover's real underside over its point, measured from the game's meshes seen from below (palette/hangGrids.ts, written by `npm run render -- rests`; compile/restOn.ts undersideAt): a market stall's lantern hangs from the lowest canopy piece over it (compile/stalls.ts), not from its box's underside, under which a sloping cloth awning leaves 0.65 of air (the lanterns hung in mid-air), nor from its top surface, which a thick canopy's underside is below; a canopy never measured keeps the box's underside.",
   ),
 } as const satisfies Record<string, SwitchDeclaration>;
 

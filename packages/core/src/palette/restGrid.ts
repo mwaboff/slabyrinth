@@ -7,9 +7,35 @@
  *
  * The rule is the support piece's, read where the thing finally stands (compile/realize/settle.ts turns the thing's
  * point into the support's frame with util/turn.ts): a piece never measured has no grid, and things on it keep the one
- * height they were given.
+ * height they were given. A piece measured on another collider than the one it is built with (palette/measured.ts) has
+ * no grid either.
+ *
+ * The same grid read from below (palette/hangGrids.ts, `hangGridOf`) is where a thing hung under a cover meets it: each
+ * cell holds the lowest point of the cover's underside over it (a sloping cloth's too), for the pieces of the roles
+ * things hang under (HANG_ROLE_PREFIXES).
  */
+import type { Palette } from "../contracts/compiler";
+import { HANG_GRIDS } from "./hangGrids";
+import { measuredEntry, type MeasuredCollider, type MeasuredGrid } from "./measured";
 import { MEASURED_REST_GRIDS } from "./restGrids";
+import type { RestPiece } from "./restSurface";
+
+/** The palette roles whose pieces things hang under (a market stall's canopy): measured from below as well. */
+export const HANG_ROLE_PREFIXES: readonly string[] = ["stall.canopy"];
+
+/** Every piece of the HANG_ROLE_PREFIXES roles in `palettes`, once each, in asset id order. */
+export function hangPieces(palettes: Readonly<Record<string, Palette>>): RestPiece[] {
+  const byId = new Map<string, RestPiece>();
+  for (const p of Object.values(palettes))
+    for (const [role, def] of Object.entries(p.roles)) {
+      if (!HANG_ROLE_PREFIXES.some((pre) => role.startsWith(pre))) continue;
+      for (const v of def.variants) {
+        const asset = v.asset.toLowerCase();
+        if (!byId.has(asset)) byId.set(asset, { asset, name: v.name ?? asset, geom: v.geom });
+      }
+    }
+  return [...byId.values()].sort((a, b) => (a.asset < b.asset ? -1 : a.asset > b.asset ? 1 : 0));
+}
 
 /** A measured rest grid: cells along x and z, and each cell's rest height above the collider's bottom (null: none). */
 export interface RestGrid {
@@ -19,6 +45,7 @@ export interface RestGrid {
   readonly heights: ReadonlyArray<number | null>;
 }
 
+/** Parsed grid texts (a table's text never changes while running). */
 const parsed = new Map<string, RestGrid | null>();
 
 /** Parses one table entry ("<nx>x<nz>:" and heights in hundredths, "-" for none), or null when malformed. */
@@ -32,14 +59,50 @@ export function parseRestGrid(text: string): RestGrid | null {
   return { nx, nz, heights };
 }
 
-/** The measured rest grid of an asset, or undefined when it was never measured. */
-export function restGridOf(asset: string): RestGrid | undefined {
-  const id = asset.toLowerCase();
-  if (!parsed.has(id)) {
-    const text = Object.hasOwn(MEASURED_REST_GRIDS, id) ? MEASURED_REST_GRIDS[id] : undefined;
-    parsed.set(id, text === undefined ? null : parseRestGrid(text));
-  }
-  return parsed.get(id) ?? undefined;
+/** A table's grid for an asset built with `geom`, parsed once; undefined when never measured on that collider. */
+function gridOf(
+  table: Readonly<Record<string, MeasuredGrid>>,
+  asset: string,
+  geom: MeasuredCollider,
+): RestGrid | undefined {
+  const text = measuredEntry(table, asset, geom)?.grid;
+  if (text === undefined) return undefined;
+  if (!parsed.has(text)) parsed.set(text, parseRestGrid(text));
+  return parsed.get(text) ?? undefined;
+}
+
+/**
+ * The measured rest grid of an asset built with collider `geom` (seen from above), or undefined when it was never
+ * measured on that collider.
+ */
+export function restGridOf(asset: string, geom: MeasuredCollider): RestGrid | undefined {
+  return gridOf(MEASURED_REST_GRIDS, asset, geom);
+}
+
+/**
+ * The measured underside grid of a cover piece built with collider `geom` (seen from below: each cell the lowest point
+ * of the piece over it, above its collider's bottom; null where nothing covers the cell), or undefined when it was
+ * never measured on that collider.
+ */
+export function hangGridOf(asset: string, geom: MeasuredCollider): RestGrid | undefined {
+  return gridOf(HANG_GRIDS, asset, geom);
+}
+
+/**
+ * The value of a grid over a `sx` by `sz` outline at (lx, lz) in the piece's frame (from its collider's centre): the
+ * cell's, or undefined past the outline or over a cell with none.
+ */
+export function gridCellAt(
+  grid: RestGrid,
+  sx: number,
+  sz: number,
+  lx: number,
+  lz: number,
+): number | undefined {
+  if (Math.abs(lx) > sx / 2 || Math.abs(lz) > sz / 2) return undefined;
+  const i = Math.min(grid.nx - 1, Math.max(0, Math.floor(((lx + sx / 2) / sx) * grid.nx)));
+  const k = Math.min(grid.nz - 1, Math.max(0, Math.floor(((lz + sz / 2) / sz) * grid.nz)));
+  return grid.heights[k * grid.nx + i] ?? undefined;
 }
 
 /** A point on a piece's top that holds a thing: its place in the piece's frame and the height it rests at. */
