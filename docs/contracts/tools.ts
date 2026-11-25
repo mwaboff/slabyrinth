@@ -43,6 +43,7 @@ export type ToolName =
   | "edit_plan"
   | "view_plan"
   | "view_map_image"
+  | "view_build_3d"
   | "compile_preview"
   | "list_catalog";
 

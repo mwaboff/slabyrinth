@@ -21,10 +21,20 @@ import { runCreatePlan, runEditPlan } from "./toolRun/planTools";
 import type { AgentExecuteTool, AgentToolContext, ExecutorPorts } from "./toolRun/ports";
 import { defaultExecutorPorts } from "./toolRun/ports";
 import { fail } from "./toolRun/results";
+import { runViewBuild3d } from "./toolRun/view3dTool";
 import { runViewMapImage, runViewPlan } from "./toolRun/viewTools";
 
 export { compilePreviewText, PREVIEW_CAPS } from "./toolRun/compilePreview";
 export { completeAuthoredPlan } from "./toolRun/planTools";
+export {
+  DROPPED_PICTURE_TEXT,
+  PICTURE_BUDGET_CODE,
+  PICTURES_HEADER,
+  pictureVersionOf,
+  picturesContent,
+  withoutPicture,
+  type PictureCause,
+} from "./toolRun/view3dTool";
 export {
   defaultExecutorPorts,
   type AgentExecuteTool,
@@ -42,6 +52,7 @@ const TOOL_RUNS: Record<ToolName, ToolRun> = {
   edit_plan: runEditPlan,
   view_plan: runViewPlan,
   view_map_image: (_r, ctx, input) => runViewMapImage(ctx, input),
+  view_build_3d: (_r, ctx, input) => runViewBuild3d(ctx, input),
   compile_preview: (_r, ctx, input) => runCompilePreview(ctx, input),
   list_catalog: (_r, ctx, input) => runListCatalog(ctx, input),
 };
