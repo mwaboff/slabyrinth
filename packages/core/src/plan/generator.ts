@@ -678,7 +678,7 @@ const SWITCHES = {
   ),
   railedDeckEdges: on(
     6,
-    "Every edge of an object's raised walking surface with a drop below it is railed, with gaps only where a way crosses: a vessel's raised deck is railed across its break over the main deck too (its ladder comes up through the deck; objects/vessel.ts kitHullParts), a gangway crosses the bulwark only where it takes away no more than one short rail piece (objects/vessel.ts bulwarkOpening, resolve/objectSite.ts), never through the curved bow fence (the barge's bow stood 4 tiles open on the moored side), and the rail on its side is laid up to its cell and on from it; a rail across the hull closes its ends with the side's short pieces. objects/facing.ts openDeckEdges is the check any object is held to.",
+    "Every edge of an object's raised walking surface with a drop below it is railed, with gaps only where a way crosses: a vessel's raised deck is railed across its break over the main deck too (its ladder comes up through the deck; objects/vessel.ts kitHullParts), a gangway crosses the bulwark only where it takes away no more than one short rail piece (objects/vessel.ts bulwarkOpening, resolve/objectSite.ts), never through the curved bow fence (the barge's bow stood 4 tiles open on the moored side), and the rail on its side is laid up to its cell and on from it; a rail across the hull closes its ends with the side's short pieces. objects/facing.ts openDeckEdges is the check: a unit test holds every recipe of OBJECT_RECIPES to it across its sizes and seeds (test/unit/objects/railedEdges.test.ts); verify does not run it on a build (it has no code for it).",
   ),
   seenCover: on(
     6,
