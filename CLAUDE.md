@@ -42,6 +42,8 @@ in the same PR and say why.
 - Hand-edit the generated palettes (`packages/core/data/palettes/*.json`, `palette/bundled.ts`): change the script's
   inputs (`scripts/palette-*.json`, the mapping table) and run `packages/core/scripts/import-palette-draft.ts` (the
   owner allowed palette updates on 2026-11-23); new roles carry a `minGenerator`, and the diff holds only what moved.
+  The generated measured tables (`packages/core/src/palette/restHeights.ts`, `restGrids.ts`, `coverHoles.ts`,
+  `hangGrids.ts`) are the same: change the measuring script and run `npm run render -- rests`.
 - Launch the app any way but `npm run test:e2e`, or let a test touch the real user data dir, the game install, the
   real clipboard or the network.
 - Commit `docs/internal/`, or copy community slab designs into the repo.
