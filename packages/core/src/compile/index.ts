@@ -27,6 +27,8 @@ export type { CalibrationAssets } from "./calibration";
 export {
   DIRS,
   WorldFrame,
+  emptyBox,
+  growBox,
   placementBox,
   rotateDir,
   rotateXZ,

@@ -177,11 +177,11 @@ const scene3dBoundary = {
 };
 
 /**
- * The layer order of packages/scene3d/src (same rule as CORE_LAYERS): the shared types; the byte readers of the game's
- * files, the software raster and the scene builder (independent of each other); then the mesh sources (over the
- * readers) and the shot rules (over scene and raster).
+ * The layer order of packages/scene3d/src (same rule as CORE_LAYERS): the shared types and small mesh helpers; the
+ * byte readers of the game's files, the software raster and the scene builder (independent of each other); then the
+ * mesh sources (over the readers) and the shot rules (over scene and raster).
  */
-const SCENE3D_LAYERS = [["types"], ["unity", "raster", "scene"], ["source", "shots"]];
+const SCENE3D_LAYERS = [["types"], ["geom"], ["unity", "raster", "scene"], ["source", "shots"]];
 const scene3dLayersRule = layersRule({
   table: "SCENE3D_LAYERS",
   label: "Scene3d layers",
