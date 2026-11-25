@@ -2,7 +2,7 @@
 import { create } from "zustand";
 import type { ExportBundle } from "@slabyrinth/core";
 import type { IpcEvents } from "../../shared/ipc";
-import { call, errorMessage } from "../bridge/client";
+import { BridgeError, call, errorMessage } from "../bridge/client";
 import { buildModel } from "../features/build/model";
 import { initPaste, pasteReducer, type PasteEvent, type PasteState } from "../features/build/pasteMachine";
 import { useApp } from "./app";
@@ -73,7 +73,13 @@ export const useBuild = create<BuildState>((set, get) => ({
       set({ pasteFor: null });
       get().syncFromSnapshot();
     } catch (e) {
-      set({ error: errorMessage(e) });
+      // pressing Cancel is not a failure: say it was stopped, don't show the "didn't finish" panel
+      if (e instanceof BridgeError && e.appError.code === "cancelled")
+        useApp.getState().toast({
+          lead: "Build stopped.",
+          body: "Nothing was changed. Build again when you're ready.",
+        });
+      else set({ error: errorMessage(e) });
     } finally {
       set({ building: false, progress: null });
     }
