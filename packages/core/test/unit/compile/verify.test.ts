@@ -329,13 +329,18 @@ describe("verify: one fixture per code", () => {
     const geom = bench.set.placed.get(w)?.geom;
     const rest = geom ? measuredRest(w.asset, geom) : undefined;
     if (rest === undefined) throw new Error("fixture: the Workbench is measured");
-    const floating = (g: 5 | 6, lift: number): unknown[] => {
+    const floating = (g: 5 | 6, lift: number, raise = 0): unknown[] => {
       const b = build(g, lift);
+      // (raised after realize: generator 6 settles a thing set on the bench onto its work top, compile/realize/settle.ts)
+      const t = b.set.levels.flatMap((l) => l.placements).find((p) => p.source.elementId === "t");
+      if (t && raise !== 0) movePlaced(b.set, t, 0, raise);
       return run(b.r, b.set, "verify_prop_floating").filter((d) => d.elementId === "t");
     };
     // at the box top it hangs over the work top; on the work top it stands (and stands in no other piece's spot)
-    expect(floating(6, boxTop)).toHaveLength(1);
+    expect(floating(6, rest, boxTop - rest)).toHaveLength(1);
     expect(floating(6, rest)).toEqual([]);
+    // set at the box top, realize settles it on the work top
+    expect(floating(6, boxTop)).toEqual([]);
     const onTop = build(6, rest);
     expect(run(onTop.r, onTop.set, "verify_props_overlap").filter((d) => d.severity === "warning")).toEqual(
       [],

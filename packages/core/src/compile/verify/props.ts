@@ -36,8 +36,7 @@ import { wallish } from "./walls";
 import { elementRef, fmt, round2, round4, solidLabel } from "./words";
 import { maxOf } from "../../util/lists";
 import { baseInFloor, restsOn } from "../../util/sunk";
-import { restTop } from "../../palette/restSurface";
-import { surfaceTopAt } from "../restOn";
+import { surfaceTopAt, type Outline } from "../restOn";
 
 /** The codes this file emits (VERIFY_CODES is the union of every check's list; lines.ts has its own). */
 export const PROP_CODES = [
@@ -110,7 +109,7 @@ function checkPropOverlaps({ ctx, solids, L }: PropLevel, props: readonly Solid[
       // it (a candle on a workbench's work top, under the box's top at its raised back)
       if (
         ctx.profile.restSurfaces &&
-        (restsOn(a.p.y, surfaceTop(ctx, b, centre(a))) || restsOn(b.p.y, surfaceTop(ctx, a, centre(b))))
+        (restsOnTop(a.p.y, surfaceTop(ctx, b, a.box)) || restsOnTop(b.p.y, surfaceTop(ctx, a, b.box)))
       )
         continue;
       const ox = overlap1(a.box.min.x, a.box.max.x, b.box.min.x, b.box.max.x);
@@ -190,8 +189,10 @@ function checkProp(lv: PropLevel, s: Solid): void {
   }
   // organic dressing (rocks, mushrooms, trees) at random 15° turns may clip a corner into rock walls: harmless. An
   // arrangement's piece is set as part of its instance (a trim may touch a wall on purpose) and never moved alone.
+  // (its outline before any nudge, as its centre: what it was set on is judged where it was set)
+  const outline = s.box;
   if (!s.isTileFeature && !s.organic && !s.arranged) pushOutOfWall(lv, s, f, cx, cz);
-  checkSupport(lv, s, cx, cz, pc);
+  checkSupport(lv, s, outline, pc);
 }
 
 /** `verify_mount_no_wall`: a wall-mounted prop needs a wall or opening edge on its side with a wall piece behind it. */
@@ -319,12 +320,12 @@ function nudge(ctx: VerifyCtx, solids: SolidIndex, s: Solid, alongX: boolean, d:
 function checkSupport(
   { ctx, solids, L, assemblyBase, lines }: PropLevel,
   s: Solid,
-  cx: number,
-  cz: number,
+  outline: Outline,
   pc: { px: number; py: number },
 ): void {
-  const top = (q: Solid): number => surfaceTop(ctx, q, { x: cx, z: cz });
-  const supports = solids
+  const cx = (outline.min.x + outline.max.x) / 2;
+  const cz = (outline.min.z + outline.max.z) / 2;
+  const tops = solids
     .at(cx, cz, -Infinity, s.p.y + SUPPORT_SLACK, -0.01)
     .filter(
       (q) =>
@@ -334,10 +335,11 @@ function checkSupport(
           q.role === "fill" ||
           q.role === "ledge" ||
           q.role === "link" ||
-          q.role === "feature") &&
-        restsOn(s.p.y, top(q)),
-    );
-  const support = supports.length ? maxOf(supports.map(top)) : null;
+          q.role === "feature"),
+    )
+    .map((q) => surfaceTop(ctx, q, outline))
+    .filter((t): t is number => restsOnTop(s.p.y, t));
+  const support = tops.length ? maxOf(tops) : null;
   // a floor or fill piece crossing the thin slice just above the support slack, its body round the prop's base
   // (util/sunk.ts: the ground recipe sinks a piece no deeper than this)
   // (generator 5, `layeredGround`: an arranged piece sunk with its centre on the seam between two ground tiles is in
@@ -397,32 +399,28 @@ function checkSupport(
 }
 
 /**
- * The top surface a piece is set on: a feature's measured one from generator 6 (`restSurfaces`: a jug on a workbench
- * stands on its work top, under the box's top at its raised back; palette/restSurface.ts), else the box's top.
+ * The top surface a thing with outline `thing` stands on when set on piece `q`: a feature's measured one from
+ * generator 6 (`restSurfaces`: a jug on a workbench stands on its work top, under the box's top at its raised back;
+ * palette/restSurface.ts), else the box's top. Generator 6 (`unevenTops`): the part of the top under the thing's
+ * centre, or one its outline reaches; undefined when no part it reaches holds it (compile/restOn.ts, the rule settle
+ * set it by).
  */
-function surfaceTop(ctx: VerifyCtx, q: Solid, at?: { x: number; z: number }): number {
+function surfaceTop(ctx: VerifyCtx, q: Solid, thing: Outline): number | undefined {
   if (q.role !== "feature") return q.box.max.y;
   // the collider the piece was built with: a measured reading applies only to it (palette/measured.ts); a placement
   // realize did not make has none, and is judged by its box top
   const geom = ctx.set.placed?.get(q.p)?.geom;
   if (!geom) return q.box.max.y;
-  // generator 6 (`unevenTops`): the measured height of the part of the top under the thing (compile/restOn.ts)
-  if (ctx.profile.unevenTops && at)
-    return surfaceTopAt(
-      { asset: q.p.asset, geom, box: q.box, cw: ctx.turnOf(q.p) },
-      at.x,
-      at.z,
-      ctx.profile.restSurfaces,
-      true,
-    );
-  return restTop(q.p.asset, geom, q.box, ctx.profile.restSurfaces);
+  return surfaceTopAt(
+    { asset: q.p.asset, geom, box: q.box, cw: ctx.turnOf(q.p) },
+    thing,
+    ctx.profile.restSurfaces,
+    ctx.profile.unevenTops,
+  );
 }
 
-/** The centre of a piece's box in world x and z. */
-const centre = (s: Solid): { x: number; z: number } => ({
-  x: (s.box.min.x + s.box.max.x) / 2,
-  z: (s.box.min.z + s.box.max.z) / 2,
-});
+/** Does a thing at height `y` rest on a top (none: it is not set on that piece)? */
+const restsOnTop = (y: number, top: number | undefined): boolean => top !== undefined && restsOn(y, top);
 
 /** A feature's footprint in world x and z. */
 function footprintWorld(

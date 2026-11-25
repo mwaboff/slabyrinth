@@ -125,9 +125,13 @@ export const WARNING_BASIS = 150;
  *   with `plinthUnderPorch`: a porch-fronted plinth is no longer raised twice).
  * - heartroot-rift-v7, dressed-cave(-v2), hillside-v5, smugglers-grotto-v3 prop_no_floor: a dress piece (a swamp tree base, a
  *   boulder, a moss rock) anchored on a cell whose centre has no floor piece under it (a ragged cave edge, an outcrop).
- * - old-stones-glade-v6 prop_floating: pebbles 0.5 above a step. (5; 4 at generator 6 with `unevenTops`, which also
- *   ended heartroot-rift-v7's 4, smugglers-grotto-v3's 16, dressed-cave's 1 and sea-grotto's 19: a landing's lantern and
- *   candles set beside a crate's top and things on stacked rocks now stand on the part of the top that holds them.)
+ * (Gone at generator 6, `unevenTops`: prop_floating on old-stones-glade-v6 (5, then 4; 0 once settle found a thing's
+ *   support by the relation the resolver made, not by its base matching the support's rest within 0.02: pebbles and
+ *   ferns set on a rock now stand on its top; the 3D scene check, which reads the game's meshes, found the ferns of two
+ *   of the four seeds 0.18 and 0.45 over a rock before and nothing after), heartroot-rift-v7's 4, smugglers-grotto-v3's 16, dressed-cave's 1 and
+ *   sea-grotto's 19: a landing's lantern and candles set beside a crate's top and things on stacked rocks stand on the
+ *   part of the top that holds them. Verify holds a thing only to a part its own outline reaches, so these are not
+ *   verify agreeing with settle: the scene check over every stored plan finds 19 floating pieces before and after.)
  * - hillside-v5 play_unreachable (the playability the build causes, `playability`): the plan's walkway climbs from its
  *   watchtower to a plateau whose edge is ragged, with no path, ramp or link up the cliff; where the walkway's top
  *   meets a pocket of that edge, the plan's own walk reaches it only across the foot of the cliff, and the plateau's
@@ -157,7 +161,6 @@ export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, num
     // measure)
     verify_prop_in_wall: 1,
   },
-  "old-stones-glade-v6": { verify_prop_floating: 4 },
   "smugglers-grotto-v3": { verify_prop_no_floor: 1 },
   "three-step-glen-v1": { verify_cliff_gap: 1 },
   "dressed-cave": {
