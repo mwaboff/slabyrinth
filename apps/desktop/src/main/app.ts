@@ -7,6 +7,7 @@ import { planRules } from "@slabyrinth/core/resolve";
 import { activeSizeTier } from "../shared/sizeTier";
 import type { EngineKind } from "./engineWiring";
 import type { Dispatch } from "./ipc/router";
+import { unavailableView3d } from "./ipc/view3dHandlers";
 import type { Logger } from "./logger";
 import type { AppPaths } from "./paths";
 import { createCoreCatalogReader } from "./ports/catalog";
@@ -145,6 +146,7 @@ export async function createAppServices(ctx: AppContext): Promise<AppServices> {
       openExternal: outside.openExternal,
       updates,
       link: talespireLink,
+      ...unavailableView3d(),
       logger: logger.child("ipc"),
     },
     work.imageBridge,

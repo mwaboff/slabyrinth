@@ -18,6 +18,7 @@ import type { UpdateService } from "../services/updateService";
 import { AppFailure } from "../util/errors";
 import { checkLocalPath, pathKey } from "../util/safePath";
 import type { Handlers } from "./router";
+import { view3dHandlers, type MeshesApi, type View3dApi } from "./view3dHandlers";
 
 /** The services the IPC handlers delegate to (composition root: main/app.ts). */
 export interface HandlerServices {
@@ -52,6 +53,9 @@ export interface HandlerServices {
     | "send"
     | "stop"
   >;
+  /** The 3D view's scenes (the scene worker) and the 3D piece cache. */
+  view3d: View3dApi;
+  meshes: MeshesApi;
   logger: Logger;
 }
 
@@ -268,5 +272,6 @@ export function createHandlers(s: HandlerServices): Handlers {
     "link:stop": () => {
       s.link.stop();
     },
+    ...view3dHandlers(s),
   };
 }

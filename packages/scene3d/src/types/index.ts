@@ -30,6 +30,8 @@ export type FallbackReason =
   | "boxes-requested"
   /** no TaleSpire install was found */
   | "no-install"
+  /** the piece's shape is being read from the install and is not in the cache yet (a box until it is) */
+  | "not-read-yet"
   /** the install's pack indexes do not list the asset */
   | "not-in-index"
   /** the index lists the asset with no mesh parts */

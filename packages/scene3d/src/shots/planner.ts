@@ -39,7 +39,7 @@ const PROBE = { width: 128, height: 96 };
 /** Another overview bearing must show this much more of the map than the south-west one to be chosen. */
 const OVERVIEW_GAIN = 0.02;
 
-const SIDES = [
+export const SIDES = [
   { side: "north", bearing: 0 },
   { side: "east", bearing: 90 },
   { side: "south", bearing: 180 },
@@ -57,7 +57,8 @@ export interface Thing {
 const storeyOf = (layer: string): number | null =>
   layer.startsWith("storey:") ? Number(layer.slice("storey:".length)) : null;
 
-function boxOf(scene: Scene, idx: readonly number[]): Box3 {
+/** The world box of some of a scene's instances (by index). */
+export function boxOf(scene: Scene, idx: readonly number[]): Box3 {
   const b: Box3 = {
     min: { x: Infinity, y: Infinity, z: Infinity },
     max: { x: -Infinity, y: -Infinity, z: -Infinity },
@@ -75,13 +76,15 @@ function boxOf(scene: Scene, idx: readonly number[]): Box3 {
   return b;
 }
 
-const grown = (b: Box3, d: number): PlanRect => ({
+/** The plan rectangle of a box grown by `d` tiles each side. */
+export const grown = (b: Box3, d: number): PlanRect => ({
   minX: b.min.x - d,
   maxX: b.max.x + d,
   minZ: b.min.z - d,
   maxZ: b.max.z + d,
 });
-const padded = (b: Box3, d: number): Box3 => ({
+/** A box grown by `d` tiles in plan (x and z). */
+export const padded = (b: Box3, d: number): Box3 => ({
   min: { x: b.min.x - d, y: b.min.y, z: b.min.z - d },
   max: { x: b.max.x + d, y: b.max.y, z: b.max.z + d },
 });
@@ -107,7 +110,7 @@ export function thingsOf(scene: Scene): Thing[] {
 }
 
 /** The share of `of` the camera sees (distinct instances on the probe's id buffer). */
-function visibleShare(
+export function visibleShare(
   scene: Scene,
   spec: Pick<ShotSpec, "camera" | "cutaway">,
   of: readonly number[],
@@ -196,6 +199,77 @@ export function overviewBearing(scene: Scene): number {
   return best;
 }
 
+/** A thing seen from its front, with its surroundings (3 tiles). */
+export function frontShot(t: Thing, front: Front, size: ShotSize): ShotSpec {
+  return {
+    id: `front-${slug(t.id)}`,
+    rule: "front",
+    caption: `${t.id} from the ${front.side} (${front.by === "openings" ? "the side its doors and windows face" : "the side most of it shows from"})`,
+    camera: frameBox(padded(t.box, 1), {
+      bearingDeg: front.bearing,
+      elevationDeg: FRONT_ELEVATION,
+      projection: size.projection ?? "ortho",
+      ...size,
+    }),
+    cutaway: { within: grown(t.box, 3) },
+    width: size.width,
+    height: size.height,
+    targets: [t.id],
+  };
+}
+
+/** Inside a thing: each storey it has, else each level it spans (when more than one), roofs and above hidden. */
+export function interiorShots(scene: Scene, t: Thing, front: Front | null, size: ShotSize): ShotSpec[] {
+  const storeys = [
+    ...new Set(t.instances.map((i) => storeyOf(scene.instances[i]?.layer ?? "")).filter((s) => s !== null)),
+  ].sort((a, b) => a - b);
+  const levels = [...new Set(t.instances.map((i) => scene.instances[i]?.levelIndex ?? 0))].sort(
+    (a, b) => a - b,
+  );
+  const slices: Array<{
+    suffix: string;
+    words: string;
+    cutaway: Cutaway;
+    keep: (i: SceneInstance) => boolean;
+  }> =
+    storeys.length > 0
+      ? storeys.map((s) => ({
+          suffix: `s${s}`,
+          words: s === 0 ? "ground storey" : `storey ${s}`,
+          cutaway: { hideLayers: ["roof"], maxStorey: s, within: grown(t.box, 1) },
+          keep: (i) => objectOf(i.elementId ?? undefined) === t.id && storeyOf(i.layer) === s,
+        }))
+      : levels.length > 1
+        ? levels.map((l) => ({
+            suffix: `l${l}`,
+            words: `on ${scene.levels[l]?.name ?? `level ${l}`}`,
+            cutaway: { hideLayers: ["roof"], maxLevelIndex: l, within: grown(t.box, 1) },
+            keep: (i) => objectOf(i.elementId ?? undefined) === t.id && i.levelIndex === l,
+          }))
+        : [];
+  const out: ShotSpec[] = [];
+  for (const sl of slices) {
+    const box = shownBounds(scene, sl.cutaway, sl.keep);
+    if (!Number.isFinite(box.min.x)) continue;
+    out.push({
+      id: `interior-${slug(t.id)}-${sl.suffix}`,
+      rule: "interior",
+      caption: `Inside ${t.id}, ${sl.words}: roofs and everything above hidden`,
+      camera: frameBox(padded(box, 1), {
+        bearingDeg: front?.bearing ?? OVERVIEW_BEARING,
+        elevationDeg: INTERIOR_ELEVATION,
+        projection: size.projection ?? "ortho",
+        ...size,
+      }),
+      cutaway: sl.cutaway,
+      width: size.width,
+      height: size.height,
+      targets: [t.id],
+    });
+  }
+  return out;
+}
+
 export interface PlanOptions {
   size: ShotSize;
   /** The rules to apply (default all). */
@@ -226,77 +300,12 @@ export function planShots(scene: Scene, o: PlanOptions): ShotSpec[] {
   const things = rules.has("interiors") || rules.has("fronts") ? thingsOf(scene) : [];
   const fronts = new Map(things.map((t) => [t.id, frontOf(scene, t)]));
   if (rules.has("interiors"))
-    for (const t of things) {
-      const front = fronts.get(t.id);
-      // slices: each storey it has, else each level it spans (when more than one)
-      const storeys = [
-        ...new Set(
-          t.instances.map((i) => storeyOf(scene.instances[i]?.layer ?? "")).filter((s) => s !== null),
-        ),
-      ].sort((a, b) => a - b);
-      const levels = [...new Set(t.instances.map((i) => scene.instances[i]?.levelIndex ?? 0))].sort(
-        (a, b) => a - b,
-      );
-      const slices: Array<{
-        suffix: string;
-        words: string;
-        cutaway: Cutaway;
-        keep: (i: SceneInstance) => boolean;
-      }> =
-        storeys.length > 0
-          ? storeys.map((s) => ({
-              suffix: `s${s}`,
-              words: s === 0 ? "ground storey" : `storey ${s}`,
-              cutaway: { hideLayers: ["roof"], maxStorey: s, within: grown(t.box, 1) },
-              keep: (i) => objectOf(i.elementId ?? undefined) === t.id && storeyOf(i.layer) === s,
-            }))
-          : levels.length > 1
-            ? levels.map((l) => ({
-                suffix: `l${l}`,
-                words: `on ${scene.levels[l]?.name ?? `level ${l}`}`,
-                cutaway: { hideLayers: ["roof"], maxLevelIndex: l, within: grown(t.box, 1) },
-                keep: (i) => objectOf(i.elementId ?? undefined) === t.id && i.levelIndex === l,
-              }))
-            : [];
-      for (const sl of slices) {
-        const box = shownBounds(scene, sl.cutaway, sl.keep);
-        if (!Number.isFinite(box.min.x)) continue;
-        out.push({
-          id: `interior-${slug(t.id)}-${sl.suffix}`,
-          rule: "interior",
-          caption: `Inside ${t.id}, ${sl.words}: roofs and everything above hidden`,
-          camera: frameBox(padded(box, 1), {
-            bearingDeg: front?.bearing ?? OVERVIEW_BEARING,
-            elevationDeg: INTERIOR_ELEVATION,
-            projection,
-            ...size,
-          }),
-          cutaway: sl.cutaway,
-          width: size.width,
-          height: size.height,
-          targets: [t.id],
-        });
-      }
-    }
+    for (const t of things)
+      for (const s of interiorShots(scene, t, fronts.get(t.id) ?? null, size)) out.push(s);
   if (rules.has("fronts"))
     for (const t of things) {
       const front = fronts.get(t.id);
-      if (!front) continue;
-      out.push({
-        id: `front-${slug(t.id)}`,
-        rule: "front",
-        caption: `${t.id} from the ${front.side} (${front.by === "openings" ? "the side its doors and windows face" : "the side most of it shows from"})`,
-        camera: frameBox(padded(t.box, 1), {
-          bearingDeg: front.bearing,
-          elevationDeg: FRONT_ELEVATION,
-          projection,
-          ...size,
-        }),
-        cutaway: { within: grown(t.box, 3) },
-        width: size.width,
-        height: size.height,
-        targets: [t.id],
-      });
+      if (front) out.push(frontShot(t, front, size));
     }
   if (rules.has("levels") && scene.levels.length > 1)
     for (const s of levelShots(scene, size))

@@ -36,9 +36,11 @@ export { MESH_FILE_VERSION, decodeMeshFile, encodeMeshFile, quantised } from "./
 export { indexJsonAssets, readPackIndex } from "./source/packIndex";
 export type { PackAsset, PackIndex } from "./source/packIndex";
 export { DecodeError, UnsupportedFormat } from "./unity/errors";
-export { contactSheet, downscale, drawText, textWidth } from "./raster/sheet";
+export { contactSheet, downscale, drawText, numberedSheet, sheetGrid, textWidth } from "./raster/sheet";
 export type { Picture, SheetOptions } from "./raster/sheet";
 export { levelShots, overviewShot, slug, topShot } from "./shots/presets";
 export type { ShotSize } from "./shots/presets";
 export { MIN_THING_PIECES, SHOT_RULES, frontOf, overviewBearing, planShots, thingsOf } from "./shots/planner";
 export type { Front, PlanOptions, ShotRule, Thing } from "./shots/planner";
+export { MAX_FLAGGED, changedShot, chooseShots, flaggedShots, shotsByName, thingById } from "./shots/request";
+export type { ChosenShots, FocusNote, NamedShot, ShotContext, ShotName } from "./shots/request";
