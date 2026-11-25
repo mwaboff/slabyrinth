@@ -15,6 +15,9 @@ import {
   type Render3dResult,
 } from "@slabyrinth/core/agent";
 import type { AppSettings } from "../../shared/project";
+import { indexElements } from "@slabyrinth/core/plan";
+import type { Finding, Scene } from "@slabyrinth/scene3d";
+import { findingsText, type PlannedKind } from "../../shared/view3dPictures";
 import { SlabyrinthConversationEngine } from "./engine";
 import { SHEET_TOKENS, trimStalePictures } from "./pictures";
 import { BetaFlags } from "./provider/anthropic/betas";
@@ -53,7 +56,36 @@ const PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 class PictureHost extends MemoryHost {
   asked: Render3dRequest[] = [];
   hang = false;
+  /** When set, every picture carries this one measured finding, worded and marked by the app's own findingsText. */
+  finding: { owner: string; message: string } | null = null;
   render3d(req: Render3dRequest, signal: AbortSignal): Promise<Render3dResult> {
+    if (this.finding) {
+      this.asked.push(req);
+      const plan = this.getPlan();
+      const index = plan ? indexElements(plan) : null;
+      const kindOf: PlannedKind = (id) => index?.get(id)?.kind ?? null;
+      const b = { min: { x: 3, y: 0, z: 1 }, max: { x: 4, y: 1, z: 2 } };
+      const scene = {
+        levels: [{ id: "l1", name: "Ground", index: 0, bounds: b }],
+        instances: [{ aabb: b }],
+      } as unknown as Scene;
+      const f: Finding = {
+        code: "floating",
+        severity: "fault",
+        where: { levelId: "l1", levelIndex: 0, box: b, cells: [[3, 1]], elementId: null },
+        pieces: [{ index: 0, name: "Boulder", uuid: "u", elementId: this.finding.owner }],
+        measure: {},
+        message: this.finding.message,
+      };
+      return Promise.resolve({
+        png: PNG,
+        captions: ["1. The whole map"],
+        suggestions: findingsText(scene, [f], [new Set([0])], kindOf),
+      });
+    }
+    return this.fixedPicture(req, signal);
+  }
+  private fixedPicture(req: Render3dRequest, signal: AbortSignal): Promise<Render3dResult> {
     this.asked.push(req);
     if (this.hang)
       return new Promise((_, reject) => {
@@ -244,7 +276,7 @@ describe("3D pictures in a conversation", () => {
     await engine.whenIdle();
     expect(host.asked).toEqual([]);
     expect(hasImage(resultOf(host, "c1"))).toBe(false);
-    expect(textOf(resultOf(host, "v1"))).toContain("3D pictures are off");
+    expect(textOf(resultOf(host, "v1"))).toContain("3D pictures are not available now");
   });
 
   it("a generator-5 conversation (released texts) never sees the tool, its guidance or the look", async () => {
@@ -318,6 +350,32 @@ describe("3D pictures in a conversation", () => {
     expect(kept).toEqual([0, 0, 1, 1, 1, 1, 1]);
     expect(trimStalePictures(items, 7, true)).toBe(4);
     expect(trimStalePictures(items, 7, true)).toBe(0);
+    // after an undo to v5, the picture of v7 no longer shows the map either
+    const undone = [5, 7].map((v) => pic(v, `u${String(v)}`));
+    expect(trimStalePictures(undone, 5, true)).toBe(1);
+    expect(undone.map((it) => (it.type === "tool_results" ? it.results[0]?.content.length : 0))).toEqual([
+      2, 2,
+    ]);
+    expect(
+      undone.map(
+        (it) => it.type === "tool_results" && it.results[0]?.content.some((c) => c.type === "image"),
+      ),
+    ).toEqual([true, false]);
+  });
+
+  it("two first drafts in one step get one look", async () => {
+    const { host, engine } = setup([
+      {
+        kind: "reply",
+        parts: [draft("c1"), call("create_plan", { replace: true, summary: "Inn again", plan: PLAN }, "c2")],
+      },
+      { kind: "reply", parts: [say("Done.")] },
+    ]);
+    await engine.send({ text: "draft it twice", intent: "plan" });
+    await engine.whenIdle();
+    expect(host.asked).toHaveLength(1);
+    expect(hasImage(resultOf(host, "c1"))).toBe(true);
+    expect(hasImage(resultOf(host, "c2"))).toBe(false);
   });
 
   it("Stop while a picture is being made ends the turn and the picture is not counted", async () => {
@@ -360,5 +418,89 @@ describe("3D pictures in a conversation", () => {
     // the estimate is rounded up a ladder ($0.01, 0.02, 0.05 …), so one sheet (≈ $0.005 written) may not show
     expect(a.costUsd ?? 0).toBeGreaterThanOrEqual(b.costUsd ?? 0);
     expect(SHEET_TOKENS).toBe(1049);
+  });
+});
+
+/**
+ * A fake model that does what the guidance says with the measured faults: an edit for a "Plan fix" it has not tried
+ * yet, then one look to see it; nothing for what the app placed; never a second revision for the same finding.
+ */
+function guidedModel(): (req: StepRequest, i: number) => ScriptedStep {
+  const tried = new Set<string>();
+  let looks = 0;
+  let edits = 0;
+  return (req) => {
+    const last = req.transcript.at(-1);
+    if (last?.type !== "tool_results") {
+      // a new message: the first one asks for a draft, a later one about the map gets one look
+      const drafted = req.transcript.some((it) => it.type === "tool_results");
+      return { kind: "reply", parts: [drafted ? call("view_build_3d", {}, "look0") : draft()] };
+    }
+    const r = last.results[0];
+    const text = (r?.content ?? []).map((c) => (c.type === "text" ? c.text : "")).join("\n");
+    if (r?.name === "edit_plan") {
+      looks++;
+      return {
+        kind: "reply",
+        parts: [call("view_build_3d", { shots: ["changed"] }, `look${String(looks)}`)],
+      };
+    }
+    const lines = text.split("\n").filter((l) => l.startsWith("- view"));
+    const fixable = lines.filter((l) => l.includes("Plan fix:"));
+    const fresh = fixable.find((l) => !tried.has(l.slice(l.indexOf(": ") + 2)));
+    if (fresh !== undefined) {
+      tried.add(fresh.slice(fresh.indexOf(": ") + 2));
+      edits++;
+      return { kind: "reply", parts: [rename(edits, `e${String(edits)}`, `Room ${String(edits)}`)] };
+    }
+    const left =
+      lines.length > 0 ? " One thing in the 3D view is the app's or did not change with my fix." : "";
+    return { kind: "reply", parts: [say(`Done.${left}`)] };
+  };
+}
+
+describe("measured faults the plan cannot fix (no loop)", () => {
+  const withAltar = {
+    ...PLAN,
+    levels: [{ ...PLAN.levels[0], features: [{ id: "altar", type: "altar", at: [9, 3] }] }],
+  };
+
+  it("an app-placed fault comes back on every look: the model edits nothing for it and the turn ends", async () => {
+    const { provider, host, engine } = setup(guidedModel());
+    host.finding = { owner: "rubble_scatter", message: "a boulder floats 0.3 tiles above the floor" };
+    await engine.send({ text: "draft it", intent: "plan" });
+    await engine.whenIdle();
+    const look = textOf(resultOf(host, "c1"));
+    expect(look).toContain("The app placed this: a plan change will not fix it");
+    // the GM asks about it: one look, the same fault, still the app's: no edit, no loop
+    await engine.send({ text: "the boulder floats, can you fix it?", intent: "plan" });
+    await engine.whenIdle();
+    expect(textOf(resultOf(host, "look0"))).toContain("The app placed this");
+    expect(host.project?.history.head).toBe(1);
+    expect(host.asked).toHaveLength(2);
+    expect(host.eventsOf("turn_finished").map((e) => e.stopReason)).toEqual(["end_turn", "end_turn"]);
+    expect(provider.requests.length).toBeLessThan(6);
+  });
+
+  it("a plan-fixable fault that stays after one fix gets one revision, then the GM is told", async () => {
+    const steps = guidedModel();
+    const { host, engine } = setup((req, i) => {
+      const s = steps(req, i);
+      // the draft carries the altar the finding is on
+      if (s.kind === "reply" && s.parts[0]?.type === "tool_call" && s.parts[0].name === "create_plan")
+        return {
+          kind: "reply",
+          parts: [call("create_plan", { replace: false, summary: "Inn", plan: withAltar }, "c1")],
+        };
+      return s;
+    });
+    host.finding = { owner: "altar", message: "the altar floats 0.3 tiles above the floor" };
+    await engine.send({ text: "draft it", intent: "plan" });
+    await engine.whenIdle();
+    expect(textOf(resultOf(host, "c1"))).toContain("Plan fix: move it or pick another support for it.");
+    // one revision for the finding, one look at it, then the turn ends (well inside the changes-per-message limit)
+    expect(host.project?.history.head).toBe(2);
+    expect(host.asked).toHaveLength(2);
+    expect(host.eventsOf("turn_finished").map((e) => e.stopReason)).toEqual(["end_turn"]);
   });
 });

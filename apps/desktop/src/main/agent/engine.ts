@@ -185,6 +185,8 @@ interface TurnState {
   revisionLimit: number;
   /** 3D pictures the model took in this turn (AppSettings.agent.maxPicturesPerTurn is the most). */
   pictures: number;
+  /** The first-draft look was taken in this turn (two create_plan calls in one step get one look). */
+  firstLookTaken?: boolean;
   /** Earlier attempts carried over by Retry (UX §5.6). */
   alternatives?: ChatMessageMeta["alternatives"];
   lastAssistantId: string | null;
@@ -265,7 +267,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     const conv = this.project().conversations.find((c) => c.id === conversationId);
     if (!conv || !hasStalePictures(conv.items, head)) return;
     const last = this.lastRequestAt.get(conversationId);
-    const cold = last === undefined || Date.now() - last >= this.cacheColdMs;
+    const cold = last === undefined || this.now().getTime() - last >= this.cacheColdMs;
     let n = 0;
     this.host.updateConversation(conversationId, (c) => {
       n = trimStalePictures(c.items, head, cold);
@@ -746,7 +748,7 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
       const sink = this.stepSink(t, loop.steps);
       let result: StepResult;
       try {
-        this.lastRequestAt.set(t.conversationId, Date.now());
+        this.lastRequestAt.set(t.conversationId, this.now().getTime());
         result = await t.provider.runStep(request, sink.onEvent, signal);
       } catch (err) {
         if ((await this.stepFailed(t, err, sink, signal, loop)) === "stop") return;
@@ -1087,7 +1089,8 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     version: number,
   ): Promise<ToolResultContent[]> {
     const conv = this.project().conversations.find((c) => c.id === t.conversationId);
-    if (!conv || hadFirstDraft(conv.items) || signal.aborted) return [];
+    if (!conv || t.firstLookTaken === true || hadFirstDraft(conv.items) || signal.aborted) return [];
+    t.firstLookTaken = true;
     const render = this.render3dFor(t, signal);
     if (!render) return [];
     const levels =
@@ -1395,19 +1398,15 @@ export class SlabyrinthConversationEngine implements ConversationEngine {
     const perStep = basis === "history" ? median(sameModel) : OUTPUT_TABLE[intent][effort];
     const steps = STEPS_TABLE[intent];
     const outTokens = perStep * steps;
-    // a first draft gets the app's one 3D look: one sheet (estimated, agent/pictures.ts) read by the later steps
+    // a conversation's first draft gets the app's one 3D look (also on a map that already has a plan): one sheet
+    // (estimated, agent/pictures.ts) read by the later steps
     const look =
-      intent === "plan" &&
-      this.project().history.head === 0 &&
-      !hadFirstDraft(conv.items) &&
-      this.picturesAllowed(conv, d)
-        ? SHEET_TOKENS
-        : 0;
+      intent === "plan" && !hadFirstDraft(conv.items) && this.picturesAllowed(conv, d) ? SHEET_TOKENS : 0;
     let costUsd: number | null = null;
     if (d?.pricing) {
       const r = ratesFor(d.pricing, context);
       const warm =
-        Date.now() - (this.lastRequestAt.get(conv.id) ?? 0) < 5 * 60 * 1000 &&
+        this.now().getTime() - (this.lastRequestAt.get(conv.id) ?? 0) < 5 * 60 * 1000 &&
         selection.modelId === conv.selection.modelId;
       const firstRead = (context * (warm ? r.cacheRead : r.write5m)) / 1e6;
       const laterReads = ((steps - 1) * context * r.cacheRead + look * r.write5m) / 1e6;

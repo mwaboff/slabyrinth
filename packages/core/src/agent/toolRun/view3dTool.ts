@@ -22,7 +22,7 @@ const HEADER_RE = /^3D PICTURE of plan v(\d+)\b/;
 
 /** What a picture becomes in the transcript once a newer version is built. */
 export const DROPPED_PICTURE_TEXT =
-  "(The picture itself was removed from the conversation after a newer version was built; the captions above are what it showed.)";
+  "(The picture itself was removed from the conversation once the plan moved to another version; the captions above are what it showed.)";
 
 /** Why the model got the picture: it asked, or the app's one look after the first draft. */
 export type PictureCause = "asked" | "first_draft";
@@ -85,7 +85,7 @@ export async function runViewBuild3d(ctx: AgentToolContext, input: unknown): Pro
     return unavailable(
       tool,
       ctx.head,
-      "3D pictures are off: the GM turned them off in Settings › AI › 3D view, or allows none per message",
+      "3D pictures are not available now: the GM turned them off or allows none per message (Settings › AI › 3D view), or the model in use does not read images",
       'use view_map_image or view_plan with format "ascii" instead; mention it to the GM only if a 3D check matters',
     );
   const shots = v.value.shots ?? [];

@@ -7,8 +7,8 @@
  * sheet. This is an ESTIMATE for the pre-send cost line; what is billed and shown as spent is the usage the API
  * reports for each step, which already includes the pictures.
  *
- * Keeping. A picture is useful while it shows the head version. Once a newer version is built, an older picture is
- * replaced in the transcript by its captions and findings (core `withoutPicture`), so pictures never pile up for the
+ * Keeping. A picture is useful while it shows the head version. Once the head moves on (a newer version, or an undo),
+ * a picture of another version is replaced in the transcript by its captions and findings (core `withoutPicture`), so pictures never pile up for the
  * life of a conversation. Editing an earlier transcript item changes the request prefix from that item on: the
  * prompt cache from there is written again (about 1.25× instead of 0.1× for that tail, once) and preserved thinking
  * after it is dropped by the API (the request sends `drop_block`). So the trim runs only at the start of a message,
@@ -56,9 +56,12 @@ function picturesIn(items: readonly ChatItem[]): PictureAt[] {
   return out;
 }
 
-/** Whether the transcript still holds a picture of a version older than `head`. */
+/**
+ * Whether the transcript still holds a picture of another version than `head`: an older one, or after an undo a newer
+ * one the plan has moved back from (stale either way: it no longer shows the map).
+ */
 export function hasStalePictures(items: readonly ChatItem[], head: number): boolean {
-  return picturesIn(items).some((p) => p.version < head);
+  return picturesIn(items).some((p) => p.version !== head);
 }
 
 /**
@@ -66,7 +69,7 @@ export function hasStalePictures(items: readonly ChatItem[], head: number): bool
  * the conversation's own list (call it inside the host's updateConversation).
  */
 export function trimStalePictures(items: ChatItem[], head: number, cacheCold: boolean): number {
-  const stale = picturesIn(items).filter((p) => p.version < head);
+  const stale = picturesIn(items).filter((p) => p.version !== head);
   const drop = cacheCold ? stale : stale.slice(0, Math.max(0, stale.length - KEEP_STALE_WARM));
   for (const p of drop) {
     const it = items[p.item];

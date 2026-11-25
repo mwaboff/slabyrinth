@@ -15,6 +15,7 @@ import {
   sheetGrid,
   shown,
   shotsByName,
+  type CheckCode,
   type Finding,
   type Picture,
   type Scene,
@@ -22,6 +23,7 @@ import {
   type ShotName,
   type ShotSpec,
 } from "@slabyrinth/scene3d";
+import type { ElementKind } from "@slabyrinth/core/plan";
 
 /** The sheet the model gets (design §5.2: about 1,050 input tokens). */
 export const SHEET_SIZE = { width: 1024, height: 768 } as const;
@@ -64,17 +66,102 @@ export function onePicture(
 /** Measured findings listed under one sheet at most (the rest are counted). */
 export const MAX_FINDING_LINES = 10;
 
+/** Side of a square of the drawn-piece index, in tiles. */
+const BUCKET = 4;
+/** A drawn piece "touches" a pieceless fault within this many tiles. */
+const TOUCH = 0.25;
+const bucketKey = (bx: number, bz: number): number => (bx + 32768) * 65536 + (bz + 32768);
+
+/** One view's drawn pieces, and (built when first needed) those pieces by square of the plan. */
+class DrawnView {
+  private index: Map<number, number[]> | null = null;
+  constructor(
+    private readonly scene: Scene,
+    readonly ids: ReadonlySet<number>,
+    private readonly stats?: { boxTests: number },
+  ) {}
+
+  private buckets(): Map<number, number[]> {
+    if (this.index) return this.index;
+    const index = new Map<number, number[]>();
+    for (const i of this.ids) {
+      const b = this.scene.instances[i]?.aabb;
+      if (!b) continue;
+      for (let bx = Math.floor(b.min.x / BUCKET); bx <= Math.floor(b.max.x / BUCKET); bx++)
+        for (let bz = Math.floor(b.min.z / BUCKET); bz <= Math.floor(b.max.z / BUCKET); bz++) {
+          const k = bucketKey(bx, bz);
+          const list = index.get(k);
+          if (list) list.push(i);
+          else index.set(k, [i]);
+        }
+    }
+    this.index = index;
+    return index;
+  }
+
+  /** A drawn piece within TOUCH of `box`: only the pieces in the squares around it are tested. */
+  touches(box: Finding["where"]["box"]): boolean {
+    const index = this.buckets();
+    for (
+      let bx = Math.floor((box.min.x - TOUCH) / BUCKET);
+      bx <= Math.floor((box.max.x + TOUCH) / BUCKET);
+      bx++
+    )
+      for (
+        let bz = Math.floor((box.min.z - TOUCH) / BUCKET);
+        bz <= Math.floor((box.max.z + TOUCH) / BUCKET);
+        bz++
+      )
+        for (const i of index.get(bucketKey(bx, bz)) ?? []) {
+          const inst = this.scene.instances[i];
+          if (this.stats) this.stats.boxTests++;
+          if (inst && boxesNear(inst.aabb, box, TOUCH)) return true;
+        }
+    return false;
+  }
+}
+
 /**
  * Whether a finding is in a view: one of its pieces is drawn there, or, for a fault with no piece of its own (a hole,
  * an open roof), a drawn piece touches its box.
  */
-function inView(scene: Scene, f: Finding, drawn: ReadonlySet<number>): boolean {
-  if (f.pieces.length > 0) return f.pieces.some((p) => drawn.has(p.index));
-  for (const i of drawn) {
-    const inst = scene.instances[i];
-    if (inst && boxesNear(inst.aabb, f.where.box, 0.25)) return true;
-  }
-  return false;
+function inView(f: Finding, view: DrawnView): boolean {
+  if (f.pieces.length > 0) return f.pieces.some((p) => view.ids.has(p.index));
+  return view.touches(f.where.box);
+}
+
+/** What kind of plan element an id is; null when the plan has no such element (a piece the generator made). */
+export type PlannedKind = (id: string) => ElementKind | null;
+
+/**
+ * The plan elements the plan itself positions, best first, and the change that moves them: a fault on one of their
+ * pieces is something an edit_plan can fix. Everything else in a build (an area's floors and walls, a structure's
+ * shell, what dress, scatter and room dressing place) is laid by the generator, so an edit does not move the piece.
+ */
+const PLAN_PLACED: ReadonlyArray<readonly [ElementKind, string]> = [
+  ["opening", "change the opening (move it along the wall, or another width or kind)"],
+  ["link", "move the stairs or ladder, or give them a clear way on and off"],
+  ["feature", "move it or give it room"],
+  ["wall_run", "move or shorten the wall run"],
+];
+/** Findings about what a piece stands on: a feature's fix is to stand it elsewhere. */
+const SUPPORT_CODES: ReadonlySet<CheckCode> = new Set<CheckCode>(["floating", "sunk"]);
+
+export const APP_PLACED_WORDS =
+  "The app placed this: a plan change will not fix it; tell the GM only if it matters.";
+
+/** The change that fixes a finding through the plan, or null when only the app's own placement is involved. */
+export function planFix(f: Finding, kindOf: PlannedKind): string | null {
+  const ids = new Set<string>();
+  if (f.where.elementId !== null) ids.add(f.where.elementId);
+  for (const p of f.pieces) if (p.elementId !== null) ids.add(p.elementId);
+  const kinds = new Set([...ids].map(kindOf));
+  for (const [kind, words] of PLAN_PLACED)
+    if (kinds.has(kind))
+      return kind === "feature" && SUPPORT_CODES.has(f.code)
+        ? "move it or pick another support for it"
+        : words;
+  return null;
 }
 
 /** "level Cellar (l1), hall, square 12,4 (+3 more)": where a finding is, in the plan's own words. */
@@ -94,28 +181,35 @@ function whereOf(scene: Scene, f: Finding): string {
 }
 
 /**
- * The measured findings for the parts in view, in plain words with the place the model can act on, faults first;
- * then how many were measured elsewhere on the map. `findings` null: the checks could not run (nothing is said).
+ * The measured findings for the parts in view, in plain words with the place the model can act on, faults first,
+ * each marked with the plan change that fixes it or as the app's own placement (`kindOf`: the plan's elements; absent,
+ * no mark); then how many were measured elsewhere on the map. `findings` null: the checks could not run (nothing is
+ * said). `stats` counts the box tests (the large-scene test holds the index to it).
  */
 export function findingsText(
   scene: Scene,
   findings: readonly Finding[] | null,
   drawnPerView: ReadonlyArray<ReadonlySet<number>>,
+  kindOf?: PlannedKind,
+  stats?: { boxTests: number },
 ): string {
   if (findings === null) return "";
+  const views = drawnPerView.map((ids) => new DrawnView(scene, ids, stats));
   const lines: string[] = [];
   let elsewhere = 0;
   const ordered = [...findings].sort((a, b) =>
     a.severity === b.severity ? 0 : a.severity === "fault" ? -1 : 1,
   );
   for (const f of ordered) {
-    const views = drawnPerView.flatMap((d, i) => (inView(scene, f, d) ? [i + 1] : []));
-    if (views.length === 0) {
+    const shown = views.flatMap((v, i) => (inView(f, v) ? [i + 1] : []));
+    if (shown.length === 0) {
       elsewhere++;
       continue;
     }
     const worth = f.severity === "warn" ? " (worth a look; often fine)" : "";
-    lines.push(`- view ${views.join(", ")}, ${whereOf(scene, f)}: ${f.message}${worth}`);
+    const fix = kindOf ? planFix(f, kindOf) : undefined;
+    const mark = fix === undefined ? "" : fix === null ? ` ${APP_PLACED_WORDS}` : ` Plan fix: ${fix}.`;
+    lines.push(`- view ${shown.join(", ")}, ${whereOf(scene, f)}: ${f.message}${worth}.${mark}`);
   }
   const out: string[] = [];
   if (lines.length === 0)
@@ -141,6 +235,8 @@ export function scenePictures(
   ctx: ShotContext = {},
   /** The scene checks' findings (null: they could not run; absent: none were asked for). */
   findings?: readonly Finding[] | null,
+  /** The plan's elements, to mark each finding as plan-fixable or the app's own. */
+  kindOf?: PlannedKind,
 ): ScenePictures {
   const max = Math.min(MAX_VIEWS, Math.max(1, Math.floor(req.max ?? MAX_VIEWS)));
   const cell = (n: number): { width: number; height: number } => {
@@ -178,7 +274,7 @@ export function scenePictures(
     chosen.suggestions.length > 0
       ? `Other views: ${chosen.suggestions.slice(0, 8).join(", ")}.${empty}`
       : `No other views suggested.${empty}`;
-  const measured = findings !== undefined ? findingsText(scene, findings, drawn) : "";
+  const measured = findings !== undefined ? findingsText(scene, findings, drawn, kindOf) : "";
   return {
     png: encodePng(numberedSheet(pictures, SHEET_SIZE.width, SHEET_SIZE.height)),
     captions,

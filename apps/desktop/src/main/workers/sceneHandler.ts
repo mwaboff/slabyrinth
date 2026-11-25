@@ -21,7 +21,8 @@ import {
   type Scene,
   type ShotContext,
 } from "@slabyrinth/scene3d";
-import { onePicture, scenePictures } from "../../shared/view3dPictures";
+import { indexElements } from "@slabyrinth/core/plan";
+import { onePicture, scenePictures, type PlannedKind } from "../../shared/view3dPictures";
 import { sceneOfPlan } from "../../shared/view3dScene";
 import { packScene, takeWithin, type PackedScene } from "../../shared/view3dWire";
 import { DiskMeshCache } from "../services/meshes/diskCache";
@@ -46,6 +47,12 @@ interface Held {
   ctx: ShotContext | null;
   /** The scene checks' findings, measured when a picture for the model first needs them (null: they failed). */
   findings?: Finding[] | null;
+}
+
+/** What each plan element id of a held scene is (a generated piece's id is not the plan's: null). */
+function kindsOf(h: Held): PlannedKind {
+  const index = indexElements(h.plan);
+  return (id) => index.get(id)?.kind ?? null;
 }
 
 /** The scene checks over a held scene, once (a check that throws costs the picture its findings, never the picture). */
@@ -210,7 +217,7 @@ export function createSceneHandler(o: { fs?: ReadonlyFs } = {}) {
             ...(msg.max !== undefined ? { max: msg.max } : {}),
           };
           // the model's pictures carry the measured findings for the pieces in view
-          const p = scenePictures(h.scene, req, contextOf(h), findingsOf(h));
+          const p = scenePictures(h.scene, req, contextOf(h), findingsOf(h), kindsOf(h));
           post({ type: "pictures", id: msg.id, ...p });
           return;
         }
