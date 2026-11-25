@@ -27,6 +27,7 @@ Release notes, which the app shows under "What's new" when it offers that update
 - Things on chests, altars, anvils and desks sit on the part of the top that can hold them, instead of floating over a curved lid or hanging off an edge.
 - Jars and candles on a tall shelf no longer poke into the floor of the storey above.
 - Ships' raised decks are railed along their front edge, and a gangway no longer leaves a barge's bow open.
+- Market stall lanterns hang from the awning instead of in mid-air, and no rocks are strewn over a deep harbour bed nobody can see.
 - A build that fails now says what happened and offers Build again.
 - Stopping a build is no longer reported as an error.
 

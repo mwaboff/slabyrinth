@@ -680,6 +680,14 @@ const SWITCHES = {
     6,
     "Every edge of an object's raised walking surface with a drop below it is railed, with gaps only where a way crosses: a vessel's raised deck is railed across its break over the main deck too (its ladder comes up through the deck; objects/vessel.ts kitHullParts), a gangway crosses the bulwark only where it takes away no more than one short rail piece (objects/vessel.ts bulwarkOpening, resolve/objectSite.ts), never through the curved bow fence (the barge's bow stood 4 tiles open on the moored side), and the rail on its side is laid up to its cell and on from it; a rail across the hull closes its ends with the side's short pieces. objects/facing.ts openDeckEdges is the check any object is held to.",
   ),
+  seenCover: on(
+    6,
+    "Ground cover is laid only where it can be seen: a bed more than a tile under the level's water surface (the plane the GM raises, which hides it) takes no rock or rubble either (resolve/recipes/ground.ts; generator 5 kept rocks there, 377 of them over the harbour basin's bed, 5 tiles under the vessels' waterline).",
+  ),
+  hangUnderCover: on(
+    6,
+    "A thing hung under a cover hangs from the cover's real surface over its point, measured from the game's meshes (palette/restGrid.ts, compile/restOn.ts): a market stall's lantern hangs from the canopy piece over it (compile/stalls.ts), not from its box's underside, under which a sloping cloth awning leaves 0.65 of air (the lanterns hung in mid-air); a canopy never measured keeps the box's underside.",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

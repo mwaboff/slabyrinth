@@ -88,6 +88,11 @@ const ANCHORED = { middle: 0.45, edge: 0.7 } as const;
  */
 const BAND_SHARE = 1.6;
 const BAND_MAX = 0.6;
+/**
+ * Generator 6 (`seenCover`): a bed deeper than this under the level's water surface (tiles) is not seen through the
+ * water the GM raises; it takes no cover (a pool's shallow bed keeps its rocks).
+ */
+const UNSEEN_UNDER_WATER = 1;
 const MIDDLE_SHARE = 0.15;
 const USE_REACH = 2;
 /** A cell with more than three of its eight neighbours off the place (an inner corner) weighs this much more each. */
@@ -375,7 +380,10 @@ export const layeredGround: Recipe<"zone"> = {
       const cy = y + 0.2 + 0.6 * draw("y", x, y);
       const near = a.edgeAt(x, y) <= 1;
       const used = nearUse(x, y);
-      // under the level's water: no land plant, a rock or rubble at most
+      // under the level's water: no land plant, a rock or rubble at most; generator 6 (`seenCover`): none at all where
+      // the bed lies deeper than the water shows (the GM's water plane hides it, and it would count against the slab)
+      if (wet(x, y) && ctx.profile.seenCover && plane !== undefined && ground < plane - UNSEEN_UNDER_WATER)
+        return;
       if (wet(x, y)) {
         // (at the place's first rate: the seen-cover correction makes up for missing plants on dry ground, not here)
         const boost = visible ? (near ? rates.edge : rates.middle) : 1;
