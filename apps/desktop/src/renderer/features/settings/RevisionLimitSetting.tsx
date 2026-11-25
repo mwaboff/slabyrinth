@@ -41,7 +41,7 @@ export function RevisionLimitSetting({ s }: { s: AppSettings }) {
         </span>
       </label>
       <small id="revlimit-help" className="muted">
-        When Claude reaches it, the chat asks whether to keep going. Every change is kept either way.
+        Every change is kept, whether you go on or stop there.
       </small>
     </div>
   );

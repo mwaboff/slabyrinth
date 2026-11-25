@@ -59,11 +59,12 @@ export function RevisionLimitCard({ turn }: { turn: TurnState }) {
           </button>
           <button
             className="btn btn--sm btn--link limitcard__settings"
+            title="Settings › AI › Changes per message"
             onClick={() => {
               useApp.getState().openSettings("ai");
             }}
           >
-            Change how many…
+            Change the limit…
           </button>
         </div>
       </div>

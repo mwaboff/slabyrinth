@@ -10,7 +10,7 @@ Release notes, which the app shows under "What's new" when it offers that update
 ### Added
 
 - **Changes per message.** Choose how many times Claude may change the map for one message before it asks you (Settings › AI › Changes per message, default 4). When Claude reaches that limit, the chat says so, with what the message has cost so far: Keep going or That's enough.
-- **A 3D view of your map**, between Map and Build: turn, pan and zoom around the whole map, hide roofs, and step through levels.
+- **A 3D view of your map**, between Map and Build: every piece as TaleSpire will get it, in plain colours by kind. Turn, move and zoom around it, pick a level tab to look inside lower levels, hide roofs, hide kinds of piece from the colour key, and click a piece to see what it is, show it on the map or mention it in the chat.
 - **The 3D piece cache.** The shapes of TaleSpire's pieces are read from your own TaleSpire install and kept in the app data folder (512 MB at most).
 
 ### Changed

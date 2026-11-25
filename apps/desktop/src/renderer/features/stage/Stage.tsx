@@ -22,6 +22,7 @@ import { HistoryPanel } from "./HistoryPanel";
 import { PngExport } from "./PngExport";
 import { BuildView, BuildToolbar } from "../build/BuildView";
 import { View3dStage } from "../view3d/View3dStage";
+import { LevelCutTabs } from "../view3d/LevelCutTabs";
 import { briefSummary } from "../chat/BriefCard";
 import { runPhase, useRunPhase, verb } from "../chat/activity";
 import { AddonIndicator } from "../talespire/AddonParts";
@@ -104,7 +105,11 @@ function StageBar({ plan }: { plan: MapPlan | null }) {
           aria-selected={tab === "3d"}
           aria-disabled={plan === null}
           className={`tab${tab === "3d" ? " tab--on" : ""}${plan === null ? " tab--disabled" : ""}`}
-          title={plan !== null ? "3D (Ctrl+3)" : "3D shows the map once there's a plan"}
+          title={
+            plan !== null
+              ? "The map in 3D, as TaleSpire will get it (Ctrl+3)"
+              : "3D shows the map once there's a plan"
+          }
           onClick={() => {
             if (plan !== null) setTab("3d");
           }}
@@ -127,6 +132,8 @@ function StageBar({ plan }: { plan: MapPlan | null }) {
       <span className="vsep" aria-hidden="true" />
       {plan === null ? (
         <span className="tab tab--disabled tab--static">No levels yet</span>
+      ) : tab === "3d" ? (
+        <LevelCutTabs plan={plan} />
       ) : (
         <div role="tablist" aria-label="Levels" className="stagebar__group">
           {levels.map((l) => (

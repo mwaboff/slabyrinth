@@ -6,6 +6,7 @@ import { useBuild } from "../stores/build";
 import { useChat } from "../stores/chat";
 import { useMap } from "../stores/map";
 import { orderedLevels, phaseOf, switchProject, useProject } from "../stores/project";
+import { useView3d } from "../stores/view3d";
 
 function fail(lead: string, e: unknown): void {
   useApp.getState().toast({ lead, body: errorMessage(e), tone: "error", ms: 6000 });
@@ -40,6 +41,7 @@ export function reportUnhandled(e: unknown): void {
 
 export function openSnapshot(snap: ProjectSnapshot): void {
   useMap.getState().reset();
+  useView3d.getState().resetView();
   useBuild.getState().reset();
   useProject.getState().setSnapshot(snap);
   useChat

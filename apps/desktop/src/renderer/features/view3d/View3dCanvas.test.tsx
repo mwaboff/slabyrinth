@@ -21,7 +21,7 @@ describe("View3dCanvas", () => {
     render(
       <View3dCanvas source={memorySceneSource(new Map())} target={{ buildId: "b" }} onError={onError} />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent(/graphics acceleration/);
+    expect(screen.getByRole("alert")).toHaveTextContent(/graphics card can't show the 3D view/);
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: "no-webgl2" }));
     expect(screen.queryByRole("application")).toBeNull();
     spy.mockRestore();
@@ -58,6 +58,6 @@ describe("View3dCanvas", () => {
         createBackend={() => fakeBackend()}
       />,
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent(/no 3D scene/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/no 3D view of this version/);
   });
 });

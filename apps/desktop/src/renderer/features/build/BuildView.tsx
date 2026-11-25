@@ -415,6 +415,34 @@ function BuildErrors({ plan, diags }: { plan: MapPlan; diags: readonly CompileDi
   );
 }
 
+const count = (n: number, one: string): string => `${String(n)} ${one}${n === 1 ? "" : "s"}`;
+
+/**
+ * After a restart only the record's counts are known: say them in plain words, with the button that shows them
+ * again (a rebuild of the same version gives the same slab).
+ */
+function BuildNotesAfterRestart({ summary }: { summary: { errors: number; warnings: number } }) {
+  const run = useBuild((s) => s.run);
+  const building = useBuild((s) => s.building);
+  const rec = useProject((s) => latestBuild(s.snap));
+  const parts = [
+    summary.errors > 0 ? count(summary.errors, "problem") : "",
+    summary.warnings > 0 ? count(summary.warnings, "warning") : "",
+  ].filter(Boolean);
+  return (
+    <p className="build__foot">
+      The build check found {parts.join(" and ")}. They aren't kept when Slabyrinth closes.{" "}
+      <button
+        className="btn btn--link"
+        disabled={building || !rec}
+        onClick={() => void run(rec?.versionNumber)}
+      >
+        Build again to see {summary.errors + summary.warnings === 1 ? "it" : "them"}
+      </button>
+    </p>
+  );
+}
+
 /** Warnings and notes (repairs) below; a single quiet line when the build is clean. */
 function BuildNotes({
   plan,
@@ -432,11 +460,7 @@ function BuildNotes({
           <Icon name="check" size="sm" /> Build check passed
         </p>
       );
-    return (
-      <p className="build__foot">
-        This build had {summary.errors} problem(s) and {summary.warnings} warning(s). Build again to see them.
-      </p>
-    );
+    return <BuildNotesAfterRestart summary={summary} />;
   }
   const rest = diags.filter((d) => d.severity !== "error");
   const clean = !diags.some((d) => d.severity === "error" || d.severity === "warning");
@@ -934,7 +958,11 @@ function BuildFailed({ version, solo }: { version: number | null; solo: boolean 
         it keeps failing, ask Claude to look at the plan.
       </p>
       <div className="card-actions">
-        <button className="btn btn--primary" onClick={() => void run(version ?? undefined)}>
+        {/* over an older build the page keeps its own main action (one gold button per view) */}
+        <button
+          className={`btn${solo ? " btn--primary" : ""}`}
+          onClick={() => void run(version ?? undefined)}
+        >
           <Icon name="hammer" />
           Build again
         </button>

@@ -82,6 +82,11 @@ describe("RevisionLimitCard", () => {
     expect(screen.getByText(/This message has cost about \$0\.42 so far\./)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Keep going (up to 4 more changes)" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "That's enough" })).toBeInTheDocument();
+    // the way to the setting says what it changes
+    expect(screen.getByRole("button", { name: "Change the limit…" })).toHaveAttribute(
+      "title",
+      "Settings › AI › Changes per message",
+    );
     expect(timesWord(1)).toBe("once");
     expect(timesWord(2)).toBe("twice");
   });

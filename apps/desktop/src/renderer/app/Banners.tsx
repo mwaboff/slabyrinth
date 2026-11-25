@@ -10,17 +10,25 @@ import { AddonUpdatedNotice } from "../features/talespire/AddonUpdate";
 import { useProject } from "../stores/project";
 import { tierAboveSetting, tierSize } from "../../shared/sizeTier";
 
+/** Is the "TaleSpire wasn't found" banner on screen (so other surfaces need not say it again)? */
+export function useTsBannerShown(): boolean {
+  const route = useApp((s) => s.route);
+  const missing = useApp((s) => s.banners.tsMissing);
+  const dismissed = useApp((s) => s.tsBannerDismissed);
+  const suppressed = useSettings((s) => s.settings?.suppressAssetWarning === true);
+  return route !== "setup" && route !== "boot" && missing && !dismissed && !suppressed;
+}
+
 export function Banners() {
   const route = useApp((s) => s.route);
   const banners = useApp((s) => s.banners);
-  const dismissed = useApp((s) => s.tsBannerDismissed);
   const secrets = useSettings((s) => s.secrets);
   const settings = useSettings((s) => s.settings);
+  const showTs = useTsBannerShown();
   const [dontRemind, setDontRemind] = useState(false);
   const [locating, setLocating] = useState(false);
   if (route === "setup" || route === "boot") return <div />;
   const noKey = settings !== null && secrets["anthropic"]?.hasKey === false;
-  const showTs = banners.tsMissing && !dismissed && settings?.suppressAssetWarning !== true;
 
   const locate = async (): Promise<void> => {
     setLocating(true);
