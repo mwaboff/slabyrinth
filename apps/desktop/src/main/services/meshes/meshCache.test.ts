@@ -175,7 +175,9 @@ describe("piece cache", () => {
       },
       emit: () => undefined,
       logger: memoryLogger(),
-      readIdleMs: 50,
+      // Long enough that a healthy reader (real disk writes, a loaded machine) is never taken for the hung one: the
+      // watchdog is a real timer, and 50 ms let it stop the second reader too.
+      readIdleMs: 1500,
     });
     const first = svc.warm(ids);
     const second = svc.warm(ids);
