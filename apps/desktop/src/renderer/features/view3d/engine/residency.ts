@@ -129,7 +129,10 @@ export class MeshResidency {
     frame: number,
     evicted: Int32Array,
   ): { ok: boolean; evictedCount: number } {
-    if (this.state[mesh] === MeshState.Requested) this.inFlight = Math.max(0, this.inFlight - 1);
+    // only a mesh waiting for its answer is taken in: a second answer (asked again after a context loss) for one
+    // already resident would upload it twice and count its bytes twice
+    if (this.state[mesh] !== MeshState.Requested) return { ok: false, evictedCount: 0 };
+    this.inFlight = Math.max(0, this.inFlight - 1);
     let evictedCount = 0;
     while (this.usedBytes + bytes > this.budgetBytes) {
       let victim = -1;
@@ -169,7 +172,9 @@ export class MeshResidency {
 
   /** The request failed: cancelled requests may be asked again, others stay boxes. */
   failed(mesh: number, retry: boolean): void {
-    if (this.state[mesh] === MeshState.Requested) this.inFlight = Math.max(0, this.inFlight - 1);
+    // an answer for a mesh not waiting (resident, or forgotten by a context loss) changes nothing
+    if (this.state[mesh] !== MeshState.Requested) return;
+    this.inFlight = Math.max(0, this.inFlight - 1);
     this.state[mesh] = retry ? MeshState.Absent : MeshState.Failed;
   }
 

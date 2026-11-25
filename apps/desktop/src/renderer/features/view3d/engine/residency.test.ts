@@ -92,6 +92,23 @@ describe("mesh residency", () => {
     expect(r.usedBytes).toBe(60);
   });
 
+  it("takes a mesh in once: a second answer after a context loss neither uploads it again nor counts it twice", () => {
+    const r = new MeshResidency([false], { budgetBytes: 100 });
+    const out = new Int32Array(8);
+    const ev = new Int32Array(8);
+    r.want(0, 1, 1);
+    r.takeRequests(out); // asked once
+    r.reset(); // the context is lost before the answer
+    r.want(0, 1, 2);
+    r.takeRequests(out); // asked again once it is back
+    expect(r.admit(0, 10, 2, ev).ok).toBe(true); // the first answer
+    expect(r.admit(0, 10, 2, ev).ok).toBe(false); // the second: already resident
+    expect(r.usedBytes).toBe(10);
+    expect(r.inFlight).toBe(0);
+    r.failed(0, false); // a late failure for it changes nothing
+    expect(r.state[0]).toBe(MeshState.Resident);
+  });
+
   it("forgets everything when the GPU context is lost", () => {
     const r = new MeshResidency([false, false], { budgetBytes: 100 });
     r.want(0, 1, 1);

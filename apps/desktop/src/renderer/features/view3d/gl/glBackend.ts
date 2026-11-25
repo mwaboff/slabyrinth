@@ -285,6 +285,8 @@ export function createGlBackend(canvas: HTMLCanvasElement, handlers: GlBackendHa
       buffers.delete(h);
     },
     uploadMesh(mesh: number, geom: MeshGeometry): number {
+      // a mesh uploaded again replaces its buffers: the old ones are freed, never orphaned
+      this.deleteMesh(mesh);
       const vertices = Math.floor(geom.positions.length / 3);
       const small = vertices <= 65_536;
       const indices =
