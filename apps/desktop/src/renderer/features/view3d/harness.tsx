@@ -65,7 +65,7 @@ export async function mountView3dHarness(side = 1024): Promise<void> {
     <View3dCanvas
       ref={ref}
       source={source}
-      buildId="synthetic"
+      target={{ buildId: "synthetic" }}
       options={{ schedule }}
       onState={(s) => {
         h.states.push(s.kind);

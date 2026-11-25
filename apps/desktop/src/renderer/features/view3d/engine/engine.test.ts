@@ -57,7 +57,7 @@ describe("viewer engine", () => {
     const { engine, backend, settle } = rig();
     const states: string[] = [];
     engine.on("state", (s) => states.push(s.kind));
-    engine.open(source(town), "b1");
+    engine.open(source(town), { buildId: "b1" });
     await settle();
     expect(states[0]).toBe("loading");
     expect(states.at(-1)).toBe("ready");
@@ -72,7 +72,7 @@ describe("viewer engine", () => {
 
   it("draws only when something changed (no idle loop)", async () => {
     const { engine, backend, queued, settle } = rig();
-    engine.open(source(town), "b1");
+    engine.open(source(town), { buildId: "b1" });
     await settle();
     const draws = backend.draws;
     expect(queued()).toBe(0);
@@ -87,7 +87,7 @@ describe("viewer engine", () => {
 
   it("near the ground, swaps boxes for meshes as they arrive, under the budget", async () => {
     const { engine, backend, settle } = rig();
-    engine.open(source(town), "b1");
+    engine.open(source(town), { buildId: "b1" });
     await settle();
     const cam = engine.getCamera();
     engine.setCamera({ ...cam, target: { x: 96, y: 0, z: 96 }, distance: 25, elevation: 30 });
@@ -100,7 +100,7 @@ describe("viewer engine", () => {
 
   it("only pulls the chunks a close view needs", async () => {
     const { engine, settle } = rig();
-    engine.open(source(town), "b1");
+    engine.open(source(town), { buildId: "b1" });
     // set a close camera as soon as the header arrives (before any chunk)
     engine.on("header", () => {
       engine.setCamera({ target: { x: 10, y: 0, z: 10 }, distance: 12, bearing: 225, elevation: 30 });
@@ -115,7 +115,7 @@ describe("viewer engine", () => {
     const { engine, backend, settle } = rig();
     const headers: number[] = [];
     engine.on("header", (h) => headers.push(h.pendingDetail));
-    engine.open(source({ boxes: townBoxes, detail: town }, { detailAfterMs: 5 }), "b1");
+    engine.open(source({ boxes: townBoxes, detail: town }, { detailAfterMs: 5 }), { buildId: "b1" });
     await settle(30);
     expect(headers[0]).toBeGreaterThan(0);
     const cam = { target: { x: 96, y: 0, z: 96 }, distance: 25, bearing: 200, elevation: 30 };
@@ -130,7 +130,7 @@ describe("viewer engine", () => {
 
   it("survives losing the GPU context and draws again when it returns", async () => {
     const { engine, backend, settle } = rig();
-    engine.open(source(town), "b1");
+    engine.open(source(town), { buildId: "b1" });
     await settle();
     backend.lose();
     engine.contextLost();
@@ -149,7 +149,7 @@ describe("viewer engine", () => {
     const { engine, backend, settle } = rig({ gpuBudgetBytes: 256 * 1024 });
     const limited: boolean[] = [];
     engine.on("limited", (l) => limited.push(l));
-    engine.open(source(town), "b1");
+    engine.open(source(town), { buildId: "b1" });
     await settle();
     engine.setCamera({ target: { x: 96, y: 0, z: 96 }, distance: 25, bearing: 225, elevation: 30 });
     await settle();
@@ -160,14 +160,14 @@ describe("viewer engine", () => {
 
   it("reports a missing scene as a typed error", async () => {
     const { engine, settle } = rig();
-    engine.open(source(town), "nope");
+    engine.open(source(town), { buildId: "nope" });
     await settle();
     expect(engine.state).toMatchObject({ kind: "error", error: { code: "source", sourceCode: "not-found" } });
   });
 
   it("picks what is under the cursor and frames it", async () => {
     const { engine, settle } = rig();
-    engine.open(source(town), "b1");
+    engine.open(source(town), { buildId: "b1" });
     await settle();
     const picks: (number | null)[] = [];
     engine.on("pick", (p) => picks.push(p ? p.id : null));
@@ -188,9 +188,33 @@ describe("viewer engine", () => {
     expect(engine.selection).toBeNull();
   });
 
+  it("says a picked piece's role, and hides pieces by role", async () => {
+    const { engine, settle } = rig();
+    engine.open(source(town), { buildId: "b1" });
+    await settle();
+    const floor = town.instances.find((i) => i.role === "floor" && i.layer !== "roof");
+    if (!floor) throw new Error("the synthetic town has a floor piece");
+    engine.setCamera({
+      target: { x: floor.at.x + 0.5, y: 0, z: floor.at.z + 0.5 },
+      distance: 30,
+      bearing: 180,
+      elevation: 89.5,
+    });
+    const p = engine.pickAt(W / 2, H / 2);
+    expect(p?.role).toBe("floor");
+    // the synthetic town's pieces come from no plan cell
+    expect(p?.cell).toBeNull();
+    // every floor hidden: the ray goes through to what is under it, never a floor
+    engine.setHiddenRoles(["floor"]);
+    expect(engine.getFilters().hiddenRoles.has("floor")).toBe(true);
+    expect(engine.pickAt(W / 2, H / 2)?.role).not.toBe("floor");
+    engine.setHiddenRoles([]);
+    expect(engine.pickAt(W / 2, H / 2)?.role).toBe("floor");
+  });
+
   it("never lets the camera under the ground or out of reach", async () => {
     const { engine, settle } = rig();
-    engine.open(source(town), "b1");
+    engine.open(source(town), { buildId: "b1" });
     await settle();
     engine.setCamera({ target: { x: 1e6, y: -100, z: -1e6 }, distance: 1e7, bearing: 0, elevation: -45 });
     const c = engine.getCamera();
@@ -203,7 +227,7 @@ describe("viewer engine", () => {
 
   it("frees everything on close", async () => {
     const { engine, backend, settle } = rig();
-    engine.open(source(town), "b1");
+    engine.open(source(town), { buildId: "b1" });
     await settle();
     engine.close();
     expect(backend.heldBytes()).toBe(0);
@@ -219,7 +243,7 @@ describe("budgets on a 1024 × 1024 map (synthetic town, ≥ 300,000 pieces)", (
     expect(big.instances.length).toBeGreaterThanOrEqual(300_000);
     const { engine, backend, settle } = rig();
     const open0 = performance.now();
-    engine.open(source(big), "b1");
+    engine.open(source(big), { buildId: "b1" });
     const first = { ms: -1 };
     engine.on("frame", (s) => {
       if (first.ms < 0 && s.instancesDrawn > 0) first.ms = performance.now() - open0;
@@ -263,7 +287,7 @@ describe("budgets on a 1024 × 1024 map (synthetic town, ≥ 300,000 pieces)", (
     expect(overview.sceneBytes / big.instances.length).toBeLessThan(80);
     // a tiny budget on the same map: detail is limited, nothing fails
     const tiny = rig({ gpuBudgetBytes: 4 * 1024 * 1024 });
-    tiny.engine.open(source(big), "b1");
+    tiny.engine.open(source(big), { buildId: "b1" });
     await tiny.settle(2000);
     expect(tiny.backend.heldBytes()).toBeLessThanOrEqual(4 * 1024 * 1024);
     expect(tiny.engine.stats().instancesDrawn + tiny.backend.last.instances).toBeGreaterThan(0);

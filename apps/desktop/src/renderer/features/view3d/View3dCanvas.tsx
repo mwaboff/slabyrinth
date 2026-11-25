@@ -5,7 +5,7 @@
  * error text: the surface is designed separately.
  */
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from "react";
-import type { SceneProgress, SceneSource } from "./sceneSource";
+import { targetKey, type SceneProgress, type SceneSource, type SceneTarget } from "./sceneSource";
 import type { RenderBackend } from "./engine/backend";
 import {
   View3dEngine,
@@ -25,7 +25,8 @@ export const MAX_DPR = 1.5;
 
 export interface View3dCanvasProps {
   source: SceneSource;
-  buildId: string;
+  /** The plan version or build to show (opened again when it changes). */
+  target: SceneTarget;
   onProgress?: (p: SceneProgress) => void;
   onError?: (e: View3dError) => void;
   onState?: (s: View3dState) => void;
@@ -52,9 +53,9 @@ export function errorText(e: View3dError): string {
       return "The graphics driver could not start the 3D view.";
     case "source":
       return e.sourceCode === "not-found"
-        ? "There is no 3D scene for this build."
-        : e.sourceCode === "too-big"
-          ? "This map is too big to show in 3D on this PC."
+        ? "There is no 3D scene for this version of the map."
+        : e.sourceCode === "no-plan"
+          ? "There's no plan to show in 3D yet."
           : e.sourceCode === "cancelled"
             ? "Loading the 3D scene was stopped."
             : `The 3D scene could not be loaded: ${e.message}`;
@@ -62,7 +63,8 @@ export function errorText(e: View3dError): string {
 }
 
 export function View3dCanvas(props: View3dCanvasProps): React.JSX.Element {
-  const { source, buildId, label, className, ref } = props;
+  const { source, target, label, className, ref } = props;
+  const key = targetKey(target);
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [engine, setEngine] = useState<View3dEngine | null>(null);
@@ -141,14 +143,14 @@ export function View3dCanvas(props: View3dCanvasProps): React.JSX.Element {
     };
   }, [engine]);
 
-  // the scene
+  // the scene (opened again when the target's key changes, not on every new target object)
   useEffect(() => {
     if (!engine || engine.state.kind === "error") return;
-    engine.open(source, buildId);
+    engine.open(source, latest.current.target);
     return () => {
       engine.close();
     };
-  }, [engine, source, buildId]);
+  }, [engine, source, key]);
 
   useImperativeHandle(ref, () => engine as View3dApi, [engine]);
 

@@ -1,10 +1,11 @@
 /**
  * The fake main's 3D view and piece cache: the real scene of the open project's plan (core resolve and realize, the
- * bundled palettes), every piece a box of its real size as with no TaleSpire install, packed and capped exactly as
+ * bundled palettes), every piece a box of its real size (why: the scenario's `meshes` state, default no TaleSpire
+ * install; "reading" sends each version's first scene as boxes waiting for detail, then "detail" progress), packed and capped exactly as
  * main packs it (shared/view3dWire.ts), and still pictures by the same shot rules (shared/view3dPictures.ts).
  */
 import { bundledPalettes } from "@slabyrinth/core/palette";
-import { boxMeshSource, type Scene } from "@slabyrinth/scene3d";
+import { boxMeshSource, type FallbackReason, type Scene } from "@slabyrinth/scene3d";
 import type { MeshCacheInfo } from "../../../../shared/ipc";
 import { VIEW3D_LIMITS } from "../../../../shared/schemas/ipc";
 import { onePicture } from "../../../../shared/view3dPictures";
@@ -28,20 +29,40 @@ interface FakeScene {
   packed: PackedScene;
 }
 
+/** How long the "reading" scenario takes to read a version's shapes (scaled by the bridge's speed). */
+const READ_MS = 400;
+
+const MESSAGES: Readonly<Record<MeshCacheInfo["state"], string>> = {
+  no_install:
+    "TaleSpire isn't installed on this PC (or Slabyrinth can't find it), so every piece shows as a box of its real size.",
+  reading: "Reading TaleSpire's pieces (once after each game update). Boxes in the meantime.",
+  off: "3D is turned off, so every piece shows as a box of its real size.",
+  ready: "TaleSpire's pieces are read.",
+};
+
+/** Why a piece is a box in each state (the "reading" scenario: before and after its version's shapes are read). */
+function boxReason(state: MeshCacheInfo["state"], read: boolean): FallbackReason {
+  if (state === "off") return "boxes-requested";
+  if (state === "reading") return read ? "not-in-index" : "not-read-yet";
+  return "no-install";
+}
+
 export function view3dHandlers(s: FakeState): HandlerGroup<View3dChannels> {
   const scenes = new Map<string, FakeScene>();
   let seq = 0;
   let cancelled = false;
   const wasCancelled = (): boolean => cancelled;
+  const state = s.scenario.meshes ?? "no_install";
+  /** Versions whose shapes the "reading" scenario has read. */
+  const read = new Set<number>();
   const info = (): MeshCacheInfo => ({
-    state: "no_install",
+    state: state === "reading" && read.size > 0 ? "ready" : state,
     read: 0,
     boxes: 0,
-    extracting: false,
+    extracting: state === "reading" && read.size === 0,
     bytes: 0,
     limitBytes: 512 * 1024 * 1024,
-    message:
-      "TaleSpire isn't installed on this PC (or Slabyrinth can't find it), so every piece shows as a box of its real size.",
+    message: MESSAGES[state === "reading" && read.size > 0 ? "ready" : state],
   });
   const sceneOf = (sceneId: string): FakeScene =>
     scenes.get(sceneId) ?? fail("not_found", "That 3D view was closed.");
@@ -63,11 +84,12 @@ export function view3dHandlers(s: FakeState): HandlerGroup<View3dChannels> {
       // one scene at a time, as main keeps it
       scenes.clear();
       const sceneId = `fake-scene-${String(++seq)}`;
+      const wasRead = read.has(v);
       const { scene } = await sceneOfPlan(
         plan,
         bundledPalettes(),
         null,
-        boxMeshSource("no-install", "boxes only"),
+        boxMeshSource(boxReason(state, wasRead), "boxes only"),
         undefined,
         (done, total) => {
           s.emit("view3d:progress", { sceneId, stage: "layout", done, total });
@@ -76,13 +98,24 @@ export function view3dHandlers(s: FakeState): HandlerGroup<View3dChannels> {
       if (wasCancelled()) return fail("cancelled", "Stopped.");
       const packed = packScene(scene);
       scenes.set(sceneId, { scene, packed });
-      s.emit("meshes:status", { read: 0, boxes: packed.header.counts.boxes, extracting: false, bytes: 0 });
+      const pending = state === "reading" && !wasRead ? packed.header.counts.instances : 0;
+      s.emit("meshes:status", {
+        read: 0,
+        boxes: packed.header.counts.boxes,
+        extracting: pending > 0,
+        bytes: 0,
+      });
+      if (pending > 0)
+        void s.sleep(READ_MS).then(() => {
+          read.add(v);
+          s.emit("view3d:progress", { sceneId, stage: "detail", done: pending, total: pending });
+        });
       return {
         ...packed.header,
         sceneId,
         version: v,
         buildId: buildId ?? null,
-        pendingDetail: 0,
+        pendingDetail: pending,
         limited: null,
       };
     },

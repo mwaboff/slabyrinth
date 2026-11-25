@@ -18,7 +18,9 @@ describe("View3dCanvas", () => {
     // jsdom has no WebGL
     const spy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
     const onError = vi.fn();
-    render(<View3dCanvas source={memorySceneSource(new Map())} buildId="b" onError={onError} />);
+    render(
+      <View3dCanvas source={memorySceneSource(new Map())} target={{ buildId: "b" }} onError={onError} />,
+    );
     expect(screen.getByRole("alert")).toHaveTextContent(/graphics acceleration/);
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: "no-webgl2" }));
     expect(screen.queryByRole("application")).toBeNull();
@@ -32,7 +34,7 @@ describe("View3dCanvas", () => {
       <View3dCanvas
         ref={ref}
         source={memorySceneSource(new Map([["b1", town]]))}
-        buildId="b1"
+        target={{ buildId: "b1" }}
         createBackend={() => fakeBackend()}
         onState={(s) => states.push(s.kind)}
       />,
@@ -52,7 +54,7 @@ describe("View3dCanvas", () => {
     render(
       <View3dCanvas
         source={memorySceneSource(new Map())}
-        buildId="missing"
+        target={{ buildId: "missing" }}
         createBackend={() => fakeBackend()}
       />,
     );

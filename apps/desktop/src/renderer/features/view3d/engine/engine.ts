@@ -5,14 +5,17 @@
  * camera), picks, and exposes everything the tab's surface needs as an imperative API (View3dApi) plus events. GL
  * lives behind a RenderBackend, so the whole engine runs in tests with a recording fake.
  */
+import type { PlacementRole } from "@slabyrinth/core/contracts/compiler";
 import { BACKGROUND, COLOUR_CLASSES, type Box3, type ColourClass } from "@slabyrinth/scene3d";
 import {
   SceneSourceError,
   type SceneHeader,
   type SceneProgress,
   type SceneSource,
+  type SceneTarget,
   type WireBox,
 } from "../sceneSource";
+import { NO_CELL } from "../../../../shared/view3dWire";
 import {
   meshGpuBytes,
   NO_SELECTION,
@@ -63,6 +66,10 @@ export interface PickInfo {
   layer: string;
   /** The plan element it was built for, when the scene knows. */
   elementId: string | null;
+  /** The placement's role ("floor", "wall", "opening", …); null for a piece with none (read from a slab). */
+  role: string | null;
+  /** The plan cell it was built for (x, y), when the scene knows. */
+  cell: readonly [x: number, y: number] | null;
   /** Drawn as its game mesh now, or as a box. */
   stand: "mesh" | "box";
   /** Where the ray met the piece's box. */
@@ -151,6 +158,8 @@ export interface View3dApi {
   setCutLevel(levelIndex: number | null): void;
   setRoofsHidden(hidden: boolean): void;
   setHiddenClasses(classes: readonly ColourClass[]): void;
+  /** Hides pieces by their placement role (pieces with none stay). */
+  setHiddenRoles(roles: readonly PlacementRole[]): void;
   setCutHeight(y: number | null): void;
   setFade(on: boolean): void;
   getFilters(): Readonly<ViewFilters>;
@@ -199,7 +208,7 @@ const EMPTY_BOX: Box3 = {
 interface OpenScene {
   serial: number;
   source: SceneSource;
-  buildId: string;
+  target: SceneTarget;
   sceneId: string | null;
   offProgress: () => void;
   chunkRequests: number;
@@ -302,7 +311,13 @@ export class View3dEngine implements View3dApi {
       target: this.view.target,
       pxK: 1,
       minPx: MIN_PX,
-      masks: { classMask: 0, hideRoofs: false, levelShown: new Uint8Array(0), cutHeight: Infinity },
+      masks: {
+        classMask: 0,
+        roleMask: 0,
+        hideRoofs: false,
+        levelShown: new Uint8Array(0),
+        cutHeight: Infinity,
+      },
       fade: false,
       fadeRadius: 4,
       selected: NO_SELECTION,
@@ -361,14 +376,14 @@ export class View3dEngine implements View3dApi {
     return this.scene === s && s.serial === this.serial;
   }
 
-  /** Opens the scene of a build from a source (closing any open one). */
-  open(source: SceneSource, buildId: string): void {
+  /** Opens the scene of a plan version or build from a source (closing any open one). */
+  open(source: SceneSource, target: SceneTarget): void {
     this.close();
     if (!this.backend) return;
     const s: OpenScene = {
       serial: ++this.serial,
       source,
-      buildId,
+      target,
       sceneId: null,
       offProgress: () => undefined,
       chunkRequests: 0,
@@ -393,7 +408,7 @@ export class View3dEngine implements View3dApi {
       )
         this.swapToDetail(s);
     });
-    source.open(buildId).then(
+    source.open(target).then(
       (h) => {
         if (!this.live(s)) {
           source.close(h.sceneId);
@@ -419,7 +434,7 @@ export class View3dEngine implements View3dApi {
   /** The source has read the game's shapes: open again and replace the boxes scene, keeping the camera. */
   private swapToDetail(s: OpenScene): void {
     s.swapping = true;
-    s.source.open(s.buildId).then(
+    s.source.open(s.target).then(
       (h) => {
         if (!this.live(s)) {
           s.source.close(h.sceneId);
@@ -942,6 +957,10 @@ export class View3dEngine implements View3dApi {
     this.filtersChanged({ ...this.filters, hiddenClasses: new Set(classes) });
   }
 
+  setHiddenRoles(roles: readonly PlacementRole[]): void {
+    this.filtersChanged({ ...this.filters, hiddenRoles: new Set(roles) });
+  }
+
   setCutHeight(y: number | null): void {
     this.filtersChanged({ ...this.filters, cutHeight: y });
   }
@@ -993,6 +1012,9 @@ export class View3dEngine implements View3dApi {
     const levelIndex = d.level[k] ?? 0;
     const lv = h.levels[levelIndex];
     const el = d.element[k] ?? -1;
+    const ri = d.role[k] ?? -1;
+    const cx = d.cell[k * 2] ?? NO_CELL;
+    const cy = d.cell[k * 2 + 1] ?? NO_CELL;
     const a = k * 6;
     const A = c.aabb;
     const box: Box3 = {
@@ -1010,6 +1032,8 @@ export class View3dEngine implements View3dApi {
       levelName: lv?.name ?? "",
       layer: d.layers[d.layer[k] ?? 0] ?? "site",
       elementId: el < 0 ? null : (d.elements[el] ?? null),
+      role: ri < 0 ? null : (d.roles[ri] ?? null),
+      cell: cx === NO_CELL && cy === NO_CELL ? null : [cx, cy],
       stand: this.residency?.state[meshIndex] === MeshState.Resident ? "mesh" : "box",
       point: point ?? {
         x: (box.min.x + box.max.x) / 2,

@@ -28,6 +28,7 @@ uniform float uPxK;
 uniform float uMinPx;
 uniform bool uBox;
 uniform uint uHideClass;
+uniform uint uHideRole;
 uniform bool uHideRoof;
 out vec3 vWorld;
 flat out vec3 vColour;
@@ -35,8 +36,9 @@ flat out uint vId;
 flat out uint vFlags;
 void main() {
   uint cls = aFlags & 15u;
+  uint role = (aFlags >> 10u) & 15u;
   bool roof = ((aFlags >> 8u) & 1u) == 1u;
-  bool hidden = ((uHideClass >> cls) & 1u) == 1u || (uHideRoof && roof);
+  bool hidden = ((uHideClass >> cls) & 1u) == 1u || (role > 0u && ((uHideRole >> role) & 1u) == 1u) || (uHideRoof && roof);
   vec3 ext = aMax - aMin;
   float size = max(ext.x, max(ext.y, ext.z));
   float dist = max(distance(uEye, aPlace.xyz + (aMin + aMax) * 0.5) - size * 0.5, 0.001);

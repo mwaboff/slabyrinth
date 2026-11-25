@@ -6,6 +6,9 @@
  * plus the piece's index in the chunk.
  */
 import type { InstanceChunk, SceneHeader } from "../sceneSource";
+import { roleNumber } from "./roles";
+
+const NO_ROLES = new Uint8Array(0);
 
 export const ChunkState = { Absent: 0, Requested: 1, Loaded: 2 } as const;
 
@@ -25,6 +28,8 @@ export interface Chunk {
   aabb: Float32Array | null;
   /** Index of "roof" in the chunk's layer table (-1 none). */
   roofLayer: number;
+  /** Per entry of the chunk's role table: the role's scene-wide number (filters.roleNumber), once loaded. */
+  roleNumbers: Uint8Array;
   /** Bumped when data arrives: GPU buffers built from an older version are stale. */
   version: number;
   /** Frame the chunk was last wanted at, and how near (fetch order). */
@@ -78,6 +83,7 @@ export class SceneStore {
         data: null,
         aabb: null,
         roofLayer: -1,
+        roleNumbers: NO_ROLES,
         version: 0,
         wantFrame: 0,
         wantDist: Infinity,
@@ -145,6 +151,7 @@ export class SceneStore {
     c.data = data;
     c.state = ChunkState.Loaded;
     c.roofLayer = data.layers.indexOf("roof");
+    c.roleNumbers = Uint8Array.from(data.roles, roleNumber);
     c.version++;
     const aabb = new Float32Array(data.count * 6);
     for (let k = 0; k < data.count; k++) worldBox(this.meshBounds, data, k, aabb, k * 6);

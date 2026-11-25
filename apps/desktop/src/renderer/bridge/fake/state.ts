@@ -37,6 +37,11 @@ export interface FakeScenario {
   helper?: LinkStatus["helper"]["state"];
   /** A Wayland session (hotkeys may be refused). */
   wayland?: boolean;
+  /**
+   * The 3D piece cache (default "no_install": TaleSpire not found, every piece a box). "reading": the first scene of
+   * each version is boxes waiting for detail, which "completes" shortly after; "off": 3D is turned off in Settings.
+   */
+  meshes?: "no_install" | "reading" | "off";
 }
 
 export interface FakeOptions {

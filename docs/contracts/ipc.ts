@@ -333,6 +333,11 @@ export interface View3dChunk {
   /** Per instance: index into `elements` (the plan element it belongs to), or -1. */
   element: Int32Array;
   elements: string[];
+  /** Per instance: index into `roles` (the placement's role: "floor", "wall", "opening", …), or -1 (no role: a slab's piece). */
+  role: Int8Array;
+  roles: string[];
+  /** Per instance: the plan cell it came from as x, y (2n); both -32768 when it came from no cell. */
+  cell: Int16Array;
 }
 
 /** A mesh in its own frame: xyz per vertex, three vertex indices per triangle. */

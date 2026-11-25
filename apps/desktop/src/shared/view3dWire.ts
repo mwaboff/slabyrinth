@@ -9,6 +9,9 @@ import type { View3dBox, View3dChunk, View3dHeader, View3dMesh } from "./ipc";
 /** Chunk side in tiles. */
 export const CHUNK_TILES = 32;
 
+/** A chunk's `cell` value (both x and y) for a piece that came from no plan cell. */
+export const NO_CELL = -32768;
+
 /** The header fields a packed scene knows (the service adds the ids, the version and the detail state). */
 export type PackedHeader = Omit<
   View3dHeader,
@@ -62,7 +65,7 @@ function compactIndices(indices: Uint32Array, vertices: number): Uint16Array | U
 /** The bytes a chunk or mesh adds to a reply (typed arrays, plus its strings at two bytes a character). */
 export function wireBytes(x: View3dChunk | View3dMesh): number {
   if ("positions" in x) return x.positions.byteLength + x.indices.byteLength + x.key.length * 2;
-  const strings = [...x.layers, ...x.names, ...x.elements].reduce((n, s) => n + s.length * 2, 0);
+  const strings = [...x.layers, ...x.names, ...x.elements, ...x.roles].reduce((n, s) => n + s.length * 2, 0);
   return (
     x.mesh.byteLength +
     x.transform.byteLength +
@@ -72,6 +75,8 @@ export function wireBytes(x: View3dChunk | View3dMesh): number {
     x.layer.byteLength +
     x.name.byteLength +
     x.element.byteLength +
+    x.role.byteLength +
+    x.cell.byteLength +
     strings
   );
 }
@@ -132,11 +137,15 @@ export function packScene(scene: Scene): PackedScene {
       names: [],
       element: new Int32Array(n),
       elements: [],
+      role: new Int8Array(n),
+      roles: [],
+      cell: new Int16Array(n * 2),
     };
     const tables = {
       layers: new Map<string, number>(),
       names: new Map<string, number>(),
       elements: new Map<string, number>(),
+      roles: new Map<string, number>(),
     };
     const lookup = (t: Map<string, number>, list: string[], s: string): number => {
       let k = t.get(s);
@@ -165,6 +174,11 @@ export function packScene(scene: Scene): PackedScene {
       chunk.name[j] = lookup(tables.names, chunk.names, inst.name);
       chunk.element[j] =
         inst.elementId === null ? -1 : lookup(tables.elements, chunk.elements, inst.elementId);
+      // the placement's own role (realize set it); a slab's piece has none
+      chunk.role[j] = inst.role === null ? -1 : lookup(tables.roles, chunk.roles, inst.role);
+      const cell = inst.cell;
+      chunk.cell[j * 2] = cell ? cell[0] : NO_CELL;
+      chunk.cell[j * 2 + 1] = cell ? cell[1] : NO_CELL;
       const a = inst.aabb;
       box.min.x = Math.min(box.min.x, a.min.x);
       box.min.y = Math.min(box.min.y, a.min.y);

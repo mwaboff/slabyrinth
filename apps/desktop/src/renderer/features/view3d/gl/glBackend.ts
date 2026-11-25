@@ -47,6 +47,7 @@ interface Programs {
     minPx: WebGLUniformLocation | null;
     box: WebGLUniformLocation | null;
     hideClass: WebGLUniformLocation | null;
+    hideRole: WebGLUniformLocation | null;
     hideRoof: WebGLUniformLocation | null;
     light: WebGLUniformLocation | null;
     target: WebGLUniformLocation | null;
@@ -148,6 +149,7 @@ export function createGlBackend(canvas: HTMLCanvasElement, handlers: GlBackendHa
         minPx: at(piece, "uMinPx"),
         box: at(piece, "uBox"),
         hideClass: at(piece, "uHideClass"),
+        hideRole: at(piece, "uHideRole"),
         hideRoof: at(piece, "uHideRoof"),
         light: at(piece, "uLight"),
         target: at(piece, "uTarget"),
@@ -351,6 +353,7 @@ export function createGlBackend(canvas: HTMLCanvasElement, handlers: GlBackendHa
       gl.uniform1f(P.u.pxK, u.pxK);
       gl.uniform1f(P.u.minPx, u.minPx);
       gl.uniform1ui(P.u.hideClass, u.masks.classMask >>> 0);
+      gl.uniform1ui(P.u.hideRole, u.masks.roleMask >>> 0);
       gl.uniform1i(P.u.hideRoof, u.masks.hideRoofs ? 1 : 0);
       gl.uniform3fv(P.u.light, LIGHT);
       gl.uniform3f(P.u.target, u.target.x, u.target.y, u.target.z);
