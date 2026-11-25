@@ -26,10 +26,11 @@ packages/core/test/golden/gen/
 packages/core/test/golden/generator2/
 packages/core/test/golden/generator3/
 packages/core/test/golden/generator4/
+packages/core/test/golden/generator5/
 packages/core/test/golden/resolve/
 packages/core/test/golden/text/
-# The open generator-5 golden: its data file is written by its update script; its .ts files are formatted.
-packages/core/test/golden/generator5/__golden__/
+# The open generator-6 golden: its data file is written by its update script; its .ts files are formatted.
+packages/core/test/golden/generator6/__golden__/
 # Recorded plan and generator fixtures plus palette importer inputs: JSON data kept as authored/recorded.
 packages/core/test/fixtures/**/*.json
 packages/core/test/unit/gen/fixtures/*.json

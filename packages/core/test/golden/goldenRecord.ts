@@ -1,8 +1,8 @@
 /**
- * The record a golden run is reduced to, shared by the open generator's golden (generator5/: runs.ts, the test and
- * the update script) and the frozen generator-4 golden (generator4/generator4.test.ts, which only reads). A run is a
- * stored plan at one generator; its record is one hash line and the readable detail lines. See the header of
- * generator5/generator5.test.ts.
+ * The record a golden run is reduced to, shared by the open generator's golden (generator6/: runs.ts, the test and
+ * the update script) and the frozen generator-4 and generator-5 goldens (generator4/generator4.test.ts and
+ * generator5/generator5.test.ts, which only read). A run is a stored plan at one generator; its record is one hash
+ * line and the readable detail lines. See the header of generator6/generator6.test.ts.
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";

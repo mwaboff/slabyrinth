@@ -19,7 +19,7 @@ afterEach(() => Object.assign(P5, saved));
 
 /** The generated blocking pieces on a stair's foot or landing, and the link and reach issues of the build. */
 function measure(seed: number): { onLanding: string[]; issues: string[] } {
-  const plan = sweepPlan("multi-level-stairs", seed);
+  const plan = sweepPlan("multi-level-stairs", seed, 5);
   const r = resolvePlan(plan, pal);
   const onLanding: string[] = [];
   for (const L of r.levels) {
@@ -38,7 +38,7 @@ function measure(seed: number): { onLanding: string[]; issues: string[] } {
 
 describe("a stair's foot and landing stay clear (landingsKeepClear)", () => {
   it("the landings are the cell before the first step and the cell beyond the last", () => {
-    const plan = sweepPlan("multi-level-stairs", 1);
+    const plan = sweepPlan("multi-level-stairs", 1, 5);
     // stairs1 climbs north from 7,6 on the ground floor to the study, a run of three
     expect(linkLandingsOnLevel(plan, "ground")).toEqual([[7, 7]]);
     expect(linkLandingsOnLevel(plan, "study_lvl")).toEqual([[7, 3]]);

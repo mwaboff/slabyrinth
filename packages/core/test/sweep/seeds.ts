@@ -17,7 +17,12 @@
 import { completeAuthoredPlan } from "../../src/agent/executor";
 import { compileResolved } from "../../src/compile";
 import type { CompileDiagnostic } from "../../src/contracts/compiler";
-import { GENERATOR_VERSION, type MapPlan, type PlanIssue } from "../../src/contracts/plan";
+import {
+  GENERATOR_VERSION,
+  type GeneratorVersion,
+  type MapPlan,
+  type PlanIssue,
+} from "../../src/contracts/plan";
 import type { ResolvedPlan } from "../../src/contracts/resolved";
 import { bundledPalettes } from "../../src/palette";
 import { checkPlayability, resolvePlan } from "../../src/resolve/index";
@@ -72,9 +77,16 @@ export function e2ePlan(seed: number): MapPlan {
 }
 export const E2E_ONCE_FAILED = [1274836067, 2676017210, 3620079018, 4028937384];
 
-/** A stored plan under the newest generator and another seed. */
-export const sweepPlan = (name: StoredPlan, seed: number): MapPlan => ({
-  ...loadPlan(name, { generator: GENERATOR_VERSION }),
+/**
+ * A stored plan under the newest generator (or `generator`, for a test of a released generator's switch) and another
+ * seed.
+ */
+export const sweepPlan = (
+  name: StoredPlan,
+  seed: number,
+  generator: GeneratorVersion = GENERATOR_VERSION,
+): MapPlan => ({
+  ...loadPlan(name, { generator }),
   seed,
 });
 

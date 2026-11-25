@@ -26,7 +26,7 @@ function measure(seeds: readonly number[]): { pieces: number; through: string[] 
   let pieces = 0;
   const through: string[] = [];
   for (const seed of seeds) {
-    const set = realize(resolvePlan(sweepPlan("market-street-v3", seed), pal), pal, {});
+    const set = realize(resolvePlan(sweepPlan("market-street-v3", seed, 5), pal), pal, {});
     for (const L of set.levels) {
       const boxOf = (p: (typeof L.placements)[number]): Box3 | undefined => set.placed.get(p)?.box;
       const canopies = L.placements
@@ -59,7 +59,7 @@ describe("linesClearCanopies", () => {
   for (const seed of seeds)
     resolvePlanLines.set(
       seed,
-      new Set(sweepPlan("market-street-v3", seed).levels.flatMap((l) => (l.lines ?? []).map((q) => q.id))),
+      new Set(sweepPlan("market-street-v3", seed, 5).levels.flatMap((l) => (l.lines ?? []).map((q) => q.id))),
     );
 
   it("no line piece cuts into a canopy or awning; without the switch many do", () => {

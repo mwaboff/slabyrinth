@@ -18,8 +18,8 @@ Pipeline: plan → `resolve` (plan + palettes → resolved grid) → `compile` (
 ## Checks
 
 - Every change: `npm run format:check && npm run lint && npm run typecheck && npm test` (~20 s of tests).
-- Generation or build change: `npm run test:golden:gen5:update` prints what moved per plan (hash fields, then the
-  `generator5.detail.txt` lines); `npm run test:sweep -- 30` builds every stored plan under many seeds (CI runs 120).
+- Generation or build change: `npm run test:golden:gen6:update` prints what moved per plan (hash fields, then the
+  `generator6.detail.txt` lines); `npm run test:sweep -- 30` builds every stored plan under many seeds (CI runs 120).
 - Look at a build in 3D: `npm run render -- 3d --fixture <name>` (or `--plan`, `--slab`); PNGs + `index.json` under
   `docs/internal/renders/` (CONTRIBUTING.md "Rendering a map in 3D"). Measure a visual report first with `--check`.
 - App, IPC or CI change: `npm run test:e2e`. Before a PR also `npm run build`.
@@ -31,12 +31,11 @@ in the same PR and say why.
 ## Frozen output
 
 - Generators 1–5 and the released prompt, principles and tool texts (`agent/*.frozen*.ts`, the versions marked
-  released in `agent/prompt.ts`) are byte-frozen; their builds are never regenerated (the generator-5 golden may
-  still move its review fields). No generator is open: the next behaviour or model-text change first opens
-  generator 6 and new text versions (sp-1.15.0, dp-1.5.0, tools-1.11.0); the owner approves that contract change.
-  (When generator 6 is released, this line moves on to generator 7.)
+  released in `agent/prompt.ts`) are byte-frozen; their goldens are never regenerated. Generator 6 and the working
+  text versions (sp-1.15.0, dp-1.5.0, tools-1.11.0) are open. (When generator 6 is released, this line moves on to
+  generator 7.)
 - A behaviour difference between generators is a new switch in `plan/generator.ts` `SWITCHES`, read where it differs.
-- A generator-5 golden change is deliberate: commit it with one line of reason per changed plan.
+- A generator-6 golden change is deliberate: commit it with one line of reason per changed plan.
 
 ## Never
 

@@ -22,7 +22,7 @@ const switchesOn = (p: GeneratorProfile): string[] =>
     .sort();
 
 /** What each released generator turned on, by name (in addition to the one before it). Never edit these lists. */
-const RELEASED: Record<1 | 2 | 3 | 4, readonly string[]> = {
+const RELEASED: Record<1 | 2 | 3 | 4 | 5, readonly string[]> = {
   1: [],
   2: [
     "buildings",
@@ -128,7 +128,106 @@ const RELEASED: Record<1 | 2 | 3 | 4, readonly string[]> = {
     "waysInKeepClear",
     "windowsInOneVolume",
   ],
+  5: [
+    "anchorLandings",
+    "approachLights",
+    "arrangements",
+    "bandCourses",
+    "bandsClearBridges",
+    "bedsideLights",
+    "breachRubble",
+    "buildingRooms",
+    "cellRows",
+    "characterCascade",
+    "chimneyScale",
+    "closedWornRoofs",
+    "companionGroups",
+    "companionsClearPosts",
+    "cornerPosts",
+    "corridorShareReview",
+    "darkCellRows",
+    "deadEndReview",
+    "deadEndVignettes",
+    "decayWhereItBelongs",
+    "doorsByRole",
+    "doorsStayJoined",
+    "dryLandCover",
+    "entrancesReview",
+    "exactWayInReach",
+    "featureOutlinesClear",
+    "floorGroups",
+    "freeCounters",
+    "grandHalls",
+    "guardianPair",
+    "jambPosts",
+    "keptRoomsClean",
+    "landingsKeepClear",
+    "layeredGround",
+    "layeredProps",
+    "leanUnderMain",
+    "lightRegimes",
+    "lightsAgainstSomething",
+    "linesClearCanopies",
+    "occupancyLights",
+    "ownWallsFirst",
+    "pieceFacts",
+    "pilasters",
+    "pilesKeepWay",
+    "placementOrder",
+    "plinthUnderPorch",
+    "plinths",
+    "porchWear",
+    "postsAtBuildingCorners",
+    "qualityNotes",
+    "raggedRuins",
+    "ramshackleSigns",
+    "readableNeighbours",
+    "readableTrims",
+    "reviewByKind",
+    "roofFormsFit",
+    "roofKitFacts",
+    "roofPatches",
+    "roomKinds",
+    "roomMiddles",
+    "roomSizeReview",
+    "roomsKeepALight",
+    "ruinBays",
+    "sacredReads",
+    "sensibleLights",
+    "shelvesWithinWalls",
+    "sleepingCorners",
+    "statedCharacter",
+    "themeOwnRange",
+    "topLightFallback",
+    "tradePropsOnOneFloor",
+    "twinnedPairs",
+    "wallFootGrowth",
+    "wallsUnderCeiling",
+    "waterUnderFloors",
+    "wayBackReview",
+    "wealthLooks",
+    "wholeFloorEdges",
+    "windowSpanClosed",
+  ],
 };
+
+/**
+ * Refinements of a switch of the same generator that shipped unfolded in 0.4.0 (generator 5). They are released, so
+ * folding them now would only rename what a frozen generator reads; the rule below holds them as they are and keeps
+ * any new same-generator refinement to be folded before its generator ships. Never add to this list.
+ */
+const RELEASED_UNFOLDED_REFINEMENTS: readonly string[] = [
+  "closedWornRoofs",
+  "darkCellRows",
+  "decayWhereItBelongs",
+  "lightsAgainstSomething",
+  "raggedRuins",
+  "roofFormsFit",
+  "roomsKeepALight",
+  "sensibleLights",
+  "statedCharacter",
+  "wealthLooks",
+];
 
 describe("generator profiles", () => {
   it("has one profile per generator version, each naming its own version", () => {
@@ -165,7 +264,7 @@ describe("generator profiles", () => {
       expect(base, `${name} refines ${decl.refines}`).toBeDefined();
       expect(base?.since ?? Infinity, `${name} refines a later switch`).toBeLessThanOrEqual(decl.since);
       // (a refinement of a switch of its own generator is folded into it before that generator is released)
-      if (base?.since === decl.since)
+      if (base?.since === decl.since && !RELEASED_UNFOLDED_REFINEMENTS.includes(name))
         expect(decl.since, `${name}: fold it into ${decl.refines} before release`).toBe(GENERATOR_VERSION);
     }
   });
@@ -195,7 +294,7 @@ describe("generator profiles", () => {
 
   it("the released generators turn on exactly what they shipped with", () => {
     let on: string[] = [];
-    for (const v of [1, 2, 3, 4] as const) {
+    for (const v of [1, 2, 3, 4, 5] as const) {
       on = [...on, ...RELEASED[v]].sort();
       expect(switchesOn(GENERATOR_PROFILES[v]), `generator ${v}`).toEqual(on);
     }
@@ -213,16 +312,24 @@ describe("generator profiles", () => {
         ...GENERATOR_PROFILES[v].vocabulary.areaFields,
       ]).toEqual([]);
     }
-    expect(GENERATOR_PROFILES[4].openingOutline).toEqual({
-      grain: 2.2,
-      cut: 0.36,
-      keepShare: 0.45,
-      lobeCut: 0.6,
-    });
-    expect(GENERATOR_PROFILES[4].vocabulary).toEqual({
-      featureTypes: new Set(["clutter", "shelf_line"]),
-      levelFields: new Set(["roomDress"]),
-      areaFields: new Set(["purpose"]),
+    for (const v of [4, 5] as const) {
+      expect(GENERATOR_PROFILES[v].openingOutline).toEqual({
+        grain: 2.2,
+        cut: 0.36,
+        keepShare: 0.45,
+        lobeCut: 0.6,
+      });
+      expect(GENERATOR_PROFILES[v].vocabulary).toEqual({
+        featureTypes: new Set(["clutter", "shelf_line"]),
+        levelFields: new Set(["roomDress"]),
+        areaFields: new Set(["purpose"]),
+      });
+    }
+    expect(GENERATOR_PROFILES[5].detailBudget).toEqual({
+      interior: 3,
+      builtExterior: 2,
+      natural: 1.5,
+      perMap: 24000,
     });
   });
 

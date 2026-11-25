@@ -3,12 +3,11 @@
  * (imported by agent/prompt.ts). General and theme-neutral; examples are short. Paired with the automatic design
  * review (review/), which measures several of these on each build and reports them as advice.
  *
- * This is the WORKING text. It still equals dp-1.4.0, released in 0.4.0 inside sp-1.14.0 (generator 5) and frozen
- * as DP_1_4_0 in designPrinciples.frozen.ts with dp-1.0.0 to dp-1.3.0; sp-1.14.0 is built from that frozen copy, so
- * an edit here reaches no released prompt. The next edit opens dp-1.5.0 (with sp-1.15.0, when generator 6 opens):
- * bump DESIGN_PRINCIPLES_VERSION first, and freeze a copy when it ships.
+ * This is the WORKING text, dp-1.5.0 (opened with generator 6 and sp-1.15.0 as a copy of dp-1.4.0; unreleased, free
+ * to edit until the release). dp-1.0.0 to dp-1.4.0 live, frozen, in designPrinciples.frozen.ts; sp-1.14.0 is built
+ * from the frozen DP_1_4_0, so an edit here reaches no released prompt. Freeze a copy there when dp-1.5.0 ships.
  */
-export const DESIGN_PRINCIPLES_VERSION = "dp-1.4.0";
+export const DESIGN_PRINCIPLES_VERSION = "dp-1.5.0";
 
 export const DESIGN_PRINCIPLES = `## What makes a good map
 Judge every draft by these.

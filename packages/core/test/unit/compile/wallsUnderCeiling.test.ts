@@ -52,7 +52,7 @@ function overCeiling(plan: MapPlan): string[] {
 describe("walls under a building's upper floor (generator 5, wallsUnderCeiling)", () => {
   it("no partition or doorway wall stands above its storey's wall top", () => {
     const plans: MapPlan[] = [
-      sweepPlan("market-street-v3", 3507073702),
+      sweepPlan("market-street-v3", 3507073702, 5),
       loadPlan("market-street-v3"),
       loadPlan("building-rooms-street-v1"),
       loadPlan("two-quarters-v1"),
@@ -65,6 +65,6 @@ describe("walls under a building's upper floor (generator 5, wallsUnderCeiling)"
 
   it("without the switch the market's shop partition stands through the floor above", () => {
     P5.wallsUnderCeiling = false;
-    expect(overCeiling(sweepPlan("market-street-v3", 3507073702)).length).toBeGreaterThan(0);
+    expect(overCeiling(sweepPlan("market-street-v3", 3507073702, 5)).length).toBeGreaterThan(0);
   });
 });

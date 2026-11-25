@@ -4,7 +4,7 @@
  * the walls, the walking lane between a room's doors, focal against calm detail, lights per floor tile, lit outside
  * doors, band courses at floor lines; with the per-room figures behind them.
  *
- * Engineer-facing: the CLI's `quality` command and the generator-5 golden baseline print it; the review's notes
+ * Engineer-facing: the CLI's `quality` command and the generator-6 golden baseline print it; the review's notes
  * (review/qualityNotes.ts) give the model only what it can act on with plan words. Pure: the orientation the pieces
  * were realized with is a parameter (the bundled one by default, as realize uses).
  */

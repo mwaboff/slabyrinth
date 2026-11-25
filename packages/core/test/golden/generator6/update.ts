@@ -1,8 +1,8 @@
 /**
- * Rewrites the generator-5 golden on purpose: `npm run test:golden:gen5:update` (from the repo root or packages/core).
+ * Rewrites the generator-6 golden on purpose: `npm run test:golden:gen6:update` (from the repo root or packages/core).
  * Rebuilds every run, prints what changed per plan (hash fields `field: was -> now`, then the detail lines that went
- * `-` and came `+`, quality meter lines marked so), and writes __golden__/generator5.txt, generator5.detail.txt and
- * generator5.quality.txt (the quality meter's baseline of the generator-5 runs). Commit them together with the
+ * `-` and came `+`, quality meter lines marked so), and writes __golden__/generator6.txt, generator6.detail.txt and
+ * generator6.quality.txt (the quality meter's baseline of the generator-6 runs). Commit them together with the
  * change that moved them, and give one line of reason per changed plan in the commit message.
  *
  * It refuses (and writes nothing) when a run at a released generator changes its build (resolved hash, slab, asset
@@ -59,7 +59,7 @@ if (frozen.length) {
   );
   process.exitCode = 1;
 } else if (changed === 0) {
-  console.log(`generator-5 golden unchanged (${String(records.length)} runs)`);
+  console.log(`generator-6 golden unchanged (${String(records.length)} runs)`);
 } else {
   mkdirSync(new URL(".", GOLDEN_FILE), { recursive: true });
   writeFileSync(GOLDEN_FILE, records.map((r) => r.line).join("\n") + "\n");

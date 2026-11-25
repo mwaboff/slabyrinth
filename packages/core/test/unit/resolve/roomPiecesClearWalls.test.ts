@@ -46,7 +46,7 @@ function measure(
   const inWall: string[] = [];
   for (const name of plans)
     for (const seed of seeds) {
-      const plan = sweepPlan(name, seed);
+      const plan = sweepPlan(name, seed, 5);
       const set = realize(resolvePlan(plan, pal), pal, {});
       for (const L of set.levels) {
         const posts = L.placements

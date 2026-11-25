@@ -15,10 +15,10 @@ import { GENERATOR_VERSIONS, type GeneratorVersion } from "../contracts/plan";
  * A switch is on in its first generator and in every later one, by construction, so the SWITCHES table read top to
  * bottom is the changelog of the generators. Generators 1 to 5 are released: what they turn on is frozen, and so is
  * their output (test/golden/generator2, generator3, generator4, generator5). New behaviour is a new switch that starts
- * in the open generator; none is open after 0.4.0, so the next behaviour change first opens generator 6. A later
- * generator never switches an old behaviour off: it adds a new switch for the new behaviour, and the code reads the
- * new one first. Opening generator 6 means adding a version to GENERATOR_VERSIONS (contracts/plan.ts); the compiler
- * then asks for its VOCABULARY entry, and new switches start in 6.
+ * in the open generator, 6 (test/golden/generator6 follows it). A later generator never switches an old behaviour
+ * off: it adds a new switch for the new behaviour, and the code reads the new one first. Opening generator 7 (after 6
+ * is released) means adding a version to GENERATOR_VERSIONS (contracts/plan.ts); the compiler then asks for its
+ * VOCABULARY entry, and new switches start in 7.
  *
  * Palette roles carry their own first generator (`minGenerator` in the palette data, palette/resolve.ts): palettes
  * are data, generated and user-written, so they name a version rather than a switch. A test keeps the roles of the
@@ -654,6 +654,8 @@ const SWITCHES = {
     "A place's wealth shows from the street as weighted pools per wealth step (resolve/wealthLooks.ts): a building's wall materials by their finish (rough planks poor, dressed stone and brick rich; the street draw counts a wall at the wrong end of its wealth as a failure; a poor building's rough wall built in the theme's own wall takes its rough variant family, wood_town's rural planks; a worn building keeps a borrowed kit of rough finish only, no desert plaster in a timber town), a well-off quarter's roofs leaning to the kit its first well-off building drew, trims firmer per step (WEALTH_WEIGHT_FIRM: each step more framed, banded and contrasting than the one below), and a rich building's door dressed now and then by its wealth (resolve/wealthLooks.ts DOOR_DRESSING: a light pair at its approach, a guardian pair only where its kind's door suits one, gen/buildingProgramme.ts guardedDoor: a mansion, a temple, a keep, never an inn or a shop) (resolve/structure.ts drawDesigns, recipes/treatments.ts, compile/realize/structures/context.ts).",
     "characterCascade",
   ),
+
+  // ── generator 6 (open) ──
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */
@@ -723,6 +725,7 @@ const VOCABULARY: Readonly<Record<GeneratorVersion, VocabularyDeclaration>> = {
   3: { featureTypes: [], levelFields: [], areaFields: [] },
   4: { featureTypes: ["clutter", "shelf_line"], levelFields: ["roomDress"], areaFields: ["purpose"] },
   5: { featureTypes: [], levelFields: [], areaFields: [] },
+  6: { featureTypes: [], levelFields: [], areaFields: [] },
 };
 
 /** The plan vocabulary one generator understands (what it added and what the generators before it did). */

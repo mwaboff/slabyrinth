@@ -17,12 +17,12 @@ import { TOOLS_VERSION } from "../../../src/agent/prompt";
 /** Hash of the published sp-1.1.0 text (frozen). */
 const SP_1_1_0_HASH = "2176e2d9b0362e06";
 
-describe("working tool list (tools-1.10.0; published versions are pinned by hash below)", () => {
+describe("working tool list (tools-1.11.0; published versions are pinned by hash below)", () => {
   it("working versions are the ones last opened", () => {
-    // generator 5 opened sp-1.14.0, dp-1.4.0, tools-1.10.0; released in 0.4.0, so generator 6 opens the next ones
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.14.0");
-    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.4.0");
-    expect(TOOLS_VERSION).toBe("tools-1.10.0");
+    // generator 6 opened sp-1.15.0, dp-1.5.0, tools-1.11.0 (the 0.4.0 texts are pinned below)
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.15.0");
+    expect(DESIGN_PRINCIPLES_VERSION).toBe("dp-1.5.0");
+    expect(TOOLS_VERSION).toBe("tools-1.11.0");
   });
   it("serializes deterministically (the bytes are the cache key)", () => {
     const a = serializeTools(toolsForConversation(true));
@@ -121,7 +121,7 @@ describe("released in 0.4.0: sp-1.14.0, dp-1.4.0, tools-1.10.0 (frozen with gene
 
 describe("system prompt", () => {
   it("is frozen per version", () => {
-    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.14.0");
+    expect(SYSTEM_PROMPT_VERSION).toBe("sp-1.15.0");
     // sp-1.10.0 shipped in the owner's second snapshot with dp-1.0.0: frozen byte for byte
     expect(h64hex(systemPromptFor("sp-1.10.0") ?? "")).toBe("74e5072df0fd89e2");
     expect(systemPromptFor(SYSTEM_PROMPT_VERSION)).toBe(SYSTEM_PROMPT);

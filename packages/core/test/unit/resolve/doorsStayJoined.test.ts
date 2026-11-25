@@ -85,7 +85,7 @@ function cutDoors(label: string, L: ResolvedLevel): string[] {
 const measure = (plans: readonly StoredPlan[], seeds: readonly number[]): string[] =>
   plans.flatMap((name) =>
     seeds.flatMap((seed) =>
-      resolvePlan(sweepPlan(name, seed), pal).levels.flatMap((L) => cutDoors(`${name}@${seed}`, L)),
+      resolvePlan(sweepPlan(name, seed, 5), pal).levels.flatMap((L) => cutDoors(`${name}@${seed}`, L)),
     ),
   );
 

@@ -51,7 +51,7 @@ function darkRooms(): string[] {
   const out: string[] = [];
   for (const name of plans)
     for (const seed of sweepSeeds(3)) {
-      const r = resolvePlan(sweepPlan(name, seed), pal);
+      const r = resolvePlan(sweepPlan(name, seed, 5), pal);
       for (const L of r.levels)
         for (const a of L.areas)
           if (

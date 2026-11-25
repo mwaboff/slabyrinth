@@ -1,7 +1,7 @@
 /**
- * The runs the generator-5 golden pins, and where its files are. Shared by generator5.test.ts (which only reads the
+ * The runs the generator-6 golden pins, and where its files are. Shared by generator6.test.ts (which only reads the
  * golden) and update.ts (the one thing that writes it); the record each run is reduced to is ../goldenRecord.ts. See
- * the header of generator5.test.ts.
+ * the header of generator6.test.ts.
  */
 import type { GeneratorVersion } from "../../../src/contracts/plan";
 import {
@@ -13,24 +13,23 @@ import {
   type Run,
 } from "../goldenRecord";
 
-/** The newest generator: the one this golden follows (see the header of generator5.test.ts). */
-export const OPEN_GENERATOR: GeneratorVersion = 5;
+/** The newest generator: the one this golden follows while it is open (see the header of generator6.test.ts). */
+export const OPEN_GENERATOR: GeneratorVersion = 6;
 /**
  * The newest released generator: runs at it or below have frozen builds (FROZEN_FIELDS in ../goldenRecord.ts), which
- * the test reports as frozen and the update script refuses to rewrite. Generator 5 was released in 0.4.0, so every
- * run here is frozen; only the review and the detail it carries may move until generator 6 opens.
+ * the test reports as frozen and the update script refuses to rewrite.
  */
 export const RELEASED_GENERATOR = 5;
 
-export const GOLDEN_FILE = new URL("__golden__/generator5.txt", import.meta.url);
+export const GOLDEN_FILE = new URL("__golden__/generator6.txt", import.meta.url);
 /** The readable sidecar: what each run built, one fact per line, each line starting with the run's name. */
-export const DETAIL_FILE = new URL("__golden__/generator5.detail.txt", import.meta.url);
+export const DETAIL_FILE = new URL("__golden__/generator6.detail.txt", import.meta.url);
 
 /**
  * The quality meter's baseline (src/review/qualityMetrics.ts): every metric of every run at the open generator, one
- * `<run> <metric> <value>` line each, so a package that changes how generator 5 builds shows what it moved as a diff.
+ * `<run> <metric> <value>` line each, so a package that changes how generator 6 builds shows what it moved as a diff.
  */
-export const QUALITY_FILE = new URL("__golden__/generator5.quality.txt", import.meta.url);
+export const QUALITY_FILE = new URL("__golden__/generator6.quality.txt", import.meta.url);
 
 /** Every stored plan at its own generator, and every plan of a released generator forced to the open one too. */
 export const goldenRuns = (): Run[] => storedRuns(OPEN_GENERATOR);

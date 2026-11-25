@@ -719,7 +719,7 @@ const slabyrinthPlugin = {
 };
 
 /**
- * Core tests do not write files: the goldens are written only by their update scripts (test/golden/generator5/update.ts),
+ * Core tests do not write files: the goldens are written only by their update scripts (test/golden/generator6/update.ts),
  * so a test that "fixes" its golden on failure cannot exist. The CLI test, which runs the CLI on files, writes to a
  * temporary directory.
  */
@@ -744,7 +744,7 @@ const coreTestWrites = {
       "unlink",
     ],
     message:
-      "Core tests only read: a golden is rewritten by its update script (npm run test:golden:gen5:update), never by a test.",
+      "Core tests only read: a golden is rewritten by its update script (npm run test:golden:gen6:update), never by a test.",
   })),
 };
 

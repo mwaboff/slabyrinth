@@ -1,5 +1,5 @@
 /**
- * The words the working model text teaches are the words the generator reads (sp-1.14.0, generator 5). Every word
+ * The words the working model text teaches are the words the generator reads (sp-1.15.0, generator 6). Every word
  * list the prompt names is parsed from the prompt itself and checked against the tables that read it: room kinds
  * (gen/roomPurpose.ts classifyRoom), building kinds (gen/buildingProgramme.ts buildingKind), and light, upkeep, wealth
  * and mood (resolve/character.ts, through a zone named by the word). A word dropped from a table, or a kind added to

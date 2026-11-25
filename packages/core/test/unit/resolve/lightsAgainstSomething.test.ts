@@ -67,7 +67,7 @@ function measure(plans: readonly StoredPlan[], seeds: readonly number[]): { free
   const out = { free: [] as string[], fire: [] as string[] };
   for (const name of plans)
     for (const seed of seeds)
-      for (const L of resolvePlan(sweepPlan(name, seed), pal).levels) {
+      for (const L of resolvePlan(sweepPlan(name, seed, 5), pal).levels) {
         const got = faults(`${name}@${seed}`, L);
         out.free.push(...got.free);
         out.fire.push(...got.fire);

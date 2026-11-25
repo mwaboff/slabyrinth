@@ -16,7 +16,7 @@ const saved = { ...P5 };
 afterEach(() => Object.assign(P5, saved));
 
 const unreachable = (seed: number): string[] => {
-  const plan = sweepPlan("keep-dungeon-v8", seed);
+  const plan = sweepPlan("keep-dungeon-v8", seed, 5);
   return checkPlayability(plan, resolvePlan(plan, pal))
     .filter((i) => i.code === "unreachable")
     .map((i) => `${i.levelId ?? ""}/${i.elementId ?? ""}`);
