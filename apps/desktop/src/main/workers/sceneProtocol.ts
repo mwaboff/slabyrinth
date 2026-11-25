@@ -19,7 +19,7 @@ export interface SceneJob {
   meshBudgetBytes: number;
 }
 
-/** Messages between View3dService (main thread) and scene.worker. */
+/** Jobs View3dService (main thread) asks scene.worker for; the worker runs them one after another, in order. */
 export type SceneWorkerRequest =
   | { type: "build"; id: number; job: SceneJob }
   | { type: "chunks"; id: number; sceneId: string; ids: string[]; capBytes: number }
@@ -27,6 +27,12 @@ export type SceneWorkerRequest =
   | { type: "pictures"; id: number; sceneId: string; shots?: ShotName[]; max?: number }
   | { type: "shot"; id: number; sceneId: string; shot: ShotName; width: number; height: number }
   | { type: "release"; id: number; sceneId: string };
+
+/**
+ * Everything main posts to scene.worker: a job, or "skip" (job `id` was cancelled before it started: drop it, now,
+ * ahead of the queue). A job that already started cannot be stopped inside the worker (layout is synchronous core code).
+ */
+export type SceneWorkerMessage = SceneWorkerRequest | { type: "skip"; id: number };
 
 export interface BuiltScene {
   header: PackedHeader;
@@ -40,6 +46,8 @@ export interface BuiltScene {
 }
 
 export type SceneWorkerResponse =
+  /** The worker began job `id` (its deadline counts from here, not from when it was queued). */
+  | { type: "started"; id: number }
   | { type: "progress"; id: number; done: number; total: number }
   | { type: "built"; id: number; scene: BuiltScene }
   | { type: "chunks"; id: number; chunks: View3dChunk[]; more: string[] }

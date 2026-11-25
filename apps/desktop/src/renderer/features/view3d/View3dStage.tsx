@@ -78,7 +78,8 @@ export function boxesNote(
             },
           },
         };
-  if (reasons.has("not-read-yet") || h.pendingDetail > 0)
+  // "reading" only while main is reading them: pieces it already tried and could not read stay boxes for good
+  if (h.pendingDetail > 0)
     return {
       id: "reading",
       busy: true,

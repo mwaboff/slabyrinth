@@ -18,9 +18,9 @@ import type { PickInfo, View3dApi } from "./engine/engine";
 import { memorySceneSource } from "./memorySceneSource";
 import { assembleScene } from "@slabyrinth/scene3d";
 import { syntheticLookup, syntheticMeshSource, townPieces } from "./synthetic";
-import type { SceneSource } from "./sceneSource";
+import type { SceneHeader, SceneSource } from "./sceneSource";
 import { Readout } from "./View3dPanels";
-import { View3dStage } from "./View3dStage";
+import { View3dStage, boxesNote } from "./View3dStage";
 
 let plan: MapPlan;
 let abbeyPath = "";
@@ -506,5 +506,21 @@ describe("the stage's 3D tab", () => {
       useMap.getState().setTab("map");
     });
     expect(screen.getByRole("tablist", { name: "Levels" })).toBeInTheDocument();
+  });
+});
+
+describe("the boxes note", () => {
+  const header = (pendingDetail: number): SceneHeader =>
+    ({
+      pendingDetail,
+      boxes: { pieces: 4, reasons: [{ reason: "not-read-yet", pieces: 4 }], note: "4 pieces are boxes." },
+    }) as unknown as SceneHeader;
+
+  it("says 'reading' only while main reads: pieces it already tried and could not read are plain boxes", () => {
+    expect(boxesNote(header(4), () => undefined, false)?.id).toBe("reading");
+    expect(boxesNote(header(0), () => undefined, false)).toMatchObject({
+      id: "boxes",
+      text: "4 pieces are boxes.",
+    });
   });
 });

@@ -49,6 +49,8 @@ function boxReason(state: MeshCacheInfo["state"], read: boolean): FallbackReason
 
 export function view3dHandlers(s: FakeState): HandlerGroup<View3dChannels> {
   const scenes = new Map<string, FakeScene>();
+  /** The scene the window was last given. */
+  let shown: string | null = null;
   let seq = 0;
   let cancelled = false;
   const wasCancelled = (): boolean => cancelled;
@@ -81,8 +83,8 @@ export function view3dHandlers(s: FakeState): HandlerGroup<View3dChannels> {
           ? fail("validation", "There's no plan to show yet.")
           : fail("not_found", `No version v${String(v)}.`);
       cancelled = false;
-      // one scene at a time, as main keeps it
-      scenes.clear();
+      // the scene the window shows stays served until it closes it (main's hand-over)
+      const shownNow = shown;
       const sceneId = `fake-scene-${String(++seq)}`;
       const wasRead = read.has(v);
       const { scene } = await sceneOfPlan(
@@ -97,7 +99,10 @@ export function view3dHandlers(s: FakeState): HandlerGroup<View3dChannels> {
       );
       if (wasCancelled()) return fail("cancelled", "Stopped.");
       const packed = packScene(scene);
+      // one scene per window, as main keeps it: every other one goes
+      for (const id of [...scenes.keys()]) if (id !== shownNow) scenes.delete(id);
       scenes.set(sceneId, { scene, packed });
+      shown = sceneId;
       const pending = state === "reading" && !wasRead ? packed.header.counts.instances : 0;
       s.emit("meshes:status", {
         read: 0,
@@ -138,6 +143,7 @@ export function view3dHandlers(s: FakeState): HandlerGroup<View3dChannels> {
     },
     "view3d:close": ({ sceneId }) => {
       scenes.delete(sceneId);
+      if (shown === sceneId) shown = null;
     },
     "meshes:info": () => info(),
     "meshes:rebuild": () => info(),

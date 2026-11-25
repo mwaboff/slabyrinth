@@ -5,6 +5,7 @@
  */
 import * as fsp from "node:fs/promises";
 import type { MapPlan } from "@slabyrinth/core";
+import type { BundleExtractor } from "@slabyrinth/scene3d";
 import { afterEach, describe, expect, it } from "vitest";
 import type { IpcEvents } from "../../../shared/ipc";
 import type { ProjectFile } from "../../../shared/project";
@@ -13,9 +14,14 @@ import { memoryLogger } from "../../logger";
 import { createMeshHandler } from "../../workers/meshHandler";
 import type { MeshWorkerRequest, MeshWorkerResponse } from "../../workers/meshProtocol";
 import { createSceneHandler } from "../../workers/sceneHandler";
-import type { SceneWorkerRequest, SceneWorkerResponse } from "../../workers/sceneProtocol";
+import { sceneWorkerLoop } from "../../workers/sceneLoop";
+import type {
+  SceneWorkerMessage,
+  SceneWorkerRequest,
+  SceneWorkerResponse,
+} from "../../workers/sceneProtocol";
 import { MeshService } from "../meshes/meshService";
-import type { WorkerPort } from "../meshes/workerPort";
+import type { ScenePort } from "./sceneLane";
 import {
   gridPlan,
   inProcessPort,
@@ -24,18 +30,38 @@ import {
   SYNTH_INSTALL,
   tempDir,
 } from "../testing/view3dRig";
-import { TOO_BIG, View3dService } from "./view3dService";
+import { TOO_BIG, View3dService, type SceneOwner } from "./view3dService";
 
 const dirs: string[] = [];
 afterEach(async () => {
   for (const d of dirs.splice(0)) await fsp.rm(d, { recursive: true, force: true });
 });
 
+type TestPort = ScenePort & { terminated: boolean; posted: SceneWorkerMessage[] };
+type Handler = (msg: SceneWorkerRequest, post: (r: SceneWorkerResponse) => void) => Promise<void>;
+
+/** A scene worker in-process: the real queue (sceneLoop) over `handle` (a fresh scene keeper per worker). */
+const scenePort = (handle: Handler): TestPort =>
+  inProcessPort<SceneWorkerMessage, SceneWorkerResponse>(sceneWorkerLoop(handle));
+
+/** A scene keeper whose builds take `ms` longer (a big map's layout). */
+function slowBuilds(ms: number): Handler {
+  const handle = createSceneHandler();
+  return async (msg, post) => {
+    if (msg.type === "build") await sleep(ms);
+    await handle(msg, post);
+  };
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+/** A scene keeper that starts every job and never finishes it. */
+const hung: Handler = () => new Promise<void>(() => undefined);
+
 interface Rig {
   svc: View3dService;
   meshes: MeshService;
   events: Array<{ c: string; p: unknown }>;
-  ports: Array<WorkerPort<SceneWorkerRequest, SceneWorkerResponse> & { terminated: boolean }>;
+  ports: Array<TestPort & { owner: SceneOwner }>;
   install: ReturnType<typeof syntheticInstall>;
 }
 
@@ -45,7 +71,10 @@ async function rig(
   o: {
     uuids?: string[];
     budget?: number;
-    scenePort?: (n: number) => WorkerPort<SceneWorkerRequest, SceneWorkerResponse> & { terminated: boolean };
+    scenePort?: (n: number, owner: SceneOwner) => TestPort | null;
+    deadlines?: { buildMs?: number; requestMs?: number };
+    /** The reader's decoder (default: the synthetic install's, which reads every piece). */
+    extract?: BundleExtractor;
   } = {},
 ): Promise<Rig> {
   const cacheDir = await tempDir("slab-v3d-");
@@ -55,7 +84,7 @@ async function rig(
   const emit = (c: string, p: unknown): void => {
     events.push({ c, p });
   };
-  const meshHandler = createMeshHandler({ fs: install.fs, extract: install.extract });
+  const meshHandler = createMeshHandler({ fs: install.fs, extract: o.extract ?? install.extract });
   const meshes = new MeshService({
     cacheDir,
     installPath: () => Promise.resolve(o.uuids ? SYNTH_INSTALL : null),
@@ -64,7 +93,6 @@ async function rig(
     emit: emit,
     logger: memoryLogger(),
   });
-  const sceneHandler = createSceneHandler({ fs: install.fs });
   const ports: Rig["ports"] = [];
   const project = {
     history: {
@@ -74,12 +102,12 @@ async function rig(
     builds: [{ id: "b1", versionNumber: 1 }],
   } as unknown as ProjectFile;
   const svc = new View3dService({
-    spawn: () => {
-      const p =
-        o.scenePort?.(ports.length) ?? inProcessPort<SceneWorkerRequest, SceneWorkerResponse>(sceneHandler);
-      ports.push(p);
+    spawn: (owner) => {
+      const p = o.scenePort?.(ports.length, owner) ?? scenePort(createSceneHandler({ fs: install.fs }));
+      ports.push(Object.assign(p, { owner }));
       return p;
     },
+    ...(o.deadlines ? { deadlines: o.deadlines } : {}),
     projects: {
       isOpen: true,
       getProject: () => project,
@@ -120,10 +148,20 @@ describe("3D view scenes", () => {
     // by build id: the build's plan version
     const b = await r.svc.open({ buildId: "b1" });
     expect(b).toMatchObject({ version: 1, buildId: "b1" });
-    // one scene per window: the first is gone
-    await expect(r.svc.chunks({ sceneId: h.sceneId, chunkIds: ["L0:0:0"] })).rejects.toMatchObject({
+    // hand-over: the scene the window showed is still served until the window closes it
+    const ids = [h.chunks[0]?.id ?? ""];
+    expect((await r.svc.chunks({ sceneId: h.sceneId, chunkIds: ids })).chunks).toHaveLength(1);
+    // one scene per window: the next open releases every view scene but the one shown (b)
+    const c = await r.svc.open({});
+    await expect(r.svc.chunks({ sceneId: h.sceneId, chunkIds: ids })).rejects.toMatchObject({
       code: "not_found",
     });
+    expect((await r.svc.chunks({ sceneId: b.sceneId, chunkIds: ids })).chunks).toHaveLength(1);
+    await r.svc.close(b.sceneId);
+    await expect(r.svc.chunks({ sceneId: b.sceneId, chunkIds: ids })).rejects.toMatchObject({
+      code: "not_found",
+    });
+    expect((await r.svc.chunks({ sceneId: c.sceneId, chunkIds: ids })).chunks).toHaveLength(1);
     await expect(r.svc.open({ version: 9 })).rejects.toMatchObject({ code: "not_found" });
     r.svc.dispose();
   });
@@ -152,6 +190,31 @@ describe("3D view scenes", () => {
     r.svc.dispose();
   });
 
+  it("pieces that cannot be read are tried once: opening again reads nothing and waits for no detail", async () => {
+    const ids = await uuidsOf(FIXTURE_PLAN);
+    // a reader that decodes nothing (a game update our reader does not handle)
+    const r = await rig([FIXTURE_PLAN], { uuids: ids, extract: () => new Map() });
+    const bundleReads = (): number => r.install.reads.filter((x) => x.includes("/Assets/")).length;
+    const first = await r.svc.open({});
+    expect(first.pendingDetail).toBe(ids.length);
+    await r.meshes.warm([]);
+    const read = bundleReads();
+    expect(read).toBeGreaterThan(0);
+    // the window's swap after "detail" (or reopening the tab): nothing new to read, so no detail to wait for
+    const second = await r.svc.open({});
+    expect(second.pendingDetail).toBe(0);
+    await r.meshes.warm([]);
+    expect(bundleReads()).toBe(read);
+    const detail = r.events
+      .map((e) => e.p as IpcEvents["view3d:progress"])
+      .filter((p) => p.sceneId === second.sceneId && p.stage === "detail");
+    expect(detail).toEqual([]);
+    // clearing the cache starts over
+    await r.svc.meshesApi.clear();
+    expect((await r.svc.open({})).pendingDetail).toBe(ids.length);
+    r.svc.dispose();
+  });
+
   it("past the mesh budget pieces are boxes and the header says detail was limited", async () => {
     const ids = await uuidsOf(FIXTURE_PLAN);
     const r = await rig([FIXTURE_PLAN], { uuids: ids, budget: 3 * 500 });
@@ -167,10 +230,8 @@ describe("3D view scenes", () => {
 
   it("view3d:cancel stops the layout: the open fails 'cancelled' and the worker is stopped", async () => {
     const r = await rig([FIXTURE_PLAN], {
-      scenePort: (n) =>
-        n === 0
-          ? inProcessPort<SceneWorkerRequest, SceneWorkerResponse>(() => undefined, { never: true })
-          : inProcessPort<SceneWorkerRequest, SceneWorkerResponse>(createSceneHandler()),
+      // the first worker starts the layout and never finishes it
+      scenePort: (n) => (n === 0 ? scenePort(hung) : null),
     });
     const opening = r.svc.open({});
     await new Promise((res) => setTimeout(res, 10));
@@ -187,8 +248,8 @@ describe("3D view scenes", () => {
     const r = await rig([FIXTURE_PLAN], {
       scenePort: (n) =>
         n === 0
-          ? inProcessPort<SceneWorkerRequest, SceneWorkerResponse>(() => undefined, { failWith: oomError() })
-          : inProcessPort<SceneWorkerRequest, SceneWorkerResponse>(createSceneHandler()),
+          ? inProcessPort<SceneWorkerMessage, SceneWorkerResponse>(() => undefined, { failWith: oomError() })
+          : null,
     });
     const h = await r.svc.open({});
     expect(h.limited).toBe(TOO_BIG);
@@ -270,4 +331,87 @@ describe("the model's 3D pictures", () => {
     expect(p.captions[0]).toMatch(/What the last change touched: annex/);
     r.svc.dispose();
   });
+});
+
+describe("each owner's work stays its own (review A2)", () => {
+  it("a request queued behind a long layout gets its full deadline: time queued does not count", async () => {
+    const r = await rig([FIXTURE_PLAN], {
+      deadlines: { requestMs: 80 },
+      scenePort: () => scenePort(slowBuilds(250)),
+    });
+    const h = await r.svc.open({});
+    // the window's swap lays the scene out again (250 ms) while it keeps pulling from the scene it shows
+    const swapping = r.svc.open({});
+    await sleep(20);
+    const got = await r.svc.chunks({ sceneId: h.sceneId, chunkIds: [h.chunks[0]?.id ?? ""] });
+    expect(got.chunks).toHaveLength(1);
+    const next = await swapping;
+    expect(next.sceneId).not.toBe(h.sceneId);
+    expect(r.ports.filter((p) => p.owner === "view").map((p) => p.terminated)).toEqual([false]);
+    r.svc.dispose();
+  });
+
+  it("opening the 3D tab again while the model's picture is made leaves the picture alone", async () => {
+    const r = await rig([FIXTURE_PLAN], {
+      scenePort: (_n, owner) => (owner === "model" ? scenePort(slowBuilds(200)) : null),
+    });
+    const picture = r.svc.render3d({ shots: ["overview"] });
+    await sleep(20);
+    // the GM opens the tab, then opens it again at once (the first layout is cancelled)
+    const a = r.svc.open({});
+    const b = r.svc.open({});
+    await expect(a).rejects.toMatchObject({ code: "cancelled" });
+    expect((await b).counts.instances).toBeGreaterThan(0);
+    const p = await picture;
+    expect(p.captions).toHaveLength(1);
+    r.svc.dispose();
+  });
+
+  it("Stop in chat stops the model's picture only: the 3D tab's scene stays", async () => {
+    const r = await rig([FIXTURE_PLAN], {
+      scenePort: (_n, owner) => (owner === "model" ? scenePort(hung) : null),
+    });
+    const h = await r.svc.open({});
+    const stop = new AbortController();
+    const picture = r.svc.render3d({}, stop.signal);
+    await sleep(20);
+    stop.abort();
+    await expect(picture).rejects.toMatchObject({ code: "cancelled" });
+    expect(r.ports.find((p) => p.owner === "model")?.terminated).toBe(true);
+    const got = await r.svc.chunks({ sceneId: h.sceneId, chunkIds: [h.chunks[0]?.id ?? ""] });
+    expect(got.chunks).toHaveLength(1);
+    expect(r.ports.find((p) => p.owner === "view")?.terminated).toBe(false);
+    r.svc.dispose();
+  });
+
+  it("a view layout past its deadline costs the view's scenes only: they answer not_found, the model's stay", async () => {
+    let views = 0;
+    const r = await rig([FIXTURE_PLAN], {
+      deadlines: { buildMs: 3_000 },
+      // the view's first worker lays out once, then hangs on the next layout
+      scenePort: (_n, owner) => {
+        if (owner !== "view" || views++ > 0) return null;
+        const handle = createSceneHandler();
+        let builds = 0;
+        return scenePort(async (msg, post) => {
+          if (msg.type === "build" && builds++ > 0) return new Promise<void>(() => undefined);
+          await handle(msg, post);
+        });
+      },
+    });
+    const h = await r.svc.open({});
+    await r.svc.render3d({ shots: ["overview"] });
+    await expect(r.svc.open({})).rejects.toMatchObject({ message: /didn't answer in time/ });
+    await expect(
+      r.svc.chunks({ sceneId: h.sceneId, chunkIds: [h.chunks[0]?.id ?? ""] }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    // the model's scene was kept: the next picture lays nothing out again
+    const modelPorts = r.ports.filter((p) => p.owner === "model");
+    await r.svc.render3d({ shots: ["overview"] });
+    expect(modelPorts.map((p) => p.terminated)).toEqual([false]);
+    expect(modelPorts[0]?.posted.filter((m) => m.type === "build")).toHaveLength(1);
+    // the window opens again on a new worker
+    expect((await r.svc.open({})).counts.instances).toBeGreaterThan(0);
+    r.svc.dispose();
+  }, 20_000);
 });
