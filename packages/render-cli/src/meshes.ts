@@ -69,11 +69,19 @@ function appCatalog(appData: string | null): AssetCatalog | null {
   }
 }
 
+/** The TaleSpire install on this machine, found as the catalog finds it (Steam's library folders). */
+export async function locateInstall(): Promise<string | null> {
+  const loc = await locateTaleSpire(nodeReadonlyFs, hostSteamHints());
+  return loc.install?.installPath ?? null;
+}
+
 export async function openMeshes(o: {
   boxes: boolean;
   installFlag: string | undefined;
   /** The OS application-data folder (the app's catalog is read from it), or null to read nothing there. */
   appData: string | null;
+  /** Finds the install when no --install is given (default: as the catalog finds it; tests pass one that finds none). */
+  locate?: () => Promise<string | null>;
   log: (s: string) => void;
 }): Promise<Meshes> {
   if (o.boxes)
@@ -85,10 +93,8 @@ export async function openMeshes(o: {
       note: "Every piece is drawn as a box of its real size (--boxes).",
     };
   let installPath = o.installFlag ?? null;
-  if (!installPath) {
-    const loc = await locateTaleSpire(nodeReadonlyFs, hostSteamHints());
-    installPath = loc.install?.installPath ?? null;
-  } else if (!(await nodeReadonlyFs.stat(join(installPath, "Taleweaver")))?.isDirectory) installPath = null;
+  if (!installPath) installPath = await (o.locate ?? locateInstall)();
+  else if (!(await nodeReadonlyFs.stat(join(installPath, "Taleweaver")))?.isDirectory) installPath = null;
   if (!installPath)
     return {
       source: boxMeshSource("no-install", "boxes only: TaleSpire was not found"),

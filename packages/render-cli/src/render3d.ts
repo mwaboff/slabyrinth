@@ -119,8 +119,16 @@ function inputsOf(a: Args, cwd: string): Input[] {
   throw new UsageError("give an input");
 }
 
-/** The shots asked for, framed on the scene. */
-function shotsFor(scene: Scene, a: Args): ShotSpec[] {
+/** The shot options that do not depend on the scene, checked before anything is read or built. */
+interface ShotOptions {
+  size: { width: number; height: number; projection: "persp" | "ortho" };
+  wanted: ReadonlySet<string>;
+  max: number | undefined;
+  cameras: Array<[bearingDeg: number, elevationDeg: number]>;
+  eye: { eye: [number, number, number]; target: [number, number, number]; fovDeg: number } | null;
+}
+
+function shotOptions(a: Args): ShotOptions {
   const size = { ...sizeOf(a), projection: has(a, "persp") ? ("persp" as const) : ("ortho" as const) };
   const wanted = new Set(
     (flag(a, "shots") ?? "overview,levels")
@@ -135,6 +143,29 @@ function shotsFor(scene: Scene, a: Args): ShotSpec[] {
   const max = maxFlag === undefined ? undefined : Number(maxFlag);
   if (max !== undefined && !(Number.isInteger(max) && max >= 0))
     throw new UsageError("--max-shots: a whole number");
+  const cam = flag(a, "camera");
+  const cameras = (cam === undefined ? [] : cam.split(";")).map((c): [number, number] => {
+    const [bearingDeg = 0, elevationDeg = 0] = numbers(c, 2, "--camera");
+    return [bearingDeg, elevationDeg];
+  });
+  const eyeFlag = flag(a, "eye");
+  const targetFlag = flag(a, "target");
+  if ((eyeFlag === undefined) !== (targetFlag === undefined))
+    throw new UsageError("--eye and --target go together");
+  let eye: ShotOptions["eye"] = null;
+  if (eyeFlag !== undefined && targetFlag !== undefined) {
+    const [ex = 0, ey = 0, ez = 0] = numbers(eyeFlag, 3, "--eye");
+    const [tx = 0, ty = 0, tz = 0] = numbers(targetFlag, 3, "--target");
+    const fovDeg = Number(flag(a, "fov") ?? 45);
+    if (!(fovDeg > 1 && fovDeg < 170)) throw new UsageError("--fov: degrees between 1 and 170");
+    eye = { eye: [ex, ey, ez], target: [tx, ty, tz], fovDeg };
+  }
+  return { size, wanted, max, cameras, eye };
+}
+
+/** The shots asked for, framed on the scene. */
+function shotsFor(scene: Scene, a: Args, o: ShotOptions): ShotSpec[] {
+  const { size, wanted, max } = o;
   const rules = SHOT_RULES.filter((r) => wanted.has(r) || wanted.has("all"));
   const out: ShotSpec[] = planShots(scene, { size, rules, ...(max !== undefined ? { max } : {}) });
   if (wanted.has("top") || wanted.has("all")) out.push(topShot(scene, size));
@@ -146,30 +177,23 @@ function shotsFor(scene: Scene, a: Args): ShotSpec[] {
     cut.maxLevelIndex = l.index;
   }
   if (has(a, "no-roofs")) cut.hideLayers = ["roof"];
-  const cam = flag(a, "camera");
-  if (cam !== undefined)
-    cam.split(";").forEach((c, i) => {
-      const [bearingDeg = 0, elevationDeg = 0] = numbers(c, 2, "--camera");
-      const camera = frameBox(shownBounds(scene, cut), { bearingDeg, elevationDeg, ...size });
-      out.push({
-        id: `camera-${i + 1}`,
-        rule: "camera",
-        caption: `From bearing ${bearingDeg}°, ${elevationDeg}° up`,
-        camera,
-        cutaway: cut,
-        width: size.width,
-        height: size.height,
-        targets: [],
-      });
+  o.cameras.forEach(([bearingDeg, elevationDeg], i) => {
+    const camera = frameBox(shownBounds(scene, cut), { bearingDeg, elevationDeg, ...size });
+    out.push({
+      id: `camera-${i + 1}`,
+      rule: "camera",
+      caption: `From bearing ${bearingDeg}°, ${elevationDeg}° up`,
+      camera,
+      cutaway: cut,
+      width: size.width,
+      height: size.height,
+      targets: [],
     });
-  const eye = flag(a, "eye");
-  const target = flag(a, "target");
-  if ((eye === undefined) !== (target === undefined)) throw new UsageError("--eye and --target go together");
-  if (eye !== undefined && target !== undefined) {
-    const [ex = 0, ey = 0, ez = 0] = numbers(eye, 3, "--eye");
-    const [tx = 0, ty = 0, tz = 0] = numbers(target, 3, "--target");
-    const fovDeg = Number(flag(a, "fov") ?? 45);
-    if (!(fovDeg > 1 && fovDeg < 170)) throw new UsageError("--fov: degrees between 1 and 170");
+  });
+  if (o.eye) {
+    const [ex, ey, ez] = o.eye.eye;
+    const [tx, ty, tz] = o.eye.target;
+    const fovDeg = o.eye.fovDeg;
     out.push({
       id: "eye",
       rule: "camera",
@@ -208,6 +232,8 @@ const stamp = (): string => {
 export interface RenderEnv {
   cwd: string;
   appData: string | null;
+  /** Finds TaleSpire when no --install is given (default: meshes.locateInstall; tests pass one that finds none). */
+  locate?: () => Promise<string | null>;
 }
 
 export async function render3d(a: Args, io: Io, env: RenderEnv): Promise<number> {
@@ -217,6 +243,8 @@ export async function render3d(a: Args, io: Io, env: RenderEnv): Promise<number>
   const seeds = seedsFlag !== undefined ? seedList(seedsFlag) : [undefined];
   const generatorFlag = flag(a, "generator");
   const generator = generatorFlag !== undefined ? Number(generatorFlag) : undefined;
+  // every option is checked before TaleSpire is looked for or a piece is read: a usage error costs nothing
+  const shotOpts = shotOptions(a);
   const outFlag = flag(a, "out");
   const label = inputs.length === 1 ? (inputs[0]?.name ?? "run") : "batch";
   const out = outFlag
@@ -228,6 +256,7 @@ export async function render3d(a: Args, io: Io, env: RenderEnv): Promise<number>
     boxes: has(a, "boxes"),
     installFlag: installFlag === undefined ? undefined : resolve(cwd, installFlag),
     appData: env.appData,
+    ...(env.locate ? { locate: env.locate } : {}),
     log: io.err,
   });
   io.err(meshes.note);
@@ -274,7 +303,7 @@ export async function render3d(a: Args, io: Io, env: RenderEnv): Promise<number>
       const shots: ShotRecord[] = [];
       const tiles: Array<{ picture: Picture; caption: string }> = [];
       const ts = performance.now();
-      for (const spec of shotsFor(scene, a)) {
+      for (const spec of shotsFor(scene, a, shotOpts)) {
         const t = performance.now();
         const img = renderScene(scene, spec);
         const file = join(folder, `${spec.id}.png`);

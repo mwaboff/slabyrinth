@@ -15,13 +15,23 @@ afterAll(() => {
   rmSync(tmp, { recursive: true, force: true });
 });
 
+/** How many times a run looked for TaleSpire (it never finds one here: tests never read the real install). */
+let lookups = 0;
+
 async function run(argv: string[]): Promise<{ code: number; out: string; err: string }> {
   const out: string[] = [];
   const err: string[] = [];
   const code = await runRender(
     argv,
     { out: (s) => out.push(s), err: (s) => err.push(s) },
-    { cwd: tmp, appData: null },
+    {
+      cwd: tmp,
+      appData: null,
+      locate: () => {
+        lookups++;
+        return Promise.resolve(null);
+      },
+    },
   );
   return { code, out: out.join("\n"), err: err.join("\n") };
 }
@@ -185,9 +195,32 @@ describe("render 3d", () => {
     expect(existsSync(join(out, index.renders[0]?.folder ?? "", "sheet.png"))).toBe(true);
   });
 
-  it("refuses bad options with a usage error", async () => {
+  it("refuses bad options with a usage error, before looking for TaleSpire or building anything", async () => {
+    const before = lookups;
     expect((await run(["3d", "--fixture", "single-room", "--size", "big"])).code).toBe(2);
+    expect((await run(["3d", "--fixture", "single-room", "--shots", "sideways"])).code).toBe(2);
+    expect((await run(["3d", "--fixture", "single-room", "--eye", "1,2,3"])).code).toBe(2);
     expect((await run(["3d", "--fixture", "no-such-plan", "--boxes"])).code).toBe(2);
     expect((await run(["3d", "--fixture", "single-room", "--plan", "x.json"])).code).toBe(2);
+    expect(lookups).toBe(before);
+  });
+
+  it("without --install, looks for TaleSpire once and draws boxes when there is none", async () => {
+    const before = lookups;
+    const out = join(tmp, "located");
+    const r = await run([
+      "3d",
+      "--fixture",
+      "single-room",
+      "--shots",
+      "top",
+      "--size",
+      "32x24",
+      "--out",
+      out,
+    ]);
+    expect(r.code).toBe(0);
+    expect(lookups).toBe(before + 1);
+    expect(readIndex(out).renders[0]?.fallbacks.every((f) => f.reason === "no-install")).toBe(true);
   });
 });
