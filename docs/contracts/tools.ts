@@ -168,6 +168,37 @@ export interface PlanChangeReport {
   estimate?: Pick<CompileEstimate, "totalAssets" | "estimatedChunks">;
 }
 
+// ───────────────────────────── 3D pictures (host-facing) ─────────────────────────────
+
+/**
+ * A named 3D view of the current build; the app chooses the camera. level:<id> = that level cut away from above,
+ * front:<id> = a building's street front, interior:<id> = inside a room, flagged = where the last review pointed,
+ * changed = what the last edit changed.
+ */
+export type Render3dShot =
+  | "overview"
+  | "flagged"
+  | "changed"
+  | `level:${LevelId}`
+  | `front:${ElementId}`
+  | `interior:${ElementId}`;
+
+export interface Render3dRequest {
+  /** Omitted = the app's own choice of views for the current version. */
+  shots?: Render3dShot[];
+  /** At most this many views in the picture (1..4). */
+  max?: number;
+}
+
+export interface Render3dResult {
+  /** One PNG (a contact sheet when there are several views). */
+  png: Uint8Array;
+  /** One plain caption per view, in the sheet's order (what it shows, pieces drawn as boxes). */
+  captions: string[];
+  /** Plain text: views worth looking at next. */
+  suggestions: string;
+}
+
 // ───────────────────────────── executor ─────────────────────────────
 
 /** Executor signature implemented in core. */
@@ -178,6 +209,11 @@ export interface ToolContext {
   /** App-provided PNG renderer (renderer process); null in CLI/headless or when the model has no image input. */
   renderImage:
     ((level: LevelId, region?: ViewMapImageInput["region"], showIds?: boolean) => Promise<Uint8Array>) | null;
+  /**
+   * App-provided 3D pictures of the current build (the app's scene worker); absent or null in CLI/headless, when the
+   * model has no image input, or when the GM turned 3D pictures off.
+   */
+  render3d?: ((req: Render3dRequest) => Promise<Render3dResult>) | null;
   /** Cheap compile estimate; null when the compiler is unavailable (the tool then says so). May be async (worker). */
   estimate: (plan: MapPlan, levels?: LevelId[]) => CompileEstimate | null | Promise<CompileEstimate | null>;
   catalog: {

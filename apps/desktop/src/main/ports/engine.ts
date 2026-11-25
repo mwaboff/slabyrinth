@@ -128,7 +128,8 @@ export interface ConversationEngine {
   estimate(req: IpcRequests["chat:estimate"]["req"]): Promise<IpcRequests["chat:estimate"]["res"]>;
   cancel(turnId: string): Promise<void>;
   retry(req: IpcRequests["chat:retry"]["req"]): Promise<{ turnId: string }>;
-  continue(): Promise<{ turnId: string }>;
+  /** allowance: the new turn's revision limit ("Keep going" after "revision_limit"); absent = the settings value. */
+  continue(req?: { allowance?: number }): Promise<{ turnId: string }>;
   selectAlternative(req: IpcRequests["chat:selectAlternative"]["req"]): Promise<void>;
   previewSwitch(selection: ModelSelection): Promise<SwitchImpact>;
   setSelection(selection: ModelSelection): Promise<{ selection: ModelSelection }>;

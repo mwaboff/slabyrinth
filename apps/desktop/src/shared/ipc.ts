@@ -155,8 +155,11 @@ export interface IpcRequests {
   "chat:retry": { req: { selection?: ModelSelection }; res: { turnId: string } };
   /** Show another alternative of a retried turn (display only). */
   "chat:selectAlternative": { req: { messageId: string; index: number }; res: void };
-  /** Continue after stopReason max_tokens on a text answer. */
-  "chat:continue": { req: void; res: { turnId: string } };
+  /**
+   * Continue after stopReason max_tokens on a text answer, or "Keep going" after "revision_limit". allowance: how many
+   * plan versions the model may commit in the new turn before the app asks again (1..20; absent = the settings value).
+   */
+  "chat:continue": { req: { allowance?: number } | void; res: { turnId: string } };
   /** Advisory impact of switching; UI confirms, then calls chat:setSelection. */
   "chat:previewSwitch": { req: { selection: ModelSelection }; res: SwitchImpact };
   "chat:setSelection": { req: { selection: ModelSelection }; res: { selection: ModelSelection } };
@@ -370,8 +373,13 @@ export type ChatEvent =
   | { type: "tool_call_finished"; turnId: string; callId: string; name: string; ok: boolean; summary: string; newVersion?: number }
   | { type: "notice"; turnId: string; kind: "fallback" | "compaction" | "truncated" | "refusal" | "retrying"; text: string }
   | { type: "usage"; turnId: string; usage: Usage; cost: Cost | null; totals: { usage: Usage; cost: Cost | null } }
-  /** outstandingIssues: set when the turn changed the plan and error-level playability issues remain (whatever the model said); also on cancelled turns. */
-  | { type: "turn_finished"; turnId: string; stopReason: StopReason; canContinue: boolean; canRetry: boolean; outstandingIssues?: OutstandingIssues }
+  /**
+   * outstandingIssues: set when the turn changed the plan and error-level playability issues remain (whatever the model said); also on cancelled turns.
+   * stopReason "revision_limit": the model committed AppSettings.agent.maxRevisionsPerTurn plan versions (or the
+   * chat:continue allowance) and wanted another step; the app stopped between steps (every version and tool result
+   * kept) and asks the GM whether to go on (canContinue true → chat:continue).
+   */
+  | { type: "turn_finished"; turnId: string; stopReason: StopReason | "revision_limit"; canContinue: boolean; canRetry: boolean; outstandingIssues?: OutstandingIssues }
   | { type: "turn_failed"; turnId: string; error: AppError; canRetry: boolean; outstandingIssues?: OutstandingIssues };
 
 export interface IpcEvents {
@@ -395,6 +403,10 @@ export interface IpcEvents {
   "addon:changed": AddonStatus;
   /** The link changed: the add-on connected or left, progress, hotkeys. */
   "link:changed": LinkStatus;
+  /** The 3D view's scene is being prepared: layout = placing the pieces, detail = loading their shapes. */
+  "view3d:progress": { sceneId: string; stage: "layout" | "detail"; done: number; total: number };
+  /** The 3D piece cache (TaleSpire's piece shapes, read once per game update): pieces read, shown as boxes, being read, cache bytes. */
+  "meshes:status": { read: number; boxes: number; extracting: boolean; bytes: number };
 }
 
 /** Renderer → main one-way messages (ipcRenderer.send). */

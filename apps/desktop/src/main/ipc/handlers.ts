@@ -167,9 +167,9 @@ export function createHandlers(s: HandlerServices): Handlers {
       return engine().retry(req);
     },
     "chat:selectAlternative": (req) => engine().selectAlternative(req),
-    "chat:continue": () => {
+    "chat:continue": (req) => {
       requireProject();
-      return engine().continue();
+      return engine().continue(req ?? {});
     },
     "chat:previewSwitch": (req) => engine().previewSwitch(req.selection),
     "chat:setSelection": (req) => engine().setSelection(req.selection),
