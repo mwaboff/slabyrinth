@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { cuboid, readRestSurface, type MeshData, type PieceGeom } from "../src/index";
+import {
+  cuboid,
+  readRestGrid,
+  readRestSurface,
+  readTopCover,
+  type MeshData,
+  type PieceGeom,
+} from "../src/index";
 
 /** Several meshes as one. */
 function merge(...ms: MeshData[]): MeshData {
@@ -52,5 +59,61 @@ describe("readRestSurface: where a thing set on a piece rests", () => {
   it("nothing over the outline: no reading", () => {
     const aside = cuboid({ x: 3, y: 0, z: 3 }, { x: 4, y: 1, z: 4 });
     expect(readRestSurface(aside, geom(-0.5, 0.5, -0.5, 0.5, 1))).toBeNull();
+  });
+});
+
+describe("readRestGrid: where things rest, part by part over a top", () => {
+  it("the bench's work top holds things at its height; its raised back is higher, the edge between holds none", () => {
+    const bench = merge(
+      cuboid({ x: -0.7, y: 0.65, z: -0.5 }, { x: 0.7, y: 0.75, z: 0.5 }),
+      cuboid({ x: -0.7, y: 0.75, z: 0.3 }, { x: 0.7, y: 1.1, z: 0.5 }),
+    );
+    const g = readRestGrid(bench, geom(-0.7, 0.7, -0.5, 0.5, 1.1));
+    expect(g.nx * g.nz).toBe(g.heights.length);
+    // the front row (min z) is the work top, the back row the raised back
+    expect(g.heights[0]).toBeCloseTo(0.75, 2);
+    expect(g.heights[(g.nz - 1) * g.nx]).toBeCloseTo(1.1, 2);
+  });
+
+  it("a cell over nothing, or over a slope, holds no thing", () => {
+    const half = cuboid({ x: -0.5, y: 0, z: -0.5 }, { x: 0, y: 0.5, z: 0.5 });
+    const g = readRestGrid(half, geom(-0.5, 0.5, -0.5, 0.5, 0.5));
+    expect(g.heights[0]).toBeCloseTo(0.5, 2);
+    expect(g.heights[g.nx - 1]).toBeNull();
+    const steps = Array.from({ length: 10 }, (_, k) =>
+      cuboid({ x: -0.5 + k * 0.1, y: 0, z: -0.5 }, { x: -0.4 + k * 0.1, y: 0.2 + k * 0.1, z: 0.5 }),
+    );
+    const s = readRestGrid(merge(...steps), geom(-0.5, 0.5, -0.5, 0.5, 1.1));
+    // each cell spans a step and a half: no one height holds most of it
+    expect(s.heights.filter((h) => h === null).length).toBeGreaterThan(0);
+  });
+});
+
+describe("readTopCover: how a floor piece covers its outline", () => {
+  it("a whole tile covers all of it", () => {
+    const tile = cuboid({ x: 0, y: 0, z: 0 }, { x: 2, y: 0.5, z: 2 });
+    expect(readTopCover(tile, geom(0, 2, 0, 2, 0.5))).toEqual({ share: 1, hole: 0 });
+  });
+
+  it("a tile with a corner cut away leaves one open patch the size of the cut", () => {
+    // an L of three 1 x 1 quarters: the fourth quarter (x 1..2, z 1..2) is open
+    const ell = merge(
+      cuboid({ x: 0, y: 0, z: 0 }, { x: 2, y: 0.5, z: 1 }),
+      cuboid({ x: 0, y: 0, z: 1 }, { x: 1, y: 0.5, z: 2 }),
+    );
+    const c = readTopCover(ell, geom(0, 2, 0, 2, 0.5));
+    expect(c?.share).toBeGreaterThan(0.7);
+    expect(c?.share).toBeLessThan(0.8);
+    expect(c?.hole).toBeGreaterThan(0.85);
+    expect(c?.hole).toBeLessThan(1.05);
+  });
+
+  it("small slots are open but each patch is small (a grate)", () => {
+    const bars = Array.from({ length: 5 }, (_, k) =>
+      cuboid({ x: k * 0.2, y: 0, z: 0 }, { x: k * 0.2 + 0.14, y: 0.25, z: 1 }),
+    );
+    const c = readTopCover(merge(...bars), geom(0, 1, 0, 1, 0.25));
+    expect(c?.share).toBeLessThan(0.9);
+    expect(c?.hole).toBeLessThan(0.1);
   });
 });

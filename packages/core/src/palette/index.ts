@@ -47,5 +47,8 @@ export { pickFromPool, traitPool, traitQueryKey } from "./traitPools";
 export type { TraitPiece, TraitPool, TraitQuery } from "./traitPools";
 export { REST_ROLE_PREFIXES, measuredRest, restHeight, restPieces, restTop } from "./restSurface";
 export type { RestPiece } from "./restSurface";
+export { parseRestGrid, restGridOf, restSpot } from "./restGrid";
+export type { RestGrid, RestSpot } from "./restGrid";
+export { COVER_ROLE_PREFIXES, FLOOR_HOLE, coverPieces, floorHoleOf, leavesFloorHole } from "./topCover";
 export { coveredStallForms, stallParts } from "./stallParts";
 export type { RoleProbe, StallParts } from "./stallParts";

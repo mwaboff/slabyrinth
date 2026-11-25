@@ -37,6 +37,9 @@ import { elementRef, fmt, round2, round4, solidLabel } from "./words";
 import { maxOf } from "../../util/lists";
 import { baseInFloor, restsOn } from "../../util/sunk";
 import { restTop } from "../../palette/restSurface";
+import { loadOrientation } from "../../palette/load";
+import { worldTurn } from "../geometry";
+import { surfaceTopAt } from "../restOn";
 
 /** The codes this file emits (VERIFY_CODES is the union of every check's list; lines.ts has its own). */
 export const PROP_CODES = [
@@ -109,7 +112,7 @@ function checkPropOverlaps({ ctx, solids, L }: PropLevel, props: readonly Solid[
       // it (a candle on a workbench's work top, under the box's top at its raised back)
       if (
         ctx.profile.restSurfaces &&
-        (restsOn(a.p.y, surfaceTop(ctx, b)) || restsOn(b.p.y, surfaceTop(ctx, a)))
+        (restsOn(a.p.y, surfaceTop(ctx, b, centre(a))) || restsOn(b.p.y, surfaceTop(ctx, a, centre(b))))
       )
         continue;
       const ox = overlap1(a.box.min.x, a.box.max.x, b.box.min.x, b.box.max.x);
@@ -322,7 +325,7 @@ function checkSupport(
   cz: number,
   pc: { px: number; py: number },
 ): void {
-  const top = (q: Solid): number => surfaceTop(ctx, q);
+  const top = (q: Solid): number => surfaceTop(ctx, q, { x: cx, z: cz });
   const supports = solids
     .at(cx, cz, -Infinity, s.p.y + SUPPORT_SLACK, -0.01)
     .filter(
@@ -399,9 +402,26 @@ function checkSupport(
  * The top surface a piece is set on: a feature's measured one from generator 6 (`restSurfaces`: a jug on a workbench
  * stands on its work top, under the box's top at its raised back; palette/restSurface.ts), else the box's top.
  */
-function surfaceTop(ctx: VerifyCtx, q: Solid): number {
-  return q.role === "feature" ? restTop(q.p.asset, q.box, ctx.profile.restSurfaces) : q.box.max.y;
+function surfaceTop(ctx: VerifyCtx, q: Solid, at?: { x: number; z: number }): number {
+  if (q.role !== "feature") return q.box.max.y;
+  // generator 6 (`unevenTops`): the measured height of the part of the top under the thing (compile/restOn.ts)
+  const geom = ctx.profile.unevenTops && at ? ctx.set.placed?.get(q.p)?.geom : undefined;
+  if (geom && at)
+    return surfaceTopAt(
+      { asset: q.p.asset, geom, box: q.box, cw: worldTurn(q.p.rot, loadOrientation().orientation) },
+      at.x,
+      at.z,
+      ctx.profile.restSurfaces,
+      true,
+    );
+  return restTop(q.p.asset, q.box, ctx.profile.restSurfaces);
 }
+
+/** The centre of a piece's box in world x and z. */
+const centre = (s: Solid): { x: number; z: number } => ({
+  x: (s.box.min.x + s.box.max.x) / 2,
+  z: (s.box.min.z + s.box.max.z) / 2,
+});
 
 /** A feature's footprint in world x and z. */
 function footprintWorld(

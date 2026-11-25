@@ -660,6 +660,34 @@ const SWITCHES = {
     6,
     "A thing set on a piece (a jug on a workbench, books on a desk, a candle on an altar, goods on a stall's table) stands on the piece's real top surface, measured from the game's meshes (palette/restHeights.ts, written by `npm run render -- rests`), not on its collider box's top, which reaches its highest point (a bench's raised back: the jugs hung 0.35 over the work top); a piece never measured keeps its box top (palette/restSurface.ts, read by the palette view's `rest` and compile/stalls.ts).",
   ),
+  tilesStoredByFootprint: on(
+    6,
+    "A tile (a corner-origin piece) the cave rock mass turns is stored at the min corner of its turned footprint at every turn, the game's rule (compile/geometry.ts storedPosition, as arrangements and the scene renderer place it), so it stands centred where the mass plan put it; before, it was stored as if turned about its corner, and at any turn but 0 the game put it up to its own size off its plan, into the floor beside the wall (camp sacks, a chest and crystals ended up inside the rock). The cave-mass review reads such a piece the same way.",
+  ),
+  measuredFloorCover: on(
+    6,
+    "A floor is laid only from pieces whose measured top covers their cells: a piece whose top leaves an open patch of a tenth of a tile² or more (palette/topCover.ts, read from the game's meshes by `npm run render -- rests` into palette/coverHoles.ts: a rounded-corner cave tile's wedge, broken boards' gapped ends) is left out of the floor laying when its role has whole ones, whatever its name; a piece never measured counts as whole (compile/realize/floors.ts wholePieces, with the ragged pieces generator 5 already leaves out).",
+  ),
+  unevenTops: on(
+    6,
+    "A thing set on a piece of furniture stands on the part of the top under it, at that part's measured height (palette/restGrid.ts: a grid of rest heights over each piece's top, read from the game's meshes by `npm run render -- rests` into palette/restGrids.ts), looked up with the support's final variant and turn (compile/restOn.ts, util/turn.ts); a thing over a part that cannot hold it (a chest's rounded lid off its crest, an anvil's horn, past a desk's edge) or set beside the top moves to the nearest part that can (compile/realize/settle.ts, after every support is laid). Verify judges the support by the same grid. A piece never measured leaves things on it where they were set.",
+  ),
+  storeyHeadroom: on(
+    6,
+    "A thing a room recipe lifts onto furniture or a shelf in a building's ground storey stays under that storey's wall top, where the floor of the storey above, the attic deck or the roof begins (resolve/level/grid.ts headroomAt: the lowest ground-storey wall top of the building volumes over the cell, as well as the floor of a plan level stacked above); before, only plan levels were counted, and jars on a tall shelf stood 85-94% inside the upper storey's floor.",
+  ),
+  railedDeckEdges: on(
+    6,
+    "Every edge of an object's raised walking surface with a drop below it is railed, with gaps only where a way crosses: a vessel's raised deck is railed across its break over the main deck too (its ladder comes up through the deck; objects/vessel.ts kitHullParts), a gangway crosses the bulwark only where it takes away no more than one short rail piece (objects/vessel.ts bulwarkOpening, resolve/objectSite.ts), never through the curved bow fence (the barge's bow stood 4 tiles open on the moored side), and the rail on its side is laid up to its cell and on from it; a rail across the hull closes its ends with the side's short pieces. objects/facing.ts openDeckEdges is the check any object is held to.",
+  ),
+  seenCover: on(
+    6,
+    "Ground cover is laid only where it can be seen: a bed more than a tile under the level's water surface (the plane the GM raises, which hides it) takes no rock or rubble either (resolve/recipes/ground.ts; generator 5 kept rocks there, 377 of them over the harbour basin's bed, 5 tiles under the vessels' waterline).",
+  ),
+  hangUnderCover: on(
+    6,
+    "A thing hung under a cover hangs from the cover's real surface over its point, measured from the game's meshes (palette/restGrid.ts, compile/restOn.ts): a market stall's lantern hangs from the canopy piece over it (compile/stalls.ts), not from its box's underside, under which a sloping cloth awning leaves 0.65 of air (the lanterns hung in mid-air); a canopy never measured keeps the box's underside.",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

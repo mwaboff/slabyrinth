@@ -3462,7 +3462,7 @@ plans/ground-and-walls-v1 review pieces_substituted 1
 plans/ground-and-walls-v1 review roof_squat 1
 plans/ground-and-walls-v1 review roofs_alike 1
 plans/ground-and-walls-v1 review straight_natural 1
-plans/ground-and-walls-v1@6 g pieces feature 1204
+plans/ground-and-walls-v1@6 g pieces feature 1200
 plans/ground-and-walls-v1@6 g pieces fill 120
 plans/ground-and-walls-v1@6 g pieces floor 1029
 plans/ground-and-walls-v1@6 g pieces ledge 188
@@ -3471,7 +3471,7 @@ plans/ground-and-walls-v1@6 g pieces opening 41
 plans/ground-and-walls-v1@6 g pieces wall 724
 plans/ground-and-walls-v1@6 g pieces wall_post 185
 plans/ground-and-walls-v1@6 g layer roof 451
-plans/ground-and-walls-v1@6 g layer site 2603
+plans/ground-and-walls-v1@6 g layer site 2599
 plans/ground-and-walls-v1@6 g layer storey:0 354
 plans/ground-and-walls-v1@6 g layer storey:1 85
 plans/ground-and-walls-v1@6 g part floor:floor.dirt 25
@@ -3568,10 +3568,6 @@ plans/ground-and-walls-v1@6 g part s1~room1~room#0 1
 plans/ground-and-walls-v1@6 g part s1~room1~room#1 1
 plans/ground-and-walls-v1@6 g part s1~room1~room#10 1
 plans/ground-and-walls-v1@6 g part s1~room1~room#11 1
-plans/ground-and-walls-v1@6 g part s1~room1~room#12 1
-plans/ground-and-walls-v1@6 g part s1~room1~room#13 1
-plans/ground-and-walls-v1@6 g part s1~room1~room#14 1
-plans/ground-and-walls-v1@6 g part s1~room1~room#15 1
 plans/ground-and-walls-v1@6 g part s1~room1~room#2 1
 plans/ground-and-walls-v1@6 g part s1~room1~room#3 1
 plans/ground-and-walls-v1@6 g part s1~room1~room#4 1
@@ -3784,7 +3780,7 @@ plans/ground-and-walls-v1@6 g feature candles 7
 plans/ground-and-walls-v1@6 g feature cauldron 1
 plans/ground-and-walls-v1@6 g feature chair 24
 plans/ground-and-walls-v1@6 g feature chest 8
-plans/ground-and-walls-v1@6 g feature clutter 66
+plans/ground-and-walls-v1@6 g feature clutter 62
 plans/ground-and-walls-v1@6 g feature counter 8
 plans/ground-and-walls-v1@6 g feature crate 13
 plans/ground-and-walls-v1@6 g feature desk 1
@@ -3910,7 +3906,6 @@ plans/heartroot-rift-v7@6 l1 feature wall_dressing 1
 plans/heartroot-rift-v7@6 diag info footprint_mismatch 10
 plans/heartroot-rift-v7@6 diag info landmark_short 1
 plans/heartroot-rift-v7@6 diag info verify_props_overlap 1
-plans/heartroot-rift-v7@6 diag warning verify_prop_floating 1
 plans/heartroot-rift-v7@6 review cave_rock_uncovered 1
 plans/heartroot-rift-v7@6 review cliff_unclad 1
 plans/heartroot-rift-v7@6 review cliff_unclad_low 1
@@ -5964,7 +5959,7 @@ plans/market-street-v3 diag info verify_prop_nudged 10
 plans/market-street-v3 review focal_unlit 1
 plans/market-street-v3 review pieces_substituted 1
 plans/market-street-v3 review roofs_alike 1
-plans/market-street-v3@6 g pieces feature 630
+plans/market-street-v3@6 g pieces feature 615
 plans/market-street-v3@6 g pieces fill 130
 plans/market-street-v3@6 g pieces floor 962
 plans/market-street-v3@6 g pieces ledge 144
@@ -5972,7 +5967,7 @@ plans/market-street-v3@6 g pieces opening 69
 plans/market-street-v3@6 g pieces wall 1507
 plans/market-street-v3@6 g pieces wall_post 258
 plans/market-street-v3@6 g layer roof 1064
-plans/market-street-v3@6 g layer site 1634
+plans/market-street-v3@6 g layer site 1619
 plans/market-street-v3@6 g layer storey:0 764
 plans/market-street-v3@6 g layer storey:1 238
 plans/market-street-v3@6 g part apothecary~canopy 4
@@ -6120,8 +6115,6 @@ plans/market-street-v3@6 g part cobbler~room0~room#10 1
 plans/market-street-v3@6 g part cobbler~room0~room#11 1
 plans/market-street-v3@6 g part cobbler~room0~room#12 1
 plans/market-street-v3@6 g part cobbler~room0~room#13 1
-plans/market-street-v3@6 g part cobbler~room0~room#14 1
-plans/market-street-v3@6 g part cobbler~room0~room#15 1
 plans/market-street-v3@6 g part cobbler~room0~room#3 1
 plans/market-street-v3@6 g part cobbler~room0~room#4 1
 plans/market-street-v3@6 g part cobbler~room0~room#5 1
@@ -6162,9 +6155,6 @@ plans/market-street-v3@6 g part cooper~room1~room#10 1
 plans/market-street-v3@6 g part cooper~room1~room#11 1
 plans/market-street-v3@6 g part cooper~room1~room#12 1
 plans/market-street-v3@6 g part cooper~room1~room#13 1
-plans/market-street-v3@6 g part cooper~room1~room#14 1
-plans/market-street-v3@6 g part cooper~room1~room#15 1
-plans/market-street-v3@6 g part cooper~room1~room#16 1
 plans/market-street-v3@6 g part cooper~room1~room#2 1
 plans/market-street-v3@6 g part cooper~room1~room#3 1
 plans/market-street-v3@6 g part cooper~room1~room#4 1
@@ -6420,10 +6410,6 @@ plans/market-street-v3@6 g part smith~post 4
 plans/market-street-v3@6 g part smith~roof 81
 plans/market-street-v3@6 g part smith~room0~room#0 1
 plans/market-street-v3@6 g part smith~room0~room#1 1
-plans/market-street-v3@6 g part smith~room0~room#10 1
-plans/market-street-v3@6 g part smith~room0~room#11 1
-plans/market-street-v3@6 g part smith~room0~room#12 1
-plans/market-street-v3@6 g part smith~room0~room#13 1
 plans/market-street-v3@6 g part smith~room0~room#2 1
 plans/market-street-v3@6 g part smith~room0~room#3 1
 plans/market-street-v3@6 g part smith~room0~room#4 1
@@ -6431,7 +6417,6 @@ plans/market-street-v3@6 g part smith~room0~room#5 1
 plans/market-street-v3@6 g part smith~room0~room#6 1
 plans/market-street-v3@6 g part smith~room0~room#7 1
 plans/market-street-v3@6 g part smith~room0~room#8 1
-plans/market-street-v3@6 g part smith~room0~room#9 1
 plans/market-street-v3@6 g part smith~room1~room#0 1
 plans/market-street-v3@6 g part smith~room1~room#1 1
 plans/market-street-v3@6 g part smith~room1~room#2 1
@@ -6440,11 +6425,6 @@ plans/market-street-v3@6 g part smith~room1~room#4 1
 plans/market-street-v3@6 g part smith~room2~room#0 1
 plans/market-street-v3@6 g part smith~room2~room#1 1
 plans/market-street-v3@6 g part smith~room2~room#10 1
-plans/market-street-v3@6 g part smith~room2~room#11 1
-plans/market-street-v3@6 g part smith~room2~room#12 1
-plans/market-street-v3@6 g part smith~room2~room#13 1
-plans/market-street-v3@6 g part smith~room2~room#14 1
-plans/market-street-v3@6 g part smith~room2~room#15 1
 plans/market-street-v3@6 g part smith~room2~room#2 1
 plans/market-street-v3@6 g part smith~room2~room#3 1
 plans/market-street-v3@6 g part smith~room2~room#4 1
@@ -6513,7 +6493,7 @@ plans/market-street-v3@6 g feature cauldron 1
 plans/market-street-v3@6 g feature chair 2
 plans/market-street-v3@6 g feature chest 6
 plans/market-street-v3@6 g feature cluster_tall 1
-plans/market-street-v3@6 g feature clutter 117
+plans/market-street-v3@6 g feature clutter 102
 plans/market-street-v3@6 g feature counter 8
 plans/market-street-v3@6 g feature crate 30
 plans/market-street-v3@6 g feature flowers 1
@@ -9040,7 +9020,7 @@ plans/two-quarters-v1 review cliff_unclad_low 1
 plans/two-quarters-v1 review pieces_substituted 1
 plans/two-quarters-v1 review straight_natural 2
 plans/two-quarters-v1 review weathered_same_as_intact 2
-plans/two-quarters-v1@6 g pieces feature 884
+plans/two-quarters-v1@6 g pieces feature 872
 plans/two-quarters-v1@6 g pieces fill 122
 plans/two-quarters-v1@6 g pieces floor 1446
 plans/two-quarters-v1@6 g pieces ledge 228
@@ -9049,7 +9029,7 @@ plans/two-quarters-v1@6 g pieces opening 56
 plans/two-quarters-v1@6 g pieces wall 1246
 plans/two-quarters-v1@6 g pieces wall_post 291
 plans/two-quarters-v1@6 g layer roof 907
-plans/two-quarters-v1@6 g layer site 2443
+plans/two-quarters-v1@6 g layer site 2431
 plans/two-quarters-v1@6 g layer storey:0 701
 plans/two-quarters-v1@6 g layer storey:1 224
 plans/two-quarters-v1@6 g part approachLights@face:B:swan:front:0:out:S:11:3:op:swan~door0 2
@@ -9151,8 +9131,6 @@ plans/two-quarters-v1@6 g part goldsmith~room0~room#13 1
 plans/two-quarters-v1@6 g part goldsmith~room0~room#14 1
 plans/two-quarters-v1@6 g part goldsmith~room0~room#15 1
 plans/two-quarters-v1@6 g part goldsmith~room0~room#16 1
-plans/two-quarters-v1@6 g part goldsmith~room0~room#17 1
-plans/two-quarters-v1@6 g part goldsmith~room0~room#18 1
 plans/two-quarters-v1@6 g part goldsmith~room0~room#2 1
 plans/two-quarters-v1@6 g part goldsmith~room0~room#3 1
 plans/two-quarters-v1@6 g part goldsmith~room0~room#4 1
@@ -9164,10 +9142,6 @@ plans/two-quarters-v1@6 g part goldsmith~room0~room#9 1
 plans/two-quarters-v1@6 g part goldsmith~room1~room#0 1
 plans/two-quarters-v1@6 g part goldsmith~room1~room#1 1
 plans/two-quarters-v1@6 g part goldsmith~room1~room#10 1
-plans/two-quarters-v1@6 g part goldsmith~room1~room#11 1
-plans/two-quarters-v1@6 g part goldsmith~room1~room#12 1
-plans/two-quarters-v1@6 g part goldsmith~room1~room#13 1
-plans/two-quarters-v1@6 g part goldsmith~room1~room#14 1
 plans/two-quarters-v1@6 g part goldsmith~room1~room#2 1
 plans/two-quarters-v1@6 g part goldsmith~room1~room#3 1
 plans/two-quarters-v1@6 g part goldsmith~room1~room#4 1
@@ -9255,9 +9229,6 @@ plans/two-quarters-v1@6 g part hovel2~room0~room#6 1
 plans/two-quarters-v1@6 g part hovel2~room0~room#7 1
 plans/two-quarters-v1@6 g part hovel2~room1~room#0 1
 plans/two-quarters-v1@6 g part hovel2~room1~room#1 1
-plans/two-quarters-v1@6 g part hovel2~room1~room#10 1
-plans/two-quarters-v1@6 g part hovel2~room1~room#11 1
-plans/two-quarters-v1@6 g part hovel2~room1~room#12 1
 plans/two-quarters-v1@6 g part hovel2~room1~room#2 1
 plans/two-quarters-v1@6 g part hovel2~room1~room#3 1
 plans/two-quarters-v1@6 g part hovel2~room1~room#4 1
@@ -9421,8 +9392,6 @@ plans/two-quarters-v1@6 g part town1~room0~room#10 1
 plans/two-quarters-v1@6 g part town1~room0~room#11 1
 plans/two-quarters-v1@6 g part town1~room0~room#12 1
 plans/two-quarters-v1@6 g part town1~room0~room#13 1
-plans/two-quarters-v1@6 g part town1~room0~room#14 1
-plans/two-quarters-v1@6 g part town1~room0~room#15 1
 plans/two-quarters-v1@6 g part town1~room0~room#2 1
 plans/two-quarters-v1@6 g part town1~room0~room#3 1
 plans/two-quarters-v1@6 g part town1~room0~room#4 1
@@ -9434,7 +9403,6 @@ plans/two-quarters-v1@6 g part town1~room0~room#9 1
 plans/two-quarters-v1@6 g part town1~room1~room#0 1
 plans/two-quarters-v1@6 g part town1~room1~room#1 1
 plans/two-quarters-v1@6 g part town1~room1~room#10 1
-plans/two-quarters-v1@6 g part town1~room1~room#11 1
 plans/two-quarters-v1@6 g part town1~room1~room#2 1
 plans/two-quarters-v1@6 g part town1~room1~room#3 1
 plans/two-quarters-v1@6 g part town1~room1~room#4 1
@@ -9556,7 +9524,7 @@ plans/two-quarters-v1@6 g feature candles 5
 plans/two-quarters-v1@6 g feature cauldron 2
 plans/two-quarters-v1@6 g feature chair 3
 plans/two-quarters-v1@6 g feature chest 3
-plans/two-quarters-v1@6 g feature clutter 93
+plans/two-quarters-v1@6 g feature clutter 81
 plans/two-quarters-v1@6 g feature counter 15
 plans/two-quarters-v1@6 g feature crate 17
 plans/two-quarters-v1@6 g feature desk 1
@@ -9569,7 +9537,7 @@ plans/two-quarters-v1@6 g feature torch_wall 13
 plans/two-quarters-v1@6 diag info footprint_mismatch 3
 plans/two-quarters-v1@6 diag info structure_style_fallback 1
 plans/two-quarters-v1@6 diag info verify_duplicate_removed 2
-plans/two-quarters-v1@6 diag info verify_prop_nudged 16
+plans/two-quarters-v1@6 diag info verify_prop_nudged 11
 plans/two-quarters-v1@6 review cliff_unclad_low 1
 plans/two-quarters-v1@6 review pieces_substituted 1
 plans/two-quarters-v1@6 review straight_natural 2
@@ -10100,7 +10068,7 @@ plans/varied-street-v1 review pieces_substituted 1
 plans/varied-street-v1 review roof_squat 1
 plans/varied-street-v1 review silhouette_flat 1
 plans/varied-street-v1 review straight_natural 1
-plans/varied-street-v1@6 g pieces feature 1364
+plans/varied-street-v1@6 g pieces feature 1361
 plans/varied-street-v1@6 g pieces fill 4
 plans/varied-street-v1@6 g pieces floor 1164
 plans/varied-street-v1@6 g pieces ledge 219
@@ -10109,7 +10077,7 @@ plans/varied-street-v1@6 g pieces opening 84
 plans/varied-street-v1@6 g pieces wall 1209
 plans/varied-street-v1@6 g pieces wall_post 337
 plans/varied-street-v1@6 g layer roof 789
-plans/varied-street-v1@6 g layer site 2604
+plans/varied-street-v1@6 g layer site 2601
 plans/varied-street-v1@6 g layer storey:0 617
 plans/varied-street-v1@6 g layer storey:1 264
 plans/varied-street-v1@6 g layer storey:2 109
@@ -10537,9 +10505,6 @@ plans/varied-street-v1@6 g part workshop~room0~room#8 1
 plans/varied-street-v1@6 g part workshop~room0~room#9 1
 plans/varied-street-v1@6 g part workshop~room1~room#0 1
 plans/varied-street-v1@6 g part workshop~room1~room#1 1
-plans/varied-street-v1@6 g part workshop~room1~room#10 1
-plans/varied-street-v1@6 g part workshop~room1~room#11 1
-plans/varied-street-v1@6 g part workshop~room1~room#12 1
 plans/varied-street-v1@6 g part workshop~room1~room#2 1
 plans/varied-street-v1@6 g part workshop~room1~room#3 1
 plans/varied-street-v1@6 g part workshop~room1~room#4 1
@@ -10575,7 +10540,7 @@ plans/varied-street-v1@6 g feature candles 4
 plans/varied-street-v1@6 g feature cauldron 4
 plans/varied-street-v1@6 g feature chair 4
 plans/varied-street-v1@6 g feature chest 1
-plans/varied-street-v1@6 g feature clutter 63
+plans/varied-street-v1@6 g feature clutter 60
 plans/varied-street-v1@6 g feature counter 9
 plans/varied-street-v1@6 g feature crate 17
 plans/varied-street-v1@6 g feature desk 1

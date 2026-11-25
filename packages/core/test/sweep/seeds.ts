@@ -125,8 +125,9 @@ export const WARNING_BASIS = 150;
  *   with `plinthUnderPorch`: a porch-fronted plinth is no longer raised twice).
  * - heartroot-rift-v7, dressed-cave(-v2), hillside-v5, smugglers-grotto-v3 prop_no_floor: a dress piece (a swamp tree base, a
  *   boulder, a moss rock) anchored on a cell whose centre has no floor piece under it (a ragged cave edge, an outcrop).
- * - smugglers-grotto-v3, sea-grotto, old-stones-glade-v6 prop_floating: a landing's lantern and candles 0.42 above the
- *   floor under their centre (the landing's lower step), pebbles 0.5 above a step.
+ * - old-stones-glade-v6 prop_floating: pebbles 0.5 above a step. (5; 4 at generator 6 with `unevenTops`, which also
+ *   ended heartroot-rift-v7's 4, smugglers-grotto-v3's 16, dressed-cave's 1 and sea-grotto's 19: a landing's lantern and
+ *   candles set beside a crate's top and things on stacked rocks now stand on the part of the top that holds them.)
  * - hillside-v5 play_unreachable (the playability the build causes, `playability`): the plan's walkway climbs from its
  *   watchtower to a plateau whose edge is ragged, with no path, ramp or link up the cliff; where the walkway's top
  *   meets a pocket of that edge, the plan's own walk reaches it only across the foot of the cliff, and the plateau's
@@ -142,7 +143,6 @@ export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, num
     verify_prop_no_floor: 4,
     // 2 before `channelFloorWhole` moved the rift's shelves and the lair dressing round them
     verify_mount_no_wall: 4,
-    verify_prop_floating: 4,
   },
   "market-street-v3": {
     // 12; 6 once the street draw (`readableNeighbours`, `themeOwnRange`) stood other buildings at the line ends; 5
@@ -157,17 +157,15 @@ export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, num
     // measure)
     verify_prop_in_wall: 1,
   },
-  "old-stones-glade-v6": { verify_prop_floating: 5 },
-  "smugglers-grotto-v3": { verify_prop_floating: 16, verify_prop_no_floor: 1 },
+  "old-stones-glade-v6": { verify_prop_floating: 4 },
+  "smugglers-grotto-v3": { verify_prop_no_floor: 1 },
   "three-step-glen-v1": { verify_cliff_gap: 1 },
   "dressed-cave": {
     verify_prop_no_floor: 11,
     verify_mount_no_wall: 7,
-    verify_prop_floating: 1,
   },
   "dressed-cave-v2": { verify_prop_no_floor: 17 },
   "hillside-v5": { verify_prop_no_floor: 10, play_unreachable: 59 },
-  "sea-grotto": { verify_prop_floating: 19 },
   "terraced-hill": { verify_cliff_gap: 1 },
 };
 
