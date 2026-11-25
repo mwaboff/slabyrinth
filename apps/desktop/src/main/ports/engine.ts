@@ -36,6 +36,7 @@ import type {
   SwitchImpact,
   Usage,
 } from "../agent/provider/types";
+import type { Render3dRequest, Render3dResult } from "@slabyrinth/core/agent";
 import type { AppError, ChatEvent, IpcEvents, IpcRequests } from "../../shared/ipc";
 import type { AppSettings, ChatMessageMeta, Conversation, ProjectFile } from "../../shared/project";
 
@@ -89,6 +90,12 @@ export interface EngineHost {
   emit(event: ChatEvent): void;
   /** Asks the renderer to rasterize a level (view_map_image). Resolves with PNG base64. */
   requestImage(req: ImageRequest, signal?: AbortSignal): Promise<string>;
+  /**
+   * 3D pictures of the head version (the scene worker's software renderer): one numbered sheet with a caption per
+   * view. Absent where there is no scene worker (headless tests). The engine decides whether the model may use it
+   * (Settings, image input, the per-message picture budget).
+   */
+  render3d?(req: Render3dRequest, signal: AbortSignal): Promise<Render3dResult>;
   /** MAIN ONLY: decrypted API key (null if none). Never log, emit or persist it. */
   getApiKey(providerId: ProviderId): Promise<string | null>;
   getSettings(): AppSettings;

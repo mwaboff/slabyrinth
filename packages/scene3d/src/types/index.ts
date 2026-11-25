@@ -41,7 +41,9 @@ export type FallbackReason =
   /** the bundle's container or serialized-file version is one the readers do not know */
   | "unsupported-format"
   /** the bundle was readable but the part's prefab or mesh was not */
-  | "decode-failed";
+  | "decode-failed"
+  /** the scene's mesh memory budget was spent (a huge map): drawn as a box to keep the app responsive */
+  | "budget";
 
 /** What a mesh source answers for one asset: its mesh (and the collider the game places it by), or why not. */
 export type MeshLookup =

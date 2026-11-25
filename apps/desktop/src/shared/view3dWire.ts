@@ -32,6 +32,7 @@ export const BOX_REASON_WORDS: Readonly<Record<string, string>> = {
   "unsupported-format": "stored in a way Slabyrinth can't read yet",
   "decode-failed": "couldn't be read",
   "no-geometry": "size unknown",
+  budget: "detail limited to keep Slabyrinth responsive",
 };
 
 const CLASS_ORDER = Object.keys(COLOUR_CLASSES) as ColourClass[];

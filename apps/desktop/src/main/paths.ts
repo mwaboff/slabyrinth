@@ -18,6 +18,8 @@ export interface AppPaths {
   addonPackage: string;
   /** Default projects folder (Documents/Slabyrinth). */
   defaultProjectsFolder: string;
+  /** The 3D piece cache: shapes read from the user's own TaleSpire install, kept here only (services/meshes). */
+  meshesDir: string;
 }
 
 export interface PathInputs {
@@ -44,5 +46,6 @@ export function makeAppPaths(inputs: PathInputs): AppPaths {
     linkTokenFile: path.join(u, "talespire-link.json"),
     addonPackage: path.join(u, "talespire-addon"),
     defaultProjectsFolder: inputs.projectsFolderOverride ?? path.join(inputs.documents, "Slabyrinth"),
+    meshesDir: path.join(u, "meshes"),
   };
 }

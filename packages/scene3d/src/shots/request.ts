@@ -51,6 +51,11 @@ export interface ShotContext {
   notes?: readonly FocusNote[];
   /** Element ids the last version added or changed, and how many it removed (for "changed"). */
   changed?: { ids: readonly string[]; removed: number };
+  /**
+   * The plan cells each element covers, by id (an area's cells: its floors and walls are placed as merged runs whose
+   * pieces name the run, not the area, so a piece is the area's when it stands on one of them).
+   */
+  footprints?: ReadonlyMap<string, ReadonlyArray<readonly [levelId: string, x: number, y: number]>>;
 }
 
 /** A chosen shot and the name that chose it. */
@@ -67,23 +72,39 @@ const NOTE_RADIUS = 4;
 const MIN_FRAME = 8;
 const FLAGGED_ELEVATION = 50;
 const CHANGED_ELEVATION = 45;
+const INTERIOR_ELEVATION = 65;
 /** Two frames overlapping more than this share of their union show the same place. */
 const SAME_PLACE = 0.7;
 /** Without names, fronts and interiors are planned for at most this many things (changed ones first, then largest). */
 const THINGS_CONSIDERED = 3;
 
-const inside = (inst: SceneInstance, ids: ReadonlySet<string>): boolean =>
-  inst.elementId !== null && (ids.has(inst.elementId) || ids.has(objectOf(inst.elementId) ?? ""));
+/** Does a piece belong to one of `ids`: named by it (or by a part it owns), or standing on one of its cells? */
+function belongsTo(scene: Scene, ids: readonly string[], ctx: ShotContext): (inst: SceneInstance) => boolean {
+  const set = new Set(ids);
+  const cells = new Set<string>();
+  const levelIndex = new Map(scene.levels.map((l) => [l.id, l.index]));
+  for (const id of ids)
+    for (const [levelId, x, y] of ctx.footprints?.get(id) ?? [])
+      cells.add(`${String(levelIndex.get(levelId) ?? -1)}:${String(x)},${String(y)}`);
+  return (inst) =>
+    (inst.elementId !== null && (set.has(inst.elementId) || set.has(objectOf(inst.elementId) ?? ""))) ||
+    (inst.cell !== null &&
+      cells.has(`${String(inst.levelIndex)}:${String(inst.cell[0])},${String(inst.cell[1])}`));
+}
 
-/** The thing of an element id: its pieces (its own, or those it owns), whatever their number. */
-export function thingById(scene: Scene, id: string): Thing | null {
-  const own = thingsOf(scene).find((t) => t.id === id);
-  if (own) return own;
-  const ids = new Set([id]);
+function indexesOf(scene: Scene, keep: (inst: SceneInstance) => boolean): number[] {
   const idx: number[] = [];
   scene.instances.forEach((inst, i) => {
-    if (inside(inst, ids)) idx.push(i);
+    if (keep(inst)) idx.push(i);
   });
+  return idx;
+}
+
+/** The thing of an element id: its pieces (its own, those it owns, those on its cells), whatever their number. */
+export function thingById(scene: Scene, id: string, ctx: ShotContext = {}): Thing | null {
+  const own = thingsOf(scene).find((t) => t.id === id);
+  if (own) return own;
+  const idx = indexesOf(scene, belongsTo(scene, [id], ctx));
   return idx.length === 0 ? null : { id, instances: idx, box: boxOf(scene, idx) };
 }
 
@@ -154,24 +175,23 @@ function focusShot(
 }
 
 /** One shot per review note that points at pieces of the scene (best notes first, at most MAX_FLAGGED). */
-export function flaggedShots(scene: Scene, notes: readonly FocusNote[], size: ShotSize): ShotSpec[] {
+export function flaggedShots(scene: Scene, size: ShotSize, ctx: ShotContext = {}): ShotSpec[] {
   const out: ShotSpec[] = [];
-  const ranked = notes
+  const ranked = (ctx.notes ?? [])
     .map((n, i) => ({ n, i }))
     .sort((a, b) => (b.n.score ?? 0) - (a.n.score ?? 0) || a.i - b.i);
   for (const { n } of ranked) {
     if (out.length >= MAX_FLAGGED) break;
     const level = scene.levels.find((l) => l.id === n.levelId);
-    const ids = new Set(n.elementIds ?? []);
-    const idx: number[] = [];
-    scene.instances.forEach((inst, i) => {
-      if (level && inst.levelIndex !== level.index) return;
+    const owned = belongsTo(scene, n.elementIds ?? [], ctx);
+    const idx = indexesOf(scene, (inst) => {
+      if (level && inst.levelIndex !== level.index) return false;
       const near =
         n.cell !== undefined &&
         inst.cell !== null &&
         Math.abs(inst.cell[0] - n.cell[0]) <= NOTE_RADIUS &&
         Math.abs(inst.cell[1] - n.cell[1]) <= NOTE_RADIUS;
-      if (near || inside(inst, ids)) idx.push(i);
+      return near || owned(inst);
     });
     if (idx.length === 0) continue;
     const where = n.elementIds && n.elementIds.length > 0 ? ` at ${n.elementIds.slice(0, 2).join(", ")}` : "";
@@ -195,17 +215,15 @@ export function flaggedShots(scene: Scene, notes: readonly FocusNote[], size: Sh
 }
 
 /** The pieces the last version added or changed, in one shot (null when none of them has a piece). */
-export function changedShot(scene: Scene, changed: ShotContext["changed"], size: ShotSize): ShotSpec | null {
+export function changedShot(scene: Scene, size: ShotSize, ctx: ShotContext = {}): ShotSpec | null {
+  const changed = ctx.changed;
   if (!changed || changed.ids.length === 0) return null;
-  const ids = new Set(changed.ids);
-  const idx: number[] = [];
-  scene.instances.forEach((inst, i) => {
-    if (inside(inst, ids)) idx.push(i);
-  });
+  const idx = indexesOf(scene, belongsTo(scene, changed.ids, ctx));
   if (idx.length === 0) return null;
-  const shown = [...ids].filter((id) =>
-    idx.some((i) => inside(scene.instances[i] as SceneInstance, new Set([id]))),
-  );
+  const shown = changed.ids.filter((id) => {
+    const own = belongsTo(scene, [id], ctx);
+    return idx.some((i) => own(scene.instances[i] as SceneInstance));
+  });
   const named =
     shown.slice(0, 4).join(", ") + (shown.length > 4 ? ` and ${String(shown.length - 4)} more` : "");
   const removed = changed.removed > 0 ? `; ${String(changed.removed)} removed` : "";
@@ -227,21 +245,38 @@ export function changedShot(scene: Scene, changed: ShotContext["changed"], size:
 /** Every shot one name asks for (a building's interior may be several storeys); [] when it names nothing here. */
 export function shotsByName(scene: Scene, name: ShotName, size: ShotSize, ctx: ShotContext = {}): ShotSpec[] {
   if (name === "overview") return [{ ...overviewShot(scene, size) }];
-  if (name === "flagged") return flaggedShots(scene, ctx.notes ?? [], size);
+  if (name === "flagged") return flaggedShots(scene, size, ctx);
   if (name === "changed") {
-    const c = changedShot(scene, ctx.changed, size);
+    const c = changedShot(scene, size, ctx);
     return c ? [c] : [];
   }
   const colon = name.indexOf(":");
   const kind = name.slice(0, colon);
   const id = name.slice(colon + 1);
   if (kind === "level") return levelShots(scene, size).filter((s) => s.targets[0] === id);
-  const thing = thingById(scene, id);
+  const thing = thingById(scene, id, ctx);
   if (!thing) return [];
   const front = frontOf(scene, thing);
   if (kind === "front") return [frontShot(thing, front, size)];
-  if (kind === "interior") return interiorShots(scene, thing, front, size);
-  return [];
+  if (kind !== "interior") return [];
+  const slices = interiorShots(scene, thing, front, size);
+  if (slices.length > 0) return slices;
+  // one storey on one level (a room, a hall): from above at a steep angle, roofs and the levels above hidden
+  return [
+    focusShot(
+      scene,
+      thing.instances,
+      {
+        id: `interior-${id}`,
+        rule: "interior",
+        caption: `Inside ${id}: roofs and everything above hidden`,
+        targets: [id],
+        elevation: INTERIOR_ELEVATION,
+        minFrame: 0,
+      },
+      size,
+    ),
+  ];
 }
 
 /** The plan rectangle a shot looks at (its `within`, else the box of what it shows). */
@@ -320,9 +355,9 @@ export function chooseShots(
       empty,
     };
   }
-  const changed = changedShot(scene, ctx.changed, size);
+  const changed = changedShot(scene, size, ctx);
   const ranked: ShotSpec[] = [
-    ...flaggedShots(scene, ctx.notes ?? [], size),
+    ...flaggedShots(scene, size, ctx),
     ...(changed ? [changed] : []),
     overviewShot(scene, size),
   ];

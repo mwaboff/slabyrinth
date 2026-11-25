@@ -24,6 +24,8 @@ export type { FrameOptions, ViewBasis } from "./raster/camera";
 export { BACKGROUND, LOD_BOX_PX, renderScene, shown, shownBounds } from "./raster/raster";
 export { encodePng } from "./raster/png";
 export { boxMeshSource } from "./source/box";
+export { budgetedSource } from "./source/budget";
+export type { BudgetedSource } from "./source/budget";
 export { EXTRACTOR_VERSION, installMeshSource, unityExtractor } from "./source/install";
 export type {
   BundleExtractor,
