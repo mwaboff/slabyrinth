@@ -539,7 +539,7 @@ function addToppers(
       size: [1, 1],
       rot: 0,
       rotFine: rng.int(24) * 15,
-      lift: ext.h,
+      lift: ext.rest,
       offset,
     });
   }

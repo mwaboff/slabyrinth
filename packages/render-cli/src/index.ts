@@ -8,6 +8,7 @@ import { resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
 import { UsageError, parseArgs } from "./args";
 import { USAGE_3D, render3d, type Io, type RenderEnv } from "./render3d";
+import { USAGE_RESTS, renderRests } from "./rests";
 
 export type RenderIo = Io;
 
@@ -16,7 +17,7 @@ const defaultIo: Io = {
   err: (s) => process.stderr.write(s.endsWith("\n") ? s : s + "\n"),
 };
 
-export const USAGE = USAGE_3D;
+export const USAGE = `${USAGE_3D}\n\n${USAGE_RESTS}`;
 
 /** Relative paths are read from npm's INIT_CWD (where `npm run render` was typed), else the working directory. */
 const defaultEnv = (): RenderEnv => ({
@@ -32,6 +33,7 @@ export async function runRender(
   try {
     const a = parseArgs(argv);
     if (a._[0] === "3d") return await render3d(a, io, env);
+    if (a._[0] === "rests") return await renderRests(a, io, env);
     io.err(USAGE);
     return a.flags.has("help") ? 0 : 2;
   } catch (e) {

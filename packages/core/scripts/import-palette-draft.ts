@@ -13,6 +13,7 @@
  *     the complete base kit and the last step of the fallback chain;
  *   - IR vocabulary the kits lack becomes an "alias role" in generic (`variants: []`, `fallback: <nearest role>`).
  */
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -802,6 +803,24 @@ async function main(): Promise<void> {
       `IR vocabulary ${vocab.length} roles; generic: ${JSON.stringify(counts["generic"])}\n` +
       `Missing everywhere (${missing.length}): ${missing.join(", ")}\n`,
   );
+  measureRests();
+}
+
+/**
+ * Where things set on the palettes' pieces rest (palette/restHeights.ts) is measured from the game's meshes, so a new
+ * piece gets its number with the import: `npm run render -- rests` (read-only on the install). Without TaleSpire it
+ * says so and the table is left as it is (a test then names the pieces still to measure).
+ */
+function measureRests(): void {
+  const r = spawnSync(
+    process.execPath,
+    ["--import", "tsx", join("packages", "render-cli", "src", "index.ts"), "rests"],
+    { cwd: repo, stdio: "inherit" },
+  );
+  if (r.status !== 0)
+    process.stdout.write(
+      "Rest heights not measured (TaleSpire not found?): run `npm run render -- rests` where it is installed.\n",
+    );
 }
 
 await main();

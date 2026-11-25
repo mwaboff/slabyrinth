@@ -36,6 +36,7 @@ import { wallish } from "./walls";
 import { elementRef, fmt, round2, round4, solidLabel } from "./words";
 import { maxOf } from "../../util/lists";
 import { baseInFloor, restsOn } from "../../util/sunk";
+import { restTop } from "../../palette/restSurface";
 
 /** The codes this file emits (VERIFY_CODES is the union of every check's list; lines.ts has its own). */
 export const PROP_CODES = [
@@ -104,6 +105,13 @@ function checkPropOverlaps({ ctx, solids, L }: PropLevel, props: readonly Solid[
       const idb = b.p.source.elementId ?? "";
       const key = ida < idb ? `${ida}|${idb}` : `${idb}|${ida}`;
       if (seenPair.has(key) || a.p.source.elementId === b.p.source.elementId) continue;
+      // generator 6 (restSurfaces): a piece set on the other's real top surface stands on it, inside its box but not in
+      // it (a candle on a workbench's work top, under the box's top at its raised back)
+      if (
+        ctx.profile.restSurfaces &&
+        (restsOn(a.p.y, surfaceTop(ctx, b)) || restsOn(b.p.y, surfaceTop(ctx, a)))
+      )
+        continue;
       const ox = overlap1(a.box.min.x, a.box.max.x, b.box.min.x, b.box.max.x);
       const oz = overlap1(a.box.min.z, a.box.max.z, b.box.min.z, b.box.max.z);
       const oy = overlap1(a.box.min.y, a.box.max.y, b.box.min.y, b.box.max.y);
@@ -314,6 +322,7 @@ function checkSupport(
   cz: number,
   pc: { px: number; py: number },
 ): void {
+  const top = (q: Solid): number => surfaceTop(ctx, q);
   const supports = solids
     .at(cx, cz, -Infinity, s.p.y + SUPPORT_SLACK, -0.01)
     .filter(
@@ -325,9 +334,9 @@ function checkSupport(
           q.role === "ledge" ||
           q.role === "link" ||
           q.role === "feature") &&
-        restsOn(s.p.y, q.box.max.y),
+        restsOn(s.p.y, top(q)),
     );
-  const support = supports.length ? maxOf(supports.map((q) => q.box.max.y)) : null;
+  const support = supports.length ? maxOf(supports.map(top)) : null;
   // a floor or fill piece crossing the thin slice just above the support slack, its body round the prop's base
   // (util/sunk.ts: the ground recipe sinks a piece no deeper than this)
   // (generator 5, `layeredGround`: an arranged piece sunk with its centre on the seam between two ground tiles is in
@@ -384,6 +393,14 @@ function checkSupport(
       message: `${solidLabel(s)} floats ${round2(s.p.y - support)} tiles above what is under it.`,
       hint: `Reduce the lift of feature ${s.p.source.elementId ?? ""}, or place it on a supporting feature (e.g. a table).`,
     });
+}
+
+/**
+ * The top surface a piece is set on: a feature's measured one from generator 6 (`restSurfaces`: a jug on a workbench
+ * stands on its work top, under the box's top at its raised back; palette/restSurface.ts), else the box's top.
+ */
+function surfaceTop(ctx: VerifyCtx, q: Solid): number {
+  return q.role === "feature" ? restTop(q.p.asset, q.box, ctx.profile.restSurfaces) : q.box.max.y;
 }
 
 /** A feature's footprint in world x and z. */

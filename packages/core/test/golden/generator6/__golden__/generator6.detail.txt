@@ -1473,11 +1473,11 @@ plans/chimney-lineup-v1@6 g pieces floor 568
 plans/chimney-lineup-v1@6 g pieces ledge 188
 plans/chimney-lineup-v1@6 g pieces opening 37
 plans/chimney-lineup-v1@6 g pieces wall 812
-plans/chimney-lineup-v1@6 g pieces wall_post 171
+plans/chimney-lineup-v1@6 g pieces wall_post 172
 plans/chimney-lineup-v1@6 g layer roof 549
 plans/chimney-lineup-v1@6 g layer site 1623
 plans/chimney-lineup-v1@6 g layer storey:0 415
-plans/chimney-lineup-v1@6 g layer storey:1 129
+plans/chimney-lineup-v1@6 g layer storey:1 130
 plans/chimney-lineup-v1@6 g part floor:floor.grass 352
 plans/chimney-lineup-v1@6 g part floor:floor.wood_plank 98
 plans/chimney-lineup-v1@6 g part h1~chimney 9
@@ -2065,11 +2065,11 @@ plans/condition-street-v1@6 g pieces ledge 192
 plans/condition-street-v1@6 g pieces link 1
 plans/condition-street-v1@6 g pieces opening 57
 plans/condition-street-v1@6 g pieces wall 798
-plans/condition-street-v1@6 g pieces wall_post 257
+plans/condition-street-v1@6 g pieces wall_post 260
 plans/condition-street-v1@6 g layer roof 423
 plans/condition-street-v1@6 g layer site 1300
 plans/condition-street-v1@6 g layer storey:0 538
-plans/condition-street-v1@6 g layer storey:1 351
+plans/condition-street-v1@6 g layer storey:1 354
 plans/condition-street-v1@6 g part breachRubble@face:B:fallen:main:0:out:S:27:48:op:fallen~breach0 18
 plans/condition-street-v1@6 g part fallen~floor1 10
 plans/condition-street-v1@6 g part fallen~footing 26
@@ -3910,7 +3910,7 @@ plans/heartroot-rift-v7@6 l1 feature wall_dressing 1
 plans/heartroot-rift-v7@6 diag info footprint_mismatch 10
 plans/heartroot-rift-v7@6 diag info landmark_short 1
 plans/heartroot-rift-v7@6 diag info verify_props_overlap 1
-plans/heartroot-rift-v7@6 diag warning verify_prop_floating 2
+plans/heartroot-rift-v7@6 diag warning verify_prop_floating 1
 plans/heartroot-rift-v7@6 review cave_rock_uncovered 1
 plans/heartroot-rift-v7@6 review cliff_unclad 1
 plans/heartroot-rift-v7@6 review cliff_unclad_low 1
@@ -5970,11 +5970,11 @@ plans/market-street-v3@6 g pieces floor 962
 plans/market-street-v3@6 g pieces ledge 144
 plans/market-street-v3@6 g pieces opening 69
 plans/market-street-v3@6 g pieces wall 1507
-plans/market-street-v3@6 g pieces wall_post 254
+plans/market-street-v3@6 g pieces wall_post 258
 plans/market-street-v3@6 g layer roof 1064
 plans/market-street-v3@6 g layer site 1634
 plans/market-street-v3@6 g layer storey:0 764
-plans/market-street-v3@6 g layer storey:1 234
+plans/market-street-v3@6 g layer storey:1 238
 plans/market-street-v3@6 g part apothecary~canopy 4
 plans/market-street-v3@6 g part apothecary~deck 10
 plans/market-street-v3@6 g part apothecary~door0 1

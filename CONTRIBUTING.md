@@ -58,3 +58,8 @@ surfaces, ways) put their findings in `index.json`, print a table per render (a 
 threads with the same output as one thread. `--compare generator:<n>`, `seed:<n>` or `<plan.json>` also builds each plan
 that way and writes `compare-<shot>.png` (before | after, same cameras) plus, with `--check`, the findings that are new,
 fixed and unchanged. Every option is checked before TaleSpire is looked for or anything is built.
+
+`npm run render -- rests` measures where things set on each piece of the bundled palettes' `feature.*` and `stall.*`
+roles rest (its real top surface, not its collider's top) and rewrites core's generated `palette/restHeights.ts`:
+numbers by asset id only. The palette import runs it when TaleSpire is installed; a test names any palette piece still
+to measure.

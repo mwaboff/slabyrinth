@@ -21,6 +21,7 @@ import { bundledPalettes } from "./load";
 import { createPlanRoles, type PlanRoles } from "./planRoles";
 import { themeChain, type ResolveOutcome, type ResolvePalettes, type VariantFilter } from "./resolve";
 import { CLIFF_CREST_ROLE, CLIFF_FACE_ROLE, floorRole } from "./roles";
+import { restHeight } from "./restSurface";
 import { coveredStallForms, roleProbe, type RoleProbe } from "./stallParts";
 import { TONE_RANK, variantTone, type Tone } from "./tones";
 import { maxOf, minOf } from "../util/lists";
@@ -32,7 +33,7 @@ export type PieceSizeFn = (
   real?: boolean,
   /** Only the variants of this name (a market stall's bare table: `stall` + "empty"). */
   variant?: string,
-) => { w: number; d: number; h: number } | undefined;
+) => { w: number; d: number; h: number; rest: number } | undefined;
 
 /** Generator 4, room recipes: the smallest variant of a feature type's piece (of one variant name when given) in a theme. */
 export type RoomPieceFn = (
@@ -47,6 +48,12 @@ export type RoomPieceFn = (
       wMax: number;
       dMax: number;
       hMax: number;
+      /**
+       * Where a thing set on it stands, above its bottom, lowest and highest of the variants: the real top surface
+       * (palette/restSurface.ts; generator 6, `restSurfaces`), else the box top (`h`, `hMax`).
+       */
+      rest: number;
+      restMax: number;
       tile: boolean;
       mixed: boolean;
     }
@@ -122,6 +129,10 @@ export function createPaletteView(
   generator: number = GENERATOR_VERSION,
 ): PaletteView {
   const roles = createPlanRoles(catalog, generator);
+  // generator 6 (restSurfaces): a thing set on a piece stands on its measured top surface, not its box top
+  const measuredRests = generatorProfile(generator).restSurfaces;
+  const restOf = (q: { uuid: string; geom: { size: { y: number } } }): number =>
+    restHeight(q.uuid, q.geom.size.y, measuredRests);
   const resolver = (theme: ThemeId, role: string, filter?: VariantFilter): ResolveOutcome =>
     roles.resolve(theme, role, filter);
   const probe = (theme: ThemeId): RoleProbe => roleProbe(resolver, theme);
@@ -147,6 +158,8 @@ export function createPaletteView(
       wMax: maxOf(vs.map((q) => q.geom.size.x)),
       dMax: maxOf(vs.map((q) => q.geom.size.z)),
       hMax: maxOf(vs.map((q) => q.geom.size.y)),
+      rest: minOf(vs.map(restOf)),
+      restMax: maxOf(vs.map(restOf)),
       tile: tiles === vs.length,
       mixed: tiles > 0 && tiles < vs.length,
     };
@@ -163,6 +176,7 @@ export function createPaletteView(
         w: minOf(vs.map((q) => q.geom.size.x)),
         d: minOf(vs.map((q) => q.geom.size.z)),
         h: minOf(vs.map((q) => q.geom.size.y)),
+        rest: minOf(vs.map(restOf)),
       };
     }
     const role = ROLE_OF[type];
@@ -170,8 +184,8 @@ export function createPaletteView(
     const res = resolver(theme, role).resolution;
     const v = res?.variants.find((q) => q.weight > 0) ?? res?.variants[0];
     if (!v) return undefined;
-    if (real === true) return { w: v.geom.size.x, d: v.geom.size.z, h: v.geom.size.y };
-    return { w: v.footprint[0], d: v.footprint[1], h: v.geom.size.y };
+    if (real === true) return { w: v.geom.size.x, d: v.geom.size.z, h: v.geom.size.y, rest: restOf(v) };
+    return { w: v.footprint[0], d: v.footprint[1], h: v.geom.size.y, rest: restOf(v) };
   };
 
   const stallForms: StallFormsFn = (theme) => coveredStallForms(probe(theme));

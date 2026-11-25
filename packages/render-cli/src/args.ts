@@ -3,7 +3,7 @@
 export class UsageError extends Error {}
 
 /** Flags that take no value. */
-const BOOLEAN = new Set(["boxes", "persp", "ortho", "no-roofs", "json", "sheet", "help", "check"]);
+const BOOLEAN = new Set(["boxes", "persp", "ortho", "no-roofs", "json", "sheet", "help", "check", "dry"]);
 
 export interface Args {
   _: string[];
