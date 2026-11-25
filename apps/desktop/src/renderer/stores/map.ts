@@ -29,8 +29,11 @@ export const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];
 export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 4;
 
+/** The stage tabs: Map · 3D · Build (design 4.1). */
+export type StageTab = "map" | "3d" | "build";
+
 interface MapState {
-  tab: "map" | "build";
+  tab: StageTab;
   levelId: string | null;
   zoom: number;
   /** Pixel offset of cell (0,0) in canvas CSS px. */
@@ -57,7 +60,7 @@ interface MapState {
   issuesOpen: boolean;
   setIssues: (i: UiIssue[]) => void;
   setIssuesOpen: (open: boolean) => void;
-  setTab: (t: "map" | "build") => void;
+  setTab: (t: StageTab) => void;
   setLevel: (id: string) => void;
   setView: (zoom: number, pan: [number, number]) => void;
   requestFit: () => void;

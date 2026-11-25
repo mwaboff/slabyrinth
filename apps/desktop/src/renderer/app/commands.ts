@@ -127,6 +127,16 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    id: "tab3d",
+    group: "View",
+    label: "3D",
+    keys: "Ctrl+3",
+    enabled: () => inProject() && hasPlan(),
+    run: () => {
+      useMap.getState().setTab("3d");
+    },
+  },
+  {
     id: "tabBuild",
     group: "View",
     label: "Build",

@@ -21,6 +21,7 @@ import { IssuesChip } from "./Issues";
 import { HistoryPanel } from "./HistoryPanel";
 import { PngExport } from "./PngExport";
 import { BuildView, BuildToolbar } from "../build/BuildView";
+import { View3dStage } from "../view3d/View3dStage";
 import { briefSummary } from "../chat/BriefCard";
 import { runPhase, useRunPhase, verb } from "../chat/activity";
 import { AddonIndicator } from "../talespire/AddonParts";
@@ -97,6 +98,18 @@ function StageBar({ plan }: { plan: MapPlan | null }) {
           title="Map (Ctrl+1)"
         >
           Map
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === "3d"}
+          aria-disabled={plan === null}
+          className={`tab${tab === "3d" ? " tab--on" : ""}${plan === null ? " tab--disabled" : ""}`}
+          title={plan !== null ? "3D (Ctrl+3)" : "3D shows the map once there's a plan"}
+          onClick={() => {
+            if (plan !== null) setTab("3d");
+          }}
+        >
+          3D
         </button>
         <button
           role="tab"
@@ -827,6 +840,8 @@ export function MapContent({ plan, version }: { plan: MapPlan; version: number }
 export function Stage() {
   const snap = useProject((s) => s.snap);
   const tab = useMap((s) => s.tab);
+  // 3D shows the version being viewed on the Map (head, or the one previewed from history)
+  const previewVersion = useMap((s) => s.previewVersion);
   const plan = snap?.plan ?? null;
   const phase = phaseOf(snap);
   // Below 1500 px the room key starts collapsed (UX §3.2).
@@ -849,6 +864,8 @@ export function Stage() {
           </div>
           <EmptyStage />
         </>
+      ) : tab === "3d" ? (
+        <View3dStage plan={plan} version={previewVersion ?? snap?.head ?? 0} />
       ) : (
         <>
           <MapToolbar plan={plan} version={snap?.head ?? 0} />

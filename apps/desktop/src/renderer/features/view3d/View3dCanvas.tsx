@@ -13,6 +13,7 @@ import {
   type PickInfo,
   type View3dApi,
   type View3dError,
+  type View3dEvents,
   type View3dState,
   type ViewStats,
 } from "./engine/engine";
@@ -33,8 +34,14 @@ export interface View3dCanvasProps {
   onPick?: (p: PickInfo | null) => void;
   onHover?: (p: PickInfo | null) => void;
   onFrame?: (s: ViewStats) => void;
+  /** A new header: the first scene, or the detailed one that replaced the boxes scene. */
+  onHeader?: (h: View3dEvents["header"]) => void;
+  /** Mesh detail streaming: resident of those with detail, and requests in flight. */
+  onDetail?: (d: View3dEvents["detail"]) => void;
   /** The canvas's accessible name (default "3D view of the map"). */
   label?: string;
+  /** Id of the element that says how to move (the canvas's accessible description). */
+  describedBy?: string;
   maxDpr?: number;
   keyBindings?: KeyBindings;
   options?: EngineOptions;
@@ -107,6 +114,8 @@ export function View3dCanvas(props: View3dCanvasProps): React.JSX.Element {
       eng.on("pick", (p) => latest.current.onPick?.(p)),
       eng.on("hover", (p) => latest.current.onHover?.(p)),
       eng.on("frame", (s) => latest.current.onFrame?.(s)),
+      eng.on("header", (h) => latest.current.onHeader?.(h)),
+      eng.on("detail", (d) => latest.current.onDetail?.(d)),
     ];
     if (failure) eng.fail(failure);
     const detach = attachInput(el, eng, () => latest.current.keyBindings ?? KEYS);
@@ -162,6 +171,7 @@ export function View3dCanvas(props: View3dCanvasProps): React.JSX.Element {
         role="application"
         aria-label={label ?? "3D view of the map"}
         aria-roledescription="3D view"
+        aria-describedby={props.describedBy}
         tabIndex={0}
         hidden={error !== null && (error.code === "no-webgl2" || error.code === "init-failed")}
       />

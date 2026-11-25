@@ -22,10 +22,10 @@ export function Workspace() {
   const zoom = useMap((s) => s.zoom);
   const pan = useMap((s) => s.pan);
 
-  // resume state (UX §8.9): tab, level, zoom/pan, chat width
+  // resume state (UX §8.9): tab, level, zoom/pan, chat width (the saved file knows Map and Build: 3D resumes as Map)
   useEffect(() => {
     saveUi({
-      tab,
+      tab: tab === "3d" ? "map" : tab,
       ...(levelId !== null ? { levelId } : {}),
       zoom,
       pan: [Math.round(pan[0]), Math.round(pan[1])],

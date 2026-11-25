@@ -1,7 +1,8 @@
 /**
  * Mouse and keyboard on the viewer's canvas. Mouse: left drag orbits, right drag or Shift + left drag pans, the wheel
  * zooms toward the point under the cursor, a click (no drag) picks and selects, hovering reports the piece under the
- * pointer (once per frame at most). Keyboard (canvas focused): the KEYS table, which the surface may replace.
+ * pointer (once per frame at most). Keyboard (canvas focused): the KEYS table, which the surface may replace; arrows
+ * turn and tilt (Shift: pan) as the design's keyboard map says, so they never fight WASD.
  */
 import type { View3dEngine } from "./engine/engine";
 
@@ -12,6 +13,10 @@ export type KeyAction =
   | "right"
   | "up"
   | "down"
+  | "turnLeft"
+  | "turnRight"
+  | "tiltUp"
+  | "tiltDown"
   | "zoomIn"
   | "zoomOut"
   | "frameAll"
@@ -19,14 +24,21 @@ export type KeyAction =
   | "topDown"
   | "clearSelection";
 
-/** Keys (KeyboardEvent.key, lower case) per action. Shift makes moves faster. */
+/**
+ * Keys (KeyboardEvent.key, lower case) per action. Shift makes moves faster, and makes the turn keys pan instead
+ * (design 4.2: arrows turn and tilt, Shift+arrows pan; WASD flies, Q/E down and up).
+ */
 export type KeyBindings = Readonly<Record<KeyAction, readonly string[]>>;
 
 export const KEYS: KeyBindings = {
-  forward: ["w", "arrowup"],
-  back: ["s", "arrowdown"],
-  left: ["a", "arrowleft"],
-  right: ["d", "arrowright"],
+  forward: ["w"],
+  back: ["s"],
+  left: ["a"],
+  right: ["d"],
+  turnLeft: ["arrowleft"],
+  turnRight: ["arrowright"],
+  tiltUp: ["arrowup"],
+  tiltDown: ["arrowdown"],
   up: ["e"],
   down: ["q"],
   zoomIn: ["+", "="],
@@ -54,6 +66,9 @@ export function moveOf(held: ReadonlySet<KeyAction>): { forward: number; right: 
 const DRAG_PX = 4;
 const ORBIT_DEG_PER_PX = 0.3;
 const ZOOM_STEP = 1.25;
+/** One press of a turn key: degrees turned or tilted, or (with Shift) pixels panned. */
+const TURN_DEG = 10;
+const PAN_PX = 60;
 
 /** Wires the canvas's input to the engine; returns the undo. */
 export function attachInput(
@@ -147,6 +162,16 @@ export function attachInput(
         held.add(action);
         updateMove();
         return;
+      case "turnLeft":
+      case "turnRight":
+      case "tiltUp":
+      case "tiltDown": {
+        const sx = action === "turnLeft" ? -1 : action === "turnRight" ? 1 : 0;
+        const sy = action === "tiltUp" ? 1 : action === "tiltDown" ? -1 : 0;
+        if (e.shiftKey) engine.pan(-sx * PAN_PX, sy * PAN_PX);
+        else engine.orbit(sx * TURN_DEG, sy * TURN_DEG);
+        return;
+      }
       case "zoomIn":
         engine.zoom(1 / ZOOM_STEP);
         return;

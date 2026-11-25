@@ -1,0 +1,108 @@
+/* The 3D tab, plain first cut (provisional: a design pass shapes the final surface). Theme tokens only. */
+.v3stage {
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.v3tools__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s6);
+}
+
+.v3tools__hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.v3notes {
+  position: absolute;
+  left: var(--s12);
+  bottom: var(--s12);
+  right: var(--s12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s6);
+  pointer-events: none;
+}
+
+.v3notes__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s8);
+  max-width: 100%;
+  padding: var(--s4) var(--s10);
+  border-radius: var(--r-6);
+  background: var(--surface-2);
+  border: var(--line-w) solid var(--line);
+  font: var(--t-small);
+  color: var(--ink-2);
+  pointer-events: auto;
+}
+
+.v3read {
+  position: absolute;
+  top: var(--s12);
+  right: var(--s12);
+  max-width: 320px;
+  padding: var(--s8) var(--s12);
+  border-radius: var(--r-8);
+  background: var(--surface-2);
+  border: var(--line-w) solid var(--line);
+  box-shadow: var(--shadow-pop);
+  font: var(--t-small);
+  color: var(--ink-2);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+}
+
+.v3read p {
+  margin: 0;
+}
+
+.v3read__what b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.v3stage__retry {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + var(--s32));
+  transform: translateX(-50%);
+}
+
+.v3still {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s8);
+  padding: var(--s12);
+  font: var(--t-small);
+  color: var(--ink-2);
+}
+
+.v3still__why {
+  margin: 0;
+  text-align: center;
+}
+
+.v3still__img {
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
