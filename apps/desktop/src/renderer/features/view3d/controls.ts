@@ -24,12 +24,21 @@ export const KEY_CONTROLS: readonly ControlRow[] = [
   { keys: "+ · −", does: "Zoom in · out" },
   { keys: "0 or Home", does: "Frame the whole map" },
   { keys: "T", does: "Look straight down" },
+  { keys: "Enter", does: "See what is in the middle of the view" },
   { keys: "F", does: "Frame the clicked piece" },
   { keys: "Esc", does: "Clear the clicked piece" },
   { keys: "R", does: "Roofs on or off" },
   { keys: "PgUp · PgDn", does: "Show more or fewer levels" },
 ];
 
-/** The short version, for the canvas's accessible description and the hint. */
+/** The first-use hint's four moves. */
+export const HINT_MOVES: ReadonlyArray<readonly [what: string, does: string]> = [
+  ["Drag", "to turn"],
+  ["Right-drag", "to move"],
+  ["Wheel", "to zoom"],
+  ["Click a piece", "to see what it is"],
+];
+
+/** The short version, for the canvas's accessible description. */
 export const MOVE_SUMMARY =
-  "Drag to turn, right-drag to move, wheel to zoom, click a piece to see what it is. With the view focused: W A S D to fly, arrows to turn, R for roofs.";
+  "Drag to turn, right-drag to move, wheel to zoom, click a piece to see what it is. With the view focused: W A S D to fly, arrows to turn, Enter to see what is in the middle, R for roofs.";

@@ -76,7 +76,9 @@ describe("the 3D tab", () => {
     await ready(backend);
     const hint = screen.getByRole("region", { name: "About the 3D view" });
     expect(hint).toHaveTextContent("This is what TaleSpire will get");
-    expect(hint).toHaveTextContent(/Drag turn around the map/);
+    expect(hint).toHaveTextContent(
+      /Drag to turn.*Right-drag to move.*Wheel to zoom.*Click a piece to see what it is/,
+    );
     await userEvent.click(within(hint).getByRole("button", { name: "Got it" }));
     expect(screen.queryByRole("region", { name: "About the 3D view" })).toBeNull();
     unmount();
@@ -345,10 +347,10 @@ describe("the clicked piece", () => {
     if (!level || !room) throw new Error("the fixture has a named room");
     return {
       id: 1,
-      name: "Stone wall",
+      name: "iron_door_02",
       meshKey: "box:x",
-      colourClass: "wall",
-      classLabel: "Wall",
+      colourClass: "opening",
+      classLabel: "Door, window, gate",
       levelId: level.id,
       levelIndex: 0,
       levelName: level.name,
@@ -379,8 +381,10 @@ describe("the clicked piece", () => {
       />,
     );
     const r = screen.getByRole("region", { name: "Selected piece" });
-    expect(r).toHaveTextContent("Door, window or gate");
-    expect(r).toHaveTextContent("Stone wall");
+    // the kind as the colour key names it, and the piece's name in words
+    expect(r).toHaveTextContent("Door, window, gate");
+    expect(r).toHaveTextContent("Iron door");
+    expect(r).not.toHaveTextContent("iron_door");
     expect(r).toHaveTextContent(
       `${levelShort(plan, level?.id ?? "")} ${level?.name ?? ""} · ${room?.name ?? ""} · square H12`,
     );
@@ -417,7 +421,7 @@ describe("the clicked piece", () => {
     render(
       <Readout
         plan={plan}
-        pick={pickIn(plan, { elementId: null, role: "floor" })}
+        pick={pickIn(plan, { elementId: null, role: "floor", colourClass: "floor", classLabel: "Floor" })}
         allBoxes={false}
         onClear={() => undefined}
       />,

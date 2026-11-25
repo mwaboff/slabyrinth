@@ -15,9 +15,8 @@ import { useView3d } from "../../stores/view3d";
 import { useDismiss } from "../../ui/dismiss";
 import { Icon, type IconName } from "../../ui/Icon";
 import { showIssue } from "../stage/Issues";
-import { KEY_CONTROLS, MOUSE_CONTROLS, type ControlRow } from "./controls";
+import { HINT_MOVES, KEY_CONTROLS, MOUSE_CONTROLS, type ControlRow } from "./controls";
 import { classColourCss, type PickInfo, type View3dApi } from "./engine/engine";
-import { roleWords } from "./engine/roles";
 import type { SceneHeader } from "./sceneSource";
 
 const css = (rgb: readonly number[]): string => `rgb(${rgb.join(", ")})`;
@@ -68,6 +67,16 @@ function squareOf(plan: MapPlan, p: PickInfo): string | null {
 
 // ───────────── the clicked piece ─────────────
 
+/** A piece's catalog name as words: "cherryblossom_flowers_01" → "Cherryblossom flowers"; "Stone Wall" stays. */
+export function pieceName(raw: string): string {
+  if (!raw.includes("_")) return raw;
+  const words = raw
+    .replace(/_+/g, " ")
+    .replace(/\s+\d+$/, "")
+    .trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 /** What the clicked piece is (its kind, name, level, plan element, square), with Show on map and Mention in chat. */
 export function Readout({
   plan,
@@ -81,7 +90,9 @@ export function Readout({
   allBoxes: boolean;
   onClear: () => void;
 }) {
-  const what = roleWords(pick.role) ?? pick.classLabel;
+  // the kind as the colour key names it (the swatch beside it is the same colour)
+  const what = pick.classLabel;
+  const name = pieceName(pick.name);
   const el = pick.elementId !== null ? elementOf(plan, pick.elementId) : null;
   const square = squareOf(plan, pick);
   const short = levelShort(plan, pick.levelId);
@@ -111,7 +122,7 @@ export function Readout({
           <Icon name="x" size="sm" />
         </button>
       </div>
-      {pick.name !== "" && <p className="v3sel__name">{pick.name}</p>}
+      {name !== "" && name.toLowerCase() !== what.toLowerCase() && <p className="v3sel__name">{name}</p>}
       <p className="v3sel__where">{where}</p>
       {pick.stand === "box" && !allBoxes && (
         <p className="v3sel__note">Shown as a box of its real size until its 3D piece is read.</p>
@@ -180,7 +191,7 @@ export function ColourKey({
           <Icon name="right" />
         </button>
       </div>
-      <p className="v3key__lead">Plain colours by kind of piece. Untick a kind to hide it.</p>
+      <p className="v3key__lead">Untick a kind of piece to hide it.</p>
       {rows.length === 0 ? (
         <p className="v3key__lead muted">The kinds of piece appear here once the map is laid out.</p>
       ) : (
@@ -270,14 +281,14 @@ export function HintCard({ version, hasKey }: { version: number; hasKey: boolean
         above or hide the roofs.
       </p>
       <ul className="v3hint__moves">
-        {MOUSE_CONTROLS.map((r) => (
-          <li key={r.keys}>
-            <b>{r.keys}</b> {r.does.toLowerCase()}
+        {HINT_MOVES.map(([what, does]) => (
+          <li key={what}>
+            <b>{what}</b> {does}
           </li>
         ))}
       </ul>
       <div className="v3hint__actions">
-        <button className="btn btn--sm" autoFocus={false} onClick={dismiss}>
+        <button className="btn btn--sm" onClick={dismiss}>
           Got it
         </button>
         <button

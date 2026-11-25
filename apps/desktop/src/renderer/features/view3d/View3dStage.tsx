@@ -354,7 +354,21 @@ export function View3dStage({
       <div
         className={`v3content${!showKey ? " v3content--nokey" : keyCollapsed ? " v3content--keyless" : ""}`}
       >
-        <div className="v3stage">
+        <div
+          className="v3stage"
+          onKeyDown={(e) => {
+            if (!(e.target instanceof HTMLCanvasElement) || !api.current) return;
+            // Esc clears the engine's selection on the canvas; the card goes with it
+            if (e.key === "Escape") setPick(null);
+            // Enter on the focused view: what is in the middle of it (the keyboard's click)
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            const r = e.target.getBoundingClientRect();
+            const p = api.current.pickAt(r.left + r.width / 2, r.top + r.height / 2);
+            api.current.select(p ? p.id : null);
+            setPick(p);
+          }}
+        >
           <p id="v3-move" className="sr-only">
             {MOVE_SUMMARY}
           </p>
