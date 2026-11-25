@@ -1,5 +1,5 @@
 /** The game-file readers on synthetic files built in test code (no game bytes): containers, LZMA, LZ4, type trees. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DecodeError, UnsupportedFormat, meshBox } from "../src/index";
 import { lz4BlockDecompress } from "../src/unity/lz4";
 import { lzmaDecompress } from "../src/unity/lzma";
@@ -73,6 +73,19 @@ describe("UnityFS + serialized file + prefab", () => {
     expect(b.min).toEqual({ x: 2, y: 0, z: 3 });
     expect(b.max).toEqual({ x: 4, y: 3, z: 5 });
     expect(findPrefabRoot(lb, "missing")).toBeUndefined();
+  });
+
+  it("reads a bundle's names once however many prefabs are asked of it", () => {
+    const many = Array.from({ length: 40 }, (_, k) =>
+      cratePrefab(`p${String(k)}`, [k, 0, 0], BigInt(k + 1)),
+    ).flat();
+    const lb = new LoadedBundle(unityFsBundle([{ path: "CAB-x", data: serializedFile(many) }]));
+    const spy = vi.spyOn(lb, "get");
+    const scans = vi.spyOn(lb, "objectsOf");
+    for (let k = 0; k < 40; k++) expect(findPrefabRoot(lb, `P${String(k)}`)).toBe(BigInt(k + 1) * 100n + 1n);
+    // one pass over the objects (and each root's transform), not one pass per name
+    expect(scans.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(spy.mock.calls.length).toBeLessThan(many.length * 2);
   });
 
   it("refuses formats it was not written for (the source turns this into boxes)", () => {

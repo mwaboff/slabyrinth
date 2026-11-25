@@ -144,9 +144,20 @@ function componentOf(lb: LoadedBundle, go: Obj, classId: number): { id: bigint; 
   return undefined;
 }
 
-/** The prefab root GameObject for an index asset name: the bundle's container entry, else a root GameObject by name. */
-export function findPrefabRoot(lb: LoadedBundle, assetName: string): bigint | undefined {
-  const want = assetName.toLowerCase();
+/** A bundle's names, read once: its container's prefab entries and its GameObjects, by lower-cased name. */
+interface BundleNames {
+  /** Container entry base name → the prefab's root (the first entry of a name wins). */
+  container: Map<string, bigint>;
+  /** GameObject name → its ids, in the bundle's order. */
+  objects: Map<string, bigint[]>;
+}
+
+const NAMES = new WeakMap<LoadedBundle, BundleNames>();
+
+function bundleNames(lb: LoadedBundle): BundleNames {
+  let names = NAMES.get(lb);
+  if (names) return names;
+  names = { container: new Map(), objects: new Map() };
   for (const ab of lb.objectsOf(CLASS.AssetBundle)) {
     const bundle = lb.get(ab.pathId);
     if (!bundle) continue;
@@ -154,14 +165,34 @@ export function findPrefabRoot(lb: LoadedBundle, assetName: string): bigint | un
       const path = str(e, "first").toLowerCase();
       if (!path.endsWith(".prefab")) continue;
       const base = path.slice(path.lastIndexOf("/") + 1, -".prefab".length);
-      if (base === want) return pptr(obj(e, "second"), "asset");
+      if (!names.container.has(base)) names.container.set(base, pptr(obj(e, "second"), "asset"));
     }
   }
   for (const o of lb.objectsOf(CLASS.GameObject)) {
     const go = lb.get(o.pathId);
-    if (!go || str(go, "m_Name").toLowerCase() !== want) continue;
-    const tr = componentOf(lb, go, CLASS.Transform);
-    if (tr && pptr(tr.o, "m_Father") === 0n) return o.pathId;
+    if (!go) continue;
+    const name = str(go, "m_Name").toLowerCase();
+    const list = names.objects.get(name);
+    if (list) list.push(o.pathId);
+    else names.objects.set(name, [o.pathId]);
+  }
+  NAMES.set(lb, names);
+  return names;
+}
+
+/**
+ * The prefab root GameObject for an index asset name: the bundle's container entry, else a root GameObject by name.
+ * The bundle's names are read once (a bundle is asked for many prefabs), so each look-up is a map read.
+ */
+export function findPrefabRoot(lb: LoadedBundle, assetName: string): bigint | undefined {
+  const want = assetName.toLowerCase();
+  const names = bundleNames(lb);
+  const listed = names.container.get(want);
+  if (listed !== undefined) return listed;
+  for (const id of names.objects.get(want) ?? []) {
+    const go = lb.get(id);
+    const tr = go ? componentOf(lb, go, CLASS.Transform) : undefined;
+    if (tr && pptr(tr.o, "m_Father") === 0n) return id;
   }
   return undefined;
 }
