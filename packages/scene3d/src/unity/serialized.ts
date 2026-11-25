@@ -4,6 +4,7 @@
  * builds are absorbed. A file without type trees, or of another format version, throws UnsupportedFormat.
  */
 import { strFromU8 } from "fflate";
+import { checkedCount, checkedRange } from "./bounded";
 import { DecodeError, UnsupportedFormat } from "./errors";
 
 /** Serialized-file versions read and checked. */
@@ -61,100 +62,134 @@ const COMMON_STRINGS = (() => {
 const ALIGN = 0x4000;
 const utf8 = { decode: (b: Uint8Array): string => strFromU8(b) };
 
+/**
+ * A reading position over `b` that never leaves [start, end): every read, skip and seek is checked first (unity/bounded.ts:
+ * a size or offset from the file is a claim), so a negative or oversized field is a DecodeError, never a rewind or a
+ * read of the wrong bytes. Alignment stays on the file's own positions, as Unity writes it.
+ */
 class Cursor {
-  p = 0;
+  private pos: number;
   private readonly dv: DataView;
+  readonly end: number;
   constructor(
     readonly b: Uint8Array,
     public little: boolean,
+    start = 0,
+    end = b.length,
   ) {
     this.dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    checkedRange("serialized file", start, end - start, b.length);
+    this.pos = start;
+    this.end = end;
+  }
+  get p(): number {
+    return this.pos;
+  }
+  /** Moves to `to`, which must be inside the cursor's range. */
+  seek(to: number): void {
+    if (!Number.isSafeInteger(to) || to < 0 || to > this.end)
+      throw new DecodeError(`serialized file: position ${String(to)} is outside the data`);
+    this.pos = to;
+  }
+  /** Bytes left before the end. */
+  get left(): number {
+    return this.end - this.pos;
   }
   need(n: number): void {
-    if (n < 0 || this.p + n > this.b.length) throw new DecodeError("serialized file: read past the end");
+    if (!Number.isSafeInteger(n) || n < 0 || this.pos + n > this.end)
+      throw new DecodeError("serialized file: read past the end");
+  }
+  skip(n: number): void {
+    this.need(n);
+    this.pos += n;
   }
   align4(): void {
-    this.p = (this.p + 3) & ~3;
+    this.seek(Math.min(this.end, (this.pos + 3) & ~3));
   }
   u8(): number {
     this.need(1);
-    return this.b[this.p++] ?? 0;
+    return this.b[this.pos++] ?? 0;
   }
   i8(): number {
     this.need(1);
-    return this.dv.getInt8(this.p++);
+    return this.dv.getInt8(this.pos++);
   }
   u16(): number {
     this.need(2);
-    const v = this.dv.getUint16(this.p, this.little);
-    this.p += 2;
+    const v = this.dv.getUint16(this.pos, this.little);
+    this.pos += 2;
     return v;
   }
   i16(): number {
     this.need(2);
-    const v = this.dv.getInt16(this.p, this.little);
-    this.p += 2;
+    const v = this.dv.getInt16(this.pos, this.little);
+    this.pos += 2;
     return v;
   }
   u32(): number {
     this.need(4);
-    const v = this.dv.getUint32(this.p, this.little);
-    this.p += 4;
+    const v = this.dv.getUint32(this.pos, this.little);
+    this.pos += 4;
     return v;
   }
   i32(): number {
     this.need(4);
-    const v = this.dv.getInt32(this.p, this.little);
-    this.p += 4;
+    const v = this.dv.getInt32(this.pos, this.little);
+    this.pos += 4;
     return v;
   }
   i64(): bigint {
     this.need(8);
-    const v = this.dv.getBigInt64(this.p, this.little);
-    this.p += 8;
+    const v = this.dv.getBigInt64(this.pos, this.little);
+    this.pos += 8;
     return v;
   }
   u64(): bigint {
     this.need(8);
-    const v = this.dv.getBigUint64(this.p, this.little);
-    this.p += 8;
+    const v = this.dv.getBigUint64(this.pos, this.little);
+    this.pos += 8;
     return v;
   }
   f32(): number {
     this.need(4);
-    const v = this.dv.getFloat32(this.p, this.little);
-    this.p += 4;
+    const v = this.dv.getFloat32(this.pos, this.little);
+    this.pos += 4;
     return v;
   }
   f64(): number {
     this.need(8);
-    const v = this.dv.getFloat64(this.p, this.little);
-    this.p += 8;
+    const v = this.dv.getFloat64(this.pos, this.little);
+    this.pos += 8;
     return v;
   }
   bytes(n: number): Uint8Array {
     this.need(n);
-    const v = this.b.subarray(this.p, this.p + n);
-    this.p += n;
+    const v = this.b.subarray(this.pos, this.pos + n);
+    this.pos += n;
     return v;
   }
   cstr(): string {
-    let e = this.p;
-    while (e < this.b.length && this.b[e] !== 0) e++;
-    if (e >= this.b.length) throw new DecodeError("serialized file: unterminated string");
-    const s = utf8.decode(this.b.subarray(this.p, e));
-    this.p = e + 1;
+    let e = this.pos;
+    while (e < this.end && this.b[e] !== 0) e++;
+    if (e >= this.end) throw new DecodeError("serialized file: unterminated string");
+    const s = utf8.decode(this.b.subarray(this.pos, e));
+    this.pos = e + 1;
     return s;
   }
 }
 
+/** Bytes of one type-tree node record (format ≥ 19). */
+const NODE_BYTES = 32;
+/** The fewest bytes a type record can take (class id, stripped, script index, hash, two empty counts, no deps). */
+const TYPE_MIN_BYTES = 4 + 1 + 2 + 16 + 4 + 4 + 4;
+/** Bytes of one object-table record (path id, start, size, type index; before its alignment). */
+const OBJECT_BYTES = 8 + 8 + 4 + 4;
+
 function readTypeTree(c: Cursor): TypeNode[] {
-  const nodeCount = c.i32();
+  const nodeCount = checkedCount("type tree nodes", c.i32(), NODE_BYTES, c.left);
   const strSize = c.i32();
-  const nodeSize = 32; // format ≥ 19
-  if (nodeCount < 0 || strSize < 0) throw new DecodeError("serialized file: bad type tree");
-  const strAt = c.p + nodeCount * nodeSize;
-  c.need(nodeCount * nodeSize + strSize);
+  const strAt = c.p + nodeCount * NODE_BYTES;
+  c.need(nodeCount * NODE_BYTES + strSize);
   const strBuf = c.b.subarray(strAt, strAt + strSize);
   const str = (off: number): string => {
     if (off & 0x80000000) return COMMON_STRINGS.get(off & 0x7fffffff) ?? `common@${off & 0x7fffffff}`;
@@ -175,7 +210,7 @@ function readTypeTree(c: Cursor): TypeNode[] {
     c.u64(); // ref type hash
     nodes.push({ type: str(typeOff), name: str(nameOff), level, metaFlag });
   }
-  c.p = strAt + strSize;
+  c.seek(strAt + strSize);
   return nodes;
 }
 
@@ -190,31 +225,29 @@ export function readSerializedFile(b: Uint8Array): SerializedFile {
       `serialized file version ${version} (known: ${SERIALIZED_VERSIONS.join(", ")})`,
     );
   const bigEndian = h.u8() !== 0;
-  h.p += 3;
+  h.skip(3);
   h.u32(); // metadata size
   h.i64(); // file size
-  const dataOffset = Number(h.i64());
+  const dataOffset = checkedRange("serialized file data", Number(h.i64()), 0, b.length);
   h.i64();
-  const c = new Cursor(b, !bigEndian);
-  c.p = h.p;
+  const c = new Cursor(b, !bigEndian, h.p);
   const unityVersion = c.cstr();
   c.i32(); // target platform
   const typeTreeEnabled = c.u8() !== 0;
   if (!typeTreeEnabled) throw new UnsupportedFormat("serialized file without type trees");
-  const typeCount = c.i32();
+  const typeCount = checkedCount("serialized file types", c.i32(), TYPE_MIN_BYTES, c.left);
   const types: SerializedType[] = [];
   for (let i = 0; i < typeCount; i++) {
     const classId = c.i32();
     c.u8(); // stripped
     c.i16(); // script type index
-    if (classId === 114) c.bytes(16); // script id
-    c.bytes(16); // old type hash
+    if (classId === 114) c.skip(16); // script id
+    c.skip(16); // old type hash
     const nodes = readTypeTree(c);
-    const deps = c.i32();
-    c.p += 4 * deps;
+    c.skip(4 * checkedCount("type dependencies", c.i32(), 4, c.left));
     types.push({ classId, nodes });
   }
-  const objCount = c.i32();
+  const objCount = checkedCount("serialized file objects", c.i32(), OBJECT_BYTES, c.left);
   const objects: ObjectInfo[] = [];
   for (let i = 0; i < objCount; i++) {
     c.align4();
@@ -222,19 +255,70 @@ export function readSerializedFile(b: Uint8Array): SerializedFile {
     const byteStart = Number(c.i64());
     const byteSize = c.u32();
     const typeIndex = c.i32();
+    checkedRange("serialized object", dataOffset + byteStart, byteSize, b.length);
     objects.push({ pathId, byteStart, byteSize, typeIndex, classId: types[typeIndex]?.classId ?? -1 });
   }
   return { version, unityVersion, bigEndian, types, objects, data: b, dataOffset };
 }
 
-/** Reads one object through its type tree into plain values. */
+/**
+ * The fewest bytes a value of type node `i` takes in the stream (0 for a node of no fixed part), memoised in `memo`:
+ * an array's count is checked against it, so a count claiming more items than the bytes left could hold is refused.
+ */
+function minBytes(
+  nodes: readonly TypeNode[],
+  kids: (i: number) => number[],
+  i: number,
+  memo: Map<number, number>,
+): number {
+  const known = memo.get(i);
+  if (known !== undefined) return known;
+  const n = nodes[i];
+  let v = 0;
+  if (n && (n.type === "string" || n.type === "TypelessData" || n.type === "Array")) v = 4;
+  else if (n) {
+    const ks = kids(i);
+    v =
+      ks.length === 0
+        ? (PRIM_BYTES[n.type] ?? 0)
+        : ks.reduce((s, k) => s + minBytes(nodes, kids, k, memo), 0);
+  }
+  memo.set(i, v);
+  return v;
+}
+
+const PRIM_BYTES: Readonly<Record<string, number>> = {
+  SInt8: 1,
+  UInt8: 1,
+  char: 1,
+  bool: 1,
+  SInt16: 2,
+  short: 2,
+  UInt16: 2,
+  "unsigned short": 2,
+  SInt32: 4,
+  int: 4,
+  UInt32: 4,
+  "unsigned int": 4,
+  "Type*": 4,
+  float: 4,
+  SInt64: 8,
+  "long long": 8,
+  UInt64: 8,
+  "unsigned long long": 8,
+  FileSize: 8,
+  double: 8,
+};
+
+/** Reads one object through its type tree into plain values (never past the object's own bytes). */
 export function readObject(sf: SerializedFile, o: ObjectInfo): Obj {
   const t = sf.types[o.typeIndex];
   if (!t || t.nodes.length === 0) throw new UnsupportedFormat("object without a type tree");
   const nodes = t.nodes;
-  const c = new Cursor(sf.data, !sf.bigEndian);
-  c.p = sf.dataOffset + o.byteStart;
+  const start = checkedRange("serialized object", sf.dataOffset + o.byteStart, o.byteSize, sf.data.length);
+  const c = new Cursor(sf.data, !sf.bigEndian, start, start + o.byteSize);
   const kidsCache = new Map<number, number[]>();
+  const sizes = new Map<number, number>();
   const kids = (i: number): number[] => {
     let v = kidsCache.get(i);
     if (v) return v;
@@ -290,8 +374,7 @@ export function readObject(sf: SerializedFile, o: ObjectInfo): Obj {
   const readArray = (ai: number): Value => {
     const dataIdx = kids(ai)[1];
     if (dataIdx === undefined) throw new DecodeError("array without a data node");
-    const size = c.i32();
-    if (size < 0) throw new DecodeError("negative array size");
+    const size = checkedCount("array", c.i32(), minBytes(nodes, kids, dataIdx, sizes), c.left);
     const dn = node(dataIdx);
     const leaf = kids(dataIdx).length === 0;
     let v: Value;

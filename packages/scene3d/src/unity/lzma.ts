@@ -3,6 +3,7 @@
  * range-coded stream; the unpacked size comes from the caller. Written from the public LZMA specification
  * (LzmaSpec); ported from the 3D spike. The whole output stays in memory, so no separate dictionary window is needed.
  */
+import { READ_LIMITS, checkedSize } from "./bounded";
 import { DecodeError } from "./errors";
 
 const PROB_INIT = 1024;
@@ -21,7 +22,8 @@ export function lzmaDecompress(src: Uint8Array, outSize: number): Uint8Array {
   const lc = props % 9;
   const lp = Math.floor(props / 9) % 5;
   const pb = Math.floor(props / 45);
-  const out = new Uint8Array(outSize);
+  // the size comes from the file: held to the reader's ceiling before allocating
+  const out = new Uint8Array(checkedSize("lzma block", outSize, READ_LIMITS.unpackedBytes));
   let inPos = 5;
   // the range coder may normalise a few bytes beyond the last one (they read 0); further than that the input is short
   const next = (): number => {

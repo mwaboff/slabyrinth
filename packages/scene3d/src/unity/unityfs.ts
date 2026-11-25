@@ -4,6 +4,7 @@
  * 2 (LZ4) and 3 (LZ4HC). Anything else throws UnsupportedFormat, which the mesh source turns into boxes.
  */
 import { strFromU8 } from "fflate";
+import { READ_LIMITS, checkedCount, checkedRange, checkedSize } from "./bounded";
 import { DecodeError, UnsupportedFormat } from "./errors";
 import { lz4BlockDecompress } from "./lz4";
 import { lzmaDecompress } from "./lzma";
@@ -31,7 +32,16 @@ class BigEndian {
     this.dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
   }
   private need(n: number): void {
-    if (this.p + n > this.b.length) throw new DecodeError("UnityFS: header runs past the end");
+    if (n < 0 || this.p < 0 || this.p + n > this.b.length)
+      throw new DecodeError("UnityFS: header runs past the end");
+  }
+  /** Bytes left after the cursor. */
+  get left(): number {
+    return this.b.length - this.p;
+  }
+  skip(n: number): void {
+    this.need(n);
+    this.p += n;
   }
   u16(): number {
     this.need(2);
@@ -93,25 +103,35 @@ export function readBundle(file: Uint8Array): Bundle {
   if (formatVersion >= 7) r.p = (r.p + 15) & ~15;
   const infoAtEnd = (flags & 0x80) !== 0;
   const infoAt = infoAtEnd ? file.length - ciSize : r.p;
-  if (infoAt < 0 || infoAt + ciSize > file.length)
-    throw new DecodeError("UnityFS: blocks info outside the file");
+  checkedRange("UnityFS blocks info", infoAt, ciSize, file.length);
+  checkedSize("UnityFS blocks info", uiSize, READ_LIMITS.unpackedBytes);
   const info = new BigEndian(decompress(flags & 0x3f, file.subarray(infoAt, infoAt + ciSize), uiSize));
   let dataAt = infoAtEnd ? r.p : infoAt + ciSize;
   if (flags & 0x200) dataAt = (dataAt + 15) & ~15;
-  info.p += 16; // hash of the uncompressed data
-  const blockCount = info.u32();
+  info.skip(16); // hash of the uncompressed data
+  const blockCount = checkedCount("UnityFS blocks", info.u32(), BLOCK_BYTES, info.left);
   const blocks: Array<{ u: number; c: number; f: number }> = [];
   for (let i = 0; i < blockCount; i++) blocks.push({ u: info.u32(), c: info.u32(), f: info.u16() });
-  const nodeCount = info.u32();
+  const nodeCount = checkedCount("UnityFS nodes", info.u32(), NODE_MIN_BYTES, info.left);
   const raw: Array<{ off: number; size: number; flags: number; path: string }> = [];
   for (let i = 0; i < nodeCount; i++)
     raw.push({ off: info.i64(), size: info.i64(), flags: info.u32(), path: info.cstr() });
-  const total = blocks.reduce((n, b) => n + b.u, 0);
-  const stream = new Uint8Array(total);
+  // the whole stream is allocated once: its size is checked before, and every block against the file after it
+  const total = checkedSize(
+    "UnityFS data",
+    blocks.reduce((n, b) => n + b.u, 0),
+    READ_LIMITS.unpackedBytes,
+  );
   let s = dataAt;
+  for (const b of blocks) {
+    checkedRange("UnityFS block", s, b.c, file.length);
+    s += b.c;
+  }
+  for (const n of raw) checkedRange(`UnityFS node ${n.path}`, n.off, n.size, total);
+  const stream = new Uint8Array(total);
+  s = dataAt;
   let d = 0;
   for (const b of blocks) {
-    if (s + b.c > file.length) throw new DecodeError("UnityFS: block runs past the end of the file");
     stream.set(decompress(b.f & 0x3f, file.subarray(s, s + b.c), b.u), d);
     s += b.c;
     d += b.u;
@@ -119,9 +139,11 @@ export function readBundle(file: Uint8Array): Bundle {
   return {
     formatVersion,
     unityVersion,
-    nodes: raw.map((n) => {
-      if (n.off + n.size > total) throw new DecodeError(`UnityFS: node ${n.path} outside the data`);
-      return { path: n.path, flags: n.flags, data: stream.subarray(n.off, n.off + n.size) };
-    }),
+    nodes: raw.map((n) => ({ path: n.path, flags: n.flags, data: stream.subarray(n.off, n.off + n.size) })),
   };
 }
+
+/** Bytes of one block record in the blocks info (unpacked size, packed size, flags). */
+const BLOCK_BYTES = 4 + 4 + 2;
+/** The fewest bytes of one node record (offset, size, flags, an empty name's terminator). */
+const NODE_MIN_BYTES = 8 + 8 + 4 + 1;

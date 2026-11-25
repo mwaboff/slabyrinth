@@ -1,7 +1,14 @@
 /** LZ4 block decompressor (no frame header), as UnityFS LZ4 and LZ4HC blocks use it. */
+import { READ_LIMITS, checkedSize } from "./bounded";
 import { DecodeError } from "./errors";
 
 export function lz4BlockDecompress(src: Uint8Array, outSize: number): Uint8Array {
+  // the size comes from the file: held to the reader's ceiling and to what LZ4 can grow `src` to, before allocating
+  checkedSize(
+    "lz4 block",
+    outSize,
+    Math.min(READ_LIMITS.unpackedBytes, (src.length + 1) * READ_LIMITS.lz4Ratio),
+  );
   const out = new Uint8Array(outSize);
   let s = 0;
   let d = 0;

@@ -5,6 +5,7 @@
  * +z north), which are the game's. Ported from the 3D spike (meshlib.ts), with typed field access.
  */
 import type { MeshData } from "../types/index";
+import { READ_LIMITS, checkedCount, checkedRange } from "./bounded";
 import { DecodeError, UnsupportedFormat } from "./errors";
 import {
   CLASS,
@@ -181,41 +182,43 @@ function halfToFloat(h: number): number {
 export function meshGeometry(lb: LoadedBundle, mesh: Obj): MeshData {
   if (num(mesh, "m_MeshCompression") !== 0) throw new UnsupportedFormat("compressed mesh");
   const vd = obj(mesh, "m_VertexData");
-  const n = num(vd, "m_VertexCount");
   const channels = objList(vd, "m_Channels");
   let data = bytes(vd, "m_DataSize");
   const sd = mesh["m_StreamData"];
   if (isObj(sd) && num(sd, "size") > 0) {
     if (!lb.resS) throw new DecodeError("mesh streams from .resS but the bundle has none");
-    const off = num(sd, "offset");
+    const off = checkedRange("mesh stream", num(sd, "offset"), num(sd, "size"), lb.resS.length);
     data = lb.resS.subarray(off, off + num(sd, "size"));
   }
+  // a channel's dimension is its low 4 bits (the high bits are flags): one reading for the check and the stride
+  const dims = (c: Obj): number => num(c, "dimension") & 0xf;
   // streams are consecutive, each aligned to 16 bytes
-  const used = channels.filter((c) => num(c, "dimension") > 0);
+  const used = channels.filter((c) => dims(c) > 0);
   const streams = used.reduce((m, c) => Math.max(m, num(c, "stream")), -1) + 1;
-  const strides: number[] = [];
-  const offsets: number[] = [];
-  let pos = 0;
-  for (let s = 0; s < streams; s++) {
+  const strideOf = (s: number): number => {
     let stride = 0;
     for (const c of used)
       if (num(c, "stream") === s)
-        stride = Math.max(
-          stride,
-          num(c, "offset") + (FORMAT_SIZE[num(c, "format")] ?? 4) * (num(c, "dimension") & 0xf),
-        );
-    offsets.push(pos);
-    strides.push(stride);
-    pos = (pos + stride * n + 15) & ~15;
-  }
+        stride = Math.max(stride, num(c, "offset") + (FORMAT_SIZE[num(c, "format")] ?? 4) * dims(c));
+    return stride;
+  };
   const pc = channels[0];
-  if (!pc || num(pc, "dimension") < 3) throw new DecodeError("mesh without positions");
+  if (!pc || dims(pc) < 3) throw new DecodeError("mesh without positions");
   const fmt = num(pc, "format");
   if (fmt !== 0 && fmt !== 1) throw new UnsupportedFormat(`position format ${fmt}`);
   const ps = num(pc, "stream");
-  const base = (offsets[ps] ?? 0) + num(pc, "offset");
-  const stride = strides[ps] ?? 0;
-  if (base + stride * (n - 1) + (fmt === 0 ? 12 : 6) > data.length && n > 0)
+  const posBytes = fmt === 0 ? 12 : 6;
+  // the vertex count is a claim: each vertex takes at least the position stream's stride (never less than a position)
+  const stride = strideOf(ps);
+  if (stride < num(pc, "offset") + posBytes) throw new DecodeError("vertex stride shorter than its position");
+  const n = checkedCount("mesh vertices", num(vd, "m_VertexCount"), stride, data.length);
+  let pos = 0;
+  let base = -1;
+  for (let s = 0; s < streams; s++) {
+    if (s === ps) base = pos + num(pc, "offset");
+    pos = (pos + strideOf(s) * n + 15) & ~15;
+  }
+  if (base < 0 || (n > 0 && base + stride * (n - 1) + posBytes > data.length))
     throw new DecodeError("vertex data shorter than its vertices");
   const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
   const positions = new Float32Array(n * 3);
@@ -231,15 +234,16 @@ export function meshGeometry(lb: LoadedBundle, mesh: Obj): MeshData {
   const tris: number[] = [];
   for (const sm of objList(mesh, "m_SubMeshes")) {
     if (num(sm, "topology") !== 0) continue; // triangles only
-    const first = num(sm, "firstByte") / (wide ? 4 : 2);
+    const w = wide ? 4 : 2;
+    const firstByte = checkedRange("submesh", num(sm, "firstByte"), num(sm, "indexCount") * w, ib.length);
+    if (firstByte % w !== 0) throw new DecodeError("submesh starts inside an index");
+    const first = firstByte / w;
     const count = num(sm, "indexCount");
     const baseVertex = num(sm, "baseVertex");
-    if ((first + count) * (wide ? 4 : 2) > ib.length)
-      throw new DecodeError("submesh outside the index buffer");
     for (let i = 0; i < count; i++) {
       const v =
         (wide ? idv.getUint32((first + i) * 4, true) : idv.getUint16((first + i) * 2, true)) + baseVertex;
-      if (v >= n) throw new DecodeError("index outside the vertices");
+      if (!(v >= 0 && v < n)) throw new DecodeError("index outside the vertices");
       tris.push(v);
     }
   }
@@ -252,8 +256,9 @@ export function prefabGeometry(lb: LoadedBundle, rootGo: bigint): MeshData {
   const indices: number[] = [];
   const skip = new Set<bigint>();
   const seen = new Set<bigint>();
-  const visit = (goId: bigint, parent: Affine): void => {
+  const visit = (goId: bigint, parent: Affine, depth: number): void => {
     if (seen.has(goId)) throw new DecodeError("transform hierarchy has a cycle");
+    if (depth > READ_LIMITS.hierarchyDepth) throw new DecodeError("transform hierarchy too deep");
     seen.add(goId);
     const go = lb.get(goId);
     if (!go) return;
@@ -281,9 +286,9 @@ export function prefabGeometry(lb: LoadedBundle, rootGo: bigint): MeshData {
     }
     for (const child of objList(tr.o, "m_Children")) {
       const ct = lb.get(pptrOf(child));
-      if (ct) visit(pptr(ct, "m_GameObject"), m);
+      if (ct) visit(pptr(ct, "m_GameObject"), m, depth + 1);
     }
   };
-  visit(rootGo, IDENTITY);
+  visit(rootGo, IDENTITY, 0);
   return { positions: Float32Array.from(positions), indices: Uint32Array.from(indices) };
 }
