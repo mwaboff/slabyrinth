@@ -11,8 +11,9 @@ export {
   binaryIndexSource,
   binaryIndexToCatalog,
   readBinaryIndex,
+  readBinaryIndexParts,
 } from "./binaryIndex";
-export type { BinaryIndexAsset, BinaryIndexResult } from "./binaryIndex";
+export type { BinaryIndexAsset, BinaryIndexResult, IndexPart, IndexPartsResult } from "./binaryIndex";
 export { IndexJsonError, indexJsonSource, readIndexJson } from "./indexJson";
 export { deriveCatalogAsset, geomOf, lengthAxisOf, round4 } from "./derive";
 export type { RawCatalogRecord } from "./derive";

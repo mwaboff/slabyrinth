@@ -4,6 +4,7 @@ import {
   binaryIndexSource,
   indexJsonSource,
   readBinaryIndex,
+  readBinaryIndexParts,
   readIndexJson,
   round4,
 } from "../../../src/catalog";
@@ -254,5 +255,54 @@ describe("round4", () => {
     expect(round4(0.12355)).toBeCloseTo(0.1236, 10);
     expect(round4(2.028 + 1e-13)).toBe(2.028);
     expect(round4(-0.00001)).toBe(0);
+  });
+});
+
+describe("binary index mesh parts (loader table)", () => {
+  const [wall, floor, chest] = FIXTURE_ASSETS;
+  const beam = "65ae64bc-8d63-4fce-92ca-a0496f157e19";
+  const lid = "11111111-2222-4333-8444-555555555555";
+  const bytes = buildIndexFixture(FIXTURE_ASSETS, {
+    parts: {
+      [wall?.id ?? ""]: [
+        { bundleId: "tileset_walls_1", assetName: "wall_a", contentId: beam, position: [0.5, 0, 0.25] },
+      ],
+      [chest?.id ?? ""]: [
+        {
+          bundleId: "props_1",
+          assetName: "chest_body",
+          contentId: "99999999-2222-4333-8444-555555555555",
+          rotation: [0, 0.7071, 0, 0.7071],
+          scale: [2, 2, 2],
+        },
+        { bundleId: "props_1", assetName: "chest_lid", contentId: lid, unlisted: true },
+      ],
+    },
+  });
+
+  it("names each part's prefab and bundle through the content id, with its transform", () => {
+    const r = readBinaryIndexParts(bytes);
+    expect(r.parts.get(wall?.id ?? "")).toEqual([
+      {
+        bundleId: "tileset_walls_1",
+        assetName: "wall_a",
+        position: { x: 0.5, y: 0, z: 0.25 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        scale: { x: 1, y: 1, z: 1 },
+      },
+    ]);
+    const c = r.parts.get(chest?.id ?? "") ?? [];
+    expect(c.map((p) => p.assetName)).toEqual(["chest_body"]);
+    expect(c[0]?.rotation.y).toBeCloseTo(0.7071, 4);
+    expect(c[0]?.scale).toEqual({ x: 2, y: 2, z: 2 });
+    expect(r.parts.get(floor?.id ?? "")).toEqual([]);
+    // the lid's content id is not in the loader table
+    expect(r.unresolved).toBe(1);
+    // the catalog reader still reads the same file
+    expect(readBinaryIndex(bytes).rows).toHaveLength(4);
+  });
+
+  it("refuses a file that is not a binary index", () => {
+    expect(() => readBinaryIndexParts(new Uint8Array(64))).toThrow(IndexFormatError);
   });
 });

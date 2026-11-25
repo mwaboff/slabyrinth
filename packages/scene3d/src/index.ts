@@ -24,5 +24,17 @@ export type { FrameOptions, ViewBasis } from "./raster/camera";
 export { BACKGROUND, LOD_BOX_PX, renderScene, shown, shownBounds } from "./raster/raster";
 export { encodePng } from "./raster/png";
 export { boxMeshSource } from "./source/box";
+export { EXTRACTOR_VERSION, installMeshSource, unityExtractor } from "./source/install";
+export type {
+  BundleExtractor,
+  InstallMeshSource,
+  InstallSourceOptions,
+  InstallStats,
+  MeshCache,
+} from "./source/install";
+export { MESH_FILE_VERSION, decodeMeshFile, encodeMeshFile, quantised } from "./source/meshFile";
+export { indexJsonAssets, readPackIndex } from "./source/packIndex";
+export type { PackAsset, PackIndex } from "./source/packIndex";
+export { DecodeError, UnsupportedFormat } from "./unity/errors";
 export { levelShots, overviewShot, slug, topShot } from "./shots/presets";
 export type { ShotSize } from "./shots/presets";
