@@ -6,7 +6,9 @@
 import type { ReadonlyFs } from "@slabyrinth/core";
 import { describe, expect, it } from "vitest";
 import {
+  decodeCacheFile,
   decodeMeshFile,
+  encodeFailureFile,
   encodeMeshFile,
   quantised,
   installMeshSource,
@@ -130,6 +132,14 @@ describe("mesh cache file", () => {
     expect(decodeMeshFile(file, "abc124")).toBeNull();
     expect(quantised(mesh)).toEqual(back);
   });
+
+  it("holds a failure record under a source key, which a mesh reader sees as a miss", () => {
+    const file = encodeFailureFile({ reason: "decode-failed", detail: "x".repeat(10_000) }, "k1");
+    expect(decodeCacheFile(file, "k1")).toMatchObject({ kind: "failed", reason: "decode-failed" });
+    expect(decodeCacheFile(file, "k2")).toBeNull();
+    expect(decodeMeshFile(file, "k1")).toBeNull();
+    expect(file.length).toBeLessThan(2200);
+  });
 });
 
 describe("install mesh source", () => {
@@ -160,6 +170,47 @@ describe("install mesh source", () => {
     expect(reads.filter((r) => r.includes("/Assets/"))).toEqual([]);
     expect(warmSrc.stats).toMatchObject({ cacheHits: 2, extracted: 0 });
     expect(meshOf(warm.get(PAIR))).toEqual(meshOf(cold.get(PAIR)));
+  });
+
+  it("records a piece that cannot be read, so it is a box with its reason without reading its bundle again", async () => {
+    const { fs, files, reads } = fakeInstall();
+    const cache = memoryCache();
+    await installMeshSource({ fs, installPath: INSTALL, cache }).load([BROKEN, OLD]);
+    reads.length = 0;
+    // a cache-only source (the app's scene worker) reported these "not-read-yet" for ever before, re-laying out
+    const cacheOnly = installMeshSource({ fs, installPath: INSTALL, cache, coldRead: false });
+    const got = await cacheOnly.load([BROKEN, OLD]);
+    expect(got.get(BROKEN)).toMatchObject({
+      kind: "box",
+      reason: "decode-failed",
+      detail: "no prefab no_such_prefab",
+    });
+    expect(got.get(OLD)).toMatchObject({ kind: "box", reason: "unsupported-format" });
+    // and a reading source does not open the bundles again
+    const again = installMeshSource({ fs, installPath: INSTALL, cache });
+    await again.load([BROKEN, OLD]);
+    expect(reads.filter((r) => r.includes("/Assets/"))).toEqual([]);
+    expect(again.stats).toMatchObject({ bundlesRead: 0, cacheHits: 2, failed: 2 });
+    // a game update that changes the bundle retries it, and nothing else
+    const old = files.get(`${PACK}/Assets/props_old`);
+    if (old) old.mtimeMs = 3000;
+    const updated = installMeshSource({ fs, installPath: INSTALL, cache });
+    await updated.load([BROKEN, OLD]);
+    expect(reads.filter((r) => r.includes("/Assets/"))).toEqual([`${PACK}/Assets/props_old`]);
+  });
+
+  it("does not record a bundle it could not open this time (it is read again next time)", async () => {
+    const { fs } = fakeInstall();
+    const cache = memoryCache();
+    const failing: ReadonlyFs = {
+      ...fs,
+      readFile: (p) => (p.includes("/Assets/") ? Promise.reject(new Error("EBUSY")) : fs.readFile(p)),
+    };
+    const got = await installMeshSource({ fs: failing, installPath: INSTALL, cache }).load([CRATE]);
+    expect(got.get(CRATE)).toMatchObject({ kind: "box", reason: "decode-failed" });
+    expect(cache.store.size).toBe(0);
+    const later = await installMeshSource({ fs, installPath: INSTALL, cache }).load([CRATE]);
+    expect(later.get(CRATE)?.kind).toBe("mesh");
   });
 
   it("re-reads only the pieces whose bundle changed after a game update", async () => {

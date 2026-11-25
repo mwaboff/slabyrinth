@@ -34,7 +34,15 @@ export type {
   InstallStats,
   MeshCache,
 } from "./source/install";
-export { MESH_FILE_VERSION, decodeMeshFile, encodeMeshFile, quantised } from "./source/meshFile";
+export {
+  MESH_FILE_VERSION,
+  decodeCacheFile,
+  decodeMeshFile,
+  encodeFailureFile,
+  encodeMeshFile,
+  quantised,
+} from "./source/meshFile";
+export type { CacheEntry, MeshFailure } from "./source/meshFile";
 export { indexJsonAssets, readPackIndex } from "./source/packIndex";
 export type { PackAsset, PackIndex } from "./source/packIndex";
 export { DecodeError, UnsupportedFormat } from "./unity/errors";
