@@ -375,7 +375,7 @@ describe("other tools", () => {
     expect(pictureVersionOf(out.content)).toBe(3);
     expect(withoutPicture(out.content).some((c) => c.type === "image")).toBe(false);
     // no app pictures (3D off, no budget, no image input), no plan, a level the plan lacks, a bad view name
-    expect(text(await exec(ctx(plan), "view_build_3d", {}))).toContain("3D pictures are off");
+    expect(text(await exec(ctx(plan), "view_build_3d", {}))).toContain("3D pictures are not available now");
     expect(text(await exec(ctx(null, 0, { render3d }), "view_build_3d", {}))).toContain("nothing built");
     expect(
       text(await exec(ctx(plan, 3, { render3d }), "view_build_3d", { shots: ["level:attic"] })),
