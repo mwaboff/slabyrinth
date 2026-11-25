@@ -13,6 +13,7 @@ import { findingPiece, groundPiece, structural } from "./pieces";
 import type { PlanCell } from "./plan";
 import { CHECK_THRESHOLDS as T } from "./thresholds";
 import type { CheckCode, CheckInput, Finding, SceneCheck, Severity } from "./types";
+import { emptyBox } from "../geom/box";
 import { groups } from "./util";
 
 /** The sample points of a cell (world x, z). */
@@ -55,16 +56,13 @@ function cellFindings(
   const levels = input.scene.levels;
   return clusters.map((g) => {
     const first = g[0];
-    const box: Box3 = {
-      min: { x: Infinity, y: Infinity, z: Infinity },
-      max: { x: -Infinity, y: -Infinity, z: -Infinity },
-    };
+    const box: Box3 = emptyBox();
     for (const b of g) {
       box.min.x = Math.min(box.min.x, b.cell.x0);
       box.max.x = Math.max(box.max.x, b.cell.x0 + 1);
       box.min.z = Math.min(box.min.z, b.cell.z0);
       box.max.z = Math.max(box.max.z, b.cell.z0 + 1);
-      box.min.y = Math.min(box.min.y, b.low ?? b.cell.top - 0.5);
+      box.min.y = Math.min(box.min.y, b.low ?? b.cell.top - T.floorDepth);
       box.max.y = Math.max(box.max.y, b.high ?? b.cell.top);
     }
     const share = g.reduce((s, b) => s + b.share, 0) / Math.max(1, g.length);
@@ -103,7 +101,7 @@ export const deckHoleCheck: SceneCheck = {
       let miss = 0;
       const near: number[] = [];
       for (const [x, z] of ps) {
-        const hits = space.column(x, z, c.top - T.floorBand - 0.5, c.top + T.floorBand, (j) => {
+        const hits = space.column(x, z, c.top - T.floorBand - T.floorDepth, c.top + T.floorBand, (j) => {
           const o = scene.instances[j];
           return !o || !structural(o, plan);
         });
@@ -116,7 +114,7 @@ export const deckHoleCheck: SceneCheck = {
       input,
       bad,
       "deck_hole",
-      (share, n) => (share >= 0.66 || n > 1 ? "fault" : "warn"),
+      (share, n) => (share >= T.surfaceFault || n > 1 ? "fault" : "warn"),
       (n, share) =>
         `${String(n)} cell(s) planned with a floor have a hole in it: ${String(Math.round(share * 100))}% of the floor is missing there`,
     );
@@ -136,7 +134,7 @@ export const floorOverOpenCheck: SceneCheck = {
       let hit = 0;
       const pieces: number[] = [];
       for (const [x, z] of ps) {
-        const hits = space.column(x, z, c.top - T.floorBand - 0.5, c.top + T.floorBand, (j) => {
+        const hits = space.column(x, z, c.top - T.floorBand - T.floorDepth, c.top + T.floorBand, (j) => {
           const o = scene.instances[j];
           return !o || !groundPiece(o) || o.levelIndex !== c.levelIndex;
         });
@@ -182,14 +180,14 @@ export const roofOpenCheck: SceneCheck = {
           share: open / ps.length,
           pieces: [],
           low: c.roofedFloor,
-          high: c.roofedFloor + 2.5,
+          high: c.roofedFloor + T.roofFindingHeight,
         });
     }
     return cellFindings(
       input,
       bad,
       "roof_open",
-      (share, n) => (share >= 0.66 || n > 1 ? "fault" : "warn"),
+      (share, n) => (share >= T.surfaceFault || n > 1 ? "fault" : "warn"),
       (n, share) =>
         `${String(n)} cell(s) inside a roofed building see the sky: ${String(Math.round(share * 100))}% of each is uncovered`,
     );

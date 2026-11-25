@@ -1,5 +1,6 @@
 /** Small mesh helpers every layer shares: a cuboid and the box round a mesh. */
 import type { Box3, MeshData, Vec3 } from "../types/index";
+import { emptyBox } from "./box";
 
 /** A cuboid's 12 triangles (faces -x, +x, -y, +y, -z, +z, outward) over its 8 corners (bit 1 x, 2 y, 4 z = max). */
 const CUBOID_INDICES: readonly number[] = [
@@ -19,8 +20,8 @@ export function cuboid(min: Vec3, max: Vec3): MeshData {
 
 /** The box of a mesh's vertices in its own frame. */
 export function meshBox(m: MeshData): Box3 {
-  const min = { x: Infinity, y: Infinity, z: Infinity };
-  const max = { x: -Infinity, y: -Infinity, z: -Infinity };
+  const box = emptyBox();
+  const { min, max } = box;
   const p = m.positions;
   for (let i = 0; i + 2 < p.length; i += 3) {
     const x = p[i] ?? 0;
@@ -33,5 +34,5 @@ export function meshBox(m: MeshData): Box3 {
     if (y > max.y) max.y = y;
     if (z > max.z) max.z = z;
   }
-  return { min, max };
+  return box;
 }

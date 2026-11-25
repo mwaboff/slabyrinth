@@ -84,21 +84,22 @@ export const shellGapCheck: SceneCheck = {
         const p1 = { x: run.a.x + u.x * s.to, z: run.a.z + u.z * s.to };
         const box: Box3 = {
           min: {
-            x: Math.min(p0.x, p1.x) - Math.abs(run.outward.x) * 0.5,
-            y: lo - 0.25,
-            z: Math.min(p0.z, p1.z) - Math.abs(run.outward.z) * 0.5,
+            x: Math.min(p0.x, p1.x) - Math.abs(run.outward.x) * T.gapBoxDepth,
+            y: lo - T.gapBoxRise,
+            z: Math.min(p0.z, p1.z) - Math.abs(run.outward.z) * T.gapBoxDepth,
           },
           max: {
-            x: Math.max(p0.x, p1.x) + Math.abs(run.outward.x) * 0.5,
-            y: hi + 0.25,
-            z: Math.max(p0.z, p1.z) + Math.abs(run.outward.z) * 0.5,
+            x: Math.max(p0.x, p1.x) + Math.abs(run.outward.x) * T.gapBoxDepth,
+            y: hi + T.gapBoxRise,
+            z: Math.max(p0.z, p1.z) + Math.abs(run.outward.z) * T.gapBoxDepth,
           },
         };
-        // the pieces either side of the gap: those of the enclosure's side within half a tile of it
+        // the pieces either side of the gap: those of the enclosure's side near it
+        const r = T.gapSideReach;
         const side = space
           .overlapping({
-            min: { x: box.min.x - 0.5, y: box.min.y, z: box.min.z - 0.5 },
-            max: { x: box.max.x + 0.5, y: box.max.y, z: box.max.z + 0.5 },
+            min: { x: box.min.x - r, y: box.min.y, z: box.min.z - r },
+            max: { x: box.max.x + r, y: box.max.y, z: box.max.z + r },
           })
           .filter((j) => {
             const o = scene.instances[j];

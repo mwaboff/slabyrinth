@@ -19,13 +19,15 @@ import type {
   ShotSpec,
 } from "../types/index";
 import { turnBasis } from "@slabyrinth/core";
+import { emptyBox, growBox, storeyOf } from "../geom/box";
 import { cuboid, meshBox } from "../geom/mesh";
 import { viewBasis } from "./camera";
 
 /** A piece smaller than this on screen (pixels, longer side of its projected box) is drawn as its box. */
 export const LOD_BOX_PX = 3;
 /** Perspective near plane (tiles): triangles with a corner nearer than this are not drawn. */
-const NEAR = 0.05;
+export const NEAR_PLANE = 0.05;
+const NEAR = NEAR_PLANE;
 const LIGHT = (() => {
   const l = { x: -0.45, y: 0.8, z: -0.35 };
   const n = Math.hypot(l.x, l.y, l.z);
@@ -39,9 +41,9 @@ const OUTLINE = 0.62;
 export function shown(inst: SceneInstance, cut: Cutaway): boolean {
   if (cut.maxLevelIndex !== undefined && inst.levelIndex > cut.maxLevelIndex) return false;
   if (cut.hideLayers?.includes(inst.layer)) return false;
-  if (cut.maxStorey !== undefined && inst.layer.startsWith("storey:")) {
-    const n = Number(inst.layer.slice("storey:".length));
-    if (Number.isFinite(n) && n > cut.maxStorey) return false;
+  if (cut.maxStorey !== undefined) {
+    const n = storeyOf(inst.layer);
+    if (n !== null && n > cut.maxStorey) return false;
   }
   const w = cut.within;
   if (
@@ -57,19 +59,8 @@ export function shown(inst: SceneInstance, cut: Cutaway): boolean {
 
 /** The world box of the instances the cutaway shows (empty when none). */
 export function shownBounds(scene: Scene, cut: Cutaway, keep?: (i: SceneInstance) => boolean): Box3 {
-  const b: Box3 = {
-    min: { x: Infinity, y: Infinity, z: Infinity },
-    max: { x: -Infinity, y: -Infinity, z: -Infinity },
-  };
-  for (const i of scene.instances) {
-    if (!shown(i, cut) || (keep && !keep(i))) continue;
-    b.min.x = Math.min(b.min.x, i.aabb.min.x);
-    b.min.y = Math.min(b.min.y, i.aabb.min.y);
-    b.min.z = Math.min(b.min.z, i.aabb.min.z);
-    b.max.x = Math.max(b.max.x, i.aabb.max.x);
-    b.max.y = Math.max(b.max.y, i.aabb.max.y);
-    b.max.z = Math.max(b.max.z, i.aabb.max.z);
-  }
+  const b: Box3 = emptyBox();
+  for (const i of scene.instances) if (shown(i, cut) && (!keep || keep(i))) growBox(b, i.aabb);
   return b;
 }
 

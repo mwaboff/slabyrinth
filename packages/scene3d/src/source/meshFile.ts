@@ -10,6 +10,7 @@
  * retried then and only then. A reader of the first layout sees a failure record as a miss (its length does not match).
  */
 import { strFromU8, strToU8 } from "fflate";
+import { meshBox } from "../geom/mesh";
 import type { FallbackReason, MeshData } from "../types/index";
 
 const MAGIC = 0x4d443353; // "S3DM" little-endian
@@ -61,17 +62,14 @@ export function encodeFailureFile(failure: MeshFailure, sourceKey: string): Uint
   return out;
 }
 
-function bounds(p: Float32Array): { min: number[]; max: number[] } {
-  const min = [Infinity, Infinity, Infinity];
-  const max = [-Infinity, -Infinity, -Infinity];
-  for (let i = 0; i + 2 < p.length; i += 3)
-    for (let k = 0; k < 3; k++) {
-      const v = p[i + k] ?? 0;
-      if (v < (min[k] ?? 0)) min[k] = v;
-      if (v > (max[k] ?? 0)) max[k] = v;
-    }
-  if (p.length === 0) return { min: [0, 0, 0], max: [0, 0, 0] };
-  return { min: min.map(Math.fround), max: max.map(Math.fround) };
+/** The quantisation range: the mesh's box (geom/mesh.ts `meshBox`) in float32, zero for a mesh of no vertices. */
+function bounds(mesh: MeshData): { min: number[]; max: number[] } {
+  if (mesh.positions.length < 3) return { min: [0, 0, 0], max: [0, 0, 0] };
+  const b = meshBox(mesh);
+  return {
+    min: [b.min.x, b.min.y, b.min.z].map(Math.fround),
+    max: [b.max.x, b.max.y, b.max.z].map(Math.fround),
+  };
 }
 
 /** Encodes a mesh with its source key (at most 32 ASCII characters). */
@@ -88,7 +86,7 @@ export function encodeMeshFile(mesh: MeshData, sourceKey: string): Uint8Array {
   const dv = new DataView(out.buffer);
   dv.setUint32(40, n, true);
   dv.setUint32(44, mesh.indices.length, true);
-  const b = bounds(mesh.positions);
+  const b = bounds(mesh);
   for (let k = 0; k < 3; k++) {
     dv.setFloat32(52 + 4 * k, b.min[k] ?? 0, true);
     dv.setFloat32(64 + 4 * k, b.max[k] ?? 0, true);

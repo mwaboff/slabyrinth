@@ -289,14 +289,10 @@ export function readBinaryIndexParts(bytes: Uint8Array): IndexPartsResult {
   const names = r.array(tbl + 16, 8, "loader asset names");
   if (bundles.count !== ids.count || names.count !== ids.count)
     throw new IndexFormatError("loader table columns differ in length");
+  // content ids are keyed by the one GUID reading (slab/guid.ts bytesToGuid, through the reader's checked guid())
   const loader = new Map<string, { bundleId: string; assetName: string }>();
-  const hex = (o: number): string => {
-    let s = "";
-    for (let i = 0; i < 16; i++) s += (bytes[o + i] ?? 0).toString(16).padStart(2, "0");
-    return s;
-  };
   for (let i = 0; i < ids.count; i++)
-    loader.set(hex(ids.at + 16 * i), {
+    loader.set(r.guid(ids.at + 16 * i), {
       bundleId: r.str(bundles.at + 8 * i),
       assetName: r.str(names.at + 8 * i),
     });
@@ -310,7 +306,7 @@ export function readBinaryIndexParts(bytes: Uint8Array): IndexPartsResult {
     for (let k = 0; k < list.count; k++) {
       const e = list.at + PART_SIZE * k;
       r.check(e, PART_SIZE, "part");
-      const name = loader.get(hex(e + 44));
+      const name = loader.get(r.guid(e + 44));
       if (!name) {
         unresolved++;
         continue;

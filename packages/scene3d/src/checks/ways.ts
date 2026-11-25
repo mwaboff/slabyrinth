@@ -65,7 +65,7 @@ export const wayBlockedCheck: SceneCheck = {
       const blockedBy = [...new Set(pieces.map((q) => q.name))].join(", ");
       out.push({
         code: "way_blocked",
-        severity: best < 0.25 ? "fault" : "warn",
+        severity: best < T.wayFault ? "fault" : "warn",
         where: {
           levelId: scene.levels[p.levelIndex]?.id ?? "",
           levelIndex: p.levelIndex,

@@ -5,13 +5,14 @@
  */
 import { minOf } from "@slabyrinth/core";
 import { viewBasis } from "../raster/camera";
-import { renderScene } from "../raster/raster";
+import { NEAR_PLANE, renderScene } from "../raster/raster";
 import { drawText } from "../raster/sheet";
 import { boxShot } from "../shots/request";
 import type { ShotSize } from "../shots/presets";
 import type { Box3, Camera, RenderedImage, Scene, ShotSpec, Vec3 } from "../types/index";
 import type { Finding } from "./types";
-import { copyBox, grow, groups, near } from "./util";
+import { boxesNear, copyBox, growBox } from "../geom/box";
+import { groups } from "./util";
 
 /** Findings whose boxes come within this many tiles of each other (same level) share a picture. */
 const CLUSTER_REACH = 2;
@@ -37,7 +38,11 @@ export function clusterFindings(findings: readonly Finding[], max = Infinity): F
     const out: number[] = [];
     // findings of one render are few hundred at most: grouping is by their own boxes
     findings.forEach((b, m) => {
-      if (m > k && b.where.levelIndex === a.where.levelIndex && near(a.where.box, b.where.box, CLUSTER_REACH))
+      if (
+        m > k &&
+        b.where.levelIndex === a.where.levelIndex &&
+        boxesNear(a.where.box, b.where.box, CLUSTER_REACH)
+      )
         out.push(m);
     });
     return out;
@@ -45,7 +50,7 @@ export function clusterFindings(findings: readonly Finding[], max = Infinity): F
   const index = new Map(findings.map((f, i) => [f, i]));
   const clusters = gs.map((g) => {
     const box = copyBox(g[0]?.where.box ?? { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } });
-    for (const f of g) grow(box, f.where.box);
+    for (const f of g) growBox(box, f.where.box);
     return { findings: g.map((f) => index.get(f) ?? 0), levelIndex: g[0]?.where.levelIndex ?? 0, box };
   });
   const worst = (c: FindingCluster): number =>
@@ -106,7 +111,7 @@ function projector(cam: Camera, W: number, H: number): (p: Vec3) => [number, num
   return (p) => {
     const d = { x: p.x - v.eye.x, y: p.y - v.eye.y, z: p.z - v.eye.z };
     const depth = d.x * v.fwd.x + d.y * v.fwd.y + d.z * v.fwd.z;
-    if (depth < 0.05) return null;
+    if (depth < NEAR_PLANE) return null;
     const k = focal / depth;
     return [
       cx + (d.x * v.right.x + d.y * v.right.y + d.z * v.right.z) * k,

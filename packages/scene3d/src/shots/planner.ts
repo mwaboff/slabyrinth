@@ -13,6 +13,7 @@
  * Ranked overview > interiors > fronts > levels, cut to a budget.
  */
 import { objectOf } from "@slabyrinth/core/objects";
+import { boxOfPieces, storeyOf } from "../geom/box";
 import { PlanHash } from "../geom/planHash";
 import { frameBox } from "../raster/camera";
 import { renderScene, shownBounds } from "../raster/raster";
@@ -36,9 +37,10 @@ const BODY: ReadonlySet<string> = new Set(["wall", "opening", "roof", "stairs"])
 /** A storey's shell: what an interior shot is framed on. */
 const SHELL: ReadonlySet<string> = new Set(["wall", "opening", "floor", "stairs"]);
 const FRONT_ELEVATION = 20;
-const INTERIOR_ELEVATION = 65;
+/** How high an interior shot looks down from (degrees): the planner's and the request's. */
+export const INTERIOR_ELEVATION = 65;
 /** The probe's picture: small, every piece drawn (most as boxes). */
-const PROBE = { width: 128, height: 96 };
+export const PROBE = { width: 128, height: 96 } as const;
 /** Another overview bearing must show this much more of the map than the south-west one to be chosen. */
 const OVERVIEW_GAIN = 0.02;
 
@@ -57,27 +59,8 @@ export interface Thing {
   box: Box3;
 }
 
-const storeyOf = (layer: string): number | null =>
-  layer.startsWith("storey:") ? Number(layer.slice("storey:".length)) : null;
-
-/** The world box of some of a scene's instances (by index). */
-export function boxOf(scene: Scene, idx: readonly number[]): Box3 {
-  const b: Box3 = {
-    min: { x: Infinity, y: Infinity, z: Infinity },
-    max: { x: -Infinity, y: -Infinity, z: -Infinity },
-  };
-  for (const i of idx) {
-    const a = scene.instances[i]?.aabb;
-    if (!a) continue;
-    b.min.x = Math.min(b.min.x, a.min.x);
-    b.min.y = Math.min(b.min.y, a.min.y);
-    b.min.z = Math.min(b.min.z, a.min.z);
-    b.max.x = Math.max(b.max.x, a.max.x);
-    b.max.y = Math.max(b.max.y, a.max.y);
-    b.max.z = Math.max(b.max.z, a.max.z);
-  }
-  return b;
-}
+/** The world box of some of a scene's instances (by index): geom/box.ts `boxOfPieces`. */
+export const boxOf: (scene: Scene, idx: readonly number[]) => Box3 = boxOfPieces;
 
 /** The plan rectangle of a box grown by `d` tiles each side. */
 export const grown = (b: Box3, d: number): PlanRect => ({

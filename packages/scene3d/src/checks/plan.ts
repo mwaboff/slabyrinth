@@ -320,7 +320,7 @@ export function planFacts(
     for (const a of level.arrangements ?? []) {
       if (isObjectBody(a)) bodies.add(a.id);
       if (a.mount === "wall") mounted.add(a.id);
-      if (a.pieces.some((p) => p.y < -0.01)) sunkByPlan.add(a.id);
+      if (a.pieces.some((p) => p.y < -T.plannedSink)) sunkByPlan.add(a.id);
     }
 
     // a building's walls, storey by storey: its footprint's WALL edges (openings are their own edges), less the
@@ -351,7 +351,7 @@ export function planFacts(
         );
         const edges = walls.filter((e) => !holes.has(`${String(e.cell[0])},${String(e.cell[1])}:${e.side}`));
         const top = st.floorTop;
-        const hs = T.wallHeights.filter((h) => h < st.wallHeight - 0.1).map((h) => top + h);
+        const hs = T.wallHeights.filter((h) => h < st.wallHeight - T.wallTopMargin).map((h) => top + h);
         if (hs.length > 0) addRuns(s.id, li, "wall", edges, () => hs);
       });
     }

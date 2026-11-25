@@ -15,12 +15,12 @@ import { bodyPiece, findingPiece, groundPiece, hangs, organic, structural } from
 import type { SceneSpace } from "./space";
 import { CHECK_THRESHOLDS as T } from "./thresholds";
 import type { CheckInput, Finding, SceneCheck } from "./types";
-import { boxOfPieces, groups, near, r2, tiles } from "./util";
+import { boxOfPieces, boxesNear as near } from "../geom/box";
+import { groups, r2, tiles } from "./util";
 
-/** At most this many bottom points per piece. */
-const MAX_SAMPLES = 9;
+const MAX_SAMPLES = T.footSamples;
 
-/** Points just inside a piece's lowest vertices (its feet, its base's corners), at most MAX_SAMPLES. */
+/** Points just inside a piece's lowest vertices (its feet, its base's corners), at most `footSamples`. */
 export function bottomSamples(space: SceneSpace, idx: number): Vec3[] {
   const inst = space.scene.instances[idx];
   if (!inst) return [];
@@ -31,14 +31,14 @@ export function bottomSamples(space: SceneSpace, idx: number): Vec3[] {
   const seen = new Set<string>();
   const pts: Vec3[] = [];
   for (let i = 0; i + 2 < v.length; i += 3) {
-    if ((v[i + 1] ?? Infinity) > minY + 0.03) continue;
+    if ((v[i + 1] ?? Infinity) > minY + T.footBand) continue;
     let x = v[i] ?? 0;
     let z = v[i + 2] ?? 0;
     const dx = cx - x;
     const dz = cz - z;
     const d = Math.hypot(dx, dz);
     if (d > 1e-6) {
-      const k = Math.min(0.04, d) / d;
+      const k = Math.min(T.footInset, d) / d;
       x += dx * k;
       z += dz * k;
     }
@@ -250,7 +250,7 @@ export const sunkCheck: SceneCheck = {
       const ground = scene.instances[hits[0]?.index ?? -1];
       out.push({
         code: "sunk",
-        severity: share > 0.85 ? "fault" : "warn",
+        severity: share > T.sunkFault ? "fault" : "warn",
         where: {
           levelId: inst.levelId,
           levelIndex: inst.levelIndex,

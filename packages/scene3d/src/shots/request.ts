@@ -17,6 +17,8 @@ import { frameBox } from "../raster/camera";
 import type { Box3, Cutaway, PlanRect, Scene, SceneInstance, ShotSpec } from "../types/index";
 import {
   SIDES,
+  INTERIOR_ELEVATION,
+  PROBE,
   boxOf,
   frontOf,
   frontShot,
@@ -72,7 +74,6 @@ const NOTE_RADIUS = 4;
 const MIN_FRAME = 8;
 const FLAGGED_ELEVATION = 50;
 const CHANGED_ELEVATION = 45;
-const INTERIOR_ELEVATION = 65;
 /** Two frames overlapping more than this share of their union show the same place. */
 const SAME_PLACE = 0.7;
 /** Without names, fronts and interiors are planned for at most this many things (changed ones first, then largest). */
@@ -132,8 +133,7 @@ function bestSide(
       bearingDeg: s.bearing,
       elevationDeg,
       projection: "ortho",
-      width: 128,
-      height: 96,
+      ...PROBE,
     });
     const v = visibleShare(scene, { camera, cutaway }, idx);
     if (v > share) {

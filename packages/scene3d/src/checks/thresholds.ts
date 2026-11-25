@@ -20,6 +20,14 @@ export const CHECK_THRESHOLDS = {
   sunkMinHeight: 0.2,
   /** A piece whose bottom is within this of its level's base with nothing at all under it is the ground itself. */
   groundSlack: 0.3,
+  /** A sunk piece more than this share under the ground is a fault (less: a warning). */
+  sunkFault: 0.85,
+  /** A piece's feet: its vertices within this of its lowest point ... */
+  footBand: 0.03,
+  /** ... each moved this far in toward its middle (so a line down meets what it stands on, not its own rim) ... */
+  footInset: 0.04,
+  /** ... at most this many of them. */
+  footSamples: 9,
 
   // ── surfaces (deck_hole, floor_over_open, roof_open) ──
   /** Samples per side of a planned cell (3: a 3 × 3 grid, inset so wall strips at the edges are not read). */
@@ -30,6 +38,12 @@ export const CHECK_THRESHOLDS = {
   floorBand: 0.3,
   /** A cell is holed when at least this many of its samples meet no floor (a missing tile, not a crack). */
   holeSamples: 3,
+  /** A floor's own thickness under its top (a tile is half a tile thick): where the floor band reaches down to. */
+  floorDepth: 0.5,
+  /** A holed or open-to-the-sky cell is a fault when at least this share of it is (or when several cells are). */
+  surfaceFault: 0.66,
+  /** How tall the box of a roof_open finding is above the storey's floor (a storey's room). */
+  roofFindingHeight: 2.5,
   /** A roofed cell is open to the sky when at least this many of its samples see the sky. */
   skySamples: 3,
   /** Anything this far above a storey's floor covers it (a roof, the floor of the storey above). */
@@ -44,6 +58,10 @@ export const CHECK_THRESHOLDS = {
   gapFault: 0.5,
   /** Heights above a building storey's floor its walls are probed at (all below the lowest wall's top). */
   wallHeights: [0.3, 0.9, 1.5],
+  /** A wall height is probed only this far below the storey's wall top at least (its top course is not the wall). */
+  wallTopMargin: 0.1,
+  /** An arrangement piece set more than this below its base is set into the ground by the plan. */
+  plannedSink: 0.01,
   /** Heights above a deck its rail or bulwark is probed at (a ship's bulwark is about a tile high). */
   railHeights: [0.25, 0.55],
   /** A boundary ray starts this far inside the planned edge and ends this far outside it (a wall's band). */
@@ -51,6 +69,11 @@ export const CHECK_THRESHOLDS = {
   rayOutside: 0.75,
   /** An object's rail or hull may stand this far out from its deck's square cells (a bow's curve round them). */
   railOutside: 4,
+  /** A gap's finding box: this far either side of the wall's line, and this far above and below the probed heights. */
+  gapBoxDepth: 0.5,
+  gapBoxRise: 0.25,
+  /** The pieces either side of a gap: those of the enclosure within this of it. */
+  gapSideReach: 0.5,
 
   // ── clashes ──
   /** Sample spacing over two pieces' shared plan area. */
@@ -59,6 +82,8 @@ export const CHECK_THRESHOLDS = {
   clashShare: 0.3,
   /** And by at least this volume (cubic tiles): two candles touching are not a clash. */
   clashVolume: 0.02,
+  /** A clash of at least this share is a fault (less: a warning). */
+  clashFault: 0.6,
   /** A piece lower than this is flat cover (a rug, a decal): things stand on it by design. */
   flatCover: 0.15,
 
@@ -75,6 +100,8 @@ export const CHECK_THRESHOLDS = {
   wayStep: 0.2,
   /** A passage ray reaches this far either side of its edge (through the wall's band). */
   wayReach: 0.6,
+  /** A passage clear for less than this width is a fault (wider but short of a walker: a warning). */
+  wayFault: 0.25,
 } as const;
 
 export type CheckThresholds = typeof CHECK_THRESHOLDS;

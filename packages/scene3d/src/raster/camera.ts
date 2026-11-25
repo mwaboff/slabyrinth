@@ -59,8 +59,11 @@ const corners = (b: Box3): Vec3[] => {
   return out;
 };
 
-/** A box that is never empty or infinite (an empty scene frames a tile at the origin). */
-export function finiteBox(b: Box3): Box3 {
+/**
+ * The box to frame: `b`, or a tile at the origin when it is empty or infinite (an empty scene). (Not core's
+ * `finiteBox`, which rounds a box for output.)
+ */
+export function frameableBox(b: Box3): Box3 {
   return Number.isFinite(b.min.x) && b.max.x >= b.min.x
     ? b
     : { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } };
@@ -68,7 +71,7 @@ export function finiteBox(b: Box3): Box3 {
 
 /** A camera that frames `box` seen from the bearing and elevation given. */
 export function frameBox(box: Box3, o: FrameOptions): Camera {
-  const b = finiteBox(box);
+  const b = frameableBox(box);
   const fovDeg = o.fovDeg ?? 45;
   const margin = o.margin ?? 0.04;
   const c = { x: (b.min.x + b.max.x) / 2, y: (b.min.y + b.max.y) / 2, z: (b.min.z + b.max.z) / 2 };

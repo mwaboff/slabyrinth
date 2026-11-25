@@ -95,7 +95,7 @@ export const clashCheck: SceneCheck = {
         };
         out.push({
           code: "clash",
-          severity: share >= 0.6 ? "fault" : "warn",
+          severity: share >= T.clashFault ? "fault" : "warn",
           where: {
             levelId: a.levelId,
             levelIndex: a.levelIndex,
