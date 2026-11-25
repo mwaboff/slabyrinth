@@ -145,6 +145,76 @@ export function uncappedCells(obj: BuiltObject, y: number, rim = 0.5): string[] 
   return out;
 }
 
+/** A walking surface's edge drops when what lies past it is this far or more below (tiles): a fall, not a step. */
+export const FALL_DROP = 1;
+/** A way across a rail (a gangway, a ladder's head) leaves it open this far at most: its cell and one short piece. */
+export const WAY_GAP = 2.05;
+
+/**
+ * A built object's raised walking surfaces with open edges: each stretch of a surface's outline over a drop (nothing
+ * past it, or only a surface FALL_DROP or more below) where no rail stands (a `face` piece, or a wall of the `mass`
+ * slot, rising over the surface along the edge), longer than one way across it (WAY_GAP). A deck, a platform, a
+ * balcony, a raised deck's break: any object's, whatever recipe built it. Stretches are "<surface> <from>-<to>" in
+ * outline order (tiles along the edge).
+ */
+export function openDeckEdges(obj: BuiltObject): string[] {
+  const step = 0.1;
+  const out: string[] = [];
+  const guards = obj.parts
+    .filter((p) => p.slot === "face" || p.slot === "mass")
+    .flatMap((p) => p.pieces.map((q) => placedBox(q)));
+  for (const s of obj.surfaces) {
+    // a surface on the ground has nothing to fall from
+    if (s.y < FALL_DROP) continue;
+    const n = s.polygon.length;
+    let run = 0;
+    let runFrom = 0;
+    let along = 0;
+    const close = (): void => {
+      if (run > WAY_GAP) out.push(`${s.id} ${runFrom.toFixed(1)}-${(runFrom + run).toFixed(1)}`);
+      run = 0;
+    };
+    for (let i = 0; i < n; i++) {
+      const a = s.polygon[i] as XZ;
+      const b = s.polygon[(i + 1) % n] as XZ;
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (len < 1e-6) continue;
+      // the outward normal of a counter-clockwise or clockwise outline: the side the centre is not on
+      const ux = (b[0] - a[0]) / len;
+      const uz = (b[1] - a[1]) / len;
+      for (let t = step / 2; t < len; t += step) {
+        const px = a[0] + ux * t;
+        const pz = a[1] + uz * t;
+        let nx = uz;
+        let nz = -ux;
+        if (insideOrNear(s.polygon, px + nx * 0.05, pz + nz * 0.05, 0)) {
+          nx = -nx;
+          nz = -nz;
+        }
+        const ox = px + nx * 0.3;
+        const oz = pz + nz * 0.3;
+        const drop = !obj.surfaces.some(
+          (q) => q !== s && q.y > s.y - FALL_DROP && insideOrNear(q.polygon, ox, oz, 0.02),
+        );
+        const railed = guards.some(
+          (g) =>
+            g.min.y < s.y + 0.9 &&
+            g.max.y > s.y + 0.3 &&
+            Math.max(g.min.x - px, 0, px - g.max.x) < 0.35 &&
+            Math.max(g.min.z - pz, 0, pz - g.max.z) < 0.35,
+        );
+        if (drop && !railed) {
+          if (run === 0) runFrom = along + t;
+          run += step;
+        } else if (run > 0) close();
+      }
+      along += len;
+    }
+    close();
+  }
+  return out;
+}
+
 /**
  * A built object's decks with holes: the whole cells of each surface (deck) that no floor tile of the object covers at
  * the surface's height (a shell left open where a deck level sits). Only for an object that lays its own decks.

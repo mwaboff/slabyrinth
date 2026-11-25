@@ -11,6 +11,8 @@ import { findStandIn, STAND_INS, type StandIn, type StandInDef, type StandInId }
 
 export interface ObjectKit {
   readonly theme: ThemeId;
+  /** The generator the kit's roles are seen by (its palette roles' `minGenerator`; a recipe's switches read it). */
+  readonly generator: number;
   /** The stand-in, or null when nothing stands in for it (the part is skipped). */
   standIn(id: StandInId): StandIn | null;
   /** The best candidate of a stand-in, or null. */
@@ -65,6 +67,7 @@ export function createKit(roles: PlanRoles, theme: ThemeId, prefer: readonly str
   };
   return {
     theme,
+    generator: roles.generator,
     standIn,
     piece: (id) => standIn(id)?.pieces[0] ?? null,
     pick: (id, ...parts) => {

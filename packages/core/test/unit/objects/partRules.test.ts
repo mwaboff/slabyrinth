@@ -6,10 +6,13 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  WAY_GAP,
   buildObject,
+  bulwarkOpening,
   createKit,
   facingFaults,
   openDeckCells,
+  openDeckEdges,
   piecesOf,
   columnTo,
   OBJECT_KITS,
@@ -23,6 +26,8 @@ import { placedBox } from "../../../src/arrange";
 import { insideOrNear } from "../../../src/objects/outline";
 import { loadPalettes } from "../../../src/palette";
 import { createPlanRoles } from "../../../src/palette/planRoles";
+import { resolveWithObjects } from "../../../src/resolve/objectSite";
+import { HARBOUR_SPECS, harbourPlan } from "../../fixtures/harbour";
 
 const kit = createKit(createPlanRoles(loadPalettes(), 5), "wood_town");
 const brig = buildObject(vessel, { size: 30, seed: "rules", kind: "ship" }, kit);
@@ -164,5 +169,55 @@ describe("the platform names no kit: its kit comes from data", () => {
     const col = columnTo([tall, short], 2);
     expect(col.map((c) => c.y)).toEqual([0, 0.75]);
     expect(col.every((c) => c.y >= 0 && c.y + c.piece.variant.geom.size.y <= 2.02)).toBe(true);
+  });
+});
+
+describe("a raised walking surface is railed wherever it drops (generator 6, railedDeckEdges)", () => {
+  const at = (generator: 5 | 6, options: object = {}): BuiltObject =>
+    buildObject(
+      vessel,
+      { size: 30, seed: "rails", kind: "ship", ...options },
+      createKit(createPlanRoles(loadPalettes(), generator), "wood_town"),
+    );
+
+  it("the check finds a raised deck's open break: generator 5 leaves the quarterdeck's forward edge open", () => {
+    expect(openDeckEdges(at(5)).length).toBeGreaterThan(0);
+  });
+
+  it("generator 6 rails it; the gun platform's railing holds too", () => {
+    expect(openDeckEdges(at(6))).toEqual([]);
+    expect(openDeckEdges(battery)).toEqual([]);
+  });
+
+  it("a gangway opens the rail by its own cell and no more, never through a long piece", () => {
+    const plain = at(6);
+    const sides = piecesOf(plain).filter((q) => q.piece.role === "ship.rail");
+    if (sides.length === 0) throw new Error("fixture: the brig has the kit's side rails");
+    // a station over the straight side rail, in the recipe's frame (the built object's z)
+    const mid = sides.reduce((s, q) => s + q.z, 0) / sides.length;
+    const x = Math.round(mid) + 0.5;
+    expect(bulwarkOpening(plain, x, 1)).toBeLessThanOrEqual(WAY_GAP);
+    expect(openDeckEdges(at(6, { gangway: { x, side: 1 } }))).toEqual([]);
+    // the curved bow fence is one long piece: a way through it would open all of it
+    const bow = piecesOf(plain).find((q) => q.piece.role === "ship.rail_bow");
+    if (!bow) throw new Error("fixture: the brig has the kit's bow fence");
+    expect(bulwarkOpening(plain, bow.z, bow.x < 0 ? 1 : -1)).toBeGreaterThan(WAY_GAP);
+  });
+});
+
+describe("a gangway crosses the bulwark only where it takes away one short piece (generator 6)", () => {
+  /** The barge's curved bow fences, as the harbour site builds it. */
+  const bowFences = (generator: 5 | 6): number => {
+    const r = resolveWithObjects({ ...harbourPlan(), generator }, HARBOUR_SPECS, loadPalettes());
+    return r.resolved.levels
+      .flatMap((l) => l.arrangements ?? [])
+      .filter((a) => a.id.includes("barge"))
+      .flatMap((a) => a.pieces)
+      .filter((p) => p.role === "ship.rail_bow").length;
+  };
+
+  it("generator 5 cut the barge's port bow fence for its gangway; generator 6 keeps both halves", () => {
+    expect(bowFences(5)).toBe(1);
+    expect(bowFences(6)).toBe(2);
   });
 });
