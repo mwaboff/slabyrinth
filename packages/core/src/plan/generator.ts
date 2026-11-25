@@ -672,6 +672,10 @@ const SWITCHES = {
     6,
     "A thing set on a piece of furniture stands on the part of the top under it, at that part's measured height (palette/restGrid.ts: a grid of rest heights over each piece's top, read from the game's meshes by `npm run render -- rests` into palette/restGrids.ts), looked up with the support's final variant and turn (compile/restOn.ts, util/turn.ts); a thing over a part that cannot hold it (a chest's rounded lid off its crest, an anvil's horn, past a desk's edge) or set beside the top moves to the nearest part that can (compile/realize/settle.ts, after every support is laid). Verify judges the support by the same grid. A piece never measured leaves things on it where they were set.",
   ),
+  storeyHeadroom: on(
+    6,
+    "A thing a room recipe lifts onto furniture or a shelf in a building's ground storey stays under that storey's wall top, where the floor of the storey above, the attic deck or the roof begins (resolve/level/grid.ts headroomAt: the lowest ground-storey wall top of the building volumes over the cell, as well as the floor of a plan level stacked above); before, only plan levels were counted, and jars on a tall shelf stood 85-94% inside the upper storey's floor.",
+  ),
 } as const satisfies Record<string, SwitchDeclaration>;
 
 /** The name of a behaviour switch: a key of SWITCHES, so a misspelt `profile.name` is a compile error. */

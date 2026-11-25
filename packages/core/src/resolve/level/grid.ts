@@ -54,6 +54,7 @@ import {
 import { isWater, materialOrdinal } from "../materials";
 import type { ThemeDefaults } from "../themes";
 import { type StructureWork, expandStructures } from "../structure";
+import { key as footprintKey } from "../building/footprint";
 import { type CharacterMap, resolveCharacters } from "../character";
 import { areaTable } from "./areas";
 import { MAX_LEVEL_SIDE } from "../../plan/sizeTiers";
@@ -452,11 +453,29 @@ export class ResolveGrid {
    * that level has floor over the cell (verify measures `verify_pokes_into_level_above` there), else Infinity.
    */
   headroomAt(gx: number, gy: number): number {
+    // generator 6 (`storeyHeadroom`): inside a building, its ground storey is closed at its wall top, where the floor
+    // of the storey above (or the attic deck, or the roof) begins
+    const storey = this.profile.storeyHeadroom ? this.storeyHeadroomAt(gx, gy) : Infinity;
     const up = this.above;
-    if (up === null || !up.hasFloorAt(gx, gy)) return Infinity;
+    if (up === null || !up.hasFloorAt(gx, gy)) return storey;
     const i = this.idx(gx, gy);
     const height = i < 0 ? 0 : (this.height[i] as number) / QUARTERS_PER_TILE;
-    return up.level.elevation - floorTopAt(this.level.elevation, height);
+    return Math.min(storey, up.level.elevation - floorTopAt(this.level.elevation, height));
+  }
+
+  /**
+   * Clear height over a cell of a building's ground storey, up to its wall top (the lowest over the cell of the
+   * volumes that cover it; relative to the ground floor top, which the building's pad sets for its cells), else Infinity.
+   */
+  private storeyHeadroomAt(gx: number, gy: number): number {
+    let room = Infinity;
+    const k = footprintKey(gx, gy);
+    for (const b of this.structs?.buildings ?? [])
+      for (const v of b.volumes) {
+        const ground = v.storeys[0];
+        if (ground && ground.relFloor === 0 && ground.cellSet.has(k)) room = Math.min(room, ground.relTop);
+      }
+    return room;
   }
 
   // ───────────────────────────── areas ─────────────────────────────
