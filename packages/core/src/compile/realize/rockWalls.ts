@@ -242,6 +242,10 @@ function massShapes(lv: RealizeLevel, theme: ThemeId): { vars: ResolvedVariant[]
         h: q.geom.size.y,
         weight: q.weight,
         ...(lift === undefined ? {} : { lift: lift(q) }),
+        // generator 6 (`tilesStoredByFootprint`): the game draws a tile at quarter turns only
+        ...(lv.ctx.profile.tilesStoredByFootprint && q.geom.originAt === "minCorner"
+          ? { quarterTurns: true }
+          : {}),
       });
       vars.push(q);
     }

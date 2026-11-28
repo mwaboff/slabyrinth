@@ -1,16 +1,18 @@
 /**
- * Generator 6's `tilesStoredByFootprint` stays open on purpose (the turned-tile rule at non-quarter turns awaits the
- * owner's paste test, docs/decisions.md), so it must stay a switch of its own: turned off alone, it moves only the cave
- * mass's turned tiles back to the old store, and every other generator-6 change still holds.
+ * Generator 6's `tilesStoredByFootprint`: the game draws a tile at quarter turns only, with the turned footprint's
+ * min corner at the stored point (the owner's paste test, 2026-11-26, docs/decisions.md). So generator 6 gives a tile
+ * quarter turns only, and the switch stays one of its own: turned off alone, it changes only the cave wall's pieces,
+ * and every other generator-6 change still holds.
  */
 import { afterEach, describe, expect, it } from "vitest";
-import type { Placement } from "../../../src/contracts/compiler";
+import type { PaletteVariant, Placement } from "../../../src/contracts/compiler";
 import { realize } from "../../../src/compile";
 import { verifyBuild } from "../../../src/compile/verify/verify";
 import { bundledPalettes } from "../../../src/palette";
+import { NATURAL_WALL_ROLE } from "../../../src/palette/roles";
 import { GENERATOR_PROFILES } from "../../../src/plan/generator";
 import { resolvePlan } from "../../../src/resolve";
-import { loadPlan, type StoredPlan } from "../../fixtures";
+import { loadPlan, STORED_PLANS, type StoredPlan } from "../../fixtures";
 
 const pal = bundledPalettes();
 const profile6 = GENERATOR_PROFILES[6] as { tilesStoredByFootprint: boolean };
@@ -35,22 +37,41 @@ const build = (name: StoredPlan): { lines: string[]; placements: Placement[]; er
   };
 };
 
+/** The cave wall's own pieces (its rock mass, caps, foot stones and wall columns). */
+const CAVE_WALL_IDS: ReadonlySet<string> = new Set(["cave_mass", "cave_cap", "cave_foot", NATURAL_WALL_ROLE]);
+const ofCaveWall = (p: Placement): boolean => CAVE_WALL_IDS.has(p.source.elementId ?? "");
+
 describe("tilesStoredByFootprint is independent of every other generator-6 switch", () => {
   it.each(["sea-grotto", "inn-interior-v1", "market-street-v3"] as const)(
-    "%s: turned off alone, only cave-mass tiles at a turn move, and verify finds no error",
+    "%s: turned off alone, only the cave wall's pieces change, and verify finds no error",
     (name) => {
       const on = build(name);
       profile6.tilesStoredByFootprint = false;
       const off = build(name);
       expect(off.errors).toEqual([]);
-      expect(off.lines.length).toBe(on.lines.length);
-      const moved = on.placements.filter((_, i) => on.lines[i] !== off.lines[i]);
-      for (const p of moved) {
-        expect(["cave_mass", "cave_cap", "cave_foot"]).toContain(p.source.elementId);
-        expect(p.rot % 360).not.toBe(0);
-      }
-      if (name === "sea-grotto") expect(moved.length).toBeGreaterThan(0);
-      else expect(moved).toEqual([]);
+      const rest = (b: typeof on): string[] =>
+        b.lines.filter((_, i) => !ofCaveWall(b.placements[i] as Placement));
+      expect(rest(off)).toEqual(rest(on));
+      if (name === "sea-grotto") expect(off.lines).not.toEqual(on.lines);
+      else expect(off.lines).toEqual(on.lines);
     },
   );
+});
+
+describe("generator 6 turns a tile in quarter turns only (the game draws no other turn of a tile)", () => {
+  const geoms = new Map<string, PaletteVariant["geom"]>();
+  for (const p of Object.values(pal.palettes))
+    for (const r of Object.values(p.roles))
+      for (const v of r.variants) {
+        if (!geoms.has(v.asset)) geoms.set(v.asset, v.geom);
+        for (const [u, g] of Object.entries(v.alternateGeom ?? {})) if (!geoms.has(u)) geoms.set(u, g);
+      }
+
+  it.each(STORED_PLANS)("%s", (name) => {
+    const { placements } = build(name);
+    const offTurn = placements
+      .filter((p) => geoms.get(p.asset)?.originAt === "minCorner" && p.rot % 90 !== 0)
+      .map((p) => `${p.source.elementId ?? "?"} ${p.asset} r${String(p.rot)}`);
+    expect([...new Set(offTurn)]).toEqual([]);
+  });
 });

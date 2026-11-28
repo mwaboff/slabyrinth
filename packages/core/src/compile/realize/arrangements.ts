@@ -18,6 +18,7 @@ import type { ResolvedArrangement, ResolvedArrangementPiece } from "../../contra
 import { planPointOf, snapYaw } from "../../arrange";
 import type { ResolvedVariant } from "../../palette/resolve";
 import { toScaled } from "../../slab/codec";
+import { quarterTurn } from "../../util/turn";
 import { storedPosition } from "../geometry";
 import type { RealizeLevel } from "./level";
 
@@ -38,7 +39,10 @@ export function layArrangements(lv: RealizeLevel): void {
       if (!v) continue;
       const [px, py] = planPointOf(inst.at, inst.turn, piece.x, piece.z);
       const c = frame.point(px, py);
-      const deg = snapYaw(frame.planDegreesToWorld(inst.turn + piece.yaw));
+      const yaw = snapYaw(frame.planDegreesToWorld(inst.turn + piece.yaw));
+      // generator 6 (`tilesStoredByFootprint`): the game draws a tile at quarter turns only (util/turn.ts)
+      const deg =
+        lv.ctx.profile.tilesStoredByFootprint && v.geom.originAt === "minCorner" ? quarterTurn(yaw) : yaw;
       const pos = storedPosition(v.geom, c.x, inst.base + piece.y, c.z, deg * orientation.rotSense);
       emit(
         { ...v, offset: NO_OFFSET },

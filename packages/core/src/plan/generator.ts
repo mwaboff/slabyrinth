@@ -662,7 +662,7 @@ const SWITCHES = {
   ),
   tilesStoredByFootprint: on(
     6,
-    "A tile (a corner-origin piece) the cave rock mass turns is stored at the min corner of its turned footprint at every turn, the game's rule (compile/geometry.ts storedPosition, as arrangements and the scene renderer place it), so it stands centred where the mass plan put it; before, it was stored as if turned about its corner, and at any turn but 0 the game put it up to its own size off its plan, into the floor beside the wall (camp sacks, a chest and crystals ended up inside the rock). The cave-mass review reads such a piece the same way.",
+    "A tile (a corner-origin piece) the cave rock mass turns is stored at the min corner of its turned footprint at every turn, the game's rule (compile/geometry.ts storedPosition, as arrangements and the scene renderer place it), so it stands centred where the mass plan put it; before, it was stored as if turned about its corner, and at any turn but 0 the game put it up to its own size off its plan, into the floor beside the wall (camp sacks, a chest and crystals ended up inside the rock). The cave-mass review reads such a piece the same way. And a tile is turned in quarter turns only, by the cave wall plan (gen/cavewall.ts WallShape.quarterTurns) and by an arrangement (compile/realize/arrangements.ts: a fallen wall's rubble blocks): the game draws a tile at no other turn (an in-between turn is drawn as the quarter turn below it, the owner's paste test of 2026-11-26; util/turn.ts quarterTurn), so its plan outline is the one the game draws.",
   ),
   measuredFloorCover: on(
     6,

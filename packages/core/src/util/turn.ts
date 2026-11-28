@@ -14,6 +14,15 @@ export function turnBasis(cwDeg: number): { s: number; c: number } {
 }
 const sinCos = turnBasis;
 
+/**
+ * The quarter turn nearest `deg` (0, 90, 180 or 270). The game draws a tile (a corner-origin piece) at quarter turns
+ * only: a turn in between is drawn as the quarter turn below it, with the turned footprint's min corner at the stored
+ * point (the owner's paste test, 2026-11-26). So whatever turns a tile gives it this turn, and it stands as planned.
+ */
+export function quarterTurn(deg: number): number {
+  return (((Math.round(deg / 90) * 90) % 360) + 360) % 360;
+}
+
 /** Rotates (x, z) clockwise (seen from above) by `cwDeg` degrees of game rotation (after rotSense). */
 export function rotateXZ(x: number, z: number, cwDeg: number): { x: number; z: number } {
   const { s, c } = sinCos(cwDeg);

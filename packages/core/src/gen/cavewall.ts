@@ -23,6 +23,7 @@
  */
 import { subSeed } from "../util/hash";
 import { createPrng } from "../util/prng";
+import { quarterTurn } from "../util/turn";
 import { NEIGHBOURS4 as D4, cellKey as key } from "./gridGeometry";
 import { ValueNoise } from "./noise";
 import { massDepth, massFoot } from "./solidMass";
@@ -39,6 +40,11 @@ export interface WallShape {
   weight?: number;
   /** Foot stones only: the lift (negative = sunk into the floor). */
   lift?: number;
+  /**
+   * The game draws this piece at quarter turns only (a tile: an in-between turn is drawn as the quarter turn below
+   * it, docs/decisions.md), so the plan turns it in quarter turns and its outline here is the one the game draws.
+   */
+  quarterTurns?: boolean;
 }
 
 /** A rock cell beside the floor (the realizer's wall column). */
@@ -384,7 +390,9 @@ function startCaveWall(input: CaveWallInput) {
     }
     return list[list.length - 1] as WallShape;
   };
-  const snap = (deg: number): number => (((Math.round(deg / 15) * 15) % 360) + 360) % 360;
+  /** A turn the game can draw the shape at: a 15° step, or a quarter turn for a piece drawn at quarter turns only. */
+  const snap = (deg: number, shape: WallShape): number =>
+    shape.quarterTurns === true ? quarterTurn(deg) : (((Math.round(deg / 15) * 15) % 360) + 360) % 360;
 
   const course0 = mass.filter((s) => s.h >= CAVE_WALL.minCourse0);
   const small = mass.filter((s) => s.h >= CAVE_WALL.minCourse0 && s.w * s.d <= 2.2);
@@ -420,8 +428,9 @@ function startCaveWall(input: CaveWallInput) {
           wallAngle(cellX, cellY) +
             rng.range(-CAVE_WALL.turnSteps, CAVE_WALL.turnSteps) * 15 +
             (broad ? 90 : 0),
+          shape,
         );
-      } else rot = rng.range(0, 11) * 15;
+      } else rot = snap(rng.range(0, 11) * 15, shape);
       // the point lies near the piece's upper-left (the sweep has covered what lies above and to the left); a piece
       // closing a face cell may lie any way round it
       const [hx, hy] = extent(rot, shape.w, shape.d);
@@ -584,7 +593,7 @@ function raiseTowers(w: CaveWall): void {
         const r: Rect = {
           cx: cur.cx + Math.cos(ang) * shift,
           cy: cur.cy + Math.sin(ang) * shift,
-          rot: snap(cur.rot + rng.range(-2, 2) * 15),
+          rot: snap(cur.rot + rng.range(-2, 2) * 15, shape),
           w: shape.w,
           d: shape.d,
         };
@@ -696,7 +705,7 @@ function placeFootStones({
       // the stone's long side lies along the wall (turned within 30°), standing wholly on the floor against it
       const angle = (Math.atan2(ty, tx) * 180) / Math.PI;
       const turn = rng.range(-2, 2) * 15;
-      const rot = snap(angle + (sh.w >= sh.d ? 0 : 90) + turn);
+      const rot = snap(angle + (sh.w >= sh.d ? 0 : 90) + turn, sh);
       const a = ((rot - angle) * Math.PI) / 180;
       const ext = sh.w * Math.abs(Math.sin(a)) + sh.d * Math.abs(Math.cos(a));
       const reach = 0.5 + ext / 2 + 0.2;
@@ -782,8 +791,8 @@ function raiseLayers(w: CaveWall, shuffled: ReadonlyArray<[number, number, numbe
       const shape = weightedPick(mass);
       const rot =
         d <= 2
-          ? snap(wallAngle(cellX, cellY) + rng.range(-CAVE_WALL.turnSteps, CAVE_WALL.turnSteps) * 15)
-          : rng.range(0, 11) * 15;
+          ? snap(wallAngle(cellX, cellY) + rng.range(-CAVE_WALL.turnSteps, CAVE_WALL.turnSteps) * 15, shape)
+          : snap(rng.range(0, 11) * 15, shape);
       const [hx, hy] = extent(rot, shape.w, shape.d);
       // a piece closing a face cell may lie any way round its middle; the sweep's lie near the point's upper left
       const r: Rect = at

@@ -145,8 +145,9 @@ export const WARNING_BASIS = 150;
 export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
   "heartroot-rift-v7": {
     verify_prop_no_floor: 4,
-    // 2 before `channelFloorWhole` moved the rift's shelves and the lair dressing round them
-    verify_mount_no_wall: 4,
+    // 2 before `channelFloorWhole` moved the rift's shelves and the lair dressing round them; 4 before a tile was
+    // turned in quarter turns only (`tilesStoredByFootprint`)
+    verify_mount_no_wall: 3,
   },
   "market-street-v3": {
     // 12; 6 once the street draw (`readableNeighbours`, `themeOwnRange`) stood other buildings at the line ends; 5
@@ -165,7 +166,8 @@ export const KNOWN_WARNINGS: Readonly<Record<string, Readonly<Record<string, num
   "three-step-glen-v1": { verify_cliff_gap: 1 },
   "dressed-cave": {
     verify_prop_no_floor: 11,
-    verify_mount_no_wall: 7,
+    // 7 before a tile was turned in quarter turns only (`tilesStoredByFootprint`: the rock stands where the plan has it)
+    verify_mount_no_wall: 4,
   },
   "dressed-cave-v2": { verify_prop_no_floor: 17 },
   "hillside-v5": { verify_prop_no_floor: 10, play_unreachable: 59 },
